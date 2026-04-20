@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sync"
 
 	bpf "agent-ebpf-filter/ebpf"
 
@@ -28,17 +29,65 @@ var upgrader = websocket.Upgrader{
 
 // Event matching the C struct
 type bpfEvent struct {
-	PID  uint32
-	Type uint32
-	Comm [16]byte
-	Path [256]byte
+	PID   uint32
+	Type  uint32
+	TagID uint32
+	Comm  [16]byte
+	Path  [256]byte
 }
 
 type WsEvent struct {
 	PID  uint32 `json:"pid"`
 	Type string `json:"type"`
+	Tag  string `json:"tag"`
 	Comm string `json:"comm"`
 	Path string `json:"path"`
+}
+
+var (
+	tagsMu sync.RWMutex
+	tagMap = map[uint32]string{
+		0: "Unknown",
+		1: "AI Agent",
+		2: "Git",
+		3: "Build Tool",
+		4: "Package Manager",
+		5: "Runtime",
+		6: "System Tool",
+		7: "Network Tool",
+	}
+	tagNameToID = map[string]uint32{
+		"AI Agent":        1,
+		"Git":             2,
+		"Build Tool":      3,
+		"Package Manager": 4,
+		"Runtime":         5,
+		"System Tool":     6,
+		"Network Tool":    7,
+	}
+	nextTagID uint32 = 8
+)
+
+func getTagName(id uint32) string {
+	tagsMu.RLock()
+	defer tagsMu.RUnlock()
+	if name, ok := tagMap[id]; ok {
+		return name
+	}
+	return fmt.Sprintf("Tag-%d", id)
+}
+
+func getTagID(name string) uint32 {
+	tagsMu.Lock()
+	defer tagsMu.Unlock()
+	if id, ok := tagNameToID[name]; ok {
+		return id
+	}
+	id := nextTagID
+	tagMap[id] = name
+	tagNameToID[name] = id
+	nextTagID++
+	return id
 }
 
 func main() {
@@ -148,6 +197,7 @@ func main() {
 			wsEvent := WsEvent{
 				PID:  event.PID,
 				Type: evtType,
+				Tag:  getTagName(event.TagID),
 				Comm: comm,
 				Path: path,
 			}
@@ -189,6 +239,7 @@ func main() {
 
 	type RegisterRequest struct {
 		PID uint32 `json:"pid"`
+		Tag string `json:"tag"`
 	}
 
 	r.POST("/register", func(c *gin.Context) {
@@ -197,12 +248,17 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		val := uint8(1)
-		if err := objs.AgentPids.Put(&req.PID, &val); err != nil {
+		
+		tagID := uint32(1) // Default "AI Agent"
+		if req.Tag != "" {
+			tagID = getTagID(req.Tag)
+		}
+
+		if err := objs.AgentPids.Put(&req.PID, &tagID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update eBPF map: %v", err)})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Registered PID %d", req.PID)})
+		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Registered PID %d with tag %s", req.PID, getTagName(tagID))})
 	})
 	
 	r.POST("/unregister", func(c *gin.Context) {
@@ -221,19 +277,27 @@ func main() {
 	// --- Config Endpoints for Tracked Comms ---
 	type CommRequest struct {
 		Comm string `json:"comm"`
+		Tag  string `json:"tag"`
 	}
 
 	config := r.Group("/config")
 	{
 		config.GET("/comms", func(c *gin.Context) {
-			var comms []string
-			var key [16]byte
-			var val uint8
-			iter := objs.TrackedComms.Iterate()
-			for iter.Next(&key, &val) {
-				comms = append(comms, string(bytes.TrimRight(key[:], "\x00")))
+			type TrackedItem struct {
+				Comm string `json:"comm"`
+				Tag  string `json:"tag"`
 			}
-			c.JSON(http.StatusOK, comms)
+			var items []TrackedItem
+			var key [16]byte
+			var tagID uint32
+			iter := objs.TrackedComms.Iterate()
+			for iter.Next(&key, &tagID) {
+				items = append(items, TrackedItem{
+					Comm: string(bytes.TrimRight(key[:], "\x00")),
+					Tag:  getTagName(tagID),
+				})
+			}
+			c.JSON(http.StatusOK, items)
 		})
 
 		config.POST("/comms", func(c *gin.Context) {
@@ -244,8 +308,13 @@ func main() {
 			}
 			var key [16]byte
 			copy(key[:], req.Comm)
-			val := uint8(1)
-			if err := objs.TrackedComms.Put(key, val); err != nil {
+			
+			tagID := uint32(6) // Default "System Tool"
+			if req.Tag != "" {
+				tagID = getTagID(req.Tag)
+			}
+
+			if err := objs.TrackedComms.Put(key, tagID); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
@@ -272,15 +341,31 @@ func main() {
 	})
 
 	// Pre-load common coding CLIs
-	commonCLIs := []string{
-		"git", "npm", "bun", "pnpm", "yarn", "node", "python", "python3", "go", "cargo", 
-		"rustc", "gcc", "g++", "clang", "make", "cmake", "docker", "kubectl",
+	commonCLIs := map[string]string{
+		"git":     "Git",
+		"npm":     "Package Manager",
+		"bun":     "Package Manager",
+		"pnpm":    "Package Manager",
+		"yarn":    "Package Manager",
+		"node":    "Runtime",
+		"python":  "Runtime",
+		"python3": "Runtime",
+		"go":      "Build Tool",
+		"cargo":   "Build Tool",
+		"rustc":   "Build Tool",
+		"gcc":     "Build Tool",
+		"g++":     "Build Tool",
+		"clang":   "Build Tool",
+		"make":    "Build Tool",
+		"cmake":   "Build Tool",
+		"docker":  "System Tool",
+		"kubectl": "Network Tool",
 	}
-	for _, cli := range commonCLIs {
+	for cli, tag := range commonCLIs {
 		var key [16]byte
 		copy(key[:], cli)
-		val := uint8(1)
-		_ = objs.TrackedComms.Put(key, val)
+		tagID := getTagID(tag)
+		_ = objs.TrackedComms.Put(key, tagID)
 	}
 
 	startPort := 8080

@@ -39,6 +39,7 @@ struct trace_event_raw_sys_enter {
 struct event {
     u32 pid;
     u32 type;
+    u32 tag_id;
     char comm[TASK_COMM_LEN];
     char path[MAX_PATH_LEN];
 };
@@ -53,7 +54,7 @@ struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
     __type(key, u32);
-    __type(value, u8); // 1 = registered
+    __type(value, u32); // tag_id
 } agent_pids SEC(".maps");
 
 // Map to store tracked command names (e.g., "git", "npm")
@@ -61,14 +62,14 @@ struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 256);
     __type(key, char[16]);
-    __type(value, u8);
+    __type(value, u32); // tag_id
 } tracked_comms SEC(".maps");
 
-static __always_inline u8 is_tracked(u32 pid, char *comm) {
-    u8 *res = bpf_map_lookup_elem(&agent_pids, &pid);
-    if (res) return 1;
-    res = bpf_map_lookup_elem(&tracked_comms, comm);
-    if (res) return 1;
+static __always_inline u32 get_tag_id(u32 pid, char *comm) {
+    u32 *tag = bpf_map_lookup_elem(&agent_pids, &pid);
+    if (tag) return *tag;
+    tag = bpf_map_lookup_elem(&tracked_comms, comm);
+    if (tag) return *tag;
     return 0;
 }
 
@@ -79,13 +80,15 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
 
-    if (!is_tracked(pid, comm)) return 0;
+    u32 tag_id = get_tag_id(pid, comm);
+    if (tag_id == 0) return 0;
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
 
     e->pid = pid;
     e->type = TYPE_EXECVE;
+    e->tag_id = tag_id;
     bpf_probe_read_kernel(&e->comm, sizeof(e->comm), &comm);
     
     const char *filename = (const char *)ctx->args[0];
@@ -102,13 +105,15 @@ int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
 
-    if (!is_tracked(pid, comm)) return 0;
+    u32 tag_id = get_tag_id(pid, comm);
+    if (tag_id == 0) return 0;
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
 
     e->pid = pid;
     e->type = TYPE_OPENAT;
+    e->tag_id = tag_id;
     bpf_probe_read_kernel(&e->comm, sizeof(e->comm), &comm);
     
     const char *filename = (const char *)ctx->args[1];
@@ -125,17 +130,17 @@ int tracepoint__syscalls__sys_enter_connect(struct trace_event_raw_sys_enter *ct
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
 
-    if (!is_tracked(pid, comm)) return 0;
+    u32 tag_id = get_tag_id(pid, comm);
+    if (tag_id == 0) return 0;
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
 
     e->pid = pid;
     e->type = TYPE_CONNECT;
+    e->tag_id = tag_id;
     bpf_probe_read_kernel(&e->comm, sizeof(e->comm), &comm);
     
-    // For connect, we just log the action for now. 
-    // Capturing IP/Port requires more complex parsing of sockaddr.
     bpf_probe_read_kernel_str(&e->path, sizeof(e->path), "Network Connection");
 
     bpf_ringbuf_submit(e, 0);
@@ -149,13 +154,15 @@ int tracepoint__syscalls__sys_enter_mkdirat(struct trace_event_raw_sys_enter *ct
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
 
-    if (!is_tracked(pid, comm)) return 0;
+    u32 tag_id = get_tag_id(pid, comm);
+    if (tag_id == 0) return 0;
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
 
     e->pid = pid;
     e->type = TYPE_MKDIRAT;
+    e->tag_id = tag_id;
     bpf_probe_read_kernel(&e->comm, sizeof(e->comm), &comm);
     
     const char *filename = (const char *)ctx->args[1];
@@ -172,13 +179,15 @@ int tracepoint__syscalls__sys_enter_unlinkat(struct trace_event_raw_sys_enter *c
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
 
-    if (!is_tracked(pid, comm)) return 0;
+    u32 tag_id = get_tag_id(pid, comm);
+    if (tag_id == 0) return 0;
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
 
     e->pid = pid;
     e->type = TYPE_UNLINKAT;
+    e->tag_id = tag_id;
     bpf_probe_read_kernel(&e->comm, sizeof(e->comm), &comm);
     
     const char *filename = (const char *)ctx->args[1];
@@ -195,17 +204,17 @@ int tracepoint__syscalls__sys_enter_ioctl(struct trace_event_raw_sys_enter *ctx)
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
 
-    if (!is_tracked(pid, comm)) return 0;
+    u32 tag_id = get_tag_id(pid, comm);
+    if (tag_id == 0) return 0;
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
 
     e->pid = pid;
     e->type = TYPE_IOCTL;
+    e->tag_id = tag_id;
     bpf_probe_read_kernel(&e->comm, sizeof(e->comm), &comm);
     
-    // For ioctl, we log the command code in hex
-    u64 cmd = ctx->args[1];
     bpf_probe_read_kernel_str(&e->path, sizeof(e->path), "Special Resource (ioctl)");
 
     bpf_ringbuf_submit(e, 0);
@@ -219,13 +228,15 @@ int tracepoint__syscalls__sys_enter_bind(struct trace_event_raw_sys_enter *ctx) 
     char comm[TASK_COMM_LEN];
     bpf_get_current_comm(&comm, sizeof(comm));
 
-    if (!is_tracked(pid, comm)) return 0;
+    u32 tag_id = get_tag_id(pid, comm);
+    if (tag_id == 0) return 0;
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
 
     e->pid = pid;
     e->type = TYPE_BIND;
+    e->tag_id = tag_id;
     bpf_probe_read_kernel(&e->comm, sizeof(e->comm), &comm);
     
     bpf_probe_read_kernel_str(&e->path, sizeof(e->path), "Network Bind");

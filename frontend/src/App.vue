@@ -1,29 +1,39 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
-import { SettingOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons-vue';
+import { SettingOutlined, DeleteOutlined, PlusOutlined, FilterOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
 interface AgentEvent {
   key: string;
   pid: number;
   type: string;
+  tag: string;
   comm: string;
   path: string;
   time: string;
 }
 
+interface TrackedItem {
+  comm: string;
+  tag: string;
+}
+
 const events = ref<AgentEvent[]>([]);
 const isConnected = ref(false);
 const showSettings = ref(false);
-const trackedComms = ref<string[]>([]);
+const trackedItems = ref<TrackedItem[]>([]);
 const newCommName = ref('');
+const newCommTag = ref('AI Agent');
+const selectedTag = ref<string | null>(null);
 let ws: WebSocket | null = null;
+
+const tags = ['AI Agent', 'Git', 'Build Tool', 'Package Manager', 'Runtime', 'System Tool', 'Network Tool'];
 
 const fetchTrackedComms = async () => {
   try {
     const res = await axios.get('/config/comms');
-    trackedComms.value = res.data;
+    trackedItems.value = res.data;
   } catch (err) {
     console.error('Failed to fetch tracked comms', err);
   }
@@ -32,7 +42,10 @@ const fetchTrackedComms = async () => {
 const addComm = async () => {
   if (!newCommName.value) return;
   try {
-    await axios.post('/config/comms', { comm: newCommName.value });
+    await axios.post('/config/comms', { 
+      comm: newCommName.value,
+      tag: newCommTag.value
+    });
     message.success(`Added ${newCommName.value} to tracked commands`);
     newCommName.value = '';
     fetchTrackedComms();
@@ -51,11 +64,31 @@ const removeComm = async (comm: string) => {
   }
 };
 
+const filteredEvents = computed(() => {
+  if (!selectedTag.value) return events.value;
+  return events.value.filter(e => e.tag === selectedTag.value);
+});
+
+const groupedTrackedItems = computed(() => {
+  const groups: Record<string, string[]> = {};
+  trackedItems.value.forEach(item => {
+    if (!groups[item.tag]) groups[item.tag] = [];
+    groups[item.tag].push(item.comm);
+  });
+  return groups;
+});
+
 const columns = [
   {
     title: 'Time',
     dataIndex: 'time',
     key: 'time',
+    width: 120,
+  },
+  {
+    title: 'Tag',
+    dataIndex: 'tag',
+    key: 'tag',
     width: 120,
   },
   {
@@ -97,6 +130,19 @@ const getTagColor = (type: string) => {
   return colors[type] || 'default';
 };
 
+const getCategoryColor = (tag: string) => {
+  const colors: Record<string, string> = {
+    'AI Agent': 'magenta',
+    'Git': 'orange',
+    'Build Tool': 'cyan',
+    'Package Manager': 'green',
+    'Runtime': 'blue',
+    'System Tool': 'geekblue',
+    'Network Tool': 'purple',
+  };
+  return colors[tag] || 'default';
+};
+
 const connectWebSocket = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;
@@ -115,12 +161,12 @@ const connectWebSocket = () => {
         key: `${data.pid}-${data.path}-${Date.now()}-${Math.random()}`,
         pid: data.pid,
         type: data.type,
+        tag: data.tag,
         comm: data.comm,
         path: data.path,
         time: now.toLocaleTimeString(),
       });
       
-      // Keep only last 1000 events
       if (events.value.length > 1000) {
         events.value.pop();
       }
@@ -131,7 +177,6 @@ const connectWebSocket = () => {
 
   ws.onclose = () => {
     isConnected.value = false;
-    console.log('Disconnected, retrying in 3s...');
     setTimeout(connectWebSocket, 3000);
   };
   
@@ -172,15 +217,20 @@ onUnmounted(() => {
     </a-layout-header>
     <a-layout-content style="padding: 0 50px; margin-top: 24px;">
       <div style="background: #fff; padding: 24px; min-height: 280px">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
-          <div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 16px; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 16px;">
             <a-badge :status="isConnected ? 'success' : 'error'" :text="isConnected ? 'Connected' : 'Disconnected'" />
-            <span style="margin-left: 16px;">Total Events: {{ events.length }}</span>
+            <span>Total Events: {{ events.length }}</span>
+            <a-divider type="vertical" />
+            <a-select v-model:value="selectedTag" placeholder="Filter by Tag" style="width: 160px" allowClear>
+              <template #suffixIcon><FilterOutlined /></template>
+              <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option>
+            </a-select>
           </div>
           <a-button type="primary" danger @click="clearEvents">Clear Events</a-button>
         </div>
         <a-table 
-          :dataSource="events" 
+          :dataSource="filteredEvents" 
           :columns="columns" 
           size="small"
           :pagination="{ pageSize: 20 }"
@@ -189,6 +239,11 @@ onUnmounted(() => {
             <template v-if="column.key === 'type'">
               <a-tag :color="getTagColor(record.type)">
                 {{ record.type.toUpperCase() }}
+              </a-tag>
+            </template>
+            <template v-else-if="column.key === 'tag'">
+              <a-tag :color="getCategoryColor(record.tag)">
+                {{ record.tag }}
               </a-tag>
             </template>
             <template v-else-if="column.key === 'path'">
@@ -200,34 +255,45 @@ onUnmounted(() => {
     </a-layout-content>
 
     <a-drawer
-      title="Global Filters (Common CLIs)"
+      title="Global Filters & Tagging"
       placement="right"
       :closable="true"
       :open="showSettings"
       @close="showSettings = false"
-      width="400"
+      width="450"
     >
-      <div style="margin-bottom: 16px">
-        <p>In addition to registered Agent PIDs, these command names are always tracked:</p>
-        <a-input-group compact>
-          <a-input v-model:value="newCommName" style="width: calc(100% - 40px)" placeholder="Add CLI name (e.g. gcc)" @pressEnter="addComm" />
-          <a-button type="primary" @click="addComm">
-            <template #icon><PlusOutlined /></template>
-          </a-button>
-        </a-input-group>
+      <div style="margin-bottom: 24px; background: #fafafa; padding: 16px; border-radius: 8px;">
+        <h4 style="margin-top: 0">Add New Filter</h4>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <a-input v-model:value="newCommName" placeholder="Executable name (e.g. gcc)" @pressEnter="addComm" />
+          <div style="display: flex; gap: 8px;">
+            <a-select v-model:value="newCommTag" style="flex: 1">
+              <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option>
+            </a-select>
+            <a-button type="primary" @click="addComm">
+              <template #icon><PlusOutlined /></template>
+              Add
+            </a-button>
+          </div>
+        </div>
       </div>
-      <a-list :dataSource="trackedComms" size="small" bordered>
-        <template #renderItem="{ item }">
-          <a-list-item>
-            <code>{{ item }}</code>
-            <template #actions>
-              <a-button type="link" danger @click="removeComm(item)">
-                <template #icon><DeleteOutlined /></template>
-              </a-button>
-            </template>
-          </a-list-item>
-        </template>
-      </a-list>
+      
+      <div v-for="(comms, tag) in groupedTrackedItems" :key="tag" style="margin-bottom: 16px;">
+        <a-divider orientation="left" style="margin: 8px 0">
+          <a-tag :color="getCategoryColor(tag as string)">{{ tag }}</a-tag>
+        </a-divider>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; padding-left: 8px;">
+          <a-tag 
+            v-for="comm in comms" 
+            :key="comm" 
+            closable 
+            @close.prevent="removeComm(comm)"
+            style="margin-bottom: 4px;"
+          >
+            {{ comm }}
+          </a-tag>
+        </div>
+      </div>
     </a-drawer>
   </a-layout>
 </template>
