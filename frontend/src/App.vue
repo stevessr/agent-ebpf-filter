@@ -74,7 +74,7 @@ const columns = [
     title: 'Event Type',
     dataIndex: 'type',
     key: 'type',
-    width: 120,
+    width: 150,
   },
   {
     title: 'Path',
@@ -83,6 +83,19 @@ const columns = [
     ellipsis: true,
   },
 ];
+
+const getTagColor = (type: string) => {
+  const colors: Record<string, string> = {
+    'execve': 'blue',
+    'openat': 'green',
+    'network_connect': 'orange',
+    'network_bind': 'volcano',
+    'mkdir': 'cyan',
+    'unlink': 'red',
+    'ioctl': 'purple',
+  };
+  return colors[type] || 'default';
+};
 
 const connectWebSocket = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -171,7 +184,18 @@ onUnmounted(() => {
           :columns="columns" 
           size="small"
           :pagination="{ pageSize: 20 }"
-        />
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'type'">
+              <a-tag :color="getTagColor(record.type)">
+                {{ record.type.toUpperCase() }}
+              </a-tag>
+            </template>
+            <template v-else-if="column.key === 'path'">
+              <a-typography-text code>{{ record.path }}</a-typography-text>
+            </template>
+          </template>
+        </a-table>
       </div>
     </a-layout-content>
 

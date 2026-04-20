@@ -54,16 +54,21 @@ type AgentTrackerSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type AgentTrackerProgramSpecs struct {
-	TracepointSyscallsSysEnterExecve *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_execve"`
-	TracepointSyscallsSysEnterOpenat *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_openat"`
+	TracepointSyscallsSysEnterConnect  *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_connect"`
+	TracepointSyscallsSysEnterExecve   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_execve"`
+	TracepointSyscallsSysEnterIoctl    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_ioctl"`
+	TracepointSyscallsSysEnterMkdirat  *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_mkdirat"`
+	TracepointSyscallsSysEnterOpenat   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_openat"`
+	TracepointSyscallsSysEnterUnlinkat *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_unlinkat"`
 }
 
 // AgentTrackerMapSpecs contains maps before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type AgentTrackerMapSpecs struct {
-	AgentPids *ebpf.MapSpec `ebpf:"agent_pids"`
-	Events    *ebpf.MapSpec `ebpf:"events"`
+	AgentPids    *ebpf.MapSpec `ebpf:"agent_pids"`
+	Events       *ebpf.MapSpec `ebpf:"events"`
+	TrackedComms *ebpf.MapSpec `ebpf:"tracked_comms"`
 }
 
 // AgentTrackerVariableSpecs contains global variables before they are loaded into the kernel.
@@ -92,14 +97,16 @@ func (o *AgentTrackerObjects) Close() error {
 //
 // It can be passed to LoadAgentTrackerObjects or ebpf.CollectionSpec.LoadAndAssign.
 type AgentTrackerMaps struct {
-	AgentPids *ebpf.Map `ebpf:"agent_pids"`
-	Events    *ebpf.Map `ebpf:"events"`
+	AgentPids    *ebpf.Map `ebpf:"agent_pids"`
+	Events       *ebpf.Map `ebpf:"events"`
+	TrackedComms *ebpf.Map `ebpf:"tracked_comms"`
 }
 
 func (m *AgentTrackerMaps) Close() error {
 	return _AgentTrackerClose(
 		m.AgentPids,
 		m.Events,
+		m.TrackedComms,
 	)
 }
 
@@ -113,14 +120,22 @@ type AgentTrackerVariables struct {
 //
 // It can be passed to LoadAgentTrackerObjects or ebpf.CollectionSpec.LoadAndAssign.
 type AgentTrackerPrograms struct {
-	TracepointSyscallsSysEnterExecve *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_execve"`
-	TracepointSyscallsSysEnterOpenat *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_openat"`
+	TracepointSyscallsSysEnterConnect  *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_connect"`
+	TracepointSyscallsSysEnterExecve   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_execve"`
+	TracepointSyscallsSysEnterIoctl    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_ioctl"`
+	TracepointSyscallsSysEnterMkdirat  *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_mkdirat"`
+	TracepointSyscallsSysEnterOpenat   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_openat"`
+	TracepointSyscallsSysEnterUnlinkat *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_unlinkat"`
 }
 
 func (p *AgentTrackerPrograms) Close() error {
 	return _AgentTrackerClose(
+		p.TracepointSyscallsSysEnterConnect,
 		p.TracepointSyscallsSysEnterExecve,
+		p.TracepointSyscallsSysEnterIoctl,
+		p.TracepointSyscallsSysEnterMkdirat,
 		p.TracepointSyscallsSysEnterOpenat,
+		p.TracepointSyscallsSysEnterUnlinkat,
 	)
 }
 

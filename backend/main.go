@@ -75,19 +75,27 @@ func main() {
 	}
 	defer objs.Close()
 
-	// Attach tracepoint to sys_enter_execve
-	tpExecve, err := link.Tracepoint("syscalls", "sys_enter_execve", objs.TracepointSyscallsSysEnterExecve, nil)
-	if err != nil {
-		log.Fatalf("opening tracepoint sys_enter_execve: %s", err)
+	// Attach tracepoints
+	attachTracepoint := func(category, name string, prog any) link.Link {
+		l, err := link.Tracepoint(category, name, prog.(*ebpf.Program), nil)
+		if err != nil {
+			log.Fatalf("opening tracepoint %s/%s: %s", category, name, err)
+		}
+		return l
 	}
-	defer tpExecve.Close()
 
-	// Attach tracepoint to sys_enter_openat
-	tpOpenat, err := link.Tracepoint("syscalls", "sys_enter_openat", objs.TracepointSyscallsSysEnterOpenat, nil)
-	if err != nil {
-		log.Fatalf("opening tracepoint sys_enter_openat: %s", err)
+	links := []link.Link{
+		attachTracepoint("syscalls", "sys_enter_execve", objs.TracepointSyscallsSysEnterExecve),
+		attachTracepoint("syscalls", "sys_enter_openat", objs.TracepointSyscallsSysEnterOpenat),
+		attachTracepoint("syscalls", "sys_enter_connect", objs.TracepointSyscallsSysEnterConnect),
+		attachTracepoint("syscalls", "sys_enter_mkdirat", objs.TracepointSyscallsSysEnterMkdirat),
+		attachTracepoint("syscalls", "sys_enter_unlinkat", objs.TracepointSyscallsSysEnterUnlinkat),
+		attachTracepoint("syscalls", "sys_enter_ioctl", objs.TracepointSyscallsSysEnterIoctl),
+		attachTracepoint("syscalls", "sys_enter_bind", objs.TracepointSyscallsSysEnterBind),
 	}
-	defer tpOpenat.Close()
+	for _, l := range links {
+		defer l.Close()
+	}
 
 	// Open a ringbuf reader from userspace RINGBUF map
 	rd, err := ringbuf.NewReader(objs.Events)
@@ -102,6 +110,15 @@ func main() {
 	// Background task to read ringbuf events
 	go func() {
 		var event bpfEvent
+		types := map[uint32]string{
+			0: "execve",
+			1: "openat",
+			2: "network_connect",
+			3: "mkdir",
+			4: "unlink",
+			5: "ioctl",
+			6: "network_bind",
+		}
 		for {
 			record, err := rd.Read()
 			if err != nil {
@@ -113,19 +130,17 @@ func main() {
 				continue
 			}
 
-			// Parse the ringbuf event entry into a bpfEvent structure.
 			if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event); err != nil {
 				log.Printf("parsing ringbuf event: %s", err)
 				continue
 			}
 
-			// Convert C strings to Go strings
 			comm := string(bytes.TrimRight(event.Comm[:], "\x00"))
 			path := string(bytes.TrimRight(event.Path[:], "\x00"))
 			
-			evtType := "execve"
-			if event.Type == 1 {
-				evtType = "openat"
+			evtType, ok := types[event.Type]
+			if !ok {
+				evtType = "unknown"
 			}
 
 			wsEvent := WsEvent{
@@ -135,23 +150,14 @@ func main() {
 				Path: path,
 			}
 
-			// Non-blocking send to broadcast channel
 			select {
 			case broadcast <- wsEvent:
 			default:
-				// Drop event if channel is full
 			}
 		}
 	}()
 
 	r := gin.Default()
-
-	// Serve static files from frontend/dist
-	r.StaticFile("/", "../frontend/dist/index.html")
-	r.Static("/assets", "../frontend/dist/assets")
-	r.NoRoute(func(c *gin.Context) {
-		c.File("../frontend/dist/index.html")
-	})
 
 	// Manage connected websocket clients
 	clients := make(map[*websocket.Conn]bool)
@@ -189,14 +195,11 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-
-		// Register PID in eBPF map
 		val := uint8(1)
 		if err := objs.AgentPids.Put(&req.PID, &val); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update eBPF map: %v", err)})
 			return
 		}
-
 		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Registered PID %d", req.PID)})
 	})
 	
@@ -206,60 +209,64 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-
 		if err := objs.AgentPids.Delete(&req.PID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update eBPF map: %v", err)})
 			return
 		}
-
 		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Unregistered PID %d", req.PID)})
 	})
 
 	// --- Config Endpoints for Tracked Comms ---
-
 	type CommRequest struct {
 		Comm string `json:"comm"`
 	}
 
-	r.GET("/config/comms", func(c *gin.Context) {
-		var comms []string
-		var key [16]byte
-		var val uint8
-		
-		iter := objs.TrackedComms.Iterate()
-		for iter.Next(&key, &val) {
-			comms = append(comms, string(bytes.TrimRight(key[:], "\x00")))
-		}
-		
-		c.JSON(http.StatusOK, comms)
-	})
+	config := r.Group("/config")
+	{
+		config.GET("/comms", func(c *gin.Context) {
+			var comms []string
+			var key [16]byte
+			var val uint8
+			iter := objs.TrackedComms.Iterate()
+			for iter.Next(&key, &val) {
+				comms = append(comms, string(bytes.TrimRight(key[:], "\x00")))
+			}
+			c.JSON(http.StatusOK, comms)
+		})
 
-	r.POST("/config/comms", func(c *gin.Context) {
-		var req CommRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
+		config.POST("/comms", func(c *gin.Context) {
+			var req CommRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			var key [16]byte
+			copy(key[:], req.Comm)
+			val := uint8(1)
+			if err := objs.TrackedComms.Put(key, val); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Tracked comm added"})
+		})
 
-		var key [16]byte
-		copy(key[:], req.Comm)
-		val := uint8(1)
-		if err := objs.TrackedComms.Put(key, val); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"message": "Tracked comm added"})
-	})
+		config.DELETE("/comms/:comm", func(c *gin.Context) {
+			comm := c.Param("comm")
+			var key [16]byte
+			copy(key[:], comm)
+			if err := objs.TrackedComms.Delete(key); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Tracked comm removed"})
+		})
+	}
 
-	r.DELETE("/config/comms/:comm", func(c *gin.Context) {
-		comm := c.Param("comm")
-		var key [16]byte
-		copy(key[:], comm)
-		if err := objs.TrackedComms.Delete(key); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"message": "Tracked comm removed"})
+	// Serve static files from frontend/dist (defined AFTER API routes)
+	r.StaticFile("/", "../frontend/dist/index.html")
+	r.Static("/assets", "../frontend/dist/assets")
+	r.NoRoute(func(c *gin.Context) {
+		c.File("../frontend/dist/index.html")
 	})
 
 	// Pre-load common coding CLIs
