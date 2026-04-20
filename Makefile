@@ -1,8 +1,18 @@
-.PHONY: all backend frontend clean proto help dev run
+# Get Go binaries path
+GOPATH ?= $(shell go env GOPATH)
+export PATH := $(PATH):$(GOPATH)/bin
+
+.PHONY: all backend frontend clean proto help dev run deps
 
 all: proto backend frontend ## Build both backend and frontend
 
-proto: ## Generate Protocol Buffers code
+deps: ## Ensure Go and Python build dependencies are installed
+	@echo "Checking dependencies..."
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	cd adapters/python && uv sync
+	cd frontend && bun install
+
+proto: deps ## Generate Protocol Buffers code
 	@echo "Generating Protocol Buffers code..."
 	mkdir -p backend/pb
 	protoc --go_out=backend/pb --go_opt=paths=source_relative \
@@ -28,7 +38,7 @@ frontend: ## Build Vue3 frontend
 dev: proto ## Run both backend and frontend development server (no full build)
 	@echo "Starting dev environment..."
 	cd backend/ebpf && go generate
-	export PATH=$(PATH):$(shell go env GOPATH)/bin && go run backend/main.go & \
+	go run backend/main.go & \
 	cd frontend && bun run dev
 
 run: all ## Build and run in production mode
