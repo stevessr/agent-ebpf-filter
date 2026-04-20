@@ -18,6 +18,7 @@ interface AgentEvent {
 
 const events = ref<AgentEvent[]>([]);
 const isConnected = ref(false);
+const isPaused = ref(false);
 const showDetails = ref(false);
 const selectedEvent = ref<AgentEvent | null>(null);
 const selectedTag = ref<string | null>(null);
@@ -81,6 +82,7 @@ const connectWebSocket = () => {
   };
 
   ws.onmessage = (message) => {
+    if (isPaused.value) return;
     try {
       const uint8Array = new Uint8Array(message.data);
       const data = pb.Event.decode(uint8Array);
@@ -112,6 +114,21 @@ const clearEvents = () => {
   events.value = [];
 };
 
+const exportEvents = () => {
+  try {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(events.value, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `ebpf-events-${new Date().toISOString()}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    message.success('Events exported');
+  } catch (err) {
+    message.error('Failed to export events');
+  }
+};
+
 onMounted(() => {
   connectWebSocket();
   fetchTags();
@@ -133,6 +150,12 @@ onUnmounted(() => {
           <template #suffixIcon><FilterOutlined /></template>
           <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option>
         </a-select>
+        
+        <a-divider type="vertical" />
+        <a-button @click="isPaused = !isPaused" :type="isPaused ? 'primary' : 'default'" danger>
+          {{ isPaused ? 'Resume Stream' : 'Pause Stream' }}
+        </a-button>
+        <a-button @click="exportEvents">Export Data</a-button>
       </div>
       <a-button type="primary" danger @click="clearEvents">Clear Events</a-button>
     </div>
