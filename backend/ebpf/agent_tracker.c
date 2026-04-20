@@ -47,20 +47,32 @@ struct {
     __type(value, u8); // 1 = registered
 } agent_pids SEC(".maps");
 
+// Map to store tracked command names (e.g., "git", "npm")
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 256);
+    __type(key, char[16]);
+    __type(value, u8);
+} tracked_comms SEC(".maps");
+
 SEC("tracepoint/syscalls/sys_enter_execve")
 int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *ctx) {
     u64 id = bpf_get_current_pid_tgid();
     u32 pid = id >> 32;
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
 
     u8 *is_agent = bpf_map_lookup_elem(&agent_pids, &pid);
-    if (!is_agent) return 0;
+    u8 *is_tracked_comm = bpf_map_lookup_elem(&tracked_comms, &comm);
+    
+    if (!is_agent && !is_tracked_comm) return 0;
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
 
     e->pid = pid;
     e->type = 0; // execve
-    bpf_get_current_comm(&e->comm, sizeof(e->comm));
+    for (int i = 0; i < TASK_COMM_LEN; i++) e->comm[i] = comm[i];
     
     const char *filename = (const char *)ctx->args[0];
     bpf_probe_read_user_str(&e->path, sizeof(e->path), filename);
@@ -73,16 +85,20 @@ SEC("tracepoint/syscalls/sys_enter_openat")
 int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *ctx) {
     u64 id = bpf_get_current_pid_tgid();
     u32 pid = id >> 32;
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
 
     u8 *is_agent = bpf_map_lookup_elem(&agent_pids, &pid);
-    if (!is_agent) return 0;
+    u8 *is_tracked_comm = bpf_map_lookup_elem(&tracked_comms, &comm);
+    
+    if (!is_agent && !is_tracked_comm) return 0;
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
 
     e->pid = pid;
     e->type = 1; // openat
-    bpf_get_current_comm(&e->comm, sizeof(e->comm));
+    for (int i = 0; i < TASK_COMM_LEN; i++) e->comm[i] = comm[i];
     
     // For openat, the filename is the second argument (args[1])
     const char *filename = (const char *)ctx->args[1];

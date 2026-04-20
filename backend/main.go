@@ -215,6 +215,65 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Unregistered PID %d", req.PID)})
 	})
 
+	// --- Config Endpoints for Tracked Comms ---
+
+	type CommRequest struct {
+		Comm string `json:"comm"`
+	}
+
+	r.GET("/config/comms", func(c *gin.Context) {
+		var comms []string
+		var key [16]byte
+		var val uint8
+		
+		iter := objs.TrackedComms.Iterate()
+		for iter.Next(&key, &val) {
+			comms = append(comms, string(bytes.TrimRight(key[:], "\x00")))
+		}
+		
+		c.JSON(http.StatusOK, comms)
+	})
+
+	r.POST("/config/comms", func(c *gin.Context) {
+		var req CommRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		var key [16]byte
+		copy(key[:], req.Comm)
+		val := uint8(1)
+		if err := objs.TrackedComms.Put(key, val); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Tracked comm added"})
+	})
+
+	r.DELETE("/config/comms/:comm", func(c *gin.Context) {
+		comm := c.Param("comm")
+		var key [16]byte
+		copy(key[:], comm)
+		if err := objs.TrackedComms.Delete(key); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Tracked comm removed"})
+	})
+
+	// Pre-load common coding CLIs
+	commonCLIs := []string{
+		"git", "npm", "bun", "pnpm", "yarn", "node", "python", "python3", "go", "cargo", 
+		"rustc", "gcc", "g++", "clang", "make", "cmake", "docker", "kubectl",
+	}
+	for _, cli := range commonCLIs {
+		var key [16]byte
+		copy(key[:], cli)
+		val := uint8(1)
+		_ = objs.TrackedComms.Put(key, val)
+	}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

@@ -12,6 +12,7 @@ export default defineConfig({
       },
       '/register': 'http://localhost:8080',
       '/unregister': 'http://localhost:8080',
+      '/config': 'http://localhost:8080',
     },
   },
 })

@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
+import axios from 'axios';
+import { SettingOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons-vue';
+import { message } from 'ant-design-vue';
 
 interface AgentEvent {
   key: string;
@@ -12,7 +15,41 @@ interface AgentEvent {
 
 const events = ref<AgentEvent[]>([]);
 const isConnected = ref(false);
+const showSettings = ref(false);
+const trackedComms = ref<string[]>([]);
+const newCommName = ref('');
 let ws: WebSocket | null = null;
+
+const fetchTrackedComms = async () => {
+  try {
+    const res = await axios.get('/config/comms');
+    trackedComms.value = res.data;
+  } catch (err) {
+    console.error('Failed to fetch tracked comms', err);
+  }
+};
+
+const addComm = async () => {
+  if (!newCommName.value) return;
+  try {
+    await axios.post('/config/comms', { comm: newCommName.value });
+    message.success(`Added ${newCommName.value} to tracked commands`);
+    newCommName.value = '';
+    fetchTrackedComms();
+  } catch (err) {
+    message.error('Failed to add tracked command');
+  }
+};
+
+const removeComm = async (comm: string) => {
+  try {
+    await axios.delete(`/config/comms/${comm}`);
+    message.success(`Removed ${comm}`);
+    fetchTrackedComms();
+  } catch (err) {
+    message.error('Failed to remove tracked command');
+  }
+};
 
 const columns = [
   {
@@ -97,6 +134,7 @@ const clearEvents = () => {
 
 onMounted(() => {
   connectWebSocket();
+  fetchTrackedComms();
 });
 
 onUnmounted(() => {
@@ -114,6 +152,10 @@ onUnmounted(() => {
           Agent eBPF Tracker
         </a-typography-title>
       </div>
+      <div style="flex: 1"></div>
+      <a-button type="primary" shape="circle" @click="showSettings = true" style="margin-left: auto;">
+        <template #icon><SettingOutlined /></template>
+      </a-button>
     </a-layout-header>
     <a-layout-content style="padding: 0 50px; margin-top: 24px;">
       <div style="background: #fff; padding: 24px; min-height: 280px">
@@ -132,6 +174,37 @@ onUnmounted(() => {
         />
       </div>
     </a-layout-content>
+
+    <a-drawer
+      title="Global Filters (Common CLIs)"
+      placement="right"
+      :closable="true"
+      :open="showSettings"
+      @close="showSettings = false"
+      width="400"
+    >
+      <div style="margin-bottom: 16px">
+        <p>In addition to registered Agent PIDs, these command names are always tracked:</p>
+        <a-input-group compact>
+          <a-input v-model:value="newCommName" style="width: calc(100% - 40px)" placeholder="Add CLI name (e.g. gcc)" @pressEnter="addComm" />
+          <a-button type="primary" @click="addComm">
+            <template #icon><PlusOutlined /></template>
+          </a-button>
+        </a-input-group>
+      </div>
+      <a-list :dataSource="trackedComms" size="small" bordered>
+        <template #renderItem="{ item }">
+          <a-list-item>
+            <code>{{ item }}</code>
+            <template #actions>
+              <a-button type="link" danger @click="removeComm(item)">
+                <template #icon><DeleteOutlined /></template>
+              </a-button>
+            </template>
+          </a-list-item>
+        </template>
+      </a-list>
+    </a-drawer>
   </a-layout>
 </template>
 
