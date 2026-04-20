@@ -151,10 +151,9 @@ onUnmounted(() => {
         <template v-if="column.key === 'action'">
           <a-button type="link" size="small" @click="openDetails(record)">
             <template #icon><InfoCircleOutlined /></template>
-          </Button>
+          </a-button>
         </template>
-      </template>
-    </a-table>
+      </template>    </a-table>
 
     <a-modal v-model:open="showDetails" title="Event Details" :footer="null" width="600px">
       <a-descriptions bordered :column="1" size="small" v-if="selectedEvent">
