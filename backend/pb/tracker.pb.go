@@ -319,6 +319,7 @@ type Process struct {
 	Cpu           float64                `protobuf:"fixed64,4,opt,name=cpu,proto3" json:"cpu,omitempty"`
 	Mem           float32                `protobuf:"fixed32,5,opt,name=mem,proto3" json:"mem,omitempty"`
 	User          string                 `protobuf:"bytes,6,opt,name=user,proto3" json:"user,omitempty"`
+	GpuMem        uint32                 `protobuf:"varint,7,opt,name=gpu_mem,json=gpuMem,proto3" json:"gpu_mem,omitempty"` // GPU VRAM usage in MiB
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -395,6 +396,13 @@ func (x *Process) GetUser() string {
 	return ""
 }
 
+func (x *Process) GetGpuMem() uint32 {
+	if x != nil {
+		return x.GpuMem
+	}
+	return 0
+}
+
 type ProcessList struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Processes     []*Process             `protobuf:"bytes,1,rep,name=processes,proto3" json:"processes,omitempty"`
@@ -461,14 +469,15 @@ const file_tracker_proto_rawDesc = "" +
 	"\x04type\x18\x04 \x01(\tR\x04type\x12\x10\n" +
 	"\x03tag\x18\x05 \x01(\tR\x03tag\x12\x12\n" +
 	"\x04comm\x18\x06 \x01(\tR\x04comm\x12\x12\n" +
-	"\x04path\x18\a \x01(\tR\x04path\"{\n" +
+	"\x04path\x18\a \x01(\tR\x04path\"\x94\x01\n" +
 	"\aProcess\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\x05R\x04ppid\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x10\n" +
 	"\x03cpu\x18\x04 \x01(\x01R\x03cpu\x12\x10\n" +
 	"\x03mem\x18\x05 \x01(\x02R\x03mem\x12\x12\n" +
-	"\x04user\x18\x06 \x01(\tR\x04user\"8\n" +
+	"\x04user\x18\x06 \x01(\tR\x04user\x12\x17\n" +
+	"\agpu_mem\x18\a \x01(\rR\x06gpuMem\"8\n" +
 	"\vProcessList\x12)\n" +
 	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocessesB\x16Z\x14agent-ebpf-filter/pbb\x06proto3"
 

@@ -12,6 +12,7 @@ interface ProcessInfo {
   cpu: number;
   mem: number;
   user: string;
+  gpu_mem: number;
   children?: ProcessInfo[];
 }
 
@@ -27,6 +28,7 @@ const selectedTag = ref('AI Agent');
 // Advanced Filters
 const cpuThreshold = ref(0);
 const memThreshold = ref(0);
+const gpuThreshold = ref(0);
 const filterUser = ref<string | null>(null);
 const showAdvancedFilters = ref(false);
 
@@ -72,7 +74,8 @@ const connectWebSocket = () => {
         name: p.name,
         cpu: p.cpu,
         mem: p.mem,
-        user: p.user
+        user: p.user,
+        gpu_mem: p.gpuMem
       }));
     } catch (e) {
       console.error('Failed to decode process list', e);
@@ -137,11 +140,14 @@ const displayData = computed(() => {
   if (memThreshold.value > 0) {
     filtered = filtered.filter(p => p.mem >= memThreshold.value);
   }
+  if (gpuThreshold.value > 0) {
+    filtered = filtered.filter(p => p.gpu_mem >= gpuThreshold.value);
+  }
   if (filterUser.value) {
     filtered = filtered.filter(p => p.user === filterUser.value);
   }
 
-  if (viewMode.value === 'tree' && !searchText.value && cpuThreshold.value === 0 && memThreshold.value === 0 && !filterUser.value) {
+  if (viewMode.value === 'tree' && !searchText.value && cpuThreshold.value === 0 && memThreshold.value === 0 && gpuThreshold.value === 0 && !filterUser.value) {
     return buildTree(filtered);
   }
   
@@ -187,6 +193,13 @@ const columns = [
     key: 'mem', 
     width: 120,
     sorter: (a: ProcessInfo, b: ProcessInfo) => a.mem - b.mem 
+  },
+  { 
+    title: 'VRAM (MiB)', 
+    dataIndex: 'gpu_mem', 
+    key: 'gpu_mem', 
+    width: 130,
+    sorter: (a: ProcessInfo, b: ProcessInfo) => a.gpu_mem - b.gpu_mem 
   },
   { title: 'User', dataIndex: 'user', key: 'user', width: 120 },
   { title: 'Action', key: 'action', width: 120, fixed: 'right' as const }
@@ -255,13 +268,17 @@ onUnmounted(() => {
           <a-slider v-model:value="memThreshold" :min="0" :max="20" :step="0.1" />
         </a-col>
         <a-col :span="6">
+          <span style="font-size: 12px; color: #888;">Min VRAM (MiB)</span>
+          <a-slider v-model:value="gpuThreshold" :min="0" :max="4096" :step="1" />
+        </a-col>
+        <a-col :span="6">
           <span style="font-size: 12px; color: #888;">User</span>
           <a-select v-model:value="filterUser" style="width: 100%" placeholder="All Users" allowClear>
             <a-select-option v-for="user in uniqueUsers" :key="user" :value="user">{{ user }}</a-select-option>
           </a-select>
         </a-col>
         <a-col :span="6" style="text-align: right;">
-          <a-button size="small" @click="cpuThreshold = 0; memThreshold = 0; filterUser = null;">Reset</a-button>
+          <a-button size="small" @click="cpuThreshold = 0; memThreshold = 0; gpuThreshold = 0; filterUser = null;">Reset</a-button>
         </a-col>
       </a-row>
     </a-card>
@@ -294,6 +311,10 @@ onUnmounted(() => {
         </template>
         <template v-if="column.key === 'mem'">
           <span :style="{ color: record.mem > 10 ? '#ff4d4f' : '#8c8c8c', fontSize: '12px' }">{{ record.mem.toFixed(1) }}%</span>
+        </template>
+        <template v-if="column.key === 'gpu_mem'">
+          <a-tag v-if="record.gpu_mem > 0" color="purple" style="font-family: monospace;">{{ record.gpu_mem }} MiB</a-tag>
+          <span v-else style="color: #bfbfbf;">-</span>
         </template>
         <template v-if="column.key === 'action'">
           <a-button type="primary" size="small" @click="addToRules(record)" ghost>

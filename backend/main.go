@@ -95,6 +95,32 @@ type ExportConfig struct {
 	Paths map[string]string `json:"paths"`
 }
 
+func getGPUPidMap() map[int32]uint32 {
+	gpuMap := make(map[int32]uint32)
+	// Query NVIDIA GPU for compute applications PIDs and their VRAM usage
+	cmd := exec.Command("nvidia-smi", "--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits")
+	output, err := cmd.Output()
+	if err != nil {
+		return gpuMap
+	}
+
+	lines := bytes.Split(output, []byte("\n"))
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		parts := bytes.Split(line, []byte(", "))
+		if len(parts) == 2 {
+			var pid int32
+			var mem uint32
+			fmt.Sscanf(string(parts[0]), "%d", &pid)
+			fmt.Sscanf(string(parts[1]), "%d", &mem)
+			gpuMap[pid] = mem
+		}
+	}
+	return gpuMap
+}
+
 func main() {
 	if os.Geteuid() != 0 {
 		executable, _ := os.Executable()
@@ -254,6 +280,7 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
+				gpuMap := getGPUPidMap()
 				ps, _ := process.Processes()
 				pbList := &pb.ProcessList{}
 				for _, p := range ps {
@@ -262,8 +289,14 @@ func main() {
 					cp, _ := p.CPUPercent()
 					mp, _ := p.MemoryPercent()
 					u, _ := p.Username()
+
+					gpuMem := uint32(0)
+					if mem, ok := gpuMap[p.Pid]; ok {
+						gpuMem = mem
+					}
+
 					pbList.Processes = append(pbList.Processes, &pb.Process{
-						Pid: p.Pid, Ppid: pp, Name: n, Cpu: cp, Mem: mp, User: u,
+						Pid: p.Pid, Ppid: pp, Name: n, Cpu: cp, Mem: mp, User: u, GpuMem: gpuMem,
 					})
 				}
 				data, _ := proto.Marshal(pbList)

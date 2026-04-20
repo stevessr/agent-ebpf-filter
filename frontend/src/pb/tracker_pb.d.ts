@@ -556,6 +556,9 @@ export namespace pb {
 
         /** Process user */
         user?: (string|null);
+
+        /** Process gpuMem */
+        gpuMem?: (number|null);
     }
 
     /** Represents a Process. */
@@ -584,6 +587,9 @@ export namespace pb {
 
         /** Process user. */
         public user: string;
+
+        /** Process gpuMem. */
+        public gpuMem: number;
 
         /**
          * Creates a new Process instance using the specified properties.

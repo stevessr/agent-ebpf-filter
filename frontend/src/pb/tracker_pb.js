@@ -1240,6 +1240,7 @@ export const pb = $root.pb = (() => {
          * @property {number|null} [cpu] Process cpu
          * @property {number|null} [mem] Process mem
          * @property {string|null} [user] Process user
+         * @property {number|null} [gpuMem] Process gpuMem
          */
 
         /**
@@ -1306,6 +1307,14 @@ export const pb = $root.pb = (() => {
         Process.prototype.user = "";
 
         /**
+         * Process gpuMem.
+         * @member {number} gpuMem
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.gpuMem = 0;
+
+        /**
          * Creates a new Process instance using the specified properties.
          * @function create
          * @memberof pb.Process
@@ -1341,6 +1350,8 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 5, wireType 5 =*/45).float(message.mem);
             if (message.user != null && Object.hasOwnProperty.call(message, "user"))
                 writer.uint32(/* id 6, wireType 2 =*/50).string(message.user);
+            if (message.gpuMem != null && Object.hasOwnProperty.call(message, "gpuMem"))
+                writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.gpuMem);
             return writer;
         };
 
@@ -1401,6 +1412,10 @@ export const pb = $root.pb = (() => {
                         message.user = reader.string();
                         break;
                     }
+                case 7: {
+                        message.gpuMem = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -1454,6 +1469,9 @@ export const pb = $root.pb = (() => {
             if (message.user != null && message.hasOwnProperty("user"))
                 if (!$util.isString(message.user))
                     return "user: string expected";
+            if (message.gpuMem != null && message.hasOwnProperty("gpuMem"))
+                if (!$util.isInteger(message.gpuMem))
+                    return "gpuMem: integer expected";
             return null;
         };
 
@@ -1481,6 +1499,8 @@ export const pb = $root.pb = (() => {
                 message.mem = Number(object.mem);
             if (object.user != null)
                 message.user = String(object.user);
+            if (object.gpuMem != null)
+                message.gpuMem = object.gpuMem >>> 0;
             return message;
         };
 
@@ -1504,6 +1524,7 @@ export const pb = $root.pb = (() => {
                 object.cpu = 0;
                 object.mem = 0;
                 object.user = "";
+                object.gpuMem = 0;
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -1517,6 +1538,8 @@ export const pb = $root.pb = (() => {
                 object.mem = options.json && !isFinite(message.mem) ? String(message.mem) : message.mem;
             if (message.user != null && message.hasOwnProperty("user"))
                 object.user = message.user;
+            if (message.gpuMem != null && message.hasOwnProperty("gpuMem"))
+                object.gpuMem = message.gpuMem;
             return object;
         };
 
