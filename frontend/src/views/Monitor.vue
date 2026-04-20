@@ -199,52 +199,66 @@ watch(refreshInterval, connectWebSocket);
       <a-tab-pane key="dashboard" tab="Health">
         <template #tab><span><DashboardOutlined /> Health</span></template>
         
-        <a-row :gutter="12" style="margin-bottom: 16px;">
-          <!-- CPU Section -->
-          <a-col :span="8">
-            <a-card size="small" class="stat-card">
+        <!-- CPU Row -->
+        <a-row style="margin-bottom: 16px;">
+          <a-col :span="24">
+            <a-card size="small" class="stat-card-row">
               <template #title>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <span>CPU Status</span>
+                  <span><DashboardOutlined /> CPU Status</span>
                   <a-radio-group v-model:value="cpuViewMode" size="small">
                     <a-radio-button value="total">Overall</a-radio-button>
                     <a-radio-button value="cores">Cores</a-radio-button>
                   </a-radio-group>
                 </div>
               </template>
-              <div v-if="cpuViewMode === 'total'" style="text-align: center; padding: 10px;">
+              <div v-if="cpuViewMode === 'total'" style="display: flex; align-items: center; justify-content: center; height: 120px; gap: 40px;">
                 <a-progress type="dashboard" :percent="Math.round(systemStats.cpuTotal)" :width="100" />
-                <div style="margin-top: 4px; font-weight: bold;">{{ systemStats.cpuTotal.toFixed(1) }}% Usage</div>
+                <div style="text-align: left;">
+                  <div style="font-size: 24px; font-weight: bold; color: #1890ff;">{{ systemStats.cpuTotal.toFixed(1) }}%</div>
+                  <div style="color: #888;">Total System Load</div>
+                </div>
               </div>
-              <div v-else class="core-grid">
-                <div v-for="(p, i) in systemStats.cpuCores" :key="i" class="core-item">
-                  <span class="core-label">#{{ i }}</span>
-                  <a-progress :percent="Math.round(p)" size="small" :showInfo="false" stroke-color="#52c41a" />
+              <div v-else class="core-grid-full">
+                <div v-for="(p, i) in systemStats.cpuCores" :key="i" class="core-item-full">
+                  <span class="core-label">Core {{ i }}</span>
+                  <div style="flex: 1; margin: 0 10px;">
+                    <a-progress :percent="Math.round(p)" size="small" :showInfo="false" stroke-color="#52c41a" />
+                  </div>
+                  <span class="core-val">{{ p.toFixed(1) }}%</span>
                 </div>
               </div>
             </a-card>
           </a-col>
+        </a-row>
 
-          <!-- RAM Section -->
-          <a-col :span="8">
-            <a-card size="small" class="stat-card" title="Memory & I/O">
+        <a-row :gutter="16" style="margin-bottom: 16px;">
+          <!-- Memory & I/O Section -->
+          <a-col :span="12">
+            <a-card size="small" class="stat-card-row" title="Memory & System I/O">
               <template #extra><PieChartOutlined /></template>
-              <div style="padding: 10px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                  <span>Used: {{ formatBytes(systemStats.memUsed) }}</span>
-                  <span>Total: {{ formatBytes(systemStats.memTotal) }}</span>
-                </div>
-                <a-progress :percent="Math.round(systemStats.memPercent)" stroke-color="#1890ff" status="active" />
-                <div style="margin-top: 15px;">
-                  <div class="stat-row">
-                    <span><SwapOutlined /> Network</span>
-                    <span style="color: #52c41a">↓ {{ formatBytes(systemStats.netRecvSpeed) }}/s</span>
-                    <span style="color: #1890ff">↑ {{ formatBytes(systemStats.netSentSpeed) }}/s</span>
+              <div style="display: flex; gap: 24px; padding: 10px;">
+                <div style="flex: 1;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px;">
+                    <span>RAM: {{ formatBytes(systemStats.memUsed) }} / {{ formatBytes(systemStats.memTotal) }}</span>
+                    <span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span>
                   </div>
-                  <div class="stat-row">
-                    <span><DatabaseOutlined /> Disk I/O</span>
-                    <span style="color: #faad14">R: {{ formatBytes(systemStats.readSpeed) }}/s</span>
-                    <span style="color: #ff4d4f">W: {{ formatBytes(systemStats.writeSpeed) }}/s</span>
+                  <a-progress :percent="Math.round(systemStats.memPercent)" stroke-color="#1890ff" status="active" />
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; border-left: 1px solid #f0f0f0; padding-left: 20px;">
+                  <div class="io-stat">
+                    <span class="io-label"><SwapOutlined /> Network</span>
+                    <div class="io-values">
+                      <span style="color: #52c41a">↓ {{ formatBytes(systemStats.netRecvSpeed) }}/s</span>
+                      <span style="color: #1890ff">↑ {{ formatBytes(systemStats.netSentSpeed) }}/s</span>
+                    </div>
+                  </div>
+                  <div class="io-stat">
+                    <span class="io-label"><DatabaseOutlined /> Disk I/O</span>
+                    <div class="io-values">
+                      <span style="color: #faad14">R: {{ formatBytes(systemStats.readSpeed) }}/s</span>
+                      <span style="color: #ff4d4f">W: {{ formatBytes(systemStats.writeSpeed) }}/s</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -252,26 +266,29 @@ watch(refreshInterval, connectWebSocket);
           </a-col>
 
           <!-- GPU Section -->
-          <a-col :span="8">
-            <a-card size="small" class="stat-card" :title="gpus.length ? 'NVIDIA GPU' : 'No GPU Detected'">
+          <a-col :span="12">
+            <a-card size="small" class="stat-card-row" :title="gpus.length ? 'GPU Acceleration' : 'No GPU'">
               <template #extra><DeploymentUnitOutlined /></template>
-              <div v-for="gpu in gpus" :key="gpu.index" style="margin-bottom: 12px;">
-                <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
-                  <span>GPU {{ gpu.index }}: {{ gpu.name }}</span>
-                  <a-tag color="volcano" size="small">{{ gpu.temp }}°C</a-tag>
+              <div v-for="gpu in gpus" :key="gpu.index" style="display: flex; align-items: center; gap: 20px; padding: 5px 10px;">
+                <div style="flex-shrink: 0; text-align: center;">
+                  <a-tag color="volcano" style="margin-bottom: 4px;">{{ gpu.temp }}°C</a-tag>
+                  <div style="font-size: 10px; color: #999;">GPU {{ gpu.index }}</div>
                 </div>
-                <a-row :gutter="8">
-                  <a-col :span="12">
-                    <a-progress :percent="gpu.utilGpu" size="small" stroke-color="#13c2c2" />
-                    <div style="font-size: 10px; color: #999;">Util: {{ gpu.utilGpu }}%</div>
-                  </a-col>
-                  <a-col :span="12">
-                    <a-progress :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" size="small" stroke-color="#722ed1" />
-                    <div style="font-size: 10px; color: #999;">VRAM: {{ gpu.memUsed }}MB</div>
-                  </a-col>
-                </a-row>
+                <div style="flex: 1;">
+                  <div style="font-size: 11px; margin-bottom: 2px;">{{ gpu.name }}</div>
+                  <a-row :gutter="12">
+                    <a-col :span="12">
+                      <div style="font-size: 10px; color: #666;">Utilization: {{ gpu.utilGpu }}%</div>
+                      <a-progress :percent="gpu.utilGpu" size="small" stroke-color="#13c2c2" />
+                    </a-col>
+                    <a-col :span="12">
+                      <div style="font-size: 10px; color: #666;">VRAM: {{ gpu.memUsed }}MB</div>
+                      <a-progress :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" size="small" stroke-color="#722ed1" />
+                    </a-col>
+                  </a-row>
+                </div>
               </div>
-              <a-empty v-if="!gpus.length" :image="false" description="None" />
+              <a-empty v-if="!gpus.length" :image="false" description="NVIDIA SMI not available" />
             </a-card>
           </a-col>
         </a-row>
@@ -384,11 +401,14 @@ watch(refreshInterval, connectWebSocket);
 </template>
 
 <style scoped>
-.monitor-tabs :deep(.ant-tabs-nav) { margin-bottom: 12px; }
-.stat-card { height: 210px; border-radius: 8px; overflow: hidden; }
-.core-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px; overflow: auto; height: 160px; }
-.core-item { font-size: 10px; display: flex; flex-direction: column; align-items: center; }
-.core-label { margin-bottom: 2px; color: #999; }
+.stat-card-row { border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+.core-grid-full { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px; max-height: 250px; overflow-y: auto; }
+.core-item-full { display: flex; align-items: center; background: #fafafa; padding: 4px 12px; border-radius: 4px; }
+.core-label { font-size: 11px; color: #666; min-width: 50px; }
+.core-val { font-size: 11px; font-family: monospace; min-width: 40px; text-align: right; }
+.io-stat { display: flex; flex-direction: column; }
+.io-label { font-size: 11px; color: #999; margin-bottom: 2px; }
+.io-values { display: flex; gap: 12px; font-size: 13px; font-weight: bold; font-family: monospace; }
 .stat-row { display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; }
 .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 
