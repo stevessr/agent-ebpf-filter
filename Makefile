@@ -38,7 +38,7 @@ frontend: ## Build Vue3 frontend
 dev: proto ## Run both backend and frontend development server (no full build)
 	@echo "Starting dev environment..."
 	cd backend/ebpf && go generate
-	go run backend/main.go & \
+	cd backend && go run main.go & \
 	cd frontend && bun run dev
 
 run: all ## Build and run in production mode
