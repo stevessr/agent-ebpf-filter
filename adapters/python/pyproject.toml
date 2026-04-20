@@ -1,0 +1,18 @@
+[project]
+name = "python"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "stevessr", email = "steve-ssr@outlook.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "grpcio-tools>=1.80.0",
+    "protobuf>=6.33.6",
+    "requests>=2.33.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"

@@ -1,8 +1,22 @@
-.PHONY: all backend frontend clean help
+.PHONY: all backend frontend clean proto help dev run
 
-all: backend frontend ## Build both backend and frontend
+all: proto backend frontend ## Build both backend and frontend
 
-backend: ## Build Go backend and compile eBPF
+proto: ## Generate Protocol Buffers code
+	@echo "Generating Protocol Buffers code..."
+	mkdir -p backend/pb
+	protoc --go_out=backend/pb --go_opt=paths=source_relative \
+		-I proto proto/tracker.proto
+	mkdir -p adapters/python
+	cd adapters/python && uv run python -m grpc_tools.protoc -I ../../proto --python_out=. ../../proto/tracker.proto
+	mkdir -p adapters/js
+	cd frontend && bunx pbjs -t static-module -w commonjs -o ../adapters/js/tracker_pb.js ../proto/tracker.proto
+	mkdir -p frontend/src/pb
+	cd frontend && bunx pbjs -t static-module -w es6 -o src/pb/tracker_pb.js ../proto/tracker.proto
+	cd frontend && bunx pbts -o src/pb/tracker_pb.d.ts src/pb/tracker_pb.js
+	@echo "Proto generation complete."
+
+backend: proto ## Build Go backend and compile eBPF
 	@echo "Building backend..."
 	cd backend/ebpf && go generate
 	cd backend && go build -o agent-ebpf-filter
@@ -11,13 +25,13 @@ frontend: ## Build Vue3 frontend
 	@echo "Building frontend..."
 	cd frontend && bun install && bun run build
 
-dev: all ## Run both backend and frontend development server concurrently
-	@echo "Starting backend..."
-	@./backend/agent-ebpf-filter & \
-	echo "Starting frontend dev server..." && \
+dev: proto ## Run both backend and frontend development server (no full build)
+	@echo "Starting dev environment..."
+	cd backend/ebpf && go generate
+	export PATH=$(PATH):$(shell go env GOPATH)/bin && go run backend/main.go & \
 	cd frontend && bun run dev
 
-run: all ## Build and run in production mode (Backend serves the frontend)
+run: all ## Build and run in production mode
 	@echo "Running production build..."
 	@./backend/agent-ebpf-filter
 
@@ -30,8 +44,11 @@ run-frontend: ## Run only the frontend development server
 clean: ## Clean build artifacts
 	rm -f backend/agent-ebpf-filter
 	rm -rf frontend/dist
+	rm -rf adapters/python/.venv
 	rm -f backend/ebpf/agenttracker_bpfel.go backend/ebpf/agenttracker_bpfeb.go
 	rm -f backend/ebpf/agenttracker_bpfel.o backend/ebpf/agenttracker_bpfeb.o
+	rm -rf backend/pb
+	rm -rf frontend/src/pb
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | sed -e 's/:.*## /: /'

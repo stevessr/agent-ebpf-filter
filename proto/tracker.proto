@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package pb;
+option go_package = "agent-ebpf-filter/pb";
+
+// Represents a process registration request
+message RegisterRequest {
+  uint32 pid = 1;
+}
+
+// Represents a process registration response
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Represents a process unregistration request
+message UnregisterRequest {
+  uint32 pid = 1;
+}
+
+// Represents a process unregistration response
+message UnregisterResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Represents an intercepted eBPF event (e.g., file open, exec)
+message Event {
+  uint32 pid = 1;
+  string type = 2;
+  string comm = 3;
+  string path = 4;
+}
