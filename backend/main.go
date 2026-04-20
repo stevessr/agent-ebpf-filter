@@ -278,6 +278,32 @@ func main() {
 		}
 	})
 
+	r.GET("/system/ls", func(c *gin.Context) {
+		path := c.DefaultQuery("path", "/")
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		type Entry struct {
+			Name  string `json:"name"`
+			IsDir bool   `json:"isDir"`
+			Path  string `json:"path"`
+		}
+		var list []Entry
+		for _, e := range entries {
+			fullPath := path
+			if fullPath == "/" {
+				fullPath = "/" + e.Name()
+			} else {
+				fullPath = fullPath + "/" + e.Name()
+			}
+			list = append(list, Entry{e.Name(), e.IsDir(), fullPath})
+		}
+		c.JSON(200, list)
+	})
+
 	r.GET("/ws/system", func(c *gin.Context) {
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil { return }
