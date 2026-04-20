@@ -12,17 +12,17 @@ frontend: ## Build Vue3 frontend
 	cd frontend && bun install && bun run build
 
 dev: all ## Run both backend and frontend development server concurrently
-	@echo "Starting backend (sudo required for eBPF)..."
-	@sudo ./backend/agent-ebpf-filter & \
+	@echo "Starting backend..."
+	@./backend/agent-ebpf-filter & \
 	echo "Starting frontend dev server..." && \
 	cd frontend && bun run dev
 
 run: all ## Build and run in production mode (Backend serves the frontend)
-	@echo "Running production build (sudo required for eBPF)..."
-	@sudo ./backend/agent-ebpf-filter
+	@echo "Running production build..."
+	@./backend/agent-ebpf-filter
 
-run-backend: backend ## Build and run only the backend (sudo required)
-	@sudo ./backend/agent-ebpf-filter
+run-backend: backend ## Build and run only the backend
+	@./backend/agent-ebpf-filter
 
 run-frontend: ## Run only the frontend development server
 	cd frontend && bun run dev

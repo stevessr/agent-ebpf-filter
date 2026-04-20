@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 
 	"agent-ebpf-filter/ebpf"
 
@@ -39,6 +40,19 @@ type WsEvent struct {
 }
 
 func main() {
+	if os.Geteuid() != 0 {
+		fmt.Println("Root privileges required for eBPF operations. Re-running with sudo...")
+		cmd := exec.Command("sudo", os.Args...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("Error: could not elevate privileges: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	// Allow the current process to lock memory for eBPF resources.
 	if err := rlimit.RemoveMemlock(); err != nil {
 		log.Fatal("Failed to remove memlock:", err)
