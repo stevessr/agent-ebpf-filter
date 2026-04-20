@@ -319,7 +319,9 @@ type Process struct {
 	Cpu           float64                `protobuf:"fixed64,4,opt,name=cpu,proto3" json:"cpu,omitempty"`
 	Mem           float32                `protobuf:"fixed32,5,opt,name=mem,proto3" json:"mem,omitempty"`
 	User          string                 `protobuf:"bytes,6,opt,name=user,proto3" json:"user,omitempty"`
-	GpuMem        uint32                 `protobuf:"varint,7,opt,name=gpu_mem,json=gpuMem,proto3" json:"gpu_mem,omitempty"` // GPU VRAM usage in MiB
+	GpuMem        uint32                 `protobuf:"varint,7,opt,name=gpu_mem,json=gpuMem,proto3" json:"gpu_mem,omitempty"`    // GPU VRAM usage in MiB
+	GpuUtil       uint32                 `protobuf:"varint,8,opt,name=gpu_util,json=gpuUtil,proto3" json:"gpu_util,omitempty"` // GPU utilization percentage
+	GpuId         uint32                 `protobuf:"varint,9,opt,name=gpu_id,json=gpuId,proto3" json:"gpu_id,omitempty"`       // GPU index
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -403,6 +405,164 @@ func (x *Process) GetGpuMem() uint32 {
 	return 0
 }
 
+func (x *Process) GetGpuUtil() uint32 {
+	if x != nil {
+		return x.GpuUtil
+	}
+	return 0
+}
+
+func (x *Process) GetGpuId() uint32 {
+	if x != nil {
+		return x.GpuId
+	}
+	return 0
+}
+
+type GPUStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Index         uint32                 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	UtilGpu       uint32                 `protobuf:"varint,3,opt,name=util_gpu,json=utilGpu,proto3" json:"util_gpu,omitempty"`
+	UtilMem       uint32                 `protobuf:"varint,4,opt,name=util_mem,json=utilMem,proto3" json:"util_mem,omitempty"`
+	MemTotal      uint32                 `protobuf:"varint,5,opt,name=mem_total,json=memTotal,proto3" json:"mem_total,omitempty"`
+	MemUsed       uint32                 `protobuf:"varint,6,opt,name=mem_used,json=memUsed,proto3" json:"mem_used,omitempty"`
+	Temp          uint32                 `protobuf:"varint,7,opt,name=temp,proto3" json:"temp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GPUStatus) Reset() {
+	*x = GPUStatus{}
+	mi := &file_tracker_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GPUStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GPUStatus) ProtoMessage() {}
+
+func (x *GPUStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GPUStatus.ProtoReflect.Descriptor instead.
+func (*GPUStatus) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GPUStatus) GetIndex() uint32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *GPUStatus) GetUtilGpu() uint32 {
+	if x != nil {
+		return x.UtilGpu
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetUtilMem() uint32 {
+	if x != nil {
+		return x.UtilMem
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetMemTotal() uint32 {
+	if x != nil {
+		return x.MemTotal
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetMemUsed() uint32 {
+	if x != nil {
+		return x.MemUsed
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetTemp() uint32 {
+	if x != nil {
+		return x.Temp
+	}
+	return 0
+}
+
+type SystemStats struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Processes     []*Process             `protobuf:"bytes,1,rep,name=processes,proto3" json:"processes,omitempty"`
+	Gpus          []*GPUStatus           `protobuf:"bytes,2,rep,name=gpus,proto3" json:"gpus,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SystemStats) Reset() {
+	*x = SystemStats{}
+	mi := &file_tracker_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SystemStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SystemStats) ProtoMessage() {}
+
+func (x *SystemStats) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SystemStats.ProtoReflect.Descriptor instead.
+func (*SystemStats) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *SystemStats) GetProcesses() []*Process {
+	if x != nil {
+		return x.Processes
+	}
+	return nil
+}
+
+func (x *SystemStats) GetGpus() []*GPUStatus {
+	if x != nil {
+		return x.Gpus
+	}
+	return nil
+}
+
 type ProcessList struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Processes     []*Process             `protobuf:"bytes,1,rep,name=processes,proto3" json:"processes,omitempty"`
@@ -412,7 +572,7 @@ type ProcessList struct {
 
 func (x *ProcessList) Reset() {
 	*x = ProcessList{}
-	mi := &file_tracker_proto_msgTypes[6]
+	mi := &file_tracker_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -424,7 +584,7 @@ func (x *ProcessList) String() string {
 func (*ProcessList) ProtoMessage() {}
 
 func (x *ProcessList) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[6]
+	mi := &file_tracker_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -437,7 +597,7 @@ func (x *ProcessList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessList.ProtoReflect.Descriptor instead.
 func (*ProcessList) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{6}
+	return file_tracker_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ProcessList) GetProcesses() []*Process {
@@ -469,7 +629,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\x04type\x18\x04 \x01(\tR\x04type\x12\x10\n" +
 	"\x03tag\x18\x05 \x01(\tR\x03tag\x12\x12\n" +
 	"\x04comm\x18\x06 \x01(\tR\x04comm\x12\x12\n" +
-	"\x04path\x18\a \x01(\tR\x04path\"\x94\x01\n" +
+	"\x04path\x18\a \x01(\tR\x04path\"\xc6\x01\n" +
 	"\aProcess\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\x05R\x04ppid\x12\x12\n" +
@@ -477,7 +637,20 @@ const file_tracker_proto_rawDesc = "" +
 	"\x03cpu\x18\x04 \x01(\x01R\x03cpu\x12\x10\n" +
 	"\x03mem\x18\x05 \x01(\x02R\x03mem\x12\x12\n" +
 	"\x04user\x18\x06 \x01(\tR\x04user\x12\x17\n" +
-	"\agpu_mem\x18\a \x01(\rR\x06gpuMem\"8\n" +
+	"\agpu_mem\x18\a \x01(\rR\x06gpuMem\x12\x19\n" +
+	"\bgpu_util\x18\b \x01(\rR\agpuUtil\x12\x15\n" +
+	"\x06gpu_id\x18\t \x01(\rR\x05gpuId\"\xb7\x01\n" +
+	"\tGPUStatus\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\rR\x05index\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
+	"\butil_gpu\x18\x03 \x01(\rR\autilGpu\x12\x19\n" +
+	"\butil_mem\x18\x04 \x01(\rR\autilMem\x12\x1b\n" +
+	"\tmem_total\x18\x05 \x01(\rR\bmemTotal\x12\x19\n" +
+	"\bmem_used\x18\x06 \x01(\rR\amemUsed\x12\x12\n" +
+	"\x04temp\x18\a \x01(\rR\x04temp\"[\n" +
+	"\vSystemStats\x12)\n" +
+	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocesses\x12!\n" +
+	"\x04gpus\x18\x02 \x03(\v2\r.pb.GPUStatusR\x04gpus\"8\n" +
 	"\vProcessList\x12)\n" +
 	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocessesB\x16Z\x14agent-ebpf-filter/pbb\x06proto3"
 
@@ -493,7 +666,7 @@ func file_tracker_proto_rawDescGZIP() []byte {
 	return file_tracker_proto_rawDescData
 }
 
-var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_tracker_proto_goTypes = []any{
 	(*RegisterRequest)(nil),    // 0: pb.RegisterRequest
 	(*RegisterResponse)(nil),   // 1: pb.RegisterResponse
@@ -501,15 +674,19 @@ var file_tracker_proto_goTypes = []any{
 	(*UnregisterResponse)(nil), // 3: pb.UnregisterResponse
 	(*Event)(nil),              // 4: pb.Event
 	(*Process)(nil),            // 5: pb.Process
-	(*ProcessList)(nil),        // 6: pb.ProcessList
+	(*GPUStatus)(nil),          // 6: pb.GPUStatus
+	(*SystemStats)(nil),        // 7: pb.SystemStats
+	(*ProcessList)(nil),        // 8: pb.ProcessList
 }
 var file_tracker_proto_depIdxs = []int32{
-	5, // 0: pb.ProcessList.processes:type_name -> pb.Process
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	5, // 0: pb.SystemStats.processes:type_name -> pb.Process
+	6, // 1: pb.SystemStats.gpus:type_name -> pb.GPUStatus
+	5, // 2: pb.ProcessList.processes:type_name -> pb.Process
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_tracker_proto_init() }
@@ -523,7 +700,7 @@ func file_tracker_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tracker_proto_rawDesc), len(file_tracker_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

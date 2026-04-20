@@ -45,6 +45,23 @@ message Process {
   float mem = 5;
   string user = 6;
   uint32 gpu_mem = 7; // GPU VRAM usage in MiB
+  uint32 gpu_util = 8; // GPU utilization percentage
+  uint32 gpu_id = 9;   // GPU index
+}
+
+message GPUStatus {
+  uint32 index = 1;
+  string name = 2;
+  uint32 util_gpu = 3;
+  uint32 util_mem = 4;
+  uint32 mem_total = 5;
+  uint32 mem_used = 6;
+  uint32 temp = 7;
+}
+
+message SystemStats {
+  repeated Process processes = 1;
+  repeated GPUStatus gpus = 2;
 }
 
 message ProcessList {

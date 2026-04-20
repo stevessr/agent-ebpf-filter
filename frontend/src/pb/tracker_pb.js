@@ -1241,6 +1241,8 @@ export const pb = $root.pb = (() => {
          * @property {number|null} [mem] Process mem
          * @property {string|null} [user] Process user
          * @property {number|null} [gpuMem] Process gpuMem
+         * @property {number|null} [gpuUtil] Process gpuUtil
+         * @property {number|null} [gpuId] Process gpuId
          */
 
         /**
@@ -1315,6 +1317,22 @@ export const pb = $root.pb = (() => {
         Process.prototype.gpuMem = 0;
 
         /**
+         * Process gpuUtil.
+         * @member {number} gpuUtil
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.gpuUtil = 0;
+
+        /**
+         * Process gpuId.
+         * @member {number} gpuId
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.gpuId = 0;
+
+        /**
          * Creates a new Process instance using the specified properties.
          * @function create
          * @memberof pb.Process
@@ -1352,6 +1370,10 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 6, wireType 2 =*/50).string(message.user);
             if (message.gpuMem != null && Object.hasOwnProperty.call(message, "gpuMem"))
                 writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.gpuMem);
+            if (message.gpuUtil != null && Object.hasOwnProperty.call(message, "gpuUtil"))
+                writer.uint32(/* id 8, wireType 0 =*/64).uint32(message.gpuUtil);
+            if (message.gpuId != null && Object.hasOwnProperty.call(message, "gpuId"))
+                writer.uint32(/* id 9, wireType 0 =*/72).uint32(message.gpuId);
             return writer;
         };
 
@@ -1416,6 +1438,14 @@ export const pb = $root.pb = (() => {
                         message.gpuMem = reader.uint32();
                         break;
                     }
+                case 8: {
+                        message.gpuUtil = reader.uint32();
+                        break;
+                    }
+                case 9: {
+                        message.gpuId = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -1472,6 +1502,12 @@ export const pb = $root.pb = (() => {
             if (message.gpuMem != null && message.hasOwnProperty("gpuMem"))
                 if (!$util.isInteger(message.gpuMem))
                     return "gpuMem: integer expected";
+            if (message.gpuUtil != null && message.hasOwnProperty("gpuUtil"))
+                if (!$util.isInteger(message.gpuUtil))
+                    return "gpuUtil: integer expected";
+            if (message.gpuId != null && message.hasOwnProperty("gpuId"))
+                if (!$util.isInteger(message.gpuId))
+                    return "gpuId: integer expected";
             return null;
         };
 
@@ -1501,6 +1537,10 @@ export const pb = $root.pb = (() => {
                 message.user = String(object.user);
             if (object.gpuMem != null)
                 message.gpuMem = object.gpuMem >>> 0;
+            if (object.gpuUtil != null)
+                message.gpuUtil = object.gpuUtil >>> 0;
+            if (object.gpuId != null)
+                message.gpuId = object.gpuId >>> 0;
             return message;
         };
 
@@ -1525,6 +1565,8 @@ export const pb = $root.pb = (() => {
                 object.mem = 0;
                 object.user = "";
                 object.gpuMem = 0;
+                object.gpuUtil = 0;
+                object.gpuId = 0;
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -1540,6 +1582,10 @@ export const pb = $root.pb = (() => {
                 object.user = message.user;
             if (message.gpuMem != null && message.hasOwnProperty("gpuMem"))
                 object.gpuMem = message.gpuMem;
+            if (message.gpuUtil != null && message.hasOwnProperty("gpuUtil"))
+                object.gpuUtil = message.gpuUtil;
+            if (message.gpuId != null && message.hasOwnProperty("gpuId"))
+                object.gpuId = message.gpuId;
             return object;
         };
 
@@ -1570,6 +1616,621 @@ export const pb = $root.pb = (() => {
         };
 
         return Process;
+    })();
+
+    pb.GPUStatus = (function() {
+
+        /**
+         * Properties of a GPUStatus.
+         * @memberof pb
+         * @interface IGPUStatus
+         * @property {number|null} [index] GPUStatus index
+         * @property {string|null} [name] GPUStatus name
+         * @property {number|null} [utilGpu] GPUStatus utilGpu
+         * @property {number|null} [utilMem] GPUStatus utilMem
+         * @property {number|null} [memTotal] GPUStatus memTotal
+         * @property {number|null} [memUsed] GPUStatus memUsed
+         * @property {number|null} [temp] GPUStatus temp
+         */
+
+        /**
+         * Constructs a new GPUStatus.
+         * @memberof pb
+         * @classdesc Represents a GPUStatus.
+         * @implements IGPUStatus
+         * @constructor
+         * @param {pb.IGPUStatus=} [properties] Properties to set
+         */
+        function GPUStatus(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * GPUStatus index.
+         * @member {number} index
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.index = 0;
+
+        /**
+         * GPUStatus name.
+         * @member {string} name
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.name = "";
+
+        /**
+         * GPUStatus utilGpu.
+         * @member {number} utilGpu
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.utilGpu = 0;
+
+        /**
+         * GPUStatus utilMem.
+         * @member {number} utilMem
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.utilMem = 0;
+
+        /**
+         * GPUStatus memTotal.
+         * @member {number} memTotal
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.memTotal = 0;
+
+        /**
+         * GPUStatus memUsed.
+         * @member {number} memUsed
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.memUsed = 0;
+
+        /**
+         * GPUStatus temp.
+         * @member {number} temp
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.temp = 0;
+
+        /**
+         * Creates a new GPUStatus instance using the specified properties.
+         * @function create
+         * @memberof pb.GPUStatus
+         * @static
+         * @param {pb.IGPUStatus=} [properties] Properties to set
+         * @returns {pb.GPUStatus} GPUStatus instance
+         */
+        GPUStatus.create = function create(properties) {
+            return new GPUStatus(properties);
+        };
+
+        /**
+         * Encodes the specified GPUStatus message. Does not implicitly {@link pb.GPUStatus.verify|verify} messages.
+         * @function encode
+         * @memberof pb.GPUStatus
+         * @static
+         * @param {pb.IGPUStatus} message GPUStatus message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GPUStatus.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.index != null && Object.hasOwnProperty.call(message, "index"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.index);
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.name);
+            if (message.utilGpu != null && Object.hasOwnProperty.call(message, "utilGpu"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint32(message.utilGpu);
+            if (message.utilMem != null && Object.hasOwnProperty.call(message, "utilMem"))
+                writer.uint32(/* id 4, wireType 0 =*/32).uint32(message.utilMem);
+            if (message.memTotal != null && Object.hasOwnProperty.call(message, "memTotal"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint32(message.memTotal);
+            if (message.memUsed != null && Object.hasOwnProperty.call(message, "memUsed"))
+                writer.uint32(/* id 6, wireType 0 =*/48).uint32(message.memUsed);
+            if (message.temp != null && Object.hasOwnProperty.call(message, "temp"))
+                writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.temp);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified GPUStatus message, length delimited. Does not implicitly {@link pb.GPUStatus.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.GPUStatus
+         * @static
+         * @param {pb.IGPUStatus} message GPUStatus message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GPUStatus.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a GPUStatus message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.GPUStatus
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.GPUStatus} GPUStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GPUStatus.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.GPUStatus();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.index = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.name = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.utilGpu = reader.uint32();
+                        break;
+                    }
+                case 4: {
+                        message.utilMem = reader.uint32();
+                        break;
+                    }
+                case 5: {
+                        message.memTotal = reader.uint32();
+                        break;
+                    }
+                case 6: {
+                        message.memUsed = reader.uint32();
+                        break;
+                    }
+                case 7: {
+                        message.temp = reader.uint32();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a GPUStatus message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.GPUStatus
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.GPUStatus} GPUStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GPUStatus.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a GPUStatus message.
+         * @function verify
+         * @memberof pb.GPUStatus
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        GPUStatus.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.index != null && message.hasOwnProperty("index"))
+                if (!$util.isInteger(message.index))
+                    return "index: integer expected";
+            if (message.name != null && message.hasOwnProperty("name"))
+                if (!$util.isString(message.name))
+                    return "name: string expected";
+            if (message.utilGpu != null && message.hasOwnProperty("utilGpu"))
+                if (!$util.isInteger(message.utilGpu))
+                    return "utilGpu: integer expected";
+            if (message.utilMem != null && message.hasOwnProperty("utilMem"))
+                if (!$util.isInteger(message.utilMem))
+                    return "utilMem: integer expected";
+            if (message.memTotal != null && message.hasOwnProperty("memTotal"))
+                if (!$util.isInteger(message.memTotal))
+                    return "memTotal: integer expected";
+            if (message.memUsed != null && message.hasOwnProperty("memUsed"))
+                if (!$util.isInteger(message.memUsed))
+                    return "memUsed: integer expected";
+            if (message.temp != null && message.hasOwnProperty("temp"))
+                if (!$util.isInteger(message.temp))
+                    return "temp: integer expected";
+            return null;
+        };
+
+        /**
+         * Creates a GPUStatus message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.GPUStatus
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.GPUStatus} GPUStatus
+         */
+        GPUStatus.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.GPUStatus)
+                return object;
+            let message = new $root.pb.GPUStatus();
+            if (object.index != null)
+                message.index = object.index >>> 0;
+            if (object.name != null)
+                message.name = String(object.name);
+            if (object.utilGpu != null)
+                message.utilGpu = object.utilGpu >>> 0;
+            if (object.utilMem != null)
+                message.utilMem = object.utilMem >>> 0;
+            if (object.memTotal != null)
+                message.memTotal = object.memTotal >>> 0;
+            if (object.memUsed != null)
+                message.memUsed = object.memUsed >>> 0;
+            if (object.temp != null)
+                message.temp = object.temp >>> 0;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a GPUStatus message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.GPUStatus
+         * @static
+         * @param {pb.GPUStatus} message GPUStatus
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        GPUStatus.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.index = 0;
+                object.name = "";
+                object.utilGpu = 0;
+                object.utilMem = 0;
+                object.memTotal = 0;
+                object.memUsed = 0;
+                object.temp = 0;
+            }
+            if (message.index != null && message.hasOwnProperty("index"))
+                object.index = message.index;
+            if (message.name != null && message.hasOwnProperty("name"))
+                object.name = message.name;
+            if (message.utilGpu != null && message.hasOwnProperty("utilGpu"))
+                object.utilGpu = message.utilGpu;
+            if (message.utilMem != null && message.hasOwnProperty("utilMem"))
+                object.utilMem = message.utilMem;
+            if (message.memTotal != null && message.hasOwnProperty("memTotal"))
+                object.memTotal = message.memTotal;
+            if (message.memUsed != null && message.hasOwnProperty("memUsed"))
+                object.memUsed = message.memUsed;
+            if (message.temp != null && message.hasOwnProperty("temp"))
+                object.temp = message.temp;
+            return object;
+        };
+
+        /**
+         * Converts this GPUStatus to JSON.
+         * @function toJSON
+         * @memberof pb.GPUStatus
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        GPUStatus.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for GPUStatus
+         * @function getTypeUrl
+         * @memberof pb.GPUStatus
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        GPUStatus.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.GPUStatus";
+        };
+
+        return GPUStatus;
+    })();
+
+    pb.SystemStats = (function() {
+
+        /**
+         * Properties of a SystemStats.
+         * @memberof pb
+         * @interface ISystemStats
+         * @property {Array.<pb.IProcess>|null} [processes] SystemStats processes
+         * @property {Array.<pb.IGPUStatus>|null} [gpus] SystemStats gpus
+         */
+
+        /**
+         * Constructs a new SystemStats.
+         * @memberof pb
+         * @classdesc Represents a SystemStats.
+         * @implements ISystemStats
+         * @constructor
+         * @param {pb.ISystemStats=} [properties] Properties to set
+         */
+        function SystemStats(properties) {
+            this.processes = [];
+            this.gpus = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SystemStats processes.
+         * @member {Array.<pb.IProcess>} processes
+         * @memberof pb.SystemStats
+         * @instance
+         */
+        SystemStats.prototype.processes = $util.emptyArray;
+
+        /**
+         * SystemStats gpus.
+         * @member {Array.<pb.IGPUStatus>} gpus
+         * @memberof pb.SystemStats
+         * @instance
+         */
+        SystemStats.prototype.gpus = $util.emptyArray;
+
+        /**
+         * Creates a new SystemStats instance using the specified properties.
+         * @function create
+         * @memberof pb.SystemStats
+         * @static
+         * @param {pb.ISystemStats=} [properties] Properties to set
+         * @returns {pb.SystemStats} SystemStats instance
+         */
+        SystemStats.create = function create(properties) {
+            return new SystemStats(properties);
+        };
+
+        /**
+         * Encodes the specified SystemStats message. Does not implicitly {@link pb.SystemStats.verify|verify} messages.
+         * @function encode
+         * @memberof pb.SystemStats
+         * @static
+         * @param {pb.ISystemStats} message SystemStats message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SystemStats.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.processes != null && message.processes.length)
+                for (let i = 0; i < message.processes.length; ++i)
+                    $root.pb.Process.encode(message.processes[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            if (message.gpus != null && message.gpus.length)
+                for (let i = 0; i < message.gpus.length; ++i)
+                    $root.pb.GPUStatus.encode(message.gpus[i], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SystemStats message, length delimited. Does not implicitly {@link pb.SystemStats.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.SystemStats
+         * @static
+         * @param {pb.ISystemStats} message SystemStats message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SystemStats.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SystemStats message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.SystemStats
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.SystemStats} SystemStats
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SystemStats.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SystemStats();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        if (!(message.processes && message.processes.length))
+                            message.processes = [];
+                        message.processes.push($root.pb.Process.decode(reader, reader.uint32()));
+                        break;
+                    }
+                case 2: {
+                        if (!(message.gpus && message.gpus.length))
+                            message.gpus = [];
+                        message.gpus.push($root.pb.GPUStatus.decode(reader, reader.uint32()));
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SystemStats message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.SystemStats
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.SystemStats} SystemStats
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SystemStats.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SystemStats message.
+         * @function verify
+         * @memberof pb.SystemStats
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SystemStats.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.processes != null && message.hasOwnProperty("processes")) {
+                if (!Array.isArray(message.processes))
+                    return "processes: array expected";
+                for (let i = 0; i < message.processes.length; ++i) {
+                    let error = $root.pb.Process.verify(message.processes[i]);
+                    if (error)
+                        return "processes." + error;
+                }
+            }
+            if (message.gpus != null && message.hasOwnProperty("gpus")) {
+                if (!Array.isArray(message.gpus))
+                    return "gpus: array expected";
+                for (let i = 0; i < message.gpus.length; ++i) {
+                    let error = $root.pb.GPUStatus.verify(message.gpus[i]);
+                    if (error)
+                        return "gpus." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates a SystemStats message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.SystemStats
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.SystemStats} SystemStats
+         */
+        SystemStats.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.SystemStats)
+                return object;
+            let message = new $root.pb.SystemStats();
+            if (object.processes) {
+                if (!Array.isArray(object.processes))
+                    throw TypeError(".pb.SystemStats.processes: array expected");
+                message.processes = [];
+                for (let i = 0; i < object.processes.length; ++i) {
+                    if (typeof object.processes[i] !== "object")
+                        throw TypeError(".pb.SystemStats.processes: object expected");
+                    message.processes[i] = $root.pb.Process.fromObject(object.processes[i]);
+                }
+            }
+            if (object.gpus) {
+                if (!Array.isArray(object.gpus))
+                    throw TypeError(".pb.SystemStats.gpus: array expected");
+                message.gpus = [];
+                for (let i = 0; i < object.gpus.length; ++i) {
+                    if (typeof object.gpus[i] !== "object")
+                        throw TypeError(".pb.SystemStats.gpus: object expected");
+                    message.gpus[i] = $root.pb.GPUStatus.fromObject(object.gpus[i]);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SystemStats message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.SystemStats
+         * @static
+         * @param {pb.SystemStats} message SystemStats
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SystemStats.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults) {
+                object.processes = [];
+                object.gpus = [];
+            }
+            if (message.processes && message.processes.length) {
+                object.processes = [];
+                for (let j = 0; j < message.processes.length; ++j)
+                    object.processes[j] = $root.pb.Process.toObject(message.processes[j], options);
+            }
+            if (message.gpus && message.gpus.length) {
+                object.gpus = [];
+                for (let j = 0; j < message.gpus.length; ++j)
+                    object.gpus[j] = $root.pb.GPUStatus.toObject(message.gpus[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this SystemStats to JSON.
+         * @function toJSON
+         * @memberof pb.SystemStats
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SystemStats.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for SystemStats
+         * @function getTypeUrl
+         * @memberof pb.SystemStats
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SystemStats.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.SystemStats";
+        };
+
+        return SystemStats;
     })();
 
     pb.ProcessList = (function() {

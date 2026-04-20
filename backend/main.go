@@ -95,10 +95,16 @@ type ExportConfig struct {
 	Paths map[string]string `json:"paths"`
 }
 
-func getGPUPidMap() map[int32]uint32 {
-	gpuMap := make(map[int32]uint32)
-	// Query NVIDIA GPU for compute applications PIDs and their VRAM usage
-	cmd := exec.Command("nvidia-smi", "--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits")
+type gpuProcInfo struct {
+	mem  uint32
+	gpu  uint32
+	util uint32
+}
+
+func getGPUPidMap() map[int32]gpuProcInfo {
+	gpuMap := make(map[int32]gpuProcInfo)
+	// Query compute apps with pmon-like info if possible, or just basic memory
+	cmd := exec.Command("nvidia-smi", "--query-compute-apps=pid,used_memory,gpu_index", "--format=csv,noheader,nounits")
 	output, err := cmd.Output()
 	if err != nil {
 		return gpuMap
@@ -110,15 +116,47 @@ func getGPUPidMap() map[int32]uint32 {
 			continue
 		}
 		parts := bytes.Split(line, []byte(", "))
-		if len(parts) == 2 {
+		if len(parts) >= 2 {
 			var pid int32
 			var mem uint32
+			var gpuIdx uint32
 			fmt.Sscanf(string(parts[0]), "%d", &pid)
 			fmt.Sscanf(string(parts[1]), "%d", &mem)
-			gpuMap[pid] = mem
+			if len(parts) > 2 {
+				fmt.Sscanf(string(parts[2]), "%d", &gpuIdx)
+			}
+			gpuMap[pid] = gpuProcInfo{mem: mem, gpu: gpuIdx}
 		}
 	}
 	return gpuMap
+}
+
+func getGlobalGPUStatus() []*pb.GPUStatus {
+	var gpus []*pb.GPUStatus
+	cmd := exec.Command("nvidia-smi", "--query-gpu=index,name,utilization.gpu,utilization.memory,memory.total,memory.used,temperature.gpu", "--format=csv,noheader,nounits")
+	output, err := cmd.Output()
+	if err != nil {
+		return gpus
+	}
+	lines := bytes.Split(output, []byte("\n"))
+	for _, line := range lines {
+		if len(line) == 0 { continue }
+		parts := bytes.Split(line, []byte(", "))
+		if len(parts) == 7 {
+			var idx, utilG, utilM, mTot, mUsed, temp uint32
+			fmt.Sscanf(string(parts[0]), "%d", &idx)
+			fmt.Sscanf(string(parts[2]), "%d", &utilG)
+			fmt.Sscanf(string(parts[3]), "%d", &utilM)
+			fmt.Sscanf(string(parts[4]), "%d", &mTot)
+			fmt.Sscanf(string(parts[5]), "%d", &mUsed)
+			fmt.Sscanf(string(parts[6]), "%d", &temp)
+			gpus = append(gpus, &pb.GPUStatus{
+				Index: idx, Name: string(parts[1]), UtilGpu: utilG,
+				UtilMem: utilM, MemTotal: mTot, MemUsed: mUsed, Temp: temp,
+			})
+		}
+	}
+	return gpus
 }
 
 func main() {
@@ -147,13 +185,9 @@ func main() {
 	currentPid := int32(os.Getpid())
 	procs, _ := process.Processes()
 	for _, p := range procs {
-		if p.Pid == currentPid {
-			continue
-		}
+		if p.Pid == currentPid { continue }
 		name, _ := p.Name()
-		if name == "agent-ebpf-filter" || name == "main" {
-			_ = p.Kill()
-		}
+		if name == "agent-ebpf-filter" || name == "main" { _ = p.Kill() }
 	}
 
 	if err := rlimit.RemoveMemlock(); err != nil {
@@ -168,9 +202,7 @@ func main() {
 
 	attachTracepoint := func(category, name string, prog *ebpf.Program) link.Link {
 		l, err := link.Tracepoint(category, name, prog, nil)
-		if err != nil {
-			log.Fatalf("opening tracepoint %s/%s: %s", category, name, err)
-		}
+		if err != nil { log.Fatalf("opening tracepoint %s/%s: %s", category, name, err) }
 		return l
 	}
 
@@ -183,14 +215,10 @@ func main() {
 		attachTracepoint("syscalls", "sys_enter_ioctl", objs.TracepointSyscallsSysEnterIoctl),
 		attachTracepoint("syscalls", "sys_enter_bind", objs.TracepointSyscallsSysEnterBind),
 	}
-	for _, l := range links {
-		defer l.Close()
-	}
+	for _, l := range links { defer l.Close() }
 
 	rd, err := ringbuf.NewReader(objs.Events)
-	if err != nil {
-		log.Fatalf("opening ringbuf reader: %s", err)
-	}
+	if err != nil { log.Fatalf("opening ringbuf reader: %s", err) }
 	defer rd.Close()
 
 	broadcast := make(chan *pb.Event, 100)
@@ -203,28 +231,18 @@ func main() {
 		for {
 			record, err := rd.Read()
 			if err != nil {
-				if err == ringbuf.ErrClosed {
-					return
-				}
+				if err == ringbuf.ErrClosed { return }
 				continue
 			}
-			if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event); err != nil {
-				continue
-			}
+			if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event); err != nil { continue }
 			comm := string(bytes.TrimRight(event.Comm[:], "\x00"))
 			path := string(bytes.TrimRight(event.Path[:], "\x00"))
 			evtType, ok := types[event.Type]
-			if !ok {
-				evtType = "unknown"
-			}
+			if !ok { evtType = "unknown" }
 			pbEvent := &pb.Event{
-				Pid:  event.PID,
-				Ppid: event.PPID,
-				Uid:  event.UID,
-				Type: evtType,
-				Tag:  getTagName(event.TagID),
-				Comm: comm,
-				Path: path,
+				Pid: event.PID, Ppid: event.PPID, Uid: event.UID,
+				Type: evtType, Tag: getTagName(event.TagID),
+				Comm: comm, Path: path,
 			}
 			select {
 			case broadcast <- pbEvent:
@@ -253,36 +271,32 @@ func main() {
 
 	r.GET("/ws", func(c *gin.Context) {
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err != nil {
-			return
+		if err == nil {
+			clientsMu.Lock()
+			clients[conn] = true
+			clientsMu.Unlock()
 		}
-		clientsMu.Lock()
-		clients[conn] = true
-		clientsMu.Unlock()
 	})
 
 	r.GET("/ws/system", func(c *gin.Context) {
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err != nil {
-			return
-		}
+		if err != nil { return }
 		defer conn.Close()
 
 		intervalStr := c.DefaultQuery("interval", "2000")
 		intervalMs, _ := time.ParseDuration(intervalStr + "ms")
-		if intervalMs < 500*time.Millisecond {
-			intervalMs = 500 * time.Millisecond
-		}
-
+		if intervalMs < 500*time.Millisecond { intervalMs = 500 * time.Millisecond }
 		ticker := time.NewTicker(intervalMs)
 		defer ticker.Stop()
 
 		for {
 			select {
 			case <-ticker.C:
-				gpuMap := getGPUPidMap()
+				gpuProcMap := getGPUPidMap()
+				globalGPUs := getGlobalGPUStatus()
 				ps, _ := process.Processes()
-				pbList := &pb.ProcessList{}
+				pbStats := &pb.SystemStats{Gpus: globalGPUs}
+				
 				for _, p := range ps {
 					n, _ := p.Name()
 					pp, _ := p.Ppid()
@@ -291,18 +305,19 @@ func main() {
 					u, _ := p.Username()
 
 					gpuMem := uint32(0)
-					if mem, ok := gpuMap[p.Pid]; ok {
-						gpuMem = mem
+					gpuId := uint32(0)
+					if info, ok := gpuProcMap[p.Pid]; ok {
+						gpuMem = info.mem
+						gpuId = info.gpu
 					}
 
-					pbList.Processes = append(pbList.Processes, &pb.Process{
-						Pid: p.Pid, Ppid: pp, Name: n, Cpu: cp, Mem: mp, User: u, GpuMem: gpuMem,
+					pbStats.Processes = append(pbStats.Processes, &pb.Process{
+						Pid: p.Pid, Ppid: pp, Name: n, Cpu: cp, Mem: mp, User: u, 
+						GpuMem: gpuMem, GpuId: gpuId,
 					})
 				}
-				data, _ := proto.Marshal(pbList)
-				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
-					return
-				}
+				data, _ := proto.Marshal(pbStats)
+				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil { return }
 			}
 		}
 	})
@@ -312,11 +327,9 @@ func main() {
 		config.GET("/tags", func(c *gin.Context) {
 			tagsMu.RLock()
 			defer tagsMu.RUnlock()
-			var tags []string
-			for _, name := range tagMap {
-				tags = append(tags, name)
-			}
-			c.JSON(200, tags)
+			var tgs []string
+			for _, name := range tagMap { tgs = append(tgs, name) }
+			c.JSON(200, tgs)
 		})
 		config.POST("/tags", func(c *gin.Context) {
 			var req struct{ Name string `json:"name"` }
@@ -365,7 +378,7 @@ func main() {
 		})
 		config.POST("/paths", func(c *gin.Context) {
 			var req struct{ Path string `json:"path"`; Tag string `json:"tag"` }
-			if err := c.ShouldBindJSON(&req); err != nil {
+			if err := c.ShouldBindJSON(&req); err == nil {
 				var key [256]byte
 				copy(key[:], req.Path)
 				tagID := getTagID(req.Tag)
@@ -447,10 +460,7 @@ func main() {
 	var ln net.Listener
 	for i := 0; i < maxTries; i++ {
 		l, err := net.Listen("tcp", fmt.Sprintf(":%d", startPort+i))
-		if err == nil {
-			actualPort, ln = startPort+i, l
-			break
-		}
+		if err == nil { actualPort, ln = startPort+i, l; break }
 	}
 	if ln != nil {
 		ln.Close()

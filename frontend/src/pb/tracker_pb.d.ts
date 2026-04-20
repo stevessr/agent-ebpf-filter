@@ -559,6 +559,12 @@ export namespace pb {
 
         /** Process gpuMem */
         gpuMem?: (number|null);
+
+        /** Process gpuUtil */
+        gpuUtil?: (number|null);
+
+        /** Process gpuId */
+        gpuId?: (number|null);
     }
 
     /** Represents a Process. */
@@ -590,6 +596,12 @@ export namespace pb {
 
         /** Process gpuMem. */
         public gpuMem: number;
+
+        /** Process gpuUtil. */
+        public gpuUtil: number;
+
+        /** Process gpuId. */
+        public gpuId: number;
 
         /**
          * Creates a new Process instance using the specified properties.
@@ -663,6 +675,242 @@ export namespace pb {
 
         /**
          * Gets the default type url for Process
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a GPUStatus. */
+    interface IGPUStatus {
+
+        /** GPUStatus index */
+        index?: (number|null);
+
+        /** GPUStatus name */
+        name?: (string|null);
+
+        /** GPUStatus utilGpu */
+        utilGpu?: (number|null);
+
+        /** GPUStatus utilMem */
+        utilMem?: (number|null);
+
+        /** GPUStatus memTotal */
+        memTotal?: (number|null);
+
+        /** GPUStatus memUsed */
+        memUsed?: (number|null);
+
+        /** GPUStatus temp */
+        temp?: (number|null);
+    }
+
+    /** Represents a GPUStatus. */
+    class GPUStatus implements IGPUStatus {
+
+        /**
+         * Constructs a new GPUStatus.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IGPUStatus);
+
+        /** GPUStatus index. */
+        public index: number;
+
+        /** GPUStatus name. */
+        public name: string;
+
+        /** GPUStatus utilGpu. */
+        public utilGpu: number;
+
+        /** GPUStatus utilMem. */
+        public utilMem: number;
+
+        /** GPUStatus memTotal. */
+        public memTotal: number;
+
+        /** GPUStatus memUsed. */
+        public memUsed: number;
+
+        /** GPUStatus temp. */
+        public temp: number;
+
+        /**
+         * Creates a new GPUStatus instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns GPUStatus instance
+         */
+        public static create(properties?: pb.IGPUStatus): pb.GPUStatus;
+
+        /**
+         * Encodes the specified GPUStatus message. Does not implicitly {@link pb.GPUStatus.verify|verify} messages.
+         * @param message GPUStatus message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IGPUStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified GPUStatus message, length delimited. Does not implicitly {@link pb.GPUStatus.verify|verify} messages.
+         * @param message GPUStatus message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IGPUStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a GPUStatus message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns GPUStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.GPUStatus;
+
+        /**
+         * Decodes a GPUStatus message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns GPUStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.GPUStatus;
+
+        /**
+         * Verifies a GPUStatus message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a GPUStatus message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns GPUStatus
+         */
+        public static fromObject(object: { [k: string]: any }): pb.GPUStatus;
+
+        /**
+         * Creates a plain object from a GPUStatus message. Also converts values to other types if specified.
+         * @param message GPUStatus
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.GPUStatus, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this GPUStatus to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for GPUStatus
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a SystemStats. */
+    interface ISystemStats {
+
+        /** SystemStats processes */
+        processes?: (pb.IProcess[]|null);
+
+        /** SystemStats gpus */
+        gpus?: (pb.IGPUStatus[]|null);
+    }
+
+    /** Represents a SystemStats. */
+    class SystemStats implements ISystemStats {
+
+        /**
+         * Constructs a new SystemStats.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.ISystemStats);
+
+        /** SystemStats processes. */
+        public processes: pb.IProcess[];
+
+        /** SystemStats gpus. */
+        public gpus: pb.IGPUStatus[];
+
+        /**
+         * Creates a new SystemStats instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns SystemStats instance
+         */
+        public static create(properties?: pb.ISystemStats): pb.SystemStats;
+
+        /**
+         * Encodes the specified SystemStats message. Does not implicitly {@link pb.SystemStats.verify|verify} messages.
+         * @param message SystemStats message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.ISystemStats, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified SystemStats message, length delimited. Does not implicitly {@link pb.SystemStats.verify|verify} messages.
+         * @param message SystemStats message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.ISystemStats, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a SystemStats message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns SystemStats
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.SystemStats;
+
+        /**
+         * Decodes a SystemStats message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns SystemStats
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.SystemStats;
+
+        /**
+         * Verifies a SystemStats message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a SystemStats message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns SystemStats
+         */
+        public static fromObject(object: { [k: string]: any }): pb.SystemStats;
+
+        /**
+         * Creates a plain object from a SystemStats message. Also converts values to other types if specified.
+         * @param message SystemStats
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.SystemStats, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this SystemStats to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for SystemStats
          * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns The default type url
          */
