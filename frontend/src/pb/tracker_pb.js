@@ -891,7 +891,10 @@ export const pb = $root.pb = (() => {
          * @memberof pb
          * @interface IEvent
          * @property {number|null} [pid] Event pid
+         * @property {number|null} [ppid] Event ppid
+         * @property {number|null} [uid] Event uid
          * @property {string|null} [type] Event type
+         * @property {string|null} [tag] Event tag
          * @property {string|null} [comm] Event comm
          * @property {string|null} [path] Event path
          */
@@ -920,12 +923,36 @@ export const pb = $root.pb = (() => {
         Event.prototype.pid = 0;
 
         /**
+         * Event ppid.
+         * @member {number} ppid
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.ppid = 0;
+
+        /**
+         * Event uid.
+         * @member {number} uid
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.uid = 0;
+
+        /**
          * Event type.
          * @member {string} type
          * @memberof pb.Event
          * @instance
          */
         Event.prototype.type = "";
+
+        /**
+         * Event tag.
+         * @member {string} tag
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.tag = "";
 
         /**
          * Event comm.
@@ -969,12 +996,18 @@ export const pb = $root.pb = (() => {
                 writer = $Writer.create();
             if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
                 writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.pid);
+            if (message.ppid != null && Object.hasOwnProperty.call(message, "ppid"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint32(message.ppid);
+            if (message.uid != null && Object.hasOwnProperty.call(message, "uid"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint32(message.uid);
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.type);
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.type);
+            if (message.tag != null && Object.hasOwnProperty.call(message, "tag"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.tag);
             if (message.comm != null && Object.hasOwnProperty.call(message, "comm"))
-                writer.uint32(/* id 3, wireType 2 =*/26).string(message.comm);
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.comm);
             if (message.path != null && Object.hasOwnProperty.call(message, "path"))
-                writer.uint32(/* id 4, wireType 2 =*/34).string(message.path);
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.path);
             return writer;
         };
 
@@ -1016,14 +1049,26 @@ export const pb = $root.pb = (() => {
                         break;
                     }
                 case 2: {
-                        message.type = reader.string();
+                        message.ppid = reader.uint32();
                         break;
                     }
                 case 3: {
-                        message.comm = reader.string();
+                        message.uid = reader.uint32();
                         break;
                     }
                 case 4: {
+                        message.type = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.tag = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.comm = reader.string();
+                        break;
+                    }
+                case 7: {
                         message.path = reader.string();
                         break;
                     }
@@ -1065,9 +1110,18 @@ export const pb = $root.pb = (() => {
             if (message.pid != null && message.hasOwnProperty("pid"))
                 if (!$util.isInteger(message.pid))
                     return "pid: integer expected";
+            if (message.ppid != null && message.hasOwnProperty("ppid"))
+                if (!$util.isInteger(message.ppid))
+                    return "ppid: integer expected";
+            if (message.uid != null && message.hasOwnProperty("uid"))
+                if (!$util.isInteger(message.uid))
+                    return "uid: integer expected";
             if (message.type != null && message.hasOwnProperty("type"))
                 if (!$util.isString(message.type))
                     return "type: string expected";
+            if (message.tag != null && message.hasOwnProperty("tag"))
+                if (!$util.isString(message.tag))
+                    return "tag: string expected";
             if (message.comm != null && message.hasOwnProperty("comm"))
                 if (!$util.isString(message.comm))
                     return "comm: string expected";
@@ -1091,8 +1145,14 @@ export const pb = $root.pb = (() => {
             let message = new $root.pb.Event();
             if (object.pid != null)
                 message.pid = object.pid >>> 0;
+            if (object.ppid != null)
+                message.ppid = object.ppid >>> 0;
+            if (object.uid != null)
+                message.uid = object.uid >>> 0;
             if (object.type != null)
                 message.type = String(object.type);
+            if (object.tag != null)
+                message.tag = String(object.tag);
             if (object.comm != null)
                 message.comm = String(object.comm);
             if (object.path != null)
@@ -1115,14 +1175,23 @@ export const pb = $root.pb = (() => {
             let object = {};
             if (options.defaults) {
                 object.pid = 0;
+                object.ppid = 0;
+                object.uid = 0;
                 object.type = "";
+                object.tag = "";
                 object.comm = "";
                 object.path = "";
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
+            if (message.ppid != null && message.hasOwnProperty("ppid"))
+                object.ppid = message.ppid;
+            if (message.uid != null && message.hasOwnProperty("uid"))
+                object.uid = message.uid;
             if (message.type != null && message.hasOwnProperty("type"))
                 object.type = message.type;
+            if (message.tag != null && message.hasOwnProperty("tag"))
+                object.tag = message.tag;
             if (message.comm != null && message.hasOwnProperty("comm"))
                 object.comm = message.comm;
             if (message.path != null && message.hasOwnProperty("path"))
@@ -1157,6 +1226,553 @@ export const pb = $root.pb = (() => {
         };
 
         return Event;
+    })();
+
+    pb.Process = (function() {
+
+        /**
+         * Properties of a Process.
+         * @memberof pb
+         * @interface IProcess
+         * @property {number|null} [pid] Process pid
+         * @property {number|null} [ppid] Process ppid
+         * @property {string|null} [name] Process name
+         * @property {number|null} [cpu] Process cpu
+         * @property {number|null} [mem] Process mem
+         * @property {string|null} [user] Process user
+         */
+
+        /**
+         * Constructs a new Process.
+         * @memberof pb
+         * @classdesc Represents a Process.
+         * @implements IProcess
+         * @constructor
+         * @param {pb.IProcess=} [properties] Properties to set
+         */
+        function Process(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * Process pid.
+         * @member {number} pid
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.pid = 0;
+
+        /**
+         * Process ppid.
+         * @member {number} ppid
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.ppid = 0;
+
+        /**
+         * Process name.
+         * @member {string} name
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.name = "";
+
+        /**
+         * Process cpu.
+         * @member {number} cpu
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.cpu = 0;
+
+        /**
+         * Process mem.
+         * @member {number} mem
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.mem = 0;
+
+        /**
+         * Process user.
+         * @member {string} user
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.user = "";
+
+        /**
+         * Creates a new Process instance using the specified properties.
+         * @function create
+         * @memberof pb.Process
+         * @static
+         * @param {pb.IProcess=} [properties] Properties to set
+         * @returns {pb.Process} Process instance
+         */
+        Process.create = function create(properties) {
+            return new Process(properties);
+        };
+
+        /**
+         * Encodes the specified Process message. Does not implicitly {@link pb.Process.verify|verify} messages.
+         * @function encode
+         * @memberof pb.Process
+         * @static
+         * @param {pb.IProcess} message Process message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Process.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
+                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.pid);
+            if (message.ppid != null && Object.hasOwnProperty.call(message, "ppid"))
+                writer.uint32(/* id 2, wireType 0 =*/16).int32(message.ppid);
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.name);
+            if (message.cpu != null && Object.hasOwnProperty.call(message, "cpu"))
+                writer.uint32(/* id 4, wireType 1 =*/33).double(message.cpu);
+            if (message.mem != null && Object.hasOwnProperty.call(message, "mem"))
+                writer.uint32(/* id 5, wireType 5 =*/45).float(message.mem);
+            if (message.user != null && Object.hasOwnProperty.call(message, "user"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.user);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified Process message, length delimited. Does not implicitly {@link pb.Process.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.Process
+         * @static
+         * @param {pb.IProcess} message Process message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Process.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a Process message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.Process
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.Process} Process
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Process.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.Process();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.pid = reader.int32();
+                        break;
+                    }
+                case 2: {
+                        message.ppid = reader.int32();
+                        break;
+                    }
+                case 3: {
+                        message.name = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.cpu = reader.double();
+                        break;
+                    }
+                case 5: {
+                        message.mem = reader.float();
+                        break;
+                    }
+                case 6: {
+                        message.user = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a Process message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.Process
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.Process} Process
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Process.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a Process message.
+         * @function verify
+         * @memberof pb.Process
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        Process.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                if (!$util.isInteger(message.pid))
+                    return "pid: integer expected";
+            if (message.ppid != null && message.hasOwnProperty("ppid"))
+                if (!$util.isInteger(message.ppid))
+                    return "ppid: integer expected";
+            if (message.name != null && message.hasOwnProperty("name"))
+                if (!$util.isString(message.name))
+                    return "name: string expected";
+            if (message.cpu != null && message.hasOwnProperty("cpu"))
+                if (typeof message.cpu !== "number")
+                    return "cpu: number expected";
+            if (message.mem != null && message.hasOwnProperty("mem"))
+                if (typeof message.mem !== "number")
+                    return "mem: number expected";
+            if (message.user != null && message.hasOwnProperty("user"))
+                if (!$util.isString(message.user))
+                    return "user: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a Process message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.Process
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.Process} Process
+         */
+        Process.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.Process)
+                return object;
+            let message = new $root.pb.Process();
+            if (object.pid != null)
+                message.pid = object.pid | 0;
+            if (object.ppid != null)
+                message.ppid = object.ppid | 0;
+            if (object.name != null)
+                message.name = String(object.name);
+            if (object.cpu != null)
+                message.cpu = Number(object.cpu);
+            if (object.mem != null)
+                message.mem = Number(object.mem);
+            if (object.user != null)
+                message.user = String(object.user);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a Process message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.Process
+         * @static
+         * @param {pb.Process} message Process
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        Process.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.pid = 0;
+                object.ppid = 0;
+                object.name = "";
+                object.cpu = 0;
+                object.mem = 0;
+                object.user = "";
+            }
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                object.pid = message.pid;
+            if (message.ppid != null && message.hasOwnProperty("ppid"))
+                object.ppid = message.ppid;
+            if (message.name != null && message.hasOwnProperty("name"))
+                object.name = message.name;
+            if (message.cpu != null && message.hasOwnProperty("cpu"))
+                object.cpu = options.json && !isFinite(message.cpu) ? String(message.cpu) : message.cpu;
+            if (message.mem != null && message.hasOwnProperty("mem"))
+                object.mem = options.json && !isFinite(message.mem) ? String(message.mem) : message.mem;
+            if (message.user != null && message.hasOwnProperty("user"))
+                object.user = message.user;
+            return object;
+        };
+
+        /**
+         * Converts this Process to JSON.
+         * @function toJSON
+         * @memberof pb.Process
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        Process.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for Process
+         * @function getTypeUrl
+         * @memberof pb.Process
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        Process.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.Process";
+        };
+
+        return Process;
+    })();
+
+    pb.ProcessList = (function() {
+
+        /**
+         * Properties of a ProcessList.
+         * @memberof pb
+         * @interface IProcessList
+         * @property {Array.<pb.IProcess>|null} [processes] ProcessList processes
+         */
+
+        /**
+         * Constructs a new ProcessList.
+         * @memberof pb
+         * @classdesc Represents a ProcessList.
+         * @implements IProcessList
+         * @constructor
+         * @param {pb.IProcessList=} [properties] Properties to set
+         */
+        function ProcessList(properties) {
+            this.processes = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ProcessList processes.
+         * @member {Array.<pb.IProcess>} processes
+         * @memberof pb.ProcessList
+         * @instance
+         */
+        ProcessList.prototype.processes = $util.emptyArray;
+
+        /**
+         * Creates a new ProcessList instance using the specified properties.
+         * @function create
+         * @memberof pb.ProcessList
+         * @static
+         * @param {pb.IProcessList=} [properties] Properties to set
+         * @returns {pb.ProcessList} ProcessList instance
+         */
+        ProcessList.create = function create(properties) {
+            return new ProcessList(properties);
+        };
+
+        /**
+         * Encodes the specified ProcessList message. Does not implicitly {@link pb.ProcessList.verify|verify} messages.
+         * @function encode
+         * @memberof pb.ProcessList
+         * @static
+         * @param {pb.IProcessList} message ProcessList message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ProcessList.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.processes != null && message.processes.length)
+                for (let i = 0; i < message.processes.length; ++i)
+                    $root.pb.Process.encode(message.processes[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ProcessList message, length delimited. Does not implicitly {@link pb.ProcessList.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.ProcessList
+         * @static
+         * @param {pb.IProcessList} message ProcessList message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ProcessList.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ProcessList message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.ProcessList
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.ProcessList} ProcessList
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ProcessList.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ProcessList();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        if (!(message.processes && message.processes.length))
+                            message.processes = [];
+                        message.processes.push($root.pb.Process.decode(reader, reader.uint32()));
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ProcessList message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.ProcessList
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.ProcessList} ProcessList
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ProcessList.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ProcessList message.
+         * @function verify
+         * @memberof pb.ProcessList
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ProcessList.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.processes != null && message.hasOwnProperty("processes")) {
+                if (!Array.isArray(message.processes))
+                    return "processes: array expected";
+                for (let i = 0; i < message.processes.length; ++i) {
+                    let error = $root.pb.Process.verify(message.processes[i]);
+                    if (error)
+                        return "processes." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates a ProcessList message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.ProcessList
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.ProcessList} ProcessList
+         */
+        ProcessList.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.ProcessList)
+                return object;
+            let message = new $root.pb.ProcessList();
+            if (object.processes) {
+                if (!Array.isArray(object.processes))
+                    throw TypeError(".pb.ProcessList.processes: array expected");
+                message.processes = [];
+                for (let i = 0; i < object.processes.length; ++i) {
+                    if (typeof object.processes[i] !== "object")
+                        throw TypeError(".pb.ProcessList.processes: object expected");
+                    message.processes[i] = $root.pb.Process.fromObject(object.processes[i]);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ProcessList message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.ProcessList
+         * @static
+         * @param {pb.ProcessList} message ProcessList
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ProcessList.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults)
+                object.processes = [];
+            if (message.processes && message.processes.length) {
+                object.processes = [];
+                for (let j = 0; j < message.processes.length; ++j)
+                    object.processes[j] = $root.pb.Process.toObject(message.processes[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this ProcessList to JSON.
+         * @function toJSON
+         * @memberof pb.ProcessList
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ProcessList.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ProcessList
+         * @function getTypeUrl
+         * @memberof pb.ProcessList
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ProcessList.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.ProcessList";
+        };
+
+        return ProcessList;
     })();
 
     return pb;

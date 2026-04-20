@@ -409,8 +409,17 @@ export namespace pb {
         /** Event pid */
         pid?: (number|null);
 
+        /** Event ppid */
+        ppid?: (number|null);
+
+        /** Event uid */
+        uid?: (number|null);
+
         /** Event type */
         type?: (string|null);
+
+        /** Event tag */
+        tag?: (string|null);
 
         /** Event comm */
         comm?: (string|null);
@@ -431,8 +440,17 @@ export namespace pb {
         /** Event pid. */
         public pid: number;
 
+        /** Event ppid. */
+        public ppid: number;
+
+        /** Event uid. */
+        public uid: number;
+
         /** Event type. */
         public type: string;
+
+        /** Event tag. */
+        public tag: string;
 
         /** Event comm. */
         public comm: string;
@@ -512,6 +530,230 @@ export namespace pb {
 
         /**
          * Gets the default type url for Event
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a Process. */
+    interface IProcess {
+
+        /** Process pid */
+        pid?: (number|null);
+
+        /** Process ppid */
+        ppid?: (number|null);
+
+        /** Process name */
+        name?: (string|null);
+
+        /** Process cpu */
+        cpu?: (number|null);
+
+        /** Process mem */
+        mem?: (number|null);
+
+        /** Process user */
+        user?: (string|null);
+    }
+
+    /** Represents a Process. */
+    class Process implements IProcess {
+
+        /**
+         * Constructs a new Process.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IProcess);
+
+        /** Process pid. */
+        public pid: number;
+
+        /** Process ppid. */
+        public ppid: number;
+
+        /** Process name. */
+        public name: string;
+
+        /** Process cpu. */
+        public cpu: number;
+
+        /** Process mem. */
+        public mem: number;
+
+        /** Process user. */
+        public user: string;
+
+        /**
+         * Creates a new Process instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns Process instance
+         */
+        public static create(properties?: pb.IProcess): pb.Process;
+
+        /**
+         * Encodes the specified Process message. Does not implicitly {@link pb.Process.verify|verify} messages.
+         * @param message Process message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IProcess, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified Process message, length delimited. Does not implicitly {@link pb.Process.verify|verify} messages.
+         * @param message Process message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IProcess, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a Process message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns Process
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.Process;
+
+        /**
+         * Decodes a Process message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns Process
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.Process;
+
+        /**
+         * Verifies a Process message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a Process message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns Process
+         */
+        public static fromObject(object: { [k: string]: any }): pb.Process;
+
+        /**
+         * Creates a plain object from a Process message. Also converts values to other types if specified.
+         * @param message Process
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.Process, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this Process to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Process
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a ProcessList. */
+    interface IProcessList {
+
+        /** ProcessList processes */
+        processes?: (pb.IProcess[]|null);
+    }
+
+    /** Represents a ProcessList. */
+    class ProcessList implements IProcessList {
+
+        /**
+         * Constructs a new ProcessList.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IProcessList);
+
+        /** ProcessList processes. */
+        public processes: pb.IProcess[];
+
+        /**
+         * Creates a new ProcessList instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ProcessList instance
+         */
+        public static create(properties?: pb.IProcessList): pb.ProcessList;
+
+        /**
+         * Encodes the specified ProcessList message. Does not implicitly {@link pb.ProcessList.verify|verify} messages.
+         * @param message ProcessList message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IProcessList, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ProcessList message, length delimited. Does not implicitly {@link pb.ProcessList.verify|verify} messages.
+         * @param message ProcessList message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IProcessList, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ProcessList message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ProcessList
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.ProcessList;
+
+        /**
+         * Decodes a ProcessList message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ProcessList
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.ProcessList;
+
+        /**
+         * Verifies a ProcessList message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ProcessList message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ProcessList
+         */
+        public static fromObject(object: { [k: string]: any }): pb.ProcessList;
+
+        /**
+         * Creates a plain object from a ProcessList message. Also converts values to other types if specified.
+         * @param message ProcessList
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.ProcessList, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ProcessList to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ProcessList
          * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns The default type url
          */

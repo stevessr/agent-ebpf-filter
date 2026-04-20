@@ -10,8 +10,10 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 
 	bpf "agent-ebpf-filter/ebpf"
+	"agent-ebpf-filter/pb"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -20,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/shirou/gopsutil/v3/process"
+	"google.golang.org/protobuf/proto"
 )
 
 var upgrader = websocket.Upgrader{
@@ -39,38 +42,17 @@ type bpfEvent struct {
 	Path  [256]byte
 }
 
-type WsEvent struct {
-	PID  uint32 `json:"pid"`
-	PPID uint32 `json:"ppid"`
-	UID  uint32 `json:"uid"`
-	Type string `json:"type"`
-	Tag  string `json:"tag"`
-	Comm string `json:"comm"`
-	Path string `json:"path"`
-}
-
 var (
 	tagsMu sync.RWMutex
 	tagMap = map[uint32]string{
-		0: "Unknown",
-		1: "AI Agent",
-		2: "Git",
-		3: "Build Tool",
-		4: "Package Manager",
-		5: "Runtime",
-		6: "System Tool",
-		7: "Network Tool",
-		8: "Security",
+		0: "Unknown", 1: "AI Agent", 2: "Git",
+		3: "Build Tool", 4: "Package Manager", 5: "Runtime",
+		6: "System Tool", 7: "Network Tool", 8: "Security",
 	}
 	tagNameToID = map[string]uint32{
-		"AI Agent":        1,
-		"Git":             2,
-		"Build Tool":      3,
-		"Package Manager": 4,
-		"Runtime":         5,
-		"System Tool":     6,
-		"Network Tool":    7,
-		"Security":        8,
+		"AI Agent": 1, "Git": 2, "Build Tool": 3,
+		"Package Manager": 4, "Runtime": 5, "System Tool": 6,
+		"Network Tool": 7, "Security": 8,
 	}
 	nextTagID uint32 = 9
 )
@@ -162,7 +144,7 @@ func main() {
 	}
 	defer rd.Close()
 
-	broadcast := make(chan WsEvent, 100)
+	broadcast := make(chan *pb.Event, 100)
 	go func() {
 		var event bpfEvent
 		types := map[uint32]string{
@@ -186,13 +168,17 @@ func main() {
 			if !ok {
 				evtType = "unknown"
 			}
-			wsEvent := WsEvent{
-				PID: event.PID, PPID: event.PPID, UID: event.UID,
-				Type: evtType, Tag: getTagName(event.TagID),
-				Comm: comm, Path: path,
+			pbEvent := &pb.Event{
+				Pid:  event.PID,
+				Ppid: event.PPID,
+				Uid:  event.UID,
+				Type: evtType,
+				Tag:  getTagName(event.TagID),
+				Comm: comm,
+				Path: path,
 			}
 			select {
-			case broadcast <- wsEvent:
+			case broadcast <- pbEvent:
 			default:
 			}
 		}
@@ -200,14 +186,19 @@ func main() {
 
 	r := gin.Default()
 	clients := make(map[*websocket.Conn]bool)
+	var clientsMu sync.Mutex
+
 	go func() {
 		for event := range broadcast {
+			data, _ := proto.Marshal(event)
+			clientsMu.Lock()
 			for client := range clients {
-				if err := client.WriteJSON(event); err != nil {
+				if err := client.WriteMessage(websocket.BinaryMessage, data); err != nil {
 					client.Close()
 					delete(clients, client)
 				}
 			}
+			clientsMu.Unlock()
 		}
 	}()
 
@@ -216,24 +207,48 @@ func main() {
 		if err != nil {
 			return
 		}
+		clientsMu.Lock()
 		clients[conn] = true
+		clientsMu.Unlock()
 	})
 
-	r.POST("/register", func(c *gin.Context) {
-		var req struct {
-			PID uint32 `json:"pid"`
-			Tag string `json:"tag"`
-		}
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(400, gin.H{"error": err.Error()})
+	r.GET("/ws/system", func(c *gin.Context) {
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
 			return
 		}
-		tagID := getTagID(req.Tag)
-		if err := objs.AgentPids.Put(&req.PID, &tagID); err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
-			return
+		defer conn.Close()
+
+		intervalStr := c.DefaultQuery("interval", "2000")
+		intervalMs, _ := time.ParseDuration(intervalStr + "ms")
+		if intervalMs < 500*time.Millisecond {
+			intervalMs = 500 * time.Millisecond
 		}
-		c.JSON(200, gin.H{"message": "Registered"})
+
+		ticker := time.NewTicker(intervalMs)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				ps, _ := process.Processes()
+				pbList := &pb.ProcessList{}
+				for _, p := range ps {
+					n, _ := p.Name()
+					pp, _ := p.Ppid()
+					cp, _ := p.CPUPercent()
+					mp, _ := p.MemoryPercent()
+					u, _ := p.Username()
+					pbList.Processes = append(pbList.Processes, &pb.Process{
+						Pid: p.Pid, Ppid: pp, Name: n, Cpu: cp, Mem: mp, User: u,
+					})
+				}
+				data, _ := proto.Marshal(pbList)
+				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+					return
+				}
+			}
+		}
 	})
 
 	config := r.Group("/config")
@@ -344,28 +359,6 @@ func main() {
 			}
 		})
 	}
-
-	r.GET("/system/processes", func(c *gin.Context) {
-		ps, _ := process.Processes()
-		type PInfo struct {
-			PID  int32   `json:"pid"`
-			PPID int32   `json:"ppid"`
-			Name string  `json:"name"`
-			CPU  float64 `json:"cpu"`
-			Mem  float32 `json:"mem"`
-			User string  `json:"user"`
-		}
-		var list []PInfo
-		for _, p := range ps {
-			n, _ := p.Name()
-			pp, _ := p.Ppid()
-			cp, _ := p.CPUPercent()
-			mp, _ := p.MemoryPercent()
-			u, _ := p.Username()
-			list = append(list, PInfo{p.Pid, pp, n, cp, mp, u})
-		}
-		c.JSON(200, list)
-	})
 
 	r.StaticFile("/", "../frontend/dist/index.html")
 	r.Static("/assets", "../frontend/dist/assets")

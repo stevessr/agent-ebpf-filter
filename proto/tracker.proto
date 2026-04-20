@@ -28,7 +28,25 @@ message UnregisterResponse {
 // Represents an intercepted eBPF event (e.g., file open, exec)
 message Event {
   uint32 pid = 1;
-  string type = 2;
-  string comm = 3;
-  string path = 4;
+  uint32 ppid = 2;
+  uint32 uid = 3;
+  string type = 4;
+  string tag = 5;
+  string comm = 6;
+  string path = 7;
 }
+
+// Represents system process information for the tree view
+message Process {
+  int32 pid = 1;
+  int32 ppid = 2;
+  string name = 3;
+  double cpu = 4;
+  float mem = 5;
+  string user = 6;
+}
+
+message ProcessList {
+  repeated Process processes = 1;
+}
+

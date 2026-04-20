@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import { FilterOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
+import { pb } from '../pb/tracker_pb.js';
 
 interface AgentEvent {
   key: string;
@@ -64,6 +65,7 @@ const getCategoryColor = (tag: string) => {
   const colors: Record<string, string> = {
     'AI Agent': 'magenta', 'Git': 'orange', 'Build Tool': 'cyan',
     'Package Manager': 'green', 'Runtime': 'blue', 'System Tool': 'geekblue', 'Network Tool': 'purple',
+    'Security': 'red'
   };
   return colors[tag] || 'default';
 };
@@ -72,6 +74,7 @@ const connectWebSocket = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;
   ws = new WebSocket(`${protocol}//${host}/ws`);
+  ws.binaryType = 'arraybuffer';
 
   ws.onopen = () => {
     isConnected.value = true;
@@ -79,7 +82,8 @@ const connectWebSocket = () => {
 
   ws.onmessage = (message) => {
     try {
-      const data = JSON.parse(message.data);
+      const uint8Array = new Uint8Array(message.data);
+      const data = pb.Event.decode(uint8Array);
       const now = new Date();
       events.value.unshift({
         key: `${data.pid}-${data.path}-${Date.now()}-${Math.random()}`,
@@ -153,7 +157,8 @@ onUnmounted(() => {
             <template #icon><InfoCircleOutlined /></template>
           </a-button>
         </template>
-      </template>    </a-table>
+      </template>
+    </a-table>
 
     <a-modal v-model:open="showDetails" title="Event Details" :footer="null" width="600px">
       <a-descriptions bordered :column="1" size="small" v-if="selectedEvent">

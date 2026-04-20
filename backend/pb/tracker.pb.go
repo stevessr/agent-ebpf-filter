@@ -221,9 +221,12 @@ func (x *UnregisterResponse) GetMessage() string {
 type Event struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Pid           uint32                 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
-	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	Comm          string                 `protobuf:"bytes,3,opt,name=comm,proto3" json:"comm,omitempty"`
-	Path          string                 `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
+	Ppid          uint32                 `protobuf:"varint,2,opt,name=ppid,proto3" json:"ppid,omitempty"`
+	Uid           uint32                 `protobuf:"varint,3,opt,name=uid,proto3" json:"uid,omitempty"`
+	Type          string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
+	Tag           string                 `protobuf:"bytes,5,opt,name=tag,proto3" json:"tag,omitempty"`
+	Comm          string                 `protobuf:"bytes,6,opt,name=comm,proto3" json:"comm,omitempty"`
+	Path          string                 `protobuf:"bytes,7,opt,name=path,proto3" json:"path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -265,9 +268,30 @@ func (x *Event) GetPid() uint32 {
 	return 0
 }
 
+func (x *Event) GetPpid() uint32 {
+	if x != nil {
+		return x.Ppid
+	}
+	return 0
+}
+
+func (x *Event) GetUid() uint32 {
+	if x != nil {
+		return x.Uid
+	}
+	return 0
+}
+
 func (x *Event) GetType() string {
 	if x != nil {
 		return x.Type
+	}
+	return ""
+}
+
+func (x *Event) GetTag() string {
+	if x != nil {
+		return x.Tag
 	}
 	return ""
 }
@@ -286,6 +310,135 @@ func (x *Event) GetPath() string {
 	return ""
 }
 
+// Represents system process information for the tree view
+type Process struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pid           int32                  `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	Ppid          int32                  `protobuf:"varint,2,opt,name=ppid,proto3" json:"ppid,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Cpu           float64                `protobuf:"fixed64,4,opt,name=cpu,proto3" json:"cpu,omitempty"`
+	Mem           float32                `protobuf:"fixed32,5,opt,name=mem,proto3" json:"mem,omitempty"`
+	User          string                 `protobuf:"bytes,6,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Process) Reset() {
+	*x = Process{}
+	mi := &file_tracker_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Process) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Process) ProtoMessage() {}
+
+func (x *Process) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Process.ProtoReflect.Descriptor instead.
+func (*Process) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Process) GetPid() int32 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *Process) GetPpid() int32 {
+	if x != nil {
+		return x.Ppid
+	}
+	return 0
+}
+
+func (x *Process) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Process) GetCpu() float64 {
+	if x != nil {
+		return x.Cpu
+	}
+	return 0
+}
+
+func (x *Process) GetMem() float32 {
+	if x != nil {
+		return x.Mem
+	}
+	return 0
+}
+
+func (x *Process) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+type ProcessList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Processes     []*Process             `protobuf:"bytes,1,rep,name=processes,proto3" json:"processes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProcessList) Reset() {
+	*x = ProcessList{}
+	mi := &file_tracker_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProcessList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProcessList) ProtoMessage() {}
+
+func (x *ProcessList) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProcessList.ProtoReflect.Descriptor instead.
+func (*ProcessList) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ProcessList) GetProcesses() []*Process {
+	if x != nil {
+		return x.Processes
+	}
+	return nil
+}
+
 var File_tracker_proto protoreflect.FileDescriptor
 
 const file_tracker_proto_rawDesc = "" +
@@ -300,12 +453,24 @@ const file_tracker_proto_rawDesc = "" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\"H\n" +
 	"\x12UnregisterResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"U\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x8d\x01\n" +
 	"\x05Event\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\tR\x04type\x12\x12\n" +
-	"\x04comm\x18\x03 \x01(\tR\x04comm\x12\x12\n" +
-	"\x04path\x18\x04 \x01(\tR\x04pathB\x16Z\x14agent-ebpf-filter/pbb\x06proto3"
+	"\x04ppid\x18\x02 \x01(\rR\x04ppid\x12\x10\n" +
+	"\x03uid\x18\x03 \x01(\rR\x03uid\x12\x12\n" +
+	"\x04type\x18\x04 \x01(\tR\x04type\x12\x10\n" +
+	"\x03tag\x18\x05 \x01(\tR\x03tag\x12\x12\n" +
+	"\x04comm\x18\x06 \x01(\tR\x04comm\x12\x12\n" +
+	"\x04path\x18\a \x01(\tR\x04path\"{\n" +
+	"\aProcess\x12\x10\n" +
+	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12\x12\n" +
+	"\x04ppid\x18\x02 \x01(\x05R\x04ppid\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x10\n" +
+	"\x03cpu\x18\x04 \x01(\x01R\x03cpu\x12\x10\n" +
+	"\x03mem\x18\x05 \x01(\x02R\x03mem\x12\x12\n" +
+	"\x04user\x18\x06 \x01(\tR\x04user\"8\n" +
+	"\vProcessList\x12)\n" +
+	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocessesB\x16Z\x14agent-ebpf-filter/pbb\x06proto3"
 
 var (
 	file_tracker_proto_rawDescOnce sync.Once
@@ -319,20 +484,23 @@ func file_tracker_proto_rawDescGZIP() []byte {
 	return file_tracker_proto_rawDescData
 }
 
-var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_tracker_proto_goTypes = []any{
 	(*RegisterRequest)(nil),    // 0: pb.RegisterRequest
 	(*RegisterResponse)(nil),   // 1: pb.RegisterResponse
 	(*UnregisterRequest)(nil),  // 2: pb.UnregisterRequest
 	(*UnregisterResponse)(nil), // 3: pb.UnregisterResponse
 	(*Event)(nil),              // 4: pb.Event
+	(*Process)(nil),            // 5: pb.Process
+	(*ProcessList)(nil),        // 6: pb.ProcessList
 }
 var file_tracker_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	5, // 0: pb.ProcessList.processes:type_name -> pb.Process
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_tracker_proto_init() }
@@ -346,7 +514,7 @@ func file_tracker_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tracker_proto_rawDesc), len(file_tracker_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
