@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -47,6 +46,12 @@ type WrapperRule struct {
 	RewrittenCmd []string `json:"rewritten_cmd,omitempty"`
 }
 
+type ExportConfig struct {
+	Tags  []string          `json:"tags"`
+	Comms map[string]string `json:"comms"`
+	Paths map[string]string `json:"paths"`
+}
+
 var (
 	tagsMu      sync.RWMutex
 	tagMap      = map[uint32]string{0: "Unknown", 1: "AI Agent", 2: "Git", 3: "Build Tool", 4: "Package Manager", 5: "Runtime", 6: "System Tool", 7: "Network Tool", 8: "Security"}
@@ -59,20 +64,15 @@ var (
 
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Skip auth in dev mode
-		if os.Getenv("GIN_MODE") != "release" && os.Getenv("DISABLE_AUTH") == "true" {
+		if os.Getenv("GIN_MODE") != "release" && (os.Getenv("DISABLE_AUTH") == "true" || os.Getenv("DISABLE_AUTH") == "") {
 			c.Next()
 			return
 		}
-
 		apiKey := c.GetHeader("X-API-KEY")
 		expectedKey := os.Getenv("AGENT_API_KEY")
-		if expectedKey == "" {
-			expectedKey = "agent-secret-123" // Default
-		}
-
+		if expectedKey == "" { expectedKey = "agent-secret-123" }
 		if apiKey != expectedKey {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Invalid API Key"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			return
 		}
 		c.Next()
@@ -97,8 +97,10 @@ func getTagID(name string) uint32 {
 	return id
 }
 
-func getGPUPidMap() map[int32]struct{ mem, gpu uint32 } {
-	gpuMap := make(map[int32]struct{ mem, gpu uint32 })
+type gpuInfo struct{ mem, gpu uint32 }
+
+func getGPUPidMap() map[int32]gpuInfo {
+	gpuMap := make(map[int32]gpuInfo)
 	cmd := exec.Command("nvidia-smi", "--query-compute-apps=pid,used_memory,gpu_index", "--format=csv,noheader,nounits")
 	output, _ := cmd.Output()
 	lines := bytes.Split(output, []byte("\n"))
@@ -111,7 +113,7 @@ func getGPUPidMap() map[int32]struct{ mem, gpu uint32 } {
 			fmt.Sscanf(string(parts[0]), "%d", &pid)
 			fmt.Sscanf(string(parts[1]), "%d", &mem)
 			if len(parts) > 2 { fmt.Sscanf(string(parts[2]), "%d", &gpu) }
-			gpuMap[pid] = struct{ mem, gpu uint32 }{mem, gpu}
+			gpuMap[pid] = gpuInfo{mem, gpu}
 		}
 	}
 	return gpuMap
@@ -148,33 +150,30 @@ func startUDSServer(broadcast chan *pb.Event) {
 	for {
 		conn, err := l.Accept()
 		if err != nil { continue }
-		go handleUDSConn(conn, broadcast)
-	}
-}
-
-func handleUDSConn(conn net.Conn, broadcast chan *pb.Event) {
-	defer conn.Close()
-	buf := make([]byte, 4096)
-	for {
-		n, err := conn.Read(buf)
-		if err != nil { return }
-		req := &pb.WrapperRequest{}
-		if err := proto.Unmarshal(buf[:n], req); err != nil { continue }
-		resp := &pb.WrapperResponse{Action: pb.WrapperResponse_ALLOW}
-		rulesMu.RLock()
-		rule, ok := wrapperRules[req.Comm]
-		rulesMu.RUnlock()
-		if ok {
-			switch rule.Action {
-			case "BLOCK": resp.Action = pb.WrapperResponse_BLOCK; resp.Message = "Command blocked by policy"
-			case "ALERT": resp.Action = pb.WrapperResponse_ALERT; resp.Message = "Security alert"
-			case "REWRITE": resp.Action = pb.WrapperResponse_REWRITE; resp.RewrittenArgs = rule.RewrittenCmd
+		go func(c net.Conn) {
+			defer c.Close()
+			buf := make([]byte, 4096)
+			for {
+				n, err := c.Read(buf)
+				if err != nil { return }
+				req := &pb.WrapperRequest{}
+				if err := proto.Unmarshal(buf[:n], req); err != nil { continue }
+				resp := &pb.WrapperResponse{Action: pb.WrapperResponse_ALLOW}
+				rulesMu.RLock()
+				rule, ok := wrapperRules[req.Comm]
+				rulesMu.RUnlock()
+				if ok {
+					switch rule.Action {
+					case "BLOCK": resp.Action = pb.WrapperResponse_BLOCK; resp.Message = "Blocked by policy"
+					case "ALERT": resp.Action = pb.WrapperResponse_ALERT; resp.Message = "Security alert"
+					case "REWRITE": resp.Action = pb.WrapperResponse_REWRITE; resp.RewrittenArgs = rule.RewrittenCmd
+					}
+				}
+				broadcast <- &pb.Event{Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept", Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " ")}
+				out, _ := proto.Marshal(resp)
+				_, _ = c.Write(out)
 			}
-		}
-		evt := &pb.Event{Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept", Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " ")}
-		broadcast <- evt
-		out, _ := proto.Marshal(resp)
-		_, _ = conn.Write(out)
+		}(conn)
 	}
 }
 
@@ -183,29 +182,29 @@ func main() {
 		executable, _ := os.Executable()
 		isDesktop := os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
 		sudoCmd := "sudo"
-		if isDesktop { if _, err := exec.LookPath("pkexec"); err == nil { sudoCmd = "pkexec" } }
-		fmt.Printf("Root privileges required. Re-running with %s...\n", sudoCmd)
+		if isDesktop { if p, err := exec.LookPath("pkexec"); err == nil { sudoCmd = p } }
 		cmd := exec.Command(sudoCmd, append([]string{executable}, os.Args[1:]...)...)
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 		_ = cmd.Run()
 		os.Exit(0)
 	}
 
-	currentPid := int32(os.Getpid())
 	procs, _ := process.Processes()
+	curr := int32(os.Getpid())
 	for _, p := range procs {
-		if p.Pid == currentPid { continue }
-		name, _ := p.Name()
-		if name == "agent-ebpf-filter" || name == "main" { _ = p.Kill() }
+		if p.Pid != curr {
+			if n, _ := p.Name(); n == "agent-ebpf-filter" || n == "main" { _ = p.Kill() }
+		}
 	}
 
 	_ = rlimit.RemoveMemlock()
 	var objs bpf.AgentTrackerObjects
-	_ = bpf.LoadAgentTrackerObjects(&objs, nil)
+	if err := bpf.LoadAgentTrackerObjects(&objs, nil); err != nil { log.Fatalf("Load eBPF: %v", err) }
 	defer objs.Close()
 
 	attach := func(c, n string, p *ebpf.Program) link.Link {
-		l, _ := link.Tracepoint(c, n, p, nil)
+		l, err := link.Tracepoint(c, n, p, nil)
+		if err != nil { log.Printf("Link %s/%s: %v", c, n, err) }
 		return l
 	}
 	links := []link.Link{
@@ -217,7 +216,7 @@ func main() {
 		attach("syscalls", "sys_enter_ioctl", objs.TracepointSyscallsSysEnterIoctl),
 		attach("syscalls", "sys_enter_bind", objs.TracepointSyscallsSysEnterBind),
 	}
-	for _, l := range links { defer l.Close() }
+	for _, l := range links { if l != nil { defer l.Close() } }
 
 	rd, _ := ringbuf.NewReader(objs.Events)
 	defer rd.Close()
@@ -244,9 +243,7 @@ func main() {
 			data, _ := proto.Marshal(event)
 			clientsMu.Lock()
 			for c := range clients {
-				if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil {
-					c.Close(); delete(clients, c)
-				}
+				if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil { c.Close(); delete(clients, c) }
 			}
 			clientsMu.Unlock()
 		}
@@ -258,18 +255,19 @@ func main() {
 	})
 
 	r.GET("/ws/system", func(c *gin.Context) {
-		conn, _ := upgrader.Upgrade(c.Writer, c.Request, nil)
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil { return }
 		defer conn.Close()
 		ticker := time.NewTicker(2 * time.Second)
 		for range ticker.C {
-			gpuMap, gpus := getGPUPidMap(), getGlobalGPUStatus()
-			ps, _ := process.Processes()
-			stats := &pb.SystemStats{Gpus: gpus}
-			for _, p := range ps {
+			gm, gs := getGPUPidMap(), getGlobalGPUStatus()
+			psList, _ := process.Processes()
+			stats := &pb.SystemStats{Gpus: gs}
+			for _, p := range psList {
 				n, _ := p.Name(); pp, _ := p.Ppid(); cp, _ := p.CPUPercent(); mp, _ := p.MemoryPercent(); u, _ := p.Username()
-				gm, gi := uint32(0), uint32(0)
-				if info, ok := gpuMap[p.Pid]; ok { gm, gi = info.mem, info.gpu }
-				stats.Processes = append(stats.Processes, &pb.Process{Pid: p.Pid, Ppid: pp, Name: n, Cpu: cp, Mem: mp, User: u, GpuMem: gm, GpuId: gi})
+				mem, gid := uint32(0), uint32(0)
+				if info, ok := gm[p.Pid]; ok { mem, gid = info.mem, info.gpu }
+				stats.Processes = append(stats.Processes, &pb.Process{Pid: p.Pid, Ppid: pp, Name: n, Cpu: cp, Mem: mp, User: u, GpuMem: mem, GpuId: gid})
 			}
 			data, _ := proto.Marshal(stats)
 			if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil { return }
@@ -281,47 +279,36 @@ func main() {
 		config := api.Group("/config")
 		{
 			config.GET("/tags", func(c *gin.Context) {
-				tagsMu.RLock(); defer tagsMu.RUnlock()
-				t := []string{}; for _, n := range tagMap { t = append(t, n) }
-				c.JSON(200, t)
+				tagsMu.RLock(); defer tagsMu.RUnlock(); t := []string{}; for _, n := range tagMap { t = append(t, n) }; c.JSON(200, t)
 			})
 			config.POST("/tags", func(c *gin.Context) {
-				var req struct{ Name string `json:"name"` }; _ = c.ShouldBindJSON(&req)
-				getTagID(req.Name); c.JSON(200, gin.H{"status": "ok"})
+				var req struct{ Name string `json:"name"` }; _ = c.ShouldBindJSON(&req); getTagID(req.Name); c.JSON(200, gin.H{"status": "ok"})
 			})
 			config.GET("/comms", func(c *gin.Context) {
-				items := []gin.H{}
-				iter := objs.TrackedComms.Iterate(); var k [16]byte; var tid uint32
-				for iter.Next(&k, &tid) { items = append(items, gin.H{"comm": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)}) }
-				c.JSON(200, items)
+				items := []gin.H{}; iter := objs.TrackedComms.Iterate(); var k [16]byte; var tid uint32
+				for iter.Next(&k, &tid) { items = append(items, gin.H{"comm": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)}) }; c.JSON(200, items)
 			})
 			config.POST("/comms", func(c *gin.Context) {
-				var req struct{ Comm, Tag string `json:"comm" json:"tag"` }; _ = c.ShouldBindJSON(&req)
-				var k [16]byte; copy(k[:], req.Comm); _ = objs.TrackedComms.Put(k, getTagID(req.Tag)); c.JSON(200, gin.H{"status": "ok"})
+				var req struct{ Comm, Tag string `json:"comm" json:"tag"` }; _ = c.ShouldBindJSON(&req); var k [16]byte; copy(k[:], req.Comm); _ = objs.TrackedComms.Put(k, getTagID(req.Tag)); c.JSON(200, gin.H{"status": "ok"})
 			})
 			config.DELETE("/comms/:comm", func(c *gin.Context) {
 				var k [16]byte; copy(k[:], c.Param("comm")); _ = objs.TrackedComms.Delete(k); c.JSON(200, gin.H{"status": "ok"})
 			})
 			config.GET("/paths", func(c *gin.Context) {
-				items := []gin.H{}
-				iter := objs.TrackedPaths.Iterate(); var k [256]byte; var tid uint32
-				for iter.Next(&k, &tid) { items = append(items, gin.H{"path": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)}) }
-				c.JSON(200, items)
+				items := []gin.H{}; iter := objs.TrackedPaths.Iterate(); var k [256]byte; var tid uint32
+				for iter.Next(&k, &tid) { items = append(items, gin.H{"path": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)}) }; c.JSON(200, items)
 			})
 			config.POST("/paths", func(c *gin.Context) {
-				var req struct{ Path, Tag string `json:"path" json:"tag"` }; _ = c.ShouldBindJSON(&req)
-				var k [256]byte; copy(k[:], req.Path); _ = objs.TrackedPaths.Put(k, getTagID(req.Tag)); c.JSON(200, gin.H{"status": "ok"})
+				var req struct{ Path, Tag string `json:"path" json:"tag"` }; _ = c.ShouldBindJSON(&req); var k [256]byte; copy(k[:], req.Path); _ = objs.TrackedPaths.Put(k, getTagID(req.Tag)); c.JSON(200, gin.H{"status": "ok"})
 			})
 			config.DELETE("/paths/*path", func(c *gin.Context) {
-				p := c.Param("path"); if len(p) > 0 && p[0] == '/' { p = p[1:] }
-				var k [256]byte; copy(k[:], p); _ = objs.TrackedPaths.Delete(k); c.JSON(200, gin.H{"status": "ok"})
+				p := c.Param("path"); if len(p) > 0 && p[0] == '/' { p = p[1:] }; var k [256]byte; copy(k[:], p); _ = objs.TrackedPaths.Delete(k); c.JSON(200, gin.H{"status": "ok"})
 			})
 			config.GET("/rules", func(c *gin.Context) {
 				rulesMu.RLock(); defer rulesMu.RUnlock(); c.JSON(200, wrapperRules)
 			})
 			config.POST("/rules", func(c *gin.Context) {
-				var req WrapperRule; _ = c.ShouldBindJSON(&req)
-				rulesMu.Lock(); wrapperRules[req.Comm] = req; rulesMu.Unlock(); c.JSON(200, gin.H{"status": "ok"})
+				var req WrapperRule; _ = c.ShouldBindJSON(&req); rulesMu.Lock(); wrapperRules[req.Comm] = req; rulesMu.Unlock(); c.JSON(200, gin.H{"status": "ok"})
 			})
 			config.DELETE("/rules/:comm", func(c *gin.Context) {
 				rulesMu.Lock(); delete(wrapperRules, c.Param("comm")); rulesMu.Unlock(); c.JSON(200, gin.H{"status": "ok"})
@@ -330,10 +317,8 @@ func main() {
 				cfg := ExportConfig{Comms: make(map[string]string), Paths: make(map[string]string)}
 				tagsMu.RLock(); for _, n := range tagMap { cfg.Tags = append(cfg.Tags, n) }; tagsMu.RUnlock()
 				var k16 [16]byte; var k256 [256]byte; var tid uint32
-				i1 := objs.TrackedComms.Iterate()
-				for i1.Next(&k16, &tid) { cfg.Comms[string(bytes.TrimRight(k16[:], "\x00"))] = getTagName(tid) }
-				i2 := objs.TrackedPaths.Iterate()
-				for i2.Next(&k256, &tid) { cfg.Paths[string(bytes.TrimRight(k256[:], "\x00"))] = getTagName(tid) }
+				i1 := objs.TrackedComms.Iterate(); for i1.Next(&k16, &tid) { cfg.Comms[string(bytes.TrimRight(k16[:], "\x00"))] = getTagName(tid) }
+				i2 := objs.TrackedPaths.Iterate(); for i2.Next(&k256, &tid) { cfg.Paths[string(bytes.TrimRight(k256[:], "\x00"))] = getTagName(tid) }
 				c.JSON(200, cfg)
 			})
 			config.POST("/import", func(c *gin.Context) {
@@ -357,12 +342,10 @@ func main() {
 			system.POST("/run", func(c *gin.Context) {
 				var req struct { Comm string `json:"comm"`; Args []string `json:"args"` }
 				if err := c.ShouldBindJSON(&req); err == nil {
-					cwd, _ := os.Getwd()
-					wrapperBin := cwd + "/../agent-wrapper"
-					if _, err := os.Stat(wrapperBin); err != nil { wrapperBin = "./agent-wrapper" }
-					cmd := exec.Command(wrapperBin, append([]string{req.Comm}, req.Args...)...)
-					err := cmd.Start()
-					if err != nil { c.JSON(500, gin.H{"error": err.Error()}); return }
+					cwd, _ := os.Getwd(); wb := cwd + "/../agent-wrapper"
+					if _, err := os.Stat(wb); err != nil { wb = "./agent-wrapper" }
+					cmd := exec.Command(wb, append([]string{req.Comm}, req.Args...)...)
+					if err := cmd.Start(); err != nil { c.JSON(500, gin.H{"error": err.Error()}); return }
 					c.JSON(200, gin.H{"status": "started", "pid": cmd.Process.Pid})
 				}
 			})
