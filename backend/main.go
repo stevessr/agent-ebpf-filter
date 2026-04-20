@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -282,13 +283,32 @@ func main() {
 		_ = objs.TrackedComms.Put(key, val)
 	}
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	startPort := 8080
+	maxTries := 10
+	var ln net.Listener
+	var errBind error
+	actualPort := startPort
+
+	for i := 0; i < maxTries; i++ {
+		addr := fmt.Sprintf(":%d", startPort+i)
+		ln, errBind = net.Listen("tcp", addr)
+		if errBind == nil {
+			actualPort = startPort + i
+			break
+		}
+		fmt.Printf("Port %d is in use, trying next...\n", startPort+i)
 	}
 
-	fmt.Printf("Server listening on :%s\n", port)
-	if err := r.Run(":" + port); err != nil {
+	if ln == nil {
+		log.Fatalf("Could not find an available port after %d tries: %v", maxTries, errBind)
+	}
+	ln.Close() // Close so Gin can bind it, or pass the listener to Gin
+
+	// Write the port to a file so the frontend/vite can discover it
+	_ = os.WriteFile(".port", []byte(fmt.Sprintf("%d", actualPort)), 0644)
+
+	fmt.Printf("Server listening on :%d\n", actualPort)
+	if err := r.Run(fmt.Sprintf(":%d", actualPort)); err != nil {
 		log.Fatal(err)
 	}
 }
