@@ -122,6 +122,13 @@ func main() {
 
 	r := gin.Default()
 
+	// Serve static files from frontend/dist
+	r.StaticFile("/", "../frontend/dist/index.html")
+	r.Static("/assets", "../frontend/dist/assets")
+	r.NoRoute(func(c *gin.Context) {
+		c.File("../frontend/dist/index.html")
+	})
+
 	// Manage connected websocket clients
 	clients := make(map[*websocket.Conn]bool)
 

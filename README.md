@@ -20,27 +20,32 @@ A specialized eBPF-based observation framework designed to trace application pat
 
 ## Usage
 
-### 1. Quick Start (Run Both)
+### 1. Development Mode
+
+```bash
+make dev
+```
+Starts the Go backend and the frontend Vite development server (`http://localhost:5173`) concurrently. Changes to the frontend will be reflected in real-time.
+
+### 2. Production Mode
 
 ```bash
 make run
 ```
-This will compile the eBPF code, build the Go backend, and start both the backend (using `sudo`) and the frontend concurrently.
+Builds the frontend production assets, compiles the eBPF code, and starts the Go server which then serves the frontend from `http://localhost:8080`.
 
-### 2. Manual Start
+### 3. Manual Control
 
-#### Build and Run the Backend
+#### Build and Run Backend Only
 ```bash
 make backend
 make run-backend
 ```
-*Note: sudo is required for attaching eBPF programs.*
 
-#### Run the Frontend
+#### Run Frontend Dev Server Only
 ```bash
 make run-frontend
 ```
-Navigate to `http://localhost:5173` to view the UI.
 
 ### 3. Run Agents (Adapters)
 
