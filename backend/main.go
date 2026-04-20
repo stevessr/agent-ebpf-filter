@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 var upgrader = websocket.Upgrader{
@@ -59,6 +60,7 @@ var (
 		5: "Runtime",
 		6: "System Tool",
 		7: "Network Tool",
+		8: "Security",
 	}
 	tagNameToID = map[string]uint32{
 		"AI Agent":        1,
@@ -68,8 +70,9 @@ var (
 		"Runtime":         5,
 		"System Tool":     6,
 		"Network Tool":    7,
+		"Security":        8,
 	}
-	nextTagID uint32 = 8
+	nextTagID uint32 = 9
 )
 
 func getTagName(id uint32) string {
@@ -94,18 +97,22 @@ func getTagID(name string) uint32 {
 	return id
 }
 
+type ExportConfig struct {
+	Tags  []string          `json:"tags"`
+	Comms map[string]string `json:"comms"`
+	Paths map[string]string `json:"paths"`
+}
+
 func main() {
 	if os.Geteuid() != 0 {
 		executable, _ := os.Executable()
 		isDesktop := os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
-		
 		sudoCmd := "sudo"
 		if isDesktop {
 			if _, err := exec.LookPath("pkexec"); err == nil {
 				sudoCmd = "pkexec"
 			}
 		}
-
 		fmt.Printf("Root privileges required for eBPF operations. Re-running with %s...\n", sudoCmd)
 		cmd := exec.Command(sudoCmd, append([]string{executable}, os.Args[1:]...)...)
 		cmd.Stdin = os.Stdin
@@ -118,19 +125,16 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Allow the current process to lock memory for eBPF resources.
 	if err := rlimit.RemoveMemlock(); err != nil {
 		log.Fatal("Failed to remove memlock:", err)
 	}
 
-	// Load pre-compiled programs and maps into the kernel.
 	var objs bpf.AgentTrackerObjects
 	if err := bpf.LoadAgentTrackerObjects(&objs, nil); err != nil {
 		log.Fatalf("loading objects: %v", err)
 	}
 	defer objs.Close()
 
-	// Attach tracepoints
 	attachTracepoint := func(category, name string, prog *ebpf.Program) link.Link {
 		l, err := link.Tracepoint(category, name, prog, nil)
 		if err != nil {
@@ -152,62 +156,41 @@ func main() {
 		defer l.Close()
 	}
 
-	// Open a ringbuf reader from userspace RINGBUF map
 	rd, err := ringbuf.NewReader(objs.Events)
 	if err != nil {
 		log.Fatalf("opening ringbuf reader: %s", err)
 	}
 	defer rd.Close()
 
-	// Channel to broadcast events to websocket clients
 	broadcast := make(chan WsEvent, 100)
-
-	// Background task to read ringbuf events
 	go func() {
 		var event bpfEvent
 		types := map[uint32]string{
-			0: "execve",
-			1: "openat",
-			2: "network_connect",
-			3: "mkdir",
-			4: "unlink",
-			5: "ioctl",
-			6: "network_bind",
+			0: "execve", 1: "openat", 2: "network_connect",
+			3: "mkdir", 4: "unlink", 5: "ioctl", 6: "network_bind",
 		}
 		for {
 			record, err := rd.Read()
 			if err != nil {
 				if err == ringbuf.ErrClosed {
-					log.Println("Ringbuf closed")
 					return
 				}
-				log.Printf("reading from ringbuf: %s", err)
 				continue
 			}
-
 			if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event); err != nil {
-				log.Printf("parsing ringbuf event: %s", err)
 				continue
 			}
-
 			comm := string(bytes.TrimRight(event.Comm[:], "\x00"))
 			path := string(bytes.TrimRight(event.Path[:], "\x00"))
-			
 			evtType, ok := types[event.Type]
 			if !ok {
 				evtType = "unknown"
 			}
-
 			wsEvent := WsEvent{
-				PID:  event.PID,
-				PPID: event.PPID,
-				UID:  event.UID,
-				Type: evtType,
-				Tag:  getTagName(event.TagID),
-				Comm: comm,
-				Path: path,
+				PID: event.PID, PPID: event.PPID, UID: event.UID,
+				Type: evtType, Tag: getTagName(event.TagID),
+				Comm: comm, Path: path,
 			}
-
 			select {
 			case broadcast <- wsEvent:
 			default:
@@ -216,17 +199,11 @@ func main() {
 	}()
 
 	r := gin.Default()
-
-	// Manage connected websocket clients
 	clients := make(map[*websocket.Conn]bool)
-
-	// Broadcast events to all clients
 	go func() {
 		for event := range broadcast {
 			for client := range clients {
-				err := client.WriteJSON(event)
-				if err != nil {
-					log.Printf("websocket write error: %v", err)
+				if err := client.WriteJSON(event); err != nil {
 					client.Close()
 					delete(clients, client)
 				}
@@ -237,54 +214,27 @@ func main() {
 	r.GET("/ws", func(c *gin.Context) {
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
-			log.Println(err)
 			return
 		}
 		clients[conn] = true
 	})
 
-	type RegisterRequest struct {
-		PID uint32 `json:"pid"`
-		Tag string `json:"tag"`
-	}
-
 	r.POST("/register", func(c *gin.Context) {
-		var req RegisterRequest
+		var req struct {
+			PID uint32 `json:"pid"`
+			Tag string `json:"tag"`
+		}
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(400, gin.H{"error": err.Error()})
 			return
 		}
-		
-		tagID := uint32(1) // Default "AI Agent"
-		if req.Tag != "" {
-			tagID = getTagID(req.Tag)
-		}
-
+		tagID := getTagID(req.Tag)
 		if err := objs.AgentPids.Put(&req.PID, &tagID); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update eBPF map: %v", err)})
+			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Registered PID %d with tag %s", req.PID, getTagName(tagID))})
+		c.JSON(200, gin.H{"message": "Registered"})
 	})
-	
-	r.POST("/unregister", func(c *gin.Context) {
-		var req RegisterRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		if err := objs.AgentPids.Delete(&req.PID); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update eBPF map: %v", err)})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Unregistered PID %d", req.PID)})
-	})
-
-	// --- Config Endpoints for Tracked Comms ---
-	type CommRequest struct {
-		Comm string `json:"comm"`
-		Tag  string `json:"tag"`
-	}
 
 	config := r.Group("/config")
 	{
@@ -295,201 +245,168 @@ func main() {
 			for _, name := range tagMap {
 				tags = append(tags, name)
 			}
-			c.JSON(http.StatusOK, tags)
+			c.JSON(200, tags)
 		})
-
 		config.POST("/tags", func(c *gin.Context) {
-			var req struct {
-				Name string `json:"name"`
+			var req struct{ Name string `json:"name"` }
+			if err := c.ShouldBindJSON(&req); err == nil {
+				getTagID(req.Name)
+				c.JSON(200, gin.H{"message": "Tag created"})
 			}
-			if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tag name"})
-				return
-			}
-			getTagID(req.Name)
-			c.JSON(http.StatusOK, gin.H{"message": "Tag created"})
 		})
-
 		config.GET("/comms", func(c *gin.Context) {
-			type TrackedItem struct {
-				Comm string `json:"comm"`
-				Tag  string `json:"tag"`
-			}
-			var items []TrackedItem
+			type Item struct{ Comm string `json:"comm"`; Tag string `json:"tag"` }
+			var items []Item
 			var key [16]byte
 			var tagID uint32
 			iter := objs.TrackedComms.Iterate()
 			for iter.Next(&key, &tagID) {
-				items = append(items, TrackedItem{
-					Comm: string(bytes.TrimRight(key[:], "\x00")),
-					Tag:  getTagName(tagID),
-				})
+				items = append(items, Item{string(bytes.TrimRight(key[:], "\x00")), getTagName(tagID)})
 			}
-			c.JSON(http.StatusOK, items)
+			c.JSON(200, items)
 		})
-
 		config.POST("/comms", func(c *gin.Context) {
-			var req CommRequest
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
+			var req struct{ Comm string `json:"comm"`; Tag string `json:"tag"` }
+			if err := c.ShouldBindJSON(&req); err == nil {
+				var key [16]byte
+				copy(key[:], req.Comm)
+				tagID := getTagID(req.Tag)
+				objs.TrackedComms.Put(key, tagID)
+				c.JSON(200, gin.H{"message": "Added"})
 			}
-			var key [16]byte
-			copy(key[:], req.Comm)
-			
-			tagID := uint32(6) // Default "System Tool"
-			if req.Tag != "" {
-				tagID = getTagID(req.Tag)
-			}
-
-			if err := objs.TrackedComms.Put(key, tagID); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{"message": "Tracked comm added"})
 		})
-
 		config.DELETE("/comms/:comm", func(c *gin.Context) {
-			comm := c.Param("comm")
 			var key [16]byte
-			copy(key[:], comm)
-			if err := objs.TrackedComms.Delete(key); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{"message": "Tracked comm removed"})
+			copy(key[:], c.Param("comm"))
+			objs.TrackedComms.Delete(key)
+			c.JSON(200, gin.H{"message": "Removed"})
 		})
-
 		config.GET("/paths", func(c *gin.Context) {
-			type PathItem struct {
-				Path string `json:"path"`
-				Tag  string `json:"tag"`
-			}
-			var items []PathItem
+			type Item struct{ Path string `json:"path"`; Tag string `json:"tag"` }
+			var items []Item
 			var key [256]byte
 			var tagID uint32
 			iter := objs.TrackedPaths.Iterate()
 			for iter.Next(&key, &tagID) {
-				items = append(items, PathItem{
-					Path: string(bytes.TrimRight(key[:], "\x00")),
-					Tag:  getTagName(tagID),
-				})
+				items = append(items, Item{string(bytes.TrimRight(key[:], "\x00")), getTagName(tagID)})
 			}
-			c.JSON(http.StatusOK, items)
+			c.JSON(200, items)
 		})
-
 		config.POST("/paths", func(c *gin.Context) {
-			var req struct {
-				Path string `json:"path"`
-				Tag  string `json:"tag"`
+			var req struct{ Path string `json:"path"`; Tag string `json:"tag"` }
+			if err := c.ShouldBindJSON(&req); err == nil {
+				var key [256]byte
+				copy(key[:], req.Path)
+				tagID := getTagID(req.Tag)
+				objs.TrackedPaths.Put(key, tagID)
+				c.JSON(200, gin.H{"message": "Added"})
 			}
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-			var key [256]byte
-			copy(key[:], req.Path)
-			tagID := uint32(6) // Default "System Tool"
-			if req.Tag != "" {
-				tagID = getTagID(req.Tag)
-			}
-			if err := objs.TrackedPaths.Put(key, tagID); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{"message": "Tracked path added"})
 		})
-
 		config.DELETE("/paths/*path", func(c *gin.Context) {
 			path := c.Param("path")
-			if len(path) > 0 && path[0] == '/' {
-				path = path[1:] // gin Param includes leading slash
-			}
+			if len(path) > 0 && path[0] == '/' { path = path[1:] }
 			var key [256]byte
 			copy(key[:], path)
-			if err := objs.TrackedPaths.Delete(key); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
+			objs.TrackedPaths.Delete(key)
+			c.JSON(200, gin.H{"message": "Removed"})
+		})
+		config.GET("/export", func(c *gin.Context) {
+			cfg := ExportConfig{Comms: make(map[string]string), Paths: make(map[string]string)}
+			tagsMu.RLock()
+			for _, n := range tagMap { cfg.Tags = append(cfg.Tags, n) }
+			tagsMu.RUnlock()
+			var k16 [16]byte
+			var k256 [256]byte
+			var tid uint32
+			i1 := objs.TrackedComms.Iterate()
+			for i1.Next(&k16, &tid) { cfg.Comms[string(bytes.TrimRight(k16[:], "\x00"))] = getTagName(tid) }
+			i2 := objs.TrackedPaths.Iterate()
+			for i2.Next(&k256, &tid) { cfg.Paths[string(bytes.TrimRight(k256[:], "\x00"))] = getTagName(tid) }
+			c.JSON(200, cfg)
+		})
+		config.POST("/import", func(c *gin.Context) {
+			var cfg ExportConfig
+			if err := c.ShouldBindJSON(&cfg); err == nil {
+				for _, t := range cfg.Tags { getTagID(t) }
+				for comm, tag := range cfg.Comms {
+					var k [16]byte
+					copy(k[:], comm)
+					tid := getTagID(tag)
+					objs.TrackedComms.Put(k, tid)
+				}
+				for p, tag := range cfg.Paths {
+					var k [256]byte
+					copy(k[:], p)
+					tid := getTagID(tag)
+					objs.TrackedPaths.Put(k, tid)
+				}
+				c.JSON(200, gin.H{"message": "Imported"})
 			}
-			c.JSON(http.StatusOK, gin.H{"message": "Tracked path removed"})
 		})
 	}
 
-	// Serve static files from frontend/dist (defined AFTER API routes)
-	r.StaticFile("/", "../frontend/dist/index.html")
-	r.Static("/assets", "../frontend/dist/assets")
-	r.NoRoute(func(c *gin.Context) {
-		c.File("../frontend/dist/index.html")
+	r.GET("/system/processes", func(c *gin.Context) {
+		ps, _ := process.Processes()
+		type PInfo struct {
+			PID  int32   `json:"pid"`
+			PPID int32   `json:"ppid"`
+			Name string  `json:"name"`
+			CPU  float64 `json:"cpu"`
+			Mem  float32 `json:"mem"`
+			User string  `json:"user"`
+		}
+		var list []PInfo
+		for _, p := range ps {
+			n, _ := p.Name()
+			pp, _ := p.Ppid()
+			cp, _ := p.CPUPercent()
+			mp, _ := p.MemoryPercent()
+			u, _ := p.Username()
+			list = append(list, PInfo{p.Pid, pp, n, cp, mp, u})
+		}
+		c.JSON(200, list)
 	})
 
-	// Pre-load common coding CLIs
+	r.StaticFile("/", "../frontend/dist/index.html")
+	r.Static("/assets", "../frontend/dist/assets")
+	r.NoRoute(func(c *gin.Context) { c.File("../frontend/dist/index.html") })
+
 	commonCLIs := map[string]string{
-		"git":     "Git",
-		"npm":     "Package Manager",
-		"bun":     "Package Manager",
-		"pnpm":    "Package Manager",
-		"yarn":    "Package Manager",
-		"node":    "Runtime",
-		"python":  "Runtime",
-		"python3": "Runtime",
-		"go":      "Build Tool",
-		"cargo":   "Build Tool",
-		"rustc":   "Build Tool",
-		"gcc":     "Build Tool",
-		"g++":     "Build Tool",
-		"clang":   "Build Tool",
-		"make":    "Build Tool",
-		"cmake":   "Build Tool",
-		"docker":  "System Tool",
-		"kubectl": "Network Tool",
+		"git": "Git", "npm": "Package Manager", "bun": "Package Manager",
+		"pnpm": "Package Manager", "yarn": "Package Manager", "node": "Runtime",
+		"python": "Runtime", "python3": "Runtime", "go": "Build Tool",
+		"cargo": "Build Tool", "rustc": "Build Tool", "gcc": "Build Tool",
+		"g++": "Build Tool", "clang": "Build Tool", "make": "Build Tool",
+		"cmake": "Build Tool", "docker": "System Tool", "kubectl": "Network Tool",
 	}
 	for cli, tag := range commonCLIs {
 		var key [16]byte
 		copy(key[:], cli)
-		tagID := getTagID(tag)
-		_ = objs.TrackedComms.Put(key, tagID)
+		_ = objs.TrackedComms.Put(key, getTagID(tag))
 	}
-
-	// Pre-load sensitive paths
 	sensitivePaths := map[string]string{
-		"/etc/shadow": "Security",
-		"/etc/passwd": "Security",
-		"/etc/sudoers": "Security",
-		"/etc/hosts": "Security",
+		"/etc/shadow": "Security", "/etc/passwd": "Security",
+		"/etc/sudoers": "Security", "/etc/hosts": "Security",
 	}
 	for p, tag := range sensitivePaths {
 		var key [256]byte
 		copy(key[:], p)
-		tagID := getTagID(tag)
-		_ = objs.TrackedPaths.Put(key, tagID)
+		_ = objs.TrackedPaths.Put(key, getTagID(tag))
 	}
 
-	startPort := 8080
-	maxTries := 10
+	startPort, maxTries, actualPort := 8080, 10, 8080
 	var ln net.Listener
-	var errBind error
-	actualPort := startPort
-
 	for i := 0; i < maxTries; i++ {
-		addr := fmt.Sprintf(":%d", startPort+i)
-		ln, errBind = net.Listen("tcp", addr)
-		if errBind == nil {
-			actualPort = startPort + i
+		l, err := net.Listen("tcp", fmt.Sprintf(":%d", startPort+i))
+		if err == nil {
+			actualPort, ln = startPort+i, l
 			break
 		}
-		fmt.Printf("Port %d is in use, trying next...\n", startPort+i)
 	}
-
-	if ln == nil {
-		log.Fatalf("Could not find an available port after %d tries: %v", maxTries, errBind)
-	}
-	ln.Close() // Close so Gin can bind it, or pass the listener to Gin
-
-	// Write the port to a file so the frontend/vite can discover it
-	_ = os.WriteFile(".port", []byte(fmt.Sprintf("%d", actualPort)), 0644)
-
-	fmt.Printf("Server listening on :%d\n", actualPort)
-	if err := r.Run(fmt.Sprintf(":%d", actualPort)); err != nil {
-		log.Fatal(err)
+	if ln != nil {
+		ln.Close()
+		_ = os.WriteFile(".port", []byte(fmt.Sprintf("%d", actualPort)), 0644)
+		fmt.Printf("Server listening on :%d\n", actualPort)
+		r.Run(fmt.Sprintf(":%d", actualPort))
 	}
 }

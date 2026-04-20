@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
-import { PlusOutlined, DeleteOutlined, TagOutlined, AppstoreOutlined, FolderOutlined } from '@ant-design/icons-vue';
+import { PlusOutlined, DeleteOutlined, TagOutlined, AppstoreOutlined, FolderOutlined, ExportOutlined, ImportOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
 interface TrackedItem {
@@ -49,6 +49,42 @@ const fetchTrackedPaths = async () => {
   } catch (err) {
     message.error('Failed to fetch tracked paths');
   }
+};
+
+const exportConfig = async () => {
+  try {
+    const res = await axios.get('/config/export');
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "agent-ebpf-config.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    message.success('Configuration exported');
+  } catch (err) {
+    message.error('Failed to export configuration');
+  }
+};
+
+const importConfig = async (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const config = JSON.parse(e.target?.result as string);
+      await axios.post('/config/import', config);
+      message.success('Configuration imported successfully');
+      fetchTags();
+      fetchTrackedComms();
+      fetchTrackedPaths();
+    } catch (err) {
+      message.error('Failed to import configuration: invalid JSON');
+    }
+  };
+  reader.readAsText(file);
 };
 
 const addTag = async () => {
@@ -154,7 +190,21 @@ onMounted(() => {
       <!-- Tag Management -->
       <a-col :span="24">
         <a-card title="Tag Management" size="small">
-          <template #extra><TagOutlined /></template>
+          <template #extra>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="file" ref="fileInput" @change="importConfig" style="display: none" accept=".json" />
+              <a-button size="small" @click="() => ($refs.fileInput as any).click()">
+                <template #icon><ImportOutlined /></template>
+                Import
+              </a-button>
+              <a-button size="small" @click="exportConfig">
+                <template #icon><ExportOutlined /></template>
+                Export
+              </a-button>
+              <a-divider type="vertical" />
+              <TagOutlined />
+            </div>
+          </template>
           <div style="display: flex; gap: 16px; align-items: flex-start;">
             <div style="width: 300px;">
               <a-input-group compact>
