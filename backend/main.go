@@ -42,6 +42,16 @@ type bpfEvent struct {
 	Path  [256]byte
 }
 
+type WsEvent struct {
+	PID  uint32 `json:"pid"`
+	PPID uint32 `json:"ppid"`
+	UID  uint32 `json:"uid"`
+	Type string `json:"type"`
+	Tag  string `json:"tag"`
+	Comm string `json:"comm"`
+	Path string `json:"path"`
+}
+
 var (
 	tagsMu sync.RWMutex
 	tagMap = map[uint32]string{
@@ -89,14 +99,12 @@ func main() {
 	if os.Geteuid() != 0 {
 		executable, _ := os.Executable()
 		isDesktop := os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
-
 		sudoCmd := "sudo"
 		if isDesktop {
 			if _, err := exec.LookPath("pkexec"); err == nil {
 				sudoCmd = "pkexec"
 			}
 		}
-
 		fmt.Printf("Root privileges required for eBPF operations. Re-running with %s...\n", sudoCmd)
 		cmd := exec.Command(sudoCmd, append([]string{executable}, os.Args[1:]...)...)
 		cmd.Stdin = os.Stdin
@@ -109,7 +117,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Kill existing instances to avoid conflicts (logic moved from Makefile)
+	// Kill existing instances to avoid conflicts
 	currentPid := int32(os.Getpid())
 	procs, _ := process.Processes()
 	for _, p := range procs {
@@ -117,15 +125,15 @@ func main() {
 			continue
 		}
 		name, _ := p.Name()
-		if name == "agent-ebpf-filter" || name == "main" { // "main" is common during `go run`
-			// Double check it's not a random process named main by checking cmdline if needed,
-			// but for dev environments this is usually sufficient.
+		if name == "agent-ebpf-filter" || name == "main" {
 			_ = p.Kill()
 		}
 	}
 
-	// Allow the current process to lock memory for eBPF resources.
 	if err := rlimit.RemoveMemlock(); err != nil {
+		log.Fatal("Failed to remove memlock:", err)
+	}
+
 	var objs bpf.AgentTrackerObjects
 	if err := bpf.LoadAgentTrackerObjects(&objs, nil); err != nil {
 		log.Fatalf("loading objects: %v", err)
@@ -324,7 +332,7 @@ func main() {
 		})
 		config.POST("/paths", func(c *gin.Context) {
 			var req struct{ Path string `json:"path"`; Tag string `json:"tag"` }
-			if err := c.ShouldBindJSON(&req); err == nil {
+			if err := c.ShouldBindJSON(&req); err != nil {
 				var key [256]byte
 				copy(key[:], req.Path)
 				tagID := getTagID(req.Tag)

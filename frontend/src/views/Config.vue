@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
-import { PlusOutlined, DeleteOutlined, TagOutlined, AppstoreOutlined, FolderOutlined, ExportOutlined, ImportOutlined } from '@ant-design/icons-vue';
+import { PlusOutlined, TagOutlined, AppstoreOutlined, FolderOutlined, ExportOutlined, ImportOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
 interface TrackedItem {
