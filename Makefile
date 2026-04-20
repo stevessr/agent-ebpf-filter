@@ -42,21 +42,16 @@ frontend: ## Build Vue3 frontend
 	cd frontend && bun install && bun run build
 
 dev: proto ## Run both backend and frontend development server (no full build)
-	@echo "Stopping any existing backends..."
-	@-sudo pkill -f agent-ebpf-filter || true
 	@echo "Starting dev environment..."
 	cd backend/ebpf && go generate
 	cd backend && go run main.go & \
 	cd frontend && bun run dev
 
 run: all ## Build and run in production mode
-	@echo "Stopping any existing backends..."
-	@-sudo pkill -f agent-ebpf-filter || true
 	@echo "Running production build..."
 	@./backend/agent-ebpf-filter
 
 run-backend: backend ## Build and run only the backend
-	@-sudo pkill -f agent-ebpf-filter || true
 	@./backend/agent-ebpf-filter
 
 run-frontend: ## Run only the frontend development server
