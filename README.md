@@ -14,7 +14,7 @@ A specialized eBPF-based observation framework designed to trace application pat
 - Linux kernel with eBPF support and BTF enabled (typical on modern distros)
 - Clang/LLVM for eBPF compilation
 - Go 1.21+
-- Node.js & npm
+- Bun
 - Python 3.8+ (for Python agents)
 - Root/sudo access to run the Go backend (eBPF requires privileges)
 
@@ -33,8 +33,8 @@ sudo ./agent-ebpf-filter
 
 ```bash
 cd frontend
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 Navigate to `http://localhost:5173` to view the UI.
 

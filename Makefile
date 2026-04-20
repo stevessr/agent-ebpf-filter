@@ -9,7 +9,7 @@ backend: ## Build Go backend and compile eBPF
 
 frontend: ## Build Vue3 frontend
 	@echo "Building frontend..."
-	cd frontend && npm install && npm run build
+	cd frontend && bun install && bun run build
 
 clean: ## Clean build artifacts
 	rm -f backend/agent-ebpf-filter
