@@ -57,6 +57,28 @@ var (
 	wrapperRules = make(map[string]WrapperRule)
 )
 
+func authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Skip auth in dev mode
+		if os.Getenv("GIN_MODE") != "release" && os.Getenv("DISABLE_AUTH") == "true" {
+			c.Next()
+			return
+		}
+
+		apiKey := c.GetHeader("X-API-KEY")
+		expectedKey := os.Getenv("AGENT_API_KEY")
+		if expectedKey == "" {
+			expectedKey = "agent-secret-123" // Default
+		}
+
+		if apiKey != expectedKey {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Invalid API Key"})
+			return
+		}
+		c.Next()
+	}
+}
+
 func getTagName(id uint32) string {
 	tagsMu.RLock()
 	defer tagsMu.RUnlock()
@@ -120,13 +142,9 @@ func getGlobalGPUStatus() []*pb.GPUStatus {
 func startUDSServer(broadcast chan *pb.Event) {
 	_ = os.Remove(udsPath)
 	l, err := net.Listen("unix", udsPath)
-	if err != nil {
-		log.Printf("UDS Listen error: %v", err)
-		return
-	}
+	if err != nil { return }
 	_ = os.Chmod(udsPath, 0666)
 	defer l.Close()
-
 	for {
 		conn, err := l.Accept()
 		if err != nil { continue }
@@ -142,34 +160,19 @@ func handleUDSConn(conn net.Conn, broadcast chan *pb.Event) {
 		if err != nil { return }
 		req := &pb.WrapperRequest{}
 		if err := proto.Unmarshal(buf[:n], req); err != nil { continue }
-
 		resp := &pb.WrapperResponse{Action: pb.WrapperResponse_ALLOW}
-		
 		rulesMu.RLock()
 		rule, ok := wrapperRules[req.Comm]
 		rulesMu.RUnlock()
-
 		if ok {
 			switch rule.Action {
-			case "BLOCK":
-				resp.Action = pb.WrapperResponse_BLOCK
-				resp.Message = "Command blocked by security policy"
-			case "ALERT":
-				resp.Action = pb.WrapperResponse_ALERT
-				resp.Message = "Alert: sensitive command execution"
-			case "REWRITE":
-				resp.Action = pb.WrapperResponse_REWRITE
-				resp.RewrittenArgs = rule.RewrittenCmd
+			case "BLOCK": resp.Action = pb.WrapperResponse_BLOCK; resp.Message = "Command blocked by policy"
+			case "ALERT": resp.Action = pb.WrapperResponse_ALERT; resp.Message = "Security alert"
+			case "REWRITE": resp.Action = pb.WrapperResponse_REWRITE; resp.RewrittenArgs = rule.RewrittenCmd
 			}
 		}
-
-		// Report to eBPF stream as a special "WRAPPER" event
-		evt := &pb.Event{
-			Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept",
-			Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " "),
-		}
+		evt := &pb.Event{Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept", Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " ")}
 		broadcast <- evt
-
 		out, _ := proto.Marshal(resp)
 		_, _ = conn.Write(out)
 	}
@@ -227,10 +230,7 @@ func main() {
 			record, err := rd.Read()
 			if err != nil { return }
 			_ = binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event)
-			comm, path := string(bytes.TrimRight(event.Comm[:], "\x00")), string(bytes.TrimRight(event.Path[:], "\x00"))
-			evtType := types[event.Type]
-			if evtType == "" { evtType = "unknown" }
-			broadcast <- &pb.Event{Pid: event.PID, Ppid: event.PPID, Uid: event.UID, Type: evtType, Tag: getTagName(event.TagID), Comm: comm, Path: path}
+			broadcast <- &pb.Event{Pid: event.PID, Ppid: event.PPID, Uid: event.UID, Type: types[event.Type], Tag: getTagName(event.TagID), Comm: string(bytes.TrimRight(event.Comm[:], "\x00")), Path: string(bytes.TrimRight(event.Path[:], "\x00"))}
 		}
 	}()
 
@@ -245,8 +245,7 @@ func main() {
 			clientsMu.Lock()
 			for c := range clients {
 				if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil {
-					c.Close()
-					delete(clients, c)
+					c.Close(); delete(clients, c)
 				}
 			}
 			clientsMu.Unlock()
@@ -255,9 +254,7 @@ func main() {
 
 	r.GET("/ws", func(c *gin.Context) {
 		conn, _ := upgrader.Upgrade(c.Writer, c.Request, nil)
-		clientsMu.Lock()
-		clients[conn] = true
-		clientsMu.Unlock()
+		clientsMu.Lock(); clients[conn] = true; clientsMu.Unlock()
 	})
 
 	r.GET("/ws/system", func(c *gin.Context) {
@@ -279,71 +276,98 @@ func main() {
 		}
 	})
 
-	config := r.Group("/config")
+	api := r.Group("/", authMiddleware())
 	{
-		config.GET("/tags", func(c *gin.Context) {
-			tagsMu.RLock(); defer tagsMu.RUnlock()
-			t := []string{}; for _, n := range tagMap { t = append(t, n) }
-			c.JSON(200, t)
-		})
-		config.POST("/tags", func(c *gin.Context) {
-			var r struct{ Name string `json:"name"` }; _ = c.ShouldBindJSON(&r)
-			getTagID(r.Name); c.JSON(200, gin.H{"status": "ok"})
-		})
-		config.GET("/comms", func(c *gin.Context) {
-			items := []gin.H{}
-			iter := objs.TrackedComms.Iterate()
-			var k [16]byte; var tid uint32
-			for iter.Next(&k, &tid) { items = append(items, gin.H{"comm": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)}) }
-			c.JSON(200, items)
-		})
-		config.POST("/comms", func(c *gin.Context) {
-			var r struct{ Comm, Tag string `json:"comm" json:"tag"` }; _ = c.ShouldBindJSON(&r)
-			var k [16]byte; copy(k[:], r.Comm); _ = objs.TrackedComms.Put(k, getTagID(r.Tag)); c.JSON(200, gin.H{"status": "ok"})
-		})
-		config.DELETE("/comms/:comm", func(c *gin.Context) {
-			var k [16]byte; copy(k[:], c.Param("comm")); _ = objs.TrackedComms.Delete(k); c.JSON(200, gin.H{"status": "ok"})
-		})
-		config.GET("/paths", func(c *gin.Context) {
-			items := []gin.H{}
-			iter := objs.TrackedPaths.Iterate()
-			var k [256]byte; var tid uint32
-			for iter.Next(&k, &tid) { items = append(items, gin.H{"path": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)}) }
-			c.JSON(200, items)
-		})
-		config.POST("/paths", func(c *gin.Context) {
-			var r struct{ Path, Tag string `json:"path" json:"tag"` }; _ = c.ShouldBindJSON(&r)
-			var k [256]byte; copy(k[:], r.Path); _ = objs.TrackedPaths.Put(k, getTagID(r.Tag)); c.JSON(200, gin.H{"status": "ok"})
-		})
-		config.DELETE("/paths/*path", func(c *gin.Context) {
-			p := c.Param("path"); if len(p) > 0 && p[0] == '/' { p = p[1:] }
-			var k [256]byte; copy(k[:], p); _ = objs.TrackedPaths.Delete(k); c.JSON(200, gin.H{"status": "ok"})
-		})
-		config.GET("/rules", func(c *gin.Context) {
-			rulesMu.RLock(); defer rulesMu.RUnlock()
-			c.JSON(200, wrapperRules)
-		})
-		config.POST("/rules", func(c *gin.Context) {
-			var r WrapperRule; _ = c.ShouldBindJSON(&r)
-			rulesMu.Lock(); wrapperRules[r.Comm] = r; rulesMu.Unlock()
-			c.JSON(200, gin.H{"status": "ok"})
-		})
-		config.DELETE("/rules/:comm", func(c *gin.Context) {
-			rulesMu.Lock(); delete(wrapperRules, c.Param("comm")); rulesMu.Unlock()
-			c.JSON(200, gin.H{"status": "ok"})
-		})
-	}
-
-	r.GET("/system/ls", func(c *gin.Context) {
-		p := c.DefaultQuery("path", "/")
-		e, _ := os.ReadDir(p)
-		l := []gin.H{}
-		for _, v := range e {
-			fp := p; if fp == "/" { fp = "/" + v.Name() } else { fp = fp + "/" + v.Name() }
-			l = append(l, gin.H{"name": v.Name(), "isDir": v.IsDir(), "path": fp})
+		config := api.Group("/config")
+		{
+			config.GET("/tags", func(c *gin.Context) {
+				tagsMu.RLock(); defer tagsMu.RUnlock()
+				t := []string{}; for _, n := range tagMap { t = append(t, n) }
+				c.JSON(200, t)
+			})
+			config.POST("/tags", func(c *gin.Context) {
+				var req struct{ Name string `json:"name"` }; _ = c.ShouldBindJSON(&req)
+				getTagID(req.Name); c.JSON(200, gin.H{"status": "ok"})
+			})
+			config.GET("/comms", func(c *gin.Context) {
+				items := []gin.H{}
+				iter := objs.TrackedComms.Iterate(); var k [16]byte; var tid uint32
+				for iter.Next(&k, &tid) { items = append(items, gin.H{"comm": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)}) }
+				c.JSON(200, items)
+			})
+			config.POST("/comms", func(c *gin.Context) {
+				var req struct{ Comm, Tag string `json:"comm" json:"tag"` }; _ = c.ShouldBindJSON(&req)
+				var k [16]byte; copy(k[:], req.Comm); _ = objs.TrackedComms.Put(k, getTagID(req.Tag)); c.JSON(200, gin.H{"status": "ok"})
+			})
+			config.DELETE("/comms/:comm", func(c *gin.Context) {
+				var k [16]byte; copy(k[:], c.Param("comm")); _ = objs.TrackedComms.Delete(k); c.JSON(200, gin.H{"status": "ok"})
+			})
+			config.GET("/paths", func(c *gin.Context) {
+				items := []gin.H{}
+				iter := objs.TrackedPaths.Iterate(); var k [256]byte; var tid uint32
+				for iter.Next(&k, &tid) { items = append(items, gin.H{"path": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)}) }
+				c.JSON(200, items)
+			})
+			config.POST("/paths", func(c *gin.Context) {
+				var req struct{ Path, Tag string `json:"path" json:"tag"` }; _ = c.ShouldBindJSON(&req)
+				var k [256]byte; copy(k[:], req.Path); _ = objs.TrackedPaths.Put(k, getTagID(req.Tag)); c.JSON(200, gin.H{"status": "ok"})
+			})
+			config.DELETE("/paths/*path", func(c *gin.Context) {
+				p := c.Param("path"); if len(p) > 0 && p[0] == '/' { p = p[1:] }
+				var k [256]byte; copy(k[:], p); _ = objs.TrackedPaths.Delete(k); c.JSON(200, gin.H{"status": "ok"})
+			})
+			config.GET("/rules", func(c *gin.Context) {
+				rulesMu.RLock(); defer rulesMu.RUnlock(); c.JSON(200, wrapperRules)
+			})
+			config.POST("/rules", func(c *gin.Context) {
+				var req WrapperRule; _ = c.ShouldBindJSON(&req)
+				rulesMu.Lock(); wrapperRules[req.Comm] = req; rulesMu.Unlock(); c.JSON(200, gin.H{"status": "ok"})
+			})
+			config.DELETE("/rules/:comm", func(c *gin.Context) {
+				rulesMu.Lock(); delete(wrapperRules, c.Param("comm")); rulesMu.Unlock(); c.JSON(200, gin.H{"status": "ok"})
+			})
+			config.GET("/export", func(c *gin.Context) {
+				cfg := ExportConfig{Comms: make(map[string]string), Paths: make(map[string]string)}
+				tagsMu.RLock(); for _, n := range tagMap { cfg.Tags = append(cfg.Tags, n) }; tagsMu.RUnlock()
+				var k16 [16]byte; var k256 [256]byte; var tid uint32
+				i1 := objs.TrackedComms.Iterate()
+				for i1.Next(&k16, &tid) { cfg.Comms[string(bytes.TrimRight(k16[:], "\x00"))] = getTagName(tid) }
+				i2 := objs.TrackedPaths.Iterate()
+				for i2.Next(&k256, &tid) { cfg.Paths[string(bytes.TrimRight(k256[:], "\x00"))] = getTagName(tid) }
+				c.JSON(200, cfg)
+			})
+			config.POST("/import", func(c *gin.Context) {
+				var cfg ExportConfig; _ = c.ShouldBindJSON(&cfg)
+				for _, t := range cfg.Tags { getTagID(t) }
+				for comm, tag := range cfg.Comms { var k [16]byte; copy(k[:], comm); _ = objs.TrackedComms.Put(k, getTagID(tag)) }
+				for p, tag := range cfg.Paths { var k [256]byte; copy(k[:], p); _ = objs.TrackedPaths.Put(k, getTagID(tag)) }
+				c.JSON(200, gin.H{"status": "ok"})
+			})
 		}
-		c.JSON(200, l)
-	})
+		system := api.Group("/system")
+		{
+			system.GET("/ls", func(c *gin.Context) {
+				p := c.DefaultQuery("path", "/"); e, _ := os.ReadDir(p); l := []gin.H{}
+				for _, v := range e {
+					fp := p; if fp == "/" { fp = "/" + v.Name() } else { fp = fp + "/" + v.Name() }
+					l = append(l, gin.H{"name": v.Name(), "isDir": v.IsDir(), "path": fp})
+				}
+				c.JSON(200, l)
+			})
+			system.POST("/run", func(c *gin.Context) {
+				var req struct { Comm string `json:"comm"`; Args []string `json:"args"` }
+				if err := c.ShouldBindJSON(&req); err == nil {
+					cwd, _ := os.Getwd()
+					wrapperBin := cwd + "/../agent-wrapper"
+					if _, err := os.Stat(wrapperBin); err != nil { wrapperBin = "./agent-wrapper" }
+					cmd := exec.Command(wrapperBin, append([]string{req.Comm}, req.Args...)...)
+					err := cmd.Start()
+					if err != nil { c.JSON(500, gin.H{"error": err.Error()}); return }
+					c.JSON(200, gin.H{"status": "started", "pid": cmd.Process.Pid})
+				}
+			})
+		}
+	}
 
 	r.StaticFile("/", "../frontend/dist/index.html")
 	r.Static("/assets", "../frontend/dist/assets")
