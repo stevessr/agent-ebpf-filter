@@ -41,8 +41,18 @@ type WsEvent struct {
 
 func main() {
 	if os.Geteuid() != 0 {
-		fmt.Println("Root privileges required for eBPF operations. Re-running with sudo...")
-		cmd := exec.Command("sudo", os.Args...)
+		executable, _ := os.Executable()
+		isDesktop := os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
+		
+		sudoCmd := "sudo"
+		if isDesktop {
+			if _, err := exec.LookPath("pkexec"); err == nil {
+				sudoCmd = "pkexec"
+			}
+		}
+
+		fmt.Printf("Root privileges required for eBPF operations. Re-running with %s...\n", sudoCmd)
+		cmd := exec.Command(sudoCmd, append([]string{executable}, os.Args[1:]...)...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
