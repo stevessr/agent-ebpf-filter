@@ -31,6 +31,7 @@ export default defineConfig({
       // Only proxy /config if it has a subpath (API calls), 
       // allowing the frontend to handle the base /config route.
       '^/config/.*': backendUrl,
+      '/system': backendUrl,
     },
   },
 })
