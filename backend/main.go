@@ -9,8 +9,9 @@ import (
 	"os"
 	"os/exec"
 
-	"agent-ebpf-filter/ebpf"
+	bpf "agent-ebpf-filter/ebpf"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/cilium/ebpf/rlimit"
@@ -69,15 +70,15 @@ func main() {
 	}
 
 	// Load pre-compiled programs and maps into the kernel.
-	var objs ebpf.AgentTrackerObjects
-	if err := ebpf.LoadAgentTrackerObjects(&objs, nil); err != nil {
+	var objs bpf.AgentTrackerObjects
+	if err := bpf.LoadAgentTrackerObjects(&objs, nil); err != nil {
 		log.Fatalf("loading objects: %v", err)
 	}
 	defer objs.Close()
 
 	// Attach tracepoints
-	attachTracepoint := func(category, name string, prog any) link.Link {
-		l, err := link.Tracepoint(category, name, prog.(*ebpf.Program), nil)
+	attachTracepoint := func(category, name string, prog *ebpf.Program) link.Link {
+		l, err := link.Tracepoint(category, name, prog, nil)
 		if err != nil {
 			log.Fatalf("opening tracepoint %s/%s: %s", category, name, err)
 		}

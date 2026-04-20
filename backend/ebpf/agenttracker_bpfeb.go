@@ -54,6 +54,7 @@ type AgentTrackerSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type AgentTrackerProgramSpecs struct {
+	TracepointSyscallsSysEnterBind     *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_bind"`
 	TracepointSyscallsSysEnterConnect  *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_connect"`
 	TracepointSyscallsSysEnterExecve   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_execve"`
 	TracepointSyscallsSysEnterIoctl    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_ioctl"`
@@ -120,6 +121,7 @@ type AgentTrackerVariables struct {
 //
 // It can be passed to LoadAgentTrackerObjects or ebpf.CollectionSpec.LoadAndAssign.
 type AgentTrackerPrograms struct {
+	TracepointSyscallsSysEnterBind     *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_bind"`
 	TracepointSyscallsSysEnterConnect  *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_connect"`
 	TracepointSyscallsSysEnterExecve   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_execve"`
 	TracepointSyscallsSysEnterIoctl    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_ioctl"`
@@ -130,6 +132,7 @@ type AgentTrackerPrograms struct {
 
 func (p *AgentTrackerPrograms) Close() error {
 	return _AgentTrackerClose(
+		p.TracepointSyscallsSysEnterBind,
 		p.TracepointSyscallsSysEnterConnect,
 		p.TracepointSyscallsSysEnterExecve,
 		p.TracepointSyscallsSysEnterIoctl,

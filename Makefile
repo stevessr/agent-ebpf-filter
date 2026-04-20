@@ -8,9 +8,15 @@ all: proto backend frontend ## Build both backend and frontend
 
 deps: ## Ensure Go and Python build dependencies are installed
 	@echo "Checking dependencies..."
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	cd adapters/python && uv sync
-	cd frontend && bun install
+	@which protoc-gen-go > /dev/null || (echo "Installing protoc-gen-go..." && go install google.golang.org/protobuf/cmd/protoc-gen-go@latest)
+	@if [ ! -d "adapters/python/.venv" ]; then \
+		echo "Initializing python env..."; \
+		cd adapters/python && uv sync; \
+	fi
+	@if [ ! -d "frontend/node_modules" ]; then \
+		echo "Installing frontend deps..."; \
+		cd frontend && bun install; \
+	fi
 
 proto: deps ## Generate Protocol Buffers code
 	@echo "Generating Protocol Buffers code..."
