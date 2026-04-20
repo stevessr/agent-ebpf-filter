@@ -149,18 +149,30 @@ const displayData = computed(() => {
 });
 
 const memoryVisualizationData = computed(() => {
-  // Take top 100 processes by memory usage
-  return [...processes.value]
-    .filter(p => p.mem > 0.1) // Only show processes with > 0.1% mem
+  const groups: Record<string, { name: string; mem: number; count: number; pids: number[] }> = {};
+  
+  processes.value.forEach(p => {
+    if (p.mem <= 0.05) return; // Ignore tiny fragments
+    
+    if (!groups[p.name]) {
+      groups[p.name] = { name: p.name, mem: 0, count: 0, pids: [] };
+    }
+    groups[p.name].mem += p.mem;
+    groups[p.name].count += 1;
+    groups[p.name].pids.push(p.pid);
+  });
+
+  return Object.values(groups)
     .sort((a, b) => b.mem - a.mem)
-    .slice(0, 100);
+    .slice(0, 50); // Top 50 grouped apps
 });
 
 const getMemColor = (percent: number) => {
-  if (percent > 10) return '#ff4d4f'; // High
-  if (percent > 5) return '#faad14';  // Medium
-  if (percent > 1) return '#1890ff';  // Low
-  return '#b7eb8f'; // Very low
+  if (percent > 20) return '#cf1322'; // Critical
+  if (percent > 10) return '#d4380d'; // High
+  if (percent > 5) return '#d46b08';  // Medium-High
+  if (percent > 2) return '#1d39c4';  // Medium
+  return '#389e0d'; // Low
 };
 
 const addToRules = async (proc: ProcessInfo) => {
@@ -342,23 +354,25 @@ watch(refreshInterval, connectWebSocket);
       <a-tab-pane key="memmap" tab="Memory Map">
         <template #tab><span><AppstoreOutlined /> Memory Map</span></template>
         <div class="mem-container">
-          <div v-for="p in memoryVisualizationData" :key="p.pid" 
+          <div v-for="g in memoryVisualizationData" :key="g.name" 
                class="mem-block"
                :style="{ 
-                 backgroundColor: getMemColor(p.mem),
-                 flexGrow: p.mem * 10,
-                 minWidth: Math.max(80, p.mem * 20) + 'px'
+                 backgroundColor: getMemColor(g.mem),
+                 flexGrow: g.mem,
+                 flexBasis: Math.max(10, g.mem * 2) + '%',
+                 minHeight: Math.max(60, Math.sqrt(g.mem) * 30) + 'px'
                }">
             <a-tooltip>
               <template #title>
-                PID: {{ p.pid }}<br/>
-                Name: {{ p.name }}<br/>
-                Mem: {{ p.mem.toFixed(2) }}%<br/>
-                User: {{ p.user }}
+                App: {{ g.name }}<br/>
+                Total Mem: {{ g.mem.toFixed(2) }}%<br/>
+                Instances: {{ g.count }}<br/>
+                PIDs: {{ g.pids.slice(0, 5).join(', ') }}{{ g.pids.length > 5 ? '...' : '' }}
               </template>
               <div class="mem-block-content">
-                <div class="mem-name">{{ p.name }}</div>
-                <div class="mem-value">{{ p.mem.toFixed(1) }}%</div>
+                <div class="mem-name">{{ g.name }}</div>
+                <div class="mem-value">{{ g.mem.toFixed(1) }}%</div>
+                <div v-if="g.count > 1" class="mem-count">x{{ g.count }}</div>
               </div>
             </a-tooltip>
           </div>
@@ -426,6 +440,12 @@ watch(refreshInterval, connectWebSocket);
 .mem-value {
   font-size: 14px;
   font-family: 'JetBrains Mono', monospace;
+}
+
+.mem-count {
+  font-size: 11px;
+  opacity: 0.8;
+  margin-top: 2px;
 }
 
 :deep(.ant-progress-circle-path) { stroke-linecap: round; }
