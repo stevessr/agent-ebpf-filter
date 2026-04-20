@@ -288,6 +288,28 @@ func main() {
 
 	config := r.Group("/config")
 	{
+		config.GET("/tags", func(c *gin.Context) {
+			tagsMu.RLock()
+			defer tagsMu.RUnlock()
+			var tags []string
+			for _, name := range tagMap {
+				tags = append(tags, name)
+			}
+			c.JSON(http.StatusOK, tags)
+		})
+
+		config.POST("/tags", func(c *gin.Context) {
+			var req struct {
+				Name string `json:"name"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tag name"})
+				return
+			}
+			getTagID(req.Name)
+			c.JSON(http.StatusOK, gin.H{"message": "Tag created"})
+		})
+
 		config.GET("/comms", func(c *gin.Context) {
 			type TrackedItem struct {
 				Comm string `json:"comm"`
