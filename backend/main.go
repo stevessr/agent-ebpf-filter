@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -340,21 +341,59 @@ func main() {
 				c.JSON(200, l)
 			})
 			system.POST("/run", func(c *gin.Context) {
-				var r struct { Comm string `json:"comm"`; Args []string `json:"args"` }
-				if err := c.ShouldBindJSON(&r); err == nil {
-					cwd, _ := os.Getwd(); wb := cwd + "/../agent-wrapper"
-					if _, err := os.Stat(wb); err != nil { wb = "./agent-wrapper" }
-					cmd := exec.Command(wb, append([]string{r.Comm}, r.Args...)...)
-					if err := cmd.Start(); err != nil { c.JSON(500, gin.H{"error": err.Error()}); return }
-					c.JSON(200, gin.H{"status": "started", "pid": cmd.Process.Pid})
+				var req struct { Comm string `json:"comm"`; Args []string `json:"args"` }
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(400, gin.H{"error": err.Error()})
+					return
 				}
+
+				var wrapperBin string
+				cwd, _ := os.Getwd()
+				execPath, _ := os.Executable()
+				
+				candidates := []string{
+					filepath.Join(cwd, "..", "agent-wrapper"),
+					filepath.Join(cwd, "agent-wrapper"),
+					filepath.Join(filepath.Dir(execPath), "agent-wrapper"),
+					filepath.Join(filepath.Dir(execPath), "..", "agent-wrapper"),
+					"./agent-wrapper",
+					"../agent-wrapper",
+				}
+
+				for _, cnd := range candidates {
+					if info, err := os.Stat(cnd); err == nil && !info.IsDir() {
+						wrapperBin = cnd
+						break
+					}
+				}
+
+				if wrapperBin == "" {
+					c.JSON(500, gin.H{"error": "agent-wrapper binary not found. Please run 'make wrapper' first."})
+					return
+				}
+
+				cmd := exec.Command(wrapperBin, append([]string{req.Comm}, req.Args...)...)
+				cmd.Env = os.Environ()
+				if err := cmd.Start(); err != nil {
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(200, gin.H{"status": "started", "pid": cmd.Process.Pid})
 			})
 		}
 	}
 
-	r.StaticFile("/", "../frontend/dist/index.html")
-	r.Static("/assets", "../frontend/dist/assets")
-	r.NoRoute(func(c *gin.Context) { c.File("../frontend/dist/index.html") })
+	// Robust static file path detection
+	staticDir := "../frontend/dist"
+	if _, err := os.Stat(staticDir); err != nil {
+		staticDir = "./frontend/dist"
+	}
+
+	r.StaticFile("/", filepath.Join(staticDir, "index.html"))
+	r.Static("/assets", filepath.Join(staticDir, "assets"))
+	r.NoRoute(func(c *gin.Context) {
+		c.File(filepath.Join(staticDir, "index.html"))
+	})
 
 	commonCLIs := map[string]string{"git": "Git", "npm": "Package Manager", "bun": "Package Manager", "pnpm": "Package Manager", "yarn": "Package Manager", "node": "Runtime", "python": "Runtime", "python3": "Runtime", "go": "Build Tool", "cargo": "Build Tool", "rustc": "Build Tool", "gcc": "Build Tool", "g++": "Build Tool", "clang": "Build Tool", "make": "Build Tool", "cmake": "Build Tool", "docker": "System Tool", "kubectl": "Network Tool"}
 	for cl, t := range commonCLIs { var k [16]byte; copy(k[:], cl); _ = objs.TrackedComms.Put(k, getTagID(t)) }

@@ -45,7 +45,7 @@ frontend: ## Build Vue3 frontend
 	@echo "Building frontend..."
 	cd frontend && bun install && bun run build
 
-dev: proto ## Run both backend and frontend development server (no full build)
+dev: proto wrapper ## Run both backend and frontend development server (no full build)
 	@echo "Starting dev environment..."
 	cd backend/ebpf && go generate
 	cd backend && go run main.go & \
