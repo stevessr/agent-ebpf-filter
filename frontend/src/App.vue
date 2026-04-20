@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
-import { SettingOutlined, DeleteOutlined, PlusOutlined, FilterOutlined } from '@ant-design/icons-vue';
+import { SettingOutlined, DeleteOutlined, PlusOutlined, FilterOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
 interface AgentEvent {
   key: string;
   pid: number;
+  ppid: number;
+  uid: number;
   type: string;
   tag: string;
   comm: string;
@@ -22,6 +24,8 @@ interface TrackedItem {
 const events = ref<AgentEvent[]>([]);
 const isConnected = ref(false);
 const showSettings = ref(false);
+const showDetails = ref(false);
+const selectedEvent = ref<AgentEvent | null>(null);
 const trackedItems = ref<TrackedItem[]>([]);
 const newCommName = ref('');
 const newCommTag = ref('AI Agent');
@@ -78,6 +82,11 @@ const groupedTrackedItems = computed(() => {
   return groups;
 });
 
+const openDetails = (record: AgentEvent) => {
+  selectedEvent.value = record;
+  showDetails.value = true;
+};
+
 const columns = [
   {
     title: 'Time',
@@ -115,6 +124,12 @@ const columns = [
     key: 'path',
     ellipsis: true,
   },
+  {
+    title: 'Action',
+    key: 'action',
+    width: 80,
+    fixed: 'right' as const,
+  }
 ];
 
 const getTagColor = (type: string) => {
@@ -160,6 +175,8 @@ const connectWebSocket = () => {
       events.value.unshift({
         key: `${data.pid}-${data.path}-${Date.now()}-${Math.random()}`,
         pid: data.pid,
+        ppid: data.ppid,
+        uid: data.uid,
         type: data.type,
         tag: data.tag,
         comm: data.comm,
@@ -241,13 +258,18 @@ onUnmounted(() => {
                 {{ record.type.toUpperCase() }}
               </a-tag>
             </template>
-            <template v-else-if="column.key === 'tag'">
+            <template v-if="column.key === 'tag'">
               <a-tag :color="getCategoryColor(record.tag)">
                 {{ record.tag }}
               </a-tag>
             </template>
-            <template v-else-if="column.key === 'path'">
+            <template v-if="column.key === 'path'">
               <a-typography-text code>{{ record.path }}</a-typography-text>
+            </template>
+            <template v-if="column.key === 'action'">
+              <a-button type="link" size="small" @click="openDetails(record)">
+                <template #icon><InfoCircleOutlined /></template>
+              </Button>
             </template>
           </template>
         </a-table>
@@ -295,6 +317,38 @@ onUnmounted(() => {
         </div>
       </div>
     </a-drawer>
+
+    <a-modal
+      v-model:open="showDetails"
+      title="Event Details"
+      :footer="null"
+      width="600px"
+    >
+      <a-descriptions bordered :column="1" size="small" v-if="selectedEvent">
+        <a-descriptions-item label="Time">{{ selectedEvent.time }}</a-descriptions-item>
+        <a-descriptions-item label="Event Type">
+          <a-tag :color="getTagColor(selectedEvent.type)">{{ selectedEvent.type.toUpperCase() }}</a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item label="Tag">
+          <a-tag :color="getCategoryColor(selectedEvent.tag)">{{ selectedEvent.tag }}</a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item label="Command">
+          <a-typography-text strong>{{ selectedEvent.comm }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item label="PID">
+          <a-typography-text code>{{ selectedEvent.pid }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item label="Parent PID (PPID)">
+          <a-typography-text code>{{ selectedEvent.ppid }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item label="User ID (UID)">
+          <a-typography-text code>{{ selectedEvent.uid }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item label="Resource Path / Info">
+          <a-typography-text code style="word-break: break-all;">{{ selectedEvent.path }}</a-typography-text>
+        </a-descriptions-item>
+      </a-descriptions>
+    </a-modal>
   </a-layout>
 </template>
 

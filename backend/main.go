@@ -30,6 +30,8 @@ var upgrader = websocket.Upgrader{
 // Event matching the C struct
 type bpfEvent struct {
 	PID   uint32
+	PPID  uint32
+	UID   uint32
 	Type  uint32
 	TagID uint32
 	Comm  [16]byte
@@ -38,6 +40,8 @@ type bpfEvent struct {
 
 type WsEvent struct {
 	PID  uint32 `json:"pid"`
+	PPID uint32 `json:"ppid"`
+	UID  uint32 `json:"uid"`
 	Type string `json:"type"`
 	Tag  string `json:"tag"`
 	Comm string `json:"comm"`
@@ -196,6 +200,8 @@ func main() {
 
 			wsEvent := WsEvent{
 				PID:  event.PID,
+				PPID: event.PPID,
+				UID:  event.UID,
 				Type: evtType,
 				Tag:  getTagName(event.TagID),
 				Comm: comm,
