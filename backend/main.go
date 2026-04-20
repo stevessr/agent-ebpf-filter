@@ -359,6 +359,60 @@ func main() {
 			}
 			c.JSON(http.StatusOK, gin.H{"message": "Tracked comm removed"})
 		})
+
+		config.GET("/paths", func(c *gin.Context) {
+			type PathItem struct {
+				Path string `json:"path"`
+				Tag  string `json:"tag"`
+			}
+			var items []PathItem
+			var key [256]byte
+			var tagID uint32
+			iter := objs.TrackedPaths.Iterate()
+			for iter.Next(&key, &tagID) {
+				items = append(items, PathItem{
+					Path: string(bytes.TrimRight(key[:], "\x00")),
+					Tag:  getTagName(tagID),
+				})
+			}
+			c.JSON(http.StatusOK, items)
+		})
+
+		config.POST("/paths", func(c *gin.Context) {
+			var req struct {
+				Path string `json:"path"`
+				Tag  string `json:"tag"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			var key [256]byte
+			copy(key[:], req.Path)
+			tagID := uint32(6) // Default "System Tool"
+			if req.Tag != "" {
+				tagID = getTagID(req.Tag)
+			}
+			if err := objs.TrackedPaths.Put(key, tagID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Tracked path added"})
+		})
+
+		config.DELETE("/paths/*path", func(c *gin.Context) {
+			path := c.Param("path")
+			if len(path) > 0 && path[0] == '/' {
+				path = path[1:] // gin Param includes leading slash
+			}
+			var key [256]byte
+			copy(key[:], path)
+			if err := objs.TrackedPaths.Delete(key); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Tracked path removed"})
+		})
 	}
 
 	// Serve static files from frontend/dist (defined AFTER API routes)
@@ -394,6 +448,20 @@ func main() {
 		copy(key[:], cli)
 		tagID := getTagID(tag)
 		_ = objs.TrackedComms.Put(key, tagID)
+	}
+
+	// Pre-load sensitive paths
+	sensitivePaths := map[string]string{
+		"/etc/shadow": "Security",
+		"/etc/passwd": "Security",
+		"/etc/sudoers": "Security",
+		"/etc/hosts": "Security",
+	}
+	for p, tag := range sensitivePaths {
+		var key [256]byte
+		copy(key[:], p)
+		tagID := getTagID(tag)
+		_ = objs.TrackedPaths.Put(key, tagID)
 	}
 
 	startPort := 8080
