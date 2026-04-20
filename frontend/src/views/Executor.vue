@@ -4,7 +4,6 @@ import axios from 'axios';
 import { 
   PlusOutlined, 
   PlayCircleOutlined,
-  CommandLineOutlined,
   CodeOutlined
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
@@ -49,7 +48,7 @@ const useRecent = (cmdStr: string) => {
 <template>
   <div style="padding: 24px; background: #f0f2f5; min-height: 100%;">
     <a-card title="Remote Executor (via Wrapper)" :bordered="false">
-      <template #extra><CommandLineOutlined /></template>
+      <template #extra><CodeOutlined /></template>
       <p style="color: #666; margin-bottom: 24px;">
         Execute commands on the host system. All commands are automatically routed through the 
         <code>agent-wrapper</code> to enforce security policies and track activities.

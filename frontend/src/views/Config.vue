@@ -8,7 +8,7 @@ import {
   FolderOutlined, 
   ExportOutlined, 
   ImportOutlined, 
-  SecurityOutlined,
+  SafetyCertificateOutlined,
   SwapOutlined,
   StopOutlined,
   AlertOutlined
@@ -232,7 +232,7 @@ onMounted(() => {
       <!-- Interceptor / Wrapper Rules -->
       <a-col :span="24">
         <a-card title="Wrapper Security Policies" size="small">
-          <template #extra><SecurityOutlined /></template>
+          <template #extra><SafetyCertificateOutlined /></template>
           <div style="margin-bottom: 16px; background: #fafafa; padding: 16px; border-radius: 8px;">
             <a-row :gutter="16" align="middle">
               <a-col :span="6">
