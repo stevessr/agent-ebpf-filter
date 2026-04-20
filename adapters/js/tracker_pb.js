@@ -2235,6 +2235,614 @@ $root.pb = (function() {
         return SystemStats;
     })();
 
+    pb.WrapperRequest = (function() {
+
+        /**
+         * Properties of a WrapperRequest.
+         * @memberof pb
+         * @interface IWrapperRequest
+         * @property {number|null} [pid] WrapperRequest pid
+         * @property {string|null} [comm] WrapperRequest comm
+         * @property {Array.<string>|null} [args] WrapperRequest args
+         * @property {string|null} [user] WrapperRequest user
+         */
+
+        /**
+         * Constructs a new WrapperRequest.
+         * @memberof pb
+         * @classdesc Represents a WrapperRequest.
+         * @implements IWrapperRequest
+         * @constructor
+         * @param {pb.IWrapperRequest=} [properties] Properties to set
+         */
+        function WrapperRequest(properties) {
+            this.args = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * WrapperRequest pid.
+         * @member {number} pid
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.pid = 0;
+
+        /**
+         * WrapperRequest comm.
+         * @member {string} comm
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.comm = "";
+
+        /**
+         * WrapperRequest args.
+         * @member {Array.<string>} args
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.args = $util.emptyArray;
+
+        /**
+         * WrapperRequest user.
+         * @member {string} user
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.user = "";
+
+        /**
+         * Creates a new WrapperRequest instance using the specified properties.
+         * @function create
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {pb.IWrapperRequest=} [properties] Properties to set
+         * @returns {pb.WrapperRequest} WrapperRequest instance
+         */
+        WrapperRequest.create = function create(properties) {
+            return new WrapperRequest(properties);
+        };
+
+        /**
+         * Encodes the specified WrapperRequest message. Does not implicitly {@link pb.WrapperRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {pb.IWrapperRequest} message WrapperRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WrapperRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.pid);
+            if (message.comm != null && Object.hasOwnProperty.call(message, "comm"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.comm);
+            if (message.args != null && message.args.length)
+                for (var i = 0; i < message.args.length; ++i)
+                    writer.uint32(/* id 3, wireType 2 =*/26).string(message.args[i]);
+            if (message.user != null && Object.hasOwnProperty.call(message, "user"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.user);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified WrapperRequest message, length delimited. Does not implicitly {@link pb.WrapperRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {pb.IWrapperRequest} message WrapperRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WrapperRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a WrapperRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.WrapperRequest} WrapperRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WrapperRequest.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.pid = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.comm = reader.string();
+                        break;
+                    }
+                case 3: {
+                        if (!(message.args && message.args.length))
+                            message.args = [];
+                        message.args.push(reader.string());
+                        break;
+                    }
+                case 4: {
+                        message.user = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a WrapperRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.WrapperRequest} WrapperRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WrapperRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a WrapperRequest message.
+         * @function verify
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        WrapperRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                if (!$util.isInteger(message.pid))
+                    return "pid: integer expected";
+            if (message.comm != null && message.hasOwnProperty("comm"))
+                if (!$util.isString(message.comm))
+                    return "comm: string expected";
+            if (message.args != null && message.hasOwnProperty("args")) {
+                if (!Array.isArray(message.args))
+                    return "args: array expected";
+                for (var i = 0; i < message.args.length; ++i)
+                    if (!$util.isString(message.args[i]))
+                        return "args: string[] expected";
+            }
+            if (message.user != null && message.hasOwnProperty("user"))
+                if (!$util.isString(message.user))
+                    return "user: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a WrapperRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.WrapperRequest} WrapperRequest
+         */
+        WrapperRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.WrapperRequest)
+                return object;
+            var message = new $root.pb.WrapperRequest();
+            if (object.pid != null)
+                message.pid = object.pid >>> 0;
+            if (object.comm != null)
+                message.comm = String(object.comm);
+            if (object.args) {
+                if (!Array.isArray(object.args))
+                    throw TypeError(".pb.WrapperRequest.args: array expected");
+                message.args = [];
+                for (var i = 0; i < object.args.length; ++i)
+                    message.args[i] = String(object.args[i]);
+            }
+            if (object.user != null)
+                message.user = String(object.user);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a WrapperRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {pb.WrapperRequest} message WrapperRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        WrapperRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.args = [];
+            if (options.defaults) {
+                object.pid = 0;
+                object.comm = "";
+                object.user = "";
+            }
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                object.pid = message.pid;
+            if (message.comm != null && message.hasOwnProperty("comm"))
+                object.comm = message.comm;
+            if (message.args && message.args.length) {
+                object.args = [];
+                for (var j = 0; j < message.args.length; ++j)
+                    object.args[j] = message.args[j];
+            }
+            if (message.user != null && message.hasOwnProperty("user"))
+                object.user = message.user;
+            return object;
+        };
+
+        /**
+         * Converts this WrapperRequest to JSON.
+         * @function toJSON
+         * @memberof pb.WrapperRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        WrapperRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for WrapperRequest
+         * @function getTypeUrl
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        WrapperRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.WrapperRequest";
+        };
+
+        return WrapperRequest;
+    })();
+
+    pb.WrapperResponse = (function() {
+
+        /**
+         * Properties of a WrapperResponse.
+         * @memberof pb
+         * @interface IWrapperResponse
+         * @property {pb.WrapperResponse.Action|null} [action] WrapperResponse action
+         * @property {string|null} [message] WrapperResponse message
+         * @property {Array.<string>|null} [rewrittenArgs] WrapperResponse rewrittenArgs
+         */
+
+        /**
+         * Constructs a new WrapperResponse.
+         * @memberof pb
+         * @classdesc Represents a WrapperResponse.
+         * @implements IWrapperResponse
+         * @constructor
+         * @param {pb.IWrapperResponse=} [properties] Properties to set
+         */
+        function WrapperResponse(properties) {
+            this.rewrittenArgs = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * WrapperResponse action.
+         * @member {pb.WrapperResponse.Action} action
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.action = 0;
+
+        /**
+         * WrapperResponse message.
+         * @member {string} message
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.message = "";
+
+        /**
+         * WrapperResponse rewrittenArgs.
+         * @member {Array.<string>} rewrittenArgs
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.rewrittenArgs = $util.emptyArray;
+
+        /**
+         * Creates a new WrapperResponse instance using the specified properties.
+         * @function create
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {pb.IWrapperResponse=} [properties] Properties to set
+         * @returns {pb.WrapperResponse} WrapperResponse instance
+         */
+        WrapperResponse.create = function create(properties) {
+            return new WrapperResponse(properties);
+        };
+
+        /**
+         * Encodes the specified WrapperResponse message. Does not implicitly {@link pb.WrapperResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {pb.IWrapperResponse} message WrapperResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WrapperResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.action != null && Object.hasOwnProperty.call(message, "action"))
+                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.action);
+            if (message.message != null && Object.hasOwnProperty.call(message, "message"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
+            if (message.rewrittenArgs != null && message.rewrittenArgs.length)
+                for (var i = 0; i < message.rewrittenArgs.length; ++i)
+                    writer.uint32(/* id 3, wireType 2 =*/26).string(message.rewrittenArgs[i]);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified WrapperResponse message, length delimited. Does not implicitly {@link pb.WrapperResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {pb.IWrapperResponse} message WrapperResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WrapperResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a WrapperResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.WrapperResponse} WrapperResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WrapperResponse.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.action = reader.int32();
+                        break;
+                    }
+                case 2: {
+                        message.message = reader.string();
+                        break;
+                    }
+                case 3: {
+                        if (!(message.rewrittenArgs && message.rewrittenArgs.length))
+                            message.rewrittenArgs = [];
+                        message.rewrittenArgs.push(reader.string());
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a WrapperResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.WrapperResponse} WrapperResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WrapperResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a WrapperResponse message.
+         * @function verify
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        WrapperResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.action != null && message.hasOwnProperty("action"))
+                switch (message.action) {
+                default:
+                    return "action: enum value expected";
+                case 0:
+                case 1:
+                case 2:
+                case 3:
+                    break;
+                }
+            if (message.message != null && message.hasOwnProperty("message"))
+                if (!$util.isString(message.message))
+                    return "message: string expected";
+            if (message.rewrittenArgs != null && message.hasOwnProperty("rewrittenArgs")) {
+                if (!Array.isArray(message.rewrittenArgs))
+                    return "rewrittenArgs: array expected";
+                for (var i = 0; i < message.rewrittenArgs.length; ++i)
+                    if (!$util.isString(message.rewrittenArgs[i]))
+                        return "rewrittenArgs: string[] expected";
+            }
+            return null;
+        };
+
+        /**
+         * Creates a WrapperResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.WrapperResponse} WrapperResponse
+         */
+        WrapperResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.WrapperResponse)
+                return object;
+            var message = new $root.pb.WrapperResponse();
+            switch (object.action) {
+            default:
+                if (typeof object.action === "number") {
+                    message.action = object.action;
+                    break;
+                }
+                break;
+            case "ALLOW":
+            case 0:
+                message.action = 0;
+                break;
+            case "BLOCK":
+            case 1:
+                message.action = 1;
+                break;
+            case "REWRITE":
+            case 2:
+                message.action = 2;
+                break;
+            case "ALERT":
+            case 3:
+                message.action = 3;
+                break;
+            }
+            if (object.message != null)
+                message.message = String(object.message);
+            if (object.rewrittenArgs) {
+                if (!Array.isArray(object.rewrittenArgs))
+                    throw TypeError(".pb.WrapperResponse.rewrittenArgs: array expected");
+                message.rewrittenArgs = [];
+                for (var i = 0; i < object.rewrittenArgs.length; ++i)
+                    message.rewrittenArgs[i] = String(object.rewrittenArgs[i]);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a WrapperResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {pb.WrapperResponse} message WrapperResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        WrapperResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.rewrittenArgs = [];
+            if (options.defaults) {
+                object.action = options.enums === String ? "ALLOW" : 0;
+                object.message = "";
+            }
+            if (message.action != null && message.hasOwnProperty("action"))
+                object.action = options.enums === String ? $root.pb.WrapperResponse.Action[message.action] === undefined ? message.action : $root.pb.WrapperResponse.Action[message.action] : message.action;
+            if (message.message != null && message.hasOwnProperty("message"))
+                object.message = message.message;
+            if (message.rewrittenArgs && message.rewrittenArgs.length) {
+                object.rewrittenArgs = [];
+                for (var j = 0; j < message.rewrittenArgs.length; ++j)
+                    object.rewrittenArgs[j] = message.rewrittenArgs[j];
+            }
+            return object;
+        };
+
+        /**
+         * Converts this WrapperResponse to JSON.
+         * @function toJSON
+         * @memberof pb.WrapperResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        WrapperResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for WrapperResponse
+         * @function getTypeUrl
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        WrapperResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.WrapperResponse";
+        };
+
+        /**
+         * Action enum.
+         * @name pb.WrapperResponse.Action
+         * @enum {number}
+         * @property {number} ALLOW=0 ALLOW value
+         * @property {number} BLOCK=1 BLOCK value
+         * @property {number} REWRITE=2 REWRITE value
+         * @property {number} ALERT=3 ALERT value
+         */
+        WrapperResponse.Action = (function() {
+            var valuesById = {}, values = Object.create(valuesById);
+            values[valuesById[0] = "ALLOW"] = 0;
+            values[valuesById[1] = "BLOCK"] = 1;
+            values[valuesById[2] = "REWRITE"] = 2;
+            values[valuesById[3] = "ALERT"] = 3;
+            return values;
+        })();
+
+        return WrapperResponse;
+    })();
+
     pb.ProcessList = (function() {
 
         /**

@@ -64,6 +64,25 @@ message SystemStats {
   repeated GPUStatus gpus = 2;
 }
 
+message WrapperRequest {
+  uint32 pid = 1;
+  string comm = 2;
+  repeated string args = 3;
+  string user = 4;
+}
+
+message WrapperResponse {
+  enum Action {
+    ALLOW = 0;
+    BLOCK = 1;
+    REWRITE = 2;
+    ALERT = 3;
+  }
+  Action action = 1;
+  string message = 2;
+  repeated string rewritten_args = 3; // Only if action is REWRITE
+}
+
 message ProcessList {
   repeated Process processes = 1;
 }

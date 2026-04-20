@@ -2,9 +2,9 @@
 GOPATH ?= $(shell go env GOPATH)
 export PATH := $(PATH):$(GOPATH)/bin
 
-.PHONY: all backend frontend clean proto help dev run deps
+.PHONY: all backend frontend wrapper clean proto help dev run deps
 
-all: proto backend frontend ## Build both backend and frontend
+all: proto backend frontend wrapper ## Build all components
 
 deps: ## Ensure Go and Python build dependencies are installed
 	@echo "Checking dependencies..."
@@ -37,6 +37,10 @@ backend: proto ## Build Go backend and compile eBPF
 	cd backend/ebpf && go generate
 	cd backend && go build -o agent-ebpf-filter
 
+wrapper: proto ## Build CLI wrapper
+	@echo "Building wrapper..."
+	cd wrapper && go build -o ../agent-wrapper
+
 frontend: ## Build Vue3 frontend
 	@echo "Building frontend..."
 	cd frontend && bun install && bun run build
@@ -59,6 +63,7 @@ run-frontend: ## Run only the frontend development server
 
 clean: ## Clean build artifacts
 	rm -f backend/agent-ebpf-filter
+	rm -f agent-wrapper
 	rm -f backend/.port
 	rm -rf frontend/dist
 	rm -rf adapters/python/.venv

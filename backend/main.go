@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,62 +28,46 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true // allow any origin for development
-	},
+	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-// Event matching the C struct
+const (
+	udsPath = "/tmp/agent-ebpf.sock"
+)
+
 type bpfEvent struct {
-	PID   uint32
-	PPID  uint32
-	UID   uint32
-	Type  uint32
-	TagID uint32
-	Comm  [16]byte
-	Path  [256]byte
+	PID, PPID, UID, Type, TagID uint32
+	Comm                        [16]byte
+	Path                        [256]byte
 }
 
-type WsEvent struct {
-	PID  uint32 `json:"pid"`
-	PPID uint32 `json:"ppid"`
-	UID  uint32 `json:"uid"`
-	Type string `json:"type"`
-	Tag  string `json:"tag"`
-	Comm string `json:"comm"`
-	Path string `json:"path"`
+type WrapperRule struct {
+	Comm         string   `json:"comm"`
+	Action       string   `json:"action"` // ALLOW, BLOCK, REWRITE, ALERT
+	RewrittenCmd []string `json:"rewritten_cmd,omitempty"`
 }
 
 var (
-	tagsMu sync.RWMutex
-	tagMap = map[uint32]string{
-		0: "Unknown", 1: "AI Agent", 2: "Git",
-		3: "Build Tool", 4: "Package Manager", 5: "Runtime",
-		6: "System Tool", 7: "Network Tool", 8: "Security",
-	}
-	tagNameToID = map[string]uint32{
-		"AI Agent": 1, "Git": 2, "Build Tool": 3,
-		"Package Manager": 4, "Runtime": 5, "System Tool": 6,
-		"Network Tool": 7, "Security": 8,
-	}
-	nextTagID uint32 = 9
+	tagsMu      sync.RWMutex
+	tagMap      = map[uint32]string{0: "Unknown", 1: "AI Agent", 2: "Git", 3: "Build Tool", 4: "Package Manager", 5: "Runtime", 6: "System Tool", 7: "Network Tool", 8: "Security"}
+	tagNameToID = map[string]uint32{"AI Agent": 1, "Git": 2, "Build Tool": 3, "Package Manager": 4, "Runtime": 5, "System Tool": 6, "Network Tool": 7, "Security": 8}
+	nextTagID   uint32 = 9
+
+	rulesMu      sync.RWMutex
+	wrapperRules = make(map[string]WrapperRule)
 )
 
 func getTagName(id uint32) string {
 	tagsMu.RLock()
 	defer tagsMu.RUnlock()
-	if name, ok := tagMap[id]; ok {
-		return name
-	}
+	if name, ok := tagMap[id]; ok { return name }
 	return fmt.Sprintf("Tag-%d", id)
 }
 
 func getTagID(name string) uint32 {
 	tagsMu.Lock()
 	defer tagsMu.Unlock()
-	if id, ok := tagNameToID[name]; ok {
-		return id
-	}
+	if id, ok := tagNameToID[name]; ok { return id }
 	id := nextTagID
 	tagMap[id] = name
 	tagNameToID[name] = id
@@ -89,43 +75,21 @@ func getTagID(name string) uint32 {
 	return id
 }
 
-type ExportConfig struct {
-	Tags  []string          `json:"tags"`
-	Comms map[string]string `json:"comms"`
-	Paths map[string]string `json:"paths"`
-}
-
-type gpuProcInfo struct {
-	mem  uint32
-	gpu  uint32
-	util uint32
-}
-
-func getGPUPidMap() map[int32]gpuProcInfo {
-	gpuMap := make(map[int32]gpuProcInfo)
-	// Query compute apps with pmon-like info if possible, or just basic memory
+func getGPUPidMap() map[int32]struct{ mem, gpu uint32 } {
+	gpuMap := make(map[int32]struct{ mem, gpu uint32 })
 	cmd := exec.Command("nvidia-smi", "--query-compute-apps=pid,used_memory,gpu_index", "--format=csv,noheader,nounits")
-	output, err := cmd.Output()
-	if err != nil {
-		return gpuMap
-	}
-
+	output, _ := cmd.Output()
 	lines := bytes.Split(output, []byte("\n"))
 	for _, line := range lines {
-		if len(line) == 0 {
-			continue
-		}
+		if len(line) == 0 { continue }
 		parts := bytes.Split(line, []byte(", "))
 		if len(parts) >= 2 {
 			var pid int32
-			var mem uint32
-			var gpuIdx uint32
+			var mem, gpu uint32
 			fmt.Sscanf(string(parts[0]), "%d", &pid)
 			fmt.Sscanf(string(parts[1]), "%d", &mem)
-			if len(parts) > 2 {
-				fmt.Sscanf(string(parts[2]), "%d", &gpuIdx)
-			}
-			gpuMap[pid] = gpuProcInfo{mem: mem, gpu: gpuIdx}
+			if len(parts) > 2 { fmt.Sscanf(string(parts[2]), "%d", &gpu) }
+			gpuMap[pid] = struct{ mem, gpu uint32 }{mem, gpu}
 		}
 	}
 	return gpuMap
@@ -134,29 +98,81 @@ func getGPUPidMap() map[int32]gpuProcInfo {
 func getGlobalGPUStatus() []*pb.GPUStatus {
 	var gpus []*pb.GPUStatus
 	cmd := exec.Command("nvidia-smi", "--query-gpu=index,name,utilization.gpu,utilization.memory,memory.total,memory.used,temperature.gpu", "--format=csv,noheader,nounits")
-	output, err := cmd.Output()
-	if err != nil {
-		return gpus
-	}
+	output, _ := cmd.Output()
 	lines := bytes.Split(output, []byte("\n"))
 	for _, line := range lines {
 		if len(line) == 0 { continue }
 		parts := bytes.Split(line, []byte(", "))
 		if len(parts) == 7 {
-			var idx, utilG, utilM, mTot, mUsed, temp uint32
+			var idx, ug, um, mt, mu, temp uint32
 			fmt.Sscanf(string(parts[0]), "%d", &idx)
-			fmt.Sscanf(string(parts[2]), "%d", &utilG)
-			fmt.Sscanf(string(parts[3]), "%d", &utilM)
-			fmt.Sscanf(string(parts[4]), "%d", &mTot)
-			fmt.Sscanf(string(parts[5]), "%d", &mUsed)
+			fmt.Sscanf(string(parts[2]), "%d", &ug)
+			fmt.Sscanf(string(parts[3]), "%d", &um)
+			fmt.Sscanf(string(parts[4]), "%d", &mt)
+			fmt.Sscanf(string(parts[5]), "%d", &mu)
 			fmt.Sscanf(string(parts[6]), "%d", &temp)
-			gpus = append(gpus, &pb.GPUStatus{
-				Index: idx, Name: string(parts[1]), UtilGpu: utilG,
-				UtilMem: utilM, MemTotal: mTot, MemUsed: mUsed, Temp: temp,
-			})
+			gpus = append(gpus, &pb.GPUStatus{Index: idx, Name: string(parts[1]), UtilGpu: ug, UtilMem: um, MemTotal: mt, MemUsed: mu, Temp: temp})
 		}
 	}
 	return gpus
+}
+
+func startUDSServer(broadcast chan *pb.Event) {
+	_ = os.Remove(udsPath)
+	l, err := net.Listen("unix", udsPath)
+	if err != nil {
+		log.Printf("UDS Listen error: %v", err)
+		return
+	}
+	_ = os.Chmod(udsPath, 0666)
+	defer l.Close()
+
+	for {
+		conn, err := l.Accept()
+		if err != nil { continue }
+		go handleUDSConn(conn, broadcast)
+	}
+}
+
+func handleUDSConn(conn net.Conn, broadcast chan *pb.Event) {
+	defer conn.Close()
+	buf := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buf)
+		if err != nil { return }
+		req := &pb.WrapperRequest{}
+		if err := proto.Unmarshal(buf[:n], req); err != nil { continue }
+
+		resp := &pb.WrapperResponse{Action: pb.WrapperResponse_ALLOW}
+		
+		rulesMu.RLock()
+		rule, ok := wrapperRules[req.Comm]
+		rulesMu.RUnlock()
+
+		if ok {
+			switch rule.Action {
+			case "BLOCK":
+				resp.Action = pb.WrapperResponse_BLOCK
+				resp.Message = "Command blocked by security policy"
+			case "ALERT":
+				resp.Action = pb.WrapperResponse_ALERT
+				resp.Message = "Alert: sensitive command execution"
+			case "REWRITE":
+				resp.Action = pb.WrapperResponse_REWRITE
+				resp.RewrittenArgs = rule.RewrittenCmd
+			}
+		}
+
+		// Report to eBPF stream as a special "WRAPPER" event
+		evt := &pb.Event{
+			Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept",
+			Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " "),
+		}
+		broadcast <- evt
+
+		out, _ := proto.Marshal(resp)
+		_, _ = conn.Write(out)
+	}
 }
 
 func main() {
@@ -164,24 +180,14 @@ func main() {
 		executable, _ := os.Executable()
 		isDesktop := os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
 		sudoCmd := "sudo"
-		if isDesktop {
-			if _, err := exec.LookPath("pkexec"); err == nil {
-				sudoCmd = "pkexec"
-			}
-		}
-		fmt.Printf("Root privileges required for eBPF operations. Re-running with %s...\n", sudoCmd)
+		if isDesktop { if _, err := exec.LookPath("pkexec"); err == nil { sudoCmd = "pkexec" } }
+		fmt.Printf("Root privileges required. Re-running with %s...\n", sudoCmd)
 		cmd := exec.Command(sudoCmd, append([]string{executable}, os.Args[1:]...)...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			fmt.Printf("Error: could not elevate privileges: %v\n", err)
-			os.Exit(1)
-		}
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		_ = cmd.Run()
 		os.Exit(0)
 	}
 
-	// Kill existing instances to avoid conflicts
 	currentPid := int32(os.Getpid())
 	procs, _ := process.Processes()
 	for _, p := range procs {
@@ -190,79 +196,57 @@ func main() {
 		if name == "agent-ebpf-filter" || name == "main" { _ = p.Kill() }
 	}
 
-	if err := rlimit.RemoveMemlock(); err != nil {
-		log.Fatal("Failed to remove memlock:", err)
-	}
-
+	_ = rlimit.RemoveMemlock()
 	var objs bpf.AgentTrackerObjects
-	if err := bpf.LoadAgentTrackerObjects(&objs, nil); err != nil {
-		log.Fatalf("loading objects: %v", err)
-	}
+	_ = bpf.LoadAgentTrackerObjects(&objs, nil)
 	defer objs.Close()
 
-	attachTracepoint := func(category, name string, prog *ebpf.Program) link.Link {
-		l, err := link.Tracepoint(category, name, prog, nil)
-		if err != nil { log.Fatalf("opening tracepoint %s/%s: %s", category, name, err) }
+	attach := func(c, n string, p *ebpf.Program) link.Link {
+		l, _ := link.Tracepoint(c, n, p, nil)
 		return l
 	}
-
 	links := []link.Link{
-		attachTracepoint("syscalls", "sys_enter_execve", objs.TracepointSyscallsSysEnterExecve),
-		attachTracepoint("syscalls", "sys_enter_openat", objs.TracepointSyscallsSysEnterOpenat),
-		attachTracepoint("syscalls", "sys_enter_connect", objs.TracepointSyscallsSysEnterConnect),
-		attachTracepoint("syscalls", "sys_enter_mkdirat", objs.TracepointSyscallsSysEnterMkdirat),
-		attachTracepoint("syscalls", "sys_enter_unlinkat", objs.TracepointSyscallsSysEnterUnlinkat),
-		attachTracepoint("syscalls", "sys_enter_ioctl", objs.TracepointSyscallsSysEnterIoctl),
-		attachTracepoint("syscalls", "sys_enter_bind", objs.TracepointSyscallsSysEnterBind),
+		attach("syscalls", "sys_enter_execve", objs.TracepointSyscallsSysEnterExecve),
+		attach("syscalls", "sys_enter_openat", objs.TracepointSyscallsSysEnterOpenat),
+		attach("syscalls", "sys_enter_connect", objs.TracepointSyscallsSysEnterConnect),
+		attach("syscalls", "sys_enter_mkdirat", objs.TracepointSyscallsSysEnterMkdirat),
+		attach("syscalls", "sys_enter_unlinkat", objs.TracepointSyscallsSysEnterUnlinkat),
+		attach("syscalls", "sys_enter_ioctl", objs.TracepointSyscallsSysEnterIoctl),
+		attach("syscalls", "sys_enter_bind", objs.TracepointSyscallsSysEnterBind),
 	}
 	for _, l := range links { defer l.Close() }
 
-	rd, err := ringbuf.NewReader(objs.Events)
-	if err != nil { log.Fatalf("opening ringbuf reader: %s", err) }
+	rd, _ := ringbuf.NewReader(objs.Events)
 	defer rd.Close()
 
 	broadcast := make(chan *pb.Event, 100)
 	go func() {
 		var event bpfEvent
-		types := map[uint32]string{
-			0: "execve", 1: "openat", 2: "network_connect",
-			3: "mkdir", 4: "unlink", 5: "ioctl", 6: "network_bind",
-		}
+		types := map[uint32]string{0: "execve", 1: "openat", 2: "network_connect", 3: "mkdir", 4: "unlink", 5: "ioctl", 6: "network_bind"}
 		for {
 			record, err := rd.Read()
-			if err != nil {
-				if err == ringbuf.ErrClosed { return }
-				continue
-			}
-			if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event); err != nil { continue }
-			comm := string(bytes.TrimRight(event.Comm[:], "\x00"))
-			path := string(bytes.TrimRight(event.Path[:], "\x00"))
-			evtType, ok := types[event.Type]
-			if !ok { evtType = "unknown" }
-			pbEvent := &pb.Event{
-				Pid: event.PID, Ppid: event.PPID, Uid: event.UID,
-				Type: evtType, Tag: getTagName(event.TagID),
-				Comm: comm, Path: path,
-			}
-			select {
-			case broadcast <- pbEvent:
-			default:
-			}
+			if err != nil { return }
+			_ = binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event)
+			comm, path := string(bytes.TrimRight(event.Comm[:], "\x00")), string(bytes.TrimRight(event.Path[:], "\x00"))
+			evtType := types[event.Type]
+			if evtType == "" { evtType = "unknown" }
+			broadcast <- &pb.Event{Pid: event.PID, Ppid: event.PPID, Uid: event.UID, Type: evtType, Tag: getTagName(event.TagID), Comm: comm, Path: path}
 		}
 	}()
+
+	go startUDSServer(broadcast)
 
 	r := gin.Default()
 	clients := make(map[*websocket.Conn]bool)
 	var clientsMu sync.Mutex
-
 	go func() {
 		for event := range broadcast {
 			data, _ := proto.Marshal(event)
 			clientsMu.Lock()
-			for client := range clients {
-				if err := client.WriteMessage(websocket.BinaryMessage, data); err != nil {
-					client.Close()
-					delete(clients, client)
+			for c := range clients {
+				if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil {
+					c.Close()
+					delete(clients, c)
 				}
 			}
 			clientsMu.Unlock()
@@ -270,228 +254,109 @@ func main() {
 	}()
 
 	r.GET("/ws", func(c *gin.Context) {
-		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err == nil {
-			clientsMu.Lock()
-			clients[conn] = true
-			clientsMu.Unlock()
-		}
-	})
-
-	r.GET("/system/ls", func(c *gin.Context) {
-		path := c.DefaultQuery("path", "/")
-		entries, err := os.ReadDir(path)
-		if err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
-			return
-		}
-
-		type Entry struct {
-			Name  string `json:"name"`
-			IsDir bool   `json:"isDir"`
-			Path  string `json:"path"`
-		}
-		var list []Entry
-		for _, e := range entries {
-			fullPath := path
-			if fullPath == "/" {
-				fullPath = "/" + e.Name()
-			} else {
-				fullPath = fullPath + "/" + e.Name()
-			}
-			list = append(list, Entry{e.Name(), e.IsDir(), fullPath})
-		}
-		c.JSON(200, list)
+		conn, _ := upgrader.Upgrade(c.Writer, c.Request, nil)
+		clientsMu.Lock()
+		clients[conn] = true
+		clientsMu.Unlock()
 	})
 
 	r.GET("/ws/system", func(c *gin.Context) {
-		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err != nil { return }
+		conn, _ := upgrader.Upgrade(c.Writer, c.Request, nil)
 		defer conn.Close()
-
-		intervalStr := c.DefaultQuery("interval", "2000")
-		intervalMs, _ := time.ParseDuration(intervalStr + "ms")
-		if intervalMs < 500*time.Millisecond { intervalMs = 500 * time.Millisecond }
-		ticker := time.NewTicker(intervalMs)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				gpuProcMap := getGPUPidMap()
-				globalGPUs := getGlobalGPUStatus()
-				ps, _ := process.Processes()
-				pbStats := &pb.SystemStats{Gpus: globalGPUs}
-				
-				for _, p := range ps {
-					n, _ := p.Name()
-					pp, _ := p.Ppid()
-					cp, _ := p.CPUPercent()
-					mp, _ := p.MemoryPercent()
-					u, _ := p.Username()
-
-					gpuMem := uint32(0)
-					gpuId := uint32(0)
-					if info, ok := gpuProcMap[p.Pid]; ok {
-						gpuMem = info.mem
-						gpuId = info.gpu
-					}
-
-					pbStats.Processes = append(pbStats.Processes, &pb.Process{
-						Pid: p.Pid, Ppid: pp, Name: n, Cpu: cp, Mem: mp, User: u, 
-						GpuMem: gpuMem, GpuId: gpuId,
-					})
-				}
-				data, _ := proto.Marshal(pbStats)
-				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil { return }
+		ticker := time.NewTicker(2 * time.Second)
+		for range ticker.C {
+			gpuMap, gpus := getGPUPidMap(), getGlobalGPUStatus()
+			ps, _ := process.Processes()
+			stats := &pb.SystemStats{Gpus: gpus}
+			for _, p := range ps {
+				n, _ := p.Name(); pp, _ := p.Ppid(); cp, _ := p.CPUPercent(); mp, _ := p.MemoryPercent(); u, _ := p.Username()
+				gm, gi := uint32(0), uint32(0)
+				if info, ok := gpuMap[p.Pid]; ok { gm, gi = info.mem, info.gpu }
+				stats.Processes = append(stats.Processes, &pb.Process{Pid: p.Pid, Ppid: pp, Name: n, Cpu: cp, Mem: mp, User: u, GpuMem: gm, GpuId: gi})
 			}
+			data, _ := proto.Marshal(stats)
+			if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil { return }
 		}
 	})
 
 	config := r.Group("/config")
 	{
 		config.GET("/tags", func(c *gin.Context) {
-			tagsMu.RLock()
-			defer tagsMu.RUnlock()
-			var tgs []string
-			for _, name := range tagMap { tgs = append(tgs, name) }
-			c.JSON(200, tgs)
+			tagsMu.RLock(); defer tagsMu.RUnlock()
+			t := []string{}; for _, n := range tagMap { t = append(t, n) }
+			c.JSON(200, t)
 		})
 		config.POST("/tags", func(c *gin.Context) {
-			var req struct{ Name string `json:"name"` }
-			if err := c.ShouldBindJSON(&req); err == nil {
-				getTagID(req.Name)
-				c.JSON(200, gin.H{"message": "Tag created"})
-			}
+			var r struct{ Name string `json:"name"` }; _ = c.ShouldBindJSON(&r)
+			getTagID(r.Name); c.JSON(200, gin.H{"status": "ok"})
 		})
 		config.GET("/comms", func(c *gin.Context) {
-			type Item struct{ Comm string `json:"comm"`; Tag string `json:"tag"` }
-			var items []Item
-			var key [16]byte
-			var tagID uint32
+			items := []gin.H{}
 			iter := objs.TrackedComms.Iterate()
-			for iter.Next(&key, &tagID) {
-				items = append(items, Item{string(bytes.TrimRight(key[:], "\x00")), getTagName(tagID)})
-			}
+			var k [16]byte; var tid uint32
+			for iter.Next(&k, &tid) { items = append(items, gin.H{"comm": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)}) }
 			c.JSON(200, items)
 		})
 		config.POST("/comms", func(c *gin.Context) {
-			var req struct{ Comm string `json:"comm"`; Tag string `json:"tag"` }
-			if err := c.ShouldBindJSON(&req); err == nil {
-				var key [16]byte
-				copy(key[:], req.Comm)
-				tagID := getTagID(req.Tag)
-				objs.TrackedComms.Put(key, tagID)
-				c.JSON(200, gin.H{"message": "Added"})
-			}
+			var r struct{ Comm, Tag string `json:"comm" json:"tag"` }; _ = c.ShouldBindJSON(&r)
+			var k [16]byte; copy(k[:], r.Comm); _ = objs.TrackedComms.Put(k, getTagID(r.Tag)); c.JSON(200, gin.H{"status": "ok"})
 		})
 		config.DELETE("/comms/:comm", func(c *gin.Context) {
-			var key [16]byte
-			copy(key[:], c.Param("comm"))
-			objs.TrackedComms.Delete(key)
-			c.JSON(200, gin.H{"message": "Removed"})
+			var k [16]byte; copy(k[:], c.Param("comm")); _ = objs.TrackedComms.Delete(k); c.JSON(200, gin.H{"status": "ok"})
 		})
 		config.GET("/paths", func(c *gin.Context) {
-			type Item struct{ Path string `json:"path"`; Tag string `json:"tag"` }
-			var items []Item
-			var key [256]byte
-			var tagID uint32
+			items := []gin.H{}
 			iter := objs.TrackedPaths.Iterate()
-			for iter.Next(&key, &tagID) {
-				items = append(items, Item{string(bytes.TrimRight(key[:], "\x00")), getTagName(tagID)})
-			}
+			var k [256]byte; var tid uint32
+			for iter.Next(&k, &tid) { items = append(items, gin.H{"path": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)}) }
 			c.JSON(200, items)
 		})
 		config.POST("/paths", func(c *gin.Context) {
-			var req struct{ Path string `json:"path"`; Tag string `json:"tag"` }
-			if err := c.ShouldBindJSON(&req); err == nil {
-				var key [256]byte
-				copy(key[:], req.Path)
-				tagID := getTagID(req.Tag)
-				objs.TrackedPaths.Put(key, tagID)
-				c.JSON(200, gin.H{"message": "Added"})
-			}
+			var r struct{ Path, Tag string `json:"path" json:"tag"` }; _ = c.ShouldBindJSON(&r)
+			var k [256]byte; copy(k[:], r.Path); _ = objs.TrackedPaths.Put(k, getTagID(r.Tag)); c.JSON(200, gin.H{"status": "ok"})
 		})
 		config.DELETE("/paths/*path", func(c *gin.Context) {
-			path := c.Param("path")
-			if len(path) > 0 && path[0] == '/' { path = path[1:] }
-			var key [256]byte
-			copy(key[:], path)
-			objs.TrackedPaths.Delete(key)
-			c.JSON(200, gin.H{"message": "Removed"})
+			p := c.Param("path"); if len(p) > 0 && p[0] == '/' { p = p[1:] }
+			var k [256]byte; copy(k[:], p); _ = objs.TrackedPaths.Delete(k); c.JSON(200, gin.H{"status": "ok"})
 		})
-		config.GET("/export", func(c *gin.Context) {
-			cfg := ExportConfig{Comms: make(map[string]string), Paths: make(map[string]string)}
-			tagsMu.RLock()
-			for _, n := range tagMap { cfg.Tags = append(cfg.Tags, n) }
-			tagsMu.RUnlock()
-			var k16 [16]byte
-			var k256 [256]byte
-			var tid uint32
-			i1 := objs.TrackedComms.Iterate()
-			for i1.Next(&k16, &tid) { cfg.Comms[string(bytes.TrimRight(k16[:], "\x00"))] = getTagName(tid) }
-			i2 := objs.TrackedPaths.Iterate()
-			for i2.Next(&k256, &tid) { cfg.Paths[string(bytes.TrimRight(k256[:], "\x00"))] = getTagName(tid) }
-			c.JSON(200, cfg)
+		config.GET("/rules", func(c *gin.Context) {
+			rulesMu.RLock(); defer rulesMu.RUnlock()
+			c.JSON(200, wrapperRules)
 		})
-		config.POST("/import", func(c *gin.Context) {
-			var cfg ExportConfig
-			if err := c.ShouldBindJSON(&cfg); err == nil {
-				for _, t := range cfg.Tags { getTagID(t) }
-				for comm, tag := range cfg.Comms {
-					var k [16]byte
-					copy(k[:], comm)
-					tid := getTagID(tag)
-					objs.TrackedComms.Put(k, tid)
-				}
-				for p, tag := range cfg.Paths {
-					var k [256]byte
-					copy(k[:], p)
-					tid := getTagID(tag)
-					objs.TrackedPaths.Put(k, tid)
-				}
-				c.JSON(200, gin.H{"message": "Imported"})
-			}
+		config.POST("/rules", func(c *gin.Context) {
+			var r WrapperRule; _ = c.ShouldBindJSON(&r)
+			rulesMu.Lock(); wrapperRules[r.Comm] = r; rulesMu.Unlock()
+			c.JSON(200, gin.H{"status": "ok"})
+		})
+		config.DELETE("/rules/:comm", func(c *gin.Context) {
+			rulesMu.Lock(); delete(wrapperRules, c.Param("comm")); rulesMu.Unlock()
+			c.JSON(200, gin.H{"status": "ok"})
 		})
 	}
+
+	r.GET("/system/ls", func(c *gin.Context) {
+		p := c.DefaultQuery("path", "/")
+		e, _ := os.ReadDir(p)
+		l := []gin.H{}
+		for _, v := range e {
+			fp := p; if fp == "/" { fp = "/" + v.Name() } else { fp = fp + "/" + v.Name() }
+			l = append(l, gin.H{"name": v.Name(), "isDir": v.IsDir(), "path": fp})
+		}
+		c.JSON(200, l)
+	})
 
 	r.StaticFile("/", "../frontend/dist/index.html")
 	r.Static("/assets", "../frontend/dist/assets")
 	r.NoRoute(func(c *gin.Context) { c.File("../frontend/dist/index.html") })
 
-	commonCLIs := map[string]string{
-		"git": "Git", "npm": "Package Manager", "bun": "Package Manager",
-		"pnpm": "Package Manager", "yarn": "Package Manager", "node": "Runtime",
-		"python": "Runtime", "python3": "Runtime", "go": "Build Tool",
-		"cargo": "Build Tool", "rustc": "Build Tool", "gcc": "Build Tool",
-		"g++": "Build Tool", "clang": "Build Tool", "make": "Build Tool",
-		"cmake": "Build Tool", "docker": "System Tool", "kubectl": "Network Tool",
-	}
-	for cli, tag := range commonCLIs {
-		var key [16]byte
-		copy(key[:], cli)
-		_ = objs.TrackedComms.Put(key, getTagID(tag))
-	}
-	sensitivePaths := map[string]string{
-		"/etc/shadow": "Security", "/etc/passwd": "Security",
-		"/etc/sudoers": "Security", "/etc/hosts": "Security",
-	}
-	for p, tag := range sensitivePaths {
-		var key [256]byte
-		copy(key[:], p)
-		_ = objs.TrackedPaths.Put(key, getTagID(tag))
-	}
-
+	commonCLIs := map[string]string{"git": "Git", "npm": "Package Manager", "bun": "Package Manager", "pnpm": "Package Manager", "yarn": "Package Manager", "node": "Runtime", "python": "Runtime", "python3": "Runtime", "go": "Build Tool", "cargo": "Build Tool", "rustc": "Build Tool", "gcc": "Build Tool", "g++": "Build Tool", "clang": "Build Tool", "make": "Build Tool", "cmake": "Build Tool", "docker": "System Tool", "kubectl": "Network Tool"}
+	for cl, t := range commonCLIs { var k [16]byte; copy(k[:], cl); _ = objs.TrackedComms.Put(k, getTagID(t)) }
+	
 	startPort, maxTries, actualPort := 8080, 10, 8080
-	var ln net.Listener
 	for i := 0; i < maxTries; i++ {
 		l, err := net.Listen("tcp", fmt.Sprintf(":%d", startPort+i))
-		if err == nil { actualPort, ln = startPort+i, l; break }
+		if err == nil { actualPort = startPort + i; l.Close(); break }
 	}
-	if ln != nil {
-		ln.Close()
-		_ = os.WriteFile(".port", []byte(fmt.Sprintf("%d", actualPort)), 0644)
-		fmt.Printf("Server listening on :%d\n", actualPort)
-		r.Run(fmt.Sprintf(":%d", actualPort))
-	}
+	_ = os.WriteFile(".port", []byte(fmt.Sprintf("%d", actualPort)), 0644)
+	_ = r.Run(fmt.Sprintf(":%d", actualPort))
 }

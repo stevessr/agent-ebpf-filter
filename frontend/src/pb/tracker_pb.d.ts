@@ -917,6 +917,241 @@ export namespace pb {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of a WrapperRequest. */
+    interface IWrapperRequest {
+
+        /** WrapperRequest pid */
+        pid?: (number|null);
+
+        /** WrapperRequest comm */
+        comm?: (string|null);
+
+        /** WrapperRequest args */
+        args?: (string[]|null);
+
+        /** WrapperRequest user */
+        user?: (string|null);
+    }
+
+    /** Represents a WrapperRequest. */
+    class WrapperRequest implements IWrapperRequest {
+
+        /**
+         * Constructs a new WrapperRequest.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IWrapperRequest);
+
+        /** WrapperRequest pid. */
+        public pid: number;
+
+        /** WrapperRequest comm. */
+        public comm: string;
+
+        /** WrapperRequest args. */
+        public args: string[];
+
+        /** WrapperRequest user. */
+        public user: string;
+
+        /**
+         * Creates a new WrapperRequest instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns WrapperRequest instance
+         */
+        public static create(properties?: pb.IWrapperRequest): pb.WrapperRequest;
+
+        /**
+         * Encodes the specified WrapperRequest message. Does not implicitly {@link pb.WrapperRequest.verify|verify} messages.
+         * @param message WrapperRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IWrapperRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified WrapperRequest message, length delimited. Does not implicitly {@link pb.WrapperRequest.verify|verify} messages.
+         * @param message WrapperRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IWrapperRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a WrapperRequest message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns WrapperRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.WrapperRequest;
+
+        /**
+         * Decodes a WrapperRequest message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns WrapperRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.WrapperRequest;
+
+        /**
+         * Verifies a WrapperRequest message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a WrapperRequest message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns WrapperRequest
+         */
+        public static fromObject(object: { [k: string]: any }): pb.WrapperRequest;
+
+        /**
+         * Creates a plain object from a WrapperRequest message. Also converts values to other types if specified.
+         * @param message WrapperRequest
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.WrapperRequest, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this WrapperRequest to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for WrapperRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a WrapperResponse. */
+    interface IWrapperResponse {
+
+        /** WrapperResponse action */
+        action?: (pb.WrapperResponse.Action|null);
+
+        /** WrapperResponse message */
+        message?: (string|null);
+
+        /** WrapperResponse rewrittenArgs */
+        rewrittenArgs?: (string[]|null);
+    }
+
+    /** Represents a WrapperResponse. */
+    class WrapperResponse implements IWrapperResponse {
+
+        /**
+         * Constructs a new WrapperResponse.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IWrapperResponse);
+
+        /** WrapperResponse action. */
+        public action: pb.WrapperResponse.Action;
+
+        /** WrapperResponse message. */
+        public message: string;
+
+        /** WrapperResponse rewrittenArgs. */
+        public rewrittenArgs: string[];
+
+        /**
+         * Creates a new WrapperResponse instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns WrapperResponse instance
+         */
+        public static create(properties?: pb.IWrapperResponse): pb.WrapperResponse;
+
+        /**
+         * Encodes the specified WrapperResponse message. Does not implicitly {@link pb.WrapperResponse.verify|verify} messages.
+         * @param message WrapperResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IWrapperResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified WrapperResponse message, length delimited. Does not implicitly {@link pb.WrapperResponse.verify|verify} messages.
+         * @param message WrapperResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IWrapperResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a WrapperResponse message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns WrapperResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.WrapperResponse;
+
+        /**
+         * Decodes a WrapperResponse message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns WrapperResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.WrapperResponse;
+
+        /**
+         * Verifies a WrapperResponse message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a WrapperResponse message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns WrapperResponse
+         */
+        public static fromObject(object: { [k: string]: any }): pb.WrapperResponse;
+
+        /**
+         * Creates a plain object from a WrapperResponse message. Also converts values to other types if specified.
+         * @param message WrapperResponse
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.WrapperResponse, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this WrapperResponse to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for WrapperResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    namespace WrapperResponse {
+
+        /** Action enum. */
+        enum Action {
+            ALLOW = 0,
+            BLOCK = 1,
+            REWRITE = 2,
+            ALERT = 3
+        }
+    }
+
     /** Properties of a ProcessList. */
     interface IProcessList {
 

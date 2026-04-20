@@ -47,7 +47,25 @@ make run-backend
 make run-frontend
 ```
 
-### 3. Run Agents (Adapters)
+### 3. CLI Interceptor (Wrapper)
+
+The framework includes a specialized `agent-wrapper` that acts as a secure shim for sensitive commands.
+
+```bash
+make wrapper
+# Usage: ./agent-wrapper <command> [args...]
+./agent-wrapper rm -rf /important/data
+```
+
+**Features:**
+- **UDS Integration**: Communicates with the backend via `/tmp/agent-ebpf.sock` for zero-latency policy checks.
+- **Security Policies**:
+  - **BLOCK**: Completely prevent command execution.
+  - **ALERT**: Allow command but log a high-priority security event.
+  - **REWRITE**: Dynamically modify arguments (e.g., automatically add `-i` to `rm`).
+- **Real-time Monitoring**: Every command run through the wrapper is intercepted and shown in the "Wrapper" tag on the dashboard.
+
+### 4. Run Agents (Adapters)
 
 **Python Agent:**
 ```bash

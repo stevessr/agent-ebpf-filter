@@ -21,6 +21,58 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type WrapperResponse_Action int32
+
+const (
+	WrapperResponse_ALLOW   WrapperResponse_Action = 0
+	WrapperResponse_BLOCK   WrapperResponse_Action = 1
+	WrapperResponse_REWRITE WrapperResponse_Action = 2
+	WrapperResponse_ALERT   WrapperResponse_Action = 3
+)
+
+// Enum value maps for WrapperResponse_Action.
+var (
+	WrapperResponse_Action_name = map[int32]string{
+		0: "ALLOW",
+		1: "BLOCK",
+		2: "REWRITE",
+		3: "ALERT",
+	}
+	WrapperResponse_Action_value = map[string]int32{
+		"ALLOW":   0,
+		"BLOCK":   1,
+		"REWRITE": 2,
+		"ALERT":   3,
+	}
+)
+
+func (x WrapperResponse_Action) Enum() *WrapperResponse_Action {
+	p := new(WrapperResponse_Action)
+	*p = x
+	return p
+}
+
+func (x WrapperResponse_Action) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (WrapperResponse_Action) Descriptor() protoreflect.EnumDescriptor {
+	return file_tracker_proto_enumTypes[0].Descriptor()
+}
+
+func (WrapperResponse_Action) Type() protoreflect.EnumType {
+	return &file_tracker_proto_enumTypes[0]
+}
+
+func (x WrapperResponse_Action) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use WrapperResponse_Action.Descriptor instead.
+func (WrapperResponse_Action) EnumDescriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{9, 0}
+}
+
 // Represents a process registration request
 type RegisterRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -563,6 +615,134 @@ func (x *SystemStats) GetGpus() []*GPUStatus {
 	return nil
 }
 
+type WrapperRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pid           uint32                 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	Comm          string                 `protobuf:"bytes,2,opt,name=comm,proto3" json:"comm,omitempty"`
+	Args          []string               `protobuf:"bytes,3,rep,name=args,proto3" json:"args,omitempty"`
+	User          string                 `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WrapperRequest) Reset() {
+	*x = WrapperRequest{}
+	mi := &file_tracker_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WrapperRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WrapperRequest) ProtoMessage() {}
+
+func (x *WrapperRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WrapperRequest.ProtoReflect.Descriptor instead.
+func (*WrapperRequest) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *WrapperRequest) GetPid() uint32 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *WrapperRequest) GetComm() string {
+	if x != nil {
+		return x.Comm
+	}
+	return ""
+}
+
+func (x *WrapperRequest) GetArgs() []string {
+	if x != nil {
+		return x.Args
+	}
+	return nil
+}
+
+func (x *WrapperRequest) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+type WrapperResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Action        WrapperResponse_Action `protobuf:"varint,1,opt,name=action,proto3,enum=pb.WrapperResponse_Action" json:"action,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	RewrittenArgs []string               `protobuf:"bytes,3,rep,name=rewritten_args,json=rewrittenArgs,proto3" json:"rewritten_args,omitempty"` // Only if action is REWRITE
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WrapperResponse) Reset() {
+	*x = WrapperResponse{}
+	mi := &file_tracker_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WrapperResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WrapperResponse) ProtoMessage() {}
+
+func (x *WrapperResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WrapperResponse.ProtoReflect.Descriptor instead.
+func (*WrapperResponse) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *WrapperResponse) GetAction() WrapperResponse_Action {
+	if x != nil {
+		return x.Action
+	}
+	return WrapperResponse_ALLOW
+}
+
+func (x *WrapperResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *WrapperResponse) GetRewrittenArgs() []string {
+	if x != nil {
+		return x.RewrittenArgs
+	}
+	return nil
+}
+
 type ProcessList struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Processes     []*Process             `protobuf:"bytes,1,rep,name=processes,proto3" json:"processes,omitempty"`
@@ -572,7 +752,7 @@ type ProcessList struct {
 
 func (x *ProcessList) Reset() {
 	*x = ProcessList{}
-	mi := &file_tracker_proto_msgTypes[8]
+	mi := &file_tracker_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -584,7 +764,7 @@ func (x *ProcessList) String() string {
 func (*ProcessList) ProtoMessage() {}
 
 func (x *ProcessList) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[8]
+	mi := &file_tracker_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -597,7 +777,7 @@ func (x *ProcessList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessList.ProtoReflect.Descriptor instead.
 func (*ProcessList) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{8}
+	return file_tracker_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ProcessList) GetProcesses() []*Process {
@@ -650,7 +830,21 @@ const file_tracker_proto_rawDesc = "" +
 	"\x04temp\x18\a \x01(\rR\x04temp\"[\n" +
 	"\vSystemStats\x12)\n" +
 	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocesses\x12!\n" +
-	"\x04gpus\x18\x02 \x03(\v2\r.pb.GPUStatusR\x04gpus\"8\n" +
+	"\x04gpus\x18\x02 \x03(\v2\r.pb.GPUStatusR\x04gpus\"^\n" +
+	"\x0eWrapperRequest\x12\x10\n" +
+	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
+	"\x04comm\x18\x02 \x01(\tR\x04comm\x12\x12\n" +
+	"\x04args\x18\x03 \x03(\tR\x04args\x12\x12\n" +
+	"\x04user\x18\x04 \x01(\tR\x04user\"\xbe\x01\n" +
+	"\x0fWrapperResponse\x122\n" +
+	"\x06action\x18\x01 \x01(\x0e2\x1a.pb.WrapperResponse.ActionR\x06action\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12%\n" +
+	"\x0erewritten_args\x18\x03 \x03(\tR\rrewrittenArgs\"6\n" +
+	"\x06Action\x12\t\n" +
+	"\x05ALLOW\x10\x00\x12\t\n" +
+	"\x05BLOCK\x10\x01\x12\v\n" +
+	"\aREWRITE\x10\x02\x12\t\n" +
+	"\x05ALERT\x10\x03\"8\n" +
 	"\vProcessList\x12)\n" +
 	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocessesB\x16Z\x14agent-ebpf-filter/pbb\x06proto3"
 
@@ -666,27 +860,32 @@ func file_tracker_proto_rawDescGZIP() []byte {
 	return file_tracker_proto_rawDescData
 }
 
-var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_tracker_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_tracker_proto_goTypes = []any{
-	(*RegisterRequest)(nil),    // 0: pb.RegisterRequest
-	(*RegisterResponse)(nil),   // 1: pb.RegisterResponse
-	(*UnregisterRequest)(nil),  // 2: pb.UnregisterRequest
-	(*UnregisterResponse)(nil), // 3: pb.UnregisterResponse
-	(*Event)(nil),              // 4: pb.Event
-	(*Process)(nil),            // 5: pb.Process
-	(*GPUStatus)(nil),          // 6: pb.GPUStatus
-	(*SystemStats)(nil),        // 7: pb.SystemStats
-	(*ProcessList)(nil),        // 8: pb.ProcessList
+	(WrapperResponse_Action)(0), // 0: pb.WrapperResponse.Action
+	(*RegisterRequest)(nil),     // 1: pb.RegisterRequest
+	(*RegisterResponse)(nil),    // 2: pb.RegisterResponse
+	(*UnregisterRequest)(nil),   // 3: pb.UnregisterRequest
+	(*UnregisterResponse)(nil),  // 4: pb.UnregisterResponse
+	(*Event)(nil),               // 5: pb.Event
+	(*Process)(nil),             // 6: pb.Process
+	(*GPUStatus)(nil),           // 7: pb.GPUStatus
+	(*SystemStats)(nil),         // 8: pb.SystemStats
+	(*WrapperRequest)(nil),      // 9: pb.WrapperRequest
+	(*WrapperResponse)(nil),     // 10: pb.WrapperResponse
+	(*ProcessList)(nil),         // 11: pb.ProcessList
 }
 var file_tracker_proto_depIdxs = []int32{
-	5, // 0: pb.SystemStats.processes:type_name -> pb.Process
-	6, // 1: pb.SystemStats.gpus:type_name -> pb.GPUStatus
-	5, // 2: pb.ProcessList.processes:type_name -> pb.Process
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	6, // 0: pb.SystemStats.processes:type_name -> pb.Process
+	7, // 1: pb.SystemStats.gpus:type_name -> pb.GPUStatus
+	0, // 2: pb.WrapperResponse.action:type_name -> pb.WrapperResponse.Action
+	6, // 3: pb.ProcessList.processes:type_name -> pb.Process
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_tracker_proto_init() }
@@ -699,13 +898,14 @@ func file_tracker_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tracker_proto_rawDesc), len(file_tracker_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   9,
+			NumEnums:      1,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_tracker_proto_goTypes,
 		DependencyIndexes: file_tracker_proto_depIdxs,
+		EnumInfos:         file_tracker_proto_enumTypes,
 		MessageInfos:      file_tracker_proto_msgTypes,
 	}.Build()
 	File_tracker_proto = out.File
