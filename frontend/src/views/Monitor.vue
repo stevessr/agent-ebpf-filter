@@ -175,6 +175,19 @@ const getMemColor = (percent: number) => {
   return '#389e0d'; // Low
 };
 
+const showGroupDetails = ref(false);
+const selectedGroup = ref<{ name: string; pids: number[] } | null>(null);
+
+const openGroupDetails = (name: string, pids: number[]) => {
+  selectedGroup.value = { name, pids };
+  showGroupDetails.value = true;
+};
+
+const selectedGroupProcesses = computed(() => {
+  if (!selectedGroup.value) return [];
+  return processes.value.filter(p => selectedGroup.value?.pids.includes(p.pid));
+});
+
 const addToRules = async (proc: ProcessInfo) => {
   try {
     await axios.post('/config/comms', { comm: proc.name, tag: selectedTag.value });
@@ -373,6 +386,7 @@ watch(refreshInterval, connectWebSocket);
         <div class="mem-container">
           <div v-for="g in memoryVisualizationData" :key="g.name" 
                class="mem-block"
+               @click="openGroupDetails(g.name, g.pids)"
                :style="{ 
                  backgroundColor: getMemColor(g.mem),
                  flexGrow: g.mem,
@@ -383,8 +397,7 @@ watch(refreshInterval, connectWebSocket);
               <template #title>
                 App: {{ g.name }}<br/>
                 Total Mem: {{ g.mem.toFixed(2) }}%<br/>
-                Instances: {{ g.count }}<br/>
-                PIDs: {{ g.pids.slice(0, 5).join(', ') }}{{ g.pids.length > 5 ? '...' : '' }}
+                Instances: {{ g.count }} (Click for details)
               </template>
               <div class="mem-block-content">
                 <div class="mem-name">{{ g.name }}</div>
@@ -394,6 +407,37 @@ watch(refreshInterval, connectWebSocket);
             </a-tooltip>
           </div>
         </div>
+
+        <!-- Group Details Modal -->
+        <a-modal
+          v-model:open="showGroupDetails"
+          :title="'Instances: ' + selectedGroup?.name"
+          :footer="null"
+          width="800px"
+        >
+          <a-table 
+            :dataSource="selectedGroupProcesses" 
+            :columns="[
+              { title: 'PID', dataIndex: 'pid', key: 'pid', width: 100 },
+              { title: 'CPU %', dataIndex: 'cpu', key: 'cpu', width: 100 },
+              { title: 'MEM %', dataIndex: 'mem', key: 'mem', width: 100 },
+              { title: 'VRAM', dataIndex: 'gpuMem', key: 'gpuMem', width: 100 },
+              { title: 'User', dataIndex: 'user', key: 'user' },
+              { title: 'Action', key: 'action', width: 100 }
+            ]" 
+            size="small"
+            :pagination="{ pageSize: 10 }"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'cpu'">{{ record.cpu.toFixed(1) }}%</template>
+              <template v-if="column.key === 'mem'">{{ record.mem.toFixed(1) }}%</template>
+              <template v-if="column.key === 'gpuMem'">{{ record.gpuMem > 0 ? record.gpuMem + 'MB' : '-' }}</template>
+              <template v-if="column.key === 'action'">
+                <a-button type="link" size="small" @click="addToRules(record)">Track</a-button>
+              </template>
+            </template>
+          </a-table>
+        </a-modal>
       </a-tab-pane>
 
     </a-tabs>
