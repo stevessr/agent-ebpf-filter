@@ -28,7 +28,9 @@ export default defineConfig({
       },
       '/register': backendUrl,
       '/unregister': backendUrl,
-      '/config': backendUrl,
+      // Only proxy /config if it has a subpath (API calls), 
+      // allowing the frontend to handle the base /config route.
+      '^/config/.*': backendUrl,
     },
   },
 })
