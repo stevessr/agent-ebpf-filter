@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import { FilterOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
+import { message } from 'ant-design-vue';
 import { pb } from '../pb/tracker_pb.js';
 
 interface AgentEvent {

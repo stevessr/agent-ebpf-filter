@@ -814,6 +814,333 @@ export namespace pb {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of a CPUInfo. */
+    interface ICPUInfo {
+
+        /** CPUInfo total */
+        total?: (number|null);
+
+        /** CPUInfo cores */
+        cores?: (number[]|null);
+    }
+
+    /** Represents a CPUInfo. */
+    class CPUInfo implements ICPUInfo {
+
+        /**
+         * Constructs a new CPUInfo.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.ICPUInfo);
+
+        /** CPUInfo total. */
+        public total: number;
+
+        /** CPUInfo cores. */
+        public cores: number[];
+
+        /**
+         * Creates a new CPUInfo instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns CPUInfo instance
+         */
+        public static create(properties?: pb.ICPUInfo): pb.CPUInfo;
+
+        /**
+         * Encodes the specified CPUInfo message. Does not implicitly {@link pb.CPUInfo.verify|verify} messages.
+         * @param message CPUInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.ICPUInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified CPUInfo message, length delimited. Does not implicitly {@link pb.CPUInfo.verify|verify} messages.
+         * @param message CPUInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.ICPUInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a CPUInfo message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns CPUInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.CPUInfo;
+
+        /**
+         * Decodes a CPUInfo message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns CPUInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.CPUInfo;
+
+        /**
+         * Verifies a CPUInfo message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a CPUInfo message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns CPUInfo
+         */
+        public static fromObject(object: { [k: string]: any }): pb.CPUInfo;
+
+        /**
+         * Creates a plain object from a CPUInfo message. Also converts values to other types if specified.
+         * @param message CPUInfo
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.CPUInfo, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this CPUInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for CPUInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a MemoryInfo. */
+    interface IMemoryInfo {
+
+        /** MemoryInfo total */
+        total?: (number|Long|null);
+
+        /** MemoryInfo used */
+        used?: (number|Long|null);
+
+        /** MemoryInfo percent */
+        percent?: (number|null);
+    }
+
+    /** Represents a MemoryInfo. */
+    class MemoryInfo implements IMemoryInfo {
+
+        /**
+         * Constructs a new MemoryInfo.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IMemoryInfo);
+
+        /** MemoryInfo total. */
+        public total: (number|Long);
+
+        /** MemoryInfo used. */
+        public used: (number|Long);
+
+        /** MemoryInfo percent. */
+        public percent: number;
+
+        /**
+         * Creates a new MemoryInfo instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns MemoryInfo instance
+         */
+        public static create(properties?: pb.IMemoryInfo): pb.MemoryInfo;
+
+        /**
+         * Encodes the specified MemoryInfo message. Does not implicitly {@link pb.MemoryInfo.verify|verify} messages.
+         * @param message MemoryInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IMemoryInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified MemoryInfo message, length delimited. Does not implicitly {@link pb.MemoryInfo.verify|verify} messages.
+         * @param message MemoryInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IMemoryInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a MemoryInfo message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns MemoryInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.MemoryInfo;
+
+        /**
+         * Decodes a MemoryInfo message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns MemoryInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.MemoryInfo;
+
+        /**
+         * Verifies a MemoryInfo message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a MemoryInfo message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns MemoryInfo
+         */
+        public static fromObject(object: { [k: string]: any }): pb.MemoryInfo;
+
+        /**
+         * Creates a plain object from a MemoryInfo message. Also converts values to other types if specified.
+         * @param message MemoryInfo
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.MemoryInfo, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this MemoryInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for MemoryInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a IOInfo. */
+    interface IIOInfo {
+
+        /** IOInfo readBytes */
+        readBytes?: (number|Long|null);
+
+        /** IOInfo writeBytes */
+        writeBytes?: (number|Long|null);
+
+        /** IOInfo netRecvBytes */
+        netRecvBytes?: (number|Long|null);
+
+        /** IOInfo netSentBytes */
+        netSentBytes?: (number|Long|null);
+    }
+
+    /** Represents a IOInfo. */
+    class IOInfo implements IIOInfo {
+
+        /**
+         * Constructs a new IOInfo.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IIOInfo);
+
+        /** IOInfo readBytes. */
+        public readBytes: (number|Long);
+
+        /** IOInfo writeBytes. */
+        public writeBytes: (number|Long);
+
+        /** IOInfo netRecvBytes. */
+        public netRecvBytes: (number|Long);
+
+        /** IOInfo netSentBytes. */
+        public netSentBytes: (number|Long);
+
+        /**
+         * Creates a new IOInfo instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns IOInfo instance
+         */
+        public static create(properties?: pb.IIOInfo): pb.IOInfo;
+
+        /**
+         * Encodes the specified IOInfo message. Does not implicitly {@link pb.IOInfo.verify|verify} messages.
+         * @param message IOInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IIOInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified IOInfo message, length delimited. Does not implicitly {@link pb.IOInfo.verify|verify} messages.
+         * @param message IOInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IIOInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a IOInfo message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns IOInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.IOInfo;
+
+        /**
+         * Decodes a IOInfo message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns IOInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.IOInfo;
+
+        /**
+         * Verifies a IOInfo message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a IOInfo message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns IOInfo
+         */
+        public static fromObject(object: { [k: string]: any }): pb.IOInfo;
+
+        /**
+         * Creates a plain object from a IOInfo message. Also converts values to other types if specified.
+         * @param message IOInfo
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.IOInfo, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this IOInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for IOInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of a SystemStats. */
     interface ISystemStats {
 
@@ -822,6 +1149,15 @@ export namespace pb {
 
         /** SystemStats gpus */
         gpus?: (pb.IGPUStatus[]|null);
+
+        /** SystemStats cpu */
+        cpu?: (pb.ICPUInfo|null);
+
+        /** SystemStats memory */
+        memory?: (pb.IMemoryInfo|null);
+
+        /** SystemStats io */
+        io?: (pb.IIOInfo|null);
     }
 
     /** Represents a SystemStats. */
@@ -838,6 +1174,15 @@ export namespace pb {
 
         /** SystemStats gpus. */
         public gpus: pb.IGPUStatus[];
+
+        /** SystemStats cpu. */
+        public cpu?: (pb.ICPUInfo|null);
+
+        /** SystemStats memory. */
+        public memory?: (pb.IMemoryInfo|null);
+
+        /** SystemStats io. */
+        public io?: (pb.IIOInfo|null);
 
         /**
          * Creates a new SystemStats instance using the specified properties.

@@ -70,7 +70,7 @@ func (x WrapperResponse_Action) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use WrapperResponse_Action.Descriptor instead.
 func (WrapperResponse_Action) EnumDescriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{9, 0}
+	return file_tracker_proto_rawDescGZIP(), []int{12, 0}
 }
 
 // Represents a process registration request
@@ -563,17 +563,200 @@ func (x *GPUStatus) GetTemp() uint32 {
 	return 0
 }
 
+type CPUInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Total         float64                `protobuf:"fixed64,1,opt,name=total,proto3" json:"total,omitempty"`
+	Cores         []float64              `protobuf:"fixed64,2,rep,packed,name=cores,proto3" json:"cores,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CPUInfo) Reset() {
+	*x = CPUInfo{}
+	mi := &file_tracker_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CPUInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CPUInfo) ProtoMessage() {}
+
+func (x *CPUInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CPUInfo.ProtoReflect.Descriptor instead.
+func (*CPUInfo) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CPUInfo) GetTotal() float64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *CPUInfo) GetCores() []float64 {
+	if x != nil {
+		return x.Cores
+	}
+	return nil
+}
+
+type MemoryInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Total         uint64                 `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+	Used          uint64                 `protobuf:"varint,2,opt,name=used,proto3" json:"used,omitempty"`
+	Percent       float32                `protobuf:"fixed32,3,opt,name=percent,proto3" json:"percent,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemoryInfo) Reset() {
+	*x = MemoryInfo{}
+	mi := &file_tracker_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemoryInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemoryInfo) ProtoMessage() {}
+
+func (x *MemoryInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemoryInfo.ProtoReflect.Descriptor instead.
+func (*MemoryInfo) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *MemoryInfo) GetTotal() uint64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *MemoryInfo) GetUsed() uint64 {
+	if x != nil {
+		return x.Used
+	}
+	return 0
+}
+
+func (x *MemoryInfo) GetPercent() float32 {
+	if x != nil {
+		return x.Percent
+	}
+	return 0
+}
+
+type IOInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ReadBytes     uint64                 `protobuf:"varint,1,opt,name=read_bytes,json=readBytes,proto3" json:"read_bytes,omitempty"`
+	WriteBytes    uint64                 `protobuf:"varint,2,opt,name=write_bytes,json=writeBytes,proto3" json:"write_bytes,omitempty"`
+	NetRecvBytes  uint64                 `protobuf:"varint,3,opt,name=net_recv_bytes,json=netRecvBytes,proto3" json:"net_recv_bytes,omitempty"`
+	NetSentBytes  uint64                 `protobuf:"varint,4,opt,name=net_sent_bytes,json=netSentBytes,proto3" json:"net_sent_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IOInfo) Reset() {
+	*x = IOInfo{}
+	mi := &file_tracker_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IOInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IOInfo) ProtoMessage() {}
+
+func (x *IOInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IOInfo.ProtoReflect.Descriptor instead.
+func (*IOInfo) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *IOInfo) GetReadBytes() uint64 {
+	if x != nil {
+		return x.ReadBytes
+	}
+	return 0
+}
+
+func (x *IOInfo) GetWriteBytes() uint64 {
+	if x != nil {
+		return x.WriteBytes
+	}
+	return 0
+}
+
+func (x *IOInfo) GetNetRecvBytes() uint64 {
+	if x != nil {
+		return x.NetRecvBytes
+	}
+	return 0
+}
+
+func (x *IOInfo) GetNetSentBytes() uint64 {
+	if x != nil {
+		return x.NetSentBytes
+	}
+	return 0
+}
+
 type SystemStats struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Processes     []*Process             `protobuf:"bytes,1,rep,name=processes,proto3" json:"processes,omitempty"`
 	Gpus          []*GPUStatus           `protobuf:"bytes,2,rep,name=gpus,proto3" json:"gpus,omitempty"`
+	Cpu           *CPUInfo               `protobuf:"bytes,3,opt,name=cpu,proto3" json:"cpu,omitempty"`
+	Memory        *MemoryInfo            `protobuf:"bytes,4,opt,name=memory,proto3" json:"memory,omitempty"`
+	Io            *IOInfo                `protobuf:"bytes,5,opt,name=io,proto3" json:"io,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SystemStats) Reset() {
 	*x = SystemStats{}
-	mi := &file_tracker_proto_msgTypes[7]
+	mi := &file_tracker_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -585,7 +768,7 @@ func (x *SystemStats) String() string {
 func (*SystemStats) ProtoMessage() {}
 
 func (x *SystemStats) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[7]
+	mi := &file_tracker_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -598,7 +781,7 @@ func (x *SystemStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemStats.ProtoReflect.Descriptor instead.
 func (*SystemStats) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{7}
+	return file_tracker_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SystemStats) GetProcesses() []*Process {
@@ -615,6 +798,27 @@ func (x *SystemStats) GetGpus() []*GPUStatus {
 	return nil
 }
 
+func (x *SystemStats) GetCpu() *CPUInfo {
+	if x != nil {
+		return x.Cpu
+	}
+	return nil
+}
+
+func (x *SystemStats) GetMemory() *MemoryInfo {
+	if x != nil {
+		return x.Memory
+	}
+	return nil
+}
+
+func (x *SystemStats) GetIo() *IOInfo {
+	if x != nil {
+		return x.Io
+	}
+	return nil
+}
+
 type WrapperRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Pid           uint32                 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
@@ -627,7 +831,7 @@ type WrapperRequest struct {
 
 func (x *WrapperRequest) Reset() {
 	*x = WrapperRequest{}
-	mi := &file_tracker_proto_msgTypes[8]
+	mi := &file_tracker_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -639,7 +843,7 @@ func (x *WrapperRequest) String() string {
 func (*WrapperRequest) ProtoMessage() {}
 
 func (x *WrapperRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[8]
+	mi := &file_tracker_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -652,7 +856,7 @@ func (x *WrapperRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WrapperRequest.ProtoReflect.Descriptor instead.
 func (*WrapperRequest) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{8}
+	return file_tracker_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *WrapperRequest) GetPid() uint32 {
@@ -694,7 +898,7 @@ type WrapperResponse struct {
 
 func (x *WrapperResponse) Reset() {
 	*x = WrapperResponse{}
-	mi := &file_tracker_proto_msgTypes[9]
+	mi := &file_tracker_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -706,7 +910,7 @@ func (x *WrapperResponse) String() string {
 func (*WrapperResponse) ProtoMessage() {}
 
 func (x *WrapperResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[9]
+	mi := &file_tracker_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -719,7 +923,7 @@ func (x *WrapperResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WrapperResponse.ProtoReflect.Descriptor instead.
 func (*WrapperResponse) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{9}
+	return file_tracker_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *WrapperResponse) GetAction() WrapperResponse_Action {
@@ -752,7 +956,7 @@ type ProcessList struct {
 
 func (x *ProcessList) Reset() {
 	*x = ProcessList{}
-	mi := &file_tracker_proto_msgTypes[10]
+	mi := &file_tracker_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -764,7 +968,7 @@ func (x *ProcessList) String() string {
 func (*ProcessList) ProtoMessage() {}
 
 func (x *ProcessList) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[10]
+	mi := &file_tracker_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -777,7 +981,7 @@ func (x *ProcessList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessList.ProtoReflect.Descriptor instead.
 func (*ProcessList) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{10}
+	return file_tracker_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ProcessList) GetProcesses() []*Process {
@@ -827,10 +1031,29 @@ const file_tracker_proto_rawDesc = "" +
 	"\butil_mem\x18\x04 \x01(\rR\autilMem\x12\x1b\n" +
 	"\tmem_total\x18\x05 \x01(\rR\bmemTotal\x12\x19\n" +
 	"\bmem_used\x18\x06 \x01(\rR\amemUsed\x12\x12\n" +
-	"\x04temp\x18\a \x01(\rR\x04temp\"[\n" +
+	"\x04temp\x18\a \x01(\rR\x04temp\"5\n" +
+	"\aCPUInfo\x12\x14\n" +
+	"\x05total\x18\x01 \x01(\x01R\x05total\x12\x14\n" +
+	"\x05cores\x18\x02 \x03(\x01R\x05cores\"P\n" +
+	"\n" +
+	"MemoryInfo\x12\x14\n" +
+	"\x05total\x18\x01 \x01(\x04R\x05total\x12\x12\n" +
+	"\x04used\x18\x02 \x01(\x04R\x04used\x12\x18\n" +
+	"\apercent\x18\x03 \x01(\x02R\apercent\"\x94\x01\n" +
+	"\x06IOInfo\x12\x1d\n" +
+	"\n" +
+	"read_bytes\x18\x01 \x01(\x04R\treadBytes\x12\x1f\n" +
+	"\vwrite_bytes\x18\x02 \x01(\x04R\n" +
+	"writeBytes\x12$\n" +
+	"\x0enet_recv_bytes\x18\x03 \x01(\x04R\fnetRecvBytes\x12$\n" +
+	"\x0enet_sent_bytes\x18\x04 \x01(\x04R\fnetSentBytes\"\xbe\x01\n" +
 	"\vSystemStats\x12)\n" +
 	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocesses\x12!\n" +
-	"\x04gpus\x18\x02 \x03(\v2\r.pb.GPUStatusR\x04gpus\"^\n" +
+	"\x04gpus\x18\x02 \x03(\v2\r.pb.GPUStatusR\x04gpus\x12\x1d\n" +
+	"\x03cpu\x18\x03 \x01(\v2\v.pb.CPUInfoR\x03cpu\x12&\n" +
+	"\x06memory\x18\x04 \x01(\v2\x0e.pb.MemoryInfoR\x06memory\x12\x1a\n" +
+	"\x02io\x18\x05 \x01(\v2\n" +
+	".pb.IOInfoR\x02io\"^\n" +
 	"\x0eWrapperRequest\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
 	"\x04comm\x18\x02 \x01(\tR\x04comm\x12\x12\n" +
@@ -861,7 +1084,7 @@ func file_tracker_proto_rawDescGZIP() []byte {
 }
 
 var file_tracker_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_tracker_proto_goTypes = []any{
 	(WrapperResponse_Action)(0), // 0: pb.WrapperResponse.Action
 	(*RegisterRequest)(nil),     // 1: pb.RegisterRequest
@@ -871,21 +1094,27 @@ var file_tracker_proto_goTypes = []any{
 	(*Event)(nil),               // 5: pb.Event
 	(*Process)(nil),             // 6: pb.Process
 	(*GPUStatus)(nil),           // 7: pb.GPUStatus
-	(*SystemStats)(nil),         // 8: pb.SystemStats
-	(*WrapperRequest)(nil),      // 9: pb.WrapperRequest
-	(*WrapperResponse)(nil),     // 10: pb.WrapperResponse
-	(*ProcessList)(nil),         // 11: pb.ProcessList
+	(*CPUInfo)(nil),             // 8: pb.CPUInfo
+	(*MemoryInfo)(nil),          // 9: pb.MemoryInfo
+	(*IOInfo)(nil),              // 10: pb.IOInfo
+	(*SystemStats)(nil),         // 11: pb.SystemStats
+	(*WrapperRequest)(nil),      // 12: pb.WrapperRequest
+	(*WrapperResponse)(nil),     // 13: pb.WrapperResponse
+	(*ProcessList)(nil),         // 14: pb.ProcessList
 }
 var file_tracker_proto_depIdxs = []int32{
-	6, // 0: pb.SystemStats.processes:type_name -> pb.Process
-	7, // 1: pb.SystemStats.gpus:type_name -> pb.GPUStatus
-	0, // 2: pb.WrapperResponse.action:type_name -> pb.WrapperResponse.Action
-	6, // 3: pb.ProcessList.processes:type_name -> pb.Process
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	6,  // 0: pb.SystemStats.processes:type_name -> pb.Process
+	7,  // 1: pb.SystemStats.gpus:type_name -> pb.GPUStatus
+	8,  // 2: pb.SystemStats.cpu:type_name -> pb.CPUInfo
+	9,  // 3: pb.SystemStats.memory:type_name -> pb.MemoryInfo
+	10, // 4: pb.SystemStats.io:type_name -> pb.IOInfo
+	0,  // 5: pb.WrapperResponse.action:type_name -> pb.WrapperResponse.Action
+	6,  // 6: pb.ProcessList.processes:type_name -> pb.Process
+	7,  // [7:7] is the sub-list for method output_type
+	7,  // [7:7] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_tracker_proto_init() }
@@ -899,7 +1128,7 @@ func file_tracker_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tracker_proto_rawDesc), len(file_tracker_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   11,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

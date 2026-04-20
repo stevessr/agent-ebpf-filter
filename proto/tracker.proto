@@ -59,9 +59,30 @@ message GPUStatus {
   uint32 temp = 7;
 }
 
+message CPUInfo {
+  double total = 1;
+  repeated double cores = 2;
+}
+
+message MemoryInfo {
+  uint64 total = 1;
+  uint64 used = 2;
+  float percent = 3;
+}
+
+message IOInfo {
+  uint64 read_bytes = 1;
+  uint64 write_bytes = 2;
+  uint64 net_recv_bytes = 3;
+  uint64 net_sent_bytes = 4;
+}
+
 message SystemStats {
   repeated Process processes = 1;
   repeated GPUStatus gpus = 2;
+  CPUInfo cpu = 3;
+  MemoryInfo memory = 4;
+  IOInfo io = 5;
 }
 
 message WrapperRequest {

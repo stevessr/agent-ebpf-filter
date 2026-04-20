@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import axios from 'axios';
 import { 
-  PlusOutlined, 
   PlayCircleOutlined,
   CodeOutlined
 } from '@ant-design/icons-vue';

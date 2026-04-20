@@ -19,7 +19,7 @@ const handleMenuClick = ({ key }: { key: string }) => {
 <template>
   <a-layout class="layout">
     <a-layout-header class="header">
-      <div class="logo">
+      <div class="logo" style="flex-shrink: 0; min-width: 150px;">
         <a-typography-title :level="3" style="color: white; margin: 0; line-height: 64px; margin-right: 24px;">
           Agent eBPF
         </a-typography-title>
@@ -28,7 +28,7 @@ const handleMenuClick = ({ key }: { key: string }) => {
         v-model:selectedKeys="selectedKeys"
         theme="dark"
         mode="horizontal"
-        :style="{ lineHeight: '64px' }"
+        :style="{ lineHeight: '64px', flex: 1, minWidth: 0 }"
         @click="handleMenuClick"
       >
         <a-menu-item key="/">

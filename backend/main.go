@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -22,7 +21,11 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/mem"
+	ps "github.com/shirou/gopsutil/v3/process"
+	gnet "github.com/shirou/gopsutil/v3/net"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -30,9 +33,7 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-const (
-	udsPath = "/tmp/agent-ebpf.sock"
-)
+const udsPath = "/tmp/agent-ebpf.sock"
 
 type bpfEvent struct {
 	PID, PPID, UID, Type, TagID uint32
@@ -42,7 +43,7 @@ type bpfEvent struct {
 
 type WrapperRule struct {
 	Comm         string   `json:"comm"`
-	Action       string   `json:"action"` // ALLOW, BLOCK, REWRITE, ALERT
+	Action       string   `json:"action"`
 	RewrittenCmd []string `json:"rewritten_cmd,omitempty"`
 }
 
@@ -80,27 +81,22 @@ func authMiddleware() gin.HandlerFunc {
 }
 
 func getTagName(id uint32) string {
-	tagsMu.RLock()
-	defer tagsMu.RUnlock()
+	tagsMu.RLock(); defer tagsMu.RUnlock()
 	if name, ok := tagMap[id]; ok { return name }
 	return fmt.Sprintf("Tag-%d", id)
 }
 
 func getTagID(name string) uint32 {
-	tagsMu.Lock()
-	defer tagsMu.Unlock()
+	tagsMu.Lock(); defer tagsMu.Unlock()
 	if id, ok := tagNameToID[name]; ok { return id }
-	id := nextTagID
-	tagMap[id] = name
-	tagNameToID[name] = id
-	nextTagID++
+	id := nextTagID; tagMap[id] = name; tagNameToID[name] = id; nextTagID++
 	return id
 }
 
-type gpuInfo struct{ mem, gpu uint32 }
+type gpuProcInfo struct{ mem, gpu uint32 }
 
-func getGPUPidMap() map[int32]gpuInfo {
-	gpuMap := make(map[int32]gpuInfo)
+func getGPUPidMap() map[int32]gpuProcInfo {
+	gpuMap := make(map[int32]gpuProcInfo)
 	cmd := exec.Command("nvidia-smi", "--query-compute-apps=pid,used_memory,gpu_index", "--format=csv,noheader,nounits")
 	output, _ := cmd.Output()
 	lines := bytes.Split(output, []byte("\n"))
@@ -108,12 +104,11 @@ func getGPUPidMap() map[int32]gpuInfo {
 		if len(line) == 0 { continue }
 		parts := bytes.Split(line, []byte(", "))
 		if len(parts) >= 2 {
-			var pid int32
-			var mem, gpu uint32
+			var pid int32; var mem, gpu uint32
 			fmt.Sscanf(string(parts[0]), "%d", &pid)
 			fmt.Sscanf(string(parts[1]), "%d", &mem)
 			if len(parts) > 2 { fmt.Sscanf(string(parts[2]), "%d", &gpu) }
-			gpuMap[pid] = gpuInfo{mem, gpu}
+			gpuMap[pid] = gpuProcInfo{mem, gpu}
 		}
 	}
 	return gpuMap
@@ -159,9 +154,7 @@ func startUDSServer(broadcast chan *pb.Event) {
 				req := &pb.WrapperRequest{}
 				if err := proto.Unmarshal(buf[:n], req); err != nil { continue }
 				resp := &pb.WrapperResponse{Action: pb.WrapperResponse_ALLOW}
-				rulesMu.RLock()
-				rule, ok := wrapperRules[req.Comm]
-				rulesMu.RUnlock()
+				rulesMu.RLock(); rule, ok := wrapperRules[req.Comm]; rulesMu.RUnlock()
 				if ok {
 					switch rule.Action {
 					case "BLOCK": resp.Action = pb.WrapperResponse_BLOCK; resp.Message = "Blocked by policy"
@@ -170,8 +163,7 @@ func startUDSServer(broadcast chan *pb.Event) {
 					}
 				}
 				broadcast <- &pb.Event{Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept", Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " ")}
-				out, _ := proto.Marshal(resp)
-				_, _ = c.Write(out)
+				out, _ := proto.Marshal(resp); _, _ = c.Write(out)
 			}
 		}(conn)
 	}
@@ -179,19 +171,16 @@ func startUDSServer(broadcast chan *pb.Event) {
 
 func main() {
 	if os.Geteuid() != 0 {
-		executable, _ := os.Executable()
-		isDesktop := os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
+		executable, _ := os.Executable(); isDesktop := os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
 		sudoCmd := "sudo"
 		if isDesktop { if p, err := exec.LookPath("pkexec"); err == nil { sudoCmd = p } }
 		cmd := exec.Command(sudoCmd, append([]string{executable}, os.Args[1:]...)...)
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-		_ = cmd.Run()
-		os.Exit(0)
+		_ = cmd.Run(); os.Exit(0)
 	}
 
-	procs, _ := process.Processes()
-	curr := int32(os.Getpid())
-	for _, p := range procs {
+	procsList, _ := ps.Processes(); curr := int32(os.Getpid())
+	for _, p := range procsList {
 		if p.Pid != curr {
 			if n, _ := p.Name(); n == "agent-ebpf-filter" || n == "main" { _ = p.Kill() }
 		}
@@ -199,12 +188,11 @@ func main() {
 
 	_ = rlimit.RemoveMemlock()
 	var objs bpf.AgentTrackerObjects
-	if err := bpf.LoadAgentTrackerObjects(&objs, nil); err != nil { log.Fatalf("Load eBPF: %v", err) }
+	_ = bpf.LoadAgentTrackerObjects(&objs, nil)
 	defer objs.Close()
 
 	attach := func(c, n string, p *ebpf.Program) link.Link {
-		l, err := link.Tracepoint(c, n, p, nil)
-		if err != nil { log.Printf("Link %s/%s: %v", c, n, err) }
+		l, _ := link.Tracepoint(c, n, p, nil)
 		return l
 	}
 	links := []link.Link{
@@ -218,16 +206,14 @@ func main() {
 	}
 	for _, l := range links { if l != nil { defer l.Close() } }
 
-	rd, _ := ringbuf.NewReader(objs.Events)
-	defer rd.Close()
+	rd, _ := ringbuf.NewReader(objs.Events); defer rd.Close()
 
 	broadcast := make(chan *pb.Event, 100)
 	go func() {
 		var event bpfEvent
 		types := map[uint32]string{0: "execve", 1: "openat", 2: "network_connect", 3: "mkdir", 4: "unlink", 5: "ioctl", 6: "network_bind"}
 		for {
-			record, err := rd.Read()
-			if err != nil { return }
+			record, err := rd.Read(); if err != nil { return }
 			_ = binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event)
 			broadcast <- &pb.Event{Pid: event.PID, Ppid: event.PPID, Uid: event.UID, Type: types[event.Type], Tag: getTagName(event.TagID), Comm: string(bytes.TrimRight(event.Comm[:], "\x00")), Path: string(bytes.TrimRight(event.Path[:], "\x00"))}
 		}
@@ -243,7 +229,9 @@ func main() {
 			data, _ := proto.Marshal(event)
 			clientsMu.Lock()
 			for c := range clients {
-				if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil { c.Close(); delete(clients, c) }
+				if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil {
+					c.Close(); delete(clients, c)
+				}
 			}
 			clientsMu.Unlock()
 		}
@@ -258,19 +246,37 @@ func main() {
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil { return }
 		defer conn.Close()
-		ticker := time.NewTicker(2 * time.Second)
+
+		intervalStr := c.DefaultQuery("interval", "2000")
+		iv, _ := time.ParseDuration(intervalStr + "ms")
+		if iv < 500*time.Millisecond { iv = 500 * time.Millisecond }
+		ticker := time.NewTicker(iv); defer ticker.Stop()
+
 		for range ticker.C {
 			gm, gs := getGPUPidMap(), getGlobalGPUStatus()
-			psList, _ := process.Processes()
-			stats := &pb.SystemStats{Gpus: gs}
-			for _, p := range psList {
-				n, _ := p.Name(); pp, _ := p.Ppid(); cp, _ := p.CPUPercent(); mp, _ := p.MemoryPercent(); u, _ := p.Username()
-				mem, gid := uint32(0), uint32(0)
-				if info, ok := gm[p.Pid]; ok { mem, gid = info.mem, info.gpu }
-				stats.Processes = append(stats.Processes, &pb.Process{Pid: p.Pid, Ppid: pp, Name: n, Cpu: cp, Mem: mp, User: u, GpuMem: mem, GpuId: gid})
+			vm, _ := mem.VirtualMemory()
+			cc, _ := cpu.Percent(0, false)
+			cp, _ := cpu.Percent(0, true)
+			netIO, _ := gnet.IOCounters(false)
+			diskIO, _ := disk.IOCounters()
+			
+			var tr, tw uint64
+			for _, d := range diskIO { tr += d.ReadBytes; tw += d.WriteBytes }
+			
+			stats := &pb.SystemStats{
+				Gpus: gs, Cpu: &pb.CPUInfo{Total: cc[0], Cores: cp},
+				Memory: &pb.MemoryInfo{Total: vm.Total, Used: vm.Used, Percent: float32(vm.UsedPercent)},
+				Io: &pb.IOInfo{ReadBytes: tr, WriteBytes: tw, NetRecvBytes: netIO[0].BytesRecv, NetSentBytes: netIO[0].BytesSent},
 			}
-			data, _ := proto.Marshal(stats)
-			if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil { return }
+
+			psList, _ := ps.Processes()
+			for _, p := range psList {
+				n, _ := p.Name(); pp, _ := p.Ppid(); ccp, _ := p.CPUPercent(); mp, _ := p.MemoryPercent(); u, _ := p.Username()
+				gmem, gid := uint32(0), uint32(0)
+				if info, ok := gm[p.Pid]; ok { gmem, gid = info.mem, info.gpu }
+				stats.Processes = append(stats.Processes, &pb.Process{Pid: p.Pid, Ppid: pp, Name: n, Cpu: ccp, Mem: mp, User: u, GpuMem: gmem, GpuId: gid})
+			}
+			data, _ := proto.Marshal(stats); if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil { return }
 		}
 	})
 
@@ -304,15 +310,9 @@ func main() {
 			config.DELETE("/paths/*path", func(c *gin.Context) {
 				p := c.Param("path"); if len(p) > 0 && p[0] == '/' { p = p[1:] }; var k [256]byte; copy(k[:], p); _ = objs.TrackedPaths.Delete(k); c.JSON(200, gin.H{"status": "ok"})
 			})
-			config.GET("/rules", func(c *gin.Context) {
-				rulesMu.RLock(); defer rulesMu.RUnlock(); c.JSON(200, wrapperRules)
-			})
-			config.POST("/rules", func(c *gin.Context) {
-				var req WrapperRule; _ = c.ShouldBindJSON(&req); rulesMu.Lock(); wrapperRules[req.Comm] = req; rulesMu.Unlock(); c.JSON(200, gin.H{"status": "ok"})
-			})
-			config.DELETE("/rules/:comm", func(c *gin.Context) {
-				rulesMu.Lock(); delete(wrapperRules, c.Param("comm")); rulesMu.Unlock(); c.JSON(200, gin.H{"status": "ok"})
-			})
+			config.GET("/rules", func(c *gin.Context) { rulesMu.RLock(); defer rulesMu.RUnlock(); c.JSON(200, wrapperRules) })
+			config.POST("/rules", func(c *gin.Context) { var r WrapperRule; _ = c.ShouldBindJSON(&r); rulesMu.Lock(); wrapperRules[r.Comm] = r; rulesMu.Unlock(); c.JSON(200, gin.H{"status": "ok"}) })
+			config.DELETE("/rules/:comm", func(c *gin.Context) { rulesMu.Lock(); delete(wrapperRules, c.Param("comm")); rulesMu.Unlock(); c.JSON(200, gin.H{"status": "ok"}) })
 			config.GET("/export", func(c *gin.Context) {
 				cfg := ExportConfig{Comms: make(map[string]string), Paths: make(map[string]string)}
 				tagsMu.RLock(); for _, n := range tagMap { cfg.Tags = append(cfg.Tags, n) }; tagsMu.RUnlock()
@@ -340,11 +340,11 @@ func main() {
 				c.JSON(200, l)
 			})
 			system.POST("/run", func(c *gin.Context) {
-				var req struct { Comm string `json:"comm"`; Args []string `json:"args"` }
-				if err := c.ShouldBindJSON(&req); err == nil {
+				var r struct { Comm string `json:"comm"`; Args []string `json:"args"` }
+				if err := c.ShouldBindJSON(&r); err == nil {
 					cwd, _ := os.Getwd(); wb := cwd + "/../agent-wrapper"
 					if _, err := os.Stat(wb); err != nil { wb = "./agent-wrapper" }
-					cmd := exec.Command(wb, append([]string{req.Comm}, req.Args...)...)
+					cmd := exec.Command(wb, append([]string{r.Comm}, r.Args...)...)
 					if err := cmd.Start(); err != nil { c.JSON(500, gin.H{"error": err.Error()}); return }
 					c.JSON(200, gin.H{"status": "started", "pid": cmd.Process.Pid})
 				}

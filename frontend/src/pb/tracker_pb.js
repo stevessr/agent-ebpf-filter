@@ -1962,6 +1962,870 @@ export const pb = $root.pb = (() => {
         return GPUStatus;
     })();
 
+    pb.CPUInfo = (function() {
+
+        /**
+         * Properties of a CPUInfo.
+         * @memberof pb
+         * @interface ICPUInfo
+         * @property {number|null} [total] CPUInfo total
+         * @property {Array.<number>|null} [cores] CPUInfo cores
+         */
+
+        /**
+         * Constructs a new CPUInfo.
+         * @memberof pb
+         * @classdesc Represents a CPUInfo.
+         * @implements ICPUInfo
+         * @constructor
+         * @param {pb.ICPUInfo=} [properties] Properties to set
+         */
+        function CPUInfo(properties) {
+            this.cores = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * CPUInfo total.
+         * @member {number} total
+         * @memberof pb.CPUInfo
+         * @instance
+         */
+        CPUInfo.prototype.total = 0;
+
+        /**
+         * CPUInfo cores.
+         * @member {Array.<number>} cores
+         * @memberof pb.CPUInfo
+         * @instance
+         */
+        CPUInfo.prototype.cores = $util.emptyArray;
+
+        /**
+         * Creates a new CPUInfo instance using the specified properties.
+         * @function create
+         * @memberof pb.CPUInfo
+         * @static
+         * @param {pb.ICPUInfo=} [properties] Properties to set
+         * @returns {pb.CPUInfo} CPUInfo instance
+         */
+        CPUInfo.create = function create(properties) {
+            return new CPUInfo(properties);
+        };
+
+        /**
+         * Encodes the specified CPUInfo message. Does not implicitly {@link pb.CPUInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pb.CPUInfo
+         * @static
+         * @param {pb.ICPUInfo} message CPUInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        CPUInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.total != null && Object.hasOwnProperty.call(message, "total"))
+                writer.uint32(/* id 1, wireType 1 =*/9).double(message.total);
+            if (message.cores != null && message.cores.length) {
+                writer.uint32(/* id 2, wireType 2 =*/18).fork();
+                for (let i = 0; i < message.cores.length; ++i)
+                    writer.double(message.cores[i]);
+                writer.ldelim();
+            }
+            return writer;
+        };
+
+        /**
+         * Encodes the specified CPUInfo message, length delimited. Does not implicitly {@link pb.CPUInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.CPUInfo
+         * @static
+         * @param {pb.ICPUInfo} message CPUInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        CPUInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a CPUInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.CPUInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.CPUInfo} CPUInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        CPUInfo.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.CPUInfo();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.total = reader.double();
+                        break;
+                    }
+                case 2: {
+                        if (!(message.cores && message.cores.length))
+                            message.cores = [];
+                        if ((tag & 7) === 2) {
+                            let end2 = reader.uint32() + reader.pos;
+                            while (reader.pos < end2)
+                                message.cores.push(reader.double());
+                        } else
+                            message.cores.push(reader.double());
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a CPUInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.CPUInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.CPUInfo} CPUInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        CPUInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a CPUInfo message.
+         * @function verify
+         * @memberof pb.CPUInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        CPUInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.total != null && message.hasOwnProperty("total"))
+                if (typeof message.total !== "number")
+                    return "total: number expected";
+            if (message.cores != null && message.hasOwnProperty("cores")) {
+                if (!Array.isArray(message.cores))
+                    return "cores: array expected";
+                for (let i = 0; i < message.cores.length; ++i)
+                    if (typeof message.cores[i] !== "number")
+                        return "cores: number[] expected";
+            }
+            return null;
+        };
+
+        /**
+         * Creates a CPUInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.CPUInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.CPUInfo} CPUInfo
+         */
+        CPUInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.CPUInfo)
+                return object;
+            let message = new $root.pb.CPUInfo();
+            if (object.total != null)
+                message.total = Number(object.total);
+            if (object.cores) {
+                if (!Array.isArray(object.cores))
+                    throw TypeError(".pb.CPUInfo.cores: array expected");
+                message.cores = [];
+                for (let i = 0; i < object.cores.length; ++i)
+                    message.cores[i] = Number(object.cores[i]);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a CPUInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.CPUInfo
+         * @static
+         * @param {pb.CPUInfo} message CPUInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        CPUInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults)
+                object.cores = [];
+            if (options.defaults)
+                object.total = 0;
+            if (message.total != null && message.hasOwnProperty("total"))
+                object.total = options.json && !isFinite(message.total) ? String(message.total) : message.total;
+            if (message.cores && message.cores.length) {
+                object.cores = [];
+                for (let j = 0; j < message.cores.length; ++j)
+                    object.cores[j] = options.json && !isFinite(message.cores[j]) ? String(message.cores[j]) : message.cores[j];
+            }
+            return object;
+        };
+
+        /**
+         * Converts this CPUInfo to JSON.
+         * @function toJSON
+         * @memberof pb.CPUInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        CPUInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for CPUInfo
+         * @function getTypeUrl
+         * @memberof pb.CPUInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        CPUInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.CPUInfo";
+        };
+
+        return CPUInfo;
+    })();
+
+    pb.MemoryInfo = (function() {
+
+        /**
+         * Properties of a MemoryInfo.
+         * @memberof pb
+         * @interface IMemoryInfo
+         * @property {number|Long|null} [total] MemoryInfo total
+         * @property {number|Long|null} [used] MemoryInfo used
+         * @property {number|null} [percent] MemoryInfo percent
+         */
+
+        /**
+         * Constructs a new MemoryInfo.
+         * @memberof pb
+         * @classdesc Represents a MemoryInfo.
+         * @implements IMemoryInfo
+         * @constructor
+         * @param {pb.IMemoryInfo=} [properties] Properties to set
+         */
+        function MemoryInfo(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * MemoryInfo total.
+         * @member {number|Long} total
+         * @memberof pb.MemoryInfo
+         * @instance
+         */
+        MemoryInfo.prototype.total = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * MemoryInfo used.
+         * @member {number|Long} used
+         * @memberof pb.MemoryInfo
+         * @instance
+         */
+        MemoryInfo.prototype.used = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * MemoryInfo percent.
+         * @member {number} percent
+         * @memberof pb.MemoryInfo
+         * @instance
+         */
+        MemoryInfo.prototype.percent = 0;
+
+        /**
+         * Creates a new MemoryInfo instance using the specified properties.
+         * @function create
+         * @memberof pb.MemoryInfo
+         * @static
+         * @param {pb.IMemoryInfo=} [properties] Properties to set
+         * @returns {pb.MemoryInfo} MemoryInfo instance
+         */
+        MemoryInfo.create = function create(properties) {
+            return new MemoryInfo(properties);
+        };
+
+        /**
+         * Encodes the specified MemoryInfo message. Does not implicitly {@link pb.MemoryInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pb.MemoryInfo
+         * @static
+         * @param {pb.IMemoryInfo} message MemoryInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        MemoryInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.total != null && Object.hasOwnProperty.call(message, "total"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint64(message.total);
+            if (message.used != null && Object.hasOwnProperty.call(message, "used"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.used);
+            if (message.percent != null && Object.hasOwnProperty.call(message, "percent"))
+                writer.uint32(/* id 3, wireType 5 =*/29).float(message.percent);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified MemoryInfo message, length delimited. Does not implicitly {@link pb.MemoryInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.MemoryInfo
+         * @static
+         * @param {pb.IMemoryInfo} message MemoryInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        MemoryInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a MemoryInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.MemoryInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.MemoryInfo} MemoryInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        MemoryInfo.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.MemoryInfo();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.total = reader.uint64();
+                        break;
+                    }
+                case 2: {
+                        message.used = reader.uint64();
+                        break;
+                    }
+                case 3: {
+                        message.percent = reader.float();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a MemoryInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.MemoryInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.MemoryInfo} MemoryInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        MemoryInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a MemoryInfo message.
+         * @function verify
+         * @memberof pb.MemoryInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        MemoryInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.total != null && message.hasOwnProperty("total"))
+                if (!$util.isInteger(message.total) && !(message.total && $util.isInteger(message.total.low) && $util.isInteger(message.total.high)))
+                    return "total: integer|Long expected";
+            if (message.used != null && message.hasOwnProperty("used"))
+                if (!$util.isInteger(message.used) && !(message.used && $util.isInteger(message.used.low) && $util.isInteger(message.used.high)))
+                    return "used: integer|Long expected";
+            if (message.percent != null && message.hasOwnProperty("percent"))
+                if (typeof message.percent !== "number")
+                    return "percent: number expected";
+            return null;
+        };
+
+        /**
+         * Creates a MemoryInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.MemoryInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.MemoryInfo} MemoryInfo
+         */
+        MemoryInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.MemoryInfo)
+                return object;
+            let message = new $root.pb.MemoryInfo();
+            if (object.total != null)
+                if ($util.Long)
+                    (message.total = $util.Long.fromValue(object.total)).unsigned = true;
+                else if (typeof object.total === "string")
+                    message.total = parseInt(object.total, 10);
+                else if (typeof object.total === "number")
+                    message.total = object.total;
+                else if (typeof object.total === "object")
+                    message.total = new $util.LongBits(object.total.low >>> 0, object.total.high >>> 0).toNumber(true);
+            if (object.used != null)
+                if ($util.Long)
+                    (message.used = $util.Long.fromValue(object.used)).unsigned = true;
+                else if (typeof object.used === "string")
+                    message.used = parseInt(object.used, 10);
+                else if (typeof object.used === "number")
+                    message.used = object.used;
+                else if (typeof object.used === "object")
+                    message.used = new $util.LongBits(object.used.low >>> 0, object.used.high >>> 0).toNumber(true);
+            if (object.percent != null)
+                message.percent = Number(object.percent);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a MemoryInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.MemoryInfo
+         * @static
+         * @param {pb.MemoryInfo} message MemoryInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        MemoryInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.total = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.total = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.used = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.used = options.longs === String ? "0" : 0;
+                object.percent = 0;
+            }
+            if (message.total != null && message.hasOwnProperty("total"))
+                if (typeof message.total === "number")
+                    object.total = options.longs === String ? String(message.total) : message.total;
+                else
+                    object.total = options.longs === String ? $util.Long.prototype.toString.call(message.total) : options.longs === Number ? new $util.LongBits(message.total.low >>> 0, message.total.high >>> 0).toNumber(true) : message.total;
+            if (message.used != null && message.hasOwnProperty("used"))
+                if (typeof message.used === "number")
+                    object.used = options.longs === String ? String(message.used) : message.used;
+                else
+                    object.used = options.longs === String ? $util.Long.prototype.toString.call(message.used) : options.longs === Number ? new $util.LongBits(message.used.low >>> 0, message.used.high >>> 0).toNumber(true) : message.used;
+            if (message.percent != null && message.hasOwnProperty("percent"))
+                object.percent = options.json && !isFinite(message.percent) ? String(message.percent) : message.percent;
+            return object;
+        };
+
+        /**
+         * Converts this MemoryInfo to JSON.
+         * @function toJSON
+         * @memberof pb.MemoryInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        MemoryInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for MemoryInfo
+         * @function getTypeUrl
+         * @memberof pb.MemoryInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        MemoryInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.MemoryInfo";
+        };
+
+        return MemoryInfo;
+    })();
+
+    pb.IOInfo = (function() {
+
+        /**
+         * Properties of a IOInfo.
+         * @memberof pb
+         * @interface IIOInfo
+         * @property {number|Long|null} [readBytes] IOInfo readBytes
+         * @property {number|Long|null} [writeBytes] IOInfo writeBytes
+         * @property {number|Long|null} [netRecvBytes] IOInfo netRecvBytes
+         * @property {number|Long|null} [netSentBytes] IOInfo netSentBytes
+         */
+
+        /**
+         * Constructs a new IOInfo.
+         * @memberof pb
+         * @classdesc Represents a IOInfo.
+         * @implements IIOInfo
+         * @constructor
+         * @param {pb.IIOInfo=} [properties] Properties to set
+         */
+        function IOInfo(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * IOInfo readBytes.
+         * @member {number|Long} readBytes
+         * @memberof pb.IOInfo
+         * @instance
+         */
+        IOInfo.prototype.readBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * IOInfo writeBytes.
+         * @member {number|Long} writeBytes
+         * @memberof pb.IOInfo
+         * @instance
+         */
+        IOInfo.prototype.writeBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * IOInfo netRecvBytes.
+         * @member {number|Long} netRecvBytes
+         * @memberof pb.IOInfo
+         * @instance
+         */
+        IOInfo.prototype.netRecvBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * IOInfo netSentBytes.
+         * @member {number|Long} netSentBytes
+         * @memberof pb.IOInfo
+         * @instance
+         */
+        IOInfo.prototype.netSentBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Creates a new IOInfo instance using the specified properties.
+         * @function create
+         * @memberof pb.IOInfo
+         * @static
+         * @param {pb.IIOInfo=} [properties] Properties to set
+         * @returns {pb.IOInfo} IOInfo instance
+         */
+        IOInfo.create = function create(properties) {
+            return new IOInfo(properties);
+        };
+
+        /**
+         * Encodes the specified IOInfo message. Does not implicitly {@link pb.IOInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pb.IOInfo
+         * @static
+         * @param {pb.IIOInfo} message IOInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        IOInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.readBytes != null && Object.hasOwnProperty.call(message, "readBytes"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint64(message.readBytes);
+            if (message.writeBytes != null && Object.hasOwnProperty.call(message, "writeBytes"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.writeBytes);
+            if (message.netRecvBytes != null && Object.hasOwnProperty.call(message, "netRecvBytes"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.netRecvBytes);
+            if (message.netSentBytes != null && Object.hasOwnProperty.call(message, "netSentBytes"))
+                writer.uint32(/* id 4, wireType 0 =*/32).uint64(message.netSentBytes);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified IOInfo message, length delimited. Does not implicitly {@link pb.IOInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.IOInfo
+         * @static
+         * @param {pb.IIOInfo} message IOInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        IOInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a IOInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.IOInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.IOInfo} IOInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        IOInfo.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.IOInfo();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.readBytes = reader.uint64();
+                        break;
+                    }
+                case 2: {
+                        message.writeBytes = reader.uint64();
+                        break;
+                    }
+                case 3: {
+                        message.netRecvBytes = reader.uint64();
+                        break;
+                    }
+                case 4: {
+                        message.netSentBytes = reader.uint64();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a IOInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.IOInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.IOInfo} IOInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        IOInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a IOInfo message.
+         * @function verify
+         * @memberof pb.IOInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        IOInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.readBytes != null && message.hasOwnProperty("readBytes"))
+                if (!$util.isInteger(message.readBytes) && !(message.readBytes && $util.isInteger(message.readBytes.low) && $util.isInteger(message.readBytes.high)))
+                    return "readBytes: integer|Long expected";
+            if (message.writeBytes != null && message.hasOwnProperty("writeBytes"))
+                if (!$util.isInteger(message.writeBytes) && !(message.writeBytes && $util.isInteger(message.writeBytes.low) && $util.isInteger(message.writeBytes.high)))
+                    return "writeBytes: integer|Long expected";
+            if (message.netRecvBytes != null && message.hasOwnProperty("netRecvBytes"))
+                if (!$util.isInteger(message.netRecvBytes) && !(message.netRecvBytes && $util.isInteger(message.netRecvBytes.low) && $util.isInteger(message.netRecvBytes.high)))
+                    return "netRecvBytes: integer|Long expected";
+            if (message.netSentBytes != null && message.hasOwnProperty("netSentBytes"))
+                if (!$util.isInteger(message.netSentBytes) && !(message.netSentBytes && $util.isInteger(message.netSentBytes.low) && $util.isInteger(message.netSentBytes.high)))
+                    return "netSentBytes: integer|Long expected";
+            return null;
+        };
+
+        /**
+         * Creates a IOInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.IOInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.IOInfo} IOInfo
+         */
+        IOInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.IOInfo)
+                return object;
+            let message = new $root.pb.IOInfo();
+            if (object.readBytes != null)
+                if ($util.Long)
+                    (message.readBytes = $util.Long.fromValue(object.readBytes)).unsigned = true;
+                else if (typeof object.readBytes === "string")
+                    message.readBytes = parseInt(object.readBytes, 10);
+                else if (typeof object.readBytes === "number")
+                    message.readBytes = object.readBytes;
+                else if (typeof object.readBytes === "object")
+                    message.readBytes = new $util.LongBits(object.readBytes.low >>> 0, object.readBytes.high >>> 0).toNumber(true);
+            if (object.writeBytes != null)
+                if ($util.Long)
+                    (message.writeBytes = $util.Long.fromValue(object.writeBytes)).unsigned = true;
+                else if (typeof object.writeBytes === "string")
+                    message.writeBytes = parseInt(object.writeBytes, 10);
+                else if (typeof object.writeBytes === "number")
+                    message.writeBytes = object.writeBytes;
+                else if (typeof object.writeBytes === "object")
+                    message.writeBytes = new $util.LongBits(object.writeBytes.low >>> 0, object.writeBytes.high >>> 0).toNumber(true);
+            if (object.netRecvBytes != null)
+                if ($util.Long)
+                    (message.netRecvBytes = $util.Long.fromValue(object.netRecvBytes)).unsigned = true;
+                else if (typeof object.netRecvBytes === "string")
+                    message.netRecvBytes = parseInt(object.netRecvBytes, 10);
+                else if (typeof object.netRecvBytes === "number")
+                    message.netRecvBytes = object.netRecvBytes;
+                else if (typeof object.netRecvBytes === "object")
+                    message.netRecvBytes = new $util.LongBits(object.netRecvBytes.low >>> 0, object.netRecvBytes.high >>> 0).toNumber(true);
+            if (object.netSentBytes != null)
+                if ($util.Long)
+                    (message.netSentBytes = $util.Long.fromValue(object.netSentBytes)).unsigned = true;
+                else if (typeof object.netSentBytes === "string")
+                    message.netSentBytes = parseInt(object.netSentBytes, 10);
+                else if (typeof object.netSentBytes === "number")
+                    message.netSentBytes = object.netSentBytes;
+                else if (typeof object.netSentBytes === "object")
+                    message.netSentBytes = new $util.LongBits(object.netSentBytes.low >>> 0, object.netSentBytes.high >>> 0).toNumber(true);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a IOInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.IOInfo
+         * @static
+         * @param {pb.IOInfo} message IOInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        IOInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.readBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.readBytes = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.writeBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.writeBytes = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.netRecvBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.netRecvBytes = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.netSentBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.netSentBytes = options.longs === String ? "0" : 0;
+            }
+            if (message.readBytes != null && message.hasOwnProperty("readBytes"))
+                if (typeof message.readBytes === "number")
+                    object.readBytes = options.longs === String ? String(message.readBytes) : message.readBytes;
+                else
+                    object.readBytes = options.longs === String ? $util.Long.prototype.toString.call(message.readBytes) : options.longs === Number ? new $util.LongBits(message.readBytes.low >>> 0, message.readBytes.high >>> 0).toNumber(true) : message.readBytes;
+            if (message.writeBytes != null && message.hasOwnProperty("writeBytes"))
+                if (typeof message.writeBytes === "number")
+                    object.writeBytes = options.longs === String ? String(message.writeBytes) : message.writeBytes;
+                else
+                    object.writeBytes = options.longs === String ? $util.Long.prototype.toString.call(message.writeBytes) : options.longs === Number ? new $util.LongBits(message.writeBytes.low >>> 0, message.writeBytes.high >>> 0).toNumber(true) : message.writeBytes;
+            if (message.netRecvBytes != null && message.hasOwnProperty("netRecvBytes"))
+                if (typeof message.netRecvBytes === "number")
+                    object.netRecvBytes = options.longs === String ? String(message.netRecvBytes) : message.netRecvBytes;
+                else
+                    object.netRecvBytes = options.longs === String ? $util.Long.prototype.toString.call(message.netRecvBytes) : options.longs === Number ? new $util.LongBits(message.netRecvBytes.low >>> 0, message.netRecvBytes.high >>> 0).toNumber(true) : message.netRecvBytes;
+            if (message.netSentBytes != null && message.hasOwnProperty("netSentBytes"))
+                if (typeof message.netSentBytes === "number")
+                    object.netSentBytes = options.longs === String ? String(message.netSentBytes) : message.netSentBytes;
+                else
+                    object.netSentBytes = options.longs === String ? $util.Long.prototype.toString.call(message.netSentBytes) : options.longs === Number ? new $util.LongBits(message.netSentBytes.low >>> 0, message.netSentBytes.high >>> 0).toNumber(true) : message.netSentBytes;
+            return object;
+        };
+
+        /**
+         * Converts this IOInfo to JSON.
+         * @function toJSON
+         * @memberof pb.IOInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        IOInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for IOInfo
+         * @function getTypeUrl
+         * @memberof pb.IOInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        IOInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.IOInfo";
+        };
+
+        return IOInfo;
+    })();
+
     pb.SystemStats = (function() {
 
         /**
@@ -1970,6 +2834,9 @@ export const pb = $root.pb = (() => {
          * @interface ISystemStats
          * @property {Array.<pb.IProcess>|null} [processes] SystemStats processes
          * @property {Array.<pb.IGPUStatus>|null} [gpus] SystemStats gpus
+         * @property {pb.ICPUInfo|null} [cpu] SystemStats cpu
+         * @property {pb.IMemoryInfo|null} [memory] SystemStats memory
+         * @property {pb.IIOInfo|null} [io] SystemStats io
          */
 
         /**
@@ -2006,6 +2873,30 @@ export const pb = $root.pb = (() => {
         SystemStats.prototype.gpus = $util.emptyArray;
 
         /**
+         * SystemStats cpu.
+         * @member {pb.ICPUInfo|null|undefined} cpu
+         * @memberof pb.SystemStats
+         * @instance
+         */
+        SystemStats.prototype.cpu = null;
+
+        /**
+         * SystemStats memory.
+         * @member {pb.IMemoryInfo|null|undefined} memory
+         * @memberof pb.SystemStats
+         * @instance
+         */
+        SystemStats.prototype.memory = null;
+
+        /**
+         * SystemStats io.
+         * @member {pb.IIOInfo|null|undefined} io
+         * @memberof pb.SystemStats
+         * @instance
+         */
+        SystemStats.prototype.io = null;
+
+        /**
          * Creates a new SystemStats instance using the specified properties.
          * @function create
          * @memberof pb.SystemStats
@@ -2035,6 +2926,12 @@ export const pb = $root.pb = (() => {
             if (message.gpus != null && message.gpus.length)
                 for (let i = 0; i < message.gpus.length; ++i)
                     $root.pb.GPUStatus.encode(message.gpus[i], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+            if (message.cpu != null && Object.hasOwnProperty.call(message, "cpu"))
+                $root.pb.CPUInfo.encode(message.cpu, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            if (message.memory != null && Object.hasOwnProperty.call(message, "memory"))
+                $root.pb.MemoryInfo.encode(message.memory, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            if (message.io != null && Object.hasOwnProperty.call(message, "io"))
+                $root.pb.IOInfo.encode(message.io, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
             return writer;
         };
 
@@ -2081,6 +2978,18 @@ export const pb = $root.pb = (() => {
                         if (!(message.gpus && message.gpus.length))
                             message.gpus = [];
                         message.gpus.push($root.pb.GPUStatus.decode(reader, reader.uint32()));
+                        break;
+                    }
+                case 3: {
+                        message.cpu = $root.pb.CPUInfo.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 4: {
+                        message.memory = $root.pb.MemoryInfo.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 5: {
+                        message.io = $root.pb.IOInfo.decode(reader, reader.uint32());
                         break;
                     }
                 default:
@@ -2136,6 +3045,21 @@ export const pb = $root.pb = (() => {
                         return "gpus." + error;
                 }
             }
+            if (message.cpu != null && message.hasOwnProperty("cpu")) {
+                let error = $root.pb.CPUInfo.verify(message.cpu);
+                if (error)
+                    return "cpu." + error;
+            }
+            if (message.memory != null && message.hasOwnProperty("memory")) {
+                let error = $root.pb.MemoryInfo.verify(message.memory);
+                if (error)
+                    return "memory." + error;
+            }
+            if (message.io != null && message.hasOwnProperty("io")) {
+                let error = $root.pb.IOInfo.verify(message.io);
+                if (error)
+                    return "io." + error;
+            }
             return null;
         };
 
@@ -2171,6 +3095,21 @@ export const pb = $root.pb = (() => {
                     message.gpus[i] = $root.pb.GPUStatus.fromObject(object.gpus[i]);
                 }
             }
+            if (object.cpu != null) {
+                if (typeof object.cpu !== "object")
+                    throw TypeError(".pb.SystemStats.cpu: object expected");
+                message.cpu = $root.pb.CPUInfo.fromObject(object.cpu);
+            }
+            if (object.memory != null) {
+                if (typeof object.memory !== "object")
+                    throw TypeError(".pb.SystemStats.memory: object expected");
+                message.memory = $root.pb.MemoryInfo.fromObject(object.memory);
+            }
+            if (object.io != null) {
+                if (typeof object.io !== "object")
+                    throw TypeError(".pb.SystemStats.io: object expected");
+                message.io = $root.pb.IOInfo.fromObject(object.io);
+            }
             return message;
         };
 
@@ -2191,6 +3130,11 @@ export const pb = $root.pb = (() => {
                 object.processes = [];
                 object.gpus = [];
             }
+            if (options.defaults) {
+                object.cpu = null;
+                object.memory = null;
+                object.io = null;
+            }
             if (message.processes && message.processes.length) {
                 object.processes = [];
                 for (let j = 0; j < message.processes.length; ++j)
@@ -2201,6 +3145,12 @@ export const pb = $root.pb = (() => {
                 for (let j = 0; j < message.gpus.length; ++j)
                     object.gpus[j] = $root.pb.GPUStatus.toObject(message.gpus[j], options);
             }
+            if (message.cpu != null && message.hasOwnProperty("cpu"))
+                object.cpu = $root.pb.CPUInfo.toObject(message.cpu, options);
+            if (message.memory != null && message.hasOwnProperty("memory"))
+                object.memory = $root.pb.MemoryInfo.toObject(message.memory, options);
+            if (message.io != null && message.hasOwnProperty("io"))
+                object.io = $root.pb.IOInfo.toObject(message.io, options);
             return object;
         };
 
