@@ -10,6 +10,12 @@ typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
 
+// CO-RE compatible task_struct definition
+struct task_struct {
+    struct task_struct *real_parent;
+    int tgid;
+} __attribute__((preserve_access_index));
+
 #define MAX_PATH_LEN 256
 #define TASK_COMM_LEN 16
 
