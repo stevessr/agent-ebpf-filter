@@ -20,21 +20,25 @@ A specialized eBPF-based observation framework designed to trace application pat
 
 ## Usage
 
-### 1. Build and Run the Backend
+### 1. Quick Start (Run Both)
 
 ```bash
-cd backend
-go build
-sudo ./agent-ebpf-filter
+make run
+```
+This will compile the eBPF code, build the Go backend, and start both the backend (using `sudo`) and the frontend concurrently.
+
+### 2. Manual Start
+
+#### Build and Run the Backend
+```bash
+make backend
+make run-backend
 ```
 *Note: sudo is required for attaching eBPF programs.*
 
-### 2. Run the Frontend
-
+#### Run the Frontend
 ```bash
-cd frontend
-bun install
-bun run dev
+make run-frontend
 ```
 Navigate to `http://localhost:5173` to view the UI.
 

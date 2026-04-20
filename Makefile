@@ -11,6 +11,18 @@ frontend: ## Build Vue3 frontend
 	@echo "Building frontend..."
 	cd frontend && bun install && bun run build
 
+run: all ## Build and run both backend and frontend concurrently
+	@echo "Starting backend (sudo required for eBPF)..."
+	@sudo ./backend/agent-ebpf-filter & \
+	echo "Starting frontend..." && \
+	cd frontend && bun run dev
+
+run-backend: backend ## Build and run only the backend (sudo required)
+	@sudo ./backend/agent-ebpf-filter
+
+run-frontend: ## Run only the frontend development server
+	cd frontend && bun run dev
+
 clean: ## Clean build artifacts
 	rm -f backend/agent-ebpf-filter
 	rm -rf frontend/dist
