@@ -78,10 +78,26 @@ const selectedTag = ref('AI Agent');
 
 // Advanced Filters
 const cpuThreshold = ref(0);
+const cpuMax = ref(100);
 const memThreshold = ref(0);
+const memMax = ref(100);
 const gpuThreshold = ref(0);
+const gpuMax = ref(8192);
 const filterUser = ref<string | null>(null);
 const showAdvancedFilters = ref(false);
+
+const cpuRange = computed({
+  get: () => [cpuThreshold.value, cpuMax.value],
+  set: (val: number[]) => { cpuThreshold.value = val[0]; cpuMax.value = val[1]; }
+});
+const memRange = computed({
+  get: () => [memThreshold.value, memMax.value],
+  set: (val: number[]) => { memThreshold.value = val[0]; memMax.value = val[1]; }
+});
+const gpuRange = computed({
+  get: () => [gpuThreshold.value, gpuMax.value],
+  set: (val: number[]) => { gpuThreshold.value = val[0]; gpuMax.value = val[1]; }
+});
 
 let ws: WebSocket | null = null;
 let lastIO: { 
@@ -216,12 +232,24 @@ const displayData = computed(() => {
     const s = searchText.value.toLowerCase();
     filtered = filtered.filter(p => p.name.toLowerCase().includes(s) || p.pid.toString().includes(s));
   }
+  
+  // Apply Advanced Filters
   if (cpuThreshold.value > 0) filtered = filtered.filter(p => p.cpu >= cpuThreshold.value);
+  if (cpuMax.value < 100) filtered = filtered.filter(p => p.cpu <= cpuMax.value);
+  
   if (memThreshold.value > 0) filtered = filtered.filter(p => p.mem >= memThreshold.value);
+  if (memMax.value < 100) filtered = filtered.filter(p => p.mem <= memMax.value);
+  
   if (gpuThreshold.value > 0) filtered = filtered.filter(p => p.gpuMem >= gpuThreshold.value);
+  if (gpuMax.value < 8192) filtered = filtered.filter(p => p.gpuMem <= gpuMax.value);
+  
   if (filterUser.value) filtered = filtered.filter(p => p.user === filterUser.value);
 
-  if (viewMode.value === 'tree' && !searchText.value && cpuThreshold.value === 0 && memThreshold.value === 0 && gpuThreshold.value === 0 && !filterUser.value) {
+  const anyFilterActive = searchText.value || cpuThreshold.value > 0 || cpuMax.value < 100 || 
+                         memThreshold.value > 0 || memMax.value < 100 || 
+                         gpuThreshold.value > 0 || gpuMax.value < 8192 || filterUser.value;
+
+  if (viewMode.value === 'tree' && !anyFilterActive) {
     return buildTree(filtered);
   }
   return [...filtered].sort((a, b) => b.cpu - a.cpu);
@@ -303,6 +331,32 @@ const selectedGroupProcesses = computed(() => {
   if (!selectedGroup.value) return [];
   return processes.value.filter(p => selectedGroup.value?.pids.includes(p.pid));
 });
+
+const columns = [
+  { title: 'PID', dataIndex: 'pid', key: 'pid', width: 100, sorter: (a: any, b: any) => a.pid - b.pid },
+  { title: 'Name', dataIndex: 'name', key: 'name', sorter: (a: any, b: any) => a.name.localeCompare(b.name) },
+  { title: 'CPU', dataIndex: 'cpu', key: 'cpu', width: 100, sorter: (a: any, b: any) => a.cpu - b.cpu },
+  { title: 'MEM', dataIndex: 'mem', key: 'mem', width: 100, sorter: (a: any, b: any) => a.mem - b.mem },
+  { title: 'VRAM', dataIndex: 'gpuMem', key: 'gpuMem', width: 100, sorter: (a: any, b: any) => a.gpuMem - b.gpuMem },
+  { title: 'User', dataIndex: 'user', width: 100 },
+  { title: '', key: 'action', width: 100, fixed: 'right' as const }
+];
+
+const groupColumns = [
+  { title: 'PID', dataIndex: 'pid', key: 'pid', width: 100, sorter: (a: any, b: any) => a.pid - b.pid },
+  { title: 'CPU %', dataIndex: 'cpu', key: 'cpu', width: 100, sorter: (a: any, b: any) => a.cpu - b.cpu },
+  { title: 'MEM %', dataIndex: 'mem', key: 'mem', width: 100, sorter: (a: any, b: any) => a.mem - b.mem },
+  { title: 'VRAM', dataIndex: 'gpuMem', key: 'gpuMem', width: 100, sorter: (a: any, b: any) => a.gpuMem - b.gpuMem },
+  { title: 'User', dataIndex: 'user', key: 'user' },
+  { title: '', key: 'action', width: 100 }
+];
+
+const resetFilters = () => {
+  cpuThreshold.value = 0; cpuMax.value = 100;
+  memThreshold.value = 0; memMax.value = 100;
+  gpuThreshold.value = 0; gpuMax.value = 8192;
+  filterUser.value = null;
+};
 
 const addToRules = async (proc: ProcessInfo) => {
   try {
@@ -415,9 +469,41 @@ watch(refreshInterval, connectWebSocket);
         <template #tab><span><BarChartOutlined /> Processes</span></template>
         <div style="background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
           <div style="display: flex; justify-content: space-between; margin-bottom: 12px; align-items: center;"><div style="display: flex; align-items: center; gap: 8px;"><a-input v-model:value="searchText" placeholder="Search..." style="width: 180px"><template #prefix><SearchOutlined /></template></a-input><a-radio-group v-model:value="viewMode" button-style="solid" size="small"><a-radio-button value="tree"><ClusterOutlined /></a-radio-button><a-radio-button value="list"><TableOutlined /></a-radio-button></a-radio-group><a-button size="small" @click="showAdvancedFilters = !showAdvancedFilters"><FilterOutlined /></a-button><a-select v-model:value="refreshInterval" size="small" style="width: 80px"><a-select-option :value="1000">1s</a-select-option><a-select-option :value="2000">2s</a-select-option><a-select-option :value="5000">5s</a-select-option></a-select><a-badge :status="isConnected ? 'success' : 'processing'" /></div><div style="display: flex; align-items: center; gap: 4px;"><span style="font-size: 12px;">Track as:</span><a-select v-model:value="selectedTag" size="small" style="width: 120px"><a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option></a-select></div></div>
-          <a-card v-if="showAdvancedFilters" size="small" style="margin-bottom: 16px; background: #fafafa;"><a-row :gutter="24" align="middle"><a-col :span="6"><span style="font-size: 11px; color: #888;">Min CPU %</span><a-slider v-model:value="cpuThreshold" :min="0" :max="100" /></a-col><a-col :span="6"><span style="font-size: 11px; color: #888;">Min Memory %</span><a-slider v-model:value="memThreshold" :min="0" :max="20" :step="0.1" /></a-col><a-col :span="6"><span style="font-size: 11px; color: #888;">Min VRAM (MiB)</span><a-slider v-model:value="gpuThreshold" :min="0" :max="4096" /></a-col><a-col :span="6"><a-select v-model:value="filterUser" style="width: 100%" placeholder="Filter User" allowClear><a-select-option v-for="user in uniqueUsers" :key="user" :value="user">{{ user }}</a-select-option></a-select></a-col></a-row></a-card>
+          <a-card v-if="showAdvancedFilters" size="small" style="margin-bottom: 16px; background: #fafafa;">
+            <a-row :gutter="[24, 12]" align="middle">
+              <a-col :span="6">
+                <div style="font-size: 11px; color: #888; display: flex; justify-content: space-between;">
+                  <span>CPU Range %</span>
+                  <span>{{ cpuThreshold }}% - {{ cpuMax }}%</span>
+                </div>
+                <a-slider v-model:value="cpuRange" :min="0" :max="100" range />
+              </a-col>
+              <a-col :span="6">
+                <div style="font-size: 11px; color: #888; display: flex; justify-content: space-between;">
+                  <span>Memory Range %</span>
+                  <span>{{ memThreshold }}% - {{ memMax }}%</span>
+                </div>
+                <a-slider v-model:value="memRange" :min="0" :max="100" range />
+              </a-col>
+              <a-col :span="6">
+                <div style="font-size: 11px; color: #888; display: flex; justify-content: space-between;">
+                  <span>VRAM Range (MiB)</span>
+                  <span>{{ gpuThreshold }} - {{ gpuMax }}</span>
+                </div>
+                <a-slider v-model:value="gpuRange" :min="0" :max="8192" range />
+              </a-col>
+              <a-col :span="4">
+                <a-select v-model:value="filterUser" style="width: 100%" placeholder="Filter User" allowClear size="small">
+                  <a-select-option v-for="user in uniqueUsers" :key="user" :value="user">{{ user }}</a-select-option>
+                </a-select>
+              </a-col>
+              <a-col :span="2" style="text-align: right;">
+                <a-button size="small" type="link" @click="resetFilters">Reset</a-button>
+              </a-col>
+            </a-row>
+          </a-card>
           <a-table 
-            :dataSource="displayData" :columns="[{ title: 'PID', dataIndex: 'pid', width: 100 }, { title: 'Name', dataIndex: 'name' }, { title: 'CPU', dataIndex: 'cpu', width: 100 }, { title: 'MEM', dataIndex: 'mem', width: 100 }, { title: 'VRAM', dataIndex: 'gpuMem', width: 100 }, { title: 'User', dataIndex: 'user', width: 100 }, { title: '', key: 'action', width: 100, fixed: 'right' }]" 
+            :dataSource="displayData" :columns="columns" 
             size="small" :pagination="viewMode === 'list' ? { pageSize: 50 } : false" rowKey="pid" :scroll="{ y: 'calc(100vh - 400px)' }"
           >
             <template #bodyCell="{ column, record }">
@@ -440,7 +526,16 @@ watch(refreshInterval, connectWebSocket);
       <a-tab-pane key="memmap" tab="Memory Map">
         <template #tab><span><AppstoreOutlined /> Memory Map</span></template>
         <div class="mem-container"><div v-for="g in memoryVisualizationData" :key="g.name" class="mem-block" @click="openGroupDetails(g.name, g.pids)" :style="{ backgroundColor: getMemColor(g.mem), flexGrow: g.mem, flexBasis: Math.max(10, g.mem * 2) + '%', minHeight: Math.max(60, Math.sqrt(g.mem) * 30) + 'px' }"><a-tooltip><template #title>App: {{ g.name }}<br/>Total Mem: {{ g.mem.toFixed(2) }}%<br/>Instances: {{ g.count }} (Click for details)</template><div class="mem-block-content"><div class="mem-name">{{ g.name }}</div><div class="mem-value">{{ g.mem.toFixed(1) }}%</div><div v-if="g.count > 1" class="mem-count">x{{ g.count }}</div></div></a-tooltip></div></div>
-        <a-modal v-model:open="showGroupDetails" :title="'Instances: ' + selectedGroup?.name" :footer="null" width="800px"><a-table :dataSource="selectedGroupProcesses" :columns="[{ title: 'PID', dataIndex: 'pid', width: 100 }, { title: 'CPU %', dataIndex: 'cpu', width: 100 }, { title: 'MEM %', dataIndex: 'mem', width: 100 }, { title: 'VRAM', dataIndex: 'gpuMem', width: 100 }, { title: 'User', dataIndex: 'user' }, { title: '', key: 'action', width: 100 }]" size="small" :pagination="{ pageSize: 10 }"><template #bodyCell="{ column, record }"><template v-if="column.key === 'cpu'">{{ record.cpu.toFixed(1) }}%</template><template v-if="column.key === 'mem'">{{ record.mem.toFixed(1) }}%</template><template v-if="column.key === 'gpuMem'">{{ record.gpuMem > 0 ? record.gpuMem + 'MB' : '-' }}</template><template v-if="column.key === 'action'"><div style="display: flex; gap: 8px;"><a-button type="link" size="small" @click="openProcDetails(record)"><InfoCircleOutlined /></a-button><a-button type="link" size="small" @click="addToRules(record)">Track</a-button></div></template></template></a-table></a-modal>
+        <a-modal v-model:open="showGroupDetails" :title="'Instances: ' + selectedGroup?.name" :footer="null" width="800px">
+          <a-table :dataSource="selectedGroupProcesses" :columns="groupColumns" size="small" :pagination="{ pageSize: 10 }">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'cpu'">{{ record.cpu.toFixed(1) }}%</template>
+              <template v-if="column.key === 'mem'">{{ record.mem.toFixed(1) }}%</template>
+              <template v-if="column.key === 'gpuMem'">{{ record.gpuMem > 0 ? record.gpuMem + 'MB' : '-' }}</template>
+              <template v-if="column.key === 'action'"><div style="display: flex; gap: 8px;"><a-button type="link" size="small" @click="openProcDetails(record)"><InfoCircleOutlined /></a-button><a-button type="link" size="small" @click="addToRules(record)">Track</a-button></div></template>
+            </template>
+          </a-table>
+        </a-modal>
       </a-tab-pane>
     </a-tabs>
 
