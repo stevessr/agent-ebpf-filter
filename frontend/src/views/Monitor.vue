@@ -200,6 +200,7 @@ const connectWebSocket = () => {
 
       gpus.value = (decoded.gpus || []).map((g: any) => {
         updateHistory(`gpu_${g.index}_util`, g.utilGpu);
+        updateHistory(`gpu_${g.index}_vram`, g.memUsed);
         return { index: g.index, name: g.name, utilGpu: g.utilGpu, utilMem: g.utilMem, memTotal: g.memTotal, memUsed: g.memUsed, temp: g.temp };
       });
     } catch (e) { console.error(e); }
@@ -291,7 +292,14 @@ const chartOptions = computed(() => {
     xaxis: { type: 'datetime' as const, min: min, max: now, labels: { datetimeUTC: false, style: { fontSize: '10px' }, datetimeFormatter: { hour: 'HH:mm', minute: 'HH:mm', second: 'HH:mm:ss' } }, range: chartTimeRange.value * 1000, tickAmount: 6 },
     yaxis: { labels: { style: { fontSize: '10px' }, formatter: (v: number) => {
       if (!activeChartKey.value) return v.toString();
-      return activeChartKey.value.includes('usage') || activeChartKey.value.includes('cpu') || activeChartKey.value.includes('util') || activeChartKey.value.includes('percent') ? v.toFixed(1) + '%' : formatBytes(v) + '/s';
+      const key = activeChartKey.value.toLowerCase();
+      if (key.includes('usage') || key.includes('cpu') || key.includes('util') || key.includes('percent')) {
+        return v.toFixed(1) + '%';
+      }
+      if (key.includes('vram')) {
+        return formatBytes(v * 1024 * 1024, 1);
+      }
+      return formatBytes(v) + '/s';
     }}},
     stroke: { curve: 'smooth' as const, width: 2 },
     grid: { borderColor: '#f1f1f1' },
