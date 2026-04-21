@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
-import { LinkOutlined, CheckCircleOutlined, DeleteOutlined, ThunderboltOutlined, SwapOutlined } from '@ant-design/icons-vue';
+import { LinkOutlined, CheckCircleOutlined, DeleteOutlined, ThunderboltOutlined, SwapOutlined, EditOutlined } from '@ant-design/icons-vue';
 
 interface HookDef {
   id: string;
@@ -18,6 +18,13 @@ const loading = ref(false);
 // Track which hooks the user wants to force-use wrapper mode for.
 const useWrapperOverride = ref<Record<string, boolean>>({});
 
+// Configuration editor state
+const showEditModal = ref(false);
+const editingHook = ref<HookDef | null>(null);
+const rawConfig = ref('');
+const configPath = ref('');
+const savingConfig = ref(false);
+
 const fetchHooks = async () => {
   loading.value = true;
   try {
@@ -27,6 +34,35 @@ const fetchHooks = async () => {
     message.error('Failed to fetch hooks');
   } finally {
     loading.value = false;
+  }
+};
+
+const openEditModal = async (hook: HookDef) => {
+  editingHook.value = hook;
+  try {
+    const res = await axios.get(`/config/hooks/${hook.id}/raw`);
+    rawConfig.value = res.data.content;
+    configPath.value = res.data.path;
+    showEditModal.value = true;
+  } catch (err: any) {
+    message.error(err.response?.data?.error || 'Failed to load configuration');
+  }
+};
+
+const saveConfig = async () => {
+  if (!editingHook.value) return;
+  savingConfig.value = true;
+  try {
+    await axios.post(`/config/hooks/${editingHook.value.id}/raw`, {
+      content: rawConfig.value
+    });
+    message.success('Configuration saved');
+    showEditModal.value = false;
+    await fetchHooks();
+  } catch (err: any) {
+    message.error(err.response?.data?.error || 'Failed to save configuration');
+  } finally {
+    savingConfig.value = false;
   }
 };
 
@@ -121,12 +157,21 @@ onMounted(() => {
                   </a-checkbox>
                 </div>
 
-                <div style="text-align: right; border-top: 1px solid #f0f0f0; padding-top: 12px;">
+                <div style="text-align: right; border-top: 1px solid #f0f0f0; padding-top: 12px; display: flex; justify-content: flex-end; gap: 8px;">
+                  <a-button
+                    v-if="item.hook_type === 'native' || item.installed"
+                    size="small"
+                    @click="openEditModal(item)"
+                  >
+                    <template #icon><EditOutlined /></template>
+                    Edit Config
+                  </a-button>
                   <a-button
                     :type="item.installed ? 'default' : 'primary'"
                     :danger="item.installed"
                     @click="toggleHook(item)"
                     :loading="loading"
+                    size="small"
                   >
                     <template #icon>
                       <DeleteOutlined v-if="item.installed" />
@@ -141,6 +186,26 @@ onMounted(() => {
         </a-list>
       </a-card>
     </div>
+
+    <!-- Edit Configuration Modal -->
+    <a-modal
+      v-model:open="showEditModal"
+      :title="`Edit Configuration: ${editingHook?.name}`"
+      @ok="saveConfig"
+      :confirmLoading="savingConfig"
+      width="800px"
+    >
+      <div style="margin-bottom: 12px;">
+        <span style="font-size: 12px; color: #888;">Config Path: </span>
+        <a-typography-text code>{{ configPath }}</a-typography-text>
+      </div>
+      <a-textarea
+        v-model:value="rawConfig"
+        :rows="20"
+        style="font-family: monospace; font-size: 12px; background: #fafafa;"
+        placeholder="{ ... }"
+      />
+    </a-modal>
   </div>
 </template>
 
