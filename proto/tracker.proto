@@ -47,6 +47,8 @@ message Process {
   uint32 gpu_mem = 7; // GPU VRAM usage in MiB
   uint32 gpu_util = 8; // GPU utilization percentage
   uint32 gpu_id = 9;   // GPU index
+  string cmdline = 10;
+  int64 create_time = 11;
 }
 
 message GPUStatus {

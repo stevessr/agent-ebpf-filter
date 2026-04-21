@@ -4,8 +4,8 @@ import axios from 'axios';
 import { 
   PlusOutlined, SearchOutlined, ClusterOutlined, TableOutlined, 
   FilterOutlined, DeploymentUnitOutlined,
-  DashboardOutlined, PieChartOutlined, SwapOutlined, DatabaseOutlined,
-  AppstoreOutlined, BarChartOutlined, LineChartOutlined
+  DashboardOutlined, PieChartOutlined,
+  AppstoreOutlined, BarChartOutlined, LineChartOutlined, InfoCircleOutlined
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 import VueApexCharts from 'vue3-apexcharts';
@@ -16,15 +16,11 @@ interface GPUStatus {
   memTotal: number; memUsed: number; temp: number;
 }
 
-interface HistoryData {
-  time: number;
-  value: number;
-  value2?: number; // for in/out or R/W
-}
-
 interface ProcessInfo {
   pid: number; ppid: number; name: string; cpu: number; mem: number;
-  user: string; gpuMem: number; gpuId: number; children?: ProcessInfo[];
+  user: string; gpuMem: number; gpuId: number; 
+  cmdline: string; createTime: number;
+  children?: ProcessInfo[];
 }
 
 interface IOSpeed {
@@ -41,6 +37,12 @@ interface GlobalStats {
   diskDevices: IOSpeed[];
   totalNetRecv: number; totalNetSent: number;
   totalDiskRead: number; totalDiskWrite: number;
+}
+
+interface HistoryData {
+  time: number;
+  value: number;
+  value2?: number; // for in/out or R/W
 }
 
 const activeTab = ref('dashboard');
@@ -60,6 +62,10 @@ const chartSeriesName = ref(['Value']);
 const historyMap = ref<Record<string, HistoryData[]>>({});
 const activeChartKey = ref('');
 const chartTimeRange = ref(60); // seconds
+
+// Process Detail State
+const showProcModal = ref(false);
+const selectedProc = ref<ProcessInfo | null>(null);
 
 const isConnected = ref(false);
 const loading = ref(false);
@@ -106,16 +112,15 @@ const connectWebSocket = () => {
       
       const newNetSpeeds: IOSpeed[] = [];
       const newDiskSpeeds: IOSpeed[] = [];
-
+      
       const updateHistory = (key: string, val: number, val2?: number) => {
         if (!historyMap.value[key]) historyMap.value[key] = [];
         historyMap.value[key].push({ time: now, value: val, value2: val2 });
         if (historyMap.value[key].length > 1200) historyMap.value[key].shift();
       };
-      
+
       if (lastIO && decoded.io) {
         const dt = (now - lastIO.time) / 1000;
-        
         (decoded.io.networks || []).forEach((n: any) => {
           const prev = lastIO?.networks[n.name];
           if (prev) {
@@ -125,7 +130,6 @@ const connectWebSocket = () => {
             updateHistory(`net_${n.name}`, rin, rout);
           }
         });
-
         (decoded.io.disks || []).forEach((d: any) => {
           const prev = lastIO?.disks[d.name];
           if (prev) {
@@ -142,21 +146,16 @@ const connectWebSocket = () => {
         (decoded.io.networks || []).forEach((n: any) => nets[n.name] = {r: Number(n.recvBytes), s: Number(n.sentBytes)});
         const dsks: Record<string, {r: number, w: number}> = {};
         (decoded.io.disks || []).forEach((d: any) => dsks[d.name] = {r: Number(d.readBytes), w: Number(d.writeBytes)});
-        
         lastIO = { networks: nets, disks: dsks, time: now };
-        
         systemStats.value.netInterfaces = newNetSpeeds.filter(s => s.readSpeed > 0 || s.writeSpeed > 0);
         systemStats.value.diskDevices = newDiskSpeeds.filter(s => s.readSpeed > 0 || s.writeSpeed > 0);
-        
         let totalNetR = 0, totalNetS = 0, totalDiskR = 0, totalDiskW = 0;
         newNetSpeeds.forEach(s => { totalNetR += s.readSpeed; totalNetS += s.writeSpeed; });
         newDiskSpeeds.forEach(s => { totalDiskR += s.readSpeed; totalDiskW += s.writeSpeed; });
-        
         systemStats.value.totalNetRecv = totalNetR;
         systemStats.value.totalNetSent = totalNetS;
         systemStats.value.totalDiskRead = totalDiskR;
         systemStats.value.totalDiskWrite = totalDiskW;
-
         updateHistory('total_net', totalNetR, totalNetS);
         updateHistory('total_disk', totalDiskR, totalDiskW);
       }
@@ -164,15 +163,10 @@ const connectWebSocket = () => {
       if (decoded.cpu) {
         systemStats.value.cpuTotal = decoded.cpu.total || 0;
         updateHistory('cpu_total', systemStats.value.cpuTotal);
-
         systemStats.value.cpuCores = (decoded.cpu.cores as number[]) || [];
         systemStats.value.cpuCoresDetailed = (decoded.cpu.coreDetails || []).map((c: any) => {
           updateHistory(`cpu_core_${c.index}`, c.usage || 0);
-          return {
-            index: c.index,
-            usage: c.usage || 0,
-            type: c.type
-          };
+          return { index: c.index, usage: c.usage || 0, type: c.type };
         });
       }
       
@@ -184,15 +178,13 @@ const connectWebSocket = () => {
       }
 
       processes.value = (decoded.processes || []).map((p: any) => ({
-        pid: p.pid, ppid: p.ppid, name: p.name, cpu: p.cpu, mem: p.mem, user: p.user, gpuMem: p.gpuMem, gpuId: p.gpuId
+        pid: p.pid, ppid: p.ppid, name: p.name, cpu: p.cpu, mem: p.mem, user: p.user, 
+        gpuMem: p.gpuMem, gpuId: p.gpuId, cmdline: p.cmdline, createTime: Number(p.createTime)
       }));
 
       gpus.value = (decoded.gpus || []).map((g: any) => {
         updateHistory(`gpu_${g.index}_util`, g.utilGpu);
-        return {
-          index: g.index, name: g.name, utilGpu: g.utilGpu, utilMem: g.utilMem,
-          memTotal: g.memTotal, memUsed: g.memUsed, temp: g.temp
-        };
+        return { index: g.index, name: g.name, utilGpu: g.utilGpu, utilMem: g.utilMem, memTotal: g.memTotal, memUsed: g.memUsed, temp: g.temp };
       });
     } catch (e) { console.error(e); }
   };
@@ -214,10 +206,9 @@ const buildTree = (list: ProcessInfo[]) => {
   return roots;
 };
 
-const uniqueUsers = computed(() => Array.from(new Set(processes.value.map(p => p.user))).sort());
-
 const pCores = computed(() => systemStats.value.cpuCoresDetailed.filter(c => c.type === 0));
 const eCores = computed(() => systemStats.value.cpuCoresDetailed.filter(c => c.type === 1));
+const uniqueUsers = computed(() => Array.from(new Set(processes.value.map(p => p.user))).sort());
 
 const displayData = computed(() => {
   let filtered = processes.value;
@@ -267,50 +258,17 @@ const openChart = (key: string, title: string, type: 'single' | 'double', series
 const chartOptions = computed(() => {
   const now = Date.now();
   const min = now - (chartTimeRange.value * 1000);
-  
   return {
-    chart: { 
-      animations: { enabled: false }, 
-      toolbar: { show: false }, 
-      zoom: { enabled: false }, 
-      background: 'transparent' 
-    },
-    xaxis: { 
-      type: 'datetime', 
-      min: min,
-      max: now,
-      labels: { 
-        datetimeUTC: false, 
-        style: { fontSize: '10px' },
-        datetimeFormatter: {
-          year: 'yyyy',
-          month: "MMM 'yy",
-          day: 'dd MMM',
-          hour: 'HH:mm',
-          minute: 'HH:mm',
-          second: 'HH:mm:ss',
-        }
-      },
-      range: chartTimeRange.value * 1000,
-      tickAmount: 6,
-    },
-    yaxis: { 
-      labels: { 
-        style: { fontSize: '10px' }, 
-        formatter: (v: number) => {
-          if (!activeChartKey.value) return v.toString();
-          return activeChartKey.value.includes('usage') || 
-                 activeChartKey.value.includes('cpu') || 
-                 activeChartKey.value.includes('util') || 
-                 activeChartKey.value.includes('percent') ? 
-                 v.toFixed(1) + '%' : formatBytes(v) + '/s';
-        }
-      } 
-    },
-    stroke: { curve: 'smooth', width: 2 },
+    chart: { animations: { enabled: false }, toolbar: { show: false }, zoom: { enabled: false }, background: 'transparent' },
+    xaxis: { type: 'datetime' as const, min: min, max: now, labels: { datetimeUTC: false, style: { fontSize: '10px' }, datetimeFormatter: { hour: 'HH:mm', minute: 'HH:mm', second: 'HH:mm:ss' } }, range: chartTimeRange.value * 1000, tickAmount: 6 },
+    yaxis: { labels: { style: { fontSize: '10px' }, formatter: (v: number) => {
+      if (!activeChartKey.value) return v.toString();
+      return activeChartKey.value.includes('usage') || activeChartKey.value.includes('cpu') || activeChartKey.value.includes('util') || activeChartKey.value.includes('percent') ? v.toFixed(1) + '%' : formatBytes(v) + '/s';
+    }}},
+    stroke: { curve: 'smooth' as const, width: 2 },
     grid: { borderColor: '#f1f1f1' },
-    legend: { position: 'top', horizontalAlign: 'right' },
-    theme: { mode: 'light' }
+    legend: { position: 'top' as const, horizontalAlign: 'right' as const },
+    theme: { mode: 'light' as const }
   };
 });
 
@@ -318,7 +276,6 @@ const chartSeries = computed(() => {
   const data = historyMap.value[activeChartKey.value] || [];
   const cutoff = Date.now() - (chartTimeRange.value * 1000);
   const filtered = data.filter(d => d.time > cutoff);
-  
   if (chartType.value === 'single') {
     return [{ name: chartSeriesName.value[0], data: filtered.map(d => ({ x: d.time, y: d.value })) }];
   } else {
@@ -335,6 +292,11 @@ const selectedGroup = ref<{ name: string; pids: number[] } | null>(null);
 const openGroupDetails = (name: string, pids: number[]) => {
   selectedGroup.value = { name, pids };
   showGroupDetails.value = true;
+};
+
+const openProcDetails = (proc: ProcessInfo) => {
+  selectedProc.value = proc;
+  showProcModal.value = true;
 };
 
 const selectedGroupProcesses = computed(() => {
@@ -365,8 +327,6 @@ watch(refreshInterval, connectWebSocket);
       <!-- HEALTH TAB -->
       <a-tab-pane key="dashboard" tab="Health">
         <template #tab><span><DashboardOutlined /> Health</span></template>
-        
-        <!-- CPU Row -->
         <a-row style="margin-bottom: 16px;">
           <a-col :span="24">
             <a-card size="small" class="stat-card-row">
@@ -379,9 +339,7 @@ watch(refreshInterval, connectWebSocket);
                   </a-radio-group>
                 </div>
               </template>
-              <div v-if="cpuViewMode === 'total'" 
-                   style="display: flex; align-items: center; justify-content: center; height: 120px; gap: 40px; cursor: pointer;"
-                   @click="openChart('cpu_total', 'Global CPU Usage', 'single', ['Usage'])">
+              <div v-if="cpuViewMode === 'total'" @click="openChart('cpu_total', 'Global CPU Usage', 'single', ['Usage'])" style="display: flex; align-items: center; justify-content: center; height: 120px; gap: 40px; cursor: pointer;">
                 <a-progress type="dashboard" :percent="Math.round(systemStats.cpuTotal)" :width="100" />
                 <div style="text-align: left;">
                   <div style="font-size: 24px; font-weight: bold; color: #1890ff;">{{ systemStats.cpuTotal.toFixed(1) }}% <LineChartOutlined style="font-size: 14px; color: #ccc" /></div>
@@ -392,13 +350,9 @@ watch(refreshInterval, connectWebSocket);
                 <div v-if="pCores.length > 0">
                   <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #1890ff; padding-left: 8px;">PERFORMANCE CORES (P-CORES)</div>
                   <div class="core-grid-full">
-                    <div v-for="core in pCores" :key="core.index" 
-                         class="core-item-full" style="cursor: pointer"
-                         @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])">
+                    <div v-for="core in pCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" class="core-item-full" style="cursor: pointer">
                       <span class="core-label">#{{ core.index }}</span>
-                      <div style="flex: 1; margin: 0 10px;">
-                        <a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#1890ff" />
-                      </div>
+                      <div style="flex: 1; margin: 0 10px;"><a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#1890ff" /></div>
                       <span class="core-val">{{ core.usage.toFixed(1) }}%</span>
                     </div>
                   </div>
@@ -406,13 +360,9 @@ watch(refreshInterval, connectWebSocket);
                 <div v-if="eCores.length > 0" style="margin-top: 16px;">
                   <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #52c41a; padding-left: 8px;">EFFICIENCY CORES (E-CORES)</div>
                   <div class="core-grid-full">
-                    <div v-for="core in eCores" :key="core.index" 
-                         class="core-item-full" style="cursor: pointer"
-                         @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])">
+                    <div v-for="core in eCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" class="core-item-full" style="cursor: pointer">
                       <span class="core-label">#{{ core.index }}</span>
-                      <div style="flex: 1; margin: 0 10px;">
-                        <a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#52c41a" />
-                      </div>
+                      <div style="flex: 1; margin: 0 10px;"><a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#52c41a" /></div>
                       <span class="core-val" style="color: #52c41a">{{ core.usage.toFixed(1) }}%</span>
                     </div>
                   </div>
@@ -421,8 +371,6 @@ watch(refreshInterval, connectWebSocket);
             </a-card>
           </a-col>
         </a-row>
-
-        <!-- Memory & I/O Row -->
         <a-row style="margin-bottom: 16px;">
           <a-col :span="24">
             <a-card size="small" class="stat-card-row" title="Memory & Interface I/O">
@@ -430,53 +378,27 @@ watch(refreshInterval, connectWebSocket);
               <div style="display: flex; gap: 24px; padding: 10px;">
                 <div style="flex: 0 0 300px; cursor: pointer" @click="openChart('mem_usage', 'RAM Usage', 'single', ['Usage %'])">
                   <div style="margin-bottom: 15px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px;">
-                      <span>RAM Usage <LineChartOutlined style="font-size: 12px; color: #ccc" /></span>
-                      <span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span>
-                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px;"><span>RAM Usage <LineChartOutlined style="font-size: 12px; color: #ccc" /></span><span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span></div>
                     <a-progress :percent="Math.round(systemStats.memPercent)" stroke-color="#1890ff" status="active" />
-                    <div style="font-size: 12px; color: #999; margin-top: 4px;">
-                      {{ formatBytes(systemStats.memUsed) }} / {{ formatBytes(systemStats.memTotal) }}
-                    </div>
+                    <div style="font-size: 12px; color: #999; margin-top: 4px;">{{ formatBytes(systemStats.memUsed) }} / {{ formatBytes(systemStats.memTotal) }}</div>
                   </div>
                   <div style="border-top: 1px solid #f0f0f0; padding-top: 15px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px;" @click.stop="openChart('total_net', 'Aggregate Network Traffic', 'double', ['Download', 'Upload'])">
-                      <span>Total Network:</span>
-                      <span style="color: #52c41a">↓ {{ formatBytes(systemStats.totalNetRecv) }}/s</span>
-                      <span style="color: #1890ff">↑ {{ formatBytes(systemStats.totalNetSent) }}/s</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 12px;" @click.stop="openChart('total_disk', 'Aggregate Disk I/O', 'double', ['Read', 'Write'])">
-                      <span>Total Disk:</span>
-                      <span style="color: #faad14">R: {{ formatBytes(systemStats.totalDiskRead) }}/s</span>
-                      <span style="color: #ff4d4f">W: {{ formatBytes(systemStats.totalDiskWrite) }}/s</span>
-                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px;" @click.stop="openChart('total_net', 'Aggregate Network', 'double', ['In', 'Out'])"><span>Total Network:</span><span style="color: #52c41a">↓ {{ formatBytes(systemStats.totalNetRecv) }}/s</span><span style="color: #1890ff">↑ {{ formatBytes(systemStats.totalNetSent) }}/s</span></div>
+                    <div style="display: flex; justify-content: space-between; font-size: 12px;" @click.stop="openChart('total_disk', 'Aggregate Disk', 'double', ['Read', 'Write'])"><span>Total Disk:</span><span style="color: #faad14">R: {{ formatBytes(systemStats.totalDiskRead) }}/s</span><span style="color: #ff4d4f">W: {{ formatBytes(systemStats.totalDiskWrite) }}/s</span></div>
                   </div>
                 </div>
-                
                 <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-left: 1px solid #f0f0f0; padding-left: 24px;">
-                  <!-- Net Detail -->
                   <div>
                     <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">NETWORK INTERFACES</div>
                     <div style="max-height: 120px; overflow-y: auto;">
-                      <div v-for="s in systemStats.netInterfaces" :key="s.name" class="io-row" style="cursor: pointer"
-                           @click="openChart('net_' + s.name, 'Interface: ' + s.name, 'double', ['Download', 'Upload'])">
-                        <span class="io-name">{{ s.name }}</span>
-                        <span class="io-val-in">↓{{ formatBytes(s.readSpeed, 0) }}</span>
-                        <span class="io-val-out">↑{{ formatBytes(s.writeSpeed, 0) }}</span>
-                      </div>
+                      <div v-for="s in systemStats.netInterfaces" :key="s.name" @click="openChart('net_' + s.name, 'Interface: ' + s.name, 'double', ['In', 'Out'])" class="io-row" style="cursor: pointer"><span class="io-name">{{ s.name }}</span><span class="io-val-in">↓{{ formatBytes(s.readSpeed, 0) }}</span><span class="io-val-out">↑{{ formatBytes(s.writeSpeed, 0) }}</span></div>
                       <div v-if="!systemStats.netInterfaces.length" style="font-size: 11px; color: #ccc;">No active traffic</div>
                     </div>
                   </div>
-                  <!-- Disk Detail -->
                   <div>
                     <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">DISK DEVICES</div>
                     <div style="max-height: 120px; overflow-y: auto;">
-                      <div v-for="s in systemStats.diskDevices" :key="s.name" class="io-row" style="cursor: pointer"
-                           @click="openChart('disk_' + s.name, 'Disk: ' + s.name, 'double', ['Read', 'Write'])">
-                        <span class="io-name">{{ s.name }}</span>
-                        <span class="io-val-read">R:{{ formatBytes(s.readSpeed, 0) }}</span>
-                        <span class="io-val-write">W:{{ formatBytes(s.writeSpeed, 0) }}</span>
-                      </div>
+                      <div v-for="s in systemStats.diskDevices" :key="s.name" @click="openChart('disk_' + s.name, 'Disk: ' + s.name, 'double', ['Read', 'Write'])" class="io-row" style="cursor: pointer"><span class="io-name">{{ s.name }}</span><span class="io-val-read">R:{{ formatBytes(s.readSpeed, 0) }}</span><span class="io-val-write">W:{{ formatBytes(s.writeSpeed, 0) }}</span></div>
                       <div v-if="!systemStats.diskDevices.length" style="font-size: 11px; color: #ccc;">No active I/O</div>
                     </div>
                   </div>
@@ -485,103 +407,17 @@ watch(refreshInterval, connectWebSocket);
             </a-card>
           </a-col>
         </a-row>
-
-        <!-- GPU Row -->
-        <a-row>
-          <a-col :span="24">
-            <a-card size="small" class="stat-card-row" :title="gpus.length ? 'GPU Acceleration Status' : 'No GPU'">
-              <template #extra><DeploymentUnitOutlined /></template>
-              <div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 10px;">
-                <div v-for="gpu in gpus" :key="gpu.index" class="gpu-row-item" style="cursor: pointer"
-                     @click="openChart('gpu_' + gpu.index + '_util', 'GPU ' + gpu.index + ' Load', 'single', ['Core Load %'])">
-                  <div style="flex-shrink: 0; min-width: 80px;">
-                    <a-tag color="volcano" style="display: block; text-align: center;">{{ gpu.temp }}°C</a-tag>
-                    <div style="font-size: 10px; color: #999; text-align: center; margin-top: 4px;">GPU {{ gpu.index }}</div>
-                  </div>
-                  <div style="flex: 1;">
-                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px;">{{ gpu.name }}</div>
-                    <div style="display: flex; gap: 20px;">
-                      <div style="flex: 1;">
-                        <div style="font-size: 10px; color: #666; display: flex; justify-content: space-between;">
-                          <span>Utilization</span><span>{{ gpu.utilGpu }}%</span>
-                        </div>
-                        <a-progress :percent="gpu.utilGpu" size="small" stroke-color="#13c2c2" :showInfo="false" />
-                      </div>
-                      <div style="flex: 1;" @click.stop="openChart('gpu_' + gpu.index + '_vram', 'GPU ' + gpu.index + ' VRAM', 'single', ['VRAM Used (MB)'])">
-                        <div style="font-size: 10px; color: #666; display: flex; justify-content: space-between;">
-                          <span>VRAM</span><span>{{ gpu.memUsed }} / {{ gpu.memTotal }} MB</span>
-                        </div>
-                        <a-progress :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" size="small" stroke-color="#722ed1" :showInfo="false" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <a-empty v-if="!gpus.length" :image="false" description="No NVIDIA hardware detected via nvidia-smi" style="width: 100%" />
-              </div>
-            </a-card>
-          </a-col>
-        </a-row>
+        <a-row><a-col :span="24"><a-card size="small" class="stat-card-row" :title="gpus.length ? 'GPU Acceleration Status' : 'No GPU'"><template #extra><DeploymentUnitOutlined /></template><div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 10px;"><div v-for="gpu in gpus" :key="gpu.index" @click="openChart('gpu_' + gpu.index + '_util', 'GPU ' + gpu.index + ' Load', 'single', ['Load %'])" class="gpu-row-item" style="cursor: pointer"><div style="flex-shrink: 0; min-width: 80px;"><a-tag color="volcano" style="display: block; text-align: center;">{{ gpu.temp }}°C</a-tag><div style="font-size: 10px; color: #999; text-align: center; margin-top: 4px;">GPU {{ gpu.index }}</div></div><div style="flex: 1;"><div style="font-size: 12px; font-weight: bold; margin-bottom: 6px;">{{ gpu.name }}</div><div style="display: flex; gap: 20px;"><div style="flex: 1;"><div style="font-size: 10px; color: #666; display: flex; justify-content: space-between;"><span>Utilization</span><span>{{ gpu.utilGpu }}%</span></div><a-progress :percent="gpu.utilGpu" size="small" stroke-color="#13c2c2" :showInfo="false" /></div><div style="flex: 1;" @click.stop="openChart('gpu_' + gpu.index + '_vram', 'GPU ' + gpu.index + ' VRAM', 'single', ['Used MB'])"><div style="font-size: 10px; color: #666; display: flex; justify-content: space-between;"><span>VRAM</span><span>{{ gpu.memUsed }} / {{ gpu.memTotal }} MB</span></div><a-progress :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" size="small" stroke-color="#722ed1" :showInfo="false" /></div></div></div></div><a-empty v-if="!gpus.length" :image="false" description="No NVIDIA hardware" style="width: 100%" /></div></a-card></a-col></a-row>
       </a-tab-pane>
 
       <!-- PROCESSES TAB -->
       <a-tab-pane key="processes" tab="Processes">
         <template #tab><span><BarChartOutlined /> Processes</span></template>
         <div style="background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 12px; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <a-input v-model:value="searchText" placeholder="Search..." style="width: 180px"><template #prefix><SearchOutlined /></template></a-input>
-              <a-radio-group v-model:value="viewMode" button-style="solid" size="small">
-                <a-radio-button value="tree"><ClusterOutlined /></a-radio-button>
-                <a-radio-button value="list"><TableOutlined /></a-radio-button>
-              </a-radio-group>
-              <a-button size="small" @click="showAdvancedFilters = !showAdvancedFilters"><FilterOutlined /></a-button>
-              <a-select v-model:value="refreshInterval" size="small" style="width: 80px">
-                <a-select-option :value="1000">1s</a-select-option>
-                <a-select-option :value="2000">2s</a-select-option>
-                <a-select-option :value="5000">5s</a-select-option>
-              </a-select>
-              <a-badge :status="isConnected ? 'success' : 'processing'" />
-            </div>
-            <div style="display: flex; align-items: center; gap: 4px;">
-              <span style="font-size: 12px;">Track as:</span>
-              <a-select v-model:value="selectedTag" size="small" style="width: 120px">
-                <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option>
-              </a-select>
-            </div>
-          </div>
-
-          <a-card v-if="showAdvancedFilters" size="small" style="margin-bottom: 16px; background: #fafafa;">
-            <a-row :gutter="24" align="middle">
-              <a-col :span="6">
-                <span style="font-size: 11px; color: #888;">Min CPU %</span>
-                <a-slider v-model:value="cpuThreshold" :min="0" :max="100" />
-              </a-col>
-              <a-col :span="6">
-                <span style="font-size: 11px; color: #888;">Min Memory %</span>
-                <a-slider v-model:value="memThreshold" :min="0" :max="20" :step="0.1" />
-              </a-col>
-              <a-col :span="6">
-                <span style="font-size: 11px; color: #888;">Min VRAM (MiB)</span>
-                <a-slider v-model:value="gpuThreshold" :min="0" :max="4096" />
-              </a-col>
-              <a-col :span="6">
-                <a-select v-model:value="filterUser" style="width: 100%" placeholder="Filter User" allowClear>
-                  <a-select-option v-for="user in uniqueUsers" :key="user" :value="user">{{ user }}</a-select-option>
-                </a-select>
-              </a-col>
-            </a-row>
-          </a-card>
-
+          <div style="display: flex; justify-content: space-between; margin-bottom: 12px; align-items: center;"><div style="display: flex; align-items: center; gap: 8px;"><a-input v-model:value="searchText" placeholder="Search..." style="width: 180px"><template #prefix><SearchOutlined /></template></a-input><a-radio-group v-model:value="viewMode" button-style="solid" size="small"><a-radio-button value="tree"><ClusterOutlined /></a-radio-button><a-radio-button value="list"><TableOutlined /></a-radio-button></a-radio-group><a-button size="small" @click="showAdvancedFilters = !showAdvancedFilters"><FilterOutlined /></a-button><a-select v-model:value="refreshInterval" size="small" style="width: 80px"><a-select-option :value="1000">1s</a-select-option><a-select-option :value="2000">2s</a-select-option><a-select-option :value="5000">5s</a-select-option></a-select><a-badge :status="isConnected ? 'success' : 'processing'" /></div><div style="display: flex; align-items: center; gap: 4px;"><span style="font-size: 12px;">Track as:</span><a-select v-model:value="selectedTag" size="small" style="width: 120px"><a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option></a-select></div></div>
+          <a-card v-if="showAdvancedFilters" size="small" style="margin-bottom: 16px; background: #fafafa;"><a-row :gutter="24" align="middle"><a-col :span="6"><span style="font-size: 11px; color: #888;">Min CPU %</span><a-slider v-model:value="cpuThreshold" :min="0" :max="100" /></a-col><a-col :span="6"><span style="font-size: 11px; color: #888;">Min Memory %</span><a-slider v-model:value="memThreshold" :min="0" :max="20" :step="0.1" /></a-col><a-col :span="6"><span style="font-size: 11px; color: #888;">Min VRAM (MiB)</span><a-slider v-model:value="gpuThreshold" :min="0" :max="4096" /></a-col><a-col :span="6"><a-select v-model:value="filterUser" style="width: 100%" placeholder="Filter User" allowClear><a-select-option v-for="user in uniqueUsers" :key="user" :value="user">{{ user }}</a-select-option></a-select></a-col></a-row></a-card>
           <a-table 
-            :dataSource="displayData" :columns="[
-              { title: 'PID', dataIndex: 'pid', width: 100 },
-              { title: 'Name', dataIndex: 'name' },
-              { title: 'CPU', dataIndex: 'cpu', width: 100 },
-              { title: 'MEM', dataIndex: 'mem', width: 100 },
-              { title: 'VRAM', dataIndex: 'gpuMem', width: 100 },
-              { title: 'User', dataIndex: 'user', width: 100 },
-              { title: '', key: 'action', width: 80, fixed: 'right' }
-            ]" 
+            :dataSource="displayData" :columns="[{ title: 'PID', dataIndex: 'pid', width: 100 }, { title: 'Name', dataIndex: 'name' }, { title: 'CPU', dataIndex: 'cpu', width: 100 }, { title: 'MEM', dataIndex: 'mem', width: 100 }, { title: 'VRAM', dataIndex: 'gpuMem', width: 100 }, { title: 'User', dataIndex: 'user', width: 100 }, { title: '', key: 'action', width: 100, fixed: 'right' }]" 
             size="small" :pagination="viewMode === 'list' ? { pageSize: 50 } : false" rowKey="pid" :scroll="{ y: 'calc(100vh - 400px)' }"
           >
             <template #bodyCell="{ column, record }">
@@ -589,7 +425,12 @@ watch(refreshInterval, connectWebSocket);
               <template v-if="column.dataIndex === 'cpu'"><span :style="{color: record.cpu > 10 ? 'red' : 'inherit'}">{{ record.cpu.toFixed(1) }}%</span></template>
               <template v-if="column.dataIndex === 'mem'">{{ record.mem.toFixed(1) }}%</template>
               <template v-if="column.dataIndex === 'gpuMem'">{{ record.gpuMem > 0 ? record.gpuMem + 'MB' : '-' }}</template>
-              <template v-if="column.key === 'action'"><a-button type="link" size="small" @click="addToRules(record)"><PlusOutlined /></a-button></template>
+              <template v-if="column.key === 'action'">
+                <div style="display: flex; gap: 8px;">
+                  <a-button type="link" size="small" @click="openProcDetails(record)"><InfoCircleOutlined /></a-button>
+                  <a-button type="link" size="small" @click="addToRules(record)"><PlusOutlined /></a-button>
+                </div>
+              </template>
             </template>
           </a-table>
         </div>
@@ -598,59 +439,30 @@ watch(refreshInterval, connectWebSocket);
       <!-- MEMORY MAP TAB -->
       <a-tab-pane key="memmap" tab="Memory Map">
         <template #tab><span><AppstoreOutlined /> Memory Map</span></template>
-        <div class="mem-container">
-          <div v-for="g in memoryVisualizationData" :key="g.name" 
-               class="mem-block"
-               @click="openGroupDetails(g.name, g.pids)"
-               :style="{ 
-                 backgroundColor: getMemColor(g.mem),
-                 flexGrow: g.mem,
-                 flexBasis: Math.max(10, g.mem * 2) + '%',
-                 minHeight: Math.max(60, Math.sqrt(g.mem) * 30) + 'px'
-               }">
-            <a-tooltip>
-              <template #title>
-                App: {{ g.name }}<br/>
-                Total Mem: {{ g.mem.toFixed(2) }}%<br/>
-                Instances: {{ g.count }} (Click for details)
-              </template>
-              <div class="mem-block-content">
-                <div class="mem-name">{{ g.name }}</div>
-                <div class="mem-value">{{ g.mem.toFixed(1) }}%</div>
-                <div v-if="g.count > 1" class="mem-count">x{{ g.count }}</div>
-              </div>
-            </a-tooltip>
-          </div>
-        </div>
-
-        <a-modal v-model:open="showGroupDetails" :title="'Instances: ' + selectedGroup?.name" :footer="null" width="800px">
-          <a-table :dataSource="selectedGroupProcesses" :columns="[{ title: 'PID', dataIndex: 'pid', width: 100 }, { title: 'CPU %', dataIndex: 'cpu', width: 100 }, { title: 'MEM %', dataIndex: 'mem', width: 100 }, { title: 'VRAM', dataIndex: 'gpuMem', width: 100 }, { title: 'User', dataIndex: 'user' }, { title: '', key: 'action', width: 80 }]" size="small" :pagination="{ pageSize: 10 }">
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'cpu'">{{ record.cpu.toFixed(1) }}%</template>
-              <template v-if="column.key === 'mem'">{{ record.mem.toFixed(1) }}%</template>
-              <template v-if="column.key === 'gpuMem'">{{ record.gpuMem > 0 ? record.gpuMem + 'MB' : '-' }}</template>
-              <template v-if="column.key === 'action'"><a-button type="link" size="small" @click="addToRules(record)">Track</a-button></template>
-            </template>
-          </a-table>
-        </a-modal>
+        <div class="mem-container"><div v-for="g in memoryVisualizationData" :key="g.name" class="mem-block" @click="openGroupDetails(g.name, g.pids)" :style="{ backgroundColor: getMemColor(g.mem), flexGrow: g.mem, flexBasis: Math.max(10, g.mem * 2) + '%', minHeight: Math.max(60, Math.sqrt(g.mem) * 30) + 'px' }"><a-tooltip><template #title>App: {{ g.name }}<br/>Total Mem: {{ g.mem.toFixed(2) }}%<br/>Instances: {{ g.count }} (Click for details)</template><div class="mem-block-content"><div class="mem-name">{{ g.name }}</div><div class="mem-value">{{ g.mem.toFixed(1) }}%</div><div v-if="g.count > 1" class="mem-count">x{{ g.count }}</div></div></a-tooltip></div></div>
+        <a-modal v-model:open="showGroupDetails" :title="'Instances: ' + selectedGroup?.name" :footer="null" width="800px"><a-table :dataSource="selectedGroupProcesses" :columns="[{ title: 'PID', dataIndex: 'pid', width: 100 }, { title: 'CPU %', dataIndex: 'cpu', width: 100 }, { title: 'MEM %', dataIndex: 'mem', width: 100 }, { title: 'VRAM', dataIndex: 'gpuMem', width: 100 }, { title: 'User', dataIndex: 'user' }, { title: '', key: 'action', width: 100 }]" size="small" :pagination="{ pageSize: 10 }"><template #bodyCell="{ column, record }"><template v-if="column.key === 'cpu'">{{ record.cpu.toFixed(1) }}%</template><template v-if="column.key === 'mem'">{{ record.mem.toFixed(1) }}%</template><template v-if="column.key === 'gpuMem'">{{ record.gpuMem > 0 ? record.gpuMem + 'MB' : '-' }}</template><template v-if="column.key === 'action'"><div style="display: flex; gap: 8px;"><a-button type="link" size="small" @click="openProcDetails(record)"><InfoCircleOutlined /></a-button><a-button type="link" size="small" @click="addToRules(record)">Track</a-button></div></template></template></a-table></a-modal>
       </a-tab-pane>
-
     </a-tabs>
 
     <!-- Chart Modal -->
     <a-modal v-model:open="showChartModal" :title="chartTitle" :footer="null" width="800px">
-      <div style="margin-bottom: 16px; display: flex; justify-content: flex-end; align-items: center; gap: 10px;">
-        <span style="font-size: 12px; color: #666;">Horizontal Time Axis:</span>
-        <a-select v-model:value="chartTimeRange" size="small" style="width: 150px">
-          <a-select-option :value="60">Last 1 Minute</a-select-option>
-          <a-select-option :value="300">Last 5 Minutes</a-select-option>
-          <a-select-option :value="600">Last 10 Minutes</a-select-option>
-          <a-select-option :value="1800">Last 30 Minutes</a-select-option>
-        </a-select>
-      </div>
-      <div v-if="showChartModal" style="background: #fff; padding: 10px; border-radius: 4px; border: 1px solid #f0f0f0;">
-        <VueApexCharts type="line" height="350" :options="chartOptions" :series="chartSeries" />
-      </div>
+      <div style="margin-bottom: 16px; display: flex; justify-content: flex-end; align-items: center; gap: 10px;"><span style="font-size: 12px; color: #666;">Horizontal Time Axis:</span><a-select v-model:value="chartTimeRange" size="small" style="width: 150px"><a-select-option :value="60">Last 1 Minute</a-select-option><a-select-option :value="300">Last 5 Minutes</a-select-option><a-select-option :value="600">Last 10 Minutes</a-select-option><a-select-option :value="1800">Last 30 Minutes</a-select-option></a-select></div>
+      <div v-if="showChartModal" style="background: #fff; padding: 10px; border-radius: 4px; border: 1px solid #f0f0f0;"><VueApexCharts type="line" height="350" :options="chartOptions" :series="chartSeries" /></div>
+    </a-modal>
+
+    <!-- Process Detail Modal -->
+    <a-modal v-model:open="showProcModal" title="Process Details" :footer="null" width="600px">
+      <a-descriptions bordered :column="1" size="small" v-if="selectedProc">
+        <a-descriptions-item label="Name"><a-typography-text strong>{{ selectedProc.name }}</a-typography-text></a-descriptions-item>
+        <a-descriptions-item label="PID"><a-typography-text code>{{ selectedProc.pid }}</a-typography-text></a-descriptions-item>
+        <a-descriptions-item label="PPID"><a-typography-text code>{{ selectedProc.ppid }}</a-typography-text></a-descriptions-item>
+        <a-descriptions-item label="User">{{ selectedProc.user }}</a-descriptions-item>
+        <a-descriptions-item label="CPU Load">{{ selectedProc.cpu.toFixed(1) }}%</a-descriptions-item>
+        <a-descriptions-item label="Memory Usage">{{ selectedProc.mem.toFixed(1) }}%</a-descriptions-item>
+        <a-descriptions-item label="GPU VRAM">{{ selectedProc.gpuMem > 0 ? selectedProc.gpuMem + ' MiB' : 'None' }}</a-descriptions-item>
+        <a-descriptions-item label="Full Command"><div style="max-height: 100px; overflow-y: auto; font-family: monospace; font-size: 11px; background: #fafafa; padding: 8px; border-radius: 4px; word-break: break-all;">{{ selectedProc.cmdline }}</div></a-descriptions-item>
+        <a-descriptions-item label="Started At">{{ new Date(selectedProc.createTime).toLocaleString() }}</a-descriptions-item>
+      </a-descriptions>
     </a-modal>
   </div>
 </template>

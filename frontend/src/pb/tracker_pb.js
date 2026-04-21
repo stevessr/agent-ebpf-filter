@@ -1243,6 +1243,8 @@ export const pb = $root.pb = (() => {
          * @property {number|null} [gpuMem] Process gpuMem
          * @property {number|null} [gpuUtil] Process gpuUtil
          * @property {number|null} [gpuId] Process gpuId
+         * @property {string|null} [cmdline] Process cmdline
+         * @property {number|Long|null} [createTime] Process createTime
          */
 
         /**
@@ -1333,6 +1335,22 @@ export const pb = $root.pb = (() => {
         Process.prototype.gpuId = 0;
 
         /**
+         * Process cmdline.
+         * @member {string} cmdline
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.cmdline = "";
+
+        /**
+         * Process createTime.
+         * @member {number|Long} createTime
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.createTime = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
+
+        /**
          * Creates a new Process instance using the specified properties.
          * @function create
          * @memberof pb.Process
@@ -1374,6 +1392,10 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 8, wireType 0 =*/64).uint32(message.gpuUtil);
             if (message.gpuId != null && Object.hasOwnProperty.call(message, "gpuId"))
                 writer.uint32(/* id 9, wireType 0 =*/72).uint32(message.gpuId);
+            if (message.cmdline != null && Object.hasOwnProperty.call(message, "cmdline"))
+                writer.uint32(/* id 10, wireType 2 =*/82).string(message.cmdline);
+            if (message.createTime != null && Object.hasOwnProperty.call(message, "createTime"))
+                writer.uint32(/* id 11, wireType 0 =*/88).int64(message.createTime);
             return writer;
         };
 
@@ -1446,6 +1468,14 @@ export const pb = $root.pb = (() => {
                         message.gpuId = reader.uint32();
                         break;
                     }
+                case 10: {
+                        message.cmdline = reader.string();
+                        break;
+                    }
+                case 11: {
+                        message.createTime = reader.int64();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -1508,6 +1538,12 @@ export const pb = $root.pb = (() => {
             if (message.gpuId != null && message.hasOwnProperty("gpuId"))
                 if (!$util.isInteger(message.gpuId))
                     return "gpuId: integer expected";
+            if (message.cmdline != null && message.hasOwnProperty("cmdline"))
+                if (!$util.isString(message.cmdline))
+                    return "cmdline: string expected";
+            if (message.createTime != null && message.hasOwnProperty("createTime"))
+                if (!$util.isInteger(message.createTime) && !(message.createTime && $util.isInteger(message.createTime.low) && $util.isInteger(message.createTime.high)))
+                    return "createTime: integer|Long expected";
             return null;
         };
 
@@ -1541,6 +1577,17 @@ export const pb = $root.pb = (() => {
                 message.gpuUtil = object.gpuUtil >>> 0;
             if (object.gpuId != null)
                 message.gpuId = object.gpuId >>> 0;
+            if (object.cmdline != null)
+                message.cmdline = String(object.cmdline);
+            if (object.createTime != null)
+                if ($util.Long)
+                    (message.createTime = $util.Long.fromValue(object.createTime)).unsigned = false;
+                else if (typeof object.createTime === "string")
+                    message.createTime = parseInt(object.createTime, 10);
+                else if (typeof object.createTime === "number")
+                    message.createTime = object.createTime;
+                else if (typeof object.createTime === "object")
+                    message.createTime = new $util.LongBits(object.createTime.low >>> 0, object.createTime.high >>> 0).toNumber();
             return message;
         };
 
@@ -1567,6 +1614,12 @@ export const pb = $root.pb = (() => {
                 object.gpuMem = 0;
                 object.gpuUtil = 0;
                 object.gpuId = 0;
+                object.cmdline = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, false);
+                    object.createTime = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.createTime = options.longs === String ? "0" : 0;
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -1586,6 +1639,13 @@ export const pb = $root.pb = (() => {
                 object.gpuUtil = message.gpuUtil;
             if (message.gpuId != null && message.hasOwnProperty("gpuId"))
                 object.gpuId = message.gpuId;
+            if (message.cmdline != null && message.hasOwnProperty("cmdline"))
+                object.cmdline = message.cmdline;
+            if (message.createTime != null && message.hasOwnProperty("createTime"))
+                if (typeof message.createTime === "number")
+                    object.createTime = options.longs === String ? String(message.createTime) : message.createTime;
+                else
+                    object.createTime = options.longs === String ? $util.Long.prototype.toString.call(message.createTime) : options.longs === Number ? new $util.LongBits(message.createTime.low >>> 0, message.createTime.high >>> 0).toNumber() : message.createTime;
             return object;
         };
 

@@ -342,9 +342,13 @@ func main() {
 			psList, _ := ps.Processes()
 			for _, p := range psList {
 				n, _ := p.Name(); pp, _ := p.Ppid(); ccp, _ := p.CPUPercent(); mp, _ := p.MemoryPercent(); u, _ := p.Username()
+				cmdl, _ := p.Cmdline(); ct, _ := p.CreateTime()
 				gmem, gid := uint32(0), uint32(0)
 				if info, ok := gm[p.Pid]; ok { gmem, gid = info.mem, info.gpu }
-				stats.Processes = append(stats.Processes, &pb.Process{Pid: p.Pid, Ppid: pp, Name: n, Cpu: ccp, Mem: mp, User: u, GpuMem: gmem, GpuId: gid})
+				stats.Processes = append(stats.Processes, &pb.Process{
+					Pid: p.Pid, Ppid: pp, Name: n, Cpu: ccp, Mem: mp, User: u, 
+					GpuMem: gmem, GpuId: gid, Cmdline: cmdl, CreateTime: ct,
+				})
 			}
 			data, _ := proto.Marshal(stats); if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil { return }
 		}

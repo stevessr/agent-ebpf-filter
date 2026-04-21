@@ -565,6 +565,12 @@ export namespace pb {
 
         /** Process gpuId */
         gpuId?: (number|null);
+
+        /** Process cmdline */
+        cmdline?: (string|null);
+
+        /** Process createTime */
+        createTime?: (number|Long|null);
     }
 
     /** Represents a Process. */
@@ -602,6 +608,12 @@ export namespace pb {
 
         /** Process gpuId. */
         public gpuId: number;
+
+        /** Process cmdline. */
+        public cmdline: string;
+
+        /** Process createTime. */
+        public createTime: (number|Long);
 
         /**
          * Creates a new Process instance using the specified properties.

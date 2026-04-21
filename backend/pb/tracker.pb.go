@@ -423,6 +423,8 @@ type Process struct {
 	GpuMem        uint32                 `protobuf:"varint,7,opt,name=gpu_mem,json=gpuMem,proto3" json:"gpu_mem,omitempty"`    // GPU VRAM usage in MiB
 	GpuUtil       uint32                 `protobuf:"varint,8,opt,name=gpu_util,json=gpuUtil,proto3" json:"gpu_util,omitempty"` // GPU utilization percentage
 	GpuId         uint32                 `protobuf:"varint,9,opt,name=gpu_id,json=gpuId,proto3" json:"gpu_id,omitempty"`       // GPU index
+	Cmdline       string                 `protobuf:"bytes,10,opt,name=cmdline,proto3" json:"cmdline,omitempty"`
+	CreateTime    int64                  `protobuf:"varint,11,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -516,6 +518,20 @@ func (x *Process) GetGpuUtil() uint32 {
 func (x *Process) GetGpuId() uint32 {
 	if x != nil {
 		return x.GpuId
+	}
+	return 0
+}
+
+func (x *Process) GetCmdline() string {
+	if x != nil {
+		return x.Cmdline
+	}
+	return ""
+}
+
+func (x *Process) GetCreateTime() int64 {
+	if x != nil {
+		return x.CreateTime
 	}
 	return 0
 }
@@ -1266,7 +1282,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\x04type\x18\x04 \x01(\tR\x04type\x12\x10\n" +
 	"\x03tag\x18\x05 \x01(\tR\x03tag\x12\x12\n" +
 	"\x04comm\x18\x06 \x01(\tR\x04comm\x12\x12\n" +
-	"\x04path\x18\a \x01(\tR\x04path\"\xc6\x01\n" +
+	"\x04path\x18\a \x01(\tR\x04path\"\x81\x02\n" +
 	"\aProcess\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\x05R\x04ppid\x12\x12\n" +
@@ -1276,7 +1292,11 @@ const file_tracker_proto_rawDesc = "" +
 	"\x04user\x18\x06 \x01(\tR\x04user\x12\x17\n" +
 	"\agpu_mem\x18\a \x01(\rR\x06gpuMem\x12\x19\n" +
 	"\bgpu_util\x18\b \x01(\rR\agpuUtil\x12\x15\n" +
-	"\x06gpu_id\x18\t \x01(\rR\x05gpuId\"\xb7\x01\n" +
+	"\x06gpu_id\x18\t \x01(\rR\x05gpuId\x12\x18\n" +
+	"\acmdline\x18\n" +
+	" \x01(\tR\acmdline\x12\x1f\n" +
+	"\vcreate_time\x18\v \x01(\x03R\n" +
+	"createTime\"\xb7\x01\n" +
 	"\tGPUStatus\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\rR\x05index\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
