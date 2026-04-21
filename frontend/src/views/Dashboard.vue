@@ -23,9 +23,13 @@ const isPaused = ref(false);
 const showDetails = ref(false);
 const selectedEvent = ref<AgentEvent | null>(null);
 const selectedTag = ref<string | null>(null);
+const selectedType = ref<string | null>(null);
+const searchQuery = ref('');
 const isDeduplicated = ref(false);
 const tags = ref<string[]>([]);
 let ws: WebSocket | null = null;
+
+const eventTypes = ['execve', 'openat', 'network_connect', 'network_bind', 'mkdir', 'unlink', 'ioctl', 'wrapper_intercept', 'native_hook'];
 
 const fetchTags = async () => {
   try {
@@ -40,6 +44,17 @@ const filteredEvents = computed(() => {
   let result = events.value;
   if (selectedTag.value) {
     result = result.filter(e => e.tag === selectedTag.value);
+  }
+  if (selectedType.value) {
+    result = result.filter(e => e.type === selectedType.value);
+  }
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase();
+    result = result.filter(e => 
+      e.comm.toLowerCase().includes(q) || 
+      e.path.toLowerCase().includes(q) ||
+      String(e.pid).includes(q)
+    );
   }
   if (isDeduplicated.value) {
     const seen = new Set();
@@ -176,34 +191,58 @@ onUnmounted(() => {
 
 <template>
   <div style="background: #fff; padding: 24px; min-height: 280px">
-    <div style="display: flex; justify-content: space-between; margin-bottom: 16px; align-items: center;">
-      <div style="display: flex; align-items: center; gap: 16px;">
-        <a-badge :status="isConnected ? 'success' : 'error'" :text="isConnected ? 'Connected' : 'Disconnected'" />
-        <span>Total Events: {{ events.length }}</span>
-        <a-divider type="vertical" />
-        <a-select v-model:value="selectedTag" placeholder="Filter by Tag" style="width: 160px" allowClear>
-          <template #suffixIcon><FilterOutlined /></template>
-          <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option>
-        </a-select>
-        
-        <a-divider type="vertical" />
-        <a-button @click="isPaused = !isPaused" :type="isPaused ? 'primary' : 'default'" danger>
-          {{ isPaused ? 'Resume Stream' : 'Pause Stream' }}
-        </a-button>
-        <a-checkbox v-model:checked="isDeduplicated" style="margin-left: 16px;">Clean Duplicates</a-checkbox>
-        <a-divider type="vertical" />
-        <a-dropdown>
-          <template #overlay>
-            <a-menu>
-              <a-menu-item key="json" @click="exportEvents">JSON Format</a-menu-item>
-              <a-menu-item key="csv" @click="exportEventsCSV">CSV Format</a-menu-item>
-            </a-menu>
-          </template>
-          <a-button>Export Data</a-button>
-        </a-dropdown>
+    <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <a-badge :status="isConnected ? 'success' : 'error'" :text="isConnected ? 'Connected' : 'Disconnected'" />
+          <span style="font-weight: 500;">Total Events: {{ events.length }}</span>
+          <a-divider type="vertical" />
+          <a-button @click="isPaused = !isPaused" :type="isPaused ? 'primary' : 'default'" size="small" danger>
+            {{ isPaused ? 'Resume Stream' : 'Pause Stream' }}
+          </a-button>
+          <a-button type="primary" danger size="small" @click="clearEvents">Clear Events</a-button>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <a-dropdown>
+            <template #overlay>
+              <a-menu>
+                <a-menu-item key="json" @click="exportEvents">JSON Format</a-menu-item>
+                <a-menu-item key="csv" @click="exportEventsCSV">CSV Format</a-menu-item>
+              </a-menu>
+            </template>
+            <a-button size="small">Export Data</a-button>
+          </a-dropdown>
+        </div>
       </div>
-      <a-button type="primary" danger @click="clearEvents">Clear Events</a-button>
+
+      <div style="background: #fafafa; padding: 12px; border-radius: 8px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid #f0f0f0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 12px; color: #888;">Filter:</span>
+          <a-select v-model:value="selectedTag" placeholder="All Tags" style="width: 140px" size="small" allowClear>
+            <template #suffixIcon><FilterOutlined /></template>
+            <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option>
+          </a-select>
+          <a-select v-model:value="selectedType" placeholder="All Types" style="width: 140px" size="small" allowClear>
+            <a-select-option v-for="t in eventTypes" :key="t" :value="t">{{ t.toUpperCase() }}</a-select-option>
+          </a-select>
+        </div>
+
+        <a-input-search
+          v-model:value="searchQuery"
+          placeholder="Search comm, path or pid..."
+          size="small"
+          style="width: 240px"
+          allow-clear
+        />
+
+        <a-divider type="vertical" />
+
+        <a-checkbox v-model:checked="isDeduplicated" size="small">
+          <span style="font-size: 12px;">Clean Duplicates</span>
+        </a-checkbox>
+      </div>
     </div>
+
     <a-table 
       :dataSource="filteredEvents" 
       :columns="columns" 

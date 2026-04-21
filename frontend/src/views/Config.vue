@@ -241,13 +241,19 @@ onMounted(() => {
               <TagOutlined />
             </div>
           </template>
-          <div style="display: flex; gap: 16px; align-items: center;">
-            <a-input-group compact style="width: 300px;">
-              <a-input v-model:value="newTagName" style="width: calc(100% - 40px)" placeholder="New tag" @pressEnter="addTag" />
-              <a-button type="primary" @click="addTag"><PlusOutlined /></a-button>
-            </a-input-group>
-            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-              <a-tag v-for="tag in tags" :key="tag" :color="getCategoryColor(tag)">{{ tag }}</a-tag>
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span style="color: #888; font-size: 13px; width: 80px;">Add Tag:</span>
+              <a-input-group compact style="width: 300px;">
+                <a-input v-model:value="newTagName" style="width: calc(100% - 40px)" placeholder="New tag name..." @pressEnter="addTag" />
+                <a-button type="primary" @click="addTag"><PlusOutlined /></a-button>
+              </a-input-group>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: flex-start;">
+              <span style="color: #888; font-size: 13px; width: 80px; margin-top: 4px;">Registered:</span>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px; flex: 1;">
+                <a-tag v-for="tag in tags" :key="tag" :color="getCategoryColor(tag)">{{ tag }}</a-tag>
+              </div>
             </div>
           </div>
         </a-card>
