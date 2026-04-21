@@ -261,15 +261,55 @@ const openChart = (key: string, title: string, type: 'single' | 'double', series
   showChartModal.value = true;
 };
 
-const chartOptions = computed(() => ({
-  chart: { animations: { enabled: false }, toolbar: { show: false }, zoom: { enabled: false }, background: 'transparent' },
-  xaxis: { type: 'datetime', labels: { datetimeUTC: false, style: { fontSize: '10px' } } },
-  yaxis: { labels: { style: { fontSize: '10px' }, formatter: (v: number) => activeChartKey.value.includes('usage') || activeChartKey.value.includes('cpu') || activeChartKey.value.includes('util') || activeChartKey.value.includes('percent') ? v.toFixed(1) + '%' : formatBytes(v) + '/s' } },
-  stroke: { curve: 'smooth', width: 2 },
-  grid: { borderColor: '#f1f1f1' },
-  legend: { position: 'top', horizontalAlign: 'right' },
-  theme: { mode: 'light' }
-}));
+const chartOptions = computed(() => {
+  const now = Date.now();
+  const min = now - (chartTimeRange.value * 1000);
+  
+  return {
+    chart: { 
+      animations: { enabled: false }, 
+      toolbar: { show: false }, 
+      zoom: { enabled: false }, 
+      background: 'transparent' 
+    },
+    xaxis: { 
+      type: 'datetime', 
+      min: min,
+      max: now,
+      labels: { 
+        datetimeUTC: false, 
+        style: { fontSize: '10px' },
+        datetimeFormatter: {
+          year: 'yyyy',
+          month: "MMM 'yy",
+          day: 'dd MMM',
+          hour: 'HH:mm',
+          minute: 'HH:mm',
+          second: 'HH:mm:ss',
+        }
+      },
+      range: chartTimeRange.value * 1000,
+      tickAmount: 6,
+    },
+    yaxis: { 
+      labels: { 
+        style: { fontSize: '10px' }, 
+        formatter: (v: number) => {
+          if (!activeChartKey.value) return v.toString();
+          return activeChartKey.value.includes('usage') || 
+                 activeChartKey.value.includes('cpu') || 
+                 activeChartKey.value.includes('util') || 
+                 activeChartKey.value.includes('percent') ? 
+                 v.toFixed(1) + '%' : formatBytes(v) + '/s';
+        }
+      } 
+    },
+    stroke: { curve: 'smooth', width: 2 },
+    grid: { borderColor: '#f1f1f1' },
+    legend: { position: 'top', horizontalAlign: 'right' },
+    theme: { mode: 'light' }
+  };
+});
 
 const chartSeries = computed(() => {
   const data = historyMap.value[activeChartKey.value] || [];
