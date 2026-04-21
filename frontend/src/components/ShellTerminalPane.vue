@@ -259,8 +259,14 @@ const connect = async () => {
       return el.scrollHeight - el.scrollTop - el.clientHeight < 40;
     };
 
+    await term.init();
+    if (currentGeneration !== generation) {
+      return;
+    }
+
     // Monkey-patch keyToSequence to fix macOS alt+ key combinations (e.g., alt+f, alt+b)
     // macOS translates alt+letter into special characters (like ƒ, ∫). Terminal expects \x1b + letter.
+    // This must be done AFTER term.init() because term.input is created during init.
     const inputHandler = (term as any).input;
     if (inputHandler && inputHandler.keyToSequence) {
       const originalKeyToSequence = inputHandler.keyToSequence.bind(inputHandler);
@@ -293,11 +299,6 @@ const connect = async () => {
         }
         return originalKeyToSequence(e);
       };
-    }
-
-    await term.init();
-    if (currentGeneration !== generation) {
-      return;
     }
 
     sendResize(term.cols, term.rows);
