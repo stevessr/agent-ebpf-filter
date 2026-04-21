@@ -20,11 +20,19 @@ interface ProcessInfo {
   user: string; gpuMem: number; gpuId: number; children?: ProcessInfo[];
 }
 
+interface IOSpeed {
+  name: string;
+  readSpeed: number;
+  writeSpeed: number;
+}
+
 interface GlobalStats {
   cpuTotal: number; cpuCores: number[];
   memTotal: number; memUsed: number; memPercent: number;
-  readSpeed: number; writeSpeed: number;
-  netRecvSpeed: number; netSentSpeed: number;
+  netInterfaces: IOSpeed[];
+  diskDevices: IOSpeed[];
+  totalNetRecv: number; totalNetSent: number;
+  totalDiskRead: number; totalDiskWrite: number;
 }
 
 const activeTab = ref('dashboard');
@@ -32,7 +40,8 @@ const processes = ref<ProcessInfo[]>([]);
 const gpus = ref<GPUStatus[]>([]);
 const systemStats = ref<GlobalStats>({
   cpuTotal: 0, cpuCores: [], memTotal: 0, memUsed: 0, memPercent: 0,
-  readSpeed: 0, writeSpeed: 0, netRecvSpeed: 0, netSentSpeed: 0
+  netInterfaces: [], diskDevices: [],
+  totalNetRecv: 0, totalNetSent: 0, totalDiskRead: 0, totalDiskWrite: 0
 });
 
 const isConnected = ref(false);
@@ -52,15 +61,18 @@ const filterUser = ref<string | null>(null);
 const showAdvancedFilters = ref(false);
 
 let ws: WebSocket | null = null;
-let lastIO: { diskR: number; diskW: number; netR: number; netS: number; time: number } | null = null;
+let lastIO: { 
+  networks: Record<string, {r: number, s: number}>;
+  disks: Record<string, {r: number, w: number}>;
+  time: number 
+} | null = null;
 
 const formatBytes = (bytes: number, decimals = 2) => {
   if (bytes === 0) return '0 B';
   const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
 };
 
 const connectWebSocket = () => {
@@ -75,19 +87,55 @@ const connectWebSocket = () => {
       const decoded = pb.SystemStats.decode(new Uint8Array(msg.data));
       const now = Date.now();
       
+      const newNetSpeeds: IOSpeed[] = [];
+      const newDiskSpeeds: IOSpeed[] = [];
+      
       if (lastIO && decoded.io) {
         const dt = (now - lastIO.time) / 1000;
-        systemStats.value.readSpeed = (Number(decoded.io.readBytes) - lastIO.diskR) / dt;
-        systemStats.value.writeSpeed = (Number(decoded.io.writeBytes) - lastIO.diskW) / dt;
-        systemStats.value.netRecvSpeed = (Number(decoded.io.netRecvBytes) - lastIO.netR) / dt;
-        systemStats.value.netSentSpeed = (Number(decoded.io.netSentBytes) - lastIO.netS) / dt;
+        
+        (decoded.io.networks || []).forEach((n: any) => {
+          const prev = lastIO?.networks[n.name];
+          if (prev) {
+            newNetSpeeds.push({
+              name: n.name,
+              readSpeed: (Number(n.recvBytes) - prev.r) / dt,
+              writeSpeed: (Number(n.sentBytes) - prev.s) / dt
+            });
+          }
+        });
+
+        (decoded.io.disks || []).forEach((d: any) => {
+          const prev = lastIO?.disks[d.name];
+          if (prev) {
+            newDiskSpeeds.push({
+              name: d.name,
+              readSpeed: (Number(d.readBytes) - prev.r) / dt,
+              writeSpeed: (Number(d.writeBytes) - prev.w) / dt
+            });
+          }
+        });
       }
+
       if (decoded.io) {
-        lastIO = { 
-          diskR: Number(decoded.io.readBytes), diskW: Number(decoded.io.writeBytes),
-          netR: Number(decoded.io.netRecvBytes), netS: Number(decoded.io.netSentBytes),
-          time: now 
-        };
+        const nets: Record<string, {r: number, s: number}> = {};
+        (decoded.io.networks || []).forEach((n: any) => nets[n.name] = {r: Number(n.recvBytes), s: Number(n.sentBytes)});
+        const dsks: Record<string, {r: number, w: number}> = {};
+        (decoded.io.disks || []).forEach((d: any) => dsks[d.name] = {r: Number(d.readBytes), w: Number(d.writeBytes)});
+        
+        lastIO = { networks: nets, disks: dsks, time: now };
+        
+        systemStats.value.netInterfaces = newNetSpeeds.filter(s => s.readSpeed > 0 || s.writeSpeed > 0);
+        systemStats.value.diskDevices = newDiskSpeeds.filter(s => s.readSpeed > 0 || s.writeSpeed > 0);
+        
+        // Use totals from proto if available, or sum up
+        let totalNetR = 0, totalNetS = 0, totalDiskR = 0, totalDiskW = 0;
+        newNetSpeeds.forEach(s => { totalNetR += s.readSpeed; totalNetS += s.writeSpeed; });
+        newDiskSpeeds.forEach(s => { totalDiskR += s.readSpeed; totalDiskW += s.writeSpeed; });
+        
+        systemStats.value.totalNetRecv = totalNetR;
+        systemStats.value.totalNetSent = totalNetS;
+        systemStats.value.totalDiskRead = totalDiskR;
+        systemStats.value.totalDiskWrite = totalDiskW;
       }
 
       if (decoded.cpu) {
@@ -150,29 +198,22 @@ const displayData = computed(() => {
 
 const memoryVisualizationData = computed(() => {
   const groups: Record<string, { name: string; mem: number; count: number; pids: number[] }> = {};
-  
   processes.value.forEach(p => {
-    if (p.mem <= 0.05) return; // Ignore tiny fragments
-    
-    if (!groups[p.name]) {
-      groups[p.name] = { name: p.name, mem: 0, count: 0, pids: [] };
-    }
+    if (p.mem <= 0.05) return;
+    if (!groups[p.name]) groups[p.name] = { name: p.name, mem: 0, count: 0, pids: [] };
     groups[p.name].mem += p.mem;
     groups[p.name].count += 1;
     groups[p.name].pids.push(p.pid);
   });
-
-  return Object.values(groups)
-    .sort((a, b) => b.mem - a.mem)
-    .slice(0, 50); // Top 50 grouped apps
+  return Object.values(groups).sort((a, b) => b.mem - a.mem).slice(0, 50);
 });
 
 const getMemColor = (percent: number) => {
-  if (percent > 20) return '#cf1322'; // Critical
-  if (percent > 10) return '#d4380d'; // High
-  if (percent > 5) return '#d46b08';  // Medium-High
-  if (percent > 2) return '#1d39c4';  // Medium
-  return '#389e0d'; // Low
+  if (percent > 20) return '#cf1322';
+  if (percent > 10) return '#d4380d';
+  if (percent > 5) return '#d46b08';
+  if (percent > 2) return '#1d39c4';
+  return '#389e0d';
 };
 
 const showGroupDetails = ref(false);
@@ -208,7 +249,7 @@ watch(refreshInterval, connectWebSocket);
   <div style="background: #f0f2f5; padding: 20px; min-height: 100%;">
     <a-tabs v-model:activeKey="activeTab" type="card" class="monitor-tabs">
       
-      <!-- DASHBOARD TAB -->
+      <!-- HEALTH TAB -->
       <a-tab-pane key="dashboard" tab="Health">
         <template #tab><span><DashboardOutlined /> Health</span></template>
         
@@ -245,63 +286,99 @@ watch(refreshInterval, connectWebSocket);
           </a-col>
         </a-row>
 
-        <a-row :gutter="16" style="margin-bottom: 16px;">
-          <!-- Memory & I/O Section -->
-          <a-col :span="12">
-            <a-card size="small" class="stat-card-row" title="Memory & System I/O">
+        <!-- Memory & I/O Row -->
+        <a-row style="margin-bottom: 16px;">
+          <a-col :span="24">
+            <a-card size="small" class="stat-card-row" title="Memory & Interface I/O">
               <template #extra><PieChartOutlined /></template>
               <div style="display: flex; gap: 24px; padding: 10px;">
-                <div style="flex: 1;">
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px;">
-                    <span>RAM: {{ formatBytes(systemStats.memUsed) }} / {{ formatBytes(systemStats.memTotal) }}</span>
-                    <span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span>
-                  </div>
-                  <a-progress :percent="Math.round(systemStats.memPercent)" stroke-color="#1890ff" status="active" />
-                </div>
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; border-left: 1px solid #f0f0f0; padding-left: 20px;">
-                  <div class="io-stat">
-                    <span class="io-label"><SwapOutlined /> Network</span>
-                    <div class="io-values">
-                      <span style="color: #52c41a">↓ {{ formatBytes(systemStats.netRecvSpeed) }}/s</span>
-                      <span style="color: #1890ff">↑ {{ formatBytes(systemStats.netSentSpeed) }}/s</span>
+                <div style="flex: 0 0 300px;">
+                  <div style="margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px;">
+                      <span>RAM Usage</span>
+                      <span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span>
+                    </div>
+                    <a-progress :percent="Math.round(systemStats.memPercent)" stroke-color="#1890ff" status="active" />
+                    <div style="font-size: 12px; color: #999; margin-top: 4px;">
+                      {{ formatBytes(systemStats.memUsed) }} / {{ formatBytes(systemStats.memTotal) }}
                     </div>
                   </div>
-                  <div class="io-stat">
-                    <span class="io-label"><DatabaseOutlined /> Disk I/O</span>
-                    <div class="io-values">
-                      <span style="color: #faad14">R: {{ formatBytes(systemStats.readSpeed) }}/s</span>
-                      <span style="color: #ff4d4f">W: {{ formatBytes(systemStats.writeSpeed) }}/s</span>
+                  <div style="border-top: 1px solid #f0f0f0; padding-top: 15px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px;">
+                      <span>Total Network:</span>
+                      <span style="color: #52c41a">↓ {{ formatBytes(systemStats.totalNetRecv) }}/s</span>
+                      <span style="color: #1890ff">↑ {{ formatBytes(systemStats.totalNetSent) }}/s</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                      <span>Total Disk:</span>
+                      <span style="color: #faad14">R: {{ formatBytes(systemStats.totalDiskRead) }}/s</span>
+                      <span style="color: #ff4d4f">W: {{ formatBytes(systemStats.totalDiskWrite) }}/s</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-left: 1px solid #f0f0f0; padding-left: 24px;">
+                  <!-- Net Detail -->
+                  <div>
+                    <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">NETWORK INTERFACES</div>
+                    <div style="max-height: 120px; overflow-y: auto;">
+                      <div v-for="s in systemStats.netInterfaces" :key="s.name" class="io-row">
+                        <span class="io-name">{{ s.name }}</span>
+                        <span class="io-val-in">↓{{ formatBytes(s.readSpeed, 0) }}</span>
+                        <span class="io-val-out">↑{{ formatBytes(s.writeSpeed, 0) }}</span>
+                      </div>
+                      <div v-if="!systemStats.netInterfaces.length" style="font-size: 11px; color: #ccc;">No active traffic</div>
+                    </div>
+                  </div>
+                  <!-- Disk Detail -->
+                  <div>
+                    <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">DISK DEVICES</div>
+                    <div style="max-height: 120px; overflow-y: auto;">
+                      <div v-for="s in systemStats.diskDevices" :key="s.name" class="io-row">
+                        <span class="io-name">{{ s.name }}</span>
+                        <span class="io-val-read">R:{{ formatBytes(s.readSpeed, 0) }}</span>
+                        <span class="io-val-write">W:{{ formatBytes(s.writeSpeed, 0) }}</span>
+                      </div>
+                      <div v-if="!systemStats.diskDevices.length" style="font-size: 11px; color: #ccc;">No active I/O</div>
                     </div>
                   </div>
                 </div>
               </div>
             </a-card>
           </a-col>
+        </a-row>
 
-          <!-- GPU Section -->
-          <a-col :span="12">
-            <a-card size="small" class="stat-card-row" :title="gpus.length ? 'GPU Acceleration' : 'No GPU'">
+        <!-- GPU Row -->
+        <a-row>
+          <a-col :span="24">
+            <a-card size="small" class="stat-card-row" :title="gpus.length ? 'GPU Acceleration Status' : 'No GPU'">
               <template #extra><DeploymentUnitOutlined /></template>
-              <div v-for="gpu in gpus" :key="gpu.index" style="display: flex; align-items: center; gap: 20px; padding: 5px 10px;">
-                <div style="flex-shrink: 0; text-align: center;">
-                  <a-tag color="volcano" style="margin-bottom: 4px;">{{ gpu.temp }}°C</a-tag>
-                  <div style="font-size: 10px; color: #999;">GPU {{ gpu.index }}</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 10px;">
+                <div v-for="gpu in gpus" :key="gpu.index" class="gpu-row-item">
+                  <div style="flex-shrink: 0; min-width: 80px;">
+                    <a-tag color="volcano" style="display: block; text-align: center;">{{ gpu.temp }}°C</a-tag>
+                    <div style="font-size: 10px; color: #999; text-align: center; margin-top: 4px;">GPU {{ gpu.index }}</div>
+                  </div>
+                  <div style="flex: 1;">
+                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px;">{{ gpu.name }}</div>
+                    <div style="display: flex; gap: 20px;">
+                      <div style="flex: 1;">
+                        <div style="font-size: 10px; color: #666; display: flex; justify-content: space-between;">
+                          <span>Utilization</span><span>{{ gpu.utilGpu }}%</span>
+                        </div>
+                        <a-progress :percent="gpu.utilGpu" size="small" stroke-color="#13c2c2" :showInfo="false" />
+                      </div>
+                      <div style="flex: 1;">
+                        <div style="font-size: 10px; color: #666; display: flex; justify-content: space-between;">
+                          <span>VRAM</span><span>{{ gpu.memUsed }} / {{ gpu.memTotal }} MB</span>
+                        </div>
+                        <a-progress :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" size="small" stroke-color="#722ed1" :showInfo="false" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div style="flex: 1;">
-                  <div style="font-size: 11px; margin-bottom: 2px;">{{ gpu.name }}</div>
-                  <a-row :gutter="12">
-                    <a-col :span="12">
-                      <div style="font-size: 10px; color: #666;">Utilization: {{ gpu.utilGpu }}%</div>
-                      <a-progress :percent="gpu.utilGpu" size="small" stroke-color="#13c2c2" />
-                    </a-col>
-                    <a-col :span="12">
-                      <div style="font-size: 10px; color: #666;">VRAM: {{ gpu.memUsed }}MB</div>
-                      <a-progress :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" size="small" stroke-color="#722ed1" />
-                    </a-col>
-                  </a-row>
-                </div>
+                <a-empty v-if="!gpus.length" :image="false" description="No NVIDIA hardware detected via nvidia-smi" style="width: 100%" />
               </div>
-              <a-empty v-if="!gpus.length" :image="false" description="NVIDIA SMI not available" />
             </a-card>
           </a-col>
         </a-row>
@@ -310,7 +387,6 @@ watch(refreshInterval, connectWebSocket);
       <!-- PROCESSES TAB -->
       <a-tab-pane key="processes" tab="Processes">
         <template #tab><span><BarChartOutlined /> Processes</span></template>
-        
         <div style="background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
           <div style="display: flex; justify-content: space-between; margin-bottom: 12px; align-items: center;">
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -408,33 +484,13 @@ watch(refreshInterval, connectWebSocket);
           </div>
         </div>
 
-        <!-- Group Details Modal -->
-        <a-modal
-          v-model:open="showGroupDetails"
-          :title="'Instances: ' + selectedGroup?.name"
-          :footer="null"
-          width="800px"
-        >
-          <a-table 
-            :dataSource="selectedGroupProcesses" 
-            :columns="[
-              { title: 'PID', dataIndex: 'pid', key: 'pid', width: 100 },
-              { title: 'CPU %', dataIndex: 'cpu', key: 'cpu', width: 100 },
-              { title: 'MEM %', dataIndex: 'mem', key: 'mem', width: 100 },
-              { title: 'VRAM', dataIndex: 'gpuMem', key: 'gpuMem', width: 100 },
-              { title: 'User', dataIndex: 'user', key: 'user' },
-              { title: 'Action', key: 'action', width: 100 }
-            ]" 
-            size="small"
-            :pagination="{ pageSize: 10 }"
-          >
+        <a-modal v-model:open="showGroupDetails" :title="'Instances: ' + selectedGroup?.name" :footer="null" width="800px">
+          <a-table :dataSource="selectedGroupProcesses" :columns="[{ title: 'PID', dataIndex: 'pid', width: 100 }, { title: 'CPU %', dataIndex: 'cpu', width: 100 }, { title: 'MEM %', dataIndex: 'mem', width: 100 }, { title: 'VRAM', dataIndex: 'gpuMem', width: 100 }, { title: 'User', dataIndex: 'user' }, { title: '', key: 'action', width: 80 }]" size="small" :pagination="{ pageSize: 10 }">
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'cpu'">{{ record.cpu.toFixed(1) }}%</template>
               <template v-if="column.key === 'mem'">{{ record.mem.toFixed(1) }}%</template>
               <template v-if="column.key === 'gpuMem'">{{ record.gpuMem > 0 ? record.gpuMem + 'MB' : '-' }}</template>
-              <template v-if="column.key === 'action'">
-                <a-button type="link" size="small" @click="addToRules(record)">Track</a-button>
-              </template>
+              <template v-if="column.key === 'action'"><a-button type="link" size="small" @click="addToRules(record)">Track</a-button></template>
             </template>
           </a-table>
         </a-modal>
@@ -445,72 +501,23 @@ watch(refreshInterval, connectWebSocket);
 </template>
 
 <style scoped>
+.monitor-tabs :deep(.ant-tabs-nav) { margin-bottom: 12px; }
 .stat-card-row { border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
-.core-grid-full { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px; max-height: 250px; overflow-y: auto; }
-.core-item-full { display: flex; align-items: center; background: #fafafa; padding: 4px 12px; border-radius: 4px; }
-.core-label { font-size: 11px; color: #666; min-width: 50px; }
-.core-val { font-size: 11px; font-family: monospace; min-width: 40px; text-align: right; }
-.io-stat { display: flex; flex-direction: column; }
-.io-label { font-size: 11px; color: #999; margin-bottom: 2px; }
-.io-values { display: flex; gap: 12px; font-size: 13px; font-weight: bold; font-family: monospace; }
-.stat-row { display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; }
+.core-grid-full { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px; max-height: 250px; overflow-y: auto; }
+.core-item-full { display: flex; align-items: center; background: #fafafa; padding: 4px 12px; border-radius: 4px; border: 1px solid #f0f0f0; }
+.core-label { font-size: 11px; color: #999; min-width: 45px; }
+.core-val { font-size: 11px; font-family: monospace; min-width: 40px; text-align: right; color: #52c41a; font-weight: bold; }
+.io-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 8px; background: #f9f9f9; margin-bottom: 4px; border-radius: 3px; font-family: monospace; }
+.io-name { font-weight: bold; color: #555; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
+.io-val-in { color: #52c41a; } .io-val-out { color: #1890ff; }
+.io-val-read { color: #faad14; } .io-val-write { color: #ff4d4f; }
+.gpu-row-item { flex: 1; min-width: 400px; display: flex; align-items: center; gap: 16px; background: #fafafa; padding: 12px; border-radius: 6px; border: 1px solid #f0f0f0; }
 .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 
-.mem-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  background: #fff;
-  padding: 16px;
-  border-radius: 8px;
-  min-height: calc(100vh - 200px);
-  align-content: flex-start;
-}
-
-.mem-block {
-  height: 80px;
-  border-radius: 4px;
-  padding: 8px;
-  color: white;
-  transition: all 0.3s;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.mem-block:hover {
-  transform: scale(1.05);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-  z-index: 10;
-}
-
-.mem-block-content {
-  text-align: center;
-  width: 100%;
-}
-
-.mem-name {
-  font-weight: bold;
-  font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.mem-value {
-  font-size: 14px;
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.mem-count {
-  font-size: 11px;
-  opacity: 0.8;
-  margin-top: 2px;
-}
-
-:deep(.ant-progress-circle-path) { stroke-linecap: round; }
+.mem-container { display: flex; flex-wrap: wrap; gap: 8px; background: #fff; padding: 16px; border-radius: 8px; min-height: calc(100vh - 200px); align-content: flex-start; }
+.mem-block { height: 80px; border-radius: 4px; padding: 8px; color: white; transition: all 0.3s; cursor: pointer; display: flex; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.mem-block:hover { transform: scale(1.02); box-shadow: 0 4px 8px rgba(0,0,0,0.2); z-index: 10; }
+.mem-name { font-weight: bold; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
+.mem-value { font-size: 14px; font-family: 'JetBrains Mono', monospace; }
+.mem-count { font-size: 11px; opacity: 0.8; }
 </style>

@@ -1026,20 +1026,244 @@ export namespace pb {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of a NetworkInterface. */
+    interface INetworkInterface {
+
+        /** NetworkInterface name */
+        name?: (string|null);
+
+        /** NetworkInterface recvBytes */
+        recvBytes?: (number|Long|null);
+
+        /** NetworkInterface sentBytes */
+        sentBytes?: (number|Long|null);
+    }
+
+    /** Represents a NetworkInterface. */
+    class NetworkInterface implements INetworkInterface {
+
+        /**
+         * Constructs a new NetworkInterface.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.INetworkInterface);
+
+        /** NetworkInterface name. */
+        public name: string;
+
+        /** NetworkInterface recvBytes. */
+        public recvBytes: (number|Long);
+
+        /** NetworkInterface sentBytes. */
+        public sentBytes: (number|Long);
+
+        /**
+         * Creates a new NetworkInterface instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns NetworkInterface instance
+         */
+        public static create(properties?: pb.INetworkInterface): pb.NetworkInterface;
+
+        /**
+         * Encodes the specified NetworkInterface message. Does not implicitly {@link pb.NetworkInterface.verify|verify} messages.
+         * @param message NetworkInterface message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.INetworkInterface, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified NetworkInterface message, length delimited. Does not implicitly {@link pb.NetworkInterface.verify|verify} messages.
+         * @param message NetworkInterface message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.INetworkInterface, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a NetworkInterface message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns NetworkInterface
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.NetworkInterface;
+
+        /**
+         * Decodes a NetworkInterface message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns NetworkInterface
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.NetworkInterface;
+
+        /**
+         * Verifies a NetworkInterface message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a NetworkInterface message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns NetworkInterface
+         */
+        public static fromObject(object: { [k: string]: any }): pb.NetworkInterface;
+
+        /**
+         * Creates a plain object from a NetworkInterface message. Also converts values to other types if specified.
+         * @param message NetworkInterface
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.NetworkInterface, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this NetworkInterface to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for NetworkInterface
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a DiskDevice. */
+    interface IDiskDevice {
+
+        /** DiskDevice name */
+        name?: (string|null);
+
+        /** DiskDevice readBytes */
+        readBytes?: (number|Long|null);
+
+        /** DiskDevice writeBytes */
+        writeBytes?: (number|Long|null);
+    }
+
+    /** Represents a DiskDevice. */
+    class DiskDevice implements IDiskDevice {
+
+        /**
+         * Constructs a new DiskDevice.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IDiskDevice);
+
+        /** DiskDevice name. */
+        public name: string;
+
+        /** DiskDevice readBytes. */
+        public readBytes: (number|Long);
+
+        /** DiskDevice writeBytes. */
+        public writeBytes: (number|Long);
+
+        /**
+         * Creates a new DiskDevice instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns DiskDevice instance
+         */
+        public static create(properties?: pb.IDiskDevice): pb.DiskDevice;
+
+        /**
+         * Encodes the specified DiskDevice message. Does not implicitly {@link pb.DiskDevice.verify|verify} messages.
+         * @param message DiskDevice message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IDiskDevice, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified DiskDevice message, length delimited. Does not implicitly {@link pb.DiskDevice.verify|verify} messages.
+         * @param message DiskDevice message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IDiskDevice, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a DiskDevice message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns DiskDevice
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.DiskDevice;
+
+        /**
+         * Decodes a DiskDevice message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns DiskDevice
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.DiskDevice;
+
+        /**
+         * Verifies a DiskDevice message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a DiskDevice message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns DiskDevice
+         */
+        public static fromObject(object: { [k: string]: any }): pb.DiskDevice;
+
+        /**
+         * Creates a plain object from a DiskDevice message. Also converts values to other types if specified.
+         * @param message DiskDevice
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.DiskDevice, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this DiskDevice to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for DiskDevice
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of a IOInfo. */
     interface IIOInfo {
 
-        /** IOInfo readBytes */
-        readBytes?: (number|Long|null);
+        /** IOInfo totalReadBytes */
+        totalReadBytes?: (number|Long|null);
 
-        /** IOInfo writeBytes */
-        writeBytes?: (number|Long|null);
+        /** IOInfo totalWriteBytes */
+        totalWriteBytes?: (number|Long|null);
 
-        /** IOInfo netRecvBytes */
-        netRecvBytes?: (number|Long|null);
+        /** IOInfo totalNetRecvBytes */
+        totalNetRecvBytes?: (number|Long|null);
 
-        /** IOInfo netSentBytes */
-        netSentBytes?: (number|Long|null);
+        /** IOInfo totalNetSentBytes */
+        totalNetSentBytes?: (number|Long|null);
+
+        /** IOInfo networks */
+        networks?: (pb.INetworkInterface[]|null);
+
+        /** IOInfo disks */
+        disks?: (pb.IDiskDevice[]|null);
     }
 
     /** Represents a IOInfo. */
@@ -1051,17 +1275,23 @@ export namespace pb {
          */
         constructor(properties?: pb.IIOInfo);
 
-        /** IOInfo readBytes. */
-        public readBytes: (number|Long);
+        /** IOInfo totalReadBytes. */
+        public totalReadBytes: (number|Long);
 
-        /** IOInfo writeBytes. */
-        public writeBytes: (number|Long);
+        /** IOInfo totalWriteBytes. */
+        public totalWriteBytes: (number|Long);
 
-        /** IOInfo netRecvBytes. */
-        public netRecvBytes: (number|Long);
+        /** IOInfo totalNetRecvBytes. */
+        public totalNetRecvBytes: (number|Long);
 
-        /** IOInfo netSentBytes. */
-        public netSentBytes: (number|Long);
+        /** IOInfo totalNetSentBytes. */
+        public totalNetSentBytes: (number|Long);
+
+        /** IOInfo networks. */
+        public networks: pb.INetworkInterface[];
+
+        /** IOInfo disks. */
+        public disks: pb.IDiskDevice[];
 
         /**
          * Creates a new IOInfo instance using the specified properties.

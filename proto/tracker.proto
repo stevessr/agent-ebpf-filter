@@ -70,11 +70,25 @@ message MemoryInfo {
   float percent = 3;
 }
 
+message NetworkInterface {
+  string name = 1;
+  uint64 recv_bytes = 2;
+  uint64 sent_bytes = 3;
+}
+
+message DiskDevice {
+  string name = 1;
+  uint64 read_bytes = 2;
+  uint64 write_bytes = 3;
+}
+
 message IOInfo {
-  uint64 read_bytes = 1;
-  uint64 write_bytes = 2;
-  uint64 net_recv_bytes = 3;
-  uint64 net_sent_bytes = 4;
+  uint64 total_read_bytes = 1;
+  uint64 total_write_bytes = 2;
+  uint64 total_net_recv_bytes = 3;
+  uint64 total_net_sent_bytes = 4;
+  repeated NetworkInterface networks = 5;
+  repeated DiskDevice disks = 6;
 }
 
 message SystemStats {

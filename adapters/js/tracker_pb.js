@@ -2497,16 +2497,578 @@ $root.pb = (function() {
         return MemoryInfo;
     })();
 
+    pb.NetworkInterface = (function() {
+
+        /**
+         * Properties of a NetworkInterface.
+         * @memberof pb
+         * @interface INetworkInterface
+         * @property {string|null} [name] NetworkInterface name
+         * @property {number|Long|null} [recvBytes] NetworkInterface recvBytes
+         * @property {number|Long|null} [sentBytes] NetworkInterface sentBytes
+         */
+
+        /**
+         * Constructs a new NetworkInterface.
+         * @memberof pb
+         * @classdesc Represents a NetworkInterface.
+         * @implements INetworkInterface
+         * @constructor
+         * @param {pb.INetworkInterface=} [properties] Properties to set
+         */
+        function NetworkInterface(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * NetworkInterface name.
+         * @member {string} name
+         * @memberof pb.NetworkInterface
+         * @instance
+         */
+        NetworkInterface.prototype.name = "";
+
+        /**
+         * NetworkInterface recvBytes.
+         * @member {number|Long} recvBytes
+         * @memberof pb.NetworkInterface
+         * @instance
+         */
+        NetworkInterface.prototype.recvBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * NetworkInterface sentBytes.
+         * @member {number|Long} sentBytes
+         * @memberof pb.NetworkInterface
+         * @instance
+         */
+        NetworkInterface.prototype.sentBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Creates a new NetworkInterface instance using the specified properties.
+         * @function create
+         * @memberof pb.NetworkInterface
+         * @static
+         * @param {pb.INetworkInterface=} [properties] Properties to set
+         * @returns {pb.NetworkInterface} NetworkInterface instance
+         */
+        NetworkInterface.create = function create(properties) {
+            return new NetworkInterface(properties);
+        };
+
+        /**
+         * Encodes the specified NetworkInterface message. Does not implicitly {@link pb.NetworkInterface.verify|verify} messages.
+         * @function encode
+         * @memberof pb.NetworkInterface
+         * @static
+         * @param {pb.INetworkInterface} message NetworkInterface message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        NetworkInterface.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
+            if (message.recvBytes != null && Object.hasOwnProperty.call(message, "recvBytes"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.recvBytes);
+            if (message.sentBytes != null && Object.hasOwnProperty.call(message, "sentBytes"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.sentBytes);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified NetworkInterface message, length delimited. Does not implicitly {@link pb.NetworkInterface.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.NetworkInterface
+         * @static
+         * @param {pb.INetworkInterface} message NetworkInterface message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        NetworkInterface.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a NetworkInterface message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.NetworkInterface
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.NetworkInterface} NetworkInterface
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        NetworkInterface.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.NetworkInterface();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.name = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.recvBytes = reader.uint64();
+                        break;
+                    }
+                case 3: {
+                        message.sentBytes = reader.uint64();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a NetworkInterface message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.NetworkInterface
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.NetworkInterface} NetworkInterface
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        NetworkInterface.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a NetworkInterface message.
+         * @function verify
+         * @memberof pb.NetworkInterface
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        NetworkInterface.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.name != null && message.hasOwnProperty("name"))
+                if (!$util.isString(message.name))
+                    return "name: string expected";
+            if (message.recvBytes != null && message.hasOwnProperty("recvBytes"))
+                if (!$util.isInteger(message.recvBytes) && !(message.recvBytes && $util.isInteger(message.recvBytes.low) && $util.isInteger(message.recvBytes.high)))
+                    return "recvBytes: integer|Long expected";
+            if (message.sentBytes != null && message.hasOwnProperty("sentBytes"))
+                if (!$util.isInteger(message.sentBytes) && !(message.sentBytes && $util.isInteger(message.sentBytes.low) && $util.isInteger(message.sentBytes.high)))
+                    return "sentBytes: integer|Long expected";
+            return null;
+        };
+
+        /**
+         * Creates a NetworkInterface message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.NetworkInterface
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.NetworkInterface} NetworkInterface
+         */
+        NetworkInterface.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.NetworkInterface)
+                return object;
+            var message = new $root.pb.NetworkInterface();
+            if (object.name != null)
+                message.name = String(object.name);
+            if (object.recvBytes != null)
+                if ($util.Long)
+                    (message.recvBytes = $util.Long.fromValue(object.recvBytes)).unsigned = true;
+                else if (typeof object.recvBytes === "string")
+                    message.recvBytes = parseInt(object.recvBytes, 10);
+                else if (typeof object.recvBytes === "number")
+                    message.recvBytes = object.recvBytes;
+                else if (typeof object.recvBytes === "object")
+                    message.recvBytes = new $util.LongBits(object.recvBytes.low >>> 0, object.recvBytes.high >>> 0).toNumber(true);
+            if (object.sentBytes != null)
+                if ($util.Long)
+                    (message.sentBytes = $util.Long.fromValue(object.sentBytes)).unsigned = true;
+                else if (typeof object.sentBytes === "string")
+                    message.sentBytes = parseInt(object.sentBytes, 10);
+                else if (typeof object.sentBytes === "number")
+                    message.sentBytes = object.sentBytes;
+                else if (typeof object.sentBytes === "object")
+                    message.sentBytes = new $util.LongBits(object.sentBytes.low >>> 0, object.sentBytes.high >>> 0).toNumber(true);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a NetworkInterface message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.NetworkInterface
+         * @static
+         * @param {pb.NetworkInterface} message NetworkInterface
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        NetworkInterface.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.name = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.recvBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.recvBytes = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.sentBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.sentBytes = options.longs === String ? "0" : 0;
+            }
+            if (message.name != null && message.hasOwnProperty("name"))
+                object.name = message.name;
+            if (message.recvBytes != null && message.hasOwnProperty("recvBytes"))
+                if (typeof message.recvBytes === "number")
+                    object.recvBytes = options.longs === String ? String(message.recvBytes) : message.recvBytes;
+                else
+                    object.recvBytes = options.longs === String ? $util.Long.prototype.toString.call(message.recvBytes) : options.longs === Number ? new $util.LongBits(message.recvBytes.low >>> 0, message.recvBytes.high >>> 0).toNumber(true) : message.recvBytes;
+            if (message.sentBytes != null && message.hasOwnProperty("sentBytes"))
+                if (typeof message.sentBytes === "number")
+                    object.sentBytes = options.longs === String ? String(message.sentBytes) : message.sentBytes;
+                else
+                    object.sentBytes = options.longs === String ? $util.Long.prototype.toString.call(message.sentBytes) : options.longs === Number ? new $util.LongBits(message.sentBytes.low >>> 0, message.sentBytes.high >>> 0).toNumber(true) : message.sentBytes;
+            return object;
+        };
+
+        /**
+         * Converts this NetworkInterface to JSON.
+         * @function toJSON
+         * @memberof pb.NetworkInterface
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        NetworkInterface.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for NetworkInterface
+         * @function getTypeUrl
+         * @memberof pb.NetworkInterface
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        NetworkInterface.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.NetworkInterface";
+        };
+
+        return NetworkInterface;
+    })();
+
+    pb.DiskDevice = (function() {
+
+        /**
+         * Properties of a DiskDevice.
+         * @memberof pb
+         * @interface IDiskDevice
+         * @property {string|null} [name] DiskDevice name
+         * @property {number|Long|null} [readBytes] DiskDevice readBytes
+         * @property {number|Long|null} [writeBytes] DiskDevice writeBytes
+         */
+
+        /**
+         * Constructs a new DiskDevice.
+         * @memberof pb
+         * @classdesc Represents a DiskDevice.
+         * @implements IDiskDevice
+         * @constructor
+         * @param {pb.IDiskDevice=} [properties] Properties to set
+         */
+        function DiskDevice(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * DiskDevice name.
+         * @member {string} name
+         * @memberof pb.DiskDevice
+         * @instance
+         */
+        DiskDevice.prototype.name = "";
+
+        /**
+         * DiskDevice readBytes.
+         * @member {number|Long} readBytes
+         * @memberof pb.DiskDevice
+         * @instance
+         */
+        DiskDevice.prototype.readBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * DiskDevice writeBytes.
+         * @member {number|Long} writeBytes
+         * @memberof pb.DiskDevice
+         * @instance
+         */
+        DiskDevice.prototype.writeBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Creates a new DiskDevice instance using the specified properties.
+         * @function create
+         * @memberof pb.DiskDevice
+         * @static
+         * @param {pb.IDiskDevice=} [properties] Properties to set
+         * @returns {pb.DiskDevice} DiskDevice instance
+         */
+        DiskDevice.create = function create(properties) {
+            return new DiskDevice(properties);
+        };
+
+        /**
+         * Encodes the specified DiskDevice message. Does not implicitly {@link pb.DiskDevice.verify|verify} messages.
+         * @function encode
+         * @memberof pb.DiskDevice
+         * @static
+         * @param {pb.IDiskDevice} message DiskDevice message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        DiskDevice.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
+            if (message.readBytes != null && Object.hasOwnProperty.call(message, "readBytes"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.readBytes);
+            if (message.writeBytes != null && Object.hasOwnProperty.call(message, "writeBytes"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.writeBytes);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified DiskDevice message, length delimited. Does not implicitly {@link pb.DiskDevice.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.DiskDevice
+         * @static
+         * @param {pb.IDiskDevice} message DiskDevice message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        DiskDevice.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a DiskDevice message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.DiskDevice
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.DiskDevice} DiskDevice
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        DiskDevice.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.DiskDevice();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.name = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.readBytes = reader.uint64();
+                        break;
+                    }
+                case 3: {
+                        message.writeBytes = reader.uint64();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a DiskDevice message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.DiskDevice
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.DiskDevice} DiskDevice
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        DiskDevice.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a DiskDevice message.
+         * @function verify
+         * @memberof pb.DiskDevice
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        DiskDevice.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.name != null && message.hasOwnProperty("name"))
+                if (!$util.isString(message.name))
+                    return "name: string expected";
+            if (message.readBytes != null && message.hasOwnProperty("readBytes"))
+                if (!$util.isInteger(message.readBytes) && !(message.readBytes && $util.isInteger(message.readBytes.low) && $util.isInteger(message.readBytes.high)))
+                    return "readBytes: integer|Long expected";
+            if (message.writeBytes != null && message.hasOwnProperty("writeBytes"))
+                if (!$util.isInteger(message.writeBytes) && !(message.writeBytes && $util.isInteger(message.writeBytes.low) && $util.isInteger(message.writeBytes.high)))
+                    return "writeBytes: integer|Long expected";
+            return null;
+        };
+
+        /**
+         * Creates a DiskDevice message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.DiskDevice
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.DiskDevice} DiskDevice
+         */
+        DiskDevice.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.DiskDevice)
+                return object;
+            var message = new $root.pb.DiskDevice();
+            if (object.name != null)
+                message.name = String(object.name);
+            if (object.readBytes != null)
+                if ($util.Long)
+                    (message.readBytes = $util.Long.fromValue(object.readBytes)).unsigned = true;
+                else if (typeof object.readBytes === "string")
+                    message.readBytes = parseInt(object.readBytes, 10);
+                else if (typeof object.readBytes === "number")
+                    message.readBytes = object.readBytes;
+                else if (typeof object.readBytes === "object")
+                    message.readBytes = new $util.LongBits(object.readBytes.low >>> 0, object.readBytes.high >>> 0).toNumber(true);
+            if (object.writeBytes != null)
+                if ($util.Long)
+                    (message.writeBytes = $util.Long.fromValue(object.writeBytes)).unsigned = true;
+                else if (typeof object.writeBytes === "string")
+                    message.writeBytes = parseInt(object.writeBytes, 10);
+                else if (typeof object.writeBytes === "number")
+                    message.writeBytes = object.writeBytes;
+                else if (typeof object.writeBytes === "object")
+                    message.writeBytes = new $util.LongBits(object.writeBytes.low >>> 0, object.writeBytes.high >>> 0).toNumber(true);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a DiskDevice message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.DiskDevice
+         * @static
+         * @param {pb.DiskDevice} message DiskDevice
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        DiskDevice.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.name = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.readBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.readBytes = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.writeBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.writeBytes = options.longs === String ? "0" : 0;
+            }
+            if (message.name != null && message.hasOwnProperty("name"))
+                object.name = message.name;
+            if (message.readBytes != null && message.hasOwnProperty("readBytes"))
+                if (typeof message.readBytes === "number")
+                    object.readBytes = options.longs === String ? String(message.readBytes) : message.readBytes;
+                else
+                    object.readBytes = options.longs === String ? $util.Long.prototype.toString.call(message.readBytes) : options.longs === Number ? new $util.LongBits(message.readBytes.low >>> 0, message.readBytes.high >>> 0).toNumber(true) : message.readBytes;
+            if (message.writeBytes != null && message.hasOwnProperty("writeBytes"))
+                if (typeof message.writeBytes === "number")
+                    object.writeBytes = options.longs === String ? String(message.writeBytes) : message.writeBytes;
+                else
+                    object.writeBytes = options.longs === String ? $util.Long.prototype.toString.call(message.writeBytes) : options.longs === Number ? new $util.LongBits(message.writeBytes.low >>> 0, message.writeBytes.high >>> 0).toNumber(true) : message.writeBytes;
+            return object;
+        };
+
+        /**
+         * Converts this DiskDevice to JSON.
+         * @function toJSON
+         * @memberof pb.DiskDevice
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        DiskDevice.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for DiskDevice
+         * @function getTypeUrl
+         * @memberof pb.DiskDevice
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        DiskDevice.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.DiskDevice";
+        };
+
+        return DiskDevice;
+    })();
+
     pb.IOInfo = (function() {
 
         /**
          * Properties of a IOInfo.
          * @memberof pb
          * @interface IIOInfo
-         * @property {number|Long|null} [readBytes] IOInfo readBytes
-         * @property {number|Long|null} [writeBytes] IOInfo writeBytes
-         * @property {number|Long|null} [netRecvBytes] IOInfo netRecvBytes
-         * @property {number|Long|null} [netSentBytes] IOInfo netSentBytes
+         * @property {number|Long|null} [totalReadBytes] IOInfo totalReadBytes
+         * @property {number|Long|null} [totalWriteBytes] IOInfo totalWriteBytes
+         * @property {number|Long|null} [totalNetRecvBytes] IOInfo totalNetRecvBytes
+         * @property {number|Long|null} [totalNetSentBytes] IOInfo totalNetSentBytes
+         * @property {Array.<pb.INetworkInterface>|null} [networks] IOInfo networks
+         * @property {Array.<pb.IDiskDevice>|null} [disks] IOInfo disks
          */
 
         /**
@@ -2518,6 +3080,8 @@ $root.pb = (function() {
          * @param {pb.IIOInfo=} [properties] Properties to set
          */
         function IOInfo(properties) {
+            this.networks = [];
+            this.disks = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -2525,36 +3089,52 @@ $root.pb = (function() {
         }
 
         /**
-         * IOInfo readBytes.
-         * @member {number|Long} readBytes
+         * IOInfo totalReadBytes.
+         * @member {number|Long} totalReadBytes
          * @memberof pb.IOInfo
          * @instance
          */
-        IOInfo.prototype.readBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+        IOInfo.prototype.totalReadBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
         /**
-         * IOInfo writeBytes.
-         * @member {number|Long} writeBytes
+         * IOInfo totalWriteBytes.
+         * @member {number|Long} totalWriteBytes
          * @memberof pb.IOInfo
          * @instance
          */
-        IOInfo.prototype.writeBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+        IOInfo.prototype.totalWriteBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
         /**
-         * IOInfo netRecvBytes.
-         * @member {number|Long} netRecvBytes
+         * IOInfo totalNetRecvBytes.
+         * @member {number|Long} totalNetRecvBytes
          * @memberof pb.IOInfo
          * @instance
          */
-        IOInfo.prototype.netRecvBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+        IOInfo.prototype.totalNetRecvBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
         /**
-         * IOInfo netSentBytes.
-         * @member {number|Long} netSentBytes
+         * IOInfo totalNetSentBytes.
+         * @member {number|Long} totalNetSentBytes
          * @memberof pb.IOInfo
          * @instance
          */
-        IOInfo.prototype.netSentBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+        IOInfo.prototype.totalNetSentBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * IOInfo networks.
+         * @member {Array.<pb.INetworkInterface>} networks
+         * @memberof pb.IOInfo
+         * @instance
+         */
+        IOInfo.prototype.networks = $util.emptyArray;
+
+        /**
+         * IOInfo disks.
+         * @member {Array.<pb.IDiskDevice>} disks
+         * @memberof pb.IOInfo
+         * @instance
+         */
+        IOInfo.prototype.disks = $util.emptyArray;
 
         /**
          * Creates a new IOInfo instance using the specified properties.
@@ -2580,14 +3160,20 @@ $root.pb = (function() {
         IOInfo.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
-            if (message.readBytes != null && Object.hasOwnProperty.call(message, "readBytes"))
-                writer.uint32(/* id 1, wireType 0 =*/8).uint64(message.readBytes);
-            if (message.writeBytes != null && Object.hasOwnProperty.call(message, "writeBytes"))
-                writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.writeBytes);
-            if (message.netRecvBytes != null && Object.hasOwnProperty.call(message, "netRecvBytes"))
-                writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.netRecvBytes);
-            if (message.netSentBytes != null && Object.hasOwnProperty.call(message, "netSentBytes"))
-                writer.uint32(/* id 4, wireType 0 =*/32).uint64(message.netSentBytes);
+            if (message.totalReadBytes != null && Object.hasOwnProperty.call(message, "totalReadBytes"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint64(message.totalReadBytes);
+            if (message.totalWriteBytes != null && Object.hasOwnProperty.call(message, "totalWriteBytes"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.totalWriteBytes);
+            if (message.totalNetRecvBytes != null && Object.hasOwnProperty.call(message, "totalNetRecvBytes"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.totalNetRecvBytes);
+            if (message.totalNetSentBytes != null && Object.hasOwnProperty.call(message, "totalNetSentBytes"))
+                writer.uint32(/* id 4, wireType 0 =*/32).uint64(message.totalNetSentBytes);
+            if (message.networks != null && message.networks.length)
+                for (var i = 0; i < message.networks.length; ++i)
+                    $root.pb.NetworkInterface.encode(message.networks[i], writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+            if (message.disks != null && message.disks.length)
+                for (var i = 0; i < message.disks.length; ++i)
+                    $root.pb.DiskDevice.encode(message.disks[i], writer.uint32(/* id 6, wireType 2 =*/50).fork()).ldelim();
             return writer;
         };
 
@@ -2625,19 +3211,31 @@ $root.pb = (function() {
                     break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.readBytes = reader.uint64();
+                        message.totalReadBytes = reader.uint64();
                         break;
                     }
                 case 2: {
-                        message.writeBytes = reader.uint64();
+                        message.totalWriteBytes = reader.uint64();
                         break;
                     }
                 case 3: {
-                        message.netRecvBytes = reader.uint64();
+                        message.totalNetRecvBytes = reader.uint64();
                         break;
                     }
                 case 4: {
-                        message.netSentBytes = reader.uint64();
+                        message.totalNetSentBytes = reader.uint64();
+                        break;
+                    }
+                case 5: {
+                        if (!(message.networks && message.networks.length))
+                            message.networks = [];
+                        message.networks.push($root.pb.NetworkInterface.decode(reader, reader.uint32()));
+                        break;
+                    }
+                case 6: {
+                        if (!(message.disks && message.disks.length))
+                            message.disks = [];
+                        message.disks.push($root.pb.DiskDevice.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
@@ -2675,18 +3273,36 @@ $root.pb = (function() {
         IOInfo.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.readBytes != null && message.hasOwnProperty("readBytes"))
-                if (!$util.isInteger(message.readBytes) && !(message.readBytes && $util.isInteger(message.readBytes.low) && $util.isInteger(message.readBytes.high)))
-                    return "readBytes: integer|Long expected";
-            if (message.writeBytes != null && message.hasOwnProperty("writeBytes"))
-                if (!$util.isInteger(message.writeBytes) && !(message.writeBytes && $util.isInteger(message.writeBytes.low) && $util.isInteger(message.writeBytes.high)))
-                    return "writeBytes: integer|Long expected";
-            if (message.netRecvBytes != null && message.hasOwnProperty("netRecvBytes"))
-                if (!$util.isInteger(message.netRecvBytes) && !(message.netRecvBytes && $util.isInteger(message.netRecvBytes.low) && $util.isInteger(message.netRecvBytes.high)))
-                    return "netRecvBytes: integer|Long expected";
-            if (message.netSentBytes != null && message.hasOwnProperty("netSentBytes"))
-                if (!$util.isInteger(message.netSentBytes) && !(message.netSentBytes && $util.isInteger(message.netSentBytes.low) && $util.isInteger(message.netSentBytes.high)))
-                    return "netSentBytes: integer|Long expected";
+            if (message.totalReadBytes != null && message.hasOwnProperty("totalReadBytes"))
+                if (!$util.isInteger(message.totalReadBytes) && !(message.totalReadBytes && $util.isInteger(message.totalReadBytes.low) && $util.isInteger(message.totalReadBytes.high)))
+                    return "totalReadBytes: integer|Long expected";
+            if (message.totalWriteBytes != null && message.hasOwnProperty("totalWriteBytes"))
+                if (!$util.isInteger(message.totalWriteBytes) && !(message.totalWriteBytes && $util.isInteger(message.totalWriteBytes.low) && $util.isInteger(message.totalWriteBytes.high)))
+                    return "totalWriteBytes: integer|Long expected";
+            if (message.totalNetRecvBytes != null && message.hasOwnProperty("totalNetRecvBytes"))
+                if (!$util.isInteger(message.totalNetRecvBytes) && !(message.totalNetRecvBytes && $util.isInteger(message.totalNetRecvBytes.low) && $util.isInteger(message.totalNetRecvBytes.high)))
+                    return "totalNetRecvBytes: integer|Long expected";
+            if (message.totalNetSentBytes != null && message.hasOwnProperty("totalNetSentBytes"))
+                if (!$util.isInteger(message.totalNetSentBytes) && !(message.totalNetSentBytes && $util.isInteger(message.totalNetSentBytes.low) && $util.isInteger(message.totalNetSentBytes.high)))
+                    return "totalNetSentBytes: integer|Long expected";
+            if (message.networks != null && message.hasOwnProperty("networks")) {
+                if (!Array.isArray(message.networks))
+                    return "networks: array expected";
+                for (var i = 0; i < message.networks.length; ++i) {
+                    var error = $root.pb.NetworkInterface.verify(message.networks[i]);
+                    if (error)
+                        return "networks." + error;
+                }
+            }
+            if (message.disks != null && message.hasOwnProperty("disks")) {
+                if (!Array.isArray(message.disks))
+                    return "disks: array expected";
+                for (var i = 0; i < message.disks.length; ++i) {
+                    var error = $root.pb.DiskDevice.verify(message.disks[i]);
+                    if (error)
+                        return "disks." + error;
+                }
+            }
             return null;
         };
 
@@ -2702,42 +3318,62 @@ $root.pb = (function() {
             if (object instanceof $root.pb.IOInfo)
                 return object;
             var message = new $root.pb.IOInfo();
-            if (object.readBytes != null)
+            if (object.totalReadBytes != null)
                 if ($util.Long)
-                    (message.readBytes = $util.Long.fromValue(object.readBytes)).unsigned = true;
-                else if (typeof object.readBytes === "string")
-                    message.readBytes = parseInt(object.readBytes, 10);
-                else if (typeof object.readBytes === "number")
-                    message.readBytes = object.readBytes;
-                else if (typeof object.readBytes === "object")
-                    message.readBytes = new $util.LongBits(object.readBytes.low >>> 0, object.readBytes.high >>> 0).toNumber(true);
-            if (object.writeBytes != null)
+                    (message.totalReadBytes = $util.Long.fromValue(object.totalReadBytes)).unsigned = true;
+                else if (typeof object.totalReadBytes === "string")
+                    message.totalReadBytes = parseInt(object.totalReadBytes, 10);
+                else if (typeof object.totalReadBytes === "number")
+                    message.totalReadBytes = object.totalReadBytes;
+                else if (typeof object.totalReadBytes === "object")
+                    message.totalReadBytes = new $util.LongBits(object.totalReadBytes.low >>> 0, object.totalReadBytes.high >>> 0).toNumber(true);
+            if (object.totalWriteBytes != null)
                 if ($util.Long)
-                    (message.writeBytes = $util.Long.fromValue(object.writeBytes)).unsigned = true;
-                else if (typeof object.writeBytes === "string")
-                    message.writeBytes = parseInt(object.writeBytes, 10);
-                else if (typeof object.writeBytes === "number")
-                    message.writeBytes = object.writeBytes;
-                else if (typeof object.writeBytes === "object")
-                    message.writeBytes = new $util.LongBits(object.writeBytes.low >>> 0, object.writeBytes.high >>> 0).toNumber(true);
-            if (object.netRecvBytes != null)
+                    (message.totalWriteBytes = $util.Long.fromValue(object.totalWriteBytes)).unsigned = true;
+                else if (typeof object.totalWriteBytes === "string")
+                    message.totalWriteBytes = parseInt(object.totalWriteBytes, 10);
+                else if (typeof object.totalWriteBytes === "number")
+                    message.totalWriteBytes = object.totalWriteBytes;
+                else if (typeof object.totalWriteBytes === "object")
+                    message.totalWriteBytes = new $util.LongBits(object.totalWriteBytes.low >>> 0, object.totalWriteBytes.high >>> 0).toNumber(true);
+            if (object.totalNetRecvBytes != null)
                 if ($util.Long)
-                    (message.netRecvBytes = $util.Long.fromValue(object.netRecvBytes)).unsigned = true;
-                else if (typeof object.netRecvBytes === "string")
-                    message.netRecvBytes = parseInt(object.netRecvBytes, 10);
-                else if (typeof object.netRecvBytes === "number")
-                    message.netRecvBytes = object.netRecvBytes;
-                else if (typeof object.netRecvBytes === "object")
-                    message.netRecvBytes = new $util.LongBits(object.netRecvBytes.low >>> 0, object.netRecvBytes.high >>> 0).toNumber(true);
-            if (object.netSentBytes != null)
+                    (message.totalNetRecvBytes = $util.Long.fromValue(object.totalNetRecvBytes)).unsigned = true;
+                else if (typeof object.totalNetRecvBytes === "string")
+                    message.totalNetRecvBytes = parseInt(object.totalNetRecvBytes, 10);
+                else if (typeof object.totalNetRecvBytes === "number")
+                    message.totalNetRecvBytes = object.totalNetRecvBytes;
+                else if (typeof object.totalNetRecvBytes === "object")
+                    message.totalNetRecvBytes = new $util.LongBits(object.totalNetRecvBytes.low >>> 0, object.totalNetRecvBytes.high >>> 0).toNumber(true);
+            if (object.totalNetSentBytes != null)
                 if ($util.Long)
-                    (message.netSentBytes = $util.Long.fromValue(object.netSentBytes)).unsigned = true;
-                else if (typeof object.netSentBytes === "string")
-                    message.netSentBytes = parseInt(object.netSentBytes, 10);
-                else if (typeof object.netSentBytes === "number")
-                    message.netSentBytes = object.netSentBytes;
-                else if (typeof object.netSentBytes === "object")
-                    message.netSentBytes = new $util.LongBits(object.netSentBytes.low >>> 0, object.netSentBytes.high >>> 0).toNumber(true);
+                    (message.totalNetSentBytes = $util.Long.fromValue(object.totalNetSentBytes)).unsigned = true;
+                else if (typeof object.totalNetSentBytes === "string")
+                    message.totalNetSentBytes = parseInt(object.totalNetSentBytes, 10);
+                else if (typeof object.totalNetSentBytes === "number")
+                    message.totalNetSentBytes = object.totalNetSentBytes;
+                else if (typeof object.totalNetSentBytes === "object")
+                    message.totalNetSentBytes = new $util.LongBits(object.totalNetSentBytes.low >>> 0, object.totalNetSentBytes.high >>> 0).toNumber(true);
+            if (object.networks) {
+                if (!Array.isArray(object.networks))
+                    throw TypeError(".pb.IOInfo.networks: array expected");
+                message.networks = [];
+                for (var i = 0; i < object.networks.length; ++i) {
+                    if (typeof object.networks[i] !== "object")
+                        throw TypeError(".pb.IOInfo.networks: object expected");
+                    message.networks[i] = $root.pb.NetworkInterface.fromObject(object.networks[i]);
+                }
+            }
+            if (object.disks) {
+                if (!Array.isArray(object.disks))
+                    throw TypeError(".pb.IOInfo.disks: array expected");
+                message.disks = [];
+                for (var i = 0; i < object.disks.length; ++i) {
+                    if (typeof object.disks[i] !== "object")
+                        throw TypeError(".pb.IOInfo.disks: object expected");
+                    message.disks[i] = $root.pb.DiskDevice.fromObject(object.disks[i]);
+                }
+            }
             return message;
         };
 
@@ -2754,48 +3390,62 @@ $root.pb = (function() {
             if (!options)
                 options = {};
             var object = {};
+            if (options.arrays || options.defaults) {
+                object.networks = [];
+                object.disks = [];
+            }
             if (options.defaults) {
                 if ($util.Long) {
                     var long = new $util.Long(0, 0, true);
-                    object.readBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object.totalReadBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
-                    object.readBytes = options.longs === String ? "0" : 0;
+                    object.totalReadBytes = options.longs === String ? "0" : 0;
                 if ($util.Long) {
                     var long = new $util.Long(0, 0, true);
-                    object.writeBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object.totalWriteBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
-                    object.writeBytes = options.longs === String ? "0" : 0;
+                    object.totalWriteBytes = options.longs === String ? "0" : 0;
                 if ($util.Long) {
                     var long = new $util.Long(0, 0, true);
-                    object.netRecvBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object.totalNetRecvBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
-                    object.netRecvBytes = options.longs === String ? "0" : 0;
+                    object.totalNetRecvBytes = options.longs === String ? "0" : 0;
                 if ($util.Long) {
                     var long = new $util.Long(0, 0, true);
-                    object.netSentBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object.totalNetSentBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
-                    object.netSentBytes = options.longs === String ? "0" : 0;
+                    object.totalNetSentBytes = options.longs === String ? "0" : 0;
             }
-            if (message.readBytes != null && message.hasOwnProperty("readBytes"))
-                if (typeof message.readBytes === "number")
-                    object.readBytes = options.longs === String ? String(message.readBytes) : message.readBytes;
+            if (message.totalReadBytes != null && message.hasOwnProperty("totalReadBytes"))
+                if (typeof message.totalReadBytes === "number")
+                    object.totalReadBytes = options.longs === String ? String(message.totalReadBytes) : message.totalReadBytes;
                 else
-                    object.readBytes = options.longs === String ? $util.Long.prototype.toString.call(message.readBytes) : options.longs === Number ? new $util.LongBits(message.readBytes.low >>> 0, message.readBytes.high >>> 0).toNumber(true) : message.readBytes;
-            if (message.writeBytes != null && message.hasOwnProperty("writeBytes"))
-                if (typeof message.writeBytes === "number")
-                    object.writeBytes = options.longs === String ? String(message.writeBytes) : message.writeBytes;
+                    object.totalReadBytes = options.longs === String ? $util.Long.prototype.toString.call(message.totalReadBytes) : options.longs === Number ? new $util.LongBits(message.totalReadBytes.low >>> 0, message.totalReadBytes.high >>> 0).toNumber(true) : message.totalReadBytes;
+            if (message.totalWriteBytes != null && message.hasOwnProperty("totalWriteBytes"))
+                if (typeof message.totalWriteBytes === "number")
+                    object.totalWriteBytes = options.longs === String ? String(message.totalWriteBytes) : message.totalWriteBytes;
                 else
-                    object.writeBytes = options.longs === String ? $util.Long.prototype.toString.call(message.writeBytes) : options.longs === Number ? new $util.LongBits(message.writeBytes.low >>> 0, message.writeBytes.high >>> 0).toNumber(true) : message.writeBytes;
-            if (message.netRecvBytes != null && message.hasOwnProperty("netRecvBytes"))
-                if (typeof message.netRecvBytes === "number")
-                    object.netRecvBytes = options.longs === String ? String(message.netRecvBytes) : message.netRecvBytes;
+                    object.totalWriteBytes = options.longs === String ? $util.Long.prototype.toString.call(message.totalWriteBytes) : options.longs === Number ? new $util.LongBits(message.totalWriteBytes.low >>> 0, message.totalWriteBytes.high >>> 0).toNumber(true) : message.totalWriteBytes;
+            if (message.totalNetRecvBytes != null && message.hasOwnProperty("totalNetRecvBytes"))
+                if (typeof message.totalNetRecvBytes === "number")
+                    object.totalNetRecvBytes = options.longs === String ? String(message.totalNetRecvBytes) : message.totalNetRecvBytes;
                 else
-                    object.netRecvBytes = options.longs === String ? $util.Long.prototype.toString.call(message.netRecvBytes) : options.longs === Number ? new $util.LongBits(message.netRecvBytes.low >>> 0, message.netRecvBytes.high >>> 0).toNumber(true) : message.netRecvBytes;
-            if (message.netSentBytes != null && message.hasOwnProperty("netSentBytes"))
-                if (typeof message.netSentBytes === "number")
-                    object.netSentBytes = options.longs === String ? String(message.netSentBytes) : message.netSentBytes;
+                    object.totalNetRecvBytes = options.longs === String ? $util.Long.prototype.toString.call(message.totalNetRecvBytes) : options.longs === Number ? new $util.LongBits(message.totalNetRecvBytes.low >>> 0, message.totalNetRecvBytes.high >>> 0).toNumber(true) : message.totalNetRecvBytes;
+            if (message.totalNetSentBytes != null && message.hasOwnProperty("totalNetSentBytes"))
+                if (typeof message.totalNetSentBytes === "number")
+                    object.totalNetSentBytes = options.longs === String ? String(message.totalNetSentBytes) : message.totalNetSentBytes;
                 else
-                    object.netSentBytes = options.longs === String ? $util.Long.prototype.toString.call(message.netSentBytes) : options.longs === Number ? new $util.LongBits(message.netSentBytes.low >>> 0, message.netSentBytes.high >>> 0).toNumber(true) : message.netSentBytes;
+                    object.totalNetSentBytes = options.longs === String ? $util.Long.prototype.toString.call(message.totalNetSentBytes) : options.longs === Number ? new $util.LongBits(message.totalNetSentBytes.low >>> 0, message.totalNetSentBytes.high >>> 0).toNumber(true) : message.totalNetSentBytes;
+            if (message.networks && message.networks.length) {
+                object.networks = [];
+                for (var j = 0; j < message.networks.length; ++j)
+                    object.networks[j] = $root.pb.NetworkInterface.toObject(message.networks[j], options);
+            }
+            if (message.disks && message.disks.length) {
+                object.disks = [];
+                for (var j = 0; j < message.disks.length; ++j)
+                    object.disks[j] = $root.pb.DiskDevice.toObject(message.disks[j], options);
+            }
             return object;
         };
 

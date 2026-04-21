@@ -94,10 +94,10 @@ func getTagID(name string) uint32 {
 	return id
 }
 
-type gpuProcInfo struct{ mem, gpu uint32 }
+type gpuInfo struct{ mem, gpu uint32 }
 
-func getGPUPidMap() map[int32]gpuProcInfo {
-	gpuMap := make(map[int32]gpuProcInfo)
+func getGPUPidMap() map[int32]gpuInfo {
+	gpuMap := make(map[int32]gpuInfo)
 	cmd := exec.Command("nvidia-smi", "--query-compute-apps=pid,used_memory,gpu_index", "--format=csv,noheader,nounits")
 	output, _ := cmd.Output()
 	lines := bytes.Split(output, []byte("\n"))
@@ -109,7 +109,7 @@ func getGPUPidMap() map[int32]gpuProcInfo {
 			fmt.Sscanf(string(parts[0]), "%d", &pid)
 			fmt.Sscanf(string(parts[1]), "%d", &mem)
 			if len(parts) > 2 { fmt.Sscanf(string(parts[2]), "%d", &gpu) }
-			gpuMap[pid] = gpuProcInfo{mem, gpu}
+			gpuMap[pid] = gpuInfo{mem, gpu}
 		}
 	}
 	return gpuMap
@@ -189,11 +189,12 @@ func main() {
 
 	_ = rlimit.RemoveMemlock()
 	var objs bpf.AgentTrackerObjects
-	_ = bpf.LoadAgentTrackerObjects(&objs, nil)
+	if err := bpf.LoadAgentTrackerObjects(&objs, nil); err != nil { log.Fatalf("Load eBPF: %v", err) }
 	defer objs.Close()
 
 	attach := func(c, n string, p *ebpf.Program) link.Link {
-		l, _ := link.Tracepoint(c, n, p, nil)
+		l, err := link.Tracepoint(c, n, p, nil)
+		if err != nil { log.Printf("Link %s/%s: %v", c, n, err) }
 		return l
 	}
 	links := []link.Link{
@@ -230,9 +231,7 @@ func main() {
 			data, _ := proto.Marshal(event)
 			clientsMu.Lock()
 			for c := range clients {
-				if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil {
-					c.Close(); delete(clients, c)
-				}
+				if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil { c.Close(); delete(clients, c) }
 			}
 			clientsMu.Unlock()
 		}
@@ -258,16 +257,27 @@ func main() {
 			vm, _ := mem.VirtualMemory()
 			cc, _ := cpu.Percent(0, false)
 			cp, _ := cpu.Percent(0, true)
-			netIO, _ := gnet.IOCounters(false)
+			
+			// Per-interface/disk I/O
+			netIO, _ := gnet.IOCounters(true)
 			diskIO, _ := disk.IOCounters()
 			
-			var tr, tw uint64
-			for _, d := range diskIO { tr += d.ReadBytes; tw += d.WriteBytes }
+			pbIO := &pb.IOInfo{}
+			for _, n := range netIO {
+				pbIO.Networks = append(pbIO.Networks, &pb.NetworkInterface{Name: n.Name, RecvBytes: n.BytesRecv, SentBytes: n.BytesSent})
+				pbIO.TotalNetRecvBytes += n.BytesRecv
+				pbIO.TotalNetSentBytes += n.BytesSent
+			}
+			for name, d := range diskIO {
+				pbIO.Disks = append(pbIO.Disks, &pb.DiskDevice{Name: name, ReadBytes: d.ReadBytes, WriteBytes: d.WriteBytes})
+				pbIO.TotalReadBytes += d.ReadBytes
+				pbIO.TotalWriteBytes += d.WriteBytes
+			}
 			
 			stats := &pb.SystemStats{
 				Gpus: gs, Cpu: &pb.CPUInfo{Total: cc[0], Cores: cp},
 				Memory: &pb.MemoryInfo{Total: vm.Total, Used: vm.Used, Percent: float32(vm.UsedPercent)},
-				Io: &pb.IOInfo{ReadBytes: tr, WriteBytes: tw, NetRecvBytes: netIO[0].BytesRecv, NetSentBytes: netIO[0].BytesSent},
+				Io: pbIO,
 			}
 
 			psList, _ := ps.Processes()
@@ -342,58 +352,26 @@ func main() {
 			})
 			system.POST("/run", func(c *gin.Context) {
 				var req struct { Comm string `json:"comm"`; Args []string `json:"args"` }
-				if err := c.ShouldBindJSON(&req); err != nil {
-					c.JSON(400, gin.H{"error": err.Error()})
-					return
+				if err := c.ShouldBindJSON(&req); err == nil {
+					cwd, _ := os.Getwd(); execPath, _ := os.Executable()
+					candidates := []string{filepath.Join(cwd, "..", "agent-wrapper"), filepath.Join(cwd, "agent-wrapper"), filepath.Join(filepath.Dir(execPath), "agent-wrapper"), filepath.Join(filepath.Dir(execPath), "..", "agent-wrapper"), "./agent-wrapper", "../agent-wrapper"}
+					var wb string
+					for _, cnd := range candidates { if info, err := os.Stat(cnd); err == nil && !info.IsDir() { wb = cnd; break } }
+					if wb == "" { c.JSON(500, gin.H{"error": "wrapper not found"}); return }
+					cmd := exec.Command(wb, append([]string{req.Comm}, req.Args...)...)
+					cmd.Env = os.Environ()
+					if err := cmd.Start(); err != nil { c.JSON(500, gin.H{"error": err.Error()}); return }
+					c.JSON(200, gin.H{"status": "started", "pid": cmd.Process.Pid})
 				}
-
-				var wrapperBin string
-				cwd, _ := os.Getwd()
-				execPath, _ := os.Executable()
-				
-				candidates := []string{
-					filepath.Join(cwd, "..", "agent-wrapper"),
-					filepath.Join(cwd, "agent-wrapper"),
-					filepath.Join(filepath.Dir(execPath), "agent-wrapper"),
-					filepath.Join(filepath.Dir(execPath), "..", "agent-wrapper"),
-					"./agent-wrapper",
-					"../agent-wrapper",
-				}
-
-				for _, cnd := range candidates {
-					if info, err := os.Stat(cnd); err == nil && !info.IsDir() {
-						wrapperBin = cnd
-						break
-					}
-				}
-
-				if wrapperBin == "" {
-					c.JSON(500, gin.H{"error": "agent-wrapper binary not found. Please run 'make wrapper' first."})
-					return
-				}
-
-				cmd := exec.Command(wrapperBin, append([]string{req.Comm}, req.Args...)...)
-				cmd.Env = os.Environ()
-				if err := cmd.Start(); err != nil {
-					c.JSON(500, gin.H{"error": err.Error()})
-					return
-				}
-				c.JSON(200, gin.H{"status": "started", "pid": cmd.Process.Pid})
 			})
 		}
 	}
 
-	// Robust static file path detection
 	staticDir := "../frontend/dist"
-	if _, err := os.Stat(staticDir); err != nil {
-		staticDir = "./frontend/dist"
-	}
-
+	if _, err := os.Stat(staticDir); err != nil { staticDir = "./frontend/dist" }
 	r.StaticFile("/", filepath.Join(staticDir, "index.html"))
 	r.Static("/assets", filepath.Join(staticDir, "assets"))
-	r.NoRoute(func(c *gin.Context) {
-		c.File(filepath.Join(staticDir, "index.html"))
-	})
+	r.NoRoute(func(c *gin.Context) { c.File(filepath.Join(staticDir, "index.html")) })
 
 	commonCLIs := map[string]string{"git": "Git", "npm": "Package Manager", "bun": "Package Manager", "pnpm": "Package Manager", "yarn": "Package Manager", "node": "Runtime", "python": "Runtime", "python3": "Runtime", "go": "Build Tool", "cargo": "Build Tool", "rustc": "Build Tool", "gcc": "Build Tool", "g++": "Build Tool", "clang": "Build Tool", "make": "Build Tool", "cmake": "Build Tool", "docker": "System Tool", "kubectl": "Network Tool"}
 	for cl, t := range commonCLIs { var k [16]byte; copy(k[:], cl); _ = objs.TrackedComms.Put(k, getTagID(t)) }
