@@ -1423,6 +1423,70 @@ func main() {
 					}
 					c.JSON(200, gin.H{"status": "ok"})
 				})
+				hooks.GET("/:id/raw", func(c *gin.Context) {
+					id := c.Param("id")
+					var target HookDef
+					found := false
+					for _, h := range availableHooks {
+						if h.ID == id {
+							target = h
+							found = true
+							break
+						}
+					}
+					if !found || target.HookType != HookTypeNative {
+						c.JSON(404, gin.H{"error": "native hook not found"})
+						return
+					}
+					b, err := os.ReadFile(target.NativeConfigPath)
+					if err != nil {
+						if os.IsNotExist(err) {
+							c.JSON(200, gin.H{"content": "{}"})
+							return
+						}
+						c.JSON(500, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(200, gin.H{"content": string(b), "path": target.NativeConfigPath})
+				})
+				hooks.POST("/:id/raw", func(c *gin.Context) {
+					id := c.Param("id")
+					var req struct {
+						Content string `json:"content"`
+					}
+					if err := c.ShouldBindJSON(&req); err != nil {
+						c.JSON(400, gin.H{"error": "invalid request"})
+						return
+					}
+					var target HookDef
+					found := false
+					for _, h := range availableHooks {
+						if h.ID == id {
+							target = h
+							found = true
+							break
+						}
+					}
+					if !found || target.HookType != HookTypeNative {
+						c.JSON(404, gin.H{"error": "native hook not found"})
+						return
+					}
+					// Basic validation: ensure it's valid JSON
+					var js map[string]interface{}
+					if err := json.Unmarshal([]byte(req.Content), &js); err != nil {
+						c.JSON(400, gin.H{"error": "invalid JSON: " + err.Error()})
+						return
+					}
+					if err := os.MkdirAll(filepath.Dir(target.NativeConfigPath), 0755); err != nil {
+						c.JSON(500, gin.H{"error": err.Error()})
+						return
+					}
+					if err := os.WriteFile(target.NativeConfigPath, []byte(req.Content), 0644); err != nil {
+						c.JSON(500, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(200, gin.H{"status": "ok"})
+				})
 			}
 		}
 		system := api.Group("/system")
