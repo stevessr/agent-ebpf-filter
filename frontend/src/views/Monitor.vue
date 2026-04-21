@@ -461,7 +461,42 @@ watch(refreshInterval, connectWebSocket);
             </a-card>
           </a-col>
         </a-row>
-        <a-row><a-col :span="24"><a-card size="small" class="stat-card-row" :title="gpus.length ? 'GPU Acceleration Status (NVML)' : 'No GPU'"><template #extra><DeploymentUnitOutlined /></template><div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 10px;"><div v-for="gpu in gpus" :key="gpu.index" @click="openChart('gpu_' + gpu.index + '_util', 'GPU ' + gpu.index + ' Load', 'single', ['Load %'])" class="gpu-row-item" style="cursor: pointer; flex: 1; min-width: 500px;"><div style="display: flex; align-items: center; gap: 24px; width: 100%;"><div style="text-align: center; flex-shrink: 0;"><a-tag color="volcano" style="margin-bottom: 4px;">{{ gpu.temp }}°C</a-tag><div style="font-size: 11px; font-weight: bold; color: #666;">GPU {{ gpu.index }}</div></div><div style="flex: 1;"><div style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #333;">{{ gpu.name }}</div><div style="display: flex; gap: 40px; align-items: center;"><div style="text-align: center;"><div style="font-size: 10px; color: #999; margin-bottom: 4px; text-transform: uppercase;">Core Util</div><a-progress type="circle" :percent="gpu.utilGpu" :width="65" :stroke-width="10" stroke-color="#13c2c2" /></div><div style="text-align: center;" @click.stop="openChart('gpu_' + gpu.index + '_vram', 'GPU ' + gpu.index + ' VRAM', 'single', ['Used MB'])"><div style="font-size: 10px; color: #999; margin-bottom: 4px; text-transform: uppercase;">VRAM Usage</div><a-progress type="circle" :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" :width="65" :stroke-width="10" stroke-color="#722ed1" /></div><div style="flex: 1; background: #f5f5f5; padding: 8px 12px; border-radius: 6px;"><div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span style="color: #666;">Used:</span><span style="font-weight: bold; font-family: monospace;">{{ gpu.memUsed }} MiB</span></div><div style="display: flex; justify-content: space-between; font-size: 12px;"><span style="color: #666;">Total:</span><span style="font-family: monospace;">{{ gpu.memTotal }} MiB</span></div></div></div></div></div></div><a-empty v-if="!gpus.length" :image="false" description="No NVIDIA hardware" style="width: 100%" /></div></a-card></a-col></a-row>
+        <!-- GPU Row -->
+        <a-row>
+          <a-col :span="24">
+            <a-card size="small" class="stat-card-row" :title="gpus.length ? 'GPU Acceleration Status' : 'No GPU Detected'">
+              <template #extra><DeploymentUnitOutlined /></template>
+              <div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 10px;">
+                <div v-for="gpu in gpus" :key="gpu.index" @click="openChart('gpu_' + gpu.index + '_util', 'GPU ' + gpu.index + ' Load', 'single', ['Load %'])" class="gpu-row-item" style="cursor: pointer; flex: 1; min-width: 500px;">
+                  <div style="display: flex; align-items: center; gap: 24px; width: 100%;">
+                    <div style="text-align: center; flex-shrink: 0;">
+                      <a-tag v-if="gpu.temp > 0" color="volcano" style="margin-bottom: 4px;">{{ gpu.temp }}°C</a-tag>
+                      <div style="font-size: 11px; font-weight: bold; color: #666;">GPU {{ gpu.index }}</div>
+                    </div>
+                    <div style="flex: 1;">
+                      <div style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #333;">{{ gpu.name }}</div>
+                      <div style="display: flex; gap: 40px; align-items: center;">
+                        <div style="text-align: center;">
+                          <div style="font-size: 10px; color: #999; margin-bottom: 4px; text-transform: uppercase;">Core Util</div>
+                          <a-progress type="circle" :percent="gpu.utilGpu" :width="65" :stroke-width="10" stroke-color="#13c2c2" />
+                        </div>
+                        <div v-if="gpu.memTotal > 0" style="text-align: center;" @click.stop="openChart('gpu_' + gpu.index + '_vram', 'GPU ' + gpu.index + ' VRAM', 'single', ['Used MB'])">
+                          <div style="font-size: 10px; color: #999; margin-bottom: 4px; text-transform: uppercase;">VRAM Usage</div>
+                          <a-progress type="circle" :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" :width="65" :stroke-width="10" stroke-color="#722ed1" />
+                        </div>
+                        <div style="flex: 1; background: #f5f5f5; padding: 8px 12px; border-radius: 6px;">
+                          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span style="color: #666;">Used:</span><span style="font-weight: bold; font-family: monospace;">{{ gpu.memUsed }} MiB</span></div>
+                          <div v-if="gpu.memTotal > 0" style="display: flex; justify-content: space-between; font-size: 12px;"><span style="color: #666;">Total:</span><span style="font-family: monospace;">{{ gpu.memTotal }} MiB</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <a-empty v-if="!gpus.length" :image="false" description="No GPU hardware detected (NVML or DRM)" style="width: 100%" />
+              </div>
+            </a-card>
+          </a-col>
+        </a-row>
       </a-tab-pane>
 
       <!-- PROCESSES TAB -->
