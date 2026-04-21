@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -101,21 +102,21 @@ var availableHooks = []HookDef{
 		ID: "claude", Name: "Claude Code", HookType: HookTypeNative,
 		Description:      "Uses Claude Code's built-in PreToolUse hook to intercept all tool calls (recommended)",
 		TargetCmd:        "claude",
-		NativeConfigPath: func() string { h, _ := os.UserHomeDir(); return filepath.Join(h, ".claude", "settings.json") }(),
+		NativeConfigPath: filepath.Join(getRealHomeDir(), ".claude", "settings.json"),
 		NativeHookEvent:  "PreToolUse",
 	},
 	{
 		ID: "gemini", Name: "Gemini CLI", HookType: HookTypeNative,
 		Description:      "Uses Gemini CLI's native BeforeTool hook for high-performance interception",
 		TargetCmd:        "gemini",
-		NativeConfigPath: func() string { h, _ := os.UserHomeDir(); return filepath.Join(h, ".gemini", "settings.json") }(),
+		NativeConfigPath: filepath.Join(getRealHomeDir(), ".gemini", "settings.json"),
 		NativeHookEvent:  "BeforeTool",
 	},
 	{
 		ID: "codex", Name: "Codex", HookType: HookTypeNative,
 		Description:      "Uses Codex's PreToolUse hook to monitor agent tool execution",
 		TargetCmd:        "codex",
-		NativeConfigPath: func() string { h, _ := os.UserHomeDir(); return filepath.Join(h, ".codex", "settings.json") }(),
+		NativeConfigPath: filepath.Join(getRealHomeDir(), ".codex", "settings.json"),
 		NativeHookEvent:  "PreToolUse",
 	},
 	{
@@ -130,8 +131,20 @@ var availableHooks = []HookDef{
 	},
 }
 
+func getRealHomeDir() string {
+	if os.Getuid() == 0 {
+		if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+			if u, err := user.Lookup(sudoUser); err == nil {
+				return u.HomeDir
+			}
+		}
+	}
+	h, _ := os.UserHomeDir()
+	return h
+}
+
 func getShellConfigPath() string {
-	home, _ := os.UserHomeDir()
+	home := getRealHomeDir()
 	shell := os.Getenv("SHELL")
 	if strings.Contains(shell, "zsh") {
 		return filepath.Join(home, ".zshrc")
@@ -920,6 +933,22 @@ func getZramStats() (used, total uint64) {
 	return
 }
 
+func refreshHooksPaths() {
+	home := getRealHomeDir()
+	for i := range availableHooks {
+		if availableHooks[i].HookType == HookTypeNative {
+			switch availableHooks[i].ID {
+			case "claude":
+				availableHooks[i].NativeConfigPath = filepath.Join(home, ".claude", "settings.json")
+			case "gemini":
+				availableHooks[i].NativeConfigPath = filepath.Join(home, ".gemini", "settings.json")
+			case "codex":
+				availableHooks[i].NativeConfigPath = filepath.Join(home, ".codex", "settings.json")
+			}
+		}
+	}
+}
+
 func main() {
 	if isBootstrapMode() {
 		if err := bootstrapTrackerMaps(); err != nil {
@@ -932,6 +961,8 @@ func main() {
 	} else if relaunched {
 		return
 	}
+
+	refreshHooksPaths()
 
 	procsList, _ := ps.Processes()
 	curr := int32(os.Getpid())
