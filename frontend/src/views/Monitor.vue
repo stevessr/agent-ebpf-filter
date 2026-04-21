@@ -5,7 +5,8 @@ import {
   PlusOutlined, SearchOutlined, ClusterOutlined, TableOutlined, 
   FilterOutlined, DeploymentUnitOutlined,
   DashboardOutlined, PieChartOutlined,
-  AppstoreOutlined, BarChartOutlined, LineChartOutlined, InfoCircleOutlined
+  AppstoreOutlined, BarChartOutlined, LineChartOutlined, InfoCircleOutlined,
+  WarningOutlined
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 import VueApexCharts from 'vue3-apexcharts';
@@ -20,7 +21,18 @@ interface ProcessInfo {
   pid: number; ppid: number; name: string; cpu: number; mem: number;
   user: string; gpuMem: number; gpuId: number; 
   cmdline: string; createTime: number;
+  minorFaults: number;
+  majorFaults: number;
+  faultRate?: number;
+  majorFaultRate?: number;
+  minorFaultRate?: number;
   children?: ProcessInfo[];
+}
+
+interface FaultProcessInfo extends ProcessInfo {
+  faultRate: number;
+  majorFaultRate: number;
+  minorFaultRate: number;
 }
 
 interface IOSpeed {
@@ -39,6 +51,27 @@ interface GlobalStats {
   diskDevices: IOSpeed[];
   totalNetRecv: number; totalNetSent: number;
   totalDiskRead: number; totalDiskWrite: number;
+  faults: FaultInfo;
+}
+
+interface FaultInfo {
+  pageFaults: number;
+  majorFaults: number;
+  minorFaults: number;
+  pageFaultRate: number;
+  majorFaultRate: number;
+  minorFaultRate: number;
+  swapIn: number;
+  swapOut: number;
+  swapInRate: number;
+  swapOutRate: number;
+}
+
+interface FaultSnapshot {
+  createTime: number;
+  minorFaults: number;
+  majorFaults: number;
+  time: number;
 }
 
 interface HistoryData {
@@ -48,13 +81,27 @@ interface HistoryData {
 }
 
 const activeTab = ref('dashboard');
+const healthTab = ref('cpu');
 const processes = ref<ProcessInfo[]>([]);
+const faultProcesses = ref<FaultProcessInfo[]>([]);
 const gpus = ref<GPUStatus[]>([]);
 const systemStats = ref<GlobalStats>({
   cpuTotal: 0, cpuCores: [], cpuCoresDetailed: [], memTotal: 0, memUsed: 0, memPercent: 0,
   memCached: 0, memBuffers: 0, memShared: 0, zramUsed: 0, zramTotal: 0,
   netInterfaces: [], diskDevices: [],
-  totalNetRecv: 0, totalNetSent: 0, totalDiskRead: 0, totalDiskWrite: 0
+  totalNetRecv: 0, totalNetSent: 0, totalDiskRead: 0, totalDiskWrite: 0,
+  faults: {
+    pageFaults: 0,
+    majorFaults: 0,
+    minorFaults: 0,
+    pageFaultRate: 0,
+    majorFaultRate: 0,
+    minorFaultRate: 0,
+    swapIn: 0,
+    swapOut: 0,
+    swapInRate: 0,
+    swapOutRate: 0,
+  },
 });
 
 // Chart State
@@ -103,6 +150,7 @@ const gpuRange = computed({
 });
 
 let ws: WebSocket | null = null;
+const faultSnapshots = ref<Record<number, FaultSnapshot>>({});
 let lastIO: { 
   networks: Record<string, {r: number, s: number}>;
   disks: Record<string, {r: number, w: number}>;
@@ -117,8 +165,81 @@ const formatBytes = (bytes: number, decimals = 2) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
 };
 
+const formatCount = (value: number) => new Intl.NumberFormat('en-US').format(Math.max(0, Math.round(value || 0)));
+const formatRate = (value: number) => `${(value || 0).toFixed(1)}/s`;
+const pad2 = (value: number) => String(Math.floor(Math.abs(value))).padStart(2, '0');
+
+const formatChartTime = (timestamp: number, rangeSeconds: number) => {
+  const date = new Date(timestamp);
+  const hh = pad2(date.getHours());
+  const mm = pad2(date.getMinutes());
+  const ss = pad2(date.getSeconds());
+
+  // Short spans: show seconds.
+  if (rangeSeconds <= 120) {
+    return `${hh}:${mm}:${ss}`;
+  }
+
+  // Medium spans: show HH:mm to keep the axis readable.
+  if (rangeSeconds <= 1800) {
+    return `${hh}:${mm}`;
+  }
+
+  // Longer spans: include date.
+  return `${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${hh}:${mm}`;
+};
+
+const getChartWindow = () => {
+  const data = historyMap.value[activeChartKey.value] || [];
+  const max = data.length ? data[data.length - 1].time : Date.now();
+  const min = max - (chartTimeRange.value * 1000);
+  return { min, max };
+};
+
+const buildFaultProcesses = (list: ProcessInfo[], now: number) => {
+  const nextSnapshots: Record<number, FaultSnapshot> = {};
+  const rows = list.map((proc) => {
+    const minorFaults = Number(proc.minorFaults || 0);
+    const majorFaults = Number(proc.majorFaults || 0);
+    const prev = faultSnapshots.value[proc.pid];
+    let minorFaultRate = 0;
+    let majorFaultRate = 0;
+
+    if (prev && prev.createTime === proc.createTime && now > prev.time) {
+      const dt = (now - prev.time) / 1000;
+      if (dt > 0) {
+        minorFaultRate = Math.max(0, (minorFaults - prev.minorFaults) / dt);
+        majorFaultRate = Math.max(0, (majorFaults - prev.majorFaults) / dt);
+      }
+    }
+
+    nextSnapshots[proc.pid] = {
+      createTime: proc.createTime,
+      minorFaults,
+      majorFaults,
+      time: now,
+    };
+
+    return {
+      ...proc,
+      minorFaults,
+      majorFaults,
+      minorFaultRate,
+      majorFaultRate,
+      faultRate: minorFaultRate + majorFaultRate,
+    } satisfies FaultProcessInfo;
+  });
+
+  faultSnapshots.value = nextSnapshots;
+  faultProcesses.value = rows
+    .sort((a, b) => b.majorFaultRate - a.majorFaultRate || b.faultRate - a.faultRate || b.majorFaults - a.majorFaults || b.minorFaults - a.minorFaults)
+    .slice(0, 20);
+};
+
 const connectWebSocket = () => {
   if (ws) ws.close();
+  lastIO = null;
+  faultSnapshots.value = {};
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${protocol}//${window.location.host}/ws/system?interval=${refreshInterval.value}`);
   ws.binaryType = 'arraybuffer';
@@ -201,10 +322,38 @@ const connectWebSocket = () => {
         updateHistory('mem_usage', systemStats.value.memPercent);
       }
 
+      if (decoded.faults) {
+        systemStats.value.faults.pageFaults = Number(decoded.faults.pageFaults || 0);
+        systemStats.value.faults.majorFaults = Number(decoded.faults.majorFaults || 0);
+        systemStats.value.faults.minorFaults = Number(decoded.faults.minorFaults || 0);
+        systemStats.value.faults.pageFaultRate = Number(decoded.faults.pageFaultRate || 0);
+        systemStats.value.faults.majorFaultRate = Number(decoded.faults.majorFaultRate || 0);
+        systemStats.value.faults.minorFaultRate = Number(decoded.faults.minorFaultRate || 0);
+        systemStats.value.faults.swapIn = Number(decoded.faults.swapIn || 0);
+        systemStats.value.faults.swapOut = Number(decoded.faults.swapOut || 0);
+        systemStats.value.faults.swapInRate = Number(decoded.faults.swapInRate || 0);
+        systemStats.value.faults.swapOutRate = Number(decoded.faults.swapOutRate || 0);
+        updateHistory('fault_page_rate', systemStats.value.faults.pageFaultRate);
+        updateHistory('fault_major_rate', systemStats.value.faults.majorFaultRate);
+        updateHistory('fault_minor_rate', systemStats.value.faults.minorFaultRate);
+        updateHistory('fault_swap_rate', systemStats.value.faults.swapInRate, systemStats.value.faults.swapOutRate);
+      }
+
       processes.value = (decoded.processes || []).map((p: any) => ({
-        pid: p.pid, ppid: p.ppid, name: p.name, cpu: p.cpu, mem: p.mem, user: p.user, 
-        gpuMem: p.gpuMem, gpuId: p.gpuId, cmdline: p.cmdline, createTime: Number(p.createTime)
+        pid: p.pid,
+        ppid: p.ppid,
+        name: p.name,
+        cpu: p.cpu,
+        mem: p.mem,
+        user: p.user,
+        gpuMem: p.gpuMem,
+        gpuId: p.gpuId,
+        cmdline: p.cmdline,
+        createTime: Number(p.createTime),
+        minorFaults: Number(p.minorFaults || 0),
+        majorFaults: Number(p.majorFaults || 0),
       }));
+      buildFaultProcesses(processes.value, now);
 
       gpus.value = (decoded.gpus || []).map((g: any) => {
         updateHistory(`gpu_${g.index}_util`, g.utilGpu);
@@ -293,16 +442,41 @@ const openChart = (key: string, title: string, type: 'single' | 'double', series
 };
 
 const chartOptions = computed(() => {
-  const now = Date.now();
-  const min = now - (chartTimeRange.value * 1000);
+  const { min, max } = getChartWindow();
   return {
     chart: { animations: { enabled: false }, toolbar: { show: false }, zoom: { enabled: false }, background: 'transparent' },
-    xaxis: { type: 'datetime' as const, min: min, max: now, labels: { datetimeUTC: false, style: { fontSize: '10px' }, datetimeFormatter: { hour: 'HH:mm', minute: 'HH:mm', second: 'HH:mm:ss' } }, range: chartTimeRange.value * 1000, tickAmount: 6 },
+    xaxis: {
+      type: 'datetime' as const,
+      min,
+      max,
+      labels: {
+        datetimeUTC: false,
+        style: { fontSize: '10px' },
+        formatter: (value: string | number) => formatChartTime(Number(value), chartTimeRange.value),
+      },
+      tooltip: {
+        enabled: true,
+        formatter: (value: string | number) => formatChartTime(Number(value), chartTimeRange.value),
+      },
+      range: chartTimeRange.value * 1000,
+      tickAmount: 6
+    },
+    tooltip: {
+      x: {
+        formatter: (value: string | number) => formatChartTime(Number(value), chartTimeRange.value),
+      },
+    },
     yaxis: { labels: { style: { fontSize: '10px' }, formatter: (v: number) => {
       if (!activeChartKey.value) return v.toString();
       const key = activeChartKey.value.toLowerCase();
       if (key.includes('usage') || key.includes('cpu') || key.includes('util') || key.includes('percent')) {
         return v.toFixed(1) + '%';
+      }
+      if (key.includes('swap')) {
+        return `${v.toFixed(1)} pages/s`;
+      }
+      if (key.includes('fault')) {
+        return `${v.toFixed(1)} faults/s`;
       }
       if (key.includes('vram')) {
         return formatBytes(v * 1024 * 1024, 1);
@@ -318,8 +492,8 @@ const chartOptions = computed(() => {
 
 const chartSeries = computed(() => {
   const data = historyMap.value[activeChartKey.value] || [];
-  const cutoff = Date.now() - (chartTimeRange.value * 1000);
-  const filtered = data.filter(d => d.time > cutoff);
+  const { min } = getChartWindow();
+  const filtered = data.filter(d => d.time >= min);
   if (chartType.value === 'single') {
     return [{ name: chartSeriesName.value[0], data: filtered.map(d => ({ x: d.time, y: d.value })) }];
   } else {
@@ -356,6 +530,17 @@ const columns = [
   { title: 'VRAM', dataIndex: 'gpuMem', key: 'gpuMem', width: 100, sorter: (a: any, b: any) => a.gpuMem - b.gpuMem },
   { title: 'User', dataIndex: 'user', width: 100 },
   { title: '', key: 'action', width: 100, fixed: 'right' as const }
+];
+
+const faultColumns = [
+  { title: 'PID', dataIndex: 'pid', key: 'pid', width: 100, sorter: (a: any, b: any) => a.pid - b.pid },
+  { title: 'Name', dataIndex: 'name', key: 'name' },
+  { title: 'Hard/s', dataIndex: 'majorFaultRate', key: 'majorFaultRate', width: 120, sorter: (a: any, b: any) => a.majorFaultRate - b.majorFaultRate },
+  { title: 'Page/s', dataIndex: 'minorFaultRate', key: 'minorFaultRate', width: 120, sorter: (a: any, b: any) => a.minorFaultRate - b.minorFaultRate },
+  { title: 'Total/s', dataIndex: 'faultRate', key: 'faultRate', width: 120, sorter: (a: any, b: any) => a.faultRate - b.faultRate },
+  { title: 'Hard Total', dataIndex: 'majorFaults', key: 'majorFaults', width: 120, sorter: (a: any, b: any) => a.majorFaults - b.majorFaults },
+  { title: 'Page Total', dataIndex: 'minorFaults', key: 'minorFaults', width: 120, sorter: (a: any, b: any) => a.minorFaults - b.minorFaults },
+  { title: 'Action', key: 'action', width: 80, fixed: 'right' as const }
 ];
 
 const groupColumns = [
@@ -397,152 +582,250 @@ watch(refreshInterval, connectWebSocket);
       <!-- HEALTH TAB -->
       <a-tab-pane key="dashboard" tab="Health">
         <template #tab><span><DashboardOutlined /> Health</span></template>
-        <a-row style="margin-bottom: 16px;">
-          <a-col :span="24">
-            <a-card size="small" class="stat-card-row">
-              <template #title>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <span><DashboardOutlined /> CPU Status</span>
-                  <a-radio-group v-model:value="cpuViewMode" size="small">
-                    <a-radio-button value="total">Overall</a-radio-button>
-                    <a-radio-button value="cores">Cores</a-radio-button>
-                  </a-radio-group>
-                </div>
-              </template>
-              <div v-if="cpuViewMode === 'total'" @click="openChart('cpu_total', 'Global CPU Usage', 'single', ['Usage'])" style="display: flex; align-items: center; justify-content: center; height: 120px; gap: 40px; cursor: pointer;">
-                <a-progress type="dashboard" :percent="Math.round(systemStats.cpuTotal)" :width="100" />
-                <div style="text-align: left;">
-                  <div style="font-size: 24px; font-weight: bold; color: #1890ff;">{{ systemStats.cpuTotal.toFixed(1) }}% <LineChartOutlined style="font-size: 14px; color: #ccc" /></div>
-                  <div style="color: #888;">Total System Load</div>
-                </div>
-              </div>
-              <div v-else style="padding: 10px;">
-                <div v-if="pCores.length > 0">
-                  <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #1890ff; padding-left: 8px;">PERFORMANCE CORES (P-CORES)</div>
-                  <div class="core-grid-full">
-                    <div v-for="core in pCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" class="core-item-full" style="cursor: pointer">
-                      <span class="core-label">#{{ core.index }}</span>
-                      <div style="flex: 1; margin: 0 10px;"><a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#1890ff" /></div>
-                      <span class="core-val">{{ core.usage.toFixed(1) }}%</span>
+        <a-tabs v-model:activeKey="healthTab" type="card" size="small" class="health-subtabs">
+          <a-tab-pane key="cpu">
+            <template #tab><span><DashboardOutlined /> CPU</span></template>
+            <a-row style="margin-bottom: 16px;">
+              <a-col :span="24">
+                <a-card size="small" class="stat-card-row">
+                  <template #title>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span><DashboardOutlined /> CPU Status</span>
+                      <a-radio-group v-model:value="cpuViewMode" size="small">
+                        <a-radio-button value="total">Overall</a-radio-button>
+                        <a-radio-button value="cores">Cores</a-radio-button>
+                      </a-radio-group>
+                    </div>
+                  </template>
+                  <div v-if="cpuViewMode === 'total'" @click="openChart('cpu_total', 'Global CPU Usage', 'single', ['Usage'])" style="display: flex; align-items: center; justify-content: center; height: 120px; gap: 40px; cursor: pointer;">
+                    <a-progress type="dashboard" :percent="Math.round(systemStats.cpuTotal)" :width="100" />
+                    <div style="text-align: left;">
+                      <div style="font-size: 24px; font-weight: bold; color: #1890ff;">{{ systemStats.cpuTotal.toFixed(1) }}% <LineChartOutlined style="font-size: 14px; color: #ccc" /></div>
+                      <div style="color: #888;">Total System Load</div>
                     </div>
                   </div>
-                </div>
-                <div v-if="eCores.length > 0" style="margin-top: 16px;">
-                  <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #52c41a; padding-left: 8px;">EFFICIENCY CORES (E-CORES)</div>
-                  <div class="core-grid-full">
-                    <div v-for="core in eCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" class="core-item-full" style="cursor: pointer">
-                      <span class="core-label">#{{ core.index }}</span>
-                      <div style="flex: 1; margin: 0 10px;"><a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#52c41a" /></div>
-                      <span class="core-val" style="color: #52c41a">{{ core.usage.toFixed(1) }}%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-        </a-row>
-        <a-row style="margin-bottom: 16px;">
-          <a-col :span="24">
-            <a-card size="small" class="stat-card-row" title="Memory & Interface I/O">
-              <template #extra><PieChartOutlined /></template>
-              <div style="display: flex; gap: 24px; padding: 10px;">
-                <!-- RAM Breakdown -->
-                <div style="flex: 0 0 350px; cursor: pointer" @click="openChart('mem_usage', 'RAM Usage', 'single', ['Usage %'])">
-                  <div style="margin-bottom: 10px;">
-                     <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px;">
-                      <span>RAM Usage <LineChartOutlined style="font-size: 12px; color: #ccc" /></span>
-                      <span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span>
-                    </div>
-                    <a-progress 
-                      :percent="[
-                        ((systemStats.memUsed - systemStats.memCached - systemStats.memBuffers) / systemStats.memTotal) * 100,
-                        (systemStats.memCached / systemStats.memTotal) * 100,
-                        (systemStats.memBuffers / systemStats.memTotal) * 100,
-                      ]"
-                      :stroke-color="['#1890ff', '#52c41a', '#faad14']" 
-                      status="active" 
-                      :showInfo="false"
-                    />
-                    <div class="mem-legend">
-                      <span><span class="dot" style="background: #1890ff"></span> Apps: {{ formatBytes(systemStats.memUsed - systemStats.memCached - systemStats.memBuffers) }}</span>
-                      <span><span class="dot" style="background: #52c41a"></span> Cached: {{ formatBytes(systemStats.memCached) }}</span>
-                      <span><span class="dot" style="background: #faad14"></span> Buffers: {{ formatBytes(systemStats.memBuffers) }}</span>
-                    </div>
-                    <div v-if="systemStats.zramTotal > 0" style="margin-top: 8px; font-size: 12px;">
-                      ZRAM: {{ formatBytes(systemStats.zramUsed) }} / {{ formatBytes(systemStats.zramTotal) }}
-                      <a-progress :percent="(systemStats.zramUsed / systemStats.zramTotal) * 100" size="small" />
-                    </div>
-                  </div>
-                </div>
-                <!-- I/O Details -->
-                <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-left: 1px solid #f0f0f0; padding-left: 24px;">
-                  <!-- Net Detail -->
-                  <div>
-                    <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">NETWORK INTERFACES</div>
-                    <div style="max-height: 120px; overflow-y: auto;">
-                      <div v-for="s in systemStats.netInterfaces" :key="s.name" class="io-row" style="cursor: pointer"
-                           @click="openChart('net_' + s.name, 'Interface: ' + s.name, 'double', ['Download', 'Upload'])">
-                        <span class="io-name">{{ s.name }}</span>
-                        <span class="io-val-in">↓{{ formatBytes(s.readSpeed, 0) }}</span>
-                        <span class="io-val-out">↑{{ formatBytes(s.writeSpeed, 0) }}</span>
-                      </div>
-                      <div v-if="!systemStats.netInterfaces.length" style="font-size: 11px; color: #ccc;">No active traffic</div>
-                    </div>
-                  </div>
-                  <!-- Disk Detail -->
-                  <div>
-                    <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">DISK DEVICES</div>
-                    <div style="max-height: 120px; overflow-y: auto;">
-                      <div v-for="s in systemStats.diskDevices" :key="s.name" class="io-row" style="cursor: pointer"
-                           @click="openChart('disk_' + s.name, 'Disk: ' + s.name, 'double', ['Read', 'Write'])">
-                        <span class="io-name">{{ s.name }}</span>
-                        <span class="io-val-read">R:{{ formatBytes(s.readSpeed, 0) }}</span>
-                        <span class="io-val-write">W:{{ formatBytes(s.writeSpeed, 0) }}</span>
-                      </div>
-                      <div v-if="!systemStats.diskDevices.length" style="font-size: 11px; color: #ccc;">No active I/O</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-        </a-row>
-        <!-- GPU Row -->
-        <a-row>
-          <a-col :span="24">
-            <a-card size="small" class="stat-card-row" :title="gpus.length ? 'GPU Acceleration Status' : 'No GPU Detected'">
-              <template #extra><DeploymentUnitOutlined /></template>
-              <div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 10px;">
-                <div v-for="gpu in gpus" :key="gpu.index" @click="openChart('gpu_' + gpu.index + '_util', 'GPU ' + gpu.index + ' Load', 'single', ['Load %'])" class="gpu-row-item" style="cursor: pointer; flex: 1; min-width: 500px;">
-                  <div style="display: flex; align-items: center; gap: 24px; width: 100%;">
-                    <div style="text-align: center; flex-shrink: 0;">
-                      <a-tag v-if="gpu.temp > 0" color="volcano" style="margin-bottom: 4px;">{{ gpu.temp }}°C</a-tag>
-                      <div style="font-size: 11px; font-weight: bold; color: #666;">GPU {{ gpu.index }}</div>
-                    </div>
-                    <div style="flex: 1;">
-                      <div style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #333;">{{ gpu.name }}</div>
-                      <div style="display: flex; gap: 40px; align-items: center;">
-                        <div style="text-align: center;">
-                          <div style="font-size: 10px; color: #999; margin-bottom: 4px; text-transform: uppercase;">Core Util</div>
-                          <a-progress type="circle" :percent="gpu.utilGpu" :width="65" :stroke-width="10" stroke-color="#13c2c2" />
+                  <div v-else style="padding: 10px;">
+                    <div v-if="pCores.length > 0">
+                      <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #1890ff; padding-left: 8px;">PERFORMANCE CORES (P-CORES)</div>
+                      <div class="core-grid-full">
+                        <div v-for="core in pCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" class="core-item-full" style="cursor: pointer">
+                          <span class="core-label">#{{ core.index }}</span>
+                          <div style="flex: 1; margin: 0 10px;"><a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#1890ff" /></div>
+                          <span class="core-val">{{ core.usage.toFixed(1) }}%</span>
                         </div>
-                        <div v-if="gpu.memTotal > 0" style="text-align: center;" @click.stop="openChart('gpu_' + gpu.index + '_vram', 'GPU ' + gpu.index + ' VRAM', 'single', ['Used MB'])">
-                          <div style="font-size: 10px; color: #999; margin-bottom: 4px; text-transform: uppercase;">VRAM Usage</div>
-                          <a-progress type="circle" :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" :width="65" :stroke-width="10" stroke-color="#722ed1" />
-                        </div>
-                        <div style="flex: 1; background: #f5f5f5; padding: 8px 12px; border-radius: 6px;">
-                          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span style="color: #666;">Used:</span><span style="font-weight: bold; font-family: monospace;">{{ gpu.memUsed }} MiB</span></div>
-                          <div v-if="gpu.memTotal > 0" style="display: flex; justify-content: space-between; font-size: 12px;"><span style="color: #666;">Total:</span><span style="font-family: monospace;">{{ gpu.memTotal }} MiB</span></div>
+                      </div>
+                    </div>
+                    <div v-if="eCores.length > 0" style="margin-top: 16px;">
+                      <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #52c41a; padding-left: 8px;">EFFICIENCY CORES (E-CORES)</div>
+                      <div class="core-grid-full">
+                        <div v-for="core in eCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" class="core-item-full" style="cursor: pointer">
+                          <span class="core-label">#{{ core.index }}</span>
+                          <div style="flex: 1; margin: 0 10px;"><a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#52c41a" /></div>
+                          <span class="core-val" style="color: #52c41a">{{ core.usage.toFixed(1) }}%</span>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <a-empty v-if="!gpus.length" :image="false" description="No GPU hardware detected (NVML or DRM)" style="width: 100%" />
-              </div>
-            </a-card>
-          </a-col>
-        </a-row>
+                </a-card>
+              </a-col>
+            </a-row>
+          </a-tab-pane>
+
+          <a-tab-pane key="memory">
+            <template #tab><span><PieChartOutlined /> RAM / I/O</span></template>
+            <a-row style="margin-bottom: 16px;">
+              <a-col :span="24">
+                <a-card size="small" class="stat-card-row" title="Memory & Interface I/O">
+                  <template #extra><PieChartOutlined /></template>
+                  <div style="display: flex; gap: 24px; padding: 10px;">
+                    <!-- RAM Breakdown -->
+                    <div style="flex: 0 0 350px; cursor: pointer" @click="openChart('mem_usage', 'RAM Usage', 'single', ['Usage %'])">
+                      <div style="margin-bottom: 10px;">
+                         <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px;">
+                          <span>RAM Usage <LineChartOutlined style="font-size: 12px; color: #ccc" /></span>
+                          <span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span>
+                        </div>
+                        <a-progress 
+                          :percent="[
+                            ((systemStats.memUsed - systemStats.memCached - systemStats.memBuffers) / systemStats.memTotal) * 100,
+                            (systemStats.memCached / systemStats.memTotal) * 100,
+                            (systemStats.memBuffers / systemStats.memTotal) * 100,
+                          ]"
+                          :stroke-color="['#1890ff', '#52c41a', '#faad14']" 
+                          status="active" 
+                          :showInfo="false"
+                        />
+                        <div class="mem-legend">
+                          <span><span class="dot" style="background: #1890ff"></span> Apps: {{ formatBytes(systemStats.memUsed - systemStats.memCached - systemStats.memBuffers) }}</span>
+                          <span><span class="dot" style="background: #52c41a"></span> Cached: {{ formatBytes(systemStats.memCached) }}</span>
+                          <span><span class="dot" style="background: #faad14"></span> Buffers: {{ formatBytes(systemStats.memBuffers) }}</span>
+                        </div>
+                        <div v-if="systemStats.zramTotal > 0" style="margin-top: 8px; font-size: 12px;">
+                          ZRAM: {{ formatBytes(systemStats.zramUsed) }} / {{ formatBytes(systemStats.zramTotal) }}
+                          <a-progress :percent="(systemStats.zramUsed / systemStats.zramTotal) * 100" size="small" />
+                        </div>
+                      </div>
+                    </div>
+                    <!-- I/O Details -->
+                    <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-left: 1px solid #f0f0f0; padding-left: 24px;">
+                      <!-- Net Detail -->
+                      <div>
+                        <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">NETWORK INTERFACES</div>
+                        <div style="max-height: 120px; overflow-y: auto;">
+                          <div v-for="s in systemStats.netInterfaces" :key="s.name" class="io-row" style="cursor: pointer"
+                               @click="openChart('net_' + s.name, 'Interface: ' + s.name, 'double', ['Download', 'Upload'])">
+                            <span class="io-name">{{ s.name }}</span>
+                            <span class="io-val-in">↓{{ formatBytes(s.readSpeed, 0) }}</span>
+                            <span class="io-val-out">↑{{ formatBytes(s.writeSpeed, 0) }}</span>
+                          </div>
+                          <div v-if="!systemStats.netInterfaces.length" style="font-size: 11px; color: #ccc;">No active traffic</div>
+                        </div>
+                      </div>
+                      <!-- Disk Detail -->
+                      <div>
+                        <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">DISK DEVICES</div>
+                        <div style="max-height: 120px; overflow-y: auto;">
+                          <div v-for="s in systemStats.diskDevices" :key="s.name" class="io-row" style="cursor: pointer"
+                               @click="openChart('disk_' + s.name, 'Disk: ' + s.name, 'double', ['Read', 'Write'])">
+                            <span class="io-name">{{ s.name }}</span>
+                            <span class="io-val-read">R:{{ formatBytes(s.readSpeed, 0) }}</span>
+                            <span class="io-val-write">W:{{ formatBytes(s.writeSpeed, 0) }}</span>
+                          </div>
+                          <div v-if="!systemStats.diskDevices.length" style="font-size: 11px; color: #ccc;">No active I/O</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </a-card>
+              </a-col>
+            </a-row>
+          </a-tab-pane>
+
+          <a-tab-pane key="gpu">
+            <template #tab><span><DeploymentUnitOutlined /> GPU</span></template>
+            <!-- GPU Row -->
+            <a-row>
+              <a-col :span="24">
+                <a-card size="small" class="stat-card-row" :title="gpus.length ? 'GPU Acceleration Status' : 'No GPU Detected'">
+                  <template #extra><DeploymentUnitOutlined /></template>
+                  <div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 10px;">
+                    <div v-for="gpu in gpus" :key="gpu.index" @click="openChart('gpu_' + gpu.index + '_util', 'GPU ' + gpu.index + ' Load', 'single', ['Load %'])" class="gpu-row-item" style="cursor: pointer; flex: 1; min-width: 500px;">
+                      <div style="display: flex; align-items: center; gap: 24px; width: 100%;">
+                        <div style="text-align: center; flex-shrink: 0;">
+                          <a-tag v-if="gpu.temp > 0" color="volcano" style="margin-bottom: 4px;">{{ gpu.temp }}°C</a-tag>
+                          <div style="font-size: 11px; font-weight: bold; color: #666;">GPU {{ gpu.index }}</div>
+                        </div>
+                        <div style="flex: 1;">
+                          <div style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #333;">{{ gpu.name }}</div>
+                          <div style="display: flex; gap: 40px; align-items: center;">
+                            <div style="text-align: center;">
+                              <div style="font-size: 10px; color: #999; margin-bottom: 4px; text-transform: uppercase;">Core Util</div>
+                              <a-progress type="circle" :percent="gpu.utilGpu" :width="65" :stroke-width="10" stroke-color="#13c2c2" />
+                            </div>
+                            <div v-if="gpu.memTotal > 0" style="text-align: center;" @click.stop="openChart('gpu_' + gpu.index + '_vram', 'GPU ' + gpu.index + ' VRAM', 'single', ['Used MB'])">
+                              <div style="font-size: 10px; color: #999; margin-bottom: 4px; text-transform: uppercase;">VRAM Usage</div>
+                              <a-progress type="circle" :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" :width="65" :stroke-width="10" stroke-color="#722ed1" />
+                            </div>
+                            <div style="flex: 1; background: #f5f5f5; padding: 8px 12px; border-radius: 6px;">
+                              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span style="color: #666;">Used:</span><span style="font-weight: bold; font-family: monospace;">{{ gpu.memUsed }} MiB</span></div>
+                              <div v-if="gpu.memTotal > 0" style="display: flex; justify-content: space-between; font-size: 12px;"><span style="color: #666;">Total:</span><span style="font-family: monospace;">{{ gpu.memTotal }} MiB</span></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <a-empty v-if="!gpus.length" :image="false" description="No GPU hardware detected (NVML or DRM)" style="width: 100%" />
+                  </div>
+                </a-card>
+              </a-col>
+            </a-row>
+          </a-tab-pane>
+
+          <a-tab-pane key="faults">
+            <template #tab><span><WarningOutlined /> Errors</span></template>
+            <a-row style="margin-bottom: 16px;">
+              <a-col :span="24">
+                <a-card size="small" class="stat-card-row" title="Page Fault & Hard Error Overview">
+                  <template #extra><WarningOutlined /></template>
+                  <a-row :gutter="[16, 16]">
+                    <a-col :xs="24" :sm="12" :lg="6">
+                      <div style="cursor: pointer;" @click="openChart('fault_page_rate', 'Page Fault Rate', 'single', ['Faults/s'])">
+                        <a-card size="small" :bordered="false" style="background: #f8fbff;">
+                          <div style="font-size: 12px; color: #666; margin-bottom: 8px;">Page Faults</div>
+                          <div style="font-size: 26px; font-weight: bold; color: #1890ff;">{{ formatRate(systemStats.faults.pageFaultRate) }}</div>
+                          <div style="font-size: 12px; color: #888; margin-top: 6px;">Total {{ formatCount(systemStats.faults.pageFaults) }}</div>
+                        </a-card>
+                      </div>
+                    </a-col>
+                    <a-col :xs="24" :sm="12" :lg="6">
+                      <div style="cursor: pointer;" @click="openChart('fault_major_rate', 'Hard Fault Rate', 'single', ['Faults/s'])">
+                        <a-card size="small" :bordered="false" style="background: #fff7f7;">
+                          <div style="font-size: 12px; color: #666; margin-bottom: 8px;">Hard Faults</div>
+                          <div style="font-size: 26px; font-weight: bold; color: #cf1322;">{{ formatRate(systemStats.faults.majorFaultRate) }}</div>
+                          <div style="font-size: 12px; color: #888; margin-top: 6px;">Total {{ formatCount(systemStats.faults.majorFaults) }}</div>
+                        </a-card>
+                      </div>
+                    </a-col>
+                    <a-col :xs="24" :sm="12" :lg="6">
+                      <div style="cursor: pointer;" @click="openChart('fault_minor_rate', 'Soft Fault Rate', 'single', ['Faults/s'])">
+                        <a-card size="small" :bordered="false" style="background: #fffaf0;">
+                          <div style="font-size: 12px; color: #666; margin-bottom: 8px;">Soft / Minor Faults</div>
+                          <div style="font-size: 26px; font-weight: bold; color: #d46b08;">{{ formatRate(systemStats.faults.minorFaultRate) }}</div>
+                          <div style="font-size: 12px; color: #888; margin-top: 6px;">Total {{ formatCount(systemStats.faults.minorFaults) }}</div>
+                        </a-card>
+                      </div>
+                    </a-col>
+                    <a-col :xs="24" :sm="12" :lg="6">
+                      <div style="cursor: pointer;" @click="openChart('fault_swap_rate', 'Swap Activity', 'double', ['Swap In', 'Swap Out'])">
+                        <a-card size="small" :bordered="false" style="background: #fbf8ff;">
+                          <div style="font-size: 12px; color: #666; margin-bottom: 8px;">Swap Activity</div>
+                          <div style="font-size: 18px; font-weight: bold; color: #722ed1;">In {{ formatRate(systemStats.faults.swapInRate) }}</div>
+                          <div style="font-size: 18px; font-weight: bold; color: #722ed1;">Out {{ formatRate(systemStats.faults.swapOutRate) }}</div>
+                          <div style="font-size: 12px; color: #888; margin-top: 6px;">Total {{ formatCount(systemStats.faults.swapIn) }} / {{ formatCount(systemStats.faults.swapOut) }}</div>
+                        </a-card>
+                      </div>
+                    </a-col>
+                  </a-row>
+                </a-card>
+              </a-col>
+            </a-row>
+            <a-row>
+              <a-col :span="24">
+                <a-card size="small" class="stat-card-row" title="Top Faulting Processes">
+                  <template #extra><LineChartOutlined /></template>
+                  <a-table
+                    :dataSource="faultProcesses"
+                    :columns="faultColumns"
+                    size="small"
+                    :pagination="{ pageSize: 10 }"
+                    rowKey="pid"
+                    :scroll="{ x: 900 }"
+                  >
+                    <template #bodyCell="{ column, record }">
+                      <template v-if="column.key === 'name'"><span class="mono">{{ record.name }}</span></template>
+                      <template v-if="column.key === 'majorFaultRate'">
+                        <a-tag color="red">{{ formatRate(record.majorFaultRate) }}</a-tag>
+                      </template>
+                      <template v-if="column.key === 'minorFaultRate'">
+                        <a-tag color="orange">{{ formatRate(record.minorFaultRate) }}</a-tag>
+                      </template>
+                      <template v-if="column.key === 'faultRate'">
+                        <a-tag color="blue">{{ formatRate(record.faultRate) }}</a-tag>
+                      </template>
+                      <template v-if="column.key === 'majorFaults'">{{ formatCount(record.majorFaults) }}</template>
+                      <template v-if="column.key === 'minorFaults'">{{ formatCount(record.minorFaults) }}</template>
+                      <template v-if="column.key === 'action'">
+                        <a-button type="link" size="small" @click="openProcDetails(record)">
+                          <template #icon><InfoCircleOutlined /></template>
+                        </a-button>
+                      </template>
+                    </template>
+                  </a-table>
+                </a-card>
+              </a-col>
+            </a-row>
+          </a-tab-pane>
+        </a-tabs>
       </a-tab-pane>
 
       <!-- PROCESSES TAB -->
@@ -636,6 +919,11 @@ watch(refreshInterval, connectWebSocket);
         <a-descriptions-item label="CPU Load">{{ selectedProc.cpu.toFixed(1) }}%</a-descriptions-item>
         <a-descriptions-item label="Memory Usage">{{ selectedProc.mem.toFixed(1) }}%</a-descriptions-item>
         <a-descriptions-item label="GPU VRAM">{{ selectedProc.gpuMem > 0 ? selectedProc.gpuMem + ' MiB' : 'None' }}</a-descriptions-item>
+        <a-descriptions-item label="Minor Faults">{{ formatCount(selectedProc.minorFaults || 0) }}</a-descriptions-item>
+        <a-descriptions-item label="Major Faults">{{ formatCount(selectedProc.majorFaults || 0) }}</a-descriptions-item>
+        <a-descriptions-item v-if="selectedProc.faultRate !== undefined" label="Total Fault Rate">{{ formatRate(selectedProc.faultRate) }}</a-descriptions-item>
+        <a-descriptions-item v-if="selectedProc.majorFaultRate !== undefined" label="Hard Fault Rate">{{ formatRate(selectedProc.majorFaultRate) }}</a-descriptions-item>
+        <a-descriptions-item v-if="selectedProc.minorFaultRate !== undefined" label="Page Fault Rate">{{ formatRate(selectedProc.minorFaultRate) }}</a-descriptions-item>
         <a-descriptions-item label="Full Command"><div style="max-height: 100px; overflow-y: auto; font-family: monospace; font-size: 11px; background: #fafafa; padding: 8px; border-radius: 4px; word-break: break-all;">{{ selectedProc.cmdline }}</div></a-descriptions-item>
         <a-descriptions-item label="Started At">{{ new Date(selectedProc.createTime).toLocaleString() }}</a-descriptions-item>
       </a-descriptions>
@@ -645,6 +933,7 @@ watch(refreshInterval, connectWebSocket);
 
 <style scoped>
 .monitor-tabs :deep(.ant-tabs-nav) { margin-bottom: 12px; }
+.health-subtabs :deep(.ant-tabs-nav) { margin-bottom: 12px; }
 .stat-card-row { border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
 .core-grid-full { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px; max-height: 250px; overflow-y: auto; }
 .core-item-full { display: flex; align-items: center; background: #fafafa; padding: 4px 12px; border-radius: 4px; border: 1px solid #f0f0f0; }

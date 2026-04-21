@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined } from '@ant-design/icons-vue';
+import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined } from '@ant-design/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -46,6 +46,10 @@ const handleMenuClick = ({ key }: { key: string }) => {
         <a-menu-item key="/executor">
           <template #icon><PlaySquareOutlined /></template>
           Executor
+        </a-menu-item>
+        <a-menu-item key="/hooks">
+          <template #icon><LinkOutlined /></template>
+          Hooks
         </a-menu-item>
         <a-menu-item key="/config">
           <template #icon><SettingOutlined /></template>

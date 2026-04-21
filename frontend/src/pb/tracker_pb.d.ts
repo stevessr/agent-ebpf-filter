@@ -571,6 +571,12 @@ export namespace pb {
 
         /** Process createTime */
         createTime?: (number|Long|null);
+
+        /** Process minorFaults */
+        minorFaults?: (number|Long|null);
+
+        /** Process majorFaults */
+        majorFaults?: (number|Long|null);
     }
 
     /** Represents a Process. */
@@ -614,6 +620,12 @@ export namespace pb {
 
         /** Process createTime. */
         public createTime: (number|Long);
+
+        /** Process minorFaults. */
+        public minorFaults: (number|Long);
+
+        /** Process majorFaults. */
+        public majorFaults: (number|Long);
 
         /**
          * Creates a new Process instance using the specified properties.
@@ -1196,6 +1208,333 @@ export namespace pb {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of a Hook. */
+    interface IHook {
+
+        /** Hook id */
+        id?: (string|null);
+
+        /** Hook name */
+        name?: (string|null);
+
+        /** Hook description */
+        description?: (string|null);
+
+        /** Hook installed */
+        installed?: (boolean|null);
+
+        /** Hook targetCmd */
+        targetCmd?: (string|null);
+    }
+
+    /** Represents a Hook. */
+    class Hook implements IHook {
+
+        /**
+         * Constructs a new Hook.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IHook);
+
+        /** Hook id. */
+        public id: string;
+
+        /** Hook name. */
+        public name: string;
+
+        /** Hook description. */
+        public description: string;
+
+        /** Hook installed. */
+        public installed: boolean;
+
+        /** Hook targetCmd. */
+        public targetCmd: string;
+
+        /**
+         * Creates a new Hook instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns Hook instance
+         */
+        public static create(properties?: pb.IHook): pb.Hook;
+
+        /**
+         * Encodes the specified Hook message. Does not implicitly {@link pb.Hook.verify|verify} messages.
+         * @param message Hook message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IHook, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified Hook message, length delimited. Does not implicitly {@link pb.Hook.verify|verify} messages.
+         * @param message Hook message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IHook, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a Hook message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns Hook
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.Hook;
+
+        /**
+         * Decodes a Hook message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns Hook
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.Hook;
+
+        /**
+         * Verifies a Hook message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a Hook message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns Hook
+         */
+        public static fromObject(object: { [k: string]: any }): pb.Hook;
+
+        /**
+         * Creates a plain object from a Hook message. Also converts values to other types if specified.
+         * @param message Hook
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.Hook, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this Hook to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Hook
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a HookRequest. */
+    interface IHookRequest {
+
+        /** HookRequest id */
+        id?: (string|null);
+
+        /** HookRequest install */
+        install?: (boolean|null);
+    }
+
+    /** Represents a HookRequest. */
+    class HookRequest implements IHookRequest {
+
+        /**
+         * Constructs a new HookRequest.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IHookRequest);
+
+        /** HookRequest id. */
+        public id: string;
+
+        /** HookRequest install. */
+        public install: boolean;
+
+        /**
+         * Creates a new HookRequest instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns HookRequest instance
+         */
+        public static create(properties?: pb.IHookRequest): pb.HookRequest;
+
+        /**
+         * Encodes the specified HookRequest message. Does not implicitly {@link pb.HookRequest.verify|verify} messages.
+         * @param message HookRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IHookRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified HookRequest message, length delimited. Does not implicitly {@link pb.HookRequest.verify|verify} messages.
+         * @param message HookRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IHookRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a HookRequest message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns HookRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.HookRequest;
+
+        /**
+         * Decodes a HookRequest message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns HookRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.HookRequest;
+
+        /**
+         * Verifies a HookRequest message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a HookRequest message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns HookRequest
+         */
+        public static fromObject(object: { [k: string]: any }): pb.HookRequest;
+
+        /**
+         * Creates a plain object from a HookRequest message. Also converts values to other types if specified.
+         * @param message HookRequest
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.HookRequest, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this HookRequest to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HookRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a HookResponse. */
+    interface IHookResponse {
+
+        /** HookResponse success */
+        success?: (boolean|null);
+
+        /** HookResponse message */
+        message?: (string|null);
+    }
+
+    /** Represents a HookResponse. */
+    class HookResponse implements IHookResponse {
+
+        /**
+         * Constructs a new HookResponse.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IHookResponse);
+
+        /** HookResponse success. */
+        public success: boolean;
+
+        /** HookResponse message. */
+        public message: string;
+
+        /**
+         * Creates a new HookResponse instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns HookResponse instance
+         */
+        public static create(properties?: pb.IHookResponse): pb.HookResponse;
+
+        /**
+         * Encodes the specified HookResponse message. Does not implicitly {@link pb.HookResponse.verify|verify} messages.
+         * @param message HookResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IHookResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified HookResponse message, length delimited. Does not implicitly {@link pb.HookResponse.verify|verify} messages.
+         * @param message HookResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IHookResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a HookResponse message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns HookResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.HookResponse;
+
+        /**
+         * Decodes a HookResponse message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns HookResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.HookResponse;
+
+        /**
+         * Verifies a HookResponse message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a HookResponse message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns HookResponse
+         */
+        public static fromObject(object: { [k: string]: any }): pb.HookResponse;
+
+        /**
+         * Creates a plain object from a HookResponse message. Also converts values to other types if specified.
+         * @param message HookResponse
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.HookResponse, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this HookResponse to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HookResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of a NetworkInterface. */
     interface INetworkInterface {
 
@@ -1541,6 +1880,157 @@ export namespace pb {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of a FaultInfo. */
+    interface IFaultInfo {
+
+        /** FaultInfo pageFaults */
+        pageFaults?: (number|Long|null);
+
+        /** FaultInfo majorFaults */
+        majorFaults?: (number|Long|null);
+
+        /** FaultInfo minorFaults */
+        minorFaults?: (number|Long|null);
+
+        /** FaultInfo pageFaultRate */
+        pageFaultRate?: (number|null);
+
+        /** FaultInfo majorFaultRate */
+        majorFaultRate?: (number|null);
+
+        /** FaultInfo minorFaultRate */
+        minorFaultRate?: (number|null);
+
+        /** FaultInfo swapIn */
+        swapIn?: (number|Long|null);
+
+        /** FaultInfo swapOut */
+        swapOut?: (number|Long|null);
+
+        /** FaultInfo swapInRate */
+        swapInRate?: (number|null);
+
+        /** FaultInfo swapOutRate */
+        swapOutRate?: (number|null);
+    }
+
+    /** Represents a FaultInfo. */
+    class FaultInfo implements IFaultInfo {
+
+        /**
+         * Constructs a new FaultInfo.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IFaultInfo);
+
+        /** FaultInfo pageFaults. */
+        public pageFaults: (number|Long);
+
+        /** FaultInfo majorFaults. */
+        public majorFaults: (number|Long);
+
+        /** FaultInfo minorFaults. */
+        public minorFaults: (number|Long);
+
+        /** FaultInfo pageFaultRate. */
+        public pageFaultRate: number;
+
+        /** FaultInfo majorFaultRate. */
+        public majorFaultRate: number;
+
+        /** FaultInfo minorFaultRate. */
+        public minorFaultRate: number;
+
+        /** FaultInfo swapIn. */
+        public swapIn: (number|Long);
+
+        /** FaultInfo swapOut. */
+        public swapOut: (number|Long);
+
+        /** FaultInfo swapInRate. */
+        public swapInRate: number;
+
+        /** FaultInfo swapOutRate. */
+        public swapOutRate: number;
+
+        /**
+         * Creates a new FaultInfo instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns FaultInfo instance
+         */
+        public static create(properties?: pb.IFaultInfo): pb.FaultInfo;
+
+        /**
+         * Encodes the specified FaultInfo message. Does not implicitly {@link pb.FaultInfo.verify|verify} messages.
+         * @param message FaultInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IFaultInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified FaultInfo message, length delimited. Does not implicitly {@link pb.FaultInfo.verify|verify} messages.
+         * @param message FaultInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IFaultInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a FaultInfo message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns FaultInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.FaultInfo;
+
+        /**
+         * Decodes a FaultInfo message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns FaultInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.FaultInfo;
+
+        /**
+         * Verifies a FaultInfo message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a FaultInfo message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns FaultInfo
+         */
+        public static fromObject(object: { [k: string]: any }): pb.FaultInfo;
+
+        /**
+         * Creates a plain object from a FaultInfo message. Also converts values to other types if specified.
+         * @param message FaultInfo
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.FaultInfo, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this FaultInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for FaultInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of a SystemStats. */
     interface ISystemStats {
 
@@ -1558,6 +2048,9 @@ export namespace pb {
 
         /** SystemStats io */
         io?: (pb.IIOInfo|null);
+
+        /** SystemStats faults */
+        faults?: (pb.IFaultInfo|null);
     }
 
     /** Represents a SystemStats. */
@@ -1583,6 +2076,9 @@ export namespace pb {
 
         /** SystemStats io. */
         public io?: (pb.IIOInfo|null);
+
+        /** SystemStats faults. */
+        public faults?: (pb.IFaultInfo|null);
 
         /**
          * Creates a new SystemStats instance using the specified properties.

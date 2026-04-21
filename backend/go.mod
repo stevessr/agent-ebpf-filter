@@ -3,7 +3,9 @@ module agent-ebpf-filter
 go 1.26.2
 
 require (
+	github.com/NVIDIA/go-nvml v0.13.0-1
 	github.com/cilium/ebpf v0.21.0
+	github.com/creack/pty/v2 v2.0.1
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/shirou/gopsutil/v3 v3.24.5
@@ -11,7 +13,6 @@ require (
 )
 
 require (
-	github.com/NVIDIA/go-nvml v0.13.0-1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
@@ -47,6 +48,4 @@ require (
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
-	google.golang.org/grpc v1.80.0 // indirect
 )

@@ -2,7 +2,7 @@
 GOPATH ?= $(shell go env GOPATH)
 export PATH := $(PATH):$(GOPATH)/bin
 
-.PHONY: all backend frontend wrapper clean proto help dev run deps
+.PHONY: all backend frontend wrapper clean proto help dev run deps ebpf-bootstrap
 
 all: proto backend frontend wrapper ## Build all components
 
@@ -45,13 +45,22 @@ frontend: ## Build Vue3 frontend
 	@echo "Building frontend..."
 	cd frontend && bun install && bun run build
 
-dev: proto wrapper ## Run both backend and frontend development server (no full build)
-	@echo "Starting dev environment..."
-	cd backend/ebpf && go generate
-	cd backend && go run main.go & \
-	cd frontend && bun run dev
+ebpf-bootstrap: ## Bootstrap only the privileged eBPF components
+	@echo "Bootstrapping eBPF components..."
+	@(cd backend/ebpf && go generate)
+	@(cd backend && go run main.go --ebpf-bootstrap)
 
-run: all ## Build and run in production mode
+dev: proto wrapper ebpf-bootstrap ## Run both backend and frontend development server (no full build)
+	@echo "Starting dev environment..."
+	@rm -f backend/.port
+	@(cd backend && AGENT_WRAPPER_PATH="$(abspath agent-wrapper)" go run main.go) &
+	@for i in $$(seq 1 30); do \
+		[ -f backend/.port ] && break; \
+		sleep 1; \
+	done
+	@(cd frontend && bun run dev)
+
+run: all ebpf-bootstrap ## Build and run in production mode
 	@echo "Running production build..."
 	@./backend/agent-ebpf-filter
 

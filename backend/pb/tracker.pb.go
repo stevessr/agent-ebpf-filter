@@ -119,7 +119,7 @@ func (x WrapperResponse_Action) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use WrapperResponse_Action.Descriptor instead.
 func (WrapperResponse_Action) EnumDescriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{14, 0}
+	return file_tracker_proto_rawDescGZIP(), []int{18, 0}
 }
 
 // Represents a process registration request
@@ -425,6 +425,8 @@ type Process struct {
 	GpuId         uint32                 `protobuf:"varint,9,opt,name=gpu_id,json=gpuId,proto3" json:"gpu_id,omitempty"`       // GPU index
 	Cmdline       string                 `protobuf:"bytes,10,opt,name=cmdline,proto3" json:"cmdline,omitempty"`
 	CreateTime    int64                  `protobuf:"varint,11,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	MinorFaults   uint64                 `protobuf:"varint,12,opt,name=minor_faults,json=minorFaults,proto3" json:"minor_faults,omitempty"` // Page faults that did not require disk I/O
+	MajorFaults   uint64                 `protobuf:"varint,13,opt,name=major_faults,json=majorFaults,proto3" json:"major_faults,omitempty"` // Hard page faults that required disk I/O
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -532,6 +534,20 @@ func (x *Process) GetCmdline() string {
 func (x *Process) GetCreateTime() int64 {
 	if x != nil {
 		return x.CreateTime
+	}
+	return 0
+}
+
+func (x *Process) GetMinorFaults() uint64 {
+	if x != nil {
+		return x.MinorFaults
+	}
+	return 0
+}
+
+func (x *Process) GetMajorFaults() uint64 {
+	if x != nil {
+		return x.MajorFaults
 	}
 	return 0
 }
@@ -788,6 +804,186 @@ func (x *MemoryInfo) GetZramTotal() uint64 {
 	return 0
 }
 
+type Hook struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Installed     bool                   `protobuf:"varint,4,opt,name=installed,proto3" json:"installed,omitempty"`
+	TargetCmd     string                 `protobuf:"bytes,5,opt,name=target_cmd,json=targetCmd,proto3" json:"target_cmd,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Hook) Reset() {
+	*x = Hook{}
+	mi := &file_tracker_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Hook) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Hook) ProtoMessage() {}
+
+func (x *Hook) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Hook.ProtoReflect.Descriptor instead.
+func (*Hook) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *Hook) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Hook) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Hook) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *Hook) GetInstalled() bool {
+	if x != nil {
+		return x.Installed
+	}
+	return false
+}
+
+func (x *Hook) GetTargetCmd() string {
+	if x != nil {
+		return x.TargetCmd
+	}
+	return ""
+}
+
+type HookRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Install       bool                   `protobuf:"varint,2,opt,name=install,proto3" json:"install,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HookRequest) Reset() {
+	*x = HookRequest{}
+	mi := &file_tracker_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HookRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HookRequest) ProtoMessage() {}
+
+func (x *HookRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HookRequest.ProtoReflect.Descriptor instead.
+func (*HookRequest) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *HookRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *HookRequest) GetInstall() bool {
+	if x != nil {
+		return x.Install
+	}
+	return false
+}
+
+type HookResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HookResponse) Reset() {
+	*x = HookResponse{}
+	mi := &file_tracker_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HookResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HookResponse) ProtoMessage() {}
+
+func (x *HookResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HookResponse.ProtoReflect.Descriptor instead.
+func (*HookResponse) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *HookResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *HookResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 type NetworkInterface struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -799,7 +995,7 @@ type NetworkInterface struct {
 
 func (x *NetworkInterface) Reset() {
 	*x = NetworkInterface{}
-	mi := &file_tracker_proto_msgTypes[9]
+	mi := &file_tracker_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -811,7 +1007,7 @@ func (x *NetworkInterface) String() string {
 func (*NetworkInterface) ProtoMessage() {}
 
 func (x *NetworkInterface) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[9]
+	mi := &file_tracker_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -824,7 +1020,7 @@ func (x *NetworkInterface) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkInterface.ProtoReflect.Descriptor instead.
 func (*NetworkInterface) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{9}
+	return file_tracker_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *NetworkInterface) GetName() string {
@@ -859,7 +1055,7 @@ type DiskDevice struct {
 
 func (x *DiskDevice) Reset() {
 	*x = DiskDevice{}
-	mi := &file_tracker_proto_msgTypes[10]
+	mi := &file_tracker_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -871,7 +1067,7 @@ func (x *DiskDevice) String() string {
 func (*DiskDevice) ProtoMessage() {}
 
 func (x *DiskDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[10]
+	mi := &file_tracker_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -884,7 +1080,7 @@ func (x *DiskDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiskDevice.ProtoReflect.Descriptor instead.
 func (*DiskDevice) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{10}
+	return file_tracker_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DiskDevice) GetName() string {
@@ -922,7 +1118,7 @@ type IOInfo struct {
 
 func (x *IOInfo) Reset() {
 	*x = IOInfo{}
-	mi := &file_tracker_proto_msgTypes[11]
+	mi := &file_tracker_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -934,7 +1130,7 @@ func (x *IOInfo) String() string {
 func (*IOInfo) ProtoMessage() {}
 
 func (x *IOInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[11]
+	mi := &file_tracker_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -947,7 +1143,7 @@ func (x *IOInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IOInfo.ProtoReflect.Descriptor instead.
 func (*IOInfo) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{11}
+	return file_tracker_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *IOInfo) GetTotalReadBytes() uint64 {
@@ -992,6 +1188,122 @@ func (x *IOInfo) GetDisks() []*DiskDevice {
 	return nil
 }
 
+type FaultInfo struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	PageFaults     uint64                 `protobuf:"varint,1,opt,name=page_faults,json=pageFaults,proto3" json:"page_faults,omitempty"`                // pgfault
+	MajorFaults    uint64                 `protobuf:"varint,2,opt,name=major_faults,json=majorFaults,proto3" json:"major_faults,omitempty"`             // pgmajfault (hard faults)
+	MinorFaults    uint64                 `protobuf:"varint,3,opt,name=minor_faults,json=minorFaults,proto3" json:"minor_faults,omitempty"`             // page_faults - major_faults
+	PageFaultRate  float64                `protobuf:"fixed64,4,opt,name=page_fault_rate,json=pageFaultRate,proto3" json:"page_fault_rate,omitempty"`    // faults/sec
+	MajorFaultRate float64                `protobuf:"fixed64,5,opt,name=major_fault_rate,json=majorFaultRate,proto3" json:"major_fault_rate,omitempty"` // hard faults/sec
+	MinorFaultRate float64                `protobuf:"fixed64,6,opt,name=minor_fault_rate,json=minorFaultRate,proto3" json:"minor_fault_rate,omitempty"` // soft faults/sec
+	SwapIn         uint64                 `protobuf:"varint,7,opt,name=swap_in,json=swapIn,proto3" json:"swap_in,omitempty"`
+	SwapOut        uint64                 `protobuf:"varint,8,opt,name=swap_out,json=swapOut,proto3" json:"swap_out,omitempty"`
+	SwapInRate     float64                `protobuf:"fixed64,9,opt,name=swap_in_rate,json=swapInRate,proto3" json:"swap_in_rate,omitempty"`
+	SwapOutRate    float64                `protobuf:"fixed64,10,opt,name=swap_out_rate,json=swapOutRate,proto3" json:"swap_out_rate,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *FaultInfo) Reset() {
+	*x = FaultInfo{}
+	mi := &file_tracker_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FaultInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FaultInfo) ProtoMessage() {}
+
+func (x *FaultInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FaultInfo.ProtoReflect.Descriptor instead.
+func (*FaultInfo) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *FaultInfo) GetPageFaults() uint64 {
+	if x != nil {
+		return x.PageFaults
+	}
+	return 0
+}
+
+func (x *FaultInfo) GetMajorFaults() uint64 {
+	if x != nil {
+		return x.MajorFaults
+	}
+	return 0
+}
+
+func (x *FaultInfo) GetMinorFaults() uint64 {
+	if x != nil {
+		return x.MinorFaults
+	}
+	return 0
+}
+
+func (x *FaultInfo) GetPageFaultRate() float64 {
+	if x != nil {
+		return x.PageFaultRate
+	}
+	return 0
+}
+
+func (x *FaultInfo) GetMajorFaultRate() float64 {
+	if x != nil {
+		return x.MajorFaultRate
+	}
+	return 0
+}
+
+func (x *FaultInfo) GetMinorFaultRate() float64 {
+	if x != nil {
+		return x.MinorFaultRate
+	}
+	return 0
+}
+
+func (x *FaultInfo) GetSwapIn() uint64 {
+	if x != nil {
+		return x.SwapIn
+	}
+	return 0
+}
+
+func (x *FaultInfo) GetSwapOut() uint64 {
+	if x != nil {
+		return x.SwapOut
+	}
+	return 0
+}
+
+func (x *FaultInfo) GetSwapInRate() float64 {
+	if x != nil {
+		return x.SwapInRate
+	}
+	return 0
+}
+
+func (x *FaultInfo) GetSwapOutRate() float64 {
+	if x != nil {
+		return x.SwapOutRate
+	}
+	return 0
+}
+
 type SystemStats struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Processes     []*Process             `protobuf:"bytes,1,rep,name=processes,proto3" json:"processes,omitempty"`
@@ -999,13 +1311,14 @@ type SystemStats struct {
 	Cpu           *CPUInfo               `protobuf:"bytes,3,opt,name=cpu,proto3" json:"cpu,omitempty"`
 	Memory        *MemoryInfo            `protobuf:"bytes,4,opt,name=memory,proto3" json:"memory,omitempty"`
 	Io            *IOInfo                `protobuf:"bytes,5,opt,name=io,proto3" json:"io,omitempty"`
+	Faults        *FaultInfo             `protobuf:"bytes,6,opt,name=faults,proto3" json:"faults,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SystemStats) Reset() {
 	*x = SystemStats{}
-	mi := &file_tracker_proto_msgTypes[12]
+	mi := &file_tracker_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1017,7 +1330,7 @@ func (x *SystemStats) String() string {
 func (*SystemStats) ProtoMessage() {}
 
 func (x *SystemStats) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[12]
+	mi := &file_tracker_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1030,7 +1343,7 @@ func (x *SystemStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemStats.ProtoReflect.Descriptor instead.
 func (*SystemStats) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{12}
+	return file_tracker_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *SystemStats) GetProcesses() []*Process {
@@ -1068,6 +1381,13 @@ func (x *SystemStats) GetIo() *IOInfo {
 	return nil
 }
 
+func (x *SystemStats) GetFaults() *FaultInfo {
+	if x != nil {
+		return x.Faults
+	}
+	return nil
+}
+
 type WrapperRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Pid           uint32                 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
@@ -1080,7 +1400,7 @@ type WrapperRequest struct {
 
 func (x *WrapperRequest) Reset() {
 	*x = WrapperRequest{}
-	mi := &file_tracker_proto_msgTypes[13]
+	mi := &file_tracker_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1092,7 +1412,7 @@ func (x *WrapperRequest) String() string {
 func (*WrapperRequest) ProtoMessage() {}
 
 func (x *WrapperRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[13]
+	mi := &file_tracker_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1105,7 +1425,7 @@ func (x *WrapperRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WrapperRequest.ProtoReflect.Descriptor instead.
 func (*WrapperRequest) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{13}
+	return file_tracker_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *WrapperRequest) GetPid() uint32 {
@@ -1147,7 +1467,7 @@ type WrapperResponse struct {
 
 func (x *WrapperResponse) Reset() {
 	*x = WrapperResponse{}
-	mi := &file_tracker_proto_msgTypes[14]
+	mi := &file_tracker_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1159,7 +1479,7 @@ func (x *WrapperResponse) String() string {
 func (*WrapperResponse) ProtoMessage() {}
 
 func (x *WrapperResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[14]
+	mi := &file_tracker_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1172,7 +1492,7 @@ func (x *WrapperResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WrapperResponse.ProtoReflect.Descriptor instead.
 func (*WrapperResponse) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{14}
+	return file_tracker_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *WrapperResponse) GetAction() WrapperResponse_Action {
@@ -1205,7 +1525,7 @@ type ProcessList struct {
 
 func (x *ProcessList) Reset() {
 	*x = ProcessList{}
-	mi := &file_tracker_proto_msgTypes[15]
+	mi := &file_tracker_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1217,7 +1537,7 @@ func (x *ProcessList) String() string {
 func (*ProcessList) ProtoMessage() {}
 
 func (x *ProcessList) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[15]
+	mi := &file_tracker_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1230,7 +1550,7 @@ func (x *ProcessList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessList.ProtoReflect.Descriptor instead.
 func (*ProcessList) Descriptor() ([]byte, []int) {
-	return file_tracker_proto_rawDescGZIP(), []int{15}
+	return file_tracker_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ProcessList) GetProcesses() []*Process {
@@ -1251,7 +1571,7 @@ type CPUInfo_Core struct {
 
 func (x *CPUInfo_Core) Reset() {
 	*x = CPUInfo_Core{}
-	mi := &file_tracker_proto_msgTypes[16]
+	mi := &file_tracker_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1263,7 +1583,7 @@ func (x *CPUInfo_Core) String() string {
 func (*CPUInfo_Core) ProtoMessage() {}
 
 func (x *CPUInfo_Core) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[16]
+	mi := &file_tracker_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1322,7 +1642,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\x04type\x18\x04 \x01(\tR\x04type\x12\x10\n" +
 	"\x03tag\x18\x05 \x01(\tR\x03tag\x12\x12\n" +
 	"\x04comm\x18\x06 \x01(\tR\x04comm\x12\x12\n" +
-	"\x04path\x18\a \x01(\tR\x04path\"\x81\x02\n" +
+	"\x04path\x18\a \x01(\tR\x04path\"\xc7\x02\n" +
 	"\aProcess\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\x05R\x04ppid\x12\x12\n" +
@@ -1336,7 +1656,9 @@ const file_tracker_proto_rawDesc = "" +
 	"\acmdline\x18\n" +
 	" \x01(\tR\acmdline\x12\x1f\n" +
 	"\vcreate_time\x18\v \x01(\x03R\n" +
-	"createTime\"\xb7\x01\n" +
+	"createTime\x12!\n" +
+	"\fminor_faults\x18\f \x01(\x04R\vminorFaults\x12!\n" +
+	"\fmajor_faults\x18\r \x01(\x04R\vmajorFaults\"\xb7\x01\n" +
 	"\tGPUStatus\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\rR\x05index\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
@@ -1368,7 +1690,20 @@ const file_tracker_proto_rawDesc = "" +
 	"\x06shared\x18\x06 \x01(\x04R\x06shared\x12\x1b\n" +
 	"\tzram_used\x18\a \x01(\x04R\bzramUsed\x12\x1d\n" +
 	"\n" +
-	"zram_total\x18\b \x01(\x04R\tzramTotal\"d\n" +
+	"zram_total\x18\b \x01(\x04R\tzramTotal\"\x89\x01\n" +
+	"\x04Hook\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1c\n" +
+	"\tinstalled\x18\x04 \x01(\bR\tinstalled\x12\x1d\n" +
+	"\n" +
+	"target_cmd\x18\x05 \x01(\tR\ttargetCmd\"7\n" +
+	"\vHookRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\ainstall\x18\x02 \x01(\bR\ainstall\"B\n" +
+	"\fHookResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"d\n" +
 	"\x10NetworkInterface\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
@@ -1388,14 +1723,29 @@ const file_tracker_proto_rawDesc = "" +
 	"\x14total_net_recv_bytes\x18\x03 \x01(\x04R\x11totalNetRecvBytes\x12/\n" +
 	"\x14total_net_sent_bytes\x18\x04 \x01(\x04R\x11totalNetSentBytes\x120\n" +
 	"\bnetworks\x18\x05 \x03(\v2\x14.pb.NetworkInterfaceR\bnetworks\x12$\n" +
-	"\x05disks\x18\x06 \x03(\v2\x0e.pb.DiskDeviceR\x05disks\"\xbe\x01\n" +
+	"\x05disks\x18\x06 \x03(\v2\x0e.pb.DiskDeviceR\x05disks\"\xe8\x02\n" +
+	"\tFaultInfo\x12\x1f\n" +
+	"\vpage_faults\x18\x01 \x01(\x04R\n" +
+	"pageFaults\x12!\n" +
+	"\fmajor_faults\x18\x02 \x01(\x04R\vmajorFaults\x12!\n" +
+	"\fminor_faults\x18\x03 \x01(\x04R\vminorFaults\x12&\n" +
+	"\x0fpage_fault_rate\x18\x04 \x01(\x01R\rpageFaultRate\x12(\n" +
+	"\x10major_fault_rate\x18\x05 \x01(\x01R\x0emajorFaultRate\x12(\n" +
+	"\x10minor_fault_rate\x18\x06 \x01(\x01R\x0eminorFaultRate\x12\x17\n" +
+	"\aswap_in\x18\a \x01(\x04R\x06swapIn\x12\x19\n" +
+	"\bswap_out\x18\b \x01(\x04R\aswapOut\x12 \n" +
+	"\fswap_in_rate\x18\t \x01(\x01R\n" +
+	"swapInRate\x12\"\n" +
+	"\rswap_out_rate\x18\n" +
+	" \x01(\x01R\vswapOutRate\"\xe5\x01\n" +
 	"\vSystemStats\x12)\n" +
 	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocesses\x12!\n" +
 	"\x04gpus\x18\x02 \x03(\v2\r.pb.GPUStatusR\x04gpus\x12\x1d\n" +
 	"\x03cpu\x18\x03 \x01(\v2\v.pb.CPUInfoR\x03cpu\x12&\n" +
 	"\x06memory\x18\x04 \x01(\v2\x0e.pb.MemoryInfoR\x06memory\x12\x1a\n" +
 	"\x02io\x18\x05 \x01(\v2\n" +
-	".pb.IOInfoR\x02io\"^\n" +
+	".pb.IOInfoR\x02io\x12%\n" +
+	"\x06faults\x18\x06 \x01(\v2\r.pb.FaultInfoR\x06faults\"^\n" +
 	"\x0eWrapperRequest\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
 	"\x04comm\x18\x02 \x01(\tR\x04comm\x12\x12\n" +
@@ -1426,7 +1776,7 @@ func file_tracker_proto_rawDescGZIP() []byte {
 }
 
 var file_tracker_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_tracker_proto_goTypes = []any{
 	(CPUInfo_Core_Type)(0),      // 0: pb.CPUInfo.Core.Type
 	(WrapperResponse_Action)(0), // 1: pb.WrapperResponse.Action
@@ -1439,32 +1789,37 @@ var file_tracker_proto_goTypes = []any{
 	(*GPUStatus)(nil),           // 8: pb.GPUStatus
 	(*CPUInfo)(nil),             // 9: pb.CPUInfo
 	(*MemoryInfo)(nil),          // 10: pb.MemoryInfo
-	(*NetworkInterface)(nil),    // 11: pb.NetworkInterface
-	(*DiskDevice)(nil),          // 12: pb.DiskDevice
-	(*IOInfo)(nil),              // 13: pb.IOInfo
-	(*SystemStats)(nil),         // 14: pb.SystemStats
-	(*WrapperRequest)(nil),      // 15: pb.WrapperRequest
-	(*WrapperResponse)(nil),     // 16: pb.WrapperResponse
-	(*ProcessList)(nil),         // 17: pb.ProcessList
-	(*CPUInfo_Core)(nil),        // 18: pb.CPUInfo.Core
+	(*Hook)(nil),                // 11: pb.Hook
+	(*HookRequest)(nil),         // 12: pb.HookRequest
+	(*HookResponse)(nil),        // 13: pb.HookResponse
+	(*NetworkInterface)(nil),    // 14: pb.NetworkInterface
+	(*DiskDevice)(nil),          // 15: pb.DiskDevice
+	(*IOInfo)(nil),              // 16: pb.IOInfo
+	(*FaultInfo)(nil),           // 17: pb.FaultInfo
+	(*SystemStats)(nil),         // 18: pb.SystemStats
+	(*WrapperRequest)(nil),      // 19: pb.WrapperRequest
+	(*WrapperResponse)(nil),     // 20: pb.WrapperResponse
+	(*ProcessList)(nil),         // 21: pb.ProcessList
+	(*CPUInfo_Core)(nil),        // 22: pb.CPUInfo.Core
 }
 var file_tracker_proto_depIdxs = []int32{
-	18, // 0: pb.CPUInfo.core_details:type_name -> pb.CPUInfo.Core
-	11, // 1: pb.IOInfo.networks:type_name -> pb.NetworkInterface
-	12, // 2: pb.IOInfo.disks:type_name -> pb.DiskDevice
+	22, // 0: pb.CPUInfo.core_details:type_name -> pb.CPUInfo.Core
+	14, // 1: pb.IOInfo.networks:type_name -> pb.NetworkInterface
+	15, // 2: pb.IOInfo.disks:type_name -> pb.DiskDevice
 	7,  // 3: pb.SystemStats.processes:type_name -> pb.Process
 	8,  // 4: pb.SystemStats.gpus:type_name -> pb.GPUStatus
 	9,  // 5: pb.SystemStats.cpu:type_name -> pb.CPUInfo
 	10, // 6: pb.SystemStats.memory:type_name -> pb.MemoryInfo
-	13, // 7: pb.SystemStats.io:type_name -> pb.IOInfo
-	1,  // 8: pb.WrapperResponse.action:type_name -> pb.WrapperResponse.Action
-	7,  // 9: pb.ProcessList.processes:type_name -> pb.Process
-	0,  // 10: pb.CPUInfo.Core.type:type_name -> pb.CPUInfo.Core.Type
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	16, // 7: pb.SystemStats.io:type_name -> pb.IOInfo
+	17, // 8: pb.SystemStats.faults:type_name -> pb.FaultInfo
+	1,  // 9: pb.WrapperResponse.action:type_name -> pb.WrapperResponse.Action
+	7,  // 10: pb.ProcessList.processes:type_name -> pb.Process
+	0,  // 11: pb.CPUInfo.Core.type:type_name -> pb.CPUInfo.Core.Type
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_tracker_proto_init() }
@@ -1478,7 +1833,7 @@ func file_tracker_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tracker_proto_rawDesc), len(file_tracker_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   17,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

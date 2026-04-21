@@ -1247,6 +1247,8 @@ $root.pb = (function() {
          * @property {number|null} [gpuId] Process gpuId
          * @property {string|null} [cmdline] Process cmdline
          * @property {number|Long|null} [createTime] Process createTime
+         * @property {number|Long|null} [minorFaults] Process minorFaults
+         * @property {number|Long|null} [majorFaults] Process majorFaults
          */
 
         /**
@@ -1353,6 +1355,22 @@ $root.pb = (function() {
         Process.prototype.createTime = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
 
         /**
+         * Process minorFaults.
+         * @member {number|Long} minorFaults
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.minorFaults = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Process majorFaults.
+         * @member {number|Long} majorFaults
+         * @memberof pb.Process
+         * @instance
+         */
+        Process.prototype.majorFaults = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
          * Creates a new Process instance using the specified properties.
          * @function create
          * @memberof pb.Process
@@ -1398,6 +1416,10 @@ $root.pb = (function() {
                 writer.uint32(/* id 10, wireType 2 =*/82).string(message.cmdline);
             if (message.createTime != null && Object.hasOwnProperty.call(message, "createTime"))
                 writer.uint32(/* id 11, wireType 0 =*/88).int64(message.createTime);
+            if (message.minorFaults != null && Object.hasOwnProperty.call(message, "minorFaults"))
+                writer.uint32(/* id 12, wireType 0 =*/96).uint64(message.minorFaults);
+            if (message.majorFaults != null && Object.hasOwnProperty.call(message, "majorFaults"))
+                writer.uint32(/* id 13, wireType 0 =*/104).uint64(message.majorFaults);
             return writer;
         };
 
@@ -1478,6 +1500,14 @@ $root.pb = (function() {
                         message.createTime = reader.int64();
                         break;
                     }
+                case 12: {
+                        message.minorFaults = reader.uint64();
+                        break;
+                    }
+                case 13: {
+                        message.majorFaults = reader.uint64();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -1546,6 +1576,12 @@ $root.pb = (function() {
             if (message.createTime != null && message.hasOwnProperty("createTime"))
                 if (!$util.isInteger(message.createTime) && !(message.createTime && $util.isInteger(message.createTime.low) && $util.isInteger(message.createTime.high)))
                     return "createTime: integer|Long expected";
+            if (message.minorFaults != null && message.hasOwnProperty("minorFaults"))
+                if (!$util.isInteger(message.minorFaults) && !(message.minorFaults && $util.isInteger(message.minorFaults.low) && $util.isInteger(message.minorFaults.high)))
+                    return "minorFaults: integer|Long expected";
+            if (message.majorFaults != null && message.hasOwnProperty("majorFaults"))
+                if (!$util.isInteger(message.majorFaults) && !(message.majorFaults && $util.isInteger(message.majorFaults.low) && $util.isInteger(message.majorFaults.high)))
+                    return "majorFaults: integer|Long expected";
             return null;
         };
 
@@ -1590,6 +1626,24 @@ $root.pb = (function() {
                     message.createTime = object.createTime;
                 else if (typeof object.createTime === "object")
                     message.createTime = new $util.LongBits(object.createTime.low >>> 0, object.createTime.high >>> 0).toNumber();
+            if (object.minorFaults != null)
+                if ($util.Long)
+                    (message.minorFaults = $util.Long.fromValue(object.minorFaults)).unsigned = true;
+                else if (typeof object.minorFaults === "string")
+                    message.minorFaults = parseInt(object.minorFaults, 10);
+                else if (typeof object.minorFaults === "number")
+                    message.minorFaults = object.minorFaults;
+                else if (typeof object.minorFaults === "object")
+                    message.minorFaults = new $util.LongBits(object.minorFaults.low >>> 0, object.minorFaults.high >>> 0).toNumber(true);
+            if (object.majorFaults != null)
+                if ($util.Long)
+                    (message.majorFaults = $util.Long.fromValue(object.majorFaults)).unsigned = true;
+                else if (typeof object.majorFaults === "string")
+                    message.majorFaults = parseInt(object.majorFaults, 10);
+                else if (typeof object.majorFaults === "number")
+                    message.majorFaults = object.majorFaults;
+                else if (typeof object.majorFaults === "object")
+                    message.majorFaults = new $util.LongBits(object.majorFaults.low >>> 0, object.majorFaults.high >>> 0).toNumber(true);
             return message;
         };
 
@@ -1622,6 +1676,16 @@ $root.pb = (function() {
                     object.createTime = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.createTime = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.minorFaults = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.minorFaults = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.majorFaults = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.majorFaults = options.longs === String ? "0" : 0;
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -1648,6 +1712,16 @@ $root.pb = (function() {
                     object.createTime = options.longs === String ? String(message.createTime) : message.createTime;
                 else
                     object.createTime = options.longs === String ? $util.Long.prototype.toString.call(message.createTime) : options.longs === Number ? new $util.LongBits(message.createTime.low >>> 0, message.createTime.high >>> 0).toNumber() : message.createTime;
+            if (message.minorFaults != null && message.hasOwnProperty("minorFaults"))
+                if (typeof message.minorFaults === "number")
+                    object.minorFaults = options.longs === String ? String(message.minorFaults) : message.minorFaults;
+                else
+                    object.minorFaults = options.longs === String ? $util.Long.prototype.toString.call(message.minorFaults) : options.longs === Number ? new $util.LongBits(message.minorFaults.low >>> 0, message.minorFaults.high >>> 0).toNumber(true) : message.minorFaults;
+            if (message.majorFaults != null && message.hasOwnProperty("majorFaults"))
+                if (typeof message.majorFaults === "number")
+                    object.majorFaults = options.longs === String ? String(message.majorFaults) : message.majorFaults;
+                else
+                    object.majorFaults = options.longs === String ? $util.Long.prototype.toString.call(message.majorFaults) : options.longs === Number ? new $util.LongBits(message.majorFaults.low >>> 0, message.majorFaults.high >>> 0).toNumber(true) : message.majorFaults;
             return object;
         };
 
@@ -3079,6 +3153,762 @@ $root.pb = (function() {
         return MemoryInfo;
     })();
 
+    pb.Hook = (function() {
+
+        /**
+         * Properties of a Hook.
+         * @memberof pb
+         * @interface IHook
+         * @property {string|null} [id] Hook id
+         * @property {string|null} [name] Hook name
+         * @property {string|null} [description] Hook description
+         * @property {boolean|null} [installed] Hook installed
+         * @property {string|null} [targetCmd] Hook targetCmd
+         */
+
+        /**
+         * Constructs a new Hook.
+         * @memberof pb
+         * @classdesc Represents a Hook.
+         * @implements IHook
+         * @constructor
+         * @param {pb.IHook=} [properties] Properties to set
+         */
+        function Hook(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * Hook id.
+         * @member {string} id
+         * @memberof pb.Hook
+         * @instance
+         */
+        Hook.prototype.id = "";
+
+        /**
+         * Hook name.
+         * @member {string} name
+         * @memberof pb.Hook
+         * @instance
+         */
+        Hook.prototype.name = "";
+
+        /**
+         * Hook description.
+         * @member {string} description
+         * @memberof pb.Hook
+         * @instance
+         */
+        Hook.prototype.description = "";
+
+        /**
+         * Hook installed.
+         * @member {boolean} installed
+         * @memberof pb.Hook
+         * @instance
+         */
+        Hook.prototype.installed = false;
+
+        /**
+         * Hook targetCmd.
+         * @member {string} targetCmd
+         * @memberof pb.Hook
+         * @instance
+         */
+        Hook.prototype.targetCmd = "";
+
+        /**
+         * Creates a new Hook instance using the specified properties.
+         * @function create
+         * @memberof pb.Hook
+         * @static
+         * @param {pb.IHook=} [properties] Properties to set
+         * @returns {pb.Hook} Hook instance
+         */
+        Hook.create = function create(properties) {
+            return new Hook(properties);
+        };
+
+        /**
+         * Encodes the specified Hook message. Does not implicitly {@link pb.Hook.verify|verify} messages.
+         * @function encode
+         * @memberof pb.Hook
+         * @static
+         * @param {pb.IHook} message Hook message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Hook.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.name);
+            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.description);
+            if (message.installed != null && Object.hasOwnProperty.call(message, "installed"))
+                writer.uint32(/* id 4, wireType 0 =*/32).bool(message.installed);
+            if (message.targetCmd != null && Object.hasOwnProperty.call(message, "targetCmd"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.targetCmd);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified Hook message, length delimited. Does not implicitly {@link pb.Hook.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.Hook
+         * @static
+         * @param {pb.IHook} message Hook message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Hook.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a Hook message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.Hook
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.Hook} Hook
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Hook.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.Hook();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.id = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.name = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.description = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.installed = reader.bool();
+                        break;
+                    }
+                case 5: {
+                        message.targetCmd = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a Hook message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.Hook
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.Hook} Hook
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Hook.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a Hook message.
+         * @function verify
+         * @memberof pb.Hook
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        Hook.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.id != null && message.hasOwnProperty("id"))
+                if (!$util.isString(message.id))
+                    return "id: string expected";
+            if (message.name != null && message.hasOwnProperty("name"))
+                if (!$util.isString(message.name))
+                    return "name: string expected";
+            if (message.description != null && message.hasOwnProperty("description"))
+                if (!$util.isString(message.description))
+                    return "description: string expected";
+            if (message.installed != null && message.hasOwnProperty("installed"))
+                if (typeof message.installed !== "boolean")
+                    return "installed: boolean expected";
+            if (message.targetCmd != null && message.hasOwnProperty("targetCmd"))
+                if (!$util.isString(message.targetCmd))
+                    return "targetCmd: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a Hook message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.Hook
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.Hook} Hook
+         */
+        Hook.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.Hook)
+                return object;
+            var message = new $root.pb.Hook();
+            if (object.id != null)
+                message.id = String(object.id);
+            if (object.name != null)
+                message.name = String(object.name);
+            if (object.description != null)
+                message.description = String(object.description);
+            if (object.installed != null)
+                message.installed = Boolean(object.installed);
+            if (object.targetCmd != null)
+                message.targetCmd = String(object.targetCmd);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a Hook message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.Hook
+         * @static
+         * @param {pb.Hook} message Hook
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        Hook.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.id = "";
+                object.name = "";
+                object.description = "";
+                object.installed = false;
+                object.targetCmd = "";
+            }
+            if (message.id != null && message.hasOwnProperty("id"))
+                object.id = message.id;
+            if (message.name != null && message.hasOwnProperty("name"))
+                object.name = message.name;
+            if (message.description != null && message.hasOwnProperty("description"))
+                object.description = message.description;
+            if (message.installed != null && message.hasOwnProperty("installed"))
+                object.installed = message.installed;
+            if (message.targetCmd != null && message.hasOwnProperty("targetCmd"))
+                object.targetCmd = message.targetCmd;
+            return object;
+        };
+
+        /**
+         * Converts this Hook to JSON.
+         * @function toJSON
+         * @memberof pb.Hook
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        Hook.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for Hook
+         * @function getTypeUrl
+         * @memberof pb.Hook
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        Hook.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.Hook";
+        };
+
+        return Hook;
+    })();
+
+    pb.HookRequest = (function() {
+
+        /**
+         * Properties of a HookRequest.
+         * @memberof pb
+         * @interface IHookRequest
+         * @property {string|null} [id] HookRequest id
+         * @property {boolean|null} [install] HookRequest install
+         */
+
+        /**
+         * Constructs a new HookRequest.
+         * @memberof pb
+         * @classdesc Represents a HookRequest.
+         * @implements IHookRequest
+         * @constructor
+         * @param {pb.IHookRequest=} [properties] Properties to set
+         */
+        function HookRequest(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HookRequest id.
+         * @member {string} id
+         * @memberof pb.HookRequest
+         * @instance
+         */
+        HookRequest.prototype.id = "";
+
+        /**
+         * HookRequest install.
+         * @member {boolean} install
+         * @memberof pb.HookRequest
+         * @instance
+         */
+        HookRequest.prototype.install = false;
+
+        /**
+         * Creates a new HookRequest instance using the specified properties.
+         * @function create
+         * @memberof pb.HookRequest
+         * @static
+         * @param {pb.IHookRequest=} [properties] Properties to set
+         * @returns {pb.HookRequest} HookRequest instance
+         */
+        HookRequest.create = function create(properties) {
+            return new HookRequest(properties);
+        };
+
+        /**
+         * Encodes the specified HookRequest message. Does not implicitly {@link pb.HookRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pb.HookRequest
+         * @static
+         * @param {pb.IHookRequest} message HookRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HookRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
+            if (message.install != null && Object.hasOwnProperty.call(message, "install"))
+                writer.uint32(/* id 2, wireType 0 =*/16).bool(message.install);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HookRequest message, length delimited. Does not implicitly {@link pb.HookRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.HookRequest
+         * @static
+         * @param {pb.IHookRequest} message HookRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HookRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HookRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.HookRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.HookRequest} HookRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HookRequest.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.HookRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.id = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.install = reader.bool();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a HookRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.HookRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.HookRequest} HookRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HookRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a HookRequest message.
+         * @function verify
+         * @memberof pb.HookRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        HookRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.id != null && message.hasOwnProperty("id"))
+                if (!$util.isString(message.id))
+                    return "id: string expected";
+            if (message.install != null && message.hasOwnProperty("install"))
+                if (typeof message.install !== "boolean")
+                    return "install: boolean expected";
+            return null;
+        };
+
+        /**
+         * Creates a HookRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.HookRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.HookRequest} HookRequest
+         */
+        HookRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.HookRequest)
+                return object;
+            var message = new $root.pb.HookRequest();
+            if (object.id != null)
+                message.id = String(object.id);
+            if (object.install != null)
+                message.install = Boolean(object.install);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a HookRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.HookRequest
+         * @static
+         * @param {pb.HookRequest} message HookRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        HookRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.id = "";
+                object.install = false;
+            }
+            if (message.id != null && message.hasOwnProperty("id"))
+                object.id = message.id;
+            if (message.install != null && message.hasOwnProperty("install"))
+                object.install = message.install;
+            return object;
+        };
+
+        /**
+         * Converts this HookRequest to JSON.
+         * @function toJSON
+         * @memberof pb.HookRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        HookRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for HookRequest
+         * @function getTypeUrl
+         * @memberof pb.HookRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HookRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.HookRequest";
+        };
+
+        return HookRequest;
+    })();
+
+    pb.HookResponse = (function() {
+
+        /**
+         * Properties of a HookResponse.
+         * @memberof pb
+         * @interface IHookResponse
+         * @property {boolean|null} [success] HookResponse success
+         * @property {string|null} [message] HookResponse message
+         */
+
+        /**
+         * Constructs a new HookResponse.
+         * @memberof pb
+         * @classdesc Represents a HookResponse.
+         * @implements IHookResponse
+         * @constructor
+         * @param {pb.IHookResponse=} [properties] Properties to set
+         */
+        function HookResponse(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HookResponse success.
+         * @member {boolean} success
+         * @memberof pb.HookResponse
+         * @instance
+         */
+        HookResponse.prototype.success = false;
+
+        /**
+         * HookResponse message.
+         * @member {string} message
+         * @memberof pb.HookResponse
+         * @instance
+         */
+        HookResponse.prototype.message = "";
+
+        /**
+         * Creates a new HookResponse instance using the specified properties.
+         * @function create
+         * @memberof pb.HookResponse
+         * @static
+         * @param {pb.IHookResponse=} [properties] Properties to set
+         * @returns {pb.HookResponse} HookResponse instance
+         */
+        HookResponse.create = function create(properties) {
+            return new HookResponse(properties);
+        };
+
+        /**
+         * Encodes the specified HookResponse message. Does not implicitly {@link pb.HookResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pb.HookResponse
+         * @static
+         * @param {pb.IHookResponse} message HookResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HookResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.success != null && Object.hasOwnProperty.call(message, "success"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.success);
+            if (message.message != null && Object.hasOwnProperty.call(message, "message"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HookResponse message, length delimited. Does not implicitly {@link pb.HookResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.HookResponse
+         * @static
+         * @param {pb.IHookResponse} message HookResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HookResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HookResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.HookResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.HookResponse} HookResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HookResponse.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.HookResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.success = reader.bool();
+                        break;
+                    }
+                case 2: {
+                        message.message = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a HookResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.HookResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.HookResponse} HookResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HookResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a HookResponse message.
+         * @function verify
+         * @memberof pb.HookResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        HookResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.success != null && message.hasOwnProperty("success"))
+                if (typeof message.success !== "boolean")
+                    return "success: boolean expected";
+            if (message.message != null && message.hasOwnProperty("message"))
+                if (!$util.isString(message.message))
+                    return "message: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a HookResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.HookResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.HookResponse} HookResponse
+         */
+        HookResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.HookResponse)
+                return object;
+            var message = new $root.pb.HookResponse();
+            if (object.success != null)
+                message.success = Boolean(object.success);
+            if (object.message != null)
+                message.message = String(object.message);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a HookResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.HookResponse
+         * @static
+         * @param {pb.HookResponse} message HookResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        HookResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.success = false;
+                object.message = "";
+            }
+            if (message.success != null && message.hasOwnProperty("success"))
+                object.success = message.success;
+            if (message.message != null && message.hasOwnProperty("message"))
+                object.message = message.message;
+            return object;
+        };
+
+        /**
+         * Converts this HookResponse to JSON.
+         * @function toJSON
+         * @memberof pb.HookResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        HookResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for HookResponse
+         * @function getTypeUrl
+         * @memberof pb.HookResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HookResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.HookResponse";
+        };
+
+        return HookResponse;
+    })();
+
     pb.NetworkInterface = (function() {
 
         /**
@@ -4060,6 +4890,489 @@ $root.pb = (function() {
         return IOInfo;
     })();
 
+    pb.FaultInfo = (function() {
+
+        /**
+         * Properties of a FaultInfo.
+         * @memberof pb
+         * @interface IFaultInfo
+         * @property {number|Long|null} [pageFaults] FaultInfo pageFaults
+         * @property {number|Long|null} [majorFaults] FaultInfo majorFaults
+         * @property {number|Long|null} [minorFaults] FaultInfo minorFaults
+         * @property {number|null} [pageFaultRate] FaultInfo pageFaultRate
+         * @property {number|null} [majorFaultRate] FaultInfo majorFaultRate
+         * @property {number|null} [minorFaultRate] FaultInfo minorFaultRate
+         * @property {number|Long|null} [swapIn] FaultInfo swapIn
+         * @property {number|Long|null} [swapOut] FaultInfo swapOut
+         * @property {number|null} [swapInRate] FaultInfo swapInRate
+         * @property {number|null} [swapOutRate] FaultInfo swapOutRate
+         */
+
+        /**
+         * Constructs a new FaultInfo.
+         * @memberof pb
+         * @classdesc Represents a FaultInfo.
+         * @implements IFaultInfo
+         * @constructor
+         * @param {pb.IFaultInfo=} [properties] Properties to set
+         */
+        function FaultInfo(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * FaultInfo pageFaults.
+         * @member {number|Long} pageFaults
+         * @memberof pb.FaultInfo
+         * @instance
+         */
+        FaultInfo.prototype.pageFaults = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * FaultInfo majorFaults.
+         * @member {number|Long} majorFaults
+         * @memberof pb.FaultInfo
+         * @instance
+         */
+        FaultInfo.prototype.majorFaults = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * FaultInfo minorFaults.
+         * @member {number|Long} minorFaults
+         * @memberof pb.FaultInfo
+         * @instance
+         */
+        FaultInfo.prototype.minorFaults = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * FaultInfo pageFaultRate.
+         * @member {number} pageFaultRate
+         * @memberof pb.FaultInfo
+         * @instance
+         */
+        FaultInfo.prototype.pageFaultRate = 0;
+
+        /**
+         * FaultInfo majorFaultRate.
+         * @member {number} majorFaultRate
+         * @memberof pb.FaultInfo
+         * @instance
+         */
+        FaultInfo.prototype.majorFaultRate = 0;
+
+        /**
+         * FaultInfo minorFaultRate.
+         * @member {number} minorFaultRate
+         * @memberof pb.FaultInfo
+         * @instance
+         */
+        FaultInfo.prototype.minorFaultRate = 0;
+
+        /**
+         * FaultInfo swapIn.
+         * @member {number|Long} swapIn
+         * @memberof pb.FaultInfo
+         * @instance
+         */
+        FaultInfo.prototype.swapIn = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * FaultInfo swapOut.
+         * @member {number|Long} swapOut
+         * @memberof pb.FaultInfo
+         * @instance
+         */
+        FaultInfo.prototype.swapOut = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * FaultInfo swapInRate.
+         * @member {number} swapInRate
+         * @memberof pb.FaultInfo
+         * @instance
+         */
+        FaultInfo.prototype.swapInRate = 0;
+
+        /**
+         * FaultInfo swapOutRate.
+         * @member {number} swapOutRate
+         * @memberof pb.FaultInfo
+         * @instance
+         */
+        FaultInfo.prototype.swapOutRate = 0;
+
+        /**
+         * Creates a new FaultInfo instance using the specified properties.
+         * @function create
+         * @memberof pb.FaultInfo
+         * @static
+         * @param {pb.IFaultInfo=} [properties] Properties to set
+         * @returns {pb.FaultInfo} FaultInfo instance
+         */
+        FaultInfo.create = function create(properties) {
+            return new FaultInfo(properties);
+        };
+
+        /**
+         * Encodes the specified FaultInfo message. Does not implicitly {@link pb.FaultInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pb.FaultInfo
+         * @static
+         * @param {pb.IFaultInfo} message FaultInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        FaultInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.pageFaults != null && Object.hasOwnProperty.call(message, "pageFaults"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint64(message.pageFaults);
+            if (message.majorFaults != null && Object.hasOwnProperty.call(message, "majorFaults"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.majorFaults);
+            if (message.minorFaults != null && Object.hasOwnProperty.call(message, "minorFaults"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.minorFaults);
+            if (message.pageFaultRate != null && Object.hasOwnProperty.call(message, "pageFaultRate"))
+                writer.uint32(/* id 4, wireType 1 =*/33).double(message.pageFaultRate);
+            if (message.majorFaultRate != null && Object.hasOwnProperty.call(message, "majorFaultRate"))
+                writer.uint32(/* id 5, wireType 1 =*/41).double(message.majorFaultRate);
+            if (message.minorFaultRate != null && Object.hasOwnProperty.call(message, "minorFaultRate"))
+                writer.uint32(/* id 6, wireType 1 =*/49).double(message.minorFaultRate);
+            if (message.swapIn != null && Object.hasOwnProperty.call(message, "swapIn"))
+                writer.uint32(/* id 7, wireType 0 =*/56).uint64(message.swapIn);
+            if (message.swapOut != null && Object.hasOwnProperty.call(message, "swapOut"))
+                writer.uint32(/* id 8, wireType 0 =*/64).uint64(message.swapOut);
+            if (message.swapInRate != null && Object.hasOwnProperty.call(message, "swapInRate"))
+                writer.uint32(/* id 9, wireType 1 =*/73).double(message.swapInRate);
+            if (message.swapOutRate != null && Object.hasOwnProperty.call(message, "swapOutRate"))
+                writer.uint32(/* id 10, wireType 1 =*/81).double(message.swapOutRate);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified FaultInfo message, length delimited. Does not implicitly {@link pb.FaultInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.FaultInfo
+         * @static
+         * @param {pb.IFaultInfo} message FaultInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        FaultInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a FaultInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.FaultInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.FaultInfo} FaultInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        FaultInfo.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.FaultInfo();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.pageFaults = reader.uint64();
+                        break;
+                    }
+                case 2: {
+                        message.majorFaults = reader.uint64();
+                        break;
+                    }
+                case 3: {
+                        message.minorFaults = reader.uint64();
+                        break;
+                    }
+                case 4: {
+                        message.pageFaultRate = reader.double();
+                        break;
+                    }
+                case 5: {
+                        message.majorFaultRate = reader.double();
+                        break;
+                    }
+                case 6: {
+                        message.minorFaultRate = reader.double();
+                        break;
+                    }
+                case 7: {
+                        message.swapIn = reader.uint64();
+                        break;
+                    }
+                case 8: {
+                        message.swapOut = reader.uint64();
+                        break;
+                    }
+                case 9: {
+                        message.swapInRate = reader.double();
+                        break;
+                    }
+                case 10: {
+                        message.swapOutRate = reader.double();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a FaultInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.FaultInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.FaultInfo} FaultInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        FaultInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a FaultInfo message.
+         * @function verify
+         * @memberof pb.FaultInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        FaultInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.pageFaults != null && message.hasOwnProperty("pageFaults"))
+                if (!$util.isInteger(message.pageFaults) && !(message.pageFaults && $util.isInteger(message.pageFaults.low) && $util.isInteger(message.pageFaults.high)))
+                    return "pageFaults: integer|Long expected";
+            if (message.majorFaults != null && message.hasOwnProperty("majorFaults"))
+                if (!$util.isInteger(message.majorFaults) && !(message.majorFaults && $util.isInteger(message.majorFaults.low) && $util.isInteger(message.majorFaults.high)))
+                    return "majorFaults: integer|Long expected";
+            if (message.minorFaults != null && message.hasOwnProperty("minorFaults"))
+                if (!$util.isInteger(message.minorFaults) && !(message.minorFaults && $util.isInteger(message.minorFaults.low) && $util.isInteger(message.minorFaults.high)))
+                    return "minorFaults: integer|Long expected";
+            if (message.pageFaultRate != null && message.hasOwnProperty("pageFaultRate"))
+                if (typeof message.pageFaultRate !== "number")
+                    return "pageFaultRate: number expected";
+            if (message.majorFaultRate != null && message.hasOwnProperty("majorFaultRate"))
+                if (typeof message.majorFaultRate !== "number")
+                    return "majorFaultRate: number expected";
+            if (message.minorFaultRate != null && message.hasOwnProperty("minorFaultRate"))
+                if (typeof message.minorFaultRate !== "number")
+                    return "minorFaultRate: number expected";
+            if (message.swapIn != null && message.hasOwnProperty("swapIn"))
+                if (!$util.isInteger(message.swapIn) && !(message.swapIn && $util.isInteger(message.swapIn.low) && $util.isInteger(message.swapIn.high)))
+                    return "swapIn: integer|Long expected";
+            if (message.swapOut != null && message.hasOwnProperty("swapOut"))
+                if (!$util.isInteger(message.swapOut) && !(message.swapOut && $util.isInteger(message.swapOut.low) && $util.isInteger(message.swapOut.high)))
+                    return "swapOut: integer|Long expected";
+            if (message.swapInRate != null && message.hasOwnProperty("swapInRate"))
+                if (typeof message.swapInRate !== "number")
+                    return "swapInRate: number expected";
+            if (message.swapOutRate != null && message.hasOwnProperty("swapOutRate"))
+                if (typeof message.swapOutRate !== "number")
+                    return "swapOutRate: number expected";
+            return null;
+        };
+
+        /**
+         * Creates a FaultInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.FaultInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.FaultInfo} FaultInfo
+         */
+        FaultInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.FaultInfo)
+                return object;
+            var message = new $root.pb.FaultInfo();
+            if (object.pageFaults != null)
+                if ($util.Long)
+                    (message.pageFaults = $util.Long.fromValue(object.pageFaults)).unsigned = true;
+                else if (typeof object.pageFaults === "string")
+                    message.pageFaults = parseInt(object.pageFaults, 10);
+                else if (typeof object.pageFaults === "number")
+                    message.pageFaults = object.pageFaults;
+                else if (typeof object.pageFaults === "object")
+                    message.pageFaults = new $util.LongBits(object.pageFaults.low >>> 0, object.pageFaults.high >>> 0).toNumber(true);
+            if (object.majorFaults != null)
+                if ($util.Long)
+                    (message.majorFaults = $util.Long.fromValue(object.majorFaults)).unsigned = true;
+                else if (typeof object.majorFaults === "string")
+                    message.majorFaults = parseInt(object.majorFaults, 10);
+                else if (typeof object.majorFaults === "number")
+                    message.majorFaults = object.majorFaults;
+                else if (typeof object.majorFaults === "object")
+                    message.majorFaults = new $util.LongBits(object.majorFaults.low >>> 0, object.majorFaults.high >>> 0).toNumber(true);
+            if (object.minorFaults != null)
+                if ($util.Long)
+                    (message.minorFaults = $util.Long.fromValue(object.minorFaults)).unsigned = true;
+                else if (typeof object.minorFaults === "string")
+                    message.minorFaults = parseInt(object.minorFaults, 10);
+                else if (typeof object.minorFaults === "number")
+                    message.minorFaults = object.minorFaults;
+                else if (typeof object.minorFaults === "object")
+                    message.minorFaults = new $util.LongBits(object.minorFaults.low >>> 0, object.minorFaults.high >>> 0).toNumber(true);
+            if (object.pageFaultRate != null)
+                message.pageFaultRate = Number(object.pageFaultRate);
+            if (object.majorFaultRate != null)
+                message.majorFaultRate = Number(object.majorFaultRate);
+            if (object.minorFaultRate != null)
+                message.minorFaultRate = Number(object.minorFaultRate);
+            if (object.swapIn != null)
+                if ($util.Long)
+                    (message.swapIn = $util.Long.fromValue(object.swapIn)).unsigned = true;
+                else if (typeof object.swapIn === "string")
+                    message.swapIn = parseInt(object.swapIn, 10);
+                else if (typeof object.swapIn === "number")
+                    message.swapIn = object.swapIn;
+                else if (typeof object.swapIn === "object")
+                    message.swapIn = new $util.LongBits(object.swapIn.low >>> 0, object.swapIn.high >>> 0).toNumber(true);
+            if (object.swapOut != null)
+                if ($util.Long)
+                    (message.swapOut = $util.Long.fromValue(object.swapOut)).unsigned = true;
+                else if (typeof object.swapOut === "string")
+                    message.swapOut = parseInt(object.swapOut, 10);
+                else if (typeof object.swapOut === "number")
+                    message.swapOut = object.swapOut;
+                else if (typeof object.swapOut === "object")
+                    message.swapOut = new $util.LongBits(object.swapOut.low >>> 0, object.swapOut.high >>> 0).toNumber(true);
+            if (object.swapInRate != null)
+                message.swapInRate = Number(object.swapInRate);
+            if (object.swapOutRate != null)
+                message.swapOutRate = Number(object.swapOutRate);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a FaultInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.FaultInfo
+         * @static
+         * @param {pb.FaultInfo} message FaultInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        FaultInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.pageFaults = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.pageFaults = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.majorFaults = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.majorFaults = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.minorFaults = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.minorFaults = options.longs === String ? "0" : 0;
+                object.pageFaultRate = 0;
+                object.majorFaultRate = 0;
+                object.minorFaultRate = 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.swapIn = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.swapIn = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.swapOut = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.swapOut = options.longs === String ? "0" : 0;
+                object.swapInRate = 0;
+                object.swapOutRate = 0;
+            }
+            if (message.pageFaults != null && message.hasOwnProperty("pageFaults"))
+                if (typeof message.pageFaults === "number")
+                    object.pageFaults = options.longs === String ? String(message.pageFaults) : message.pageFaults;
+                else
+                    object.pageFaults = options.longs === String ? $util.Long.prototype.toString.call(message.pageFaults) : options.longs === Number ? new $util.LongBits(message.pageFaults.low >>> 0, message.pageFaults.high >>> 0).toNumber(true) : message.pageFaults;
+            if (message.majorFaults != null && message.hasOwnProperty("majorFaults"))
+                if (typeof message.majorFaults === "number")
+                    object.majorFaults = options.longs === String ? String(message.majorFaults) : message.majorFaults;
+                else
+                    object.majorFaults = options.longs === String ? $util.Long.prototype.toString.call(message.majorFaults) : options.longs === Number ? new $util.LongBits(message.majorFaults.low >>> 0, message.majorFaults.high >>> 0).toNumber(true) : message.majorFaults;
+            if (message.minorFaults != null && message.hasOwnProperty("minorFaults"))
+                if (typeof message.minorFaults === "number")
+                    object.minorFaults = options.longs === String ? String(message.minorFaults) : message.minorFaults;
+                else
+                    object.minorFaults = options.longs === String ? $util.Long.prototype.toString.call(message.minorFaults) : options.longs === Number ? new $util.LongBits(message.minorFaults.low >>> 0, message.minorFaults.high >>> 0).toNumber(true) : message.minorFaults;
+            if (message.pageFaultRate != null && message.hasOwnProperty("pageFaultRate"))
+                object.pageFaultRate = options.json && !isFinite(message.pageFaultRate) ? String(message.pageFaultRate) : message.pageFaultRate;
+            if (message.majorFaultRate != null && message.hasOwnProperty("majorFaultRate"))
+                object.majorFaultRate = options.json && !isFinite(message.majorFaultRate) ? String(message.majorFaultRate) : message.majorFaultRate;
+            if (message.minorFaultRate != null && message.hasOwnProperty("minorFaultRate"))
+                object.minorFaultRate = options.json && !isFinite(message.minorFaultRate) ? String(message.minorFaultRate) : message.minorFaultRate;
+            if (message.swapIn != null && message.hasOwnProperty("swapIn"))
+                if (typeof message.swapIn === "number")
+                    object.swapIn = options.longs === String ? String(message.swapIn) : message.swapIn;
+                else
+                    object.swapIn = options.longs === String ? $util.Long.prototype.toString.call(message.swapIn) : options.longs === Number ? new $util.LongBits(message.swapIn.low >>> 0, message.swapIn.high >>> 0).toNumber(true) : message.swapIn;
+            if (message.swapOut != null && message.hasOwnProperty("swapOut"))
+                if (typeof message.swapOut === "number")
+                    object.swapOut = options.longs === String ? String(message.swapOut) : message.swapOut;
+                else
+                    object.swapOut = options.longs === String ? $util.Long.prototype.toString.call(message.swapOut) : options.longs === Number ? new $util.LongBits(message.swapOut.low >>> 0, message.swapOut.high >>> 0).toNumber(true) : message.swapOut;
+            if (message.swapInRate != null && message.hasOwnProperty("swapInRate"))
+                object.swapInRate = options.json && !isFinite(message.swapInRate) ? String(message.swapInRate) : message.swapInRate;
+            if (message.swapOutRate != null && message.hasOwnProperty("swapOutRate"))
+                object.swapOutRate = options.json && !isFinite(message.swapOutRate) ? String(message.swapOutRate) : message.swapOutRate;
+            return object;
+        };
+
+        /**
+         * Converts this FaultInfo to JSON.
+         * @function toJSON
+         * @memberof pb.FaultInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        FaultInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for FaultInfo
+         * @function getTypeUrl
+         * @memberof pb.FaultInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        FaultInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.FaultInfo";
+        };
+
+        return FaultInfo;
+    })();
+
     pb.SystemStats = (function() {
 
         /**
@@ -4071,6 +5384,7 @@ $root.pb = (function() {
          * @property {pb.ICPUInfo|null} [cpu] SystemStats cpu
          * @property {pb.IMemoryInfo|null} [memory] SystemStats memory
          * @property {pb.IIOInfo|null} [io] SystemStats io
+         * @property {pb.IFaultInfo|null} [faults] SystemStats faults
          */
 
         /**
@@ -4131,6 +5445,14 @@ $root.pb = (function() {
         SystemStats.prototype.io = null;
 
         /**
+         * SystemStats faults.
+         * @member {pb.IFaultInfo|null|undefined} faults
+         * @memberof pb.SystemStats
+         * @instance
+         */
+        SystemStats.prototype.faults = null;
+
+        /**
          * Creates a new SystemStats instance using the specified properties.
          * @function create
          * @memberof pb.SystemStats
@@ -4166,6 +5488,8 @@ $root.pb = (function() {
                 $root.pb.MemoryInfo.encode(message.memory, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
             if (message.io != null && Object.hasOwnProperty.call(message, "io"))
                 $root.pb.IOInfo.encode(message.io, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+            if (message.faults != null && Object.hasOwnProperty.call(message, "faults"))
+                $root.pb.FaultInfo.encode(message.faults, writer.uint32(/* id 6, wireType 2 =*/50).fork()).ldelim();
             return writer;
         };
 
@@ -4224,6 +5548,10 @@ $root.pb = (function() {
                     }
                 case 5: {
                         message.io = $root.pb.IOInfo.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 6: {
+                        message.faults = $root.pb.FaultInfo.decode(reader, reader.uint32());
                         break;
                     }
                 default:
@@ -4294,6 +5622,11 @@ $root.pb = (function() {
                 if (error)
                     return "io." + error;
             }
+            if (message.faults != null && message.hasOwnProperty("faults")) {
+                var error = $root.pb.FaultInfo.verify(message.faults);
+                if (error)
+                    return "faults." + error;
+            }
             return null;
         };
 
@@ -4344,6 +5677,11 @@ $root.pb = (function() {
                     throw TypeError(".pb.SystemStats.io: object expected");
                 message.io = $root.pb.IOInfo.fromObject(object.io);
             }
+            if (object.faults != null) {
+                if (typeof object.faults !== "object")
+                    throw TypeError(".pb.SystemStats.faults: object expected");
+                message.faults = $root.pb.FaultInfo.fromObject(object.faults);
+            }
             return message;
         };
 
@@ -4368,6 +5706,7 @@ $root.pb = (function() {
                 object.cpu = null;
                 object.memory = null;
                 object.io = null;
+                object.faults = null;
             }
             if (message.processes && message.processes.length) {
                 object.processes = [];
@@ -4385,6 +5724,8 @@ $root.pb = (function() {
                 object.memory = $root.pb.MemoryInfo.toObject(message.memory, options);
             if (message.io != null && message.hasOwnProperty("io"))
                 object.io = $root.pb.IOInfo.toObject(message.io, options);
+            if (message.faults != null && message.hasOwnProperty("faults"))
+                object.faults = $root.pb.FaultInfo.toObject(message.faults, options);
             return object;
         };
 

@@ -49,6 +49,8 @@ message Process {
   uint32 gpu_id = 9;   // GPU index
   string cmdline = 10;
   int64 create_time = 11;
+  uint64 minor_faults = 12; // Page faults that did not require disk I/O
+  uint64 major_faults = 13; // Hard page faults that required disk I/O
 }
 
 message GPUStatus {
@@ -88,6 +90,24 @@ message MemoryInfo {
   uint64 zram_total = 8;
 }
 
+message Hook {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  bool installed = 4;
+  string target_cmd = 5;
+}
+
+message HookRequest {
+  string id = 1;
+  bool install = 2;
+}
+
+message HookResponse {
+  bool success = 1;
+  string message = 2;
+}
+
 message NetworkInterface {
   string name = 1;
   uint64 recv_bytes = 2;
@@ -109,12 +129,26 @@ message IOInfo {
   repeated DiskDevice disks = 6;
 }
 
+message FaultInfo {
+  uint64 page_faults = 1;      // pgfault
+  uint64 major_faults = 2;     // pgmajfault (hard faults)
+  uint64 minor_faults = 3;     // page_faults - major_faults
+  double page_fault_rate = 4;  // faults/sec
+  double major_fault_rate = 5; // hard faults/sec
+  double minor_fault_rate = 6; // soft faults/sec
+  uint64 swap_in = 7;
+  uint64 swap_out = 8;
+  double swap_in_rate = 9;
+  double swap_out_rate = 10;
+}
+
 message SystemStats {
   repeated Process processes = 1;
   repeated GPUStatus gpus = 2;
   CPUInfo cpu = 3;
   MemoryInfo memory = 4;
   IOInfo io = 5;
+  FaultInfo faults = 6;
 }
 
 message WrapperRequest {
@@ -139,4 +173,3 @@ message WrapperResponse {
 message ProcessList {
   repeated Process processes = 1;
 }
-

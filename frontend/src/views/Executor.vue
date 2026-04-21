@@ -1,29 +1,31 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import axios from 'axios';
-import { 
-  PlayCircleOutlined,
-  CodeOutlined
-} from '@ant-design/icons-vue';
+import { PlayCircleOutlined, CodeOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
+
+import LocalShellTerminal from '../components/LocalShellTerminal.vue';
 
 const command = ref('');
 const args = ref('');
 const loading = ref(false);
-const recentCommands = ref<string[]>(JSON.parse(localStorage.getItem('recent_cmds') || '[]'));
+const recentCommands = ref<string[]>(
+  JSON.parse(localStorage.getItem('recent_cmds') || '[]'),
+);
 
 const runCommand = async () => {
   if (!command.value) return;
+
   loading.value = true;
   try {
-    const argList = args.value.split(' ').filter(s => s);
+    const argList = args.value.split(' ').filter(Boolean);
     const res = await axios.post('/system/run', {
       comm: command.value,
-      args: argList
+      args: argList,
     });
+
     message.success(`Started process PID: ${res.data.pid}`);
-    
-    // Save to recent
+
     const full = `${command.value} ${args.value}`.trim();
     if (!recentCommands.value.includes(full)) {
       recentCommands.value.unshift(full);
@@ -46,47 +48,77 @@ const useRecent = (cmdStr: string) => {
 
 <template>
   <div style="padding: 24px; background: #f0f2f5; min-height: 100%;">
-    <a-card title="Remote Executor (via Wrapper)" :bordered="false">
-      <template #extra><CodeOutlined /></template>
-      <p style="color: #666; margin-bottom: 24px;">
-        Execute commands on the host system. All commands are automatically routed through the 
-        <code>agent-wrapper</code> to enforce security policies and track activities.
-      </p>
-
-      <a-form layout="vertical">
-        <a-row :gutter="16">
-          <a-col :span="8">
-            <a-form-item label="Executable">
-              <a-input v-model:value="command" placeholder="e.g. ls, python, git" @pressEnter="runCommand">
-                <template #prefix><CodeOutlined /></template>
-              </a-input>
-            </a-form-item>
-Col          </a-col>
-          <a-col :span="12">
-            <a-form-item label="Arguments">
-              <a-input v-model:value="args" placeholder="e.g. -la /tmp" @pressEnter="runCommand" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="4" style="display: flex; align-items: flex-end; padding-bottom: 24px;">
-            <a-button type="primary" :loading="loading" @click="runCommand" block>
-              <template #icon><PlayCircleOutlined /></template>
-              Run
-            </a-button>
-          </a-col>
-        </a-row>
-      </a-form>
-
-      <a-divider orientation="left">Recent Commands</a-divider>
-      <a-list size="small" :dataSource="recentCommands">
-        <template #renderItem="{ item }">
-          <a-list-item>
-            <code style="cursor: pointer; color: #1890ff" @click="useRecent(item)">{{ item }}</code>
-          </a-list-item>
+    <a-space direction="vertical" :size="16" style="width: 100%;">
+      <a-card title="Remote Executor (via Wrapper)" :bordered="false">
+        <template #extra>
+          <CodeOutlined />
         </template>
-        <template v-if="recentCommands.length === 0" #header>
-          <div style="text-align: center; color: #999;">No recent commands</div>
+
+        <p style="color: #666; margin-bottom: 24px;">
+          Execute commands on the host system. All commands are automatically routed through the
+          <code>agent-wrapper</code> to enforce security policies and track activities.
+        </p>
+
+        <a-form layout="vertical">
+          <a-row :gutter="16">
+            <a-col :span="8">
+              <a-form-item label="Executable">
+                <a-input
+                  v-model:value="command"
+                  placeholder="e.g. ls, python, git"
+                  @pressEnter="runCommand"
+                >
+                  <template #prefix>
+                    <CodeOutlined />
+                  </template>
+                </a-input>
+              </a-form-item>
+            </a-col>
+
+            <a-col :span="12">
+              <a-form-item label="Arguments">
+                <a-input
+                  v-model:value="args"
+                  placeholder="e.g. -la /tmp"
+                  @pressEnter="runCommand"
+                />
+              </a-form-item>
+            </a-col>
+
+            <a-col
+              :span="4"
+              style="display: flex; align-items: flex-end; padding-bottom: 24px;"
+            >
+              <a-button type="primary" :loading="loading" @click="runCommand" block>
+                <template #icon>
+                  <PlayCircleOutlined />
+                </template>
+                Run
+              </a-button>
+            </a-col>
+          </a-row>
+        </a-form>
+
+        <a-divider orientation="left">Recent Commands</a-divider>
+        <a-list size="small" :data-source="recentCommands">
+          <template #renderItem="{ item }">
+            <a-list-item>
+              <code style="cursor: pointer; color: #1890ff" @click="useRecent(item)">{{ item }}</code>
+            </a-list-item>
+          </template>
+          <template v-if="recentCommands.length === 0" #header>
+            <div style="text-align: center; color: #999;">No recent commands</div>
+          </template>
+        </a-list>
+      </a-card>
+
+      <a-card title="Interactive Shell Manager (wterm)" :bordered="false">
+        <template #extra>
+          <a-tag color="blue">multi-session PTY</a-tag>
         </template>
-      </a-list>
-    </a-card>
+
+        <LocalShellTerminal />
+      </a-card>
+    </a-space>
   </div>
 </template>
