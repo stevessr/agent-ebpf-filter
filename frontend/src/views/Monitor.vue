@@ -5,14 +5,21 @@ import {
   PlusOutlined, SearchOutlined, ClusterOutlined, TableOutlined, 
   FilterOutlined, DeploymentUnitOutlined,
   DashboardOutlined, PieChartOutlined, SwapOutlined, DatabaseOutlined,
-  AppstoreOutlined, BarChartOutlined
+  AppstoreOutlined, BarChartOutlined, LineChartOutlined
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
+import VueApexCharts from 'vue3-apexcharts';
 import { pb } from '../pb/tracker_pb.js';
 
 interface GPUStatus {
   index: number; name: string; utilGpu: number; utilMem: number;
   memTotal: number; memUsed: number; temp: number;
+}
+
+interface HistoryData {
+  time: number;
+  value: number;
+  value2?: number; // for in/out or R/W
 }
 
 interface ProcessInfo {
@@ -44,6 +51,15 @@ const systemStats = ref<GlobalStats>({
   netInterfaces: [], diskDevices: [],
   totalNetRecv: 0, totalNetSent: 0, totalDiskRead: 0, totalDiskWrite: 0
 });
+
+// Chart State
+const showChartModal = ref(false);
+const chartTitle = ref('');
+const chartType = ref<'single' | 'double'>('single');
+const chartSeriesName = ref(['Value']);
+const historyMap = ref<Record<string, HistoryData[]>>({});
+const activeChartKey = ref('');
+const chartTimeRange = ref(60); // seconds
 
 const isConnected = ref(false);
 const loading = ref(false);
@@ -90,6 +106,12 @@ const connectWebSocket = () => {
       
       const newNetSpeeds: IOSpeed[] = [];
       const newDiskSpeeds: IOSpeed[] = [];
+
+      const updateHistory = (key: string, val: number, val2?: number) => {
+        if (!historyMap.value[key]) historyMap.value[key] = [];
+        historyMap.value[key].push({ time: now, value: val, value2: val2 });
+        if (historyMap.value[key].length > 1200) historyMap.value[key].shift();
+      };
       
       if (lastIO && decoded.io) {
         const dt = (now - lastIO.time) / 1000;
@@ -97,22 +119,20 @@ const connectWebSocket = () => {
         (decoded.io.networks || []).forEach((n: any) => {
           const prev = lastIO?.networks[n.name];
           if (prev) {
-            newNetSpeeds.push({
-              name: n.name,
-              readSpeed: (Number(n.recvBytes) - prev.r) / dt,
-              writeSpeed: (Number(n.sentBytes) - prev.s) / dt
-            });
+            const rin = (Number(n.recvBytes) - prev.r) / dt;
+            const rout = (Number(n.sentBytes) - prev.s) / dt;
+            newNetSpeeds.push({ name: n.name, readSpeed: rin, writeSpeed: rout });
+            updateHistory(`net_${n.name}`, rin, rout);
           }
         });
 
         (decoded.io.disks || []).forEach((d: any) => {
           const prev = lastIO?.disks[d.name];
           if (prev) {
-            newDiskSpeeds.push({
-              name: d.name,
-              readSpeed: (Number(d.readBytes) - prev.r) / dt,
-              writeSpeed: (Number(d.writeBytes) - prev.w) / dt
-            });
+            const rin = (Number(d.readBytes) - prev.r) / dt;
+            const win = (Number(d.writeBytes) - prev.w) / dt;
+            newDiskSpeeds.push({ name: d.name, readSpeed: rin, writeSpeed: win });
+            updateHistory(`disk_${d.name}`, rin, win);
           }
         });
       }
@@ -128,7 +148,6 @@ const connectWebSocket = () => {
         systemStats.value.netInterfaces = newNetSpeeds.filter(s => s.readSpeed > 0 || s.writeSpeed > 0);
         systemStats.value.diskDevices = newDiskSpeeds.filter(s => s.readSpeed > 0 || s.writeSpeed > 0);
         
-        // Use totals from proto if available, or sum up
         let totalNetR = 0, totalNetS = 0, totalDiskR = 0, totalDiskW = 0;
         newNetSpeeds.forEach(s => { totalNetR += s.readSpeed; totalNetS += s.writeSpeed; });
         newDiskSpeeds.forEach(s => { totalDiskR += s.readSpeed; totalDiskW += s.writeSpeed; });
@@ -137,32 +156,44 @@ const connectWebSocket = () => {
         systemStats.value.totalNetSent = totalNetS;
         systemStats.value.totalDiskRead = totalDiskR;
         systemStats.value.totalDiskWrite = totalDiskW;
+
+        updateHistory('total_net', totalNetR, totalNetS);
+        updateHistory('total_disk', totalDiskR, totalDiskW);
       }
 
       if (decoded.cpu) {
         systemStats.value.cpuTotal = decoded.cpu.total || 0;
+        updateHistory('cpu_total', systemStats.value.cpuTotal);
+
         systemStats.value.cpuCores = (decoded.cpu.cores as number[]) || [];
-        systemStats.value.cpuCoresDetailed = (decoded.cpu.coreDetails || []).map((c: any) => ({
-          index: c.index,
-          usage: c.usage || 0,
-          type: c.type
-        }));
+        systemStats.value.cpuCoresDetailed = (decoded.cpu.coreDetails || []).map((c: any) => {
+          updateHistory(`cpu_core_${c.index}`, c.usage || 0);
+          return {
+            index: c.index,
+            usage: c.usage || 0,
+            type: c.type
+          };
+        });
       }
       
       if (decoded.memory) {
         systemStats.value.memTotal = Number(decoded.memory.total);
         systemStats.value.memUsed = Number(decoded.memory.used);
         systemStats.value.memPercent = decoded.memory.percent || 0;
+        updateHistory('mem_usage', systemStats.value.memPercent);
       }
 
       processes.value = (decoded.processes || []).map((p: any) => ({
         pid: p.pid, ppid: p.ppid, name: p.name, cpu: p.cpu, mem: p.mem, user: p.user, gpuMem: p.gpuMem, gpuId: p.gpuId
       }));
 
-      gpus.value = (decoded.gpus || []).map((g: any) => ({
-        index: g.index, name: g.name, utilGpu: g.utilGpu, utilMem: g.utilMem,
-        memTotal: g.memTotal, memUsed: g.memUsed, temp: g.temp
-      }));
+      gpus.value = (decoded.gpus || []).map((g: any) => {
+        updateHistory(`gpu_${g.index}_util`, g.utilGpu);
+        return {
+          index: g.index, name: g.name, utilGpu: g.utilGpu, utilMem: g.utilMem,
+          memTotal: g.memTotal, memUsed: g.memUsed, temp: g.temp
+        };
+      });
     } catch (e) { console.error(e); }
   };
   ws.onclose = () => { isConnected.value = false; };
@@ -222,6 +253,39 @@ const getMemColor = (percent: number) => {
   return '#389e0d';
 };
 
+const openChart = (key: string, title: string, type: 'single' | 'double', seriesNames: string[]) => {
+  activeChartKey.value = key;
+  chartTitle.value = title;
+  chartType.value = type;
+  chartSeriesName.value = seriesNames;
+  showChartModal.value = true;
+};
+
+const chartOptions = computed(() => ({
+  chart: { animations: { enabled: false }, toolbar: { show: false }, zoom: { enabled: false }, background: 'transparent' },
+  xaxis: { type: 'datetime', labels: { datetimeUTC: false, style: { fontSize: '10px' } } },
+  yaxis: { labels: { style: { fontSize: '10px' }, formatter: (v: number) => activeChartKey.value.includes('usage') || activeChartKey.value.includes('cpu') || activeChartKey.value.includes('util') || activeChartKey.value.includes('percent') ? v.toFixed(1) + '%' : formatBytes(v) + '/s' } },
+  stroke: { curve: 'smooth', width: 2 },
+  grid: { borderColor: '#f1f1f1' },
+  legend: { position: 'top', horizontalAlign: 'right' },
+  theme: { mode: 'light' }
+}));
+
+const chartSeries = computed(() => {
+  const data = historyMap.value[activeChartKey.value] || [];
+  const cutoff = Date.now() - (chartTimeRange.value * 1000);
+  const filtered = data.filter(d => d.time > cutoff);
+  
+  if (chartType.value === 'single') {
+    return [{ name: chartSeriesName.value[0], data: filtered.map(d => ({ x: d.time, y: d.value })) }];
+  } else {
+    return [
+      { name: chartSeriesName.value[0], data: filtered.map(d => ({ x: d.time, y: d.value })) },
+      { name: chartSeriesName.value[1], data: filtered.map(d => ({ x: d.time, y: d.value2 || 0 })) }
+    ];
+  }
+});
+
 const showGroupDetails = ref(false);
 const selectedGroup = ref<{ name: string; pids: number[] } | null>(null);
 
@@ -272,15 +336,19 @@ watch(refreshInterval, connectWebSocket);
                   </a-radio-group>
                 </div>
               </template>
-              <div v-if="cpuViewMode === 'total'" style="display: flex; align-items: center; justify-content: center; height: 120px; gap: 40px;">
+              <div v-if="cpuViewMode === 'total'" 
+                   style="display: flex; align-items: center; justify-content: center; height: 120px; gap: 40px; cursor: pointer;"
+                   @click="openChart('cpu_total', 'Global CPU Usage', 'single', ['Usage'])">
                 <a-progress type="dashboard" :percent="Math.round(systemStats.cpuTotal)" :width="100" />
                 <div style="text-align: left;">
-                  <div style="font-size: 24px; font-weight: bold; color: #1890ff;">{{ systemStats.cpuTotal.toFixed(1) }}%</div>
+                  <div style="font-size: 24px; font-weight: bold; color: #1890ff;">{{ systemStats.cpuTotal.toFixed(1) }}% <LineChartOutlined style="font-size: 14px; color: #ccc" /></div>
                   <div style="color: #888;">Total System Load</div>
                 </div>
               </div>
               <div v-else class="core-grid-full">
-                <div v-for="core in systemStats.cpuCoresDetailed" :key="core.index" class="core-item-full">
+                <div v-for="core in systemStats.cpuCoresDetailed" :key="core.index" 
+                     class="core-item-full" style="cursor: pointer"
+                     @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])">
                   <span class="core-label">
                     <a-tag :color="core.type === 0 ? 'blue' : 'green'" size="small" style="font-size: 9px; line-height: 16px; height: 16px; padding: 0 4px; margin-right: 4px;">
                       {{ core.type === 0 ? 'P' : 'E' }}
@@ -303,10 +371,10 @@ watch(refreshInterval, connectWebSocket);
             <a-card size="small" class="stat-card-row" title="Memory & Interface I/O">
               <template #extra><PieChartOutlined /></template>
               <div style="display: flex; gap: 24px; padding: 10px;">
-                <div style="flex: 0 0 300px;">
+                <div style="flex: 0 0 300px; cursor: pointer" @click="openChart('mem_usage', 'RAM Usage', 'single', ['Usage %'])">
                   <div style="margin-bottom: 15px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px;">
-                      <span>RAM Usage</span>
+                      <span>RAM Usage <LineChartOutlined style="font-size: 12px; color: #ccc" /></span>
                       <span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span>
                     </div>
                     <a-progress :percent="Math.round(systemStats.memPercent)" stroke-color="#1890ff" status="active" />
@@ -315,12 +383,12 @@ watch(refreshInterval, connectWebSocket);
                     </div>
                   </div>
                   <div style="border-top: 1px solid #f0f0f0; padding-top: 15px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px;" @click.stop="openChart('total_net', 'Aggregate Network Traffic', 'double', ['Download', 'Upload'])">
                       <span>Total Network:</span>
                       <span style="color: #52c41a">↓ {{ formatBytes(systemStats.totalNetRecv) }}/s</span>
                       <span style="color: #1890ff">↑ {{ formatBytes(systemStats.totalNetSent) }}/s</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px;" @click.stop="openChart('total_disk', 'Aggregate Disk I/O', 'double', ['Read', 'Write'])">
                       <span>Total Disk:</span>
                       <span style="color: #faad14">R: {{ formatBytes(systemStats.totalDiskRead) }}/s</span>
                       <span style="color: #ff4d4f">W: {{ formatBytes(systemStats.totalDiskWrite) }}/s</span>
@@ -333,7 +401,8 @@ watch(refreshInterval, connectWebSocket);
                   <div>
                     <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">NETWORK INTERFACES</div>
                     <div style="max-height: 120px; overflow-y: auto;">
-                      <div v-for="s in systemStats.netInterfaces" :key="s.name" class="io-row">
+                      <div v-for="s in systemStats.netInterfaces" :key="s.name" class="io-row" style="cursor: pointer"
+                           @click="openChart('net_' + s.name, 'Interface: ' + s.name, 'double', ['Download', 'Upload'])">
                         <span class="io-name">{{ s.name }}</span>
                         <span class="io-val-in">↓{{ formatBytes(s.readSpeed, 0) }}</span>
                         <span class="io-val-out">↑{{ formatBytes(s.writeSpeed, 0) }}</span>
@@ -345,7 +414,8 @@ watch(refreshInterval, connectWebSocket);
                   <div>
                     <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">DISK DEVICES</div>
                     <div style="max-height: 120px; overflow-y: auto;">
-                      <div v-for="s in systemStats.diskDevices" :key="s.name" class="io-row">
+                      <div v-for="s in systemStats.diskDevices" :key="s.name" class="io-row" style="cursor: pointer"
+                           @click="openChart('disk_' + s.name, 'Disk: ' + s.name, 'double', ['Read', 'Write'])">
                         <span class="io-name">{{ s.name }}</span>
                         <span class="io-val-read">R:{{ formatBytes(s.readSpeed, 0) }}</span>
                         <span class="io-val-write">W:{{ formatBytes(s.writeSpeed, 0) }}</span>
@@ -365,7 +435,8 @@ watch(refreshInterval, connectWebSocket);
             <a-card size="small" class="stat-card-row" :title="gpus.length ? 'GPU Acceleration Status' : 'No GPU'">
               <template #extra><DeploymentUnitOutlined /></template>
               <div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 10px;">
-                <div v-for="gpu in gpus" :key="gpu.index" class="gpu-row-item">
+                <div v-for="gpu in gpus" :key="gpu.index" class="gpu-row-item" style="cursor: pointer"
+                     @click="openChart('gpu_' + gpu.index + '_util', 'GPU ' + gpu.index + ' Load', 'single', ['Core Load %'])">
                   <div style="flex-shrink: 0; min-width: 80px;">
                     <a-tag color="volcano" style="display: block; text-align: center;">{{ gpu.temp }}°C</a-tag>
                     <div style="font-size: 10px; color: #999; text-align: center; margin-top: 4px;">GPU {{ gpu.index }}</div>
@@ -379,7 +450,7 @@ watch(refreshInterval, connectWebSocket);
                         </div>
                         <a-progress :percent="gpu.utilGpu" size="small" stroke-color="#13c2c2" :showInfo="false" />
                       </div>
-                      <div style="flex: 1;">
+                      <div style="flex: 1;" @click.stop="openChart('gpu_' + gpu.index + '_vram', 'GPU ' + gpu.index + ' VRAM', 'single', ['VRAM Used (MB)'])">
                         <div style="font-size: 10px; color: #666; display: flex; justify-content: space-between;">
                           <span>VRAM</span><span>{{ gpu.memUsed }} / {{ gpu.memTotal }} MB</span>
                         </div>
@@ -508,6 +579,22 @@ watch(refreshInterval, connectWebSocket);
       </a-tab-pane>
 
     </a-tabs>
+
+    <!-- Chart Modal -->
+    <a-modal v-model:open="showChartModal" :title="chartTitle" :footer="null" width="800px">
+      <div style="margin-bottom: 16px; display: flex; justify-content: flex-end; align-items: center; gap: 10px;">
+        <span style="font-size: 12px; color: #666;">Horizontal Time Axis:</span>
+        <a-select v-model:value="chartTimeRange" size="small" style="width: 150px">
+          <a-select-option :value="60">Last 1 Minute</a-select-option>
+          <a-select-option :value="300">Last 5 Minutes</a-select-option>
+          <a-select-option :value="600">Last 10 Minutes</a-select-option>
+          <a-select-option :value="1800">Last 30 Minutes</a-select-option>
+        </a-select>
+      </div>
+      <div v-if="showChartModal" style="background: #fff; padding: 10px; border-radius: 4px; border: 1px solid #f0f0f0;">
+        <VueApexCharts type="line" height="350" :options="chartOptions" :series="chartSeries" />
+      </div>
+    </a-modal>
   </div>
 </template>
 
