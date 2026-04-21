@@ -275,6 +275,8 @@ const connect = async () => {
           // Handle Option+Arrows for word jumping and Option+Backspace for word deletion
           if (e.key === 'ArrowLeft') return '\x1bb';
           if (e.key === 'ArrowRight') return '\x1bf';
+          if (e.key === 'ArrowUp') return '\x1b[1;3A';
+          if (e.key === 'ArrowDown') return '\x1b[1;3B';
           if (e.key === 'Backspace') return '\x1b\x7f';
 
           if (e.key.length === 1) {
