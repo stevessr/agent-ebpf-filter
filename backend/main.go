@@ -92,6 +92,8 @@ type HookDef struct {
 	HookType    HookType `json:"hook_type"`
 	// NativeConfigPath is the path to the agent CLI's config file (for native hooks).
 	NativeConfigPath string `json:"-"`
+	// NativeHookEvent is the event name for native hooks (e.g. "PreToolUse" or "BeforeTool").
+	NativeHookEvent string `json:"-"`
 }
 
 var availableHooks = []HookDef{
@@ -100,11 +102,21 @@ var availableHooks = []HookDef{
 		Description:      "Uses Claude Code's built-in PreToolUse hook to intercept all tool calls (recommended)",
 		TargetCmd:        "claude",
 		NativeConfigPath: func() string { h, _ := os.UserHomeDir(); return filepath.Join(h, ".claude", "settings.json") }(),
+		NativeHookEvent:  "PreToolUse",
 	},
 	{
-		ID: "gemini", Name: "Gemini CLI", HookType: HookTypeWrapper,
-		Description: "Intercepts gemini / rtk commands via shell alias wrapper",
-		TargetCmd:   "gemini",
+		ID: "gemini", Name: "Gemini CLI", HookType: HookTypeNative,
+		Description:      "Uses Gemini CLI's native BeforeTool hook for high-performance interception",
+		TargetCmd:        "gemini",
+		NativeConfigPath: func() string { h, _ := os.UserHomeDir(); return filepath.Join(h, ".gemini", "settings.json") }(),
+		NativeHookEvent:  "BeforeTool",
+	},
+	{
+		ID: "codex", Name: "Codex", HookType: HookTypeNative,
+		Description:      "Uses Codex's PreToolUse hook to monitor agent tool execution",
+		TargetCmd:        "codex",
+		NativeConfigPath: func() string { h, _ := os.UserHomeDir(); return filepath.Join(h, ".codex", "settings.json") }(),
+		NativeHookEvent:  "PreToolUse",
 	},
 	{
 		ID: "copilot", Name: "GitHub Copilot", HookType: HookTypeWrapper,
@@ -127,14 +139,15 @@ func getShellConfigPath() string {
 	return filepath.Join(home, ".bashrc")
 }
 
-// isNativeHookInstalled checks whether the agent-ebpf PreToolUse hook is present
-// in the Claude Code settings.json.
+const hookMarker = "agent-ebpf-hook-active"
+
+// isNativeHookInstalled checks whether the agent-ebpf hook is present in the config.
 func isNativeHookInstalled(cfgPath string) bool {
 	b, err := os.ReadFile(cfgPath)
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(b), "agent-ebpf-hook")
+	return strings.Contains(string(b), hookMarker)
 }
 
 func isWrapperHookInstalled(cmd string) bool {
@@ -153,9 +166,9 @@ func isHookInstalled(h HookDef) bool {
 	return isWrapperHookInstalled(h.TargetCmd)
 }
 
-// installNativeHook injects a PreToolUse hook into the Claude Code settings.json
+// installNativeHook injects a hook into the agent CLI's settings.json
 // that POSTs every tool call to our backend for inspection.
-func installNativeHook(cfgPath string) error {
+func installNativeHook(cfgPath, eventName string) error {
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
 		return err
 	}
@@ -172,8 +185,8 @@ func installNativeHook(cfgPath string) error {
 	// Build the hook entry.
 	hookEntry := map[string]interface{}{
 		"type":          "command",
-		"command":       `curl -s -X POST http://localhost:8080/hooks/event -H 'Content-Type: application/json' -d @- || true`,
-		"statusMessage": "agent-ebpf-hook: inspecting...",
+		"command":       fmt.Sprintf(`curl -s -X POST http://localhost:8080/hooks/event -H 'Content-Type: application/json' -d @- # %s`, hookMarker),
+		"statusMessage": "agent-ebpf-hook-active: inspecting...",
 		"async":         true,
 	}
 	matcher := map[string]interface{}{
@@ -181,22 +194,22 @@ func installNativeHook(cfgPath string) error {
 		"hooks":   []interface{}{hookEntry},
 	}
 
-	// Merge into existing hooks.PreToolUse array.
+	// Merge into existing hooks[eventName] array.
 	hooks, _ := cfg["hooks"].(map[string]interface{})
 	if hooks == nil {
 		hooks = make(map[string]interface{})
 	}
-	preToolUse, _ := hooks["PreToolUse"].([]interface{})
+	eventHooks, _ := hooks[eventName].([]interface{})
 
 	// Remove any existing agent-ebpf-hook entry to avoid duplicates.
 	filtered := []interface{}{}
-	for _, m := range preToolUse {
+	for _, m := range eventHooks {
 		if mm, ok := m.(map[string]interface{}); ok {
 			hs, _ := mm["hooks"].([]interface{})
 			isOurs := false
 			for _, h := range hs {
 				if hm, ok := h.(map[string]interface{}); ok {
-					if cmd, _ := hm["command"].(string); strings.Contains(cmd, "agent-ebpf-hook") {
+					if cmd, _ := hm["command"].(string); strings.Contains(cmd, hookMarker) {
 						isOurs = true
 					}
 				}
@@ -206,7 +219,7 @@ func installNativeHook(cfgPath string) error {
 			}
 		}
 	}
-	hooks["PreToolUse"] = append(filtered, matcher)
+	hooks[eventName] = append(filtered, matcher)
 	cfg["hooks"] = hooks
 
 	b, err := json.MarshalIndent(cfg, "", "  ")
@@ -216,8 +229,8 @@ func installNativeHook(cfgPath string) error {
 	return os.WriteFile(cfgPath, b, 0644)
 }
 
-// uninstallNativeHook removes the agent-ebpf PreToolUse hook from settings.json.
-func uninstallNativeHook(cfgPath string) error {
+// uninstallNativeHook removes the agent-ebpf hook from settings.json.
+func uninstallNativeHook(cfgPath, eventName string) error {
 	b, err := os.ReadFile(cfgPath)
 	if err != nil {
 		return nil // nothing to do
@@ -230,15 +243,15 @@ func uninstallNativeHook(cfgPath string) error {
 	if hooks == nil {
 		return nil
 	}
-	preToolUse, _ := hooks["PreToolUse"].([]interface{})
+	eventHooks, _ := hooks[eventName].([]interface{})
 	filtered := []interface{}{}
-	for _, m := range preToolUse {
+	for _, m := range eventHooks {
 		if mm, ok := m.(map[string]interface{}); ok {
 			hs, _ := mm["hooks"].([]interface{})
 			isOurs := false
 			for _, h := range hs {
 				if hm, ok := h.(map[string]interface{}); ok {
-					if cmd, _ := hm["command"].(string); strings.Contains(cmd, "agent-ebpf-hook") {
+					if cmd, _ := hm["command"].(string); strings.Contains(cmd, hookMarker) {
 						isOurs = true
 					}
 				}
@@ -249,9 +262,9 @@ func uninstallNativeHook(cfgPath string) error {
 		}
 	}
 	if len(filtered) == 0 {
-		delete(hooks, "PreToolUse")
+		delete(hooks, eventName)
 	} else {
-		hooks["PreToolUse"] = filtered
+		hooks[eventName] = filtered
 	}
 	if len(hooks) == 0 {
 		delete(cfg, "hooks")
@@ -1098,26 +1111,58 @@ func main() {
 	r.GET("/ws/shell", serveShellWS)
 
 	r.POST("/hooks/event", func(c *gin.Context) {
-		// Receives PreToolUse events from Claude Code's native hook mechanism.
+		// Receives events from various AI CLI native hook mechanisms.
 		var payload map[string]interface{}
 		if err := c.ShouldBindJSON(&payload); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
 			return
 		}
+
+		// Try to identify the tool and event from common AI CLI hook payload schemas
 		toolName, _ := payload["tool_name"].(string)
 		hookEvent, _ := payload["hook_event_name"].(string)
 		toolInput, _ := payload["tool_input"].(map[string]interface{})
+
+		// Fallbacks for Gemini CLI / Codex if they use slightly different fields
+		if toolName == "" {
+			toolName, _ = payload["tool"].(string)
+		}
+		if hookEvent == "" {
+			hookEvent, _ = payload["event"].(string)
+		}
+
 		path := ""
 		if toolInput != nil {
 			if cmd, ok := toolInput["command"].(string); ok {
 				path = cmd
 			} else if fp, ok := toolInput["file_path"].(string); ok {
 				path = fp
+			} else if args, ok := toolInput["arguments"].([]interface{}); ok && len(args) > 0 {
+				path = fmt.Sprintf("%v", args)
 			}
 		}
+
+		// Try to determine which CLI sent this based on User-Agent or known metadata
+		tag := "Native Hook"
+		ua := strings.ToLower(c.GetHeader("User-Agent"))
+		if strings.Contains(ua, "claude") {
+			tag = "Claude Code"
+		} else if strings.Contains(ua, "gemini") {
+			tag = "Gemini CLI"
+		} else if strings.Contains(ua, "codex") {
+			tag = "Codex"
+		} else {
+			// Fallback: check hook event names or other characteristics
+			if hookEvent == "BeforeTool" {
+				tag = "Gemini CLI"
+			} else if hookEvent == "PreToolUse" {
+				// Ambiguous between Claude and Codex, but we can guess or leave as Native Hook
+			}
+		}
+
 		broadcast <- &pb.Event{
 			Type: "native_hook",
-			Tag:  "Claude Code",
+			Tag:  tag,
 			Comm: fmt.Sprintf("%s:%s", hookEvent, toolName),
 			Path: path,
 		}
@@ -1339,7 +1384,7 @@ func main() {
 
 					if req.Install {
 						if effectiveType == HookTypeNative {
-							if err := installNativeHook(target.NativeConfigPath); err != nil {
+							if err := installNativeHook(target.NativeConfigPath, target.NativeHookEvent); err != nil {
 								c.JSON(500, gin.H{"error": err.Error()})
 								return
 							}
@@ -1362,7 +1407,7 @@ func main() {
 					} else {
 						// Uninstall both types to ensure clean state.
 						if target.HookType == HookTypeNative {
-							_ = uninstallNativeHook(target.NativeConfigPath)
+							_ = uninstallNativeHook(target.NativeConfigPath, target.NativeHookEvent)
 						}
 						// Also remove wrapper alias if present.
 						p := getShellConfigPath()
