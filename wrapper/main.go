@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"agent-ebpf-filter/pb"
@@ -21,9 +22,18 @@ func main() {
 	}
 
 	cmdName := os.Args[1]
-	cmdArgs := os.Args[2:]
+	rawArgs := os.Args[2:]
 
-	// Try to connect to the backend UDS
+	// Simple information cleaning: trim whitespace and remove empty args
+	cmdArgs := []string{}
+	for _, arg := range rawArgs {
+		trimmed := strings.TrimSpace(arg)
+		if trimmed != "" {
+			cmdArgs = append(cmdArgs, trimmed)
+		}
+	}
+
+	fmt.Printf("[DEBUG] Dialing %s...\n", udsPath)
 	conn, err := net.Dial("unix", udsPath)
 	if err == nil {
 		defer conn.Close()
@@ -36,23 +46,31 @@ func main() {
 		}
 
 		data, _ := proto.Marshal(req)
+		fmt.Printf("[DEBUG] Writing %d bytes to socket...\n", len(data))
 		_, err = conn.Write(data)
 		if err == nil {
+			fmt.Printf("[DEBUG] Waiting for response...\n")
 			buf := make([]byte, 4096)
 			n, err := conn.Read(buf)
 			if err == nil {
+				fmt.Printf("[DEBUG] Read %d bytes\n", n)
 				resp := &pb.WrapperResponse{}
 				if err := proto.Unmarshal(buf[:n], resp); err == nil {
 					handleDecision(resp, &cmdName, &cmdArgs)
+				} else {
+					fmt.Printf("[DEBUG] Unmarshal error: %v\n", err)
 				}
+			} else {
+				fmt.Printf("[DEBUG] Read error: %v\n", err)
 			}
+		} else {
+			fmt.Printf("[DEBUG] Write error: %v\n", err)
 		}
 	} else {
-		// If backend is not available, just allow but maybe log it
-		// fmt.Printf("Warning: Could not connect to backend socket: %v\n", err)
+		fmt.Printf("[DEBUG] Dial error: %v\n", err)
 	}
 
-	// Execute the command
+	fmt.Printf("[DEBUG] Executing %s %v\n", cmdName, cmdArgs)
 	execute(cmdName, cmdArgs)
 }
 
@@ -65,7 +83,6 @@ func handleDecision(resp *pb.WrapperResponse, name *string, args *[]string) {
 		fmt.Printf("⚠️  Security Alert: %s\n", resp.Message)
 	case pb.WrapperResponse_REWRITE:
 		if len(resp.RewrittenArgs) > 0 {
-			// fmt.Printf("🔄 Command Rewritten\n")
 			*name = resp.RewrittenArgs[0]
 			*args = resp.RewrittenArgs[1:]
 		}
@@ -78,8 +95,8 @@ func execute(name string, args []string) {
 		fmt.Printf("Error: command not found: %s\n", name)
 		os.Exit(127)
 	}
+	fmt.Printf("[DEBUG] Found path: %s\n", path)
 
-	// Use syscall.Exec to replace the current process (proper wrapper behavior)
 	env := os.Environ()
 	fullArgs := append([]string{name}, args...)
 	err = syscall.Exec(path, fullArgs, env)

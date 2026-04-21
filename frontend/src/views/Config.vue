@@ -144,6 +144,27 @@ const deleteRule = async (comm: string) => {
   } catch (err) {}
 };
 
+const clearAllConfig = async () => {
+  try {
+    // Clear Comms
+    for (const item of trackedItems.value) {
+      if (item.comm) await axios.delete(`/config/comms/${item.comm}`);
+    }
+    // Clear Paths
+    for (const item of trackedPaths.value) {
+      if (item.path) await axios.delete(`/config/paths/${item.path}`);
+    }
+    // Clear Rules
+    for (const comm of Object.keys(wrapperRules.value)) {
+      await axios.delete(`/config/rules/${comm}`);
+    }
+    message.success('All configurations cleared');
+    fetchTrackedComms(); fetchTrackedPaths(); fetchRules();
+  } catch (err) {
+    message.error('Failed to clear all configurations');
+  }
+};
+
 const exportConfig = async () => {
   try {
     const res = await axios.get('/config/export');
@@ -213,6 +234,9 @@ onMounted(() => {
               <input type="file" ref="fileInput" @change="importConfig" style="display: none" accept=".json" />
               <a-button size="small" @click="() => ($refs.fileInput as any).click()"><ImportOutlined /> Import</a-button>
               <a-button size="small" @click="exportConfig"><ExportOutlined /> Export</a-button>
+              <a-popconfirm title="Are you sure you want to clear all configurations?" @confirm="clearAllConfig">
+                <a-button size="small" danger>Clear All</a-button>
+              </a-popconfirm>
               <a-divider type="vertical" />
               <TagOutlined />
             </div>

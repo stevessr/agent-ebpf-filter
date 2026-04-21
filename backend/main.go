@@ -942,12 +942,16 @@ func main() {
 	go func() {
 		var event bpfEvent
 		types := map[uint32]string{0: "execve", 1: "openat", 2: "network_connect", 3: "mkdir", 4: "unlink", 5: "ioctl", 6: "network_bind"}
+		selfPid := uint32(os.Getpid())
 		for {
 			record, err := rd.Read()
 			if err != nil {
 				return
 			}
 			_ = binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event)
+			if event.PID == selfPid {
+				continue
+			}
 			broadcast <- &pb.Event{Pid: event.PID, Ppid: event.PPID, Uid: event.UID, Type: types[event.Type], Tag: getTagName(event.TagID), Comm: string(bytes.TrimRight(event.Comm[:], "\x00")), Path: string(bytes.TrimRight(event.Path[:], "\x00"))}
 		}
 	}()

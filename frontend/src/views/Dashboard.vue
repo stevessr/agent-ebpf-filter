@@ -23,6 +23,7 @@ const isPaused = ref(false);
 const showDetails = ref(false);
 const selectedEvent = ref<AgentEvent | null>(null);
 const selectedTag = ref<string | null>(null);
+const isDeduplicated = ref(false);
 const tags = ref<string[]>([]);
 let ws: WebSocket | null = null;
 
@@ -36,8 +37,20 @@ const fetchTags = async () => {
 };
 
 const filteredEvents = computed(() => {
-  if (!selectedTag.value) return events.value;
-  return events.value.filter(e => e.tag === selectedTag.value);
+  let result = events.value;
+  if (selectedTag.value) {
+    result = result.filter(e => e.tag === selectedTag.value);
+  }
+  if (isDeduplicated.value) {
+    const seen = new Set();
+    result = result.filter(e => {
+      const id = `${e.type}-${e.comm}-${e.path}`;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }
+  return result;
 });
 
 const openDetails = (record: AgentEvent) => {
@@ -124,9 +137,30 @@ const exportEvents = () => {
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
-    message.success('Events exported');
+    message.success('Events exported as JSON');
   } catch (err) {
     message.error('Failed to export events');
+  }
+};
+
+const exportEventsCSV = () => {
+  try {
+    const headers = ['Time', 'Tag', 'PID', 'PPID', 'UID', 'Command', 'Event Type', 'Path'];
+    const rows = filteredEvents.value.map(e => [
+      e.time, e.tag, e.pid, e.ppid, e.uid, e.comm, e.type, e.path
+    ]);
+    const csvContent = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute("href", url);
+    link.setAttribute("download", `ebpf-events-${new Date().toISOString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    message.success('Events exported as CSV');
+  } catch (err) {
+    message.error('Failed to export CSV');
   }
 };
 
@@ -156,7 +190,17 @@ onUnmounted(() => {
         <a-button @click="isPaused = !isPaused" :type="isPaused ? 'primary' : 'default'" danger>
           {{ isPaused ? 'Resume Stream' : 'Pause Stream' }}
         </a-button>
-        <a-button @click="exportEvents">Export Data</a-button>
+        <a-checkbox v-model:checked="isDeduplicated" style="margin-left: 16px;">Clean Duplicates</a-checkbox>
+        <a-divider type="vertical" />
+        <a-dropdown>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item key="json" @click="exportEvents">JSON Format</a-menu-item>
+              <a-menu-item key="csv" @click="exportEventsCSV">CSV Format</a-menu-item>
+            </a-menu>
+          </template>
+          <a-button>Export Data</a-button>
+        </a-dropdown>
       </div>
       <a-button type="primary" danger @click="clearEvents">Clear Events</a-button>
     </div>
