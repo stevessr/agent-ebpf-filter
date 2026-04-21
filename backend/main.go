@@ -151,65 +151,94 @@ func scanFdinfo(procMap map[int32]gpuInfo, globalStats *[]*pb.GPUStatus) {
 	dt := now.Sub(fdinfoTime).Nanoseconds()
 	fdinfoTime = now
 
-	files, _ := filepath.Glob("/proc/*/fdinfo/*")
-	for _, f := range files {
-		data, err := os.Open(f)
+	// Track seen client IDs to avoid overcounting VRAM (some drivers provide drm-client-id)
+	type clientKey struct { pid int; id string }
+	seenClients := make(map[clientKey]bool)
+
+	procDirs, _ := os.ReadDir("/proc")
+	for _, pd := range procDirs {
+		pid, err := strconv.Atoi(pd.Name())
 		if err != nil { continue }
-		
-		var pid int
-		fmt.Sscanf(f, "/proc/%d/fdinfo/", &pid)
-		
-		scanner := bufio.NewScanner(data)
-		var driver string
-		var memKb uint64
-		var engineNs uint64
-		
-		for scanner.Scan() {
-			line := scanner.Text()
-			if strings.HasPrefix(line, "drm-driver:") {
-				driver = strings.TrimSpace(line[11:])
-			} else if strings.HasPrefix(line, "drm-total-") {
-				parts := strings.Fields(line)
-				if len(parts) >= 2 { v, _ := strconv.ParseUint(parts[1], 10, 64); memKb += v }
-			} else if strings.HasPrefix(line, "drm-engine-render:") {
-				parts := strings.Fields(line)
-				if len(parts) >= 2 { engineNs, _ = strconv.ParseUint(parts[1], 10, 64) }
+
+		fdDir := fmt.Sprintf("/proc/%d/fdinfo", pid)
+		fds, err := os.ReadDir(fdDir)
+		if err != nil { continue }
+
+		for _, fd := range fds {
+			fpath := filepath.Join(fdDir, fd.Name())
+			file, err := os.Open(fpath)
+			if err != nil { continue }
+
+			scanner := bufio.NewScanner(file)
+			var driver, clientId string
+			var memKb, enginesNs uint64
+			
+			for scanner.Scan() {
+				line := scanner.Text()
+				if strings.HasPrefix(line, "drm-driver:") {
+					driver = strings.TrimSpace(line[11:])
+				} else if strings.HasPrefix(line, "drm-client-id:") {
+					clientId = strings.TrimSpace(line[14:])
+				} else if strings.HasPrefix(line, "drm-total-") || strings.HasPrefix(line, "drm-memory-") {
+					parts := strings.Fields(line)
+					if len(parts) >= 2 { 
+						v, _ := strconv.ParseUint(parts[1], 10, 64)
+						memKb += v 
+					}
+				} else if strings.HasPrefix(line, "drm-engine-") {
+					parts := strings.Fields(line)
+					if len(parts) >= 2 {
+						v, _ := strconv.ParseUint(parts[1], 10, 64)
+						enginesNs += v
+					}
+				}
 			}
-		}
-		data.Close()
+			file.Close()
 
-		if driver == "" || (driver == "nvidia" && nvmlInitialized) { continue }
+			if driver == "" || (driver == "nvidia" && nvmlInitialized) { continue }
 
-		// Calculate utilization
-		key := f
-		util := uint32(0)
-		if prev, ok := fdinfoHistory[key]; ok && dt > 0 {
-			diff := engineNs - prev
-			util = uint32((diff * 100) / uint64(dt))
-		}
-		fdinfoHistory[key] = engineNs
+			// Normalize driver name for UI
+			if driver == "i915" || driver == "xe" { driver = "Intel Graphics" }
+			if driver == "amdgpu" { driver = "AMD Radeon" }
 
-		// Aggregate for process
-		p := int32(pid)
-		cur := procMap[p]
-		cur.mem += uint32(memKb / 1024)
-		if util > cur.util { cur.util = util }
-		procMap[p] = cur
-
-		// Simple Global aggregation if it's a new driver
-		found := false
-		for _, gs := range *globalStats {
-			if gs.Name == driver {
-				if util > gs.UtilGpu { gs.UtilGpu = util }
-				gs.MemUsed += uint32(memKb / 1024)
-				found = true
-				break
+			// Utilization calculation
+			histKey := fmt.Sprintf("%d:%s", pid, fd.Name())
+			util := uint32(0)
+			if prev, ok := fdinfoHistory[histKey]; ok && dt > 0 {
+				diff := enginesNs - prev
+				util = uint32((diff * 100) / uint64(dt))
 			}
-		}
-		if !found {
-			*globalStats = append(*globalStats, &pb.GPUStatus{
-				Index: uint32(len(*globalStats)), Name: driver, UtilGpu: util, MemUsed: uint32(memKb / 1024),
-			})
+			fdinfoHistory[histKey] = enginesNs
+
+			// Aggregate per process
+			p := int32(pid)
+			ckey := clientKey{pid, clientId}
+			
+			cur := procMap[p]
+			if !seenClients[ckey] {
+				cur.mem += uint32(memKb / 1024)
+				seenClients[ckey] = true
+			}
+			if util > cur.util { cur.util = util }
+			procMap[p] = cur
+
+			// Global aggregation
+			found := false
+			for _, gs := range *globalStats {
+				if gs.Name == driver {
+					gs.UtilGpu += util // Sum up for global? Actually usually we want the max or avg. 
+					// For DRM, summing across all processes' engine usage is correct for global util.
+					if gs.UtilGpu > 100 { gs.UtilGpu = 100 }
+					gs.MemUsed = cur.mem // This is tricky. Let's just track drivers.
+					found = true
+					break
+				}
+			}
+			if !found {
+				*globalStats = append(*globalStats, &pb.GPUStatus{
+					Index: uint32(len(*globalStats)), Name: driver, UtilGpu: util, MemUsed: uint32(memKb / 1024),
+				})
+			}
 		}
 	}
 }
