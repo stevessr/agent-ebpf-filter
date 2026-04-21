@@ -265,23 +265,30 @@ const connect = async () => {
     if (inputHandler && inputHandler.keyToSequence) {
       const originalKeyToSequence = inputHandler.keyToSequence.bind(inputHandler);
       inputHandler.keyToSequence = function(e: KeyboardEvent) {
-        if (e.altKey && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-          // Use e.keyCode to get the unmodified letter/number safely
-          if (e.keyCode >= 65 && e.keyCode <= 90) {
-            const char = String.fromCharCode(e.keyCode + (e.shiftKey ? 0 : 32));
-            return '\x1b' + char;
-          }
-          if (e.keyCode >= 48 && e.keyCode <= 57) {
-            return '\x1b' + String.fromCharCode(e.keyCode);
-          }
-          // Fallback to e.code for common punctuation
-          const symbolMap: Record<string, string> = {
-            'Minus': '-', 'Equal': '=', 'BracketLeft': '[', 'BracketRight': ']',
-            'Backslash': '\\', 'Semicolon': ';', 'Quote': "'", 'Comma': ',',
-            'Period': '.', 'Slash': '/', 'Backquote': '`'
-          };
-          if (e.code && symbolMap[e.code]) {
-            return '\x1b' + symbolMap[e.code];
+        if (e.altKey && !e.ctrlKey && !e.metaKey) {
+          // Handle Option+Arrows for word jumping and Option+Backspace for word deletion
+          if (e.key === 'ArrowLeft') return '\x1bb';
+          if (e.key === 'ArrowRight') return '\x1bf';
+          if (e.key === 'Backspace') return '\x1b\x7f';
+
+          if (e.key.length === 1) {
+            // Use e.keyCode to get the unmodified letter/number safely
+            if (e.keyCode >= 65 && e.keyCode <= 90) {
+              const char = String.fromCharCode(e.keyCode + (e.shiftKey ? 0 : 32));
+              return '\x1b' + char;
+            }
+            if (e.keyCode >= 48 && e.keyCode <= 57) {
+              return '\x1b' + String.fromCharCode(e.keyCode);
+            }
+            // Fallback to e.code for common punctuation
+            const symbolMap: Record<string, string> = {
+              'Minus': '-', 'Equal': '=', 'BracketLeft': '[', 'BracketRight': ']',
+              'Backslash': '\\', 'Semicolon': ';', 'Quote': "'", 'Comma': ',',
+              'Period': '.', 'Slash': '/', 'Backquote': '`'
+            };
+            if (e.code && symbolMap[e.code]) {
+              return '\x1b' + symbolMap[e.code];
+            }
           }
         }
         return originalKeyToSequence(e);

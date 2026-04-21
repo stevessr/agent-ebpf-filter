@@ -16,9 +16,9 @@ A specialized eBPF-based observation framework designed to trace application pat
 - Go 1.21+
 - Bun
 - Python 3.8+ (for Python agents)
-- `sudo` or `pkexec` to bootstrap the privileged eBPF maps/links
+- `sudo` or `pkexec` for privileged backend startup and eBPF bootstrap
 
-> The main Go server now runs unprivileged. Only the eBPF bootstrap step needs elevated privileges.
+> The backend process now runs with elevated privileges so it can directly access pinned eBPF maps without FD passing.
 
 ## Usage
 
@@ -27,7 +27,7 @@ A specialized eBPF-based observation framework designed to trace application pat
 ```bash
 make dev
 ```
-Bootstraps the privileged eBPF components first, then starts the unprivileged Go backend and the frontend Vite development server (`http://localhost:5173`) concurrently. Changes to the frontend will be reflected in real-time.
+Starts the privileged Go backend (which bootstraps and loads eBPF maps/links) and the frontend Vite development server (`http://localhost:5173`) concurrently. Changes to the frontend will be reflected in real-time.
 
 ### 2. Production Mode
 

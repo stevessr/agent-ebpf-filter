@@ -45,15 +45,18 @@ frontend: ## Build Vue3 frontend
 	@echo "Building frontend..."
 	cd frontend && bun install && bun run build
 
-ebpf-bootstrap: ## Bootstrap only the privileged eBPF components
-	@echo "Bootstrapping eBPF components..."
+ebpf-bootstrap: ## Pre-build the backend binary (bootstrap happens automatically on first run)
 	@(cd backend/ebpf && go generate)
-	@(cd backend && go run main.go --ebpf-bootstrap)
+	@(cd backend && go build -o agent-ebpf-filter)
 
-dev: proto wrapper ebpf-bootstrap ## Run both backend and frontend development server (no full build)
+dev: proto wrapper ## Run both backend and frontend development server
+	@echo "Building backend binary..."
+	@(cd backend/ebpf && go generate)
+	@(cd backend && go build -o agent-ebpf-filter)
 	@echo "Starting dev environment..."
+	@sudo -v
 	@rm -f backend/.port
-	@(cd backend && AGENT_WRAPPER_PATH="$(abspath agent-wrapper)" go run main.go) &
+	@(cd backend && AGENT_WRAPPER_PATH="$(abspath agent-wrapper)" sudo --preserve-env=AGENT_WRAPPER_PATH ./agent-ebpf-filter) &
 	@for i in $$(seq 1 30); do \
 		[ -f backend/.port ] && break; \
 		sleep 1; \
