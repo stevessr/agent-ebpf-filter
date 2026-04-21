@@ -693,6 +693,11 @@ type MemoryInfo struct {
 	Total         uint64                 `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
 	Used          uint64                 `protobuf:"varint,2,opt,name=used,proto3" json:"used,omitempty"`
 	Percent       float32                `protobuf:"fixed32,3,opt,name=percent,proto3" json:"percent,omitempty"`
+	Cached        uint64                 `protobuf:"varint,4,opt,name=cached,proto3" json:"cached,omitempty"`
+	Buffers       uint64                 `protobuf:"varint,5,opt,name=buffers,proto3" json:"buffers,omitempty"`
+	Shared        uint64                 `protobuf:"varint,6,opt,name=shared,proto3" json:"shared,omitempty"`
+	ZramUsed      uint64                 `protobuf:"varint,7,opt,name=zram_used,json=zramUsed,proto3" json:"zram_used,omitempty"`
+	ZramTotal     uint64                 `protobuf:"varint,8,opt,name=zram_total,json=zramTotal,proto3" json:"zram_total,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -744,6 +749,41 @@ func (x *MemoryInfo) GetUsed() uint64 {
 func (x *MemoryInfo) GetPercent() float32 {
 	if x != nil {
 		return x.Percent
+	}
+	return 0
+}
+
+func (x *MemoryInfo) GetCached() uint64 {
+	if x != nil {
+		return x.Cached
+	}
+	return 0
+}
+
+func (x *MemoryInfo) GetBuffers() uint64 {
+	if x != nil {
+		return x.Buffers
+	}
+	return 0
+}
+
+func (x *MemoryInfo) GetShared() uint64 {
+	if x != nil {
+		return x.Shared
+	}
+	return 0
+}
+
+func (x *MemoryInfo) GetZramUsed() uint64 {
+	if x != nil {
+		return x.ZramUsed
+	}
+	return 0
+}
+
+func (x *MemoryInfo) GetZramTotal() uint64 {
+	if x != nil {
+		return x.ZramTotal
 	}
 	return 0
 }
@@ -1317,12 +1357,18 @@ const file_tracker_proto_rawDesc = "" +
 	"\vPERFORMANCE\x10\x00\x12\x0e\n" +
 	"\n" +
 	"EFFICIENCY\x10\x01\x12\x0f\n" +
-	"\vHYPERTHREAD\x10\x02\"P\n" +
+	"\vHYPERTHREAD\x10\x02\"\xd6\x01\n" +
 	"\n" +
 	"MemoryInfo\x12\x14\n" +
 	"\x05total\x18\x01 \x01(\x04R\x05total\x12\x12\n" +
 	"\x04used\x18\x02 \x01(\x04R\x04used\x12\x18\n" +
-	"\apercent\x18\x03 \x01(\x02R\apercent\"d\n" +
+	"\apercent\x18\x03 \x01(\x02R\apercent\x12\x16\n" +
+	"\x06cached\x18\x04 \x01(\x04R\x06cached\x12\x18\n" +
+	"\abuffers\x18\x05 \x01(\x04R\abuffers\x12\x16\n" +
+	"\x06shared\x18\x06 \x01(\x04R\x06shared\x12\x1b\n" +
+	"\tzram_used\x18\a \x01(\x04R\bzramUsed\x12\x1d\n" +
+	"\n" +
+	"zram_total\x18\b \x01(\x04R\tzramTotal\"d\n" +
 	"\x10NetworkInterface\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +

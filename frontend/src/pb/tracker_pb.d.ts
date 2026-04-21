@@ -1068,6 +1068,21 @@ export namespace pb {
 
         /** MemoryInfo percent */
         percent?: (number|null);
+
+        /** MemoryInfo cached */
+        cached?: (number|Long|null);
+
+        /** MemoryInfo buffers */
+        buffers?: (number|Long|null);
+
+        /** MemoryInfo shared */
+        shared?: (number|Long|null);
+
+        /** MemoryInfo zramUsed */
+        zramUsed?: (number|Long|null);
+
+        /** MemoryInfo zramTotal */
+        zramTotal?: (number|Long|null);
     }
 
     /** Represents a MemoryInfo. */
@@ -1087,6 +1102,21 @@ export namespace pb {
 
         /** MemoryInfo percent. */
         public percent: number;
+
+        /** MemoryInfo cached. */
+        public cached: (number|Long);
+
+        /** MemoryInfo buffers. */
+        public buffers: (number|Long);
+
+        /** MemoryInfo shared. */
+        public shared: (number|Long);
+
+        /** MemoryInfo zramUsed. */
+        public zramUsed: (number|Long);
+
+        /** MemoryInfo zramTotal. */
+        public zramTotal: (number|Long);
 
         /**
          * Creates a new MemoryInfo instance using the specified properties.

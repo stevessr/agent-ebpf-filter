@@ -33,6 +33,8 @@ interface GlobalStats {
   cpuTotal: number; cpuCores: number[];
   cpuCoresDetailed: { index: number; usage: number; type: number }[];
   memTotal: number; memUsed: number; memPercent: number;
+  memCached: number; memBuffers: number; memShared: number;
+  zramUsed: number; zramTotal: number;
   netInterfaces: IOSpeed[];
   diskDevices: IOSpeed[];
   totalNetRecv: number; totalNetSent: number;
@@ -50,6 +52,7 @@ const processes = ref<ProcessInfo[]>([]);
 const gpus = ref<GPUStatus[]>([]);
 const systemStats = ref<GlobalStats>({
   cpuTotal: 0, cpuCores: [], cpuCoresDetailed: [], memTotal: 0, memUsed: 0, memPercent: 0,
+  memCached: 0, memBuffers: 0, memShared: 0, zramUsed: 0, zramTotal: 0,
   netInterfaces: [], diskDevices: [],
   totalNetRecv: 0, totalNetSent: 0, totalDiskRead: 0, totalDiskWrite: 0
 });
@@ -190,6 +193,11 @@ const connectWebSocket = () => {
         systemStats.value.memTotal = Number(decoded.memory.total);
         systemStats.value.memUsed = Number(decoded.memory.used);
         systemStats.value.memPercent = decoded.memory.percent || 0;
+        systemStats.value.memCached = Number(decoded.memory.cached);
+        systemStats.value.memBuffers = Number(decoded.memory.buffers);
+        systemStats.value.memShared = Number(decoded.memory.shared);
+        systemStats.value.zramUsed = Number(decoded.memory.zramUsed);
+        systemStats.value.zramTotal = Number(decoded.memory.zramTotal);
         updateHistory('mem_usage', systemStats.value.memPercent);
       }
 
@@ -438,29 +446,59 @@ watch(refreshInterval, connectWebSocket);
             <a-card size="small" class="stat-card-row" title="Memory & Interface I/O">
               <template #extra><PieChartOutlined /></template>
               <div style="display: flex; gap: 24px; padding: 10px;">
-                <div style="flex: 0 0 300px; cursor: pointer" @click="openChart('mem_usage', 'RAM Usage', 'single', ['Usage %'])">
-                  <div style="margin-bottom: 15px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px;"><span>RAM Usage <LineChartOutlined style="font-size: 12px; color: #ccc" /></span><span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span></div>
-                    <a-progress :percent="Math.round(systemStats.memPercent)" stroke-color="#1890ff" status="active" />
-                    <div style="font-size: 12px; color: #999; margin-top: 4px;">{{ formatBytes(systemStats.memUsed) }} / {{ formatBytes(systemStats.memTotal) }}</div>
-                  </div>
-                  <div style="border-top: 1px solid #f0f0f0; padding-top: 15px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px;" @click.stop="openChart('total_net', 'Aggregate Network', 'double', ['In', 'Out'])"><span>Total Network:</span><span style="color: #52c41a">↓ {{ formatBytes(systemStats.totalNetRecv) }}/s</span><span style="color: #1890ff">↑ {{ formatBytes(systemStats.totalNetSent) }}/s</span></div>
-                    <div style="display: flex; justify-content: space-between; font-size: 12px;" @click.stop="openChart('total_disk', 'Aggregate Disk', 'double', ['Read', 'Write'])"><span>Total Disk:</span><span style="color: #faad14">R: {{ formatBytes(systemStats.totalDiskRead) }}/s</span><span style="color: #ff4d4f">W: {{ formatBytes(systemStats.totalDiskWrite) }}/s</span></div>
+                <!-- RAM Breakdown -->
+                <div style="flex: 0 0 350px; cursor: pointer" @click="openChart('mem_usage', 'RAM Usage', 'single', ['Usage %'])">
+                  <div style="margin-bottom: 10px;">
+                     <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px;">
+                      <span>RAM Usage <LineChartOutlined style="font-size: 12px; color: #ccc" /></span>
+                      <span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span>
+                    </div>
+                    <a-progress 
+                      :percent="[
+                        ((systemStats.memUsed - systemStats.memCached - systemStats.memBuffers) / systemStats.memTotal) * 100,
+                        (systemStats.memCached / systemStats.memTotal) * 100,
+                        (systemStats.memBuffers / systemStats.memTotal) * 100,
+                      ]"
+                      :stroke-color="['#1890ff', '#52c41a', '#faad14']" 
+                      status="active" 
+                      :showInfo="false"
+                    />
+                    <div class="mem-legend">
+                      <span><span class="dot" style="background: #1890ff"></span> Apps: {{ formatBytes(systemStats.memUsed - systemStats.memCached - systemStats.memBuffers) }}</span>
+                      <span><span class="dot" style="background: #52c41a"></span> Cached: {{ formatBytes(systemStats.memCached) }}</span>
+                      <span><span class="dot" style="background: #faad14"></span> Buffers: {{ formatBytes(systemStats.memBuffers) }}</span>
+                    </div>
+                    <div v-if="systemStats.zramTotal > 0" style="margin-top: 8px; font-size: 12px;">
+                      ZRAM: {{ formatBytes(systemStats.zramUsed) }} / {{ formatBytes(systemStats.zramTotal) }}
+                      <a-progress :percent="(systemStats.zramUsed / systemStats.zramTotal) * 100" size="small" />
+                    </div>
                   </div>
                 </div>
+                <!-- I/O Details -->
                 <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-left: 1px solid #f0f0f0; padding-left: 24px;">
+                  <!-- Net Detail -->
                   <div>
                     <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">NETWORK INTERFACES</div>
                     <div style="max-height: 120px; overflow-y: auto;">
-                      <div v-for="s in systemStats.netInterfaces" :key="s.name" @click="openChart('net_' + s.name, 'Interface: ' + s.name, 'double', ['In', 'Out'])" class="io-row" style="cursor: pointer"><span class="io-name">{{ s.name }}</span><span class="io-val-in">↓{{ formatBytes(s.readSpeed, 0) }}</span><span class="io-val-out">↑{{ formatBytes(s.writeSpeed, 0) }}</span></div>
+                      <div v-for="s in systemStats.netInterfaces" :key="s.name" class="io-row" style="cursor: pointer"
+                           @click="openChart('net_' + s.name, 'Interface: ' + s.name, 'double', ['Download', 'Upload'])">
+                        <span class="io-name">{{ s.name }}</span>
+                        <span class="io-val-in">↓{{ formatBytes(s.readSpeed, 0) }}</span>
+                        <span class="io-val-out">↑{{ formatBytes(s.writeSpeed, 0) }}</span>
+                      </div>
                       <div v-if="!systemStats.netInterfaces.length" style="font-size: 11px; color: #ccc;">No active traffic</div>
                     </div>
                   </div>
+                  <!-- Disk Detail -->
                   <div>
                     <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">DISK DEVICES</div>
                     <div style="max-height: 120px; overflow-y: auto;">
-                      <div v-for="s in systemStats.diskDevices" :key="s.name" @click="openChart('disk_' + s.name, 'Disk: ' + s.name, 'double', ['Read', 'Write'])" class="io-row" style="cursor: pointer"><span class="io-name">{{ s.name }}</span><span class="io-val-read">R:{{ formatBytes(s.readSpeed, 0) }}</span><span class="io-val-write">W:{{ formatBytes(s.writeSpeed, 0) }}</span></div>
+                      <div v-for="s in systemStats.diskDevices" :key="s.name" class="io-row" style="cursor: pointer"
+                           @click="openChart('disk_' + s.name, 'Disk: ' + s.name, 'double', ['Read', 'Write'])">
+                        <span class="io-name">{{ s.name }}</span>
+                        <span class="io-val-read">R:{{ formatBytes(s.readSpeed, 0) }}</span>
+                        <span class="io-val-write">W:{{ formatBytes(s.writeSpeed, 0) }}</span>
+                      </div>
                       <div v-if="!systemStats.diskDevices.length" style="font-size: 11px; color: #ccc;">No active I/O</div>
                     </div>
                   </div>
@@ -612,6 +650,8 @@ watch(refreshInterval, connectWebSocket);
 .core-item-full { display: flex; align-items: center; background: #fafafa; padding: 4px 12px; border-radius: 4px; border: 1px solid #f0f0f0; }
 .core-label { font-size: 11px; color: #999; min-width: 35px; }
 .core-val { font-size: 11px; font-family: monospace; min-width: 40px; text-align: right; color: #1890ff; font-weight: bold; }
+.mem-legend { display: flex; justify-content: space-around; font-size: 11px; color: #666; margin-top: 8px; }
+.mem-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 .io-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 8px; background: #f9f9f9; margin-bottom: 4px; border-radius: 3px; font-family: monospace; }
 .io-name { font-weight: bold; color: #555; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
 .io-val-in { color: #52c41a; } .io-val-out { color: #1890ff; }

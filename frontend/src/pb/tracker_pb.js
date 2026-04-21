@@ -2621,6 +2621,11 @@ export const pb = $root.pb = (() => {
          * @property {number|Long|null} [total] MemoryInfo total
          * @property {number|Long|null} [used] MemoryInfo used
          * @property {number|null} [percent] MemoryInfo percent
+         * @property {number|Long|null} [cached] MemoryInfo cached
+         * @property {number|Long|null} [buffers] MemoryInfo buffers
+         * @property {number|Long|null} [shared] MemoryInfo shared
+         * @property {number|Long|null} [zramUsed] MemoryInfo zramUsed
+         * @property {number|Long|null} [zramTotal] MemoryInfo zramTotal
          */
 
         /**
@@ -2663,6 +2668,46 @@ export const pb = $root.pb = (() => {
         MemoryInfo.prototype.percent = 0;
 
         /**
+         * MemoryInfo cached.
+         * @member {number|Long} cached
+         * @memberof pb.MemoryInfo
+         * @instance
+         */
+        MemoryInfo.prototype.cached = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * MemoryInfo buffers.
+         * @member {number|Long} buffers
+         * @memberof pb.MemoryInfo
+         * @instance
+         */
+        MemoryInfo.prototype.buffers = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * MemoryInfo shared.
+         * @member {number|Long} shared
+         * @memberof pb.MemoryInfo
+         * @instance
+         */
+        MemoryInfo.prototype.shared = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * MemoryInfo zramUsed.
+         * @member {number|Long} zramUsed
+         * @memberof pb.MemoryInfo
+         * @instance
+         */
+        MemoryInfo.prototype.zramUsed = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * MemoryInfo zramTotal.
+         * @member {number|Long} zramTotal
+         * @memberof pb.MemoryInfo
+         * @instance
+         */
+        MemoryInfo.prototype.zramTotal = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
          * Creates a new MemoryInfo instance using the specified properties.
          * @function create
          * @memberof pb.MemoryInfo
@@ -2692,6 +2737,16 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.used);
             if (message.percent != null && Object.hasOwnProperty.call(message, "percent"))
                 writer.uint32(/* id 3, wireType 5 =*/29).float(message.percent);
+            if (message.cached != null && Object.hasOwnProperty.call(message, "cached"))
+                writer.uint32(/* id 4, wireType 0 =*/32).uint64(message.cached);
+            if (message.buffers != null && Object.hasOwnProperty.call(message, "buffers"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint64(message.buffers);
+            if (message.shared != null && Object.hasOwnProperty.call(message, "shared"))
+                writer.uint32(/* id 6, wireType 0 =*/48).uint64(message.shared);
+            if (message.zramUsed != null && Object.hasOwnProperty.call(message, "zramUsed"))
+                writer.uint32(/* id 7, wireType 0 =*/56).uint64(message.zramUsed);
+            if (message.zramTotal != null && Object.hasOwnProperty.call(message, "zramTotal"))
+                writer.uint32(/* id 8, wireType 0 =*/64).uint64(message.zramTotal);
             return writer;
         };
 
@@ -2740,6 +2795,26 @@ export const pb = $root.pb = (() => {
                         message.percent = reader.float();
                         break;
                     }
+                case 4: {
+                        message.cached = reader.uint64();
+                        break;
+                    }
+                case 5: {
+                        message.buffers = reader.uint64();
+                        break;
+                    }
+                case 6: {
+                        message.shared = reader.uint64();
+                        break;
+                    }
+                case 7: {
+                        message.zramUsed = reader.uint64();
+                        break;
+                    }
+                case 8: {
+                        message.zramTotal = reader.uint64();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -2784,6 +2859,21 @@ export const pb = $root.pb = (() => {
             if (message.percent != null && message.hasOwnProperty("percent"))
                 if (typeof message.percent !== "number")
                     return "percent: number expected";
+            if (message.cached != null && message.hasOwnProperty("cached"))
+                if (!$util.isInteger(message.cached) && !(message.cached && $util.isInteger(message.cached.low) && $util.isInteger(message.cached.high)))
+                    return "cached: integer|Long expected";
+            if (message.buffers != null && message.hasOwnProperty("buffers"))
+                if (!$util.isInteger(message.buffers) && !(message.buffers && $util.isInteger(message.buffers.low) && $util.isInteger(message.buffers.high)))
+                    return "buffers: integer|Long expected";
+            if (message.shared != null && message.hasOwnProperty("shared"))
+                if (!$util.isInteger(message.shared) && !(message.shared && $util.isInteger(message.shared.low) && $util.isInteger(message.shared.high)))
+                    return "shared: integer|Long expected";
+            if (message.zramUsed != null && message.hasOwnProperty("zramUsed"))
+                if (!$util.isInteger(message.zramUsed) && !(message.zramUsed && $util.isInteger(message.zramUsed.low) && $util.isInteger(message.zramUsed.high)))
+                    return "zramUsed: integer|Long expected";
+            if (message.zramTotal != null && message.hasOwnProperty("zramTotal"))
+                if (!$util.isInteger(message.zramTotal) && !(message.zramTotal && $util.isInteger(message.zramTotal.low) && $util.isInteger(message.zramTotal.high)))
+                    return "zramTotal: integer|Long expected";
             return null;
         };
 
@@ -2819,6 +2909,51 @@ export const pb = $root.pb = (() => {
                     message.used = new $util.LongBits(object.used.low >>> 0, object.used.high >>> 0).toNumber(true);
             if (object.percent != null)
                 message.percent = Number(object.percent);
+            if (object.cached != null)
+                if ($util.Long)
+                    (message.cached = $util.Long.fromValue(object.cached)).unsigned = true;
+                else if (typeof object.cached === "string")
+                    message.cached = parseInt(object.cached, 10);
+                else if (typeof object.cached === "number")
+                    message.cached = object.cached;
+                else if (typeof object.cached === "object")
+                    message.cached = new $util.LongBits(object.cached.low >>> 0, object.cached.high >>> 0).toNumber(true);
+            if (object.buffers != null)
+                if ($util.Long)
+                    (message.buffers = $util.Long.fromValue(object.buffers)).unsigned = true;
+                else if (typeof object.buffers === "string")
+                    message.buffers = parseInt(object.buffers, 10);
+                else if (typeof object.buffers === "number")
+                    message.buffers = object.buffers;
+                else if (typeof object.buffers === "object")
+                    message.buffers = new $util.LongBits(object.buffers.low >>> 0, object.buffers.high >>> 0).toNumber(true);
+            if (object.shared != null)
+                if ($util.Long)
+                    (message.shared = $util.Long.fromValue(object.shared)).unsigned = true;
+                else if (typeof object.shared === "string")
+                    message.shared = parseInt(object.shared, 10);
+                else if (typeof object.shared === "number")
+                    message.shared = object.shared;
+                else if (typeof object.shared === "object")
+                    message.shared = new $util.LongBits(object.shared.low >>> 0, object.shared.high >>> 0).toNumber(true);
+            if (object.zramUsed != null)
+                if ($util.Long)
+                    (message.zramUsed = $util.Long.fromValue(object.zramUsed)).unsigned = true;
+                else if (typeof object.zramUsed === "string")
+                    message.zramUsed = parseInt(object.zramUsed, 10);
+                else if (typeof object.zramUsed === "number")
+                    message.zramUsed = object.zramUsed;
+                else if (typeof object.zramUsed === "object")
+                    message.zramUsed = new $util.LongBits(object.zramUsed.low >>> 0, object.zramUsed.high >>> 0).toNumber(true);
+            if (object.zramTotal != null)
+                if ($util.Long)
+                    (message.zramTotal = $util.Long.fromValue(object.zramTotal)).unsigned = true;
+                else if (typeof object.zramTotal === "string")
+                    message.zramTotal = parseInt(object.zramTotal, 10);
+                else if (typeof object.zramTotal === "number")
+                    message.zramTotal = object.zramTotal;
+                else if (typeof object.zramTotal === "object")
+                    message.zramTotal = new $util.LongBits(object.zramTotal.low >>> 0, object.zramTotal.high >>> 0).toNumber(true);
             return message;
         };
 
@@ -2847,6 +2982,31 @@ export const pb = $root.pb = (() => {
                 } else
                     object.used = options.longs === String ? "0" : 0;
                 object.percent = 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.cached = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.cached = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.buffers = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.buffers = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.shared = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.shared = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.zramUsed = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.zramUsed = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.zramTotal = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.zramTotal = options.longs === String ? "0" : 0;
             }
             if (message.total != null && message.hasOwnProperty("total"))
                 if (typeof message.total === "number")
@@ -2860,6 +3020,31 @@ export const pb = $root.pb = (() => {
                     object.used = options.longs === String ? $util.Long.prototype.toString.call(message.used) : options.longs === Number ? new $util.LongBits(message.used.low >>> 0, message.used.high >>> 0).toNumber(true) : message.used;
             if (message.percent != null && message.hasOwnProperty("percent"))
                 object.percent = options.json && !isFinite(message.percent) ? String(message.percent) : message.percent;
+            if (message.cached != null && message.hasOwnProperty("cached"))
+                if (typeof message.cached === "number")
+                    object.cached = options.longs === String ? String(message.cached) : message.cached;
+                else
+                    object.cached = options.longs === String ? $util.Long.prototype.toString.call(message.cached) : options.longs === Number ? new $util.LongBits(message.cached.low >>> 0, message.cached.high >>> 0).toNumber(true) : message.cached;
+            if (message.buffers != null && message.hasOwnProperty("buffers"))
+                if (typeof message.buffers === "number")
+                    object.buffers = options.longs === String ? String(message.buffers) : message.buffers;
+                else
+                    object.buffers = options.longs === String ? $util.Long.prototype.toString.call(message.buffers) : options.longs === Number ? new $util.LongBits(message.buffers.low >>> 0, message.buffers.high >>> 0).toNumber(true) : message.buffers;
+            if (message.shared != null && message.hasOwnProperty("shared"))
+                if (typeof message.shared === "number")
+                    object.shared = options.longs === String ? String(message.shared) : message.shared;
+                else
+                    object.shared = options.longs === String ? $util.Long.prototype.toString.call(message.shared) : options.longs === Number ? new $util.LongBits(message.shared.low >>> 0, message.shared.high >>> 0).toNumber(true) : message.shared;
+            if (message.zramUsed != null && message.hasOwnProperty("zramUsed"))
+                if (typeof message.zramUsed === "number")
+                    object.zramUsed = options.longs === String ? String(message.zramUsed) : message.zramUsed;
+                else
+                    object.zramUsed = options.longs === String ? $util.Long.prototype.toString.call(message.zramUsed) : options.longs === Number ? new $util.LongBits(message.zramUsed.low >>> 0, message.zramUsed.high >>> 0).toNumber(true) : message.zramUsed;
+            if (message.zramTotal != null && message.hasOwnProperty("zramTotal"))
+                if (typeof message.zramTotal === "number")
+                    object.zramTotal = options.longs === String ? String(message.zramTotal) : message.zramTotal;
+                else
+                    object.zramTotal = options.longs === String ? $util.Long.prototype.toString.call(message.zramTotal) : options.longs === Number ? new $util.LongBits(message.zramTotal.low >>> 0, message.zramTotal.high >>> 0).toNumber(true) : message.zramTotal;
             return object;
         };
 
