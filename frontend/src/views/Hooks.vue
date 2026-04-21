@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
-import { LinkOutlined, CheckCircleOutlined, DeleteOutlined, ThunderboltOutlined, SwapOutlined, EditOutlined } from '@ant-design/icons-vue';
+import { LinkOutlined, CheckCircleOutlined, DeleteOutlined, ThunderboltOutlined, SwapOutlined, EditOutlined, PlusOutlined, CodeOutlined, FormOutlined } from '@ant-design/icons-vue';
 
 interface HookDef {
   id: string;
@@ -24,6 +24,35 @@ const editingHook = ref<HookDef | null>(null);
 const rawConfig = ref('');
 const configPath = ref('');
 const savingConfig = ref(false);
+const editorMode = ref<'visual' | 'raw'>('visual');
+
+// Parsed config for visual editing
+const parsedConfig = ref<any>({});
+
+const syncToParsed = () => {
+  try {
+    parsedConfig.value = JSON.parse(rawConfig.value || '{}');
+    if (!parsedConfig.value.hooks) parsedConfig.value.hooks = {};
+  } catch (e) {
+    parsedConfig.value = { hooks: {} };
+  }
+};
+
+const syncToRaw = () => {
+  try {
+    rawConfig.value = JSON.stringify(parsedConfig.value, null, 2);
+  } catch (e) {
+    console.error("Failed to stringify parsed config", e);
+  }
+};
+
+watch(editorMode, (newMode) => {
+  if (newMode === 'visual') {
+    syncToParsed();
+  } else {
+    syncToRaw();
+  }
+});
 
 const fetchHooks = async () => {
   loading.value = true;
@@ -43,6 +72,8 @@ const openEditModal = async (hook: HookDef) => {
     const res = await axios.get(`/config/hooks/${hook.id}/raw`);
     rawConfig.value = res.data.content;
     configPath.value = res.data.path;
+    editorMode.value = 'visual';
+    syncToParsed();
     showEditModal.value = true;
   } catch (err: any) {
     message.error(err.response?.data?.error || 'Failed to load configuration');
@@ -52,7 +83,15 @@ const openEditModal = async (hook: HookDef) => {
 const saveConfig = async () => {
   if (!editingHook.value) return;
   savingConfig.value = true;
+  
+  if (editorMode.value === 'visual') {
+    syncToRaw();
+  }
+  
   try {
+    // Validate JSON before saving
+    JSON.parse(rawConfig.value);
+    
     await axios.post(`/config/hooks/${editingHook.value.id}/raw`, {
       content: rawConfig.value
     });
@@ -60,7 +99,7 @@ const saveConfig = async () => {
     showEditModal.value = false;
     await fetchHooks();
   } catch (err: any) {
-    message.error(err.response?.data?.error || 'Failed to save configuration');
+    message.error(err.response?.data?.error || 'Failed to save configuration. Ensure JSON is valid.');
   } finally {
     savingConfig.value = false;
   }
@@ -83,7 +122,47 @@ const toggleHook = async (hook: HookDef) => {
   }
 };
 
+const addEvent = () => {
+  const eventName = prompt("Enter event name (e.g. PreToolUse, BeforeTool):");
+  if (eventName && !parsedConfig.value.hooks[eventName]) {
+    parsedConfig.value.hooks[eventName] = [];
+  }
+};
+
+const deleteEvent = (eventName: string) => {
+  if (confirm(`Delete entire event '${eventName}'?`)) {
+    delete parsedConfig.value.hooks[eventName];
+  }
+};
+
+const addMatcher = (eventName: string) => {
+  parsedConfig.value.hooks[eventName].push({
+    matcher: "*",
+    hooks: []
+  });
+};
+
+const deleteMatcher = (eventName: string, matcherIndex: number) => {
+  if (confirm('Delete this matcher block?')) {
+    parsedConfig.value.hooks[eventName].splice(matcherIndex, 1);
+  }
+};
+
+const addCommandHook = (eventName: string, matcherIndex: number) => {
+  parsedConfig.value.hooks[eventName][matcherIndex].hooks.push({
+    type: "command",
+    command: "",
+    statusMessage: "Running hook...",
+    async: true
+  });
+};
+
+const deleteCommandHook = (eventName: string, matcherIndex: number, hookIndex: number) => {
+  parsedConfig.value.hooks[eventName][matcherIndex].hooks.splice(hookIndex, 1);
+};
+
 onMounted(() => {
+
   void fetchHooks();
 });
 </script>
@@ -193,18 +272,81 @@ onMounted(() => {
       :title="`Edit Configuration: ${editingHook?.name}`"
       @ok="saveConfig"
       :confirmLoading="savingConfig"
-      width="800px"
+      width="900px"
     >
-      <div style="margin-bottom: 12px;">
-        <span style="font-size: 12px; color: #888;">Config Path: </span>
-        <a-typography-text code>{{ configPath }}</a-typography-text>
+      <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <span style="font-size: 12px; color: #888;">Config Path: </span>
+          <a-typography-text code>{{ configPath }}</a-typography-text>
+        </div>
+        <a-radio-group v-model:value="editorMode" size="small">
+          <a-radio-button value="visual"><FormOutlined /> Visual Editor</a-radio-button>
+          <a-radio-button value="raw"><CodeOutlined /> Raw JSON</a-radio-button>
+        </a-radio-group>
       </div>
-      <a-textarea
-        v-model:value="rawConfig"
-        :rows="20"
-        style="font-family: monospace; font-size: 12px; background: #fafafa;"
-        placeholder="{ ... }"
-      />
+
+      <div v-if="editorMode === 'visual'" style="max-height: 60vh; overflow-y: auto; padding: 4px;">
+        <div v-if="Object.keys(parsedConfig.hooks || {}).length === 0" style="text-align: center; padding: 40px; color: #999;">
+          No hooks configured. Click below to add an event.
+        </div>
+        
+        <div v-for="(matchers, eventName) in (parsedConfig.hooks || {})" :key="eventName" style="margin-bottom: 24px; border: 1px solid #f0f0f0; border-radius: 8px; overflow: hidden;">
+          <div style="background: #fafafa; padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f0f0;">
+            <span style="font-weight: bold; color: #1890ff;">{{ eventName }}</span>
+            <div style="display: flex; gap: 8px;">
+              <a-button size="small" @click="addMatcher(eventName as string)"><PlusOutlined /> Add Matcher</a-button>
+              <a-button size="small" danger ghost @click="deleteEvent(eventName as string)"><DeleteOutlined /></a-button>
+            </div>
+          </div>
+          
+          <div style="padding: 16px;">
+            <div v-if="!matchers.length" style="text-align: center; color: #ccc; font-size: 12px;">No matchers defined</div>
+            <div v-for="(matcherBlock, mIdx) in matchers" :key="mIdx" style="margin-bottom: 16px; padding: 12px; border: 1px dashed #e8e8e8; border-radius: 6px; position: relative;">
+              <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 12px; font-weight: 500;">Matcher:</span>
+                <a-input v-model:value="matcherBlock.matcher" size="small" placeholder="Tool name or * for all" style="width: 200px" />
+                <a-button size="small" type="link" danger @click="deleteMatcher(eventName as string, mIdx)" style="position: absolute; right: 4px; top: 4px;">
+                  <DeleteOutlined />
+                </a-button>
+              </div>
+
+              <div style="margin-left: 20px;">
+                <div v-for="(hook, hIdx) in matcherBlock.hooks" :key="hIdx" style="background: #fdfdfd; padding: 12px; border: 1px solid #f0f0f0; border-radius: 4px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; position: relative;">
+                   <div style="display: flex; gap: 8px; align-items: center;">
+                     <span style="font-size: 11px; width: 60px;">Command:</span>
+                     <a-input v-model:value="hook.command" size="small" placeholder="Shell command" style="flex: 1" />
+                     <a-button size="small" type="link" danger @click="deleteCommandHook(eventName as string, mIdx, hIdx)">
+                       <DeleteOutlined />
+                     </a-button>
+                   </div>
+                   <div style="display: flex; gap: 8px; align-items: center;">
+                     <span style="font-size: 11px; width: 60px;">Message:</span>
+                     <a-input v-model:value="hook.statusMessage" size="small" placeholder="Display message" style="flex: 1" />
+                     <span style="font-size: 11px; margin-left: 12px;">Async:</span>
+                     <a-switch v-model:checked="hook.async" size="small" />
+                   </div>
+                </div>
+                <a-button size="small" type="dashed" block @click="addCommandHook(eventName as string, mIdx)">
+                  <PlusOutlined /> Add Command Hook
+                </a-button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <a-button type="dashed" block @click="addEvent" style="margin-top: 16px;">
+          <PlusOutlined /> Add Hook Event (e.g. PreToolUse)
+        </a-button>
+      </div>
+
+      <div v-else>
+        <a-textarea
+          v-model:value="rawConfig"
+          :rows="20"
+          style="font-family: monospace; font-size: 12px; background: #fafafa;"
+          placeholder="{ ... }"
+        />
+      </div>
     </a-modal>
   </div>
 </template>
