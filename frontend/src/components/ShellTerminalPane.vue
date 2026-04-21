@@ -176,6 +176,32 @@ const cleanup = () => {
   term = null;
 };
 
+const terminalFontSize = ref(14);
+const terminalStyle = computed(() => {
+  const lh = 1.2;
+  return {
+    '--term-font-size': `${terminalFontSize.value}px`,
+    '--term-line-height': lh,
+    '--term-row-height': `${Math.round(terminalFontSize.value * lh)}px`,
+  };
+});
+
+const triggerTerminalResize = () => {
+  if (!term || !terminalRef.value) return;
+  nextTick(() => {
+    const measured = (term as any)._measureCharSize();
+    if (measured) {
+      if (typeof (term as any)._setRowHeight === 'function') {
+        (term as any)._setRowHeight();
+      }
+      const rect = terminalRef.value!.getBoundingClientRect();
+      const newCols = Math.max(1, Math.floor(rect.width / measured.charWidth));
+      const newRows = Math.max(1, Math.floor(rect.height / measured.rowHeight));
+      term?.resize(newCols, newRows);
+    }
+  });
+};
+
 const connect = async () => {
   const currentGeneration = ++generation;
   connecting.value = true;
@@ -271,6 +297,28 @@ const connect = async () => {
     if (inputHandler && inputHandler.keyToSequence) {
       const originalKeyToSequence = inputHandler.keyToSequence.bind(inputHandler);
       inputHandler.keyToSequence = function(e: KeyboardEvent) {
+        const isZoom = (e.ctrlKey || e.metaKey) && !e.altKey;
+        if (isZoom) {
+          if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.key === '=' || e.key === '+') {
+            e.preventDefault();
+            terminalFontSize.value = Math.min(48, terminalFontSize.value + 1);
+            triggerTerminalResize();
+            return null;
+          }
+          if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.key === '-' || e.key === '_') {
+            e.preventDefault();
+            terminalFontSize.value = Math.max(8, terminalFontSize.value - 1);
+            triggerTerminalResize();
+            return null;
+          }
+          if (e.code === 'Digit0' || e.key === '0') {
+            e.preventDefault();
+            terminalFontSize.value = 14;
+            triggerTerminalResize();
+            return null;
+          }
+        }
+
         if (e.altKey && !e.ctrlKey && !e.metaKey) {
           // Handle Option+Arrows for word jumping and Option+Backspace for word deletion
           if (e.key === 'ArrowLeft') return '\x1bb';
@@ -387,7 +435,7 @@ onBeforeUnmount(() => {
       :description="statusNotice.description"
     />
 
-    <div ref="terminalRef" class="wterm theme-monokai shell-pane__terminal"></div>
+    <div ref="terminalRef" class="wterm theme-monokai shell-pane__terminal" :style="terminalStyle"></div>
   </div>
 </template>
 
