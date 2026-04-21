@@ -116,6 +116,17 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 	cmd.Dir = workDir
 	cmd.Env = setEnvValue(os.Environ(), "TERM", "xterm-256color")
 
+	// Disable fish shell's query-terminal feature to prevent 10s wait warnings
+	ff := os.Getenv("fish_features")
+	if ff == "" {
+		ff = "no-query-term"
+	} else if !strings.Contains(ff, "no-query-term") {
+		ff = ff + ",no-query-term"
+	}
+	cmd.Env = setEnvValue(cmd.Env, "fish_features", ff)
+
+	dropPrivileges(cmd)
+
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{
 		Cols: uint16(cols),
 		Rows: uint16(rows),

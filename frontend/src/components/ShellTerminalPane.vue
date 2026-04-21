@@ -209,11 +209,10 @@ const connect = async () => {
     currentSocket.onmessage = (event) => {
       if (currentGeneration !== generation) return;
       if (!term) return;
+
       if (typeof event.data === 'string') {
         term.write(event.data);
-        return;
-      }
-      if (event.data instanceof ArrayBuffer) {
+      } else if (event.data instanceof ArrayBuffer) {
         term.write(new Uint8Array(event.data));
       }
     };
@@ -242,6 +241,7 @@ const connect = async () => {
       onData: (data) => {
         if (currentGeneration === generation) {
           sendShellData(data);
+          // WTerm natively scrolls to bottom on user input
         }
       },
       onResize: (cols, rows) => {
@@ -250,6 +250,43 @@ const connect = async () => {
         }
       },
     });
+
+    // Monkey-patch _isScrolledToBottom to workaround WTerm 0.1.9 row-height quantization bug
+    // which prevents auto-scrolling when scroll position is a few pixels from the absolute bottom.
+    (term as any)._isScrolledToBottom = function () {
+      const el = this.element;
+      if (!el) return true;
+      return el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    };
+
+    // Monkey-patch keyToSequence to fix macOS alt+ key combinations (e.g., alt+f, alt+b)
+    // macOS translates alt+letter into special characters (like ƒ, ∫). Terminal expects \x1b + letter.
+    const inputHandler = (term as any).input;
+    if (inputHandler && inputHandler.keyToSequence) {
+      const originalKeyToSequence = inputHandler.keyToSequence.bind(inputHandler);
+      inputHandler.keyToSequence = function(e: KeyboardEvent) {
+        if (e.altKey && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+          // Use e.keyCode to get the unmodified letter/number safely
+          if (e.keyCode >= 65 && e.keyCode <= 90) {
+            const char = String.fromCharCode(e.keyCode + (e.shiftKey ? 0 : 32));
+            return '\x1b' + char;
+          }
+          if (e.keyCode >= 48 && e.keyCode <= 57) {
+            return '\x1b' + String.fromCharCode(e.keyCode);
+          }
+          // Fallback to e.code for common punctuation
+          const symbolMap: Record<string, string> = {
+            'Minus': '-', 'Equal': '=', 'BracketLeft': '[', 'BracketRight': ']',
+            'Backslash': '\\', 'Semicolon': ';', 'Quote': "'", 'Comma': ',',
+            'Period': '.', 'Slash': '/', 'Backquote': '`'
+          };
+          if (e.code && symbolMap[e.code]) {
+            return '\x1b' + symbolMap[e.code];
+          }
+        }
+        return originalKeyToSequence(e);
+      };
+    }
 
     await term.init();
     if (currentGeneration !== generation) {

@@ -2,25 +2,28 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
-import { SettingOutlined, LinkOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons-vue';
+import { LinkOutlined, CheckCircleOutlined, DeleteOutlined, ThunderboltOutlined, SwapOutlined } from '@ant-design/icons-vue';
 
 interface HookDef {
   id: string;
   name: string;
   description: string;
   target_cmd: string;
+  hook_type: 'native' | 'wrapper';
   installed: boolean;
 }
 
 const hooks = ref<HookDef[]>([]);
 const loading = ref(false);
+// Track which hooks the user wants to force-use wrapper mode for.
+const useWrapperOverride = ref<Record<string, boolean>>({});
 
 const fetchHooks = async () => {
   loading.value = true;
   try {
     const res = await axios.get('/config/hooks');
     hooks.value = res.data;
-  } catch (err) {
+  } catch {
     message.error('Failed to fetch hooks');
   } finally {
     loading.value = false;
@@ -32,11 +35,12 @@ const toggleHook = async (hook: HookDef) => {
     loading.value = true;
     await axios.post('/config/hooks', {
       id: hook.id,
-      install: !hook.installed
+      install: !hook.installed,
+      use_wrapper: useWrapperOverride.value[hook.id] ?? false,
     });
     message.success(`${hook.installed ? 'Uninstalled' : 'Installed'} hook for ${hook.name}`);
-    await fetchHooks(); // Refresh status
-  } catch (err) {
+    await fetchHooks();
+  } catch {
     message.error(`Failed to ${hook.installed ? 'uninstall' : 'install'} hook`);
   } finally {
     loading.value = false;
@@ -44,7 +48,7 @@ const toggleHook = async (hook: HookDef) => {
 };
 
 onMounted(() => {
-  fetchHooks();
+  void fetchHooks();
 });
 </script>
 
@@ -63,12 +67,18 @@ onMounted(() => {
         </template>
 
         <a-alert
-          message="About CLI Hooks"
-          description="Installing a hook sets up an alias in your local shell configuration (~/.zshrc or ~/.bashrc) so that commands to popular AI CLIs (like Claude Code, Gemini CLI, Copilot) are transparently routed through agent-wrapper. This allows eBPF-Filter to apply security rules and tracking tags."
+          message="Hook Modes"
           type="info"
           show-icon
           style="margin-bottom: 24px;"
-        />
+        >
+          <template #description>
+            <div>
+              <b>Native Hook</b> (recommended): Injects directly into the agent CLI's own config (e.g. Claude Code's <code>~/.claude/settings.json</code>). Intercepts every tool call with zero shell overhead.<br/>
+              <b>Wrapper Hook</b>: Adds a shell alias so the CLI is transparently routed through <code>agent-wrapper</code>. Works for any CLI but requires a shell reload.
+            </div>
+          </template>
+        </a-alert>
 
         <a-list
           :grid="{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 2, xl: 2, xxl: 2 }"
@@ -82,21 +92,37 @@ onMounted(() => {
                   <div>
                     <h3 style="margin: 0; font-size: 15px; font-weight: 600;">{{ item.name }}</h3>
                     <div style="font-family: monospace; font-size: 12px; color: #888; margin-top: 4px;">
-                      Target: <span style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">{{ item.target_cmd }}</span>
+                      cmd: <span style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">{{ item.target_cmd }}</span>
                     </div>
                   </div>
-                  <a-tag :color="item.installed ? 'success' : 'default'">
-                    <template #icon>
-                      <CheckCircleOutlined v-if="item.installed" />
-                    </template>
-                    {{ item.installed ? 'Installed' : 'Not Installed' }}
-                  </a-tag>
+                  <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                    <a-tag :color="item.installed ? 'success' : 'default'">
+                      <template #icon><CheckCircleOutlined v-if="item.installed" /></template>
+                      {{ item.installed ? 'Installed' : 'Not Installed' }}
+                    </a-tag>
+                    <a-tag :color="item.hook_type === 'native' ? 'blue' : 'orange'">
+                      <template #icon>
+                        <ThunderboltOutlined v-if="item.hook_type === 'native'" />
+                        <SwapOutlined v-else />
+                      </template>
+                      {{ item.hook_type === 'native' ? 'Native Hook' : 'Wrapper Hook' }}
+                    </a-tag>
+                  </div>
                 </div>
-                <p style="font-size: 13px; color: #555; height: 40px; margin-bottom: 16px;">
+
+                <p style="font-size: 13px; color: #555; min-height: 36px; margin-bottom: 12px;">
                   {{ item.description }}
                 </p>
+
+                <!-- For native-capable CLIs, allow opting into wrapper mode -->
+                <div v-if="item.hook_type === 'native' && !item.installed" style="margin-bottom: 12px;">
+                  <a-checkbox v-model:checked="useWrapperOverride[item.id]">
+                    <span style="font-size: 12px; color: #888;">Use wrapper alias instead</span>
+                  </a-checkbox>
+                </div>
+
                 <div style="text-align: right; border-top: 1px solid #f0f0f0; padding-top: 12px;">
-                  <a-button 
+                  <a-button
                     :type="item.installed ? 'default' : 'primary'"
                     :danger="item.installed"
                     @click="toggleHook(item)"
@@ -106,7 +132,7 @@ onMounted(() => {
                       <DeleteOutlined v-if="item.installed" />
                       <LinkOutlined v-else />
                     </template>
-                    {{ item.installed ? 'Uninstall Hook' : 'Install Hook' }}
+                    {{ item.installed ? 'Uninstall' : 'Install Hook' }}
                   </a-button>
                 </div>
               </a-card>
@@ -119,4 +145,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+code {
+  background: #f0f0f0;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
 </style>

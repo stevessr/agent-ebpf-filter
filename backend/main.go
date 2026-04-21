@@ -74,31 +74,193 @@ type ExportConfig struct {
 	Paths map[string]string `json:"paths"`
 }
 
+// HookType distinguishes how the hook intercepts the agent CLI.
+// "native" = write into the agent CLI's own config file (preferred).
+// "wrapper" = install a shell alias that routes through agent-wrapper.
+type HookType string
+
+const (
+	HookTypeNative  HookType = "native"
+	HookTypeWrapper HookType = "wrapper"
+)
+
 type HookDef struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	TargetCmd   string `json:"target_cmd"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	TargetCmd   string   `json:"target_cmd"`
+	HookType    HookType `json:"hook_type"`
+	// NativeConfigPath is the path to the agent CLI's config file (for native hooks).
+	NativeConfigPath string `json:"-"`
 }
 
 var availableHooks = []HookDef{
-	{ID: "gemini", Name: "Gemini CLI", Description: "Intercepts rtk / gemini-cli commands", TargetCmd: "rtk"},
-	{ID: "claude", Name: "Claude Code", Description: "Intercepts claude code commands", TargetCmd: "claude"},
-	{ID: "copilot", Name: "GitHub Copilot", Description: "Intercepts gh copilot commands", TargetCmd: "gh"},
-	{ID: "cursor", Name: "Cursor Shims", Description: "Intercepts cursor execution", TargetCmd: "cursor"},
+	{
+		ID: "claude", Name: "Claude Code", HookType: HookTypeNative,
+		Description:      "Uses Claude Code's built-in PreToolUse hook to intercept all tool calls (recommended)",
+		TargetCmd:        "claude",
+		NativeConfigPath: func() string { h, _ := os.UserHomeDir(); return filepath.Join(h, ".claude", "settings.json") }(),
+	},
+	{
+		ID: "gemini", Name: "Gemini CLI", HookType: HookTypeWrapper,
+		Description: "Intercepts gemini / rtk commands via shell alias wrapper",
+		TargetCmd:   "gemini",
+	},
+	{
+		ID: "copilot", Name: "GitHub Copilot", HookType: HookTypeWrapper,
+		Description: "Intercepts gh copilot commands via shell alias wrapper",
+		TargetCmd:   "gh",
+	},
+	{
+		ID: "cursor", Name: "Cursor", HookType: HookTypeWrapper,
+		Description: "Intercepts cursor execution via shell alias wrapper",
+		TargetCmd:   "cursor",
+	},
 }
 
 func getShellConfigPath() string {
 	home, _ := os.UserHomeDir()
 	shell := os.Getenv("SHELL")
-	if strings.Contains(shell, "zsh") { return filepath.Join(home, ".zshrc") }
+	if strings.Contains(shell, "zsh") {
+		return filepath.Join(home, ".zshrc")
+	}
 	return filepath.Join(home, ".bashrc")
 }
 
-func isHookInstalled(cmd string) bool {
+// isNativeHookInstalled checks whether the agent-ebpf PreToolUse hook is present
+// in the Claude Code settings.json.
+func isNativeHookInstalled(cfgPath string) bool {
+	b, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(b), "agent-ebpf-hook")
+}
+
+func isWrapperHookInstalled(cmd string) bool {
 	p := getShellConfigPath()
-	b, err := os.ReadFile(p); if err != nil { return false }
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return false
+	}
 	return strings.Contains(string(b), fmt.Sprintf("alias %s=", cmd))
+}
+
+func isHookInstalled(h HookDef) bool {
+	if h.HookType == HookTypeNative {
+		return isNativeHookInstalled(h.NativeConfigPath)
+	}
+	return isWrapperHookInstalled(h.TargetCmd)
+}
+
+// installNativeHook injects a PreToolUse hook into the Claude Code settings.json
+// that POSTs every tool call to our backend for inspection.
+func installNativeHook(cfgPath string) error {
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
+		return err
+	}
+
+	// Read existing config (may not exist yet).
+	var cfg map[string]interface{}
+	if b, err := os.ReadFile(cfgPath); err == nil {
+		_ = json.Unmarshal(b, &cfg)
+	}
+	if cfg == nil {
+		cfg = make(map[string]interface{})
+	}
+
+	// Build the hook entry.
+	hookEntry := map[string]interface{}{
+		"type":          "command",
+		"command":       `curl -s -X POST http://localhost:8080/hooks/event -H 'Content-Type: application/json' -d @- || true`,
+		"statusMessage": "agent-ebpf-hook: inspecting...",
+		"async":         true,
+	}
+	matcher := map[string]interface{}{
+		"matcher": "",
+		"hooks":   []interface{}{hookEntry},
+	}
+
+	// Merge into existing hooks.PreToolUse array.
+	hooks, _ := cfg["hooks"].(map[string]interface{})
+	if hooks == nil {
+		hooks = make(map[string]interface{})
+	}
+	preToolUse, _ := hooks["PreToolUse"].([]interface{})
+
+	// Remove any existing agent-ebpf-hook entry to avoid duplicates.
+	filtered := []interface{}{}
+	for _, m := range preToolUse {
+		if mm, ok := m.(map[string]interface{}); ok {
+			hs, _ := mm["hooks"].([]interface{})
+			isOurs := false
+			for _, h := range hs {
+				if hm, ok := h.(map[string]interface{}); ok {
+					if cmd, _ := hm["command"].(string); strings.Contains(cmd, "agent-ebpf-hook") {
+						isOurs = true
+					}
+				}
+			}
+			if !isOurs {
+				filtered = append(filtered, m)
+			}
+		}
+	}
+	hooks["PreToolUse"] = append(filtered, matcher)
+	cfg["hooks"] = hooks
+
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(cfgPath, b, 0644)
+}
+
+// uninstallNativeHook removes the agent-ebpf PreToolUse hook from settings.json.
+func uninstallNativeHook(cfgPath string) error {
+	b, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return nil // nothing to do
+	}
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return err
+	}
+	hooks, _ := cfg["hooks"].(map[string]interface{})
+	if hooks == nil {
+		return nil
+	}
+	preToolUse, _ := hooks["PreToolUse"].([]interface{})
+	filtered := []interface{}{}
+	for _, m := range preToolUse {
+		if mm, ok := m.(map[string]interface{}); ok {
+			hs, _ := mm["hooks"].([]interface{})
+			isOurs := false
+			for _, h := range hs {
+				if hm, ok := h.(map[string]interface{}); ok {
+					if cmd, _ := hm["command"].(string); strings.Contains(cmd, "agent-ebpf-hook") {
+						isOurs = true
+					}
+				}
+			}
+			if !isOurs {
+				filtered = append(filtered, m)
+			}
+		}
+	}
+	if len(filtered) == 0 {
+		delete(hooks, "PreToolUse")
+	} else {
+		hooks["PreToolUse"] = filtered
+	}
+	if len(hooks) == 0 {
+		delete(cfg, "hooks")
+	}
+	out, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(cfgPath, out, 0644)
 }
 
 var (
@@ -428,6 +590,17 @@ func serveLegacyShellWS(c *gin.Context) {
 	cmd.Dir = resolveShellWorkDir()
 	cmd.Env = setEnvValue(os.Environ(), "TERM", "xterm-256color")
 
+	// Disable fish shell's query-terminal feature to prevent 10s wait warnings
+	ff := os.Getenv("fish_features")
+	if ff == "" {
+		ff = "no-query-term"
+	} else if !strings.Contains(ff, "no-query-term") {
+		ff = ff + ",no-query-term"
+	}
+	cmd.Env = setEnvValue(cmd.Env, "fish_features", ff)
+
+	dropPrivileges(cmd)
+
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{
 		Cols: uint16(cols),
 		Rows: uint16(rows),
@@ -741,6 +914,11 @@ func main() {
 		}
 		return
 	}
+	if relaunched, err := ensureBackendPrivileges(); err != nil {
+		log.Fatalf("failed to elevate backend privileges: %v", err)
+	} else if relaunched {
+		return
+	}
 
 	procsList, _ := ps.Processes()
 	curr := int32(os.Getpid())
@@ -914,6 +1092,33 @@ func main() {
 	r.GET("/shell-sessions", handleListShellSessions)
 	r.DELETE("/shell-sessions/:id", handleDeleteShellSession)
 	r.GET("/ws/shell", serveShellWS)
+
+	r.POST("/hooks/event", func(c *gin.Context) {
+		// Receives PreToolUse events from Claude Code's native hook mechanism.
+		var payload map[string]interface{}
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
+			return
+		}
+		toolName, _ := payload["tool_name"].(string)
+		hookEvent, _ := payload["hook_event_name"].(string)
+		toolInput, _ := payload["tool_input"].(map[string]interface{})
+		path := ""
+		if toolInput != nil {
+			if cmd, ok := toolInput["command"].(string); ok {
+				path = cmd
+			} else if fp, ok := toolInput["file_path"].(string); ok {
+				path = fp
+			}
+		}
+		broadcast <- &pb.Event{
+			Type: "native_hook",
+			Tag:  "Claude Code",
+			Comm: fmt.Sprintf("%s:%s", hookEvent, toolName),
+			Path: path,
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
 
 	r.POST("/register", func(c *gin.Context) {
 		if trackerMaps.AgentPids == nil {
@@ -1092,32 +1297,80 @@ func main() {
 					for _, h := range availableHooks {
 						res = append(res, gin.H{
 							"id": h.ID, "name": h.Name, "description": h.Description,
-							"target_cmd": h.TargetCmd, "installed": isHookInstalled(h.TargetCmd),
+							"target_cmd": h.TargetCmd, "hook_type": h.HookType,
+							"installed": isHookInstalled(h),
 						})
 					}
 					c.JSON(200, res)
 				})
 				hooks.POST("", func(c *gin.Context) {
-					var req struct { ID string `json:"id"`; Install bool `json:"install"` }
-					if err := c.ShouldBindJSON(&req); err != nil { return }
-					var target HookDef; found := false
-					for _, h := range availableHooks { if h.ID == req.ID { target = h; found = true; break } }
-					if !found { c.JSON(404, gin.H{"error": "hook not found"}); return }
-					
-					p := getShellConfigPath(); b, _ := os.ReadFile(p); content := string(b)
-					aliasLine := fmt.Sprintf("\nalias %s='agent-wrapper %s' # agent-ebpf-hook\n", target.TargetCmd, target.TargetCmd)
-					
+					var req struct {
+						ID         string `json:"id"`
+						Install    bool   `json:"install"`
+						UseWrapper bool   `json:"use_wrapper"` // override: force wrapper even for native-capable CLIs
+					}
+					if err := c.ShouldBindJSON(&req); err != nil {
+						c.JSON(400, gin.H{"error": "invalid request"})
+						return
+					}
+					var target HookDef
+					found := false
+					for _, h := range availableHooks {
+						if h.ID == req.ID {
+							target = h
+							found = true
+							break
+						}
+					}
+					if !found {
+						c.JSON(404, gin.H{"error": "hook not found"})
+						return
+					}
+
+					// Determine effective hook type: user can opt into wrapper even for native CLIs.
+					effectiveType := target.HookType
+					if req.UseWrapper {
+						effectiveType = HookTypeWrapper
+					}
+
 					if req.Install {
-						if !strings.Contains(content, fmt.Sprintf("alias %s=", target.TargetCmd)) {
-							f, _ := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0644)
-							f.WriteString(aliasLine); f.Close()
+						if effectiveType == HookTypeNative {
+							if err := installNativeHook(target.NativeConfigPath); err != nil {
+								c.JSON(500, gin.H{"error": err.Error()})
+								return
+							}
+						} else {
+							// Wrapper: add shell alias
+							p := getShellConfigPath()
+							b, _ := os.ReadFile(p)
+							content := string(b)
+							aliasLine := fmt.Sprintf("\nalias %s='agent-wrapper %s' # agent-ebpf-hook\n", target.TargetCmd, target.TargetCmd)
+							if !strings.Contains(content, fmt.Sprintf("alias %s=", target.TargetCmd)) {
+								f, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0644)
+								if err != nil {
+									c.JSON(500, gin.H{"error": err.Error()})
+									return
+								}
+								f.WriteString(aliasLine)
+								f.Close()
+							}
 						}
 					} else {
-						lines := strings.Split(content, "\n"); newLines := []string{}
-						for _, l := range lines {
-							if !strings.Contains(l, fmt.Sprintf("alias %s=", target.TargetCmd)) { newLines = append(newLines, l) }
+						// Uninstall both types to ensure clean state.
+						if target.HookType == HookTypeNative {
+							_ = uninstallNativeHook(target.NativeConfigPath)
 						}
-						os.WriteFile(p, []byte(strings.Join(newLines, "\n")), 0644)
+						// Also remove wrapper alias if present.
+						p := getShellConfigPath()
+						b, _ := os.ReadFile(p)
+						lines := strings.Split(string(b), "\n")
+						newLines := []string{}
+						for _, l := range lines {
+							if !strings.Contains(l, fmt.Sprintf("alias %s=", target.TargetCmd)) {
+								newLines = append(newLines, l)
+							}
+						}
+						_ = os.WriteFile(p, []byte(strings.Join(newLines, "\n")), 0644)
 					}
 					c.JSON(200, gin.H{"status": "ok"})
 				})
@@ -1153,6 +1406,7 @@ func main() {
 					}
 					cmd := exec.Command(wb, append([]string{r.Comm}, r.Args...)...)
 					cmd.Env = os.Environ()
+					dropPrivileges(cmd)
 					if err := cmd.Start(); err != nil {
 						c.JSON(500, gin.H{"error": err.Error()})
 						return
