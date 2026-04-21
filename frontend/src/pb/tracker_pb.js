@@ -1970,6 +1970,7 @@ export const pb = $root.pb = (() => {
          * @interface ICPUInfo
          * @property {number|null} [total] CPUInfo total
          * @property {Array.<number>|null} [cores] CPUInfo cores
+         * @property {Array.<pb.CPUInfo.ICore>|null} [coreDetails] CPUInfo coreDetails
          */
 
         /**
@@ -1982,6 +1983,7 @@ export const pb = $root.pb = (() => {
          */
         function CPUInfo(properties) {
             this.cores = [];
+            this.coreDetails = [];
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -2003,6 +2005,14 @@ export const pb = $root.pb = (() => {
          * @instance
          */
         CPUInfo.prototype.cores = $util.emptyArray;
+
+        /**
+         * CPUInfo coreDetails.
+         * @member {Array.<pb.CPUInfo.ICore>} coreDetails
+         * @memberof pb.CPUInfo
+         * @instance
+         */
+        CPUInfo.prototype.coreDetails = $util.emptyArray;
 
         /**
          * Creates a new CPUInfo instance using the specified properties.
@@ -2036,6 +2046,9 @@ export const pb = $root.pb = (() => {
                     writer.double(message.cores[i]);
                 writer.ldelim();
             }
+            if (message.coreDetails != null && message.coreDetails.length)
+                for (let i = 0; i < message.coreDetails.length; ++i)
+                    $root.pb.CPUInfo.Core.encode(message.coreDetails[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
             return writer;
         };
 
@@ -2087,6 +2100,12 @@ export const pb = $root.pb = (() => {
                             message.cores.push(reader.double());
                         break;
                     }
+                case 3: {
+                        if (!(message.coreDetails && message.coreDetails.length))
+                            message.coreDetails = [];
+                        message.coreDetails.push($root.pb.CPUInfo.Core.decode(reader, reader.uint32()));
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -2132,6 +2151,15 @@ export const pb = $root.pb = (() => {
                     if (typeof message.cores[i] !== "number")
                         return "cores: number[] expected";
             }
+            if (message.coreDetails != null && message.hasOwnProperty("coreDetails")) {
+                if (!Array.isArray(message.coreDetails))
+                    return "coreDetails: array expected";
+                for (let i = 0; i < message.coreDetails.length; ++i) {
+                    let error = $root.pb.CPUInfo.Core.verify(message.coreDetails[i]);
+                    if (error)
+                        return "coreDetails." + error;
+                }
+            }
             return null;
         };
 
@@ -2156,6 +2184,16 @@ export const pb = $root.pb = (() => {
                 for (let i = 0; i < object.cores.length; ++i)
                     message.cores[i] = Number(object.cores[i]);
             }
+            if (object.coreDetails) {
+                if (!Array.isArray(object.coreDetails))
+                    throw TypeError(".pb.CPUInfo.coreDetails: array expected");
+                message.coreDetails = [];
+                for (let i = 0; i < object.coreDetails.length; ++i) {
+                    if (typeof object.coreDetails[i] !== "object")
+                        throw TypeError(".pb.CPUInfo.coreDetails: object expected");
+                    message.coreDetails[i] = $root.pb.CPUInfo.Core.fromObject(object.coreDetails[i]);
+                }
+            }
             return message;
         };
 
@@ -2172,8 +2210,10 @@ export const pb = $root.pb = (() => {
             if (!options)
                 options = {};
             let object = {};
-            if (options.arrays || options.defaults)
+            if (options.arrays || options.defaults) {
                 object.cores = [];
+                object.coreDetails = [];
+            }
             if (options.defaults)
                 object.total = 0;
             if (message.total != null && message.hasOwnProperty("total"))
@@ -2182,6 +2222,11 @@ export const pb = $root.pb = (() => {
                 object.cores = [];
                 for (let j = 0; j < message.cores.length; ++j)
                     object.cores[j] = options.json && !isFinite(message.cores[j]) ? String(message.cores[j]) : message.cores[j];
+            }
+            if (message.coreDetails && message.coreDetails.length) {
+                object.coreDetails = [];
+                for (let j = 0; j < message.coreDetails.length; ++j)
+                    object.coreDetails[j] = $root.pb.CPUInfo.Core.toObject(message.coreDetails[j], options);
             }
             return object;
         };
@@ -2211,6 +2256,298 @@ export const pb = $root.pb = (() => {
             }
             return typeUrlPrefix + "/pb.CPUInfo";
         };
+
+        CPUInfo.Core = (function() {
+
+            /**
+             * Properties of a Core.
+             * @memberof pb.CPUInfo
+             * @interface ICore
+             * @property {number|null} [index] Core index
+             * @property {number|null} [usage] Core usage
+             * @property {pb.CPUInfo.Core.Type|null} [type] Core type
+             */
+
+            /**
+             * Constructs a new Core.
+             * @memberof pb.CPUInfo
+             * @classdesc Represents a Core.
+             * @implements ICore
+             * @constructor
+             * @param {pb.CPUInfo.ICore=} [properties] Properties to set
+             */
+            function Core(properties) {
+                if (properties)
+                    for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                        if (properties[keys[i]] != null)
+                            this[keys[i]] = properties[keys[i]];
+            }
+
+            /**
+             * Core index.
+             * @member {number} index
+             * @memberof pb.CPUInfo.Core
+             * @instance
+             */
+            Core.prototype.index = 0;
+
+            /**
+             * Core usage.
+             * @member {number} usage
+             * @memberof pb.CPUInfo.Core
+             * @instance
+             */
+            Core.prototype.usage = 0;
+
+            /**
+             * Core type.
+             * @member {pb.CPUInfo.Core.Type} type
+             * @memberof pb.CPUInfo.Core
+             * @instance
+             */
+            Core.prototype.type = 0;
+
+            /**
+             * Creates a new Core instance using the specified properties.
+             * @function create
+             * @memberof pb.CPUInfo.Core
+             * @static
+             * @param {pb.CPUInfo.ICore=} [properties] Properties to set
+             * @returns {pb.CPUInfo.Core} Core instance
+             */
+            Core.create = function create(properties) {
+                return new Core(properties);
+            };
+
+            /**
+             * Encodes the specified Core message. Does not implicitly {@link pb.CPUInfo.Core.verify|verify} messages.
+             * @function encode
+             * @memberof pb.CPUInfo.Core
+             * @static
+             * @param {pb.CPUInfo.ICore} message Core message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            Core.encode = function encode(message, writer) {
+                if (!writer)
+                    writer = $Writer.create();
+                if (message.index != null && Object.hasOwnProperty.call(message, "index"))
+                    writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.index);
+                if (message.usage != null && Object.hasOwnProperty.call(message, "usage"))
+                    writer.uint32(/* id 2, wireType 1 =*/17).double(message.usage);
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
+                    writer.uint32(/* id 3, wireType 0 =*/24).int32(message.type);
+                return writer;
+            };
+
+            /**
+             * Encodes the specified Core message, length delimited. Does not implicitly {@link pb.CPUInfo.Core.verify|verify} messages.
+             * @function encodeDelimited
+             * @memberof pb.CPUInfo.Core
+             * @static
+             * @param {pb.CPUInfo.ICore} message Core message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            Core.encodeDelimited = function encodeDelimited(message, writer) {
+                return this.encode(message, writer).ldelim();
+            };
+
+            /**
+             * Decodes a Core message from the specified reader or buffer.
+             * @function decode
+             * @memberof pb.CPUInfo.Core
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @param {number} [length] Message length if known beforehand
+             * @returns {pb.CPUInfo.Core} Core
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            Core.decode = function decode(reader, length, error) {
+                if (!(reader instanceof $Reader))
+                    reader = $Reader.create(reader);
+                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.CPUInfo.Core();
+                while (reader.pos < end) {
+                    let tag = reader.uint32();
+                    if (tag === error)
+                        break;
+                    switch (tag >>> 3) {
+                    case 1: {
+                            message.index = reader.uint32();
+                            break;
+                        }
+                    case 2: {
+                            message.usage = reader.double();
+                            break;
+                        }
+                    case 3: {
+                            message.type = reader.int32();
+                            break;
+                        }
+                    default:
+                        reader.skipType(tag & 7);
+                        break;
+                    }
+                }
+                return message;
+            };
+
+            /**
+             * Decodes a Core message from the specified reader or buffer, length delimited.
+             * @function decodeDelimited
+             * @memberof pb.CPUInfo.Core
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @returns {pb.CPUInfo.Core} Core
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            Core.decodeDelimited = function decodeDelimited(reader) {
+                if (!(reader instanceof $Reader))
+                    reader = new $Reader(reader);
+                return this.decode(reader, reader.uint32());
+            };
+
+            /**
+             * Verifies a Core message.
+             * @function verify
+             * @memberof pb.CPUInfo.Core
+             * @static
+             * @param {Object.<string,*>} message Plain object to verify
+             * @returns {string|null} `null` if valid, otherwise the reason why it is not
+             */
+            Core.verify = function verify(message) {
+                if (typeof message !== "object" || message === null)
+                    return "object expected";
+                if (message.index != null && message.hasOwnProperty("index"))
+                    if (!$util.isInteger(message.index))
+                        return "index: integer expected";
+                if (message.usage != null && message.hasOwnProperty("usage"))
+                    if (typeof message.usage !== "number")
+                        return "usage: number expected";
+                if (message.type != null && message.hasOwnProperty("type"))
+                    switch (message.type) {
+                    default:
+                        return "type: enum value expected";
+                    case 0:
+                    case 1:
+                    case 2:
+                        break;
+                    }
+                return null;
+            };
+
+            /**
+             * Creates a Core message from a plain object. Also converts values to their respective internal types.
+             * @function fromObject
+             * @memberof pb.CPUInfo.Core
+             * @static
+             * @param {Object.<string,*>} object Plain object
+             * @returns {pb.CPUInfo.Core} Core
+             */
+            Core.fromObject = function fromObject(object) {
+                if (object instanceof $root.pb.CPUInfo.Core)
+                    return object;
+                let message = new $root.pb.CPUInfo.Core();
+                if (object.index != null)
+                    message.index = object.index >>> 0;
+                if (object.usage != null)
+                    message.usage = Number(object.usage);
+                switch (object.type) {
+                default:
+                    if (typeof object.type === "number") {
+                        message.type = object.type;
+                        break;
+                    }
+                    break;
+                case "PERFORMANCE":
+                case 0:
+                    message.type = 0;
+                    break;
+                case "EFFICIENCY":
+                case 1:
+                    message.type = 1;
+                    break;
+                case "HYPERTHREAD":
+                case 2:
+                    message.type = 2;
+                    break;
+                }
+                return message;
+            };
+
+            /**
+             * Creates a plain object from a Core message. Also converts values to other types if specified.
+             * @function toObject
+             * @memberof pb.CPUInfo.Core
+             * @static
+             * @param {pb.CPUInfo.Core} message Core
+             * @param {$protobuf.IConversionOptions} [options] Conversion options
+             * @returns {Object.<string,*>} Plain object
+             */
+            Core.toObject = function toObject(message, options) {
+                if (!options)
+                    options = {};
+                let object = {};
+                if (options.defaults) {
+                    object.index = 0;
+                    object.usage = 0;
+                    object.type = options.enums === String ? "PERFORMANCE" : 0;
+                }
+                if (message.index != null && message.hasOwnProperty("index"))
+                    object.index = message.index;
+                if (message.usage != null && message.hasOwnProperty("usage"))
+                    object.usage = options.json && !isFinite(message.usage) ? String(message.usage) : message.usage;
+                if (message.type != null && message.hasOwnProperty("type"))
+                    object.type = options.enums === String ? $root.pb.CPUInfo.Core.Type[message.type] === undefined ? message.type : $root.pb.CPUInfo.Core.Type[message.type] : message.type;
+                return object;
+            };
+
+            /**
+             * Converts this Core to JSON.
+             * @function toJSON
+             * @memberof pb.CPUInfo.Core
+             * @instance
+             * @returns {Object.<string,*>} JSON object
+             */
+            Core.prototype.toJSON = function toJSON() {
+                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+            };
+
+            /**
+             * Gets the default type url for Core
+             * @function getTypeUrl
+             * @memberof pb.CPUInfo.Core
+             * @static
+             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns {string} The default type url
+             */
+            Core.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+                if (typeUrlPrefix === undefined) {
+                    typeUrlPrefix = "type.googleapis.com";
+                }
+                return typeUrlPrefix + "/pb.CPUInfo.Core";
+            };
+
+            /**
+             * Type enum.
+             * @name pb.CPUInfo.Core.Type
+             * @enum {number}
+             * @property {number} PERFORMANCE=0 PERFORMANCE value
+             * @property {number} EFFICIENCY=1 EFFICIENCY value
+             * @property {number} HYPERTHREAD=2 HYPERTHREAD value
+             */
+            Core.Type = (function() {
+                const valuesById = {}, values = Object.create(valuesById);
+                values[valuesById[0] = "PERFORMANCE"] = 0;
+                values[valuesById[1] = "EFFICIENCY"] = 1;
+                values[valuesById[2] = "HYPERTHREAD"] = 2;
+                return values;
+            })();
+
+            return Core;
+        })();
 
         return CPUInfo;
     })();

@@ -28,6 +28,7 @@ interface IOSpeed {
 
 interface GlobalStats {
   cpuTotal: number; cpuCores: number[];
+  cpuCoresDetailed: { index: number; usage: number; type: number }[];
   memTotal: number; memUsed: number; memPercent: number;
   netInterfaces: IOSpeed[];
   diskDevices: IOSpeed[];
@@ -39,7 +40,7 @@ const activeTab = ref('dashboard');
 const processes = ref<ProcessInfo[]>([]);
 const gpus = ref<GPUStatus[]>([]);
 const systemStats = ref<GlobalStats>({
-  cpuTotal: 0, cpuCores: [], memTotal: 0, memUsed: 0, memPercent: 0,
+  cpuTotal: 0, cpuCores: [], cpuCoresDetailed: [], memTotal: 0, memUsed: 0, memPercent: 0,
   netInterfaces: [], diskDevices: [],
   totalNetRecv: 0, totalNetSent: 0, totalDiskRead: 0, totalDiskWrite: 0
 });
@@ -141,6 +142,11 @@ const connectWebSocket = () => {
       if (decoded.cpu) {
         systemStats.value.cpuTotal = decoded.cpu.total || 0;
         systemStats.value.cpuCores = (decoded.cpu.cores as number[]) || [];
+        systemStats.value.cpuCoresDetailed = (decoded.cpu.coreDetails || []).map((c: any) => ({
+          index: c.index,
+          usage: c.usage || 0,
+          type: c.type
+        }));
       }
       
       if (decoded.memory) {
@@ -274,12 +280,17 @@ watch(refreshInterval, connectWebSocket);
                 </div>
               </div>
               <div v-else class="core-grid-full">
-                <div v-for="(p, i) in systemStats.cpuCores" :key="i" class="core-item-full">
-                  <span class="core-label">Core {{ i }}</span>
+                <div v-for="core in systemStats.cpuCoresDetailed" :key="core.index" class="core-item-full">
+                  <span class="core-label">
+                    <a-tag :color="core.type === 0 ? 'blue' : 'green'" size="small" style="font-size: 9px; line-height: 16px; height: 16px; padding: 0 4px; margin-right: 4px;">
+                      {{ core.type === 0 ? 'P' : 'E' }}
+                    </a-tag>
+                    #{{ core.index }}
+                  </span>
                   <div style="flex: 1; margin: 0 10px;">
-                    <a-progress :percent="Math.round(p)" size="small" :showInfo="false" stroke-color="#52c41a" />
+                    <a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" :stroke-color="core.type === 0 ? '#1890ff' : '#52c41a'" />
                   </div>
-                  <span class="core-val">{{ p.toFixed(1) }}%</span>
+                  <span class="core-val">{{ core.usage.toFixed(1) }}%</span>
                 </div>
               </div>
             </a-card>

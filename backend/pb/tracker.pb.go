@@ -21,6 +21,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type CPUInfo_Core_Type int32
+
+const (
+	CPUInfo_Core_PERFORMANCE CPUInfo_Core_Type = 0 // P-core
+	CPUInfo_Core_EFFICIENCY  CPUInfo_Core_Type = 1 // E-core
+	CPUInfo_Core_HYPERTHREAD CPUInfo_Core_Type = 2 // SMT thread
+)
+
+// Enum value maps for CPUInfo_Core_Type.
+var (
+	CPUInfo_Core_Type_name = map[int32]string{
+		0: "PERFORMANCE",
+		1: "EFFICIENCY",
+		2: "HYPERTHREAD",
+	}
+	CPUInfo_Core_Type_value = map[string]int32{
+		"PERFORMANCE": 0,
+		"EFFICIENCY":  1,
+		"HYPERTHREAD": 2,
+	}
+)
+
+func (x CPUInfo_Core_Type) Enum() *CPUInfo_Core_Type {
+	p := new(CPUInfo_Core_Type)
+	*p = x
+	return p
+}
+
+func (x CPUInfo_Core_Type) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CPUInfo_Core_Type) Descriptor() protoreflect.EnumDescriptor {
+	return file_tracker_proto_enumTypes[0].Descriptor()
+}
+
+func (CPUInfo_Core_Type) Type() protoreflect.EnumType {
+	return &file_tracker_proto_enumTypes[0]
+}
+
+func (x CPUInfo_Core_Type) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CPUInfo_Core_Type.Descriptor instead.
+func (CPUInfo_Core_Type) EnumDescriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{7, 0, 0}
+}
+
 type WrapperResponse_Action int32
 
 const (
@@ -57,11 +106,11 @@ func (x WrapperResponse_Action) String() string {
 }
 
 func (WrapperResponse_Action) Descriptor() protoreflect.EnumDescriptor {
-	return file_tracker_proto_enumTypes[0].Descriptor()
+	return file_tracker_proto_enumTypes[1].Descriptor()
 }
 
 func (WrapperResponse_Action) Type() protoreflect.EnumType {
-	return &file_tracker_proto_enumTypes[0]
+	return &file_tracker_proto_enumTypes[1]
 }
 
 func (x WrapperResponse_Action) Number() protoreflect.EnumNumber {
@@ -566,7 +615,8 @@ func (x *GPUStatus) GetTemp() uint32 {
 type CPUInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Total         float64                `protobuf:"fixed64,1,opt,name=total,proto3" json:"total,omitempty"`
-	Cores         []float64              `protobuf:"fixed64,2,rep,packed,name=cores,proto3" json:"cores,omitempty"`
+	Cores         []float64              `protobuf:"fixed64,2,rep,packed,name=cores,proto3" json:"cores,omitempty"` // Keep for backward compatibility
+	CoreDetails   []*CPUInfo_Core        `protobuf:"bytes,3,rep,name=core_details,json=coreDetails,proto3" json:"core_details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -611,6 +661,13 @@ func (x *CPUInfo) GetTotal() float64 {
 func (x *CPUInfo) GetCores() []float64 {
 	if x != nil {
 		return x.Cores
+	}
+	return nil
+}
+
+func (x *CPUInfo) GetCoreDetails() []*CPUInfo_Core {
+	if x != nil {
+		return x.CoreDetails
 	}
 	return nil
 }
@@ -1127,6 +1184,66 @@ func (x *ProcessList) GetProcesses() []*Process {
 	return nil
 }
 
+type CPUInfo_Core struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Index         uint32                 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Usage         float64                `protobuf:"fixed64,2,opt,name=usage,proto3" json:"usage,omitempty"`
+	Type          CPUInfo_Core_Type      `protobuf:"varint,3,opt,name=type,proto3,enum=pb.CPUInfo_Core_Type" json:"type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CPUInfo_Core) Reset() {
+	*x = CPUInfo_Core{}
+	mi := &file_tracker_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CPUInfo_Core) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CPUInfo_Core) ProtoMessage() {}
+
+func (x *CPUInfo_Core) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CPUInfo_Core.ProtoReflect.Descriptor instead.
+func (*CPUInfo_Core) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{7, 0}
+}
+
+func (x *CPUInfo_Core) GetIndex() uint32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *CPUInfo_Core) GetUsage() float64 {
+	if x != nil {
+		return x.Usage
+	}
+	return 0
+}
+
+func (x *CPUInfo_Core) GetType() CPUInfo_Core_Type {
+	if x != nil {
+		return x.Type
+	}
+	return CPUInfo_Core_PERFORMANCE
+}
+
 var File_tracker_proto protoreflect.FileDescriptor
 
 const file_tracker_proto_rawDesc = "" +
@@ -1167,10 +1284,20 @@ const file_tracker_proto_rawDesc = "" +
 	"\butil_mem\x18\x04 \x01(\rR\autilMem\x12\x1b\n" +
 	"\tmem_total\x18\x05 \x01(\rR\bmemTotal\x12\x19\n" +
 	"\bmem_used\x18\x06 \x01(\rR\amemUsed\x12\x12\n" +
-	"\x04temp\x18\a \x01(\rR\x04temp\"5\n" +
+	"\x04temp\x18\a \x01(\rR\x04temp\"\x84\x02\n" +
 	"\aCPUInfo\x12\x14\n" +
 	"\x05total\x18\x01 \x01(\x01R\x05total\x12\x14\n" +
-	"\x05cores\x18\x02 \x03(\x01R\x05cores\"P\n" +
+	"\x05cores\x18\x02 \x03(\x01R\x05cores\x123\n" +
+	"\fcore_details\x18\x03 \x03(\v2\x10.pb.CPUInfo.CoreR\vcoreDetails\x1a\x97\x01\n" +
+	"\x04Core\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\rR\x05index\x12\x14\n" +
+	"\x05usage\x18\x02 \x01(\x01R\x05usage\x12)\n" +
+	"\x04type\x18\x03 \x01(\x0e2\x15.pb.CPUInfo.Core.TypeR\x04type\"8\n" +
+	"\x04Type\x12\x0f\n" +
+	"\vPERFORMANCE\x10\x00\x12\x0e\n" +
+	"\n" +
+	"EFFICIENCY\x10\x01\x12\x0f\n" +
+	"\vHYPERTHREAD\x10\x02\"P\n" +
 	"\n" +
 	"MemoryInfo\x12\x14\n" +
 	"\x05total\x18\x01 \x01(\x04R\x05total\x12\x12\n" +
@@ -1232,42 +1359,46 @@ func file_tracker_proto_rawDescGZIP() []byte {
 	return file_tracker_proto_rawDescData
 }
 
-var file_tracker_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_tracker_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_tracker_proto_goTypes = []any{
-	(WrapperResponse_Action)(0), // 0: pb.WrapperResponse.Action
-	(*RegisterRequest)(nil),     // 1: pb.RegisterRequest
-	(*RegisterResponse)(nil),    // 2: pb.RegisterResponse
-	(*UnregisterRequest)(nil),   // 3: pb.UnregisterRequest
-	(*UnregisterResponse)(nil),  // 4: pb.UnregisterResponse
-	(*Event)(nil),               // 5: pb.Event
-	(*Process)(nil),             // 6: pb.Process
-	(*GPUStatus)(nil),           // 7: pb.GPUStatus
-	(*CPUInfo)(nil),             // 8: pb.CPUInfo
-	(*MemoryInfo)(nil),          // 9: pb.MemoryInfo
-	(*NetworkInterface)(nil),    // 10: pb.NetworkInterface
-	(*DiskDevice)(nil),          // 11: pb.DiskDevice
-	(*IOInfo)(nil),              // 12: pb.IOInfo
-	(*SystemStats)(nil),         // 13: pb.SystemStats
-	(*WrapperRequest)(nil),      // 14: pb.WrapperRequest
-	(*WrapperResponse)(nil),     // 15: pb.WrapperResponse
-	(*ProcessList)(nil),         // 16: pb.ProcessList
+	(CPUInfo_Core_Type)(0),      // 0: pb.CPUInfo.Core.Type
+	(WrapperResponse_Action)(0), // 1: pb.WrapperResponse.Action
+	(*RegisterRequest)(nil),     // 2: pb.RegisterRequest
+	(*RegisterResponse)(nil),    // 3: pb.RegisterResponse
+	(*UnregisterRequest)(nil),   // 4: pb.UnregisterRequest
+	(*UnregisterResponse)(nil),  // 5: pb.UnregisterResponse
+	(*Event)(nil),               // 6: pb.Event
+	(*Process)(nil),             // 7: pb.Process
+	(*GPUStatus)(nil),           // 8: pb.GPUStatus
+	(*CPUInfo)(nil),             // 9: pb.CPUInfo
+	(*MemoryInfo)(nil),          // 10: pb.MemoryInfo
+	(*NetworkInterface)(nil),    // 11: pb.NetworkInterface
+	(*DiskDevice)(nil),          // 12: pb.DiskDevice
+	(*IOInfo)(nil),              // 13: pb.IOInfo
+	(*SystemStats)(nil),         // 14: pb.SystemStats
+	(*WrapperRequest)(nil),      // 15: pb.WrapperRequest
+	(*WrapperResponse)(nil),     // 16: pb.WrapperResponse
+	(*ProcessList)(nil),         // 17: pb.ProcessList
+	(*CPUInfo_Core)(nil),        // 18: pb.CPUInfo.Core
 }
 var file_tracker_proto_depIdxs = []int32{
-	10, // 0: pb.IOInfo.networks:type_name -> pb.NetworkInterface
-	11, // 1: pb.IOInfo.disks:type_name -> pb.DiskDevice
-	6,  // 2: pb.SystemStats.processes:type_name -> pb.Process
-	7,  // 3: pb.SystemStats.gpus:type_name -> pb.GPUStatus
-	8,  // 4: pb.SystemStats.cpu:type_name -> pb.CPUInfo
-	9,  // 5: pb.SystemStats.memory:type_name -> pb.MemoryInfo
-	12, // 6: pb.SystemStats.io:type_name -> pb.IOInfo
-	0,  // 7: pb.WrapperResponse.action:type_name -> pb.WrapperResponse.Action
-	6,  // 8: pb.ProcessList.processes:type_name -> pb.Process
-	9,  // [9:9] is the sub-list for method output_type
-	9,  // [9:9] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	18, // 0: pb.CPUInfo.core_details:type_name -> pb.CPUInfo.Core
+	11, // 1: pb.IOInfo.networks:type_name -> pb.NetworkInterface
+	12, // 2: pb.IOInfo.disks:type_name -> pb.DiskDevice
+	7,  // 3: pb.SystemStats.processes:type_name -> pb.Process
+	8,  // 4: pb.SystemStats.gpus:type_name -> pb.GPUStatus
+	9,  // 5: pb.SystemStats.cpu:type_name -> pb.CPUInfo
+	10, // 6: pb.SystemStats.memory:type_name -> pb.MemoryInfo
+	13, // 7: pb.SystemStats.io:type_name -> pb.IOInfo
+	1,  // 8: pb.WrapperResponse.action:type_name -> pb.WrapperResponse.Action
+	7,  // 9: pb.ProcessList.processes:type_name -> pb.Process
+	0,  // 10: pb.CPUInfo.Core.type:type_name -> pb.CPUInfo.Core.Type
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_tracker_proto_init() }
@@ -1280,8 +1411,8 @@ func file_tracker_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tracker_proto_rawDesc), len(file_tracker_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   16,
+			NumEnums:      2,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

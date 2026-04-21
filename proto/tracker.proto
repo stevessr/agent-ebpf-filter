@@ -60,8 +60,19 @@ message GPUStatus {
 }
 
 message CPUInfo {
+  message Core {
+    uint32 index = 1;
+    double usage = 2;
+    enum Type {
+      PERFORMANCE = 0; // P-core
+      EFFICIENCY = 1;  // E-core
+      HYPERTHREAD = 2; // SMT thread
+    }
+    Type type = 3;
+  }
   double total = 1;
-  repeated double cores = 2;
+  repeated double cores = 2; // Keep for backward compatibility
+  repeated Core core_details = 3;
 }
 
 message MemoryInfo {

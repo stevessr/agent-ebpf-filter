@@ -170,6 +170,53 @@ func startUDSServer(broadcast chan *pb.Event) {
 	}
 }
 
+func getCoreTypes() []pb.CPUInfo_Core_Type {
+	cores, _ := cpu.Counts(true)
+	types := make([]pb.CPUInfo_Core_Type, cores)
+	
+	maxFreqs := make([]int64, cores)
+	overallMax := int64(0)
+
+	for i := 0; i < cores; i++ {
+		// Try to read core_type if available (Intel Hybrid)
+		data, err := os.ReadFile(fmt.Sprintf("/sys/devices/system/cpu/cpu%d/topology/core_type", i))
+		if err == nil {
+			val := strings.TrimSpace(string(data))
+			if val == "intel_atom" {
+				types[i] = pb.CPUInfo_Core_EFFICIENCY
+				continue
+			} else if val == "intel_core" {
+				types[i] = pb.CPUInfo_Core_PERFORMANCE
+				continue
+			}
+		}
+
+		// Fallback to frequency analysis
+		freqData, err := os.ReadFile(fmt.Sprintf("/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i))
+		if err == nil {
+			fmt.Sscanf(string(freqData), "%d", &maxFreqs[i])
+			if maxFreqs[i] > overallMax {
+				overallMax = maxFreqs[i]
+			}
+		}
+	}
+
+	// If we used frequency fallback
+	if overallMax > 0 {
+		for i := 0; i < cores; i++ {
+			if types[i] != 0 { continue } // Already set
+			// If freq is significantly lower (e.g. < 80% of max), likely E-core
+			if maxFreqs[i] < (overallMax * 8 / 10) {
+				types[i] = pb.CPUInfo_Core_EFFICIENCY
+			} else {
+				types[i] = pb.CPUInfo_Core_PERFORMANCE
+			}
+		}
+	}
+
+	return types
+}
+
 func main() {
 	if os.Geteuid() != 0 {
 		executable, _ := os.Executable(); isDesktop := os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
@@ -252,6 +299,8 @@ func main() {
 		if iv < 500*time.Millisecond { iv = 500 * time.Millisecond }
 		ticker := time.NewTicker(iv); defer ticker.Stop()
 
+		coreTypes := getCoreTypes()
+
 		for range ticker.C {
 			gm, gs := getGPUPidMap(), getGlobalGPUStatus()
 			vm, _ := mem.VirtualMemory()
@@ -274,8 +323,17 @@ func main() {
 				pbIO.TotalWriteBytes += d.WriteBytes
 			}
 			
+			cpuInfo := &pb.CPUInfo{Total: cc[0], Cores: cp}
+			for i, usage := range cp {
+				ct := pb.CPUInfo_Core_PERFORMANCE
+				if i < len(coreTypes) { ct = coreTypes[i] }
+				cpuInfo.CoreDetails = append(cpuInfo.CoreDetails, &pb.CPUInfo_Core{
+					Index: uint32(i), Usage: usage, Type: ct,
+				})
+			}
+
 			stats := &pb.SystemStats{
-				Gpus: gs, Cpu: &pb.CPUInfo{Total: cc[0], Cores: cp},
+				Gpus: gs, Cpu: cpuInfo,
 				Memory: &pb.MemoryInfo{Total: vm.Total, Used: vm.Used, Percent: float32(vm.UsedPercent)},
 				Io: pbIO,
 			}

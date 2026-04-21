@@ -822,6 +822,9 @@ export namespace pb {
 
         /** CPUInfo cores */
         cores?: (number[]|null);
+
+        /** CPUInfo coreDetails */
+        coreDetails?: (pb.CPUInfo.ICore[]|null);
     }
 
     /** Represents a CPUInfo. */
@@ -838,6 +841,9 @@ export namespace pb {
 
         /** CPUInfo cores. */
         public cores: number[];
+
+        /** CPUInfo coreDetails. */
+        public coreDetails: pb.CPUInfo.ICore[];
 
         /**
          * Creates a new CPUInfo instance using the specified properties.
@@ -915,6 +921,128 @@ export namespace pb {
          * @returns The default type url
          */
         public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    namespace CPUInfo {
+
+        /** Properties of a Core. */
+        interface ICore {
+
+            /** Core index */
+            index?: (number|null);
+
+            /** Core usage */
+            usage?: (number|null);
+
+            /** Core type */
+            type?: (pb.CPUInfo.Core.Type|null);
+        }
+
+        /** Represents a Core. */
+        class Core implements ICore {
+
+            /**
+             * Constructs a new Core.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: pb.CPUInfo.ICore);
+
+            /** Core index. */
+            public index: number;
+
+            /** Core usage. */
+            public usage: number;
+
+            /** Core type. */
+            public type: pb.CPUInfo.Core.Type;
+
+            /**
+             * Creates a new Core instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns Core instance
+             */
+            public static create(properties?: pb.CPUInfo.ICore): pb.CPUInfo.Core;
+
+            /**
+             * Encodes the specified Core message. Does not implicitly {@link pb.CPUInfo.Core.verify|verify} messages.
+             * @param message Core message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: pb.CPUInfo.ICore, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified Core message, length delimited. Does not implicitly {@link pb.CPUInfo.Core.verify|verify} messages.
+             * @param message Core message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: pb.CPUInfo.ICore, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a Core message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns Core
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.CPUInfo.Core;
+
+            /**
+             * Decodes a Core message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns Core
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.CPUInfo.Core;
+
+            /**
+             * Verifies a Core message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a Core message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns Core
+             */
+            public static fromObject(object: { [k: string]: any }): pb.CPUInfo.Core;
+
+            /**
+             * Creates a plain object from a Core message. Also converts values to other types if specified.
+             * @param message Core
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: pb.CPUInfo.Core, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this Core to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for Core
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
+        }
+
+        namespace Core {
+
+            /** Type enum. */
+            enum Type {
+                PERFORMANCE = 0,
+                EFFICIENCY = 1,
+                HYPERTHREAD = 2
+            }
+        }
     }
 
     /** Properties of a MemoryInfo. */
