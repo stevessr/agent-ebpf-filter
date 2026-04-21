@@ -216,6 +216,9 @@ const buildTree = (list: ProcessInfo[]) => {
 
 const uniqueUsers = computed(() => Array.from(new Set(processes.value.map(p => p.user))).sort());
 
+const pCores = computed(() => systemStats.value.cpuCoresDetailed.filter(c => c.type === 0));
+const eCores = computed(() => systemStats.value.cpuCoresDetailed.filter(c => c.type === 1));
+
 const displayData = computed(() => {
   let filtered = processes.value;
   if (searchText.value) {
@@ -385,20 +388,34 @@ watch(refreshInterval, connectWebSocket);
                   <div style="color: #888;">Total System Load</div>
                 </div>
               </div>
-              <div v-else class="core-grid-full">
-                <div v-for="core in systemStats.cpuCoresDetailed" :key="core.index" 
-                     class="core-item-full" style="cursor: pointer"
-                     @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])">
-                  <span class="core-label">
-                    <a-tag :color="core.type === 0 ? 'blue' : 'green'" size="small" style="font-size: 9px; line-height: 16px; height: 16px; padding: 0 4px; margin-right: 4px;">
-                      {{ core.type === 0 ? 'P' : 'E' }}
-                    </a-tag>
-                    #{{ core.index }}
-                  </span>
-                  <div style="flex: 1; margin: 0 10px;">
-                    <a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" :stroke-color="core.type === 0 ? '#1890ff' : '#52c41a'" />
+              <div v-else style="padding: 10px;">
+                <div v-if="pCores.length > 0">
+                  <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #1890ff; padding-left: 8px;">PERFORMANCE CORES (P-CORES)</div>
+                  <div class="core-grid-full">
+                    <div v-for="core in pCores" :key="core.index" 
+                         class="core-item-full" style="cursor: pointer"
+                         @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])">
+                      <span class="core-label">#{{ core.index }}</span>
+                      <div style="flex: 1; margin: 0 10px;">
+                        <a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#1890ff" />
+                      </div>
+                      <span class="core-val">{{ core.usage.toFixed(1) }}%</span>
+                    </div>
                   </div>
-                  <span class="core-val">{{ core.usage.toFixed(1) }}%</span>
+                </div>
+                <div v-if="eCores.length > 0" style="margin-top: 16px;">
+                  <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #52c41a; padding-left: 8px;">EFFICIENCY CORES (E-CORES)</div>
+                  <div class="core-grid-full">
+                    <div v-for="core in eCores" :key="core.index" 
+                         class="core-item-full" style="cursor: pointer"
+                         @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])">
+                      <span class="core-label">#{{ core.index }}</span>
+                      <div style="flex: 1; margin: 0 10px;">
+                        <a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#52c41a" />
+                      </div>
+                      <span class="core-val" style="color: #52c41a">{{ core.usage.toFixed(1) }}%</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </a-card>
@@ -643,8 +660,8 @@ watch(refreshInterval, connectWebSocket);
 .stat-card-row { border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
 .core-grid-full { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px; max-height: 250px; overflow-y: auto; }
 .core-item-full { display: flex; align-items: center; background: #fafafa; padding: 4px 12px; border-radius: 4px; border: 1px solid #f0f0f0; }
-.core-label { font-size: 11px; color: #999; min-width: 45px; }
-.core-val { font-size: 11px; font-family: monospace; min-width: 40px; text-align: right; color: #52c41a; font-weight: bold; }
+.core-label { font-size: 11px; color: #999; min-width: 35px; }
+.core-val { font-size: 11px; font-family: monospace; min-width: 40px; text-align: right; color: #1890ff; font-weight: bold; }
 .io-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 8px; background: #f9f9f9; margin-bottom: 4px; border-radius: 3px; font-family: monospace; }
 .io-name { font-weight: bold; color: #555; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
 .io-val-in { color: #52c41a; } .io-val-out { color: #1890ff; }
