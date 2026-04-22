@@ -3,7 +3,7 @@ import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
 import { LinkOutlined, CheckCircleOutlined, DeleteOutlined, ThunderboltOutlined, SwapOutlined, EditOutlined, PlusOutlined, CodeOutlined, FormOutlined } from '@ant-design/icons-vue';
-import * as TOML from '@iarna/toml';
+import * as TOML from 'smol-toml';
 
 interface HookDef {
   id: string;
