@@ -139,9 +139,8 @@ const addEvent = () => {
 };
 
 const deleteEvent = (eventName: string) => {
-  if (confirm(`Delete entire event '${eventName}'?`)) {
-    delete parsedConfig.value.hooks[eventName];
-  }
+  delete parsedConfig.value.hooks[eventName];
+  message.success(`Deleted event: ${eventName}`);
 };
 
 const addMatcher = (eventName: string) => {
@@ -152,9 +151,8 @@ const addMatcher = (eventName: string) => {
 };
 
 const deleteMatcher = (eventName: string, matcherIndex: number) => {
-  if (confirm('Delete this matcher block?')) {
-    parsedConfig.value.hooks[eventName].splice(matcherIndex, 1);
-  }
+  parsedConfig.value.hooks[eventName].splice(matcherIndex, 1);
+  message.success('Matcher block removed');
 };
 
 const addCommandHook = (eventName: string, matcherIndex: number) => {
@@ -304,7 +302,14 @@ onMounted(() => {
             <span style="font-weight: bold; color: #1890ff;">{{ eventName }}</span>
             <div style="display: flex; gap: 8px;">
               <a-button size="small" @click="addMatcher(eventName as string)"><PlusOutlined /> Add Matcher</a-button>
-              <a-button size="small" danger ghost @click="deleteEvent(eventName as string)"><DeleteOutlined /></a-button>
+              <a-popconfirm 
+                :title="`Delete entire event '${eventName}'?`" 
+                @confirm="deleteEvent(eventName as string)"
+                ok-text="Yes"
+                cancel-text="No"
+              >
+                <a-button size="small" danger ghost><DeleteOutlined /></a-button>
+              </a-popconfirm>
             </div>
           </div>
           
@@ -314,9 +319,16 @@ onMounted(() => {
               <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                 <span style="font-size: 12px; font-weight: 500;">Matcher:</span>
                 <a-input v-model:value="matcherBlock.matcher" size="small" placeholder="Tool name or * for all" style="width: 200px" />
-                <a-button size="small" type="link" danger @click="deleteMatcher(eventName as string, mIdx)" style="position: absolute; right: 4px; top: 4px;">
-                  <DeleteOutlined />
-                </a-button>
+                <a-popconfirm 
+                  title="Delete this matcher block?" 
+                  @confirm="deleteMatcher(eventName as string, mIdx)"
+                  ok-text="Yes"
+                  cancel-text="No"
+                >
+                  <a-button size="small" type="link" danger style="position: absolute; right: 4px; top: 4px;">
+                    <DeleteOutlined />
+                  </a-button>
+                </a-popconfirm>
               </div>
 
               <div style="margin-left: 20px;">
@@ -324,9 +336,16 @@ onMounted(() => {
                    <div style="display: flex; gap: 8px; align-items: center;">
                      <span style="font-size: 11px; width: 60px;">Command:</span>
                      <a-input v-model:value="hook.command" size="small" placeholder="Shell command" style="flex: 1" />
-                     <a-button size="small" type="link" danger @click="deleteCommandHook(eventName as string, mIdx, hIdx)">
-                       <DeleteOutlined />
-                     </a-button>
+                     <a-popconfirm 
+                       title="Delete this command hook?" 
+                       @confirm="deleteCommandHook(eventName as string, mIdx, hIdx)"
+                       ok-text="Yes"
+                       cancel-text="No"
+                     >
+                       <a-button size="small" type="link" danger>
+                         <DeleteOutlined />
+                       </a-button>
+                     </a-popconfirm>
                    </div>
                    <div style="display: flex; gap: 8px; align-items: center;">
                      <span style="font-size: 11px; width: 60px;">Message:</span>
