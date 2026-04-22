@@ -244,10 +244,21 @@ onMounted(() => {
           <div style="display: flex; flex-direction: column; gap: 16px;">
             <div style="display: flex; gap: 8px; align-items: center;">
               <span style="color: #888; font-size: 13px; width: 80px;">Add Tag:</span>
-              <a-input-group compact style="width: 300px;">
-                <a-input v-model:value="newTagName" style="width: calc(100% - 40px)" placeholder="New tag name..." @pressEnter="addTag" />
-                <a-button type="primary" @click="addTag"><PlusOutlined /></a-button>
-              </a-input-group>
+              <div style="display: flex; width: 320px;">
+                <a-input 
+                  v-model:value="newTagName" 
+                  placeholder="New tag name..." 
+                  @pressEnter="addTag" 
+                  style="border-top-right-radius: 0; border-bottom-right-radius: 0;"
+                />
+                <a-button 
+                  type="primary" 
+                  @click="addTag" 
+                  style="border-top-left-radius: 0; border-bottom-left-radius: 0;"
+                >
+                  <PlusOutlined />
+                </a-button>
+              </div>
             </div>
             <div style="display: flex; gap: 8px; align-items: flex-start;">
               <span style="color: #888; font-size: 13px; width: 80px; margin-top: 4px;">Registered:</span>
