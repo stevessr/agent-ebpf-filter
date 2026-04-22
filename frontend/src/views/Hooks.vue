@@ -25,6 +25,7 @@ const rawConfig = ref('');
 const configPath = ref('');
 const savingConfig = ref(false);
 const editorMode = ref<'visual' | 'raw'>('visual');
+const newEventName = ref('');
 
 // Parsed config for visual editing
 const parsedConfig = ref<any>({});
@@ -123,10 +124,18 @@ const toggleHook = async (hook: HookDef) => {
 };
 
 const addEvent = () => {
-  const eventName = prompt("Enter event name (e.g. PreToolUse, BeforeTool):");
-  if (eventName && !parsedConfig.value.hooks[eventName]) {
-    parsedConfig.value.hooks[eventName] = [];
+  const name = newEventName.value.trim();
+  if (!name) {
+    message.warning('Please enter an event name');
+    return;
   }
+  if (!parsedConfig.value.hooks) parsedConfig.value.hooks = {};
+  if (parsedConfig.value.hooks[name]) {
+    message.warning(`Event '${name}' already exists`);
+    return;
+  }
+  parsedConfig.value.hooks[name] = [];
+  newEventName.value = '';
 };
 
 const deleteEvent = (eventName: string) => {
@@ -334,9 +343,19 @@ onMounted(() => {
           </div>
         </div>
         
-        <a-button type="dashed" block @click="addEvent" style="margin-top: 16px;">
-          <PlusOutlined /> Add Hook Event (e.g. PreToolUse)
-        </a-button>
+        <div style="margin-top: 16px; background: #fafafa; padding: 12px; border: 1px dashed #d9d9d9; border-radius: 8px; display: flex; gap: 8px; align-items: center;">
+          <span style="font-size: 12px; color: #888;">New Event:</span>
+          <a-input 
+            v-model:value="newEventName" 
+            size="small" 
+            placeholder="e.g. PreToolUse" 
+            style="width: 200px"
+            @pressEnter="addEvent"
+          />
+          <a-button type="primary" size="small" @click="addEvent">
+            <PlusOutlined /> Add Hook Event
+          </a-button>
+        </div>
       </div>
 
       <div v-else>
