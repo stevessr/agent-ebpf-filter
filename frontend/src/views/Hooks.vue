@@ -3,6 +3,7 @@ import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
 import { LinkOutlined, CheckCircleOutlined, DeleteOutlined, ThunderboltOutlined, SwapOutlined, EditOutlined, PlusOutlined, CodeOutlined, FormOutlined } from '@ant-design/icons-vue';
+import * as TOML from '@iarna/toml';
 
 interface HookDef {
   id: string;
@@ -23,6 +24,7 @@ const showEditModal = ref(false);
 const editingHook = ref<HookDef | null>(null);
 const rawConfig = ref('');
 const configPath = ref('');
+const configFormat = ref<'json' | 'toml'>('json');
 const savingConfig = ref(false);
 const editorMode = ref<'visual' | 'raw'>('visual');
 const newEventName = ref('');
@@ -32,16 +34,25 @@ const parsedConfig = ref<any>({});
 
 const syncToParsed = () => {
   try {
-    parsedConfig.value = JSON.parse(rawConfig.value || '{}');
+    if (configFormat.value === 'toml') {
+      parsedConfig.value = TOML.parse(rawConfig.value || '');
+    } else {
+      parsedConfig.value = JSON.parse(rawConfig.value || '{}');
+    }
     if (!parsedConfig.value.hooks) parsedConfig.value.hooks = {};
   } catch (e) {
+    console.error("Failed to parse config", e);
     parsedConfig.value = { hooks: {} };
   }
 };
 
 const syncToRaw = () => {
   try {
-    rawConfig.value = JSON.stringify(parsedConfig.value, null, 2);
+    if (configFormat.value === 'toml') {
+      rawConfig.value = TOML.stringify(parsedConfig.value);
+    } else {
+      rawConfig.value = JSON.stringify(parsedConfig.value, null, 2);
+    }
   } catch (e) {
     console.error("Failed to stringify parsed config", e);
   }
@@ -73,6 +84,7 @@ const openEditModal = async (hook: HookDef) => {
     const res = await axios.get(`/config/hooks/${hook.id}/raw`);
     rawConfig.value = res.data.content;
     configPath.value = res.data.path;
+    configFormat.value = res.data.format || 'json';
     editorMode.value = 'visual';
     syncToParsed();
     showEditModal.value = true;
@@ -90,8 +102,12 @@ const saveConfig = async () => {
   }
   
   try {
-    // Validate JSON before saving
-    JSON.parse(rawConfig.value);
+    // Validate format before saving
+    if (configFormat.value === 'toml') {
+      TOML.parse(rawConfig.value);
+    } else {
+      JSON.parse(rawConfig.value);
+    }
     
     await axios.post(`/config/hooks/${editingHook.value.id}/raw`, {
       content: rawConfig.value
@@ -100,7 +116,7 @@ const saveConfig = async () => {
     showEditModal.value = false;
     await fetchHooks();
   } catch (err: any) {
-    message.error(err.response?.data?.error || 'Failed to save configuration. Ensure JSON is valid.');
+    message.error(err.response?.data?.error || `Failed to save configuration. Ensure ${configFormat.value.toUpperCase()} is valid.`);
   } finally {
     savingConfig.value = false;
   }
@@ -288,7 +304,7 @@ onMounted(() => {
         </div>
         <a-radio-group v-model:value="editorMode" size="small">
           <a-radio-button value="visual"><FormOutlined /> Visual Editor</a-radio-button>
-          <a-radio-button value="raw"><CodeOutlined /> Raw JSON</a-radio-button>
+          <a-radio-button value="raw"><CodeOutlined /> Raw {{ configFormat.toUpperCase() }}</a-radio-button>
         </a-radio-group>
       </div>
 

@@ -27,6 +27,7 @@ import (
 	"github.com/creack/pty/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/pelletier/go-toml/v2"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
@@ -85,6 +86,13 @@ const (
 	HookTypeWrapper HookType = "wrapper"
 )
 
+type ConfigFormat string
+
+const (
+	ConfigFormatJSON ConfigFormat = "json"
+	ConfigFormatTOML ConfigFormat = "toml"
+)
+
 type HookDef struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
@@ -95,31 +103,38 @@ type HookDef struct {
 	NativeConfigPath string `json:"-"`
 	// NativeHookEvent is the event name for native hooks (e.g. "PreToolUse" or "BeforeTool").
 	NativeHookEvent string `json:"-"`
+	// ConfigFormat defines if the config is JSON or TOML.
+	ConfigFormat ConfigFormat `json:"-"`
 }
 
 var availableHooks = []HookDef{
 	{
 		ID: "claude", Name: "Claude Code", HookType: HookTypeNative,
-		Description:      "Uses Claude Code's built-in PreToolUse hook to intercept all tool calls (recommended)",
-		TargetCmd:        "claude",
-		NativeHookEvent:  "PreToolUse",
+		Description:     "Uses Claude Code's built-in PreToolUse hook to intercept all tool calls (recommended)",
+		TargetCmd:       "claude",
+		NativeHookEvent: "PreToolUse",
+		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
 		ID: "gemini", Name: "Gemini CLI", HookType: HookTypeNative,
-		Description:      "Uses Gemini CLI's native BeforeTool hook for high-performance interception",
-		TargetCmd:        "gemini",
-		NativeHookEvent:  "BeforeTool",
+		Description:     "Uses Gemini CLI's native BeforeTool hook for high-performance interception",
+		TargetCmd:       "gemini",
+		NativeHookEvent: "BeforeTool",
+		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
 		ID: "codex", Name: "Codex", HookType: HookTypeNative,
-		Description:      "Uses Codex's PreToolUse hook to monitor agent tool execution",
-		TargetCmd:        "codex",
-		NativeHookEvent:  "PreToolUse",
+		Description:     "Uses Codex's TOML-based hook configuration for monitoring",
+		TargetCmd:       "codex",
+		NativeHookEvent: "PreToolUse",
+		ConfigFormat:    ConfigFormatTOML,
 	},
 	{
-		ID: "copilot", Name: "GitHub Copilot", HookType: HookTypeWrapper,
-		Description: "Intercepts gh copilot commands via shell alias wrapper",
-		TargetCmd:   "gh",
+		ID: "copilot", Name: "GitHub Copilot", HookType: HookTypeNative,
+		Description:     "Uses GitHub Copilot CLI's preToolUse hook for security inspection",
+		TargetCmd:       "gh",
+		NativeHookEvent: "preToolUse",
+		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
 		ID: "cursor", Name: "Cursor", HookType: HookTypeWrapper,
@@ -211,9 +226,9 @@ func isHookInstalled(h HookDef) bool {
 	return isWrapperHookInstalled(h.TargetCmd)
 }
 
-// installNativeHook injects a hook into the agent CLI's settings.json
+// installNativeHook injects a hook into the agent CLI's settings (JSON or TOML)
 // that POSTs every tool call to our backend for inspection.
-func installNativeHook(cfgPath, eventName string) error {
+func installNativeHook(cfgPath, eventName string, format ConfigFormat) error {
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
 		return err
 	}
@@ -221,7 +236,11 @@ func installNativeHook(cfgPath, eventName string) error {
 	// Read existing config (may not exist yet).
 	var cfg map[string]interface{}
 	if b, err := os.ReadFile(cfgPath); err == nil {
-		_ = json.Unmarshal(b, &cfg)
+		if format == ConfigFormatTOML {
+			_ = toml.Unmarshal(b, &cfg)
+		} else {
+			_ = json.Unmarshal(b, &cfg)
+		}
 	}
 	if cfg == nil {
 		cfg = make(map[string]interface{})
@@ -267,23 +286,37 @@ func installNativeHook(cfgPath, eventName string) error {
 	hooks[eventName] = append(filtered, matcher)
 	cfg["hooks"] = hooks
 
-	b, err := json.MarshalIndent(cfg, "", "  ")
+	var b []byte
+	var err error
+	if format == ConfigFormatTOML {
+		b, err = toml.Marshal(cfg)
+	} else {
+		b, err = json.MarshalIndent(cfg, "", "  ")
+	}
+
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(cfgPath, b, 0644)
 }
 
-// uninstallNativeHook removes the agent-ebpf hook from settings.json.
-func uninstallNativeHook(cfgPath, eventName string) error {
+// uninstallNativeHook removes the agent-ebpf hook from settings.
+func uninstallNativeHook(cfgPath, eventName string, format ConfigFormat) error {
 	b, err := os.ReadFile(cfgPath)
 	if err != nil {
 		return nil // nothing to do
 	}
 	var cfg map[string]interface{}
-	if err := json.Unmarshal(b, &cfg); err != nil {
-		return err
+	if format == ConfigFormatTOML {
+		if err := toml.Unmarshal(b, &cfg); err != nil {
+			return err
+		}
+	} else {
+		if err := json.Unmarshal(b, &cfg); err != nil {
+			return err
+		}
 	}
+
 	hooks, _ := cfg["hooks"].(map[string]interface{})
 	if hooks == nil {
 		return nil
@@ -314,7 +347,14 @@ func uninstallNativeHook(cfgPath, eventName string) error {
 	if len(hooks) == 0 {
 		delete(cfg, "hooks")
 	}
-	out, err := json.MarshalIndent(cfg, "", "  ")
+
+	var out []byte
+	if format == ConfigFormatTOML {
+		out, err = toml.Marshal(cfg)
+	} else {
+		out, err = json.MarshalIndent(cfg, "", "  ")
+	}
+
 	if err != nil {
 		return err
 	}
@@ -976,7 +1016,9 @@ func refreshHooksPaths() {
 			case "gemini":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".gemini", "settings.json")
 			case "codex":
-				availableHooks[i].NativeConfigPath = filepath.Join(home, ".codex", "settings.json")
+				availableHooks[i].NativeConfigPath = filepath.Join(home, ".codex", "config.toml")
+			case "copilot":
+				availableHooks[i].NativeConfigPath = filepath.Join(home, ".copilot", "config.json")
 			}
 		}
 	}
@@ -1215,10 +1257,14 @@ func main() {
 			tag = "Gemini CLI"
 		} else if strings.Contains(ua, "codex") {
 			tag = "Codex"
+		} else if strings.Contains(ua, "copilot") || strings.Contains(ua, "gh-copilot") {
+			tag = "GitHub Copilot"
 		} else {
 			// Fallback: check hook event names or other characteristics
 			if hookEvent == "BeforeTool" {
 				tag = "Gemini CLI"
+			} else if hookEvent == "preToolUse" {
+				tag = "GitHub Copilot"
 			} else if hookEvent == "PreToolUse" {
 				// Ambiguous between Claude and Codex, but we can guess or leave as Native Hook
 			}
@@ -1448,7 +1494,7 @@ func main() {
 
 					if req.Install {
 						if effectiveType == HookTypeNative {
-							if err := installNativeHook(target.NativeConfigPath, target.NativeHookEvent); err != nil {
+							if err := installNativeHook(target.NativeConfigPath, target.NativeHookEvent, target.ConfigFormat); err != nil {
 								c.JSON(500, gin.H{"error": err.Error()})
 								return
 							}
@@ -1471,7 +1517,7 @@ func main() {
 					} else {
 						// Uninstall both types to ensure clean state.
 						if target.HookType == HookTypeNative {
-							_ = uninstallNativeHook(target.NativeConfigPath, target.NativeHookEvent)
+							_ = uninstallNativeHook(target.NativeConfigPath, target.NativeHookEvent, target.ConfigFormat)
 						}
 						// Also remove wrapper alias if present.
 						p := getShellConfigPath()
@@ -1511,7 +1557,7 @@ func main() {
 						c.JSON(500, gin.H{"error": err.Error()})
 						return
 					}
-					c.JSON(200, gin.H{"content": string(b), "path": target.NativeConfigPath})
+					c.JSON(200, gin.H{"content": string(b), "path": target.NativeConfigPath, "format": target.ConfigFormat})
 				})
 				hooks.POST("/:id/raw", func(c *gin.Context) {
 					id := c.Param("id")
@@ -1535,12 +1581,20 @@ func main() {
 						c.JSON(404, gin.H{"error": "native hook not found"})
 						return
 					}
-					// Basic validation: ensure it's valid JSON
+					// Basic validation: ensure it's valid format
 					var js map[string]interface{}
-					if err := json.Unmarshal([]byte(req.Content), &js); err != nil {
-						c.JSON(400, gin.H{"error": "invalid JSON: " + err.Error()})
-						return
+					if target.ConfigFormat == ConfigFormatTOML {
+						if err := toml.Unmarshal([]byte(req.Content), &js); err != nil {
+							c.JSON(400, gin.H{"error": "invalid TOML: " + err.Error()})
+							return
+						}
+					} else {
+						if err := json.Unmarshal([]byte(req.Content), &js); err != nil {
+							c.JSON(400, gin.H{"error": "invalid JSON: " + err.Error()})
+							return
+						}
 					}
+
 					if err := os.MkdirAll(filepath.Dir(target.NativeConfigPath), 0755); err != nil {
 						c.JSON(500, gin.H{"error": err.Error()})
 						return
