@@ -158,6 +158,8 @@ func ensureBackendPrivileges() (bool, error) {
 		return false, nil
 	}
 
+	realHome, _ := os.UserHomeDir()
+
 	exe, err := os.Executable()
 	if err != nil {
 		return false, err
@@ -169,6 +171,11 @@ func ensureBackendPrivileges() (bool, error) {
 	cmd := privilegedCommand(priv, exe, os.Args[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+
+	if realHome != "" {
+		cmd.Env = setEnvValue(cmd.Env, "AGENT_REAL_HOME", realHome)
+	}
+
 	if err := cmd.Run(); err != nil {
 		return false, fmt.Errorf("start privileged backend: %w", err)
 	}
@@ -210,7 +217,7 @@ func ensurePinnedMapPermissions() error {
 
 func privilegedCommand(priv, exe string, args ...string) *exec.Cmd {
 	if filepath.Base(priv) == "sudo" {
-		sudoArgs := []string{"--preserve-env=AGENT_WRAPPER_PATH,DISPLAY,WAYLAND_DISPLAY", exe}
+		sudoArgs := []string{"--preserve-env=AGENT_WRAPPER_PATH,DISPLAY,WAYLAND_DISPLAY,USER,HOME,AGENT_REAL_HOME", exe}
 		sudoArgs = append(sudoArgs, args...)
 		return exec.Command(priv, sudoArgs...)
 	}

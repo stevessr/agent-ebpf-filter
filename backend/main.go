@@ -102,21 +102,18 @@ var availableHooks = []HookDef{
 		ID: "claude", Name: "Claude Code", HookType: HookTypeNative,
 		Description:      "Uses Claude Code's built-in PreToolUse hook to intercept all tool calls (recommended)",
 		TargetCmd:        "claude",
-		NativeConfigPath: filepath.Join(getRealHomeDir(), ".claude", "settings.json"),
 		NativeHookEvent:  "PreToolUse",
 	},
 	{
 		ID: "gemini", Name: "Gemini CLI", HookType: HookTypeNative,
 		Description:      "Uses Gemini CLI's native BeforeTool hook for high-performance interception",
 		TargetCmd:        "gemini",
-		NativeConfigPath: filepath.Join(getRealHomeDir(), ".gemini", "settings.json"),
 		NativeHookEvent:  "BeforeTool",
 	},
 	{
 		ID: "codex", Name: "Codex", HookType: HookTypeNative,
 		Description:      "Uses Codex's PreToolUse hook to monitor agent tool execution",
 		TargetCmd:        "codex",
-		NativeConfigPath: filepath.Join(getRealHomeDir(), ".codex", "settings.json"),
 		NativeHookEvent:  "PreToolUse",
 	},
 	{
@@ -132,14 +129,49 @@ var availableHooks = []HookDef{
 }
 
 func getRealHomeDir() string {
+	// 1. Check for our own environment variable (passed across sudo/pkexec)
+	if h := os.Getenv("AGENT_REAL_HOME"); h != "" {
+		return h
+	}
+	// 2. If we are root, try to find the real user who started us via standard envs
 	if os.Getuid() == 0 {
+		// Try sudo user
 		if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
 			if u, err := user.Lookup(sudoUser); err == nil {
 				return u.HomeDir
 			}
 		}
+		// Try pkexec user (PolicyKit)
+		if pkexecUid := os.Getenv("PKEXEC_UID"); pkexecUid != "" {
+			if u, err := user.LookupId(pkexecUid); err == nil {
+				return u.HomeDir
+			}
+		}
+		// Try preserved HOME if it's not /root
+		if home := os.Getenv("HOME"); home != "" && home != "/root" {
+			return home
+		}
+		// Try to find the first non-root user in /home
+		if entries, err := os.ReadDir("/home"); err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() && entry.Name() != "lost+found" {
+					return filepath.Join("/home", entry.Name())
+				}
+			}
+		}
 	}
+	// Default to standard lookup
 	h, _ := os.UserHomeDir()
+	if h == "" || h == "/root" {
+		// Final fallback: check for any /home/xxx
+		if entries, err := os.ReadDir("/home"); err == nil && len(entries) > 0 {
+			for _, entry := range entries {
+				if entry.IsDir() && entry.Name() != "lost+found" {
+					return filepath.Join("/home", entry.Name())
+				}
+			}
+		}
+	}
 	return h
 }
 
@@ -935,6 +967,7 @@ func getZramStats() (used, total uint64) {
 
 func refreshHooksPaths() {
 	home := getRealHomeDir()
+	log.Printf("[DEBUG] Resolving agent config paths for home: %s", home)
 	for i := range availableHooks {
 		if availableHooks[i].HookType == HookTypeNative {
 			switch availableHooks[i].ID {
