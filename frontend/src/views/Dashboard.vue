@@ -926,7 +926,8 @@ onUnmounted(() => {
 
 .excel-path-cell {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
 }
@@ -934,8 +935,11 @@ onUnmounted(() => {
 .excel-path-text {
   flex: 1 1 auto;
   min-width: 0;
+  display: block;
   color: #28402a;
-  word-break: break-all;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .excel-table :deep(.ant-table-thead > tr > th:last-child),
@@ -948,8 +952,11 @@ onUnmounted(() => {
   border-bottom: 1px solid #e6ece0;
   padding: 8px 12px;
   background: #fff;
-  vertical-align: middle;
+  vertical-align: top;
   min-width: 0;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .excel-table :deep(.ant-table-tbody > tr.excel-row-even > td) {
