@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+	"time"
 
 	"agent-ebpf-filter/pb"
 	"google.golang.org/protobuf/proto"
@@ -34,9 +35,12 @@ func main() {
 	}
 
 	fmt.Printf("[DEBUG] Dialing %s...\n", udsPath)
-	conn, err := net.Dial("unix", udsPath)
+	conn, err := net.DialTimeout("unix", udsPath, 500*time.Millisecond)
 	if err == nil {
 		defer conn.Close()
+
+		// Don't block forever on a stuck backend
+		conn.SetDeadline(time.Now().Add(2 * time.Second))
 
 		req := &pb.WrapperRequest{
 			Pid:  uint32(os.Getpid()),

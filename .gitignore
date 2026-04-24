@@ -1,2 +1,4 @@
 agent-wrapper
 backend/agent-ebpf-filter
+agent-wrapper
+backend/agent-ebpf-filter

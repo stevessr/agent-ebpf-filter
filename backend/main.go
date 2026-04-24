@@ -1611,7 +1611,10 @@ func startUDSServer(broadcast chan *pb.Event) {
 						resp.RewrittenArgs = rule.RewrittenCmd
 					}
 				}
-				broadcast <- &pb.Event{Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept", Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " ")}
+				select {
+				case broadcast <- &pb.Event{Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept", Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " ")}:
+				default:
+				}
 				out, _ := proto.Marshal(resp)
 				_, _ = c.Write(out)
 			}
