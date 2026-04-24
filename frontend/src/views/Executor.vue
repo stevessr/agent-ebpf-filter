@@ -18,7 +18,7 @@ type LocalShellManagerExpose = {
 };
 
 type CodingPresetKey = 'codex' | 'claude' | 'gemini' | 'custom';
-type ScriptLanguage = 'python' | 'node';
+type ScriptLanguage = 'python' | 'node' | 'ruby' | 'sh' | 'pwsh';
 
 const shellManagerRef = ref<LocalShellManagerExpose | null>(null);
 const tmuxManagerRef = ref<LocalShellManagerExpose | null>(null);
@@ -59,6 +59,9 @@ const codingPresetOptions: Array<{ label: string; value: CodingPresetKey; comman
 const scriptLanguageOptions: Array<{ label: string; value: ScriptLanguage }> = [
   { label: 'Python', value: 'python' },
   { label: 'Node.js', value: 'node' },
+  { label: 'Ruby', value: 'ruby' },
+  { label: 'Shell (sh)', value: 'sh' },
+  { label: 'PowerShell (pwsh)', value: 'pwsh' },
 ];
 
 const splitArgs = (input: string) => {
@@ -160,6 +163,23 @@ const resolvePythonInterpreter = (venvPath: string) => {
   return `${normalized}/bin/python`;
 };
 
+const resolveScriptInterpreter = (language: ScriptLanguage, venvPath: string) => {
+  switch (language) {
+    case 'python':
+      return resolvePythonInterpreter(venvPath);
+    case 'node':
+      return 'node';
+    case 'ruby':
+      return 'ruby';
+    case 'sh':
+      return 'sh';
+    case 'pwsh':
+      return 'pwsh';
+    default:
+      return 'python3';
+  }
+};
+
 const getPathPickerInitialPath = computed(() => {
   switch (pathPickerTarget.value) {
     case 'coding-workdir':
@@ -231,21 +251,38 @@ const applyPickedPath = (path: string) => {
   }
 };
 
-const upsertSessionEverywhere = (session: ShellSessionInfo) => {
-  shellManagerRef.value?.upsertSession(session);
-  tmuxManagerRef.value?.upsertSession(session);
+const isTmuxSession = (session: ShellSessionInfo) => {
+  const kind = (session.kind || '').trim().toLowerCase();
+  if (kind === 'tmux') return true;
+  return (session.shell || '').trim().toLowerCase() === 'tmux' || (session.command || '').trim().toLowerCase() === 'tmux';
 };
 
-const focusSessionInManager = (session: ShellSessionInfo, manager: ExecutorTabKey) => {
-  upsertSessionEverywhere(session);
+const routeSessionToManager = (session: ShellSessionInfo) => {
+  if (isTmuxSession(session)) {
+    tmuxManagerRef.value?.upsertSession(session);
+    return 'tmux';
+  }
+  shellManagerRef.value?.upsertSession(session);
+  return 'shell';
+};
 
-  if (manager === 'tmux') {
+const focusSessionInManager = (session: ShellSessionInfo, manager?: ExecutorTabKey) => {
+  const targetManager = manager || routeSessionToManager(session);
+  if (manager) {
+    if (manager === 'tmux') {
+      tmuxManagerRef.value?.upsertSession(session);
+    } else {
+      shellManagerRef.value?.upsertSession(session);
+    }
+  }
+
+  if (targetManager === 'tmux') {
     tmuxManagerRef.value?.openSession(session.id);
   } else {
     shellManagerRef.value?.openSession(session.id);
   }
 
-  activeTabKey.value = manager;
+  activeTabKey.value = targetManager;
 };
 
 const createShellSession = async (
@@ -361,9 +398,7 @@ const launchCodingCli = async () => {
 const scriptCommandPreview = computed(() => {
   const script = scriptPath.value.trim();
   const scriptArgsList = splitArgs(scriptArgs.value);
-  const interpreter = scriptLanguage.value === 'python'
-    ? resolvePythonInterpreter(pythonVenv.value)
-    : 'node';
+  const interpreter = resolveScriptInterpreter(scriptLanguage.value, pythonVenv.value);
   if (!script) {
     return `${interpreter} <script>`;
   }
@@ -378,9 +413,7 @@ const launchScript = async () => {
   }
 
   const workDir = scriptWorkDir.value.trim() || dirname(script);
-  const interpreter = scriptLanguage.value === 'python'
-    ? resolvePythonInterpreter(pythonVenv.value)
-    : 'node';
+  const interpreter = resolveScriptInterpreter(scriptLanguage.value, pythonVenv.value);
 
   scriptLaunching.value = true;
   try {
@@ -476,7 +509,7 @@ const launchScript = async () => {
               <a-tag color="blue">multi-session PTY</a-tag>
             </template>
 
-            <LocalShellTerminal ref="shellManagerRef" />
+            <LocalShellTerminal ref="shellManagerRef" session-kind-filter="non-tmux" />
           </a-card>
         </a-space>
       </a-tab-pane>
@@ -490,7 +523,7 @@ const launchScript = async () => {
                 show-icon
                 style="margin-bottom: 16px;"
                 message="This launcher starts the coding CLI inside tmux by default."
-                description="The launched session appears in both the Shell Manager and this tmux tab so you can reattach, detach, or use tmux shortcuts."
+                description="The launched session appears only in the Tmux tab so shell and tmux management stay separate."
               />
 
               <a-form layout="vertical">
@@ -586,7 +619,7 @@ const launchScript = async () => {
                 type="info"
                 show-icon
                 style="margin-bottom: 16px;"
-                message="This launcher starts Python or Node scripts in a dedicated backend shell session."
+                message="This launcher starts Python, Node.js, Ruby, sh, or pwsh scripts in a dedicated backend shell session."
                 description="System environment is the default. For Python, you can optionally point at a venv directory and the launcher will use its interpreter."
               />
 
@@ -659,10 +692,10 @@ const launchScript = async () => {
                     <span>System</span>
                   </a-descriptions-item>
                   <a-descriptions-item label="Python interpreter">
-                    <span>{{ pythonVenv.trim() ? resolvePythonInterpreter(pythonVenv) : 'python3' }}</span>
+                    <span>{{ resolveScriptInterpreter('python', pythonVenv) }}</span>
                   </a-descriptions-item>
-                  <a-descriptions-item label="Node interpreter">
-                    <span>node</span>
+                  <a-descriptions-item label="Current interpreter">
+                    <span>{{ resolveScriptInterpreter(scriptLanguage, pythonVenv) }}</span>
                   </a-descriptions-item>
                   <a-descriptions-item label="Workdir fallback">
                     <span>{{ scriptWorkDir.trim() || (scriptPath.trim() ? dirname(scriptPath) : 'script parent') }}</span>
@@ -676,7 +709,7 @@ const launchScript = async () => {
                 <a-alert
                   type="info"
                   show-icon
-                  message="The launched script session will also show up in the Shell Manager tab for detach/reattach."
+                  message="The launched script session will show up in the Shell Manager tab for detach/reattach."
                 />
               </a-space>
             </a-card>

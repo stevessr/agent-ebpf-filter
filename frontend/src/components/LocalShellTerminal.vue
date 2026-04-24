@@ -17,7 +17,7 @@ const SHELL_STORAGE_KEY = 'executor-shell-config';
 
 const props = withDefaults(defineProps<{
   managerTitle?: string;
-  sessionKindFilter?: 'all' | 'tmux';
+  sessionKindFilter?: 'all' | 'tmux' | 'non-tmux';
   showCreatePanel?: boolean;
   showTmuxQuickActions?: boolean;
 }>(), {
@@ -91,6 +91,7 @@ const activeTabKey = ref('');
 let refreshTimer: number | null = null;
 
 const isTmuxFilteredView = computed(() => props.sessionKindFilter === 'tmux');
+const isNonTmuxFilteredView = computed(() => props.sessionKindFilter === 'non-tmux');
 
 watch([defaultShellMode, defaultCustomShellPath], persistShellConfig, { immediate: true });
 
@@ -100,6 +101,9 @@ const matchesSessionFilter = (session: ShellSessionInfo) => {
   }
   if (props.sessionKindFilter === 'tmux') {
     return isTmuxSession(session);
+  }
+  if (props.sessionKindFilter === 'non-tmux') {
+    return !isTmuxSession(session);
   }
   return true;
 };
@@ -430,9 +434,16 @@ onBeforeUnmount(() => {
               message="Tmux session view"
               description="Use the tmux launcher on the left to create a coding CLI. Open a session here to use tmux quick shortcuts."
             />
+            <a-alert
+              v-else-if="isNonTmuxFilteredView"
+              type="info"
+              show-icon
+              message="Shell session view"
+              description="This area lists interactive shell and script sessions only. Tmux sessions are managed separately in the Tmux tab."
+            />
           </template>
 
-          <a-divider v-if="showCreatePanel || isTmuxFilteredView" />
+          <a-divider v-if="showCreatePanel || isTmuxFilteredView || isNonTmuxFilteredView" />
 
           <a-alert
             v-if="sessionError"
@@ -532,7 +543,15 @@ onBeforeUnmount(() => {
             </template>
 
             <template #emptyText>
-              <a-empty :description="isTmuxFilteredView ? 'No tmux sessions yet' : 'No backend shell sessions yet'" />
+              <a-empty
+                :description="
+                  isTmuxFilteredView
+                    ? 'No tmux sessions yet'
+                    : isNonTmuxFilteredView
+                      ? 'No shell sessions yet'
+                      : 'No backend shell sessions yet'
+                "
+              />
             </template>
 
           </a-table>
