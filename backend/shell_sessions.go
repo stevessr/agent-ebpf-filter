@@ -91,6 +91,8 @@ type shellSession struct {
 	backlog      []byte
 	backlogLimit int
 	writeMu      sync.Mutex
+
+	onChange func()
 }
 
 type ShellSessionInputRequest struct {
@@ -98,17 +100,45 @@ type ShellSessionInputRequest struct {
 }
 
 type shellSessionManager struct {
-	mu       sync.RWMutex
-	nextID   atomic.Uint64
-	sessions map[string]*shellSession
+	mu            sync.RWMutex
+	nextID        atomic.Uint64
+	sessions      map[string]*shellSession
+	subscribers   map[chan struct{}]struct{}
+	subscribersMu sync.Mutex
 }
 
 var shellSessions = newShellSessionManager()
 
 func newShellSessionManager() *shellSessionManager {
 	return &shellSessionManager{
-		sessions: make(map[string]*shellSession),
+		sessions:    make(map[string]*shellSession),
+		subscribers: make(map[chan struct{}]struct{}),
 	}
+}
+
+func (m *shellSessionManager) subscribe() chan struct{} {
+	ch := make(chan struct{}, 1)
+	m.subscribersMu.Lock()
+	m.subscribers[ch] = struct{}{}
+	m.subscribersMu.Unlock()
+	return ch
+}
+
+func (m *shellSessionManager) unsubscribe(ch chan struct{}) {
+	m.subscribersMu.Lock()
+	delete(m.subscribers, ch)
+	m.subscribersMu.Unlock()
+}
+
+func (m *shellSessionManager) notify() {
+	m.subscribersMu.Lock()
+	for ch := range m.subscribers {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+	m.subscribersMu.Unlock()
 }
 
 func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessionInfo, error) {
@@ -212,11 +242,14 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 		cmd:          cmd,
 		ptmx:         ptmx,
 		backlogLimit: shellSessionBacklogLimit,
+		onChange:     func() { m.notify() },
 	}
 
 	m.mu.Lock()
 	m.sessions[session.id] = session
 	m.mu.Unlock()
+
+	m.notify()
 
 	go session.readLoop()
 
@@ -255,6 +288,7 @@ func (m *shellSessionManager) Delete(id string) error {
 		delete(m.sessions, id)
 	}
 	m.mu.Unlock()
+	m.notify()
 	if !ok {
 		return fmt.Errorf("shell session not found")
 	}
@@ -409,6 +443,9 @@ func (s *shellSession) finishRead(readErr error) {
 
 	if conn != nil {
 		_ = conn.Close()
+	}
+	if s.onChange != nil {
+		s.onChange()
 	}
 }
 

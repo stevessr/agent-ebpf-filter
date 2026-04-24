@@ -5,6 +5,8 @@ import { CodeOutlined, PlayCircleOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
 import ShellTerminalPane from './ShellTerminalPane.vue';
+import { pb } from '../pb/tracker_pb.js';
+import { buildWebSocketUrl } from '../utils/requestContext';
 import type { ShellSessionCreateRequest, ShellSessionInfo } from '../types/shell';
 
 const RECENT_COMMANDS_STORAGE_KEY = 'recent_cmds';
@@ -169,41 +171,89 @@ const launchCommand = async () => {
 };
 
 interface WrapperEventRecord {
+  key: string;
+  pid: number;
+  comm: string;
+  tag: string;
+  path: string;
   receivedAt: string;
-  event: {
-    pid: number;
-    comm: string;
-    type: string;
-    tag: string;
-    path: string;
-  };
 }
 
 const recentEvents = ref<WrapperEventRecord[]>([]);
-let eventsPollTimer: number | null = null;
+const wsConnected = ref(false);
+let ws: WebSocket | null = null;
+let wsReconnectTimer: number | null = null;
+let shouldReconnect = true;
 
-const fetchRecentEvents = async () => {
-  if (!props.active) return;
-  try {
-    const res = await axios.get('/events/recent', {
-      params: { type: 'wrapper_intercept', limit: 20 },
-    });
-    recentEvents.value = (res.data.events || []).reverse();
-  } catch {
-    // Silently ignore poll errors
+const connectWebSocket = () => {
+  if (!shouldReconnect) return;
+  if (ws) {
+    ws.close();
+    ws = null;
   }
+
+  // Load initial historical events once
+  axios.get('/events/recent', {
+    params: { type: 'wrapper_intercept', limit: 20 },
+  }).then((res) => {
+    recentEvents.value = (res.data.events || []).reverse().map((r: any) => ({
+      key: `${r.event.pid}-${r.event.path}-${Date.now()}-${Math.random()}`,
+      pid: r.event.pid,
+      comm: r.event.comm,
+      tag: r.event.tag,
+      path: r.event.path,
+      receivedAt: r.receivedAt,
+    }));
+  }).catch(() => {
+    // Silently ignore initial load errors
+  });
+
+  ws = new WebSocket(buildWebSocketUrl('/ws'));
+  ws.binaryType = 'arraybuffer';
+
+  ws.onopen = () => {
+    wsConnected.value = true;
+  };
+
+  ws.onmessage = (messageEvent) => {
+    try {
+      const uint8Array = new Uint8Array(messageEvent.data);
+      const data = pb.Event.decode(uint8Array);
+      if (data.type !== 'wrapper_intercept') return;
+
+      const record: WrapperEventRecord = {
+        key: `${data.pid}-${data.path}-${Date.now()}-${Math.random()}`,
+        pid: data.pid,
+        comm: data.comm,
+        tag: data.tag,
+        path: data.path,
+        receivedAt: new Date().toISOString(),
+      };
+      recentEvents.value.unshift(record);
+      if (recentEvents.value.length > 20) recentEvents.value.pop();
+    } catch (e) {
+      console.error('Failed to parse wrapper event', e);
+    }
+  };
+
+  ws.onclose = () => {
+    wsConnected.value = false;
+    ws = null;
+    if (!shouldReconnect) return;
+    if (wsReconnectTimer !== null) clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = window.setTimeout(connectWebSocket, 3000);
+  };
 };
 
-const startEventsPolling = () => {
-  stopEventsPolling();
-  fetchRecentEvents();
-  eventsPollTimer = window.setInterval(fetchRecentEvents, 3000);
-};
-
-const stopEventsPolling = () => {
-  if (eventsPollTimer !== null) {
-    clearInterval(eventsPollTimer);
-    eventsPollTimer = null;
+const disconnectWebSocket = () => {
+  shouldReconnect = false;
+  if (wsReconnectTimer !== null) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+  if (ws) {
+    ws.close();
+    ws = null;
   }
 };
 
@@ -222,16 +272,17 @@ watch(
   (active) => {
     if (!active) {
       void closeSession();
-      stopEventsPolling();
+      disconnectWebSocket();
     } else {
-      startEventsPolling();
+      shouldReconnect = true;
+      connectWebSocket();
     }
   },
 );
 
 onBeforeUnmount(() => {
   void closeSession();
-  stopEventsPolling();
+  disconnectWebSocket();
 });
 </script>
 
@@ -341,28 +392,28 @@ onBeforeUnmount(() => {
           :data-source="recentEvents"
           :columns="[
             { title: 'Time', dataIndex: 'receivedAt', key: 'receivedAt' },
-            { title: 'Command', dataIndex: ['event', 'comm'], key: 'comm' },
-            { title: 'Args/Path', dataIndex: ['event', 'path'], key: 'path', ellipsis: true },
-            { title: 'Tag', dataIndex: ['event', 'tag'], key: 'tag' },
+            { title: 'Command', dataIndex: 'comm', key: 'comm' },
+            { title: 'Args/Path', dataIndex: 'path', key: 'path', ellipsis: true },
+            { title: 'Tag', dataIndex: 'tag', key: 'tag' },
           ]"
           :pagination="false"
           size="small"
-          row-key="receivedAt"
+          row-key="key"
           :scroll="{ x: true }"
           :locale="{ emptyText: 'Waiting for wrapper events...' }"
         >
-        <template #bodyCell="{ column, record }">
+          <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'receivedAt'">
               <span style="font-size: 12px; white-space: nowrap;">{{ formatEventTime(record.receivedAt) }}</span>
             </template>
             <template v-else-if="column.key === 'comm'">
-              <code>{{ record.event.comm }}</code>
+              <code>{{ record.comm }}</code>
             </template>
             <template v-else-if="column.key === 'path'">
-              <span style="font-size: 12px;">{{ record.event.path }}</span>
+              <span style="font-size: 12px;">{{ record.path }}</span>
             </template>
             <template v-else-if="column.key === 'tag'">
-              <a-tag color="blue">{{ record.event.tag }}</a-tag>
+              <a-tag color="blue">{{ record.tag }}</a-tag>
             </template>
           </template>
         </a-table>

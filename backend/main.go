@@ -1934,6 +1934,48 @@ func main() {
 		}
 		c.JSON(http.StatusOK, gin.H{"source": source, "events": records})
 	})
+	r.GET("/ws/shell-sessions", func(c *gin.Context) {
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		notifyCh := shellSessions.subscribe()
+		defer shellSessions.unsubscribe(notifyCh)
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					return
+				}
+			}
+		}()
+
+		sendList := func() {
+			list := shellSessions.List()
+			data, err := json.Marshal(list)
+			if err != nil {
+				return
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+				return
+			}
+		}
+
+		sendList()
+
+		for {
+			select {
+			case <-notifyCh:
+				sendList()
+			case <-done:
+				return
+			}
+		}
+	})
 
 	r.POST("/hooks/event", func(c *gin.Context) {
 		// Receives events from various AI CLI native hook mechanisms.

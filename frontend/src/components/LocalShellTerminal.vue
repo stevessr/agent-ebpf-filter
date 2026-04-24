@@ -4,6 +4,7 @@ import axios from 'axios';
 import { message } from 'ant-design-vue';
 
 import ShellTerminalPane from './ShellTerminalPane.vue';
+import { buildWebSocketUrl } from '../utils/requestContext';
 import type {
   ShellConfig,
   ShellMode,
@@ -89,7 +90,10 @@ const creating = ref(false);
 const openSessionIds = ref<string[]>([]);
 const activeTabKey = ref('');
 
-let refreshTimer: number | null = null;
+const wsConnected = ref(false);
+let ws: WebSocket | null = null;
+let wsReconnectTimer: number | null = null;
+let shouldReconnect = true;
 
 const isTmuxFilteredView = computed(() => props.sessionKindFilter === 'tmux');
 const isNonTmuxFilteredView = computed(() => props.sessionKindFilter === 'non-tmux');
@@ -280,10 +284,8 @@ const closeBackendSession = async (sessionId: string) => {
     await axios.delete(`/shell-sessions/${sessionId}`);
     removeSessionLocally(sessionId);
     message.success(`Closed session #${sessionId}`);
-    await refreshSessions();
   } catch (err: any) {
     message.error(err?.response?.data?.error || err?.message || 'Failed to close session');
-    await refreshSessions();
   }
 };
 
@@ -334,6 +336,50 @@ const refreshNow = () => {
   void refreshSessions();
 };
 
+const connectShellSessionsWS = () => {
+  if (!shouldReconnect) return;
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+
+  ws = new WebSocket(buildWebSocketUrl('/ws/shell-sessions'));
+
+  ws.onopen = () => {
+    wsConnected.value = true;
+  };
+
+  ws.onmessage = (message) => {
+    try {
+      const data = JSON.parse(message.data) as ShellSessionInfo[];
+      sessions.value = Array.isArray(data) ? data : [];
+      syncOpenTabs();
+    } catch (err) {
+      console.error('Failed to parse shell sessions update', err);
+    }
+  };
+
+  ws.onclose = () => {
+    wsConnected.value = false;
+    ws = null;
+    if (!shouldReconnect) return;
+    if (wsReconnectTimer !== null) clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = window.setTimeout(connectShellSessionsWS, 3000);
+  };
+};
+
+const disconnectShellSessionsWS = () => {
+  shouldReconnect = false;
+  if (wsReconnectTimer !== null) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+};
+
 const sessionLabel = (session: ShellSessionInfo) => session.label || session.shell || 'auto';
 const tabLabel = (session: ShellSessionInfo) => `#${session.id} · ${sessionLabel(session)}`;
 
@@ -344,17 +390,11 @@ defineExpose({
 });
 
 onMounted(() => {
-  void refreshSessions();
-  refreshTimer = window.setInterval(() => {
-    void refreshSessions();
-  }, 4000);
+  connectShellSessionsWS();
 });
 
 onBeforeUnmount(() => {
-  if (refreshTimer !== null) {
-    window.clearInterval(refreshTimer);
-    refreshTimer = null;
-  }
+  disconnectShellSessionsWS();
 });
 </script>
 
