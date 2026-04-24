@@ -54,6 +54,15 @@ let reconnectTimer: number | null = null;
 let shouldReconnect = true;
 let resizeObserver: ResizeObserver | null = null;
 let cleanupColumnResize: (() => void) | null = null;
+let recentRowTimer: number | null = null;
+
+const STREAM_DIRECTION_STORAGE_KEY = 'dashboard.streamDirection';
+const streamDirection = ref<'top' | 'bottom'>(getStoredStreamDirection());
+
+function getStoredStreamDirection(): 'top' | 'bottom' {
+  if (typeof window === 'undefined') return 'top';
+  return window.localStorage.getItem(STREAM_DIRECTION_STORAGE_KEY) === 'bottom' ? 'bottom' : 'top';
+}
 
 const columnWidths = ref<Record<ResizableColumnKey, number>>({
   time: 120,
@@ -158,7 +167,7 @@ const filteredEvents = computed(() => {
       return true;
     });
   }
-  return result;
+  return streamDirection.value === 'bottom' ? [...result].reverse() : result;
 });
 
 const tablePagination = computed(() => ({
@@ -175,8 +184,28 @@ const handleTableChange = (pagination: { current?: number; pageSize?: number }) 
   pageSize.value = pagination.pageSize ?? pageSize.value;
 };
 
-const getRowClassName = (_record: AgentEvent, index: number) =>
-  (index % 2 === 0 ? 'excel-row-even' : 'excel-row-odd');
+const recentRowKey = ref<string | null>(null);
+
+const markRecentRow = (key: string) => {
+  recentRowKey.value = key;
+  if (recentRowTimer !== null) {
+    window.clearTimeout(recentRowTimer);
+  }
+  recentRowTimer = window.setTimeout(() => {
+    if (recentRowKey.value === key) {
+      recentRowKey.value = null;
+    }
+    recentRowTimer = null;
+  }, 320);
+};
+
+const getRowClassName = (record: AgentEvent, index: number) => {
+  const classes = [index % 2 === 0 ? 'excel-row-even' : 'excel-row-odd'];
+  if (recentRowKey.value === record.key) {
+    classes.push(streamDirection.value === 'bottom' ? 'excel-row-enter-bottom' : 'excel-row-enter-top');
+  }
+  return classes.join(' ');
+};
 
 const hasHeaderFilter = (key: string | number | symbol) => ['time', 'tag', 'pid', 'comm', 'type', 'path'].includes(String(key));
 
@@ -303,8 +332,21 @@ watch([selectedTags, selectedTypes, timeFilter, pidFilter, commandFilter, pathFi
   currentPage.value = 1;
 });
 
-watch([() => filteredEvents.value.length, pageSize], ([total]) => {
+watch(streamDirection, (direction) => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(STREAM_DIRECTION_STORAGE_KEY, direction);
+  }
+  currentPage.value = direction === 'bottom'
+    ? Math.max(1, Math.ceil(filteredEvents.value.length / pageSize.value))
+    : 1;
+});
+
+watch([() => filteredEvents.value.length, pageSize, streamDirection], ([total]) => {
   const maxPage = Math.max(1, Math.ceil(total / pageSize.value));
+  if (streamDirection.value === 'bottom') {
+    currentPage.value = maxPage;
+    return;
+  }
   if (currentPage.value > maxPage) {
     currentPage.value = maxPage;
   }
@@ -398,7 +440,7 @@ const connectWebSocket = () => {
       const uint8Array = new Uint8Array(message.data);
       const data = pb.Event.decode(uint8Array);
       const now = new Date();
-      events.value.unshift({
+      const nextEvent: AgentEvent = {
         key: `${data.pid}-${data.path}-${Date.now()}-${Math.random()}`,
         pid: data.pid,
         ppid: data.ppid,
@@ -412,8 +454,10 @@ const connectWebSocket = () => {
         netFamily: data.type?.startsWith('network_') ? (data.netFamily || '') : undefined,
         netBytes: data.type?.startsWith('network_') ? Number(data.netBytes || 0) : undefined,
         time: now.toLocaleTimeString(),
-      });
+      };
+      events.value.unshift(nextEvent);
       if (events.value.length > 1000) events.value.pop();
+      markRecentRow(nextEvent.key);
     } catch (e) {
       console.error('Failed to parse message', e);
     }
@@ -434,6 +478,8 @@ const connectWebSocket = () => {
 
 const clearEvents = () => {
   events.value = [];
+  recentRowKey.value = null;
+  currentPage.value = 1;
 };
 
 const exportEvents = () => {
@@ -499,6 +545,10 @@ onUnmounted(() => {
   resizeObserver = null;
   cleanupColumnResize?.();
   cleanupColumnResize = null;
+  if (recentRowTimer !== null) {
+    window.clearTimeout(recentRowTimer);
+    recentRowTimer = null;
+  }
   if (reconnectTimer !== null) {
     window.clearTimeout(reconnectTimer);
     reconnectTimer = null;
@@ -520,6 +570,14 @@ onUnmounted(() => {
             {{ isPaused ? 'Resume Stream' : 'Pause Stream' }}
           </a-button>
           <a-button type="primary" danger size="small" @click="clearEvents">Clear Events</a-button>
+          <a-select
+            v-model:value="streamDirection"
+            size="small"
+            style="width: 150px;"
+          >
+            <a-select-option value="top">Newest First</a-select-option>
+            <a-select-option value="bottom">Log Flow ↓</a-select-option>
+          </a-select>
           <a-checkbox v-model:checked="isDeduplicated" size="small">
             <span style="font-size: 12px;">Clean Duplicates</span>
           </a-checkbox>
@@ -975,6 +1033,14 @@ onUnmounted(() => {
   transition: background-color 0.15s ease;
 }
 
+.excel-table :deep(.ant-table-tbody > tr.excel-row-enter-top > td) {
+  animation: excel-row-enter-top 320ms ease-out;
+}
+
+.excel-table :deep(.ant-table-tbody > tr.excel-row-enter-bottom > td) {
+  animation: excel-row-enter-bottom 320ms ease-out;
+}
+
 .excel-table :deep(.ant-tag) {
   border-radius: 2px;
   font-weight: 600;
@@ -1008,5 +1074,41 @@ onUnmounted(() => {
 :global(html.excel-resizing *) {
   cursor: col-resize !important;
   user-select: none !important;
+}
+
+@keyframes excel-row-enter-top {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+    background-color: #edf8e9;
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(0);
+    background-color: #f3fbef;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    background-color: inherit;
+  }
+}
+
+@keyframes excel-row-enter-bottom {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+    background-color: #edf8e9;
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(0);
+    background-color: #f3fbef;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    background-color: inherit;
+  }
 }
 </style>
