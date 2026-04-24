@@ -25,6 +25,8 @@ interface AgentEvent {
   time: string;
 }
 
+type ResizableColumnKey = 'time' | 'tag' | 'pid' | 'comm' | 'type' | 'path' | 'action';
+
 const events = ref<AgentEvent[]>([]);
 const isConnected = ref(false);
 const isPaused = ref(false);
@@ -44,10 +46,34 @@ const activeHeaderFilter = ref<string | null>(null);
 const tags = ref<string[]>([]);
 const currentPage = ref(1);
 const pageSize = ref(20);
+const tableWrapperRef = ref<HTMLElement | null>(null);
+const tableContentWidth = ref(0);
 const router = useRouter();
 let ws: WebSocket | null = null;
 let reconnectTimer: number | null = null;
 let shouldReconnect = true;
+let resizeObserver: ResizeObserver | null = null;
+let cleanupColumnResize: (() => void) | null = null;
+
+const columnWidths = ref<Record<ResizableColumnKey, number>>({
+  time: 120,
+  tag: 120,
+  pid: 96,
+  comm: 150,
+  type: 140,
+  path: 180,
+  action: 80,
+});
+
+const minColumnWidths: Record<ResizableColumnKey, number> = {
+  time: 100,
+  tag: 100,
+  pid: 88,
+  comm: 120,
+  type: 120,
+  path: 160,
+  action: 72,
+};
 
 const eventTypes = [
   'execve',
@@ -63,6 +89,16 @@ const eventTypes = [
   'native_hook',
 ];
 const pageSizeOptions = ['20', '50', '100', '200'];
+
+const baseColumns = [
+  { title: 'Time', dataIndex: 'time', key: 'time' },
+  { title: 'Tag', dataIndex: 'tag', key: 'tag' },
+  { title: 'PID', dataIndex: 'pid', key: 'pid' },
+  { title: 'Command', dataIndex: 'comm', key: 'comm' },
+  { title: 'Event Type', dataIndex: 'type', key: 'type' },
+  { title: 'Path', dataIndex: 'path', key: 'path', ellipsis: true },
+  { title: 'Action', key: 'action', fixed: 'right' as const },
+] as const;
 
 const tagOptions = computed(() =>
   tags.value.map((tag) => ({
@@ -142,15 +178,71 @@ const handleTableChange = (pagination: { current?: number; pageSize?: number }) 
 const getRowClassName = (_record: AgentEvent, index: number) =>
   (index % 2 === 0 ? 'excel-row-even' : 'excel-row-odd');
 
-const hasHeaderFilter = (key: string) => ['time', 'tag', 'pid', 'comm', 'type', 'path'].includes(key);
+const hasHeaderFilter = (key: string | number | symbol) => ['time', 'tag', 'pid', 'comm', 'type', 'path'].includes(String(key));
+
+const isResizableColumn = (key: string | number | symbol) => (['time', 'tag', 'pid', 'comm', 'type', 'path', 'action'] as const).includes(String(key) as ResizableColumnKey);
 
 const renderOmittedCountPlaceholder = (omittedValues: unknown[]) => `+${omittedValues.length} more`;
 
 const getFilterPopupContainer = (triggerNode: HTMLElement) =>
   (triggerNode.closest('.excel-filter-popover') as HTMLElement | null) ?? document.body;
 
-const toggleHeaderFilter = (key: string) => {
-  activeHeaderFilter.value = activeHeaderFilter.value === key ? null : key;
+const computePathWidth = () => {
+  const fixedWidth = (['time', 'tag', 'pid', 'comm', 'type', 'action'] as const)
+    .reduce((total, key) => total + columnWidths.value[key], 0);
+  const availableWidth = tableContentWidth.value > 0 ? tableContentWidth.value : 0;
+  const remainingWidth = availableWidth > 0 ? Math.max(minColumnWidths.path, availableWidth - fixedWidth - 12) : columnWidths.value.path;
+  return Math.max(minColumnWidths.path, columnWidths.value.path, remainingWidth);
+};
+
+const tableColumns = computed(() => baseColumns.map((column) => {
+  if (column.key === 'path') {
+    return { ...column, width: computePathWidth() };
+  }
+  if (column.key in columnWidths.value) {
+    return { ...column, width: columnWidths.value[column.key as ResizableColumnKey] };
+  }
+  return column;
+}));
+
+const handleTableResize = (entries: ResizeObserverEntry[]) => {
+  const entry = entries[0];
+  if (!entry) return;
+  tableContentWidth.value = entry.contentRect.width;
+};
+
+const startColumnResize = (key: string, event: MouseEvent) => {
+  if (!isResizableColumn(key)) return;
+  event.preventDefault();
+
+  const resizeKey = key as ResizableColumnKey;
+
+  const startX = event.clientX;
+  const startWidth = columnWidths.value[resizeKey];
+  const minWidth = minColumnWidths[resizeKey];
+
+  const onMouseMove = (moveEvent: MouseEvent) => {
+    const nextWidth = Math.max(minWidth, startWidth + moveEvent.clientX - startX);
+    columnWidths.value[resizeKey] = nextWidth;
+  };
+
+  const stopResize = () => {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', stopResize);
+    document.documentElement.classList.remove('excel-resizing');
+    cleanupColumnResize = null;
+  };
+
+  cleanupColumnResize?.();
+  document.documentElement.classList.add('excel-resizing');
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', stopResize);
+  cleanupColumnResize = stopResize;
+};
+
+const toggleHeaderFilter = (key: string | number | symbol) => {
+  const filterKey = String(key);
+  activeHeaderFilter.value = activeHeaderFilter.value === filterKey ? null : filterKey;
 };
 
 const closeHeaderFilter = () => {
@@ -167,8 +259,8 @@ const handleDocumentClick = (event: MouseEvent) => {
   closeHeaderFilter();
 };
 
-const isHeaderFilterActive = (key: string) => {
-  switch (key) {
+const isHeaderFilterActive = (key: string | number | symbol) => {
+  switch (String(key)) {
     case 'time':
       return Boolean(timeFilter.value.trim());
     case 'tag':
@@ -186,8 +278,8 @@ const isHeaderFilterActive = (key: string) => {
   }
 };
 
-const clearHeaderFilter = (key: string) => {
-  switch (key) {
+const clearHeaderFilter = (key: string | number | symbol) => {
+  switch (String(key)) {
     case 'time':
       timeFilter.value = '';
       break;
@@ -262,16 +354,6 @@ const openInExplorer = (record: AgentEvent) => {
     },
   });
 };
-
-const columns = [
-  { title: 'Time', dataIndex: 'time', key: 'time', width: 120 },
-  { title: 'Tag', dataIndex: 'tag', key: 'tag', width: 120 },
-  { title: 'PID', dataIndex: 'pid', key: 'pid', width: 100 },
-  { title: 'Command', dataIndex: 'comm', key: 'comm', width: 150 },
-  { title: 'Event Type', dataIndex: 'type', key: 'type', width: 150 },
-  { title: 'Path', dataIndex: 'path', key: 'path', ellipsis: true },
-  { title: 'Action', key: 'action', width: 80, fixed: 'right' as const }
-];
 
 const getTagColor = (type: string) => {
   const colors: Record<string, string> = {
@@ -406,11 +488,19 @@ onMounted(() => {
   connectWebSocket();
   fetchTags();
   document.addEventListener('click', handleDocumentClick);
+  if (tableWrapperRef.value && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(handleTableResize);
+    resizeObserver.observe(tableWrapperRef.value);
+  }
 });
 
 onUnmounted(() => {
   shouldReconnect = false;
   document.removeEventListener('click', handleDocumentClick);
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  cleanupColumnResize?.();
+  cleanupColumnResize = null;
   if (reconnectTimer !== null) {
     window.clearTimeout(reconnectTimer);
     reconnectTimer = null;
@@ -450,118 +540,128 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <a-table 
-      class="excel-table"
-      :dataSource="filteredEvents" 
-      :columns="columns" 
-      size="small"
-      :pagination="tablePagination"
-      :rowClassName="getRowClassName"
-      @change="handleTableChange"
-    >
+    <div ref="tableWrapperRef" class="dashboard-table-wrap">
+      <a-table
+        class="excel-table"
+        :dataSource="filteredEvents"
+        :columns="tableColumns"
+        size="small"
+        :pagination="tablePagination"
+        :rowClassName="getRowClassName"
+        :tableLayout="'fixed'"
+        @change="handleTableChange"
+      >
       <template #headerCell="{ column }">
         <div class="excel-header-cell">
           <span class="excel-header-title">{{ column.title }}</span>
-          <a-popover
-            v-if="hasHeaderFilter(column.key)"
-            trigger="click"
-            placement="bottomRight"
-            :arrow="false"
-            :open="activeHeaderFilter === column.key"
-            overlay-class-name="excel-filter-popover"
-          >
-            <template #content>
-              <div
-                class="excel-filter-dropdown"
-                :class="{ 'excel-filter-dropdown--wide': column.key === 'tag' || column.key === 'type' }"
-                @mousedown.stop
-                @click.stop
-              >
-                <div class="excel-filter-dropdown-title">
-                  {{ column.title }} Filter
-                </div>
-                <template v-if="column.key === 'time'">
-                  <a-input
-                    v-model:value="timeFilter"
-                    placeholder="Search time..."
-                    size="small"
-                    allow-clear
-                  />
-                </template>
-                <template v-else-if="column.key === 'tag'">
-                  <a-select
-                    v-model:value="selectedTags"
-                    mode="multiple"
-                    placeholder="All Tags"
-                    size="small"
-                    allow-clear
-                    show-search
-                    :max-tag-count="1"
-                    :max-tag-placeholder="renderOmittedCountPlaceholder"
-                    :options="tagOptions"
-                    option-filter-prop="label"
-                    :get-popup-container="getFilterPopupContainer"
-                    style="width: 100%;"
-                  />
-                </template>
-                <template v-else-if="column.key === 'pid'">
-                  <a-input
-                    v-model:value="pidFilter"
-                    placeholder="PID contains..."
-                    size="small"
-                    allow-clear
-                  />
-                </template>
-                <template v-else-if="column.key === 'comm'">
-                  <a-input
-                    v-model:value="commandFilter"
-                    placeholder="Command contains..."
-                    size="small"
-                    allow-clear
-                  />
-                </template>
-                <template v-else-if="column.key === 'type'">
-                  <a-select
-                    v-model:value="selectedTypes"
-                    mode="multiple"
-                    placeholder="All Types"
-                    size="small"
-                    allow-clear
-                    show-search
-                    :max-tag-count="1"
-                    :max-tag-placeholder="renderOmittedCountPlaceholder"
-                    :options="eventTypeOptions"
-                    option-filter-prop="label"
-                    :get-popup-container="getFilterPopupContainer"
-                    style="width: 100%;"
-                  />
-                </template>
-                <template v-else-if="column.key === 'path'">
-                  <a-input
-                    v-model:value="pathFilter"
-                    placeholder="Path contains..."
-                    size="small"
-                    allow-clear
-                  />
-                </template>
-
-                <div class="excel-filter-dropdown-actions">
-                  <a-button size="small" :disabled="!isHeaderFilterActive(column.key)" @click="clearHeaderFilter(column.key)">
-                    Clear
-                  </a-button>
-                </div>
-              </div>
-            </template>
-            <a-button
-              type="text"
-              size="small"
-              class="excel-header-filter-trigger"
-              :class="{ active: isHeaderFilterActive(column.key) }"
-              @click.stop="toggleHeaderFilter(column.key)"
+          <div class="excel-header-actions">
+            <a-popover
+              v-if="hasHeaderFilter(column.key)"
+              trigger="click"
+              placement="bottomRight"
+              :arrow="false"
+              :open="activeHeaderFilter === column.key"
+              overlay-class-name="excel-filter-popover"
             >
-              <template #icon><FilterOutlined /></template>
-            </a-button>
-          </a-popover>
+              <template #content>
+                <div
+                  class="excel-filter-dropdown"
+                  :class="{ 'excel-filter-dropdown--wide': column.key === 'tag' || column.key === 'type' }"
+                  @mousedown.stop
+                  @click.stop
+                >
+                  <div class="excel-filter-dropdown-title">
+                    {{ column.title }} Filter
+                  </div>
+                  <template v-if="column.key === 'time'">
+                    <a-input
+                      v-model:value="timeFilter"
+                      placeholder="Search time..."
+                      size="small"
+                      allow-clear
+                    />
+                  </template>
+                  <template v-else-if="column.key === 'tag'">
+                    <a-select
+                      v-model:value="selectedTags"
+                      mode="multiple"
+                      placeholder="All Tags"
+                      size="small"
+                      allow-clear
+                      show-search
+                      :max-tag-count="1"
+                      :max-tag-placeholder="renderOmittedCountPlaceholder"
+                      :options="tagOptions"
+                      option-filter-prop="label"
+                      :get-popup-container="getFilterPopupContainer"
+                      style="width: 100%;"
+                    />
+                  </template>
+                  <template v-else-if="column.key === 'pid'">
+                    <a-input
+                      v-model:value="pidFilter"
+                      placeholder="PID contains..."
+                      size="small"
+                      allow-clear
+                    />
+                  </template>
+                  <template v-else-if="column.key === 'comm'">
+                    <a-input
+                      v-model:value="commandFilter"
+                      placeholder="Command contains..."
+                      size="small"
+                      allow-clear
+                    />
+                  </template>
+                  <template v-else-if="column.key === 'type'">
+                    <a-select
+                      v-model:value="selectedTypes"
+                      mode="multiple"
+                      placeholder="All Types"
+                      size="small"
+                      allow-clear
+                      show-search
+                      :max-tag-count="1"
+                      :max-tag-placeholder="renderOmittedCountPlaceholder"
+                      :options="eventTypeOptions"
+                      option-filter-prop="label"
+                      :get-popup-container="getFilterPopupContainer"
+                      style="width: 100%;"
+                    />
+                  </template>
+                  <template v-else-if="column.key === 'path'">
+                    <a-input
+                      v-model:value="pathFilter"
+                      placeholder="Path contains..."
+                      size="small"
+                      allow-clear
+                    />
+                  </template>
+
+                  <div class="excel-filter-dropdown-actions">
+                    <a-button size="small" :disabled="!isHeaderFilterActive(column.key)" @click="clearHeaderFilter(column.key)">
+                      Clear
+                    </a-button>
+                  </div>
+                </div>
+              </template>
+              <a-button
+                type="text"
+                size="small"
+                class="excel-header-filter-trigger"
+                :class="{ active: isHeaderFilterActive(column.key) }"
+                @click.stop="toggleHeaderFilter(column.key)"
+              >
+                <template #icon><FilterOutlined /></template>
+              </a-button>
+            </a-popover>
+            <span
+              v-if="isResizableColumn(column.key)"
+              class="excel-column-resizer"
+              title="Drag to resize"
+              @mousedown.stop.prevent="startColumnResize(column.key, $event)"
+            />
+          </div>
         </div>
       </template>
       <template #bodyCell="{ column, record }">
@@ -572,14 +672,13 @@ onUnmounted(() => {
           <a-tag :color="getCategoryColor(record.tag)">{{ record.tag }}</a-tag>
         </template>
         <template v-if="column.key === 'path'">
-          <div style="display: flex; align-items: center; gap: 6px;">
+          <div class="excel-path-cell">
             <a-typography-text
-              code
-              style="word-break: break-all;"
+              class="excel-path-text"
               :style="{ cursor: canInteractWithPath(record) ? 'pointer' : 'default' }"
               @click="previewRecordPath(record)"
             >
-              {{ record.path }}
+              {{ formatDetailValue(record.path) }}
             </a-typography-text>
             <a-tooltip v-if="canInteractWithPath(record)" title="Preview file">
               <a-button type="link" size="small" @click.stop="previewRecordPath(record)">
@@ -599,7 +698,8 @@ onUnmounted(() => {
           </a-button>
         </template>
       </template>
-    </a-table>
+      </a-table>
+    </div>
 
     <a-modal v-model:open="showDetails" title="Event Details" :footer="null" width="600px">
       <a-descriptions bordered :column="1" size="small" v-if="selectedEvent">
@@ -664,10 +764,12 @@ onUnmounted(() => {
 <style scoped>
 .dashboard-page {
   min-height: 280px;
-  padding: 24px;
+  padding: 0;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbf5 100%);
   font-family: Calibri, 'Segoe UI', Arial, sans-serif;
   color: #1f2937;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .dashboard-toolbar {
@@ -692,16 +794,26 @@ onUnmounted(() => {
   border-radius: 6px;
   overflow: hidden;
   background: #fff;
+  width: 100%;
+  min-width: 100%;
+}
+
+.dashboard-table-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .excel-table :deep(.ant-table) {
   font-family: inherit;
   background: #fff;
+  width: 100%;
 }
 
 .excel-table :deep(.ant-table-container) {
   border-top-left-radius: 6px;
   border-top-right-radius: 6px;
+  width: 100%;
 }
 
 .excel-table :deep(.ant-table-thead > tr > th) {
@@ -720,12 +832,22 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 6px;
   width: 100%;
+  min-width: 0;
 }
 
 .excel-header-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.excel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
 }
 
 .excel-header-filter-trigger {
@@ -740,6 +862,30 @@ onUnmounted(() => {
 .excel-header-filter-trigger.active {
   color: #2f7d32 !important;
   background: rgba(72, 143, 81, 0.12) !important;
+}
+
+.excel-column-resizer {
+  width: 10px;
+  align-self: stretch;
+  flex: 0 0 auto;
+  cursor: col-resize;
+  position: relative;
+  margin-left: 2px;
+}
+
+.excel-column-resizer::before {
+  content: '';
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  left: 4px;
+  width: 1px;
+  border-radius: 1px;
+  background: rgba(95, 122, 82, 0.5);
+}
+
+.excel-column-resizer:hover::before {
+  background: #2f7d32;
 }
 
 .excel-filter-dropdown {
@@ -769,6 +915,20 @@ onUnmounted(() => {
   margin-top: 10px;
 }
 
+.excel-path-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.excel-path-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #28402a;
+  word-break: break-all;
+}
+
 .excel-table :deep(.ant-table-thead > tr > th:last-child),
 .excel-table :deep(.ant-table-tbody > tr > td:last-child) {
   border-right: none;
@@ -780,6 +940,7 @@ onUnmounted(() => {
   padding: 8px 12px;
   background: #fff;
   vertical-align: middle;
+  min-width: 0;
 }
 
 .excel-table :deep(.ant-table-tbody > tr.excel-row-even > td) {
@@ -824,5 +985,12 @@ onUnmounted(() => {
 
 .excel-table :deep(.ant-dropdown) {
   z-index: 1200;
+}
+
+:global(html.excel-resizing),
+:global(html.excel-resizing body),
+:global(html.excel-resizing *) {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 </style>

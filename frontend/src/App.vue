@@ -61,7 +61,7 @@ const handleMenuClick = ({ key }: { key: string }) => {
         </a-menu-item>
       </a-menu>
     </a-layout-header>
-    <a-layout-content style="padding: 24px 50px;">
+    <a-layout-content class="app-content">
       <router-view></router-view>
     </a-layout-content>
     <a-layout-footer style="text-align: center">
@@ -80,5 +80,10 @@ const handleMenuClick = ({ key }: { key: string }) => {
 }
 .logo {
   float: left;
+}
+
+.app-content {
+  padding: 16px 16px 20px;
+  min-width: 0;
 }
 </style>
