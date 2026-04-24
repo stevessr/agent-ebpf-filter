@@ -78,6 +78,7 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 - manages wrapper rules
 - manages runtime log persistence
 - generates / rotates the backend access token for `/config` and `/mcp`
+- documents MCP query auth URLs such as `/mcp?key=<token>`
 - imports / exports tag + command + path + wrapper-rule config
 
 ## Development

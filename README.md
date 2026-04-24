@@ -51,7 +51,7 @@ Events are written to a ring buffer and consumed by the Go backend.
 - **Hooks**: install or edit native hook configs / wrapper aliases
 - **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, runtime log persistence, and the backend access token
 
-The backend can optionally persist captured events as JSONL under `~/.config/agent-ebpf-filter/events.jsonl`, and exposes an authenticated MCP SSE endpoint at `/mcp` using the runtime access token generated from the Configuration page.
+The backend can optionally persist captured events as JSONL under `~/.config/agent-ebpf-filter/events.jsonl`, and exposes an authenticated MCP SSE endpoint at `/mcp` using the runtime access token generated from the Configuration page. MCP clients may authenticate with `X-API-KEY`, `Authorization: Bearer`, or `?key=<token>`.
 
 ---
 

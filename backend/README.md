@@ -110,7 +110,7 @@ Config routes:
 - `/config/hooks`
 - `/config/hooks/:id/raw`
 
-`authMiddleware()` accepts either `X-API-KEY` or `Authorization: Bearer <token>`.
+`authMiddleware()` accepts `?key=<token>`, `X-API-KEY`, or `Authorization: Bearer <token>`.
 The token is generated and stored by the runtime settings file at:
 
 - `~/.config/agent-ebpf-filter/runtime.json`

@@ -993,6 +993,9 @@ func authMiddleware() gin.HandlerFunc {
 }
 
 func requestAuthToken(c *gin.Context) string {
+	if token := strings.TrimSpace(c.Query("key")); token != "" {
+		return token
+	}
 	if token := strings.TrimSpace(c.GetHeader("X-API-KEY")); token != "" {
 		return token
 	}

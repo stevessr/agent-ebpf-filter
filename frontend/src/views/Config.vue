@@ -86,6 +86,19 @@ const syncApiToken = (token: string) => {
   axios.defaults.headers.common.Authorization = `Bearer ${normalized}`;
 };
 
+const mcpQueryEndpoint = computed(() => {
+  if (!mcpEndpoint.value) return '';
+  if (!runtimeSettings.value.accessToken.trim()) {
+    return `${mcpEndpoint.value}?key=$API_KEY`;
+  }
+  return `${mcpEndpoint.value}?key=${encodeURIComponent(runtimeSettings.value.accessToken)}`;
+});
+
+const mcpQueryEndpointTemplate = computed(() => {
+  if (!mcpEndpoint.value) return '';
+  return `${mcpEndpoint.value}?key=$API_KEY`;
+});
+
 const applyRuntimeResponse = (data: RuntimeConfigResponse) => {
   runtimeSettings.value = {
     logPersistenceEnabled: data.runtime.logPersistenceEnabled,
@@ -378,17 +391,35 @@ onMounted(async () => {
                     </a-button>
                   </div>
                 </div>
-                <div>
-                  <div style="margin-bottom: 6px; font-weight: 600;">MCP Endpoint</div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <div style="margin-bottom: 2px; font-weight: 600;">MCP Endpoint</div>
                   <a-input :value="mcpEndpoint" readonly />
-                  <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                     <a-button @click="copyText(mcpEndpoint, 'MCP endpoint copied')">
-                      <CopyOutlined /> Copy Endpoint
+                      <CopyOutlined /> Copy Base URL
                     </a-button>
                   </div>
-                  <a-typography-text type="secondary">
-                    Use <code>{{ authHeaderName }}</code> or <code>{{ bearerAuthHeaderName }}</code> with the same token.
-                  </a-typography-text>
+                  <div style="margin-top: 4px; font-size: 12px; color: #8c8c8c; line-height: 1.6;">
+                    Query auth is supported too:
+                  </div>
+                  <a-input :value="mcpQueryEndpointTemplate" readonly />
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <a-button @click="copyText(mcpQueryEndpointTemplate, 'MCP query template copied')">
+                      <CopyOutlined /> Copy Query Template
+                    </a-button>
+                    <a-button @click="copyText(mcpQueryEndpoint, 'MCP query URL copied')">
+                      <CopyOutlined /> Copy Query URL
+                    </a-button>
+                  </div>
+                  <div style="font-size: 12px; color: #8c8c8c; line-height: 1.6;">
+                    Query URL fills the current token automatically when copied.
+                  </div>
+                  <a-alert
+                    type="info"
+                    show-icon
+                    :message="`Also accepts ${authHeaderName} or ${bearerAuthHeaderName} with the same token.`"
+                    style="margin-top: 4px;"
+                  />
                 </div>
               </div>
             </a-col>
