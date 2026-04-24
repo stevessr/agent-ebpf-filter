@@ -43,7 +43,7 @@ Events are written to a ring buffer and consumed by the Go backend.
 
 ### UI surfaces
 
-- **Dashboard**: live event stream
+- **Dashboard**: live event stream with tag / type / PID / command / path filters
 - **Monitor**: process / CPU / memory / GPU / IO / page-fault telemetry
 - **Network**: syscall-derived network flow table with direction / endpoint filters
 - **Explorer**: browse the host filesystem and add tracked paths

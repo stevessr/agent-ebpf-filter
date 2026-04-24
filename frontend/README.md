@@ -28,7 +28,7 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 
 - connects to `GET /ws`
 - decodes `pb.Event`
-- filters by tag / type / query
+- filters by tag / type / PID / command / path
 - exports JSON / CSV
 
 ### Network

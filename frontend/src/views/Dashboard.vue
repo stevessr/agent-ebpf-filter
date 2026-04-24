@@ -35,7 +35,9 @@ const previewLoading = ref(false);
 const previewData = ref<FilePreviewResponse | null>(null);
 const selectedTags = ref<string[]>([]);
 const selectedTypes = ref<string[]>([]);
-const searchQuery = ref('');
+const pidFilter = ref('');
+const commandFilter = ref('');
+const pathFilter = ref('');
 const isDeduplicated = ref(false);
 const tags = ref<string[]>([]);
 const currentPage = ref(1);
@@ -93,16 +95,17 @@ const filteredEvents = computed(() => {
     const activeTypes = new Set(selectedTypes.value);
     result = result.filter(e => activeTypes.has(e.type));
   }
-  if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase();
-    result = result.filter(e => 
-      e.comm.toLowerCase().includes(q) || 
-      e.path.toLowerCase().includes(q) ||
-      (e.netEndpoint || '').toLowerCase().includes(q) ||
-      (e.netDirection || '').toLowerCase().includes(q) ||
-      (e.netFamily || '').toLowerCase().includes(q) ||
-      String(e.pid).includes(q)
-    );
+  const pidQuery = pidFilter.value.trim();
+  const commQuery = commandFilter.value.trim().toLowerCase();
+  const pathQuery = pathFilter.value.trim().toLowerCase();
+  if (pidQuery) {
+    result = result.filter(e => String(e.pid).includes(pidQuery));
+  }
+  if (commQuery) {
+    result = result.filter(e => e.comm.toLowerCase().includes(commQuery));
+  }
+  if (pathQuery) {
+    result = result.filter(e => e.path.toLowerCase().includes(pathQuery));
   }
   if (isDeduplicated.value) {
     const seen = new Set();
@@ -130,7 +133,7 @@ const handleTableChange = (pagination: { current?: number; pageSize?: number }) 
   pageSize.value = pagination.pageSize ?? pageSize.value;
 };
 
-watch([selectedTags, selectedTypes, searchQuery, isDeduplicated], () => {
+watch([selectedTags, selectedTypes, pidFilter, commandFilter, pathFilter, isDeduplicated], () => {
   currentPage.value = 1;
 });
 
@@ -396,13 +399,29 @@ onUnmounted(() => {
           />
         </div>
 
-        <a-input-search
-          v-model:value="searchQuery"
-          placeholder="Search comm, path, endpoint or pid..."
-          size="small"
-          style="width: 240px"
-          allow-clear
-        />
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <a-input
+            v-model:value="pidFilter"
+            placeholder="PID"
+            size="small"
+            allow-clear
+            style="width: 120px"
+          />
+          <a-input
+            v-model:value="commandFilter"
+            placeholder="Command"
+            size="small"
+            allow-clear
+            style="width: 160px"
+          />
+          <a-input
+            v-model:value="pathFilter"
+            placeholder="Path"
+            size="small"
+            allow-clear
+            style="width: 240px"
+          />
+        </div>
 
         <a-divider type="vertical" />
 
