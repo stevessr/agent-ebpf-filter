@@ -92,6 +92,13 @@ const formatBytes = (value: number) => {
   return `${(value / Math.pow(base, index)).toFixed(precision)} ${units[index]}`;
 };
 
+const formatDetailValue = (value: number | string | undefined | null) => {
+  if (value === undefined || value === null || value === '') {
+    return '—';
+  }
+  return String(value);
+};
+
 const networkFilteredEvents = computed(() => {
   let result = events.value;
 
@@ -243,7 +250,7 @@ watch([() => networkFilteredEvents.value.length, pageSize], ([total]) => {
 });
 
 const openDetails = (record: NetworkEvent) => {
-  selectedEvent.value = record;
+  selectedEvent.value = { ...record };
   showDetails.value = true;
 };
 
@@ -580,15 +587,15 @@ onUnmounted(() => {
           <a-tag color="purple">{{ selectedEvent.tag }}</a-tag>
         </a-descriptions-item>
         <a-descriptions-item label="Command"><a-typography-text strong>{{ selectedEvent.comm }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="PID"><a-typography-text code>{{ selectedEvent.pid }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="Parent PID (PPID)"><a-typography-text code>{{ selectedEvent.ppid }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="User ID (UID)"><a-typography-text code>{{ selectedEvent.uid }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="Endpoint"><a-typography-text code style="word-break: break-all;">{{ selectedEvent.netEndpoint || '—' }}</a-typography-text></a-descriptions-item>
+        <a-descriptions-item label="PID"><code>{{ formatDetailValue(selectedEvent.pid) }}</code></a-descriptions-item>
+        <a-descriptions-item label="Parent PID (PPID)"><code>{{ formatDetailValue(selectedEvent.ppid) }}</code></a-descriptions-item>
+        <a-descriptions-item label="User ID (UID)"><code>{{ formatDetailValue(selectedEvent.uid) }}</code></a-descriptions-item>
+        <a-descriptions-item label="Endpoint"><code style="word-break: break-all;">{{ formatDetailValue(selectedEvent.netEndpoint) }}</code></a-descriptions-item>
         <a-descriptions-item label="Family">
           <a-tag :color="familyColor(selectedEvent.netFamily)">{{ selectedEvent.netFamily || 'unknown' }}</a-tag>
         </a-descriptions-item>
         <a-descriptions-item label="Bytes">{{ formatBytes(selectedEvent.netBytes) }}</a-descriptions-item>
-        <a-descriptions-item label="Summary"><a-typography-text code style="word-break: break-all;">{{ selectedEvent.path }}</a-typography-text></a-descriptions-item>
+        <a-descriptions-item label="Summary"><code style="word-break: break-all;">{{ formatDetailValue(selectedEvent.path) }}</code></a-descriptions-item>
       </a-descriptions>
     </a-modal>
   </div>

@@ -1665,6 +1665,10 @@ func main() {
 			data, _ := proto.Marshal(event)
 			clientsMu.Lock()
 			for c := range clients {
+				if c == nil {
+					delete(clients, c)
+					continue
+				}
 				if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil {
 					c.Close()
 					delete(clients, c)
@@ -1675,10 +1679,29 @@ func main() {
 	}()
 
 	r.GET("/ws", func(c *gin.Context) {
-		conn, _ := upgrader.Upgrade(c.Writer, c.Request, nil)
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			c.Status(http.StatusBadRequest)
+			return
+		}
 		clientsMu.Lock()
 		clients[conn] = true
 		clientsMu.Unlock()
+
+		go func(conn *websocket.Conn) {
+			defer func() {
+				clientsMu.Lock()
+				delete(clients, conn)
+				clientsMu.Unlock()
+				_ = conn.Close()
+			}()
+
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					return
+				}
+			}
+		}(conn)
 	})
 
 	r.GET("/ws/system", func(c *gin.Context) {

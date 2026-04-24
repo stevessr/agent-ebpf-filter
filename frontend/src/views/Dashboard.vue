@@ -42,6 +42,8 @@ const currentPage = ref(1);
 const pageSize = ref(20);
 const router = useRouter();
 let ws: WebSocket | null = null;
+let reconnectTimer: number | null = null;
+let shouldReconnect = true;
 
 const eventTypes = [
   'execve',
@@ -140,8 +142,15 @@ watch([() => filteredEvents.value.length, pageSize], ([total]) => {
 });
 
 const openDetails = (record: AgentEvent) => {
-  selectedEvent.value = record;
+  selectedEvent.value = { ...record };
   showDetails.value = true;
+};
+
+const formatDetailValue = (value: number | string | undefined | null) => {
+  if (value === undefined || value === null || value === '') {
+    return '—';
+  }
+  return String(value);
 };
 
 const canInteractWithPath = (record: AgentEvent) => canPreviewEventPath(record);
@@ -210,6 +219,11 @@ const getCategoryColor = (tag: string) => {
 };
 
 const connectWebSocket = () => {
+  if (!shouldReconnect) return;
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;
   ws = new WebSocket(`${protocol}//${host}/ws`);
@@ -248,7 +262,14 @@ const connectWebSocket = () => {
 
   ws.onclose = () => {
     isConnected.value = false;
-    setTimeout(connectWebSocket, 3000);
+    ws = null;
+    if (!shouldReconnect) return;
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer);
+    }
+    reconnectTimer = window.setTimeout(() => {
+      connectWebSocket();
+    }, 3000);
   };
 };
 
@@ -308,7 +329,13 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  shouldReconnect = false;
+  if (reconnectTimer !== null) {
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   if (ws) ws.close();
+  ws = null;
 });
 </script>
 
@@ -439,9 +466,9 @@ onUnmounted(() => {
           <a-tag :color="getCategoryColor(selectedEvent.tag)">{{ selectedEvent.tag }}</a-tag>
         </a-descriptions-item>
         <a-descriptions-item label="Command"><a-typography-text strong>{{ selectedEvent.comm }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="PID"><a-typography-text code>{{ selectedEvent.pid }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="Parent PID (PPID)"><a-typography-text code>{{ selectedEvent.ppid }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="User ID (UID)"><a-typography-text code>{{ selectedEvent.uid }}</a-typography-text></a-descriptions-item>
+        <a-descriptions-item label="PID"><code>{{ formatDetailValue(selectedEvent.pid) }}</code></a-descriptions-item>
+        <a-descriptions-item label="Parent PID (PPID)"><code>{{ formatDetailValue(selectedEvent.ppid) }}</code></a-descriptions-item>
+        <a-descriptions-item label="User ID (UID)"><code>{{ formatDetailValue(selectedEvent.uid) }}</code></a-descriptions-item>
         <a-descriptions-item v-if="selectedEvent.netDirection" label="Network Direction">
           <a-tag color="blue">{{ selectedEvent.netDirection }}</a-tag>
         </a-descriptions-item>
@@ -456,7 +483,7 @@ onUnmounted(() => {
         </a-descriptions-item>
         <a-descriptions-item label="Resource Path / Info">
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <a-typography-text code style="word-break: break-all;">{{ selectedEvent.path }}</a-typography-text>
+            <code style="word-break: break-all;">{{ formatDetailValue(selectedEvent.path) }}</code>
             <a-button
               v-if="canInteractWithPath(selectedEvent)"
               type="link"
