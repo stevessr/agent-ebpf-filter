@@ -20,6 +20,8 @@ type RuntimeSettings struct {
 	LogPersistenceEnabled bool   `json:"logPersistenceEnabled"`
 	LogFilePath           string `json:"logFilePath"`
 	AccessToken           string `json:"accessToken"`
+	MaxEventCount         int    `json:"maxEventCount"`
+	MaxEventAge           string `json:"maxEventAge"`
 }
 
 type CapturedEventRecord struct {
@@ -65,6 +67,44 @@ func (a *eventArchive) Snapshot(limit int) []CapturedEventRecord {
 	out := make([]CapturedEventRecord, limit)
 	copy(out, a.records[len(a.records)-limit:])
 	return out
+}
+
+func (a *eventArchive) Clear() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.records = nil
+}
+
+func (a *eventArchive) SetMax(n int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if n <= 0 {
+		n = 1000
+	}
+	a.max = n
+	if len(a.records) > a.max {
+		copy(a.records, a.records[len(a.records)-a.max:])
+		a.records = a.records[:a.max]
+	}
+}
+
+func (a *eventArchive) EvictOlderThan(threshold time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	keep := 0
+	for _, r := range a.records {
+		if !r.ReceivedAt.Before(threshold) {
+			a.records[keep] = r
+			keep++
+		}
+	}
+	a.records = a.records[:keep]
+}
+
+func (a *eventArchive) Count() int {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return len(a.records)
 }
 
 type runtimeState struct {
@@ -116,6 +156,12 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 			return err
 		}
 		settings.AccessToken = token
+	}
+	if settings.MaxEventCount <= 0 {
+		settings.MaxEventCount = 1500
+	}
+	if strings.TrimSpace(settings.MaxEventAge) == "" {
+		settings.MaxEventAge = "0"
 	}
 	return nil
 }
@@ -178,6 +224,8 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	settings := RuntimeSettings{
 		LogPersistenceEnabled: false,
 		LogFilePath:           defaultEventLogPath(),
+		MaxEventCount:         1500,
+		MaxEventAge:           "0",
 	}
 
 	if data, err := os.ReadFile(runtimeSettingsPath()); err == nil {
@@ -186,6 +234,8 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 			settings = RuntimeSettings{
 				LogPersistenceEnabled: false,
 				LogFilePath:           defaultEventLogPath(),
+				MaxEventCount:         1500,
+				MaxEventAge:           "0",
 			}
 		}
 	}
@@ -278,6 +328,30 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 		return RuntimeSettings{}, err
 	}
 	return s.settings, nil
+}
+
+func (s *runtimeState) TruncateEventLog() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.closeLogWriterLocked()
+	path := strings.TrimSpace(s.settings.LogFilePath)
+	if path == "" {
+		return nil
+	}
+	if err := os.Truncate(path, 0); err != nil {
+		return err
+	}
+	return s.applyLoggingLocked()
+}
+
+func applyRetentionConfig(settings RuntimeSettings) {
+	if settings.MaxEventCount > 0 {
+		capturedEventArchive.SetMax(settings.MaxEventCount)
+	}
+	if d, err := time.ParseDuration(settings.MaxEventAge); err == nil && d > 0 {
+		capturedEventArchive.EvictOlderThan(time.Now().UTC().Add(-d))
+	}
 }
 
 func (s *runtimeState) RecentEvents(limit int) ([]CapturedEventRecord, string, error) {
