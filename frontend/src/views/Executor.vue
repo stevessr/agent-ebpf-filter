@@ -18,7 +18,12 @@ type LocalShellManagerExpose = {
 };
 
 type CodingPresetKey = 'codex' | 'claude' | 'gemini' | 'custom';
-type ScriptLanguage = 'python' | 'node' | 'ruby' | 'sh' | 'pwsh';
+type ScriptLanguage = 'python' | 'node' | 'ruby' | 'sh' | 'pwsh' | 'deno' | 'bun';
+type ScriptLaunchPlan = {
+  command: string;
+  args: string[];
+  preview: string;
+};
 
 const shellManagerRef = ref<LocalShellManagerExpose | null>(null);
 const tmuxManagerRef = ref<LocalShellManagerExpose | null>(null);
@@ -62,6 +67,8 @@ const scriptLanguageOptions: Array<{ label: string; value: ScriptLanguage }> = [
   { label: 'Ruby', value: 'ruby' },
   { label: 'Shell (sh)', value: 'sh' },
   { label: 'PowerShell (pwsh)', value: 'pwsh' },
+  { label: 'Deno', value: 'deno' },
+  { label: 'Bun', value: 'bun' },
 ];
 
 const splitArgs = (input: string) => {
@@ -163,22 +170,100 @@ const resolvePythonInterpreter = (venvPath: string) => {
   return `${normalized}/bin/python`;
 };
 
-const resolveScriptInterpreter = (language: ScriptLanguage, venvPath: string) => {
+const splitRuntimeAndScriptArgs = (input: string) => {
+  const tokens = splitArgs(input);
+  const separatorIndex = tokens.indexOf('--');
+  if (separatorIndex < 0) {
+    return {
+      runtimeArgs: [] as string[],
+      scriptArgs: tokens,
+    };
+  }
+  return {
+    runtimeArgs: tokens.slice(0, separatorIndex),
+    scriptArgs: tokens.slice(separatorIndex + 1),
+  };
+};
+
+const resolveScriptLaunchPlan = (
+  language: ScriptLanguage,
+  venvPath: string,
+  scriptPath: string,
+  rawArgs: string,
+): ScriptLaunchPlan => {
+  const script = scriptPath.trim();
+  const scriptDisplay = script || '<script>';
+  const tokens = splitArgs(rawArgs);
+
   switch (language) {
     case 'python':
-      return resolvePythonInterpreter(venvPath);
+      return {
+        command: resolvePythonInterpreter(venvPath),
+        args: [scriptDisplay, ...tokens],
+        preview: [resolvePythonInterpreter(venvPath), scriptDisplay, ...tokens].join(' '),
+      };
     case 'node':
-      return 'node';
+      return {
+        command: 'node',
+        args: [scriptDisplay, ...tokens],
+        preview: ['node', scriptDisplay, ...tokens].join(' '),
+      };
     case 'ruby':
-      return 'ruby';
+      return {
+        command: 'ruby',
+        args: [scriptDisplay, ...tokens],
+        preview: ['ruby', scriptDisplay, ...tokens].join(' '),
+      };
     case 'sh':
-      return 'sh';
+      return {
+        command: 'sh',
+        args: [scriptDisplay, ...tokens],
+        preview: ['sh', scriptDisplay, ...tokens].join(' '),
+      };
     case 'pwsh':
-      return 'pwsh';
+      {
+        const { runtimeArgs, scriptArgs } = splitRuntimeAndScriptArgs(rawArgs);
+        return {
+          command: 'pwsh',
+          args: [...runtimeArgs, '-File', scriptDisplay, ...scriptArgs],
+          preview: ['pwsh', ...runtimeArgs, '-File', scriptDisplay, ...scriptArgs].join(' '),
+        };
+      }
+    case 'deno': {
+      const { runtimeArgs, scriptArgs } = splitRuntimeAndScriptArgs(rawArgs);
+      return {
+        command: 'deno',
+        args: ['run', ...runtimeArgs, scriptDisplay, ...scriptArgs],
+        preview: ['deno', 'run', ...runtimeArgs, scriptDisplay, ...scriptArgs].join(' '),
+      };
+    }
+    case 'bun':
+      return {
+        command: 'bun',
+        args: [scriptDisplay, ...tokens],
+        preview: ['bun', scriptDisplay, ...tokens].join(' '),
+      };
     default:
-      return 'python3';
+      return {
+        command: resolvePythonInterpreter(venvPath),
+        args: [scriptDisplay, ...tokens],
+        preview: [resolvePythonInterpreter(venvPath), scriptDisplay, ...tokens].join(' '),
+      };
   }
 };
+
+const scriptArgsPlaceholder = computed(() => {
+  switch (scriptLanguage.value) {
+    case 'deno':
+      return '--allow-read -- --foo bar';
+    case 'pwsh':
+      return '-ExecutionPolicy Bypass -- --foo bar';
+    case 'bun':
+      return '--foo bar';
+    default:
+      return '--debug --foo bar';
+  }
+});
 
 const getPathPickerInitialPath = computed(() => {
   switch (pathPickerTarget.value) {
@@ -396,13 +481,12 @@ const launchCodingCli = async () => {
 };
 
 const scriptCommandPreview = computed(() => {
-  const script = scriptPath.value.trim();
-  const scriptArgsList = splitArgs(scriptArgs.value);
-  const interpreter = resolveScriptInterpreter(scriptLanguage.value, pythonVenv.value);
-  if (!script) {
-    return `${interpreter} <script>`;
-  }
-  return [interpreter, script, ...scriptArgsList].join(' ');
+  return resolveScriptLaunchPlan(
+    scriptLanguage.value,
+    pythonVenv.value,
+    scriptPath.value,
+    scriptArgs.value,
+  ).preview;
 });
 
 const launchScript = async () => {
@@ -413,14 +497,19 @@ const launchScript = async () => {
   }
 
   const workDir = scriptWorkDir.value.trim() || dirname(script);
-  const interpreter = resolveScriptInterpreter(scriptLanguage.value, pythonVenv.value);
+  const launchPlan = resolveScriptLaunchPlan(
+    scriptLanguage.value,
+    pythonVenv.value,
+    script,
+    scriptArgs.value,
+  );
 
   scriptLaunching.value = true;
   try {
     const payload: ShellSessionCreateRequest = {
       shell: scriptLanguage.value,
-      command: interpreter,
-      args: [script, ...splitArgs(scriptArgs.value)],
+      command: launchPlan.command,
+      args: launchPlan.args,
       workDir,
       cols: 100,
       rows: 32,
@@ -619,7 +708,7 @@ const launchScript = async () => {
                 type="info"
                 show-icon
                 style="margin-bottom: 16px;"
-                message="This launcher starts Python, Node.js, Ruby, sh, or pwsh scripts in a dedicated backend shell session."
+                message="This launcher starts Python, Node.js, Ruby, sh, pwsh, Deno, or Bun scripts in a dedicated backend shell session."
                 description="System environment is the default. For Python, you can optionally point at a venv directory and the launcher will use its interpreter."
               />
 
@@ -631,7 +720,7 @@ const launchScript = async () => {
                 <a-form-item label="Script file">
                   <a-input-search
                     v-model:value="scriptPath"
-                    placeholder="/path/to/script.py or app.js"
+                    placeholder="/path/to/script.py, app.js, script.rb, or script.ps1"
                     enter-button="Browse"
                     @search="setPathPickerTarget('script-path')"
                   />
@@ -658,9 +747,17 @@ const launchScript = async () => {
                 <a-form-item label="Script args">
                   <a-input
                     v-model:value="scriptArgs"
-                    placeholder="e.g. --debug --foo bar"
+                    :placeholder="scriptArgsPlaceholder"
                   />
                 </a-form-item>
+
+                <a-alert
+                  v-if="scriptLanguage === 'deno'"
+                  type="info"
+                  show-icon
+                  style="margin-bottom: 16px;"
+                  message="For Deno, put runtime flags before `--`, then script arguments after `--`."
+                />
 
                 <a-alert
                   type="success"
@@ -692,10 +789,10 @@ const launchScript = async () => {
                     <span>System</span>
                   </a-descriptions-item>
                   <a-descriptions-item label="Python interpreter">
-                    <span>{{ resolveScriptInterpreter('python', pythonVenv) }}</span>
+                    <span>{{ resolvePythonInterpreter(pythonVenv) }}</span>
                   </a-descriptions-item>
-                  <a-descriptions-item label="Current interpreter">
-                    <span>{{ resolveScriptInterpreter(scriptLanguage, pythonVenv) }}</span>
+                  <a-descriptions-item label="Current launch">
+                    <span>{{ scriptCommandPreview }}</span>
                   </a-descriptions-item>
                   <a-descriptions-item label="Workdir fallback">
                     <span>{{ scriptWorkDir.trim() || (scriptPath.trim() ? dirname(scriptPath) : 'script parent') }}</span>
