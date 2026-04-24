@@ -133,6 +133,9 @@ const handleTableChange = (pagination: { current?: number; pageSize?: number }) 
   pageSize.value = pagination.pageSize ?? pageSize.value;
 };
 
+const getRowClassName = (_record: AgentEvent, index: number) =>
+  (index % 2 === 0 ? 'excel-row-even' : 'excel-row-odd');
+
 watch([selectedTags, selectedTypes, pidFilter, commandFilter, pathFilter, isDeduplicated], () => {
   currentPage.value = 1;
 });
@@ -343,9 +346,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div style="background: #fff; padding: 24px; min-height: 280px">
-    <div style="background: #fafafa; padding: 12px; border-radius: 8px; border: 1px solid #f0f0f0; display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+  <div class="dashboard-page">
+    <div class="dashboard-toolbar">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; width: 100%;">
         <div style="display: flex; align-items: center; gap: 16px;">
           <a-badge :status="isConnected ? 'success' : 'error'" :text="isConnected ? 'Connected' : 'Disconnected'" />
           <span style="font-weight: 500;">Total Events: {{ events.length }}</span>
@@ -367,7 +370,9 @@ onUnmounted(() => {
           </a-dropdown>
         </div>
       </div>
+    </div>
 
+    <div class="dashboard-filter-bar">
       <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 12px; color: #888;">Filter:</span>
@@ -432,10 +437,12 @@ onUnmounted(() => {
     </div>
 
     <a-table 
+      class="excel-table"
       :dataSource="filteredEvents" 
       :columns="columns" 
       size="small"
       :pagination="tablePagination"
+      :rowClassName="getRowClassName"
       @change="handleTableChange"
     >
       <template #bodyCell="{ column, record }">
@@ -534,3 +541,116 @@ onUnmounted(() => {
     />
   </div>
 </template>
+
+<style scoped>
+.dashboard-page {
+  min-height: 280px;
+  padding: 24px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbf5 100%);
+  font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+  color: #1f2937;
+}
+
+.dashboard-toolbar,
+.dashboard-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border: 1px solid #d9e4d1;
+  border-radius: 6px;
+  padding: 12px 14px;
+  background: #f8fcf6;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.dashboard-toolbar {
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.dashboard-filter-bar {
+  margin-bottom: 12px;
+  background: #fbfdf8;
+}
+
+.excel-table {
+  border: 1px solid #d9e4d1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.excel-table :deep(.ant-table) {
+  font-family: inherit;
+  background: #fff;
+}
+
+.excel-table :deep(.ant-table-container) {
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+
+.excel-table :deep(.ant-table-thead > tr > th) {
+  background: linear-gradient(180deg, #f7fbf4 0%, #edf4e8 100%);
+  color: #1f3a1f;
+  font-weight: 700;
+  border-right: 1px solid #d9e4d1;
+  border-bottom: 1px solid #c7d7bf;
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.excel-table :deep(.ant-table-thead > tr > th:last-child),
+.excel-table :deep(.ant-table-tbody > tr > td:last-child) {
+  border-right: none;
+}
+
+.excel-table :deep(.ant-table-tbody > tr > td) {
+  border-right: 1px solid #e6ece0;
+  border-bottom: 1px solid #e6ece0;
+  padding: 8px 12px;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.excel-table :deep(.ant-table-tbody > tr.excel-row-even > td) {
+  background: #ffffff;
+}
+
+.excel-table :deep(.ant-table-tbody > tr.excel-row-odd > td) {
+  background: #fbfdf8;
+}
+
+.excel-table :deep(.ant-table-tbody > tr:hover > td) {
+  background: #eef6e8 !important;
+}
+
+.excel-table :deep(.ant-table-row) {
+  transition: background-color 0.15s ease;
+}
+
+.excel-table :deep(.ant-tag) {
+  border-radius: 2px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+}
+
+.excel-table :deep(.ant-input),
+.excel-table :deep(.ant-select-selector),
+.excel-table :deep(.ant-btn),
+.excel-table :deep(.ant-checkbox-inner) {
+  border-radius: 2px !important;
+}
+
+.excel-table :deep(.ant-table-pagination) {
+  margin: 12px 0 0;
+}
+
+.excel-table :deep(.ant-pagination-item),
+.excel-table :deep(.ant-pagination-prev),
+.excel-table :deep(.ant-pagination-next),
+.excel-table :deep(.ant-select-selector) {
+  box-shadow: none;
+}
+</style>
