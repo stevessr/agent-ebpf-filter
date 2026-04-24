@@ -11,6 +11,7 @@ const RECENT_COMMANDS_STORAGE_KEY = 'recent_cmds';
 
 const props = withDefaults(defineProps<{
   active?: boolean;
+  defaultEnv?: Record<string, string>;
 }>(), {
   active: false,
 });
@@ -135,6 +136,9 @@ const launchCommand = async () => {
       rows: 32,
       label: `wrapper: ${executable}`,
       kind: 'wrapper',
+      env: props.defaultEnv && Object.keys(props.defaultEnv).length > 0
+        ? { ...props.defaultEnv }
+        : undefined,
     };
 
     const res = await axios.post('/shell-sessions', payload);

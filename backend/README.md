@@ -82,7 +82,7 @@ Current behavior:
 - one backend session may have **one active WebSocket attachment at a time**,
 - the backend keeps a bounded output backlog so reconnecting clients can receive recent output.
 
-`POST /shell-sessions` accepts either a normal shell launch, a wrapper-backed temporary terminal, or a custom command + args payload, which is what the Executor page uses for the Remote tab, tmux-backed coding CLIs, and script runners.
+`POST /shell-sessions` accepts either a normal shell launch, a wrapper-backed temporary terminal, or a custom command + args payload, which is what the Executor page uses for the Remote tab, tmux-backed coding CLIs, script runners, and shared launch environment overrides.
 `POST /shell-sessions/:id/input` can inject raw bytes into an existing PTY session, which the tmux quick manager uses to send `Ctrl-b` shortcuts.
 
 ## HTTP endpoints

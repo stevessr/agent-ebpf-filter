@@ -20,6 +20,7 @@ const props = withDefaults(defineProps<{
   sessionKindFilter?: 'all' | 'tmux' | 'non-tmux';
   showCreatePanel?: boolean;
   showTmuxQuickActions?: boolean;
+  defaultEnv?: Record<string, string>;
 }>(), {
   managerTitle: 'Terminal Session Manager',
   sessionKindFilter: 'all',
@@ -307,11 +308,15 @@ const createSession = async () => {
 
   creating.value = true;
   try {
+    const env = props.defaultEnv && Object.keys(props.defaultEnv).length > 0
+      ? { ...props.defaultEnv }
+      : undefined;
     const payload: ShellSessionCreateRequest = {
       shell: defaultShellRequest.value || 'auto',
       cols: 100,
       rows: 32,
       kind: 'shell',
+      env,
     };
     const res = await axios.post('/shell-sessions', payload);
     const session = res.data as ShellSessionInfo;

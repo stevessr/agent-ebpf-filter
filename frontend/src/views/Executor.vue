@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import axios from 'axios';
-import { PlayCircleOutlined } from '@ant-design/icons-vue';
+import { DeleteOutlined, PlayCircleOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
 import RemoteWrapperTerminal from '../components/RemoteWrapperTerminal.vue';
@@ -9,7 +9,7 @@ import LocalShellTerminal from '../components/LocalShellTerminal.vue';
 import PathNavigatorDrawer from '../components/PathNavigatorDrawer.vue';
 import type { ShellSessionCreateRequest, ShellSessionInfo } from '../types/shell';
 
-type ExecutorTabKey = 'shell' | 'remote' | 'tmux' | 'scripts';
+type ExecutorTabKey = 'shell' | 'remote' | 'tmux' | 'scripts' | 'launch-env';
 type PathPickerTarget = 'coding-workdir' | 'script-path' | 'script-workdir' | 'python-venv';
 
 type LocalShellManagerExpose = {
@@ -25,6 +25,14 @@ type ScriptLaunchPlan = {
   args: string[];
   preview: string;
 };
+type LaunchEnvEntry = {
+  id: string;
+  key: string;
+  value: string;
+  enabled: boolean;
+};
+
+const LAUNCH_ENV_STORAGE_KEY = 'executor_launch_env';
 
 const shellManagerRef = ref<LocalShellManagerExpose | null>(null);
 const tmuxManagerRef = ref<LocalShellManagerExpose | null>(null);
@@ -47,6 +55,9 @@ const scriptLaunching = ref(false);
 
 const pathPickerOpen = ref(false);
 const pathPickerTarget = ref<PathPickerTarget>('coding-workdir');
+const launchEnvEntries = ref<LaunchEnvEntry[]>(loadLaunchEnvEntries());
+const newLaunchEnvKey = ref('');
+const newLaunchEnvValue = ref('');
 
 const codingPresetOptions: Array<{ label: string; value: CodingPresetKey; command: string }> = [
   { label: 'Codex', value: 'codex', command: 'codex' },
@@ -64,6 +75,39 @@ const scriptLanguageOptions: Array<{ label: string; value: ScriptLanguage }> = [
   { label: 'Deno', value: 'deno' },
   { label: 'Bun', value: 'bun' },
 ];
+
+function loadLaunchEnvEntries(): LaunchEnvEntry[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LAUNCH_ENV_STORAGE_KEY) || '[]') as unknown;
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+
+    return raw
+      .map((item, index) => {
+        if (!item || typeof item !== 'object') {
+          return null;
+        }
+        const candidate = item as Partial<LaunchEnvEntry>;
+        const key = typeof candidate.key === 'string' ? candidate.key.trim() : '';
+        const value = typeof candidate.value === 'string' ? candidate.value : '';
+        const enabled = typeof candidate.enabled === 'boolean' ? candidate.enabled : true;
+        return {
+          id: typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id : `launch-env-${index}`,
+          key,
+          value,
+          enabled,
+        } satisfies LaunchEnvEntry;
+      })
+      .filter((item): item is LaunchEnvEntry => Boolean(item));
+  } catch {
+    return [];
+  }
+}
+
+function persistLaunchEnvEntries() {
+  localStorage.setItem(LAUNCH_ENV_STORAGE_KEY, JSON.stringify(launchEnvEntries.value));
+}
 
 const splitArgs = (input: string) => {
   const output: string[] = [];
@@ -330,6 +374,80 @@ const applyPickedPath = (path: string) => {
   }
 };
 
+const isValidLaunchEnvKey = (key: string) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key);
+
+const launchEnvEntriesCount = computed(() => {
+  return launchEnvEntries.value.filter(
+    (entry) => entry.enabled && isValidLaunchEnvKey(entry.key.trim()),
+  ).length;
+});
+
+const launchEnvRecord = computed<Record<string, string>>(() => {
+  const env: Record<string, string> = {};
+  for (const entry of launchEnvEntries.value) {
+    const key = entry.key.trim();
+    if (!entry.enabled || !key || !isValidLaunchEnvKey(key)) continue;
+    env[key] = entry.value;
+  }
+  return env;
+});
+
+const launchEnvPreview = computed(() => {
+  const entries = Object.entries(launchEnvRecord.value);
+  if (!entries.length) {
+    return 'No launch environment overrides configured';
+  }
+  return entries.map(([key, value]) => `${key}=${value || '""'}`).join('  ');
+});
+
+const launchEnvScope = computed(() => {
+  const count = launchEnvEntriesCount.value;
+  if (!count) return 'Applies to all Executor launches';
+  return `${count} active variable${count === 1 ? '' : 's'} applied to Remote, Shell, Tmux, and Script launches`;
+});
+
+const launchEnvColumns = [
+  { title: 'Enabled', key: 'enabled', dataIndex: 'enabled' },
+  { title: 'Key', key: 'key', dataIndex: 'key' },
+  { title: 'Value', key: 'value', dataIndex: 'value' },
+  { title: 'Action', key: 'action', dataIndex: 'action' },
+];
+
+watch(launchEnvEntries, persistLaunchEnvEntries, { deep: true, immediate: true });
+
+const addLaunchEnvEntry = () => {
+  const key = newLaunchEnvKey.value.trim();
+  const value = newLaunchEnvValue.value;
+  if (!key) {
+    message.error('Please enter an environment variable name');
+    return;
+  }
+  if (!isValidLaunchEnvKey(key)) {
+    message.error('Environment variable names should look like FOO or FOO_BAR');
+    return;
+  }
+
+  launchEnvEntries.value = [
+    {
+      id: `launch-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      key,
+      value,
+      enabled: true,
+    },
+    ...launchEnvEntries.value,
+  ];
+  newLaunchEnvKey.value = '';
+  newLaunchEnvValue.value = '';
+};
+
+const removeLaunchEnvEntry = (id: string) => {
+  launchEnvEntries.value = launchEnvEntries.value.filter((entry) => entry.id !== id);
+};
+
+const clearDisabledLaunchEnvEntries = () => {
+  launchEnvEntries.value = launchEnvEntries.value.filter((entry) => entry.enabled);
+};
+
 const isTmuxSession = (session: ShellSessionInfo) => {
   const kind = (session.kind || '').trim().toLowerCase();
   if (kind === 'tmux') return true;
@@ -421,6 +539,7 @@ const launchCodingCli = async () => {
           rows: 32,
           label: `tmux: ${cliCommand}`,
           kind: 'tmux',
+          env: launchEnvRecord.value,
         }
       : {
           shell: cliCommand,
@@ -431,6 +550,7 @@ const launchCodingCli = async () => {
           rows: 32,
           label: `cli: ${cliCommand}`,
           kind: 'shell',
+          env: launchEnvRecord.value,
         };
 
     await createShellSession(payload, `Launched coding CLI: ${cliCommand}`, codingUseTmux.value ? 'tmux' : 'shell');
@@ -476,6 +596,7 @@ const launchScript = async () => {
       rows: 32,
       label: `${scriptLanguage.value}: ${basename(script)}`,
       kind: 'script',
+      env: launchEnvRecord.value,
     };
     await createShellSession(payload, `Launched ${scriptLanguage.value} script: ${basename(script)}`, 'shell');
   } catch (err: any) {
@@ -496,13 +617,20 @@ const launchScript = async () => {
               <a-tag color="blue">multi-session PTY</a-tag>
             </template>
 
-            <LocalShellTerminal ref="shellManagerRef" session-kind-filter="non-tmux" />
+            <LocalShellTerminal
+              ref="shellManagerRef"
+              session-kind-filter="non-tmux"
+              :default-env="launchEnvRecord"
+            />
           </a-card>
         </a-space>
       </a-tab-pane>
 
       <a-tab-pane key="remote" tab="Remote Executor">
-        <RemoteWrapperTerminal :active="activeTabKey === 'remote'" />
+        <RemoteWrapperTerminal
+          :active="activeTabKey === 'remote'"
+          :default-env="launchEnvRecord"
+        />
       </a-tab-pane>
 
       <a-tab-pane key="tmux" tab="Tmux">
@@ -596,6 +724,7 @@ const launchScript = async () => {
                 session-kind-filter="tmux"
                 :show-create-panel="false"
                 :show-tmux-quick-actions="true"
+                :default-env="launchEnvRecord"
               />
             </a-card>
           </a-col>
@@ -709,6 +838,126 @@ const launchScript = async () => {
                   type="info"
                   show-icon
                   message="The launched script session will show up in the Shell Manager tab for detach/reattach."
+                />
+              </a-space>
+            </a-card>
+          </a-col>
+        </a-row>
+      </a-tab-pane>
+
+      <a-tab-pane key="launch-env" tab="Launch Env">
+        <a-row :gutter="[16, 16]">
+          <a-col :xs="24" :xl="11">
+            <a-card title="Launch environment variables" :bordered="false">
+              <template #extra>
+                <a-space :size="8">
+                  <a-tag color="green">{{ launchEnvEntriesCount }} active</a-tag>
+                  <a-button size="small" @click="clearDisabledLaunchEnvEntries">
+                    Clear disabled
+                  </a-button>
+                </a-space>
+              </template>
+
+              <a-alert
+                type="info"
+                show-icon
+                style="margin-bottom: 16px;"
+                message="These key/value pairs are injected into every launch action from Executor."
+                description="Remote Executor, Shell Manager, tmux coding launches, and script runners all receive the enabled variables."
+              />
+
+              <a-form layout="vertical">
+                <a-row :gutter="12">
+                  <a-col :xs="24" :md="8">
+                    <a-form-item label="Key">
+                      <a-input
+                        v-model:value="newLaunchEnvKey"
+                        placeholder="FOO_BAR"
+                        @pressEnter="addLaunchEnvEntry"
+                      />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :xs="24" :md="12">
+                    <a-form-item label="Value">
+                      <a-input
+                        v-model:value="newLaunchEnvValue"
+                        placeholder="value"
+                        @pressEnter="addLaunchEnvEntry"
+                      />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :xs="24" :md="4" style="display: flex; align-items: flex-end;">
+                    <a-button type="primary" block @click="addLaunchEnvEntry">
+                      <template #icon>
+                        <PlusOutlined />
+                      </template>
+                      Add
+                    </a-button>
+                  </a-col>
+                </a-row>
+              </a-form>
+
+              <a-table
+                :data-source="launchEnvEntries"
+                :columns="launchEnvColumns"
+                :pagination="false"
+                size="small"
+                row-key="id"
+              >
+                <template #bodyCell="{ column, record }">
+                  <template v-if="column.key === 'enabled'">
+                    <a-switch v-model:checked="record.enabled" />
+                  </template>
+                  <template v-else-if="column.key === 'key'">
+                    <a-input v-model:value="record.key" placeholder="ENV_NAME" allow-clear />
+                  </template>
+                  <template v-else-if="column.key === 'value'">
+                    <a-input v-model:value="record.value" placeholder="value" allow-clear />
+                  </template>
+                  <template v-else-if="column.key === 'action'">
+                    <a-button size="small" danger @click="removeLaunchEnvEntry(record.id)">
+                      <template #icon>
+                        <DeleteOutlined />
+                      </template>
+                      Delete
+                    </a-button>
+                  </template>
+                </template>
+              </a-table>
+            </a-card>
+          </a-col>
+
+          <a-col :xs="24" :xl="13">
+            <a-card title="Launch env preview" :bordered="false">
+              <template #extra>
+                <a-space :size="8">
+                  <SettingOutlined />
+                  <span>Local browser persistence</span>
+                </a-space>
+              </template>
+
+              <a-space direction="vertical" :size="12" style="width: 100%;">
+                <a-descriptions bordered size="small" :column="1">
+                  <a-descriptions-item label="Active variables">
+                    <span>{{ launchEnvEntriesCount }}</span>
+                  </a-descriptions-item>
+                  <a-descriptions-item label="Scope">
+                    <span>{{ launchEnvScope }}</span>
+                  </a-descriptions-item>
+                  <a-descriptions-item label="Preview">
+                    <span>{{ launchEnvPreview }}</span>
+                  </a-descriptions-item>
+                </a-descriptions>
+
+                <a-alert
+                  type="warning"
+                  show-icon
+                  message="Environment variable names should use the usual shell style: FOO or FOO_BAR."
+                />
+                <a-alert
+                  type="info"
+                  show-icon
+                  message="Because this is stored in your browser, each workstation/browser can keep its own launch env profile."
                 />
               </a-space>
             </a-card>
