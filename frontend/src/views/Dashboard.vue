@@ -40,6 +40,7 @@ const pidFilter = ref('');
 const commandFilter = ref('');
 const pathFilter = ref('');
 const isDeduplicated = ref(false);
+const activeHeaderFilter = ref<string | null>(null);
 const tags = ref<string[]>([]);
 const currentPage = ref(1);
 const pageSize = ref(20);
@@ -142,6 +143,27 @@ const getRowClassName = (_record: AgentEvent, index: number) =>
   (index % 2 === 0 ? 'excel-row-even' : 'excel-row-odd');
 
 const hasHeaderFilter = (key: string) => ['time', 'tag', 'pid', 'comm', 'type', 'path'].includes(key);
+
+const getFilterPopupContainer = (triggerNode: HTMLElement) =>
+  (triggerNode.closest('.excel-filter-popover') as HTMLElement | null) ?? document.body;
+
+const toggleHeaderFilter = (key: string) => {
+  activeHeaderFilter.value = activeHeaderFilter.value === key ? null : key;
+};
+
+const closeHeaderFilter = () => {
+  activeHeaderFilter.value = null;
+};
+
+const handleDocumentClick = (event: MouseEvent) => {
+  if (!activeHeaderFilter.value) return;
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (target.closest('.excel-filter-popover') || target.closest('.excel-header-filter-trigger')) {
+    return;
+  }
+  closeHeaderFilter();
+};
 
 const isHeaderFilterActive = (key: string) => {
   switch (key) {
@@ -381,10 +403,12 @@ const exportEventsCSV = () => {
 onMounted(() => {
   connectWebSocket();
   fetchTags();
+  document.addEventListener('click', handleDocumentClick);
 });
 
 onUnmounted(() => {
   shouldReconnect = false;
+  document.removeEventListener('click', handleDocumentClick);
   if (reconnectTimer !== null) {
     window.clearTimeout(reconnectTimer);
     reconnectTimer = null;
@@ -436,9 +460,16 @@ onUnmounted(() => {
       <template #headerCell="{ column }">
         <div class="excel-header-cell">
           <span class="excel-header-title">{{ column.title }}</span>
-          <a-dropdown v-if="hasHeaderFilter(column.key)" trigger="click" placement="bottomRight" :arrow="false">
-            <template #overlay>
-              <div class="excel-filter-dropdown" @click.stop>
+          <a-popover
+            v-if="hasHeaderFilter(column.key)"
+            trigger="click"
+            placement="bottomRight"
+            :arrow="false"
+            :open="activeHeaderFilter === column.key"
+            overlay-class-name="excel-filter-popover"
+          >
+            <template #content>
+              <div class="excel-filter-dropdown" @mousedown.stop @click.stop>
                 <div class="excel-filter-dropdown-title">
                   {{ column.title }} Filter
                 </div>
@@ -461,6 +492,7 @@ onUnmounted(() => {
                     max-tag-count="responsive"
                     :options="tagOptions"
                     option-filter-prop="label"
+                    :get-popup-container="getFilterPopupContainer"
                     style="width: 100%;"
                   />
                 </template>
@@ -491,6 +523,7 @@ onUnmounted(() => {
                     max-tag-count="responsive"
                     :options="eventTypeOptions"
                     option-filter-prop="label"
+                    :get-popup-container="getFilterPopupContainer"
                     style="width: 100%;"
                   />
                 </template>
@@ -515,10 +548,11 @@ onUnmounted(() => {
               size="small"
               class="excel-header-filter-trigger"
               :class="{ active: isHeaderFilterActive(column.key) }"
+              @click.stop="toggleHeaderFilter(column.key)"
             >
               <template #icon><FilterOutlined /></template>
             </a-button>
-          </a-dropdown>
+          </a-popover>
         </div>
       </template>
       <template #bodyCell="{ column, record }">
