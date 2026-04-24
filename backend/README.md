@@ -105,8 +105,15 @@ Config routes:
 - `/config/rules`
 - `/config/export`
 - `/config/import`
+- `/config/runtime`
+- `/config/access-token`
 - `/config/hooks`
 - `/config/hooks/:id/raw`
+
+`authMiddleware()` accepts either `X-API-KEY` or `Authorization: Bearer <token>`.
+The token is generated and stored by the runtime settings file at:
+
+- `~/.config/agent-ebpf-filter/runtime.json`
 
 Export / import currently covers:
 
@@ -114,11 +121,22 @@ Export / import currently covers:
 - tracked commands
 - tracked paths
 - wrapper rules
+- runtime settings
 
 System routes:
 
 - `/system/ls`
 - `/system/run`
+
+MCP:
+
+- `/mcp`
+
+The MCP server exposes event-tail and configuration-snapshot tools over SSE and uses the same runtime access token as the HTTP config routes.
+
+Persistent event logs, when enabled from the Configuration page, are appended as JSONL at:
+
+- `~/.config/agent-ebpf-filter/events.jsonl`
 
 ## Wrapper integration
 

@@ -11,9 +11,17 @@ import {
   SafetyCertificateOutlined,
   SwapOutlined,
   StopOutlined,
-  AlertOutlined
+  AlertOutlined,
+  CopyOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
+
+interface RuntimeSettings {
+  logPersistenceEnabled: boolean;
+  logFilePath: string;
+  accessToken: string;
+}
 
 interface TrackedItem {
   comm?: string;
@@ -27,10 +35,31 @@ interface WrapperRule {
   rewritten_cmd: string[];
 }
 
+interface RuntimeConfigResponse {
+  runtime: RuntimeSettings;
+  mcpEndpoint: string;
+  authHeaderName: string;
+  bearerAuthHeaderName: string;
+  persistedEventLogPath: string;
+  persistedEventLogAlive: boolean;
+}
+
+const API_TOKEN_STORAGE_KEY = 'agent-ebpf.apiToken';
+
 const tags = ref<string[]>([]);
 const trackedItems = ref<TrackedItem[]>([]);
 const trackedPaths = ref<TrackedItem[]>([]);
 const wrapperRules = ref<Record<string, WrapperRule>>({});
+const runtimeSettings = ref<RuntimeSettings>({
+  logPersistenceEnabled: false,
+  logFilePath: '',
+  accessToken: '',
+});
+const mcpEndpoint = ref('');
+const authHeaderName = ref('X-API-KEY');
+const bearerAuthHeaderName = ref('Authorization: Bearer');
+const persistedEventLogPath = ref('');
+const persistedEventLogAlive = ref(false);
 
 const newTagName = ref('');
 const newCommName = ref('');
@@ -42,6 +71,80 @@ const newPathTag = ref('');
 const newRuleComm = ref('');
 const newRuleAction = ref('BLOCK');
 const newRuleRewritten = ref('');
+
+const syncApiToken = (token: string) => {
+  const normalized = token.trim();
+  if (typeof window === 'undefined') return;
+  if (!normalized) {
+    window.localStorage.removeItem(API_TOKEN_STORAGE_KEY);
+    delete axios.defaults.headers.common['X-API-KEY'];
+    delete axios.defaults.headers.common.Authorization;
+    return;
+  }
+  window.localStorage.setItem(API_TOKEN_STORAGE_KEY, normalized);
+  axios.defaults.headers.common['X-API-KEY'] = normalized;
+  axios.defaults.headers.common.Authorization = `Bearer ${normalized}`;
+};
+
+const applyRuntimeResponse = (data: RuntimeConfigResponse) => {
+  runtimeSettings.value = {
+    logPersistenceEnabled: data.runtime.logPersistenceEnabled,
+    logFilePath: data.runtime.logFilePath,
+    accessToken: data.runtime.accessToken,
+  };
+  mcpEndpoint.value = data.mcpEndpoint;
+  authHeaderName.value = data.authHeaderName;
+  bearerAuthHeaderName.value = data.bearerAuthHeaderName;
+  persistedEventLogPath.value = data.persistedEventLogPath;
+  persistedEventLogAlive.value = data.persistedEventLogAlive;
+  syncApiToken(data.runtime.accessToken);
+};
+
+const fetchRuntime = async () => {
+  try {
+    const res = await axios.get('/config/runtime');
+    applyRuntimeResponse(res.data as RuntimeConfigResponse);
+  } catch (err) {
+    console.error('Failed to fetch runtime config', err);
+  }
+};
+
+const saveRuntime = async () => {
+  try {
+    const res = await axios.put('/config/runtime', {
+      logPersistenceEnabled: runtimeSettings.value.logPersistenceEnabled,
+      logFilePath: runtimeSettings.value.logFilePath,
+    });
+    applyRuntimeResponse(res.data as RuntimeConfigResponse);
+    message.success('Runtime settings saved');
+  } catch (err) {
+    message.error('Failed to save runtime settings');
+  }
+};
+
+const rotateAccessToken = async () => {
+  try {
+    const res = await axios.post('/config/access-token');
+    applyRuntimeResponse(res.data as RuntimeConfigResponse);
+    message.success('Access token regenerated');
+  } catch (err) {
+    message.error('Failed to regenerate access token');
+  }
+};
+
+const copyText = async (text: string, successMessage: string) => {
+  const value = text.trim();
+  if (!value) {
+    message.warning('Nothing to copy');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    message.success(successMessage);
+  } catch (err) {
+    message.error('Failed to copy to clipboard');
+  }
+};
 
 const fetchTags = async () => {
   try {
@@ -185,7 +288,7 @@ const importConfig = async (event: Event) => {
       const config = JSON.parse(e.target?.result as string);
       await axios.post('/config/import', config);
       message.success('Imported');
-      fetchTags(); fetchTrackedComms(); fetchTrackedPaths(); fetchRules();
+      fetchTags(); fetchTrackedComms(); fetchTrackedPaths(); fetchRules(); fetchRuntime();
     } catch (err) {}
   };
   reader.readAsText(file);
@@ -218,7 +321,8 @@ const getCategoryColor = (tag: string) => {
   return colors[tag] || 'default';
 };
 
-onMounted(() => {
+onMounted(async () => {
+  await fetchRuntime();
   fetchTags(); fetchTrackedComms(); fetchTrackedPaths(); fetchRules();
 });
 </script>
@@ -226,6 +330,72 @@ onMounted(() => {
 <template>
   <div style="padding: 24px; background: #f0f2f5; min-height: 100%;">
     <a-row :gutter="[24, 24]">
+      <a-col :span="24">
+        <a-card title="Runtime & MCP Access" size="small">
+          <template #extra>
+            <SafetyCertificateOutlined />
+          </template>
+          <a-row :gutter="[24, 16]">
+            <a-col :xs="24" :md="12">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <a-switch v-model:checked="runtimeSettings.logPersistenceEnabled" />
+                  <span>Persist captured logs to file</span>
+                </div>
+                <a-input
+                  v-model:value="runtimeSettings.logFilePath"
+                  placeholder="Log file path (defaults to ~/.config/agent-ebpf-filter/events.jsonl)"
+                />
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                  <a-button type="primary" @click="saveRuntime">
+                    <ReloadOutlined /> Save Runtime
+                  </a-button>
+                  <a-tag :color="persistedEventLogAlive ? 'green' : 'red'">
+                    {{ persistedEventLogAlive ? 'Log file ready' : 'Log file inactive' }}
+                  </a-tag>
+                  <a-tag color="blue">{{ persistedEventLogPath || 'No log path' }}</a-tag>
+                </div>
+                <a-typography-text type="secondary">
+                  When enabled, new events are appended as JSONL and can be exported or tailed through MCP.
+                </a-typography-text>
+              </div>
+            </a-col>
+            <a-col :xs="24" :md="12">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div>
+                  <div style="margin-bottom: 6px; font-weight: 600;">Access Token</div>
+                  <a-input
+                    :value="runtimeSettings.accessToken"
+                    readonly
+                    placeholder="Generate a token to access /config and /mcp"
+                  />
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+                    <a-button @click="rotateAccessToken">
+                      <ReloadOutlined /> Generate / Rotate
+                    </a-button>
+                    <a-button @click="copyText(runtimeSettings.accessToken, 'Access token copied')">
+                      <CopyOutlined /> Copy Token
+                    </a-button>
+                  </div>
+                </div>
+                <div>
+                  <div style="margin-bottom: 6px; font-weight: 600;">MCP Endpoint</div>
+                  <a-input :value="mcpEndpoint" readonly />
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+                    <a-button @click="copyText(mcpEndpoint, 'MCP endpoint copied')">
+                      <CopyOutlined /> Copy Endpoint
+                    </a-button>
+                  </div>
+                  <a-typography-text type="secondary">
+                    Use <code>{{ authHeaderName }}</code> or <code>{{ bearerAuthHeaderName }}</code> with the same token.
+                  </a-typography-text>
+                </div>
+              </div>
+            </a-col>
+          </a-row>
+        </a-card>
+      </a-col>
+
       <!-- Tag Management -->
       <a-col :span="24">
         <a-card title="Global Registry" size="small">

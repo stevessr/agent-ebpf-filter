@@ -27,8 +27,8 @@ type MCPConfigSnapshotOutput struct {
 	TrackedCommands        map[string]string      `json:"trackedCommands"`
 	TrackedPaths           map[string]string      `json:"trackedPaths"`
 	WrapperRules           map[string]WrapperRule `json:"wrapperRules"`
-	PersistedEventLogPath   string                 `json:"persistedEventLogPath"`
-	PersistedEventLogAlive  bool                   `json:"persistedEventLogAlive"`
+	PersistedEventLogPath  string                 `json:"persistedEventLogPath"`
+	PersistedEventLogAlive bool                   `json:"persistedEventLogAlive"`
 }
 
 type MCPEventRecord struct {
@@ -37,9 +37,9 @@ type MCPEventRecord struct {
 }
 
 type MCPTailEventsOutput struct {
-	Source string            `json:"source"`
-	Limit  int               `json:"limit"`
-	Events []MCPEventRecord  `json:"events"`
+	Source string           `json:"source"`
+	Limit  int              `json:"limit"`
+	Events []MCPEventRecord `json:"events"`
 }
 
 var (
@@ -165,14 +165,14 @@ func buildMCPServer() *mcp.Server {
 				}
 			}
 			return nil, MCPConfigSnapshotOutput{
-				Runtime:               settings,
-				MCPEndpoint:           fmt.Sprintf("http://127.0.0.1:%d/mcp", resolveBackendPort()),
-				AuthHeaderName:        "X-API-KEY",
-				Tags:                  buildTagsSnapshot(),
-				TrackedCommands:       buildTrackedCommandsSnapshot(),
-				TrackedPaths:          buildTrackedPathsSnapshot(),
-				WrapperRules:          buildWrapperRulesSnapshot(),
-				PersistedEventLogPath: logPath,
+				Runtime:                settings,
+				MCPEndpoint:            fmt.Sprintf("http://127.0.0.1:%d/mcp", resolveBackendPort()),
+				AuthHeaderName:         "X-API-KEY",
+				Tags:                   buildTagsSnapshot(),
+				TrackedCommands:        buildTrackedCommandsSnapshot(),
+				TrackedPaths:           buildTrackedPathsSnapshot(),
+				WrapperRules:           buildWrapperRulesSnapshot(),
+				PersistedEventLogPath:  logPath,
 				PersistedEventLogAlive: logAlive,
 			}, nil
 		})

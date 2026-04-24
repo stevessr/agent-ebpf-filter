@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -69,9 +68,9 @@ func (a *eventArchive) Snapshot(limit int) []CapturedEventRecord {
 }
 
 type runtimeState struct {
-	mu       sync.RWMutex
-	settings RuntimeSettings
-	logFile  *os.File
+	mu        sync.RWMutex
+	settings  RuntimeSettings
+	logFile   *os.File
 	logWriter *bufio.Writer
 }
 
@@ -282,6 +281,9 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 }
 
 func (s *runtimeState) RecentEvents(limit int) ([]CapturedEventRecord, string, error) {
+	if limit <= 0 {
+		limit = 50
+	}
 	s.mu.RLock()
 	settings := s.settings
 	s.mu.RUnlock()

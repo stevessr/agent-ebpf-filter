@@ -43,13 +43,15 @@ Events are written to a ring buffer and consumed by the Go backend.
 
 ### UI surfaces
 
-- **Dashboard**: live event stream with tag / type / PID / command / path filters
+- **Dashboard**: live event stream with tag / type / PID / command / path filters, log-flow ordering, and an optional no-pagination mode
 - **Monitor**: process / CPU / memory / GPU / IO / page-fault telemetry
 - **Network**: syscall-derived network flow table with direction / endpoint filters
 - **Explorer**: browse the host filesystem and add tracked paths
 - **Executor**: run commands via `agent-wrapper` and manage interactive PTY sessions
 - **Hooks**: install or edit native hook configs / wrapper aliases
-- **Configuration**: manage tags, tracked commands, tracked paths, and wrapper rules
+- **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, runtime log persistence, and the backend access token
+
+The backend can optionally persist captured events as JSONL under `~/.config/agent-ebpf-filter/events.jsonl`, and exposes an authenticated MCP SSE endpoint at `/mcp` using the runtime access token generated from the Configuration page.
 
 ---
 

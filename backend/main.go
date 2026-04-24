@@ -82,10 +82,10 @@ type trackerMapSet struct {
 }
 
 type ExportConfig struct {
-	Tags   []string               `json:"tags"`
-	Comms  map[string]string      `json:"comms"`
-	Paths  map[string]string      `json:"paths"`
-	Rules  map[string]WrapperRule `json:"rules"`
+	Tags    []string               `json:"tags"`
+	Comms   map[string]string      `json:"comms"`
+	Paths   map[string]string      `json:"paths"`
+	Rules   map[string]WrapperRule `json:"rules"`
 	Runtime *RuntimeSettings       `json:"runtime,omitempty"`
 }
 

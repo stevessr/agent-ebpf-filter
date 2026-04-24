@@ -29,6 +29,8 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 - connects to `GET /ws`
 - decodes `pb.Event`
 - filters by tag / type / PID / command / path
+- can switch between newest-first and log-flow ordering
+- can disable pagination and show the full event stream
 - exports JSON / CSV
 
 ### Network
@@ -74,6 +76,8 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 - manages tracked command names
 - manages tracked paths
 - manages wrapper rules
+- manages runtime log persistence
+- generates / rotates the backend access token for `/config` and `/mcp`
 - imports / exports tag + command + path + wrapper-rule config
 
 ## Development
@@ -104,6 +108,7 @@ bun run build
 - `/register`
 - `/unregister`
 - `/shell-sessions`
+- `/mcp`
 - `^/config/.*`
 - `/system`
 
