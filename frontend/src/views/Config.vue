@@ -399,21 +399,22 @@ onMounted(async () => {
                       <CopyOutlined /> Copy Base URL
                     </a-button>
                   </div>
-                  <div style="margin-top: 4px; font-size: 12px; color: #8c8c8c; line-height: 1.6;">
-                    Query auth is supported too:
-                  </div>
-                  <a-input :value="mcpQueryEndpointTemplate" readonly />
+                  <div style="margin-top: 4px; font-weight: 600;">MCP Query URL</div>
+                  <a-input :value="mcpQueryEndpoint" readonly />
                   <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <a-button @click="copyText(mcpQueryEndpointTemplate, 'MCP query template copied')">
-                      <CopyOutlined /> Copy Query Template
-                    </a-button>
                     <a-button @click="copyText(mcpQueryEndpoint, 'MCP query URL copied')">
                       <CopyOutlined /> Copy Query URL
                     </a-button>
+                    <a-button @click="copyText(mcpQueryEndpointTemplate, 'MCP query template copied')">
+                      <CopyOutlined /> Copy Template
+                    </a-button>
                   </div>
-                  <div style="font-size: 12px; color: #8c8c8c; line-height: 1.6;">
-                    Query URL fills the current token automatically when copied.
-                  </div>
+                  <a-alert
+                    type="success"
+                    show-icon
+                    :message="'Query URL is generated live from the current token and updates when you rotate it.'"
+                    style="margin-top: 4px;"
+                  />
                   <a-alert
                     type="info"
                     show-icon
