@@ -897,6 +897,10 @@ export const pb = $root.pb = (() => {
          * @property {string|null} [tag] Event tag
          * @property {string|null} [comm] Event comm
          * @property {string|null} [path] Event path
+         * @property {string|null} [netDirection] Event netDirection
+         * @property {string|null} [netEndpoint] Event netEndpoint
+         * @property {number|null} [netBytes] Event netBytes
+         * @property {string|null} [netFamily] Event netFamily
          */
 
         /**
@@ -971,6 +975,38 @@ export const pb = $root.pb = (() => {
         Event.prototype.path = "";
 
         /**
+         * Event netDirection.
+         * @member {string} netDirection
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.netDirection = "";
+
+        /**
+         * Event netEndpoint.
+         * @member {string} netEndpoint
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.netEndpoint = "";
+
+        /**
+         * Event netBytes.
+         * @member {number} netBytes
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.netBytes = 0;
+
+        /**
+         * Event netFamily.
+         * @member {string} netFamily
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.netFamily = "";
+
+        /**
          * Creates a new Event instance using the specified properties.
          * @function create
          * @memberof pb.Event
@@ -1008,6 +1044,14 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 6, wireType 2 =*/50).string(message.comm);
             if (message.path != null && Object.hasOwnProperty.call(message, "path"))
                 writer.uint32(/* id 7, wireType 2 =*/58).string(message.path);
+            if (message.netDirection != null && Object.hasOwnProperty.call(message, "netDirection"))
+                writer.uint32(/* id 8, wireType 2 =*/66).string(message.netDirection);
+            if (message.netEndpoint != null && Object.hasOwnProperty.call(message, "netEndpoint"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.netEndpoint);
+            if (message.netBytes != null && Object.hasOwnProperty.call(message, "netBytes"))
+                writer.uint32(/* id 10, wireType 0 =*/80).uint32(message.netBytes);
+            if (message.netFamily != null && Object.hasOwnProperty.call(message, "netFamily"))
+                writer.uint32(/* id 11, wireType 2 =*/90).string(message.netFamily);
             return writer;
         };
 
@@ -1072,6 +1116,22 @@ export const pb = $root.pb = (() => {
                         message.path = reader.string();
                         break;
                     }
+                case 8: {
+                        message.netDirection = reader.string();
+                        break;
+                    }
+                case 9: {
+                        message.netEndpoint = reader.string();
+                        break;
+                    }
+                case 10: {
+                        message.netBytes = reader.uint32();
+                        break;
+                    }
+                case 11: {
+                        message.netFamily = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -1128,6 +1188,18 @@ export const pb = $root.pb = (() => {
             if (message.path != null && message.hasOwnProperty("path"))
                 if (!$util.isString(message.path))
                     return "path: string expected";
+            if (message.netDirection != null && message.hasOwnProperty("netDirection"))
+                if (!$util.isString(message.netDirection))
+                    return "netDirection: string expected";
+            if (message.netEndpoint != null && message.hasOwnProperty("netEndpoint"))
+                if (!$util.isString(message.netEndpoint))
+                    return "netEndpoint: string expected";
+            if (message.netBytes != null && message.hasOwnProperty("netBytes"))
+                if (!$util.isInteger(message.netBytes))
+                    return "netBytes: integer expected";
+            if (message.netFamily != null && message.hasOwnProperty("netFamily"))
+                if (!$util.isString(message.netFamily))
+                    return "netFamily: string expected";
             return null;
         };
 
@@ -1157,6 +1229,14 @@ export const pb = $root.pb = (() => {
                 message.comm = String(object.comm);
             if (object.path != null)
                 message.path = String(object.path);
+            if (object.netDirection != null)
+                message.netDirection = String(object.netDirection);
+            if (object.netEndpoint != null)
+                message.netEndpoint = String(object.netEndpoint);
+            if (object.netBytes != null)
+                message.netBytes = object.netBytes >>> 0;
+            if (object.netFamily != null)
+                message.netFamily = String(object.netFamily);
             return message;
         };
 
@@ -1181,6 +1261,10 @@ export const pb = $root.pb = (() => {
                 object.tag = "";
                 object.comm = "";
                 object.path = "";
+                object.netDirection = "";
+                object.netEndpoint = "";
+                object.netBytes = 0;
+                object.netFamily = "";
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -1196,6 +1280,14 @@ export const pb = $root.pb = (() => {
                 object.comm = message.comm;
             if (message.path != null && message.hasOwnProperty("path"))
                 object.path = message.path;
+            if (message.netDirection != null && message.hasOwnProperty("netDirection"))
+                object.netDirection = message.netDirection;
+            if (message.netEndpoint != null && message.hasOwnProperty("netEndpoint"))
+                object.netEndpoint = message.netEndpoint;
+            if (message.netBytes != null && message.hasOwnProperty("netBytes"))
+                object.netBytes = message.netBytes;
+            if (message.netFamily != null && message.hasOwnProperty("netFamily"))
+                object.netFamily = message.netFamily;
             return object;
         };
 

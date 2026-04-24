@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import axios from 'axios';
-import { FilterOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
+import { EyeOutlined, FilterOutlined, FolderOpenOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
+
+import FilePreviewDrawer from '../components/FilePreviewDrawer.vue';
 import { pb } from '../pb/tracker_pb.js';
+import { canPreviewEventPath, type FilePreviewResponse } from '../types/filePreview';
 
 interface AgentEvent {
   key: string;
@@ -14,6 +18,10 @@ interface AgentEvent {
   tag: string;
   comm: string;
   path: string;
+  netDirection?: string;
+  netEndpoint?: string;
+  netFamily?: string;
+  netBytes?: number;
   time: string;
 }
 
@@ -22,14 +30,47 @@ const isConnected = ref(false);
 const isPaused = ref(false);
 const showDetails = ref(false);
 const selectedEvent = ref<AgentEvent | null>(null);
-const selectedTag = ref<string | null>(null);
-const selectedType = ref<string | null>(null);
+const showPreview = ref(false);
+const previewLoading = ref(false);
+const previewData = ref<FilePreviewResponse | null>(null);
+const selectedTags = ref<string[]>([]);
+const selectedTypes = ref<string[]>([]);
 const searchQuery = ref('');
 const isDeduplicated = ref(false);
 const tags = ref<string[]>([]);
+const currentPage = ref(1);
+const pageSize = ref(20);
+const router = useRouter();
 let ws: WebSocket | null = null;
 
-const eventTypes = ['execve', 'openat', 'network_connect', 'network_bind', 'mkdir', 'unlink', 'ioctl', 'wrapper_intercept', 'native_hook'];
+const eventTypes = [
+  'execve',
+  'openat',
+  'network_connect',
+  'network_bind',
+  'network_sendto',
+  'network_recvfrom',
+  'mkdir',
+  'unlink',
+  'ioctl',
+  'wrapper_intercept',
+  'native_hook',
+];
+const pageSizeOptions = ['20', '50', '100', '200'];
+
+const tagOptions = computed(() =>
+  tags.value.map((tag) => ({
+    label: tag,
+    value: tag,
+  })),
+);
+
+const eventTypeOptions = computed(() =>
+  eventTypes.map((type) => ({
+    label: type.toUpperCase(),
+    value: type,
+  })),
+);
 
 const fetchTags = async () => {
   try {
@@ -42,17 +83,22 @@ const fetchTags = async () => {
 
 const filteredEvents = computed(() => {
   let result = events.value;
-  if (selectedTag.value) {
-    result = result.filter(e => e.tag === selectedTag.value);
+  if (selectedTags.value.length) {
+    const activeTags = new Set(selectedTags.value);
+    result = result.filter(e => activeTags.has(e.tag));
   }
-  if (selectedType.value) {
-    result = result.filter(e => e.type === selectedType.value);
+  if (selectedTypes.value.length) {
+    const activeTypes = new Set(selectedTypes.value);
+    result = result.filter(e => activeTypes.has(e.type));
   }
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase();
     result = result.filter(e => 
       e.comm.toLowerCase().includes(q) || 
       e.path.toLowerCase().includes(q) ||
+      (e.netEndpoint || '').toLowerCase().includes(q) ||
+      (e.netDirection || '').toLowerCase().includes(q) ||
+      (e.netFamily || '').toLowerCase().includes(q) ||
       String(e.pid).includes(q)
     );
   }
@@ -68,9 +114,65 @@ const filteredEvents = computed(() => {
   return result;
 });
 
+const tablePagination = computed(() => ({
+  current: currentPage.value,
+  pageSize: pageSize.value,
+  total: filteredEvents.value.length,
+  showSizeChanger: true,
+  pageSizeOptions,
+  showTotal: (total: number, range: [number, number]) => `${range[0]}-${range[1]} / ${total}`,
+}));
+
+const handleTableChange = (pagination: { current?: number; pageSize?: number }) => {
+  currentPage.value = pagination.current ?? 1;
+  pageSize.value = pagination.pageSize ?? pageSize.value;
+};
+
+watch([selectedTags, selectedTypes, searchQuery, isDeduplicated], () => {
+  currentPage.value = 1;
+});
+
+watch([() => filteredEvents.value.length, pageSize], ([total]) => {
+  const maxPage = Math.max(1, Math.ceil(total / pageSize.value));
+  if (currentPage.value > maxPage) {
+    currentPage.value = maxPage;
+  }
+});
+
 const openDetails = (record: AgentEvent) => {
   selectedEvent.value = record;
   showDetails.value = true;
+};
+
+const canInteractWithPath = (record: AgentEvent) => canPreviewEventPath(record);
+
+const previewPath = async (path: string) => {
+  previewLoading.value = true;
+  try {
+    const res = await axios.get(`/system/file-preview?path=${encodeURIComponent(path)}`);
+    previewData.value = res.data as FilePreviewResponse;
+    showPreview.value = true;
+  } catch (err: any) {
+    message.error(err?.response?.data?.error || 'Failed to preview file');
+  } finally {
+    previewLoading.value = false;
+  }
+};
+
+const previewRecordPath = (record: AgentEvent) => {
+  if (!canInteractWithPath(record)) return;
+  void previewPath(record.path);
+};
+
+const openInExplorer = (record: AgentEvent) => {
+  if (!canInteractWithPath(record)) return;
+  void router.push({
+    path: '/explorer',
+    query: {
+      path: record.path,
+      preview: '1',
+    },
+  });
 };
 
 const columns = [
@@ -85,8 +187,15 @@ const columns = [
 
 const getTagColor = (type: string) => {
   const colors: Record<string, string> = {
-    'execve': 'blue', 'openat': 'green', 'network_connect': 'orange',
-    'network_bind': 'volcano', 'mkdir': 'cyan', 'unlink': 'red', 'ioctl': 'purple',
+    'execve': 'blue',
+    'openat': 'green',
+    'network_connect': 'orange',
+    'network_bind': 'volcano',
+    'network_sendto': 'cyan',
+    'network_recvfrom': 'geekblue',
+    'mkdir': 'cyan',
+    'unlink': 'red',
+    'ioctl': 'purple',
   };
   return colors[type] || 'default';
 };
@@ -125,6 +234,10 @@ const connectWebSocket = () => {
         tag: data.tag,
         comm: data.comm,
         path: data.path,
+        netDirection: data.type?.startsWith('network_') ? (data.netDirection || '') : undefined,
+        netEndpoint: data.type?.startsWith('network_') ? (data.netEndpoint || '') : undefined,
+        netFamily: data.type?.startsWith('network_') ? (data.netFamily || '') : undefined,
+        netBytes: data.type?.startsWith('network_') ? Number(data.netBytes || 0) : undefined,
         time: now.toLocaleTimeString(),
       });
       if (events.value.length > 1000) events.value.pop();
@@ -160,9 +273,19 @@ const exportEvents = () => {
 
 const exportEventsCSV = () => {
   try {
-    const headers = ['Time', 'Tag', 'PID', 'PPID', 'UID', 'Command', 'Event Type', 'Path'];
+    const headers = ['Time', 'Tag', 'PID', 'PPID', 'UID', 'Command', 'Event Type', 'Path', 'Net Direction', 'Net Endpoint', 'Net Bytes'];
     const rows = filteredEvents.value.map(e => [
-      e.time, e.tag, e.pid, e.ppid, e.uid, e.comm, e.type, e.path
+      e.time,
+      e.tag,
+      e.pid,
+      e.ppid,
+      e.uid,
+      e.comm,
+      e.type,
+      e.path,
+      e.netDirection || '',
+      e.netEndpoint || '',
+      e.netBytes || 0,
     ]);
     const csvContent = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -218,18 +341,37 @@ onUnmounted(() => {
       <div style="background: #fafafa; padding: 12px; border-radius: 8px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid #f0f0f0;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 12px; color: #888;">Filter:</span>
-          <a-select v-model:value="selectedTag" placeholder="All Tags" style="width: 140px" size="small" allowClear>
+          <a-select
+            v-model:value="selectedTags"
+            mode="multiple"
+            placeholder="All Tags"
+            style="width: 220px"
+            size="small"
+            allow-clear
+            show-search
+            max-tag-count="responsive"
+            :options="tagOptions"
+            option-filter-prop="label"
+          >
             <template #suffixIcon><FilterOutlined /></template>
-            <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option>
           </a-select>
-          <a-select v-model:value="selectedType" placeholder="All Types" style="width: 140px" size="small" allowClear>
-            <a-select-option v-for="t in eventTypes" :key="t" :value="t">{{ t.toUpperCase() }}</a-select-option>
-          </a-select>
+          <a-select
+            v-model:value="selectedTypes"
+            mode="multiple"
+            placeholder="All Types"
+            style="width: 220px"
+            size="small"
+            allow-clear
+            show-search
+            max-tag-count="responsive"
+            :options="eventTypeOptions"
+            option-filter-prop="label"
+          />
         </div>
 
         <a-input-search
           v-model:value="searchQuery"
-          placeholder="Search comm, path or pid..."
+          placeholder="Search comm, path, endpoint or pid..."
           size="small"
           style="width: 240px"
           allow-clear
@@ -247,7 +389,8 @@ onUnmounted(() => {
       :dataSource="filteredEvents" 
       :columns="columns" 
       size="small"
-      :pagination="{ pageSize: 20 }"
+      :pagination="tablePagination"
+      @change="handleTableChange"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'type'">
@@ -257,7 +400,26 @@ onUnmounted(() => {
           <a-tag :color="getCategoryColor(record.tag)">{{ record.tag }}</a-tag>
         </template>
         <template v-if="column.key === 'path'">
-          <a-typography-text code>{{ record.path }}</a-typography-text>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <a-typography-text
+              code
+              style="word-break: break-all;"
+              :style="{ cursor: canInteractWithPath(record) ? 'pointer' : 'default' }"
+              @click="previewRecordPath(record)"
+            >
+              {{ record.path }}
+            </a-typography-text>
+            <a-tooltip v-if="canInteractWithPath(record)" title="Preview file">
+              <a-button type="link" size="small" @click.stop="previewRecordPath(record)">
+                <template #icon><EyeOutlined /></template>
+              </a-button>
+            </a-tooltip>
+            <a-tooltip v-if="canInteractWithPath(record)" title="Open in Explorer">
+              <a-button type="link" size="small" @click.stop="openInExplorer(record)">
+                <template #icon><FolderOpenOutlined /></template>
+              </a-button>
+            </a-tooltip>
+          </div>
         </template>
         <template v-if="column.key === 'action'">
           <a-button type="link" size="small" @click="openDetails(record)">
@@ -280,8 +442,49 @@ onUnmounted(() => {
         <a-descriptions-item label="PID"><a-typography-text code>{{ selectedEvent.pid }}</a-typography-text></a-descriptions-item>
         <a-descriptions-item label="Parent PID (PPID)"><a-typography-text code>{{ selectedEvent.ppid }}</a-typography-text></a-descriptions-item>
         <a-descriptions-item label="User ID (UID)"><a-typography-text code>{{ selectedEvent.uid }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="Resource Path / Info"><a-typography-text code style="word-break: break-all;">{{ selectedEvent.path }}</a-typography-text></a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.netDirection" label="Network Direction">
+          <a-tag color="blue">{{ selectedEvent.netDirection }}</a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.netEndpoint" label="Network Endpoint">
+          <a-typography-text code style="word-break: break-all;">{{ selectedEvent.netEndpoint }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.netFamily" label="Network Family">
+          <a-tag color="purple">{{ selectedEvent.netFamily }}</a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.netBytes !== undefined" label="Network Bytes">
+          <a-typography-text code>{{ selectedEvent.netBytes }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item label="Resource Path / Info">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <a-typography-text code style="word-break: break-all;">{{ selectedEvent.path }}</a-typography-text>
+            <a-button
+              v-if="canInteractWithPath(selectedEvent)"
+              type="link"
+              size="small"
+              @click="previewRecordPath(selectedEvent)"
+            >
+              <template #icon><EyeOutlined /></template>
+              Preview
+            </a-button>
+            <a-button
+              v-if="canInteractWithPath(selectedEvent)"
+              type="link"
+              size="small"
+              @click="openInExplorer(selectedEvent)"
+            >
+              <template #icon><FolderOpenOutlined /></template>
+              Open in Explorer
+            </a-button>
+          </div>
+        </a-descriptions-item>
       </a-descriptions>
     </a-modal>
+
+    <FilePreviewDrawer
+      v-model:open="showPreview"
+      :loading="previewLoading"
+      :preview="previewData"
+      title="Log File Preview"
+    />
   </div>
 </template>

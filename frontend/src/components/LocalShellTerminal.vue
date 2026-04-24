@@ -379,12 +379,12 @@ onBeforeUnmount(() => {
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.dataIndex === 'session'">
-                <div class="shell-manager__session-cell">
+                <div class="shell-manager__session-cell" :title="`${record.shell || 'auto'} → ${record.shellPath || 'unresolved'}\n${record.workDir}`">
                   <div class="shell-manager__session-title">#{{ record.id }}</div>
-                  <div class="shell-manager__session-subtitle">
+                  <div class="shell-manager__session-subtitle shell-manager__session-subtitle--ellipsis">
                     {{ record.shell || 'auto' }} → {{ record.shellPath || 'unresolved' }}
                   </div>
-                  <div class="shell-manager__session-subtitle">
+                  <div class="shell-manager__session-subtitle shell-manager__session-subtitle--ellipsis">
                     {{ record.workDir }}
                   </div>
                 </div>
@@ -504,16 +504,24 @@ onBeforeUnmount(() => {
 .shell-manager__session-cell {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .shell-manager__session-title {
   font-weight: 600;
+  line-height: 1.4;
 }
 
 .shell-manager__session-subtitle {
   color: #666;
   font-size: 12px;
-  word-break: break-all;
+  line-height: 1.4;
+}
+
+.shell-manager__session-subtitle--ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

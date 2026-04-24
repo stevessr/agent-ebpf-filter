@@ -401,13 +401,17 @@ onBeforeUnmount(() => {
   <div class="shell-pane">
     <div class="shell-pane__toolbar">
       <div class="shell-pane__meta">
-        <a-space wrap :size="8">
+        <div class="shell-pane__meta-line">
           <a-tag color="blue">#{{ session.id }}</a-tag>
-          <span class="shell-pane__shell">{{ shellLabel }}</span>
+          <span class="shell-pane__shell" :title="shellLabel">{{ shellLabel }}</span>
+        </div>
+        <div class="shell-pane__meta-line">
           <a-tag :color="backendStatusColor">backend: {{ backendStatusLabel }}</a-tag>
           <a-tag :color="socketStatusColor">socket: {{ socketStatusLabel }}</a-tag>
-          <span class="shell-pane__path">{{ session.workDir }}</span>
-        </a-space>
+        </div>
+        <div class="shell-pane__meta-line">
+          <span class="shell-pane__path" :title="session.workDir">{{ session.workDir }}</span>
+        </div>
       </div>
 
       <a-space wrap>
@@ -457,13 +461,27 @@ onBeforeUnmount(() => {
 .shell-pane__meta {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shell-pane__meta-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .shell-pane__shell,
 .shell-pane__path {
   color: #666;
   font-size: 13px;
-  word-break: break-all;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .shell-pane__alert {

@@ -3,10 +3,14 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -18,6 +22,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"agent-ebpf-filter/pb"
 
@@ -49,6 +54,11 @@ type bpfEvent struct {
 	PID, PPID, UID, Type, TagID uint32
 	Comm                        [16]byte
 	Path                        [256]byte
+	NetFamily                   uint32
+	NetDirection                uint32
+	NetBytes                    uint32
+	NetPort                     uint32
+	NetAddr                     [16]byte
 }
 
 type WrapperRule struct {
@@ -71,9 +81,29 @@ type trackerMapSet struct {
 }
 
 type ExportConfig struct {
-	Tags  []string          `json:"tags"`
-	Comms map[string]string `json:"comms"`
-	Paths map[string]string `json:"paths"`
+	Tags  []string               `json:"tags"`
+	Comms map[string]string      `json:"comms"`
+	Paths map[string]string      `json:"paths"`
+	Rules map[string]WrapperRule `json:"rules"`
+}
+
+type kiroHookState struct {
+	PreviousDefaultAgent string `json:"previous_default_agent,omitempty"`
+}
+
+type FilePreviewResponse struct {
+	Path        string    `json:"path"`
+	Name        string    `json:"name"`
+	ParentDir   string    `json:"parentDir"`
+	IsDir       bool      `json:"isDir"`
+	Size        int64     `json:"size"`
+	Mode        string    `json:"mode"`
+	ModTime     time.Time `json:"modTime"`
+	MimeType    string    `json:"mimeType,omitempty"`
+	PreviewType string    `json:"previewType"`
+	Content     string    `json:"content,omitempty"`
+	DataURL     string    `json:"dataUrl,omitempty"`
+	Truncated   bool      `json:"truncated,omitempty"`
 }
 
 // HookType distinguishes how the hook intercepts the agent CLI.
@@ -101,8 +131,12 @@ type HookDef struct {
 	HookType    HookType `json:"hook_type"`
 	// NativeConfigPath is the path to the agent CLI's config file (for native hooks).
 	NativeConfigPath string `json:"-"`
+	// NativeFeatureConfigPath is an optional companion config file used to enable hook support.
+	NativeFeatureConfigPath string `json:"-"`
 	// NativeHookEvent is the event name for native hooks (e.g. "PreToolUse" or "BeforeTool").
 	NativeHookEvent string `json:"-"`
+	// NativeMatcher is an optional default matcher to inject for native hooks.
+	NativeMatcher string `json:"-"`
 	// ConfigFormat defines if the config is JSON or TOML.
 	ConfigFormat ConfigFormat `json:"-"`
 }
@@ -124,16 +158,25 @@ var availableHooks = []HookDef{
 	},
 	{
 		ID: "codex", Name: "Codex", HookType: HookTypeNative,
-		Description:     "Uses Codex's TOML-based hook configuration for monitoring",
+		Description:     "Uses Codex's native hooks.json and enables codex_hooks in config.toml for Bash command monitoring",
 		TargetCmd:       "codex",
 		NativeHookEvent: "PreToolUse",
-		ConfigFormat:    ConfigFormatTOML,
+		NativeMatcher:   "Bash",
+		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
 		ID: "copilot", Name: "GitHub Copilot", HookType: HookTypeNative,
 		Description:     "Uses GitHub Copilot CLI's preToolUse hook for security inspection",
 		TargetCmd:       "gh",
 		NativeHookEvent: "preToolUse",
+		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
+		ID: "kiro", Name: "Kiro CLI", HookType: HookTypeNative,
+		Description:     "Creates a managed Kiro agent derived from kiro_default and installs a native preToolUse hook for execute_bash",
+		TargetCmd:       "kiro-cli",
+		NativeHookEvent: "preToolUse",
+		NativeMatcher:   "execute_bash",
 		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
@@ -199,15 +242,204 @@ func getShellConfigPath() string {
 	return filepath.Join(home, ".bashrc")
 }
 
-const hookMarker = "agent-ebpf-hook-active"
+func resolveBackendPort() int {
+	if raw := strings.TrimSpace(os.Getenv("AGENT_BACKEND_PORT")); raw != "" {
+		if port, err := strconv.Atoi(raw); err == nil && port > 0 {
+			return port
+		}
+	}
 
-// isNativeHookInstalled checks whether the agent-ebpf hook is present in the config.
-func isNativeHookInstalled(cfgPath string) bool {
+	candidates := []string{".port"}
+	if _, sourceFile, _, ok := runtime.Caller(0); ok {
+		candidates = append(candidates, filepath.Join(filepath.Dir(sourceFile), ".port"))
+	}
+
+	for _, candidate := range candidates {
+		b, err := os.ReadFile(candidate)
+		if err != nil {
+			continue
+		}
+		if port, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && port > 0 {
+			return port
+		}
+	}
+
+	return 8080
+}
+
+func resolveHookCallbackURL() string {
+	if raw := strings.TrimSpace(os.Getenv("AGENT_HOOK_ENDPOINT")); raw != "" {
+		return raw
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d/hooks/event", resolveBackendPort())
+}
+
+const hookMarker = "agent-ebpf-hook-active"
+const kiroManagedAgent = "agent-ebpf-hook"
+const (
+	textPreviewLimitBytes   = 64 * 1024
+	binaryPreviewLimitBytes = 4 * 1024
+	imagePreviewLimitBytes  = 2 * 1024 * 1024
+)
+
+func isTextLikeMime(mimeType string) bool {
+	if mimeType == "" {
+		return false
+	}
+	return strings.HasPrefix(mimeType, "text/") ||
+		strings.Contains(mimeType, "json") ||
+		strings.Contains(mimeType, "xml") ||
+		strings.Contains(mimeType, "javascript") ||
+		strings.Contains(mimeType, "yaml") ||
+		strings.Contains(mimeType, "toml") ||
+		strings.Contains(mimeType, "x-sh")
+}
+
+func buildFilePreview(path string) (*FilePreviewResponse, error) {
+	cleanPath := filepath.Clean(strings.TrimSpace(path))
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &FilePreviewResponse{
+		Path:      absPath,
+		Name:      info.Name(),
+		ParentDir: filepath.Dir(absPath),
+		IsDir:     info.IsDir(),
+		Size:      info.Size(),
+		Mode:      info.Mode().String(),
+		ModTime:   info.ModTime(),
+	}
+	if absPath == "/" {
+		res.ParentDir = "/"
+	}
+
+	if info.IsDir() {
+		res.PreviewType = "directory"
+		return res, nil
+	}
+
+	file, err := os.Open(absPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	head := make([]byte, 512)
+	n, readErr := file.Read(head)
+	if readErr != nil && readErr != io.EOF {
+		return nil, readErr
+	}
+	head = head[:n]
+
+	mimeType := mime.TypeByExtension(strings.ToLower(filepath.Ext(absPath)))
+	if mimeType == "" && len(head) > 0 {
+		mimeType = http.DetectContentType(head)
+	}
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	res.MimeType = mimeType
+
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+
+	if strings.HasPrefix(mimeType, "image/") {
+		res.PreviewType = "image"
+		if info.Size() > imagePreviewLimitBytes {
+			res.Content = fmt.Sprintf("Image is too large to preview inline (limit: %d MiB).", imagePreviewLimitBytes/(1024*1024))
+			res.Truncated = true
+			return res, nil
+		}
+
+		data, err := io.ReadAll(io.LimitReader(file, imagePreviewLimitBytes+1))
+		if err != nil {
+			return nil, err
+		}
+		if len(data) > imagePreviewLimitBytes {
+			data = data[:imagePreviewLimitBytes]
+			res.Truncated = true
+		}
+		res.DataURL = fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(data))
+		return res, nil
+	}
+
+	previewLimit := int64(binaryPreviewLimitBytes)
+	if isTextLikeMime(mimeType) {
+		previewLimit = textPreviewLimitBytes
+	}
+
+	data, err := io.ReadAll(io.LimitReader(file, previewLimit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > previewLimit {
+		data = data[:previewLimit]
+		res.Truncated = true
+	}
+	if info.Size() > int64(len(data)) {
+		res.Truncated = true
+	}
+
+	if isTextLikeMime(mimeType) || utf8.Valid(data) {
+		res.PreviewType = "text"
+		res.Content = string(data)
+		return res, nil
+	}
+
+	res.PreviewType = "binary"
+	res.Content = hex.Dump(data)
+	return res, nil
+}
+
+func hasNativeHookMarker(cfgPath string) bool {
 	b, err := os.ReadFile(cfgPath)
 	if err != nil {
 		return false
 	}
 	return strings.Contains(string(b), hookMarker)
+}
+
+func isCodexHooksFeatureEnabled(cfgPath string) bool {
+	b, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return false
+	}
+
+	var cfg map[string]interface{}
+	if err := toml.Unmarshal(b, &cfg); err != nil {
+		return false
+	}
+
+	features, _ := cfg["features"].(map[string]interface{})
+	if features == nil {
+		return false
+	}
+
+	enabled, _ := features["codex_hooks"].(bool)
+	return enabled
+}
+
+// isNativeHookInstalled checks whether the agent-ebpf hook is present in the config
+// and whether any required feature flags are enabled.
+func isNativeHookInstalled(h HookDef) bool {
+	if h.ID == "kiro" {
+		return hasNativeHookMarker(h.NativeConfigPath) && isKiroManagedAgentSelected()
+	}
+	if !hasNativeHookMarker(h.NativeConfigPath) {
+		return false
+	}
+	if h.NativeFeatureConfigPath != "" && !isCodexHooksFeatureEnabled(h.NativeFeatureConfigPath) {
+		return false
+	}
+	return true
 }
 
 func isWrapperHookInstalled(cmd string) bool {
@@ -221,14 +453,337 @@ func isWrapperHookInstalled(cmd string) bool {
 
 func isHookInstalled(h HookDef) bool {
 	if h.HookType == HookTypeNative {
-		return isNativeHookInstalled(h.NativeConfigPath)
+		return isNativeHookInstalled(h)
 	}
 	return isWrapperHookInstalled(h.TargetCmd)
 }
 
+func ensureCodexHooksFeatureEnabled(cfgPath string) error {
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
+		return err
+	}
+
+	var cfg map[string]interface{}
+	if b, err := os.ReadFile(cfgPath); err == nil {
+		_ = toml.Unmarshal(b, &cfg)
+	}
+	if cfg == nil {
+		cfg = make(map[string]interface{})
+	}
+
+	features, _ := cfg["features"].(map[string]interface{})
+	if features == nil {
+		features = make(map[string]interface{})
+	}
+	features["codex_hooks"] = true
+	cfg["features"] = features
+
+	out, err := toml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(cfgPath, out, 0644)
+}
+
+func hookRelayScriptPath(h HookDef) string {
+	return filepath.Join(filepath.Dir(h.NativeConfigPath), "hooks", hookMarker+"-"+h.ID+".sh")
+}
+
+func readJSONObjectFile(path string) (map[string]interface{}, error) {
+	var cfg map[string]interface{}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return make(map[string]interface{}), nil
+		}
+		return nil, err
+	}
+	if len(bytes.TrimSpace(b)) == 0 {
+		return make(map[string]interface{}), nil
+	}
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return nil, err
+	}
+	if cfg == nil {
+		cfg = make(map[string]interface{})
+	}
+	return cfg, nil
+}
+
+func writeJSONObjectFile(path string, cfg map[string]interface{}) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0644)
+}
+
+func kiroSettingsPath() string {
+	return filepath.Join(getRealHomeDir(), ".kiro", "settings", "cli.json")
+}
+
+func kiroHookStatePath() string {
+	return filepath.Join(getRealHomeDir(), ".kiro", "settings", "agent-ebpf-hook-state.json")
+}
+
+func kiroManagedAgentPath() string {
+	return filepath.Join(getRealHomeDir(), ".kiro", "agents", kiroManagedAgent+".json")
+}
+
+func ensureKiroManagedAgentExists() error {
+	agentPath := kiroManagedAgentPath()
+	if _, err := os.Stat(agentPath); err == nil {
+		return nil
+	}
+
+	agentsDir := filepath.Dir(agentPath)
+	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+		return err
+	}
+
+	cmd := exec.Command("kiro-cli", "agent", "create", kiroManagedAgent, "--from", "kiro_default", "-d", agentsDir)
+	configureCommandForRealUser(cmd)
+	if cmd.Env == nil {
+		cmd.Env = os.Environ()
+	}
+	cmd.Env = setEnvValue(cmd.Env, "HOME", getRealHomeDir())
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to create managed Kiro agent from kiro_default: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func readKiroHookState() (kiroHookState, error) {
+	state := kiroHookState{}
+	b, err := os.ReadFile(kiroHookStatePath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return state, nil
+		}
+		return state, err
+	}
+	if err := json.Unmarshal(b, &state); err != nil {
+		return state, err
+	}
+	return state, nil
+}
+
+func writeKiroHookState(state kiroHookState) error {
+	if err := os.MkdirAll(filepath.Dir(kiroHookStatePath()), 0755); err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(kiroHookStatePath(), b, 0644)
+}
+
+func isKiroManagedAgentSelected() bool {
+	settings, err := readJSONObjectFile(kiroSettingsPath())
+	if err != nil {
+		return false
+	}
+	agentName, _ := settings["chat.defaultAgent"].(string)
+	return agentName == kiroManagedAgent
+}
+
+func ensureHookRelayScript(h HookDef) (string, error) {
+	scriptDir := filepath.Join(filepath.Dir(h.NativeConfigPath), "hooks")
+	if err := os.MkdirAll(scriptDir, 0755); err != nil {
+		return "", err
+	}
+
+	scriptPath := hookRelayScriptPath(h)
+	scriptContent := fmt.Sprintf(`#!/usr/bin/env bash
+tmp_file="$(mktemp "${TMPDIR:-/tmp}/agent-ebpf-hook.XXXXXX")" || exit 0
+trap 'rm -f "$tmp_file"' EXIT
+cat >"$tmp_file"
+curl -fsS -X POST '%s' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Agent-CLI: %s' \
+  --data-binary "@$tmp_file" \
+  >/dev/null 2>&1 || true
+`, resolveHookCallbackURL(), h.ID)
+
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
+		return "", err
+	}
+	return scriptPath, nil
+}
+
+func installKiroDefaultAgentSelection() error {
+	settings, err := readJSONObjectFile(kiroSettingsPath())
+	if err != nil {
+		return err
+	}
+
+	currentDefault, _ := settings["chat.defaultAgent"].(string)
+	if currentDefault != kiroManagedAgent {
+		if err := writeKiroHookState(kiroHookState{PreviousDefaultAgent: currentDefault}); err != nil {
+			return err
+		}
+	}
+
+	settings["chat.defaultAgent"] = kiroManagedAgent
+	return writeJSONObjectFile(kiroSettingsPath(), settings)
+}
+
+func restoreKiroDefaultAgentSelection() error {
+	settings, err := readJSONObjectFile(kiroSettingsPath())
+	if err != nil {
+		return err
+	}
+
+	state, err := readKiroHookState()
+	if err != nil {
+		return err
+	}
+
+	currentDefault, _ := settings["chat.defaultAgent"].(string)
+	if currentDefault == kiroManagedAgent {
+		if state.PreviousDefaultAgent != "" {
+			settings["chat.defaultAgent"] = state.PreviousDefaultAgent
+		} else {
+			delete(settings, "chat.defaultAgent")
+		}
+		if err := writeJSONObjectFile(kiroSettingsPath(), settings); err != nil {
+			return err
+		}
+	}
+
+	_ = os.Remove(kiroHookStatePath())
+	return nil
+}
+
+func installKiroNativeHook(h HookDef) error {
+	if err := ensureKiroManagedAgentExists(); err != nil {
+		return err
+	}
+
+	cfg, err := readJSONObjectFile(h.NativeConfigPath)
+	if err != nil {
+		return err
+	}
+
+	scriptPath, err := ensureHookRelayScript(h)
+	if err != nil {
+		return err
+	}
+	hookCommand := fmt.Sprintf(`'%s'`, scriptPath)
+
+	hooks, _ := cfg["hooks"].(map[string]interface{})
+	if hooks == nil {
+		hooks = make(map[string]interface{})
+	}
+	eventHooks, _ := hooks[h.NativeHookEvent].([]interface{})
+
+	filtered := make([]interface{}, 0, len(eventHooks))
+	for _, entry := range eventHooks {
+		em, ok := entry.(map[string]interface{})
+		if !ok {
+			filtered = append(filtered, entry)
+			continue
+		}
+		cmd, _ := em["command"].(string)
+		if strings.Contains(cmd, hookMarker) {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+
+	hookEntry := map[string]interface{}{
+		"command": hookCommand,
+	}
+	if h.NativeMatcher != "" {
+		hookEntry["matcher"] = h.NativeMatcher
+	}
+
+	hooks[h.NativeHookEvent] = append(filtered, hookEntry)
+	cfg["hooks"] = hooks
+	if err := writeJSONObjectFile(h.NativeConfigPath, cfg); err != nil {
+		return err
+	}
+	return installKiroDefaultAgentSelection()
+}
+
+func uninstallKiroNativeHook(h HookDef) error {
+	cfg, err := readJSONObjectFile(h.NativeConfigPath)
+	if err != nil {
+		return err
+	}
+
+	hooks, _ := cfg["hooks"].(map[string]interface{})
+	if hooks != nil {
+		eventHooks, _ := hooks[h.NativeHookEvent].([]interface{})
+		filtered := make([]interface{}, 0, len(eventHooks))
+		for _, entry := range eventHooks {
+			em, ok := entry.(map[string]interface{})
+			if !ok {
+				filtered = append(filtered, entry)
+				continue
+			}
+			cmd, _ := em["command"].(string)
+			if strings.Contains(cmd, hookMarker) {
+				continue
+			}
+			filtered = append(filtered, entry)
+		}
+
+		if len(filtered) == 0 {
+			delete(hooks, h.NativeHookEvent)
+		} else {
+			hooks[h.NativeHookEvent] = filtered
+		}
+		if len(hooks) == 0 {
+			delete(cfg, "hooks")
+		} else {
+			cfg["hooks"] = hooks
+		}
+		if err := writeJSONObjectFile(h.NativeConfigPath, cfg); err != nil {
+			return err
+		}
+	}
+
+	_ = os.Remove(hookRelayScriptPath(h))
+	return restoreKiroDefaultAgentSelection()
+}
+
+func cleanupLegacyCodexHookConfig(h HookDef) {
+	if h.ID != "codex" || h.NativeFeatureConfigPath == "" {
+		return
+	}
+
+	legacyHookConfig := HookDef{
+		NativeConfigPath: h.NativeFeatureConfigPath,
+		NativeHookEvent:  h.NativeHookEvent,
+		ConfigFormat:     ConfigFormatTOML,
+	}
+	if err := uninstallNativeHook(legacyHookConfig); err != nil {
+		log.Printf("[WARN] failed to clean up legacy Codex hook config from %s: %v", h.NativeFeatureConfigPath, err)
+	}
+}
+
 // installNativeHook injects a hook into the agent CLI's settings (JSON or TOML)
 // that POSTs every tool call to our backend for inspection.
-func installNativeHook(cfgPath, eventName string, format ConfigFormat) error {
+func installNativeHook(h HookDef) error {
+	if h.ID == "kiro" {
+		return installKiroNativeHook(h)
+	}
+
+	cleanupLegacyCodexHookConfig(h)
+
+	if h.NativeFeatureConfigPath != "" {
+		if err := ensureCodexHooksFeatureEnabled(h.NativeFeatureConfigPath); err != nil {
+			return err
+		}
+	}
+
+	cfgPath := h.NativeConfigPath
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
 		return err
 	}
@@ -236,7 +791,7 @@ func installNativeHook(cfgPath, eventName string, format ConfigFormat) error {
 	// Read existing config (may not exist yet).
 	var cfg map[string]interface{}
 	if b, err := os.ReadFile(cfgPath); err == nil {
-		if format == ConfigFormatTOML {
+		if h.ConfigFormat == ConfigFormatTOML {
 			_ = toml.Unmarshal(b, &cfg)
 		} else {
 			_ = json.Unmarshal(b, &cfg)
@@ -247,15 +802,25 @@ func installNativeHook(cfgPath, eventName string, format ConfigFormat) error {
 	}
 
 	// Build the hook entry.
+	scriptPath, err := ensureHookRelayScript(h)
+	if err != nil {
+		return err
+	}
+	hookCommand := fmt.Sprintf(`'%s'`, scriptPath)
+
 	hookEntry := map[string]interface{}{
 		"type":          "command",
-		"command":       fmt.Sprintf(`curl -s -X POST http://localhost:8080/hooks/event -H 'Content-Type: application/json' -d @- # %s`, hookMarker),
+		"command":       hookCommand,
 		"statusMessage": "agent-ebpf-hook-active: inspecting...",
-		"async":         true,
 	}
-	matcher := map[string]interface{}{
-		"matcher": "",
-		"hooks":   []interface{}{hookEntry},
+	if h.ID != "codex" {
+		hookEntry["async"] = true
+	}
+	matcher := map[string]interface{}{"hooks": []interface{}{hookEntry}}
+	if h.NativeMatcher != "" {
+		matcher["matcher"] = h.NativeMatcher
+	} else {
+		matcher["matcher"] = ""
 	}
 
 	// Merge into existing hooks[eventName] array.
@@ -263,7 +828,7 @@ func installNativeHook(cfgPath, eventName string, format ConfigFormat) error {
 	if hooks == nil {
 		hooks = make(map[string]interface{})
 	}
-	eventHooks, _ := hooks[eventName].([]interface{})
+	eventHooks, _ := hooks[h.NativeHookEvent].([]interface{})
 
 	// Remove any existing agent-ebpf-hook entry to avoid duplicates.
 	filtered := []interface{}{}
@@ -283,12 +848,11 @@ func installNativeHook(cfgPath, eventName string, format ConfigFormat) error {
 			}
 		}
 	}
-	hooks[eventName] = append(filtered, matcher)
+	hooks[h.NativeHookEvent] = append(filtered, matcher)
 	cfg["hooks"] = hooks
 
 	var b []byte
-	var err error
-	if format == ConfigFormatTOML {
+	if h.ConfigFormat == ConfigFormatTOML {
 		b, err = toml.Marshal(cfg)
 	} else {
 		b, err = json.MarshalIndent(cfg, "", "  ")
@@ -301,13 +865,19 @@ func installNativeHook(cfgPath, eventName string, format ConfigFormat) error {
 }
 
 // uninstallNativeHook removes the agent-ebpf hook from settings.
-func uninstallNativeHook(cfgPath, eventName string, format ConfigFormat) error {
-	b, err := os.ReadFile(cfgPath)
+func uninstallNativeHook(h HookDef) error {
+	if h.ID == "kiro" {
+		return uninstallKiroNativeHook(h)
+	}
+
+	b, err := os.ReadFile(h.NativeConfigPath)
 	if err != nil {
+		_ = os.Remove(hookRelayScriptPath(h))
+		cleanupLegacyCodexHookConfig(h)
 		return nil // nothing to do
 	}
 	var cfg map[string]interface{}
-	if format == ConfigFormatTOML {
+	if h.ConfigFormat == ConfigFormatTOML {
 		if err := toml.Unmarshal(b, &cfg); err != nil {
 			return err
 		}
@@ -319,9 +889,11 @@ func uninstallNativeHook(cfgPath, eventName string, format ConfigFormat) error {
 
 	hooks, _ := cfg["hooks"].(map[string]interface{})
 	if hooks == nil {
+		_ = os.Remove(hookRelayScriptPath(h))
+		cleanupLegacyCodexHookConfig(h)
 		return nil
 	}
-	eventHooks, _ := hooks[eventName].([]interface{})
+	eventHooks, _ := hooks[h.NativeHookEvent].([]interface{})
 	filtered := []interface{}{}
 	for _, m := range eventHooks {
 		if mm, ok := m.(map[string]interface{}); ok {
@@ -340,16 +912,16 @@ func uninstallNativeHook(cfgPath, eventName string, format ConfigFormat) error {
 		}
 	}
 	if len(filtered) == 0 {
-		delete(hooks, eventName)
+		delete(hooks, h.NativeHookEvent)
 	} else {
-		hooks[eventName] = filtered
+		hooks[h.NativeHookEvent] = filtered
 	}
 	if len(hooks) == 0 {
 		delete(cfg, "hooks")
 	}
 
 	var out []byte
-	if format == ConfigFormatTOML {
+	if h.ConfigFormat == ConfigFormatTOML {
 		out, err = toml.Marshal(cfg)
 	} else {
 		out, err = json.MarshalIndent(cfg, "", "  ")
@@ -358,7 +930,13 @@ func uninstallNativeHook(cfgPath, eventName string, format ConfigFormat) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(cfgPath, out, 0644)
+	if err := os.WriteFile(h.NativeConfigPath, out, 0644); err != nil {
+		return err
+	}
+	_ = os.Remove(hookRelayScriptPath(h))
+
+	cleanupLegacyCodexHookConfig(h)
+	return nil
 }
 
 var (
@@ -1016,7 +1594,10 @@ func refreshHooksPaths() {
 			case "gemini":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".gemini", "settings.json")
 			case "codex":
-				availableHooks[i].NativeConfigPath = filepath.Join(home, ".codex", "config.toml")
+				availableHooks[i].NativeConfigPath = filepath.Join(home, ".codex", "hooks.json")
+				availableHooks[i].NativeFeatureConfigPath = filepath.Join(home, ".codex", "config.toml")
+			case "kiro":
+				availableHooks[i].NativeConfigPath = filepath.Join(home, ".kiro", "agents", "agent-ebpf-hook.json")
 			case "copilot":
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".copilot", "config.json")
 			}
@@ -1060,7 +1641,6 @@ func main() {
 	broadcast := make(chan *pb.Event, 100)
 	go func() {
 		var event bpfEvent
-		types := map[uint32]string{0: "execve", 1: "openat", 2: "network_connect", 3: "mkdir", 4: "unlink", 5: "ioctl", 6: "network_bind"}
 		selfPid := uint32(os.Getpid())
 		for {
 			record, err := rd.Read()
@@ -1071,7 +1651,7 @@ func main() {
 			if event.PID == selfPid {
 				continue
 			}
-			broadcast <- &pb.Event{Pid: event.PID, Ppid: event.PPID, Uid: event.UID, Type: types[event.Type], Tag: getTagName(event.TagID), Comm: string(bytes.TrimRight(event.Comm[:], "\x00")), Path: string(bytes.TrimRight(event.Path[:], "\x00"))}
+			broadcast <- buildKernelEvent(event)
 		}
 	}()
 
@@ -1250,21 +1830,26 @@ func main() {
 
 		// Try to determine which CLI sent this based on User-Agent or known metadata
 		tag := "Native Hook"
+		sourceCLI := strings.ToLower(strings.TrimSpace(c.GetHeader("X-Agent-CLI")))
 		ua := strings.ToLower(c.GetHeader("User-Agent"))
-		if strings.Contains(ua, "claude") {
+		if sourceCLI == "claude" || strings.Contains(ua, "claude") {
 			tag = "Claude Code"
-		} else if strings.Contains(ua, "gemini") {
+		} else if sourceCLI == "gemini" || strings.Contains(ua, "gemini") {
 			tag = "Gemini CLI"
-		} else if strings.Contains(ua, "codex") {
+		} else if sourceCLI == "codex" || strings.Contains(ua, "codex") {
 			tag = "Codex"
-		} else if strings.Contains(ua, "copilot") || strings.Contains(ua, "gh-copilot") {
+		} else if sourceCLI == "copilot" || strings.Contains(ua, "copilot") || strings.Contains(ua, "gh-copilot") {
 			tag = "GitHub Copilot"
+		} else if sourceCLI == "kiro" || strings.Contains(ua, "kiro") {
+			tag = "Kiro CLI"
 		} else {
 			// Fallback: check hook event names or other characteristics
 			if hookEvent == "BeforeTool" {
 				tag = "Gemini CLI"
 			} else if hookEvent == "preToolUse" {
 				tag = "GitHub Copilot"
+			} else if hookEvent == "agentSpawn" || hookEvent == "userPromptSubmit" || hookEvent == "stop" {
+				tag = "Kiro CLI"
 			} else if hookEvent == "PreToolUse" {
 				// Ambiguous between Claude and Codex, but we can guess or leave as Native Hook
 			}
@@ -1412,7 +1997,7 @@ func main() {
 				c.JSON(200, gin.H{"status": "ok"})
 			})
 			config.GET("/export", func(c *gin.Context) {
-				cfg := ExportConfig{Comms: make(map[string]string), Paths: make(map[string]string)}
+				cfg := ExportConfig{Comms: make(map[string]string), Paths: make(map[string]string), Rules: make(map[string]WrapperRule)}
 				tagsMu.RLock()
 				for _, n := range tagMap {
 					cfg.Tags = append(cfg.Tags, n)
@@ -1429,6 +2014,11 @@ func main() {
 				for i2.Next(&k256, &tid) {
 					cfg.Paths[string(bytes.TrimRight(k256[:], "\x00"))] = getTagName(tid)
 				}
+				rulesMu.RLock()
+				for comm, rule := range wrapperRules {
+					cfg.Rules[comm] = rule
+				}
+				rulesMu.RUnlock()
 				c.JSON(200, cfg)
 			})
 			config.POST("/import", func(c *gin.Context) {
@@ -1447,6 +2037,12 @@ func main() {
 					copy(k[:], p)
 					_ = objs.TrackedPaths.Put(k, getTagID(tag))
 				}
+				rulesMu.Lock()
+				wrapperRules = make(map[string]WrapperRule, len(cfg.Rules))
+				for comm, rule := range cfg.Rules {
+					wrapperRules[comm] = rule
+				}
+				rulesMu.Unlock()
 				c.JSON(200, gin.H{"status": "ok"})
 			})
 			hooks := config.Group("/hooks")
@@ -1494,7 +2090,7 @@ func main() {
 
 					if req.Install {
 						if effectiveType == HookTypeNative {
-							if err := installNativeHook(target.NativeConfigPath, target.NativeHookEvent, target.ConfigFormat); err != nil {
+							if err := installNativeHook(target); err != nil {
 								c.JSON(500, gin.H{"error": err.Error()})
 								return
 							}
@@ -1517,7 +2113,7 @@ func main() {
 					} else {
 						// Uninstall both types to ensure clean state.
 						if target.HookType == HookTypeNative {
-							_ = uninstallNativeHook(target.NativeConfigPath, target.NativeHookEvent, target.ConfigFormat)
+							_ = uninstallNativeHook(target)
 						}
 						// Also remove wrapper alias if present.
 						p := getShellConfigPath()
@@ -1548,10 +2144,16 @@ func main() {
 						c.JSON(404, gin.H{"error": "native hook not found"})
 						return
 					}
+					if target.ID == "kiro" {
+						if err := ensureKiroManagedAgentExists(); err != nil {
+							c.JSON(500, gin.H{"error": err.Error()})
+							return
+						}
+					}
 					b, err := os.ReadFile(target.NativeConfigPath)
 					if err != nil {
 						if os.IsNotExist(err) {
-							c.JSON(200, gin.H{"content": "{}"})
+							c.JSON(200, gin.H{"content": "{}", "path": target.NativeConfigPath, "format": target.ConfigFormat})
 							return
 						}
 						c.JSON(500, gin.H{"error": err.Error()})
@@ -1623,6 +2225,24 @@ func main() {
 					l = append(l, gin.H{"name": v.Name(), "isDir": v.IsDir(), "path": fp})
 				}
 				c.JSON(200, l)
+			})
+			system.GET("/file-preview", func(c *gin.Context) {
+				targetPath := strings.TrimSpace(c.Query("path"))
+				if targetPath == "" {
+					c.JSON(400, gin.H{"error": "path is required"})
+					return
+				}
+
+				preview, err := buildFilePreview(targetPath)
+				if err != nil {
+					if os.IsNotExist(err) {
+						c.JSON(404, gin.H{"error": "path not found"})
+						return
+					}
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(200, preview)
 			})
 			system.POST("/run", func(c *gin.Context) {
 				var r struct {

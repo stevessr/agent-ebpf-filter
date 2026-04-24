@@ -60,6 +60,8 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysEnterIoctl    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_ioctl"`
 	TracepointSyscallsSysEnterMkdirat  *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_mkdirat"`
 	TracepointSyscallsSysEnterOpenat   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_openat"`
+	TracepointSyscallsSysEnterRecvfrom *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_recvfrom"`
+	TracepointSyscallsSysEnterSendto   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_sendto"`
 	TracepointSyscallsSysEnterUnlinkat *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_unlinkat"`
 }
 
@@ -130,6 +132,8 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysEnterIoctl    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_ioctl"`
 	TracepointSyscallsSysEnterMkdirat  *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_mkdirat"`
 	TracepointSyscallsSysEnterOpenat   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_openat"`
+	TracepointSyscallsSysEnterRecvfrom *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_recvfrom"`
+	TracepointSyscallsSysEnterSendto   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_sendto"`
 	TracepointSyscallsSysEnterUnlinkat *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_unlinkat"`
 }
 
@@ -141,6 +145,8 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysEnterIoctl,
 		p.TracepointSyscallsSysEnterMkdirat,
 		p.TracepointSyscallsSysEnterOpenat,
+		p.TracepointSyscallsSysEnterRecvfrom,
+		p.TracepointSyscallsSysEnterSendto,
 		p.TracepointSyscallsSysEnterUnlinkat,
 	)
 }

@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
 import { LinkOutlined, CheckCircleOutlined, DeleteOutlined, ThunderboltOutlined, SwapOutlined, EditOutlined, PlusOutlined, CodeOutlined, FormOutlined } from '@ant-design/icons-vue';
 import * as TOML from 'smol-toml';
+
+import { getHookCliDoc, getHookEventDoc, type HookCliDoc, type HookEventDoc, type HookFieldDoc } from '../data/hookCatalog';
 
 interface HookDef {
   id: string;
@@ -32,6 +34,41 @@ const newEventName = ref('');
 // Parsed config for visual editing
 const parsedConfig = ref<any>({});
 
+const currentHookDoc = computed<HookCliDoc | null>(() => getHookCliDoc(editingHook.value?.id));
+const documentedEventOptions = computed(() =>
+  (currentHookDoc.value?.events || []).map((event) => ({
+    label: event.name,
+    value: event.name,
+  })),
+);
+const selectedEventDoc = computed<HookEventDoc | null>(() =>
+  getHookEventDoc(editingHook.value?.id, newEventName.value),
+);
+const usedEventNames = computed(() => new Set(Object.keys(parsedConfig.value?.hooks || {})));
+const supportsAsyncCommandHooks = computed(() => editingHook.value?.id !== 'codex');
+const supportsVisualEditor = computed(() => editingHook.value?.id !== 'kiro');
+
+const normalizeParsedConfigForCurrentHook = () => {
+  const normalized = JSON.parse(JSON.stringify(parsedConfig.value || {}));
+  if (!normalized.hooks || editingHook.value?.id !== 'codex') {
+    return normalized;
+  }
+
+  Object.values(normalized.hooks).forEach((matchers: any) => {
+    if (!Array.isArray(matchers)) return;
+    matchers.forEach((matcherBlock: any) => {
+      if (!Array.isArray(matcherBlock?.hooks)) return;
+      matcherBlock.hooks.forEach((hook: any) => {
+        if (hook && typeof hook === 'object') {
+          delete hook.async;
+        }
+      });
+    });
+  });
+
+  return normalized;
+};
+
 const syncToParsed = () => {
   try {
     if (configFormat.value === 'toml') {
@@ -48,10 +85,12 @@ const syncToParsed = () => {
 
 const syncToRaw = () => {
   try {
+    const normalized = normalizeParsedConfigForCurrentHook();
+    parsedConfig.value = normalized;
     if (configFormat.value === 'toml') {
-      rawConfig.value = TOML.stringify(parsedConfig.value);
+      rawConfig.value = TOML.stringify(normalized);
     } else {
-      rawConfig.value = JSON.stringify(parsedConfig.value, null, 2);
+      rawConfig.value = JSON.stringify(normalized, null, 2);
     }
   } catch (e) {
     console.error("Failed to stringify parsed config", e);
@@ -85,8 +124,10 @@ const openEditModal = async (hook: HookDef) => {
     rawConfig.value = res.data.content;
     configPath.value = res.data.path;
     configFormat.value = res.data.format || 'json';
-    editorMode.value = 'visual';
-    syncToParsed();
+    editorMode.value = hook.id === 'kiro' ? 'raw' : 'visual';
+    if (editorMode.value === 'visual') {
+      syncToParsed();
+    }
     showEditModal.value = true;
   } catch (err: any) {
     message.error(err.response?.data?.error || 'Failed to load configuration');
@@ -142,7 +183,7 @@ const toggleHook = async (hook: HookDef) => {
 const addEvent = () => {
   const name = newEventName.value.trim();
   if (!name) {
-    message.warning('Please enter an event name');
+    message.warning('Please select a hook event');
     return;
   }
   if (!parsedConfig.value.hooks) parsedConfig.value.hooks = {};
@@ -172,17 +213,26 @@ const deleteMatcher = (eventName: string, matcherIndex: number) => {
 };
 
 const addCommandHook = (eventName: string, matcherIndex: number) => {
-  parsedConfig.value.hooks[eventName][matcherIndex].hooks.push({
+  const nextHook: Record<string, unknown> = {
     type: "command",
     command: "",
     statusMessage: "Running hook...",
-    async: true
-  });
+  };
+  if (supportsAsyncCommandHooks.value) {
+    nextHook.async = true;
+  }
+  parsedConfig.value.hooks[eventName][matcherIndex].hooks.push(nextHook);
 };
 
 const deleteCommandHook = (eventName: string, matcherIndex: number, hookIndex: number) => {
   parsedConfig.value.hooks[eventName][matcherIndex].hooks.splice(hookIndex, 1);
 };
+
+const getEventDoc = (eventName: string) => getHookEventDoc(editingHook.value?.id, eventName);
+const getEventFields = (eventName: string) => getEventDoc(eventName)?.fields || [];
+const getEventNotes = (eventName: string) => getEventDoc(eventName)?.notes || [];
+const formatFieldLabel = (field: HookFieldDoc) => field.type ? `${field.name}: ${field.type}` : field.name;
+const getHookDocSourceUrl = (hookId: string) => getHookCliDoc(hookId)?.sources?.[0]?.url || '';
 
 onMounted(() => {
 
@@ -261,7 +311,16 @@ onMounted(() => {
 
                 <div style="text-align: right; border-top: 1px solid #f0f0f0; padding-top: 12px; display: flex; justify-content: flex-end; gap: 8px;">
                   <a-button
-                    v-if="item.hook_type === 'native' || item.installed"
+                    v-if="getHookDocSourceUrl(item.id)"
+                    size="small"
+                    :href="getHookDocSourceUrl(item.id)"
+                    target="_blank"
+                  >
+                    <template #icon><LinkOutlined /></template>
+                    Docs
+                  </a-button>
+                  <a-button
+                    v-if="item.hook_type === 'native'"
                     size="small"
                     @click="openEditModal(item)"
                   >
@@ -302,20 +361,70 @@ onMounted(() => {
           <span style="font-size: 12px; color: #888;">Config Path: </span>
           <a-typography-text code>{{ configPath }}</a-typography-text>
         </div>
-        <a-radio-group v-model:value="editorMode" size="small">
+        <a-radio-group v-if="supportsVisualEditor" v-model:value="editorMode" size="small">
           <a-radio-button value="visual"><FormOutlined /> Visual Editor</a-radio-button>
           <a-radio-button value="raw"><CodeOutlined /> Raw {{ configFormat.toUpperCase() }}</a-radio-button>
         </a-radio-group>
+        <a-tag v-else color="gold">Raw editor only</a-tag>
       </div>
 
-      <div v-if="editorMode === 'visual'" style="max-height: 60vh; overflow-y: auto; padding: 4px;">
+      <div v-if="editorMode === 'visual' && supportsVisualEditor" style="max-height: 60vh; overflow-y: auto; padding: 4px;">
+        <a-alert v-if="currentHookDoc" type="info" show-icon style="margin-bottom: 16px;">
+          <template #message>
+            <span>Official docs for {{ currentHookDoc.name }}</span>
+          </template>
+          <template #description>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <a
+                  v-for="source in currentHookDoc.sources"
+                  :key="source.url"
+                  :href="source.url"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {{ source.label }}
+                </a>
+              </div>
+
+              <div v-if="currentHookDoc.commonFields?.length" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                <a-tag
+                  v-for="field in currentHookDoc.commonFields"
+                  :key="field.name"
+                  color="blue"
+                >
+                  {{ formatFieldLabel(field) }}
+                </a-tag>
+              </div>
+
+              <ul v-if="currentHookDoc.notes?.length" style="margin: 0; padding-left: 18px;">
+                <li v-for="note in currentHookDoc.notes" :key="note">{{ note }}</li>
+              </ul>
+            </div>
+          </template>
+        </a-alert>
+
         <div v-if="Object.keys(parsedConfig.hooks || {}).length === 0" style="text-align: center; padding: 40px; color: #999;">
           No hooks configured. Click below to add an event.
         </div>
         
         <div v-for="(matchers, eventName) in (parsedConfig.hooks || {})" :key="eventName" style="margin-bottom: 24px; border: 1px solid #f0f0f0; border-radius: 8px; overflow: hidden;">
           <div style="background: #fafafa; padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f0f0;">
-            <span style="font-weight: bold; color: #1890ff;">{{ eventName }}</span>
+            <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+              <span style="font-weight: bold; color: #1890ff;">{{ eventName }}</span>
+              <span v-if="getEventDoc(eventName as string)?.description" style="font-size: 12px; color: #666;">
+                {{ getEventDoc(eventName as string)?.description }}
+              </span>
+              <div v-if="getEventFields(eventName as string).length" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                <a-tooltip v-for="field in getEventFields(eventName as string)" :key="field.name">
+                  <template #title>{{ field.description }}</template>
+                  <a-tag color="processing">{{ formatFieldLabel(field) }}</a-tag>
+                </a-tooltip>
+              </div>
+              <ul v-if="getEventNotes(eventName as string).length" style="margin: 0; padding-left: 18px; color: #888; font-size: 12px;">
+                <li v-for="note in getEventNotes(eventName as string)" :key="note">{{ note }}</li>
+              </ul>
+            </div>
             <div style="display: flex; gap: 8px;">
               <a-button size="small" @click="addMatcher(eventName as string)"><PlusOutlined /> Add Matcher</a-button>
               <a-popconfirm 
@@ -337,7 +446,7 @@ onMounted(() => {
                 <a-input v-model:value="matcherBlock.matcher" size="small" placeholder="Tool name or * for all" style="width: 200px" />
                 <a-popconfirm 
                   title="Delete this matcher block?" 
-                  @confirm="deleteMatcher(eventName as string, mIdx)"
+                  @confirm="deleteMatcher(eventName as string, Number(mIdx))"
                   ok-text="Yes"
                   cancel-text="No"
                 >
@@ -354,7 +463,7 @@ onMounted(() => {
                      <a-input v-model:value="hook.command" size="small" placeholder="Shell command" style="flex: 1" />
                      <a-popconfirm 
                        title="Delete this command hook?" 
-                       @confirm="deleteCommandHook(eventName as string, mIdx, hIdx)"
+                       @confirm="deleteCommandHook(eventName as string, Number(mIdx), Number(hIdx))"
                        ok-text="Yes"
                        cancel-text="No"
                      >
@@ -366,11 +475,13 @@ onMounted(() => {
                    <div style="display: flex; gap: 8px; align-items: center;">
                      <span style="font-size: 11px; width: 60px;">Message:</span>
                      <a-input v-model:value="hook.statusMessage" size="small" placeholder="Display message" style="flex: 1" />
-                     <span style="font-size: 11px; margin-left: 12px;">Async:</span>
-                     <a-switch v-model:checked="hook.async" size="small" />
+                     <template v-if="supportsAsyncCommandHooks">
+                       <span style="font-size: 11px; margin-left: 12px;">Async:</span>
+                       <a-switch v-model:checked="hook.async" size="small" />
+                     </template>
                    </div>
                 </div>
-                <a-button size="small" type="dashed" block @click="addCommandHook(eventName as string, mIdx)">
+                <a-button size="small" type="dashed" block @click="addCommandHook(eventName as string, Number(mIdx))">
                   <PlusOutlined /> Add Command Hook
                 </a-button>
               </div>
@@ -378,22 +489,53 @@ onMounted(() => {
           </div>
         </div>
         
-        <div style="margin-top: 16px; background: #fafafa; padding: 12px; border: 1px dashed #d9d9d9; border-radius: 8px; display: flex; gap: 8px; align-items: center;">
-          <span style="font-size: 12px; color: #888;">New Event:</span>
-          <a-input 
-            v-model:value="newEventName" 
-            size="small" 
-            placeholder="e.g. PreToolUse" 
-            style="width: 200px"
-            @pressEnter="addEvent"
-          />
-          <a-button type="primary" size="small" @click="addEvent">
-            <PlusOutlined /> Add Hook Event
-          </a-button>
+        <div style="margin-top: 16px; background: #fafafa; padding: 12px; border: 1px dashed #d9d9d9; border-radius: 8px;">
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 12px; color: #888;">New Event:</span>
+            <a-select
+              v-model:value="newEventName"
+              size="small"
+              show-search
+              :options="documentedEventOptions"
+              placeholder="Select official hook event"
+              style="width: 260px"
+              option-filter-prop="label"
+            />
+            <a-button type="primary" size="small" @click="addEvent" :disabled="!newEventName || usedEventNames.has(newEventName)">
+              <PlusOutlined /> Add Hook Event
+            </a-button>
+            <span v-if="newEventName && usedEventNames.has(newEventName)" style="font-size: 12px; color: #fa8c16;">
+              This event already exists in the current config.
+            </span>
+          </div>
+
+          <div v-if="selectedEventDoc" style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-size: 12px; color: #666;">{{ selectedEventDoc.description }}</div>
+            <div v-if="selectedEventDoc.matcher" style="font-size: 12px; color: #888;">
+              Matcher filters: {{ selectedEventDoc.matcher }}
+            </div>
+            <div v-if="selectedEventDoc.fields?.length" style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <a-tooltip v-for="field in selectedEventDoc.fields" :key="field.name">
+                <template #title>{{ field.description }}</template>
+                <a-tag color="processing">{{ formatFieldLabel(field) }}</a-tag>
+              </a-tooltip>
+            </div>
+            <ul v-if="selectedEventDoc.notes?.length" style="margin: 0; padding-left: 18px; color: #888; font-size: 12px;">
+              <li v-for="note in selectedEventDoc.notes" :key="note">{{ note }}</li>
+            </ul>
+          </div>
         </div>
       </div>
 
       <div v-else>
+        <a-alert
+          v-if="editingHook?.id === 'kiro'"
+          type="info"
+          show-icon
+          style="margin-bottom: 12px;"
+          message="Kiro uses agent-scoped native hook JSON"
+          description="This managed Kiro agent is edited in raw mode because Kiro's hook schema differs from the generic visual editor used for Claude / Gemini / Codex / Copilot."
+        />
         <a-textarea
           v-model:value="rawConfig"
           :rows="20"

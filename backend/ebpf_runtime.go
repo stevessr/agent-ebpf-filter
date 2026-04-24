@@ -29,6 +29,8 @@ var trackerAttachSpecs = []struct {
 	{"syscalls", "sys_enter_unlinkat", "sys_enter_unlinkat", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterUnlinkat }},
 	{"syscalls", "sys_enter_ioctl", "sys_enter_ioctl", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterIoctl }},
 	{"syscalls", "sys_enter_bind", "sys_enter_bind", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterBind }},
+	{"syscalls", "sys_enter_sendto", "sys_enter_sendto", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterSendto }},
+	{"syscalls", "sys_enter_recvfrom", "sys_enter_recvfrom", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterRecvfrom }},
 }
 
 // ── mode detection ────────────────────────────────────────────────────────────
@@ -171,6 +173,7 @@ func ensureBackendPrivileges() (bool, error) {
 	cmd := privilegedCommand(priv, exe, os.Args[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	cmd.Env = os.Environ()
 
 	if realHome != "" {
 		cmd.Env = setEnvValue(cmd.Env, "AGENT_REAL_HOME", realHome)
@@ -217,7 +220,7 @@ func ensurePinnedMapPermissions() error {
 
 func privilegedCommand(priv, exe string, args ...string) *exec.Cmd {
 	if filepath.Base(priv) == "sudo" {
-		sudoArgs := []string{"--preserve-env=AGENT_WRAPPER_PATH,DISPLAY,WAYLAND_DISPLAY,USER,HOME,AGENT_REAL_HOME", exe}
+		sudoArgs := []string{"--preserve-env=AGENT_WRAPPER_PATH,DISPLAY,WAYLAND_DISPLAY,XAUTHORITY,USER,HOME,AGENT_REAL_HOME", exe}
 		sudoArgs = append(sudoArgs, args...)
 		return exec.Command(priv, sudoArgs...)
 	}

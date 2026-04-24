@@ -1,8 +1,34 @@
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+function resolveBackendUrl(explicitUrl) {
+  if (explicitUrl) {
+    return explicitUrl;
+  }
+
+  if (process.env.AGENT_BACKEND_URL) {
+    return process.env.AGENT_BACKEND_URL;
+  }
+
+  try {
+    const portFile = path.resolve(__dirname, '../../backend/.port');
+    if (fs.existsSync(portFile)) {
+      const port = fs.readFileSync(portFile, 'utf-8').trim();
+      if (/^\d+$/.test(port)) {
+        return `http://127.0.0.1:${port}`;
+      }
+    }
+  } catch (err) {
+    // Fall through to the default URL below.
+  }
+
+  return 'http://127.0.0.1:8080';
+}
 
 class AgentTracker {
-  constructor(backendUrl = 'http://localhost:8080') {
-    this.backendUrl = new URL(backendUrl);
+  constructor(backendUrl) {
+    this.backendUrl = new URL(resolveBackendUrl(backendUrl));
     this.pid = process.pid;
     this.registered = false;
   }

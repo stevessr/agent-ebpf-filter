@@ -1,10 +1,31 @@
 import os
 import requests
 import atexit
+from pathlib import Path
+
+
+def _resolve_backend_url(explicit_url=None):
+    if explicit_url:
+        return explicit_url
+
+    env_url = os.getenv("AGENT_BACKEND_URL")
+    if env_url:
+        return env_url
+
+    try:
+        port_file = Path(__file__).resolve().parents[2] / "backend" / ".port"
+        if port_file.exists():
+            port = port_file.read_text(encoding="utf-8").strip()
+            if port.isdigit():
+                return f"http://127.0.0.1:{port}"
+    except Exception:
+        pass
+
+    return "http://127.0.0.1:8080"
 
 class AgentTracker:
-    def __init__(self, backend_url="http://localhost:8080"):
-        self.backend_url = backend_url
+    def __init__(self, backend_url=None):
+        self.backend_url = _resolve_backend_url(backend_url)
         self.pid = os.getpid()
         self.registered = False
 

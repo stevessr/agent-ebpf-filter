@@ -54,9 +54,8 @@ dev: proto wrapper ## Run both backend and frontend development server
 	@(cd backend/ebpf && go generate)
 	@(cd backend && go build -o agent-ebpf-filter)
 	@echo "Starting dev environment..."
-	@sudo -v
 	@rm -f backend/.port
-	@(cd backend && AGENT_WRAPPER_PATH="$(abspath agent-wrapper)" sudo --preserve-env=AGENT_WRAPPER_PATH ./agent-ebpf-filter) &
+	@(cd backend && AGENT_WRAPPER_PATH="$(abspath agent-wrapper)" ./agent-ebpf-filter) &
 	@for i in $$(seq 1 30); do \
 		[ -f backend/.port ] && break; \
 		sleep 1; \

@@ -426,6 +426,18 @@ export namespace pb {
 
         /** Event path */
         path?: (string|null);
+
+        /** Event netDirection */
+        netDirection?: (string|null);
+
+        /** Event netEndpoint */
+        netEndpoint?: (string|null);
+
+        /** Event netBytes */
+        netBytes?: (number|null);
+
+        /** Event netFamily */
+        netFamily?: (string|null);
     }
 
     /** Represents an Event. */
@@ -457,6 +469,18 @@ export namespace pb {
 
         /** Event path. */
         public path: string;
+
+        /** Event netDirection. */
+        public netDirection: string;
+
+        /** Event netEndpoint. */
+        public netEndpoint: string;
+
+        /** Event netBytes. */
+        public netBytes: number;
+
+        /** Event netFamily. */
+        public netFamily: string;
 
         /**
          * Creates a new Event instance using the specified properties.

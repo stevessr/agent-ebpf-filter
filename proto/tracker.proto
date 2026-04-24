@@ -34,6 +34,10 @@ message Event {
   string tag = 5;
   string comm = 6;
   string path = 7;
+  string net_direction = 8;
+  string net_endpoint = 9;
+  uint32 net_bytes = 10;
+  string net_family = 11;
 }
 
 // Represents system process information for the tree view

@@ -328,6 +328,10 @@ type Event struct {
 	Tag           string                 `protobuf:"bytes,5,opt,name=tag,proto3" json:"tag,omitempty"`
 	Comm          string                 `protobuf:"bytes,6,opt,name=comm,proto3" json:"comm,omitempty"`
 	Path          string                 `protobuf:"bytes,7,opt,name=path,proto3" json:"path,omitempty"`
+	NetDirection  string                 `protobuf:"bytes,8,opt,name=net_direction,json=netDirection,proto3" json:"net_direction,omitempty"`
+	NetEndpoint   string                 `protobuf:"bytes,9,opt,name=net_endpoint,json=netEndpoint,proto3" json:"net_endpoint,omitempty"`
+	NetBytes      uint32                 `protobuf:"varint,10,opt,name=net_bytes,json=netBytes,proto3" json:"net_bytes,omitempty"`
+	NetFamily     string                 `protobuf:"bytes,11,opt,name=net_family,json=netFamily,proto3" json:"net_family,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -407,6 +411,34 @@ func (x *Event) GetComm() string {
 func (x *Event) GetPath() string {
 	if x != nil {
 		return x.Path
+	}
+	return ""
+}
+
+func (x *Event) GetNetDirection() string {
+	if x != nil {
+		return x.NetDirection
+	}
+	return ""
+}
+
+func (x *Event) GetNetEndpoint() string {
+	if x != nil {
+		return x.NetEndpoint
+	}
+	return ""
+}
+
+func (x *Event) GetNetBytes() uint32 {
+	if x != nil {
+		return x.NetBytes
+	}
+	return 0
+}
+
+func (x *Event) GetNetFamily() string {
+	if x != nil {
+		return x.NetFamily
 	}
 	return ""
 }
@@ -1634,7 +1666,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\"H\n" +
 	"\x12UnregisterResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x8d\x01\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x91\x02\n" +
 	"\x05Event\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\rR\x04ppid\x12\x10\n" +
@@ -1642,7 +1674,13 @@ const file_tracker_proto_rawDesc = "" +
 	"\x04type\x18\x04 \x01(\tR\x04type\x12\x10\n" +
 	"\x03tag\x18\x05 \x01(\tR\x03tag\x12\x12\n" +
 	"\x04comm\x18\x06 \x01(\tR\x04comm\x12\x12\n" +
-	"\x04path\x18\a \x01(\tR\x04path\"\xc7\x02\n" +
+	"\x04path\x18\a \x01(\tR\x04path\x12#\n" +
+	"\rnet_direction\x18\b \x01(\tR\fnetDirection\x12!\n" +
+	"\fnet_endpoint\x18\t \x01(\tR\vnetEndpoint\x12\x1b\n" +
+	"\tnet_bytes\x18\n" +
+	" \x01(\rR\bnetBytes\x12\x1d\n" +
+	"\n" +
+	"net_family\x18\v \x01(\tR\tnetFamily\"\xc7\x02\n" +
 	"\aProcess\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\x05R\x04ppid\x12\x12\n" +
