@@ -47,8 +47,8 @@ Events are written to a ring buffer and consumed by the Go backend.
 - **Monitor**: process / CPU / memory / GPU / IO / page-fault telemetry
 - **Network**: syscall-derived network flow table with direction / endpoint filters
 - **Explorer**: browse the host filesystem and add tracked paths
-- **Executor**: run commands via `agent-wrapper`, manage shell PTY sessions separately from tmux, and use the tmux tab for coding CLI launches plus tmux quick shortcuts
-- **Executor**: run wrapper-protected commands, launch coding CLIs in tmux, and start Python/Node/Ruby/sh/pwsh/Deno/Bun scripts with optional virtualenv selection
+- **Executor**: open a temporary wrapper-backed PTY tab for ad-hoc commands, keep shell PTY sessions separate from tmux, and let the Remote tab self-destruct when you leave it
+- **Executor**: launch coding CLIs in tmux and start Python/Node/Ruby/sh/pwsh/Deno/Bun scripts with optional virtualenv selection
 - **Hooks**: install or edit native hook configs / wrapper aliases
 - **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, runtime log persistence, and the backend access token
 - **Cluster control**: master/slave routing, node switching, and forwarded inspection requests through the master backend

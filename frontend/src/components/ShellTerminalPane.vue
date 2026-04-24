@@ -14,6 +14,7 @@ const INITIAL_ROWS = 32;
 const props = defineProps<{
   session: ShellSessionInfo;
   active?: boolean;
+  showDetach?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -429,7 +430,7 @@ onBeforeUnmount(() => {
         <a-button size="small" @click="focusTerminal">
           Focus
         </a-button>
-        <a-button size="small" @click="emit('detach')">
+        <a-button v-if="props.showDetach ?? true" size="small" @click="emit('detach')">
           Detach
         </a-button>
         <a-button size="small" danger @click="emit('close-session')">

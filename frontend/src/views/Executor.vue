@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import axios from 'axios';
-import { CodeOutlined, PlayCircleOutlined } from '@ant-design/icons-vue';
+import { PlayCircleOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
+import RemoteWrapperTerminal from '../components/RemoteWrapperTerminal.vue';
 import LocalShellTerminal from '../components/LocalShellTerminal.vue';
 import PathNavigatorDrawer from '../components/PathNavigatorDrawer.vue';
 import type { ShellSessionCreateRequest, ShellSessionInfo } from '../types/shell';
 
-type ExecutorTabKey = 'shell' | 'tmux' | 'scripts';
+type ExecutorTabKey = 'shell' | 'remote' | 'tmux' | 'scripts';
 type PathPickerTarget = 'coding-workdir' | 'script-path' | 'script-workdir' | 'python-venv';
 
 type LocalShellManagerExpose = {
@@ -28,13 +29,6 @@ type ScriptLaunchPlan = {
 const shellManagerRef = ref<LocalShellManagerExpose | null>(null);
 const tmuxManagerRef = ref<LocalShellManagerExpose | null>(null);
 const activeTabKey = ref<ExecutorTabKey>('shell');
-
-const command = ref('');
-const args = ref('');
-const loading = ref(false);
-const recentCommands = ref<string[]>(
-  JSON.parse(localStorage.getItem('recent_cmds') || '[]'),
-);
 
 const codingPreset = ref<CodingPresetKey>('codex');
 const codingCustomCommand = ref('');
@@ -382,39 +376,6 @@ const createShellSession = async (
   return session;
 };
 
-const runCommand = async () => {
-  const executable = command.value.trim();
-  if (!executable) return;
-
-  loading.value = true;
-  try {
-    const argList = splitArgs(args.value);
-    const res = await axios.post('/system/run', {
-      comm: executable,
-      args: argList,
-    });
-
-    message.success(`Started process PID: ${res.data.pid}`);
-
-    const full = `${executable} ${args.value}`.trim();
-    if (!recentCommands.value.includes(full)) {
-      recentCommands.value.unshift(full);
-      recentCommands.value = recentCommands.value.slice(0, 10);
-      localStorage.setItem('recent_cmds', JSON.stringify(recentCommands.value));
-    }
-  } catch (err: any) {
-    message.error(`Failed to run: ${err.response?.data?.error || err.message}`);
-  } finally {
-    loading.value = false;
-  }
-};
-
-const useRecent = (cmdStr: string) => {
-  const parts = splitArgs(cmdStr);
-  command.value = parts[0] || '';
-  args.value = parts.slice(1).join(' ');
-};
-
 const codingCommandPreview = computed(() => {
   const cliCommand = getSelectedCodingCommand();
   if (!cliCommand) return 'Select a coding CLI command first';
@@ -530,69 +491,6 @@ const launchScript = async () => {
     <a-tabs v-model:activeKey="activeTabKey" type="card" size="large" :destroyInactiveTabPane="false">
       <a-tab-pane key="shell" tab="Shell Manager">
         <a-space direction="vertical" :size="16" style="width: 100%;">
-          <a-card title="Remote Executor (via Wrapper)" :bordered="false">
-            <template #extra>
-              <CodeOutlined />
-            </template>
-
-            <p style="color: #666; margin-bottom: 24px;">
-              Execute commands on the host system. All commands are automatically routed through the
-              <code>agent-wrapper</code> to enforce security policies and track activities.
-            </p>
-
-            <a-form layout="vertical">
-              <a-row :gutter="16">
-                <a-col :span="8">
-                  <a-form-item label="Executable">
-                    <a-input
-                      v-model:value="command"
-                      placeholder="e.g. ls, python, git"
-                      @pressEnter="runCommand"
-                    >
-                      <template #prefix>
-                        <CodeOutlined />
-                      </template>
-                    </a-input>
-                  </a-form-item>
-                </a-col>
-
-                <a-col :span="12">
-                  <a-form-item label="Arguments">
-                    <a-input
-                      v-model:value="args"
-                      placeholder="e.g. -la /tmp"
-                      @pressEnter="runCommand"
-                    />
-                  </a-form-item>
-                </a-col>
-
-                <a-col
-                  :span="4"
-                  style="display: flex; align-items: flex-end; padding-bottom: 24px;"
-                >
-                  <a-button type="primary" :loading="loading" @click="runCommand" block>
-                    <template #icon>
-                      <PlayCircleOutlined />
-                    </template>
-                    Run
-                  </a-button>
-                </a-col>
-              </a-row>
-            </a-form>
-
-            <a-divider orientation="left">Recent Commands</a-divider>
-            <a-list size="small" :data-source="recentCommands">
-              <template #renderItem="{ item }">
-                <a-list-item>
-                  <code style="cursor: pointer; color: #1890ff" @click="useRecent(item)">{{ item }}</code>
-                </a-list-item>
-              </template>
-              <template v-if="recentCommands.length === 0" #header>
-                <div style="text-align: center; color: #999;">No recent commands</div>
-              </template>
-            </a-list>
-          </a-card>
-
           <a-card title="Interactive Shell Manager (wterm)" :bordered="false">
             <template #extra>
               <a-tag color="blue">multi-session PTY</a-tag>
@@ -601,6 +499,10 @@ const launchScript = async () => {
             <LocalShellTerminal ref="shellManagerRef" session-kind-filter="non-tmux" />
           </a-card>
         </a-space>
+      </a-tab-pane>
+
+      <a-tab-pane key="remote" tab="Remote Executor">
+        <RemoteWrapperTerminal :active="activeTabKey === 'remote'" />
       </a-tab-pane>
 
       <a-tab-pane key="tmux" tab="Tmux">

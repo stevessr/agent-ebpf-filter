@@ -96,6 +96,7 @@ const isNonTmuxFilteredView = computed(() => props.sessionKindFilter === 'non-tm
 watch([defaultShellMode, defaultCustomShellPath], persistShellConfig, { immediate: true });
 
 const matchesSessionFilter = (session: ShellSessionInfo) => {
+  const kind = (session.kind || '').trim().toLowerCase();
   if (props.sessionKindFilter === 'all') {
     return true;
   }
@@ -103,7 +104,7 @@ const matchesSessionFilter = (session: ShellSessionInfo) => {
     return isTmuxSession(session);
   }
   if (props.sessionKindFilter === 'non-tmux') {
-    return !isTmuxSession(session);
+    return !isTmuxSession(session) && kind !== 'wrapper';
   }
   return true;
 };

@@ -30,9 +30,10 @@ const (
 const shellSessionBacklogLimit = 1 << 20
 
 const (
-	shellSessionKindShell  = "shell"
-	shellSessionKindTmux   = "tmux"
-	shellSessionKindScript = "script"
+	shellSessionKindShell   = "shell"
+	shellSessionKindTmux    = "tmux"
+	shellSessionKindScript  = "script"
+	shellSessionKindWrapper = "wrapper"
 )
 
 type ShellSessionCreateRequest struct {
@@ -122,6 +123,8 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 		switch {
 		case shellReqLower == shellSessionKindTmux || commandReqLower == shellSessionKindTmux:
 			kind = shellSessionKindTmux
+		case shellReqLower == shellSessionKindWrapper || commandReqLower == "agent-wrapper":
+			kind = shellSessionKindWrapper
 		case strings.Contains(shellReqLower, "python") || strings.Contains(shellReqLower, "node") ||
 			strings.Contains(commandReqLower, "python") || strings.Contains(commandReqLower, "node"):
 			kind = shellSessionKindScript
@@ -135,7 +138,12 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 		label = launchReq
 	}
 
-	launchPath := resolveShellPath(launchReq)
+	var launchPath string
+	if kind == shellSessionKindWrapper || shellReq == shellSessionKindWrapper || commandReq == "agent-wrapper" || launchReq == "agent-wrapper" {
+		launchPath = resolveWrapperPath()
+	} else {
+		launchPath = resolveShellPath(launchReq)
+	}
 	if launchPath == "" {
 		return nil, fmt.Errorf("launcher not found")
 	}
@@ -605,6 +613,8 @@ func normalizeShellSessionKind(value string) string {
 		return shellSessionKindTmux
 	case shellSessionKindScript:
 		return shellSessionKindScript
+	case shellSessionKindWrapper:
+		return shellSessionKindWrapper
 	case "", shellSessionKindShell:
 		return shellSessionKindShell
 	default:

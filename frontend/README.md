@@ -55,7 +55,8 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 
 ### Executor
 
-- starts wrapper-routed commands through `POST /system/run`
+- has a dedicated Remote tab that launches wrapper-routed commands into a temporary PTY session
+- leaving the Remote tab destroys that backend terminal automatically
 - manages persistent PTY sessions through:
   - `POST /shell-sessions`
   - `GET /shell-sessions`
@@ -64,6 +65,7 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
   - `GET /ws/shell`
 - each backend PTY session is single-attach: one active terminal WebSocket at a time
 - includes dedicated subtabs for:
+  - a remote wrapper tab for temporary wrapper-backed terminals
   - a shell tab for non-tmux interactive sessions
   - a tmux tab with coding-CLI launcher + tmux session quick tools
   - Python / Node / Ruby / sh / pwsh / Deno / Bun script launches with optional Python venv selection
