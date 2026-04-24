@@ -1910,6 +1910,31 @@ func main() {
 	r.POST("/shell-sessions/:id/input", handleSendShellSessionInput)
 	r.GET("/ws/shell", serveShellWS)
 
+	r.GET("/events/recent", func(c *gin.Context) {
+		limit := 50
+		if l := c.Query("limit"); l != "" {
+			if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 200 {
+				limit = parsed
+			}
+		}
+		typeFilter := c.Query("type")
+		records, source, err := runtimeSettingsStore.RecentEvents(limit)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if typeFilter != "" {
+			filtered := make([]CapturedEventRecord, 0, len(records))
+			for _, r := range records {
+				if r.Event != nil && r.Event.Type == typeFilter {
+					filtered = append(filtered, r)
+				}
+			}
+			records = filtered
+		}
+		c.JSON(http.StatusOK, gin.H{"source": source, "events": records})
+	})
+
 	r.POST("/hooks/event", func(c *gin.Context) {
 		// Receives events from various AI CLI native hook mechanisms.
 		var payload map[string]interface{}

@@ -168,6 +168,50 @@ const launchCommand = async () => {
   }
 };
 
+interface WrapperEventRecord {
+  receivedAt: string;
+  event: {
+    pid: number;
+    comm: string;
+    type: string;
+    tag: string;
+    path: string;
+  };
+}
+
+const recentEvents = ref<WrapperEventRecord[]>([]);
+let eventsPollTimer: number | null = null;
+
+const fetchRecentEvents = async () => {
+  if (!props.active) return;
+  try {
+    const res = await axios.get('/events/recent', {
+      params: { type: 'wrapper_intercept', limit: 20 },
+    });
+    recentEvents.value = (res.data.events || []).reverse();
+  } catch {
+    // Silently ignore poll errors
+  }
+};
+
+const startEventsPolling = () => {
+  stopEventsPolling();
+  fetchRecentEvents();
+  eventsPollTimer = window.setInterval(fetchRecentEvents, 3000);
+};
+
+const stopEventsPolling = () => {
+  if (eventsPollTimer !== null) {
+    clearInterval(eventsPollTimer);
+    eventsPollTimer = null;
+  }
+};
+
+const formatEventTime = (iso: string) => {
+  const d = new Date(iso);
+  return d.toLocaleTimeString();
+};
+
 const closeTemporaryTerminal = async () => {
   if (!session.value) return;
   await closeSession();
@@ -178,12 +222,16 @@ watch(
   (active) => {
     if (!active) {
       void closeSession();
+      stopEventsPolling();
+    } else {
+      startEventsPolling();
     }
   },
 );
 
 onBeforeUnmount(() => {
   void closeSession();
+  stopEventsPolling();
 });
 </script>
 
@@ -283,6 +331,41 @@ onBeforeUnmount(() => {
             description="Launch a command to open a temporary wrapper terminal. Switch away from this tab and it will be destroyed automatically."
           />
         </template>
+      </a-card>
+
+      <a-card title="Recent Wrapper Events (eBPF)" :bordered="false" style="margin-top: 16px;">
+        <template #extra>
+          <a-tag color="orange">live</a-tag>
+        </template>
+        <a-table
+          :data-source="recentEvents"
+          :columns="[
+            { title: 'Time', dataIndex: 'receivedAt', key: 'receivedAt' },
+            { title: 'Command', dataIndex: ['event', 'comm'], key: 'comm' },
+            { title: 'Args/Path', dataIndex: ['event', 'path'], key: 'path', ellipsis: true },
+            { title: 'Tag', dataIndex: ['event', 'tag'], key: 'tag' },
+          ]"
+          :pagination="false"
+          size="small"
+          row-key="receivedAt"
+          :scroll="{ x: true }"
+          :locale="{ emptyText: 'Waiting for wrapper events...' }"
+        >
+          <template #bodyCell="{ column, text, record }">
+            <template v-if="column.key === 'receivedAt'">
+              <span style="font-size: 12px; white-space: nowrap;">{{ formatEventTime(record.receivedAt) }}</span>
+            </template>
+            <template v-else-if="column.key === 'comm'">
+              <code>{{ record.event.comm }}</code>
+            </template>
+            <template v-else-if="column.key === 'path'">
+              <span style="font-size: 12px;">{{ record.event.path }}</span>
+            </template>
+            <template v-else-if="column.key === 'tag'">
+              <a-tag color="blue">{{ record.event.tag }}</a-tag>
+            </template>
+          </template>
+        </a-table>
       </a-card>
     </a-col>
   </a-row>
