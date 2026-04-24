@@ -30,6 +30,19 @@ interface NetworkEvent {
   time: string;
 }
 
+type ResizableColumnKey =
+  | 'time'
+  | 'netDirection'
+  | 'type'
+  | 'tag'
+  | 'pid'
+  | 'comm'
+  | 'netEndpoint'
+  | 'netBytes'
+  | 'netFamily'
+  | 'path'
+  | 'action';
+
 const eventTypes = ['network_connect', 'network_bind', 'network_sendto', 'network_recvfrom'];
 const directionOptions = [
   { label: 'Outgoing', value: 'outgoing' },
@@ -37,19 +50,19 @@ const directionOptions = [
   { label: 'Listening', value: 'listening' },
 ];
 const pageSizeOptions = ['20', '50', '100', '200'];
-const columns = [
-  { title: 'Time', dataIndex: 'time', key: 'time', width: 120 },
-  { title: 'Direction', dataIndex: 'netDirection', key: 'netDirection', width: 110 },
-  { title: 'Type', dataIndex: 'type', key: 'type', width: 150 },
-  { title: 'Tag', dataIndex: 'tag', key: 'tag', width: 120 },
-  { title: 'PID', dataIndex: 'pid', key: 'pid', width: 100 },
-  { title: 'Command', dataIndex: 'comm', key: 'comm', width: 150 },
-  { title: 'Endpoint', dataIndex: 'netEndpoint', key: 'netEndpoint', width: 240, ellipsis: true },
-  { title: 'Bytes', dataIndex: 'netBytes', key: 'netBytes', width: 120 },
-  { title: 'Family', dataIndex: 'netFamily', key: 'netFamily', width: 100 },
-  { title: 'Summary', dataIndex: 'path', key: 'path', ellipsis: true },
-  { title: 'Action', key: 'action', width: 80, fixed: 'right' as const },
-];
+const baseColumns = [
+  { title: 'Time', dataIndex: 'time', key: 'time' },
+  { title: 'Direction', dataIndex: 'netDirection', key: 'netDirection' },
+  { title: 'Type', dataIndex: 'type', key: 'type' },
+  { title: 'Tag', dataIndex: 'tag', key: 'tag' },
+  { title: 'PID', dataIndex: 'pid', key: 'pid' },
+  { title: 'Command', dataIndex: 'comm', key: 'comm' },
+  { title: 'Endpoint', dataIndex: 'netEndpoint', key: 'netEndpoint' },
+  { title: 'Bytes', dataIndex: 'netBytes', key: 'netBytes' },
+  { title: 'Family', dataIndex: 'netFamily', key: 'netFamily' },
+  { title: 'Summary', dataIndex: 'path', key: 'path' },
+  { title: 'Action', key: 'action', fixed: 'right' as const },
+] as const;
 
 const events = ref<NetworkEvent[]>([]);
 const tags = ref<string[]>([]);
@@ -64,10 +77,42 @@ const currentPage = ref(1);
 const pageSize = ref(20);
 const showDetails = ref(false);
 const selectedEvent = ref<NetworkEvent | null>(null);
+const tableWrapperRef = ref<HTMLElement | null>(null);
+const tableContentWidth = ref(0);
 
 let ws: WebSocket | null = null;
 let reconnectTimer: number | null = null;
 let shouldReconnect = true;
+let resizeObserver: ResizeObserver | null = null;
+let cleanupColumnResize: (() => void) | null = null;
+
+const columnWidths = ref<Record<ResizableColumnKey, number>>({
+  time: 120,
+  netDirection: 110,
+  type: 150,
+  tag: 120,
+  pid: 96,
+  comm: 150,
+  netEndpoint: 260,
+  netBytes: 120,
+  netFamily: 100,
+  path: 220,
+  action: 80,
+});
+
+const minColumnWidths: Record<ResizableColumnKey, number> = {
+  time: 100,
+  netDirection: 96,
+  type: 120,
+  tag: 100,
+  pid: 88,
+  comm: 120,
+  netEndpoint: 180,
+  netBytes: 96,
+  netFamily: 90,
+  path: 180,
+  action: 72,
+};
 
 const tagOptions = computed(() =>
   tags.value.map((tag) => ({
@@ -151,6 +196,73 @@ const tablePagination = computed(() => ({
   pageSizeOptions,
   showTotal: (total: number, range: [number, number]) => `${range[0]}-${range[1]} / ${total}`,
 }));
+
+const getRowClassName = (_record: NetworkEvent, index: number) =>
+  (index % 2 === 0 ? 'excel-row-even' : 'excel-row-odd');
+
+const isResizableColumn = (key: string | number | symbol) => ([
+  'time',
+  'netDirection',
+  'type',
+  'tag',
+  'pid',
+  'comm',
+  'netEndpoint',
+  'netBytes',
+  'netFamily',
+  'path',
+  'action',
+] as const).includes(String(key) as ResizableColumnKey);
+
+const tableColumns = computed(() => baseColumns.map((column) => {
+  if (column.key === 'path') {
+    const fixedWidth = (['time', 'netDirection', 'type', 'tag', 'pid', 'comm', 'netEndpoint', 'netBytes', 'netFamily', 'action'] as const)
+      .reduce((total, key) => total + columnWidths.value[key], 0);
+    const availableWidth = tableContentWidth.value > 0 ? tableContentWidth.value : 0;
+    const dynamicWidth = availableWidth > 0
+      ? Math.max(minColumnWidths.path, availableWidth - fixedWidth - 12)
+      : columnWidths.value.path;
+    return { ...column, width: Math.max(minColumnWidths.path, columnWidths.value.path, dynamicWidth) };
+  }
+  if (column.key in columnWidths.value) {
+    return { ...column, width: columnWidths.value[column.key as ResizableColumnKey] };
+  }
+  return column;
+}));
+
+const handleTableResize = (entries: ResizeObserverEntry[]) => {
+  const entry = entries[0];
+  if (!entry) return;
+  tableContentWidth.value = entry.contentRect.width;
+};
+
+const startColumnResize = (key: string | number | symbol, event: MouseEvent) => {
+  if (!isResizableColumn(key)) return;
+  event.preventDefault();
+
+  const resizeKey = String(key) as ResizableColumnKey;
+  const startX = event.clientX;
+  const startWidth = columnWidths.value[resizeKey];
+  const minWidth = minColumnWidths[resizeKey];
+
+  const onMouseMove = (moveEvent: MouseEvent) => {
+    const nextWidth = Math.max(minWidth, startWidth + moveEvent.clientX - startX);
+    columnWidths.value[resizeKey] = nextWidth;
+  };
+
+  const stopResize = () => {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', stopResize);
+    document.documentElement.classList.remove('excel-resizing');
+    cleanupColumnResize = null;
+  };
+
+  cleanupColumnResize?.();
+  document.documentElement.classList.add('excel-resizing');
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', stopResize);
+  cleanupColumnResize = stopResize;
+};
 
 const summaryStats = computed(() => {
   const outgoing = networkFilteredEvents.value.filter((event) => event.netDirection === 'outgoing').length;
@@ -371,10 +483,18 @@ const connectWebSocket = () => {
 onMounted(() => {
   connectWebSocket();
   fetchTags();
+  if (tableWrapperRef.value && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(handleTableResize);
+    resizeObserver.observe(tableWrapperRef.value);
+  }
 });
 
 onUnmounted(() => {
   shouldReconnect = false;
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  cleanupColumnResize?.();
+  cleanupColumnResize = null;
   if (reconnectTimer !== null) {
     window.clearTimeout(reconnectTimer);
     reconnectTimer = null;
@@ -385,7 +505,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div style="background: #fff; padding: 24px; min-height: 100%;">
+  <div class="network-page">
     <a-card :bordered="false">
       <template #title>
         <span><GlobalOutlined /> Network Packet / Flow Monitor</span>
@@ -530,15 +650,29 @@ onUnmounted(() => {
         </a-checkbox>
       </div>
 
-      <a-table
-        :dataSource="networkFilteredEvents"
-        :columns="columns"
-        row-key="key"
-        size="small"
-        :pagination="tablePagination"
-        @change="handleTableChange"
-        :scroll="{ x: 1400 }"
-      >
+      <div ref="tableWrapperRef" class="network-table-wrap">
+        <a-table
+          class="network-table"
+          :dataSource="networkFilteredEvents"
+          :columns="tableColumns"
+          row-key="key"
+          size="small"
+          :pagination="tablePagination"
+          :rowClassName="getRowClassName"
+          :tableLayout="'fixed'"
+          @change="handleTableChange"
+        >
+        <template #headerCell="{ column }">
+          <div class="network-header-cell">
+            <span class="network-header-title">{{ column.title }}</span>
+            <span
+              v-if="isResizableColumn(column.key)"
+              class="network-column-resizer"
+              title="Drag to resize"
+              @mousedown.stop.prevent="startColumnResize(column.key, $event)"
+            />
+          </div>
+        </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'netDirection'">
             <a-tag :color="directionColor(record.netDirection)">{{ formatDirection(record.netDirection) }}</a-tag>
@@ -550,7 +684,7 @@ onUnmounted(() => {
             <a-tag color="purple">{{ record.tag }}</a-tag>
           </template>
           <template v-else-if="column.key === 'netEndpoint'">
-            <a-typography-text code style="word-break: break-all;">{{ record.netEndpoint || '—' }}</a-typography-text>
+            <a-typography-text class="network-cell-text">{{ formatDetailValue(record.netEndpoint) }}</a-typography-text>
           </template>
           <template v-else-if="column.key === 'netBytes'">
             <span>{{ formatBytes(record.netBytes) }}</span>
@@ -559,7 +693,7 @@ onUnmounted(() => {
             <a-tag :color="familyColor(record.netFamily)">{{ record.netFamily || 'unknown' }}</a-tag>
           </template>
           <template v-else-if="column.key === 'path'">
-            <a-typography-text code style="word-break: break-all;">{{ record.path }}</a-typography-text>
+            <a-typography-text class="network-summary-text">{{ formatDetailValue(record.path) }}</a-typography-text>
           </template>
           <template v-else-if="column.key === 'action'">
             <a-button type="link" size="small" @click="openDetails(record)">
@@ -571,7 +705,8 @@ onUnmounted(() => {
         <template #emptyText>
           <a-empty description="No network events yet" />
         </template>
-      </a-table>
+        </a-table>
+      </div>
     </a-card>
 
     <a-modal v-model:open="showDetails" title="Network Event Details" :footer="null" width="700px">
@@ -600,3 +735,157 @@ onUnmounted(() => {
     </a-modal>
   </div>
 </template>
+
+<style scoped>
+.network-page {
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  color: #1f2937;
+}
+
+.network-table-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.network-table {
+  width: 100%;
+  min-width: 100%;
+  border: 1px solid #d9e4d1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.network-table :deep(.ant-table) {
+  font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+  background: #fff;
+  width: 100%;
+}
+
+.network-table :deep(.ant-table-container) {
+  width: 100%;
+}
+
+.network-table :deep(.ant-table-thead > tr > th) {
+  background: linear-gradient(180deg, #f7fbf4 0%, #edf4e8 100%);
+  color: #1f3a1f;
+  font-weight: 700;
+  border-right: 1px solid #d9e4d1;
+  border-bottom: 1px solid #c7d7bf;
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.network-header-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.network-header-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.network-column-resizer {
+  width: 10px;
+  align-self: stretch;
+  flex: 0 0 auto;
+  cursor: col-resize;
+  position: relative;
+  margin-left: 2px;
+}
+
+.network-column-resizer::before {
+  content: '';
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  left: 4px;
+  width: 1px;
+  border-radius: 1px;
+  background: rgba(95, 122, 82, 0.5);
+}
+
+.network-column-resizer:hover::before {
+  background: #2f7d32;
+}
+
+.network-table :deep(.ant-table-tbody > tr > td) {
+  border-right: 1px solid #e6ece0;
+  border-bottom: 1px solid #e6ece0;
+  padding: 8px 12px;
+  background: #fff;
+  vertical-align: top;
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.network-table :deep(.ant-table-tbody > tr.excel-row-even > td) {
+  background: #ffffff;
+}
+
+.network-table :deep(.ant-table-tbody > tr.excel-row-odd > td) {
+  background: #fbfdf8;
+}
+
+.network-table :deep(.ant-table-tbody > tr:hover > td) {
+  background: #eef6e8 !important;
+}
+
+.network-table :deep(.ant-table-row) {
+  transition: background-color 0.15s ease;
+}
+
+.network-table :deep(.ant-tag) {
+  border-radius: 2px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+}
+
+.network-table :deep(.ant-input),
+.network-table :deep(.ant-select-selector),
+.network-table :deep(.ant-btn),
+.network-table :deep(.ant-checkbox-inner) {
+  border-radius: 2px !important;
+}
+
+.network-cell-text,
+.network-summary-text {
+  display: block;
+  min-width: 0;
+  color: #28402a;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.network-table :deep(.ant-table-pagination) {
+  margin: 12px 0 0;
+}
+
+.network-table :deep(.ant-pagination-item),
+.network-table :deep(.ant-pagination-prev),
+.network-table :deep(.ant-pagination-next),
+.network-table :deep(.ant-select-selector) {
+  box-shadow: none;
+}
+
+:global(html.excel-resizing),
+:global(html.excel-resizing body),
+:global(html.excel-resizing *) {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+</style>
