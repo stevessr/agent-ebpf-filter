@@ -6,6 +6,7 @@ import '@wterm/dom/css';
 
 import type { ShellSessionInfo } from '../types/shell';
 import { buildWebSocketUrl } from '../utils/requestContext';
+import { isTmuxSession, TMUX_SHORTCUTS } from '../utils/tmux';
 
 const INITIAL_COLS = 100;
 const INITIAL_ROWS = 32;
@@ -87,6 +88,8 @@ const shellLabel = computed(() => {
   return props.session.shellPath ? `${shell} → ${props.session.shellPath}` : shell;
 });
 
+const showTmuxQuickActions = computed(() => isTmuxSession(props.session));
+
 const statusNotice = computed(() => {
   if (connectionError.value) {
     return {
@@ -164,6 +167,11 @@ const sendResize = (cols: number, rows: number) => {
 
 const focusTerminal = () => {
   term?.focus();
+};
+
+const sendTmuxShortcut = (sequence: string) => {
+  sendShellData(sequence);
+  focusTerminal();
 };
 
 const cleanup = () => {
@@ -403,6 +411,7 @@ onBeforeUnmount(() => {
         <div class="shell-pane__meta-line">
           <a-tag color="blue">#{{ session.id }}</a-tag>
           <span class="shell-pane__shell" :title="shellLabel">{{ shellLabel }}</span>
+          <a-tag v-if="showTmuxQuickActions" color="purple">tmux</a-tag>
         </div>
         <div class="shell-pane__meta-line">
           <a-tag :color="backendStatusColor">backend: {{ backendStatusLabel }}</a-tag>
@@ -425,6 +434,22 @@ onBeforeUnmount(() => {
         </a-button>
         <a-button size="small" danger @click="emit('close-session')">
           Close backend
+        </a-button>
+      </a-space>
+    </div>
+
+    <div v-if="showTmuxQuickActions" class="shell-pane__tmux-tools">
+      <a-tag color="purple">tmux shortcuts</a-tag>
+      <a-space wrap :size="6">
+        <a-button
+          v-for="shortcut in TMUX_SHORTCUTS"
+          :key="shortcut.key"
+          size="small"
+          :danger="shortcut.danger"
+          :disabled="props.session.status !== 'running'"
+          @click="sendTmuxShortcut(shortcut.sequence)"
+        >
+          {{ shortcut.label }}
         </a-button>
       </a-space>
     </div>
@@ -485,6 +510,13 @@ onBeforeUnmount(() => {
 
 .shell-pane__alert {
   margin-bottom: 0;
+}
+
+.shell-pane__tmux-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .shell-pane__terminal {

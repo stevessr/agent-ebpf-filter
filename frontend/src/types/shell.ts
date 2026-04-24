@@ -14,11 +14,13 @@ export interface ShellSessionCreateRequest {
   workDir?: string;
   cols?: number;
   rows?: number;
+  kind?: string;
 }
 
 export interface ShellSessionInfo {
   id: string;
   label?: string;
+  kind?: string;
   shell: string;
   shellPath: string;
   command?: string;
@@ -30,4 +32,8 @@ export interface ShellSessionInfo {
   createdAt: string;
   updatedAt: string;
   lastError?: string;
+}
+
+export interface ShellSessionInputRequest {
+  data: string;
 }

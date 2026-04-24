@@ -47,7 +47,7 @@ Events are written to a ring buffer and consumed by the Go backend.
 - **Monitor**: process / CPU / memory / GPU / IO / page-fault telemetry
 - **Network**: syscall-derived network flow table with direction / endpoint filters
 - **Explorer**: browse the host filesystem and add tracked paths
-- **Executor**: run commands via `agent-wrapper` and manage interactive PTY sessions
+- **Executor**: run commands via `agent-wrapper`, manage interactive PTY sessions, and use the tmux tab for coding CLI launches plus tmux quick shortcuts
 - **Executor**: run wrapper-protected commands, launch coding CLIs in tmux, and start Python/Node scripts with optional virtualenv selection
 - **Hooks**: install or edit native hook configs / wrapper aliases
 - **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, runtime log persistence, and the backend access token
@@ -272,6 +272,7 @@ The wrapper sends the command to the backend over `/tmp/agent-ebpf.sock`, receiv
 - `POST /shell-sessions` — create a persistent PTY session
 - `GET /shell-sessions` — list PTY sessions
 - `DELETE /shell-sessions/:id` — close a PTY session
+- `POST /shell-sessions/:id/input` — inject raw bytes into a PTY session
 - `GET /ws/shell?session_id=...` — attach to a PTY session
 
 ### Config and system endpoints

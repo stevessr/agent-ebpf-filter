@@ -1904,6 +1904,7 @@ func main() {
 	r.POST("/shell-sessions", handleCreateShellSession)
 	r.GET("/shell-sessions", handleListShellSessions)
 	r.DELETE("/shell-sessions/:id", handleDeleteShellSession)
+	r.POST("/shell-sessions/:id/input", handleSendShellSessionInput)
 	r.GET("/ws/shell", serveShellWS)
 
 	r.POST("/hooks/event", func(c *gin.Context) {

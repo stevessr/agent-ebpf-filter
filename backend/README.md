@@ -83,6 +83,7 @@ Current behavior:
 - the backend keeps a bounded output backlog so reconnecting clients can receive recent output.
 
 `POST /shell-sessions` accepts either a normal shell launch or a custom command + args payload, which is what the Executor page uses for tmux-backed coding CLIs and script runners.
+`POST /shell-sessions/:id/input` can inject raw bytes into an existing PTY session, which the tmux quick manager uses to send `Ctrl-b` shortcuts.
 
 ## HTTP endpoints
 
@@ -94,6 +95,7 @@ Current behavior:
 - `POST /shell-sessions`
 - `GET /shell-sessions`
 - `DELETE /shell-sessions/:id`
+- `POST /shell-sessions/:id/input`
 - `GET /ws/shell`
 - `GET /ws`
 - `GET /ws/system`

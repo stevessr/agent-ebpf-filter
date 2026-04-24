@@ -4,9 +4,28 @@ import axios from 'axios';
 import { message } from 'ant-design-vue';
 
 import ShellTerminalPane from './ShellTerminalPane.vue';
-import type { ShellConfig, ShellMode, ShellSessionCreateRequest, ShellSessionInfo } from '../types/shell';
+import type {
+  ShellConfig,
+  ShellMode,
+  ShellSessionCreateRequest,
+  ShellSessionInfo,
+  ShellSessionInputRequest,
+} from '../types/shell';
+import { isTmuxSession, TMUX_SHORTCUTS } from '../utils/tmux';
 
 const SHELL_STORAGE_KEY = 'executor-shell-config';
+
+const props = withDefaults(defineProps<{
+  managerTitle?: string;
+  sessionKindFilter?: 'all' | 'tmux';
+  showCreatePanel?: boolean;
+  showTmuxQuickActions?: boolean;
+}>(), {
+  managerTitle: 'Terminal Session Manager',
+  sessionKindFilter: 'all',
+  showCreatePanel: true,
+  showTmuxQuickActions: false,
+});
 
 const shellModeOptions = [
   { label: 'Auto (fish → zsh → bash → ash → sh)', value: 'auto' },
@@ -71,7 +90,22 @@ const activeTabKey = ref('');
 
 let refreshTimer: number | null = null;
 
+const isTmuxFilteredView = computed(() => props.sessionKindFilter === 'tmux');
+
 watch([defaultShellMode, defaultCustomShellPath], persistShellConfig, { immediate: true });
+
+const matchesSessionFilter = (session: ShellSessionInfo) => {
+  if (props.sessionKindFilter === 'all') {
+    return true;
+  }
+  if (props.sessionKindFilter === 'tmux') {
+    return isTmuxSession(session);
+  }
+  return true;
+};
+
+const filteredSessions = computed(() => sessions.value.filter(matchesSessionFilter));
+const tmuxQuickShortcuts = TMUX_SHORTCUTS.filter((shortcut) => !shortcut.danger);
 
 const defaultShellRequest = computed(() => {
   if (defaultShellMode.value === 'custom') {
@@ -101,6 +135,9 @@ const shellSelectionLabel = computed(() => {
 });
 
 const sessionMap = computed(() => new Map(sessions.value.map((session) => [session.id, session] as const)));
+const filteredSessionMap = computed(
+  () => new Map(filteredSessions.value.map((session) => [session.id, session] as const)),
+);
 
 const sessionColumns = [
   { title: 'Session', dataIndex: 'session', key: 'session' },
@@ -112,11 +149,13 @@ const sessionColumns = [
 
 const openSessions = computed(() =>
   openSessionIds.value
-    .map((id) => sessionMap.value.get(id))
+    .map((id) => filteredSessionMap.value.get(id))
     .filter((session): session is ShellSessionInfo => Boolean(session)),
 );
 
-const runningSessionCount = computed(() => sessions.value.filter((session) => session.status === 'running').length);
+const runningSessionCount = computed(
+  () => filteredSessions.value.filter((session) => session.status === 'running').length,
+);
 
 const formatDateTime = (value: string) => {
   const date = new Date(value);
@@ -146,7 +185,7 @@ const attachedColor = (attached: boolean) => (attached ? 'success' : 'default');
 const isSessionOpen = (sessionId: string) => openSessionIds.value.includes(sessionId);
 
 const syncOpenTabs = () => {
-  const availableIds = new Set(sessions.value.map((session) => session.id));
+  const availableIds = new Set(filteredSessions.value.map((session) => session.id));
   openSessionIds.value = openSessionIds.value.filter((id) => availableIds.has(id));
   if (!openSessionIds.value.includes(activeTabKey.value)) {
     activeTabKey.value = openSessionIds.value[0] || '';
@@ -189,6 +228,8 @@ const refreshSessions = async () => {
 
 const openSession = (sessionId: string) => {
   if (!sessionId) return;
+  const session = sessionMap.value.get(sessionId);
+  if (!session || !matchesSessionFilter(session)) return;
   if (!openSessionIds.value.includes(sessionId)) {
     openSessionIds.value = [...openSessionIds.value, sessionId];
   }
@@ -240,6 +281,19 @@ const closeBackendSession = async (sessionId: string) => {
   }
 };
 
+const sendSessionInput = async (sessionId: string, data: string) => {
+  const payload: ShellSessionInputRequest = { data };
+  await axios.post(`/shell-sessions/${sessionId}/input`, payload);
+};
+
+const sendTmuxShortcut = async (sessionId: string, shortcut: string, label: string) => {
+  try {
+    await sendSessionInput(sessionId, shortcut);
+  } catch (err: any) {
+    message.error(err?.response?.data?.error || err?.message || `Failed to send ${label}`);
+  }
+};
+
 const createSession = async () => {
   if (!canCreateSession.value) {
     message.error('Please provide a custom shell path');
@@ -252,6 +306,7 @@ const createSession = async () => {
       shell: defaultShellRequest.value || 'auto',
       cols: 100,
       rows: 32,
+      kind: 'shell',
     };
     const res = await axios.post('/shell-sessions', payload);
     const session = res.data as ShellSessionInfo;
@@ -297,10 +352,11 @@ onBeforeUnmount(() => {
   <div class="shell-manager">
     <a-row :gutter="[16, 16]">
       <a-col :xs="24" :xxl="10">
-        <a-card title="Terminal Session Manager" :bordered="false">
+        <a-card :title="managerTitle" :bordered="false">
           <template #extra>
             <a-space :size="8">
-              <a-tag color="blue">{{ openSessions.length }} open</a-tag>
+              <a-tag color="blue">{{ filteredSessions.length }} listed</a-tag>
+              <a-tag color="green">{{ openSessions.length }} open</a-tag>
               <a-button size="small" :loading="sessionsLoading" @click="refreshNow">
                 Refresh
               </a-button>
@@ -315,57 +371,68 @@ onBeforeUnmount(() => {
             description="Closing a tab only detaches the frontend. The backend shell keeps running until you click Close backend."
           />
 
-          <a-form layout="vertical">
-            <a-row :gutter="12">
-              <a-col :span="14">
-                <a-form-item label="Default shell">
-                  <a-select
-                    v-model:value="defaultShellMode"
-                    :options="shellModeOptions"
-                    style="width: 100%"
-                  />
-                </a-form-item>
-              </a-col>
-              <a-col :span="10">
-                <a-form-item label="Create">
-                  <a-button
-                    type="primary"
-                    :loading="creating"
-                    :disabled="!canCreateSession"
-                    block
-                    @click="createSession"
-                  >
-                    New Session
-                  </a-button>
-                </a-form-item>
-              </a-col>
-            </a-row>
+          <template v-if="showCreatePanel">
+            <a-form layout="vertical">
+              <a-row :gutter="12">
+                <a-col :span="14">
+                  <a-form-item label="Default shell">
+                    <a-select
+                      v-model:value="defaultShellMode"
+                      :options="shellModeOptions"
+                      style="width: 100%"
+                    />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="10">
+                  <a-form-item label="Create">
+                    <a-button
+                      type="primary"
+                      :loading="creating"
+                      :disabled="!canCreateSession"
+                      block
+                      @click="createSession"
+                    >
+                      New Session
+                    </a-button>
+                  </a-form-item>
+                </a-col>
+              </a-row>
 
-            <a-form-item v-if="defaultShellMode === 'custom'" label="Custom shell path">
-              <a-input
-                v-model:value="defaultCustomShellPath"
-                placeholder="/usr/bin/fish"
-                allow-clear
+              <a-form-item v-if="defaultShellMode === 'custom'" label="Custom shell path">
+                <a-input
+                  v-model:value="defaultCustomShellPath"
+                  placeholder="/usr/bin/fish"
+                  allow-clear
+                />
+              </a-form-item>
+
+              <a-alert
+                v-if="defaultShellMode === 'custom' && !defaultShellRequest"
+                type="warning"
+                show-icon
+                message="Custom shell path is required"
+                style="margin-bottom: 12px"
               />
-            </a-form-item>
 
+              <div class="shell-manager__summary">
+                <a-tag color="purple">{{ shellSelectionLabel }}</a-tag>
+                <span class="shell-manager__summary-text">
+                  New sessions will be created with the selected shell and then attached in a tab.
+                </span>
+              </div>
+            </a-form>
+          </template>
+          <template v-else>
             <a-alert
-              v-if="defaultShellMode === 'custom' && !defaultShellRequest"
-              type="warning"
+              v-if="isTmuxFilteredView"
+              type="info"
               show-icon
-              message="Custom shell path is required"
-              style="margin-bottom: 12px"
+              message="Tmux session view"
+              description="Use the tmux launcher on the left to create a coding CLI. Open a session here to use tmux quick shortcuts."
             />
+          </template>
 
-            <div class="shell-manager__summary">
-              <a-tag color="purple">{{ shellSelectionLabel }}</a-tag>
-              <span class="shell-manager__summary-text">
-                New sessions will be created with the selected shell and then attached in a tab.
-              </span>
-            </div>
-          </a-form>
-
-          <a-divider />
+          <a-divider v-if="showCreatePanel || isTmuxFilteredView" />
 
           <a-alert
             v-if="sessionError"
@@ -376,18 +443,24 @@ onBeforeUnmount(() => {
           />
 
           <a-table
-            :data-source="sessions"
+            :data-source="filteredSessions"
             :columns="sessionColumns"
             :loading="sessionsLoading"
             :pagination="false"
             size="small"
             row-key="id"
-            :scroll="{ x: 900 }"
+            :scroll="{ x: 1100 }"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.dataIndex === 'session'">
                 <div class="shell-manager__session-cell" :title="`${sessionLabel(record)} → ${record.shellPath || 'unresolved'}\n${record.workDir}`">
                   <div class="shell-manager__session-title">#{{ record.id }}</div>
+                  <div class="shell-manager__session-badges">
+                    <a-tag v-if="isTmuxSession(record)" color="purple">tmux</a-tag>
+                    <a-tag v-else-if="record.kind && record.kind !== 'shell'" color="blue">
+                      {{ record.kind }}
+                    </a-tag>
+                  </div>
                   <div class="shell-manager__session-subtitle shell-manager__session-subtitle--ellipsis">
                     {{ sessionLabel(record) }} → {{ record.shellPath || 'unresolved' }}
                   </div>
@@ -415,31 +488,51 @@ onBeforeUnmount(() => {
               </template>
 
               <template v-else-if="column.dataIndex === 'actions'">
-                <a-space wrap :size="8">
-                  <a-button
-                    size="small"
-                    type="primary"
-                    :disabled="!isSessionOpen(record.id) && (record.status !== 'running' || record.attached)"
-                    @click="focusOrOpenSession(record)"
+                <div class="shell-manager__actions">
+                  <a-space wrap :size="8">
+                    <a-button
+                      size="small"
+                      type="primary"
+                      :disabled="!isSessionOpen(record.id) && (record.status !== 'running' || record.attached)"
+                      @click="focusOrOpenSession(record)"
+                    >
+                      {{ isSessionOpen(record.id) ? 'Focus' : record.attached ? 'Busy' : 'Attach' }}
+                    </a-button>
+                    <a-button
+                      size="small"
+                      :disabled="!isSessionOpen(record.id)"
+                      @click="detachSession(record.id)"
+                    >
+                      Detach
+                    </a-button>
+                    <a-button size="small" danger @click="closeBackendSession(record.id)">
+                      Close
+                    </a-button>
+                  </a-space>
+
+                  <a-space
+                    v-if="showTmuxQuickActions && isTmuxSession(record)"
+                    class="shell-manager__tmux-tools"
+                    wrap
+                    :size="6"
                   >
-                    {{ isSessionOpen(record.id) ? 'Focus' : record.attached ? 'Busy' : 'Attach' }}
-                  </a-button>
-                  <a-button
-                    size="small"
-                    :disabled="!isSessionOpen(record.id)"
-                    @click="detachSession(record.id)"
-                  >
-                    Detach
-                  </a-button>
-                  <a-button size="small" danger @click="closeBackendSession(record.id)">
-                    Close
-                  </a-button>
-                </a-space>
+                    <a-tag color="purple">tmux</a-tag>
+                    <a-button
+                      v-for="shortcut in tmuxQuickShortcuts"
+                      :key="shortcut.key"
+                      size="small"
+                      :disabled="record.status !== 'running'"
+                      @click="sendTmuxShortcut(record.id, shortcut.sequence, shortcut.label)"
+                    >
+                      {{ shortcut.label }}
+                    </a-button>
+                  </a-space>
+                </div>
               </template>
             </template>
 
             <template #emptyText>
-              <a-empty description="No backend shell sessions yet" />
+              <a-empty :description="isTmuxFilteredView ? 'No tmux sessions yet' : 'No backend shell sessions yet'" />
             </template>
 
           </a-table>
@@ -447,7 +540,7 @@ onBeforeUnmount(() => {
       </a-col>
 
       <a-col :xs="24" :xxl="14">
-        <a-card title="Active Terminal Tabs" :bordered="false">
+        <a-card :title="isTmuxFilteredView ? 'Active Tmux Tabs' : 'Active Terminal Tabs'" :bordered="false">
           <template #extra>
             <a-space :size="8">
               <a-tag color="green">{{ openSessions.length }} active</a-tag>
@@ -520,6 +613,13 @@ onBeforeUnmount(() => {
   line-height: 1.4;
 }
 
+.shell-manager__session-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .shell-manager__session-subtitle {
   color: #666;
   font-size: 12px;
@@ -530,5 +630,15 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.shell-manager__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shell-manager__tmux-tools {
+  align-items: center;
 }
 </style>

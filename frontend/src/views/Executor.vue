@@ -8,7 +8,7 @@ import LocalShellTerminal from '../components/LocalShellTerminal.vue';
 import PathNavigatorDrawer from '../components/PathNavigatorDrawer.vue';
 import type { ShellSessionCreateRequest, ShellSessionInfo } from '../types/shell';
 
-type ExecutorTabKey = 'shell' | 'coding-cli' | 'scripts';
+type ExecutorTabKey = 'shell' | 'tmux' | 'scripts';
 type PathPickerTarget = 'coding-workdir' | 'script-path' | 'script-workdir' | 'python-venv';
 
 type LocalShellManagerExpose = {
@@ -21,6 +21,7 @@ type CodingPresetKey = 'codex' | 'claude' | 'gemini' | 'custom';
 type ScriptLanguage = 'python' | 'node';
 
 const shellManagerRef = ref<LocalShellManagerExpose | null>(null);
+const tmuxManagerRef = ref<LocalShellManagerExpose | null>(null);
 const activeTabKey = ref<ExecutorTabKey>('shell');
 
 const command = ref('');
@@ -230,16 +231,31 @@ const applyPickedPath = (path: string) => {
   }
 };
 
-const openShellManagerWithSession = (session: ShellSessionInfo) => {
+const upsertSessionEverywhere = (session: ShellSessionInfo) => {
   shellManagerRef.value?.upsertSession(session);
-  shellManagerRef.value?.openSession(session.id);
-  activeTabKey.value = 'shell';
+  tmuxManagerRef.value?.upsertSession(session);
 };
 
-const createShellSession = async (payload: ShellSessionCreateRequest, successMessage: string) => {
+const focusSessionInManager = (session: ShellSessionInfo, manager: ExecutorTabKey) => {
+  upsertSessionEverywhere(session);
+
+  if (manager === 'tmux') {
+    tmuxManagerRef.value?.openSession(session.id);
+  } else {
+    shellManagerRef.value?.openSession(session.id);
+  }
+
+  activeTabKey.value = manager;
+};
+
+const createShellSession = async (
+  payload: ShellSessionCreateRequest,
+  successMessage: string,
+  manager: ExecutorTabKey,
+) => {
   const res = await axios.post('/shell-sessions', payload);
   const session = res.data as ShellSessionInfo;
-  openShellManagerWithSession(session);
+  focusSessionInManager(session, manager);
   message.success(successMessage);
   return session;
 };
@@ -321,6 +337,7 @@ const launchCodingCli = async () => {
           cols: 100,
           rows: 32,
           label: `tmux: ${cliCommand}`,
+          kind: 'tmux',
         }
       : {
           shell: cliCommand,
@@ -330,9 +347,10 @@ const launchCodingCli = async () => {
           cols: 100,
           rows: 32,
           label: `cli: ${cliCommand}`,
+          kind: 'shell',
         };
 
-    await createShellSession(payload, `Launched coding CLI: ${cliCommand}`);
+    await createShellSession(payload, `Launched coding CLI: ${cliCommand}`, codingUseTmux.value ? 'tmux' : 'shell');
   } catch (err: any) {
     message.error(err?.response?.data?.error || err?.message || 'Failed to launch coding CLI');
   } finally {
@@ -374,8 +392,9 @@ const launchScript = async () => {
       cols: 100,
       rows: 32,
       label: `${scriptLanguage.value}: ${basename(script)}`,
+      kind: 'script',
     };
-    await createShellSession(payload, `Launched ${scriptLanguage.value} script: ${basename(script)}`);
+    await createShellSession(payload, `Launched ${scriptLanguage.value} script: ${basename(script)}`, 'shell');
   } catch (err: any) {
     message.error(err?.response?.data?.error || err?.message || 'Failed to launch script');
   } finally {
@@ -462,16 +481,16 @@ const launchScript = async () => {
         </a-space>
       </a-tab-pane>
 
-      <a-tab-pane key="coding-cli" tab="Coding CLI (tmux)">
+      <a-tab-pane key="tmux" tab="Tmux">
         <a-row :gutter="[16, 16]">
           <a-col :xs="24" :xl="10">
-            <a-card title="Launch coding CLI" :bordered="false">
+            <a-card title="Launch coding CLI in tmux" :bordered="false">
               <a-alert
                 type="info"
                 show-icon
                 style="margin-bottom: 16px;"
                 message="This launcher starts the coding CLI inside tmux by default."
-                description="The launched session is pushed into the Shell Manager tab so you can reattach, detach, or close it from the normal session list."
+                description="The launched session appears in both the Shell Manager and this tmux tab so you can reattach, detach, or use tmux shortcuts."
               />
 
               <a-form layout="vertical">
@@ -534,36 +553,26 @@ const launchScript = async () => {
                   </template>
                   Launch coding CLI
                 </a-button>
+
+                <a-alert
+                  type="info"
+                  show-icon
+                  style="margin-top: 16px;"
+                  message="Tmux shortcut tools stay available in the session pane after you open the launched session."
+                />
               </a-form>
             </a-card>
           </a-col>
 
           <a-col :xs="24" :xl="14">
-            <a-card title="How this launcher behaves" :bordered="false">
-              <a-space direction="vertical" :size="12" style="width: 100%;">
-                <a-alert
-                  type="warning"
-                  show-icon
-                  message="tmux preserves the coding CLI session on the host."
-                  description="If you close the frontend tab, the backend PTY detaches from the UI, while the tmux client remains the actual launcher process. You can reopen it from the Shell Manager list."
-                />
-                <a-descriptions bordered size="small" :column="1">
-                  <a-descriptions-item label="Preset command">
-                    <code>{{ getSelectedCodingCommand() || '—' }}</code>
-                  </a-descriptions-item>
-                  <a-descriptions-item label="Workdir">
-                    <span>{{ codingWorkDir.trim() || 'backend default' }}</span>
-                  </a-descriptions-item>
-                  <a-descriptions-item label="Session label">
-                    <span>{{ codingUseTmux ? `tmux: ${getSelectedCodingCommand() || 'unset'}` : `cli: ${getSelectedCodingCommand() || 'unset'}` }}</span>
-                  </a-descriptions-item>
-                </a-descriptions>
-                <a-alert
-                  type="info"
-                  show-icon
-                  message="Tip: choose a workdir first if your coding CLI should open inside a repo."
-                />
-              </a-space>
+            <a-card title="Tmux Workbench" :bordered="false">
+              <LocalShellTerminal
+                ref="tmuxManagerRef"
+                manager-title="Tmux Session Manager"
+                session-kind-filter="tmux"
+                :show-create-panel="false"
+                :show-tmux-quick-actions="true"
+              />
             </a-card>
           </a-col>
         </a-row>

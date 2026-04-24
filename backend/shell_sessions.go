@@ -29,6 +29,12 @@ const (
 
 const shellSessionBacklogLimit = 1 << 20
 
+const (
+	shellSessionKindShell  = "shell"
+	shellSessionKindTmux   = "tmux"
+	shellSessionKindScript = "script"
+)
+
 type ShellSessionCreateRequest struct {
 	Shell   string            `json:"shell"`
 	Command string            `json:"command,omitempty"`
@@ -38,11 +44,13 @@ type ShellSessionCreateRequest struct {
 	WorkDir string            `json:"workDir,omitempty"`
 	Cols    int               `json:"cols,omitempty"`
 	Rows    int               `json:"rows,omitempty"`
+	Kind    string            `json:"kind,omitempty"`
 }
 
 type ShellSessionInfo struct {
 	ID        string    `json:"id"`
 	Label     string    `json:"label,omitempty"`
+	Kind      string    `json:"kind"`
 	Shell     string    `json:"shell"`
 	ShellPath string    `json:"shellPath"`
 	Command   string    `json:"command,omitempty"`
@@ -61,6 +69,7 @@ type shellSession struct {
 
 	id        string
 	label     string
+	kind      string
 	shellReq  string
 	shellPath string
 	command   string
@@ -83,6 +92,10 @@ type shellSession struct {
 	writeMu      sync.Mutex
 }
 
+type ShellSessionInputRequest struct {
+	Data string `json:"data"`
+}
+
 type shellSessionManager struct {
 	mu       sync.RWMutex
 	nextID   atomic.Uint64
@@ -102,6 +115,18 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 	label := strings.TrimSpace(req.Label)
 	commandReq := strings.TrimSpace(req.Command)
 	launchArgs := append([]string(nil), req.Args...)
+	kind := normalizeShellSessionKind(req.Kind)
+	if kind == shellSessionKindShell {
+		shellReqLower := strings.ToLower(shellReq)
+		commandReqLower := strings.ToLower(commandReq)
+		switch {
+		case shellReqLower == shellSessionKindTmux || commandReqLower == shellSessionKindTmux:
+			kind = shellSessionKindTmux
+		case strings.Contains(shellReqLower, "python") || strings.Contains(shellReqLower, "node") ||
+			strings.Contains(commandReqLower, "python") || strings.Contains(commandReqLower, "node"):
+			kind = shellSessionKindScript
+		}
+	}
 	launchReq := shellReq
 	if commandReq != "" {
 		launchReq = commandReq
@@ -166,6 +191,7 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 	session := &shellSession{
 		id:           fmt.Sprintf("%d", m.nextID.Add(1)),
 		label:        label,
+		kind:         kind,
 		shellReq:     shellReq,
 		shellPath:    launchPath,
 		command:      commandReq,
@@ -226,6 +252,14 @@ func (m *shellSessionManager) Delete(id string) error {
 	}
 	_ = session.Close()
 	return nil
+}
+
+func (m *shellSessionManager) SendInput(id string, payload []byte) error {
+	session, ok := m.Get(id)
+	if !ok {
+		return fmt.Errorf("shell session not found")
+	}
+	return session.WriteInput(payload)
 }
 
 func (m *shellSessionManager) ClearClosed() {
@@ -465,6 +499,7 @@ func (s *shellSession) snapshot() ShellSessionInfo {
 	info := ShellSessionInfo{
 		ID:        s.id,
 		Label:     s.label,
+		Kind:      s.kind,
 		Shell:     s.shellReq,
 		ShellPath: s.shellPath,
 		Command:   s.command,
@@ -530,10 +565,49 @@ func handleDeleteShellSession(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
+func handleSendShellSessionInput(c *gin.Context) {
+	sessionID := strings.TrimSpace(c.Param("id"))
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "session id is required"})
+		return
+	}
+
+	var req ShellSessionInputRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	data := []byte(req.Data)
+	if len(data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "data is required"})
+		return
+	}
+
+	if err := shellSessions.SendInput(sessionID, data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 func stringsTrimToDefault(value, fallback string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return fallback
 	}
 	return value
+}
+
+func normalizeShellSessionKind(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case shellSessionKindTmux:
+		return shellSessionKindTmux
+	case shellSessionKindScript:
+		return shellSessionKindScript
+	case "", shellSessionKindShell:
+		return shellSessionKindShell
+	default:
+		return shellSessionKindShell
+	}
 }
