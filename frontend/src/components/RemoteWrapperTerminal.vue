@@ -351,7 +351,7 @@ onBeforeUnmount(() => {
           :scroll="{ x: true }"
           :locale="{ emptyText: 'Waiting for wrapper events...' }"
         >
-          <template #bodyCell="{ column, text, record }">
+        <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'receivedAt'">
               <span style="font-size: 12px; white-space: nowrap;">{{ formatEventTime(record.receivedAt) }}</span>
             </template>

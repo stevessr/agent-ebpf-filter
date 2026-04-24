@@ -2423,6 +2423,7 @@ func main() {
 				}
 				c.JSON(200, preview)
 			})
+			system.GET("/env", handleListLaunchEnvEntries)
 			system.POST("/run", func(c *gin.Context) {
 				var r struct {
 					Comm string   `json:"comm"`

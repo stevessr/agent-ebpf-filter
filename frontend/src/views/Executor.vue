@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
-import { DeleteOutlined, PlayCircleOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons-vue';
+import {
+  DeleteOutlined,
+  PlayCircleOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  SettingOutlined,
+} from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
 import RemoteWrapperTerminal from '../components/RemoteWrapperTerminal.vue';
@@ -31,6 +37,10 @@ type LaunchEnvEntry = {
   value: string;
   enabled: boolean;
 };
+type DetectedLaunchEnvEntry = {
+  key: string;
+  value: string;
+};
 
 const LAUNCH_ENV_STORAGE_KEY = 'executor_launch_env';
 
@@ -58,6 +68,10 @@ const pathPickerTarget = ref<PathPickerTarget>('coding-workdir');
 const launchEnvEntries = ref<LaunchEnvEntry[]>(loadLaunchEnvEntries());
 const newLaunchEnvKey = ref('');
 const newLaunchEnvValue = ref('');
+const detectedLaunchEnvEntries = ref<DetectedLaunchEnvEntry[]>([]);
+const detectedLaunchEnvSearch = ref('');
+const detectedLaunchEnvLoading = ref(false);
+const detectedLaunchEnvError = ref('');
 
 const codingPresetOptions: Array<{ label: string; value: CodingPresetKey; command: string }> = [
   { label: 'Codex', value: 'codex', command: 'codex' },
@@ -382,6 +396,14 @@ const launchEnvEntriesCount = computed(() => {
   ).length;
 });
 
+const launchEnvEntryKeys = computed(() =>
+  new Set(
+    launchEnvEntries.value
+      .map((entry) => entry.key.trim())
+      .filter((key) => Boolean(key)),
+  ),
+);
+
 const launchEnvRecord = computed<Record<string, string>>(() => {
   const env: Record<string, string> = {};
   for (const entry of launchEnvEntries.value) {
@@ -413,7 +435,27 @@ const launchEnvColumns = [
   { title: 'Action', key: 'action', dataIndex: 'action' },
 ];
 
+const detectedLaunchEnvColumns = [
+  { title: 'Key', key: 'key', dataIndex: 'key' },
+  { title: 'Value', key: 'value', dataIndex: 'value' },
+  { title: 'Action', key: 'action', dataIndex: 'action' },
+];
+
+const filteredDetectedLaunchEnvEntries = computed(() => {
+  const query = detectedLaunchEnvSearch.value.trim().toLowerCase();
+  if (!query) {
+    return detectedLaunchEnvEntries.value;
+  }
+  return detectedLaunchEnvEntries.value.filter((entry) => {
+    return entry.key.toLowerCase().includes(query) || entry.value.toLowerCase().includes(query);
+  });
+});
+
 watch(launchEnvEntries, persistLaunchEnvEntries, { deep: true, immediate: true });
+
+onMounted(() => {
+  void refreshDetectedLaunchEnvEntries();
+});
 
 const addLaunchEnvEntry = () => {
   const key = newLaunchEnvKey.value.trim();
@@ -446,6 +488,65 @@ const removeLaunchEnvEntry = (id: string) => {
 
 const clearDisabledLaunchEnvEntries = () => {
   launchEnvEntries.value = launchEnvEntries.value.filter((entry) => entry.enabled);
+};
+
+const isLaunchEnvImported = (key: string) => launchEnvEntryKeys.value.has(key.trim());
+
+const importDetectedLaunchEnvEntry = (entry: DetectedLaunchEnvEntry) => {
+  const key = entry.key.trim();
+  if (!key || !isValidLaunchEnvKey(key)) {
+    return;
+  }
+
+  const next: LaunchEnvEntry = {
+    id: `launch-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    key,
+    value: entry.value,
+    enabled: true,
+  };
+
+  const index = launchEnvEntries.value.findIndex((item) => item.key.trim() === key);
+  if (index >= 0) {
+    const current = launchEnvEntries.value[index];
+    launchEnvEntries.value = [
+      ...launchEnvEntries.value.slice(0, index),
+      {
+        ...current,
+        key,
+        value: entry.value,
+        enabled: true,
+      },
+      ...launchEnvEntries.value.slice(index + 1),
+    ];
+    return;
+  }
+
+  launchEnvEntries.value = [next, ...launchEnvEntries.value];
+};
+
+const importAllDetectedLaunchEnvEntries = () => {
+  for (const entry of filteredDetectedLaunchEnvEntries.value) {
+    importDetectedLaunchEnvEntry(entry);
+  }
+};
+
+const refreshDetectedLaunchEnvEntries = async () => {
+  detectedLaunchEnvLoading.value = true;
+  detectedLaunchEnvError.value = '';
+  try {
+    const res = await axios.get('/system/env');
+    const items = Array.isArray(res.data?.items) ? (res.data.items as DetectedLaunchEnvEntry[]) : [];
+    detectedLaunchEnvEntries.value = items
+      .map((item) => ({
+        key: String(item?.key || '').trim(),
+        value: String(item?.value ?? ''),
+      }))
+      .filter((item) => Boolean(item.key));
+  } catch (err: any) {
+    detectedLaunchEnvError.value = err?.response?.data?.error || err?.message || 'Failed to load detected env vars';
+  } finally {
+    detectedLaunchEnvLoading.value = false;
+  }
 };
 
 const isTmuxSession = (session: ShellSessionInfo) => {
@@ -963,6 +1064,87 @@ const launchScript = async () => {
             </a-card>
           </a-col>
         </a-row>
+
+        <a-row :gutter="[16, 16]" style="margin-top: 16px;">
+          <a-col :span="24">
+            <a-card title="Detected environment from backend" :bordered="false">
+              <template #extra>
+                <a-space :size="8">
+                  <a-tag color="blue">{{ filteredDetectedLaunchEnvEntries.length }} visible</a-tag>
+                  <a-tag color="default">{{ detectedLaunchEnvEntries.length }} detected</a-tag>
+                  <a-button size="small" :loading="detectedLaunchEnvLoading" @click="refreshDetectedLaunchEnvEntries">
+                    <template #icon>
+                      <ReloadOutlined />
+                    </template>
+                    Refresh
+                  </a-button>
+                  <a-button
+                    size="small"
+                    type="primary"
+                    :disabled="filteredDetectedLaunchEnvEntries.length === 0"
+                    @click="importAllDetectedLaunchEnvEntries"
+                  >
+                    Import visible
+                  </a-button>
+                </a-space>
+              </template>
+
+              <a-alert
+                type="info"
+                show-icon
+                style="margin-bottom: 16px;"
+                message="This list is read from the backend runtime environment. Backend configuration vars such as AGENT_*, GIN_MODE, DISABLE_AUTH, SUDO_*, and PKEXEC_UID are hidden."
+              />
+
+              <a-alert
+                v-if="detectedLaunchEnvError"
+                type="warning"
+                show-icon
+                style="margin-bottom: 16px;"
+                :message="detectedLaunchEnvError"
+              />
+
+              <a-input-search
+                v-model:value="detectedLaunchEnvSearch"
+                placeholder="Filter detected env by key or value"
+                enter-button="Search"
+                style="margin-bottom: 16px;"
+              />
+
+              <a-table
+                :data-source="filteredDetectedLaunchEnvEntries"
+                :columns="detectedLaunchEnvColumns"
+                :loading="detectedLaunchEnvLoading"
+                :pagination="false"
+                row-key="key"
+                size="small"
+              >
+                <template #bodyCell="{ column, record }">
+                  <template v-if="column.key === 'key'">
+                    <code>{{ record.key }}</code>
+                  </template>
+                  <template v-else-if="column.key === 'value'">
+                    <span class="executor-env__value" :title="record.value">
+                      {{ record.value || '—' }}
+                    </span>
+                  </template>
+                  <template v-else-if="column.key === 'action'">
+                    <a-space>
+                      <a-tag v-if="isLaunchEnvImported(record.key)" color="green">Imported</a-tag>
+                      <a-button size="small" @click="importDetectedLaunchEnvEntry(record)">
+                        {{ isLaunchEnvImported(record.key) ? 'Update' : 'Use' }}
+                      </a-button>
+                    </a-space>
+                  </template>
+                </template>
+
+                <template #emptyText>
+                  <a-empty description="No backend runtime env vars detected" />
+                </template>
+              </a-table>
+            </a-card>
+          </a-col>
+        </a-row>
       </a-tab-pane>
     </a-tabs>
 
@@ -975,3 +1157,13 @@ const launchScript = async () => {
     />
   </div>
 </template>
+
+<style scoped>
+.executor-env__value {
+  display: inline-block;
+  max-width: 100%;
+  word-break: break-all;
+  white-space: normal;
+  color: #333;
+}
+</style>

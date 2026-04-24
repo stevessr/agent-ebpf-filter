@@ -69,7 +69,7 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
   - a shell tab for non-tmux interactive sessions
   - a tmux tab with coding-CLI launcher + tmux session quick tools
   - Python / Node / Ruby / sh / pwsh / Deno / Bun script launches with optional Python venv selection
-  - a launch-env config tab for browser-persisted environment variables shared by all Executor launchers
+  - a launch-env config tab for browser-persisted environment variables shared by all Executor launchers, plus a detected-env panel sourced from `GET /system/env`
 - uses a path navigator drawer for browsing workdirs, scripts, and venv directories
 
 ### Hooks
