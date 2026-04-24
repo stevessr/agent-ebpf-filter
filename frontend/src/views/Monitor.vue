@@ -167,6 +167,10 @@ const formatBytes = (bytes: number, decimals = 2) => {
 
 const formatCount = (value: number) => new Intl.NumberFormat('en-US').format(Math.max(0, Math.round(value || 0)));
 const formatRate = (value: number) => `${(value || 0).toFixed(1)}/s`;
+const formatDetailValue = (value: number | string | undefined | null) => {
+  if (value === null || value === undefined || value === '') return '—';
+  return typeof value === 'number' ? formatCount(value) : String(value);
+};
 const pad2 = (value: number) => String(Math.floor(Math.abs(value))).padStart(2, '0');
 
 const formatChartTime = (timestamp: number, rangeSeconds: number) => {
@@ -913,8 +917,8 @@ watch(refreshInterval, connectWebSocket);
     <a-modal v-model:open="showProcModal" title="Process Details" :footer="null" width="600px">
       <a-descriptions bordered :column="1" size="small" v-if="selectedProc">
         <a-descriptions-item label="Name"><a-typography-text strong>{{ selectedProc.name }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="PID"><a-typography-text code>{{ selectedProc.pid }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="PPID"><a-typography-text code>{{ selectedProc.ppid }}</a-typography-text></a-descriptions-item>
+        <a-descriptions-item label="PID"><span class="proc-detail-value">{{ formatDetailValue(selectedProc.pid) }}</span></a-descriptions-item>
+        <a-descriptions-item label="PPID"><span class="proc-detail-value">{{ formatDetailValue(selectedProc.ppid) }}</span></a-descriptions-item>
         <a-descriptions-item label="User">{{ selectedProc.user }}</a-descriptions-item>
         <a-descriptions-item label="CPU Load">{{ selectedProc.cpu.toFixed(1) }}%</a-descriptions-item>
         <a-descriptions-item label="Memory Usage">{{ selectedProc.mem.toFixed(1) }}%</a-descriptions-item>
@@ -924,7 +928,7 @@ watch(refreshInterval, connectWebSocket);
         <a-descriptions-item v-if="selectedProc.faultRate !== undefined" label="Total Fault Rate">{{ formatRate(selectedProc.faultRate) }}</a-descriptions-item>
         <a-descriptions-item v-if="selectedProc.majorFaultRate !== undefined" label="Hard Fault Rate">{{ formatRate(selectedProc.majorFaultRate) }}</a-descriptions-item>
         <a-descriptions-item v-if="selectedProc.minorFaultRate !== undefined" label="Page Fault Rate">{{ formatRate(selectedProc.minorFaultRate) }}</a-descriptions-item>
-        <a-descriptions-item label="Full Command"><div style="max-height: 100px; overflow-y: auto; font-family: monospace; font-size: 11px; background: #fafafa; padding: 8px; border-radius: 4px; word-break: break-all;">{{ selectedProc.cmdline }}</div></a-descriptions-item>
+        <a-descriptions-item label="Full Command"><div class="proc-command-block">{{ formatDetailValue(selectedProc.cmdline) }}</div></a-descriptions-item>
         <a-descriptions-item label="Started At">{{ new Date(selectedProc.createTime).toLocaleString() }}</a-descriptions-item>
       </a-descriptions>
     </a-modal>
@@ -947,6 +951,35 @@ watch(refreshInterval, connectWebSocket);
 .io-val-read { color: #faad14; } .io-val-write { color: #ff4d4f; }
 .gpu-row-item { flex: 1; min-width: 400px; display: flex; align-items: center; gap: 16px; background: #fafafa; padding: 12px; border-radius: 6px; border: 1px solid #f0f0f0; }
 .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.proc-detail-value {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: #f6f8fa;
+  border: 1px solid #d9d9d9;
+  color: #1f1f1f;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.proc-command-block {
+  max-height: 140px;
+  overflow-y: auto;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #1f1f1f;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 .mem-container { display: flex; flex-wrap: wrap; gap: 8px; background: #fff; padding: 16px; border-radius: 8px; min-height: calc(100vh - 200px); align-content: flex-start; }
 .mem-block { height: 80px; border-radius: 4px; padding: 8px; color: white; transition: all 0.3s; cursor: pointer; display: flex; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
