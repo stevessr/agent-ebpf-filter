@@ -57,11 +57,18 @@ let cleanupColumnResize: (() => void) | null = null;
 let recentRowTimer: number | null = null;
 
 const STREAM_DIRECTION_STORAGE_KEY = 'dashboard.streamDirection';
+const SHOW_ALL_ROWS_STORAGE_KEY = 'dashboard.showAllRows';
 const streamDirection = ref<'top' | 'bottom'>(getStoredStreamDirection());
+const showAllRows = ref(getStoredShowAllRows());
 
 function getStoredStreamDirection(): 'top' | 'bottom' {
   if (typeof window === 'undefined') return 'top';
   return window.localStorage.getItem(STREAM_DIRECTION_STORAGE_KEY) === 'bottom' ? 'bottom' : 'top';
+}
+
+function getStoredShowAllRows(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(SHOW_ALL_ROWS_STORAGE_KEY) === 'true';
 }
 
 const columnWidths = ref<Record<ResizableColumnKey, number>>({
@@ -170,16 +177,22 @@ const filteredEvents = computed(() => {
   return streamDirection.value === 'bottom' ? [...result].reverse() : result;
 });
 
-const tablePagination = computed(() => ({
-  current: currentPage.value,
-  pageSize: pageSize.value,
-  total: filteredEvents.value.length,
-  showSizeChanger: true,
-  pageSizeOptions,
-  showTotal: (total: number, range: [number, number]) => `${range[0]}-${range[1]} / ${total}`,
-}));
+const tablePagination = computed(() => {
+  if (showAllRows.value) {
+    return false;
+  }
+  return {
+    current: currentPage.value,
+    pageSize: pageSize.value,
+    total: filteredEvents.value.length,
+    showSizeChanger: true,
+    pageSizeOptions,
+    showTotal: (total: number, range: [number, number]) => `${range[0]}-${range[1]} / ${total}`,
+  };
+});
 
 const handleTableChange = (pagination: { current?: number; pageSize?: number }) => {
+  if (showAllRows.value) return;
   currentPage.value = pagination.current ?? 1;
   pageSize.value = pagination.pageSize ?? pageSize.value;
 };
@@ -329,6 +342,7 @@ const clearHeaderFilter = (key: string | number | symbol) => {
 };
 
 watch([selectedTags, selectedTypes, timeFilter, pidFilter, commandFilter, pathFilter, isDeduplicated], () => {
+  if (showAllRows.value) return;
   currentPage.value = 1;
 });
 
@@ -336,12 +350,26 @@ watch(streamDirection, (direction) => {
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(STREAM_DIRECTION_STORAGE_KEY, direction);
   }
+  if (showAllRows.value) return;
   currentPage.value = direction === 'bottom'
     ? Math.max(1, Math.ceil(filteredEvents.value.length / pageSize.value))
     : 1;
 });
 
+watch(showAllRows, (enabled) => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(SHOW_ALL_ROWS_STORAGE_KEY, enabled ? 'true' : 'false');
+  }
+  if (enabled) {
+    currentPage.value = 1;
+    return;
+  }
+  const maxPage = Math.max(1, Math.ceil(filteredEvents.value.length / pageSize.value));
+  currentPage.value = streamDirection.value === 'bottom' ? maxPage : 1;
+});
+
 watch([() => filteredEvents.value.length, pageSize, streamDirection], ([total]) => {
+  if (showAllRows.value) return;
   const maxPage = Math.max(1, Math.ceil(total / pageSize.value));
   if (streamDirection.value === 'bottom') {
     currentPage.value = maxPage;
@@ -578,6 +606,9 @@ onUnmounted(() => {
             <a-select-option value="top">Newest First</a-select-option>
             <a-select-option value="bottom">Log Flow ↓</a-select-option>
           </a-select>
+          <a-checkbox v-model:checked="showAllRows">
+            <span style="font-size: 12px;">No Page Limit</span>
+          </a-checkbox>
           <a-checkbox v-model:checked="isDeduplicated" size="small">
             <span style="font-size: 12px;">Clean Duplicates</span>
           </a-checkbox>

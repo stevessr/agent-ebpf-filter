@@ -82,10 +82,20 @@ type trackerMapSet struct {
 }
 
 type ExportConfig struct {
-	Tags  []string               `json:"tags"`
-	Comms map[string]string      `json:"comms"`
-	Paths map[string]string      `json:"paths"`
-	Rules map[string]WrapperRule `json:"rules"`
+	Tags   []string               `json:"tags"`
+	Comms  map[string]string      `json:"comms"`
+	Paths  map[string]string      `json:"paths"`
+	Rules  map[string]WrapperRule `json:"rules"`
+	Runtime *RuntimeSettings       `json:"runtime,omitempty"`
+}
+
+type RuntimeConfigResponse struct {
+	Runtime                RuntimeSettings `json:"runtime"`
+	MCPEndpoint            string          `json:"mcpEndpoint"`
+	AuthHeaderName         string          `json:"authHeaderName"`
+	BearerAuthHeaderName   string          `json:"bearerAuthHeaderName"`
+	PersistedEventLogPath  string          `json:"persistedEventLogPath"`
+	PersistedEventLogAlive bool            `json:"persistedEventLogAlive"`
 }
 
 type kiroHookState struct {
@@ -972,17 +982,49 @@ func authMiddleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		apiKey := c.GetHeader("X-API-KEY")
-		expectedKey := os.Getenv("AGENT_API_KEY")
-		if expectedKey == "" {
-			expectedKey = "agent-secret-123"
-		}
-		if apiKey != expectedKey {
+		token := requestAuthToken(c)
+		expectedKey := runtimeSettingsStore.ExpectedToken()
+		if token == "" || token != expectedKey {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			return
 		}
 		c.Next()
 	}
+}
+
+func requestAuthToken(c *gin.Context) string {
+	if token := strings.TrimSpace(c.GetHeader("X-API-KEY")); token != "" {
+		return token
+	}
+	if authHeader := strings.TrimSpace(c.GetHeader("Authorization")); authHeader != "" {
+		lower := strings.ToLower(authHeader)
+		if strings.HasPrefix(lower, "bearer ") {
+			return strings.TrimSpace(authHeader[len("Bearer "):])
+		}
+	}
+	return ""
+}
+
+func buildRuntimeConfigResponseFromSettings(settings RuntimeSettings) RuntimeConfigResponse {
+	logPath := strings.TrimSpace(settings.LogFilePath)
+	logAlive := false
+	if settings.LogPersistenceEnabled && logPath != "" {
+		if info, err := os.Stat(logPath); err == nil && !info.IsDir() {
+			logAlive = true
+		}
+	}
+	return RuntimeConfigResponse{
+		Runtime:                settings,
+		MCPEndpoint:            fmt.Sprintf("http://127.0.0.1:%d/mcp", resolveBackendPort()),
+		AuthHeaderName:         "X-API-KEY",
+		BearerAuthHeaderName:   "Authorization: Bearer",
+		PersistedEventLogPath:  logPath,
+		PersistedEventLogAlive: logAlive,
+	}
+}
+
+func buildRuntimeConfigResponse() RuntimeConfigResponse {
+	return buildRuntimeConfigResponseFromSettings(runtimeSettingsStore.Snapshot())
 }
 
 func getTagName(id uint32) string {
@@ -1620,6 +1662,9 @@ func main() {
 	}
 
 	refreshHooksPaths()
+	if _, err := runtimeSettingsStore.LoadOrCreate(); err != nil {
+		log.Printf("[WARN] failed to load runtime settings: %v", err)
+	}
 
 	procsList, _ := ps.Processes()
 	curr := int32(os.Getpid())
@@ -1663,6 +1708,7 @@ func main() {
 	var clientsMu sync.Mutex
 	go func() {
 		for event := range broadcast {
+			recordCapturedEvent(event)
 			data, _ := proto.Marshal(event)
 			clientsMu.Lock()
 			for c := range clients {
@@ -2052,8 +2098,33 @@ func main() {
 				rulesMu.Unlock()
 				c.JSON(200, gin.H{"status": "ok"})
 			})
+			config.GET("/runtime", func(c *gin.Context) {
+				c.JSON(http.StatusOK, buildRuntimeConfigResponse())
+			})
+			config.PUT("/runtime", func(c *gin.Context) {
+				var req RuntimeSettings
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "invalid runtime settings"})
+					return
+				}
+				settings, err := runtimeSettingsStore.UpdateLogging(req.LogPersistenceEnabled, req.LogFilePath)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, buildRuntimeConfigResponseFromSettings(settings))
+			})
+			config.POST("/access-token", func(c *gin.Context) {
+				settings, err := runtimeSettingsStore.RotateAccessToken()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, buildRuntimeConfigResponseFromSettings(settings))
+			})
 			config.GET("/export", func(c *gin.Context) {
-				cfg := ExportConfig{Comms: make(map[string]string), Paths: make(map[string]string), Rules: make(map[string]WrapperRule)}
+				runtimeSnapshot := runtimeSettingsStore.Snapshot()
+				cfg := ExportConfig{Comms: make(map[string]string), Paths: make(map[string]string), Rules: make(map[string]WrapperRule), Runtime: &runtimeSnapshot}
 				tagsMu.RLock()
 				for _, n := range tagMap {
 					cfg.Tags = append(cfg.Tags, n)
@@ -2080,6 +2151,12 @@ func main() {
 			config.POST("/import", func(c *gin.Context) {
 				var cfg ExportConfig
 				_ = c.ShouldBindJSON(&cfg)
+				if cfg.Runtime != nil {
+					if _, err := runtimeSettingsStore.Replace(*cfg.Runtime); err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+						return
+					}
+				}
 				for _, t := range cfg.Tags {
 					getTagID(t)
 				}
@@ -2101,6 +2178,7 @@ func main() {
 				rulesMu.Unlock()
 				c.JSON(200, gin.H{"status": "ok"})
 			})
+			api.Any("/mcp", gin.WrapH(buildMCPHandler()))
 			hooks := config.Group("/hooks")
 			{
 				hooks.GET("", func(c *gin.Context) {
