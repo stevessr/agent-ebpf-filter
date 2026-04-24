@@ -35,6 +35,7 @@ const previewLoading = ref(false);
 const previewData = ref<FilePreviewResponse | null>(null);
 const selectedTags = ref<string[]>([]);
 const selectedTypes = ref<string[]>([]);
+const timeFilter = ref('');
 const pidFilter = ref('');
 const commandFilter = ref('');
 const pathFilter = ref('');
@@ -95,6 +96,10 @@ const filteredEvents = computed(() => {
     const activeTypes = new Set(selectedTypes.value);
     result = result.filter(e => activeTypes.has(e.type));
   }
+  const timeQuery = timeFilter.value.trim().toLowerCase();
+  if (timeQuery) {
+    result = result.filter(e => e.time.toLowerCase().includes(timeQuery));
+  }
   const pidQuery = pidFilter.value.trim();
   const commQuery = commandFilter.value.trim().toLowerCase();
   const pathQuery = pathFilter.value.trim().toLowerCase();
@@ -136,7 +141,51 @@ const handleTableChange = (pagination: { current?: number; pageSize?: number }) 
 const getRowClassName = (_record: AgentEvent, index: number) =>
   (index % 2 === 0 ? 'excel-row-even' : 'excel-row-odd');
 
-watch([selectedTags, selectedTypes, pidFilter, commandFilter, pathFilter, isDeduplicated], () => {
+const hasHeaderFilter = (key: string) => ['time', 'tag', 'pid', 'comm', 'type', 'path'].includes(key);
+
+const isHeaderFilterActive = (key: string) => {
+  switch (key) {
+    case 'time':
+      return Boolean(timeFilter.value.trim());
+    case 'tag':
+      return selectedTags.value.length > 0;
+    case 'pid':
+      return Boolean(pidFilter.value.trim());
+    case 'comm':
+      return Boolean(commandFilter.value.trim());
+    case 'type':
+      return selectedTypes.value.length > 0;
+    case 'path':
+      return Boolean(pathFilter.value.trim());
+    default:
+      return false;
+  }
+};
+
+const clearHeaderFilter = (key: string) => {
+  switch (key) {
+    case 'time':
+      timeFilter.value = '';
+      break;
+    case 'tag':
+      selectedTags.value = [];
+      break;
+    case 'pid':
+      pidFilter.value = '';
+      break;
+    case 'comm':
+      commandFilter.value = '';
+      break;
+    case 'type':
+      selectedTypes.value = [];
+      break;
+    case 'path':
+      pathFilter.value = '';
+      break;
+  }
+};
+
+watch([selectedTags, selectedTypes, timeFilter, pidFilter, commandFilter, pathFilter, isDeduplicated], () => {
   currentPage.value = 1;
 });
 
@@ -357,6 +406,9 @@ onUnmounted(() => {
             {{ isPaused ? 'Resume Stream' : 'Pause Stream' }}
           </a-button>
           <a-button type="primary" danger size="small" @click="clearEvents">Clear Events</a-button>
+          <a-checkbox v-model:checked="isDeduplicated" size="small">
+            <span style="font-size: 12px;">Clean Duplicates</span>
+          </a-checkbox>
         </div>
         <div style="display: flex; gap: 8px;">
           <a-dropdown>
@@ -372,70 +424,6 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="dashboard-filter-bar">
-      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 12px; color: #888;">Filter:</span>
-          <a-select
-            v-model:value="selectedTags"
-            mode="multiple"
-            placeholder="All Tags"
-            style="width: 220px"
-            size="small"
-            allow-clear
-            show-search
-            max-tag-count="responsive"
-            :options="tagOptions"
-            option-filter-prop="label"
-          >
-            <template #suffixIcon><FilterOutlined /></template>
-          </a-select>
-          <a-select
-            v-model:value="selectedTypes"
-            mode="multiple"
-            placeholder="All Types"
-            style="width: 220px"
-            size="small"
-            allow-clear
-            show-search
-            max-tag-count="responsive"
-            :options="eventTypeOptions"
-            option-filter-prop="label"
-          />
-        </div>
-
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-          <a-input
-            v-model:value="pidFilter"
-            placeholder="PID"
-            size="small"
-            allow-clear
-            style="width: 120px"
-          />
-          <a-input
-            v-model:value="commandFilter"
-            placeholder="Command"
-            size="small"
-            allow-clear
-            style="width: 160px"
-          />
-          <a-input
-            v-model:value="pathFilter"
-            placeholder="Path"
-            size="small"
-            allow-clear
-            style="width: 240px"
-          />
-        </div>
-
-        <a-divider type="vertical" />
-
-        <a-checkbox v-model:checked="isDeduplicated" size="small">
-          <span style="font-size: 12px;">Clean Duplicates</span>
-        </a-checkbox>
-      </div>
-    </div>
-
     <a-table 
       class="excel-table"
       :dataSource="filteredEvents" 
@@ -445,6 +433,94 @@ onUnmounted(() => {
       :rowClassName="getRowClassName"
       @change="handleTableChange"
     >
+      <template #headerCell="{ column }">
+        <div class="excel-header-cell">
+          <span class="excel-header-title">{{ column.title }}</span>
+          <a-dropdown v-if="hasHeaderFilter(column.key)" trigger="click" placement="bottomRight" :arrow="false">
+            <template #overlay>
+              <div class="excel-filter-dropdown" @click.stop>
+                <div class="excel-filter-dropdown-title">
+                  {{ column.title }} Filter
+                </div>
+                <template v-if="column.key === 'time'">
+                  <a-input
+                    v-model:value="timeFilter"
+                    placeholder="Search time..."
+                    size="small"
+                    allow-clear
+                  />
+                </template>
+                <template v-else-if="column.key === 'tag'">
+                  <a-select
+                    v-model:value="selectedTags"
+                    mode="multiple"
+                    placeholder="All Tags"
+                    size="small"
+                    allow-clear
+                    show-search
+                    max-tag-count="responsive"
+                    :options="tagOptions"
+                    option-filter-prop="label"
+                    style="width: 100%;"
+                  />
+                </template>
+                <template v-else-if="column.key === 'pid'">
+                  <a-input
+                    v-model:value="pidFilter"
+                    placeholder="PID contains..."
+                    size="small"
+                    allow-clear
+                  />
+                </template>
+                <template v-else-if="column.key === 'comm'">
+                  <a-input
+                    v-model:value="commandFilter"
+                    placeholder="Command contains..."
+                    size="small"
+                    allow-clear
+                  />
+                </template>
+                <template v-else-if="column.key === 'type'">
+                  <a-select
+                    v-model:value="selectedTypes"
+                    mode="multiple"
+                    placeholder="All Types"
+                    size="small"
+                    allow-clear
+                    show-search
+                    max-tag-count="responsive"
+                    :options="eventTypeOptions"
+                    option-filter-prop="label"
+                    style="width: 100%;"
+                  />
+                </template>
+                <template v-else-if="column.key === 'path'">
+                  <a-input
+                    v-model:value="pathFilter"
+                    placeholder="Path contains..."
+                    size="small"
+                    allow-clear
+                  />
+                </template>
+
+                <div class="excel-filter-dropdown-actions">
+                  <a-button size="small" :disabled="!isHeaderFilterActive(column.key)" @click="clearHeaderFilter(column.key)">
+                    Clear
+                  </a-button>
+                </div>
+              </div>
+            </template>
+            <a-button
+              type="text"
+              size="small"
+              class="excel-header-filter-trigger"
+              :class="{ active: isHeaderFilterActive(column.key) }"
+            >
+              <template #icon><FilterOutlined /></template>
+            </a-button>
+          </a-dropdown>
+        </div>
+      </template>
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'type'">
           <a-tag :color="getTagColor(record.type)">{{ record.type.toUpperCase() }}</a-tag>
@@ -551,8 +627,7 @@ onUnmounted(() => {
   color: #1f2937;
 }
 
-.dashboard-toolbar,
-.dashboard-filter-bar {
+.dashboard-toolbar {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -567,11 +642,6 @@ onUnmounted(() => {
 .dashboard-toolbar {
   justify-content: space-between;
   margin-bottom: 10px;
-}
-
-.dashboard-filter-bar {
-  margin-bottom: 12px;
-  background: #fbfdf8;
 }
 
 .excel-table {
@@ -599,6 +669,57 @@ onUnmounted(() => {
   border-bottom: 1px solid #c7d7bf;
   padding: 10px 12px;
   white-space: nowrap;
+}
+
+.excel-header-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+}
+
+.excel-header-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.excel-header-filter-trigger {
+  flex: 0 0 auto;
+  width: 20px !important;
+  height: 20px !important;
+  padding: 0 !important;
+  border-radius: 2px !important;
+  color: #5f7a52 !important;
+}
+
+.excel-header-filter-trigger.active {
+  color: #2f7d32 !important;
+  background: rgba(72, 143, 81, 0.12) !important;
+}
+
+.excel-filter-dropdown {
+  width: 240px;
+  padding: 12px;
+  border: 1px solid #d9e4d1;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(34, 54, 24, 0.12);
+}
+
+.excel-filter-dropdown-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #355238;
+  margin-bottom: 10px;
+  letter-spacing: 0.2px;
+}
+
+.excel-filter-dropdown-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
 }
 
 .excel-table :deep(.ant-table-thead > tr > th:last-child),
@@ -652,5 +773,9 @@ onUnmounted(() => {
 .excel-table :deep(.ant-pagination-next),
 .excel-table :deep(.ant-select-selector) {
   box-shadow: none;
+}
+
+.excel-table :deep(.ant-dropdown) {
+  z-index: 1200;
 }
 </style>
