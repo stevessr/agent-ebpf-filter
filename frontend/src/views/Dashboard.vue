@@ -344,8 +344,8 @@ onUnmounted(() => {
 
 <template>
   <div style="background: #fff; padding: 24px; min-height: 280px">
-    <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div style="background: #fafafa; padding: 12px; border-radius: 8px; border: 1px solid #f0f0f0; display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 16px;">
           <a-badge :status="isConnected ? 'success' : 'error'" :text="isConnected ? 'Connected' : 'Disconnected'" />
           <span style="font-weight: 500;">Total Events: {{ events.length }}</span>
@@ -368,7 +368,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div style="background: #fafafa; padding: 12px; border-radius: 8px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid #f0f0f0;">
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 12px; color: #888;">Filter:</span>
           <a-select
