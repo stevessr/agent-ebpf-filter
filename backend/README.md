@@ -10,7 +10,8 @@ It is responsible for:
 - aggregating process / system telemetry,
 - managing wrapper rules,
 - receiving native AI CLI hook callbacks,
-- hosting PTY shell sessions.
+- hosting PTY shell sessions,
+- routing cluster traffic through a master backend when cluster targets are selected.
 
 ## Key files
 
@@ -114,6 +115,29 @@ Config routes:
 The token is generated and stored by the runtime settings file at:
 
 - `~/.config/agent-ebpf-filter/runtime.json`
+
+### Cluster control
+
+Cluster mode is configured entirely through environment variables:
+
+- `AGENT_CLUSTER_MASTER_URL`
+- `AGENT_CLUSTER_ACCOUNT`
+- `AGENT_CLUSTER_PASSWORD`
+
+If all three are present, the backend starts in **slave** mode and heartbeats to `AGENT_CLUSTER_MASTER_URL`. Otherwise it stays in **master** mode.
+
+Optional identity overrides:
+
+- `AGENT_CLUSTER_NODE_URL`
+- `AGENT_CLUSTER_NODE_ID`
+- `AGENT_CLUSTER_NODE_NAME`
+
+Cluster state routes:
+
+- `GET /cluster/state`
+- `GET /cluster/nodes`
+
+In master mode, supported web/API/WS paths can be forwarded to a selected slave target by sending `X-Cluster-Target` or `?cluster=<target>`. The master injects cluster credentials internally when proxying to the slave.
 
 Export / import currently covers:
 

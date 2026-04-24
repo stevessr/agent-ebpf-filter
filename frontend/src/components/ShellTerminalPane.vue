@@ -5,6 +5,7 @@ import { WTerm } from '@wterm/dom';
 import '@wterm/dom/css';
 
 import type { ShellSessionInfo } from '../types/shell';
+import { buildWebSocketUrl } from '../utils/requestContext';
 
 const INITIAL_COLS = 100;
 const INITIAL_ROWS = 32;
@@ -123,13 +124,11 @@ const statusNotice = computed(() => {
 });
 
 const wsUrl = () => {
-  const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const params = new URLSearchParams({
+  return buildWebSocketUrl('/ws/shell', {
     session_id: props.session.id,
-    cols: String(INITIAL_COLS),
-    rows: String(INITIAL_ROWS),
+    cols: INITIAL_COLS,
+    rows: INITIAL_ROWS,
   });
-  return `${scheme}//${window.location.host}/ws/shell?${params.toString()}`;
 };
 
 const flushPending = () => {

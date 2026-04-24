@@ -30,6 +30,7 @@ export default defineConfig({
       '/unregister': backendUrl,
       '/shell-sessions': backendUrl,
       '/mcp': backendUrl,
+      '/cluster': backendUrl,
       // Only proxy /config if it has a subpath (API calls), 
       // allowing the frontend to handle the base /config route.
       '^/config/.*': backendUrl,

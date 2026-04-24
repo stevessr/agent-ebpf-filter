@@ -9,6 +9,7 @@ import {
   ExportOutlined, 
   ImportOutlined, 
   SafetyCertificateOutlined,
+  ClusterOutlined,
   SwapOutlined,
   StopOutlined,
   AlertOutlined,
@@ -16,6 +17,13 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
+import {
+  getStoredClusterTarget,
+  isLocalClusterTarget,
+  normalizeClusterTarget,
+  setStoredApiToken,
+  setStoredClusterTarget,
+} from '../utils/requestContext';
 
 interface RuntimeSettings {
   logPersistenceEnabled: boolean;
@@ -35,6 +43,28 @@ interface WrapperRule {
   rewritten_cmd: string[];
 }
 
+interface ClusterNodeInfo {
+  id: string;
+  name: string;
+  url: string;
+  role: 'master' | 'slave';
+  status: string;
+  lastSeen: string;
+  isLocal: boolean;
+  version?: string;
+}
+
+interface ClusterStateResponse {
+  role: 'master' | 'slave';
+  masterUrl: string;
+  nodeUrl: string;
+  nodeId: string;
+  nodeName: string;
+  accountConfigured: boolean;
+  passwordConfigured: boolean;
+  localNode: ClusterNodeInfo;
+}
+
 interface RuntimeConfigResponse {
   runtime: RuntimeSettings;
   mcpEndpoint: string;
@@ -43,8 +73,6 @@ interface RuntimeConfigResponse {
   persistedEventLogPath: string;
   persistedEventLogAlive: boolean;
 }
-
-const API_TOKEN_STORAGE_KEY = 'agent-ebpf.apiToken';
 
 const tags = ref<string[]>([]);
 const trackedItems = ref<TrackedItem[]>([]);
@@ -60,6 +88,9 @@ const authHeaderName = ref('X-API-KEY');
 const bearerAuthHeaderName = ref('Authorization: Bearer');
 const persistedEventLogPath = ref('');
 const persistedEventLogAlive = ref(false);
+const clusterState = ref<ClusterStateResponse | null>(null);
+const clusterNodes = ref<ClusterNodeInfo[]>([]);
+const selectedClusterTarget = ref(getStoredClusterTarget());
 
 const newTagName = ref('');
 const newCommName = ref('');
@@ -76,12 +107,10 @@ const syncApiToken = (token: string) => {
   const normalized = token.trim();
   if (typeof window === 'undefined') return;
   if (!normalized) {
-    window.localStorage.removeItem(API_TOKEN_STORAGE_KEY);
-    delete axios.defaults.headers.common['X-API-KEY'];
-    delete axios.defaults.headers.common.Authorization;
+    setStoredApiToken('');
     return;
   }
-  window.localStorage.setItem(API_TOKEN_STORAGE_KEY, normalized);
+  setStoredApiToken(normalized);
   axios.defaults.headers.common['X-API-KEY'] = normalized;
   axios.defaults.headers.common.Authorization = `Bearer ${normalized}`;
 };
@@ -98,6 +127,67 @@ const mcpQueryEndpointTemplate = computed(() => {
   if (!mcpEndpoint.value) return '';
   return `${mcpEndpoint.value}?key=$API_KEY`;
 });
+
+const clusterNodeOptions = computed(() => [
+  { label: 'Local master', value: 'local' },
+  ...clusterNodes.value
+    .filter((node) => !node.isLocal)
+    .map((node) => ({
+      label: `${node.name} · ${node.status}`,
+      value: node.id,
+    })),
+]);
+
+const clusterRoleText = computed(() => {
+  if (!clusterState.value) return 'Unknown';
+  return clusterState.value.role === 'master' ? 'Master' : 'Slave';
+});
+
+const clusterRoleColor = computed(() => (clusterState.value?.role === 'slave' ? 'orange' : 'green'));
+
+const getClusterRowClass = (record: ClusterNodeInfo) => {
+  if (record.id === selectedClusterTarget.value) {
+    return 'cluster-row-active';
+  }
+  if (record.isLocal) {
+    return 'cluster-row-local';
+  }
+  return '';
+};
+
+const updateClusterTargetFromStorage = () => {
+  selectedClusterTarget.value = getStoredClusterTarget();
+};
+
+const applyClusterTarget = (target: string) => {
+  const normalized = normalizeClusterTarget(target);
+  setStoredClusterTarget(normalized);
+  selectedClusterTarget.value = normalized;
+  message.success(normalized === 'local' ? 'Routed back to local master' : 'Cluster target updated');
+  window.location.reload();
+};
+
+const fetchClusterState = async () => {
+  try {
+    const res = await axios.get('/cluster/state');
+    clusterState.value = res.data as ClusterStateResponse;
+  } catch (err) {
+    console.error('Failed to fetch cluster state', err);
+  }
+};
+
+const fetchClusterNodes = async () => {
+  try {
+    const res = await axios.get('/cluster/nodes');
+    clusterNodes.value = (res.data?.nodes || []) as ClusterNodeInfo[];
+    if (!clusterNodes.value.some((node) => node.id === selectedClusterTarget.value) && !isLocalClusterTarget(selectedClusterTarget.value)) {
+      setStoredClusterTarget('local');
+      selectedClusterTarget.value = 'local';
+    }
+  } catch (err) {
+    console.error('Failed to fetch cluster nodes', err);
+  }
+};
 
 const applyRuntimeResponse = (data: RuntimeConfigResponse) => {
   runtimeSettings.value = {
@@ -335,6 +425,9 @@ const getCategoryColor = (tag: string) => {
 };
 
 onMounted(async () => {
+  updateClusterTargetFromStorage();
+  await fetchClusterState();
+  await fetchClusterNodes();
   await fetchRuntime();
   fetchTags(); fetchTrackedComms(); fetchTrackedPaths(); fetchRules();
 });
@@ -343,6 +436,115 @@ onMounted(async () => {
 <template>
   <div style="padding: 24px; background: #f0f2f5; min-height: 100%;">
     <a-row :gutter="[24, 24]">
+      <a-col :span="24">
+        <a-card title="Cluster Control" size="small">
+          <template #extra>
+            <ClusterOutlined />
+          </template>
+          <a-row :gutter="[24, 16]">
+            <a-col :xs="24" :md="10">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span style="font-weight: 600;">Mode</span>
+                  <a-tag :color="clusterRoleColor">{{ clusterRoleText }}</a-tag>
+                  <a-tag :color="clusterState?.role === 'slave' ? 'orange' : 'green'">
+                    {{ clusterState?.role === 'slave' ? 'Managed by master_url' : 'Default master mode' }}
+                  </a-tag>
+                </div>
+                <a-descriptions bordered size="small" :column="1">
+                  <a-descriptions-item label="Node ID">
+                    <code>{{ clusterState?.nodeId || '—' }}</code>
+                  </a-descriptions-item>
+                  <a-descriptions-item label="Node Name">
+                    <code>{{ clusterState?.nodeName || '—' }}</code>
+                  </a-descriptions-item>
+                  <a-descriptions-item label="Node URL">
+                    <code style="word-break: break-all;">{{ clusterState?.nodeUrl || '—' }}</code>
+                  </a-descriptions-item>
+                  <a-descriptions-item v-if="clusterState?.role === 'slave'" label="Master URL">
+                    <code style="word-break: break-all;">{{ clusterState?.masterUrl || '—' }}</code>
+                  </a-descriptions-item>
+                  <a-descriptions-item label="Cluster Auth">
+                    <span>
+                      {{ clusterState?.accountConfigured ? 'account set' : 'account missing' }} /
+                      {{ clusterState?.passwordConfigured ? 'password set' : 'password missing' }}
+                    </span>
+                  </a-descriptions-item>
+                </a-descriptions>
+              </div>
+            </a-col>
+            <a-col :xs="24" :md="14">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <a-alert
+                  type="info"
+                  show-icon
+                  message="Select the backend you want to inspect. All API/WS traffic is forwarded by the master."
+                />
+                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                  <span style="font-weight: 600;">Active Target</span>
+                  <a-select
+                    v-model:value="selectedClusterTarget"
+                    :options="clusterNodeOptions"
+                    style="min-width: 280px; flex: 1;"
+                    :disabled="clusterState?.role === 'slave'"
+                    @change="applyClusterTarget"
+                  />
+                  <a-button @click="fetchClusterNodes">
+                    <ReloadOutlined /> Refresh Nodes
+                  </a-button>
+                </div>
+                <a-table
+                  :data-source="clusterNodes"
+                  row-key="id"
+                  size="small"
+                  :pagination="false"
+                  :row-class-name="getClusterRowClass"
+                >
+                  <a-table-column title="Name" data-index="name" key="name">
+                    <template #default="{ text, record }">
+                      <span style="font-weight: 600;">{{ text }}</span>
+                      <a-tag v-if="record.isLocal" color="green" style="margin-left: 8px;">local</a-tag>
+                    </template>
+                  </a-table-column>
+                  <a-table-column title="Role" data-index="role" key="role">
+                    <template #default="{ text }">
+                      <a-tag :color="text === 'slave' ? 'orange' : 'green'">{{ text }}</a-tag>
+                    </template>
+                  </a-table-column>
+                  <a-table-column title="Status" data-index="status" key="status">
+                    <template #default="{ text }">
+                      <a-tag :color="text === 'online' ? 'green' : text === 'stale' ? 'orange' : 'default'">{{ text }}</a-tag>
+                    </template>
+                  </a-table-column>
+                  <a-table-column title="URL" data-index="url" key="url">
+                    <template #default="{ text }">
+                      <code style="word-break: break-all; white-space: normal;">{{ text }}</code>
+                    </template>
+                  </a-table-column>
+                  <a-table-column title="Last Seen" data-index="lastSeen" key="lastSeen">
+                    <template #default="{ text }">
+                      <span>{{ text ? new Date(text).toLocaleString() : '—' }}</span>
+                    </template>
+                  </a-table-column>
+                  <a-table-column title="Action" key="action" width="120px">
+                    <template #default="{ record }">
+                      <a-button
+                        v-if="!record.isLocal && clusterState?.role === 'master'"
+                        type="link"
+                        @click="applyClusterTarget(record.id)"
+                      >
+                        Route here
+                      </a-button>
+                      <span v-else style="color: #999;">—</span>
+                    </template>
+                  </a-table-column>
+                </a-table>
+              </div>
+            </a-col>
+          </a-row>
+        </a-card>
+      </a-col>
+
       <a-col :span="24">
         <a-card title="Runtime & MCP Access" size="small">
           <template #extra>
@@ -570,4 +772,10 @@ onMounted(async () => {
 <style scoped>
 :deep(.ant-card) { border-radius: 8px; }
 code { font-family: monospace; background: #eee; padding: 2px 4px; border-radius: 4px; }
+:deep(.cluster-row-active > td) {
+  background: #f0f9eb !important;
+}
+:deep(.cluster-row-local > td) {
+  background: #fafcff !important;
+}
 </style>

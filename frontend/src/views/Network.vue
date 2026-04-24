@@ -13,6 +13,7 @@ import {
 import { message } from 'ant-design-vue';
 
 import { pb } from '../pb/tracker_pb.js';
+import { buildWebSocketUrl } from '../utils/requestContext';
 
 interface NetworkEvent {
   key: string;
@@ -427,9 +428,7 @@ const connectWebSocket = () => {
     ws = null;
   }
 
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const host = window.location.host;
-  ws = new WebSocket(`${protocol}//${host}/ws`);
+  ws = new WebSocket(buildWebSocketUrl('/ws'));
   ws.binaryType = 'arraybuffer';
 
   ws.onopen = () => {

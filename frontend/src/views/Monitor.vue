@@ -11,6 +11,7 @@ import {
 import { message } from 'ant-design-vue';
 import VueApexCharts from 'vue3-apexcharts';
 import { pb } from '../pb/tracker_pb.js';
+import { buildWebSocketUrl } from '../utils/requestContext';
 
 interface GPUStatus {
   index: number; name: string; utilGpu: number; utilMem: number;
@@ -244,8 +245,7 @@ const connectWebSocket = () => {
   if (ws) ws.close();
   lastIO = null;
   faultSnapshots.value = {};
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${protocol}//${window.location.host}/ws/system?interval=${refreshInterval.value}`);
+  ws = new WebSocket(buildWebSocketUrl('/ws/system', { interval: refreshInterval.value }));
   ws.binaryType = 'arraybuffer';
 
   ws.onopen = () => { isConnected.value = true; loading.value = false; };

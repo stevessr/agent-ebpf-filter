@@ -76,6 +76,7 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 - manages tracked command names
 - manages tracked paths
 - manages wrapper rules
+- manages master/slave cluster selection and node routing
 - manages runtime log persistence
 - generates / rotates the backend access token for `/config` and `/mcp`
 - documents MCP query auth URLs such as `/mcp?key=<token>`
@@ -112,8 +113,19 @@ bun run build
 - `/mcp`
 - `^/config/.*`
 - `/system`
+- `/cluster`
 
 This lets the frontend follow the backend if it starts on `8080..8089`.
+
+## Cluster UI
+
+The Configuration page now includes a cluster control panel that:
+
+- shows the current node role and master/slave mode
+- lists discovered slave nodes
+- lets you route dashboard / monitor / network / executor traffic to a selected target
+
+The active target is stored in `localStorage` and is applied to both HTTP requests and WebSocket URLs.
 
 ## Notes
 

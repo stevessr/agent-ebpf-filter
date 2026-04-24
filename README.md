@@ -50,8 +50,27 @@ Events are written to a ring buffer and consumed by the Go backend.
 - **Executor**: run commands via `agent-wrapper` and manage interactive PTY sessions
 - **Hooks**: install or edit native hook configs / wrapper aliases
 - **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, runtime log persistence, and the backend access token
+- **Cluster control**: master/slave routing, node switching, and forwarded inspection requests through the master backend
 
 The backend can optionally persist captured events as JSONL under `~/.config/agent-ebpf-filter/events.jsonl`, and exposes an authenticated MCP SSE endpoint at `/mcp` using the runtime access token generated from the Configuration page. MCP clients may authenticate with `X-API-KEY`, `Authorization: Bearer`, or `?key=<token>`.
+
+## Cluster mode
+
+The backend can run in either **master** or **slave** mode:
+
+- **Default**: master
+- **Slave mode**: set all of the following environment variables:
+  - `AGENT_CLUSTER_MASTER_URL`
+  - `AGENT_CLUSTER_ACCOUNT`
+  - `AGENT_CLUSTER_PASSWORD`
+
+Optional node identity overrides:
+
+- `AGENT_CLUSTER_NODE_URL`
+- `AGENT_CLUSTER_NODE_ID`
+- `AGENT_CLUSTER_NODE_NAME`
+
+When a master is selected in the web UI, it can forward supported requests to a slave backend. The currently selected target is stored in the browser and drives HTTP/WS routing through the master.
 
 ---
 

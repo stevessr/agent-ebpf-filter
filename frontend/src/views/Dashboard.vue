@@ -8,6 +8,7 @@ import { message } from 'ant-design-vue';
 import FilePreviewDrawer from '../components/FilePreviewDrawer.vue';
 import { pb } from '../pb/tracker_pb.js';
 import { canPreviewEventPath, type FilePreviewResponse } from '../types/filePreview';
+import { buildWebSocketUrl } from '../utils/requestContext';
 
 interface AgentEvent {
   key: string;
@@ -453,9 +454,7 @@ const connectWebSocket = () => {
     ws.close();
     ws = null;
   }
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const host = window.location.host;
-  ws = new WebSocket(`${protocol}//${host}/ws`);
+  ws = new WebSocket(buildWebSocketUrl('/ws'));
   ws.binaryType = 'arraybuffer';
 
   ws.onopen = () => {

@@ -982,6 +982,10 @@ func authMiddleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		if clusterRequestAuthAllowed(c) {
+			c.Next()
+			return
+		}
 		token := requestAuthToken(c)
 		expectedKey := runtimeSettingsStore.ExpectedToken()
 		if token == "" || token != expectedKey {
@@ -1707,6 +1711,7 @@ func main() {
 	go startUDSServer(broadcast)
 
 	r := gin.Default()
+	r.Use(clusterGatewayMiddleware())
 	clients := make(map[*websocket.Conn]bool)
 	var clientsMu sync.Mutex
 	go func() {
@@ -2009,6 +2014,9 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	r.POST("/cluster/heartbeat", clusterHeartbeatHandler)
+	r.POST("/cluster/register", clusterHeartbeatHandler)
+
 	api := r.Group("/", authMiddleware())
 	{
 		config := api.Group("/config")
@@ -2182,6 +2190,11 @@ func main() {
 				c.JSON(200, gin.H{"status": "ok"})
 			})
 			api.Any("/mcp", gin.WrapH(buildMCPHandler()))
+			cluster := api.Group("/cluster")
+			{
+				cluster.GET("/state", clusterStateHandler)
+				cluster.GET("/nodes", clusterNodesHandler)
+			}
 			hooks := config.Group("/hooks")
 			{
 				hooks.GET("", func(c *gin.Context) {
@@ -2426,6 +2439,8 @@ func main() {
 			break
 		}
 	}
+	clusterManagerStore.ConfigurePort(actualPort)
 	writePortFile(actualPort)
+	startClusterHeartbeatLoop()
 	_ = r.Run(fmt.Sprintf(":%d", actualPort))
 }
