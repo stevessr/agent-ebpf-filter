@@ -83,7 +83,7 @@ const socketStatusLabel = computed(() => {
 const canReconnect = computed(() => props.session.status === 'running');
 
 const shellLabel = computed(() => {
-  const shell = props.session.shell || 'auto';
+  const shell = props.session.label || props.session.shell || 'auto';
   return props.session.shellPath ? `${shell} → ${props.session.shellPath}` : shell;
 });
 

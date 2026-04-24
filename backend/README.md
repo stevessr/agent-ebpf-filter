@@ -82,6 +82,8 @@ Current behavior:
 - one backend session may have **one active WebSocket attachment at a time**,
 - the backend keeps a bounded output backlog so reconnecting clients can receive recent output.
 
+`POST /shell-sessions` accepts either a normal shell launch or a custom command + args payload, which is what the Executor page uses for tmux-backed coding CLIs and script runners.
+
 ## HTTP endpoints
 
 ### Public / currently unauthenticated routes

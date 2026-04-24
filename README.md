@@ -48,6 +48,7 @@ Events are written to a ring buffer and consumed by the Go backend.
 - **Network**: syscall-derived network flow table with direction / endpoint filters
 - **Explorer**: browse the host filesystem and add tracked paths
 - **Executor**: run commands via `agent-wrapper` and manage interactive PTY sessions
+- **Executor**: run wrapper-protected commands, launch coding CLIs in tmux, and start Python/Node scripts with optional virtualenv selection
 - **Hooks**: install or edit native hook configs / wrapper aliases
 - **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, runtime log persistence, and the backend access token
 - **Cluster control**: master/slave routing, node switching, and forwarded inspection requests through the master backend

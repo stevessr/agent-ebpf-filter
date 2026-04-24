@@ -62,6 +62,10 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
   - `DELETE /shell-sessions/:id`
   - `GET /ws/shell`
 - each backend PTY session is single-attach: one active terminal WebSocket at a time
+- includes dedicated subtabs for:
+  - tmux-launched coding CLIs
+  - Python / Node script launches with optional Python venv selection
+- uses a path navigator drawer for browsing workdirs, scripts, and venv directories
 
 ### Hooks
 

@@ -30,16 +30,23 @@ const (
 const shellSessionBacklogLimit = 1 << 20
 
 type ShellSessionCreateRequest struct {
-	Shell   string `json:"shell"`
-	WorkDir string `json:"workDir,omitempty"`
-	Cols    int    `json:"cols,omitempty"`
-	Rows    int    `json:"rows,omitempty"`
+	Shell   string            `json:"shell"`
+	Command string            `json:"command,omitempty"`
+	Args    []string          `json:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+	Label   string            `json:"label,omitempty"`
+	WorkDir string            `json:"workDir,omitempty"`
+	Cols    int               `json:"cols,omitempty"`
+	Rows    int               `json:"rows,omitempty"`
 }
 
 type ShellSessionInfo struct {
 	ID        string    `json:"id"`
+	Label     string    `json:"label,omitempty"`
 	Shell     string    `json:"shell"`
 	ShellPath string    `json:"shellPath"`
+	Command   string    `json:"command,omitempty"`
+	Args      []string  `json:"args,omitempty"`
 	WorkDir   string    `json:"workDir"`
 	PID       int       `json:"pid"`
 	Status    string    `json:"status"`
@@ -53,8 +60,11 @@ type shellSession struct {
 	mu sync.Mutex
 
 	id        string
+	label     string
 	shellReq  string
 	shellPath string
+	command   string
+	args      []string
 	workDir   string
 	createdAt time.Time
 	updatedAt time.Time
@@ -89,9 +99,20 @@ func newShellSessionManager() *shellSessionManager {
 
 func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessionInfo, error) {
 	shellReq := stringsTrimToDefault(req.Shell, "auto")
-	shellPath := resolveShellPath(shellReq)
-	if shellPath == "" {
-		return nil, fmt.Errorf("shell not found")
+	label := strings.TrimSpace(req.Label)
+	commandReq := strings.TrimSpace(req.Command)
+	launchArgs := append([]string(nil), req.Args...)
+	launchReq := shellReq
+	if commandReq != "" {
+		launchReq = commandReq
+	}
+	if label == "" {
+		label = launchReq
+	}
+
+	launchPath := resolveShellPath(launchReq)
+	if launchPath == "" {
+		return nil, fmt.Errorf("launcher not found")
 	}
 
 	workDir := resolveShellWorkDir()
@@ -112,7 +133,7 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 		rows = 32
 	}
 
-	cmd := exec.Command(shellPath)
+	cmd := exec.Command(launchPath, launchArgs...)
 	cmd.Dir = workDir
 	cmd.Env = setEnvValue(os.Environ(), "TERM", "xterm-256color")
 
@@ -124,6 +145,12 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 		ff = ff + ",no-query-term"
 	}
 	cmd.Env = setEnvValue(cmd.Env, "fish_features", ff)
+	for key, value := range req.Env {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		cmd.Env = setEnvValue(cmd.Env, key, value)
+	}
 
 	dropPrivileges(cmd)
 
@@ -138,8 +165,11 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 	now := time.Now()
 	session := &shellSession{
 		id:           fmt.Sprintf("%d", m.nextID.Add(1)),
+		label:        label,
 		shellReq:     shellReq,
-		shellPath:    shellPath,
+		shellPath:    launchPath,
+		command:      commandReq,
+		args:         append([]string(nil), launchArgs...),
 		workDir:      workDir,
 		createdAt:    now,
 		updatedAt:    now,
@@ -434,8 +464,11 @@ func (s *shellSession) snapshot() ShellSessionInfo {
 	defer s.mu.Unlock()
 	info := ShellSessionInfo{
 		ID:        s.id,
+		Label:     s.label,
 		Shell:     s.shellReq,
 		ShellPath: s.shellPath,
+		Command:   s.command,
+		Args:      append([]string(nil), s.args...),
 		WorkDir:   s.workDir,
 		PID:       s.pid,
 		Status:    s.status,

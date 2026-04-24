@@ -269,7 +269,14 @@ const refreshNow = () => {
   void refreshSessions();
 };
 
-const tabLabel = (session: ShellSessionInfo) => `#${session.id} · ${session.shell || 'auto'}`;
+const sessionLabel = (session: ShellSessionInfo) => session.label || session.shell || 'auto';
+const tabLabel = (session: ShellSessionInfo) => `#${session.id} · ${sessionLabel(session)}`;
+
+defineExpose({
+  upsertSession,
+  openSession,
+  refreshSessions,
+});
 
 onMounted(() => {
   void refreshSessions();
@@ -379,10 +386,10 @@ onBeforeUnmount(() => {
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.dataIndex === 'session'">
-                <div class="shell-manager__session-cell" :title="`${record.shell || 'auto'} → ${record.shellPath || 'unresolved'}\n${record.workDir}`">
+                <div class="shell-manager__session-cell" :title="`${sessionLabel(record)} → ${record.shellPath || 'unresolved'}\n${record.workDir}`">
                   <div class="shell-manager__session-title">#{{ record.id }}</div>
                   <div class="shell-manager__session-subtitle shell-manager__session-subtitle--ellipsis">
-                    {{ record.shell || 'auto' }} → {{ record.shellPath || 'unresolved' }}
+                    {{ sessionLabel(record) }} → {{ record.shellPath || 'unresolved' }}
                   </div>
                   <div class="shell-manager__session-subtitle shell-manager__session-subtitle--ellipsis">
                     {{ record.workDir }}
