@@ -169,7 +169,7 @@ const formatCount = (value: number) => new Intl.NumberFormat('en-US').format(Mat
 const formatRate = (value: number) => `${(value || 0).toFixed(1)}/s`;
 const formatDetailValue = (value: number | string | undefined | null) => {
   if (value === null || value === undefined || value === '') return '—';
-  return typeof value === 'number' ? formatCount(value) : String(value);
+  return typeof value === 'number' ? String(Math.trunc(value)) : String(value);
 };
 const pad2 = (value: number) => String(Math.floor(Math.abs(value))).padStart(2, '0');
 

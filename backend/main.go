@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"mime"
 	"net"
 	"net/http"
@@ -1724,6 +1725,16 @@ func main() {
 			lastFaults = vmFaultCounters{}
 		}
 		lastFaultTime := time.Now()
+		type procCPUSample struct {
+			createTime int64
+			totalCPU   float64
+			sampleTime time.Time
+		}
+		procCPUSamples := make(map[int32]procCPUSample)
+		cpuScale := float64(runtime.NumCPU())
+		if cpuScale <= 0 {
+			cpuScale = 1
+		}
 		for range ticker.C {
 			now := time.Now()
 			gm, gs := getGPUMetrics()
@@ -1735,6 +1746,7 @@ func main() {
 			pbIO := &pb.IOInfo{}
 			vmFaults, faultErr := readVMFaultCounters()
 			faultInfo := &pb.FaultInfo{}
+			currentPIDs := make(map[int32]struct{})
 			if faultErr == nil {
 				pageFaults := vmFaults.pageFaults
 				majorFaults := vmFaults.majorFaults
@@ -1791,11 +1803,26 @@ func main() {
 			for _, p := range psList {
 				n, _ := p.Name()
 				pp, _ := p.Ppid()
-				ccp, _ := p.CPUPercent()
+				ct, _ := p.CreateTime()
+				ccp := 0.0
+				if times, err := p.Times(); err == nil {
+					totalCPU := times.Total()
+					if prev, ok := procCPUSamples[p.Pid]; ok && prev.createTime == ct {
+						dt := now.Sub(prev.sampleTime).Seconds()
+						if dt > 0 {
+							ccp = ((totalCPU - prev.totalCPU) / dt) * 100 / cpuScale
+							if ccp < 0 || math.IsNaN(ccp) || math.IsInf(ccp, 0) {
+								ccp = 0
+							}
+						}
+					}
+					if ct > 0 {
+						procCPUSamples[p.Pid] = procCPUSample{createTime: ct, totalCPU: totalCPU, sampleTime: now}
+					}
+				}
 				mp, _ := p.MemoryPercent()
 				u, _ := p.Username()
 				cmdl, _ := p.Cmdline()
-				ct, _ := p.CreateTime()
 				gmem, gid, gutil := uint32(0), uint32(0), uint32(0)
 				if info, ok := gm[p.Pid]; ok {
 					gmem, gid, gutil = info.mem, info.gpu, info.util
@@ -1805,7 +1832,13 @@ func main() {
 					minorFaults = faults.MinorFaults
 					majorFaults = faults.MajorFaults
 				}
+				currentPIDs[p.Pid] = struct{}{}
 				stats.Processes = append(stats.Processes, &pb.Process{Pid: p.Pid, Ppid: pp, Name: n, Cpu: ccp, Mem: mp, User: u, GpuMem: gmem, GpuId: gid, GpuUtil: gutil, Cmdline: cmdl, CreateTime: ct, MinorFaults: minorFaults, MajorFaults: majorFaults})
+			}
+			for pid := range procCPUSamples {
+				if _, ok := currentPIDs[pid]; !ok {
+					delete(procCPUSamples, pid)
+				}
 			}
 			data, _ := proto.Marshal(stats)
 			if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
