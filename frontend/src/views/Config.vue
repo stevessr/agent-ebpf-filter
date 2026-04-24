@@ -453,16 +453,16 @@ onMounted(async () => {
                 </div>
                 <a-descriptions bordered size="small" :column="1">
                   <a-descriptions-item label="Node ID">
-                    <code>{{ clusterState?.nodeId || '—' }}</code>
+                    <span class="cluster-value">{{ clusterState?.nodeId || '—' }}</span>
                   </a-descriptions-item>
                   <a-descriptions-item label="Node Name">
-                    <code>{{ clusterState?.nodeName || '—' }}</code>
+                    <span class="cluster-value">{{ clusterState?.nodeName || '—' }}</span>
                   </a-descriptions-item>
                   <a-descriptions-item label="Node URL">
-                    <code style="word-break: break-all;">{{ clusterState?.nodeUrl || '—' }}</code>
+                    <span class="cluster-value">{{ clusterState?.nodeUrl || '—' }}</span>
                   </a-descriptions-item>
                   <a-descriptions-item v-if="clusterState?.role === 'slave'" label="Master URL">
-                    <code style="word-break: break-all;">{{ clusterState?.masterUrl || '—' }}</code>
+                    <span class="cluster-value">{{ clusterState?.masterUrl || '—' }}</span>
                   </a-descriptions-item>
                   <a-descriptions-item label="Cluster Auth">
                     <span>
@@ -518,7 +518,7 @@ onMounted(async () => {
                   </a-table-column>
                   <a-table-column title="URL" data-index="url" key="url">
                     <template #default="{ text }">
-                      <code style="word-break: break-all; white-space: normal;">{{ text }}</code>
+                      <span class="cluster-url">{{ text }}</span>
                     </template>
                   </a-table-column>
                   <a-table-column title="Last Seen" data-index="lastSeen" key="lastSeen">
@@ -771,7 +771,27 @@ onMounted(async () => {
 
 <style scoped>
 :deep(.ant-card) { border-radius: 8px; }
-code { font-family: monospace; background: #eee; padding: 2px 4px; border-radius: 4px; }
+.cluster-value {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #dbeafe;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+  color: #1f2937;
+  font-family: var(--mono);
+  word-break: break-all;
+}
+.cluster-url {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #111827;
+  font-family: var(--mono);
+  word-break: break-all;
+  white-space: normal;
+}
 :deep(.cluster-row-active > td) {
   background: #f0f9eb !important;
 }
