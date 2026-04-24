@@ -182,8 +182,6 @@ const hasHeaderFilter = (key: string | number | symbol) => ['time', 'tag', 'pid'
 
 const isResizableColumn = (key: string | number | symbol) => (['time', 'tag', 'pid', 'comm', 'type', 'path', 'action'] as const).includes(String(key) as ResizableColumnKey);
 
-const renderOmittedCountPlaceholder = (omittedValues: unknown[]) => `+${omittedValues.length} more`;
-
 const getFilterPopupContainer = (triggerNode: HTMLElement) =>
   (triggerNode.closest('.excel-filter-popover') as HTMLElement | null) ?? document.body;
 
@@ -589,8 +587,6 @@ onUnmounted(() => {
                       size="small"
                       allow-clear
                       show-search
-                      :max-tag-count="1"
-                      :max-tag-placeholder="renderOmittedCountPlaceholder"
                       :options="tagOptions"
                       option-filter-prop="label"
                       :get-popup-container="getFilterPopupContainer"
@@ -621,8 +617,6 @@ onUnmounted(() => {
                       size="small"
                       allow-clear
                       show-search
-                      :max-tag-count="1"
-                      :max-tag-placeholder="renderOmittedCountPlaceholder"
                       :options="eventTypeOptions"
                       option-filter-prop="label"
                       :get-popup-container="getFilterPopupContainer"
@@ -898,7 +892,7 @@ onUnmounted(() => {
 }
 
 .excel-filter-dropdown--wide {
-  width: 280px;
+  width: 420px;
 }
 
 .excel-filter-dropdown-title {
@@ -913,6 +907,21 @@ onUnmounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 10px;
+}
+
+.excel-filter-dropdown :deep(.ant-select-selector) {
+  min-height: 32px !important;
+  height: auto !important;
+  align-items: flex-start !important;
+}
+
+.excel-filter-dropdown :deep(.ant-select-selection-overflow) {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.excel-filter-dropdown :deep(.ant-select-selection-overflow-item) {
+  margin-bottom: 2px;
 }
 
 .excel-path-cell {
