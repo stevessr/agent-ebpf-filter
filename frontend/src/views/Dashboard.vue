@@ -144,6 +144,8 @@ const getRowClassName = (_record: AgentEvent, index: number) =>
 
 const hasHeaderFilter = (key: string) => ['time', 'tag', 'pid', 'comm', 'type', 'path'].includes(key);
 
+const renderOmittedCountPlaceholder = (omittedValues: unknown[]) => `+${omittedValues.length} more`;
+
 const getFilterPopupContainer = (triggerNode: HTMLElement) =>
   (triggerNode.closest('.excel-filter-popover') as HTMLElement | null) ?? document.body;
 
@@ -469,7 +471,12 @@ onUnmounted(() => {
             overlay-class-name="excel-filter-popover"
           >
             <template #content>
-              <div class="excel-filter-dropdown" @mousedown.stop @click.stop>
+              <div
+                class="excel-filter-dropdown"
+                :class="{ 'excel-filter-dropdown--wide': column.key === 'tag' || column.key === 'type' }"
+                @mousedown.stop
+                @click.stop
+              >
                 <div class="excel-filter-dropdown-title">
                   {{ column.title }} Filter
                 </div>
@@ -489,7 +496,8 @@ onUnmounted(() => {
                     size="small"
                     allow-clear
                     show-search
-                    max-tag-count="responsive"
+                    :max-tag-count="1"
+                    :max-tag-placeholder="renderOmittedCountPlaceholder"
                     :options="tagOptions"
                     option-filter-prop="label"
                     :get-popup-container="getFilterPopupContainer"
@@ -520,7 +528,8 @@ onUnmounted(() => {
                     size="small"
                     allow-clear
                     show-search
-                    max-tag-count="responsive"
+                    :max-tag-count="1"
+                    :max-tag-placeholder="renderOmittedCountPlaceholder"
                     :options="eventTypeOptions"
                     option-filter-prop="label"
                     :get-popup-container="getFilterPopupContainer"
@@ -740,6 +749,10 @@ onUnmounted(() => {
   border-radius: 6px;
   background: #fff;
   box-shadow: 0 6px 18px rgba(34, 54, 24, 0.12);
+}
+
+.excel-filter-dropdown--wide {
+  width: 280px;
 }
 
 .excel-filter-dropdown-title {
