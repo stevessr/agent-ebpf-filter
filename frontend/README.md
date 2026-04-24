@@ -55,14 +55,9 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 
 ### Executor
 
-- has a dedicated Remote tab that launches wrapper-routed commands into a temporary PTY session
-- leaving the Remote tab destroys that backend terminal automatically
-- manages persistent PTY sessions through:
-  - `POST /shell-sessions`
-  - `GET /shell-sessions`
-  - `DELETE /shell-sessions/:id`
-  - `POST /shell-sessions/:id/input`
-  - `GET /ws/shell`
+- has a dedicated Remote tab (`RemoteWrapperTerminal.vue`) that launches wrapper-routed commands into a temporary PTY session; it subscribes to the `/ws` event stream for real-time `wrapper_intercept` events with a one-time `GET /events/recent` as initial load
+- leaving the Remote tab destroys that backend terminal and disconnects the wrapper event WebSocket
+- the Shell tab (`LocalShellTerminal.vue`) manages persistent PTY sessions and receives live session list updates via the `/ws/shell-sessions` WebSocket (pub/sub push, no polling)
 - each backend PTY session is single-attach: one active terminal WebSocket at a time
 - includes dedicated subtabs for:
   - a remote wrapper tab for temporary wrapper-backed terminals
@@ -115,10 +110,11 @@ bun run build
 
 `vite.config.ts` reads `../backend/.port` and proxies:
 
-- `/ws`
+- `/ws` (and subpaths like `/ws/system`, `/ws/shell`, `/ws/shell-sessions`)
 - `/register`
 - `/unregister`
 - `/shell-sessions`
+- `/events/recent`
 - `/mcp`
 - `^/config/.*`
 - `/system`

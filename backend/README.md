@@ -73,6 +73,16 @@ Broadcasts `pb.SystemStats` messages that include:
 - network and disk IO
 - VM page-fault / swap counters
 
+### `/ws/shell-sessions`
+
+Broadcasts the full shell session list as JSON text messages whenever the session list changes.
+
+Uses a pub/sub pattern:
+
+- clients subscribe on connect, unsubscribe on disconnect,
+- the server sends the current `shellSessions.List()` immediately and re-sends on every `Create`, `Delete`, or session state change,
+- the broadcast is driven by `shellSession.onChange` callbacks and `shellSessionManager.notify()`.
+
 ### `/ws/shell`
 
 Attaches to a persistent PTY session created through `/shell-sessions`.
@@ -90,6 +100,8 @@ Current behavior:
 
 ### Public / currently unauthenticated routes
 
+- `GET /events/recent?type=&limit=` — historical events (used for initial WS load)
+- `GET /ws/shell-sessions` — live shell session list (WebSocket JSON push)
 - `POST /register`
 - `POST /unregister`
 - `POST /hooks/event`

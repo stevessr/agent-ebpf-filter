@@ -105,6 +105,7 @@ If you change auth or deployment docs, keep this nuance accurate.
 - Routes live in `frontend/src/views/`
 - Shared terminal UI lives in:
   - `frontend/src/components/LocalShellTerminal.vue`
+  - `frontend/src/components/RemoteWrapperTerminal.vue`
   - `frontend/src/components/ShellTerminalPane.vue`
 
 Important pages:

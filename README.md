@@ -264,8 +264,11 @@ The wrapper sends the command to the backend over `/tmp/agent-ebpf.sock`, receiv
 
 ### Public event / control endpoints
 
-- `GET /ws` — live event stream
+- `GET /ws` — live event stream (protobuf binary, all kernel/wrapper/hook events)
 - `GET /ws/system?interval=2000` — process/system telemetry stream
+- `GET /ws/shell?session_id=...` — attach to a PTY session
+- `GET /ws/shell-sessions` — live shell session list (WebSocket JSON push, pub/sub)
+- `GET /events/recent?type=&limit=` — historical events for initial load (REST fallback)
 - `POST /register` — register a PID
 - `POST /unregister` — unregister a PID
 - `POST /hooks/event` — receive native hook events
@@ -273,7 +276,6 @@ The wrapper sends the command to the backend over `/tmp/agent-ebpf.sock`, receiv
 - `GET /shell-sessions` — list PTY sessions
 - `DELETE /shell-sessions/:id` — close a PTY session
 - `POST /shell-sessions/:id/input` — inject raw bytes into a PTY session
-- `GET /ws/shell?session_id=...` — attach to a PTY session
 
 ### Config and system endpoints
 
@@ -285,9 +287,20 @@ Protected by `authMiddleware()` in release mode:
 - `/config/rules`
 - `/config/export`
 - `/config/import`
+- `/config/runtime`
+- `/config/access-token`
 - `/config/hooks`
+- `/config/hooks/:id/raw`
 - `/system/ls`
 - `/system/run`
+- `/system/env`
+- `/mcp` — MCP SSE endpoint (same auth as config routes)
+
+### Cluster endpoints
+
+- `GET /cluster/state` — current node role and cluster mode
+- `GET /cluster/nodes` — discovered slave nodes
+- `POST /cluster/heartbeat` — slave heartbeat / registration (internal)
 
 ---
 
