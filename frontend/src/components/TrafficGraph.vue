@@ -124,9 +124,10 @@ const renderGraph = () => {
   const maxSpeed = Math.max(1, ...interfaces.map((item) => item.totalSpeed), aggregateIn, aggregateOut);
   const nodeRadius = d3.scaleSqrt().domain([0, maxSpeed]).range([22, 56]);
   const linkWidth = d3.scaleSqrt().domain([0, maxSpeed]).range([1.5, 10]);
+  const minDimension = Math.min(width, height);
   const orbitRadius = Math.min(
-    Math.max(Math.min(width, height) * 0.34, 120),
-    Math.max(Math.min(width, height) / 2 - 84, 76),
+    Math.max(minDimension * 0.24, 96),
+    Math.max(minDimension / 2 - 96, 76),
   );
   const internetRadius = 64;
 
@@ -142,7 +143,10 @@ const renderGraph = () => {
     },
     ...interfaces.map((item, index) => {
       const angle = Math.PI + (index / interfaces.length) * Math.PI * 2;
-      const positionRadius = orbitRadius;
+      const currentRadius = nodeRadius(item.totalSpeed);
+      const maxRadius = Math.max(orbitRadius, minDimension / 2 - currentRadius - 20);
+      const sizeBoost = ((currentRadius - 22) / 34) * Math.max(20, minDimension * 0.08);
+      const positionRadius = Math.min(orbitRadius + sizeBoost, maxRadius);
       return {
         id: item.name,
         kind: 'interface' as const,
@@ -209,8 +213,8 @@ const renderGraph = () => {
     const dx = target.x - source.x;
     const dy = target.y - source.y;
     const distance = Math.max(1, Math.hypot(dx, dy));
-    const sourceOffset = Math.min(getNodeRadius(source) + 4, distance / 2 - 1);
-    const targetOffset = Math.min(getNodeRadius(target) + 8, distance / 2 - 1);
+    const sourceOffset = Math.min(getNodeRadius(source) + 1.5, distance / 2 - 1);
+    const targetOffset = Math.min(getNodeRadius(target) + 1.5, distance / 2 - 1);
 
     return {
       x1: source.x + (dx * sourceOffset) / distance,
@@ -220,39 +224,39 @@ const renderGraph = () => {
     };
   };
 
-  const linkGeometry = new Map(
-    links.map((link) => {
-      const base = getLinkEndpoints(link);
-      const source = nodeById.get(link.source)!;
-      const target = nodeById.get(link.target)!;
-      const dx = target.x - source.x;
-      const dy = target.y - source.y;
-      const distance = Math.max(1, Math.hypot(dx, dy));
-      const normalX = -dy / distance;
-      const normalY = dx / distance;
-      const direction = link.id.endsWith('-tx') ? 1 : -1;
-      const laneOffset = Math.min(16, Math.max(6, linkWidth(link.speed) * 0.8));
-      const offsetX = normalX * direction * laneOffset;
-      const offsetY = normalY * direction * laneOffset;
-      return [
-        link.id,
-        {
-          x1: base.x1 + offsetX,
-          y1: base.y1 + offsetY,
-          x2: base.x2 + offsetX,
-          y2: base.y2 + offsetY,
-        },
-      ] as const;
-    }),
-  );
+  const buildLinkPath = (link: GraphLink) => {
+    const source = nodeById.get(link.source);
+    const target = nodeById.get(link.target);
+
+    if (!source || !target) return '';
+
+    const points = getLinkEndpoints(link);
+    const interfaceNode = source.kind === 'interface' ? source : target;
+    const angle = Math.atan2(interfaceNode.y - centerY, interfaceNode.x - centerX);
+    const radialX = Math.cos(angle);
+    const radialY = Math.sin(angle);
+    const tangentX = -radialY;
+    const tangentY = radialX;
+    const side = link.id.endsWith('-tx') ? 1 : -1;
+    const arcSpread = Math.min(68, Math.max(24, linkWidth(link.speed) * 4.6));
+    const outward = Math.min(42, Math.max(14, linkWidth(link.speed) * 2.4));
+
+    const c1x = points.x1 + radialX * outward + tangentX * arcSpread * side;
+    const c1y = points.y1 + radialY * outward + tangentY * arcSpread * side;
+    const c2x = points.x2 + radialX * outward + tangentX * arcSpread * side;
+    const c2y = points.y2 + radialY * outward + tangentY * arcSpread * side;
+
+    return `M ${points.x1} ${points.y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${points.x2} ${points.y2}`;
+  };
 
   const linkSelection = svg
     .append('g')
     .attr('fill', 'none')
-    .selectAll<SVGLineElement, GraphLink>('line')
+    .selectAll<SVGPathElement, GraphLink>('path')
     .data(links, (link) => link.id)
-    .join('line')
+    .join('path')
     .attr('class', 'traffic-link')
+    .attr('fill', 'none')
     .attr('stroke-linecap', 'round')
     .attr('stroke-width', (link) => linkWidth(link.speed))
     .attr('stroke', (link) => trafficColor(link.speed))
@@ -264,10 +268,7 @@ const renderGraph = () => {
     });
 
   linkSelection
-    .attr('x1', (link) => linkGeometry.get(link.id)?.x1 ?? centerX)
-    .attr('y1', (link) => linkGeometry.get(link.id)?.y1 ?? centerY)
-    .attr('x2', (link) => linkGeometry.get(link.id)?.x2 ?? centerX)
-    .attr('y2', (link) => linkGeometry.get(link.id)?.y2 ?? centerY);
+    .attr('d', (link) => buildLinkPath(link));
 
   linkSelection
     .append('title')
