@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined, GlobalOutlined } from '@ant-design/icons-vue';
+import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined, GlobalOutlined, DeploymentUnitOutlined } from '@ant-design/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -42,6 +42,10 @@ const handleMenuClick = ({ key }: { key: string }) => {
         <a-menu-item key="/network">
           <template #icon><GlobalOutlined /></template>
           Network
+        </a-menu-item>
+        <a-menu-item key="/network-flow">
+          <template #icon><DeploymentUnitOutlined /></template>
+          Traffic
         </a-menu-item>
         <a-menu-item key="/explorer">
           <template #icon><FolderOpenOutlined /></template>
