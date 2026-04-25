@@ -438,6 +438,36 @@ export namespace pb {
 
         /** Event netFamily */
         netFamily?: (string|null);
+
+        /** Event retval */
+        retval?: (number|Long|null);
+
+        /** Event extraInfo */
+        extraInfo?: (string|null);
+
+        /** Event extraPath */
+        extraPath?: (string|null);
+
+        /** Event bytes */
+        bytes?: (number|Long|null);
+
+        /** Event mode */
+        mode?: (string|null);
+
+        /** Event domain */
+        domain?: (string|null);
+
+        /** Event sockType */
+        sockType?: (string|null);
+
+        /** Event protocol */
+        protocol?: (number|null);
+
+        /** Event uidArg */
+        uidArg?: (number|null);
+
+        /** Event gidArg */
+        gidArg?: (number|null);
     }
 
     /** Represents an Event. */
@@ -481,6 +511,36 @@ export namespace pb {
 
         /** Event netFamily. */
         public netFamily: string;
+
+        /** Event retval. */
+        public retval: (number|Long);
+
+        /** Event extraInfo. */
+        public extraInfo: string;
+
+        /** Event extraPath. */
+        public extraPath: string;
+
+        /** Event bytes. */
+        public bytes: (number|Long);
+
+        /** Event mode. */
+        public mode: string;
+
+        /** Event domain. */
+        public domain: string;
+
+        /** Event sockType. */
+        public sockType: string;
+
+        /** Event protocol. */
+        public protocol: number;
+
+        /** Event uidArg. */
+        public uidArg: number;
+
+        /** Event gidArg. */
+        public gidArg: number;
 
         /**
          * Creates a new Event instance using the specified properties.

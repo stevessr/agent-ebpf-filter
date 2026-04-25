@@ -551,6 +551,69 @@ func main() {
 				_ = objs.TrackedPaths.Delete(k)
 				c.JSON(200, gin.H{"status": "ok"})
 			})
+			config.GET("/prefixes", func(c *gin.Context) {
+				items := []gin.H{}
+				if objs.TrackedPrefixes == nil {
+					c.JSON(200, items)
+					return
+				}
+				iter := objs.TrackedPrefixes.Iterate()
+				var k struct {
+					PrefixLen uint32
+					Data      [64]byte
+				}
+				var tid uint32
+				for iter.Next(&k, &tid) {
+					prefix := string(bytes.TrimRight(k.Data[:], "\x00"))
+					prefixLen := k.PrefixLen / 8
+					if prefixLen > 0 && uint32(len(prefix)) > prefixLen {
+						prefix = prefix[:prefixLen]
+					}
+					items = append(items, gin.H{"prefix": prefix, "tag": getTagName(tid)})
+				}
+				c.JSON(200, items)
+			})
+			config.POST("/prefixes", func(c *gin.Context) {
+				var r struct {
+					Prefix, Tag string `json:"prefix"`
+				}
+				_ = c.ShouldBindJSON(&r)
+				if r.Prefix == "" {
+					c.JSON(400, gin.H{"error": "prefix is required"})
+					return
+				}
+				var k struct {
+					PrefixLen uint32
+					Data      [64]byte
+				}
+				plen := len(r.Prefix)
+				if plen > 63 {
+					plen = 63
+				}
+				k.PrefixLen = uint32(plen * 8)
+				copy(k.Data[:], r.Prefix[:plen])
+				_ = objs.TrackedPrefixes.Put(k, getTagID(r.Tag))
+				c.JSON(200, gin.H{"status": "ok"})
+			})
+			config.DELETE("/prefixes", func(c *gin.Context) {
+				prefix := c.Query("prefix")
+				if prefix == "" {
+					c.JSON(400, gin.H{"error": "prefix query parameter is required"})
+					return
+				}
+				var k struct {
+					PrefixLen uint32
+					Data      [64]byte
+				}
+				plen := len(prefix)
+				if plen > 63 {
+					plen = 63
+				}
+				k.PrefixLen = uint32(plen * 8)
+				copy(k.Data[:], prefix[:plen])
+				_ = objs.TrackedPrefixes.Delete(k)
+				c.JSON(200, gin.H{"status": "ok"})
+			})
 			config.GET("/rules", func(c *gin.Context) { rulesMu.RLock(); defer rulesMu.RUnlock(); c.JSON(200, wrapperRules) })
 			config.POST("/rules", func(c *gin.Context) {
 				var r WrapperRule

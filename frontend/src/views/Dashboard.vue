@@ -23,6 +23,16 @@ interface AgentEvent {
   netEndpoint?: string;
   netFamily?: string;
   netBytes?: number;
+  retval?: number;
+  extraInfo?: string;
+  extraPath?: string;
+  bytes?: number;
+  mode?: string;
+  domain?: string;
+  sockType?: string;
+  protocol?: number;
+  uidArg?: number;
+  gidArg?: number;
   time: string;
 }
 
@@ -102,6 +112,19 @@ const eventTypes = [
   'mkdir',
   'unlink',
   'ioctl',
+  'read',
+  'write',
+  'open',
+  'chmod',
+  'chown',
+  'rename',
+  'link',
+  'symlink',
+  'mknod',
+  'clone',
+  'exit',
+  'socket',
+  'accept',
   'wrapper_intercept',
   'native_hook',
 ];
@@ -435,6 +458,19 @@ const getTagColor = (type: string) => {
     'mkdir': 'cyan',
     'unlink': 'red',
     'ioctl': 'purple',
+    'read': 'cyan',
+    'write': 'cyan',
+    'open': 'green',
+    'chmod': 'gold',
+    'chown': 'gold',
+    'rename': 'orange',
+    'link': 'orange',
+    'symlink': 'orange',
+    'mknod': 'purple',
+    'clone': 'blue',
+    'exit': 'red',
+    'socket': 'orange',
+    'accept': 'volcano',
   };
   return colors[type] || 'default';
 };
@@ -480,6 +516,16 @@ const connectWebSocket = () => {
         netEndpoint: data.type?.startsWith('network_') ? (data.netEndpoint || '') : undefined,
         netFamily: data.type?.startsWith('network_') ? (data.netFamily || '') : undefined,
         netBytes: data.type?.startsWith('network_') ? Number(data.netBytes || 0) : undefined,
+        retval: typeof data.retval === 'number' ? Number(data.retval) : undefined,
+        extraInfo: data.extraInfo || undefined,
+        extraPath: data.extraPath || undefined,
+        bytes: typeof data.bytes === 'number' ? Number(data.bytes) : undefined,
+        mode: data.mode || undefined,
+        domain: data.domain || undefined,
+        sockType: data.sockType || undefined,
+        protocol: typeof data.protocol === 'number' ? Number(data.protocol) : undefined,
+        uidArg: typeof data.uidArg === 'number' ? Number(data.uidArg) : undefined,
+        gidArg: typeof data.gidArg === 'number' ? Number(data.gidArg) : undefined,
         time: now.toLocaleTimeString(),
       };
       events.value.unshift(nextEvent);
@@ -816,6 +862,36 @@ onUnmounted(() => {
         </a-descriptions-item>
         <a-descriptions-item v-if="selectedEvent.netBytes !== undefined" label="Network Bytes">
           <a-typography-text code>{{ selectedEvent.netBytes }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.retval !== undefined" label="Return Value">
+          <a-typography-text :type="selectedEvent.retval < 0 ? 'danger' : undefined" code>{{ selectedEvent.retval }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.extraInfo" label="Extra Info">
+          <a-typography-text code>{{ selectedEvent.extraInfo }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.extraPath" label="Extra Path">
+          <code style="word-break: break-all;">{{ selectedEvent.extraPath }}</code>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.bytes !== undefined" label="Bytes">
+          <a-typography-text code>{{ selectedEvent.bytes }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.mode" label="Mode">
+          <a-typography-text code>{{ selectedEvent.mode }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.domain" label="Domain">
+          <a-tag>{{ selectedEvent.domain }}</a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.sockType" label="Socket Type">
+          <a-tag>{{ selectedEvent.sockType }}</a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.protocol !== undefined" label="Protocol">
+          <a-typography-text code>{{ selectedEvent.protocol }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.uidArg !== undefined" label="Chown UID">
+          <a-typography-text code>{{ selectedEvent.uidArg }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.gidArg !== undefined" label="Chown GID">
+          <a-typography-text code>{{ selectedEvent.gidArg }}</a-typography-text>
         </a-descriptions-item>
         <a-descriptions-item label="Resource Path / Info">
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">

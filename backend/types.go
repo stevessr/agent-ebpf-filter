@@ -30,6 +30,11 @@ type bpfEvent struct {
 	NetBytes                    uint32
 	NetPort                     uint32
 	NetAddr                     [16]byte
+	Retval                      int64
+	Extra1                      uint32
+	Extra2                      uint32
+	Extra3                      uint64
+	Extra4                      [256]byte
 }
 
 type WrapperRule struct {
@@ -45,10 +50,11 @@ type shellControlMessage struct {
 }
 
 type trackerMapSet struct {
-	AgentPids    *ebpf.Map
-	TrackedComms *ebpf.Map
-	TrackedPaths *ebpf.Map
-	Events       *ebpf.Map
+	AgentPids       *ebpf.Map
+	TrackedComms    *ebpf.Map
+	TrackedPaths    *ebpf.Map
+	TrackedPrefixes *ebpf.Map
+	Events          *ebpf.Map
 }
 
 type ExportConfig struct {

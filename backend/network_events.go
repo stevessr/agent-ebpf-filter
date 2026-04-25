@@ -29,6 +29,32 @@ func kernelEventTypeName(eventType uint32) string {
 		return "network_sendto"
 	case 8:
 		return "network_recvfrom"
+	case 9:
+		return "read"
+	case 10:
+		return "write"
+	case 11:
+		return "open"
+	case 12:
+		return "chmod"
+	case 13:
+		return "chown"
+	case 14:
+		return "rename"
+	case 15:
+		return "link"
+	case 16:
+		return "symlink"
+	case 17:
+		return "mknod"
+	case 18:
+		return "clone"
+	case 19:
+		return "exit"
+	case 20:
+		return "socket"
+	case 21:
+		return "accept"
 	default:
 		return "unknown"
 	}
@@ -36,7 +62,7 @@ func kernelEventTypeName(eventType uint32) string {
 
 func isNetworkEventType(eventType string) bool {
 	switch eventType {
-	case "network_connect", "network_bind", "network_sendto", "network_recvfrom":
+	case "network_connect", "network_bind", "network_sendto", "network_recvfrom", "accept":
 		return true
 	default:
 		return false
@@ -112,19 +138,78 @@ func formatNetworkSummary(direction, endpoint string, bytes uint32) string {
 func buildKernelEvent(event bpfEvent) *pb.Event {
 	comm := strings.TrimRight(string(event.Comm[:]), "\x00")
 	path := strings.TrimRight(string(event.Path[:]), "\x00")
+	extraPath := strings.TrimRight(string(event.Extra4[:]), "\x00")
 	typeName := kernelEventTypeName(event.Type)
 
 	out := &pb.Event{
-		Pid:  event.PID,
-		Ppid: event.PPID,
-		Uid:  event.UID,
-		Type: typeName,
-		Tag:  getTagName(event.TagID),
-		Comm: comm,
-		Path: path,
+		Pid:      event.PID,
+		Ppid:     event.PPID,
+		Uid:      event.UID,
+		Type:     typeName,
+		Tag:      getTagName(event.TagID),
+		Comm:     comm,
+		Path:     path,
+		Retval:   event.Retval,
+		ExtraPath: extraPath,
 	}
 
-	if isNetworkEventType(typeName) {
+	// Populate type-specific fields
+	switch typeName {
+	case "read", "write":
+		out.ExtraInfo = fmt.Sprintf("fd=%d count=%d", event.Extra1, event.Extra3)
+		out.Bytes = event.Extra3
+	case "open":
+		out.ExtraInfo = fmt.Sprintf("flags=0x%x mode=0%o", event.Extra1, event.Extra2)
+		out.Mode = fmt.Sprintf("0%o", event.Extra2)
+	case "chmod":
+		out.Mode = fmt.Sprintf("0%o", event.Extra2)
+		out.ExtraInfo = fmt.Sprintf("mode=0%o", event.Extra2)
+	case "chown":
+		out.UidArg = event.Extra1
+		out.GidArg = event.Extra2
+		out.ExtraInfo = fmt.Sprintf("uid=%d gid=%d", event.Extra1, event.Extra2)
+	case "rename":
+		out.ExtraInfo = fmt.Sprintf("newpath=%s", extraPath)
+	case "link", "symlink":
+		out.ExtraInfo = fmt.Sprintf("target=%s", extraPath)
+	case "mknod":
+		out.Mode = fmt.Sprintf("0%o", event.Extra1)
+		out.ExtraInfo = fmt.Sprintf("mode=0%o dev=0x%x", event.Extra1, event.Extra2)
+	case "ioctl":
+		out.ExtraInfo = fmt.Sprintf("request=0x%x", event.Extra1)
+	case "clone":
+		out.ExtraInfo = fmt.Sprintf("flags=0x%x", event.Extra1)
+	case "exit":
+		out.ExtraInfo = fmt.Sprintf("status=%d", event.Extra1)
+	case "socket":
+		out.Domain = networkFamilyLabel(event.Extra1)
+		if event.Extra1 == 1 {
+			out.Domain = "unix"
+		}
+		switch event.Extra2 {
+		case 1:
+			out.SockType = "SOCK_STREAM"
+		case 2:
+			out.SockType = "SOCK_DGRAM"
+		case 3:
+			out.SockType = "SOCK_RAW"
+		default:
+			out.SockType = fmt.Sprintf("type=%d", event.Extra2)
+		}
+		out.Protocol = uint32(event.Extra3)
+		out.ExtraInfo = fmt.Sprintf("domain=%s type=%s protocol=%d", out.Domain, out.SockType, out.Protocol)
+	case "unlinkat":
+		out.ExtraInfo = fmt.Sprintf("flags=0x%x", event.Extra1)
+	case "mkdirat":
+		out.Mode = fmt.Sprintf("0%o", event.Extra1)
+		out.ExtraInfo = fmt.Sprintf("mode=0%o", event.Extra1)
+	default:
+		if event.Retval != 0 {
+			out.ExtraInfo = fmt.Sprintf("retval=%d", event.Retval)
+		}
+	}
+
+	if typeName == "accept" || isNetworkEventType(typeName) {
 		direction := networkDirectionLabel(event.NetDirection)
 		endpoint := formatNetworkEndpoint(event.NetFamily, event.NetAddr, event.NetPort)
 		family := networkFamilyLabel(event.NetFamily)

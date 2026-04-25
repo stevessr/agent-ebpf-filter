@@ -332,6 +332,16 @@ type Event struct {
 	NetEndpoint   string                 `protobuf:"bytes,9,opt,name=net_endpoint,json=netEndpoint,proto3" json:"net_endpoint,omitempty"`
 	NetBytes      uint32                 `protobuf:"varint,10,opt,name=net_bytes,json=netBytes,proto3" json:"net_bytes,omitempty"`
 	NetFamily     string                 `protobuf:"bytes,11,opt,name=net_family,json=netFamily,proto3" json:"net_family,omitempty"`
+	Retval        int64                  `protobuf:"varint,12,opt,name=retval,proto3" json:"retval,omitempty"`
+	ExtraInfo     string                 `protobuf:"bytes,13,opt,name=extra_info,json=extraInfo,proto3" json:"extra_info,omitempty"`
+	ExtraPath     string                 `protobuf:"bytes,14,opt,name=extra_path,json=extraPath,proto3" json:"extra_path,omitempty"`
+	Bytes         uint64                 `protobuf:"varint,15,opt,name=bytes,proto3" json:"bytes,omitempty"`
+	Mode          string                 `protobuf:"bytes,16,opt,name=mode,proto3" json:"mode,omitempty"`
+	Domain        string                 `protobuf:"bytes,17,opt,name=domain,proto3" json:"domain,omitempty"`
+	SockType      string                 `protobuf:"bytes,18,opt,name=sock_type,json=sockType,proto3" json:"sock_type,omitempty"`
+	Protocol      uint32                 `protobuf:"varint,19,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	UidArg        uint32                 `protobuf:"varint,20,opt,name=uid_arg,json=uidArg,proto3" json:"uid_arg,omitempty"`
+	GidArg        uint32                 `protobuf:"varint,21,opt,name=gid_arg,json=gidArg,proto3" json:"gid_arg,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -441,6 +451,76 @@ func (x *Event) GetNetFamily() string {
 		return x.NetFamily
 	}
 	return ""
+}
+
+func (x *Event) GetRetval() int64 {
+	if x != nil {
+		return x.Retval
+	}
+	return 0
+}
+
+func (x *Event) GetExtraInfo() string {
+	if x != nil {
+		return x.ExtraInfo
+	}
+	return ""
+}
+
+func (x *Event) GetExtraPath() string {
+	if x != nil {
+		return x.ExtraPath
+	}
+	return ""
+}
+
+func (x *Event) GetBytes() uint64 {
+	if x != nil {
+		return x.Bytes
+	}
+	return 0
+}
+
+func (x *Event) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *Event) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *Event) GetSockType() string {
+	if x != nil {
+		return x.SockType
+	}
+	return ""
+}
+
+func (x *Event) GetProtocol() uint32 {
+	if x != nil {
+		return x.Protocol
+	}
+	return 0
+}
+
+func (x *Event) GetUidArg() uint32 {
+	if x != nil {
+		return x.UidArg
+	}
+	return 0
+}
+
+func (x *Event) GetGidArg() uint32 {
+	if x != nil {
+		return x.GidArg
+	}
+	return 0
 }
 
 // Represents system process information for the tree view
@@ -1666,7 +1746,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\"H\n" +
 	"\x12UnregisterResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x91\x02\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x94\x04\n" +
 	"\x05Event\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\rR\x04ppid\x12\x10\n" +
@@ -1680,7 +1760,19 @@ const file_tracker_proto_rawDesc = "" +
 	"\tnet_bytes\x18\n" +
 	" \x01(\rR\bnetBytes\x12\x1d\n" +
 	"\n" +
-	"net_family\x18\v \x01(\tR\tnetFamily\"\xc7\x02\n" +
+	"net_family\x18\v \x01(\tR\tnetFamily\x12\x16\n" +
+	"\x06retval\x18\f \x01(\x03R\x06retval\x12\x1d\n" +
+	"\n" +
+	"extra_info\x18\r \x01(\tR\textraInfo\x12\x1d\n" +
+	"\n" +
+	"extra_path\x18\x0e \x01(\tR\textraPath\x12\x14\n" +
+	"\x05bytes\x18\x0f \x01(\x04R\x05bytes\x12\x12\n" +
+	"\x04mode\x18\x10 \x01(\tR\x04mode\x12\x16\n" +
+	"\x06domain\x18\x11 \x01(\tR\x06domain\x12\x1b\n" +
+	"\tsock_type\x18\x12 \x01(\tR\bsockType\x12\x1a\n" +
+	"\bprotocol\x18\x13 \x01(\rR\bprotocol\x12\x17\n" +
+	"\auid_arg\x18\x14 \x01(\rR\x06uidArg\x12\x17\n" +
+	"\agid_arg\x18\x15 \x01(\rR\x06gidArg\"\xc7\x02\n" +
 	"\aProcess\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\x05R\x04ppid\x12\x12\n" +

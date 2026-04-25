@@ -15,7 +15,7 @@ export interface FilePreviewResponse {
   truncated: boolean;
 }
 
-const previewableEventTypes = new Set(['execve', 'openat', 'mkdir', 'unlink']);
+const previewableEventTypes = new Set(['execve', 'openat', 'mkdir', 'unlink', 'open', 'chmod', 'chown', 'rename', 'link', 'symlink', 'mknod']);
 
 export const canPreviewEventPath = (event: { type: string; path: string }) =>
   previewableEventTypes.has(event.type) && event.path.startsWith('/');

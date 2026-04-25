@@ -38,6 +38,16 @@ message Event {
   string net_endpoint = 9;
   uint32 net_bytes = 10;
   string net_family = 11;
+  int64 retval = 12;
+  string extra_info = 13;
+  string extra_path = 14;
+  uint64 bytes = 15;
+  string mode = 16;
+  string domain = 17;
+  string sock_type = 18;
+  uint32 protocol = 19;
+  uint32 uid_arg = 20;
+  uint32 gid_arg = 21;
 }
 
 // Represents system process information for the tree view

@@ -901,6 +901,16 @@ export const pb = $root.pb = (() => {
          * @property {string|null} [netEndpoint] Event netEndpoint
          * @property {number|null} [netBytes] Event netBytes
          * @property {string|null} [netFamily] Event netFamily
+         * @property {number|Long|null} [retval] Event retval
+         * @property {string|null} [extraInfo] Event extraInfo
+         * @property {string|null} [extraPath] Event extraPath
+         * @property {number|Long|null} [bytes] Event bytes
+         * @property {string|null} [mode] Event mode
+         * @property {string|null} [domain] Event domain
+         * @property {string|null} [sockType] Event sockType
+         * @property {number|null} [protocol] Event protocol
+         * @property {number|null} [uidArg] Event uidArg
+         * @property {number|null} [gidArg] Event gidArg
          */
 
         /**
@@ -1007,6 +1017,86 @@ export const pb = $root.pb = (() => {
         Event.prototype.netFamily = "";
 
         /**
+         * Event retval.
+         * @member {number|Long} retval
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.retval = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
+
+        /**
+         * Event extraInfo.
+         * @member {string} extraInfo
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.extraInfo = "";
+
+        /**
+         * Event extraPath.
+         * @member {string} extraPath
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.extraPath = "";
+
+        /**
+         * Event bytes.
+         * @member {number|Long} bytes
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.bytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event mode.
+         * @member {string} mode
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.mode = "";
+
+        /**
+         * Event domain.
+         * @member {string} domain
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.domain = "";
+
+        /**
+         * Event sockType.
+         * @member {string} sockType
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.sockType = "";
+
+        /**
+         * Event protocol.
+         * @member {number} protocol
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.protocol = 0;
+
+        /**
+         * Event uidArg.
+         * @member {number} uidArg
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.uidArg = 0;
+
+        /**
+         * Event gidArg.
+         * @member {number} gidArg
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.gidArg = 0;
+
+        /**
          * Creates a new Event instance using the specified properties.
          * @function create
          * @memberof pb.Event
@@ -1052,6 +1142,26 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 10, wireType 0 =*/80).uint32(message.netBytes);
             if (message.netFamily != null && Object.hasOwnProperty.call(message, "netFamily"))
                 writer.uint32(/* id 11, wireType 2 =*/90).string(message.netFamily);
+            if (message.retval != null && Object.hasOwnProperty.call(message, "retval"))
+                writer.uint32(/* id 12, wireType 0 =*/96).int64(message.retval);
+            if (message.extraInfo != null && Object.hasOwnProperty.call(message, "extraInfo"))
+                writer.uint32(/* id 13, wireType 2 =*/106).string(message.extraInfo);
+            if (message.extraPath != null && Object.hasOwnProperty.call(message, "extraPath"))
+                writer.uint32(/* id 14, wireType 2 =*/114).string(message.extraPath);
+            if (message.bytes != null && Object.hasOwnProperty.call(message, "bytes"))
+                writer.uint32(/* id 15, wireType 0 =*/120).uint64(message.bytes);
+            if (message.mode != null && Object.hasOwnProperty.call(message, "mode"))
+                writer.uint32(/* id 16, wireType 2 =*/130).string(message.mode);
+            if (message.domain != null && Object.hasOwnProperty.call(message, "domain"))
+                writer.uint32(/* id 17, wireType 2 =*/138).string(message.domain);
+            if (message.sockType != null && Object.hasOwnProperty.call(message, "sockType"))
+                writer.uint32(/* id 18, wireType 2 =*/146).string(message.sockType);
+            if (message.protocol != null && Object.hasOwnProperty.call(message, "protocol"))
+                writer.uint32(/* id 19, wireType 0 =*/152).uint32(message.protocol);
+            if (message.uidArg != null && Object.hasOwnProperty.call(message, "uidArg"))
+                writer.uint32(/* id 20, wireType 0 =*/160).uint32(message.uidArg);
+            if (message.gidArg != null && Object.hasOwnProperty.call(message, "gidArg"))
+                writer.uint32(/* id 21, wireType 0 =*/168).uint32(message.gidArg);
             return writer;
         };
 
@@ -1132,6 +1242,46 @@ export const pb = $root.pb = (() => {
                         message.netFamily = reader.string();
                         break;
                     }
+                case 12: {
+                        message.retval = reader.int64();
+                        break;
+                    }
+                case 13: {
+                        message.extraInfo = reader.string();
+                        break;
+                    }
+                case 14: {
+                        message.extraPath = reader.string();
+                        break;
+                    }
+                case 15: {
+                        message.bytes = reader.uint64();
+                        break;
+                    }
+                case 16: {
+                        message.mode = reader.string();
+                        break;
+                    }
+                case 17: {
+                        message.domain = reader.string();
+                        break;
+                    }
+                case 18: {
+                        message.sockType = reader.string();
+                        break;
+                    }
+                case 19: {
+                        message.protocol = reader.uint32();
+                        break;
+                    }
+                case 20: {
+                        message.uidArg = reader.uint32();
+                        break;
+                    }
+                case 21: {
+                        message.gidArg = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -1200,6 +1350,36 @@ export const pb = $root.pb = (() => {
             if (message.netFamily != null && message.hasOwnProperty("netFamily"))
                 if (!$util.isString(message.netFamily))
                     return "netFamily: string expected";
+            if (message.retval != null && message.hasOwnProperty("retval"))
+                if (!$util.isInteger(message.retval) && !(message.retval && $util.isInteger(message.retval.low) && $util.isInteger(message.retval.high)))
+                    return "retval: integer|Long expected";
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                if (!$util.isString(message.extraInfo))
+                    return "extraInfo: string expected";
+            if (message.extraPath != null && message.hasOwnProperty("extraPath"))
+                if (!$util.isString(message.extraPath))
+                    return "extraPath: string expected";
+            if (message.bytes != null && message.hasOwnProperty("bytes"))
+                if (!$util.isInteger(message.bytes) && !(message.bytes && $util.isInteger(message.bytes.low) && $util.isInteger(message.bytes.high)))
+                    return "bytes: integer|Long expected";
+            if (message.mode != null && message.hasOwnProperty("mode"))
+                if (!$util.isString(message.mode))
+                    return "mode: string expected";
+            if (message.domain != null && message.hasOwnProperty("domain"))
+                if (!$util.isString(message.domain))
+                    return "domain: string expected";
+            if (message.sockType != null && message.hasOwnProperty("sockType"))
+                if (!$util.isString(message.sockType))
+                    return "sockType: string expected";
+            if (message.protocol != null && message.hasOwnProperty("protocol"))
+                if (!$util.isInteger(message.protocol))
+                    return "protocol: integer expected";
+            if (message.uidArg != null && message.hasOwnProperty("uidArg"))
+                if (!$util.isInteger(message.uidArg))
+                    return "uidArg: integer expected";
+            if (message.gidArg != null && message.hasOwnProperty("gidArg"))
+                if (!$util.isInteger(message.gidArg))
+                    return "gidArg: integer expected";
             return null;
         };
 
@@ -1237,6 +1417,40 @@ export const pb = $root.pb = (() => {
                 message.netBytes = object.netBytes >>> 0;
             if (object.netFamily != null)
                 message.netFamily = String(object.netFamily);
+            if (object.retval != null)
+                if ($util.Long)
+                    (message.retval = $util.Long.fromValue(object.retval)).unsigned = false;
+                else if (typeof object.retval === "string")
+                    message.retval = parseInt(object.retval, 10);
+                else if (typeof object.retval === "number")
+                    message.retval = object.retval;
+                else if (typeof object.retval === "object")
+                    message.retval = new $util.LongBits(object.retval.low >>> 0, object.retval.high >>> 0).toNumber();
+            if (object.extraInfo != null)
+                message.extraInfo = String(object.extraInfo);
+            if (object.extraPath != null)
+                message.extraPath = String(object.extraPath);
+            if (object.bytes != null)
+                if ($util.Long)
+                    (message.bytes = $util.Long.fromValue(object.bytes)).unsigned = true;
+                else if (typeof object.bytes === "string")
+                    message.bytes = parseInt(object.bytes, 10);
+                else if (typeof object.bytes === "number")
+                    message.bytes = object.bytes;
+                else if (typeof object.bytes === "object")
+                    message.bytes = new $util.LongBits(object.bytes.low >>> 0, object.bytes.high >>> 0).toNumber(true);
+            if (object.mode != null)
+                message.mode = String(object.mode);
+            if (object.domain != null)
+                message.domain = String(object.domain);
+            if (object.sockType != null)
+                message.sockType = String(object.sockType);
+            if (object.protocol != null)
+                message.protocol = object.protocol >>> 0;
+            if (object.uidArg != null)
+                message.uidArg = object.uidArg >>> 0;
+            if (object.gidArg != null)
+                message.gidArg = object.gidArg >>> 0;
             return message;
         };
 
@@ -1265,6 +1479,24 @@ export const pb = $root.pb = (() => {
                 object.netEndpoint = "";
                 object.netBytes = 0;
                 object.netFamily = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, false);
+                    object.retval = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.retval = options.longs === String ? "0" : 0;
+                object.extraInfo = "";
+                object.extraPath = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.bytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.bytes = options.longs === String ? "0" : 0;
+                object.mode = "";
+                object.domain = "";
+                object.sockType = "";
+                object.protocol = 0;
+                object.uidArg = 0;
+                object.gidArg = 0;
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -1288,6 +1520,32 @@ export const pb = $root.pb = (() => {
                 object.netBytes = message.netBytes;
             if (message.netFamily != null && message.hasOwnProperty("netFamily"))
                 object.netFamily = message.netFamily;
+            if (message.retval != null && message.hasOwnProperty("retval"))
+                if (typeof message.retval === "number")
+                    object.retval = options.longs === String ? String(message.retval) : message.retval;
+                else
+                    object.retval = options.longs === String ? $util.Long.prototype.toString.call(message.retval) : options.longs === Number ? new $util.LongBits(message.retval.low >>> 0, message.retval.high >>> 0).toNumber() : message.retval;
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                object.extraInfo = message.extraInfo;
+            if (message.extraPath != null && message.hasOwnProperty("extraPath"))
+                object.extraPath = message.extraPath;
+            if (message.bytes != null && message.hasOwnProperty("bytes"))
+                if (typeof message.bytes === "number")
+                    object.bytes = options.longs === String ? String(message.bytes) : message.bytes;
+                else
+                    object.bytes = options.longs === String ? $util.Long.prototype.toString.call(message.bytes) : options.longs === Number ? new $util.LongBits(message.bytes.low >>> 0, message.bytes.high >>> 0).toNumber(true) : message.bytes;
+            if (message.mode != null && message.hasOwnProperty("mode"))
+                object.mode = message.mode;
+            if (message.domain != null && message.hasOwnProperty("domain"))
+                object.domain = message.domain;
+            if (message.sockType != null && message.hasOwnProperty("sockType"))
+                object.sockType = message.sockType;
+            if (message.protocol != null && message.hasOwnProperty("protocol"))
+                object.protocol = message.protocol;
+            if (message.uidArg != null && message.hasOwnProperty("uidArg"))
+                object.uidArg = message.uidArg;
+            if (message.gidArg != null && message.hasOwnProperty("gidArg"))
+                object.gidArg = message.gidArg;
             return object;
         };
 
