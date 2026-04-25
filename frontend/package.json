@@ -14,6 +14,7 @@
     "ant-design-vue": "^4.2.6",
     "apexcharts": "^5.10.6",
     "axios": "^1.15.1",
+    "d3": "^7.9.0",
     "protobufjs": "^8.0.1",
     "smol-toml": "^1.6.1",
     "toml": "^4.1.1",
@@ -22,6 +23,7 @@
     "vue3-apexcharts": "^1.11.1"
   },
   "devDependencies": {
+    "@types/d3": "^7.4.3",
     "@types/node": "^24.12.2",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/tsconfig": "^0.9.1",

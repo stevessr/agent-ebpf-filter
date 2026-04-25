@@ -21,6 +21,7 @@ interface NetworkEvent {
   ppid: number;
   uid: number;
   type: string;
+  eventType?: number;
   tag: string;
   comm: string;
   path: string;
@@ -44,7 +45,38 @@ type ResizableColumnKey =
   | 'path'
   | 'action';
 
-const eventTypes = ['network_connect', 'network_bind', 'network_sendto', 'network_recvfrom'];
+const eventTypeLabelMap: Record<number, string> = {
+  [pb.EventType.NETWORK_CONNECT]: 'network_connect',
+  [pb.EventType.NETWORK_BIND]: 'network_bind',
+  [pb.EventType.NETWORK_SENDTO]: 'network_sendto',
+  [pb.EventType.NETWORK_RECVFROM]: 'network_recvfrom',
+  [pb.EventType.ACCEPT]: 'accept',
+};
+const eventTypes = Object.entries(eventTypeLabelMap).map(([value, label]) => ({ value: Number(value), label }));
+const eventTypeColorMap: Record<number, string> = {
+  [pb.EventType.NETWORK_CONNECT]: 'orange',
+  [pb.EventType.NETWORK_BIND]: 'volcano',
+  [pb.EventType.NETWORK_SENDTO]: 'cyan',
+  [pb.EventType.NETWORK_RECVFROM]: 'geekblue',
+  [pb.EventType.ACCEPT]: 'volcano',
+};
+const networkEventTypes = new Set<number>(eventTypes.map((item) => item.value));
+const decodeIncomingEvents = (payload: Uint8Array): pb.IEvent[] => {
+  if (payload[0] === 10) {
+    return pb.EventBatch.decode(payload).events || [];
+  }
+  return [pb.Event.decode(payload)];
+};
+const extractEventType = (event: pb.IEvent) =>
+  Object.prototype.hasOwnProperty.call(event, 'eventType') && event.eventType !== null && event.eventType !== undefined
+    ? Number(event.eventType)
+    : undefined;
+const isNetworkEvent = (eventType: number | undefined, type?: string) => {
+  if (eventType !== undefined && networkEventTypes.has(eventType)) {
+    return true;
+  }
+  return type === 'accept' || Boolean(type?.startsWith('network_'));
+};
 const directionOptions = [
   { label: 'Outgoing', value: 'outgoing' },
   { label: 'Incoming', value: 'incoming' },
@@ -68,7 +100,7 @@ const baseColumns = [
 const events = ref<NetworkEvent[]>([]);
 const tags = ref<string[]>([]);
 const selectedTags = ref<string[]>([]);
-const selectedTypes = ref<string[]>([]);
+const selectedTypes = ref<number[]>([]);
 const selectedDirections = ref<string[]>([]);
 const searchQuery = ref('');
 const isDeduplicated = ref(false);
@@ -124,8 +156,8 @@ const tagOptions = computed(() =>
 
 const eventTypeOptions = computed(() =>
   eventTypes.map((type) => ({
-    label: type.toUpperCase(),
-    value: type,
+    label: type.label.toUpperCase(),
+    value: type.value,
   })),
 );
 
@@ -155,7 +187,7 @@ const networkFilteredEvents = computed(() => {
 
   if (selectedTypes.value.length) {
     const activeTypes = new Set(selectedTypes.value);
-    result = result.filter((event) => activeTypes.has(event.type));
+    result = result.filter((event) => event.eventType !== undefined && activeTypes.has(event.eventType));
   }
 
   if (selectedDirections.value.length) {
@@ -311,19 +343,17 @@ const directionColor = (value: string) => {
   }
 };
 
-const typeColor = (value: string) => {
-  switch (value) {
-    case 'network_connect':
-      return 'orange';
-    case 'network_bind':
-      return 'volcano';
-    case 'network_sendto':
-      return 'cyan';
-    case 'network_recvfrom':
-      return 'geekblue';
-    default:
-      return 'default';
+const typeColor = (eventType?: number, value?: string) => {
+  if (eventType !== undefined && eventTypeColorMap[eventType]) {
+    return eventTypeColorMap[eventType];
   }
+  const fallback = Object.entries(eventTypeLabelMap)
+    .find(([, label]) => label === value)
+    ?.at(0);
+  if (fallback) {
+    return eventTypeColorMap[Number(fallback)] || 'default';
+  }
+  return 'default';
 };
 
 const familyColor = (value: string) => {
@@ -446,27 +476,38 @@ const connectWebSocket = () => {
   ws.onmessage = (messageEvent) => {
     if (isPaused.value) return;
     try {
-      const data = pb.Event.decode(new Uint8Array(messageEvent.data));
-      if (!data.type?.startsWith('network_')) {
-        return;
-      }
-      const now = new Date();
-      events.value.unshift({
-        key: `${data.pid}-${data.type}-${data.path}-${Date.now()}-${Math.random()}`,
-        pid: data.pid,
-        ppid: data.ppid,
-        uid: data.uid,
-        type: data.type,
-        tag: data.tag,
-        comm: data.comm,
-        path: data.path,
-        netDirection: data.netDirection || '',
-        netEndpoint: data.netEndpoint || '',
-        netFamily: data.netFamily || '',
-        netBytes: Number(data.netBytes || 0),
-        time: now.toLocaleTimeString(),
+      const incomingEvents = decodeIncomingEvents(new Uint8Array(messageEvent.data));
+      incomingEvents.forEach((data) => {
+        const type = data.type ?? '';
+        const path = data.path ?? '';
+        const pid = data.pid ?? 0;
+        const ppid = data.ppid ?? 0;
+        const uid = data.uid ?? 0;
+        const tag = data.tag ?? '';
+        const comm = data.comm ?? '';
+        const eventType = extractEventType(data);
+        if (!isNetworkEvent(eventType, type)) {
+          return;
+        }
+        const now = new Date();
+        events.value.unshift({
+          key: `${pid}-${type}-${path}-${Date.now()}-${Math.random()}`,
+          pid,
+          ppid,
+          uid,
+          type,
+          eventType,
+          tag,
+          comm,
+          path,
+          netDirection: data.netDirection || '',
+          netEndpoint: data.netEndpoint || '',
+          netFamily: data.netFamily || '',
+          netBytes: Number(data.netBytes || 0),
+          time: now.toLocaleTimeString(),
+        });
       });
-      if (events.value.length > 1000) {
+      while (events.value.length > 1000) {
         events.value.pop();
       }
     } catch (err) {
@@ -685,7 +726,7 @@ onUnmounted(() => {
             <a-tag :color="directionColor(record.netDirection)">{{ formatDirection(record.netDirection) }}</a-tag>
           </template>
           <template v-else-if="column.key === 'type'">
-            <a-tag :color="typeColor(record.type)">{{ record.type.toUpperCase() }}</a-tag>
+            <a-tag :color="typeColor(record.eventType, record.type)">{{ record.type.toUpperCase() }}</a-tag>
           </template>
           <template v-else-if="column.key === 'tag'">
             <a-tag color="purple">{{ record.tag }}</a-tag>
@@ -723,7 +764,7 @@ onUnmounted(() => {
           <a-tag :color="directionColor(selectedEvent.netDirection)">{{ formatDirection(selectedEvent.netDirection) }}</a-tag>
         </a-descriptions-item>
         <a-descriptions-item label="Event Type">
-          <a-tag :color="typeColor(selectedEvent.type)">{{ selectedEvent.type.toUpperCase() }}</a-tag>
+          <a-tag :color="typeColor(selectedEvent.eventType, selectedEvent.type)">{{ selectedEvent.type.toUpperCase() }}</a-tag>
         </a-descriptions-item>
         <a-descriptions-item label="Tag">
           <a-tag color="purple">{{ selectedEvent.tag }}</a-tag>

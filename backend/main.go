@@ -597,7 +597,8 @@ func main() {
 			})
 			config.POST("/prefixes", func(c *gin.Context) {
 				var r struct {
-					Prefix, Tag string `json:"prefix"`
+					Prefix string `json:"prefix"`
+					Tag    string `json:"tag"`
 				}
 				_ = c.ShouldBindJSON(&r)
 				if r.Prefix == "" {

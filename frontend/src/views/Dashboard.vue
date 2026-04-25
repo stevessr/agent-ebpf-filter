@@ -16,6 +16,7 @@ interface AgentEvent {
   ppid: number;
   uid: number;
   type: string;
+  eventType?: number;
   tag: string;
   comm: string;
   path: string;
@@ -47,7 +48,7 @@ const showPreview = ref(false);
 const previewLoading = ref(false);
 const previewData = ref<FilePreviewResponse | null>(null);
 const selectedTags = ref<string[]>([]);
-const selectedTypes = ref<string[]>([]);
+const selectedTypes = ref<number[]>([]);
 const timeFilter = ref('');
 const pidFilter = ref('');
 const commandFilter = ref('');
@@ -129,6 +130,88 @@ const eventTypes = [
   'native_hook',
 ];
 const pageSizeOptions = ['20', '50', '100', '200'];
+const eventTypeLabelMap: Record<number, string> = {
+  [pb.EventType.EXECVE]: 'execve',
+  [pb.EventType.OPENAT]: 'openat',
+  [pb.EventType.NETWORK_CONNECT]: 'network_connect',
+  [pb.EventType.MKDIR]: 'mkdir',
+  [pb.EventType.UNLINK]: 'unlink',
+  [pb.EventType.IOCTL]: 'ioctl',
+  [pb.EventType.NETWORK_BIND]: 'network_bind',
+  [pb.EventType.NETWORK_SENDTO]: 'network_sendto',
+  [pb.EventType.NETWORK_RECVFROM]: 'network_recvfrom',
+  [pb.EventType.READ]: 'read',
+  [pb.EventType.WRITE]: 'write',
+  [pb.EventType.OPEN]: 'open',
+  [pb.EventType.CHMOD]: 'chmod',
+  [pb.EventType.CHOWN]: 'chown',
+  [pb.EventType.RENAME]: 'rename',
+  [pb.EventType.LINK]: 'link',
+  [pb.EventType.SYMLINK]: 'symlink',
+  [pb.EventType.MKNOD]: 'mknod',
+  [pb.EventType.CLONE]: 'clone',
+  [pb.EventType.EXIT]: 'exit',
+  [pb.EventType.SOCKET]: 'socket',
+  [pb.EventType.ACCEPT]: 'accept',
+  [pb.EventType.WRAPPER_INTERCEPT]: 'wrapper_intercept',
+  [pb.EventType.NATIVE_HOOK]: 'native_hook',
+};
+const eventTypeColorMap: Record<number, string> = {
+  [pb.EventType.EXECVE]: 'blue',
+  [pb.EventType.OPENAT]: 'green',
+  [pb.EventType.NETWORK_CONNECT]: 'orange',
+  [pb.EventType.MKDIR]: 'cyan',
+  [pb.EventType.UNLINK]: 'red',
+  [pb.EventType.IOCTL]: 'purple',
+  [pb.EventType.NETWORK_BIND]: 'volcano',
+  [pb.EventType.NETWORK_SENDTO]: 'cyan',
+  [pb.EventType.NETWORK_RECVFROM]: 'geekblue',
+  [pb.EventType.READ]: 'cyan',
+  [pb.EventType.WRITE]: 'cyan',
+  [pb.EventType.OPEN]: 'green',
+  [pb.EventType.CHMOD]: 'gold',
+  [pb.EventType.CHOWN]: 'gold',
+  [pb.EventType.RENAME]: 'orange',
+  [pb.EventType.LINK]: 'orange',
+  [pb.EventType.SYMLINK]: 'orange',
+  [pb.EventType.MKNOD]: 'purple',
+  [pb.EventType.CLONE]: 'blue',
+  [pb.EventType.EXIT]: 'red',
+  [pb.EventType.SOCKET]: 'orange',
+  [pb.EventType.ACCEPT]: 'volcano',
+};
+const selectableEventTypes = eventTypes
+  .map((label) => {
+    const entry = Object.entries(eventTypeLabelMap).find(([, mappedLabel]) => mappedLabel === label);
+    return entry ? Number(entry[0]) : undefined;
+  })
+  .filter((value): value is number => value !== undefined);
+const networkEventTypes = new Set<number>([
+  pb.EventType.NETWORK_CONNECT,
+  pb.EventType.NETWORK_BIND,
+  pb.EventType.NETWORK_SENDTO,
+  pb.EventType.NETWORK_RECVFROM,
+  pb.EventType.ACCEPT,
+]);
+
+const decodeIncomingEvents = (payload: Uint8Array): pb.IEvent[] => {
+  if (payload[0] === 10) {
+    return pb.EventBatch.decode(payload).events || [];
+  }
+  return [pb.Event.decode(payload)];
+};
+
+const extractEventType = (event: pb.IEvent) =>
+  Object.prototype.hasOwnProperty.call(event, 'eventType') && event.eventType !== null && event.eventType !== undefined
+    ? Number(event.eventType)
+    : undefined;
+
+const isNetworkEvent = (eventType: number | undefined, type?: string) => {
+  if (eventType !== undefined && networkEventTypes.has(eventType)) {
+    return true;
+  }
+  return type === 'accept' || Boolean(type?.startsWith('network_'));
+};
 
 const baseColumns = [
   { title: 'Time', dataIndex: 'time', key: 'time' },
@@ -148,9 +231,9 @@ const tagOptions = computed(() =>
 );
 
 const eventTypeOptions = computed(() =>
-  eventTypes.map((type) => ({
-    label: type.toUpperCase(),
-    value: type,
+  selectableEventTypes.map((eventType) => ({
+    label: (eventTypeLabelMap[eventType] || String(eventType)).toUpperCase(),
+    value: eventType,
   })),
 );
 
@@ -171,7 +254,7 @@ const filteredEvents = computed(() => {
   }
   if (selectedTypes.value.length) {
     const activeTypes = new Set(selectedTypes.value);
-    result = result.filter(e => activeTypes.has(e.type));
+    result = result.filter((e) => e.eventType !== undefined && activeTypes.has(e.eventType));
   }
   const timeQuery = timeFilter.value.trim().toLowerCase();
   if (timeQuery) {
@@ -447,32 +530,17 @@ const openInExplorer = (record: AgentEvent) => {
   });
 };
 
-const getTagColor = (type: string) => {
-  const colors: Record<string, string> = {
-    'execve': 'blue',
-    'openat': 'green',
-    'network_connect': 'orange',
-    'network_bind': 'volcano',
-    'network_sendto': 'cyan',
-    'network_recvfrom': 'geekblue',
-    'mkdir': 'cyan',
-    'unlink': 'red',
-    'ioctl': 'purple',
-    'read': 'cyan',
-    'write': 'cyan',
-    'open': 'green',
-    'chmod': 'gold',
-    'chown': 'gold',
-    'rename': 'orange',
-    'link': 'orange',
-    'symlink': 'orange',
-    'mknod': 'purple',
-    'clone': 'blue',
-    'exit': 'red',
-    'socket': 'orange',
-    'accept': 'volcano',
-  };
-  return colors[type] || 'default';
+const getTagColor = (eventType?: number, type?: string) => {
+  if (eventType !== undefined && eventTypeColorMap[eventType]) {
+    return eventTypeColorMap[eventType];
+  }
+  const fallback = Object.entries(eventTypeLabelMap)
+    .find(([, label]) => label === type)
+    ?.at(0);
+  if (fallback) {
+    return eventTypeColorMap[Number(fallback)] || 'default';
+  }
+  return 'default';
 };
 
 const getCategoryColor = (tag: string) => {
@@ -500,37 +568,56 @@ const connectWebSocket = () => {
   ws.onmessage = (message) => {
     if (isPaused.value) return;
     try {
-      const uint8Array = new Uint8Array(message.data);
-      const data = pb.Event.decode(uint8Array);
-      const now = new Date();
-      const nextEvent: AgentEvent = {
-        key: `${data.pid}-${data.path}-${Date.now()}-${Math.random()}`,
-        pid: data.pid,
-        ppid: data.ppid,
-        uid: data.uid,
-        type: data.type,
-        tag: data.tag,
-        comm: data.comm,
-        path: data.path,
-        netDirection: data.type?.startsWith('network_') ? (data.netDirection || '') : undefined,
-        netEndpoint: data.type?.startsWith('network_') ? (data.netEndpoint || '') : undefined,
-        netFamily: data.type?.startsWith('network_') ? (data.netFamily || '') : undefined,
-        netBytes: data.type?.startsWith('network_') ? Number(data.netBytes || 0) : undefined,
-        retval: typeof data.retval === 'number' ? Number(data.retval) : undefined,
-        extraInfo: data.extraInfo || undefined,
-        extraPath: data.extraPath || undefined,
-        bytes: typeof data.bytes === 'number' ? Number(data.bytes) : undefined,
-        mode: data.mode || undefined,
-        domain: data.domain || undefined,
-        sockType: data.sockType || undefined,
-        protocol: typeof data.protocol === 'number' ? Number(data.protocol) : undefined,
-        uidArg: typeof data.uidArg === 'number' ? Number(data.uidArg) : undefined,
-        gidArg: typeof data.gidArg === 'number' ? Number(data.gidArg) : undefined,
-        time: now.toLocaleTimeString(),
-      };
-      events.value.unshift(nextEvent);
-      if (events.value.length > 1000) events.value.pop();
-      markRecentRow(nextEvent.key);
+      const incomingEvents = decodeIncomingEvents(new Uint8Array(message.data));
+      let latestKey: string | null = null;
+
+      incomingEvents.forEach((data) => {
+        const type = data.type ?? '';
+        const path = data.path ?? '';
+        const pid = data.pid ?? 0;
+        const ppid = data.ppid ?? 0;
+        const uid = data.uid ?? 0;
+        const tag = data.tag ?? '';
+        const comm = data.comm ?? '';
+        const eventType = extractEventType(data);
+        const networkEvent = isNetworkEvent(eventType, type);
+        const now = new Date();
+        const nextEvent: AgentEvent = {
+          key: `${pid}-${path}-${Date.now()}-${Math.random()}`,
+          pid,
+          ppid,
+          uid,
+          type,
+          eventType,
+          tag,
+          comm,
+          path,
+          netDirection: networkEvent ? (data.netDirection || '') : undefined,
+          netEndpoint: networkEvent ? (data.netEndpoint || '') : undefined,
+          netFamily: networkEvent ? (data.netFamily || '') : undefined,
+          netBytes: networkEvent ? Number(data.netBytes || 0) : undefined,
+          retval: typeof data.retval === 'number' ? Number(data.retval) : undefined,
+          extraInfo: data.extraInfo || undefined,
+          extraPath: data.extraPath || undefined,
+          bytes: typeof data.bytes === 'number' ? Number(data.bytes) : undefined,
+          mode: data.mode || undefined,
+          domain: data.domain || undefined,
+          sockType: data.sockType || undefined,
+          protocol: typeof data.protocol === 'number' ? Number(data.protocol) : undefined,
+          uidArg: typeof data.uidArg === 'number' ? Number(data.uidArg) : undefined,
+          gidArg: typeof data.gidArg === 'number' ? Number(data.gidArg) : undefined,
+          time: now.toLocaleTimeString(),
+        };
+        events.value.unshift(nextEvent);
+        latestKey = nextEvent.key;
+      });
+
+      while (events.value.length > 1000) {
+        events.value.pop();
+      }
+      if (latestKey) {
+        markRecentRow(latestKey);
+      }
     } catch (e) {
       console.error('Failed to parse message', e);
     }
@@ -803,7 +890,7 @@ onUnmounted(() => {
       </template>
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'type'">
-          <a-tag :color="getTagColor(record.type)">{{ record.type.toUpperCase() }}</a-tag>
+          <a-tag :color="getTagColor(record.eventType, record.type)">{{ record.type.toUpperCase() }}</a-tag>
         </template>
         <template v-if="column.key === 'tag'">
           <a-tag :color="getCategoryColor(record.tag)">{{ record.tag }}</a-tag>
@@ -842,7 +929,7 @@ onUnmounted(() => {
       <a-descriptions bordered :column="1" size="small" v-if="selectedEvent">
         <a-descriptions-item label="Time">{{ selectedEvent.time }}</a-descriptions-item>
         <a-descriptions-item label="Event Type">
-          <a-tag :color="getTagColor(selectedEvent.type)">{{ selectedEvent.type.toUpperCase() }}</a-tag>
+          <a-tag :color="getTagColor(selectedEvent.eventType, selectedEvent.type)">{{ selectedEvent.type.toUpperCase() }}</a-tag>
         </a-descriptions-item>
         <a-descriptions-item label="Tag">
           <a-tag :color="getCategoryColor(selectedEvent.tag)">{{ selectedEvent.tag }}</a-tag>

@@ -217,20 +217,28 @@ const connectWebSocket = () => {
 
   ws.onmessage = (messageEvent) => {
     try {
-      const uint8Array = new Uint8Array(messageEvent.data);
-      const data = pb.Event.decode(uint8Array);
-      if (data.type !== 'wrapper_intercept') return;
+      const payload = new Uint8Array(messageEvent.data);
+      const incomingEvents = payload[0] === 10
+        ? (pb.EventBatch.decode(payload).events || [])
+        : [pb.Event.decode(payload)];
 
-      const record: WrapperEventRecord = {
-        key: `${data.pid}-${data.path}-${Date.now()}-${Math.random()}`,
-        pid: data.pid,
-        comm: data.comm,
-        tag: data.tag,
-        path: data.path,
-        receivedAt: new Date().toISOString(),
-      };
-      recentEvents.value.unshift(record);
-      if (recentEvents.value.length > 20) recentEvents.value.pop();
+      incomingEvents.forEach((data) => {
+        const eventType = Object.prototype.hasOwnProperty.call(data, 'eventType') && data.eventType !== null && data.eventType !== undefined
+          ? Number(data.eventType)
+          : undefined;
+        if (eventType !== pb.EventType.WRAPPER_INTERCEPT && data.type !== 'wrapper_intercept') return;
+
+        const record: WrapperEventRecord = {
+          key: `${data.pid}-${data.path}-${Date.now()}-${Math.random()}`,
+          pid: data.pid ?? 0,
+          comm: data.comm ?? '',
+          tag: data.tag ?? '',
+          path: data.path ?? '',
+          receivedAt: new Date().toISOString(),
+        };
+        recentEvents.value.unshift(record);
+      });
+      while (recentEvents.value.length > 20) recentEvents.value.pop();
     } catch (e) {
       console.error('Failed to parse wrapper event', e);
     }

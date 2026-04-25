@@ -52,7 +52,7 @@ func startUDSServer(broadcast chan *pb.Event) {
 					}
 				}
 				select {
-				case broadcast <- &pb.Event{Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept", Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " ")}:
+				case broadcast <- &pb.Event{Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept", EventType: pb.EventType_WRAPPER_INTERCEPT, Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " ")}:
 				default:
 				}
 				out, _ := proto.Marshal(resp)

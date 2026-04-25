@@ -253,9 +253,19 @@ const connectWebSocket = () => {
     try {
       const decoded = pb.SystemStats.decode(new Uint8Array(msg.data));
       const now = Date.now();
-      
-      const newNetSpeeds: IOSpeed[] = [];
-      const newDiskSpeeds: IOSpeed[] = [];
+
+      const newNetSpeeds: IOSpeed[] = (decoded.io?.networks || []).map((n: any) => ({
+        name: n.name,
+        readSpeed: 0,
+        writeSpeed: 0,
+      }));
+      const newDiskSpeeds: IOSpeed[] = (decoded.io?.disks || []).map((d: any) => ({
+        name: d.name,
+        readSpeed: 0,
+        writeSpeed: 0,
+      }));
+      const netSpeedMap = new Map(newNetSpeeds.map((item) => [item.name, item]));
+      const diskSpeedMap = new Map(newDiskSpeeds.map((item) => [item.name, item]));
       
       const updateHistory = (key: string, val: number, val2?: number) => {
         if (!historyMap.value[key]) historyMap.value[key] = [];
@@ -270,8 +280,11 @@ const connectWebSocket = () => {
           if (prev) {
             const rin = (Number(n.recvBytes) - prev.r) / dt;
             const rout = (Number(n.sentBytes) - prev.s) / dt;
-            newNetSpeeds.push({ name: n.name, readSpeed: rin, writeSpeed: rout });
-            updateHistory(`net_${n.name}`, rin, rout);
+            const entry = netSpeedMap.get(n.name);
+            if (entry) {
+              entry.readSpeed = rin;
+              entry.writeSpeed = rout;
+            }
           }
         });
         (decoded.io.disks || []).forEach((d: any) => {
@@ -279,8 +292,11 @@ const connectWebSocket = () => {
           if (prev) {
             const rin = (Number(d.readBytes) - prev.r) / dt;
             const win = (Number(d.writeBytes) - prev.w) / dt;
-            newDiskSpeeds.push({ name: d.name, readSpeed: rin, writeSpeed: win });
-            updateHistory(`disk_${d.name}`, rin, win);
+            const entry = diskSpeedMap.get(d.name);
+            if (entry) {
+              entry.readSpeed = rin;
+              entry.writeSpeed = win;
+            }
           }
         });
       }
@@ -291,8 +307,14 @@ const connectWebSocket = () => {
         const dsks: Record<string, {r: number, w: number}> = {};
         (decoded.io.disks || []).forEach((d: any) => dsks[d.name] = {r: Number(d.readBytes), w: Number(d.writeBytes)});
         lastIO = { networks: nets, disks: dsks, time: now };
-        systemStats.value.netInterfaces = newNetSpeeds.filter(s => s.readSpeed > 0 || s.writeSpeed > 0);
-        systemStats.value.diskDevices = newDiskSpeeds.filter(s => s.readSpeed > 0 || s.writeSpeed > 0);
+        systemStats.value.netInterfaces = [...newNetSpeeds].sort(
+          (a, b) => (b.readSpeed + b.writeSpeed) - (a.readSpeed + a.writeSpeed)
+            || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }),
+        );
+        systemStats.value.diskDevices = [...newDiskSpeeds].sort(
+          (a, b) => (b.readSpeed + b.writeSpeed) - (a.readSpeed + a.writeSpeed)
+            || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }),
+        );
         let totalNetR = 0, totalNetS = 0, totalDiskR = 0, totalDiskW = 0;
         newNetSpeeds.forEach(s => { totalNetR += s.readSpeed; totalNetS += s.writeSpeed; });
         newDiskSpeeds.forEach(s => { totalDiskR += s.readSpeed; totalDiskW += s.writeSpeed; });
@@ -300,6 +322,8 @@ const connectWebSocket = () => {
         systemStats.value.totalNetSent = totalNetS;
         systemStats.value.totalDiskRead = totalDiskR;
         systemStats.value.totalDiskWrite = totalDiskW;
+        newNetSpeeds.forEach((s) => updateHistory(`net_${s.name}`, s.readSpeed, s.writeSpeed));
+        newDiskSpeeds.forEach((s) => updateHistory(`disk_${s.name}`, s.readSpeed, s.writeSpeed));
         updateHistory('total_net', totalNetR, totalNetS);
         updateHistory('total_disk', totalDiskR, totalDiskW);
       }

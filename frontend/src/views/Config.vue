@@ -37,6 +37,7 @@ interface RuntimeSettings {
 interface TrackedItem {
   comm?: string;
   path?: string;
+  prefix?: string;
   tag: string;
 }
 
@@ -80,6 +81,7 @@ interface RuntimeConfigResponse {
 const tags = ref<string[]>([]);
 const trackedItems = ref<TrackedItem[]>([]);
 const trackedPaths = ref<TrackedItem[]>([]);
+const trackedPrefixes = ref<TrackedItem[]>([]);
 const wrapperRules = ref<Record<string, WrapperRule>>({});
 const runtimeSettings = ref<RuntimeSettings>({
   logPersistenceEnabled: false,
@@ -102,6 +104,9 @@ const newCommName = ref('');
 const newCommTag = ref('');
 const newPathName = ref('');
 const newPathTag = ref('');
+const newPrefixValue = ref('');
+const newPrefixTag = ref('');
+const importFileInput = ref<HTMLInputElement | null>(null);
 
 // Wrapper rule state
 const newRuleComm = ref('');
@@ -310,6 +315,13 @@ const fetchTrackedPaths = async () => {
   } catch (err) {}
 };
 
+const fetchTrackedPrefixes = async () => {
+  try {
+    const res = await axios.get('/config/prefixes');
+    trackedPrefixes.value = res.data;
+  } catch (err) {}
+};
+
 const fetchRules = async () => {
   try {
     const res = await axios.get('/config/rules');
@@ -363,6 +375,28 @@ const removePath = async (path: string) => {
   } catch (err) {}
 };
 
+const addPrefix = async () => {
+  if (!newPrefixValue.value || !newPrefixTag.value) return;
+  try {
+    await axios.post('/config/prefixes', { prefix: newPrefixValue.value, tag: newPrefixTag.value });
+    message.success(`Added prefix ${newPrefixValue.value}`);
+    newPrefixValue.value = '';
+    fetchTrackedPrefixes();
+  } catch (err) {
+    message.error('Failed to add prefix');
+  }
+};
+
+const removePrefix = async (prefix: string) => {
+  try {
+    await axios.delete('/config/prefixes', { params: { prefix } });
+    message.success(`Removed prefix ${prefix}`);
+    fetchTrackedPrefixes();
+  } catch (err) {
+    message.error('Failed to remove prefix');
+  }
+};
+
 const saveRule = async () => {
   if (!newRuleComm.value) return;
   try {
@@ -396,12 +430,19 @@ const clearAllConfig = async () => {
     for (const item of trackedPaths.value) {
       if (item.path) await axios.delete(`/config/paths/${item.path}`);
     }
+    // Clear Prefixes
+    for (const item of trackedPrefixes.value) {
+      if (item.prefix) await axios.delete('/config/prefixes', { params: { prefix: item.prefix } });
+    }
     // Clear Rules
     for (const comm of Object.keys(wrapperRules.value)) {
       await axios.delete(`/config/rules/${comm}`);
     }
     message.success('All configurations cleared');
-    fetchTrackedComms(); fetchTrackedPaths(); fetchRules();
+    fetchTrackedComms();
+    fetchTrackedPaths();
+    fetchTrackedPrefixes();
+    fetchRules();
   } catch (err) {
     message.error('Failed to clear all configurations');
   }
@@ -427,7 +468,12 @@ const importConfig = async (event: Event) => {
       const config = JSON.parse(e.target?.result as string);
       await axios.post('/config/import', config);
       message.success('Imported');
-      fetchTags(); fetchTrackedComms(); fetchTrackedPaths(); fetchRules(); fetchRuntime();
+      fetchTags();
+      fetchTrackedComms();
+      fetchTrackedPaths();
+      fetchTrackedPrefixes();
+      fetchRules();
+      fetchRuntime();
     } catch (err) {}
   };
   reader.readAsText(file);
@@ -451,6 +497,19 @@ const groupedTrackedPaths = computed(() => {
   return groups;
 });
 
+const groupedTrackedPrefixes = computed(() => {
+  const groups: Record<string, string[]> = {};
+  trackedPrefixes.value.forEach(item => {
+    if (!groups[item.tag]) groups[item.tag] = [];
+    if (item.prefix) groups[item.tag].push(item.prefix);
+  });
+  return groups;
+});
+
+const openImportPicker = () => {
+  importFileInput.value?.click();
+};
+
 const getCategoryColor = (tag: string) => {
   const colors: Record<string, string> = {
     'AI Agent': 'magenta', 'Git': 'orange', 'Build Tool': 'cyan',
@@ -465,7 +524,11 @@ onMounted(async () => {
   await fetchClusterState();
   await fetchClusterNodes();
   await fetchRuntime();
-  fetchTags(); fetchTrackedComms(); fetchTrackedPaths(); fetchRules();
+  fetchTags();
+  fetchTrackedComms();
+  fetchTrackedPaths();
+  fetchTrackedPrefixes();
+  fetchRules();
 });
 </script>
 
@@ -732,8 +795,8 @@ onMounted(async () => {
         <a-card title="Global Registry" size="small">
           <template #extra>
             <div style="display: flex; gap: 8px; align-items: center;">
-              <input type="file" ref="fileInput" @change="importConfig" style="display: none" accept=".json" />
-              <a-button size="small" @click="() => ($refs.fileInput as any).click()"><ImportOutlined /> Import</a-button>
+              <input type="file" ref="importFileInput" @change="importConfig" style="display: none" accept=".json" />
+              <a-button size="small" @click="openImportPicker"><ImportOutlined /> Import</a-button>
               <a-button size="small" @click="exportConfig"><ExportOutlined /> Export</a-button>
               <a-popconfirm title="Are you sure you want to clear all configurations?" @confirm="clearAllConfig">
                 <a-button size="small" danger>Clear All</a-button>
@@ -858,6 +921,31 @@ onMounted(async () => {
             <div style="margin-bottom: 4px;"><a-typography-text strong>{{ tag }}</a-typography-text></div>
             <div style="display: flex; flex-wrap: wrap; gap: 6px;">
               <a-tag v-for="p in paths" :key="p" closable @close.prevent="removePath(p)" :color="getCategoryColor(tag as string)">{{ p }}</a-tag>
+            </div>
+          </div>
+        </a-card>
+      </a-col>
+
+      <a-col :span="12">
+        <a-card title="Tracked Path Prefixes" size="small">
+          <template #extra><FolderOutlined /></template>
+          <div style="margin-bottom: 16px; background: #fafafa; padding: 12px; border-radius: 8px; display: flex; gap: 8px;">
+            <a-input v-model:value="newPrefixValue" placeholder="Path prefix, e.g. /home/steve/projects" style="flex: 2" />
+            <a-select v-model:value="newPrefixTag" style="flex: 1" placeholder="Tag">
+              <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option>
+            </a-select>
+            <a-button type="primary" @click="addPrefix"><PlusOutlined /></a-button>
+          </div>
+          <a-alert
+            type="info"
+            show-icon
+            style="margin-bottom: 12px;"
+            message="Prefix matching applies to descendant paths and is backed by the eBPF LPM trie."
+          />
+          <div v-for="(prefixes, tag) in groupedTrackedPrefixes" :key="tag" style="margin-bottom: 12px;">
+            <div style="margin-bottom: 4px;"><a-typography-text strong>{{ tag }}</a-typography-text></div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <a-tag v-for="prefix in prefixes" :key="prefix" closable @close.prevent="removePrefix(prefix)" :color="getCategoryColor(tag as string)">{{ prefix }}</a-tag>
             </div>
           </div>
         </a-card>
