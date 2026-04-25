@@ -367,9 +367,17 @@ const openDetails = (record: NetworkEvent) => {
   showDetails.value = true;
 };
 
-const clearEvents = () => {
-  events.value = [];
-  currentPage.value = 1;
+const clearEvents = async () => {
+  try {
+    await axios.post('/data/clear-events-memory');
+    events.value = [];
+    currentPage.value = 1;
+    message.success('Event buffer cleared on backend');
+  } catch (err: any) {
+    message.error(err?.response?.data?.error || 'Failed to clear events');
+    events.value = [];
+    currentPage.value = 1;
+  }
 };
 
 const exportEvents = () => {

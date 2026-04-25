@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -1736,6 +1737,25 @@ func main() {
 		}
 	}()
 
+	// Periodic archive eviction based on MaxEventAge
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				settings := runtimeSettingsStore.Snapshot()
+				if d, err := time.ParseDuration(settings.MaxEventAge); err == nil && d > 0 {
+					capturedEventArchive.EvictOlderThan(time.Now().UTC().Add(-d))
+				}
+			}
+		}
+	}()
+
 	r.GET("/ws", func(c *gin.Context) {
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
@@ -2189,11 +2209,12 @@ func main() {
 					c.JSON(http.StatusBadRequest, gin.H{"error": "invalid runtime settings"})
 					return
 				}
-				settings, err := runtimeSettingsStore.UpdateLogging(req.LogPersistenceEnabled, req.LogFilePath)
+				settings, err := runtimeSettingsStore.Replace(req)
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
+				applyRetentionConfig(settings)
 				c.JSON(http.StatusOK, buildRuntimeConfigResponseFromSettings(settings))
 			})
 			config.POST("/access-token", func(c *gin.Context) {
@@ -2486,6 +2507,32 @@ func main() {
 					}
 					c.JSON(200, gin.H{"status": "started", "pid": cmd.Process.Pid})
 				}
+			})
+			data := api.Group("/data")
+			{
+				data.POST("/clear-events", func(c *gin.Context) {
+					capturedEventArchive.Clear()
+					if err := runtimeSettingsStore.TruncateEventLog(); err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"status": "ok"})
+				})
+				data.POST("/clear-events-memory", func(c *gin.Context) {
+					capturedEventArchive.Clear()
+					c.JSON(http.StatusOK, gin.H{"status": "ok"})
+				})
+				data.POST("/clear-events-persisted", func(c *gin.Context) {
+					if err := runtimeSettingsStore.TruncateEventLog(); err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"status": "ok"})
+				})
+			}
+			api.POST("/shell-sessions/cleanup", func(c *gin.Context) {
+				shellSessions.ClearClosed()
+				c.JSON(http.StatusOK, gin.H{"status": "ok"})
 			})
 		}
 	}

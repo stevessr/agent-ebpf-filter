@@ -503,10 +503,19 @@ const connectWebSocket = () => {
   };
 };
 
-const clearEvents = () => {
-  events.value = [];
-  recentRowKey.value = null;
-  currentPage.value = 1;
+const clearEvents = async () => {
+  try {
+    await axios.post('/data/clear-events-memory');
+    events.value = [];
+    recentRowKey.value = null;
+    currentPage.value = 1;
+    message.success('Event buffer cleared on backend');
+  } catch (err: any) {
+    message.error(err?.response?.data?.error || 'Failed to clear events');
+    events.value = [];
+    recentRowKey.value = null;
+    currentPage.value = 1;
+  }
 };
 
 const exportEvents = () => {

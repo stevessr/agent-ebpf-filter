@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
-import { 
-  PlusOutlined, 
-  TagOutlined, 
-  AppstoreOutlined, 
-  FolderOutlined, 
-  ExportOutlined, 
-  ImportOutlined, 
+import {
+  PlusOutlined,
+  TagOutlined,
+  AppstoreOutlined,
+  FolderOutlined,
+  ExportOutlined,
+  ImportOutlined,
   SafetyCertificateOutlined,
   ClusterOutlined,
   SwapOutlined,
@@ -15,6 +15,7 @@ import {
   AlertOutlined,
   CopyOutlined,
   ReloadOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 import {
@@ -29,6 +30,8 @@ interface RuntimeSettings {
   logPersistenceEnabled: boolean;
   logFilePath: string;
   accessToken: string;
+  maxEventCount: number;
+  maxEventAge: string;
 }
 
 interface TrackedItem {
@@ -82,6 +85,8 @@ const runtimeSettings = ref<RuntimeSettings>({
   logPersistenceEnabled: false,
   logFilePath: '',
   accessToken: '',
+  maxEventCount: 1500,
+  maxEventAge: '0',
 });
 const mcpEndpoint = ref('');
 const authHeaderName = ref('X-API-KEY');
@@ -194,6 +199,8 @@ const applyRuntimeResponse = (data: RuntimeConfigResponse) => {
     logPersistenceEnabled: data.runtime.logPersistenceEnabled,
     logFilePath: data.runtime.logFilePath,
     accessToken: data.runtime.accessToken,
+    maxEventCount: data.runtime.maxEventCount ?? 1500,
+    maxEventAge: data.runtime.maxEventAge ?? '0',
   };
   mcpEndpoint.value = data.mcpEndpoint;
   authHeaderName.value = data.authHeaderName;
@@ -217,6 +224,8 @@ const saveRuntime = async () => {
     const res = await axios.put('/config/runtime', {
       logPersistenceEnabled: runtimeSettings.value.logPersistenceEnabled,
       logFilePath: runtimeSettings.value.logFilePath,
+      maxEventCount: runtimeSettings.value.maxEventCount,
+      maxEventAge: runtimeSettings.value.maxEventAge,
     });
     applyRuntimeResponse(res.data as RuntimeConfigResponse);
     message.success('Runtime settings saved');
@@ -232,6 +241,33 @@ const rotateAccessToken = async () => {
     message.success('Access token regenerated');
   } catch (err) {
     message.error('Failed to regenerate access token');
+  }
+};
+
+const clearInMemoryEvents = async () => {
+  try {
+    await axios.post('/data/clear-events-memory');
+    message.success('In-memory events cleared');
+  } catch (err: any) {
+    message.error(err?.response?.data?.error || 'Failed to clear memory events');
+  }
+};
+
+const clearPersistedLog = async () => {
+  try {
+    await axios.post('/data/clear-events-persisted');
+    message.success('Persisted event log truncated');
+  } catch (err: any) {
+    message.error(err?.response?.data?.error || 'Failed to truncate log');
+  }
+};
+
+const clearAllEvents = async () => {
+  try {
+    await axios.post('/data/clear-events');
+    message.success('All events cleared');
+  } catch (err: any) {
+    message.error(err?.response?.data?.error || 'Failed to clear events');
   }
 };
 
@@ -624,6 +660,67 @@ onMounted(async () => {
                     style="margin-top: 4px;"
                   />
                 </div>
+              </div>
+            </a-col>
+          </a-row>
+        </a-card>
+      </a-col>
+
+      <!-- Data Management -->
+      <a-col :span="24">
+        <a-card title="Data Management" size="small">
+          <template #extra>
+            <DeleteOutlined />
+          </template>
+          <a-row :gutter="[24, 16]">
+            <a-col :xs="24" :md="12">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="font-weight: 600;">Event Retention</div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span>Max in-memory events:</span>
+                  <a-input-number
+                    v-model:value="runtimeSettings.maxEventCount"
+                    :min="100"
+                    :max="10000"
+                    :step="100"
+                    style="width: 140px;"
+                  />
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                  <span>Max event age:</span>
+                  <a-input
+                    v-model:value="runtimeSettings.maxEventAge"
+                    placeholder="e.g. 24h, 168h, 0 = no limit"
+                    style="width: 200px;"
+                  />
+                  <a-typography-text type="secondary">
+                    Go duration format (24h, 30m, 168h)
+                  </a-typography-text>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                  <a-button type="primary" @click="saveRuntime">
+                    <ReloadOutlined /> Save Retention
+                  </a-button>
+                </div>
+              </div>
+            </a-col>
+            <a-col :xs="24" :md="12">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="font-weight: 600;">Manual Cleanup</div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <a-popconfirm title="Clear in-memory event buffer?" @confirm="clearInMemoryEvents">
+                    <a-button size="small" danger>Clear Memory Events</a-button>
+                  </a-popconfirm>
+                  <a-popconfirm title="Truncate persisted event log file?" @confirm="clearPersistedLog">
+                    <a-button size="small" danger>Truncate Log File</a-button>
+                  </a-popconfirm>
+                  <a-popconfirm title="Clear all events (memory + file)?" @confirm="clearAllEvents">
+                    <a-button size="small" type="primary" danger>Clear All Events</a-button>
+                  </a-popconfirm>
+                </div>
+                <a-typography-text type="secondary">
+                  These actions are irreversible. Memory events and/or the JSONL log file will be permanently deleted.
+                </a-typography-text>
               </div>
             </a-col>
           </a-row>

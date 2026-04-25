@@ -336,6 +336,15 @@ const refreshNow = () => {
   void refreshSessions();
 };
 
+const cleanupSessions = async () => {
+  try {
+    await axios.post('/shell-sessions/cleanup');
+    message.success('Exited/closed sessions cleaned up');
+  } catch (err: any) {
+    message.error(err?.response?.data?.error || 'Failed to clean up sessions');
+  }
+};
+
 const connectShellSessionsWS = () => {
   if (!shouldReconnect) return;
   if (ws) {
@@ -407,6 +416,7 @@ onBeforeUnmount(() => {
             <a-space :size="8">
               <a-tag color="blue">{{ filteredSessions.length }} listed</a-tag>
               <a-tag color="green">{{ openSessions.length }} open</a-tag>
+              <a-button size="small" @click="cleanupSessions">Cleanup Sessions</a-button>
               <a-button size="small" :loading="sessionsLoading" @click="refreshNow">
                 Refresh
               </a-button>
