@@ -706,7 +706,7 @@ watch(refreshInterval, connectWebSocket);
                             <span class="io-val-in">↓{{ formatBytes(s.readSpeed, 0) }}</span>
                             <span class="io-val-out">↑{{ formatBytes(s.writeSpeed, 0) }}</span>
                           </div>
-                          <div v-if="!systemStats.netInterfaces.length" style="font-size: 11px; color: #ccc;">No active traffic</div>
+                          <div v-if="!systemStats.netInterfaces.length" style="font-size: 11px; color: #ccc;">No network interfaces detected</div>
                         </div>
                       </div>
                       <!-- Disk Detail -->
@@ -719,7 +719,7 @@ watch(refreshInterval, connectWebSocket);
                             <span class="io-val-read">R:{{ formatBytes(s.readSpeed, 0) }}</span>
                             <span class="io-val-write">W:{{ formatBytes(s.writeSpeed, 0) }}</span>
                           </div>
-                          <div v-if="!systemStats.diskDevices.length" style="font-size: 11px; color: #ccc;">No active I/O</div>
+                          <div v-if="!systemStats.diskDevices.length" style="font-size: 11px; color: #ccc;">No disk devices detected</div>
                         </div>
                       </div>
                     </div>

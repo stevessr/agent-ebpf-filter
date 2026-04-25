@@ -29,6 +29,10 @@ const props = defineProps<{
   interfaces: TrafficInterface[];
 }>();
 
+const emit = defineEmits<{
+  (event: 'select-interface', name: string): void;
+}>();
+
 const containerRef = ref<HTMLElement | null>(null);
 const svgRef = ref<SVGSVGElement | null>(null);
 
@@ -120,7 +124,10 @@ const renderGraph = () => {
   const maxSpeed = Math.max(1, ...interfaces.map((item) => item.totalSpeed), aggregateIn, aggregateOut);
   const nodeRadius = d3.scaleSqrt().domain([0, maxSpeed]).range([22, 56]);
   const linkWidth = d3.scaleSqrt().domain([0, maxSpeed]).range([1.5, 10]);
-  const orbitRadius = Math.max(Math.min(width, height) * 0.36, 136);
+  const orbitRadius = Math.min(
+    Math.max(Math.min(width, height) * 0.34, 120),
+    Math.max(Math.min(width, height) / 2 - 84, 76),
+  );
   const internetRadius = 64;
 
   const nodes: GraphNode[] = [
@@ -134,7 +141,7 @@ const renderGraph = () => {
       y: centerY,
     },
     ...interfaces.map((item, index) => {
-      const angle = -Math.PI / 3 + (index / interfaces.length) * Math.PI * 2;
+      const angle = Math.PI + (index / interfaces.length) * Math.PI * 2;
       const positionRadius = orbitRadius;
       return {
         id: item.name,
@@ -272,7 +279,13 @@ const renderGraph = () => {
     .data(nodes, (node) => node.id)
     .join('g')
     .attr('class', 'traffic-node')
-    .attr('transform', (node) => `translate(${node.x},${node.y})`);
+    .attr('transform', (node) => `translate(${node.x},${node.y})`)
+    .style('cursor', (node) => (node.kind === 'interface' ? 'pointer' : 'default'))
+    .on('click', (event, node) => {
+      if (node.kind !== 'interface') return;
+      event.stopPropagation();
+      emit('select-interface', node.id);
+    });
 
   nodeSelection
     .append('circle')
@@ -313,7 +326,16 @@ const renderGraph = () => {
 
   nodeSelection
     .append('title')
-    .text((node) => `${node.id}\nRX ${formatBytes(node.readSpeed)}/s\nTX ${formatBytes(node.writeSpeed)}/s\nTOTAL ${formatBytes(node.totalSpeed)}/s`);
+    .text((node) => {
+      const lines = [node.id];
+      if (node.kind === 'interface') {
+        lines.push('Click to view history');
+      }
+      lines.push(`RX ${formatBytes(node.readSpeed)}/s`);
+      lines.push(`TX ${formatBytes(node.writeSpeed)}/s`);
+      lines.push(`TOTAL ${formatBytes(node.totalSpeed)}/s`);
+      return lines.join('\n');
+    });
 };
 
 watch(

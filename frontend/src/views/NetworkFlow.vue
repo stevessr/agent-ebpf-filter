@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { LoadingOutlined, GlobalOutlined, ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons-vue';
+import VueApexCharts from 'vue3-apexcharts';
 import TrafficGraph from '../components/TrafficGraph.vue';
 import { pb } from '../pb/tracker_pb.js';
 import { buildWebSocketUrl } from '../utils/requestContext';
+
+interface IOSpeed {
+  name: string;
+  readSpeed: number;
+  writeSpeed: number;
+}
 
 interface InterfaceSample {
   time: number;
@@ -20,6 +27,9 @@ const interfaceHistory = ref<Record<string, InterfaceSample[]>>({});
 const interfaceNames = ref<string[]>([]);
 const cumRecv = ref(0);
 const cumSent = ref(0);
+const showInterfaceChartModal = ref(false);
+const selectedInterfaceName = ref('');
+const interfaceChartTimeRange = ref(60);
 
 let lastCumRecv = 0;
 let lastCumSent = 0;
@@ -51,6 +61,25 @@ const getTrafficLevelLabel = (bytesPerSecond: number) => {
   return 'steady';
 };
 
+const pad2 = (value: number) => String(Math.floor(Math.abs(value))).padStart(2, '0');
+
+const formatChartTime = (timestamp: number, rangeSeconds: number) => {
+  const date = new Date(timestamp);
+  const hh = pad2(date.getHours());
+  const mm = pad2(date.getMinutes());
+  const ss = pad2(date.getSeconds());
+
+  if (rangeSeconds <= 120) {
+    return `${hh}:${mm}:${ss}`;
+  }
+
+  if (rangeSeconds <= 1800) {
+    return `${hh}:${mm}`;
+  }
+
+  return `${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${hh}:${mm}`;
+};
+
 const pruneSamples = (samples: InterfaceSample[]) => {
   const minTime = Date.now() - maxHistorySeconds * 1000;
   return samples.filter((sample) => sample.time >= minTime);
@@ -66,7 +95,80 @@ const averageSpeed = (samples: InterfaceSample[], key: 'readSpeed' | 'writeSpeed
   return samples.reduce((sum, sample) => sum + sample[key], 0) / samples.length;
 };
 
-const netInterfaces = computed(() => {
+const selectedInterfaceHistory = computed(() => {
+  if (!selectedInterfaceName.value) return [];
+  return interfaceHistory.value[selectedInterfaceName.value] || [];
+});
+
+const selectedInterface = computed(() => netInterfaces.value.find((item) => item.name === selectedInterfaceName.value) || null);
+
+const interfaceChartWindow = computed(() => {
+  const data = selectedInterfaceHistory.value;
+  const max = data.length ? data[data.length - 1].time : Date.now();
+  const min = max - (interfaceChartTimeRange.value * 1000);
+  return { min, max };
+});
+
+const interfaceChartOptions = computed(() => {
+  const { min, max } = interfaceChartWindow.value;
+  return {
+    chart: {
+      animations: { enabled: false },
+      toolbar: { show: false },
+      zoom: { enabled: false },
+      background: 'transparent',
+    },
+    colors: ['#1890ff', '#52c41a'],
+    xaxis: {
+      type: 'datetime' as const,
+      min,
+      max,
+      labels: {
+        datetimeUTC: false,
+        style: { fontSize: '10px' },
+        formatter: (value: string | number) => formatChartTime(Number(value), interfaceChartTimeRange.value),
+      },
+      tooltip: {
+        enabled: true,
+        formatter: (value: string | number) => formatChartTime(Number(value), interfaceChartTimeRange.value),
+      },
+      range: interfaceChartTimeRange.value * 1000,
+      tickAmount: 6,
+    },
+    tooltip: {
+      x: {
+        formatter: (value: string | number) => formatChartTime(Number(value), interfaceChartTimeRange.value),
+      },
+    },
+    yaxis: {
+      labels: {
+        style: { fontSize: '10px' },
+        formatter: (value: number) => `${formatBytes(value)}/s`,
+      },
+    },
+    stroke: { curve: 'smooth' as const, width: 2 },
+    grid: { borderColor: '#f1f1f1' },
+    legend: { position: 'top' as const, horizontalAlign: 'right' as const },
+    theme: { mode: 'light' as const },
+  };
+});
+
+const interfaceChartSeries = computed(() => {
+  const data = selectedInterfaceHistory.value;
+  const { min } = interfaceChartWindow.value;
+  const filtered = data.filter((sample) => sample.time >= min);
+  return [
+    { name: 'Download', data: filtered.map((sample) => ({ x: sample.time, y: sample.readSpeed })) },
+    { name: 'Upload', data: filtered.map((sample) => ({ x: sample.time, y: sample.writeSpeed })) },
+  ];
+});
+
+const openInterfaceChart = (name: string) => {
+  selectedInterfaceName.value = name;
+  showInterfaceChartModal.value = true;
+};
+
+const netInterfaces = computed<IOSpeed[]>(() => {
   const minTime = Date.now() - timeRange.value * 1000;
   return interfaceNames.value
     .map((name) => {
@@ -108,26 +210,28 @@ const connectWebSocket = () => {
       const now = Date.now();
 
       if (decoded.io) {
-        interfaceNames.value = (decoded.io.networks || []).map((network: any) => network.name);
+        const networkList = decoded.io.networks || [];
+        interfaceNames.value = networkList.map((network: any) => network.name);
 
         if (lastIO) {
           const dt = (now - lastIO.time) / 1000;
-          if (dt > 0) {
-            (decoded.io.networks || []).forEach((network: any) => {
-              const prev = lastIO?.networks[network.name];
-              if (!prev) return;
-              const readSpeed = Math.max(0, (Number(network.recvBytes) - prev.r) / dt);
-              const writeSpeed = Math.max(0, (Number(network.sentBytes) - prev.s) / dt);
-              rememberSample(network.name, { time: now, readSpeed, writeSpeed });
-            });
-          }
+          networkList.forEach((network: any) => {
+            const prev = lastIO?.networks[network.name];
+            const readSpeed = prev && dt > 0 ? Math.max(0, (Number(network.recvBytes) - prev.r) / dt) : 0;
+            const writeSpeed = prev && dt > 0 ? Math.max(0, (Number(network.sentBytes) - prev.s) / dt) : 0;
+            rememberSample(network.name, { time: now, readSpeed, writeSpeed });
+          });
+        } else {
+          networkList.forEach((network: any) => {
+            rememberSample(network.name, { time: now, readSpeed: 0, writeSpeed: 0 });
+          });
         }
 
         const networks: NetworkSnapshot = {};
         let curRecv = 0;
         let curSent = 0;
 
-        (decoded.io.networks || []).forEach((network: any) => {
+        networkList.forEach((network: any) => {
           const recvBytes = Number(network.recvBytes);
           const sentBytes = Number(network.sentBytes);
           networks[network.name] = { r: recvBytes, s: sentBytes };
@@ -208,7 +312,7 @@ onUnmounted(() => {
           <div style="display: flex; align-items: center; gap: 12px;">
             <GlobalOutlined style="font-size: 24px; color: #fa8c16;" />
             <div>
-              <div style="font-size: 12px; color: #666;">Active Interfaces</div>
+              <div style="font-size: 12px; color: #666;">Detected Interfaces</div>
               <div style="font-size: 22px; font-weight: bold; color: #fa8c16;">{{ activeInterfaces }}</div>
             </div>
           </div>
@@ -267,9 +371,9 @@ onUnmounted(() => {
             show-icon
             style="margin-bottom: 16px;"
             message="Internet is the hub node"
-            description="Interface → Internet represents TX traffic, and Internet → Interface represents RX traffic. Node size and edge width both scale with traffic rate over the selected time window."
+            description="Interface → Internet represents TX traffic, and Internet → Interface represents RX traffic. Node size and edge width both scale with traffic rate over the selected time window. Click an interface node to open its history chart."
           />
-          <TrafficGraph :interfaces="netInterfaces" />
+          <TrafficGraph :interfaces="netInterfaces" @select-interface="openInterfaceChart" />
         </a-card>
       </a-col>
     </a-row>
@@ -278,7 +382,7 @@ onUnmounted(() => {
       <a-col :span="24">
         <a-card title="Interface Details" size="small" :bordered="false">
           <template #extra>
-            <a-tag color="blue">{{ netInterfaces.length }} active</a-tag>
+            <a-tag color="blue">{{ netInterfaces.length }} interfaces</a-tag>
           </template>
           <a-table
             :data-source="netInterfaces"
@@ -292,9 +396,14 @@ onUnmounted(() => {
             :pagination="false"
             size="small"
             row-key="name"
-            :locale="{ emptyText: 'No active traffic' }"
+            :locale="{ emptyText: 'No network interfaces detected' }"
           >
             <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'name'">
+                <span style="color: #1677ff; cursor: pointer;" @click.stop="openInterfaceChart(record.name)">
+                  {{ record.name }}
+                </span>
+              </template>
               <template v-if="column.key === 'readSpeed'">
                 <span style="color: #1890ff;">{{ formatBytes(record.readSpeed, 2) }}/s</span>
               </template>
@@ -314,5 +423,28 @@ onUnmounted(() => {
         </a-card>
       </a-col>
     </a-row>
+
+    <a-modal
+      v-model:open="showInterfaceChartModal"
+      :title="selectedInterfaceName ? `Interface History: ${selectedInterfaceName}` : 'Interface History'"
+      :footer="null"
+      width="900px"
+    >
+      <div style="margin-bottom: 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+        <div v-if="selectedInterface" style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <a-tag color="blue">Download {{ formatBytes(selectedInterface.readSpeed, 1) }}/s</a-tag>
+          <a-tag color="green">Upload {{ formatBytes(selectedInterface.writeSpeed, 1) }}/s</a-tag>
+        </div>
+        <a-radio-group v-model:value="interfaceChartTimeRange" size="small" button-style="solid">
+          <a-radio-button :value="30">30s</a-radio-button>
+          <a-radio-button :value="60">60s</a-radio-button>
+          <a-radio-button :value="120">2m</a-radio-button>
+          <a-radio-button :value="300">5m</a-radio-button>
+        </a-radio-group>
+      </div>
+      <div v-if="showInterfaceChartModal" style="background: #fff; padding: 10px; border-radius: 4px; border: 1px solid #f0f0f0;">
+        <VueApexCharts type="line" height="360" :options="interfaceChartOptions" :series="interfaceChartSeries" />
+      </div>
+    </a-modal>
   </div>
 </template>
