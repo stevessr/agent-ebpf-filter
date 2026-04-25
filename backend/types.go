@@ -196,8 +196,9 @@ var (
 	nvmlInitialized bool
 
 	// For non-NVIDIA GPU tracking (Intel/AMD via fdinfo)
-	fdinfoHistory = make(map[string]uint64) // pid:fd -> last_engine_ns
-	fdinfoTime    time.Time
+	fdinfoHistory   = make(map[string]uint64) // pid:fd -> last_engine_ns
+	fdinfoHistoryMu sync.RWMutex
+	fdinfoTime      time.Time
 
 	sudoUser         *user.User
 	sudoUserHomeCache string

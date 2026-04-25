@@ -91,9 +91,18 @@ func main() {
 	clients := make(map[*websocket.Conn]bool)
 	var clientsMu sync.Mutex
 	go func() {
-		for event := range broadcast {
-			recordCapturedEvent(event)
-			data, _ := proto.Marshal(event)
+		batch := make([]*pb.Event, 0, 50)
+		batchTicker := time.NewTicker(50 * time.Millisecond)
+		defer batchTicker.Stop()
+		flushBatch := func() {
+			if len(batch) == 0 {
+				return
+			}
+			events := make([]*pb.Event, len(batch))
+			copy(events, batch)
+			batch = batch[:0]
+			msg := &pb.EventBatch{Events: events}
+			data, _ := proto.Marshal(msg)
 			clientsMu.Lock()
 			for c := range clients {
 				if c == nil {
@@ -106,6 +115,18 @@ func main() {
 				}
 			}
 			clientsMu.Unlock()
+		}
+		for {
+			select {
+			case event := <-broadcast:
+				recordCapturedEvent(event)
+				batch = append(batch, event)
+				if len(batch) >= 50 {
+					flushBatch()
+				}
+			case <-batchTicker.C:
+				flushBatch()
+			}
 		}
 	}()
 
@@ -423,8 +444,9 @@ func main() {
 		}
 
 		broadcast <- &pb.Event{
-			Type: "native_hook",
-			Tag:  tag,
+			Type:      "native_hook",
+			EventType: pb.EventType_NATIVE_HOOK,
+			Tag:       tag,
 			Comm: fmt.Sprintf("%s:%s", hookEvent, toolName),
 			Path: path,
 		}

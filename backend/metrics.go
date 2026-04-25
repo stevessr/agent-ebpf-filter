@@ -87,8 +87,10 @@ func readVMFaultCounters() (vmFaultCounters, error) {
 
 func scanFdinfo(procMap map[int32]gpuInfo, globalStats *[]*pb.GPUStatus) {
 	now := time.Now()
+	fdinfoHistoryMu.Lock()
 	dt := now.Sub(fdinfoTime).Nanoseconds()
 	fdinfoTime = now
+	fdinfoHistoryMu.Unlock()
 
 	// Track seen client IDs to avoid overcounting VRAM (some drivers provide drm-client-id)
 	type clientKey struct {
@@ -158,11 +160,16 @@ func scanFdinfo(procMap map[int32]gpuInfo, globalStats *[]*pb.GPUStatus) {
 			// Utilization calculation
 			histKey := fmt.Sprintf("%d:%s", pid, fd.Name())
 			util := uint32(0)
-			if prev, ok := fdinfoHistory[histKey]; ok && dt > 0 {
+			fdinfoHistoryMu.RLock()
+			prev, ok := fdinfoHistory[histKey]
+			fdinfoHistoryMu.RUnlock()
+			if ok && dt > 0 {
 				diff := enginesNs - prev
 				util = uint32((diff * 100) / uint64(dt))
 			}
+			fdinfoHistoryMu.Lock()
 			fdinfoHistory[histKey] = enginesNs
+			fdinfoHistoryMu.Unlock()
 
 			// Aggregate per process
 			p := int32(pid)

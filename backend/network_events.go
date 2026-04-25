@@ -142,14 +142,15 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 	typeName := kernelEventTypeName(event.Type)
 
 	out := &pb.Event{
-		Pid:      event.PID,
-		Ppid:     event.PPID,
-		Uid:      event.UID,
-		Type:     typeName,
-		Tag:      getTagName(event.TagID),
-		Comm:     comm,
-		Path:     path,
-		Retval:   event.Retval,
+		Pid:       event.PID,
+		Ppid:      event.PPID,
+		Uid:       event.UID,
+		Type:      typeName,
+		EventType: pb.EventType(event.Type),
+		Tag:       getTagName(event.TagID),
+		Comm:      comm,
+		Path:      path,
+		Retval:    event.Retval,
 		ExtraPath: extraPath,
 	}
 

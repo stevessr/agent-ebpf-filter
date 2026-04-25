@@ -18,6 +18,64 @@ $root.pb = (function() {
      */
     var pb = {};
 
+    /**
+     * EventType enum.
+     * @name pb.EventType
+     * @enum {number}
+     * @property {number} EXECVE=0 EXECVE value
+     * @property {number} OPENAT=1 OPENAT value
+     * @property {number} NETWORK_CONNECT=2 NETWORK_CONNECT value
+     * @property {number} MKDIR=3 MKDIR value
+     * @property {number} UNLINK=4 UNLINK value
+     * @property {number} IOCTL=5 IOCTL value
+     * @property {number} NETWORK_BIND=6 NETWORK_BIND value
+     * @property {number} NETWORK_SENDTO=7 NETWORK_SENDTO value
+     * @property {number} NETWORK_RECVFROM=8 NETWORK_RECVFROM value
+     * @property {number} READ=9 READ value
+     * @property {number} WRITE=10 WRITE value
+     * @property {number} OPEN=11 OPEN value
+     * @property {number} CHMOD=12 CHMOD value
+     * @property {number} CHOWN=13 CHOWN value
+     * @property {number} RENAME=14 RENAME value
+     * @property {number} LINK=15 LINK value
+     * @property {number} SYMLINK=16 SYMLINK value
+     * @property {number} MKNOD=17 MKNOD value
+     * @property {number} CLONE=18 CLONE value
+     * @property {number} EXIT=19 EXIT value
+     * @property {number} SOCKET=20 SOCKET value
+     * @property {number} ACCEPT=21 ACCEPT value
+     * @property {number} WRAPPER_INTERCEPT=22 WRAPPER_INTERCEPT value
+     * @property {number} NATIVE_HOOK=23 NATIVE_HOOK value
+     */
+    pb.EventType = (function() {
+        var valuesById = {}, values = Object.create(valuesById);
+        values[valuesById[0] = "EXECVE"] = 0;
+        values[valuesById[1] = "OPENAT"] = 1;
+        values[valuesById[2] = "NETWORK_CONNECT"] = 2;
+        values[valuesById[3] = "MKDIR"] = 3;
+        values[valuesById[4] = "UNLINK"] = 4;
+        values[valuesById[5] = "IOCTL"] = 5;
+        values[valuesById[6] = "NETWORK_BIND"] = 6;
+        values[valuesById[7] = "NETWORK_SENDTO"] = 7;
+        values[valuesById[8] = "NETWORK_RECVFROM"] = 8;
+        values[valuesById[9] = "READ"] = 9;
+        values[valuesById[10] = "WRITE"] = 10;
+        values[valuesById[11] = "OPEN"] = 11;
+        values[valuesById[12] = "CHMOD"] = 12;
+        values[valuesById[13] = "CHOWN"] = 13;
+        values[valuesById[14] = "RENAME"] = 14;
+        values[valuesById[15] = "LINK"] = 15;
+        values[valuesById[16] = "SYMLINK"] = 16;
+        values[valuesById[17] = "MKNOD"] = 17;
+        values[valuesById[18] = "CLONE"] = 18;
+        values[valuesById[19] = "EXIT"] = 19;
+        values[valuesById[20] = "SOCKET"] = 20;
+        values[valuesById[21] = "ACCEPT"] = 21;
+        values[valuesById[22] = "WRAPPER_INTERCEPT"] = 22;
+        values[valuesById[23] = "NATIVE_HOOK"] = 23;
+        return values;
+    })();
+
     pb.RegisterRequest = (function() {
 
         /**
@@ -913,6 +971,7 @@ $root.pb = (function() {
          * @property {number|null} [protocol] Event protocol
          * @property {number|null} [uidArg] Event uidArg
          * @property {number|null} [gidArg] Event gidArg
+         * @property {pb.EventType|null} [eventType] Event eventType
          */
 
         /**
@@ -1099,6 +1158,14 @@ $root.pb = (function() {
         Event.prototype.gidArg = 0;
 
         /**
+         * Event eventType.
+         * @member {pb.EventType} eventType
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.eventType = 0;
+
+        /**
          * Creates a new Event instance using the specified properties.
          * @function create
          * @memberof pb.Event
@@ -1164,6 +1231,8 @@ $root.pb = (function() {
                 writer.uint32(/* id 20, wireType 0 =*/160).uint32(message.uidArg);
             if (message.gidArg != null && Object.hasOwnProperty.call(message, "gidArg"))
                 writer.uint32(/* id 21, wireType 0 =*/168).uint32(message.gidArg);
+            if (message.eventType != null && Object.hasOwnProperty.call(message, "eventType"))
+                writer.uint32(/* id 22, wireType 0 =*/176).int32(message.eventType);
             return writer;
         };
 
@@ -1284,6 +1353,10 @@ $root.pb = (function() {
                         message.gidArg = reader.uint32();
                         break;
                     }
+                case 22: {
+                        message.eventType = reader.int32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -1382,6 +1455,36 @@ $root.pb = (function() {
             if (message.gidArg != null && message.hasOwnProperty("gidArg"))
                 if (!$util.isInteger(message.gidArg))
                     return "gidArg: integer expected";
+            if (message.eventType != null && message.hasOwnProperty("eventType"))
+                switch (message.eventType) {
+                default:
+                    return "eventType: enum value expected";
+                case 0:
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                case 5:
+                case 6:
+                case 7:
+                case 8:
+                case 9:
+                case 10:
+                case 11:
+                case 12:
+                case 13:
+                case 14:
+                case 15:
+                case 16:
+                case 17:
+                case 18:
+                case 19:
+                case 20:
+                case 21:
+                case 22:
+                case 23:
+                    break;
+                }
             return null;
         };
 
@@ -1453,6 +1556,110 @@ $root.pb = (function() {
                 message.uidArg = object.uidArg >>> 0;
             if (object.gidArg != null)
                 message.gidArg = object.gidArg >>> 0;
+            switch (object.eventType) {
+            default:
+                if (typeof object.eventType === "number") {
+                    message.eventType = object.eventType;
+                    break;
+                }
+                break;
+            case "EXECVE":
+            case 0:
+                message.eventType = 0;
+                break;
+            case "OPENAT":
+            case 1:
+                message.eventType = 1;
+                break;
+            case "NETWORK_CONNECT":
+            case 2:
+                message.eventType = 2;
+                break;
+            case "MKDIR":
+            case 3:
+                message.eventType = 3;
+                break;
+            case "UNLINK":
+            case 4:
+                message.eventType = 4;
+                break;
+            case "IOCTL":
+            case 5:
+                message.eventType = 5;
+                break;
+            case "NETWORK_BIND":
+            case 6:
+                message.eventType = 6;
+                break;
+            case "NETWORK_SENDTO":
+            case 7:
+                message.eventType = 7;
+                break;
+            case "NETWORK_RECVFROM":
+            case 8:
+                message.eventType = 8;
+                break;
+            case "READ":
+            case 9:
+                message.eventType = 9;
+                break;
+            case "WRITE":
+            case 10:
+                message.eventType = 10;
+                break;
+            case "OPEN":
+            case 11:
+                message.eventType = 11;
+                break;
+            case "CHMOD":
+            case 12:
+                message.eventType = 12;
+                break;
+            case "CHOWN":
+            case 13:
+                message.eventType = 13;
+                break;
+            case "RENAME":
+            case 14:
+                message.eventType = 14;
+                break;
+            case "LINK":
+            case 15:
+                message.eventType = 15;
+                break;
+            case "SYMLINK":
+            case 16:
+                message.eventType = 16;
+                break;
+            case "MKNOD":
+            case 17:
+                message.eventType = 17;
+                break;
+            case "CLONE":
+            case 18:
+                message.eventType = 18;
+                break;
+            case "EXIT":
+            case 19:
+                message.eventType = 19;
+                break;
+            case "SOCKET":
+            case 20:
+                message.eventType = 20;
+                break;
+            case "ACCEPT":
+            case 21:
+                message.eventType = 21;
+                break;
+            case "WRAPPER_INTERCEPT":
+            case 22:
+                message.eventType = 22;
+                break;
+            case "NATIVE_HOOK":
+            case 23:
+                message.eventType = 23;
+                break;
+            }
             return message;
         };
 
@@ -1499,6 +1706,7 @@ $root.pb = (function() {
                 object.protocol = 0;
                 object.uidArg = 0;
                 object.gidArg = 0;
+                object.eventType = options.enums === String ? "EXECVE" : 0;
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -1548,6 +1756,8 @@ $root.pb = (function() {
                 object.uidArg = message.uidArg;
             if (message.gidArg != null && message.hasOwnProperty("gidArg"))
                 object.gidArg = message.gidArg;
+            if (message.eventType != null && message.hasOwnProperty("eventType"))
+                object.eventType = options.enums === String ? $root.pb.EventType[message.eventType] === undefined ? message.eventType : $root.pb.EventType[message.eventType] : message.eventType;
             return object;
         };
 
@@ -1578,6 +1788,232 @@ $root.pb = (function() {
         };
 
         return Event;
+    })();
+
+    pb.EventBatch = (function() {
+
+        /**
+         * Properties of an EventBatch.
+         * @memberof pb
+         * @interface IEventBatch
+         * @property {Array.<pb.IEvent>|null} [events] EventBatch events
+         */
+
+        /**
+         * Constructs a new EventBatch.
+         * @memberof pb
+         * @classdesc Represents an EventBatch.
+         * @implements IEventBatch
+         * @constructor
+         * @param {pb.IEventBatch=} [properties] Properties to set
+         */
+        function EventBatch(properties) {
+            this.events = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * EventBatch events.
+         * @member {Array.<pb.IEvent>} events
+         * @memberof pb.EventBatch
+         * @instance
+         */
+        EventBatch.prototype.events = $util.emptyArray;
+
+        /**
+         * Creates a new EventBatch instance using the specified properties.
+         * @function create
+         * @memberof pb.EventBatch
+         * @static
+         * @param {pb.IEventBatch=} [properties] Properties to set
+         * @returns {pb.EventBatch} EventBatch instance
+         */
+        EventBatch.create = function create(properties) {
+            return new EventBatch(properties);
+        };
+
+        /**
+         * Encodes the specified EventBatch message. Does not implicitly {@link pb.EventBatch.verify|verify} messages.
+         * @function encode
+         * @memberof pb.EventBatch
+         * @static
+         * @param {pb.IEventBatch} message EventBatch message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EventBatch.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.events != null && message.events.length)
+                for (var i = 0; i < message.events.length; ++i)
+                    $root.pb.Event.encode(message.events[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified EventBatch message, length delimited. Does not implicitly {@link pb.EventBatch.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.EventBatch
+         * @static
+         * @param {pb.IEventBatch} message EventBatch message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EventBatch.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an EventBatch message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.EventBatch
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.EventBatch} EventBatch
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EventBatch.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.EventBatch();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        if (!(message.events && message.events.length))
+                            message.events = [];
+                        message.events.push($root.pb.Event.decode(reader, reader.uint32()));
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an EventBatch message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.EventBatch
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.EventBatch} EventBatch
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EventBatch.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an EventBatch message.
+         * @function verify
+         * @memberof pb.EventBatch
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        EventBatch.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.events != null && message.hasOwnProperty("events")) {
+                if (!Array.isArray(message.events))
+                    return "events: array expected";
+                for (var i = 0; i < message.events.length; ++i) {
+                    var error = $root.pb.Event.verify(message.events[i]);
+                    if (error)
+                        return "events." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates an EventBatch message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.EventBatch
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.EventBatch} EventBatch
+         */
+        EventBatch.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.EventBatch)
+                return object;
+            var message = new $root.pb.EventBatch();
+            if (object.events) {
+                if (!Array.isArray(object.events))
+                    throw TypeError(".pb.EventBatch.events: array expected");
+                message.events = [];
+                for (var i = 0; i < object.events.length; ++i) {
+                    if (typeof object.events[i] !== "object")
+                        throw TypeError(".pb.EventBatch.events: object expected");
+                    message.events[i] = $root.pb.Event.fromObject(object.events[i]);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an EventBatch message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.EventBatch
+         * @static
+         * @param {pb.EventBatch} message EventBatch
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        EventBatch.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.events = [];
+            if (message.events && message.events.length) {
+                object.events = [];
+                for (var j = 0; j < message.events.length; ++j)
+                    object.events[j] = $root.pb.Event.toObject(message.events[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this EventBatch to JSON.
+         * @function toJSON
+         * @memberof pb.EventBatch
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        EventBatch.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for EventBatch
+         * @function getTypeUrl
+         * @memberof pb.EventBatch
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        EventBatch.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.EventBatch";
+        };
+
+        return EventBatch;
     })();
 
     pb.Process = (function() {

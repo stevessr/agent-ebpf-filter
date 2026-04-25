@@ -3,6 +3,34 @@ import Long = require("long");
 /** Namespace pb. */
 export namespace pb {
 
+    /** EventType enum. */
+    enum EventType {
+        EXECVE = 0,
+        OPENAT = 1,
+        NETWORK_CONNECT = 2,
+        MKDIR = 3,
+        UNLINK = 4,
+        IOCTL = 5,
+        NETWORK_BIND = 6,
+        NETWORK_SENDTO = 7,
+        NETWORK_RECVFROM = 8,
+        READ = 9,
+        WRITE = 10,
+        OPEN = 11,
+        CHMOD = 12,
+        CHOWN = 13,
+        RENAME = 14,
+        LINK = 15,
+        SYMLINK = 16,
+        MKNOD = 17,
+        CLONE = 18,
+        EXIT = 19,
+        SOCKET = 20,
+        ACCEPT = 21,
+        WRAPPER_INTERCEPT = 22,
+        NATIVE_HOOK = 23
+    }
+
     /** Properties of a RegisterRequest. */
     interface IRegisterRequest {
 
@@ -468,6 +496,9 @@ export namespace pb {
 
         /** Event gidArg */
         gidArg?: (number|null);
+
+        /** Event eventType */
+        eventType?: (pb.EventType|null);
     }
 
     /** Represents an Event. */
@@ -542,6 +573,9 @@ export namespace pb {
         /** Event gidArg. */
         public gidArg: number;
 
+        /** Event eventType. */
+        public eventType: pb.EventType;
+
         /**
          * Creates a new Event instance using the specified properties.
          * @param [properties] Properties to set
@@ -614,6 +648,103 @@ export namespace pb {
 
         /**
          * Gets the default type url for Event
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an EventBatch. */
+    interface IEventBatch {
+
+        /** EventBatch events */
+        events?: (pb.IEvent[]|null);
+    }
+
+    /** Represents an EventBatch. */
+    class EventBatch implements IEventBatch {
+
+        /**
+         * Constructs a new EventBatch.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IEventBatch);
+
+        /** EventBatch events. */
+        public events: pb.IEvent[];
+
+        /**
+         * Creates a new EventBatch instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns EventBatch instance
+         */
+        public static create(properties?: pb.IEventBatch): pb.EventBatch;
+
+        /**
+         * Encodes the specified EventBatch message. Does not implicitly {@link pb.EventBatch.verify|verify} messages.
+         * @param message EventBatch message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IEventBatch, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified EventBatch message, length delimited. Does not implicitly {@link pb.EventBatch.verify|verify} messages.
+         * @param message EventBatch message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IEventBatch, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an EventBatch message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns EventBatch
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.EventBatch;
+
+        /**
+         * Decodes an EventBatch message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns EventBatch
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.EventBatch;
+
+        /**
+         * Verifies an EventBatch message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an EventBatch message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns EventBatch
+         */
+        public static fromObject(object: { [k: string]: any }): pb.EventBatch;
+
+        /**
+         * Creates a plain object from an EventBatch message. Also converts values to other types if specified.
+         * @param message EventBatch
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.EventBatch, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this EventBatch to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for EventBatch
          * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns The default type url
          */

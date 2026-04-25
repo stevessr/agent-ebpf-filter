@@ -3,6 +3,34 @@ syntax = "proto3";
 package pb;
 option go_package = "agent-ebpf-filter/pb";
 
+// Normalized event types for kernel + user-space events
+enum EventType {
+  EXECVE = 0;
+  OPENAT = 1;
+  NETWORK_CONNECT = 2;
+  MKDIR = 3;
+  UNLINK = 4;
+  IOCTL = 5;
+  NETWORK_BIND = 6;
+  NETWORK_SENDTO = 7;
+  NETWORK_RECVFROM = 8;
+  READ = 9;
+  WRITE = 10;
+  OPEN = 11;
+  CHMOD = 12;
+  CHOWN = 13;
+  RENAME = 14;
+  LINK = 15;
+  SYMLINK = 16;
+  MKNOD = 17;
+  CLONE = 18;
+  EXIT = 19;
+  SOCKET = 20;
+  ACCEPT = 21;
+  WRAPPER_INTERCEPT = 22;
+  NATIVE_HOOK = 23;
+}
+
 // Represents a process registration request
 message RegisterRequest {
   uint32 pid = 1;
@@ -48,6 +76,12 @@ message Event {
   uint32 protocol = 19;
   uint32 uid_arg = 20;
   uint32 gid_arg = 21;
+  EventType event_type = 22;
+}
+
+// Batch of events for WebSocket delivery efficiency
+message EventBatch {
+  repeated Event events = 1;
 }
 
 // Represents system process information for the tree view
