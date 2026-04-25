@@ -201,6 +201,7 @@ struct lpm_key {
 struct {
     __uint(type, BPF_MAP_TYPE_LPM_TRIE);
     __uint(max_entries, 256);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
     __type(key, struct lpm_key);
     __type(value, u32);
 } tracked_prefixes SEC(".maps");
