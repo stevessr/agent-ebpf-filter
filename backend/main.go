@@ -94,6 +94,7 @@ func main() {
 	}()
 
 	r.GET("/ws", serveEventsWS)
+	r.GET("/ws/system", serveSystemStatsWS)
 	r.POST("/shell-sessions", handleCreateShellSession)
 	r.GET("/shell-sessions", handleListShellSessions)
 	r.DELETE("/shell-sessions/:id", handleDeleteShellSession)

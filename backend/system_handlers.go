@@ -318,5 +318,4 @@ func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.POST("/upload", handleUpload)
 	rg.GET("/env", handleListLaunchEnvEntries)
 	rg.POST("/run", handleRun)
-	rg.GET("/ws/system", serveSystemStatsWS)
 }
