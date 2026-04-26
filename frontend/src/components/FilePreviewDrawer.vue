@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, watchEffect } from 'vue';
 import { createHighlighter, type Highlighter } from 'shiki';
 import type { FilePreviewResponse } from '../types/filePreview';
 
@@ -60,6 +60,36 @@ watch(() => props.open, (isOpen) => {
   if (!isOpen) {
     highlightedHtml.value = '';
     highlightLoading.value = false;
+  }
+});
+
+watchEffect(async () => {
+  if (props.preview?.previewType === 'text' && props.preview.content) {
+    highlightLoading.value = true;
+    try {
+      const lang = props.preview.language || 'text';
+      const hl = await getHighlighter();
+      
+      if (!hl.getLoadedLanguages().includes(lang)) {
+        try {
+          await hl.loadLanguage(lang as any);
+        } catch (e) {
+          console.warn(`Language ${lang} not supported by shiki`);
+        }
+      }
+
+      highlightedHtml.value = hl.codeToHtml(props.preview.content, {
+        lang: hl.getLoadedLanguages().includes(lang) ? lang : 'text',
+        theme: 'github-dark',
+      });
+    } catch (err) {
+      console.error('Failed to highlight code', err);
+      highlightedHtml.value = '';
+    } finally {
+      highlightLoading.value = false;
+    }
+  } else {
+    highlightedHtml.value = '';
   }
 });
 </script>

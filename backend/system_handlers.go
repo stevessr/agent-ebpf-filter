@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
-	"io"
 	"math"
 	"mime"
 	"os"
@@ -25,6 +23,8 @@ import (
 	gnet "github.com/shirou/gopsutil/v3/net"
 	"github.com/shirou/gopsutil/v3/disk"
 	ps "github.com/shirou/gopsutil/v3/process"
+	"github.com/vladimirvivien/go4vl/device"
+	"github.com/vladimirvivien/go4vl/v4l2"
 	"google.golang.org/protobuf/proto"
 )
 // ... keeping other imports intact, just ensuring bufio is there. Wait, I will just rewrite the func.
@@ -438,23 +438,35 @@ func handleCameras(c *gin.Context) {
 }
 
 func handleCameraSnapshot(c *gin.Context) {
-	dev := c.Query("device")
-	if dev == "" {
-		dev = "/dev/video0"
+	devName := c.Query("device")
+	if devName == "" {
+		devName = "/dev/video0"
 	}
 
-	// Try to grab a single frame using ffmpeg (fast and common)
-	// Use -f v4l2 to specify input format
-	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("camera_snap_%d.jpg", time.Now().UnixNano()))
-	cmd := exec.Command("ffmpeg", "-y", "-f", "v4l2", "-video_size", "640x480", "-i", dev, "-frames:v", "1", tmpFile)
-	
-	if err := cmd.Run(); err != nil {
-		c.JSON(500, gin.H{"error": "Failed to capture frame: " + err.Error() + ". Ensure ffmpeg and v4l2 are installed."})
+	cam, err := device.Open(devName, device.WithIOType(v4l2.IOTypeMMAP))
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to open camera: " + err.Error()})
 		return
 	}
-	defer os.Remove(tmpFile)
+	defer cam.Close()
 
-	c.File(tmpFile)
+	if err := cam.SetPixFormat(v4l2.PixFormat{PixelFormat: v4l2.PixelFmtMJPEG, Width: 640, Height: 480}); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to set camera format: " + err.Error()})
+		return
+	}
+
+	if err := cam.Start(c.Request.Context()); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to start camera stream: " + err.Error()})
+		return
+	}
+	defer cam.Stop()
+
+	select {
+	case frame := <-cam.GetOutput():
+		c.Data(200, "image/jpeg", frame)
+	case <-time.After(3 * time.Second):
+		c.JSON(500, gin.H{"error": "Timeout waiting for frame from camera"})
+	}
 }
 
 func handleTrackedComms(c *gin.Context) {
@@ -507,9 +519,9 @@ func handleProcessSignal(c *gin.Context) {
 }
 
 func serveCameraWS(c *gin.Context) {
-	dev := c.Query("device")
-	if dev == "" {
-		dev = "/dev/video0"
+	devName := c.Query("device")
+	if devName == "" {
+		devName = "/dev/video0"
 	}
 	
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -518,47 +530,42 @@ func serveCameraWS(c *gin.Context) {
 	}
 	defer conn.Close()
 
-	cmd := exec.Command("ffmpeg", "-y", "-f", "v4l2", "-video_size", "640x480", "-framerate", "15", "-i", dev, "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", "5", "-")
-	
-	stdout, err := cmd.StdoutPipe()
+	cam, err := device.Open(devName, device.WithIOType(v4l2.IOTypeMMAP))
 	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to create stdout pipe"))
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to open camera: "+err.Error()))
+		return
+	}
+	defer cam.Close()
+
+	if err := cam.SetPixFormat(v4l2.PixFormat{PixelFormat: v4l2.PixelFmtMJPEG, Width: 640, Height: 480}); err != nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to set camera format: "+err.Error()))
 		return
 	}
 
-	if err := cmd.Start(); err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to start ffmpeg: "+err.Error()))
+	if err := cam.Start(c.Request.Context()); err != nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to start camera stream: "+err.Error()))
 		return
 	}
-	defer cmd.Process.Kill()
+	defer cam.Stop()
 
-	scanner := bufio.NewScanner(stdout)
-	buf := make([]byte, 1024*1024)
-	scanner.Buffer(buf, 5*1024*1024)
-	
-	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		soi := bytes.Index(data, []byte{0xff, 0xd8})
-		if soi < 0 {
-			if len(data) > 0 && data[len(data)-1] == 0xff {
-				return len(data) - 1, nil, nil
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
 			}
-			return len(data), nil, nil
 		}
-		eoi := bytes.Index(data[soi:], []byte{0xff, 0xd9})
-		if eoi < 0 {
-			if atEOF {
-				return 0, nil, io.ErrUnexpectedEOF
-			}
-			return soi, nil, nil
-		}
-		frameLen := eoi + 2
-		return soi + frameLen, data[soi : soi+frameLen], nil
-	})
+	}()
 
-	for scanner.Scan() {
-		frame := scanner.Bytes()
-		if err := conn.WriteMessage(websocket.BinaryMessage, frame); err != nil {
-			break
+	for {
+		select {
+		case frame := <-cam.GetOutput():
+			if err := conn.WriteMessage(websocket.BinaryMessage, frame); err != nil {
+				return
+			}
+		case <-done:
+			return
 		}
 	}
 }
