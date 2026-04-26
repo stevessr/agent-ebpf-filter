@@ -2,6 +2,7 @@ package main
 
 import (
 	"sync"
+	"time"
 	"github.com/gorilla/websocket"
 	"agent-ebpf-filter/pb"
 	"net/http"
@@ -13,8 +14,9 @@ var (
 	broadcast = make(chan *pb.Event, 1000)
 	
 	upgrader = websocket.Upgrader{
-		CheckOrigin:     func(r *http.Request) bool { return true },
-		ReadBufferSize:  1024 * 16,
-		WriteBufferSize: 1024 * 1024, // 1MB buffer for video frames
+		CheckOrigin:      func(r *http.Request) bool { return true },
+		ReadBufferSize:   1024 * 32,
+		WriteBufferSize:  1024 * 1024,
+		HandshakeTimeout: 5 * time.Second,
 	}
 )
