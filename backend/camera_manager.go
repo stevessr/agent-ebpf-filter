@@ -18,7 +18,7 @@ type CameraStream struct {
 	// Zero-copy broadcasting mechanism
 	latestFrame []byte
 	frameCond   *sync.Cond
-	frameMu     sync.RWMutex
+	frameMu     sync.Mutex // Changed from RWMutex to Mutex to fix sync.Cond panic
 
 	subscriberCount int32
 	stopTimer       *time.Timer
@@ -85,7 +85,6 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 		}
 
 		if err := cam.SetPixFormat(v4l2.PixFormat{PixelFormat: v4l2.PixelFmtMJPEG, Width: 640, Height: 480}); err != nil {
-			// This often happens for metadata nodes (e.g. video1 when video0 is capture)
 			log.Printf("[WARN] MJPEG not supported on %s: %v", s.devName, err)
 			cam.Close()
 			atomic.AddInt32(&s.subscriberCount, -1)
@@ -110,10 +109,8 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 			output := stream.cam.GetOutput()
 			for frame := range output {
 				stream.frameMu.Lock()
-				// Zero-copy assignment of the latest frame reference
 				stream.latestFrame = frame 
 				stream.frameMu.Unlock()
-				// Wake up all waiting consumers
 				stream.frameCond.Broadcast()
 			}
 
@@ -131,7 +128,6 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 			delete(activeStreams, stream.devName)
 			streamsMu.Unlock()
 			
-			// Unblock any remaining consumers
 			stream.frameCond.Broadcast()
 		}(s)
 	}
@@ -139,42 +135,38 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 	return &CameraSubscriber{stream: s}
 }
 
-// NextFrame blocks until a new frame is available and returns it.
-// Consumers process at their own speed. Slow consumers simply skip intermediate frames.
 func (sub *CameraSubscriber) NextFrame(ctx context.Context) ([]byte, error) {
 	if atomic.LoadInt32(&sub.closed) == 1 {
 		return nil, context.Canceled
 	}
 	
 	s := sub.stream
-	s.frameMu.RLock()
-	s.frameCond.Wait() // Wait releases the RLock internally while waiting
+	s.frameMu.Lock() // Must use Lock() for sync.Cond.Wait()
+	s.frameCond.Wait()
 	
 	if !s.running || atomic.LoadInt32(&sub.closed) == 1 {
-		s.frameMu.RUnlock()
+		s.frameMu.Unlock()
 		return nil, context.Canceled
 	}
 	
-	// Fast path check context
 	select {
 	case <-ctx.Done():
-		s.frameMu.RUnlock()
+		s.frameMu.Unlock()
 		return nil, ctx.Err()
 	default:
 	}
 	
 	frame := s.latestFrame
-	s.frameMu.RUnlock()
+	s.frameMu.Unlock()
 	return frame, nil
 }
 
 func (sub *CameraSubscriber) Unsubscribe() {
 	if !atomic.CompareAndSwapInt32(&sub.closed, 0, 1) {
-		return // Already unsubscribed
+		return 
 	}
 
 	s := sub.stream
-	// Unblock any pending NextFrame calls
 	s.frameCond.Broadcast() 
 
 	s.streamMu.Lock()
@@ -185,7 +177,6 @@ func (sub *CameraSubscriber) Unsubscribe() {
 		if s.stopTimer != nil {
 			s.stopTimer.Stop()
 		}
-		// Grace period before releasing hardware
 		s.stopTimer = time.AfterFunc(5*time.Second, func() {
 			s.streamMu.Lock()
 			defer s.streamMu.Unlock()
