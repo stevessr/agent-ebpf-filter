@@ -50,15 +50,30 @@ func getCameraStream(devName string) (*CameraStream, chan []byte) {
 	s.listeners[ch] = true
 
 	if !s.running {
-		cam, err := device.Open(devName, device.WithIOType(v4l2.IOTypeMMAP))
+		var cam *device.Device
+		var err error
+		
+		// Retry mechanism for Device Busy
+		for i := 0; i < 3; i++ {
+			cam, err = device.Open(devName, device.WithIOType(v4l2.IOTypeMMAP))
+			if err == nil {
+				break
+			}
+			log.Printf("[WARN] camera open retry %d for %s: %v", i+1, devName, err)
+			time.Sleep(500 * time.Millisecond)
+		}
+		
 		if err != nil {
 			log.Printf("[ERROR] failed to open camera %s: %v", devName, err)
 			delete(s.listeners, ch)
 			return nil, nil
 		}
 
+		// Try MJPEG first, then fallback or fail
 		if err := cam.SetPixFormat(v4l2.PixFormat{PixelFormat: v4l2.PixelFmtMJPEG, Width: 640, Height: 480}); err != nil {
-			log.Printf("[ERROR] failed to set format for %s: %v", devName, err)
+			log.Printf("[WARN] MJPEG not supported for %s, trying default: %v", devName, err)
+			// Some devices might only support YUYV or others, but our frontend expects JPEG
+			// For now, we just fail gracefully if MJPEG (which most webcams have) fails
 			cam.Close()
 			delete(s.listeners, ch)
 			return nil, nil

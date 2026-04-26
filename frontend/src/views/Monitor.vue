@@ -7,7 +7,6 @@ import {
   DashboardOutlined,
   AppstoreOutlined,
   ApiOutlined, AudioOutlined, VideoCameraOutlined,
-  PauseOutlined, PlayCircleOutlined, DeleteOutlined,
   SoundOutlined, AudioMutedOutlined
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
@@ -25,31 +24,6 @@ interface ProcessInfo {
   pid: number; ppid: number; name: string; cpu: number; mem: number;
   user: string; gpuMem: number; gpuId: number; 
   cmdline: string; createTime: number;
-}
-
-interface IOSpeed {
-  name: string;
-  readSpeed: number;
-  writeSpeed: number;
-}
-
-interface GlobalStats {
-  cpuTotal: number; cpuCores: number[];
-  cpuCoresDetailed: { index: number; usage: number; type: number }[];
-  memTotal: number; memUsed: number; memPercent: number;
-  memCached: number; memBuffers: number; memShared: number;
-  zramUsed: number; zramTotal: number;
-  netInterfaces: IOSpeed[];
-  diskDevices: IOSpeed[];
-  totalNetRecv: number; totalNetSent: number;
-  totalDiskRead: number; totalDiskWrite: number;
-  faults: FaultInfo;
-}
-
-interface FaultInfo {
-  pageFaults: number; majorFaults: number; minorFaults: number;
-  pageFaultRate: number; majorFaultRate: number; minorFaultRate: number;
-  swapIn: number; swapOut: number; swapInRate: number; swapOutRate: number;
 }
 
 const route = useRoute();
@@ -75,7 +49,6 @@ const selectedCamera = ref<string | null>(null);
 const cameraSnapshotUrl = ref('');
 const cameraLiveMode = ref(false);
 const cameraLoading = ref(false);
-const cameraAutoRefresh = ref(false);
 const cameraFrameUrl = ref('');
 const sensorInterval = ref(2000);
 const sensorHistory = ref<Record<string, {time: number, value: number}[]>>({});
@@ -105,13 +78,7 @@ const connectSensorsWS = () => {
     const res = JSON.parse(e.data);
     const temps = res.temperatures || [];
     fanData.value = res.fans || [];
-    
-    sensorData.value = temps.map((s: any) => ({
-      ...s,
-      sensorKey: s.sensorKey || s.label,
-      category: getSensorCategory(s.sensorKey || '', s.label || '')
-    }));
-    
+    sensorData.value = temps.map((s: any) => ({ ...s, sensorKey: s.sensorKey || s.label, category: getSensorCategory(s.sensorKey || '', s.label || '') }));
     const now = Date.now();
     sensorData.value.forEach(s => {
       const key = s.sensorKey;
@@ -169,8 +136,6 @@ let micWs: WebSocket | null = null;
 let micCanvasCtx: CanvasRenderingContext2D | null = null;
 let micAnimationId: number | null = null;
 const micDataBuffer = new Int16Array(1024);
-
-// Web Audio for local listening
 let audioCtx: AudioContext | null = null;
 let nextStartTime = 0;
 
@@ -181,30 +146,22 @@ const connectMicWS = () => {
   micWs.binaryType = 'arraybuffer';
   micWs.onmessage = async (e) => {
     const samples = new Int16Array(e.data);
-    
-    // Volume/Waveform calc
     let sum = 0;
     for (let i = 0; i < samples.length; i++) {
       sum += Math.abs(samples[i]);
       if (i < micDataBuffer.length) micDataBuffer[i] = samples[i];
     }
     micVolume.value = Math.min(100, (sum / samples.length) / 327.68 * 2.5);
-
-    // Local listening logic
     if (micListenBrowser.value) {
       if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       if (audioCtx.state === 'suspended') await audioCtx.resume();
-
       const floatSamples = new Float32Array(samples.length);
       for (let i = 0; i < samples.length; i++) floatSamples[i] = samples[i] / 32768;
-
       const buffer = audioCtx.createBuffer(1, floatSamples.length, 16000);
       buffer.copyToChannel(floatSamples, 0);
-
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
       source.connect(audioCtx.destination);
-
       const currentTime = audioCtx.currentTime;
       if (nextStartTime < currentTime) nextStartTime = currentTime;
       source.start(nextStartTime);
@@ -234,17 +191,14 @@ const stopMicWS = () => {
   if (micWs) { micWs.close(); micWs = null; }
   if (micAnimationId) { cancelAnimationFrame(micAnimationId); micAnimationId = null; }
   if (audioCtx) { audioCtx.close(); audioCtx = null; }
-  micVolume.value = 0;
-  nextStartTime = 0;
+  micVolume.value = 0; nextStartTime = 0;
 };
 
 const fetchMicrophones = async () => {
   try {
     const res = await axios.get('/system/microphones');
     micDevices.value = res.data;
-    if (res.data.length > 0 && selectedMic.value === 'default') {
-      selectedMic.value = res.data[0].id;
-    }
+    if (res.data.length > 0 && selectedMic.value === 'default') selectedMic.value = res.data[0].id;
   } catch (err) {}
 };
 
@@ -493,29 +447,33 @@ onUnmounted(() => {
           <a-tabs :activeKey="sensorSubTab" @change="handleSubTabChange" size="small">
              <a-tab-pane key="hardware" tab="Hardware">
                <template #tab><span><ApiOutlined /> Hardware</span></template>
-               <a-row :gutter="16">
-                 <a-col :span="16"><a-card title="Temperature Trend" size="small"><template #extra><a-space><span style="font-size:12px;color:#888;">Interval:</span><a-select v-model:value="sensorInterval" size="small" style="width:70px"><a-select-option :value="1000">1s</a-select-option><a-select-option :value="2000">2s</a-select-option><a-select-option :value="5000">5s</a-select-option></a-select><a-button-group size="small"><a-button @click="toggleAllSensors(true)">All</a-button><a-button @click="toggleAllSensors(false)">None</a-button></a-button-group></a-space></template><div style="height:350px;"><VueApexCharts type="line" height="330" :options="sensorChartOptions" :series="sensorChartSeries" /></div></a-card></a-col>
-                 <a-col :span="8">
-                   <a-card title="Categorized Sensors" size="small" :bodyStyle="{padding:'0px'}">
-                     <div style="max-height: 350px; overflow-y: auto; padding: 8px;">
-                        <div v-for="(sensors, category) in groupedSensors" :key="category" style="margin-bottom: 12px;">
-                           <div style="font-weight: bold; font-size: 12px; color: #1890ff; border-bottom: 1px solid #f0f0f0; padding-bottom: 4px; margin-bottom: 8px;">{{ category }}</div>
-                           <div v-for="s in sensors" :key="s.sensorKey" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                              <a-checkbox v-model:checked="sensorVisibility[s.sensorKey]"><span style="font-size: 12px;">{{ s.label }}</span></a-checkbox>
-                              <span :style="{ color: s.temperature > 75 ? 'red' : s.temperature > 60 ? 'orange' : 'green', fontWeight:'bold', fontSize: '12px' }">{{ s.temperature.toFixed(1) }}°C</span>
+               <div style="display: flex; flex-direction: column; gap: 16px;">
+                  <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+                    <a-space><span style="font-size:12px;color:#888;">Interval:</span><a-select v-model:value="sensorInterval" size="small" style="width:70px"><a-select-option :value="1000">1s</a-select-option><a-select-option :value="2000">2s</a-select-option><a-select-option :value="5000">5s</a-select-option></a-select><a-button-group size="small"><a-button @click="toggleAllSensors(true)">All</a-button><a-button @click="toggleAllSensors(false)">None</a-button></a-button-group></a-space>
+                  </div>
+                  <div v-for="(sensors, category) in groupedSensors" :key="category" style="margin-bottom: 24px;">
+                    <div style="font-weight: bold; font-size: 14px; color: #1890ff; border-bottom: 2px solid #e6f7ff; padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                       <span>{{ category }}</span>
+                    </div>
+                    <a-row :gutter="16">
+                      <a-col :span="16"><div style="height:260px; background: #fafafa; border-radius: 8px; padding: 8px;"><VueApexCharts type="line" height="240" :options="{ ...sensorChartOptions, chart: { ...sensorChartOptions.chart, id: `chart-${category.replace(/\s+/g, '-')}` } }" :series="sensors.filter(s => sensorVisibility[s.sensorKey]).map(s => ({ name: s.label || s.sensorKey, data: (sensorHistory[s.sensorKey] || []).map(d => ({ x: d.time, y: d.value })) }))" /></div></a-col>
+                      <a-col :span="8">
+                        <div style="max-height: 260px; overflow-y: auto; padding-right: 4px;">
+                           <div v-for="s in sensors" :key="s.sensorKey" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 6px 10px; background: #fff; border: 1px solid #f0f0f0; border-radius: 4px;">
+                              <a-checkbox v-model:checked="sensorVisibility[s.sensorKey]" style="display: flex; align-items: center; flex: 1; overflow: hidden;">
+                                <span style="font-size: 12px; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;" :title="s.label || s.sensorKey">{{ s.label || s.sensorKey }}</span>
+                              </a-checkbox>
+                              <span :style="{ color: s.temperature > 75 ? 'red' : s.temperature > 60 ? 'orange' : 'green', fontWeight:'bold', fontSize: '12px', marginLeft: '8px' }">{{ s.temperature.toFixed(1) }}°C</span>
                            </div>
                         </div>
-                        <div v-if="fanData.length > 0" style="margin-top: 16px;">
-                           <div style="font-weight: bold; font-size: 12px; color: #52c41a; border-bottom: 1px solid #f0f0f0; padding-bottom: 4px; margin-bottom: 8px;">Cooling (Fans)</div>
-                           <div v-for="f in fanData" :key="f.label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                              <span style="font-size: 12px; color: #666;">{{ f.label }}</span>
-                              <span style="font-weight: bold; font-size: 12px;">{{ f.speed }} RPM</span>
-                           </div>
-                        </div>
-                     </div>
-                   </a-card>
-                 </a-col>
-               </a-row>
+                      </a-col>
+                    </a-row>
+                  </div>
+                  <div v-if="fanData.length > 0">
+                    <div style="font-weight: bold; font-size: 14px; color: #52c41a; border-bottom: 2px solid #f6ffed; padding-bottom: 8px; margin-bottom: 12px;">Cooling (Fans)</div>
+                    <a-row :gutter="16"><a-col v-for="f in fanData" :key="f.label" :span="6"><a-card size="small" style="margin-bottom: 8px;"><a-statistic :title="f.label" :value="f.speed" suffix="RPM" /></a-card></a-col></a-row>
+                  </div>
+               </div>
              </a-tab-pane>
              <a-tab-pane key="camera" tab="Camera">
                <template #tab><span><VideoCameraOutlined /> Camera</span></template>
@@ -533,17 +491,9 @@ onUnmounted(() => {
              <a-tab-pane key="mic" tab="Microphone">
                <template #tab><span><AudioOutlined /> Microphone</span></template>
                <a-card title="Input Monitor" size="small">
-                  <template #extra>
-                    <a-space>
-                      <a-tag v-if="micLiveMode" color="green">ON</a-tag>
-                      <a-switch v-model:checked="micLiveMode" size="small" />
-                    </a-space>
-                  </template>
+                  <template #extra><a-space><a-tag v-if="micLiveMode" color="green">ON</a-tag><a-switch v-model:checked="micLiveMode" size="small" /></a-space></template>
                   <div style="display:flex;gap:24px;align-items:center;">
-                     <div style="flex:1;">
-                       <div style="margin-bottom:8px;font-size:12px;color:#888;">Waveform</div>
-                       <canvas ref="micCanvasRef" width="600" height="120" style="width:100%;height:120px;background:#fafafa;border-radius:4px;border:1px solid #f0f0f0;"></canvas>
-                     </div>
+                     <div style="flex:1;"><div style="margin-bottom:8px;font-size:12px;color:#888;">Waveform</div><canvas ref="micCanvasRef" width="600" height="120" style="width:100%;height:120px;background:#fafafa;border-radius:4px;border:1px solid #f0f0f0;"></canvas></div>
                      <div style="width:280px;">
                         <div style="margin-bottom:16px;">
                            <div style="margin-bottom:8px;font-size:12px;color:#888;display:flex;justify-content:space-between;">
