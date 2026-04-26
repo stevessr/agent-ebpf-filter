@@ -7,7 +7,7 @@ import {
   DashboardOutlined,
   AppstoreOutlined,
   ApiOutlined, AudioOutlined, VideoCameraOutlined,
-  SoundOutlined, AudioMutedOutlined
+  SoundOutlined, AudioMutedOutlined, WarningOutlined
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 import { pb } from '../pb/tracker_pb.js';
@@ -26,10 +26,42 @@ interface ProcessInfo {
   cmdline: string; createTime: number;
 }
 
+interface IOSpeed {
+  name: string;
+  readSpeed: number;
+  writeSpeed: number;
+}
+
+interface GlobalStats {
+  cpuTotal: number; cpuCores: number[];
+  cpuCoresDetailed: { index: number; usage: number; type: number }[];
+  memTotal: number; memUsed: number; memPercent: number;
+  memCached: number; memBuffers: number; memShared: number;
+  zramUsed: number; zramTotal: number;
+  netInterfaces: IOSpeed[];
+  diskDevices: IOSpeed[];
+  totalNetRecv: number; totalNetSent: number;
+  totalDiskRead: number; totalDiskWrite: number;
+  faults: FaultInfo;
+}
+
+interface FaultInfo {
+  pageFaults: number; majorFaults: number; minorFaults: number;
+  pageFaultRate: number; majorFaultRate: number; minorFaultRate: number;
+  swapIn: number; swapOut: number; swapInRate: number; swapOutRate: number;
+}
+
+interface ByteScale {
+  divisor: number;
+  unit: 'B' | 'KB' | 'MB' | 'GB' | 'TB';
+  precision: number;
+}
+
 const route = useRoute();
 const router = useRouter();
 const activeTab = ref((route.params.tab as string) || 'dashboard');
 const sensorSubTab = ref((route.params.subtab as string) || 'hardware');
+const healthTab = ref('cpu');
 
 interface SystemdService {
   unit: string; load: string; active: string; sub: string; description: string;
@@ -95,27 +127,13 @@ const connectSensorsWS = () => {
 const sensorChartOptions = computed(() => ({
   chart: { id: 'sensor-chart', animations: { enabled: false }, toolbar: { show: false }, background: 'transparent' },
   xaxis: { type: 'datetime' as const, labels: { show: true, style: { fontSize: '10px' }, datetimeUTC: false }, axisBorder: { show: false } },
-  yaxis: { 
-    title: { text: 'Temp (°C)', style: { fontSize: '12px' } }, 
-    min: 0, 
-    max: (maxVal: number) => Math.max(70, maxVal * 1.1), // Auto scale based on extremes, minimum 70C
-    tickAmount: 5 
-  },
+  yaxis: { title: { text: 'Temp (°C)', style: { fontSize: '12px' } }, min: 0, max: (maxVal: number) => Math.max(70, maxVal * 1.1), tickAmount: 5 },
   stroke: { width: 2, curve: 'smooth' as const },
   colors: ['#1890ff', '#52c41a', '#faad14', '#ff4d4f', '#722ed1', '#13c2c2', '#eb2f96'],
   legend: { show: false },
   grid: { borderColor: '#f0f0f0' },
   tooltip: { x: { format: 'HH:mm:ss' } }
 }));
-
-const sensorChartSeries = computed(() => {
-  return Object.keys(sensorHistory.value)
-    .filter(key => sensorVisibility.value[key])
-    .map(key => ({
-      name: key,
-      data: sensorHistory.value[key].map(d => ({ x: d.time, y: d.value }))
-    }));
-});
 
 const groupedSensors = computed(() => {
   const groups: Record<string, any[]> = {};
@@ -263,8 +281,6 @@ const handleSubTabChange = (key: any) => {
   void router.replace({ name: 'Monitor', params: { tab: 'sensors', subtab: key } });
 };
 
-watch(() => route.params.subtab, (newSub) => { if (newSub && newSub !== sensorSubTab.value) sensorSubTab.value = newSub as string; });
-
 // TRACING STATE
 const trackedCommsNames = ref<string[]>([]);
 const trackedLoading = ref(false);
@@ -352,10 +368,20 @@ const cameraStreamUrl = computed(() => {
   return cameraLiveMode.value ? cameraFrameUrl.value : cameraSnapshotUrl.value;
 });
 
-const sensorColumns = [
-  { title: 'Label', dataIndex: 'label', key: 'label' },
-  { title: 'Value', dataIndex: 'temperature', key: 'temperature', align: 'right' },
-];
+const getCoreTypeColor = (type: number) => type === pb.CPUInfo.Core.Type.PERFORMANCE ? '#1890ff' : '#52c41a';
+const getCoreTypeName = (type: number) => type === pb.CPUInfo.Core.Type.PERFORMANCE ? 'P-Core' : 'E-Core';
+
+const byteScale = (bytes: number): ByteScale => {
+  const units: ('B' | 'KB' | 'MB' | 'GB' | 'TB')[] = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let divisor = 1; let i = 0;
+  while (bytes >= 1024 && i < units.length - 1) { divisor *= 1024; i++; }
+  return { divisor, unit: units[i], precision: i > 2 ? 2 : 1 };
+};
+
+const formatBytesWithUnit = (bytes: number) => {
+  const { divisor, unit, precision } = byteScale(bytes);
+  return `${(bytes / divisor).toFixed(precision)} ${unit}`;
+};
 
 watch(activeTab, (newTab) => {
   if (newTab === 'systemd' && systemdServices.value.length === 0) void fetchSystemdServices();
@@ -384,6 +410,14 @@ watch(sensorInterval, () => { if (activeTab.value === 'sensors' && sensorSubTab.
 watch(cameraLiveMode, (val) => { if (val) connectCameraWS(); else stopCameraWS(); });
 
 const gpus = ref<GPUStatus[]>([]);
+const systemStats = ref<GlobalStats>({
+  cpuTotal: 0, cpuCores: [], cpuCoresDetailed: [], memTotal: 0, memUsed: 0, memPercent: 0,
+  memCached: 0, memBuffers: 0, memShared: 0, zramUsed: 0, zramTotal: 0,
+  netInterfaces: [], diskDevices: [],
+  totalNetRecv: 0, totalNetSent: 0, totalDiskRead: 0, totalDiskWrite: 0,
+  faults: { pageFaults: 0, majorFaults: 0, minorFaults: 0, pageFaultRate: 0, majorFaultRate: 0, minorFaultRate: 0, swapIn: 0, swapOut: 0, swapInRate: 0, swapOutRate: 0 }
+});
+
 const loading = ref(false);
 const tags = ref<string[]>([]);
 let ws: WebSocket | null = null;
@@ -400,6 +434,26 @@ const connectWebSocket = () => {
     const s = pb.SystemStats.decode(new Uint8Array(me.data));
     processes.value = (s.processes || []) as any;
     gpus.value = (s.gpus || []) as any;
+    systemStats.value = {
+      cpuTotal: s.cpu?.total || 0,
+      cpuCores: s.cpu?.cores || [],
+      cpuCoresDetailed: (s.cpu?.coreDetails || []) as any,
+      memTotal: Number(s.memory?.total || 0),
+      memUsed: Number(s.memory?.used || 0),
+      memPercent: s.memory?.percent || 0,
+      memCached: Number(s.memory?.cached || 0),
+      memBuffers: Number(s.memory?.buffers || 0),
+      memShared: Number(s.memory?.shared || 0),
+      zramUsed: Number(s.memory?.zramUsed || 0),
+      zramTotal: Number(s.memory?.zramTotal || 0),
+      netInterfaces: (s.io?.networks || []).map(n => ({ name: n.name || '', readSpeed: Number(n.recvBytes || 0), writeSpeed: Number(n.sentBytes || 0) })),
+      diskDevices: (s.io?.disks || []).map(d => ({ name: d.name || '', readSpeed: Number(d.readBytes || 0), writeSpeed: Number(d.writeBytes || 0) })),
+      totalNetRecv: Number(s.io?.totalNetRecvBytes || 0),
+      totalNetSent: Number(s.io?.totalNetSentBytes || 0),
+      totalDiskRead: Number(s.io?.totalReadBytes || 0),
+      totalDiskWrite: Number(s.io?.totalWriteBytes || 0),
+      faults: (s.faults || {}) as any
+    };
   };
   socket.onclose = () => { if (shouldReconnect) reconnectTimer = setTimeout(connectWebSocket, 3000); };
 };
@@ -421,13 +475,94 @@ onUnmounted(() => {
   shouldReconnect = false; stopCameraWS(); stopMicWS();
   if (sensorWs) sensorWs.close();
   if (ws) ws.close();
+  if (reconnectTimer) clearTimeout(reconnectTimer);
 });
 </script>
 
 <template>
   <div style="background: #f0f2f5; padding: 20px; min-height: 100%;">
     <a-tabs :activeKey="activeTab" @change="handleTabChange" type="card" class="monitor-tabs">
-      <a-tab-pane key="dashboard" tab="Health"><template #tab><span><DashboardOutlined /> Health</span></template><div style="background: #fff; padding: 20px; border-radius: 4px;">Health Content</div></a-tab-pane>
+      <a-tab-pane key="dashboard" tab="Health">
+        <template #tab><span><DashboardOutlined /> Health</span></template>
+        <div style="background: #fff; padding: 20px; border-radius: 4px; border: 1px solid #f0f0f0;">
+          <a-tabs v-model:activeKey="healthTab" size="small" type="line" style="margin-top: -12px;">
+            <a-tab-pane key="cpu" tab="CPU">
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; padding-top: 16px;">
+                <div v-for="core in systemStats.cpuCoresDetailed" :key="core.index" style="padding: 16px; border: 1px solid #f0f0f0; border-radius: 8px; text-align: center; background: #fafafa;">
+                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                      <span style="font-family: monospace; font-weight: bold;">#{{ core.index }}</span>
+                      <a-tag :color="getCoreTypeColor(core.type)" style="font-size: 10px;">{{ getCoreTypeName(core.type) }}</a-tag>
+                   </div>
+                   <a-progress type="dashboard" :percent="Math.round(core.usage)" :width="80" :stroke-color="core.usage > 80 ? '#ff4d4f' : getCoreTypeColor(core.type)" />
+                </div>
+              </div>
+            </a-tab-pane>
+            <a-tab-pane key="mem" tab="Memory">
+               <a-row :gutter="16" style="padding-top: 16px;">
+                  <a-col :span="12">
+                    <a-card title="Physical Memory" size="small" :bordered="false" style="background: #fafafa;">
+                       <a-statistic title="Overall Usage" :value="systemStats.memPercent" suffix="%" :precision="1" />
+                       <div style="margin-top: 16px; display: grid; gap: 8px;">
+                          <div style="display: flex; justify-content: space-between;"><span>Total:</span><b>{{ formatBytesWithUnit(systemStats.memTotal) }}</b></div>
+                          <div style="display: flex; justify-content: space-between;"><span>Used:</span><b>{{ formatBytesWithUnit(systemStats.memUsed) }}</b></div>
+                          <div style="display: flex; justify-content: space-between;"><span>Cached:</span><b>{{ formatBytesWithUnit(systemStats.memCached) }}</b></div>
+                          <div style="display: flex; justify-content: space-between;"><span>Buffers:</span><b>{{ formatBytesWithUnit(systemStats.memBuffers) }}</b></div>
+                       </div>
+                    </a-card>
+                  </a-col>
+                  <a-col :span="12">
+                    <a-card title="Swap / ZRAM" size="small" :bordered="false" style="background: #fafafa;">
+                       <div v-if="systemStats.zramTotal > 0">
+                          <a-statistic title="ZRAM Usage" :value="(systemStats.zramUsed / systemStats.zramTotal) * 100" suffix="%" :precision="1" />
+                          <div style="margin-top: 16px; display: grid; gap: 8px;">
+                             <div style="display: flex; justify-content: space-between;"><span>ZRAM Total:</span><b>{{ formatBytesWithUnit(systemStats.zramTotal) }}</b></div>
+                             <div style="display: flex; justify-content: space-between;"><span>ZRAM Used:</span><b>{{ formatBytesWithUnit(systemStats.zramUsed) }}</b></div>
+                          </div>
+                       </div>
+                       <a-empty v-else description="No ZRAM detected" />
+                    </a-card>
+                  </a-col>
+               </a-row>
+            </a-tab-pane>
+            <a-tab-pane key="io" tab="I/O">
+               <a-row :gutter="16" style="padding-top: 16px;">
+                  <a-col :span="12">
+                    <a-card title="Network" size="small" :bordered="false" style="background: #fafafa;">
+                       <div v-for="iface in systemStats.netInterfaces" :key="iface.name" style="margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0;">
+                          <div style="font-family: monospace; font-weight: bold; margin-bottom: 4px;">{{ iface.name }}</div>
+                          <div style="display: flex; gap: 16px; font-size: 12px;">
+                             <span style="color: #52c41a;">↓ {{ formatBytesWithUnit(iface.readSpeed) }}/s</span>
+                             <span style="color: #1890ff;">↑ {{ formatBytesWithUnit(iface.writeSpeed) }}/s</span>
+                          </div>
+                       </div>
+                    </a-card>
+                  </a-col>
+                  <a-col :span="12">
+                    <a-card title="Storage" size="small" :bordered="false" style="background: #fafafa;">
+                       <div v-for="disk in systemStats.diskDevices" :key="disk.name" style="margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0;">
+                          <div style="font-family: monospace; font-weight: bold; margin-bottom: 4px;">{{ disk.name }}</div>
+                          <div style="display: flex; gap: 16px; font-size: 12px;">
+                             <span style="color: #faad14;">Read: {{ formatBytesWithUnit(disk.readSpeed) }}/s</span>
+                             <span style="color: #722ed1;">Write: {{ formatBytesWithUnit(disk.writeSpeed) }}/s</span>
+                          </div>
+                       </div>
+                    </a-card>
+                  </a-col>
+               </a-row>
+            </a-tab-pane>
+            <a-tab-pane key="faults" tab="Faults">
+               <a-card title="System Page Faults" size="small" :bordered="false" style="background: #fafafa; margin-top: 16px;">
+                  <a-row :gutter="16">
+                     <a-col :span="8"><a-statistic title="Minor Faults/s" :value="systemStats.faults.minorFaultRate" :precision="1" /></a-col>
+                     <a-col :span="8"><a-statistic title="Major Faults/s" :value="systemStats.faults.majorFaultRate" :precision="1" /></a-col>
+                     <a-col :span="8"><a-statistic title="Swap Rate/s" :value="systemStats.faults.swapOutRate" :precision="1" /></a-col>
+                  </a-row>
+               </a-card>
+            </a-tab-pane>
+          </a-tabs>
+        </div>
+      </a-tab-pane>
+
       <a-tab-pane key="processes" tab="Processes"><template #tab><span><AppstoreOutlined /> Processes</span></template><div style="background: #fff; padding: 20px; border-radius: 4px;"><a-table :dataSource="processes" :columns="trackedColumns" size="small" rowKey="pid" :scroll="{ y: 'calc(100vh - 400px)' }" /></div></a-tab-pane>
 
       <a-tab-pane key="systemd" tab="Systemd">
@@ -457,17 +592,13 @@ onUnmounted(() => {
                     <a-space><span style="font-size:12px;color:#888;">Interval:</span><a-select v-model:value="sensorInterval" size="small" style="width:70px"><a-select-option :value="1000">1s</a-select-option><a-select-option :value="2000">2s</a-select-option><a-select-option :value="5000">5s</a-select-option></a-select><a-button-group size="small"><a-button @click="toggleAllSensors(true)">All</a-button><a-button @click="toggleAllSensors(false)">None</a-button></a-button-group></a-space>
                   </div>
                   <div v-for="(sensors, category) in groupedSensors" :key="category" style="margin-bottom: 24px;">
-                    <div style="font-weight: bold; font-size: 14px; color: #1890ff; border-bottom: 2px solid #e6f7ff; padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-                       <span>{{ category }}</span>
-                    </div>
+                    <div style="font-weight: bold; font-size: 14px; color: #1890ff; border-bottom: 2px solid #e6f7ff; padding-bottom: 8px; margin-bottom: 12px;"><span>{{ category }}</span></div>
                     <a-row :gutter="16">
                       <a-col :span="16"><div style="height:260px; background: #fafafa; border-radius: 8px; padding: 8px;"><VueApexCharts type="line" height="240" :options="{ ...sensorChartOptions, chart: { ...sensorChartOptions.chart, id: `chart-${category.replace(/\s+/g, '-')}` } }" :series="sensors.filter(s => sensorVisibility[s.sensorKey]).map(s => ({ name: s.label || s.sensorKey, data: (sensorHistory[s.sensorKey] || []).map(d => ({ x: d.time, y: d.value })) }))" /></div></a-col>
                       <a-col :span="8">
                         <div style="max-height: 260px; overflow-y: auto; padding-right: 4px;">
                            <div v-for="s in sensors" :key="s.sensorKey" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 6px 10px; background: #fff; border: 1px solid #f0f0f0; border-radius: 4px;">
-                              <a-checkbox v-model:checked="sensorVisibility[s.sensorKey]" style="display: flex; align-items: center; flex: 1; overflow: hidden;">
-                                <span style="font-size: 12px; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;" :title="s.label || s.sensorKey">{{ s.label || s.sensorKey }}</span>
-                              </a-checkbox>
+                              <a-checkbox v-model:checked="sensorVisibility[s.sensorKey]" style="display: flex; align-items: center; flex: 1; overflow: hidden;"><span style="font-size: 12px; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;" :title="s.label || s.sensorKey">{{ s.label || s.sensorKey }}</span></a-checkbox>
                               <span :style="{ color: s.temperature > 75 ? 'red' : s.temperature > 60 ? 'orange' : 'green', fontWeight:'bold', fontSize: '12px', marginLeft: '8px' }">{{ s.temperature.toFixed(1) }}°C</span>
                            </div>
                         </div>

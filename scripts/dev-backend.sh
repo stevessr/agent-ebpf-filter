@@ -1,8 +1,9 @@
 #!/bin/bash
-# 自动重载脚本，支持带空格的路径
+# 自动重载脚本，增强了权限处理和路径兼容性
 
 BACKEND_DIR="backend"
 WRAPPER_PATH="$(pwd)/agent-wrapper"
+CURRENT_USER=$(whoami)
 
 # 优雅退出
 trap "echo 'Stopping...'; [ -n \"$PID\" ] && sudo kill $PID; exit" SIGINT SIGTERM
@@ -12,12 +13,18 @@ get_checksum() {
 }
 
 while true; do
+    echo "--- [Dev] Preparing Environment ---"
+    # 如果发现 root 拥有的构建产物，先清理掉，防止 Operation not permitted
+    if [ -f "backend/ebpf/agenttracker_bpfel.o" ]; then
+        find backend/ebpf/ -name "agenttracker_bpf*" -user root -exec sudo rm -f {} +
+    fi
+
     echo "--- [Dev] Building Backend ---"
-    (cd backend/ebpf && go generate) && (cd backend && go build -o agent-ebpf-filter)
+    (cd backend/ebpf && go generate) && (cd backend && go build -o agent-ebpf-filter .)
     
     if [ $? -eq 0 ]; then
         echo "--- [Dev] Launching Backend ---"
-        # 使用 sudo -E 继承环境变量，避免反复输入密码
+        # 使用 sudo -E 启动，确保 eBPF 加载权限
         sudo -E DISABLE_AUTH=true AGENT_WRAPPER_PATH="$WRAPPER_PATH" ./backend/agent-ebpf-filter &
         PID=$!
         
