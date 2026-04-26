@@ -37,6 +37,10 @@ const containerRef = ref<HTMLElement | null>(null);
 const svgRef = ref<SVGSVGElement | null>(null);
 
 let resizeObserver: ResizeObserver | null = null;
+let dragDepth = 0;
+let renderQueued = false;
+const clickBlockUntil = new Map<string, number>();
+const nodePositionCache = new Map<string, { x: number; y: number }>();
 
 const megabyte = 1024 * 1024;
 const highTraffic = 10 * megabyte;
@@ -58,6 +62,12 @@ const trafficColor = (speed: number) => {
 const nodeColor = (speed: number) => {
   if (speed <= 0) return '#94a3b8';
   return trafficColor(speed);
+};
+
+const logGrowth = (value: number, min: number, max: number, ceiling: number) => {
+  if (ceiling <= 0) return min;
+  const normalized = Math.log1p(Math.max(0, value)) / Math.log1p(Math.max(ceiling, 1));
+  return min + (max - min) * Math.min(1, normalized);
 };
 
 const buildMarker = (defs: d3.Selection<SVGDefsElement, unknown, null, undefined>, id: string, color: string) => {
@@ -122,14 +132,32 @@ const renderGraph = () => {
   const aggregateOut = interfaces.reduce((sum, item) => sum + item.writeSpeed, 0);
 
   const maxSpeed = Math.max(1, ...interfaces.map((item) => item.totalSpeed), aggregateIn, aggregateOut);
-  const nodeRadius = d3.scaleSqrt().domain([0, maxSpeed]).range([22, 56]);
-  const linkWidth = d3.scaleSqrt().domain([0, maxSpeed]).range([1.5, 10]);
   const minDimension = Math.min(width, height);
+  const nodeRadius = (speed: number) => logGrowth(speed, 22, 58, maxSpeed);
+  const linkWidth = (speed: number) => logGrowth(speed, 1.4, 10, maxSpeed);
   const orbitRadius = Math.min(
-    Math.max(minDimension * 0.24, 96),
-    Math.max(minDimension / 2 - 96, 76),
+    Math.max(minDimension * 0.24, 90),
+    Math.max(minDimension / 2 - 92, 72),
   );
-  const internetRadius = 64;
+  const internetRadius = logGrowth(aggregateIn + aggregateOut, 58, 76, maxSpeed);
+
+  const clampPosition = (x: number, y: number, radius: number) => {
+    const minX = radius + 12;
+    const maxX = Math.max(minX, width - radius - 12);
+    const minY = radius + 12;
+    const maxY = Math.max(minY, height - radius - 12);
+    return {
+      x: Math.min(maxX, Math.max(minX, x)),
+      y: Math.min(maxY, Math.max(minY, y)),
+    };
+  };
+
+  const activeNames = new Set(interfaces.map((item) => item.name));
+  [...nodePositionCache.keys()].forEach((name) => {
+    if (!activeNames.has(name)) {
+      nodePositionCache.delete(name);
+    }
+  });
 
   const nodes: GraphNode[] = [
     {
@@ -145,16 +173,28 @@ const renderGraph = () => {
       const angle = Math.PI + (index / interfaces.length) * Math.PI * 2;
       const currentRadius = nodeRadius(item.totalSpeed);
       const maxRadius = Math.max(orbitRadius, minDimension / 2 - currentRadius - 20);
-      const sizeBoost = ((currentRadius - 22) / 34) * Math.max(20, minDimension * 0.08);
-      const positionRadius = Math.min(orbitRadius + sizeBoost, maxRadius);
+      const sizeBoost = Math.max(0, currentRadius - 22) * Math.max(2.2, minDimension / 120);
+      const defaultRadius = Math.min(orbitRadius + sizeBoost, maxRadius);
+      const defaultPosition = clampPosition(
+        centerX + Math.cos(angle) * defaultRadius,
+        centerY + Math.sin(angle) * defaultRadius,
+        currentRadius,
+      );
+      const cachedPosition = nodePositionCache.get(item.name);
+      const position = cachedPosition
+        ? clampPosition(cachedPosition.x, cachedPosition.y, currentRadius)
+        : defaultPosition;
+      if (cachedPosition && (cachedPosition.x !== position.x || cachedPosition.y !== position.y)) {
+        nodePositionCache.set(item.name, position);
+      }
       return {
         id: item.name,
         kind: 'interface' as const,
         readSpeed: item.readSpeed,
         writeSpeed: item.writeSpeed,
         totalSpeed: item.totalSpeed,
-        x: centerX + Math.cos(angle) * positionRadius,
-        y: centerY + Math.sin(angle) * positionRadius,
+        x: position.x,
+        y: position.y,
       };
     }),
   ];
@@ -238,8 +278,8 @@ const renderGraph = () => {
     const tangentX = -radialY;
     const tangentY = radialX;
     const side = link.id.endsWith('-tx') ? 1 : -1;
-    const arcSpread = Math.min(68, Math.max(24, linkWidth(link.speed) * 4.6));
-    const outward = Math.min(42, Math.max(14, linkWidth(link.speed) * 2.4));
+    const arcSpread = Math.min(86, Math.max(28, linkWidth(link.speed) * 5.4));
+    const outward = Math.min(48, Math.max(16, linkWidth(link.speed) * 2.6));
 
     const c1x = points.x1 + radialX * outward + tangentX * arcSpread * side;
     const c1y = points.y1 + radialY * outward + tangentY * arcSpread * side;
@@ -267,12 +307,17 @@ const renderGraph = () => {
       return 'url(#traffic-arrow-low)';
     });
 
-  linkSelection
-    .attr('d', (link) => buildLinkPath(link));
+  const updateLinkPaths = () => {
+    linkSelection.attr('d', (link) => buildLinkPath(link));
+  };
+
+  updateLinkPaths();
 
   linkSelection
     .append('title')
     .text((link) => `${link.id.endsWith('-tx') ? 'TX' : 'RX'} ${formatBytes(link.speed)}/s`);
+
+  let currentDragMoved = false;
 
   const nodeSelection = svg
     .append('g')
@@ -281,9 +326,14 @@ const renderGraph = () => {
     .join('g')
     .attr('class', 'traffic-node')
     .attr('transform', (node) => `translate(${node.x},${node.y})`)
-    .style('cursor', (node) => (node.kind === 'interface' ? 'pointer' : 'default'))
+    .style('cursor', (node) => (node.kind === 'interface' ? 'grab' : 'default'))
     .on('click', (event, node) => {
       if (node.kind !== 'interface') return;
+      if ((clickBlockUntil.get(node.id) || 0) > Date.now()) {
+        event.stopPropagation();
+        return;
+      }
+      clickBlockUntil.delete(node.id);
       event.stopPropagation();
       emit('select-interface', node.id);
     });
@@ -296,6 +346,38 @@ const renderGraph = () => {
       if (node.kind === 'internet') return 0.9;
       return node.totalSpeed > 0 ? 0.85 : 0.55;
     });
+
+  const dragBehavior = d3.drag<SVGGElement, GraphNode>()
+    .filter((_event, node) => node.kind === 'interface')
+    .on('start', function (_event, _node) {
+      dragDepth += 1;
+      currentDragMoved = false;
+      d3.select(this).raise().style('cursor', 'grabbing');
+    })
+    .on('drag', function (event, node) {
+      currentDragMoved = true;
+      const radius = getNodeRadius(node);
+      const position = clampPosition(event.x, event.y, radius);
+      node.x = position.x;
+      node.y = position.y;
+      nodePositionCache.set(node.id, position);
+      d3.select(this).attr('transform', `translate(${position.x},${position.y})`);
+      updateLinkPaths();
+    })
+    .on('end', function (_event, node) {
+      d3.select(this).style('cursor', 'grab');
+      if (currentDragMoved) {
+        clickBlockUntil.set(node.id, Date.now() + 250);
+      }
+      currentDragMoved = false;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0 && renderQueued) {
+        renderQueued = false;
+        renderGraph();
+      }
+    });
+
+  nodeSelection.filter((node) => node.kind === 'interface').call(dragBehavior as any);
 
   const textSelection = nodeSelection
     .append('text')
@@ -339,21 +421,30 @@ const renderGraph = () => {
     });
 };
 
+const requestRender = () => {
+  if (dragDepth > 0) {
+    renderQueued = true;
+    return;
+  }
+  renderQueued = false;
+  renderGraph();
+};
+
 watch(
   () => props.interfaces,
   () => {
-    renderGraph();
+    requestRender();
   },
 );
 
 onMounted(() => {
   resizeObserver = new ResizeObserver(() => {
-    renderGraph();
+    requestRender();
   });
   if (containerRef.value) {
     resizeObserver.observe(containerRef.value);
   }
-  renderGraph();
+  requestRender();
 });
 
 onBeforeUnmount(() => {
@@ -388,6 +479,12 @@ onBeforeUnmount(() => {
   stroke-dasharray: 10 8;
   animation: traffic-dash 1.6s linear infinite;
   opacity: 0.9;
+  pointer-events: none;
+}
+
+:deep(.traffic-node) {
+  touch-action: none;
+  user-select: none;
 }
 
 :deep(.traffic-node circle) {
