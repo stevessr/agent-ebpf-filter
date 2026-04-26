@@ -1041,6 +1041,17 @@ onMounted(() => {
   loading.value = true;
   axios.get('/config/tags').then(res => tags.value = res.data);
   connectWebSocket();
+
+  // Initial data fetch based on current tab
+  if (activeTab.value === 'systemd') {
+    void fetchSystemdServices();
+  } else if (activeTab.value === 'sensors') {
+    void fetchSensors();
+    void fetchCameras();
+    if (!sensorTimer) sensorTimer = setInterval(fetchSensors, 5000);
+  } else if (activeTab.value === 'tracing') {
+    void fetchTrackedComms();
+  }
 });
 onUnmounted(() => {
   stopCameraWS();

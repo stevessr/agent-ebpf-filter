@@ -13,6 +13,8 @@ var (
 	broadcast = make(chan *pb.Event, 1000)
 	
 	upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
+		CheckOrigin:     func(r *http.Request) bool { return true },
+		ReadBufferSize:  1024 * 16,
+		WriteBufferSize: 1024 * 1024, // 1MB buffer for video frames
 	}
 )

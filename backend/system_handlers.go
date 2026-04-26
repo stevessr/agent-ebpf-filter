@@ -23,11 +23,8 @@ import (
 	gnet "github.com/shirou/gopsutil/v3/net"
 	"github.com/shirou/gopsutil/v3/disk"
 	ps "github.com/shirou/gopsutil/v3/process"
-	"github.com/vladimirvivien/go4vl/device"
-	"github.com/vladimirvivien/go4vl/v4l2"
 	"google.golang.org/protobuf/proto"
 )
-// ... keeping other imports intact, just ensuring bufio is there. Wait, I will just rewrite the func.
 
 func handleSystemLs(c *gin.Context) {
 	p := c.DefaultQuery("path", "/")
@@ -175,6 +172,234 @@ func handleRun(c *gin.Context) {
 	}
 }
 
+func handleSystemdServices(c *gin.Context) {
+	scope := c.DefaultQuery("scope", "system")
+	args := []string{"list-units", "--type=service", "--all", "--no-legend", "--no-pager"}
+	if scope == "user" {
+		args = append([]string{"--user"}, args...)
+	}
+
+	cmd := exec.Command("systemctl", args...)
+	if scope == "user" {
+		if uid := os.Getenv("AGENT_REAL_UID"); uid != "" {
+			cmd.Env = append(os.Environ(), "XDG_RUNTIME_DIR=/run/user/"+uid)
+		}
+	}
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		c.JSON(500, gin.H{"error": fmt.Sprintf("%v: %s", err, string(out))})
+		return
+	}
+
+	services := []gin.H{}
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 4 {
+			continue
+		}
+		services = append(services, gin.H{
+			"unit":        fields[0],
+			"load":        fields[1],
+			"active":      fields[2],
+			"sub":         fields[3],
+			"description": strings.Join(fields[4:], " "),
+		})
+	}
+	c.JSON(200, services)
+}
+
+func handleSystemdControl(c *gin.Context) {
+	var req struct {
+		Unit   string `json:"unit"`
+		Action string `json:"action"`
+		Scope  string `json:"scope"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
+
+	validActions := map[string]bool{"start": true, "stop": true, "restart": true}
+	if !validActions[req.Action] {
+		c.JSON(400, gin.H{"error": "invalid action"})
+		return
+	}
+
+	args := []string{req.Action, req.Unit}
+	if req.Scope == "user" {
+		args = append([]string{"--user"}, args...)
+		cmd := exec.Command("systemctl", args...)
+		if err := cmd.Run(); err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		fullArgs := append([]string{"systemctl"}, args...)
+		cmd := exec.Command("pkexec", fullArgs...)
+		if err := cmd.Run(); err != nil {
+			cmd = exec.Command("systemctl", args...)
+			if err := cmd.Run(); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+		}
+	}
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleSystemdLogs(c *gin.Context) {
+	unit := c.Query("unit")
+	lines := c.DefaultQuery("lines", "100")
+	scope := c.DefaultQuery("scope", "system")
+	if unit == "" {
+		c.JSON(400, gin.H{"error": "unit is required"})
+		return
+	}
+
+	args := []string{"-u", unit, "-n", lines, "--no-pager"}
+	if scope == "user" {
+		args = append([]string{"--user"}, args...)
+	}
+
+	cmd := exec.Command("journalctl", args...)
+	out, err := cmd.Output()
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"unit": unit,
+		"logs": string(out),
+	})
+}
+
+func handleSensors(c *gin.Context) {
+	temps, _ := host.SensorsTemperatures()
+	c.JSON(200, temps)
+}
+
+func handleCameras(c *gin.Context) {
+	matches, _ := filepath.Glob("/dev/video*")
+	c.JSON(200, matches)
+}
+
+func handleCameraSnapshot(c *gin.Context) {
+	devName := c.Query("device")
+	if devName == "" {
+		devName = "/dev/video0"
+	}
+
+	stream, ch := getCameraStream(devName)
+	if stream == nil {
+		c.JSON(500, gin.H{"error": "Failed to access camera"})
+		return
+	}
+	defer stream.unregister(ch)
+
+	select {
+	case frame := <-ch:
+		c.Data(200, "image/jpeg", frame)
+	case <-time.After(3 * time.Second):
+		c.JSON(500, gin.H{"error": "Timeout waiting for frame from camera"})
+	}
+}
+
+func handleTrackedComms(c *gin.Context) {
+	items := []string{}
+	iter := trackerMaps.TrackedComms.Iterate()
+	var k [16]byte
+	var tid uint32
+	for iter.Next(&k, &tid) {
+		items = append(items, string(bytes.TrimRight(k[:], "\x00")))
+	}
+	c.JSON(200, items)
+}
+
+func handleProcessSignal(c *gin.Context) {
+	var req struct {
+		PID    int    `json:"pid"`
+		Signal string `json:"signal"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
+
+	p, err := os.FindProcess(req.PID)
+	if err != nil {
+		c.JSON(404, gin.H{"error": "process not found"})
+		return
+	}
+
+	var sig os.Signal
+	switch strings.ToLower(req.Signal) {
+	case "stop":
+		sig = syscall.SIGSTOP
+	case "cont":
+		sig = syscall.SIGCONT
+	case "kill":
+		sig = syscall.SIGKILL
+	case "term":
+		sig = syscall.SIGTERM
+	default:
+		c.JSON(400, gin.H{"error": "unsupported signal"})
+		return
+	}
+
+	if err := p.Signal(sig); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func serveCameraWS(c *gin.Context) {
+	devName := c.Query("device")
+	if devName == "" {
+		devName = "/dev/video0"
+	}
+	
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	stream, ch := getCameraStream(devName)
+	if stream == nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to access camera"))
+		return
+	}
+	defer stream.unregister(ch)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case frame, ok := <-ch:
+			if !ok {
+				return
+			}
+			if err := conn.WriteMessage(websocket.BinaryMessage, frame); err != nil {
+				return
+			}
+		case <-done:
+			return
+		}
+	}
+}
+
 func serveSystemStatsWS(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -312,259 +537,6 @@ func serveSystemStatsWS(c *gin.Context) {
 		}
 		data, _ := proto.Marshal(stats)
 		if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
-			return
-		}
-	}
-}
-
-func handleSystemdServices(c *gin.Context) {
-	scope := c.DefaultQuery("scope", "system")
-	args := []string{"list-units", "--type=service", "--all", "--no-legend", "--no-pager"}
-	if scope == "user" {
-		args = append([]string{"--user"}, args...)
-	}
-
-	cmd := exec.Command("systemctl", args...)
-	// In user scope, we might need to point to the correct user bus if running as root
-	if scope == "user" {
-		if uid := os.Getenv("AGENT_REAL_UID"); uid != "" {
-			// This is a common way to talk to user session from sudo/root
-			cmd.Env = append(os.Environ(), "XDG_RUNTIME_DIR=/run/user/"+uid)
-		}
-	}
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		c.JSON(500, gin.H{"error": fmt.Sprintf("%v: %s", err, string(out))})
-		return
-	}
-
-	services := []gin.H{}
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) < 4 {
-			continue
-		}
-		services = append(services, gin.H{
-			"unit":        fields[0],
-			"load":        fields[1],
-			"active":      fields[2],
-			"sub":         fields[3],
-			"description": strings.Join(fields[4:], " "),
-		})
-	}
-	c.JSON(200, services)
-}
-
-func handleSystemdControl(c *gin.Context) {
-	var req struct {
-		Unit   string `json:"unit"`
-		Action string `json:"action"` // start, stop, restart
-		Scope  string `json:"scope"`  // system, user
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "invalid request"})
-		return
-	}
-
-	validActions := map[string]bool{"start": true, "stop": true, "restart": true}
-	if !validActions[req.Action] {
-		c.JSON(400, gin.H{"error": "invalid action"})
-		return
-	}
-
-	args := []string{req.Action, req.Unit}
-	if req.Scope == "user" {
-		args = append([]string{"--user"}, args...)
-		cmd := exec.Command("systemctl", args...)
-		if err := cmd.Run(); err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
-			return
-		}
-	} else {
-		// Use pkexec or sudo if available for systemctl actions
-		fullArgs := append([]string{"systemctl"}, args...)
-		cmd := exec.Command("pkexec", fullArgs...)
-		if err := cmd.Run(); err != nil {
-			cmd = exec.Command("systemctl", args...)
-			if err := cmd.Run(); err != nil {
-				c.JSON(500, gin.H{"error": err.Error()})
-				return
-			}
-		}
-	}
-	c.JSON(200, gin.H{"status": "ok"})
-}
-
-func handleSystemdLogs(c *gin.Context) {
-	unit := c.Query("unit")
-	lines := c.DefaultQuery("lines", "100")
-	scope := c.DefaultQuery("scope", "system")
-	if unit == "" {
-		c.JSON(400, gin.H{"error": "unit is required"})
-		return
-	}
-
-	args := []string{"-u", unit, "-n", lines, "--no-pager"}
-	if scope == "user" {
-		args = append([]string{"--user"}, args...)
-	}
-
-	cmd := exec.Command("journalctl", args...)
-	out, err := cmd.Output()
-	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(200, gin.H{
-		"unit": unit,
-		"logs": string(out),
-	})
-}
-
-func handleSensors(c *gin.Context) {
-	temps, _ := host.SensorsTemperatures()
-	// You could also add fan speeds or voltages here if available via other means
-	c.JSON(200, temps)
-}
-
-func handleCameras(c *gin.Context) {
-	matches, _ := filepath.Glob("/dev/video*")
-	// Filter out non-capture devices (usually even numbers are capture, odd are metadata/etc)
-	// For simplicity, return all and let user choose
-	c.JSON(200, matches)
-}
-
-func handleCameraSnapshot(c *gin.Context) {
-	devName := c.Query("device")
-	if devName == "" {
-		devName = "/dev/video0"
-	}
-
-	cam, err := device.Open(devName, device.WithIOType(v4l2.IOTypeMMAP))
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to open camera: " + err.Error()})
-		return
-	}
-	defer cam.Close()
-
-	if err := cam.SetPixFormat(v4l2.PixFormat{PixelFormat: v4l2.PixelFmtMJPEG, Width: 640, Height: 480}); err != nil {
-		c.JSON(500, gin.H{"error": "Failed to set camera format: " + err.Error()})
-		return
-	}
-
-	if err := cam.Start(c.Request.Context()); err != nil {
-		c.JSON(500, gin.H{"error": "Failed to start camera stream: " + err.Error()})
-		return
-	}
-	defer cam.Stop()
-
-	select {
-	case frame := <-cam.GetOutput():
-		c.Data(200, "image/jpeg", frame)
-	case <-time.After(3 * time.Second):
-		c.JSON(500, gin.H{"error": "Timeout waiting for frame from camera"})
-	}
-}
-
-func handleTrackedComms(c *gin.Context) {
-	items := []string{}
-	iter := trackerMaps.TrackedComms.Iterate()
-	var k [16]byte
-	var tid uint32
-	for iter.Next(&k, &tid) {
-		items = append(items, string(bytes.TrimRight(k[:], "\x00")))
-	}
-	c.JSON(200, items)
-}
-
-func handleProcessSignal(c *gin.Context) {
-	var req struct {
-		PID    int    `json:"pid"`
-		Signal string `json:"signal"` // stop, cont, kill, term
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "invalid request"})
-		return
-	}
-
-	p, err := os.FindProcess(req.PID)
-	if err != nil {
-		c.JSON(404, gin.H{"error": "process not found"})
-		return
-	}
-
-	var sig os.Signal
-	switch strings.ToLower(req.Signal) {
-	case "stop":
-		sig = syscall.SIGSTOP
-	case "cont":
-		sig = syscall.SIGCONT
-	case "kill":
-		sig = syscall.SIGKILL
-	case "term":
-		sig = syscall.SIGTERM
-	default:
-		c.JSON(400, gin.H{"error": "unsupported signal"})
-		return
-	}
-
-	if err := p.Signal(sig); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(200, gin.H{"status": "ok"})
-}
-
-func serveCameraWS(c *gin.Context) {
-	devName := c.Query("device")
-	if devName == "" {
-		devName = "/dev/video0"
-	}
-	
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	cam, err := device.Open(devName, device.WithIOType(v4l2.IOTypeMMAP))
-	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to open camera: "+err.Error()))
-		return
-	}
-	defer cam.Close()
-
-	if err := cam.SetPixFormat(v4l2.PixFormat{PixelFormat: v4l2.PixelFmtMJPEG, Width: 640, Height: 480}); err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to set camera format: "+err.Error()))
-		return
-	}
-
-	if err := cam.Start(c.Request.Context()); err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to start camera stream: "+err.Error()))
-		return
-	}
-	defer cam.Stop()
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				return
-			}
-		}
-	}()
-
-	for {
-		select {
-		case frame := <-cam.GetOutput():
-			if err := conn.WriteMessage(websocket.BinaryMessage, frame); err != nil {
-				return
-			}
-		case <-done:
 			return
 		}
 	}
