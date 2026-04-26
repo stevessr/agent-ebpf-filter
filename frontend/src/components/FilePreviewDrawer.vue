@@ -132,12 +132,20 @@ watchEffect(async () => {
 
         <div v-else-if="preview.previewType === 'video'" class="file-preview-drawer__content">
           <video 
+            v-if="preview.mimeType.startsWith('video/')"
             controls 
             autoplay
             style="width: 100%; max-height: 70vh; border-radius: 8px; background: #000;"
             :src="videoUrl">
             Your browser does not support the video tag.
           </video>
+          <div v-else-if="preview.mimeType.startsWith('audio/')" style="padding: 40px; background: #f0f2f5; border-radius: 8px; text-align: center;">
+            <div style="margin-bottom: 16px; font-size: 48px;">🎵</div>
+            <audio controls autoplay style="width: 100%;" :src="videoUrl">
+              Your browser does not support the audio element.
+            </audio>
+            <div style="margin-top: 12px; color: #666; font-size: 14px;">{{ preview.name }}</div>
+          </div>
         </div>
 
         <div v-else-if="preview.previewType === 'text'" class="file-preview-drawer__content">

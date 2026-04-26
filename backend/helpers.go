@@ -270,8 +270,8 @@ func buildFilePreview(path string) (*FilePreviewResponse, error) {
 		return res, nil
 	}
 
-	if strings.HasPrefix(mimeType, "video/") {
-		res.PreviewType = "video"
+	if strings.HasPrefix(mimeType, "video/") || strings.HasPrefix(mimeType, "audio/") {
+		res.PreviewType = "video" // We'll use 'video' as a generic media type for now
 		return res, nil
 	}
 
