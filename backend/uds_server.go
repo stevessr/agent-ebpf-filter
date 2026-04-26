@@ -3,6 +3,7 @@ package main
 import (
 	"net"
 	"os"
+	"regexp"
 	"strings"
 
 	"agent-ebpf-filter/pb"
@@ -48,7 +49,18 @@ func startUDSServer(broadcast chan *pb.Event) {
 						resp.Message = "Security alert"
 					case "REWRITE":
 						resp.Action = pb.WrapperResponse_REWRITE
-						resp.RewrittenArgs = rule.RewrittenCmd
+						if rule.Regex != "" {
+							fullArgs := strings.Join(req.Args, " ")
+							re, err := regexp.Compile(rule.Regex)
+							if err == nil {
+								newFull := re.ReplaceAllString(fullArgs, rule.Replacement)
+								resp.RewrittenArgs = strings.Fields(newFull)
+							} else {
+								resp.RewrittenArgs = rule.RewrittenCmd
+							}
+						} else {
+							resp.RewrittenArgs = rule.RewrittenCmd
+						}
 					}
 				}
 				select {

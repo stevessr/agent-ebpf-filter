@@ -13,6 +13,7 @@ import {
   SwapOutlined,
   StopOutlined,
   AlertOutlined,
+  ArrowRightOutlined,
   CopyOutlined,
   ReloadOutlined,
   DeleteOutlined,
@@ -45,6 +46,8 @@ interface WrapperRule {
   comm: string;
   action: string;
   rewritten_cmd: string[];
+  regex?: string;
+  replacement?: string;
 }
 
 interface ClusterNodeInfo {
@@ -109,11 +112,13 @@ const newPrefixTag = ref("");
 const importFileInput = ref<HTMLInputElement | null>(null);
 
 // Wrapper rule state
-const newRuleComm = ref("");
-const newRuleAction = ref("BLOCK");
-const newRuleRewritten = ref("");
-const activeTabKey = ref("registry");
-const registryTabKey = ref("tags");
+const newRuleComm = ref('');
+const newRuleAction = ref('BLOCK');
+const newRuleRewritten = ref('');
+const newRuleRegex = ref('');
+const newRuleReplacement = ref('');
+const activeTabKey = ref('registry');
+const registryTabKey = ref('tags');
 
 const syncApiToken = (token: string) => {
   const normalized = token.trim();
@@ -428,17 +433,19 @@ const removePrefix = async (prefix: string) => {
 const saveRule = async () => {
   if (!newRuleComm.value) return;
   try {
-    const rule: WrapperRule = {
+    const rule: any = {
       comm: newRuleComm.value,
       action: newRuleAction.value,
-      rewritten_cmd:
-        newRuleAction.value === "REWRITE"
-          ? newRuleRewritten.value.split(" ").filter((s) => s)
-          : [],
+      rewritten_cmd: newRuleAction.value === 'REWRITE' && !newRuleRegex.value ? newRuleRewritten.value.split(' ').filter(s => s) : [],
+      regex: newRuleRegex.value,
+      replacement: newRuleReplacement.value
     };
-    await axios.post("/config/rules", rule);
-    message.success("Rule saved");
-    newRuleComm.value = "";
+    await axios.post('/config/rules', rule);
+    message.success('Rule saved');
+    newRuleComm.value = '';
+    newRuleRewritten.value = '';
+    newRuleRegex.value = '';
+    newRuleReplacement.value = '';
     fetchRules();
   } catch (err) {}
 };
@@ -903,110 +910,67 @@ onMounted(async () => {
           <a-col :span="24">
             <a-card title="Wrapper Security Policies" size="small">
               <template #extra><SafetyCertificateOutlined /></template>
-              <div
-                style="
-                  margin-bottom: 16px;
-                  background: #fafafa;
-                  padding: 16px;
-                  border-radius: 8px;
-                "
-              >
-                <a-row :gutter="16" align="middle">
+              <div style="margin-bottom: 16px; background: #fafafa; padding: 16px; border-radius: 8px;">
+                <a-row :gutter="[16, 16]" align="middle">
                   <a-col :xs="24" :md="6">
-                    <a-input
-                      v-model:value="newRuleComm"
-                      placeholder="Command to intercept (e.g. rm)"
-                    />
+                    <a-input v-model:value="newRuleComm" placeholder="Command (e.g. rm)" />
                   </a-col>
                   <a-col :xs="24" :md="4">
                     <a-select v-model:value="newRuleAction" style="width: 100%">
-                      <a-select-option value="BLOCK"
-                        >Block Execution</a-select-option
-                      >
-                      <a-select-option value="REWRITE"
-                        >Rewrite Command</a-select-option
-                      >
-                      <a-select-option value="ALERT"
-                        >Alert Only</a-select-option
-                      >
+                      <a-select-option value="BLOCK">Block Execution</a-select-option>
+                      <a-select-option value="REWRITE">Rewrite Command</a-select-option>
+                      <a-select-option value="ALERT">Alert Only</a-select-option>
                     </a-select>
                   </a-col>
-                  <a-col :xs="24" :md="10">
-                    <a-input
-                      v-if="newRuleAction === 'REWRITE'"
-                      v-model:value="newRuleRewritten"
-                      placeholder="Rewritten command (e.g. ls -la)"
-                    />
-                    <span v-else style="color: #999; font-size: 12px"
-                      >Intercepts and blocks or warns when the command is called
-                      via agent-wrapper</span
-                    >
+                  <template v-if="newRuleAction === 'REWRITE'">
+                    <a-col :xs="24" :md="5">
+                      <a-input v-model:value="newRuleRegex" placeholder="Regex (Optional)" />
+                    </a-col>
+                    <a-col :xs="24" :md="5">
+                      <a-input v-model:value="newRuleReplacement" placeholder="Replacement" />
+                    </a-col>
+                    <a-col :xs="24" :md="4">
+                      <a-input v-if="!newRuleRegex" v-model:value="newRuleRewritten" placeholder="Fixed cmd" />
+                    </a-col>
+                  </template>
+                  <a-col v-else :xs="24" :md="10">
+                    <span style="color: #999; font-size: 12px;">Intercepts and blocks or warns when the command is called via agent-wrapper</span>
                   </a-col>
-                  <a-col :xs="24" :md="4" style="text-align: right">
-                    <a-button type="primary" @click="saveRule"
-                      ><PlusOutlined /> Add Policy</a-button
-                    >
+                  <a-col :xs="24" :md="24" style="text-align: right; margin-top: 8px;">
+                    <a-button type="primary" @click="saveRule"><PlusOutlined /> Add Policy</a-button>
                   </a-col>
                 </a-row>
               </div>
 
-              <a-table
-                :dataSource="Object.values(wrapperRules)"
-                size="small"
-                rowKey="comm"
-                :pagination="false"
-              >
-                <a-table-column
-                  title="Intercepted Command"
-                  data-index="comm"
-                  key="comm"
-                >
-                  <template #default="{ text }"
-                    ><code>{{ text }}</code></template
-                  >
+              <a-table :dataSource="Object.values(wrapperRules)" size="small" rowKey="comm" :pagination="false">
+                <a-table-column title="Intercepted Command" dataIndex="comm" key="comm">
+                  <template #default="{ text }"><code>{{ text }}</code></template>
                 </a-table-column>
-                <a-table-column title="Action" data-index="action" key="action">
+                <a-table-column title="Action" dataIndex="action" key="action">
                   <template #default="{ text }">
-                    <a-tag
-                      :color="
-                        text === 'BLOCK'
-                          ? 'red'
-                          : text === 'REWRITE'
-                            ? 'blue'
-                            : 'orange'
-                      "
-                    >
-                      <component
-                        :is="
-                          text === 'BLOCK'
-                            ? StopOutlined
-                            : text === 'REWRITE'
-                              ? SwapOutlined
-                              : AlertOutlined
-                        "
-                      />
+                    <a-tag :color="text === 'BLOCK' ? 'red' : (text === 'REWRITE' ? 'blue' : 'orange')">
+                      <component :is="text === 'BLOCK' ? StopOutlined : (text === 'REWRITE' ? SwapOutlined : AlertOutlined)" />
                       {{ text }}
                     </a-tag>
                   </template>
                 </a-table-column>
-                <a-table-column
-                  title="Rewritten To"
-                  data-index="rewritten_cmd"
-                  key="rewritten_cmd"
-                >
-                  <template #default="{ text }">
-                    <code v-if="text && text.length">{{ text.join(" ") }}</code>
+                <a-table-column title="Logic" key="logic">
+                  <template #default="{ record }">
+                    <div v-if="record.action === 'REWRITE'">
+                      <div v-if="record.regex">
+                        <a-tag color="cyan">Regex</a-tag> <code>{{ record.regex }}</code>
+                        <div style="margin-top: 4px;"><ArrowRightOutlined /> <code>{{ record.replacement }}</code></div>
+                      </div>
+                      <div v-else-if="record.rewritten_cmd">
+                        <a-tag color="blue">Fixed</a-tag> <code>{{ record.rewritten_cmd.join(' ') }}</code>
+                      </div>
+                    </div>
                     <span v-else>-</span>
                   </template>
                 </a-table-column>
                 <a-table-column title="Remove" key="action" width="100px">
                   <template #default="{ record }">
-                    <a-button
-                      type="link"
-                      danger
-                      @click="deleteRule(record.comm)"
-                      >Delete</a-button
-                    >
+                    <a-button type="link" danger @click="deleteRule(record.comm)">Delete</a-button>
                   </template>
                 </a-table-column>
               </a-table>
