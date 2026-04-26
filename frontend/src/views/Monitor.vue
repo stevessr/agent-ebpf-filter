@@ -23,8 +23,9 @@ interface GPUStatus {
 
 interface ProcessInfo {
   pid: number; ppid: number; name: string; cpu: number; mem: number;
-  user: string; gpuMem: number; gpuId: number; 
+  user: string; gpuMem: number; gpuId: number; gpuUtil: number;
   cmdline: string; createTime: number;
+  minorFaults: number; majorFaults: number;
 }
 
 interface IOSpeed {
@@ -63,6 +64,79 @@ const router = useRouter();
 const activeTab = ref((route.params.tab as string) || 'dashboard');
 const sensorSubTab = ref((route.params.subtab as string) || 'hardware');
 const healthTab = ref('cpu');
+
+const processSearch = ref('');
+const processViewMode = ref<'flat' | 'tree' | 'merged'>('flat');
+const showProcessMapsModal = ref(false);
+const selectedProcessMaps = ref('');
+const selectedProcessDetails = ref<any>(null);
+const processMapsLoading = ref(false);
+
+const processedProcesses = computed(() => {
+  let list = processes.value.map(p => ({ ...p, key: p.pid }));
+  
+  if (processSearch.value) {
+    const q = processSearch.value.toLowerCase();
+    list = list.filter(p => p.name.toLowerCase().includes(q) || p.pid.toString().includes(q) || (p.cmdline && p.cmdline.toLowerCase().includes(q)));
+  }
+
+  if (processViewMode.value === 'merged') {
+    const merged: Record<string, any> = {};
+    list.forEach(p => {
+      if (!merged[p.name]) {
+        merged[p.name] = { ...p, key: `group-${p.name}`, children: [], instances: 0, totalCpu: 0, totalMem: 0, totalGpuMem: 0, totalGpuUtil: 0 };
+      }
+      merged[p.name].instances++;
+      merged[p.name].totalCpu += p.cpu;
+      merged[p.name].totalMem += p.mem;
+      merged[p.name].totalGpuMem += p.gpuMem;
+      merged[p.name].totalGpuUtil += p.gpuUtil;
+      merged[p.name].children.push({ ...p, key: p.pid });
+    });
+    return Object.values(merged).map(m => ({
+      ...m,
+      cpu: m.totalCpu,
+      mem: m.totalMem,
+      gpuMem: m.totalGpuMem,
+      gpuUtil: m.totalGpuUtil,
+      name: `${m.name} (${m.instances})`
+    })).sort((a, b) => b.cpu - a.cpu);
+  }
+
+  if (processViewMode.value === 'tree') {
+    const map: Record<number, any> = {};
+    list.forEach(p => map[p.pid] = { ...p, key: p.pid, children: [] });
+    const roots: any[] = [];
+    list.forEach(p => {
+      if (map[p.ppid] && p.ppid !== p.pid) {
+        map[p.ppid].children.push(map[p.pid]);
+      } else {
+        roots.push(map[p.pid]);
+      }
+    });
+    // If filtering is active, tree view might look weird as parents might be filtered out.
+    // Usually tree view is best without filtering or with a way to show matches and their parents.
+    return roots;
+  }
+
+  return list;
+});
+
+const showProcessDetails = async (record: any) => {
+  if (record.key && typeof record.key === 'string' && record.key.startsWith('group-')) return;
+  selectedProcessDetails.value = record;
+  showProcessMapsModal.value = true;
+  processMapsLoading.value = true;
+  selectedProcessMaps.value = '';
+  try {
+    const res = await axios.get(`/system/process/maps?pid=${record.pid}`);
+    selectedProcessMaps.value = res.data.maps;
+  } catch (err) {
+    selectedProcessMaps.value = 'Failed to fetch maps. Process might have exited.';
+  } finally {
+    processMapsLoading.value = false;
+  }
+};
 
 interface SystemdService {
   unit: string; load: string; active: string; sub: string; description: string;
@@ -308,10 +382,12 @@ const trackedProcesses = computed(() => {
 });
 
 const trackedColumns = [
-  { title: 'PID', dataIndex: 'pid', key: 'pid', width: 80, sorter: (a: any, b: any) => a.pid - b.pid },
+  { title: 'PID', dataIndex: 'pid', key: 'pid', width: 100, sorter: (a: any, b: any) => a.pid - b.pid },
   { title: 'Name', dataIndex: 'name', key: 'name', sorter: (a: any, b: any) => a.name.localeCompare(b.name) },
-  { title: 'CPU %', dataIndex: 'cpu', key: 'cpu', width: 90, align: 'right' },
-  { title: 'Mem %', dataIndex: 'mem', key: 'mem', width: 90, align: 'right' },
+  { title: 'CPU %', dataIndex: 'cpu', key: 'cpu', width: 90, align: 'right', sorter: (a: any, b: any) => a.cpu - b.cpu },
+  { title: 'Mem %', dataIndex: 'mem', key: 'mem', width: 90, align: 'right', sorter: (a: any, b: any) => a.mem - b.mem },
+  { title: 'GPU Util', dataIndex: 'gpuUtil', key: 'gpuUtil', width: 90, align: 'right', sorter: (a: any, b: any) => a.gpuUtil - b.gpuUtil },
+  { title: 'VRAM', dataIndex: 'gpuMem', key: 'gpuMem', width: 90, align: 'right', sorter: (a: any, b: any) => a.gpuMem - b.gpuMem },
   { title: 'User', dataIndex: 'user', key: 'user', width: 100 },
   { title: 'Action', key: 'action', width: 260, align: 'right' },
 ];
@@ -874,7 +950,53 @@ onUnmounted(() => {
         </div>
       </a-tab-pane>
 
-      <a-tab-pane key="processes" tab="Processes"><template #tab><span><AppstoreOutlined /> Processes</span></template><div style="background: #fff; padding: 20px; border-radius: 4px;"><a-table :dataSource="processes" :columns="trackedColumns" size="small" rowKey="pid" :scroll="{ y: 'calc(100vh - 400px)' }" /></div></a-tab-pane>
+      <a-tab-pane key="processes" tab="Processes">
+        <template #tab><span><AppstoreOutlined /> Processes</span></template>
+        <div style="background: #fff; padding: 20px; border-radius: 4px;">
+          <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 16px;">
+            <a-space>
+              <a-radio-group v-model:value="processViewMode" button-style="solid" size="small">
+                <a-radio-button value="flat">Flat</a-radio-button>
+                <a-radio-button value="tree">Tree</a-radio-button>
+                <a-radio-button value="merged">Merged</a-radio-button>
+              </a-radio-group>
+              <a-input-search v-model:value="processSearch" placeholder="Search processes (name/PID/cmd)..." style="width: 300px" size="small" allow-clear />
+            </a-space>
+            <span style="font-size: 12px; color: #888;">Total: {{ processes.length }} processes</span>
+          </div>
+          <a-table :dataSource="processedProcesses" :columns="trackedColumns" size="small" rowKey="key" :scroll="{ y: 'calc(100vh - 420px)' }" @change="(p, f, s) => {}" :pagination="false">
+             <template #bodyCell="{ column, record, text }">
+                <template v-if="column.key === 'pid'">
+                   <span v-if="record.key && typeof record.key === 'string' && record.key.startsWith('group-')" style="color: #888;">Multiple</span>
+                   <span v-else style="font-family: monospace;">{{ text }}</span>
+                </template>
+                <template v-if="column.key === 'name'">
+                   <span style="font-weight: 500; cursor: pointer; color: #1890ff;" @click="showProcessDetails(record)">{{ text }}</span>
+                </template>
+                <template v-if="column.key === 'cpu'">
+                   <span :style="{ color: text > 50 ? '#ff4d4f' : 'inherit', fontWeight: text > 20 ? 'bold' : 'normal' }">{{ text.toFixed(1) }}%</span>
+                </template>
+                <template v-if="column.key === 'mem'">
+                   <span>{{ text.toFixed(1) }}%</span>
+                </template>
+                <template v-if="column.key === 'gpuUtil'">
+                   <span v-if="text > 0">{{ text }}%</span>
+                   <span v-else color="#ccc">-</span>
+                </template>
+                <template v-if="column.key === 'gpuMem'">
+                   <span v-if="text > 0">{{ text }} MB</span>
+                   <span v-else color="#ccc">-</span>
+                </template>
+                <template v-if="column.key === 'action'">
+                   <a-space v-if="!(record.key && typeof record.key === 'string' && record.key.startsWith('group-'))">
+                      <a-button type="link" size="small" @click="showProcessDetails(record)">Details</a-button>
+                      <a-button type="link" size="small" danger @click="sendProcessSignal(record.pid, 'kill')">Kill</a-button>
+                   </a-space>
+                </template>
+             </template>
+          </a-table>
+        </div>
+      </a-tab-pane>
 
       <a-tab-pane key="systemd" tab="Systemd">
         <template #tab><span><DeploymentUnitOutlined /> Systemd</span></template>
@@ -972,6 +1094,23 @@ onUnmounted(() => {
     <a-modal v-model:open="showHistoryModal" :title="historyModalTitle" width="800px" :footer="null">
        <div style="height: 400px; padding: 12px;">
           <VueApexCharts type="line" height="380" :options="historyChartOptions" :series="historySeries" />
+       </div>
+    </a-modal>
+
+    <a-modal v-model:open="showProcessMapsModal" :title="`Process Details: ${selectedProcessDetails?.name} (PID: ${selectedProcessDetails?.pid})`" width="1000px" :footer="null">
+       <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div v-if="selectedProcessDetails" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; background: #fafafa; padding: 12px; border-radius: 4px;">
+             <div><span style="color:#888">User:</span> <b>{{ selectedProcessDetails.user }}</b></div>
+             <div><span style="color:#888">CPU:</span> <b>{{ selectedProcessDetails.cpu.toFixed(1) }}%</b></div>
+             <div><span style="color:#888">Mem:</span> <b>{{ selectedProcessDetails.mem.toFixed(1) }}%</b></div>
+             <div style="grid-column: span 3;"><span style="color:#888">Command:</span> <code style="font-size: 11px;">{{ selectedProcessDetails.cmdline }}</code></div>
+          </div>
+          <div style="height: 500px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px;">
+             <a-spin :spinning="processMapsLoading">
+                <pre v-if="selectedProcessMaps" style="margin: 0; white-space: pre-wrap; word-break: break-all;">{{ selectedProcessMaps }}</pre>
+                <a-empty v-else-if="!processMapsLoading" description="No map data available" />
+             </a-spin>
+          </div>
        </div>
     </a-modal>
   </div>

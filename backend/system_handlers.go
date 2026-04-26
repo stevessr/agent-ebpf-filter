@@ -674,6 +674,20 @@ func serveSystemStatsWS(c *gin.Context) {
 	}
 }
 
+func handleProcessMaps(c *gin.Context) {
+	pidStr := c.Query("pid")
+	if pidStr == "" {
+		c.JSON(400, gin.H{"error": "pid required"})
+		return
+	}
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%s/maps", pidStr))
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"maps": string(data)})
+}
+
 func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/ls", handleSystemLs)
 	rg.GET("/file-preview", handleFilePreview)
@@ -691,4 +705,5 @@ func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/camera/snapshot", handleCameraSnapshot)
 	rg.GET("/tracked-comms", handleTrackedComms)
 	rg.POST("/process/signal", handleProcessSignal)
+	rg.GET("/process/maps", handleProcessMaps)
 }
