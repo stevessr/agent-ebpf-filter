@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	bpf "agent-ebpf-filter/ebpf"
 
@@ -263,12 +264,36 @@ func ensurePinnedMapPermissions() error {
 
 func privilegedCommand(priv, exe string, args ...string) *exec.Cmd {
 	if filepath.Base(priv) == "sudo" {
-		sudoArgs := []string{"--preserve-env=AGENT_WRAPPER_PATH,DISPLAY,WAYLAND_DISPLAY,XAUTHORITY,USER,HOME,AGENT_REAL_HOME", exe}
+		sudoArgs := []string{"--preserve-env=AGENT_WRAPPER_PATH,DISPLAY,WAYLAND_DISPLAY,XAUTHORITY,USER,HOME,AGENT_REAL_HOME,GIN_MODE,DISABLE_AUTH", exe}
 		sudoArgs = append(sudoArgs, args...)
 		return exec.Command(priv, sudoArgs...)
 	}
+
 	cmdArgs := append([]string{exe}, args...)
-	return exec.Command(priv, cmdArgs...)
+	cmd := exec.Command(priv, cmdArgs...)
+
+	// Manual environment inheritance for non-sudo escalators (like pkexec)
+	// We want to pass down only selected safe/required variables.
+	whitelist := map[string]bool{
+		"AGENT_WRAPPER_PATH": true,
+		"AGENT_REAL_HOME":    true,
+		"GIN_MODE":           true,
+		"DISABLE_AUTH":       true,
+		"DISPLAY":            true,
+		"WAYLAND_DISPLAY":    true,
+		"XAUTHORITY":         true,
+	}
+
+	inherited := os.Environ()
+	for _, env := range os.Environ() {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) == 2 && whitelist[parts[0]] {
+			inherited = setEnvValue(inherited, parts[0], parts[1])
+		}
+	}
+	cmd.Env = inherited
+
+	return cmd
 }
 
 func privilegeEscalationCmd() (string, error) {

@@ -250,7 +250,8 @@ func buildFilePreview(path string) (*FilePreviewResponse, error) {
 
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if os.Getenv("GIN_MODE") != "release" && (os.Getenv("DISABLE_AUTH") == "true" || os.Getenv("DISABLE_AUTH") == "") {
+		// Bypass auth in debug/test modes or if explicitly disabled
+		if gin.Mode() != gin.ReleaseMode || os.Getenv("DISABLE_AUTH") == "true" {
 			c.Next()
 			return
 		}

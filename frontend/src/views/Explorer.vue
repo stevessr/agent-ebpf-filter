@@ -53,17 +53,7 @@ const filteredEntries = computed(() => {
   return result;
 });
 
-const paginatedEntries = computed(() => {
-  return filteredEntries.value.slice(0, currentPage.value * pageSize);
-});
-
-const hasMore = computed(() => {
-  return paginatedEntries.value.length < filteredEntries.value.length;
-});
-
-const loadMore = () => {
-  currentPage.value++;
-};
+const totalItems = ref(0);
 
 const isImage = (entry: FileEntry) => {
   return entry.mimeType?.startsWith('image/');
@@ -85,21 +75,46 @@ const fetchHome = async () => {
   }
 };
 
-const fetchEntries = async (path: string) => {
+const fetchEntries = async (path: string, isAppend = false) => {
   loading.value = true;
-  currentPage.value = 1;
+  if (!isAppend) {
+    currentPage.value = 1;
+    entries.value = [];
+  }
   try {
-    const res = await axios.get(`/system/ls?path=${encodeURIComponent(path)}`);
-    entries.value = res.data.sort((a: FileEntry, b: FileEntry) => {
-      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-      return a.name.localeCompare(b.name);
+    const offset = (currentPage.value - 1) * pageSize;
+    const res = await axios.get('/system/ls', {
+      params: {
+        path: path,
+        offset: offset,
+        limit: pageSize
+      }
     });
-    currentPath.value = path;
+    const newItems = res.data.items || [];
+    totalItems.value = res.data.total || 0;
+    
+    if (isAppend) {
+      entries.value = [...entries.value, ...newItems];
+    } else {
+      entries.value = newItems;
+      currentPath.value = path;
+    }
   } catch (err) {
     message.error('Failed to read directory');
   } finally {
     loading.value = false;
   }
+};
+
+const paginatedEntries = computed(() => entries.value);
+
+const hasMore = computed(() => {
+  return entries.value.length < totalItems.value;
+});
+
+const loadMore = () => {
+  currentPage.value++;
+  void fetchEntries(currentPath.value, true);
 };
 
 const fetchTags = async () => {
@@ -246,7 +261,7 @@ onMounted(async () => {
     <div style="display: flex; justify-content: space-between; margin-bottom: 16px; align-items: center; flex-wrap: wrap; gap: 16px;">
       <a-breadcrumb>
         <a-breadcrumb-item v-for="crumb in pathBreadcrumbs" :key="crumb.path">
-          <a @click="navigateToPath(crumb.path)" style="color: #1f2937; font-weight: 500;">{{ crumb.name }}</a>
+          <a @click="navigateToPath(crumb.path)" style="color: #374151; font-weight: 600;">{{ crumb.name }}</a>
         </a-breadcrumb-item>
       </a-breadcrumb>
       

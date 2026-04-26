@@ -896,9 +896,32 @@ func main() {
 		{
 			system.GET("/ls", func(c *gin.Context) {
 				p := c.DefaultQuery("path", "/")
-				e, _ := os.ReadDir(p)
+				offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+				limit, _ := strconv.Atoi(c.DefaultQuery("limit", "0"))
+
+				e, err := os.ReadDir(p)
+				if err != nil {
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
+				}
+
+				total := len(e)
+				start := offset
+				if start < 0 {
+					start = 0
+				}
+				if start > total {
+					start = total
+				}
+
+				end := total
+				if limit > 0 && start+limit < total {
+					end = start + limit
+				}
+
+				slice := e[start:end]
 				l := []gin.H{}
-				for _, v := range e {
+				for _, v := range slice {
 					fp := p
 					if fp == "/" {
 						fp = "/" + v.Name()
@@ -911,7 +934,12 @@ func main() {
 					}
 					l = append(l, gin.H{"name": v.Name(), "isDir": v.IsDir(), "path": fp, "mimeType": mType})
 				}
-				c.JSON(200, l)
+				c.JSON(200, gin.H{
+					"items":  l,
+					"total":  total,
+					"offset": start,
+					"limit":  limit,
+				})
 			})
 			system.GET("/file-preview", func(c *gin.Context) {
 				targetPath := strings.TrimSpace(c.Query("path"))
