@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"math"
 	"mime"
@@ -192,13 +193,21 @@ func handleCameras(c *gin.Context) {
 func handleCameraSnapshot(c *gin.Context) {
 	devName := c.Query("device")
 	if devName == "" { devName = "/dev/video0" }
-	stream, ch := getCameraStream(devName)
-	if stream == nil { c.JSON(500, gin.H{"error": "Failed to access camera"}); return }
-	defer stream.unregister(ch)
-	select {
-	case frame := <-ch: c.Data(200, "image/jpeg", frame)
-	case <-time.After(3 * time.Second): c.JSON(500, gin.H{"error": "Timeout waiting for frame from camera"})
+	
+	stream := getCameraStream(devName)
+	sub := stream.Subscribe()
+	if sub == nil { c.JSON(500, gin.H{"error": "Failed to access camera"}); return }
+	defer sub.Unsubscribe()
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	frame, err := sub.NextFrame(ctx)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Timeout or error waiting for frame from camera"})
+		return
 	}
+	c.Data(200, "image/jpeg", frame)
 }
 
 func handleTrackedComms(c *gin.Context) {
@@ -277,9 +286,10 @@ func serveCameraWS(c *gin.Context) {
 	if err != nil { return }
 	defer conn.Close()
 
-	stream, ch := getCameraStream(devName)
-	if stream == nil { _ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to access camera")); return }
-	defer stream.unregister(ch)
+	stream := getCameraStream(devName)
+	sub := stream.Subscribe()
+	if sub == nil { _ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to access camera")); return }
+	defer sub.Unsubscribe()
 
 	done := make(chan struct{})
 	go func() {
@@ -287,13 +297,17 @@ func serveCameraWS(c *gin.Context) {
 		for { if _, _, err := conn.ReadMessage(); err != nil { return } }
 	}()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		<-done
+		cancel()
+	}()
+
 	for {
-		select {
-		case frame, ok := <-ch:
-			if !ok { return }
-			if err := conn.WriteMessage(websocket.BinaryMessage, frame); err != nil { return }
-		case <-done: return
-		}
+		frame, err := sub.NextFrame(ctx)
+		if err != nil { return }
+		if err := conn.WriteMessage(websocket.BinaryMessage, frame); err != nil { return }
 	}
 }
 
