@@ -31,9 +31,8 @@ export default defineConfig({
       '/shell-sessions': backendUrl,
       '/mcp': backendUrl,
       '/cluster': backendUrl,
-      // Only proxy /config if it has a subpath (API calls), 
-      // allowing the frontend to handle the base /config route.
-      '^/config/.*': backendUrl,
+      // Proxy API calls but let frontend handle UI routes
+      '^/config/(tags|comms|paths|prefixes|rules|runtime|access-token|export|import|hooks).*': backendUrl,
       '/system': backendUrl,
     },
   },
