@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -904,7 +905,11 @@ func main() {
 					} else {
 						fp = fp + "/" + v.Name()
 					}
-					l = append(l, gin.H{"name": v.Name(), "isDir": v.IsDir(), "path": fp})
+					mType := ""
+					if !v.IsDir() {
+						mType = mime.TypeByExtension(filepath.Ext(v.Name()))
+					}
+					l = append(l, gin.H{"name": v.Name(), "isDir": v.IsDir(), "path": fp, "mimeType": mType})
 				}
 				c.JSON(200, l)
 			})

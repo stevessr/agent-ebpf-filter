@@ -45,6 +45,7 @@ type WrapperRule struct {
 	RewrittenCmd []string `json:"rewritten_cmd,omitempty"`
 	Regex        string   `json:"regex,omitempty"`
 	Replacement  string   `json:"replacement,omitempty"`
+	Priority     int      `json:"priority,omitempty"`
 }
 
 type shellControlMessage struct {

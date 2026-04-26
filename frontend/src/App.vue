@@ -8,7 +8,13 @@ const router = useRouter();
 const selectedKeys = ref<string[]>(['/']);
 
 watch(() => route.path, (path) => {
-  selectedKeys.value = [path];
+  if (path.startsWith('/executor')) {
+    selectedKeys.value = ['/executor'];
+  } else if (path.startsWith('/config')) {
+    selectedKeys.value = ['/config'];
+  } else {
+    selectedKeys.value = [path];
+  }
 }, { immediate: true });
 
 const handleMenuClick = ({ key }: { key: string }) => {

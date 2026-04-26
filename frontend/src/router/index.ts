@@ -27,7 +27,7 @@ const routes = [
     component: () => import('../views/Explorer.vue'),
   },
   {
-    path: '/executor',
+    path: '/executor/:tab?',
     name: 'Executor',
     component: () => import('../views/Executor.vue'),
   },
@@ -37,7 +37,7 @@ const routes = [
     component: () => import('../views/Hooks.vue'),
   },
   {
-    path: '/config',
+    path: '/config/:tab?/:subtab?',
     name: 'Config',
     component: () => import('../views/Config.vue'),
   },

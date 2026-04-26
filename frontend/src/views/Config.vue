@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import axios from "axios";
 import {
   PlusOutlined,
@@ -49,6 +50,7 @@ interface WrapperRule {
   rewritten_cmd: string[];
   regex?: string;
   replacement?: string;
+  priority?: number;
 }
 
 interface ClusterNodeInfo {
@@ -112,6 +114,10 @@ const newPrefixValue = ref("");
 const newPrefixTag = ref("");
 const importFileInput = ref<HTMLInputElement | null>(null);
 
+// Routing state
+const route = useRoute();
+const router = useRouter();
+
 // Path picker state
 const pathPickerOpen = ref(false);
 const pathPickerTarget = ref<"exact" | "prefix">("exact");
@@ -135,8 +141,38 @@ const newRuleAction = ref('BLOCK');
 const newRuleRewritten = ref('');
 const newRuleRegex = ref('');
 const newRuleReplacement = ref('');
-const activeTabKey = ref('registry');
-const registryTabKey = ref('tags');
+const newRulePriority = ref(0);
+const previewTestInput = ref('');
+
+const activeTabKey = ref(route.params.tab as string || 'registry');
+const registryTabKey = ref(route.params.subtab as string || 'tags');
+
+watch(() => [route.params.tab, route.params.subtab], ([tab, subtab]) => {
+  if (tab) activeTabKey.value = tab as string;
+  if (subtab) registryTabKey.value = subtab as string;
+});
+
+watch(activeTabKey, (val) => {
+  if (val !== route.params.tab) {
+    router.replace({ name: 'Config', params: { tab: val, subtab: val === 'registry' ? registryTabKey.value : undefined } });
+  }
+});
+
+watch(registryTabKey, (val) => {
+  if (activeTabKey.value === 'registry' && val !== route.params.subtab) {
+    router.replace({ name: 'Config', params: { tab: activeTabKey.value, subtab: val } });
+  }
+});
+
+const regexPreviewResult = computed(() => {
+  if (!newRuleRegex.value || !previewTestInput.value) return '';
+  try {
+    const re = new RegExp(newRuleRegex.value);
+    return previewTestInput.value.replace(re, newRuleReplacement.value);
+  } catch (e) {
+    return 'Invalid Regex';
+  }
+});
 
 const syncApiToken = (token: string) => {
   const normalized = token.trim();
@@ -451,12 +487,13 @@ const removePrefix = async (prefix: string) => {
 const saveRule = async () => {
   if (!newRuleComm.value) return;
   try {
-    const rule: any = {
+    const rule: WrapperRule = {
       comm: newRuleComm.value,
       action: newRuleAction.value,
       rewritten_cmd: newRuleAction.value === 'REWRITE' && !newRuleRegex.value ? newRuleRewritten.value.split(' ').filter(s => s) : [],
       regex: newRuleRegex.value,
-      replacement: newRuleReplacement.value
+      replacement: newRuleReplacement.value,
+      priority: newRulePriority.value
     };
     await axios.post('/config/rules', rule);
     message.success('Rule saved');
@@ -464,6 +501,7 @@ const saveRule = async () => {
     newRuleRewritten.value = '';
     newRuleRegex.value = '';
     newRuleReplacement.value = '';
+    newRulePriority.value = 0;
     fetchRules();
   } catch (err) {}
 };
@@ -852,7 +890,8 @@ onMounted(async () => {
                       <a-tag v-for="prefix in prefixes" :key="prefix" closable @close.prevent="removePrefix(prefix)" :color="getCategoryColor(tag as string)">{{ prefix }}</a-tag>
                     </div>
                   </div>
-                </a-col>
+                </a-card>
+              </a-col>
             </a-row>
           </a-tab-pane>
         </a-tabs>
@@ -869,7 +908,7 @@ onMounted(async () => {
               <template #extra><SafetyCertificateOutlined /></template>
               <div style="margin-bottom: 16px; background: #fafafa; padding: 16px; border-radius: 8px;">
                 <a-row :gutter="[16, 16]" align="middle">
-                  <a-col :xs="24" :md="6">
+                  <a-col :xs="24" :md="5">
                     <a-input v-model:value="newRuleComm" placeholder="Command (e.g. rm)" />
                   </a-col>
                   <a-col :xs="24" :md="4">
@@ -879,27 +918,53 @@ onMounted(async () => {
                       <a-select-option value="ALERT">Alert Only</a-select-option>
                     </a-select>
                   </a-col>
+                  <a-col :xs="24" :md="3">
+                    <a-input-number v-model:value="newRulePriority" :min="0" placeholder="Priority" style="width: 100%" />
+                  </a-col>
                   <template v-if="newRuleAction === 'REWRITE'">
-                    <a-col :xs="24" :md="5">
+                    <a-col :xs="24" :md="4">
                       <a-input v-model:value="newRuleRegex" placeholder="Regex (Optional)" />
                     </a-col>
-                    <a-col :xs="24" :md="5">
+                    <a-col :xs="24" :md="4">
                       <a-input v-model:value="newRuleReplacement" placeholder="Replacement" />
                     </a-col>
-                    <a-col :xs="24" :md="4">
-                      <a-input v-if="!newRuleRegex" v-model:value="newRuleRewritten" placeholder="Fixed cmd" />
+                    <a-col :xs="24" :md="4" v-if="!newRuleRegex">
+                      <a-input v-model:value="newRuleRewritten" placeholder="Fixed cmd" />
                     </a-col>
                   </template>
-                  <a-col v-else :xs="24" :md="10">
+                  <a-col v-else :xs="24" :md="12">
                     <span style="color: #999; font-size: 12px;">Intercepts and blocks or warns when the command is called via agent-wrapper</span>
                   </a-col>
+                  
+                  <a-col :xs="24" :span="24" v-if="newRuleRegex" style="margin-top: 8px;">
+                    <div style="background: #e6f7ff; padding: 12px; border-radius: 4px; border: 1px solid #91caff;">
+                       <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #003a8c;">Regex Live Preview:</div>
+                       <a-row :gutter="8" align="middle">
+                         <a-col :span="11">
+                           <a-input v-model:value="previewTestInput" size="small" placeholder="Type example command arguments to test..." />
+                         </a-col>
+                         <a-col :span="2" style="text-align: center;">
+                           <ArrowRightOutlined />
+                         </a-col>
+                         <a-col :span="11">
+                           <div style="background: #fff; padding: 4px 11px; border: 1px solid #d9d9d9; border-radius: 2px; min-height: 24px; font-family: monospace;">
+                             {{ regexPreviewResult || '(Result will appear here)' }}
+                           </div>
+                         </a-col>
+                       </a-row>
+                    </div>
+                  </a-col>
+
                   <a-col :xs="24" :md="24" style="text-align: right; margin-top: 8px;">
                     <a-button type="primary" @click="saveRule"><PlusOutlined /> Add Policy</a-button>
                   </a-col>
                 </a-row>
               </div>
 
-              <a-table :dataSource="Object.values(wrapperRules)" size="small" rowKey="comm" :pagination="false">
+              <a-table :dataSource="Object.values(wrapperRules).sort((a,b) => (b.priority || 0) - (a.priority || 0))" size="small" rowKey="comm" :pagination="false">
+                <a-table-column title="Priority" dataIndex="priority" key="priority" width="80px">
+                  <template #default="{ text }"><a-tag color="blue">{{ text || 0 }}</a-tag></template>
+                </a-table-column>
                 <a-table-column title="Intercepted Command" dataIndex="comm" key="comm">
                   <template #default="{ text }"><code>{{ text }}</code></template>
                 </a-table-column>

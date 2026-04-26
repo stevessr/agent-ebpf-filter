@@ -24,6 +24,7 @@ interface FileEntry {
   name: string;
   isDir: boolean;
   path: string;
+  mimeType?: string;
 }
 
 const currentPath = ref('');
@@ -41,6 +42,37 @@ const homePath = ref('/');
 const route = useRoute();
 const router = useRouter();
 
+const pageSize = 50;
+const currentPage = ref(1);
+
+const filteredEntries = computed(() => {
+  let result = entries.value;
+  if (!showHidden.value) {
+    result = result.filter(e => !e.name.startsWith('.'));
+  }
+  return result;
+});
+
+const paginatedEntries = computed(() => {
+  return filteredEntries.value.slice(0, currentPage.value * pageSize);
+});
+
+const hasMore = computed(() => {
+  return paginatedEntries.value.length < filteredEntries.value.length;
+});
+
+const loadMore = () => {
+  currentPage.value++;
+};
+
+const isImage = (entry: FileEntry) => {
+  return entry.mimeType?.startsWith('image/');
+};
+
+const getImageUrl = (path: string) => {
+  return `/system/download?path=${encodeURIComponent(path)}`;
+};
+
 const fetchHome = async () => {
   try {
     const res = await axios.get('/system/home');
@@ -55,6 +87,7 @@ const fetchHome = async () => {
 
 const fetchEntries = async (path: string) => {
   loading.value = true;
+  currentPage.value = 1;
   try {
     const res = await axios.get(`/system/ls?path=${encodeURIComponent(path)}`);
     entries.value = res.data.sort((a: FileEntry, b: FileEntry) => {
@@ -106,11 +139,6 @@ const pathBreadcrumbs = computed(() => {
   return crumbs;
 });
 
-const filteredEntries = computed(() => {
-  if (showHidden.value) return entries.value;
-  return entries.value.filter(e => !e.name.startsWith('.'));
-});
-
 const previewFile = async (path: string) => {
   await setExplorerTarget(path, true);
 };
@@ -159,7 +187,7 @@ const openRouteTarget = async () => {
   if (!targetPath) return;
 
   try {
-    previewLoading.value = previewRequested;
+    previewLoading.value = previewRequested.value;
     const res = await axios.get(`/system/file-preview?path=${encodeURIComponent(targetPath)}`);
     const meta = res.data as FilePreviewResponse;
     const targetDir = meta.isDir ? meta.path : meta.parentDir || '/';
@@ -167,13 +195,13 @@ const openRouteTarget = async () => {
     await fetchEntries(targetDir);
 
     selectedPath.value = meta.path;
-    if (!meta.isDir && previewRequested) {
+    if (!meta.isDir && previewRequested.value) {
       previewData.value = meta;
       showPreview.value = true;
       return;
     }
 
-    if (meta.isDir || !previewRequested) {
+    if (meta.isDir || !previewRequested.value) {
       showPreview.value = false;
       if (meta.isDir) {
         previewData.value = null;
@@ -218,7 +246,7 @@ onMounted(async () => {
     <div style="display: flex; justify-content: space-between; margin-bottom: 16px; align-items: center; flex-wrap: wrap; gap: 16px;">
       <a-breadcrumb>
         <a-breadcrumb-item v-for="crumb in pathBreadcrumbs" :key="crumb.path">
-          <a @click="navigateToPath(crumb.path)">{{ crumb.name }}</a>
+          <a @click="navigateToPath(crumb.path)" style="color: #1f2937; font-weight: 500;">{{ crumb.name }}</a>
         </a-breadcrumb-item>
       </a-breadcrumb>
       
@@ -265,15 +293,18 @@ onMounted(async () => {
     </div>
 
     <div v-if="viewMode === 'list'">
-      <a-list :loading="loading" bordered :dataSource="filteredEntries" size="small" :style="{ maxHeight: 'calc(100vh - 300px)', overflow: 'auto' }">
+      <a-list :loading="loading" bordered :dataSource="paginatedEntries" size="small" :style="{ maxHeight: 'calc(100vh - 300px)', overflow: 'auto' }">
         <template #renderItem="{ item }">
           <a-list-item :style="{ opacity: item.name.startsWith('.') ? 0.6 : 1, background: item.path === selectedPath ? '#f0f7ff' : 'transparent' }">
             <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
               <div style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1" 
                    @click="handleEntryClick(item)">
                 <FolderOutlined v-if="item.isDir" style="color: #1890ff" />
+                <div v-else-if="isImage(item)" style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                   <img :src="getImageUrl(item.path)" style="width: 100%; height: 100%; object-fit: cover; border-radius: 2px;" />
+                </div>
                 <FileOutlined v-else />
-                <span :style="{ fontWeight: item.isDir ? 'bold' : 'normal', fontFamily: 'monospace' }">{{ item.name }}</span>
+                <span :style="{ fontWeight: item.isDir ? 'bold' : 'normal', fontFamily: 'monospace', color: '#1f2937' }">{{ item.name }}</span>
               </div>
               <div style="display: flex; align-items: center; gap: 4px;">
                 <a-button v-if="!item.isDir" type="link" size="small" @click.stop="previewFile(item.path)">
@@ -292,18 +323,26 @@ onMounted(async () => {
             </div>
           </a-list-item>
         </template>
+        <template #loadMore v-if="hasMore">
+          <div :style="{ textAlign: 'center', margin: '12px 0', height: '32px', lineHeight: '32px' }">
+            <a-button @click="loadMore">Load More</a-button>
+          </div>
+        </template>
       </a-list>
     </div>
 
     <div v-else class="explorer-grid" :style="{ maxHeight: 'calc(100vh - 300px)', overflow: 'auto' }">
       <a-spin :spinning="loading">
         <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 8px;">
-          <div v-for="item in filteredEntries" :key="item.path" 
+          <div v-for="item in paginatedEntries" :key="item.path" 
                class="explorer-grid-item"
                :class="{ 'is-selected': item.path === selectedPath }"
                @click="handleEntryClick(item)">
             <div class="explorer-grid-icon">
               <FolderOutlined v-if="item.isDir" style="font-size: 32px; color: #1890ff" />
+              <div v-else-if="isImage(item)" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #f0f0f0; border-radius: 4px; background: #fff;">
+                 <img :src="getImageUrl(item.path)" style="width: 100%; height: 100%; object-fit: cover;" />
+              </div>
               <FileOutlined v-else style="font-size: 32px; color: #666" />
             </div>
             <div class="explorer-grid-name" :title="item.name">{{ item.name }}</div>
@@ -319,6 +358,9 @@ onMounted(async () => {
                   </template>
                </a-dropdown>
             </div>
+          </div>
+          <div v-if="hasMore" style="width: 100%; display: flex; justify-content: center; padding: 16px;">
+            <a-button @click="loadMore">Load More ({{ filteredEntries.length - paginatedEntries.length }} remaining)</a-button>
           </div>
         </div>
       </a-spin>

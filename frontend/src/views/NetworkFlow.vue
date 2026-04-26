@@ -445,6 +445,7 @@ onUnmounted(() => {
               <a-tag color="gold">1-10 MB/s</a-tag>
               <a-tag color="red">&gt; 10 MB/s</a-tag>
             </a-space>
+          </template>
           <a-alert
             type="info"
             show-icon
@@ -480,22 +481,12 @@ onUnmounted(() => {
               <div style="width: 32px; height: 3px; background: #d9d9d9; border-radius: 2px;"></div>
             </div>
           </div>
-          </a-card>
-          </a-col>
-          </a-row>
+        </a-card>
+      </a-col>
+    </a-row>
 
-          <a-row :gutter="[16, 16]">
-          ...
-          </template>
-
-          <style scoped>
-          .graph-resize-handle:hover {
-          background: rgba(24, 144, 255, 0.1) !important;
-          }
-          .graph-resize-handle:hover > div {
-          background: #1890ff !important;
-          }
-          </style>
+    <a-row :gutter="[16, 16]">
+      <a-col :span="24">
         <a-card title="Interface Details" size="small" :bordered="false">
           <template #extra>
             <a-tag color="blue">{{ netInterfaces.length }} interfaces</a-tag>
@@ -564,3 +555,12 @@ onUnmounted(() => {
     </a-modal>
   </div>
 </template>
+
+<style scoped>
+.graph-resize-handle:hover {
+  background: rgba(24, 144, 255, 0.1) !important;
+}
+.graph-resize-handle:hover > div {
+  background: #1890ff !important;
+}
+</style>

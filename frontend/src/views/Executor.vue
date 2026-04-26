@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import {
   CopyOutlined,
@@ -54,7 +55,21 @@ const LAUNCH_ENV_LEGACY_KEY = 'executor_launch_env';
 
 const shellManagerRef = ref<LocalShellManagerExpose | null>(null);
 const tmuxManagerRef = ref<LocalShellManagerExpose | null>(null);
-const activeTabKey = ref<ExecutorTabKey>('shell');
+
+const route = useRoute();
+const router = useRouter();
+
+const activeTabKey = ref<ExecutorTabKey>(route.params.tab as ExecutorTabKey || 'shell');
+
+watch(() => route.params.tab, (val) => {
+  if (val) activeTabKey.value = val as ExecutorTabKey;
+});
+
+watch(activeTabKey, (val) => {
+  if (val !== route.params.tab) {
+    router.replace({ name: 'Executor', params: { tab: val } });
+  }
+});
 
 const codingPreset = ref<CodingPresetKey>('codex');
 const codingCustomCommand = ref('');
@@ -64,12 +79,29 @@ const codingWorkDir = ref('');
 const codingUseTmux = ref(true);
 const codingLaunching = ref(false);
 
+const codingPresetOptions: Array<{ label: string; value: CodingPresetKey; command: string }> = [
+  { label: 'Codex', value: 'codex', command: 'codex' },
+  { label: 'Claude Code', value: 'claude', command: 'claude' },
+  { label: 'Gemini CLI', value: 'gemini', command: 'gemini' },
+  { label: 'Custom', value: 'custom', command: '' },
+];
+
 const scriptLanguage = ref<ScriptLanguage>('python');
 const scriptPath = ref('');
 const scriptWorkDir = ref('');
 const pythonVenv = ref('');
 const scriptArgs = ref('');
 const scriptLaunching = ref(false);
+
+const scriptLanguageOptions: Array<{ label: string; value: ScriptLanguage }> = [
+  { label: 'Python', value: 'python' },
+  { label: 'Node.js', value: 'node' },
+  { label: 'Ruby', value: 'ruby' },
+  { label: 'Shell (sh)', value: 'sh' },
+  { label: 'PowerShell (pwsh)', value: 'pwsh' },
+  { label: 'Deno', value: 'deno' },
+  { label: 'Bun', value: 'bun' },
+];
 
 const pathPickerOpen = ref(false);
 const pathPickerTarget = ref<PathPickerTarget>('coding-workdir');
