@@ -95,7 +95,12 @@ const connectSensorsWS = () => {
 const sensorChartOptions = computed(() => ({
   chart: { id: 'sensor-chart', animations: { enabled: false }, toolbar: { show: false }, background: 'transparent' },
   xaxis: { type: 'datetime' as const, labels: { show: true, style: { fontSize: '10px' }, datetimeUTC: false }, axisBorder: { show: false } },
-  yaxis: { title: { text: 'Temp (°C)', style: { fontSize: '12px' } }, min: 0, max: 110, tickAmount: 5 },
+  yaxis: { 
+    title: { text: 'Temp (°C)', style: { fontSize: '12px' } }, 
+    min: 0, 
+    max: (maxVal: number) => Math.max(70, maxVal * 1.1), // Auto scale based on extremes, minimum 70C
+    tickAmount: 5 
+  },
   stroke: { width: 2, curve: 'smooth' as const },
   colors: ['#1890ff', '#52c41a', '#faad14', '#ff4d4f', '#722ed1', '#13c2c2', '#eb2f96'],
   legend: { show: false },
