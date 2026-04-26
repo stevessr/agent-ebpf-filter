@@ -132,6 +132,7 @@ const searchText = ref('');
 const viewMode = ref<'list' | 'tree'>('tree');
 const cpuViewMode = ref<'total' | 'cores'>('total');
 const cpuDisplayMode = ref<'bar' | 'circle'>('bar');
+const memoryDisplayMode = ref<'bar' | 'circle'>('bar');
 const refreshInterval = ref(2000);
 const tags = ref<string[]>([]);
 const selectedTag = ref('AI Agent');
@@ -507,6 +508,67 @@ const memoryVisualizationData = computed(() => {
   return Object.values(groups).sort((a, b) => b.mem - a.mem).slice(0, 50);
 });
 
+interface DiskDeviceGroup {
+  name: string;
+  summary: IOSpeed;
+  children: IOSpeed[];
+  summaryIsSynthetic: boolean;
+}
+
+const resolveDiskParent = (name: string, knownNames: Set<string>) => {
+  const partitionSuffixMatch = name.match(/^(.*)p(\d+)$/);
+  if (partitionSuffixMatch && knownNames.has(partitionSuffixMatch[1])) {
+    return { parent: partitionSuffixMatch[1], partition: `p${partitionSuffixMatch[2]}` };
+  }
+
+  const trailingDigitsMatch = name.match(/^(.+?)(\d+)$/);
+  if (trailingDigitsMatch && knownNames.has(trailingDigitsMatch[1])) {
+    return { parent: trailingDigitsMatch[1], partition: trailingDigitsMatch[2] };
+  }
+
+  return { parent: null, partition: null };
+};
+
+const groupedDiskDevices = computed<DiskDeviceGroup[]>(() => {
+  const devices = [...systemStats.value.diskDevices];
+  const names = new Set(devices.map((device) => device.name));
+  const groups = new Map<string, { summary?: IOSpeed; children: IOSpeed[]; order: number }>();
+
+  devices.forEach((device, index) => {
+    const { parent } = resolveDiskParent(device.name, names);
+    const groupName = parent ?? device.name;
+
+    if (!groups.has(groupName)) {
+      groups.set(groupName, { children: [], order: index });
+    }
+
+    const group = groups.get(groupName)!;
+    group.order = Math.min(group.order, index);
+
+    if (device.name === groupName) {
+      group.summary = device;
+    } else {
+      group.children.push(device);
+    }
+  });
+
+  return [...groups.entries()]
+    .sort((a, b) => a[1].order - b[1].order || a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }))
+    .map(([name, group]) => ({
+      name,
+      summaryIsSynthetic: !group.summary,
+      summary: group.summary ?? {
+        name,
+        readSpeed: group.children.reduce((sum, item) => sum + item.readSpeed, 0),
+        writeSpeed: group.children.reduce((sum, item) => sum + item.writeSpeed, 0),
+      },
+      children: [...group.children].sort(
+        (a, b) => (b.readSpeed + b.writeSpeed) - (a.readSpeed + a.writeSpeed)
+          || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }),
+      ),
+    }));
+});
+
 const getMemColor = (percent: number) => {
   if (percent > 20) return '#cf1322';
   if (percent > 10) return '#d4380d';
@@ -747,9 +809,8 @@ watch(refreshInterval, connectWebSocket);
                   <div v-else style="padding: 10px;">
                     <div v-if="pCores.length > 0">
                       <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #1890ff; padding-left: 8px;">PERFORMANCE CORES (P-CORES)</div>
-                      <div class="core-grid-full">
+                      <div :class="['core-grid-full', { 'core-grid-full--circle': cpuDisplayMode === 'circle' }]">
                         <div v-for="core in pCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" :class="['core-item-full', { 'core-item-full--circle': cpuDisplayMode === 'circle' }]" style="cursor: pointer">
-                          <span class="core-label">#{{ core.index }}</span>
                           <template v-if="cpuDisplayMode === 'circle'">
                             <div class="core-circle-shell">
                               <a-progress
@@ -762,8 +823,10 @@ watch(refreshInterval, connectWebSocket);
                               />
                               <span class="core-circle-value">{{ core.usage.toFixed(1) }}%</span>
                             </div>
+                            <span class="core-index-below">#{{ core.index }}</span>
                           </template>
                           <template v-else>
+                            <span class="core-label">#{{ core.index }}</span>
                             <div style="flex: 1; margin: 0 10px; display: flex; align-items: center; justify-content: center;">
                               <a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#1890ff" />
                             </div>
@@ -774,9 +837,8 @@ watch(refreshInterval, connectWebSocket);
                     </div>
                     <div v-if="eCores.length > 0" style="margin-top: 16px;">
                       <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #52c41a; padding-left: 8px;">EFFICIENCY CORES (E-CORES)</div>
-                      <div class="core-grid-full">
+                      <div :class="['core-grid-full', { 'core-grid-full--circle': cpuDisplayMode === 'circle' }]">
                         <div v-for="core in eCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" :class="['core-item-full', { 'core-item-full--circle': cpuDisplayMode === 'circle' }]" style="cursor: pointer">
-                          <span class="core-label">#{{ core.index }}</span>
                           <template v-if="cpuDisplayMode === 'circle'">
                             <div class="core-circle-shell">
                               <a-progress
@@ -789,8 +851,10 @@ watch(refreshInterval, connectWebSocket);
                               />
                               <span class="core-circle-value core-circle-value--green">{{ core.usage.toFixed(1) }}%</span>
                             </div>
+                            <span class="core-index-below core-index-below--green">#{{ core.index }}</span>
                           </template>
                           <template v-else>
+                            <span class="core-label">#{{ core.index }}</span>
                             <div style="flex: 1; margin: 0 10px; display: flex; align-items: center; justify-content: center;">
                               <a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#52c41a" />
                             </div>
@@ -810,7 +874,15 @@ watch(refreshInterval, connectWebSocket);
             <a-row style="margin-bottom: 16px;">
               <a-col :span="24">
                 <a-card size="small" class="stat-card-row" title="Memory & Interface I/O">
-                  <template #extra><PieChartOutlined /></template>
+                  <template #extra>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <PieChartOutlined />
+                      <a-radio-group v-model:value="memoryDisplayMode" size="small">
+                        <a-radio-button value="bar">Bar</a-radio-button>
+                        <a-radio-button value="circle">Circle</a-radio-button>
+                      </a-radio-group>
+                    </div>
+                  </template>
                   <div class="monitor-io-shell">
                     <!-- RAM Breakdown -->
                     <div class="monitor-io-summary" @click="openChart('mem_usage', 'RAM Usage', 'single', ['Usage %'])">
@@ -819,16 +891,31 @@ watch(refreshInterval, connectWebSocket);
                           <span>RAM Usage <LineChartOutlined style="font-size: 12px; color: #ccc" /></span>
                           <span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span>
                         </div>
-                        <a-progress
-                          :percent="[
-                            ((systemStats.memUsed - systemStats.memCached - systemStats.memBuffers) / systemStats.memTotal) * 100,
-                            (systemStats.memCached / systemStats.memTotal) * 100,
-                            (systemStats.memBuffers / systemStats.memTotal) * 100,
-                          ]"
-                          :stroke-color="['#1890ff', '#52c41a', '#faad14']"
-                          status="active"
-                          :showInfo="false"
-                        />
+                        <template v-if="memoryDisplayMode === 'circle'">
+                          <div class="monitor-io-summary__circle-shell">
+                            <a-progress
+                              type="dashboard"
+                              :percent="Math.round(systemStats.memPercent)"
+                              :width="136"
+                              :stroke-width="10"
+                              :showInfo="false"
+                              stroke-color="#1890ff"
+                            />
+                            <span class="monitor-io-summary__circle-value">{{ systemStats.memPercent.toFixed(1) }}%</span>
+                          </div>
+                        </template>
+                        <template v-else>
+                          <a-progress
+                            :percent="[
+                              ((systemStats.memUsed - systemStats.memCached - systemStats.memBuffers) / systemStats.memTotal) * 100,
+                              (systemStats.memCached / systemStats.memTotal) * 100,
+                              (systemStats.memBuffers / systemStats.memTotal) * 100,
+                            ]"
+                            :stroke-color="['#1890ff', '#52c41a', '#faad14']"
+                            status="active"
+                            :showInfo="false"
+                          />
+                        </template>
                         <div class="mem-legend">
                           <span><span class="dot" style="background: #1890ff"></span> Apps: {{ formatBytes(systemStats.memUsed - systemStats.memCached - systemStats.memBuffers) }}</span>
                           <span><span class="dot" style="background: #52c41a"></span> Cached: {{ formatBytes(systemStats.memCached) }}</span>
@@ -859,13 +946,23 @@ watch(refreshInterval, connectWebSocket);
                       <div class="monitor-io-panel">
                         <div class="monitor-io-panel__title">DISK DEVICES</div>
                         <div class="monitor-io-panel__list">
-                          <div v-for="s in systemStats.diskDevices" :key="s.name" class="io-row" style="cursor: pointer"
-                               @click="openChart('disk_' + s.name, 'Disk: ' + s.name, 'double', ['Read', 'Write'])">
-                            <span class="io-name">{{ s.name }}</span>
-                            <span class="io-val-read">R:{{ formatRateBytes(s.readSpeed) }}</span>
-                            <span class="io-val-write">W:{{ formatRateBytes(s.writeSpeed) }}</span>
-                          </div>
-                          <div v-if="!systemStats.diskDevices.length" style="font-size: 11px; color: #ccc;">No disk devices detected</div>
+                          <template v-if="groupedDiskDevices.length">
+                            <div v-for="group in groupedDiskDevices" :key="group.name" class="io-group">
+                              <div class="io-row io-row--group" style="cursor: pointer"
+                                   @click="!group.summaryIsSynthetic && openChart('disk_' + group.summary.name, 'Disk: ' + group.summary.name, 'double', ['Read', 'Write'])">
+                                <span class="io-name">{{ group.name }}</span>
+                                <span class="io-val-read">R:{{ formatRateBytes(group.summary.readSpeed) }}</span>
+                                <span class="io-val-write">W:{{ formatRateBytes(group.summary.writeSpeed) }}</span>
+                              </div>
+                              <div v-for="child in group.children" :key="child.name" class="io-row io-row--child" style="cursor: pointer"
+                                   @click="openChart('disk_' + child.name, 'Disk: ' + child.name, 'double', ['Read', 'Write'])">
+                                <span class="io-name io-name--child">└─ {{ child.name }}</span>
+                                <span class="io-val-read">R:{{ formatRateBytes(child.readSpeed) }}</span>
+                                <span class="io-val-write">W:{{ formatRateBytes(child.writeSpeed) }}</span>
+                              </div>
+                            </div>
+                          </template>
+                          <div v-else style="font-size: 11px; color: #ccc;">No disk devices detected</div>
                         </div>
                       </div>
                     </div>
@@ -1122,9 +1219,11 @@ watch(refreshInterval, connectWebSocket);
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 12px;
   border-right: 1px solid #f0f0f0;
   padding-right: 18px;
+  padding-top: 8px;
 }
 .monitor-io-panels {
   flex: 1;
@@ -1155,6 +1254,25 @@ watch(refreshInterval, connectWebSocket);
   flex-direction: column;
   gap: 4px;
 }
+.monitor-io-summary__circle-shell {
+  position: relative;
+  width: 136px;
+  height: 136px;
+  margin: 6px auto 2px;
+}
+.monitor-io-summary__circle-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1890ff;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.88);
+}
 .cpu-total-circle-shell {
   position: relative;
   display: flex;
@@ -1179,10 +1297,14 @@ watch(refreshInterval, connectWebSocket);
 }
 .core-grid-full {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 10px;
   padding: 10px;
   overflow: visible;
+}
+.core-grid-full--circle {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  justify-items: center;
 }
 .core-item-full {
   display: flex;
@@ -1192,12 +1314,16 @@ watch(refreshInterval, connectWebSocket);
   padding: 8px 12px;
   border-radius: 4px;
   border: 1px solid #f0f0f0;
+  width: 100%;
 }
 .core-item-full--circle {
+  flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  min-height: 176px;
-  gap: 14px;
+  justify-content: center;
+  min-height: 210px;
+  width: min(100%, 190px);
+  padding: 14px 10px 12px;
+  gap: 10px;
 }
 .core-label { font-size: 11px; color: #999; min-width: 35px; }
 .core-val { font-size: 11px; font-family: monospace; min-width: 40px; text-align: right; color: #1890ff; font-weight: bold; }
@@ -1206,10 +1332,10 @@ watch(refreshInterval, connectWebSocket);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 96px;
-  height: 96px;
+  width: 104px;
+  height: 104px;
   margin: 0 auto;
-  flex: 1;
+  flex: 0 0 auto;
 }
 .core-circle-value {
   position: absolute;
@@ -1227,6 +1353,15 @@ watch(refreshInterval, connectWebSocket);
 .core-circle-value--green {
   color: #52c41a;
 }
+.core-index-below {
+  font-size: 12px;
+  color: #667085;
+  font-weight: 700;
+  line-height: 1;
+}
+.core-index-below--green {
+  color: #4b9e16;
+}
 .mem-legend {
   display: flex;
   justify-content: space-around;
@@ -1237,8 +1372,12 @@ watch(refreshInterval, connectWebSocket);
   margin-top: 8px;
 }
 .mem-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.io-group { display: flex; flex-direction: column; gap: 4px; }
 .io-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; padding: 6px 8px; background: #f9f9f9; border-radius: 3px; font-family: monospace; }
+.io-row--group { background: #f5f7fb; font-weight: 700; }
+.io-row--child { background: #fcfcfd; margin-left: 18px; border-left: 2px solid #e8eef7; }
 .io-name { font-weight: bold; color: #555; overflow: hidden; text-overflow: ellipsis; max-width: 120px; flex: 1; min-width: 0; }
+.io-name--child { font-weight: 600; color: #6b7280; }
 .io-val-in { color: #52c41a; } .io-val-out { color: #1890ff; }
 .io-val-read { color: #faad14; } .io-val-write { color: #ff4d4f; }
 .gpu-row-item { flex: 1; min-width: 400px; display: flex; align-items: center; gap: 16px; background: #fafafa; padding: 12px; border-radius: 6px; border: 1px solid #f0f0f0; }
