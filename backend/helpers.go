@@ -555,13 +555,30 @@ func writePortFile(actualPort int) {
 func getZramStats() (used, total uint64) {
 	zramDevices, _ := filepath.Glob("/sys/block/zram*")
 	for _, dev := range zramDevices {
-		compr, _ := os.ReadFile(filepath.Join(dev, "compr_data_size"))
-		orig, _ := os.ReadFile(filepath.Join(dev, "orig_data_size"))
-		var c, o uint64
-		fmt.Sscanf(string(compr), "%d", &c)
-		fmt.Sscanf(string(orig), "%d", &o)
-		used += c
-		total += o
+		// disksize is the total uncompressed swap capacity of this zram device
+		if data, err := os.ReadFile(filepath.Join(dev, "disksize")); err == nil {
+			val := strings.TrimSpace(string(data))
+			if sz, err := strconv.ParseUint(val, 10, 64); err == nil {
+				total += sz
+			}
+		}
+		// mm_stat provides detailed memory usage: orig_data_size compr_data_size mem_used_total ...
+		if data, err := os.ReadFile(filepath.Join(dev, "mm_stat")); err == nil {
+			var memUsed uint64
+			fields := strings.Fields(string(data))
+			if len(fields) >= 3 {
+				memUsed, _ = strconv.ParseUint(fields[2], 10, 64)
+				// used is the actual physical memory consumed by zram (mem_used_total)
+				used += memUsed
+			}
+		} else {
+			// fallback to compr_data_size (compressed size) if mm_stat is not available
+			if data, err := os.ReadFile(filepath.Join(dev, "compr_data_size")); err == nil {
+				var c uint64
+				fmt.Sscanf(string(data), "%d", &c)
+				used += c
+			}
+		}
 	}
 	return
 }

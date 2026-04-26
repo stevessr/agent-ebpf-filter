@@ -510,6 +510,9 @@ func serveSystemStatsWS(c *gin.Context) {
 	if err != nil {
 		lastFaults = vmFaultCounters{}
 	}
+	lastNetIO, _ := gnet.IOCounters(true)
+	lastDiskIO, _ := disk.IOCounters()
+	lastIOStatTime := time.Now()
 	lastFaultTime := time.Now()
 	type procCPUSample struct {
 		createTime int64
@@ -531,6 +534,7 @@ func serveSystemStatsWS(c *gin.Context) {
 		netIO, _ := gnet.IOCounters(true)
 		diskIO, _ := disk.IOCounters()
 		pbIO := &pb.IOInfo{}
+		dtIO := now.Sub(lastIOStatTime).Seconds()
 		vmFaults, faultErr := readVMFaultCounters()
 		faultInfo := &pb.FaultInfo{}
 		currentPIDs := make(map[int32]struct{})
@@ -565,16 +569,42 @@ func serveSystemStatsWS(c *gin.Context) {
 			lastFaultTime = now
 		}
 
-		for _, n := range netIO {
-			pbIO.Networks = append(pbIO.Networks, &pb.NetworkInterface{Name: n.Name, RecvBytes: n.BytesRecv, SentBytes: n.BytesSent})
-			pbIO.TotalNetRecvBytes += n.BytesRecv
-			pbIO.TotalNetSentBytes += n.BytesSent
+		if dtIO > 0 {
+			for _, n := range netIO {
+				var rb, sb uint64
+				for _, prev := range lastNetIO {
+					if prev.Name == n.Name {
+						rb = deltaUint64(n.BytesRecv, prev.BytesRecv)
+						sb = deltaUint64(n.BytesSent, prev.BytesSent)
+						break
+					}
+				}
+				pbIO.Networks = append(pbIO.Networks, &pb.NetworkInterface{
+					Name: n.Name, 
+					RecvBytes: uint64(float64(rb) / dtIO), 
+					SentBytes: uint64(float64(sb) / dtIO),
+				})
+				pbIO.TotalNetRecvBytes += uint64(float64(rb) / dtIO)
+				pbIO.TotalNetSentBytes += uint64(float64(sb) / dtIO)
+			}
+			for name, d := range diskIO {
+				var rb, wb uint64
+				if prev, ok := lastDiskIO[name]; ok {
+					rb = deltaUint64(d.ReadBytes, prev.ReadBytes)
+					wb = deltaUint64(d.WriteBytes, prev.WriteBytes)
+				}
+				pbIO.Disks = append(pbIO.Disks, &pb.DiskDevice{
+					Name: name, 
+					ReadBytes: uint64(float64(rb) / dtIO), 
+					WriteBytes: uint64(float64(wb) / dtIO),
+				})
+				pbIO.TotalReadBytes += uint64(float64(rb) / dtIO)
+				pbIO.TotalWriteBytes += uint64(float64(wb) / dtIO)
+			}
 		}
-		for name, d := range diskIO {
-			pbIO.Disks = append(pbIO.Disks, &pb.DiskDevice{Name: name, ReadBytes: d.ReadBytes, WriteBytes: d.WriteBytes})
-			pbIO.TotalReadBytes += d.ReadBytes
-			pbIO.TotalWriteBytes += d.WriteBytes
-		}
+		lastNetIO = netIO
+		lastDiskIO = diskIO
+		lastIOStatTime = now
 		cpuInfo := &pb.CPUInfo{Total: cc[0], Cores: cp}
 		for i, usage := range cp {
 			ct := pb.CPUInfo_Core_PERFORMANCE
