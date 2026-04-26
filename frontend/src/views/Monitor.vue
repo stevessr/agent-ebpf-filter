@@ -418,6 +418,11 @@ const statsHistory = ref<{
   cpu: { time: number; value: number }[];
   cores: Record<number, { time: number; value: number }[]>;
   mem: { time: number; value: number }[];
+  memUsed: { time: number; value: number }[];
+  memCached: { time: number; value: number }[];
+  memBuffers: { time: number; value: number }[];
+  swapUsage: { time: number; value: number }[];
+  zramUsage: { time: number; value: number }[];
   netRecv: { time: number; value: number }[];
   netSent: { time: number; value: number }[];
   diskRead: { time: number; value: number }[];
@@ -428,7 +433,8 @@ const statsHistory = ref<{
   netDevices: Record<string, { recv: { time: number; value: number }[]; sent: { time: number; value: number }[] }>;
   diskDevices: Record<string, { read: { time: number; value: number }[]; write: { time: number; value: number }[] }>;
 }>({
-  cpu: [], cores: {}, mem: [], netRecv: [], netSent: [], diskRead: [], diskWrite: [], faults: [], swapIn: [], swapOut: [],
+  cpu: [], cores: {}, mem: [], memUsed: [], memCached: [], memBuffers: [], swapUsage: [], zramUsage: [],
+  netRecv: [], netSent: [], diskRead: [], diskWrite: [], faults: [], swapIn: [], swapOut: [],
   netDevices: {}, diskDevices: {}
 });
 
@@ -443,10 +449,10 @@ const historyChartOptions = computed(() => ({
       style: { fontSize: '10px' },
       formatter: (val: number) => {
         const t = historyModalTitle.value.toLowerCase();
-        if (t.includes('speed') || t.includes('recv') || t.includes('sent') || t.includes('read') || t.includes('write') || t.includes('activity')) {
-          return formatBytesWithUnit(val) + '/s';
+        if (t.includes('speed') || t.includes('recv') || t.includes('sent') || t.includes('read') || t.includes('write') || t.includes('activity') || t.includes('memory usage') || t.includes('swap usage') || t.includes('zram usage')) {
+           if (!t.includes('%')) return formatBytesWithUnit(val) + (t.includes('usage') ? '' : '/s');
         }
-        if (t.includes('mem') || t.includes('cpu') || t.includes('core')) return val.toFixed(1) + '%';
+        if (t.includes('mem %') || t.includes('cpu') || t.includes('core') || (t.includes('usage') && t.includes('%'))) return val.toFixed(1) + '%';
         return val.toFixed(1);
       }
     }
@@ -595,6 +601,13 @@ const connectWebSocket = () => {
     });
 
     statsHistory.value.mem.push({ time: now, value: systemStats.value.memPercent });
+    statsHistory.value.memUsed.push({ time: now, value: systemStats.value.memUsed });
+    statsHistory.value.memCached.push({ time: now, value: systemStats.value.memCached });
+    statsHistory.value.memBuffers.push({ time: now, value: systemStats.value.memBuffers });
+    
+    if (systemStats.value.swapTotal > 0) statsHistory.value.swapUsage.push({ time: now, value: systemStats.value.swapUsed });
+    if (systemStats.value.zramTotal > 0) statsHistory.value.zramUsage.push({ time: now, value: systemStats.value.zramUsed });
+
     statsHistory.value.netRecv.push({ time: now, value: systemStats.value.totalNetRecv });
     statsHistory.value.netSent.push({ time: now, value: systemStats.value.totalNetSent });
     statsHistory.value.diskRead.push({ time: now, value: systemStats.value.totalDiskRead });
@@ -676,21 +689,31 @@ onUnmounted(() => {
                   <a-col :span="12">
                     <a-card title="Physical Memory" size="small" :bordered="false" style="background: #fafafa;">
                        <template #extra>
-                          <a-button type="link" size="small" @click="openHistoryChart('Memory Usage History', [{ name: 'Mem %', data: statsHistory.mem, color: '#52c41a' }])">History</a-button>
+                          <a-button type="link" size="small" @click="openHistoryChart('Memory Usage History', [
+                            { name: 'Used', data: statsHistory.memUsed, color: '#1890ff' },
+                            { name: 'Cached', data: statsHistory.memCached, color: '#52c41a' },
+                            { name: 'Buffers', data: statsHistory.memBuffers, color: '#faad14' }
+                          ])">History (All)</a-button>
                        </template>
-                       <a-statistic title="Overall Usage" :value="systemStats.memPercent" suffix="%" :precision="1" @click="openHistoryChart('Memory Usage History', [{ name: 'Mem %', data: statsHistory.mem, color: '#52c41a' }])" style="cursor: pointer;" />
+                       <a-statistic title="Overall Usage" :value="systemStats.memPercent" suffix="%" :precision="1" @click="openHistoryChart('Memory Usage History (%)', [{ name: 'Mem %', data: statsHistory.mem, color: '#52c41a' }])" style="cursor: pointer;" />
                        <div style="margin-top: 16px; display: grid; gap: 8px;">
                           <div style="display: flex; justify-content: space-between;"><span>Total:</span><b>{{ formatBytesWithUnit(systemStats.memTotal) }}</b></div>
-                          <div style="display: flex; justify-content: space-between; color: #1890ff;"><span>Used:</span><b>{{ formatBytesWithUnit(systemStats.memUsed) }}</b></div>
-                          <div style="display: flex; justify-content: space-between; color: #52c41a;"><span>Cached:</span><b>{{ formatBytesWithUnit(systemStats.memCached) }}</b></div>
-                          <div style="display: flex; justify-content: space-between; color: #faad14;"><span>Buffers:</span><b>{{ formatBytesWithUnit(systemStats.memBuffers) }}</b></div>
+                          <div style="display: flex; justify-content: space-between; color: #1890ff; cursor: pointer;" @click="openHistoryChart('Used Memory Usage History', [{ name: 'Used', data: statsHistory.memUsed, color: '#1890ff' }])"><span>Used:</span><b>{{ formatBytesWithUnit(systemStats.memUsed) }}</b></div>
+                          <div style="display: flex; justify-content: space-between; color: #52c41a; cursor: pointer;" @click="openHistoryChart('Cached Memory Usage History', [{ name: 'Cached', data: statsHistory.memCached, color: '#52c41a' }])"><span>Cached:</span><b>{{ formatBytesWithUnit(systemStats.memCached) }}</b></div>
+                          <div style="display: flex; justify-content: space-between; color: #faad14; cursor: pointer;" @click="openHistoryChart('Buffers Memory Usage History', [{ name: 'Buffers', data: statsHistory.memBuffers, color: '#faad14' }])"><span>Buffers:</span><b>{{ formatBytesWithUnit(systemStats.memBuffers) }}</b></div>
                        </div>
                     </a-card>
                   </a-col>
                   <a-col :span="12">
                     <a-card title="Swap / ZRAM" size="small" :bordered="false" style="background: #fafafa;">
+                       <template #extra>
+                          <a-button type="link" size="small" @click="openHistoryChart('Swap/ZRAM Usage History', [
+                            { name: 'Swap Used', data: statsHistory.swapUsage, color: '#722ed1' },
+                            { name: 'ZRAM Used', data: statsHistory.zramUsage, color: '#13c2c2' }
+                          ])">History</a-button>
+                       </template>
                        <div style="display: grid; gap: 16px;">
-                          <div v-if="systemStats.swapTotal > 0">
+                          <div v-if="systemStats.swapTotal > 0" style="cursor: pointer;" @click="openHistoryChart('Swap Usage History', [{ name: 'Swap Used', data: statsHistory.swapUsage, color: '#722ed1' }])">
                              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                                 <span style="font-size: 12px; color: #888;">System Swap</span>
                                 <span style="font-weight: bold;">{{ systemStats.swapTotal > 0 ? ((systemStats.swapUsed / systemStats.swapTotal) * 100).toFixed(1) : 0 }}%</span>
@@ -701,7 +724,7 @@ onUnmounted(() => {
                                 <span>Total: {{ formatBytesWithUnit(systemStats.swapTotal) }}</span>
                              </div>
                           </div>
-                          <div v-if="systemStats.zramTotal > 0">
+                          <div v-if="systemStats.zramTotal > 0" style="cursor: pointer;" @click="openHistoryChart('ZRAM Usage History', [{ name: 'ZRAM Used', data: statsHistory.zramUsage, color: '#13c2c2' }])">
                              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                                 <span style="font-size: 12px; color: #888;">ZRAM (Compressed)</span>
                                 <span style="font-weight: bold;">{{ systemStats.zramTotal > 0 ? ((systemStats.zramUsed / systemStats.zramTotal) * 100).toFixed(1) : 0 }}%</span>
@@ -721,12 +744,24 @@ onUnmounted(() => {
             <a-tab-pane key="io" tab="I/O">
                <a-row :gutter="16" style="padding-top: 16px;">
                   <a-col :span="12">
-                    <a-card title="Network Activity" size="small" :bordered="false" style="background: #fafafa;">
+                    <a-card size="small" :bordered="false" style="background: #fafafa;">
+                       <template #title>
+                          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                             <span>Network Activity</span>
+                             <span style="font-size: 11px; color: #888; font-weight: normal;">(Total: ↓{{ formatBytesWithUnit(systemStats.totalNetRecv) }}/s ↑{{ formatBytesWithUnit(systemStats.totalNetSent) }}/s)</span>
+                          </div>
+                       </template>
                        <template #extra>
-                          <a-button type="link" size="small" @click="openHistoryChart('Global Network Activity', [
-                            { name: 'Recv', data: statsHistory.netRecv, color: '#52c41a' },
-                            { name: 'Sent', data: statsHistory.netSent, color: '#1890ff' }
-                          ])">History</a-button>
+                          <a-space>
+                            <a-button type="link" size="small" @click="openHistoryChart('Global Network Activity', [
+                              { name: 'Recv', data: statsHistory.netRecv, color: '#52c41a' },
+                              { name: 'Sent', data: statsHistory.netSent, color: '#1890ff' }
+                            ])">All</a-button>
+                            <a-button type="link" size="small" @click="openHistoryChart('Split Network Activity', Object.entries(statsHistory.netDevices).flatMap(([name, d]) => [
+                               { name: `${name} Recv`, data: d.recv, color: undefined },
+                               { name: `${name} Sent`, data: d.sent, color: undefined }
+                            ]))">Split</a-button>
+                          </a-space>
                        </template>
                        <div style="display: flex; flex-direction: column; gap: 8px;">
                           <div v-for="(group, label) in groupedNetInterfaces" :key="label">
@@ -750,12 +785,24 @@ onUnmounted(() => {
                     </a-card>
                   </a-col>
                   <a-col :span="12">
-                    <a-card title="Storage Activity" size="small" :bordered="false" style="background: #fafafa;">
+                    <a-card size="small" :bordered="false" style="background: #fafafa;">
+                       <template #title>
+                          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                             <span>Storage Activity</span>
+                             <span style="font-size: 11px; color: #888; font-weight: normal;">(Total: R:{{ formatBytesWithUnit(systemStats.totalDiskRead) }}/s W:{{ formatBytesWithUnit(systemStats.totalDiskWrite) }}/s)</span>
+                          </div>
+                       </template>
                        <template #extra>
-                          <a-button type="link" size="small" @click="openHistoryChart('Global Disk Activity', [
-                            { name: 'Read', data: statsHistory.diskRead, color: '#faad14' },
-                            { name: 'Write', data: statsHistory.diskWrite, color: '#722ed1' }
-                          ])">History</a-button>
+                          <a-space>
+                            <a-button type="link" size="small" @click="openHistoryChart('Global Disk Activity', [
+                              { name: 'Read', data: statsHistory.diskRead, color: '#faad14' },
+                              { name: 'Write', data: statsHistory.diskWrite, color: '#722ed1' }
+                            ])">All</a-button>
+                            <a-button type="link" size="small" @click="openHistoryChart('Split Disk Activity', Object.entries(statsHistory.diskDevices).flatMap(([name, d]) => [
+                               { name: `${name} Read`, data: d.read, color: undefined },
+                               { name: `${name} Write`, data: d.write, color: undefined }
+                            ]))">Split</a-button>
+                          </a-space>
                        </template>
                        <div style="display: flex; flex-direction: column; gap: 12px;">
                           <div v-for="(disk, name) in groupedDiskDevices" :key="name">
