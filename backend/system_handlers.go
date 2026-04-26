@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"mime"
@@ -10,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"agent-ebpf-filter/pb"
@@ -452,6 +454,55 @@ func handleCameraSnapshot(c *gin.Context) {
 	c.File(tmpFile)
 }
 
+func handleTrackedComms(c *gin.Context) {
+	items := []string{}
+	iter := trackerMaps.TrackedComms.Iterate()
+	var k [16]byte
+	var tid uint32
+	for iter.Next(&k, &tid) {
+		items = append(items, string(bytes.TrimRight(k[:], "\x00")))
+	}
+	c.JSON(200, items)
+}
+
+func handleProcessSignal(c *gin.Context) {
+	var req struct {
+		PID    int    `json:"pid"`
+		Signal string `json:"signal"` // stop, cont, kill, term
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
+
+	p, err := os.FindProcess(req.PID)
+	if err != nil {
+		c.JSON(404, gin.H{"error": "process not found"})
+		return
+	}
+
+	var sig os.Signal
+	switch strings.ToLower(req.Signal) {
+	case "stop":
+		sig = syscall.SIGSTOP
+	case "cont":
+		sig = syscall.SIGCONT
+	case "kill":
+		sig = syscall.SIGKILL
+	case "term":
+		sig = syscall.SIGTERM
+	default:
+		c.JSON(400, gin.H{"error": "unsupported signal"})
+		return
+	}
+
+	if err := p.Signal(sig); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
 func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/ls", handleSystemLs)
 	rg.GET("/file-preview", handleFilePreview)
@@ -466,4 +517,6 @@ func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/sensors", handleSensors)
 	rg.GET("/cameras", handleCameras)
 	rg.GET("/camera/snapshot", handleCameraSnapshot)
+	rg.GET("/tracked-comms", handleTrackedComms)
+	rg.POST("/process/signal", handleProcessSignal)
 }

@@ -268,6 +268,44 @@ watch(() => route.params.tab, (newTab) => {
   }
 });
 
+// TRACING STATE
+const trackedCommsNames = ref<string[]>([]);
+const trackedLoading = ref(false);
+
+const fetchTrackedComms = async () => {
+  trackedLoading.value = true;
+  try {
+    const res = await axios.get('/system/tracked-comms');
+    trackedCommsNames.value = res.data;
+  } catch (err) {} finally {
+    trackedLoading.value = false;
+  }
+};
+
+const sendProcessSignal = async (pid: number, signal: string) => {
+  try {
+    await axios.post('/system/process/signal', { pid, signal });
+    message.success(`Signal ${signal.toUpperCase()} sent to PID ${pid}`);
+  } catch (err: any) {
+    message.error(err?.response?.data?.error || `Failed to send ${signal}`);
+  }
+};
+
+const trackedProcesses = computed(() => {
+  if (trackedCommsNames.value.length === 0) return [];
+  // Filter global processes by name
+  return processes.value.filter(p => trackedCommsNames.value.includes(p.name));
+});
+
+const trackedColumns = [
+  { title: 'PID', dataIndex: 'pid', key: 'pid', width: 80, sorter: (a: any, b: any) => a.pid - b.pid },
+  { title: 'Name', dataIndex: 'name', key: 'name', sorter: (a: any, b: any) => a.name.localeCompare(b.name) },
+  { title: 'CPU %', dataIndex: 'cpu', key: 'cpu', width: 90, align: 'right', sorter: (a: any, b: any) => a.cpu - b.cpu },
+  { title: 'Mem %', dataIndex: 'mem', key: 'mem', width: 90, align: 'right', sorter: (a: any, b: any) => a.mem - b.mem },
+  { title: 'User', dataIndex: 'user', key: 'user', width: 100 },
+  { title: 'Action', key: 'action', width: 260, align: 'right' },
+];
+
 watch(activeTab, (newTab) => {
   if (newTab === 'systemd' && systemdServices.value.length === 0) {
     void fetchSystemdServices();
@@ -275,6 +313,8 @@ watch(activeTab, (newTab) => {
     void fetchSensors();
     void fetchCameras();
     if (!sensorTimer) sensorTimer = setInterval(fetchSensors, 5000);
+  } else if (newTab === 'tracing') {
+    void fetchTrackedComms();
   } else {
     if (sensorTimer) {
       clearInterval(sensorTimer);
@@ -1458,6 +1498,54 @@ watch(refreshInterval, connectWebSocket);
                <a-button size="small" @click="refreshCamera" :disabled="!selectedCamera">Manual Capture</a-button>
             </div>
           </a-card>
+        </div>
+      </a-tab-pane>
+
+      <a-tab-pane key="tracing" tab="Tracing">
+        <template #tab><span><SearchOutlined /> Tracing</span></template>
+        <div style="background: #fff; padding: 20px; border-radius: 4px; border: 1px solid #f0f0f0;">
+          <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+               <span style="font-size: 14px; font-weight: bold;">Tracked Binaries:</span>
+               <a-tag v-for="name in trackedCommsNames" :key="name" color="blue">{{ name }}</a-tag>
+               <a-empty v-if="trackedCommsNames.length === 0" description="No tracked binaries" :image="false" style="margin: 0; padding: 0;" />
+            </div>
+            <a-button size="small" @click="fetchTrackedComms" :loading="trackedLoading">Refresh Config</a-button>
+          </div>
+          
+          <a-alert 
+            v-if="trackedCommsNames.length > 0"
+            type="info" 
+            show-icon 
+            style="margin-bottom: 16px;" 
+            message="Active Tracked Processes" 
+            description="Below are the currently running processes matching your Tracked Binaries configuration. You can control them via signals." 
+          />
+
+          <a-table 
+            :dataSource="trackedProcesses" 
+            :columns="trackedColumns" 
+            row-key="pid" 
+            size="small"
+            :pagination="{ pageSize: 20 }"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'cpu'">
+                <span :style="{ color: record.cpu > 50 ? '#ff4d4f' : 'inherit' }">{{ record.cpu.toFixed(1) }}%</span>
+              </template>
+              <template v-else-if="column.key === 'mem'">
+                <span>{{ record.mem.toFixed(1) }}%</span>
+              </template>
+              <template v-if="column.key === 'action'">
+                <a-space>
+                  <a-button type="link" size="small" @click="sendProcessSignal(record.pid, 'stop')">Suspend</a-button>
+                  <a-button type="link" size="small" @click="sendProcessSignal(record.pid, 'cont')">Resume</a-button>
+                  <a-button type="link" size="small" @click="sendProcessSignal(record.pid, 'term')">Terminate</a-button>
+                  <a-button type="link" size="small" danger @click="sendProcessSignal(record.pid, 'kill')">Kill</a-button>
+                </a-space>
+              </template>
+            </template>
+          </a-table>
         </div>
       </a-tab-pane>
     </a-tabs>
