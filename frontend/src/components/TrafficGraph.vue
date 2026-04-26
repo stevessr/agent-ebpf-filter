@@ -121,7 +121,7 @@ const renderGraph = () => {
   if (!containerRef.value || !svgRef.value) return;
 
   const width = Math.max(containerRef.value.clientWidth, 320);
-  const height = 420;
+  const height = props.height;
   const centerX = width / 2;
   const centerY = height / 2;
   const svg = d3.select(svgRef.value);
@@ -552,7 +552,7 @@ const requestRender = () => {
 };
 
 watch(
-  () => props.interfaces,
+  () => [props.interfaces, props.height],
   () => {
     requestRender();
   },
@@ -583,16 +583,16 @@ onBeforeUnmount(() => {
 <style scoped>
 .traffic-graph {
   width: 100%;
-  min-height: 420px;
+  min-height: 200px;
   border-radius: 12px;
   overflow: hidden;
   background: radial-gradient(circle at top, #ffffff 0%, #f8fbff 45%, #eef4ff 100%);
   border: 1px solid #e5eefb;
+  position: relative;
 }
 
 .traffic-graph__svg {
   width: 100%;
-  height: 420px;
   display: block;
 }
 

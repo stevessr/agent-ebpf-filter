@@ -233,6 +233,30 @@ const totalNetSent = computed(() => netInterfaces.value.reduce((sum, item) => su
 const activeInterfaces = computed(() => netInterfaces.value.length);
 const hottestInterface = computed(() => netInterfaces.value[0] || null);
 
+const graphHeight = ref(420);
+const isResizing = ref(false);
+
+const startResize = (e: MouseEvent) => {
+  isResizing.value = true;
+  const startY = e.clientY;
+  const startHeight = graphHeight.value;
+
+  const onMouseMove = (moveEvent: MouseEvent) => {
+    if (!isResizing.value) return;
+    const delta = moveEvent.clientY - startY;
+    graphHeight.value = Math.max(200, Math.min(1200, startHeight + delta));
+  };
+
+  const onMouseUp = () => {
+    isResizing.value = false;
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+  };
+
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
+};
+
 const connectWebSocket = () => {
   if (ws) {
     ws.onopen = null;
@@ -421,7 +445,6 @@ onUnmounted(() => {
               <a-tag color="gold">1-10 MB/s</a-tag>
               <a-tag color="red">&gt; 10 MB/s</a-tag>
             </a-space>
-          </template>
           <a-alert
             type="info"
             show-icon
@@ -429,13 +452,50 @@ onUnmounted(() => {
             message="Internet is the hub node"
             description="Interface → Internet represents TX traffic, and Internet → Interface represents RX traffic. Node size and edge width both scale with traffic rate over the selected time window. Click an interface node to open its history chart."
           />
-          <TrafficGraph :interfaces="netInterfaces" @select-interface="openInterfaceChart" />
-        </a-card>
-      </a-col>
-    </a-row>
+          <div style="position: relative;">
+            <TrafficGraph 
+              :interfaces="netInterfaces" 
+              :height="graphHeight"
+              @select-interface="openInterfaceChart" 
+            />
+            <div 
+              style="
+                position: absolute; 
+                bottom: 0; 
+                left: 0; 
+                right: 0; 
+                height: 8px; 
+                cursor: ns-resize; 
+                background: rgba(0,0,0,0.02);
+                border-bottom-left-radius: 12px;
+                border-bottom-right-radius: 12px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                transition: background 0.2s;
+              "
+              @mousedown="startResize"
+              class="graph-resize-handle"
+            >
+              <div style="width: 32px; height: 3px; background: #d9d9d9; border-radius: 2px;"></div>
+            </div>
+          </div>
+          </a-card>
+          </a-col>
+          </a-row>
 
-    <a-row :gutter="[16, 16]">
-      <a-col :span="24">
+          <a-row :gutter="[16, 16]">
+          ...
+          </template>
+
+          <style scoped>
+          .graph-resize-handle:hover {
+          background: rgba(24, 144, 255, 0.1) !important;
+          }
+          .graph-resize-handle:hover > div {
+          background: #1890ff !important;
+          }
+          </style>
         <a-card title="Interface Details" size="small" :bordered="false">
           <template #extra>
             <a-tag color="blue">{{ netInterfaces.length }} interfaces</a-tag>
