@@ -47,8 +47,9 @@ const (
 	EventType_EXIT              EventType = 19
 	EventType_SOCKET            EventType = 20
 	EventType_ACCEPT            EventType = 21
-	EventType_WRAPPER_INTERCEPT EventType = 22
-	EventType_NATIVE_HOOK       EventType = 23
+	EventType_ACCEPT4           EventType = 22
+	EventType_WRAPPER_INTERCEPT EventType = 23
+	EventType_NATIVE_HOOK       EventType = 24
 )
 
 // Enum value maps for EventType.
@@ -76,8 +77,9 @@ var (
 		19: "EXIT",
 		20: "SOCKET",
 		21: "ACCEPT",
-		22: "WRAPPER_INTERCEPT",
-		23: "NATIVE_HOOK",
+		22: "ACCEPT4",
+		23: "WRAPPER_INTERCEPT",
+		24: "NATIVE_HOOK",
 	}
 	EventType_value = map[string]int32{
 		"EXECVE":            0,
@@ -102,8 +104,9 @@ var (
 		"EXIT":              19,
 		"SOCKET":            20,
 		"ACCEPT":            21,
-		"WRAPPER_INTERCEPT": 22,
-		"NATIVE_HOOK":       23,
+		"ACCEPT4":           22,
+		"WRAPPER_INTERCEPT": 23,
+		"NATIVE_HOOK":       24,
 	}
 )
 
@@ -2062,7 +2065,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\aREWRITE\x10\x02\x12\t\n" +
 	"\x05ALERT\x10\x03\"8\n" +
 	"\vProcessList\x12)\n" +
-	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocesses*\xce\x02\n" +
+	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocesses*\xdb\x02\n" +
 	"\tEventType\x12\n" +
 	"\n" +
 	"\x06EXECVE\x10\x00\x12\n" +
@@ -2092,9 +2095,10 @@ const file_tracker_proto_rawDesc = "" +
 	"\n" +
 	"\x06SOCKET\x10\x14\x12\n" +
 	"\n" +
-	"\x06ACCEPT\x10\x15\x12\x15\n" +
-	"\x11WRAPPER_INTERCEPT\x10\x16\x12\x0f\n" +
-	"\vNATIVE_HOOK\x10\x17B\x16Z\x14agent-ebpf-filter/pbb\x06proto3"
+	"\x06ACCEPT\x10\x15\x12\v\n" +
+	"\aACCEPT4\x10\x16\x12\x15\n" +
+	"\x11WRAPPER_INTERCEPT\x10\x17\x12\x0f\n" +
+	"\vNATIVE_HOOK\x10\x18B\x16Z\x14agent-ebpf-filter/pbb\x06proto3"
 
 var (
 	file_tracker_proto_rawDescOnce sync.Once

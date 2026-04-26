@@ -44,8 +44,9 @@ $root.pb = (function() {
      * @property {number} EXIT=19 EXIT value
      * @property {number} SOCKET=20 SOCKET value
      * @property {number} ACCEPT=21 ACCEPT value
-     * @property {number} WRAPPER_INTERCEPT=22 WRAPPER_INTERCEPT value
-     * @property {number} NATIVE_HOOK=23 NATIVE_HOOK value
+     * @property {number} ACCEPT4=22 ACCEPT4 value
+     * @property {number} WRAPPER_INTERCEPT=23 WRAPPER_INTERCEPT value
+     * @property {number} NATIVE_HOOK=24 NATIVE_HOOK value
      */
     pb.EventType = (function() {
         var valuesById = {}, values = Object.create(valuesById);
@@ -71,8 +72,9 @@ $root.pb = (function() {
         values[valuesById[19] = "EXIT"] = 19;
         values[valuesById[20] = "SOCKET"] = 20;
         values[valuesById[21] = "ACCEPT"] = 21;
-        values[valuesById[22] = "WRAPPER_INTERCEPT"] = 22;
-        values[valuesById[23] = "NATIVE_HOOK"] = 23;
+        values[valuesById[22] = "ACCEPT4"] = 22;
+        values[valuesById[23] = "WRAPPER_INTERCEPT"] = 23;
+        values[valuesById[24] = "NATIVE_HOOK"] = 24;
         return values;
     })();
 
@@ -1483,6 +1485,7 @@ $root.pb = (function() {
                 case 21:
                 case 22:
                 case 23:
+                case 24:
                     break;
                 }
             return null;
@@ -1651,13 +1654,17 @@ $root.pb = (function() {
             case 21:
                 message.eventType = 21;
                 break;
-            case "WRAPPER_INTERCEPT":
+            case "ACCEPT4":
             case 22:
                 message.eventType = 22;
                 break;
-            case "NATIVE_HOOK":
+            case "WRAPPER_INTERCEPT":
             case 23:
                 message.eventType = 23;
+                break;
+            case "NATIVE_HOOK":
+            case 24:
+                message.eventType = 24;
                 break;
             }
             return message;

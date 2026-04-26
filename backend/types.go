@@ -30,9 +30,11 @@ type bpfEvent struct {
 	NetBytes                    uint32
 	NetPort                     uint32
 	NetAddr                     [16]byte
+	_                           [4]byte // Padding for 8-byte alignment of Retval
 	Retval                      int64
 	Extra1                      uint32
 	Extra2                      uint32
+	_                           [4]byte // Padding for 8-byte alignment of Extra3
 	Extra3                      uint64
 	Extra4                      [256]byte
 }

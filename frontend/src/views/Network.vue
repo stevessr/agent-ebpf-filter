@@ -51,6 +51,7 @@ const eventTypeLabelMap: Record<number, string> = {
   [pb.EventType.NETWORK_SENDTO]: 'network_sendto',
   [pb.EventType.NETWORK_RECVFROM]: 'network_recvfrom',
   [pb.EventType.ACCEPT]: 'accept',
+  [pb.EventType.ACCEPT4]: 'accept4',
 };
 const eventTypes = Object.entries(eventTypeLabelMap).map(([value, label]) => ({ value: Number(value), label }));
 const eventTypeColorMap: Record<number, string> = {
@@ -59,6 +60,7 @@ const eventTypeColorMap: Record<number, string> = {
   [pb.EventType.NETWORK_SENDTO]: 'cyan',
   [pb.EventType.NETWORK_RECVFROM]: 'geekblue',
   [pb.EventType.ACCEPT]: 'volcano',
+  [pb.EventType.ACCEPT4]: 'volcano',
 };
 const networkEventTypes = new Set<number>(eventTypes.map((item) => item.value));
 const decodeIncomingEvents = (payload: Uint8Array): pb.IEvent[] => {

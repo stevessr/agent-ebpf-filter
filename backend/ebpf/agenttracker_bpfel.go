@@ -25,6 +25,7 @@ type AgentTrackerExitMeta struct {
 	NetBytes     uint32
 	NetPort      uint32
 	NetAddr      [16]int8
+	AddrPtr      uint64
 }
 
 type AgentTrackerExitPathData struct {
@@ -82,6 +83,7 @@ type AgentTrackerSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysEnterAccept    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_accept"`
+	TracepointSyscallsSysEnterAccept4   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_accept4"`
 	TracepointSyscallsSysEnterBind      *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_bind"`
 	TracepointSyscallsSysEnterChmod     *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_chmod"`
 	TracepointSyscallsSysEnterChown     *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_chown"`
@@ -104,6 +106,7 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysEnterUnlinkat  *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_unlinkat"`
 	TracepointSyscallsSysEnterWrite     *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_write"`
 	TracepointSyscallsSysExitAccept     *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_accept"`
+	TracepointSyscallsSysExitAccept4    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_accept4"`
 	TracepointSyscallsSysExitBind       *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_bind"`
 	TracepointSyscallsSysExitChmod      *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_chmod"`
 	TracepointSyscallsSysExitChown      *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_chown"`
@@ -201,6 +204,7 @@ type AgentTrackerVariables struct {
 // It can be passed to LoadAgentTrackerObjects or ebpf.CollectionSpec.LoadAndAssign.
 type AgentTrackerPrograms struct {
 	TracepointSyscallsSysEnterAccept    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_accept"`
+	TracepointSyscallsSysEnterAccept4   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_accept4"`
 	TracepointSyscallsSysEnterBind      *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_bind"`
 	TracepointSyscallsSysEnterChmod     *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_chmod"`
 	TracepointSyscallsSysEnterChown     *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_chown"`
@@ -223,6 +227,7 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysEnterUnlinkat  *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_unlinkat"`
 	TracepointSyscallsSysEnterWrite     *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_write"`
 	TracepointSyscallsSysExitAccept     *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_accept"`
+	TracepointSyscallsSysExitAccept4    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_accept4"`
 	TracepointSyscallsSysExitBind       *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_bind"`
 	TracepointSyscallsSysExitChmod      *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_chmod"`
 	TracepointSyscallsSysExitChown      *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_chown"`
@@ -249,6 +254,7 @@ type AgentTrackerPrograms struct {
 func (p *AgentTrackerPrograms) Close() error {
 	return _AgentTrackerClose(
 		p.TracepointSyscallsSysEnterAccept,
+		p.TracepointSyscallsSysEnterAccept4,
 		p.TracepointSyscallsSysEnterBind,
 		p.TracepointSyscallsSysEnterChmod,
 		p.TracepointSyscallsSysEnterChown,
@@ -271,6 +277,7 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysEnterUnlinkat,
 		p.TracepointSyscallsSysEnterWrite,
 		p.TracepointSyscallsSysExitAccept,
+		p.TracepointSyscallsSysExitAccept4,
 		p.TracepointSyscallsSysExitBind,
 		p.TracepointSyscallsSysExitChmod,
 		p.TracepointSyscallsSysExitChown,

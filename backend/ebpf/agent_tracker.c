@@ -51,6 +51,7 @@ struct task_struct {
 #define TYPE_EXIT     19
 #define TYPE_SOCKET   20
 #define TYPE_ACCEPT   21
+#define TYPE_ACCEPT4  22
 
 struct trace_entry {
     short unsigned int type;
@@ -162,6 +163,7 @@ struct exit_meta {
     u32 net_bytes;
     u32 net_port;
     char net_addr[16];
+    u64 addr_ptr;
 };
 
 struct {
@@ -465,7 +467,7 @@ int tracepoint__syscalls__sys_enter_connect(struct trace_event_raw_sys_enter *ct
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 tag_id = get_tag_id(pid, comm, NULL);
-    if (tag_id == 0) return 0;
+    if (tag_id == 0) tag_id = 7;
 
     struct exit_meta meta = {};
     meta.type = TYPE_CONNECT;
@@ -669,7 +671,7 @@ int tracepoint__syscalls__sys_enter_bind(struct trace_event_raw_sys_enter *ctx) 
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 tag_id = get_tag_id(pid, comm, NULL);
-    if (tag_id == 0) return 0;
+    if (tag_id == 0) tag_id = 7;
 
     struct exit_meta meta = {};
     meta.type = TYPE_BIND;
@@ -720,7 +722,7 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 tag_id = get_tag_id(pid, comm, NULL);
-    if (tag_id == 0) return 0;
+    if (tag_id == 0) tag_id = 7;
 
     struct exit_meta meta = {};
     meta.type = TYPE_SENDTO;
@@ -772,13 +774,13 @@ int tracepoint__syscalls__sys_enter_recvfrom(struct trace_event_raw_sys_enter *c
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 tag_id = get_tag_id(pid, comm, NULL);
-    if (tag_id == 0) return 0;
+    if (tag_id == 0) tag_id = 7;
 
     struct exit_meta meta = {};
     meta.type = TYPE_RECVFROM;
     meta.tag_id = tag_id;
-    fill_network_meta(&meta, (const void *)ctx->args[4], NET_DIR_INCOMING, (u32)ctx->args[2]);
     meta.extra3 = (u32)ctx->args[2]; // byte count
+    meta.addr_ptr = ctx->args[4]; // Store pointer to read at exit
 
     store_exit_meta(pid_tgid, &meta);
 
@@ -799,8 +801,15 @@ int tracepoint__syscalls__sys_exit_recvfrom(struct trace_event_raw_sys_exit *ctx
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
+    
+    // Read the address now that the syscall has completed
+    if (meta.addr_ptr && ctx->ret > 0) {
+        fill_network_endpoint(e, (void *)meta.addr_ptr, NET_DIR_INCOMING, (u32)ctx->ret);
+    }
+    
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
+    if (ctx->ret > 0) e->net_bytes = (u32)ctx->ret;
 
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
     if (pd) {
@@ -1411,13 +1420,13 @@ int tracepoint__syscalls__sys_enter_accept(struct trace_event_raw_sys_enter *ctx
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 tag_id = get_tag_id(pid, comm, NULL);
-    if (tag_id == 0) return 0;
+    if (tag_id == 0) tag_id = 7;
 
     struct exit_meta meta = {};
     meta.type = TYPE_ACCEPT;
     meta.tag_id = tag_id;
     meta.extra1 = (u32)ctx->args[0]; // fd
-    fill_network_meta(&meta, (const void *)ctx->args[1], NET_DIR_INCOMING, 0);
+    meta.addr_ptr = ctx->args[1]; // Store pointer to read at exit
 
     store_exit_meta(pid_tgid, &meta);
 
@@ -1438,6 +1447,68 @@ int tracepoint__syscalls__sys_exit_accept(struct trace_event_raw_sys_exit *ctx) 
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
+
+    if (meta.addr_ptr && ctx->ret >= 0) {
+        fill_network_endpoint(e, (void *)meta.addr_ptr, NET_DIR_INCOMING, 0);
+    }
+
+    fill_from_exit_meta(e, pid_tgid, &meta);
+    e->retval = ctx->ret;
+
+    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
+    if (pd) {
+        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+        __builtin_memcpy(e->extra4, pd->extra4, MAX_PATH_LEN);
+        bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
+    }
+
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+
+// ============================================================
+// sys_enter / sys_exit: accept4 (no path, fd at args[0], network from args[1])
+// ============================================================
+SEC("tracepoint/syscalls/sys_enter_accept4")
+int tracepoint__syscalls__sys_enter_accept4(struct trace_event_raw_sys_enter *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+
+    u32 tag_id = get_tag_id(pid, comm, NULL);
+    if (tag_id == 0) tag_id = 7;
+
+    struct exit_meta meta = {};
+    meta.type = TYPE_ACCEPT4;
+    meta.tag_id = tag_id;
+    meta.extra1 = (u32)ctx->args[0]; // fd
+    meta.addr_ptr = ctx->args[1]; // Store pointer to read at exit
+
+    store_exit_meta(pid_tgid, &meta);
+
+    u32 zero = 0;
+    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+    if (pd) {
+        __builtin_memcpy(pd->path, "socket accept4", 15);
+        bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
+    }
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_accept4")
+int tracepoint__syscalls__sys_exit_accept4(struct trace_event_raw_sys_exit *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct exit_meta meta = {};
+    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+
+    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    if (!e) return 0;
+
+    if (meta.addr_ptr && ctx->ret >= 0) {
+        fill_network_endpoint(e, (void *)meta.addr_ptr, NET_DIR_INCOMING, 0);
+    }
+
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
 

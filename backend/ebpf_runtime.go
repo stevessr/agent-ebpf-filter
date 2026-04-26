@@ -46,6 +46,7 @@ var trackerAttachSpecs = []struct {
 	{"syscalls", "sys_enter_exit_group", "sys_enter_exit_group", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterExitGroup }},
 	{"syscalls", "sys_enter_socket", "sys_enter_socket", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterSocket }},
 	{"syscalls", "sys_enter_accept", "sys_enter_accept", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterAccept }},
+	{"syscalls", "sys_enter_accept4", "sys_enter_accept4", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterAccept4 }},
 	// sys_exit for ALL 22 syscalls
 	{"syscalls", "sys_exit_execve", "sys_exit_execve", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitExecve }},
 	{"syscalls", "sys_exit_openat", "sys_exit_openat", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitOpenat }},
@@ -69,6 +70,7 @@ var trackerAttachSpecs = []struct {
 	{"syscalls", "sys_exit_exit_group", "sys_exit_exit_group", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitExitGroup }},
 	{"syscalls", "sys_exit_socket", "sys_exit_socket", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitSocket }},
 	{"syscalls", "sys_exit_accept", "sys_exit_accept", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitAccept }},
+	{"syscalls", "sys_exit_accept4", "sys_exit_accept4", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitAccept4 }},
 }
 
 // ── mode detection ────────────────────────────────────────────────────────────

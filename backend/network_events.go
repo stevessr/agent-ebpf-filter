@@ -55,6 +55,8 @@ func kernelEventTypeName(eventType uint32) string {
 		return "socket"
 	case 21:
 		return "accept"
+	case 22:
+		return "accept4"
 	default:
 		return "unknown"
 	}
@@ -62,7 +64,7 @@ func kernelEventTypeName(eventType uint32) string {
 
 func isNetworkEventType(eventType string) bool {
 	switch eventType {
-	case "network_connect", "network_bind", "network_sendto", "network_recvfrom", "accept":
+	case "network_connect", "network_bind", "network_sendto", "network_recvfrom", "accept", "accept4":
 		return true
 	default:
 		return false
@@ -210,7 +212,7 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 		}
 	}
 
-	if typeName == "accept" || isNetworkEventType(typeName) {
+	if typeName == "accept" || typeName == "accept4" || isNetworkEventType(typeName) {
 		direction := networkDirectionLabel(event.NetDirection)
 		endpoint := formatNetworkEndpoint(event.NetFamily, event.NetAddr, event.NetPort)
 		family := networkFamilyLabel(event.NetFamily)

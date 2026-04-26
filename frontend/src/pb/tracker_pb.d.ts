@@ -27,8 +27,9 @@ export namespace pb {
         EXIT = 19,
         SOCKET = 20,
         ACCEPT = 21,
-        WRAPPER_INTERCEPT = 22,
-        NATIVE_HOOK = 23
+        ACCEPT4 = 22,
+        WRAPPER_INTERCEPT = 23,
+        NATIVE_HOOK = 24
     }
 
     /** Properties of a RegisterRequest. */
