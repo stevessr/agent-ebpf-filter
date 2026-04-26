@@ -135,13 +135,63 @@ func isTextLikeMime(mimeType string) bool {
 	if mimeType == "" {
 		return false
 	}
-	return strings.HasPrefix(mimeType, "text/") ||
-		strings.Contains(mimeType, "json") ||
-		strings.Contains(mimeType, "xml") ||
-		strings.Contains(mimeType, "javascript") ||
-		strings.Contains(mimeType, "yaml") ||
-		strings.Contains(mimeType, "toml") ||
-		strings.Contains(mimeType, "x-sh")
+	mt := strings.ToLower(mimeType)
+	return strings.HasPrefix(mt, "text/") ||
+		strings.Contains(mt, "json") ||
+		strings.Contains(mt, "xml") ||
+		strings.Contains(mt, "javascript") ||
+		strings.Contains(mt, "typescript") ||
+		strings.Contains(mt, "markdown") ||
+		strings.Contains(mt, "yaml") ||
+		strings.Contains(mt, "toml") ||
+		strings.Contains(mt, "x-sh") ||
+		strings.Contains(mt, "x-c") ||
+		strings.Contains(mt, "x-cpp") ||
+		strings.Contains(mt, "x-python") ||
+		strings.Contains(mt, "x-go") ||
+		strings.Contains(mt, "x-rust") ||
+		strings.Contains(mt, "x-java")
+}
+
+func detectLanguage(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	if len(ext) > 0 && ext[0] == '.' {
+		ext = ext[1:]
+	}
+	switch ext {
+	case "cpp", "cc", "cxx", "hpp":
+		return "cpp"
+	case "c", "h":
+		return "c"
+	case "py":
+		return "python"
+	case "js", "mjs":
+		return "javascript"
+	case "ts", "mts":
+		return "typescript"
+	case "go":
+		return "go"
+	case "rs":
+		return "rust"
+	case "md":
+		return "markdown"
+	case "sh", "bash":
+		return "bash"
+	case "yml", "yaml":
+		return "yaml"
+	case "json":
+		return "json"
+	case "html":
+		return "html"
+	case "css":
+		return "css"
+	case "sql":
+		return "sql"
+	case "java":
+		return "java"
+	default:
+		return ext
+	}
 }
 
 func buildFilePreview(path string) (*FilePreviewResponse, error) {
@@ -220,6 +270,11 @@ func buildFilePreview(path string) (*FilePreviewResponse, error) {
 		return res, nil
 	}
 
+	if strings.HasPrefix(mimeType, "video/") {
+		res.PreviewType = "video"
+		return res, nil
+	}
+
 	previewLimit := int64(binaryPreviewLimitBytes)
 	if isTextLikeMime(mimeType) {
 		previewLimit = textPreviewLimitBytes
@@ -239,6 +294,7 @@ func buildFilePreview(path string) (*FilePreviewResponse, error) {
 
 	if isTextLikeMime(mimeType) || utf8.Valid(data) {
 		res.PreviewType = "text"
+		res.Language = detectLanguage(absPath)
 		res.Content = string(data)
 		return res, nil
 	}

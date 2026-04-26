@@ -1,4 +1,4 @@
-export type FilePreviewType = 'text' | 'image' | 'binary' | 'directory';
+export type FilePreviewType = 'text' | 'image' | 'video' | 'binary' | 'directory';
 
 export interface FilePreviewResponse {
   path: string;
@@ -10,6 +10,7 @@ export interface FilePreviewResponse {
   modTime: string;
   mimeType: string;
   previewType: FilePreviewType;
+  language?: string;
   content: string;
   dataUrl: string;
   truncated: boolean;

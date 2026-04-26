@@ -87,6 +87,7 @@ type FilePreviewResponse struct {
 	ModTime     time.Time `json:"modTime"`
 	MimeType    string    `json:"mimeType,omitempty"`
 	PreviewType string    `json:"previewType"`
+	Language    string    `json:"language,omitempty"`
 	Content     string    `json:"content,omitempty"`
 	DataURL     string    `json:"dataUrl,omitempty"`
 	Truncated   bool      `json:"truncated,omitempty"`
