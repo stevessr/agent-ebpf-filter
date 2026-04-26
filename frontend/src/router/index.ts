@@ -1,53 +1,45 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import Dashboard from '../views/Dashboard.vue';
-import Config from '../views/Config.vue';
-import Monitor from '../views/Monitor.vue';
-import Network from '../views/Network.vue';
-import NetworkFlow from '../views/NetworkFlow.vue';
-import Explorer from '../views/Explorer.vue';
-import Executor from '../views/Executor.vue';
-import Hooks from '../views/Hooks.vue';
 
 const routes = [
   {
     path: '/',
     name: 'Dashboard',
-    component: Dashboard,
+    component: () => import('../views/Dashboard.vue'),
   },
   {
     path: '/monitor',
     name: 'Monitor',
-    component: Monitor,
+    component: () => import('../views/Monitor.vue'),
   },
   {
     path: '/network',
     name: 'Network',
-    component: Network,
+    component: () => import('../views/Network.vue'),
   },
   {
     path: '/network-flow',
     name: 'NetworkFlow',
-    component: NetworkFlow,
+    component: () => import('../views/NetworkFlow.vue'),
   },
   {
     path: '/explorer',
     name: 'Explorer',
-    component: Explorer,
+    component: () => import('../views/Explorer.vue'),
   },
   {
     path: '/executor',
     name: 'Executor',
-    component: Executor,
+    component: () => import('../views/Executor.vue'),
   },
   {
     path: '/hooks',
     name: 'Hooks',
-    component: Hooks,
+    component: () => import('../views/Hooks.vue'),
   },
   {
     path: '/config',
     name: 'Config',
-    component: Config,
+    component: () => import('../views/Config.vue'),
   },
 ];
 

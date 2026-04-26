@@ -555,17 +555,22 @@ const getCategoryColor = (tag: string) => {
 const connectWebSocket = () => {
   if (!shouldReconnect) return;
   if (ws) {
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
     ws.close();
-    ws = null;
   }
-  ws = new WebSocket(buildWebSocketUrl('/ws'));
-  ws.binaryType = 'arraybuffer';
+  const socket = new WebSocket(buildWebSocketUrl('/ws'));
+  ws = socket;
+  socket.binaryType = 'arraybuffer';
 
-  ws.onopen = () => {
+  socket.onopen = () => {
+    if (ws !== socket) return;
     isConnected.value = true;
   };
 
-  ws.onmessage = (message) => {
+  socket.onmessage = (message) => {
+    if (ws !== socket) return;
     if (isPaused.value) return;
     try {
       const incomingEvents = decodeIncomingEvents(new Uint8Array(message.data));
@@ -623,7 +628,8 @@ const connectWebSocket = () => {
     }
   };
 
-  ws.onclose = () => {
+  socket.onclose = () => {
+    if (ws !== socket) return;
     isConnected.value = false;
     ws = null;
     if (!shouldReconnect) return;
@@ -722,7 +728,12 @@ onUnmounted(() => {
     window.clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
-  if (ws) ws.close();
+  if (ws) {
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.close();
+  }
   ws = null;
 });
 </script>

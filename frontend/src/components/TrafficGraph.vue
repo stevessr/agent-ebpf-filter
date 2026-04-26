@@ -327,9 +327,9 @@ const renderGraph = () => {
     const midPoint = getCubicPoint(geometry, 0.5);
     const tangent = getCubicTangent(geometry, 0.5);
     const angle = Math.atan2(tangent.y, tangent.x) * 180 / Math.PI;
-    const size = Math.min(18, Math.max(9, linkWidth(speed) * 1.45));
+    const size = Math.min(28, Math.max(8, linkWidth(speed) * 2.6));
     return {
-      path: `M ${-size} ${-size * 0.45} L ${size} 0 L ${-size} ${size * 0.45} Z`,
+      path: `M ${-size} ${-size * 0.42} L ${size * 1.15} 0 L ${-size} ${size * 0.42} Z`,
       transform: `translate(${midPoint.x},${midPoint.y}) rotate(${angle})`,
     };
   };

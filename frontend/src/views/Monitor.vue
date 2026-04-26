@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, defineAsyncComponent } from 'vue';
 import axios from 'axios';
 import { 
   PlusOutlined, SearchOutlined, ClusterOutlined, TableOutlined, 
@@ -9,7 +9,6 @@ import {
   WarningOutlined
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
-import VueApexCharts from 'vue3-apexcharts';
 import { pb } from '../pb/tracker_pb.js';
 import { buildWebSocketUrl } from '../utils/requestContext';
 
@@ -113,6 +112,7 @@ const chartSeriesName = ref(['Value']);
 const historyMap = ref<Record<string, HistoryData[]>>({});
 const activeChartKey = ref('');
 const chartTimeRange = ref(60); // seconds
+const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 
 // Process Detail State
 const showProcModal = ref(false);
@@ -242,14 +242,25 @@ const buildFaultProcesses = (list: ProcessInfo[], now: number) => {
 };
 
 const connectWebSocket = () => {
-  if (ws) ws.close();
+  if (ws) {
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.close();
+  }
   lastIO = null;
   faultSnapshots.value = {};
-  ws = new WebSocket(buildWebSocketUrl('/ws/system', { interval: refreshInterval.value }));
-  ws.binaryType = 'arraybuffer';
+  const socket = new WebSocket(buildWebSocketUrl('/ws/system', { interval: refreshInterval.value }));
+  ws = socket;
+  socket.binaryType = 'arraybuffer';
 
-  ws.onopen = () => { isConnected.value = true; loading.value = false; };
-  ws.onmessage = (msg) => {
+  socket.onopen = () => {
+    if (ws !== socket) return;
+    isConnected.value = true;
+    loading.value = false;
+  };
+  socket.onmessage = (msg) => {
+    if (ws !== socket) return;
     try {
       const decoded = pb.SystemStats.decode(new Uint8Array(msg.data));
       const now = Date.now();
@@ -390,7 +401,10 @@ const connectWebSocket = () => {
       });
     } catch (e) { console.error(e); }
   };
-  ws.onclose = () => { isConnected.value = false; };
+  socket.onclose = () => {
+    if (ws !== socket) return;
+    isConnected.value = false;
+  };
 };
 
 const buildTree = (list: ProcessInfo[]) => {
@@ -599,7 +613,15 @@ onMounted(() => {
   axios.get('/config/tags').then(res => tags.value = res.data);
   connectWebSocket();
 });
-onUnmounted(() => ws?.close());
+onUnmounted(() => {
+  if (ws) {
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.close();
+  }
+  ws = null;
+});
 watch(refreshInterval, connectWebSocket);
 </script>
 

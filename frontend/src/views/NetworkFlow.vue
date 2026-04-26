@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue';
 import { LoadingOutlined, GlobalOutlined, ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons-vue';
-import VueApexCharts from 'vue3-apexcharts';
 import TrafficGraph from '../components/TrafficGraph.vue';
 import { pb } from '../pb/tracker_pb.js';
 import { buildWebSocketUrl } from '../utils/requestContext';
@@ -40,6 +39,7 @@ let shouldReconnect = true;
 
 const maxHistorySeconds = 300;
 const megabyte = 1024 * 1024;
+const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 
 const formatBytes = (value: number | string, decimals = 2) => {
   const bytes = Number(value);
@@ -235,6 +235,8 @@ const hottestInterface = computed(() => netInterfaces.value[0] || null);
 
 const connectWebSocket = () => {
   if (ws) {
+    ws.onopen = null;
+    ws.onmessage = null;
     ws.onclose = null;
     ws.close();
   }
@@ -242,14 +244,17 @@ const connectWebSocket = () => {
   lastIO = null;
   interfaceHistory.value = {};
   interfaceNames.value = [];
-  ws = new WebSocket(buildWebSocketUrl('/ws/system', { interval: refreshInterval.value }));
-  ws.binaryType = 'arraybuffer';
+  const socket = new WebSocket(buildWebSocketUrl('/ws/system', { interval: refreshInterval.value }));
+  ws = socket;
+  socket.binaryType = 'arraybuffer';
 
-  ws.onopen = () => {
+  socket.onopen = () => {
+    if (ws !== socket) return;
     isConnected.value = true;
   };
 
-  ws.onmessage = (msg) => {
+  socket.onmessage = (msg) => {
+    if (ws !== socket) return;
     try {
       const decoded = pb.SystemStats.decode(new Uint8Array(msg.data));
       const now = Date.now();
@@ -298,7 +303,8 @@ const connectWebSocket = () => {
     }
   };
 
-  ws.onclose = () => {
+  socket.onclose = () => {
+    if (ws !== socket) return;
     isConnected.value = false;
     ws = null;
     if (!shouldReconnect) return;
@@ -313,7 +319,12 @@ const disconnectWebSocket = () => {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
-  ws?.close();
+  if (ws) {
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.close();
+  }
   ws = null;
 };
 
