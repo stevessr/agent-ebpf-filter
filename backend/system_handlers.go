@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	gnet "github.com/shirou/gopsutil/v3/net"
 	"github.com/shirou/gopsutil/v3/disk"
@@ -418,6 +419,39 @@ func handleSystemdLogs(c *gin.Context) {
 	})
 }
 
+func handleSensors(c *gin.Context) {
+	temps, _ := host.SensorsTemperatures()
+	// You could also add fan speeds or voltages here if available via other means
+	c.JSON(200, temps)
+}
+
+func handleCameras(c *gin.Context) {
+	matches, _ := filepath.Glob("/dev/video*")
+	// Filter out non-capture devices (usually even numbers are capture, odd are metadata/etc)
+	// For simplicity, return all and let user choose
+	c.JSON(200, matches)
+}
+
+func handleCameraSnapshot(c *gin.Context) {
+	dev := c.Query("device")
+	if dev == "" {
+		dev = "/dev/video0"
+	}
+
+	// Try to grab a single frame using ffmpeg (fast and common)
+	// Use -f v4l2 to specify input format
+	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("camera_snap_%d.jpg", time.Now().UnixNano()))
+	cmd := exec.Command("ffmpeg", "-y", "-f", "v4l2", "-video_size", "640x480", "-i", dev, "-frames:v", "1", tmpFile)
+	
+	if err := cmd.Run(); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to capture frame: " + err.Error() + ". Ensure ffmpeg and v4l2 are installed."})
+		return
+	}
+	defer os.Remove(tmpFile)
+
+	c.File(tmpFile)
+}
+
 func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/ls", handleSystemLs)
 	rg.GET("/file-preview", handleFilePreview)
@@ -429,4 +463,7 @@ func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/systemd", handleSystemdServices)
 	rg.POST("/systemd/control", handleSystemdControl)
 	rg.GET("/systemd/logs", handleSystemdLogs)
+	rg.GET("/sensors", handleSensors)
+	rg.GET("/cameras", handleCameras)
+	rg.GET("/camera/snapshot", handleCameraSnapshot)
 }

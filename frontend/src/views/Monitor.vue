@@ -7,7 +7,7 @@ import {
   FilterOutlined, DeploymentUnitOutlined,
   DashboardOutlined, PieChartOutlined,
   AppstoreOutlined, BarChartOutlined, LineChartOutlined, InfoCircleOutlined,
-  WarningOutlined
+  WarningOutlined, ApiOutlined
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 import { pb } from '../pb/tracker_pb.js';
@@ -106,6 +106,66 @@ const systemdServices = ref<SystemdService[]>([]);
 const systemdLoading = ref(false);
 const systemdSearch = ref('');
 const systemdScope = ref<'system' | 'user'>('system');
+
+// SENSORS STATE
+const sensorData = ref<any[]>([]);
+const sensorsLoading = ref(false);
+const cameras = ref<string[]>([]);
+const selectedCamera = ref<string | null>(null);
+const cameraSnapshotUrl = ref('');
+const cameraLoading = ref(false);
+const cameraAutoRefresh = ref(false);
+let cameraTimer: any = null;
+let sensorTimer: any = null;
+
+const fetchSensors = async () => {
+  sensorsLoading.value = true;
+  try {
+    const res = await axios.get('/system/sensors');
+    sensorData.value = (res.data || []).map((s: any) => ({
+      ...s,
+      sensorKey: s.sensorKey || s.label
+    }));
+  } catch (err) {} finally {
+    sensorsLoading.value = false;
+  }
+};
+
+const fetchCameras = async () => {
+  try {
+    const res = await axios.get('/system/cameras');
+    cameras.value = res.data;
+    if (res.data.length > 0 && !selectedCamera.value) {
+      selectedCamera.value = res.data[0];
+    }
+  } catch (err) {}
+};
+
+const refreshCamera = async () => {
+  if (!selectedCamera.value) return;
+  cameraLoading.value = true;
+  try {
+    cameraSnapshotUrl.value = `/system/camera/snapshot?device=${encodeURIComponent(selectedCamera.value)}&t=${Date.now()}`;
+  } catch (err) {} finally {
+    cameraLoading.value = false;
+  }
+};
+
+const sensorColumns = [
+  { title: 'Label', dataIndex: 'label', key: 'label' },
+  { title: 'Temperature', dataIndex: 'temperature', key: 'temperature', align: 'right' },
+  { title: 'Sensor Key', dataIndex: 'sensorKey', key: 'sensorKey', width: 120 },
+];
+
+watch(cameraAutoRefresh, (val) => {
+  if (val) {
+    cameraTimer = setInterval(refreshCamera, 1000);
+  } else if (cameraTimer) {
+    clearInterval(cameraTimer);
+    cameraTimer = null;
+  }
+});
+
 
 const showLogsModal = ref(false);
 const activeLogUnit = ref('');
@@ -211,6 +271,16 @@ watch(() => route.params.tab, (newTab) => {
 watch(activeTab, (newTab) => {
   if (newTab === 'systemd' && systemdServices.value.length === 0) {
     void fetchSystemdServices();
+  } else if (newTab === 'sensors') {
+    void fetchSensors();
+    void fetchCameras();
+    if (!sensorTimer) sensorTimer = setInterval(fetchSensors, 5000);
+  } else {
+    if (sensorTimer) {
+      clearInterval(sensorTimer);
+      sensorTimer = null;
+    }
+    cameraAutoRefresh.value = false;
   }
 });
 
@@ -1344,6 +1414,50 @@ watch(refreshInterval, connectWebSocket);
               </template>
             </template>
           </a-table>
+        </div>
+      </a-tab-pane>
+
+      <a-tab-pane key="sensors" tab="Sensors">
+        <template #tab><span><ApiOutlined /> Sensors</span></template>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 16px;">
+          <a-card title="Hardware Sensors" size="small">
+            <template #extra>
+              <a-button type="link" size="small" @click="fetchSensors">Refresh</a-button>
+            </template>
+            <a-table :dataSource="sensorData" :columns="sensorColumns" size="small" :pagination="false" rowKey="sensorKey" :loading="sensorsLoading">
+               <template #bodyCell="{ column, record }">
+                 <template v-if="column.key === 'temperature'">
+                   <span :style="{ color: record.temperature > 75 ? '#ff4d4f' : record.temperature > 60 ? '#faad14' : '#52c41a', fontWeight: 'bold' }">
+                     {{ record.temperature.toFixed(1) }}°C
+                   </span>
+                 </template>
+               </template>
+            </a-table>
+          </a-card>
+
+          <a-card title="Cameras" size="small">
+            <template #extra>
+              <a-space>
+                <span style="font-size: 12px; color: #888;">Auto-refresh:</span>
+                <a-switch v-model:checked="cameraAutoRefresh" size="small" />
+              </a-space>
+            </template>
+            <div style="margin-bottom: 12px;">
+              <a-select v-model:value="selectedCamera" style="width: 100%" placeholder="Select Camera" @change="refreshCamera">
+                <a-select-option v-for="cam in cameras" :key="cam" :value="cam">{{ cam }}</a-select-option>
+              </a-select>
+            </div>
+            <div style="background: #000; border-radius: 4px; overflow: hidden; position: relative; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center;">
+              <img v-if="cameraSnapshotUrl" :src="cameraSnapshotUrl" style="width: 100%; height: 100%; object-fit: contain;" />
+              <a-empty v-else description="No camera stream" :image-style="{ height: '60px' }" />
+              <div v-if="cameraLoading" style="position: absolute; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+                <a-spin />
+              </div>
+            </div>
+            <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+               <a-button size="small" @click="refreshCamera" :disabled="!selectedCamera">Manual Capture</a-button>
+            </div>
+          </a-card>
         </div>
       </a-tab-pane>
     </a-tabs>
