@@ -80,6 +80,14 @@ interface HistoryData {
   value2?: number; // for in/out or R/W
 }
 
+type ChartUnit = 'percent' | 'bytes' | 'fault' | 'pages' | 'vram' | 'raw';
+
+interface ByteScale {
+  divisor: number;
+  unit: 'B' | 'KB' | 'MB' | 'GB' | 'TB';
+  precision: number;
+}
+
 const activeTab = ref('dashboard');
 const healthTab = ref('cpu');
 const processes = ref<ProcessInfo[]>([]);
@@ -123,6 +131,7 @@ const loading = ref(false);
 const searchText = ref('');
 const viewMode = ref<'list' | 'tree'>('tree');
 const cpuViewMode = ref<'total' | 'cores'>('total');
+const cpuDisplayMode = ref<'bar' | 'circle'>('bar');
 const refreshInterval = ref(2000);
 const tags = ref<string[]>([]);
 const selectedTag = ref('AI Agent');
@@ -159,20 +168,51 @@ let lastIO: {
 } | null = null;
 
 const formatBytes = (bytes: number, decimals = 2) => {
-  if (bytes === 0) return '0 B';
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
 };
 
+const formatRateBytes = (bytes: number, decimals = 1) => `${formatBytes(bytes, decimals)}/s`;
 const formatCount = (value: number) => new Intl.NumberFormat('en-US').format(Math.max(0, Math.round(value || 0)));
 const formatRate = (value: number) => `${(value || 0).toFixed(1)}/s`;
+const formatPercent = (value?: number | string | null) => `${Math.round(Number(value ?? 0))}%`;
 const formatDetailValue = (value: number | string | undefined | null) => {
   if (value === null || value === undefined || value === '') return '—';
   return typeof value === 'number' ? String(Math.trunc(value)) : String(value);
 };
 const pad2 = (value: number) => String(Math.floor(Math.abs(value))).padStart(2, '0');
+
+const resolveByteScale = (values: number[]): ByteScale => {
+  const max = Math.max(
+    1,
+    ...values
+      .map((value) => Math.abs(Number(value || 0)))
+      .filter((value) => Number.isFinite(value)),
+  );
+
+  if (max >= 1024 ** 4) return { divisor: 1024 ** 4, unit: 'TB', precision: 2 };
+  if (max >= 1024 ** 3) return { divisor: 1024 ** 3, unit: 'GB', precision: 2 };
+  if (max >= 1024 ** 2) return { divisor: 1024 ** 2, unit: 'MB', precision: 2 };
+  if (max >= 1024) return { divisor: 1024, unit: 'KB', precision: 1 };
+  return { divisor: 1, unit: 'B', precision: 0 };
+};
+
+const chartUnitForKey = (key: string): ChartUnit => {
+  const normalized = key.toLowerCase();
+  if (normalized.includes('cpu') || normalized.includes('mem_usage') || normalized.includes('util') || normalized.includes('percent')) {
+    return 'percent';
+  }
+  if (normalized.includes('swap')) return 'pages';
+  if (normalized.includes('fault')) return 'fault';
+  if (normalized.includes('vram')) return 'vram';
+  if (normalized.startsWith('net_') || normalized.startsWith('disk_') || normalized.includes('io') || normalized.includes('total_net') || normalized.includes('total_disk')) {
+    return 'bytes';
+  }
+  return 'raw';
+};
 
 const formatChartTime = (timestamp: number, rangeSeconds: number) => {
   const date = new Date(timestamp);
@@ -483,8 +523,35 @@ const openChart = (key: string, title: string, type: 'single' | 'double', series
   showChartModal.value = true;
 };
 
+const chartVisibleData = computed(() => {
+  const data = historyMap.value[activeChartKey.value] || [];
+  const { min } = getChartWindow();
+  return data.filter((entry) => entry.time >= min);
+});
+
+const chartUnit = computed<ChartUnit>(() => chartUnitForKey(activeChartKey.value));
+
+const chartByteScale = computed(() => {
+  if (chartUnit.value !== 'bytes') {
+    return { divisor: 1, unit: 'B', precision: 0 } as ByteScale;
+  }
+  return resolveByteScale(chartVisibleData.value.flatMap((entry) => [entry.value, entry.value2 ?? 0]));
+});
+
+const formatChartValue = (value: number) => {
+  const unit = chartUnit.value;
+  if (unit === 'percent') return `${Number(value || 0).toFixed(1)}%`;
+  if (unit === 'pages') return `${Number(value || 0).toFixed(1)} pages/s`;
+  if (unit === 'fault') return `${Number(value || 0).toFixed(1)} faults/s`;
+  if (unit === 'vram') return `${Number(value || 0).toFixed(1)} MiB`;
+  if (unit === 'bytes') return `${Number(value || 0).toFixed(chartByteScale.value.precision)} ${chartByteScale.value.unit}/s`;
+  return Number(value || 0).toFixed(1);
+};
+
 const chartOptions = computed(() => {
   const { min, max } = getChartWindow();
+  const unit = chartUnit.value;
+  const byteScale = chartByteScale.value;
   return {
     chart: { animations: { enabled: false }, toolbar: { show: false }, zoom: { enabled: false }, background: 'transparent' },
     xaxis: {
@@ -507,24 +574,19 @@ const chartOptions = computed(() => {
       x: {
         formatter: (value: string | number) => formatChartTime(Number(value), chartTimeRange.value),
       },
+      y: {
+        formatter: (value: number) => formatChartValue(value),
+      },
     },
-    yaxis: { labels: { style: { fontSize: '10px' }, formatter: (v: number) => {
-      if (!activeChartKey.value) return v.toString();
-      const key = activeChartKey.value.toLowerCase();
-      if (key.includes('usage') || key.includes('cpu') || key.includes('util') || key.includes('percent')) {
-        return v.toFixed(1) + '%';
-      }
-      if (key.includes('swap')) {
-        return `${v.toFixed(1)} pages/s`;
-      }
-      if (key.includes('fault')) {
-        return `${v.toFixed(1)} faults/s`;
-      }
-      if (key.includes('vram')) {
-        return formatBytes(v * 1024 * 1024, 1);
-      }
-      return formatBytes(v) + '/s';
-    }}},
+    yaxis: {
+      min: unit === 'percent' ? 0 : undefined,
+      max: unit === 'percent' ? 100 : undefined,
+      decimalsInFloat: unit === 'bytes' ? byteScale.precision : 1,
+      labels: {
+        style: { fontSize: '10px' },
+        formatter: (v: number) => formatChartValue(v),
+      },
+    },
     stroke: { curve: 'smooth' as const, width: 2 },
     grid: { borderColor: '#f1f1f1' },
     legend: { position: 'top' as const, horizontalAlign: 'right' as const },
@@ -533,17 +595,20 @@ const chartOptions = computed(() => {
 });
 
 const chartSeries = computed(() => {
-  const data = historyMap.value[activeChartKey.value] || [];
-  const { min } = getChartWindow();
-  const filtered = data.filter(d => d.time >= min);
+  const filtered = chartVisibleData.value;
+  const unit = chartUnit.value;
+  const scale = unit === 'bytes' ? chartByteScale.value.divisor : 1;
+  const mapValue = (value: number | undefined) => {
+    const normalized = Number(value || 0);
+    return unit === 'bytes' ? normalized / scale : normalized;
+  };
   if (chartType.value === 'single') {
-    return [{ name: chartSeriesName.value[0], data: filtered.map(d => ({ x: d.time, y: d.value })) }];
-  } else {
-    return [
-      { name: chartSeriesName.value[0], data: filtered.map(d => ({ x: d.time, y: d.value })) },
-      { name: chartSeriesName.value[1], data: filtered.map(d => ({ x: d.time, y: d.value2 || 0 })) }
-    ];
+    return [{ name: chartSeriesName.value[0], data: filtered.map((entry) => ({ x: entry.time, y: mapValue(entry.value) })) }];
   }
+  return [
+    { name: chartSeriesName.value[0], data: filtered.map((entry) => ({ x: entry.time, y: mapValue(entry.value) })) },
+    { name: chartSeriesName.value[1], data: filtered.map((entry) => ({ x: entry.time, y: mapValue(entry.value2) })) }
+  ];
 });
 
 const showGroupDetails = ref(false);
@@ -641,37 +706,96 @@ watch(refreshInterval, connectWebSocket);
                   <template #title>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                       <span><DashboardOutlined /> CPU Status</span>
-                      <a-radio-group v-model:value="cpuViewMode" size="small">
-                        <a-radio-button value="total">Overall</a-radio-button>
-                        <a-radio-button value="cores">Cores</a-radio-button>
-                      </a-radio-group>
+                      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <a-radio-group v-model:value="cpuViewMode" size="small">
+                          <a-radio-button value="total">Overall</a-radio-button>
+                          <a-radio-button value="cores">Cores</a-radio-button>
+                        </a-radio-group>
+                        <a-radio-group v-model:value="cpuDisplayMode" size="small">
+                          <a-radio-button value="bar">Bar</a-radio-button>
+                          <a-radio-button value="circle">Circle</a-radio-button>
+                        </a-radio-group>
+                      </div>
                     </div>
                   </template>
-                  <div v-if="cpuViewMode === 'total'" @click="openChart('cpu_total', 'Global CPU Usage', 'single', ['Usage'])" style="display: flex; align-items: center; justify-content: center; height: 120px; gap: 40px; cursor: pointer;">
-                    <a-progress type="dashboard" :percent="Math.round(systemStats.cpuTotal)" :width="100" />
-                    <div style="text-align: left;">
-                      <div style="font-size: 24px; font-weight: bold; color: #1890ff;">{{ systemStats.cpuTotal.toFixed(1) }}% <LineChartOutlined style="font-size: 14px; color: #ccc" /></div>
-                      <div style="color: #888;">Total System Load</div>
-                    </div>
+                  <div v-if="cpuViewMode === 'total'" @click="openChart('cpu_total', 'Global CPU Usage', 'single', ['Usage'])" style="display: flex; align-items: center; justify-content: center; min-height: 120px; gap: 32px; cursor: pointer;">
+                    <template v-if="cpuDisplayMode === 'circle'">
+                      <div class="cpu-total-circle-shell">
+                        <a-progress type="dashboard" :percent="Math.round(systemStats.cpuTotal)" :width="110" :stroke-width="10" :showInfo="false" stroke-color="#1890ff" />
+                        <span class="cpu-total-circle-value">{{ systemStats.cpuTotal.toFixed(1) }}%</span>
+                      </div>
+                      <div style="text-align: left;">
+                        <div style="font-size: 24px; font-weight: bold; color: #1890ff;">{{ systemStats.cpuTotal.toFixed(1) }}% <LineChartOutlined style="font-size: 14px; color: #ccc" /></div>
+                        <div style="color: #888;">Total System Load</div>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div style="display: flex; flex-direction: column; width: min(420px, 100%); gap: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                          <div style="font-size: 24px; font-weight: bold; color: #1890ff;">{{ systemStats.cpuTotal.toFixed(1) }}%</div>
+                          <div style="color: #888;">Total System Load</div>
+                        </div>
+                        <a-progress :percent="Math.round(systemStats.cpuTotal)" :showInfo="false" stroke-color="#1890ff" />
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #aaa;">
+                          <span>0%</span>
+                          <span>{{ systemStats.cpuTotal.toFixed(1) }}%</span>
+                          <span>100%</span>
+                        </div>
+                      </div>
+                    </template>
                   </div>
                   <div v-else style="padding: 10px;">
                     <div v-if="pCores.length > 0">
                       <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #1890ff; padding-left: 8px;">PERFORMANCE CORES (P-CORES)</div>
                       <div class="core-grid-full">
-                        <div v-for="core in pCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" class="core-item-full" style="cursor: pointer">
+                        <div v-for="core in pCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" :class="['core-item-full', { 'core-item-full--circle': cpuDisplayMode === 'circle' }]" style="cursor: pointer">
                           <span class="core-label">#{{ core.index }}</span>
-                          <div style="flex: 1; margin: 0 10px;"><a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#1890ff" /></div>
-                          <span class="core-val">{{ core.usage.toFixed(1) }}%</span>
+                          <template v-if="cpuDisplayMode === 'circle'">
+                            <div class="core-circle-shell">
+                              <a-progress
+                                type="circle"
+                                :percent="Math.round(core.usage)"
+                                :width="96"
+                                :stroke-width="8"
+                                :showInfo="false"
+                                stroke-color="#1890ff"
+                              />
+                              <span class="core-circle-value">{{ core.usage.toFixed(1) }}%</span>
+                            </div>
+                          </template>
+                          <template v-else>
+                            <div style="flex: 1; margin: 0 10px; display: flex; align-items: center; justify-content: center;">
+                              <a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#1890ff" />
+                            </div>
+                            <span class="core-val">{{ core.usage.toFixed(1) }}%</span>
+                          </template>
                         </div>
                       </div>
                     </div>
                     <div v-if="eCores.length > 0" style="margin-top: 16px;">
                       <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold; border-left: 3px solid #52c41a; padding-left: 8px;">EFFICIENCY CORES (E-CORES)</div>
                       <div class="core-grid-full">
-                        <div v-for="core in eCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" class="core-item-full" style="cursor: pointer">
+                        <div v-for="core in eCores" :key="core.index" @click="openChart('cpu_core_' + core.index, 'Core #' + core.index + ' Usage', 'single', ['Usage'])" :class="['core-item-full', { 'core-item-full--circle': cpuDisplayMode === 'circle' }]" style="cursor: pointer">
                           <span class="core-label">#{{ core.index }}</span>
-                          <div style="flex: 1; margin: 0 10px;"><a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#52c41a" /></div>
-                          <span class="core-val" style="color: #52c41a">{{ core.usage.toFixed(1) }}%</span>
+                          <template v-if="cpuDisplayMode === 'circle'">
+                            <div class="core-circle-shell">
+                              <a-progress
+                                type="circle"
+                                :percent="Math.round(core.usage)"
+                                :width="96"
+                                :stroke-width="8"
+                                :showInfo="false"
+                                stroke-color="#52c41a"
+                              />
+                              <span class="core-circle-value core-circle-value--green">{{ core.usage.toFixed(1) }}%</span>
+                            </div>
+                          </template>
+                          <template v-else>
+                            <div style="flex: 1; margin: 0 10px; display: flex; align-items: center; justify-content: center;">
+                              <a-progress :percent="Math.round(core.usage)" size="small" :showInfo="false" stroke-color="#52c41a" />
+                            </div>
+                            <span class="core-val" style="color: #52c41a">{{ core.usage.toFixed(1) }}%</span>
+                          </template>
                         </div>
                       </div>
                     </div>
@@ -687,22 +811,22 @@ watch(refreshInterval, connectWebSocket);
               <a-col :span="24">
                 <a-card size="small" class="stat-card-row" title="Memory & Interface I/O">
                   <template #extra><PieChartOutlined /></template>
-                  <div style="display: flex; gap: 24px; padding: 10px;">
+                  <div class="monitor-io-shell">
                     <!-- RAM Breakdown -->
-                    <div style="flex: 0 0 350px; cursor: pointer" @click="openChart('mem_usage', 'RAM Usage', 'single', ['Usage %'])">
+                    <div class="monitor-io-summary" @click="openChart('mem_usage', 'RAM Usage', 'single', ['Usage %'])">
                       <div style="margin-bottom: 10px;">
-                         <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px;">
                           <span>RAM Usage <LineChartOutlined style="font-size: 12px; color: #ccc" /></span>
                           <span style="font-weight: bold;">{{ systemStats.memPercent.toFixed(1) }}%</span>
                         </div>
-                        <a-progress 
+                        <a-progress
                           :percent="[
                             ((systemStats.memUsed - systemStats.memCached - systemStats.memBuffers) / systemStats.memTotal) * 100,
                             (systemStats.memCached / systemStats.memTotal) * 100,
                             (systemStats.memBuffers / systemStats.memTotal) * 100,
                           ]"
-                          :stroke-color="['#1890ff', '#52c41a', '#faad14']" 
-                          status="active" 
+                          :stroke-color="['#1890ff', '#52c41a', '#faad14']"
+                          status="active"
                           :showInfo="false"
                         />
                         <div class="mem-legend">
@@ -717,29 +841,29 @@ watch(refreshInterval, connectWebSocket);
                       </div>
                     </div>
                     <!-- I/O Details -->
-                    <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-left: 1px solid #f0f0f0; padding-left: 24px;">
+                    <div class="monitor-io-panels">
                       <!-- Net Detail -->
-                      <div>
-                        <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">NETWORK INTERFACES</div>
-                        <div style="max-height: 120px; overflow-y: auto;">
+                      <div class="monitor-io-panel">
+                        <div class="monitor-io-panel__title">NETWORK INTERFACES</div>
+                        <div class="monitor-io-panel__list">
                           <div v-for="s in systemStats.netInterfaces" :key="s.name" class="io-row" style="cursor: pointer"
                                @click="openChart('net_' + s.name, 'Interface: ' + s.name, 'double', ['Download', 'Upload'])">
                             <span class="io-name">{{ s.name }}</span>
-                            <span class="io-val-in">↓{{ formatBytes(s.readSpeed, 0) }}</span>
-                            <span class="io-val-out">↑{{ formatBytes(s.writeSpeed, 0) }}</span>
+                            <span class="io-val-in">↓{{ formatRateBytes(s.readSpeed) }}</span>
+                            <span class="io-val-out">↑{{ formatRateBytes(s.writeSpeed) }}</span>
                           </div>
                           <div v-if="!systemStats.netInterfaces.length" style="font-size: 11px; color: #ccc;">No network interfaces detected</div>
                         </div>
                       </div>
                       <!-- Disk Detail -->
-                      <div>
-                        <div style="font-size: 11px; color: #999; margin-bottom: 8px; font-weight: bold;">DISK DEVICES</div>
-                        <div style="max-height: 120px; overflow-y: auto;">
+                      <div class="monitor-io-panel">
+                        <div class="monitor-io-panel__title">DISK DEVICES</div>
+                        <div class="monitor-io-panel__list">
                           <div v-for="s in systemStats.diskDevices" :key="s.name" class="io-row" style="cursor: pointer"
                                @click="openChart('disk_' + s.name, 'Disk: ' + s.name, 'double', ['Read', 'Write'])">
                             <span class="io-name">{{ s.name }}</span>
-                            <span class="io-val-read">R:{{ formatBytes(s.readSpeed, 0) }}</span>
-                            <span class="io-val-write">W:{{ formatBytes(s.writeSpeed, 0) }}</span>
+                            <span class="io-val-read">R:{{ formatRateBytes(s.readSpeed) }}</span>
+                            <span class="io-val-write">W:{{ formatRateBytes(s.writeSpeed) }}</span>
                           </div>
                           <div v-if="!systemStats.diskDevices.length" style="font-size: 11px; color: #ccc;">No disk devices detected</div>
                         </div>
@@ -770,11 +894,11 @@ watch(refreshInterval, connectWebSocket);
                           <div style="display: flex; gap: 40px; align-items: center;">
                             <div style="text-align: center;">
                               <div style="font-size: 10px; color: #999; margin-bottom: 4px; text-transform: uppercase;">Core Util</div>
-                              <a-progress type="circle" :percent="gpu.utilGpu" :width="65" :stroke-width="10" stroke-color="#13c2c2" />
+                              <a-progress type="circle" :percent="gpu.utilGpu" :width="65" :stroke-width="10" stroke-color="#13c2c2" :format="formatPercent" />
                             </div>
                             <div v-if="gpu.memTotal > 0" style="text-align: center;" @click.stop="openChart('gpu_' + gpu.index + '_vram', 'GPU ' + gpu.index + ' VRAM', 'single', ['Used MB'])">
                               <div style="font-size: 10px; color: #999; margin-bottom: 4px; text-transform: uppercase;">VRAM Usage</div>
-                              <a-progress type="circle" :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" :width="65" :stroke-width="10" stroke-color="#722ed1" />
+                              <a-progress type="circle" :percent="Math.round((gpu.memUsed / gpu.memTotal) * 100)" :width="65" :stroke-width="10" stroke-color="#722ed1" :format="formatPercent" />
                             </div>
                             <div style="flex: 1; background: #f5f5f5; padding: 8px 12px; border-radius: 6px;">
                               <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;"><span style="color: #666;">Used:</span><span style="font-weight: bold; font-family: monospace;">{{ gpu.memUsed }} MiB</span></div>
@@ -985,14 +1109,136 @@ watch(refreshInterval, connectWebSocket);
 .monitor-tabs :deep(.ant-tabs-nav) { margin-bottom: 12px; }
 .health-subtabs :deep(.ant-tabs-nav) { margin-bottom: 12px; }
 .stat-card-row { border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
-.core-grid-full { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px; max-height: 250px; overflow-y: auto; }
-.core-item-full { display: flex; align-items: center; background: #fafafa; padding: 4px 12px; border-radius: 4px; border: 1px solid #f0f0f0; }
+.monitor-io-shell {
+  display: flex;
+  gap: 24px;
+  align-items: stretch;
+  min-height: clamp(380px, 46vh, 560px);
+  padding: 12px 10px 10px;
+}
+.monitor-io-summary {
+  flex: 0 0 clamp(300px, 28vw, 420px);
+  min-width: 300px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid #f0f0f0;
+  padding-right: 18px;
+}
+.monitor-io-panels {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.monitor-io-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.monitor-io-panel__title {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 8px;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+}
+.monitor-io-panel__list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cpu-total-circle-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 110px;
+  height: 110px;
+  flex: 0 0 auto;
+}
+.cpu-total-circle-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1890ff;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.85);
+}
+.core-grid-full {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px;
+  overflow: visible;
+}
+.core-item-full {
+  display: flex;
+  align-items: center;
+  min-height: 132px;
+  background: #fafafa;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #f0f0f0;
+}
+.core-item-full--circle {
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 176px;
+  gap: 14px;
+}
 .core-label { font-size: 11px; color: #999; min-width: 35px; }
 .core-val { font-size: 11px; font-family: monospace; min-width: 40px; text-align: right; color: #1890ff; font-weight: bold; }
-.mem-legend { display: flex; justify-content: space-around; font-size: 11px; color: #666; margin-top: 8px; }
+.core-circle-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto;
+  flex: 1;
+}
+.core-circle-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1890ff;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.85);
+}
+.core-circle-value--green {
+  color: #52c41a;
+}
+.mem-legend {
+  display: flex;
+  justify-content: space-around;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: #666;
+  margin-top: 8px;
+}
 .mem-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
-.io-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 8px; background: #f9f9f9; margin-bottom: 4px; border-radius: 3px; font-family: monospace; }
-.io-name { font-weight: bold; color: #555; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
+.io-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; padding: 6px 8px; background: #f9f9f9; border-radius: 3px; font-family: monospace; }
+.io-name { font-weight: bold; color: #555; overflow: hidden; text-overflow: ellipsis; max-width: 120px; flex: 1; min-width: 0; }
 .io-val-in { color: #52c41a; } .io-val-out { color: #1890ff; }
 .io-val-read { color: #faad14; } .io-val-write { color: #ff4d4f; }
 .gpu-row-item { flex: 1; min-width: 400px; display: flex; align-items: center; gap: 16px; background: #fafafa; padding: 12px; border-radius: 6px; border: 1px solid #f0f0f0; }
@@ -1033,4 +1279,31 @@ watch(refreshInterval, connectWebSocket);
 .mem-name { font-weight: bold; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
 .mem-value { font-size: 14px; font-family: 'JetBrains Mono', monospace; }
 .mem-count { font-size: 11px; opacity: 0.8; }
+
+@supports not selector(:has(*)) {
+  .core-item-full {
+    min-height: 176px;
+    align-items: center;
+  }
+}
+
+@media (max-width: 1200px) {
+  .monitor-io-shell {
+    flex-direction: column;
+  }
+
+  .monitor-io-summary {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    border-right: 0;
+    border-bottom: 1px solid #f0f0f0;
+    padding-right: 0;
+    padding-bottom: 16px;
+  }
+
+  .monitor-io-panels {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

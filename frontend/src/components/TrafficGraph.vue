@@ -265,6 +265,41 @@ const renderGraph = () => {
   const hubX = () => nodeById.get('Internet')?.x ?? internetPosition.x;
   const hubY = () => nodeById.get('Internet')?.y ?? internetPosition.y;
 
+  const maskId = `traffic-link-mask-${Math.random().toString(36).slice(2, 10)}`;
+  const defs = svg.append('defs');
+  const linkMask = defs
+    .append('mask')
+    .attr('id', maskId)
+    .attr('maskUnits', 'userSpaceOnUse')
+    .attr('maskContentUnits', 'userSpaceOnUse')
+    .attr('x', 0)
+    .attr('y', 0)
+    .attr('width', width)
+    .attr('height', height);
+
+  linkMask
+    .append('rect')
+    .attr('x', 0)
+    .attr('y', 0)
+    .attr('width', width)
+    .attr('height', height)
+    .attr('fill', '#fff');
+
+  const linkMaskNodes = linkMask
+    .append('g')
+    .selectAll<SVGCircleElement, GraphNode>('circle')
+    .data(nodes, (node) => node.id)
+    .join('circle')
+    .attr('fill', '#000')
+    .attr('stroke', 'none');
+
+  const syncLinkMask = () => {
+    linkMaskNodes
+      .attr('cx', (node) => node.x)
+      .attr('cy', (node) => node.y)
+      .attr('r', (node) => getNodeRadius(node) + 6);
+  };
+
   const getLinkEndpoints = (link: GraphLink) => {
     const source = nodeById.get(link.source);
     const target = nodeById.get(link.target);
@@ -278,17 +313,11 @@ const renderGraph = () => {
       };
     }
 
-    const dx = target.x - source.x;
-    const dy = target.y - source.y;
-    const distance = Math.max(1, Math.hypot(dx, dy));
-    const sourceOffset = Math.min(getNodeRadius(source) + 1.5, distance / 2 - 1);
-    const targetOffset = Math.min(getNodeRadius(target) + 1.5, distance / 2 - 1);
-
     return {
-      x1: source.x + (dx * sourceOffset) / distance,
-      y1: source.y + (dy * sourceOffset) / distance,
-      x2: target.x - (dx * targetOffset) / distance,
-      y2: target.y - (dy * targetOffset) / distance,
+      x1: source.x,
+      y1: source.y,
+      x2: target.x,
+      y2: target.y,
     };
   };
 
@@ -345,7 +374,8 @@ const renderGraph = () => {
     .attr('stroke-linecap', 'round')
     .attr('stroke-linejoin', 'round')
     .attr('stroke-width', (link) => linkWidth(link.speed))
-    .attr('stroke', (link) => trafficColor(link.speed));
+    .attr('stroke', (link) => trafficColor(link.speed))
+    .attr('mask', `url(#${maskId})`);
 
   const arrowSelection = svg
     .append('g')
@@ -355,7 +385,8 @@ const renderGraph = () => {
     .attr('class', 'traffic-link-arrow')
     .attr('fill', (link) => trafficColor(link.speed))
     .attr('stroke', 'none')
-    .attr('pointer-events', 'none');
+    .attr('pointer-events', 'none')
+    .attr('mask', `url(#${maskId})`);
 
   const updateLinkPaths = () => {
     linkSelection.attr('d', (link) => {
@@ -374,6 +405,7 @@ const renderGraph = () => {
       });
   };
 
+  syncLinkMask();
   updateLinkPaths();
 
   linkSelection
@@ -446,6 +478,7 @@ const renderGraph = () => {
         nodePositionCache.set(node.id, position);
         d3.select(this).attr('transform', `translate(${position.x},${position.y})`);
       }
+      syncLinkMask();
       updateLinkPaths();
     })
     .on('end', function (_event, node) {
