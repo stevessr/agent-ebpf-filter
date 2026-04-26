@@ -19,6 +19,7 @@ import {
   DeleteOutlined,
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
+import PathNavigatorDrawer from "../components/PathNavigatorDrawer.vue";
 import {
   getStoredClusterTarget,
   isLocalClusterTarget,
@@ -110,6 +111,23 @@ const newPathTag = ref("");
 const newPrefixValue = ref("");
 const newPrefixTag = ref("");
 const importFileInput = ref<HTMLInputElement | null>(null);
+
+// Path picker state
+const pathPickerOpen = ref(false);
+const pathPickerTarget = ref<"exact" | "prefix">("exact");
+
+const openPathPicker = (target: "exact" | "prefix") => {
+  pathPickerTarget.value = target;
+  pathPickerOpen.value = true;
+};
+
+const handlePathPicked = (path: string) => {
+  if (pathPickerTarget.value === "exact") {
+    newPathName.value = path;
+  } else {
+    newPrefixValue.value = path;
+  }
+};
 
 // Wrapper rule state
 const newRuleComm = ref('');
@@ -781,55 +799,25 @@ onMounted(async () => {
             <a-row :gutter="[24, 24]">
               <a-col :xs="24" :lg="12">
                 <a-card title="Exact File Paths" size="small">
-                  <template #extra><FolderOutlined /></template>
-                  <div
-                    style="
-                      margin-bottom: 16px;
-                      background: #fafafa;
-                      padding: 12px;
-                      border-radius: 8px;
-                      display: flex;
-                      gap: 8px;
-                    "
-                  >
-                    <a-input
-                      v-model:value="newPathName"
-                      placeholder="Absolute path"
-                      style="flex: 2"
-                    />
-                    <a-select
-                      v-model:value="newPathTag"
-                      style="flex: 1"
-                      placeholder="Tag"
-                    >
-                      <a-select-option
-                        v-for="tag in tags"
-                        :key="tag"
-                        :value="tag"
-                        >{{ tag }}</a-select-option
-                      >
+                  <template #extra>
+                    <a-space>
+                      <a-tooltip title="Browse files">
+                        <FolderOutlined style="cursor: pointer; color: #1890ff;" @click="openPathPicker('exact')" />
+                      </a-tooltip>
+                      <FolderOutlined />
+                    </a-space>
+                  </template>
+                  <div style="margin-bottom: 16px; background: #fafafa; padding: 12px; border-radius: 8px; display: flex; gap: 8px;">
+                    <a-input v-model:value="newPathName" placeholder="Absolute path" style="flex: 2" />
+                    <a-select v-model:value="newPathTag" style="flex: 1" placeholder="Tag">
+                      <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option>
                     </a-select>
-                    <a-button type="primary" @click="addPath"
-                      ><PlusOutlined
-                    /></a-button>
+                    <a-button type="primary" @click="addPath"><PlusOutlined /></a-button>
                   </div>
-                  <div
-                    v-for="(paths, tag) in groupedTrackedPaths"
-                    :key="tag"
-                    style="margin-bottom: 12px"
-                  >
-                    <div style="margin-bottom: 4px">
-                      <a-typography-text strong>{{ tag }}</a-typography-text>
-                    </div>
-                    <div style="display: flex; flex-wrap: wrap; gap: 6px">
-                      <a-tag
-                        v-for="p in paths"
-                        :key="p"
-                        closable
-                        @close.prevent="removePath(p)"
-                        :color="getCategoryColor(tag as string)"
-                        >{{ p }}</a-tag
-                      >
+                  <div v-for="(paths, tag) in groupedTrackedPaths" :key="tag" style="margin-bottom: 12px;">
+                    <div style="margin-bottom: 4px;"><a-typography-text strong>{{ tag }}</a-typography-text></div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                      <a-tag v-for="p in paths" :key="p" closable @close.prevent="removePath(p)" :color="getCategoryColor(tag as string)">{{ p }}</a-tag>
                     </div>
                   </div>
                 </a-card>
@@ -837,65 +825,34 @@ onMounted(async () => {
 
               <a-col :xs="24" :lg="12">
                 <a-card title="Path Prefixes (LPM)" size="small">
-                  <template #extra><FolderOutlined /></template>
-                  <div
-                    style="
-                      margin-bottom: 16px;
-                      background: #fafafa;
-                      padding: 12px;
-                      border-radius: 8px;
-                      display: flex;
-                      gap: 8px;
-                    "
-                  >
-                    <a-input
-                      v-model:value="newPrefixValue"
-                      placeholder="Path prefix (e.g. /etc)"
-                      style="flex: 2"
-                    />
-                    <a-select
-                      v-model:value="newPrefixTag"
-                      style="flex: 1"
-                      placeholder="Tag"
-                    >
-                      <a-select-option
-                        v-for="tag in tags"
-                        :key="tag"
-                        :value="tag"
-                        >{{ tag }}</a-select-option
-                      >
+                  <template #extra>
+                    <a-space>
+                      <a-tooltip title="Browse directories">
+                        <FolderOutlined style="cursor: pointer; color: #1890ff;" @click="openPathPicker('prefix')" />
+                      </a-tooltip>
+                      <FolderOutlined />
+                    </a-space>
+                  </template>
+                  <div style="margin-bottom: 16px; background: #fafafa; padding: 12px; border-radius: 8px; display: flex; gap: 8px;">
+                    <a-input v-model:value="newPrefixValue" placeholder="Path prefix (e.g. /etc)" style="flex: 2" />
+                    <a-select v-model:value="newPrefixTag" style="flex: 1" placeholder="Tag">
+                      <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option>
                     </a-select>
-                    <a-button type="primary" @click="addPrefix"
-                      ><PlusOutlined
-                    /></a-button>
+                    <a-button type="primary" @click="addPrefix"><PlusOutlined /></a-button>
                   </div>
                   <a-alert
                     type="info"
                     show-icon
-                    style="margin-bottom: 12px"
+                    style="margin-bottom: 12px;"
                     message="Prefix matching applies to descendant paths."
                   />
-                  <div
-                    v-for="(prefixes, tag) in groupedTrackedPrefixes"
-                    :key="tag"
-                    style="margin-bottom: 12px"
-                  >
-                    <div style="margin-bottom: 4px">
-                      <a-typography-text strong>{{ tag }}</a-typography-text>
-                    </div>
-                    <div style="display: flex; flex-wrap: wrap; gap: 6px">
-                      <a-tag
-                        v-for="prefix in prefixes"
-                        :key="prefix"
-                        closable
-                        @close.prevent="removePrefix(prefix)"
-                        :color="getCategoryColor(tag as string)"
-                        >{{ prefix }}</a-tag
-                      >
+                  <div v-for="(prefixes, tag) in groupedTrackedPrefixes" :key="tag" style="margin-bottom: 12px;">
+                    <div style="margin-bottom: 4px;"><a-typography-text strong>{{ tag }}</a-typography-text></div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                      <a-tag v-for="prefix in prefixes" :key="prefix" closable @close.prevent="removePrefix(prefix)" :color="getCategoryColor(tag as string)">{{ prefix }}</a-tag>
                     </div>
                   </div>
-                </a-card>
-              </a-col>
+                </a-col>
             </a-row>
           </a-tab-pane>
         </a-tabs>
@@ -1397,6 +1354,13 @@ onMounted(async () => {
         </a-row>
       </a-tab-pane>
     </a-tabs>
+
+    <PathNavigatorDrawer
+      v-model:open="pathPickerOpen"
+      :title="pathPickerTarget === 'exact' ? 'Pick File' : 'Pick Directory'"
+      :pick-mode="pathPickerTarget === 'exact' ? 'file' : 'directory'"
+      @confirm="handlePathPicked"
+    />
   </div>
 </template>
 

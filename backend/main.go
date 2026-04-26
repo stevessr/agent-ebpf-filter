@@ -926,6 +926,39 @@ func main() {
 				}
 				c.JSON(200, preview)
 			})
+			system.GET("/home", func(c *gin.Context) {
+				c.JSON(200, gin.H{"path": getRealHomeDir()})
+			})
+			system.GET("/download", func(c *gin.Context) {
+				p := c.Query("path")
+				if p == "" {
+					c.JSON(400, gin.H{"error": "path is required"})
+					return
+				}
+				info, err := os.Stat(p)
+				if err != nil || info.IsDir() {
+					c.JSON(404, gin.H{"error": "file not found"})
+					return
+				}
+				c.File(p)
+			})
+			system.POST("/upload", func(c *gin.Context) {
+				dir := c.Query("path")
+				if dir == "" {
+					dir = getRealHomeDir()
+				}
+				file, err := c.FormFile("file")
+				if err != nil {
+					c.JSON(400, gin.H{"error": "no file uploaded"})
+					return
+				}
+				dst := filepath.Join(dir, file.Filename)
+				if err := c.SaveUploadedFile(file, dst); err != nil {
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(200, gin.H{"status": "ok", "path": dst})
+			})
 			system.GET("/env", handleListLaunchEnvEntries)
 			system.POST("/run", func(c *gin.Context) {
 				var r struct {

@@ -36,9 +36,12 @@ interface LinkGeometry {
   y2: number;
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   interfaces: TrafficInterface[];
-}>();
+  height?: number;
+}>(), {
+  height: 420
+});
 
 const emit = defineEmits<{
   (event: 'select-interface', name: string): void;

@@ -8,7 +8,12 @@ import {
   LeftOutlined, 
   PlusOutlined, 
   EyeOutlined,
-  EyeInvisibleOutlined
+  EyeInvisibleOutlined,
+  UnorderedListOutlined,
+  AppstoreOutlined,
+  DownloadOutlined,
+  UploadOutlined,
+  HomeOutlined
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
@@ -21,18 +26,32 @@ interface FileEntry {
   path: string;
 }
 
-const currentPath = ref('/');
+const currentPath = ref('');
 const entries = ref<FileEntry[]>([]);
 const loading = ref(false);
 const tags = ref<string[]>([]);
 const selectedTag = ref('Security');
 const showHidden = ref(false);
+const viewMode = ref<'list' | 'grid'>('list');
 const selectedPath = ref('');
 const previewLoading = ref(false);
 const showPreview = ref(false);
 const previewData = ref<FilePreviewResponse | null>(null);
+const homePath = ref('/');
 const route = useRoute();
 const router = useRouter();
+
+const fetchHome = async () => {
+  try {
+    const res = await axios.get('/system/home');
+    homePath.value = res.data.path;
+    if (!route.query.path) {
+      void navigateToPath(homePath.value);
+    }
+  } catch (err) {
+    console.error('Failed to fetch home path', err);
+  }
+};
 
 const fetchEntries = async (path: string) => {
   loading.value = true;
@@ -118,9 +137,26 @@ const handleEntryClick = async (entry: FileEntry) => {
   await setExplorerTarget(entry.path, !entry.isDir);
 };
 
+const downloadFile = (path: string) => {
+  window.open(`/system/download?path=${encodeURIComponent(path)}`, '_blank');
+};
+
+const handleUpload = async (info: any) => {
+  const { file } = info;
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    await axios.post(`/system/upload?path=${encodeURIComponent(currentPath.value)}`, formData);
+    message.success(`File ${file.name} uploaded`);
+    void fetchEntries(currentPath.value);
+  } catch (err) {
+    message.error('Upload failed');
+  }
+};
+
 const openRouteTarget = async () => {
-  const targetPath = typeof route.query.path === 'string' && route.query.path.trim() ? route.query.path.trim() : '/';
-  const previewRequested = route.query.preview === '1' || route.query.preview === 'true';
+  const targetPath = typeof route.query.path === 'string' && route.query.path.trim() ? route.query.path.trim() : homePath.value || '/';
+  if (!targetPath) return;
 
   try {
     previewLoading.value = previewRequested;
@@ -144,14 +180,16 @@ const openRouteTarget = async () => {
       }
     }
   } catch (err: any) {
-    message.error(err?.response?.data?.error || 'Failed to open target path');
+    // message.error(err?.response?.data?.error || 'Failed to open target path');
     if (!currentPath.value) {
-      await fetchEntries('/');
+      await fetchEntries(homePath.value || '/');
     }
   } finally {
     previewLoading.value = false;
   }
 };
+
+const previewRequested = computed(() => route.query.preview === '1' || route.query.preview === 'true');
 
 watch(
   () => [route.query.path, route.query.preview],
@@ -161,7 +199,8 @@ watch(
   { immediate: true },
 );
 
-onMounted(() => {
+onMounted(async () => {
+  await fetchHome();
   fetchTags();
 });
 </script>
@@ -184,6 +223,19 @@ onMounted(() => {
       </a-breadcrumb>
       
       <div style="display: flex; align-items: center; gap: 12px;">
+        <a-radio-group v-model:value="viewMode" size="small">
+          <a-radio-button value="list"><UnorderedListOutlined /></a-radio-button>
+          <a-radio-button value="grid"><AppstoreOutlined /></a-radio-button>
+        </a-radio-group>
+
+        <a-divider type="vertical" />
+
+        <a-upload :customRequest="handleUpload" :showUploadList="false">
+          <a-button size="small"><UploadOutlined /> Upload</a-button>
+        </a-upload>
+
+        <a-divider type="vertical" />
+
         <div style="display: flex; align-items: center; gap: 8px; background: #f5f5f5; padding: 4px 12px; border-radius: 4px;">
           <span style="font-size: 12px; color: #666;">Show Hidden</span>
           <a-switch v-model:checked="showHidden" size="small">
@@ -201,37 +253,76 @@ onMounted(() => {
       </div>
     </div>
 
-    <div style="margin-bottom: 16px;">
+    <div style="margin-bottom: 16px; display: flex; gap: 8px;">
       <a-button @click="goUp" :disabled="currentPath === '/'" size="small">
         <template #icon><LeftOutlined /></template>
         Back
       </a-button>
+      <a-button @click="navigateToPath(homePath)" size="small">
+        <template #icon><HomeOutlined /></template>
+        Home
+      </a-button>
     </div>
 
-    <a-list :loading="loading" bordered :dataSource="filteredEntries" size="small" :style="{ maxHeight: 'calc(100vh - 300px)', overflow: 'auto' }">
-      <template #renderItem="{ item }">
-        <a-list-item :style="{ opacity: item.name.startsWith('.') ? 0.6 : 1, background: item.path === selectedPath ? '#f0f7ff' : 'transparent' }">
-          <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1" 
-                 @click="handleEntryClick(item)">
-              <FolderOutlined v-if="item.isDir" style="color: #1890ff" />
-              <FileOutlined v-else />
-              <span :style="{ fontWeight: item.isDir ? 'bold' : 'normal', fontFamily: 'monospace' }">{{ item.name }}</span>
+    <div v-if="viewMode === 'list'">
+      <a-list :loading="loading" bordered :dataSource="filteredEntries" size="small" :style="{ maxHeight: 'calc(100vh - 300px)', overflow: 'auto' }">
+        <template #renderItem="{ item }">
+          <a-list-item :style="{ opacity: item.name.startsWith('.') ? 0.6 : 1, background: item.path === selectedPath ? '#f0f7ff' : 'transparent' }">
+            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1" 
+                   @click="handleEntryClick(item)">
+                <FolderOutlined v-if="item.isDir" style="color: #1890ff" />
+                <FileOutlined v-else />
+                <span :style="{ fontWeight: item.isDir ? 'bold' : 'normal', fontFamily: 'monospace' }">{{ item.name }}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <a-button v-if="!item.isDir" type="link" size="small" @click.stop="previewFile(item.path)">
+                  <template #icon><EyeOutlined /></template>
+                  Preview
+                </a-button>
+                <a-button v-if="!item.isDir" type="link" size="small" @click.stop="downloadFile(item.path)">
+                  <template #icon><DownloadOutlined /></template>
+                  Download
+                </a-button>
+                <a-button type="link" size="small" @click.stop="addToRules(item)">
+                  <template #icon><PlusOutlined /></template>
+                  Track
+                </a-button>
+              </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 4px;">
-              <a-button v-if="!item.isDir" type="link" size="small" @click.stop="previewFile(item.path)">
-                <template #icon><EyeOutlined /></template>
-                Preview
-              </a-button>
-              <a-button type="link" size="small" @click.stop="addToRules(item)">
-                <template #icon><PlusOutlined /></template>
-                Track exact path
-              </a-button>
+          </a-list-item>
+        </template>
+      </a-list>
+    </div>
+
+    <div v-else class="explorer-grid" :style="{ maxHeight: 'calc(100vh - 300px)', overflow: 'auto' }">
+      <a-spin :spinning="loading">
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 8px;">
+          <div v-for="item in filteredEntries" :key="item.path" 
+               class="explorer-grid-item"
+               :class="{ 'is-selected': item.path === selectedPath }"
+               @click="handleEntryClick(item)">
+            <div class="explorer-grid-icon">
+              <FolderOutlined v-if="item.isDir" style="font-size: 32px; color: #1890ff" />
+              <FileOutlined v-else style="font-size: 32px; color: #666" />
+            </div>
+            <div class="explorer-grid-name" :title="item.name">{{ item.name }}</div>
+            <div class="explorer-grid-actions">
+               <a-dropdown>
+                  <a-button type="text" size="small" @click.stop><PlusOutlined /></a-button>
+                  <template #overlay>
+                    <a-menu>
+                      <a-menu-item v-if="!item.isDir" @click="previewFile(item.path)">Preview</a-menu-item>
+                      <a-menu-item v-if="!item.isDir" @click="downloadFile(item.path)">Download</a-menu-item>
+                      <a-menu-item @click="addToRules(item)">Track path</a-menu-item>
+                    </a-menu>
+                  </template>
+               </a-dropdown>
             </div>
           </div>
-        </a-list-item>
-      </template>
-    </a-list>
+        </div>
+      </a-spin>
+    </div>
 
     <FilePreviewDrawer
       v-model:open="showPreview"
@@ -241,3 +332,48 @@ onMounted(() => {
     />
   </div>
 </template>
+
+<style scoped>
+.explorer-grid-item {
+  width: 100px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  position: relative;
+}
+.explorer-grid-item:hover {
+  background: #f0f7ff;
+}
+.explorer-grid-item.is-selected {
+  background: #e6f4ff;
+  border: 1px solid #91caff;
+}
+.explorer-grid-icon {
+  margin-bottom: 4px;
+}
+.explorer-grid-name {
+  font-size: 12px;
+  text-align: center;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.2;
+  height: 2.4em;
+  font-family: monospace;
+}
+.explorer-grid-actions {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  opacity: 0;
+}
+.explorer-grid-item:hover .explorer-grid-actions {
+  opacity: 1;
+}
+</style>
