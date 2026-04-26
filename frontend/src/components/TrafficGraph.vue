@@ -56,8 +56,8 @@ let renderQueued = false;
 const clickBlockUntil = new Map<string, number>();
 const nodePositionCache = new Map<string, { x: number; y: number }>();
 
-const megabyte = 1024 * 1024;
-const highTraffic = 10 * megabyte;
+const kbps = 1000 / 8;
+const mbps = 1000 * 1000 / 8;
 
 const formatBytes = (bytes: number, decimals = 1) => {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
@@ -68,9 +68,11 @@ const formatBytes = (bytes: number, decimals = 1) => {
 };
 
 const trafficColor = (speed: number) => {
-  if (speed >= highTraffic) return '#ff4d4f';
-  if (speed >= megabyte) return '#faad14';
-  return '#52c41a';
+  if (speed >= 100 * mbps) return '#ff4d4f'; // > 100Mbps
+  if (speed >= 10 * mbps) return '#faad14';  // 10-100Mbps
+  if (speed >= mbps) return '#13c2c2';       // 1-10Mbps
+  if (speed >= 100 * kbps) return '#52c41a'; // 100kbps-1Mbps
+  return '#94a3b8';                          // < 100kbps
 };
 
 const nodeColor = (speed: number) => {
@@ -82,32 +84,6 @@ const logGrowth = (value: number, min: number, max: number, ceiling: number) => 
   if (ceiling <= 0) return min;
   const normalized = Math.log1p(Math.max(0, value)) / Math.log1p(Math.max(ceiling, 1));
   return min + (max - min) * Math.min(1, normalized);
-};
-
-const getCubicPoint = (geometry: LinkGeometry, t: number) => {
-  const mt = 1 - t;
-  const mt2 = mt * mt;
-  const t2 = t * t;
-  const x = mt2 * mt * geometry.x1
-    + 3 * mt2 * t * geometry.c1x
-    + 3 * mt * t2 * geometry.c2x
-    + t2 * t * geometry.x2;
-  const y = mt2 * mt * geometry.y1
-    + 3 * mt2 * t * geometry.c1y
-    + 3 * mt * t2 * geometry.c2y
-    + t2 * t * geometry.y2;
-  return { x, y };
-};
-
-const getCubicTangent = (geometry: LinkGeometry, t: number) => {
-  const mt = 1 - t;
-  const x = 3 * mt * mt * (geometry.c1x - geometry.x1)
-    + 6 * mt * t * (geometry.c2x - geometry.c1x)
-    + 3 * t * t * (geometry.x2 - geometry.c2x);
-  const y = 3 * mt * mt * (geometry.c1y - geometry.y1)
-    + 6 * mt * t * (geometry.c2y - geometry.c1y)
-    + 3 * t * t * (geometry.y2 - geometry.c2y);
-  return { x, y };
 };
 
 const layoutInterfaces = (interfaces: TrafficInterface[]) => [...interfaces]
@@ -269,7 +245,21 @@ const renderGraph = () => {
   const hubY = () => nodeById.get('Internet')?.y ?? internetPosition.y;
 
   const maskId = `traffic-link-mask-${Math.random().toString(36).slice(2, 10)}`;
+  const markerId = `arrowhead-${Math.random().toString(36).slice(2, 10)}`;
   const defs = svg.append('defs');
+  
+  defs.append('marker')
+    .attr('id', markerId)
+    .attr('viewBox', '0 -5 10 10')
+    .attr('refX', 9)
+    .attr('refY', 0)
+    .attr('markerWidth', 5)
+    .attr('markerHeight', 5)
+    .attr('orient', 'auto')
+    .append('path')
+    .attr('d', 'M0,-4L8,0L0,4')
+    .attr('fill', 'context-stroke');
+
   const linkMask = defs
     .append('mask')
     .attr('id', maskId)
@@ -355,17 +345,6 @@ const renderGraph = () => {
 
   const buildLinkPath = (geometry: LinkGeometry) => `M ${geometry.x1} ${geometry.y1} C ${geometry.c1x} ${geometry.c1y} ${geometry.c2x} ${geometry.c2y} ${geometry.x2} ${geometry.y2}`;
 
-  const buildArrowPath = (geometry: LinkGeometry, speed: number) => {
-    const midPoint = getCubicPoint(geometry, 0.5);
-    const tangent = getCubicTangent(geometry, 0.5);
-    const angle = Math.atan2(tangent.y, tangent.x) * 180 / Math.PI;
-    const size = Math.min(28, Math.max(8, linkWidth(speed) * 2.6));
-    return {
-      path: `M ${-size} ${-size * 0.42} L ${size * 1.15} 0 L ${-size} ${size * 0.42} Z`,
-      transform: `translate(${midPoint.x},${midPoint.y}) rotate(${angle})`,
-    };
-  };
-
   const linkSelection = svg
     .append('g')
     .attr('fill', 'none')
@@ -378,17 +357,7 @@ const renderGraph = () => {
     .attr('stroke-linejoin', 'round')
     .attr('stroke-width', (link) => linkWidth(link.speed))
     .attr('stroke', (link) => trafficColor(link.speed))
-    .attr('mask', `url(#${maskId})`);
-
-  const arrowSelection = svg
-    .append('g')
-    .selectAll<SVGPathElement, GraphLink>('path')
-    .data(links, (link) => `${link.id}-arrow`)
-    .join('path')
-    .attr('class', 'traffic-link-arrow')
-    .attr('fill', (link) => trafficColor(link.speed))
-    .attr('stroke', 'none')
-    .attr('pointer-events', 'none')
+    .attr('marker-end', `url(#${markerId})`)
     .attr('mask', `url(#${maskId})`);
 
   const updateLinkPaths = () => {
@@ -396,16 +365,6 @@ const renderGraph = () => {
       const geometry = getLinkGeometry(link);
       return geometry ? buildLinkPath(geometry) : '';
     });
-
-    arrowSelection
-      .attr('d', (link) => {
-        const geometry = getLinkGeometry(link);
-        return geometry ? buildArrowPath(geometry, link.speed).path : '';
-      })
-      .attr('transform', (link) => {
-        const geometry = getLinkGeometry(link);
-        return geometry ? buildArrowPath(geometry, link.speed).transform : null;
-      });
   };
 
   syncLinkMask();
@@ -597,9 +556,9 @@ onBeforeUnmount(() => {
 }
 
 :deep(.traffic-link) {
-  stroke-dasharray: 10 8;
-  animation: traffic-dash 1.6s linear infinite;
-  opacity: 0.9;
+  stroke-dasharray: 12 10;
+  animation: traffic-flow 0.8s linear infinite;
+  opacity: 0.85;
   pointer-events: none;
 }
 
@@ -626,9 +585,9 @@ onBeforeUnmount(() => {
   stroke-linejoin: round;
 }
 
-@keyframes traffic-dash {
+@keyframes traffic-flow {
   to {
-    stroke-dashoffset: -36;
+    stroke-dashoffset: -44;
   }
 }
 </style>

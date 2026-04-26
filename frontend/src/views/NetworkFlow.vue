@@ -441,9 +441,11 @@ onUnmounted(() => {
         <a-card title="Directed Traffic Graph" size="small" :bordered="false">
           <template #extra>
             <a-space :size="8" wrap>
-              <a-tag color="green">&lt; 1 MB/s</a-tag>
-              <a-tag color="gold">1-10 MB/s</a-tag>
-              <a-tag color="red">&gt; 10 MB/s</a-tag>
+              <a-tag color="default">&lt; 100kbps</a-tag>
+              <a-tag color="green">100kbps-1Mbps</a-tag>
+              <a-tag color="cyan">1-10Mbps</a-tag>
+              <a-tag color="gold">10-100Mbps</a-tag>
+              <a-tag color="red">&gt; 100Mbps</a-tag>
             </a-space>
           </template>
           <a-alert

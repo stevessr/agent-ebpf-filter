@@ -39,6 +39,7 @@ const previewLoading = ref(false);
 const showPreview = ref(false);
 const previewData = ref<FilePreviewResponse | null>(null);
 const homePath = ref('/');
+const gridItemSize = ref(100);
 const route = useRoute();
 const router = useRouter();
 
@@ -66,7 +67,10 @@ const fetchHome = async () => {
   }
 };
 
-const fetchEntries = async (path: string) => {
+const fetchEntries = async (path: string, force = false) => {
+  if (!force && currentPath.value === path && entries.value.length > 0) {
+    return;
+  }
   loading.value = true;
   try {
     const offset = (currentPage.value - 1) * pageSize.value;
@@ -90,7 +94,7 @@ const fetchEntries = async (path: string) => {
 const handlePageChange = (page: number, size: number) => {
   currentPage.value = page;
   pageSize.value = size;
-  void fetchEntries(currentPath.value);
+  void fetchEntries(currentPath.value, true);
 };
 
 const paginatedEntries = computed(() => entries.value);
@@ -184,7 +188,10 @@ const openRouteTarget = async () => {
   if (!targetPath) return;
 
   try {
-    previewLoading.value = previewRequested.value;
+    const isPreview = previewRequested.value;
+    if (isPreview) {
+      previewLoading.value = true;
+    }
     const res = await axios.get(`/system/file-preview?path=${encodeURIComponent(targetPath)}`);
     const meta = res.data as FilePreviewResponse;
     const targetDir = meta.isDir ? meta.path : meta.parentDir || '/';
@@ -192,22 +199,21 @@ const openRouteTarget = async () => {
     await fetchEntries(targetDir);
 
     selectedPath.value = meta.path;
-    if (!meta.isDir && previewRequested.value) {
+    if (!meta.isDir && isPreview) {
       previewData.value = meta;
       showPreview.value = true;
       return;
     }
 
-    if (meta.isDir || !previewRequested.value) {
+    if (meta.isDir || !isPreview) {
       showPreview.value = false;
       if (meta.isDir) {
         previewData.value = null;
       }
     }
   } catch (err: any) {
-    // message.error(err?.response?.data?.error || 'Failed to open target path');
     if (!currentPath.value) {
-      await fetchEntries(homePath.value || '/');
+      await fetchEntries(homePath.value || '/', true);
     }
   } finally {
     previewLoading.value = false;
@@ -248,6 +254,11 @@ onMounted(async () => {
       </a-breadcrumb>
       
       <div style="display: flex; align-items: center; gap: 12px;">
+        <div v-if="viewMode === 'grid'" style="display: flex; align-items: center; gap: 8px; width: 140px; margin-right: 8px;">
+          <span style="font-size: 12px; color: #666; white-space: nowrap;">Size:</span>
+          <a-slider v-model:value="gridItemSize" :min="60" :max="240" :step="10" size="small" style="flex: 1;" />
+        </div>
+
         <a-radio-group v-model:value="viewMode" size="small">
           <a-radio-button value="list"><UnorderedListOutlined /></a-radio-button>
           <a-radio-button value="grid"><AppstoreOutlined /></a-radio-button>
@@ -329,15 +340,16 @@ onMounted(async () => {
           <div v-for="item in paginatedEntries" :key="item.path" 
                class="explorer-grid-item"
                :class="{ 'is-selected': item.path === selectedPath }"
+               :style="{ width: `${gridItemSize}px` }"
                @click="handleEntryClick(item)">
             <div class="explorer-grid-icon">
-              <FolderOutlined v-if="item.isDir" style="font-size: 32px; color: #1890ff" />
-              <div v-else-if="isImage(item)" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #f0f0f0; border-radius: 4px; background: #fff;">
+              <FolderOutlined v-if="item.isDir" :style="{ fontSize: `${Math.floor(gridItemSize * 0.35)}px`, color: '#1890ff' }" />
+              <div v-else-if="isImage(item)" :style="{ width: `${Math.floor(gridItemSize * 0.5)}px`, height: `${Math.floor(gridItemSize * 0.5)}px` }" style="display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #f0f0f0; border-radius: 4px; background: #fff;">
                  <img :src="getImageUrl(item.path)" style="width: 100%; height: 100%; object-fit: cover;" />
               </div>
-              <FileOutlined v-else style="font-size: 32px; color: #666" />
+              <FileOutlined v-else :style="{ fontSize: `${Math.floor(gridItemSize * 0.35)}px`, color: '#666' }" />
             </div>
-            <div class="explorer-grid-name" :title="item.name">{{ item.name }}</div>
+            <div class="explorer-grid-name" :title="item.name" :style="{ fontSize: gridItemSize < 80 ? '10px' : '12px' }">{{ item.name }}</div>
             <div class="explorer-grid-actions">
                <a-dropdown>
                   <a-button type="text" size="small" @click.stop><PlusOutlined /></a-button>
@@ -376,7 +388,6 @@ onMounted(async () => {
 
 <style scoped>
 .explorer-grid-item {
-  width: 100px;
   padding: 8px;
   display: flex;
   flex-direction: column;
