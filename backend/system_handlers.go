@@ -311,7 +311,13 @@ func serveSystemStatsWS(c *gin.Context) {
 }
 
 func handleSystemdServices(c *gin.Context) {
-	cmd := exec.Command("systemctl", "list-units", "--type=service", "--all", "--no-legend", "--no-pager")
+	scope := c.DefaultQuery("scope", "system")
+	args := []string{"list-units", "--type=service", "--all", "--no-legend", "--no-pager"}
+	if scope == "user" {
+		args = append([]string{"--user"}, args...)
+	}
+
+	cmd := exec.Command("systemctl", args...)
 	out, err := cmd.Output()
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
@@ -325,7 +331,6 @@ func handleSystemdServices(c *gin.Context) {
 		if len(fields) < 4 {
 			continue
 		}
-		// fields: [UNIT, LOAD, ACTIVE, SUB, DESCRIPTION...]
 		services = append(services, gin.H{
 			"unit":        fields[0],
 			"load":        fields[1],
@@ -341,6 +346,7 @@ func handleSystemdControl(c *gin.Context) {
 	var req struct {
 		Unit   string `json:"unit"`
 		Action string `json:"action"` // start, stop, restart
+		Scope  string `json:"scope"`  // system, user
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": "invalid request"})
@@ -353,14 +359,23 @@ func handleSystemdControl(c *gin.Context) {
 		return
 	}
 
-	// Use pkexec or sudo if available for systemctl actions
-	cmd := exec.Command("pkexec", "systemctl", req.Action, req.Unit)
-	if err := cmd.Run(); err != nil {
-		// Fallback to direct systemctl (might fail if not root)
-		cmd = exec.Command("systemctl", req.Action, req.Unit)
+	args := []string{req.Action, req.Unit}
+	if req.Scope == "user" {
+		args = append([]string{"--user"}, args...)
+		cmd := exec.Command("systemctl", args...)
 		if err := cmd.Run(); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
+		}
+	} else {
+		// Use pkexec or sudo if available for systemctl actions
+		cmd := exec.Command("pkexec", "systemctl", args...)
+		if err := cmd.Run(); err != nil {
+			cmd = exec.Command("systemctl", args...)
+			if err := cmd.Run(); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
 		}
 	}
 	c.JSON(200, gin.H{"status": "ok"})
@@ -369,12 +384,18 @@ func handleSystemdControl(c *gin.Context) {
 func handleSystemdLogs(c *gin.Context) {
 	unit := c.Query("unit")
 	lines := c.DefaultQuery("lines", "100")
+	scope := c.DefaultQuery("scope", "system")
 	if unit == "" {
 		c.JSON(400, gin.H{"error": "unit is required"})
 		return
 	}
 
-	cmd := exec.Command("journalctl", "-u", unit, "-n", lines, "--no-pager")
+	args := []string{"-u", unit, "-n", lines, "--no-pager"}
+	if scope == "user" {
+		args = append([]string{"--user"}, args...)
+	}
+
+	cmd := exec.Command("journalctl", args...)
 	out, err := cmd.Output()
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})

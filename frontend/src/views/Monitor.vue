@@ -105,6 +105,7 @@ interface SystemdService {
 const systemdServices = ref<SystemdService[]>([]);
 const systemdLoading = ref(false);
 const systemdSearch = ref('');
+const systemdScope = ref<'system' | 'user'>('system');
 
 const showLogsModal = ref(false);
 const activeLogUnit = ref('');
@@ -117,7 +118,7 @@ const fetchSystemdLogs = async (unit: string) => {
   logsLoading.value = true;
   serviceLogs.value = '';
   try {
-    const res = await axios.get(`/system/systemd/logs?unit=${unit}&lines=200`);
+    const res = await axios.get(`/system/systemd/logs?unit=${unit}&lines=200&scope=${systemdScope.value}`);
     serviceLogs.value = res.data.logs;
   } catch (err) {
     message.error('Failed to fetch logs');
@@ -129,10 +130,10 @@ const fetchSystemdLogs = async (unit: string) => {
 const fetchSystemdServices = async () => {
   systemdLoading.value = true;
   try {
-    const res = await axios.get('/system/systemd');
+    const res = await axios.get(`/system/systemd?scope=${systemdScope.value}`);
     systemdServices.value = res.data;
   } catch (err) {
-    message.error('Failed to fetch systemd services');
+    message.error(`Failed to fetch ${systemdScope.value} systemd services`);
   } finally {
     systemdLoading.value = false;
   }
@@ -140,13 +141,17 @@ const fetchSystemdServices = async () => {
 
 const controlSystemdService = async (unit: string, action: string) => {
   try {
-    await axios.post('/system/systemd/control', { unit, action });
-    message.success(`Service ${unit} ${action} command sent`);
+    await axios.post('/system/systemd/control', { unit, action, scope: systemdScope.value });
+    message.success(`${systemdScope.value.toUpperCase()} service ${unit} ${action} command sent`);
     void fetchSystemdServices();
   } catch (err: any) {
     message.error(err?.response?.data?.error || `Failed to ${action} service`);
   }
 };
+
+watch(systemdScope, () => {
+  void fetchSystemdServices();
+});
 
 const filteredSystemdServices = computed(() => {
   if (!systemdSearch.value.trim()) return systemdServices.value;
@@ -1295,14 +1300,21 @@ watch(refreshInterval, connectWebSocket);
       <a-tab-pane key="systemd" tab="Systemd">
         <template #tab><span><DeploymentUnitOutlined /> Systemd</span></template>
         <div style="background: #fff; padding: 20px; border-radius: 4px; border: 1px solid #f0f0f0;">
-          <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-            <a-input-search
-              v-model:value="systemdSearch"
-              placeholder="Filter services..."
-              style="width: 300px"
-              allow-clear
-            />
-            <a-button type="primary" :loading="systemdLoading" @click="fetchSystemdServices">
+          <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <a-space>
+              <a-radio-group v-model:value="systemdScope" button-style="solid" size="small">
+                <a-radio-button value="system">System</a-radio-button>
+                <a-radio-button value="user">User</a-radio-button>
+              </a-radio-group>
+              <a-input-search
+                v-model:value="systemdSearch"
+                placeholder="Filter services..."
+                style="width: 260px"
+                size="small"
+                allow-clear
+              />
+            </a-space>
+            <a-button type="primary" size="small" :loading="systemdLoading" @click="fetchSystemdServices">
               Refresh
             </a-button>
           </div>
