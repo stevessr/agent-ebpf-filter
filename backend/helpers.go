@@ -241,6 +241,10 @@ func buildFilePreview(path string) (*FilePreviewResponse, error) {
 	if mimeType == "" && len(head) > 0 {
 		mimeType = http.DetectContentType(head)
 	}
+	// Explicit correction for webm which is often misidentified as audio/webm
+	if strings.ToLower(filepath.Ext(absPath)) == ".webm" && strings.HasPrefix(mimeType, "audio/") {
+		mimeType = "video/webm"
+	}
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { createHighlighter, type Highlighter } from 'shiki';
 import type { FilePreviewResponse } from '../types/filePreview';
 
@@ -56,46 +56,23 @@ const videoUrl = computed(() => {
   return `/system/download?path=${encodeURIComponent(props.preview.path)}`;
 });
 
-watchEffect(async () => {
-  if (props.preview?.previewType === 'text' && props.preview.content) {
-    highlightLoading.value = true;
-    try {
-      const lang = props.preview.language || 'text';
-      const hl = await getHighlighter();
-      
-      if (!hl.getLoadedLanguages().includes(lang)) {
-        try {
-          await hl.loadLanguage(lang as any);
-        } catch (e) {
-          console.warn(`Language ${lang} not supported by shiki`);
-        }
-      }
-
-      highlightedHtml.value = hl.codeToHtml(props.preview.content, {
-        lang: hl.getLoadedLanguages().includes(lang) ? lang : 'text',
-        theme: 'github-dark',
-      });
-    } catch (err) {
-      console.error('Failed to highlight code', err);
-      highlightedHtml.value = '';
-    } finally {
-      highlightLoading.value = false;
-    }
-  } else {
+watch(() => props.open, (isOpen) => {
+  if (!isOpen) {
     highlightedHtml.value = '';
+    highlightLoading.value = false;
   }
 });
 </script>
 
 <template>
-  <a-drawer v-model:open="drawerOpen" :title="title" width="85vw">
+  <a-drawer v-model:open="drawerOpen" :title="title" width="85vw" destroyOnClose>
     <a-spin :spinning="loading">
       <a-empty v-if="!preview && !loading" description="No preview available" />
 
       <template v-else-if="preview">
         <a-descriptions bordered :column="2" size="small" style="margin-bottom: 16px;">
           <a-descriptions-item label="Path" :span="2">
-            <a-typography-text code style="word-break: break-all;">{{ preview.path }}</a-typography-text>
+            <a-typography-text code style="word-break: break-all; color: #111827;">{{ preview.path }}</a-typography-text>
           </a-descriptions-item>
           <a-descriptions-item label="Type">
             <a-tag :color="preview.isDir ? 'blue' : 'default'">{{ preview.previewType.toUpperCase() }}</a-tag>
