@@ -542,6 +542,44 @@ func serveSystemStatsWS(c *gin.Context) {
 	}
 }
 
+func serveSensorsWS(c *gin.Context) {
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	intervalStr := c.DefaultQuery("interval", "2000")
+	iv, _ := time.ParseDuration(intervalStr + "ms")
+	if iv < 500*time.Millisecond {
+		iv = 500 * time.Millisecond
+	}
+	ticker := time.NewTicker(iv)
+	defer ticker.Stop()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-ticker.C:
+			temps, _ := host.SensorsTemperatures()
+			if err := conn.WriteJSON(temps); err != nil {
+				return
+			}
+		case <-done:
+			return
+		}
+	}
+}
+
 func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/ls", handleSystemLs)
 	rg.GET("/file-preview", handleFilePreview)
