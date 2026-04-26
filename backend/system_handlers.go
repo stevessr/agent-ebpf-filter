@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"math"
 	"mime"
 	"os"
@@ -25,6 +27,7 @@ import (
 	ps "github.com/shirou/gopsutil/v3/process"
 	"google.golang.org/protobuf/proto"
 )
+// ... keeping other imports intact, just ensuring bufio is there. Wait, I will just rewrite the func.
 
 func handleSystemLs(c *gin.Context) {
 	p := c.DefaultQuery("path", "/")
@@ -501,6 +504,63 @@ func handleProcessSignal(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func serveCameraWS(c *gin.Context) {
+	dev := c.Query("device")
+	if dev == "" {
+		dev = "/dev/video0"
+	}
+	
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	cmd := exec.Command("ffmpeg", "-y", "-f", "v4l2", "-video_size", "640x480", "-framerate", "15", "-i", dev, "-f", "image2pipe", "-vcodec", "mjpeg", "-q:v", "5", "-")
+	
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to create stdout pipe"))
+		return
+	}
+
+	if err := cmd.Start(); err != nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to start ffmpeg: "+err.Error()))
+		return
+	}
+	defer cmd.Process.Kill()
+
+	scanner := bufio.NewScanner(stdout)
+	buf := make([]byte, 1024*1024)
+	scanner.Buffer(buf, 5*1024*1024)
+	
+	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		soi := bytes.Index(data, []byte{0xff, 0xd8})
+		if soi < 0 {
+			if len(data) > 0 && data[len(data)-1] == 0xff {
+				return len(data) - 1, nil, nil
+			}
+			return len(data), nil, nil
+		}
+		eoi := bytes.Index(data[soi:], []byte{0xff, 0xd9})
+		if eoi < 0 {
+			if atEOF {
+				return 0, nil, io.ErrUnexpectedEOF
+			}
+			return soi, nil, nil
+		}
+		frameLen := eoi + 2
+		return soi + frameLen, data[soi : soi+frameLen], nil
+	})
+
+	for scanner.Scan() {
+		frame := scanner.Bytes()
+		if err := conn.WriteMessage(websocket.BinaryMessage, frame); err != nil {
+			break
+		}
+	}
 }
 
 func registerSystemRoutes(rg *gin.RouterGroup) {

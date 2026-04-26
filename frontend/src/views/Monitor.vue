@@ -113,8 +113,72 @@ const sensorsLoading = ref(false);
 const cameras = ref<string[]>([]);
 const selectedCamera = ref<string | null>(null);
 const cameraSnapshotUrl = ref('');
+const cameraLiveMode = ref(false);
 const cameraLoading = ref(false);
 const cameraAutoRefresh = ref(false);
+const cameraFrameUrl = ref('');
+
+let cameraWs: WebSocket | null = null;
+
+const cameraStreamUrl = computed(() => {
+  if (!selectedCamera.value) return '';
+  if (cameraLiveMode.value) {
+    return cameraFrameUrl.value;
+  }
+  return cameraSnapshotUrl.value;
+});
+
+const connectCameraWS = () => {
+  if (!selectedCamera.value) return;
+  if (cameraWs) {
+    cameraWs.close();
+  }
+  cameraLoading.value = true;
+  const wsUrl = buildWebSocketUrl(`/ws/camera?device=${encodeURIComponent(selectedCamera.value)}`);
+  cameraWs = new WebSocket(wsUrl);
+  cameraWs.binaryType = 'arraybuffer';
+  
+  cameraWs.onopen = () => {
+    cameraLoading.value = false;
+  };
+  
+  cameraWs.onmessage = (e) => {
+    if (typeof e.data !== 'string') {
+      const blob = new Blob([e.data], { type: 'image/jpeg' });
+      const url = URL.createObjectURL(blob);
+      if (cameraFrameUrl.value) {
+        URL.revokeObjectURL(cameraFrameUrl.value);
+      }
+      cameraFrameUrl.value = url;
+    }
+  };
+  
+  cameraWs.onclose = () => {
+    if (cameraLiveMode.value) {
+      setTimeout(connectCameraWS, 2000);
+    }
+  };
+};
+
+const stopCameraWS = () => {
+  if (cameraWs) {
+    cameraWs.onclose = null;
+    cameraWs.close();
+    cameraWs = null;
+  }
+  if (cameraFrameUrl.value) {
+    URL.revokeObjectURL(cameraFrameUrl.value);
+    cameraFrameUrl.value = '';
+  }
+};
+
+watch(cameraLiveMode, (val) => {
+  if (val) {
+    connectCameraWS();
+  } else {
+    stopCameraWS();
+  }
+});
 let cameraTimer: any = null;
 let sensorTimer: any = null;
 
@@ -143,6 +207,10 @@ const fetchCameras = async () => {
 
 const refreshCamera = async () => {
   if (!selectedCamera.value) return;
+  if (cameraLiveMode.value) {
+    connectCameraWS();
+    return;
+  }
   cameraLoading.value = true;
   try {
     cameraSnapshotUrl.value = `/system/camera/snapshot?device=${encodeURIComponent(selectedCamera.value)}&t=${Date.now()}`;
@@ -975,6 +1043,7 @@ onMounted(() => {
   connectWebSocket();
 });
 onUnmounted(() => {
+  stopCameraWS();
   if (ws) {
     ws.onopen = null;
     ws.onmessage = null;
@@ -982,6 +1051,14 @@ onUnmounted(() => {
     ws.close();
   }
   ws = null;
+  if (sensorTimer) {
+    clearInterval(sensorTimer);
+    sensorTimer = null;
+  }
+  if (cameraTimer) {
+    clearInterval(cameraTimer);
+    cameraTimer = null;
+  }
 });
 watch(refreshInterval, connectWebSocket);
 </script>
@@ -1478,8 +1555,9 @@ watch(refreshInterval, connectWebSocket);
           <a-card title="Cameras" size="small">
             <template #extra>
               <a-space>
-                <span style="font-size: 12px; color: #888;">Auto-refresh:</span>
-                <a-switch v-model:checked="cameraAutoRefresh" size="small" />
+                <a-tag v-if="cameraLiveMode" color="red">LIVE</a-tag>
+                <span style="font-size: 12px; color: #888;">Live Stream:</span>
+                <a-switch v-model:checked="cameraLiveMode" size="small" />
               </a-space>
             </template>
             <div style="margin-bottom: 12px;">
@@ -1488,13 +1566,17 @@ watch(refreshInterval, connectWebSocket);
               </a-select>
             </div>
             <div style="background: #000; border-radius: 4px; overflow: hidden; position: relative; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center;">
-              <img v-if="cameraSnapshotUrl" :src="cameraSnapshotUrl" style="width: 100%; height: 100%; object-fit: contain;" />
+              <img v-if="cameraStreamUrl" :src="cameraStreamUrl" style="width: 100%; height: 100%; object-fit: contain;" />
               <a-empty v-else description="No camera stream" :image-style="{ height: '60px' }" />
-              <div v-if="cameraLoading" style="position: absolute; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+              <div v-if="cameraLoading && !cameraLiveMode" style="position: absolute; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
                 <a-spin />
               </div>
             </div>
-            <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+            <div v-if="!cameraLiveMode" style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+               <a-space>
+                  <span style="font-size: 12px; color: #888;">Auto-refresh:</span>
+                  <a-switch v-model:checked="cameraAutoRefresh" size="small" />
+               </a-space>
                <a-button size="small" @click="refreshCamera" :disabled="!selectedCamera">Manual Capture</a-button>
             </div>
           </a-card>
