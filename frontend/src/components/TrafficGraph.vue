@@ -25,6 +25,17 @@ interface GraphLink {
   speed: number;
 }
 
+interface LinkGeometry {
+  x1: number;
+  y1: number;
+  c1x: number;
+  c1y: number;
+  c2x: number;
+  c2y: number;
+  x2: number;
+  y2: number;
+}
+
 const props = defineProps<{
   interfaces: TrafficInterface[];
 }>();
@@ -70,19 +81,30 @@ const logGrowth = (value: number, min: number, max: number, ceiling: number) => 
   return min + (max - min) * Math.min(1, normalized);
 };
 
-const buildMarker = (defs: d3.Selection<SVGDefsElement, unknown, null, undefined>, id: string, color: string) => {
-  defs
-    .append('marker')
-    .attr('id', id)
-    .attr('viewBox', '0 0 10 10')
-    .attr('refX', 10)
-    .attr('refY', 5)
-    .attr('markerWidth', 7)
-    .attr('markerHeight', 7)
-    .attr('orient', 'auto')
-    .append('path')
-    .attr('d', 'M 0 0 L 10 5 L 0 10 z')
-    .attr('fill', color);
+const getCubicPoint = (geometry: LinkGeometry, t: number) => {
+  const mt = 1 - t;
+  const mt2 = mt * mt;
+  const t2 = t * t;
+  const x = mt2 * mt * geometry.x1
+    + 3 * mt2 * t * geometry.c1x
+    + 3 * mt * t2 * geometry.c2x
+    + t2 * t * geometry.x2;
+  const y = mt2 * mt * geometry.y1
+    + 3 * mt2 * t * geometry.c1y
+    + 3 * mt * t2 * geometry.c2y
+    + t2 * t * geometry.y2;
+  return { x, y };
+};
+
+const getCubicTangent = (geometry: LinkGeometry, t: number) => {
+  const mt = 1 - t;
+  const x = 3 * mt * mt * (geometry.c1x - geometry.x1)
+    + 6 * mt * t * (geometry.c2x - geometry.c1x)
+    + 3 * t * t * (geometry.x2 - geometry.c2x);
+  const y = 3 * mt * mt * (geometry.c1y - geometry.y1)
+    + 6 * mt * t * (geometry.c2y - geometry.c1y)
+    + 3 * t * t * (geometry.y2 - geometry.c2y);
+  return { x, y };
 };
 
 const layoutInterfaces = (interfaces: TrafficInterface[]) => [...interfaces]
@@ -152,12 +174,20 @@ const renderGraph = () => {
     };
   };
 
-  const activeNames = new Set(interfaces.map((item) => item.name));
+  const activeNames = new Set(['Internet', ...interfaces.map((item) => item.name)]);
   [...nodePositionCache.keys()].forEach((name) => {
     if (!activeNames.has(name)) {
       nodePositionCache.delete(name);
     }
   });
+
+  const internetCache = nodePositionCache.get('Internet');
+  const internetPosition = internetCache
+    ? clampPosition(internetCache.x, internetCache.y, internetRadius)
+    : { x: centerX, y: centerY };
+  if (internetCache && (internetCache.x !== internetPosition.x || internetCache.y !== internetPosition.y)) {
+    nodePositionCache.set('Internet', internetPosition);
+  }
 
   const nodes: GraphNode[] = [
     {
@@ -166,8 +196,8 @@ const renderGraph = () => {
       readSpeed: aggregateIn,
       writeSpeed: aggregateOut,
       totalSpeed: aggregateIn + aggregateOut,
-      x: centerX,
-      y: centerY,
+      x: internetPosition.x,
+      y: internetPosition.y,
     },
     ...interfaces.map((item, index) => {
       const angle = Math.PI + (index / interfaces.length) * Math.PI * 2;
@@ -176,8 +206,8 @@ const renderGraph = () => {
       const sizeBoost = Math.max(0, currentRadius - 22) * Math.max(2.2, minDimension / 120);
       const defaultRadius = Math.min(orbitRadius + sizeBoost, maxRadius);
       const defaultPosition = clampPosition(
-        centerX + Math.cos(angle) * defaultRadius,
-        centerY + Math.sin(angle) * defaultRadius,
+        internetPosition.x + Math.cos(angle) * defaultRadius,
+        internetPosition.y + Math.sin(angle) * defaultRadius,
         currentRadius,
       );
       const cachedPosition = nodePositionCache.get(item.name);
@@ -221,15 +251,10 @@ const renderGraph = () => {
     }
   });
 
-  const defs = svg.append('defs');
-  buildMarker(defs, 'traffic-arrow-low', '#52c41a');
-  buildMarker(defs, 'traffic-arrow-mid', '#faad14');
-  buildMarker(defs, 'traffic-arrow-high', '#ff4d4f');
-
-  svg
+  const orbitSelection = svg
     .append('circle')
-    .attr('cx', centerX)
-    .attr('cy', centerY)
+    .attr('cx', internetPosition.x)
+    .attr('cy', internetPosition.y)
     .attr('r', orbitRadius)
     .attr('fill', 'none')
     .attr('stroke', 'rgba(148, 163, 184, 0.25)')
@@ -237,16 +262,19 @@ const renderGraph = () => {
 
   const getNodeRadius = (node: GraphNode) => (node.kind === 'internet' ? internetRadius : nodeRadius(node.totalSpeed));
 
+  const hubX = () => nodeById.get('Internet')?.x ?? internetPosition.x;
+  const hubY = () => nodeById.get('Internet')?.y ?? internetPosition.y;
+
   const getLinkEndpoints = (link: GraphLink) => {
     const source = nodeById.get(link.source);
     const target = nodeById.get(link.target);
 
     if (!source || !target) {
       return {
-        x1: centerX,
-        y1: centerY,
-        x2: centerX,
-        y2: centerY,
+        x1: internetPosition.x,
+        y1: internetPosition.y,
+        x2: internetPosition.x,
+        y2: internetPosition.y,
       };
     }
 
@@ -264,29 +292,46 @@ const renderGraph = () => {
     };
   };
 
-  const buildLinkPath = (link: GraphLink) => {
+  const getLinkGeometry = (link: GraphLink): LinkGeometry | null => {
     const source = nodeById.get(link.source);
     const target = nodeById.get(link.target);
 
-    if (!source || !target) return '';
+    if (!source || !target) return null;
 
     const points = getLinkEndpoints(link);
     const interfaceNode = source.kind === 'interface' ? source : target;
-    const angle = Math.atan2(interfaceNode.y - centerY, interfaceNode.x - centerX);
+    const angle = Math.atan2(interfaceNode.y - hubY(), interfaceNode.x - hubX());
     const radialX = Math.cos(angle);
     const radialY = Math.sin(angle);
     const tangentX = -radialY;
     const tangentY = radialX;
     const side = link.id.endsWith('-tx') ? 1 : -1;
-    const arcSpread = Math.min(86, Math.max(28, linkWidth(link.speed) * 5.4));
-    const outward = Math.min(48, Math.max(16, linkWidth(link.speed) * 2.6));
+    const arcSpread = Math.min(92, Math.max(30, linkWidth(link.speed) * 5.6));
+    const outward = Math.min(52, Math.max(16, linkWidth(link.speed) * 2.7));
 
-    const c1x = points.x1 + radialX * outward + tangentX * arcSpread * side;
-    const c1y = points.y1 + radialY * outward + tangentY * arcSpread * side;
-    const c2x = points.x2 + radialX * outward + tangentX * arcSpread * side;
-    const c2y = points.y2 + radialY * outward + tangentY * arcSpread * side;
+    return {
+      x1: points.x1,
+      y1: points.y1,
+      c1x: points.x1 + radialX * outward + tangentX * arcSpread * side,
+      c1y: points.y1 + radialY * outward + tangentY * arcSpread * side,
+      c2x: points.x2 + radialX * outward + tangentX * arcSpread * side,
+      c2y: points.y2 + radialY * outward + tangentY * arcSpread * side,
+      x2: points.x2,
+      y2: points.y2,
+    };
+  };
 
-    return `M ${points.x1} ${points.y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${points.x2} ${points.y2}`;
+  const buildLinkPath = (geometry: LinkGeometry) => `M ${geometry.x1} ${geometry.y1} C ${geometry.c1x} ${geometry.c1y} ${geometry.c2x} ${geometry.c2y} ${geometry.x2} ${geometry.y2}`;
+
+  const buildArrowPath = (geometry: LinkGeometry, speed: number) => {
+    const midPoint = getCubicPoint(geometry, 0.5);
+    const tangent = getCubicTangent(geometry, 0.5);
+    const angle = Math.atan2(tangent.y, tangent.x) * 180 / Math.PI;
+    const size = Math.min(18, Math.max(9, linkWidth(speed) * 1.45));
+    return {
+      path: `M ${-size} ${-size * 0.45} L ${size} 0 L ${-size} ${size * 0.45} Z`,
+      transform: `translate(${midPoint.x},${midPoint.y}) rotate(${angle})`,
+    };
   };
 
   const linkSelection = svg
@@ -298,17 +343,35 @@ const renderGraph = () => {
     .attr('class', 'traffic-link')
     .attr('fill', 'none')
     .attr('stroke-linecap', 'round')
+    .attr('stroke-linejoin', 'round')
     .attr('stroke-width', (link) => linkWidth(link.speed))
-    .attr('stroke', (link) => trafficColor(link.speed))
-    .attr('marker-end', (link) => {
-      const color = trafficColor(link.speed);
-      if (color === '#ff4d4f') return 'url(#traffic-arrow-high)';
-      if (color === '#faad14') return 'url(#traffic-arrow-mid)';
-      return 'url(#traffic-arrow-low)';
-    });
+    .attr('stroke', (link) => trafficColor(link.speed));
+
+  const arrowSelection = svg
+    .append('g')
+    .selectAll<SVGPathElement, GraphLink>('path')
+    .data(links, (link) => `${link.id}-arrow`)
+    .join('path')
+    .attr('class', 'traffic-link-arrow')
+    .attr('fill', (link) => trafficColor(link.speed))
+    .attr('stroke', 'none')
+    .attr('pointer-events', 'none');
 
   const updateLinkPaths = () => {
-    linkSelection.attr('d', (link) => buildLinkPath(link));
+    linkSelection.attr('d', (link) => {
+      const geometry = getLinkGeometry(link);
+      return geometry ? buildLinkPath(geometry) : '';
+    });
+
+    arrowSelection
+      .attr('d', (link) => {
+        const geometry = getLinkGeometry(link);
+        return geometry ? buildArrowPath(geometry, link.speed).path : '';
+      })
+      .attr('transform', (link) => {
+        const geometry = getLinkGeometry(link);
+        return geometry ? buildArrowPath(geometry, link.speed).transform : null;
+      });
   };
 
   updateLinkPaths();
@@ -318,6 +381,7 @@ const renderGraph = () => {
     .text((link) => `${link.id.endsWith('-tx') ? 'TX' : 'RX'} ${formatBytes(link.speed)}/s`);
 
   let currentDragMoved = false;
+  let dragOrigins: Map<string, { x: number; y: number }> | null = null;
 
   const nodeSelection = svg
     .append('g')
@@ -326,7 +390,7 @@ const renderGraph = () => {
     .join('g')
     .attr('class', 'traffic-node')
     .attr('transform', (node) => `translate(${node.x},${node.y})`)
-    .style('cursor', (node) => (node.kind === 'interface' ? 'grab' : 'default'))
+    .style('cursor', 'grab')
     .on('click', (event, node) => {
       if (node.kind !== 'interface') return;
       if ((clickBlockUntil.get(node.id) || 0) > Date.now()) {
@@ -348,20 +412,40 @@ const renderGraph = () => {
     });
 
   const dragBehavior = d3.drag<SVGGElement, GraphNode>()
-    .filter((_event, node) => node.kind === 'interface')
+    .filter((_event, node) => node.kind === 'interface' || node.kind === 'internet')
     .on('start', function (_event, _node) {
       dragDepth += 1;
       currentDragMoved = false;
+      dragOrigins = new Map(nodes.map((item) => [item.id, { x: item.x, y: item.y }]));
       d3.select(this).raise().style('cursor', 'grabbing');
     })
     .on('drag', function (event, node) {
       currentDragMoved = true;
       const radius = getNodeRadius(node);
       const position = clampPosition(event.x, event.y, radius);
-      node.x = position.x;
-      node.y = position.y;
-      nodePositionCache.set(node.id, position);
-      d3.select(this).attr('transform', `translate(${position.x},${position.y})`);
+      if (node.kind === 'internet' && dragOrigins) {
+        const origin = dragOrigins.get('Internet') ?? { x: node.x, y: node.y };
+        const deltaX = position.x - origin.x;
+        const deltaY = position.y - origin.y;
+
+        nodes.forEach((item) => {
+          const start = dragOrigins?.get(item.id) ?? { x: item.x, y: item.y };
+          const next = clampPosition(start.x + deltaX, start.y + deltaY, getNodeRadius(item));
+          item.x = next.x;
+          item.y = next.y;
+          nodePositionCache.set(item.id, next);
+        });
+
+        orbitSelection
+          .attr('cx', position.x)
+          .attr('cy', position.y);
+        nodeSelection.attr('transform', (item) => `translate(${item.x},${item.y})`);
+      } else {
+        node.x = position.x;
+        node.y = position.y;
+        nodePositionCache.set(node.id, position);
+        d3.select(this).attr('transform', `translate(${position.x},${position.y})`);
+      }
       updateLinkPaths();
     })
     .on('end', function (_event, node) {
@@ -369,6 +453,7 @@ const renderGraph = () => {
       if (currentDragMoved) {
         clickBlockUntil.set(node.id, Date.now() + 250);
       }
+      dragOrigins = null;
       currentDragMoved = false;
       dragDepth = Math.max(0, dragDepth - 1);
       if (dragDepth === 0 && renderQueued) {
@@ -377,7 +462,7 @@ const renderGraph = () => {
       }
     });
 
-  nodeSelection.filter((node) => node.kind === 'interface').call(dragBehavior as any);
+  nodeSelection.call(dragBehavior as any);
 
   const textSelection = nodeSelection
     .append('text')
@@ -479,6 +564,10 @@ onBeforeUnmount(() => {
   stroke-dasharray: 10 8;
   animation: traffic-dash 1.6s linear infinite;
   opacity: 0.9;
+  pointer-events: none;
+}
+
+:deep(.traffic-link-arrow) {
   pointer-events: none;
 }
 

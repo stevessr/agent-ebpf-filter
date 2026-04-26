@@ -41,12 +41,34 @@ let shouldReconnect = true;
 const maxHistorySeconds = 300;
 const megabyte = 1024 * 1024;
 
-const formatBytes = (bytes: number, decimals = 2) => {
+const formatBytes = (value: number | string, decimals = 2) => {
+  const bytes = Number(value);
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const base = 1024;
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(base)), sizes.length - 1);
   return `${(bytes / Math.pow(base, index)).toFixed(index === 0 ? 0 : decimals)} ${sizes[index]}`;
+};
+
+interface RateScale {
+  divisor: number;
+  unit: string;
+  precision: number;
+}
+
+const resolveRateScale = (maxBytesPerSecond: number): RateScale => {
+  const value = Math.max(0, maxBytesPerSecond);
+  if (value >= 1024 ** 4) return { divisor: 1024 ** 4, unit: 'TB/s', precision: 1 };
+  if (value >= 1024 ** 3) return { divisor: 1024 ** 3, unit: 'GB/s', precision: 1 };
+  if (value >= 1024 ** 2) return { divisor: 1024 ** 2, unit: 'MB/s', precision: 1 };
+  if (value >= 1024) return { divisor: 1024, unit: 'KB/s', precision: 1 };
+  return { divisor: 1, unit: 'B/s', precision: 0 };
+};
+
+const formatRate = (bytesPerSecond: number, scale: RateScale) => {
+  const value = bytesPerSecond / scale.divisor;
+  if (!Number.isFinite(value)) return `0 ${scale.unit}`;
+  return `${value.toFixed(scale.precision)} ${scale.unit}`;
 };
 
 const getTrafficLevelColor = (bytesPerSecond: number) => {
@@ -109,8 +131,21 @@ const interfaceChartWindow = computed(() => {
   return { min, max };
 });
 
+const interfaceChartSamples = computed(() => {
+  const { min } = interfaceChartWindow.value;
+  return selectedInterfaceHistory.value.filter((sample) => sample.time >= min);
+});
+
+const interfaceChartRateScale = computed(() => {
+  const maxRate = interfaceChartSamples.value.reduce((peak, sample) => (
+    Math.max(peak, sample.readSpeed, sample.writeSpeed)
+  ), 0);
+  return resolveRateScale(maxRate);
+});
+
 const interfaceChartOptions = computed(() => {
   const { min, max } = interfaceChartWindow.value;
+  const scale = interfaceChartRateScale.value;
   return {
     chart: {
       animations: { enabled: false },
@@ -139,11 +174,17 @@ const interfaceChartOptions = computed(() => {
       x: {
         formatter: (value: string | number) => formatChartTime(Number(value), interfaceChartTimeRange.value),
       },
+      y: {
+        formatter: (value: number) => formatRate(Number(value) * scale.divisor, scale),
+      },
     },
     yaxis: {
+      min: 0,
+      forceNiceScale: true,
+      decimalsInFloat: scale.precision,
       labels: {
         style: { fontSize: '10px' },
-        formatter: (value: number) => `${formatBytes(value)}/s`,
+        formatter: (value: number | string) => formatRate(Number(value) * scale.divisor, scale),
       },
     },
     stroke: { curve: 'smooth' as const, width: 2 },
@@ -154,12 +195,16 @@ const interfaceChartOptions = computed(() => {
 });
 
 const interfaceChartSeries = computed(() => {
-  const data = selectedInterfaceHistory.value;
-  const { min } = interfaceChartWindow.value;
-  const filtered = data.filter((sample) => sample.time >= min);
+  const scale = interfaceChartRateScale.value;
   return [
-    { name: 'Download', data: filtered.map((sample) => ({ x: sample.time, y: sample.readSpeed })) },
-    { name: 'Upload', data: filtered.map((sample) => ({ x: sample.time, y: sample.writeSpeed })) },
+    {
+      name: 'Download',
+      data: interfaceChartSamples.value.map((sample) => ({ x: sample.time, y: sample.readSpeed / scale.divisor })),
+    },
+    {
+      name: 'Upload',
+      data: interfaceChartSamples.value.map((sample) => ({ x: sample.time, y: sample.writeSpeed / scale.divisor })),
+    },
   ];
 });
 
