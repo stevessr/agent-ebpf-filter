@@ -137,6 +137,8 @@ message MemoryInfo {
   uint64 shared = 6;
   uint64 zram_used = 7;
   uint64 zram_total = 8;
+  uint64 swap_total = 9;
+  uint64 swap_used = 10;
 }
 
 message Hook {

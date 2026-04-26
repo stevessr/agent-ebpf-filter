@@ -3495,6 +3495,8 @@ $root.pb = (function() {
          * @property {number|Long|null} [shared] MemoryInfo shared
          * @property {number|Long|null} [zramUsed] MemoryInfo zramUsed
          * @property {number|Long|null} [zramTotal] MemoryInfo zramTotal
+         * @property {number|Long|null} [swapTotal] MemoryInfo swapTotal
+         * @property {number|Long|null} [swapUsed] MemoryInfo swapUsed
          */
 
         /**
@@ -3577,6 +3579,22 @@ $root.pb = (function() {
         MemoryInfo.prototype.zramTotal = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
         /**
+         * MemoryInfo swapTotal.
+         * @member {number|Long} swapTotal
+         * @memberof pb.MemoryInfo
+         * @instance
+         */
+        MemoryInfo.prototype.swapTotal = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * MemoryInfo swapUsed.
+         * @member {number|Long} swapUsed
+         * @memberof pb.MemoryInfo
+         * @instance
+         */
+        MemoryInfo.prototype.swapUsed = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
          * Creates a new MemoryInfo instance using the specified properties.
          * @function create
          * @memberof pb.MemoryInfo
@@ -3616,6 +3634,10 @@ $root.pb = (function() {
                 writer.uint32(/* id 7, wireType 0 =*/56).uint64(message.zramUsed);
             if (message.zramTotal != null && Object.hasOwnProperty.call(message, "zramTotal"))
                 writer.uint32(/* id 8, wireType 0 =*/64).uint64(message.zramTotal);
+            if (message.swapTotal != null && Object.hasOwnProperty.call(message, "swapTotal"))
+                writer.uint32(/* id 9, wireType 0 =*/72).uint64(message.swapTotal);
+            if (message.swapUsed != null && Object.hasOwnProperty.call(message, "swapUsed"))
+                writer.uint32(/* id 10, wireType 0 =*/80).uint64(message.swapUsed);
             return writer;
         };
 
@@ -3684,6 +3706,14 @@ $root.pb = (function() {
                         message.zramTotal = reader.uint64();
                         break;
                     }
+                case 9: {
+                        message.swapTotal = reader.uint64();
+                        break;
+                    }
+                case 10: {
+                        message.swapUsed = reader.uint64();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -3743,6 +3773,12 @@ $root.pb = (function() {
             if (message.zramTotal != null && message.hasOwnProperty("zramTotal"))
                 if (!$util.isInteger(message.zramTotal) && !(message.zramTotal && $util.isInteger(message.zramTotal.low) && $util.isInteger(message.zramTotal.high)))
                     return "zramTotal: integer|Long expected";
+            if (message.swapTotal != null && message.hasOwnProperty("swapTotal"))
+                if (!$util.isInteger(message.swapTotal) && !(message.swapTotal && $util.isInteger(message.swapTotal.low) && $util.isInteger(message.swapTotal.high)))
+                    return "swapTotal: integer|Long expected";
+            if (message.swapUsed != null && message.hasOwnProperty("swapUsed"))
+                if (!$util.isInteger(message.swapUsed) && !(message.swapUsed && $util.isInteger(message.swapUsed.low) && $util.isInteger(message.swapUsed.high)))
+                    return "swapUsed: integer|Long expected";
             return null;
         };
 
@@ -3823,6 +3859,24 @@ $root.pb = (function() {
                     message.zramTotal = object.zramTotal;
                 else if (typeof object.zramTotal === "object")
                     message.zramTotal = new $util.LongBits(object.zramTotal.low >>> 0, object.zramTotal.high >>> 0).toNumber(true);
+            if (object.swapTotal != null)
+                if ($util.Long)
+                    (message.swapTotal = $util.Long.fromValue(object.swapTotal)).unsigned = true;
+                else if (typeof object.swapTotal === "string")
+                    message.swapTotal = parseInt(object.swapTotal, 10);
+                else if (typeof object.swapTotal === "number")
+                    message.swapTotal = object.swapTotal;
+                else if (typeof object.swapTotal === "object")
+                    message.swapTotal = new $util.LongBits(object.swapTotal.low >>> 0, object.swapTotal.high >>> 0).toNumber(true);
+            if (object.swapUsed != null)
+                if ($util.Long)
+                    (message.swapUsed = $util.Long.fromValue(object.swapUsed)).unsigned = true;
+                else if (typeof object.swapUsed === "string")
+                    message.swapUsed = parseInt(object.swapUsed, 10);
+                else if (typeof object.swapUsed === "number")
+                    message.swapUsed = object.swapUsed;
+                else if (typeof object.swapUsed === "object")
+                    message.swapUsed = new $util.LongBits(object.swapUsed.low >>> 0, object.swapUsed.high >>> 0).toNumber(true);
             return message;
         };
 
@@ -3876,6 +3930,16 @@ $root.pb = (function() {
                     object.zramTotal = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.zramTotal = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.swapTotal = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.swapTotal = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.swapUsed = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.swapUsed = options.longs === String ? "0" : 0;
             }
             if (message.total != null && message.hasOwnProperty("total"))
                 if (typeof message.total === "number")
@@ -3914,6 +3978,16 @@ $root.pb = (function() {
                     object.zramTotal = options.longs === String ? String(message.zramTotal) : message.zramTotal;
                 else
                     object.zramTotal = options.longs === String ? $util.Long.prototype.toString.call(message.zramTotal) : options.longs === Number ? new $util.LongBits(message.zramTotal.low >>> 0, message.zramTotal.high >>> 0).toNumber(true) : message.zramTotal;
+            if (message.swapTotal != null && message.hasOwnProperty("swapTotal"))
+                if (typeof message.swapTotal === "number")
+                    object.swapTotal = options.longs === String ? String(message.swapTotal) : message.swapTotal;
+                else
+                    object.swapTotal = options.longs === String ? $util.Long.prototype.toString.call(message.swapTotal) : options.longs === Number ? new $util.LongBits(message.swapTotal.low >>> 0, message.swapTotal.high >>> 0).toNumber(true) : message.swapTotal;
+            if (message.swapUsed != null && message.hasOwnProperty("swapUsed"))
+                if (typeof message.swapUsed === "number")
+                    object.swapUsed = options.longs === String ? String(message.swapUsed) : message.swapUsed;
+                else
+                    object.swapUsed = options.longs === String ? $util.Long.prototype.toString.call(message.swapUsed) : options.longs === Number ? new $util.LongBits(message.swapUsed.low >>> 0, message.swapUsed.high >>> 0).toNumber(true) : message.swapUsed;
             return object;
         };
 

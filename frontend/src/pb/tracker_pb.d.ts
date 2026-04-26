@@ -1311,6 +1311,12 @@ export namespace pb {
 
         /** MemoryInfo zramTotal */
         zramTotal?: (number|Long|null);
+
+        /** MemoryInfo swapTotal */
+        swapTotal?: (number|Long|null);
+
+        /** MemoryInfo swapUsed */
+        swapUsed?: (number|Long|null);
     }
 
     /** Represents a MemoryInfo. */
@@ -1345,6 +1351,12 @@ export namespace pb {
 
         /** MemoryInfo zramTotal. */
         public zramTotal: (number|Long);
+
+        /** MemoryInfo swapTotal. */
+        public swapTotal: (number|Long);
+
+        /** MemoryInfo swapUsed. */
+        public swapUsed: (number|Long);
 
         /**
          * Creates a new MemoryInfo instance using the specified properties.

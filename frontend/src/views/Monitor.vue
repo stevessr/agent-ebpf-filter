@@ -409,20 +409,39 @@ watch(sensorSubTab, (newSub) => {
 watch(sensorInterval, () => { if (activeTab.value === 'sensors' && sensorSubTab.value === 'hardware') connectSensorsWS(); });
 watch(cameraLiveMode, (val) => { if (val) connectCameraWS(); else stopCameraWS(); });
 
-const gpus = ref<GPUStatus[]>([]);
-const systemStats = ref<GlobalStats>({
-  cpuTotal: 0, cpuCores: [], cpuCoresDetailed: [], memTotal: 0, memUsed: 0, memPercent: 0,
-  memCached: 0, memBuffers: 0, memShared: 0, zramUsed: 0, zramTotal: 0,
-  netInterfaces: [], diskDevices: [],
-  totalNetRecv: 0, totalNetSent: 0, totalDiskRead: 0, totalDiskWrite: 0,
-  faults: { pageFaults: 0, majorFaults: 0, minorFaults: 0, pageFaultRate: 0, majorFaultRate: 0, minorFaultRate: 0, swapIn: 0, swapOut: 0, swapInRate: 0, swapOutRate: 0 }
+const cpuView = ref<'overall' | 'cores'>('cores');
+const statsHistory = ref<{
+  cpu: { time: number; value: number }[];
+  mem: { time: number; value: number }[];
+  netRecv: { time: number; value: number }[];
+  netSent: { time: number; value: number }[];
+  diskRead: { time: number; value: number }[];
+  diskWrite: { time: number; value: number }[];
+  faults: { time: number; value: number }[];
+}>({
+  cpu: [], mem: [], netRecv: [], netSent: [], diskRead: [], diskWrite: [], faults: []
 });
 
-const loading = ref(false);
-const tags = ref<string[]>([]);
-let ws: WebSocket | null = null;
-let reconnectTimer: any = null;
-let shouldReconnect = true;
+const showHistoryModal = ref(false);
+const historyModalTitle = ref('');
+const historySeries = ref<any[]>([]);
+const historyChartOptions = computed(() => ({
+  chart: { id: 'history-chart', animations: { enabled: true }, toolbar: { show: true } },
+  xaxis: { type: 'datetime' as const, labels: { datetimeUTC: false } },
+  stroke: { width: 2, curve: 'smooth' as const },
+  tooltip: { x: { format: 'HH:mm:ss' } }
+}));
+
+const openHistoryChart = (title: string, data: { time: number; value: number }[], name: string, color?: string) => {
+  historyModalTitle.value = title;
+  historySeries.value = [{ name, data: data.map(d => ({ x: d.time, y: d.value })) }];
+  if (color) historySeries.value[0].color = color;
+  showHistoryModal.value = true;
+};
+
+const topFaultProcesses = computed(() => {
+  return [...processes.value].sort((a, b) => (b.majorFaults + b.minorFaults) - (a.majorFaults + a.minorFaults)).slice(0, 5);
+});
 
 const connectWebSocket = () => {
   if (!shouldReconnect) return;
@@ -446,6 +465,8 @@ const connectWebSocket = () => {
       memShared: Number(s.memory?.shared || 0),
       zramUsed: Number(s.memory?.zramUsed || 0),
       zramTotal: Number(s.memory?.zramTotal || 0),
+      swapUsed: Number(s.memory?.swapUsed || 0),
+      swapTotal: Number(s.memory?.swapTotal || 0),
       netInterfaces: (s.io?.networks || []).map(n => ({ name: n.name || '', readSpeed: Number(n.recvBytes || 0), writeSpeed: Number(n.sentBytes || 0) })),
       diskDevices: (s.io?.disks || []).map(d => ({ name: d.name || '', readSpeed: Number(d.readBytes || 0), writeSpeed: Number(d.writeBytes || 0) })),
       totalNetRecv: Number(s.io?.totalNetRecvBytes || 0),
@@ -454,6 +475,17 @@ const connectWebSocket = () => {
       totalDiskWrite: Number(s.io?.totalWriteBytes || 0),
       faults: (s.faults || {}) as any
     };
+
+    const now = Date.now();
+    statsHistory.value.cpu.push({ time: now, value: systemStats.value.cpuTotal });
+    statsHistory.value.mem.push({ time: now, value: systemStats.value.memPercent });
+    statsHistory.value.netRecv.push({ time: now, value: systemStats.value.totalNetRecv });
+    statsHistory.value.netSent.push({ time: now, value: systemStats.value.totalNetSent });
+    statsHistory.value.diskRead.push({ time: now, value: systemStats.value.totalDiskRead });
+    statsHistory.value.diskWrite.push({ time: now, value: systemStats.value.totalDiskWrite });
+    statsHistory.value.faults.push({ time: now, value: systemStats.value.faults.pageFaultRate });
+
+    Object.values(statsHistory.value).forEach(h => { if (h.length > 60) h.shift(); });
   };
   socket.onclose = () => { if (shouldReconnect) reconnectTimer = setTimeout(connectWebSocket, 3000); };
 };
@@ -487,13 +519,28 @@ onUnmounted(() => {
         <div style="background: #fff; padding: 20px; border-radius: 4px; border: 1px solid #f0f0f0;">
           <a-tabs v-model:activeKey="healthTab" size="small" type="line" style="margin-top: -12px;">
             <a-tab-pane key="cpu" tab="CPU">
-              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; padding-top: 16px;">
-                <div v-for="core in systemStats.cpuCoresDetailed" :key="core.index" style="padding: 16px; border: 1px solid #f0f0f0; border-radius: 8px; text-align: center; background: #fafafa;">
-                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                      <span style="font-family: monospace; font-weight: bold;">#{{ core.index }}</span>
-                      <a-tag :color="getCoreTypeColor(core.type)" style="font-size: 10px;">{{ getCoreTypeName(core.type) }}</a-tag>
-                   </div>
-                   <a-progress type="dashboard" :percent="Math.round(core.usage)" :width="80" :stroke-color="core.usage > 80 ? '#ff4d4f' : getCoreTypeColor(core.type)" />
+              <div style="padding-top: 16px;">
+                <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                  <a-radio-group v-model:value="cpuView" button-style="solid" size="small">
+                    <a-radio-button value="overall">Overall</a-radio-button>
+                    <a-radio-button value="cores">Per Core</a-radio-button>
+                  </a-radio-group>
+                  <a-button type="link" size="small" @click="openHistoryChart('CPU Usage History', statsHistory.cpu, 'Total CPU', '#1890ff')">History Chart</a-button>
+                </div>
+                
+                <div v-if="cpuView === 'overall'" style="background: #fafafa; padding: 24px; border-radius: 8px; text-align: center; border: 1px solid #f0f0f0;">
+                   <a-progress type="dashboard" :percent="Math.round(systemStats.cpuTotal)" :width="180" :stroke-color="systemStats.cpuTotal > 80 ? '#ff4d4f' : '#1890ff'" />
+                   <div style="margin-top: 16px; font-size: 18px; font-weight: bold;">System CPU Usage: {{ systemStats.cpuTotal.toFixed(1) }}%</div>
+                </div>
+                
+                <div v-else style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;">
+                  <div v-for="core in systemStats.cpuCoresDetailed" :key="core.index" style="padding: 12px; border: 1px solid #f0f0f0; border-radius: 8px; text-align: center; background: #fafafa;">
+                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <span style="font-family: monospace; font-size: 11px; font-weight: bold;">#{{ core.index }}</span>
+                        <a-tag :color="getCoreTypeColor(core.type)" style="font-size: 9px; padding: 0 4px; line-height: 16px;">{{ getCoreTypeName(core.type) }}</a-tag>
+                     </div>
+                     <a-progress type="dashboard" :percent="Math.round(core.usage)" :width="70" :stroke-color="core.usage > 80 ? '#ff4d4f' : getCoreTypeColor(core.type)" />
+                  </div>
                 </div>
               </div>
             </a-tab-pane>
@@ -501,25 +548,45 @@ onUnmounted(() => {
                <a-row :gutter="16" style="padding-top: 16px;">
                   <a-col :span="12">
                     <a-card title="Physical Memory" size="small" :bordered="false" style="background: #fafafa;">
-                       <a-statistic title="Overall Usage" :value="systemStats.memPercent" suffix="%" :precision="1" />
+                       <template #extra>
+                          <a-button type="link" size="small" @click="openHistoryChart('Memory Usage History', statsHistory.mem, 'Mem %', '#52c41a')">History</a-button>
+                       </template>
+                       <a-statistic title="Overall Usage" :value="systemStats.memPercent" suffix="%" :precision="1" @click="openHistoryChart('Memory Usage History', statsHistory.mem, 'Mem %', '#52c41a')" style="cursor: pointer;" />
                        <div style="margin-top: 16px; display: grid; gap: 8px;">
                           <div style="display: flex; justify-content: space-between;"><span>Total:</span><b>{{ formatBytesWithUnit(systemStats.memTotal) }}</b></div>
-                          <div style="display: flex; justify-content: space-between;"><span>Used:</span><b>{{ formatBytesWithUnit(systemStats.memUsed) }}</b></div>
-                          <div style="display: flex; justify-content: space-between;"><span>Cached:</span><b>{{ formatBytesWithUnit(systemStats.memCached) }}</b></div>
-                          <div style="display: flex; justify-content: space-between;"><span>Buffers:</span><b>{{ formatBytesWithUnit(systemStats.memBuffers) }}</b></div>
+                          <div style="display: flex; justify-content: space-between; color: #1890ff;"><span>Used:</span><b>{{ formatBytesWithUnit(systemStats.memUsed) }}</b></div>
+                          <div style="display: flex; justify-content: space-between; color: #52c41a;"><span>Cached:</span><b>{{ formatBytesWithUnit(systemStats.memCached) }}</b></div>
+                          <div style="display: flex; justify-content: space-between; color: #faad14;"><span>Buffers:</span><b>{{ formatBytesWithUnit(systemStats.memBuffers) }}</b></div>
                        </div>
                     </a-card>
                   </a-col>
                   <a-col :span="12">
                     <a-card title="Swap / ZRAM" size="small" :bordered="false" style="background: #fafafa;">
-                       <div v-if="systemStats.zramTotal > 0">
-                          <a-statistic title="ZRAM Usage" :value="(systemStats.zramUsed / systemStats.zramTotal) * 100" suffix="%" :precision="1" />
-                          <div style="margin-top: 16px; display: grid; gap: 8px;">
-                             <div style="display: flex; justify-content: space-between;"><span>ZRAM Total:</span><b>{{ formatBytesWithUnit(systemStats.zramTotal) }}</b></div>
-                             <div style="display: flex; justify-content: space-between;"><span>ZRAM Used:</span><b>{{ formatBytesWithUnit(systemStats.zramUsed) }}</b></div>
+                       <div style="display: grid; gap: 16px;">
+                          <div v-if="systemStats.swapTotal > 0">
+                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <span style="font-size: 12px; color: #888;">System Swap</span>
+                                <span style="font-weight: bold;">{{ systemStats.swapTotal > 0 ? ((systemStats.swapUsed / systemStats.swapTotal) * 100).toFixed(1) : 0 }}%</span>
+                             </div>
+                             <a-progress :percent="systemStats.swapTotal > 0 ? Math.round((systemStats.swapUsed / systemStats.swapTotal) * 100) : 0" size="small" stroke-color="#722ed1" />
+                             <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 2px;">
+                                <span>Used: {{ formatBytesWithUnit(systemStats.swapUsed) }}</span>
+                                <span>Total: {{ formatBytesWithUnit(systemStats.swapTotal) }}</span>
+                             </div>
                           </div>
+                          <div v-if="systemStats.zramTotal > 0">
+                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <span style="font-size: 12px; color: #888;">ZRAM (Compressed)</span>
+                                <span style="font-weight: bold;">{{ systemStats.zramTotal > 0 ? ((systemStats.zramUsed / systemStats.zramTotal) * 100).toFixed(1) : 0 }}%</span>
+                             </div>
+                             <a-progress :percent="systemStats.zramTotal > 0 ? Math.round((systemStats.zramUsed / systemStats.zramTotal) * 100) : 0" size="small" stroke-color="#13c2c2" />
+                             <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 2px;">
+                                <span>Compressed: {{ formatBytesWithUnit(systemStats.zramUsed) }}</span>
+                                <span>Original: {{ formatBytesWithUnit(systemStats.zramTotal) }}</span>
+                             </div>
+                          </div>
+                          <a-empty v-if="systemStats.swapTotal === 0 && systemStats.zramTotal === 0" description="No Swap/ZRAM detected" />
                        </div>
-                       <a-empty v-else description="No ZRAM detected" />
                     </a-card>
                   </a-col>
                </a-row>
@@ -527,23 +594,41 @@ onUnmounted(() => {
             <a-tab-pane key="io" tab="I/O">
                <a-row :gutter="16" style="padding-top: 16px;">
                   <a-col :span="12">
-                    <a-card title="Network" size="small" :bordered="false" style="background: #fafafa;">
-                       <div v-for="iface in systemStats.netInterfaces" :key="iface.name" style="margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0;">
-                          <div style="font-family: monospace; font-weight: bold; margin-bottom: 4px;">{{ iface.name }}</div>
+                    <a-card title="Network Activity" size="small" :bordered="false" style="background: #fafafa;">
+                       <template #extra>
+                          <a-space>
+                            <a-button type="link" size="small" @click="openHistoryChart('Network Recv History', statsHistory.netRecv, 'Recv', '#52c41a')">Recv</a-button>
+                            <a-button type="link" size="small" @click="openHistoryChart('Network Sent History', statsHistory.netSent, 'Sent', '#1890ff')">Sent</a-button>
+                          </a-space>
+                       </template>
+                       <div v-for="iface in systemStats.netInterfaces" :key="iface.name" style="margin-bottom: 12px; padding: 8px; border-radius: 4px; background: #fff; border: 1px solid #f0f0f0;">
+                          <div style="font-family: monospace; font-weight: bold; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                             <span>{{ iface.name }}</span>
+                             <span style="font-size: 10px; color: #888;">(Live Speed)</span>
+                          </div>
                           <div style="display: flex; gap: 16px; font-size: 12px;">
-                             <span style="color: #52c41a;">↓ {{ formatBytesWithUnit(iface.readSpeed) }}/s</span>
-                             <span style="color: #1890ff;">↑ {{ formatBytesWithUnit(iface.writeSpeed) }}/s</span>
+                             <span style="color: #52c41a; flex: 1; cursor: pointer;" @click="openHistoryChart(`${iface.name} Recv Speed`, statsHistory.netRecv, 'Bytes/s', '#52c41a')">↓ {{ formatBytesWithUnit(iface.readSpeed) }}/s</span>
+                             <span style="color: #1890ff; flex: 1; cursor: pointer;" @click="openHistoryChart(`${iface.name} Sent Speed`, statsHistory.netSent, 'Bytes/s', '#1890ff')">↑ {{ formatBytesWithUnit(iface.writeSpeed) }}/s</span>
                           </div>
                        </div>
                     </a-card>
                   </a-col>
                   <a-col :span="12">
-                    <a-card title="Storage" size="small" :bordered="false" style="background: #fafafa;">
-                       <div v-for="disk in systemStats.diskDevices" :key="disk.name" style="margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0;">
-                          <div style="font-family: monospace; font-weight: bold; margin-bottom: 4px;">{{ disk.name }}</div>
+                    <a-card title="Storage Activity" size="small" :bordered="false" style="background: #fafafa;">
+                       <template #extra>
+                          <a-space>
+                            <a-button type="link" size="small" @click="openHistoryChart('Disk Read History', statsHistory.diskRead, 'Read', '#faad14')">Read</a-button>
+                            <a-button type="link" size="small" @click="openHistoryChart('Disk Write History', statsHistory.diskWrite, 'Write', '#722ed1')">Write</a-button>
+                          </a-space>
+                       </template>
+                       <div v-for="disk in systemStats.diskDevices" :key="disk.name" style="margin-bottom: 12px; padding: 8px; border-radius: 4px; background: #fff; border: 1px solid #f0f0f0;">
+                          <div style="font-family: monospace; font-weight: bold; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                             <span>{{ disk.name }}</span>
+                             <span style="font-size: 10px; color: #888;">(I/O Throughput)</span>
+                          </div>
                           <div style="display: flex; gap: 16px; font-size: 12px;">
-                             <span style="color: #faad14;">Read: {{ formatBytesWithUnit(disk.readSpeed) }}/s</span>
-                             <span style="color: #722ed1;">Write: {{ formatBytesWithUnit(disk.writeSpeed) }}/s</span>
+                             <span style="color: #faad14; flex: 1; cursor: pointer;" @click="openHistoryChart(`${disk.name} Read Speed`, statsHistory.diskRead, 'Bytes/s', '#faad14')">Read: {{ formatBytesWithUnit(disk.readSpeed) }}/s</span>
+                             <span style="color: #722ed1; flex: 1; cursor: pointer;" @click="openHistoryChart(`${disk.name} Write Speed`, statsHistory.diskWrite, 'Bytes/s', '#722ed1')">Write: {{ formatBytesWithUnit(disk.writeSpeed) }}/s</span>
                           </div>
                        </div>
                     </a-card>
@@ -551,13 +636,31 @@ onUnmounted(() => {
                </a-row>
             </a-tab-pane>
             <a-tab-pane key="faults" tab="Faults">
-               <a-card title="System Page Faults" size="small" :bordered="false" style="background: #fafafa; margin-top: 16px;">
-                  <a-row :gutter="16">
-                     <a-col :span="8"><a-statistic title="Minor Faults/s" :value="systemStats.faults.minorFaultRate" :precision="1" /></a-col>
-                     <a-col :span="8"><a-statistic title="Major Faults/s" :value="systemStats.faults.majorFaultRate" :precision="1" /></a-col>
-                     <a-col :span="8"><a-statistic title="Swap Rate/s" :value="systemStats.faults.swapOutRate" :precision="1" /></a-col>
-                  </a-row>
-               </a-card>
+               <a-row :gutter="16" style="padding-top: 16px;">
+                  <a-col :span="24">
+                    <a-card title="System Page Faults" size="small" :bordered="false" style="background: #fafafa;">
+                      <template #extra>
+                        <a-button type="link" size="small" @click="openHistoryChart('Page Fault Rate History', statsHistory.faults, 'Faults/s', '#ff4d4f')">History Chart</a-button>
+                      </template>
+                      <a-row :gutter="16">
+                         <a-col :span="6"><a-statistic title="Soft Faults (Minor)" :value="systemStats.faults.minorFaultRate" :precision="1" suffix="/s" @click="openHistoryChart('Minor Fault History', statsHistory.faults, 'Faults/s', '#52c41a')" style="cursor: pointer;" /></a-col>
+                         <a-col :span="6"><a-statistic title="Hard Faults (Major)" :value="systemStats.faults.majorFaultRate" :precision="1" suffix="/s" @click="openHistoryChart('Major Fault History', statsHistory.faults, 'Faults/s', '#ff4d4f')" style="cursor: pointer;" /></a-col>
+                         <a-col :span="6"><a-statistic title="Swap-Out Rate" :value="systemStats.faults.swapOutRate" :precision="1" suffix="/s" /></a-col>
+                         <a-col :span="6"><a-statistic title="Swap-In Rate" :value="systemStats.faults.swapInRate" :precision="1" suffix="/s" /></a-col>
+                      </a-row>
+                    </a-card>
+                  </a-col>
+                  <a-col :span="24" style="margin-top: 16px;">
+                    <a-card title="Top Processes by Faults" size="small" :bordered="false" style="background: #fafafa;">
+                      <a-table :dataSource="topFaultProcesses" :columns="[
+                        { title: 'PID', dataIndex: 'pid', key: 'pid', width: 80 },
+                        { title: 'Command', dataIndex: 'name', key: 'name' },
+                        { title: 'Minor Faults', dataIndex: 'minorFaults', key: 'minorFaults', align: 'right' },
+                        { title: 'Major Faults', dataIndex: 'majorFaults', key: 'majorFaults', align: 'right', customCell: (r) => ({ style: { color: r.majorFaults > 0 ? 'red' : 'inherit', fontWeight: r.majorFaults > 0 ? 'bold' : 'normal' } }) }
+                      ]" size="small" :pagination="false" rowKey="pid" />
+                    </a-card>
+                  </a-col>
+               </a-row>
             </a-tab-pane>
           </a-tabs>
         </div>
@@ -657,6 +760,12 @@ onUnmounted(() => {
     </a-tabs>
 
     <a-modal v-model:open="showLogsModal" :title="`Logs: ${activeLogUnit}`" width="1000px" :footer="null"><div style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px;max-height:600px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;"><a-spin :spinning="logsLoading"><div v-if="serviceLogs">{{ serviceLogs }}</div><a-empty v-else-if="!logsLoading" description="No logs" /></a-spin></div></a-modal>
+
+    <a-modal v-model:open="showHistoryModal" :title="historyModalTitle" width="800px" :footer="null">
+       <div style="height: 400px; padding: 12px;">
+          <VueApexCharts type="line" height="380" :options="historyChartOptions" :series="historySeries" />
+       </div>
+    </a-modal>
   </div>
 </template>
 

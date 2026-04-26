@@ -525,6 +525,7 @@ func serveSystemStatsWS(c *gin.Context) {
 		now := time.Now()
 		gm, gs := getGPUMetrics()
 		vm, _ := mem.VirtualMemory()
+		sm, _ := mem.SwapMemory()
 		cc, _ := cpu.Percent(0, false)
 		cp, _ := cpu.Percent(0, true)
 		netIO, _ := gnet.IOCounters(true)
@@ -582,7 +583,19 @@ func serveSystemStatsWS(c *gin.Context) {
 			}
 			cpuInfo.CoreDetails = append(cpuInfo.CoreDetails, &pb.CPUInfo_Core{Index: uint32(i), Usage: usage, Type: ct})
 		}
-		stats := &pb.SystemStats{Gpus: gs, Cpu: cpuInfo, Memory: &pb.MemoryInfo{Total: vm.Total, Used: vm.Used, Percent: float32(vm.UsedPercent)}, Io: pbIO, Faults: faultInfo}
+		zused, ztotal := getZramStats()
+		stats := &pb.SystemStats{Gpus: gs, Cpu: cpuInfo, Memory: &pb.MemoryInfo{
+			Total:     vm.Total,
+			Used:      vm.Used,
+			Percent:   float32(vm.UsedPercent),
+			Cached:    vm.Cached,
+			Buffers:   vm.Buffers,
+			Shared:    vm.Shared,
+			ZramUsed:  zused,
+			ZramTotal: ztotal,
+			SwapTotal: sm.Total,
+			SwapUsed:  sm.Used,
+		}, Io: pbIO, Faults: faultInfo}
 		psList, _ := ps.Processes()
 		for _, p := range psList {
 			n, _ := p.Name()

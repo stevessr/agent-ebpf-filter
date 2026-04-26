@@ -995,6 +995,8 @@ type MemoryInfo struct {
 	Shared        uint64                 `protobuf:"varint,6,opt,name=shared,proto3" json:"shared,omitempty"`
 	ZramUsed      uint64                 `protobuf:"varint,7,opt,name=zram_used,json=zramUsed,proto3" json:"zram_used,omitempty"`
 	ZramTotal     uint64                 `protobuf:"varint,8,opt,name=zram_total,json=zramTotal,proto3" json:"zram_total,omitempty"`
+	SwapTotal     uint64                 `protobuf:"varint,9,opt,name=swap_total,json=swapTotal,proto3" json:"swap_total,omitempty"`
+	SwapUsed      uint64                 `protobuf:"varint,10,opt,name=swap_used,json=swapUsed,proto3" json:"swap_used,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1081,6 +1083,20 @@ func (x *MemoryInfo) GetZramUsed() uint64 {
 func (x *MemoryInfo) GetZramTotal() uint64 {
 	if x != nil {
 		return x.ZramTotal
+	}
+	return 0
+}
+
+func (x *MemoryInfo) GetSwapTotal() uint64 {
+	if x != nil {
+		return x.SwapTotal
+	}
+	return 0
+}
+
+func (x *MemoryInfo) GetSwapUsed() uint64 {
+	if x != nil {
+		return x.SwapUsed
 	}
 	return 0
 }
@@ -1983,7 +1999,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\vPERFORMANCE\x10\x00\x12\x0e\n" +
 	"\n" +
 	"EFFICIENCY\x10\x01\x12\x0f\n" +
-	"\vHYPERTHREAD\x10\x02\"\xd6\x01\n" +
+	"\vHYPERTHREAD\x10\x02\"\x92\x02\n" +
 	"\n" +
 	"MemoryInfo\x12\x14\n" +
 	"\x05total\x18\x01 \x01(\x04R\x05total\x12\x12\n" +
@@ -1994,7 +2010,11 @@ const file_tracker_proto_rawDesc = "" +
 	"\x06shared\x18\x06 \x01(\x04R\x06shared\x12\x1b\n" +
 	"\tzram_used\x18\a \x01(\x04R\bzramUsed\x12\x1d\n" +
 	"\n" +
-	"zram_total\x18\b \x01(\x04R\tzramTotal\"\x89\x01\n" +
+	"zram_total\x18\b \x01(\x04R\tzramTotal\x12\x1d\n" +
+	"\n" +
+	"swap_total\x18\t \x01(\x04R\tswapTotal\x12\x1b\n" +
+	"\tswap_used\x18\n" +
+	" \x01(\x04R\bswapUsed\"\x89\x01\n" +
 	"\x04Hook\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
