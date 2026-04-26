@@ -439,6 +439,22 @@ const openHistoryChart = (title: string, data: { time: number; value: number }[]
   showHistoryModal.value = true;
 };
 
+const gpus = ref<GPUStatus[]>([]);
+const systemStats = ref<GlobalStats>({
+  cpuTotal: 0, cpuCores: [], cpuCoresDetailed: [], memTotal: 0, memUsed: 0, memPercent: 0,
+  memCached: 0, memBuffers: 0, memShared: 0, zramUsed: 0, zramTotal: 0,
+  swapUsed: 0, swapTotal: 0,
+  netInterfaces: [], diskDevices: [],
+  totalNetRecv: 0, totalNetSent: 0, totalDiskRead: 0, totalDiskWrite: 0,
+  faults: { pageFaults: 0, majorFaults: 0, minorFaults: 0, pageFaultRate: 0, majorFaultRate: 0, minorFaultRate: 0, swapIn: 0, swapOut: 0, swapInRate: 0, swapOutRate: 0 }
+});
+
+const loading = ref(false);
+const tags = ref<string[]>([]);
+let ws: WebSocket | null = null;
+let reconnectTimer: any = null;
+let shouldReconnect = true;
+
 const topFaultProcesses = computed(() => {
   return [...processes.value].sort((a, b) => (b.majorFaults + b.minorFaults) - (a.majorFaults + a.minorFaults)).slice(0, 5);
 });
