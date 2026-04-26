@@ -425,8 +425,11 @@ const statsHistory = ref<{
   faults: { time: number; value: number }[];
   swapIn: { time: number; value: number }[];
   swapOut: { time: number; value: number }[];
+  netDevices: Record<string, { recv: { time: number; value: number }[]; sent: { time: number; value: number }[] }>;
+  diskDevices: Record<string, { read: { time: number; value: number }[]; write: { time: number; value: number }[] }>;
 }>({
-  cpu: [], cores: {}, mem: [], netRecv: [], netSent: [], diskRead: [], diskWrite: [], faults: [], swapIn: [], swapOut: []
+  cpu: [], cores: {}, mem: [], netRecv: [], netSent: [], diskRead: [], diskWrite: [], faults: [], swapIn: [], swapOut: [],
+  netDevices: {}, diskDevices: {}
 });
 
 const showHistoryModal = ref(false);
@@ -440,7 +443,7 @@ const historyChartOptions = computed(() => ({
       style: { fontSize: '10px' },
       formatter: (val: number) => {
         const t = historyModalTitle.value.toLowerCase();
-        if (t.includes('speed') || t.includes('recv') || t.includes('sent') || t.includes('read') || t.includes('write')) {
+        if (t.includes('speed') || t.includes('recv') || t.includes('sent') || t.includes('read') || t.includes('write') || t.includes('activity')) {
           return formatBytesWithUnit(val) + '/s';
         }
         if (t.includes('mem') || t.includes('cpu') || t.includes('core')) return val.toFixed(1) + '%';
@@ -449,24 +452,29 @@ const historyChartOptions = computed(() => ({
     }
   },
   stroke: { width: 2, curve: 'smooth' as const },
-  tooltip: { x: { format: 'HH:mm:ss' } }
+  tooltip: { x: { format: 'HH:mm:ss' } },
+  legend: { position: 'top' as const, horizontalAlign: 'right' as const }
 }));
 
-const openHistoryChart = (title: string, data: { time: number; value: number }[], name: string, color?: string) => {
+const openHistoryChart = (title: string, datasets: { name: string; data: { time: number; value: number }[]; color?: string }[]) => {
   historyModalTitle.value = title;
-  historySeries.value = [{ name, data: data.map(d => ({ x: d.time, y: d.value })) }];
-  if (color) historySeries.value[0].color = color;
+  historySeries.value = datasets.map(ds => ({
+    name: ds.name,
+    data: ds.data.map(d => ({ x: d.time, y: d.value })),
+    color: ds.color
+  }));
   showHistoryModal.value = true;
 };
 
 const groupedNetInterfaces = computed(() => {
-  const groups: Record<string, IOSpeed[]> = { 'Loopback': [], 'Wi-Fi': [], 'Ethernet': [], 'Virtual': [], 'Other': [] };
+  const groups: Record<string, IOSpeed[]> = { 'Loopback': [], 'Wi-Fi': [], 'Ethernet': [], 'Virtual': [], 'Zerotier': [], 'Other': [] };
   systemStats.value.netInterfaces.forEach(iface => {
     const name = iface.name.toLowerCase();
     if (name === 'lo') groups['Loopback'].push(iface);
     else if (name.startsWith('wlan') || name.startsWith('wlp') || name.startsWith('wifi')) groups['Wi-Fi'].push(iface);
     else if (name.startsWith('eth') || name.startsWith('enp') || name.startsWith('eno') || name.startsWith('ens')) groups['Ethernet'].push(iface);
     else if (name.startsWith('veth') || name.startsWith('docker') || name.startsWith('br-') || name.startsWith('virbr') || name.startsWith('tun') || name.startsWith('tap') || name.startsWith('wg')) groups['Virtual'].push(iface);
+    else if (name.startsWith('zt')) groups['Zerotier'].push(iface);
     else groups['Other'].push(iface);
   });
   return groups;
@@ -566,6 +574,26 @@ const connectWebSocket = () => {
       if (statsHistory.value.cores[core.index].length > 60) statsHistory.value.cores[core.index].shift();
     });
 
+    // Update net device history
+    systemStats.value.netInterfaces.forEach(iface => {
+      if (!statsHistory.value.netDevices[iface.name]) statsHistory.value.netDevices[iface.name] = { recv: [], sent: [] };
+      const dev = statsHistory.value.netDevices[iface.name];
+      dev.recv.push({ time: now, value: iface.readSpeed });
+      dev.sent.push({ time: now, value: iface.writeSpeed });
+      if (dev.recv.length > 60) dev.recv.shift();
+      if (dev.sent.length > 60) dev.sent.shift();
+    });
+
+    // Update disk device history
+    systemStats.value.diskDevices.forEach(disk => {
+      if (!statsHistory.value.diskDevices[disk.name]) statsHistory.value.diskDevices[disk.name] = { read: [], write: [] };
+      const dev = statsHistory.value.diskDevices[disk.name];
+      dev.read.push({ time: now, value: disk.readSpeed });
+      dev.write.push({ time: now, value: disk.writeSpeed });
+      if (dev.read.length > 60) dev.read.shift();
+      if (dev.write.length > 60) dev.write.shift();
+    });
+
     statsHistory.value.mem.push({ time: now, value: systemStats.value.memPercent });
     statsHistory.value.netRecv.push({ time: now, value: systemStats.value.totalNetRecv });
     statsHistory.value.netSent.push({ time: now, value: systemStats.value.totalNetSent });
@@ -575,8 +603,12 @@ const connectWebSocket = () => {
     statsHistory.value.swapIn.push({ time: now, value: systemStats.value.faults.swapInRate });
     statsHistory.value.swapOut.push({ time: now, value: systemStats.value.faults.swapOutRate });
 
-    Object.values(statsHistory.value).forEach((h: any) => { 
-      if (Array.isArray(h) && h.length > 60) h.shift(); 
+    // Clean up arrays
+    Object.keys(statsHistory.value).forEach((key) => {
+      const val = (statsHistory.value as any)[key];
+      if (Array.isArray(val)) {
+        if (val.length > 60) val.shift();
+      }
     });
   };
   socket.onclose = () => { if (shouldReconnect) reconnectTimer = setTimeout(connectWebSocket, 3000); };
@@ -617,11 +649,11 @@ onUnmounted(() => {
                     <a-radio-button value="overall">Overall</a-radio-button>
                     <a-radio-button value="cores">Per Core</a-radio-button>
                   </a-radio-group>
-                  <a-button type="link" size="small" @click="openHistoryChart('CPU Usage History', statsHistory.cpu, 'Total CPU', '#1890ff')">History Chart</a-button>
+                  <a-button type="link" size="small" @click="openHistoryChart('CPU Usage History', [{ name: 'Total CPU', data: statsHistory.cpu, color: '#1890ff' }])">History Chart</a-button>
                 </div>
                 
                 <div v-if="cpuView === 'overall'" style="background: #fafafa; padding: 24px; border-radius: 8px; text-align: center; border: 1px solid #f0f0f0;">
-                   <a-progress type="dashboard" :percent="Math.round(systemStats.cpuTotal)" :width="180" :stroke-color="systemStats.cpuTotal > 80 ? '#ff4d4f' : '#1890ff'" />
+                   <a-progress type="dashboard" :percent="Math.round(systemStats.cpuTotal)" :width="180" :stroke-color="systemStats.cpuTotal > 80 ? '#ff4d4f' : '#1890ff'" @click="openHistoryChart('CPU Usage History', [{ name: 'Total CPU', data: statsHistory.cpu, color: '#1890ff' }])" style="cursor: pointer;" />
                    <div style="margin-top: 16px; font-size: 18px; font-weight: bold;">System CPU Usage: {{ systemStats.cpuTotal.toFixed(1) }}%</div>
                 </div>
                 
@@ -629,7 +661,7 @@ onUnmounted(() => {
                   <div v-for="core in systemStats.cpuCoresDetailed" :key="core.index" 
                        style="padding: 12px; border: 1px solid #f0f0f0; border-radius: 8px; text-align: center; background: #fafafa; cursor: pointer; transition: all 0.2s;"
                        class="core-card"
-                       @click="openHistoryChart(`Core #${core.index} Usage History`, statsHistory.cores[core.index] || [], `Core #${core.index}`, getCoreTypeColor(core.type))">
+                       @click="openHistoryChart(`Core #${core.index} Usage History`, [{ name: `Core #${core.index}`, data: statsHistory.cores[core.index] || [], color: getCoreTypeColor(core.type) }])">
                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                         <span style="font-family: monospace; font-size: 11px; font-weight: bold;">#{{ core.index }}</span>
                         <a-tag :color="getCoreTypeColor(core.type)" style="font-size: 9px; padding: 0 4px; line-height: 16px;">{{ getCoreTypeName(core.type) }}</a-tag>
@@ -644,9 +676,9 @@ onUnmounted(() => {
                   <a-col :span="12">
                     <a-card title="Physical Memory" size="small" :bordered="false" style="background: #fafafa;">
                        <template #extra>
-                          <a-button type="link" size="small" @click="openHistoryChart('Memory Usage History', statsHistory.mem, 'Mem %', '#52c41a')">History</a-button>
+                          <a-button type="link" size="small" @click="openHistoryChart('Memory Usage History', [{ name: 'Mem %', data: statsHistory.mem, color: '#52c41a' }])">History</a-button>
                        </template>
-                       <a-statistic title="Overall Usage" :value="systemStats.memPercent" suffix="%" :precision="1" @click="openHistoryChart('Memory Usage History', statsHistory.mem, 'Mem %', '#52c41a')" style="cursor: pointer;" />
+                       <a-statistic title="Overall Usage" :value="systemStats.memPercent" suffix="%" :precision="1" @click="openHistoryChart('Memory Usage History', [{ name: 'Mem %', data: statsHistory.mem, color: '#52c41a' }])" style="cursor: pointer;" />
                        <div style="margin-top: 16px; display: grid; gap: 8px;">
                           <div style="display: flex; justify-content: space-between;"><span>Total:</span><b>{{ formatBytesWithUnit(systemStats.memTotal) }}</b></div>
                           <div style="display: flex; justify-content: space-between; color: #1890ff;"><span>Used:</span><b>{{ formatBytesWithUnit(systemStats.memUsed) }}</b></div>
@@ -691,22 +723,25 @@ onUnmounted(() => {
                   <a-col :span="12">
                     <a-card title="Network Activity" size="small" :bordered="false" style="background: #fafafa;">
                        <template #extra>
-                          <a-space>
-                            <a-button type="link" size="small" @click="openHistoryChart('Network Recv History', statsHistory.netRecv, 'Recv', '#52c41a')">Recv</a-button>
-                            <a-button type="link" size="small" @click="openHistoryChart('Network Sent History', statsHistory.netSent, 'Sent', '#1890ff')">Sent</a-button>
-                          </a-space>
+                          <a-button type="link" size="small" @click="openHistoryChart('Global Network Activity', [
+                            { name: 'Recv', data: statsHistory.netRecv, color: '#52c41a' },
+                            { name: 'Sent', data: statsHistory.netSent, color: '#1890ff' }
+                          ])">History</a-button>
                        </template>
-                       <div style="max-height: 500px; overflow-y: auto; padding-right: 4px;">
+                       <div style="display: flex; flex-direction: column; gap: 8px;">
                           <div v-for="(group, label) in groupedNetInterfaces" :key="label">
                              <div v-if="group.length > 0">
                                 <div style="font-size: 11px; font-weight: bold; color: #888; margin: 8px 0 4px;">{{ label }}</div>
-                                <div v-for="iface in group" :key="iface.name" style="margin-bottom: 8px; padding: 8px; border-radius: 4px; background: #fff; border: 1px solid #f0f0f0;">
-                                   <div style="font-family: monospace; font-weight: bold; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                                <div v-for="iface in group" :key="iface.name" style="margin-bottom: 8px; padding: 10px; border-radius: 6px; background: #fff; border: 1px solid #f0f0f0; cursor: pointer; transition: all 0.2s;" class="io-card" @click="openHistoryChart(`${iface.name} Activity`, [
+                                   { name: 'Recv', data: statsHistory.netDevices[iface.name]?.recv || [], color: '#52c41a' },
+                                   { name: 'Sent', data: statsHistory.netDevices[iface.name]?.sent || [], color: '#1890ff' }
+                                ])">
+                                   <div style="font-family: monospace; font-weight: bold; margin-bottom: 6px; display: flex; justify-content: space-between;">
                                       <span>{{ iface.name }}</span>
                                    </div>
-                                   <div style="display: flex; gap: 16px; font-size: 11px;">
-                                      <span style="color: #52c41a; flex: 1; cursor: pointer;" @click="openHistoryChart(`${iface.name} Recv Speed`, statsHistory.netRecv, 'Bytes/s', '#52c41a')">↓ {{ formatBytesWithUnit(iface.readSpeed) }}/s</span>
-                                      <span style="color: #1890ff; flex: 1; cursor: pointer;" @click="openHistoryChart(`${iface.name} Sent Speed`, statsHistory.netSent, 'Bytes/s', '#1890ff')">↑ {{ formatBytesWithUnit(iface.writeSpeed) }}/s</span>
+                                   <div style="display: flex; gap: 16px; font-size: 12px;">
+                                      <span style="color: #52c41a; flex: 1;">↓ {{ formatBytesWithUnit(iface.readSpeed) }}/s</span>
+                                      <span style="color: #1890ff; flex: 1;">↑ {{ formatBytesWithUnit(iface.writeSpeed) }}/s</span>
                                    </div>
                                 </div>
                              </div>
@@ -717,21 +752,24 @@ onUnmounted(() => {
                   <a-col :span="12">
                     <a-card title="Storage Activity" size="small" :bordered="false" style="background: #fafafa;">
                        <template #extra>
-                          <a-space>
-                            <a-button type="link" size="small" @click="openHistoryChart('Disk Read History', statsHistory.diskRead, 'Read', '#faad14')">Read</a-button>
-                            <a-button type="link" size="small" @click="openHistoryChart('Disk Write History', statsHistory.diskWrite, 'Write', '#722ed1')">Write</a-button>
-                          </a-space>
+                          <a-button type="link" size="small" @click="openHistoryChart('Global Disk Activity', [
+                            { name: 'Read', data: statsHistory.diskRead, color: '#faad14' },
+                            { name: 'Write', data: statsHistory.diskWrite, color: '#722ed1' }
+                          ])">History</a-button>
                        </template>
-                       <div style="max-height: 500px; overflow-y: auto; padding-right: 4px;">
-                          <div v-for="(disk, name) in groupedDiskDevices" :key="name" style="margin-bottom: 12px;">
-                             <div style="padding: 10px; border-radius: 6px; background: #fff; border: 1px solid #e8e8e8; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                       <div style="display: flex; flex-direction: column; gap: 12px;">
+                          <div v-for="(disk, name) in groupedDiskDevices" :key="name">
+                             <div style="padding: 10px; border-radius: 6px; background: #fff; border: 1px solid #e8e8e8; cursor: pointer;" class="io-card" @click="openHistoryChart(`${name} Activity`, [
+                                { name: 'Read', data: statsHistory.diskDevices[name]?.read || [], color: '#faad14' },
+                                { name: 'Write', data: statsHistory.diskDevices[name]?.write || [], color: '#722ed1' }
+                             ])">
                                 <div style="font-family: monospace; font-weight: bold; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
                                    <DatabaseOutlined style="color: #1890ff;" />
                                    <span>{{ name }}</span>
                                 </div>
                                 <div style="display: flex; gap: 16px; font-size: 12px; border-bottom: 1px solid #f5f5f5; padding-bottom: 8px; margin-bottom: 8px;">
-                                   <span style="color: #faad14; flex: 1; cursor: pointer; font-weight: 500;" @click="openHistoryChart(`${name} Read Speed`, statsHistory.diskRead, 'Bytes/s', '#faad14')">Read: {{ formatBytesWithUnit(disk.main.readSpeed) }}/s</span>
-                                   <span style="color: #722ed1; flex: 1; cursor: pointer; font-weight: 500;" @click="openHistoryChart(`${name} Write Speed`, statsHistory.diskWrite, 'Bytes/s', '#722ed1')">Write: {{ formatBytesWithUnit(disk.main.writeSpeed) }}/s</span>
+                                   <span style="color: #faad14; flex: 1; font-weight: 500;">Read: {{ formatBytesWithUnit(disk.main.readSpeed) }}/s</span>
+                                   <span style="color: #722ed1; flex: 1; font-weight: 500;">Write: {{ formatBytesWithUnit(disk.main.writeSpeed) }}/s</span>
                                 </div>
                                 <div v-if="disk.partitions.length > 0">
                                    <div v-for="part in disk.partitions" :key="part.name" style="display: flex; gap: 12px; font-size: 10px; padding: 2px 0 2px 20px; color: #666; border-left: 2px solid #f0f0f0; margin-left: 6px;">
@@ -752,13 +790,13 @@ onUnmounted(() => {
                   <a-col :span="24">
                     <a-card title="System Page Faults" size="small" :bordered="false" style="background: #fafafa;">
                       <template #extra>
-                        <a-button type="link" size="small" @click="openHistoryChart('Page Fault Rate History', statsHistory.faults, 'Faults/s', '#ff4d4f')">History Chart</a-button>
+                        <a-button type="link" size="small" @click="openHistoryChart('Page Fault Rate History', [{ name: 'Faults/s', data: statsHistory.faults, color: '#ff4d4f' }])">History Chart</a-button>
                       </template>
                       <a-row :gutter="16">
-                         <a-col :span="6"><a-statistic title="Soft Faults (Minor)" :value="systemStats.faults.minorFaultRate" :precision="1" suffix="/s" @click="openHistoryChart('Minor Fault History', statsHistory.faults, 'Faults/s', '#52c41a')" style="cursor: pointer;" /></a-col>
-                         <a-col :span="6"><a-statistic title="Hard Faults (Major)" :value="systemStats.faults.majorFaultRate" :precision="1" suffix="/s" @click="openHistoryChart('Major Fault History', statsHistory.faults, 'Faults/s', '#ff4d4f')" style="cursor: pointer;" /></a-col>
-                         <a-col :span="6"><a-statistic title="Swap-Out Rate" :value="systemStats.faults.swapOutRate" :precision="1" suffix="/s" @click="openHistoryChart('Swap-Out Rate History', statsHistory.swapOut, 'Faults/s', '#722ed1')" style="cursor: pointer;" /></a-col>
-                         <a-col :span="6"><a-statistic title="Swap-In Rate" :value="systemStats.faults.swapInRate" :precision="1" suffix="/s" @click="openHistoryChart('Swap-In Rate History', statsHistory.swapIn, 'Faults/s', '#13c2c2')" style="cursor: pointer;" /></a-col>
+                         <a-col :span="6"><a-statistic title="Soft Faults (Minor)" :value="systemStats.faults.minorFaultRate" :precision="1" suffix="/s" @click="openHistoryChart('Minor Fault History', [{ name: 'Faults/s', data: statsHistory.faults, color: '#52c41a' }])" style="cursor: pointer;" /></a-col>
+                         <a-col :span="6"><a-statistic title="Hard Faults (Major)" :value="systemStats.faults.majorFaultRate" :precision="1" suffix="/s" @click="openHistoryChart('Major Fault History', [{ name: 'Faults/s', data: statsHistory.faults, color: '#ff4d4f' }])" style="cursor: pointer;" /></a-col>
+                         <a-col :span="6"><a-statistic title="Swap-Out Rate" :value="systemStats.faults.swapOutRate" :precision="1" suffix="/s" @click="openHistoryChart('Swap-Out Rate History', [{ name: 'Faults/s', data: statsHistory.swapOut, color: '#722ed1' }])" style="cursor: pointer;" /></a-col>
+                         <a-col :span="6"><a-statistic title="Swap-In Rate" :value="systemStats.faults.swapInRate" :precision="1" suffix="/s" @click="openHistoryChart('Swap-In Rate History', [{ name: 'Faults/s', data: statsHistory.swapIn, color: '#13c2c2' }])" style="cursor: pointer;" /></a-col>
                       </a-row>
                     </a-card>
                   </a-col>
