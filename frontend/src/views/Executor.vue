@@ -2,7 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 import {
+  CopyOutlined,
   DeleteOutlined,
+  EditOutlined,
   PlayCircleOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -37,12 +39,18 @@ type LaunchEnvEntry = {
   value: string;
   enabled: boolean;
 };
+type LaunchEnvProfile = {
+  id: string;
+  name: string;
+  entries: LaunchEnvEntry[];
+};
 type DetectedLaunchEnvEntry = {
   key: string;
   value: string;
 };
 
-const LAUNCH_ENV_STORAGE_KEY = 'executor_launch_env';
+const LAUNCH_ENV_STORAGE_KEY = 'executor_launch_env_v2';
+const LAUNCH_ENV_LEGACY_KEY = 'executor_launch_env';
 
 const shellManagerRef = ref<LocalShellManagerExpose | null>(null);
 const tmuxManagerRef = ref<LocalShellManagerExpose | null>(null);
@@ -65,7 +73,20 @@ const scriptLaunching = ref(false);
 
 const pathPickerOpen = ref(false);
 const pathPickerTarget = ref<PathPickerTarget>('coding-workdir');
-const launchEnvEntries = ref<LaunchEnvEntry[]>(loadLaunchEnvEntries());
+
+const profiles = ref<LaunchEnvProfile[]>(loadProfiles());
+const activeProfileId = ref<string>(localStorage.getItem('executor_active_profile_id') || profiles.value[0]?.id || '');
+const activeProfile = computed(() => profiles.value.find(p => p.id === activeProfileId.value) || profiles.value[0]);
+const launchEnvEntries = computed({
+  get: () => activeProfile.value?.entries || [],
+  set: (val) => {
+    const p = profiles.value.find(p => p.id === activeProfileId.value);
+    if (p) {
+      p.entries = val;
+    }
+  }
+});
+
 const newLaunchEnvKey = ref('');
 const newLaunchEnvValue = ref('');
 const detectedLaunchEnvEntries = ref<DetectedLaunchEnvEntry[]>([]);
@@ -73,54 +94,92 @@ const detectedLaunchEnvSearch = ref('');
 const detectedLaunchEnvLoading = ref(false);
 const detectedLaunchEnvError = ref('');
 
-const codingPresetOptions: Array<{ label: string; value: CodingPresetKey; command: string }> = [
-  { label: 'Codex', value: 'codex', command: 'codex' },
-  { label: 'Claude Code', value: 'claude', command: 'claude' },
-  { label: 'Gemini CLI', value: 'gemini', command: 'gemini' },
-  { label: 'Custom', value: 'custom', command: '' },
-];
+const profileRenameModalOpen = ref(false);
+const profileRenameValue = ref('');
+const profileRenameId = ref('');
 
-const scriptLanguageOptions: Array<{ label: string; value: ScriptLanguage }> = [
-  { label: 'Python', value: 'python' },
-  { label: 'Node.js', value: 'node' },
-  { label: 'Ruby', value: 'ruby' },
-  { label: 'Shell (sh)', value: 'sh' },
-  { label: 'PowerShell (pwsh)', value: 'pwsh' },
-  { label: 'Deno', value: 'deno' },
-  { label: 'Bun', value: 'bun' },
-];
-
-function loadLaunchEnvEntries(): LaunchEnvEntry[] {
+function loadProfiles(): LaunchEnvProfile[] {
   try {
-    const raw = JSON.parse(localStorage.getItem(LAUNCH_ENV_STORAGE_KEY) || '[]') as unknown;
-    if (!Array.isArray(raw)) {
-      return [];
+    const raw = JSON.parse(localStorage.getItem(LAUNCH_ENV_STORAGE_KEY) || 'null') as unknown;
+    if (Array.isArray(raw) && raw.length > 0) {
+      return raw as LaunchEnvProfile[];
     }
 
-    return raw
-      .map((item, index) => {
-        if (!item || typeof item !== 'object') {
-          return null;
-        }
-        const candidate = item as Partial<LaunchEnvEntry>;
-        const key = typeof candidate.key === 'string' ? candidate.key.trim() : '';
-        const value = typeof candidate.value === 'string' ? candidate.value : '';
-        const enabled = typeof candidate.enabled === 'boolean' ? candidate.enabled : true;
-        return {
-          id: typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id : `launch-env-${index}`,
-          key,
-          value,
-          enabled,
-        } satisfies LaunchEnvEntry;
-      })
-      .filter((item): item is LaunchEnvEntry => Boolean(item));
+    // Try migrating legacy data
+    const legacy = JSON.parse(localStorage.getItem(LAUNCH_ENV_LEGACY_KEY) || '[]') as LaunchEnvEntry[];
+    if (Array.isArray(legacy) && legacy.length > 0) {
+      return [{
+        id: 'default',
+        name: 'Default Profile',
+        entries: legacy
+      }];
+    }
+
+    return [{
+      id: 'default',
+      name: 'Default Profile',
+      entries: []
+    }];
   } catch {
-    return [];
+    return [{
+      id: 'default',
+      name: 'Default Profile',
+      entries: []
+    }];
   }
 }
 
-function persistLaunchEnvEntries() {
-  localStorage.setItem(LAUNCH_ENV_STORAGE_KEY, JSON.stringify(launchEnvEntries.value));
+function persistProfiles() {
+  localStorage.setItem(LAUNCH_ENV_STORAGE_KEY, JSON.stringify(profiles.value));
+  localStorage.setItem('executor_active_profile_id', activeProfileId.value);
+}
+
+function addNewProfile() {
+  const id = `profile-${Date.now()}`;
+  profiles.value.push({
+    id,
+    name: `New Profile ${profiles.value.length + 1}`,
+    entries: []
+  });
+  activeProfileId.value = id;
+}
+
+function copyProfile(profile: LaunchEnvProfile) {
+  const id = `profile-${Date.now()}`;
+  profiles.value.push({
+    id,
+    name: `${profile.name} (Copy)`,
+    entries: JSON.parse(JSON.stringify(profile.entries)) as LaunchEnvEntry[]
+  });
+  activeProfileId.value = id;
+}
+
+function deleteProfile(id: string) {
+  if (profiles.value.length <= 1) {
+    message.warning('Cannot delete the last profile');
+    return;
+  }
+  const index = profiles.value.findIndex(p => p.id === id);
+  if (index >= 0) {
+    profiles.value.splice(index, 1);
+    if (activeProfileId.value === id) {
+      activeProfileId.value = profiles.value[0].id;
+    }
+  }
+}
+
+function openRenameModal(profile: LaunchEnvProfile) {
+  profileRenameId.value = profile.id;
+  profileRenameValue.value = profile.name;
+  profileRenameModalOpen.value = true;
+}
+
+function applyRename() {
+  const p = profiles.value.find(p => p.id === profileRenameId.value);
+  if (p && profileRenameValue.value.trim()) {
+    p.name = profileRenameValue.value.trim();
+  }
+  profileRenameModalOpen.value = false;
 }
 
 const splitArgs = (input: string) => {
@@ -451,7 +510,7 @@ const filteredDetectedLaunchEnvEntries = computed(() => {
   });
 });
 
-watch(launchEnvEntries, persistLaunchEnvEntries, { deep: true, immediate: true });
+watch([profiles, activeProfileId], persistProfiles, { deep: true });
 
 onMounted(() => {
   void refreshDetectedLaunchEnvEntries();
@@ -948,8 +1007,69 @@ const launchScript = async () => {
 
       <a-tab-pane key="launch-env" tab="Launch Env">
         <a-row :gutter="[16, 16]">
+          <a-col :span="24">
+            <a-card title="Profile Management" :bordered="false" style="margin-bottom: 16px;">
+              <template #extra>
+                <a-button type="primary" size="small" @click="addNewProfile">
+                  <template #icon><PlusOutlined /></template>
+                  New Profile
+                </a-button>
+              </template>
+              <a-space wrap :size="12">
+                <template v-for="profile in profiles" :key="profile.id">
+                  <a-card-grid
+                    :style="{
+                      width: '280px',
+                      padding: '12px',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      border: activeProfileId === profile.id ? '2px solid #1890ff' : '1px solid #f0f0f0',
+                      boxShadow: activeProfileId === profile.id ? '0 0 8px rgba(24,144,255,0.2)' : 'none',
+                      borderRadius: '4px',
+                      background: activeProfileId === profile.id ? '#e6f7ff' : '#fff'
+                    }"
+                    @click="activeProfileId = profile.id"
+                  >
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                      <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 600; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" :title="profile.name">
+                          {{ profile.name }}
+                        </div>
+                        <div style="font-size: 12px; color: #666;">
+                          {{ profile.entries.length }} variables
+                        </div>
+                      </div>
+                      <a-dropdown :trigger="['click']" @click.stop>
+                        <SettingOutlined style="cursor: pointer; color: #1890ff;" />
+                        <template #overlay>
+                          <a-menu>
+                            <a-menu-item key="rename" @click="openRenameModal(profile)">
+                              <template #icon><EditOutlined /></template>
+                              Rename
+                            </a-menu-item>
+                            <a-menu-item key="copy" @click="copyProfile(profile)">
+                              <template #icon><CopyOutlined /></template>
+                              Duplicate
+                            </a-menu-item>
+                            <a-menu-divider />
+                            <a-menu-item key="delete" danger @click="deleteProfile(profile.id)">
+                              <template #icon><DeleteOutlined /></template>
+                              Delete
+                            </a-menu-item>
+                          </a-menu>
+                        </template>
+                      </a-dropdown>
+                    </div>
+                  </a-card-grid>
+                </template>
+              </a-space>
+            </a-card>
+          </a-col>
+        </a-row>
+
+        <a-row :gutter="[16, 16]">
           <a-col :xs="24" :xl="11">
-            <a-card title="Launch environment variables" :bordered="false">
+            <a-card :title="`Variables in: ${activeProfile.name}`" :bordered="false">
               <template #extra>
                 <a-space :size="8">
                   <a-tag color="green">{{ launchEnvEntriesCount }} active</a-tag>
@@ -1155,6 +1275,18 @@ const launchScript = async () => {
       :pick-mode="getPathPickerMode"
       @confirm="applyPickedPath"
     />
+
+    <a-modal
+      v-model:open="profileRenameModalOpen"
+      title="Rename Profile"
+      @ok="applyRename"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="Profile Name">
+          <a-input v-model:value="profileRenameValue" placeholder="Enter profile name" @pressEnter="applyRename" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
