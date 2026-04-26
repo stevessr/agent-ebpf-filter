@@ -16,6 +16,73 @@ import (
 	ps "github.com/shirou/gopsutil/v3/process"
 )
 
+func handleRegister(c *gin.Context) {
+	if trackerMaps.AgentPids == nil {
+		c.JSON(500, gin.H{"error": "agent pid map not initialized"})
+		return
+	}
+	var req struct {
+		PID uint32 `json:"pid"`
+		Tag string `json:"tag,omitempty"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.PID == 0 {
+		c.JSON(400, gin.H{"error": "invalid pid"})
+		return
+	}
+	tag := req.Tag
+	if tag == "" {
+		tag = "AI Agent"
+	}
+	if err := trackerMaps.AgentPids.Put(req.PID, getTagID(tag)); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleUnregister(c *gin.Context) {
+	if trackerMaps.AgentPids == nil {
+		c.JSON(500, gin.H{"error": "agent pid map not initialized"})
+		return
+	}
+	var req struct {
+		PID uint32 `json:"pid"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.PID == 0 {
+		c.JSON(400, gin.H{"error": "invalid pid"})
+		return
+	}
+	_ = trackerMaps.AgentPids.Delete(req.PID)
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleClearEvents(c *gin.Context) {
+	capturedEventArchive.Clear()
+	if err := runtimeSettingsStore.TruncateEventLog(); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleClearEventsMemory(c *gin.Context) {
+	capturedEventArchive.Clear()
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleClearEventsPersisted(c *gin.Context) {
+	if err := runtimeSettingsStore.TruncateEventLog(); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleShellSessionsCleanup(c *gin.Context) {
+	shellSessions.ClearClosed()
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
 func main() {
 	if isBootstrapMode() {
 		if err := bootstrapTrackerMaps(); err != nil {
@@ -104,47 +171,8 @@ func main() {
 	r.GET("/ws/shell-sessions", serveShellSessionsWS)
 
 	r.POST("/hooks/event", handleNativeHookEvent)
-
-	r.POST("/register", func(c *gin.Context) {
-		if trackerMaps.AgentPids == nil {
-			c.JSON(500, gin.H{"error": "agent pid map not initialized"})
-			return
-		}
-		var req struct {
-			PID uint32 `json:"pid"`
-			Tag string `json:"tag,omitempty"`
-		}
-		if err := c.ShouldBindJSON(&req); err != nil || req.PID == 0 {
-			c.JSON(400, gin.H{"error": "invalid pid"})
-			return
-		}
-		tag := req.Tag
-		if tag == "" {
-			tag = "AI Agent"
-		}
-		if err := trackerMaps.AgentPids.Put(req.PID, getTagID(tag)); err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(200, gin.H{"status": "ok"})
-	})
-
-	r.POST("/unregister", func(c *gin.Context) {
-		if trackerMaps.AgentPids == nil {
-			c.JSON(500, gin.H{"error": "agent pid map not initialized"})
-			return
-		}
-		var req struct {
-			PID uint32 `json:"pid"`
-		}
-		if err := c.ShouldBindJSON(&req); err != nil || req.PID == 0 {
-			c.JSON(400, gin.H{"error": "invalid pid"})
-			return
-		}
-		_ = trackerMaps.AgentPids.Delete(req.PID)
-		c.JSON(200, gin.H{"status": "ok"})
-	})
-
+	r.POST("/register", handleRegister)
+	r.POST("/unregister", handleUnregister)
 	r.POST("/cluster/heartbeat", clusterHeartbeatHandler)
 	r.POST("/cluster/register", clusterHeartbeatHandler)
 
@@ -155,30 +183,11 @@ func main() {
 		
 		data := api.Group("/data")
 		{
-			data.POST("/clear-events", func(c *gin.Context) {
-				capturedEventArchive.Clear()
-				if err := runtimeSettingsStore.TruncateEventLog(); err != nil {
-					c.JSON(500, gin.H{"error": err.Error()})
-					return
-				}
-				c.JSON(200, gin.H{"status": "ok"})
-			})
-			data.POST("/clear-events-memory", func(c *gin.Context) {
-				capturedEventArchive.Clear()
-				c.JSON(200, gin.H{"status": "ok"})
-			})
-			data.POST("/clear-events-persisted", func(c *gin.Context) {
-				if err := runtimeSettingsStore.TruncateEventLog(); err != nil {
-					c.JSON(500, gin.H{"error": err.Error()})
-					return
-				}
-				c.JSON(200, gin.H{"status": "ok"})
-			})
+			data.POST("/clear-events", handleClearEvents)
+			data.POST("/clear-events-memory", handleClearEventsMemory)
+			data.POST("/clear-events-persisted", handleClearEventsPersisted)
 		}
-		api.POST("/shell-sessions/cleanup", func(c *gin.Context) {
-			shellSessions.ClearClosed()
-			c.JSON(200, gin.H{"status": "ok"})
-		})
+		api.POST("/shell-sessions/cleanup", handleShellSessionsCleanup)
 		api.Any("/mcp", gin.WrapH(buildMCPHandler()))
 		cluster := api.Group("/cluster")
 		{
@@ -206,7 +215,7 @@ func main() {
 	for i := 0; i < maxTries; i++ {
 		l, err := net.Listen("tcp", fmt.Sprintf(":%d", startPort+i))
 		if err == nil {
-			actualPort = startPort + i
+			actualPort = startPort+i
 			l.Close()
 			break
 		}
