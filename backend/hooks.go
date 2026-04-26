@@ -9,9 +9,74 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"net/http"
 
+	"agent-ebpf-filter/pb"
+	"github.com/gin-gonic/gin"
 	"github.com/pelletier/go-toml/v2"
 )
+
+func handleNativeHookEvent(c *gin.Context) {
+	var payload map[string]interface{}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
+		return
+	}
+
+	toolName, _ := payload["tool_name"].(string)
+	hookEvent, _ := payload["hook_event_name"].(string)
+	toolInput, _ := payload["tool_input"].(map[string]interface{})
+
+	if toolName == "" {
+		toolName, _ = payload["tool"].(string)
+	}
+	if hookEvent == "" {
+		hookEvent, _ = payload["event"].(string)
+	}
+
+	path := ""
+	if toolInput != nil {
+		if cmd, ok := toolInput["command"].(string); ok {
+			path = cmd
+		} else if fp, ok := toolInput["file_path"].(string); ok {
+			path = fp
+		} else if args, ok := toolInput["arguments"].([]interface{}); ok && len(args) > 0 {
+			path = fmt.Sprintf("%v", args)
+		}
+	}
+
+	tag := "Native Hook"
+	sourceCLI := strings.ToLower(strings.TrimSpace(c.GetHeader("X-Agent-CLI")))
+	ua := strings.ToLower(c.GetHeader("User-Agent"))
+	if sourceCLI == "claude" || strings.Contains(ua, "claude") {
+		tag = "Claude Code"
+	} else if sourceCLI == "gemini" || strings.Contains(ua, "gemini") {
+		tag = "Gemini CLI"
+	} else if sourceCLI == "codex" || strings.Contains(ua, "codex") {
+		tag = "Codex"
+	} else if sourceCLI == "copilot" || strings.Contains(ua, "copilot") || strings.Contains(ua, "gh-copilot") {
+		tag = "GitHub Copilot"
+	} else if sourceCLI == "kiro" || strings.Contains(ua, "kiro") {
+		tag = "Kiro CLI"
+	} else {
+		if hookEvent == "BeforeTool" {
+			tag = "Gemini CLI"
+		} else if hookEvent == "preToolUse" {
+			tag = "GitHub Copilot"
+		} else if hookEvent == "agentSpawn" || hookEvent == "userPromptSubmit" || hookEvent == "stop" {
+			tag = "Kiro CLI"
+		}
+	}
+
+	broadcast <- &pb.Event{
+		Type:      "native_hook",
+		EventType: pb.EventType_NATIVE_HOOK,
+		Tag:       tag,
+		Comm:      fmt.Sprintf("%s:%s", hookEvent, toolName),
+		Path:      path,
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
 
 func hasNativeHookMarker(cfgPath string) bool {
 	b, err := os.ReadFile(cfgPath)

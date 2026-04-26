@@ -25,6 +25,8 @@ interface FileEntry {
   isDir: boolean;
   path: string;
   mimeType?: string;
+  size?: number;
+  modTime?: string;
 }
 
 const currentPath = ref('');
@@ -55,6 +57,20 @@ const getImageUrl = (path: string) => {
   return `/system/download?path=${encodeURIComponent(path)}`;
 };
 
+const formatBytes = (value: number | undefined) => {
+  if (value === undefined) return '-';
+  if (value === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(value) / Math.log(k));
+  return parseFloat((value / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const formatTime = (time: string | undefined) => {
+  if (!time) return '-';
+  return new Date(time).toLocaleString();
+};
+
 const fetchHome = async () => {
   try {
     const res = await axios.get('/system/home');
@@ -78,7 +94,8 @@ const fetchEntries = async (path: string, force = false) => {
       params: {
         path: path,
         offset: offset,
-        limit: pageSize.value
+        limit: pageSize.value,
+        showHidden: showHidden.value
       }
     });
     entries.value = res.data.items || [];
@@ -91,6 +108,11 @@ const fetchEntries = async (path: string, force = false) => {
   }
 };
 
+watch(showHidden, () => {
+  currentPage.value = 1;
+  void fetchEntries(currentPath.value, true);
+});
+
 const handlePageChange = (page: number, size: number) => {
   currentPage.value = page;
   pageSize.value = size;
@@ -98,6 +120,37 @@ const handlePageChange = (page: number, size: number) => {
 };
 
 const paginatedEntries = computed(() => entries.value);
+
+const listColumns = [
+  { 
+    title: 'Name', 
+    dataIndex: 'name', 
+    key: 'name', 
+    sorter: (a: FileEntry, b: FileEntry) => a.name.localeCompare(b.name) 
+  },
+  { 
+    title: 'Type', 
+    dataIndex: 'mimeType', 
+    key: 'mimeType', 
+    sorter: (a: FileEntry, b: FileEntry) => (a.mimeType || '').localeCompare(b.mimeType || ''),
+    filters: [
+      { text: 'Directory', value: 'dir' },
+      { text: 'Image', value: 'image' },
+      { text: 'Application', value: 'application' },
+      { text: 'Text', value: 'text' },
+    ],
+    onFilter: (value: string, record: FileEntry) => {
+      if (value === 'dir') return record.isDir;
+      if (value === 'image') return record.mimeType?.startsWith('image/');
+      if (value === 'application') return record.mimeType?.startsWith('application/');
+      if (value === 'text') return record.mimeType?.startsWith('text/');
+      return true;
+    }
+  },
+  { title: 'Size', dataIndex: 'size', key: 'size', align: 'right' as const, sorter: (a: FileEntry, b: FileEntry) => (a.size || 0) - (b.size || 0) },
+  { title: 'Modified', dataIndex: 'modTime', key: 'modTime', sorter: (a: FileEntry, b: FileEntry) => (a.modTime || '').localeCompare(b.modTime || '') },
+  { title: 'Action', key: 'action', width: 220, align: 'right' as const },
+];
 
 const fetchTags = async () => {
   try {
@@ -254,7 +307,7 @@ onMounted(async () => {
     <div style="display: flex; justify-content: space-between; margin-bottom: 16px; align-items: center; flex-wrap: wrap; gap: 16px;">
       <a-breadcrumb>
         <a-breadcrumb-item v-for="crumb in pathBreadcrumbs" :key="crumb.path">
-          <a @click="navigateToPath(crumb.path)" style="color: #374151; font-weight: 600;">{{ crumb.name }}</a>
+          <a @click.prevent="navigateToPath(crumb.path)" style="color: #374151; font-weight: 600;">{{ crumb.name }}</a>
         </a-breadcrumb-item>
       </a-breadcrumb>
       
@@ -305,38 +358,52 @@ onMounted(async () => {
       </a-button>
     </div>
 
-    <div v-if="viewMode === 'list'">
-      <a-list :loading="loading" bordered :dataSource="paginatedEntries" size="small" :style="{ maxHeight: 'calc(100vh - 350px)', overflow: 'auto' }">
-        <template #renderItem="{ item }">
-          <a-list-item :style="{ opacity: item.name.startsWith('.') ? 0.6 : 1, background: item.path === selectedPath ? '#f0f7ff' : 'transparent' }">
-            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-              <div style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1" 
-                   @click="handleEntryClick(item)">
-                <FolderOutlined v-if="item.isDir" style="color: #1890ff" />
-                <div v-else-if="isImage(item)" style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
-                   <img :src="getImageUrl(item.path)" style="width: 100%; height: 100%; object-fit: cover; border-radius: 2px;" />
-                </div>
-                <FileOutlined v-else />
-                <span :style="{ fontWeight: item.isDir ? 'bold' : 'normal', fontFamily: 'monospace', color: '#1f2937' }">{{ item.name }}</span>
+    <div v-if="viewMode === 'list'" class="explorer-list">
+      <a-table 
+        :loading="loading" 
+        :dataSource="paginatedEntries" 
+        :columns="listColumns"
+        row-key="path"
+        size="small"
+        :pagination="false"
+        :scroll="{ y: 'calc(100vh - 400px)' }"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'name'">
+            <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" 
+                 @click="handleEntryClick(record)">
+              <FolderOutlined v-if="record.isDir" style="color: #1890ff" />
+              <div v-else-if="isImage(record)" style="width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                 <img :src="getImageUrl(record.path)" style="width: 100%; height: 100%; object-fit: cover; border-radius: 2px;" />
               </div>
-              <div style="display: flex; align-items: center; gap: 4px;">
-                <a-button v-if="!item.isDir" type="link" size="small" @click.stop="previewFile(item.path)">
-                  <template #icon><EyeOutlined /></template>
-                  Preview
-                </a-button>
-                <a-button v-if="!item.isDir" type="link" size="small" @click.stop="downloadFile(item.path)">
-                  <template #icon><DownloadOutlined /></template>
-                  Download
-                </a-button>
-                <a-button type="link" size="small" @click.stop="addToRules(item)">
-                  <template #icon><PlusOutlined /></template>
-                  Track
-                </a-button>
-              </div>
+              <FileOutlined v-else />
+              <span :style="{ fontWeight: record.isDir ? 'bold' : 'normal', fontFamily: 'monospace', color: '#1f2937' }">{{ record.name }}</span>
             </div>
-          </a-list-item>
+          </template>
+          <template v-else-if="column.key === 'mimeType'">
+            <span style="font-size: 12px; color: #666;">{{ record.isDir ? 'Directory' : (record.mimeType || 'unknown') }}</span>
+          </template>
+          <template v-else-if="column.key === 'size'">
+            <span style="font-size: 12px; font-family: monospace;">{{ record.isDir ? '-' : formatBytes(record.size) }}</span>
+          </template>
+          <template v-else-if="column.key === 'modTime'">
+            <span style="font-size: 12px;">{{ formatTime(record.modTime) }}</span>
+          </template>
+          <template v-else-if="column.key === 'action'">
+            <div style="display: flex; align-items: center; gap: 4px; justify-content: flex-end;">
+              <a-button v-if="!record.isDir" type="link" size="small" @click.stop="previewFile(record.path)">
+                <template #icon><EyeOutlined /></template>
+              </a-button>
+              <a-button v-if="!record.isDir" type="link" size="small" @click.stop="downloadFile(record.path)">
+                <template #icon><DownloadOutlined /></template>
+              </a-button>
+              <a-button type="link" size="small" @click.stop="addToRules(record)">
+                <template #icon><PlusOutlined /></template>
+              </a-button>
+            </div>
+          </template>
         </template>
-      </a-list>
+      </a-table>
     </div>
 
     <div v-else class="explorer-grid" :style="{ maxHeight: 'calc(100vh - 350px)', overflow: 'auto' }">

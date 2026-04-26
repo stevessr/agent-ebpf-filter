@@ -556,9 +556,9 @@ onBeforeUnmount(() => {
 }
 
 :deep(.traffic-link) {
-  stroke-dasharray: 12 10;
-  animation: traffic-flow 0.8s linear infinite;
-  opacity: 0.85;
+  stroke-dasharray: 16 14;
+  animation: traffic-flow 0.5s linear infinite;
+  opacity: 0.8;
   pointer-events: none;
 }
 
@@ -587,7 +587,7 @@ onBeforeUnmount(() => {
 
 @keyframes traffic-flow {
   to {
-    stroke-dashoffset: -44;
+    stroke-dashoffset: -60;
   }
 }
 </style>

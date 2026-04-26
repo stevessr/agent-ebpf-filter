@@ -64,7 +64,7 @@ func kernelEventTypeName(eventType uint32) string {
 
 func isNetworkEventType(eventType string) bool {
 	switch eventType {
-	case "network_connect", "network_bind", "network_sendto", "network_recvfrom", "accept", "accept4":
+	case "network_connect", "network_bind", "network_sendto", "network_recvfrom", "accept", "accept4", "socket":
 		return true
 	default:
 		return false

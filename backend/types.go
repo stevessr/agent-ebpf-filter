@@ -2,19 +2,13 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os/user"
 	"sync"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/cilium/ebpf"
-	"github.com/gorilla/websocket"
 )
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
 
 const udsPath = "/tmp/agent-ebpf.sock"
 const ebpfPinRoot = "/sys/fs/bpf/agent-ebpf"

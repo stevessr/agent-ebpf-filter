@@ -1,0 +1,423 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+)
+
+func handleConfigTagsGet(c *gin.Context) {
+	tagsMu.RLock()
+	defer tagsMu.RUnlock()
+	t := []string{}
+	for _, n := range tagMap {
+		t = append(t, n)
+	}
+	c.JSON(200, t)
+}
+
+func handleConfigTagsPost(c *gin.Context) {
+	var r struct {
+		Name string `json:"name"`
+	}
+	_ = c.ShouldBindJSON(&r)
+	getTagID(r.Name)
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleConfigCommsGet(c *gin.Context) {
+	items := []gin.H{}
+	iter := trackerMaps.TrackedComms.Iterate()
+	var k [16]byte
+	var tid uint32
+	for iter.Next(&k, &tid) {
+		items = append(items, gin.H{"comm": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)})
+	}
+	c.JSON(200, items)
+}
+
+func handleConfigCommsPost(c *gin.Context) {
+	var r struct {
+		Comm, Tag string `json:"comm" json:"tag"`
+	}
+	_ = c.ShouldBindJSON(&r)
+	var k [16]byte
+	copy(k[:], r.Comm)
+	_ = trackerMaps.TrackedComms.Put(k, getTagID(r.Tag))
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleConfigCommsDelete(c *gin.Context) {
+	var k [16]byte
+	copy(k[:], c.Param("comm"))
+	_ = trackerMaps.TrackedComms.Delete(k)
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleConfigPathsGet(c *gin.Context) {
+	items := []gin.H{}
+	iter := trackerMaps.TrackedPaths.Iterate()
+	var k [256]byte
+	var tid uint32
+	for iter.Next(&k, &tid) {
+		items = append(items, gin.H{"path": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)})
+	}
+	c.JSON(200, items)
+}
+
+func handleConfigPathsPost(c *gin.Context) {
+	var r struct {
+		Path, Tag string `json:"path" json:"tag"`
+	}
+	_ = c.ShouldBindJSON(&r)
+	var k [256]byte
+	copy(k[:], r.Path)
+	_ = trackerMaps.TrackedPaths.Put(k, getTagID(r.Tag))
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleConfigPathsDelete(c *gin.Context) {
+	p := c.Param("path")
+	if len(p) > 0 && p[0] == '/' {
+		p = p[1:]
+	}
+	var k [256]byte
+	copy(k[:], p)
+	_ = trackerMaps.TrackedPaths.Delete(k)
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleConfigPrefixesGet(c *gin.Context) {
+	items := []gin.H{}
+	if trackerMaps.TrackedPrefixes == nil {
+		c.JSON(200, items)
+		return
+	}
+	iter := trackerMaps.TrackedPrefixes.Iterate()
+	var k struct {
+		PrefixLen uint32
+		Data      [64]byte
+	}
+	var tid uint32
+	for iter.Next(&k, &tid) {
+		prefix := string(bytes.TrimRight(k.Data[:], "\x00"))
+		prefixLen := k.PrefixLen / 8
+		if prefixLen > 0 && uint32(len(prefix)) > prefixLen {
+			prefix = prefix[:prefixLen]
+		}
+		items = append(items, gin.H{"prefix": prefix, "tag": getTagName(tid)})
+	}
+	c.JSON(200, items)
+}
+
+func handleConfigPrefixesPost(c *gin.Context) {
+	var r struct {
+		Prefix string `json:"prefix"`
+		Tag    string `json:"tag"`
+	}
+	_ = c.ShouldBindJSON(&r)
+	if r.Prefix == "" {
+		c.JSON(400, gin.H{"error": "prefix is required"})
+		return
+	}
+	var k struct {
+		PrefixLen uint32
+		Data      [64]byte
+	}
+	plen := len(r.Prefix)
+	if plen > 63 {
+		plen = 63
+	}
+	k.PrefixLen = uint32(plen * 8)
+	copy(k.Data[:], r.Prefix[:plen])
+	_ = trackerMaps.TrackedPrefixes.Put(k, getTagID(r.Tag))
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleConfigPrefixesDelete(c *gin.Context) {
+	prefix := c.Query("prefix")
+	if prefix == "" {
+		c.JSON(400, gin.H{"error": "prefix query parameter is required"})
+		return
+	}
+	var k struct {
+		PrefixLen uint32
+		Data      [64]byte
+	}
+	plen := len(prefix)
+	if plen > 63 {
+		plen = 63
+	}
+	k.PrefixLen = uint32(plen * 8)
+	copy(k.Data[:], prefix[:plen])
+	_ = trackerMaps.TrackedPrefixes.Delete(k)
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func registerConfigRoutes(rg *gin.RouterGroup) {
+	rg.GET("/tags", handleConfigTagsGet)
+	rg.POST("/tags", handleConfigTagsPost)
+	rg.GET("/comms", handleConfigCommsGet)
+	rg.POST("/comms", handleConfigCommsPost)
+	rg.DELETE("/comms/:comm", handleConfigCommsDelete)
+	rg.GET("/paths", handleConfigPathsGet)
+	rg.POST("/paths", handleConfigPathsPost)
+	rg.DELETE("/paths/*path", handleConfigPathsDelete)
+	rg.GET("/prefixes", handleConfigPrefixesGet)
+	rg.POST("/prefixes", handleConfigPrefixesPost)
+	rg.DELETE("/prefixes", handleConfigPrefixesDelete)
+	rg.GET("/rules", func(c *gin.Context) { rulesMu.RLock(); defer rulesMu.RUnlock(); c.JSON(200, wrapperRules) })
+	rg.POST("/rules", func(c *gin.Context) {
+		var r WrapperRule
+		_ = c.ShouldBindJSON(&r)
+		rulesMu.Lock()
+		wrapperRules[r.Comm] = r
+		rulesMu.Unlock()
+		c.JSON(200, gin.H{"status": "ok"})
+	})
+	rg.DELETE("/rules/:comm", func(c *gin.Context) {
+		rulesMu.Lock()
+		delete(wrapperRules, c.Param("comm"))
+		rulesMu.Unlock()
+		c.JSON(200, gin.H{"status": "ok"})
+	})
+	rg.GET("/runtime", func(c *gin.Context) {
+		c.JSON(http.StatusOK, buildRuntimeConfigResponse())
+	})
+	rg.PUT("/runtime", func(c *gin.Context) {
+		var req RuntimeSettings
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid runtime settings"})
+			return
+		}
+		settings, err := runtimeSettingsStore.Replace(req)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		applyRetentionConfig(settings)
+		c.JSON(http.StatusOK, buildRuntimeConfigResponseFromSettings(settings))
+	})
+	rg.POST("/access-token", func(c *gin.Context) {
+		settings, err := runtimeSettingsStore.RotateAccessToken()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, buildRuntimeConfigResponseFromSettings(settings))
+	})
+	rg.GET("/export", func(c *gin.Context) {
+		runtimeSnapshot := runtimeSettingsStore.Snapshot()
+		cfg := ExportConfig{Comms: make(map[string]string), Paths: make(map[string]string), Rules: make(map[string]WrapperRule), Runtime: &runtimeSnapshot}
+		tagsMu.RLock()
+		for _, n := range tagMap {
+			cfg.Tags = append(cfg.Tags, n)
+		}
+		tagsMu.RUnlock()
+		var k16 [16]byte
+		var k256 [256]byte
+		var tid uint32
+		i1 := trackerMaps.TrackedComms.Iterate()
+		for i1.Next(&k16, &tid) {
+			cfg.Comms[string(bytes.TrimRight(k16[:], "\x00"))] = getTagName(tid)
+		}
+		i2 := trackerMaps.TrackedPaths.Iterate()
+		for i2.Next(&k256, &tid) {
+			cfg.Paths[string(bytes.TrimRight(k256[:], "\x00"))] = getTagName(tid)
+		}
+		rulesMu.RLock()
+		for comm, rule := range wrapperRules {
+			cfg.Rules[comm] = rule
+		}
+		rulesMu.RUnlock()
+		c.JSON(200, cfg)
+	})
+	rg.POST("/import", func(c *gin.Context) {
+		var cfg ExportConfig
+		_ = c.ShouldBindJSON(&cfg)
+		if cfg.Runtime != nil {
+			if _, err := runtimeSettingsStore.Replace(*cfg.Runtime); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+		}
+		for _, t := range cfg.Tags {
+			getTagID(t)
+		}
+		for comm, tag := range cfg.Comms {
+			var k [16]byte
+			copy(k[:], comm)
+			_ = trackerMaps.TrackedComms.Put(k, getTagID(tag))
+		}
+		for p, tag := range cfg.Paths {
+			var k [256]byte
+			copy(k[:], p)
+			_ = trackerMaps.TrackedPaths.Put(k, getTagID(tag))
+		}
+		rulesMu.Lock()
+		wrapperRules = make(map[string]WrapperRule, len(cfg.Rules))
+		for comm, rule := range cfg.Rules {
+			wrapperRules[comm] = rule
+		}
+		rulesMu.Unlock()
+		c.JSON(200, gin.H{"status": "ok"})
+	})
+	
+	hooks := rg.Group("/hooks")
+	{
+		hooks.GET("", func(c *gin.Context) {
+			res := []gin.H{}
+			for _, h := range availableHooks {
+				res = append(res, gin.H{
+					"id": h.ID, "name": h.Name, "description": h.Description,
+					"target_cmd": h.TargetCmd, "hook_type": h.HookType,
+					"installed": isHookInstalled(h),
+				})
+			}
+			c.JSON(200, res)
+		})
+		hooks.POST("", func(c *gin.Context) {
+			var req struct {
+				ID         string `json:"id"`
+				Install    bool   `json:"install"`
+				UseWrapper bool   `json:"use_wrapper"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(400, gin.H{"error": "invalid request"})
+				return
+			}
+			var target HookDef
+			found := false
+			for _, h := range availableHooks {
+				if h.ID == req.ID {
+					target = h
+					found = true
+					break
+				}
+			}
+			if !found {
+				c.JSON(404, gin.H{"error": "hook not found"})
+				return
+			}
+
+			effectiveType := target.HookType
+			if req.UseWrapper {
+				effectiveType = HookTypeWrapper
+			}
+
+			if req.Install {
+				if effectiveType == HookTypeNative {
+					if err := installNativeHook(target); err != nil {
+						c.JSON(500, gin.H{"error": err.Error()})
+						return
+					}
+				} else {
+					p := getShellConfigPath()
+					b, _ := os.ReadFile(p)
+					content := string(b)
+					aliasLine := fmt.Sprintf("\nalias %s='agent-wrapper %s' # agent-ebpf-hook\n", target.TargetCmd, target.TargetCmd)
+					if !strings.Contains(content, fmt.Sprintf("alias %s=", target.TargetCmd)) {
+						f, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0644)
+						if err != nil {
+							c.JSON(500, gin.H{"error": err.Error()})
+							return
+						}
+						f.WriteString(aliasLine)
+						f.Close()
+					}
+				}
+			} else {
+				if target.HookType == HookTypeNative {
+					_ = uninstallNativeHook(target)
+				}
+				p := getShellConfigPath()
+				b, _ := os.ReadFile(p)
+				lines := strings.Split(string(b), "\n")
+				newLines := []string{}
+				for _, l := range lines {
+					if !strings.Contains(l, fmt.Sprintf("alias %s=", target.TargetCmd)) {
+						newLines = append(newLines, l)
+					}
+				}
+				_ = os.WriteFile(p, []byte(strings.Join(newLines, "\n")), 0644)
+			}
+			c.JSON(200, gin.H{"status": "ok"})
+		})
+		hooks.GET("/:id/raw", func(c *gin.Context) {
+			id := c.Param("id")
+			var target HookDef
+			found := false
+			for _, h := range availableHooks {
+				if h.ID == id {
+					target = h
+					found = true
+					break
+				}
+			}
+			if !found || target.HookType != HookTypeNative {
+				c.JSON(404, gin.H{"error": "native hook not found"})
+				return
+			}
+			if target.ID == "kiro" {
+				if err := ensureKiroManagedAgentExists(); err != nil {
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
+				}
+			}
+			b, err := os.ReadFile(target.NativeConfigPath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					c.JSON(200, gin.H{"content": "{}", "path": target.NativeConfigPath, "format": target.ConfigFormat})
+					return
+				}
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(200, gin.H{"content": string(b), "path": target.NativeConfigPath, "format": target.ConfigFormat})
+		})
+		hooks.POST("/:id/raw", func(c *gin.Context) {
+			id := c.Param("id")
+			var req struct {
+				Content string `json:"content"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(400, gin.H{"error": "invalid request"})
+				return
+			}
+			var target HookDef
+			found := false
+			for _, h := range availableHooks {
+				if h.ID == id {
+					target = h
+					found = true
+					break
+				}
+			}
+			if !found || target.HookType != HookTypeNative {
+				c.JSON(404, gin.H{"error": "native hook not found"})
+				return
+			}
+			var js map[string]interface{}
+			if err := json.Unmarshal([]byte(req.Content), &js); err != nil {
+				c.JSON(400, gin.H{"error": "invalid JSON: " + err.Error()})
+				return
+			}
+
+			if err := os.MkdirAll(filepath.Dir(target.NativeConfigPath), 0755); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+			if err := os.WriteFile(target.NativeConfigPath, []byte(req.Content), 0644); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(200, gin.H{"status": "ok"})
+		})
+	}
+}

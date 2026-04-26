@@ -584,6 +584,49 @@ func (s *shellSession) appendBacklogLocked(payload []byte) {
 	s.backlog = append(s.backlog, payload...)
 }
 
+func serveShellSessionsWS(c *gin.Context) {
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	notifyCh := shellSessions.subscribe()
+	defer shellSessions.unsubscribe(notifyCh)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	sendList := func() {
+		list := shellSessions.List()
+		data, err := json.Marshal(list)
+		if err != nil {
+			return
+		}
+		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			return
+		}
+	}
+
+	sendList()
+
+	for {
+		select {
+		case <-notifyCh:
+			sendList()
+		case <-done:
+			return
+		}
+	}
+}
+
 func handleCreateShellSession(c *gin.Context) {
 	var req ShellSessionCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
