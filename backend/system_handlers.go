@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"mime"
 	"os"
@@ -318,9 +319,17 @@ func handleSystemdServices(c *gin.Context) {
 	}
 
 	cmd := exec.Command("systemctl", args...)
-	out, err := cmd.Output()
+	// In user scope, we might need to point to the correct user bus if running as root
+	if scope == "user" {
+		if uid := os.Getenv("AGENT_REAL_UID"); uid != "" {
+			// This is a common way to talk to user session from sudo/root
+			cmd.Env = append(os.Environ(), "XDG_RUNTIME_DIR=/run/user/"+uid)
+		}
+	}
+
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(500, gin.H{"error": fmt.Sprintf("%v: %s", err, string(out))})
 		return
 	}
 
@@ -369,7 +378,8 @@ func handleSystemdControl(c *gin.Context) {
 		}
 	} else {
 		// Use pkexec or sudo if available for systemctl actions
-		cmd := exec.Command("pkexec", "systemctl", args...)
+		fullArgs := append([]string{"systemctl"}, args...)
+		cmd := exec.Command("pkexec", fullArgs...)
 		if err := cmd.Run(); err != nil {
 			cmd = exec.Command("systemctl", args...)
 			if err := cmd.Run(); err != nil {
