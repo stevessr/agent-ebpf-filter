@@ -74,10 +74,10 @@ const extractEventType = (event: pb.IEvent) =>
     ? Number(event.eventType)
     : undefined;
 const isNetworkEvent = (eventType: number | undefined, type?: string) => {
-  if (eventType !== undefined && networkEventTypes.has(eventType)) {
+  if (eventType !== undefined && (networkEventTypes.has(eventType) || eventType === 20)) {
     return true;
   }
-  return type === 'accept' || Boolean(type?.startsWith('network_'));
+  return type === 'accept' || type === 'accept4' || type === 'socket' || Boolean(type?.startsWith('network_'));
 };
 const directionOptions = [
   { label: 'Outgoing', value: 'outgoing' },

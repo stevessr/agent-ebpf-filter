@@ -155,12 +155,14 @@ const setExplorerTarget = async (path: string, preview = false) => {
 };
 
 const navigateToPath = async (path: string) => {
-  currentPage.value = 1;
+  if (currentPath.value !== path) {
+    currentPage.value = 1;
+  }
   await setExplorerTarget(path, false);
 };
 
 const handleEntryClick = async (entry: FileEntry) => {
-  if (entry.isDir) {
+  if (entry.isDir && currentPath.value !== entry.path) {
     currentPage.value = 1;
   }
   await setExplorerTarget(entry.path, !entry.isDir);
@@ -196,7 +198,10 @@ const openRouteTarget = async () => {
     const meta = res.data as FilePreviewResponse;
     const targetDir = meta.isDir ? meta.path : meta.parentDir || '/';
 
-    await fetchEntries(targetDir);
+    // Only fetch entries if the directory has changed OR if list is empty
+    if (currentPath.value !== targetDir || entries.value.length === 0) {
+       await fetchEntries(targetDir);
+    }
 
     selectedPath.value = meta.path;
     if (!meta.isDir && isPreview) {
