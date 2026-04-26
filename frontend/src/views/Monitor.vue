@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, defineAsyncComponent } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { 
   PlusOutlined, SearchOutlined, ClusterOutlined, TableOutlined, 
@@ -88,8 +89,126 @@ interface ByteScale {
   precision: number;
 }
 
-const activeTab = ref('dashboard');
+const route = useRoute();
+const router = useRouter();
+const activeTab = ref((route.params.tab as string) || 'dashboard');
 const healthTab = ref('cpu');
+
+interface SystemdService {
+  unit: string;
+  load: string;
+  active: string;
+  sub: string;
+  description: string;
+}
+
+const systemdServices = ref<SystemdService[]>([]);
+const systemdLoading = ref(false);
+const systemdSearch = ref('');
+
+const showLogsModal = ref(false);
+const activeLogUnit = ref('');
+const serviceLogs = ref('');
+const logsLoading = ref(false);
+
+const fetchSystemdLogs = async (unit: string) => {
+  activeLogUnit.value = unit;
+  showLogsModal.value = true;
+  logsLoading.value = true;
+  serviceLogs.value = '';
+  try {
+    const res = await axios.get(`/system/systemd/logs?unit=${unit}&lines=200`);
+    serviceLogs.value = res.data.logs;
+  } catch (err) {
+    message.error('Failed to fetch logs');
+  } finally {
+    logsLoading.value = false;
+  }
+};
+
+const fetchSystemdServices = async () => {
+  systemdLoading.value = true;
+  try {
+    const res = await axios.get('/system/systemd');
+    systemdServices.value = res.data;
+  } catch (err) {
+    message.error('Failed to fetch systemd services');
+  } finally {
+    systemdLoading.value = false;
+  }
+};
+
+const controlSystemdService = async (unit: string, action: string) => {
+  try {
+    await axios.post('/system/systemd/control', { unit, action });
+    message.success(`Service ${unit} ${action} command sent`);
+    void fetchSystemdServices();
+  } catch (err: any) {
+    message.error(err?.response?.data?.error || `Failed to ${action} service`);
+  }
+};
+
+const filteredSystemdServices = computed(() => {
+  if (!systemdSearch.value.trim()) return systemdServices.value;
+  const q = systemdSearch.value.toLowerCase();
+  return systemdServices.value.filter(s => 
+    s.unit.toLowerCase().includes(q) || 
+    s.description.toLowerCase().includes(q)
+  );
+});
+
+const systemdColumns = [
+  { title: 'Unit', dataIndex: 'unit', key: 'unit', sorter: (a: any, b: any) => a.unit.localeCompare(b.unit) },
+  { 
+    title: 'Active', 
+    dataIndex: 'active', 
+    key: 'active', 
+    width: 120,
+    filters: [
+      { text: 'active', value: 'active' },
+      { text: 'inactive', value: 'inactive' },
+      { text: 'failed', value: 'failed' },
+      { text: 'activating', value: 'activating' },
+      { text: 'deactivating', value: 'deactivating' },
+    ],
+    onFilter: (value: string, record: any) => record.active === value,
+  },
+  { 
+    title: 'Sub', 
+    dataIndex: 'sub', 
+    key: 'sub', 
+    width: 140,
+    filters: [
+      { text: 'running', value: 'running' },
+      { text: 'exited', value: 'exited' },
+      { text: 'dead', value: 'dead' },
+      { text: 'waiting', value: 'waiting' },
+    ],
+    onFilter: (value: string, record: any) => record.sub === value,
+  },
+  { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true },
+  { title: 'Action', key: 'action', width: 220, align: 'right' },
+];
+
+const handleTabChange = (key: any) => {
+  activeTab.value = key;
+  void router.replace({ name: 'Monitor', params: { tab: key } });
+};
+
+watch(() => route.params.tab, (newTab) => {
+  if (newTab && newTab !== activeTab.value) {
+    activeTab.value = newTab as string;
+  } else if (!newTab && activeTab.value !== 'dashboard') {
+    activeTab.value = 'dashboard';
+  }
+});
+
+watch(activeTab, (newTab) => {
+  if (newTab === 'systemd' && systemdServices.value.length === 0) {
+    void fetchSystemdServices();
+  }
+});
+
 const processes = ref<ProcessInfo[]>([]);
 const faultProcesses = ref<FaultProcessInfo[]>([]);
 const gpus = ref<GPUStatus[]>([]);
@@ -754,7 +873,7 @@ watch(refreshInterval, connectWebSocket);
 
 <template>
   <div style="background: #f0f2f5; padding: 20px; min-height: 100%;">
-    <a-tabs v-model:activeKey="activeTab" type="card" class="monitor-tabs">
+    <a-tabs :activeKey="activeTab" @change="handleTabChange" type="card" class="monitor-tabs">
       
       <!-- HEALTH TAB -->
       <a-tab-pane key="dashboard" tab="Health">
@@ -1172,7 +1291,60 @@ watch(refreshInterval, connectWebSocket);
           </a-table>
         </a-modal>
       </a-tab-pane>
+
+      <a-tab-pane key="systemd" tab="Systemd">
+        <template #tab><span><DeploymentUnitOutlined /> Systemd</span></template>
+        <div style="background: #fff; padding: 20px; border-radius: 4px; border: 1px solid #f0f0f0;">
+          <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+            <a-input-search
+              v-model:value="systemdSearch"
+              placeholder="Filter services..."
+              style="width: 300px"
+              allow-clear
+            />
+            <a-button type="primary" :loading="systemdLoading" @click="fetchSystemdServices">
+              Refresh
+            </a-button>
+          </div>
+          <a-table 
+            :dataSource="filteredSystemdServices" 
+            :columns="systemdColumns" 
+            row-key="unit" 
+            size="small"
+            :pagination="{ pageSize: 50, showSizeChanger: true }"
+            :loading="systemdLoading"
+            :scroll="{ x: 800 }"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'active'">
+                <a-tag :color="record.active === 'active' ? 'success' : 'default'">{{ record.active }}</a-tag>
+              </template>
+              <template v-else-if="column.key === 'sub'">
+                <a-tag :color="record.sub === 'running' ? 'blue' : 'default'">{{ record.sub }}</a-tag>
+              </template>
+              <template v-if="column.key === 'action'">
+                <a-space>
+                  <a-button type="link" size="small" @click="fetchSystemdLogs(record.unit)">Logs</a-button>
+                  <a-button v-if="record.active !== 'active'" type="link" size="small" @click="controlSystemdService(record.unit, 'start')">Start</a-button>
+                  <a-button v-if="record.active === 'active'" type="link" size="small" danger @click="controlSystemdService(record.unit, 'stop')">Stop</a-button>
+                  <a-button type="link" size="small" @click="controlSystemdService(record.unit, 'restart')">Restart</a-button>
+                </a-space>
+              </template>
+            </template>
+          </a-table>
+        </div>
+      </a-tab-pane>
     </a-tabs>
+
+    <!-- Systemd Logs Modal -->
+    <a-modal v-model:open="showLogsModal" :title="`Logs: ${activeLogUnit}`" width="1000px" :footer="null">
+      <div style="background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 13px; max-height: 600px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">
+        <a-spin :spinning="logsLoading">
+          <div v-if="serviceLogs">{{ serviceLogs }}</div>
+          <a-empty v-else-if="!logsLoading" description="No logs found" />
+        </a-spin>
+      </div>
+    </a-modal>
 
     <!-- Chart Modal -->
     <a-modal v-model:open="showChartModal" :title="chartTitle" :footer="null" width="800px">

@@ -310,6 +310,83 @@ func serveSystemStatsWS(c *gin.Context) {
 	}
 }
 
+func handleSystemdServices(c *gin.Context) {
+	cmd := exec.Command("systemctl", "list-units", "--type=service", "--all", "--no-legend", "--no-pager")
+	out, err := cmd.Output()
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	services := []gin.H{}
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 4 {
+			continue
+		}
+		// fields: [UNIT, LOAD, ACTIVE, SUB, DESCRIPTION...]
+		services = append(services, gin.H{
+			"unit":        fields[0],
+			"load":        fields[1],
+			"active":      fields[2],
+			"sub":         fields[3],
+			"description": strings.Join(fields[4:], " "),
+		})
+	}
+	c.JSON(200, services)
+}
+
+func handleSystemdControl(c *gin.Context) {
+	var req struct {
+		Unit   string `json:"unit"`
+		Action string `json:"action"` // start, stop, restart
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
+
+	validActions := map[string]bool{"start": true, "stop": true, "restart": true}
+	if !validActions[req.Action] {
+		c.JSON(400, gin.H{"error": "invalid action"})
+		return
+	}
+
+	// Use pkexec or sudo if available for systemctl actions
+	cmd := exec.Command("pkexec", "systemctl", req.Action, req.Unit)
+	if err := cmd.Run(); err != nil {
+		// Fallback to direct systemctl (might fail if not root)
+		cmd = exec.Command("systemctl", req.Action, req.Unit)
+		if err := cmd.Run(); err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleSystemdLogs(c *gin.Context) {
+	unit := c.Query("unit")
+	lines := c.DefaultQuery("lines", "100")
+	if unit == "" {
+		c.JSON(400, gin.H{"error": "unit is required"})
+		return
+	}
+
+	cmd := exec.Command("journalctl", "-u", unit, "-n", lines, "--no-pager")
+	out, err := cmd.Output()
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"unit": unit,
+		"logs": string(out),
+	})
+}
+
 func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/ls", handleSystemLs)
 	rg.GET("/file-preview", handleFilePreview)
@@ -318,4 +395,7 @@ func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.POST("/upload", handleUpload)
 	rg.GET("/env", handleListLaunchEnvEntries)
 	rg.POST("/run", handleRun)
+	rg.GET("/systemd", handleSystemdServices)
+	rg.POST("/systemd/control", handleSystemdControl)
+	rg.GET("/systemd/logs", handleSystemdLogs)
 }
