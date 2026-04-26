@@ -261,7 +261,7 @@ func handleCameras(c *gin.Context) {
 		// Quick check to see if it's a capture device
 		cam, err := device.Open(dev, device.WithIOType(v4l2.IOTypeMMAP))
 		if err == nil {
-			if caps := cam.GetCapability(); caps.IsVideoCaptureSupported() {
+			if caps := cam.Capability(); caps.IsVideoCaptureSupported() {
 				captureDevices = append(captureDevices, dev)
 			}
 			cam.Close()

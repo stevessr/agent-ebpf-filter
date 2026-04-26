@@ -49,18 +49,23 @@ ebpf-bootstrap: ## Pre-build the backend binary (bootstrap happens automatically
 	@(cd backend/ebpf && go generate)
 	@(cd backend && go build -o agent-ebpf-filter)
 
-dev: proto wrapper ## Run both backend and frontend development server
-	@echo "Building backend binary..."
-	@(cd backend/ebpf && go generate)
-	@(cd backend && go build -o agent-ebpf-filter)
-	@echo "Starting dev environment..."
-	@rm -f backend/.port
-	@(cd backend && DISABLE_AUTH=true AGENT_WRAPPER_PATH="$(abspath agent-wrapper)" ./agent-ebpf-filter) &
-	@for i in $$(seq 1 30); do \
-		[ -f backend/.port ] && break; \
-		sleep 1; \
-	done
-	@(cd frontend && bun run dev)
+dev: proto wrapper ## Run both backend and frontend development server (using air for hot-reload if available)
+	@$(MAKE) -j2 dev-backend dev-frontend
+
+dev-backend: ## Run only the backend with hot-reload (may require sudo)
+	@echo "Starting backend dev environment..."
+	@if command -v air > /dev/null; then \
+		sudo DISABLE_AUTH=true AGENT_WRAPPER_PATH="$(abspath agent-wrapper)" air; \
+	else \
+		echo "air not found, installing..."; \
+		go install github.com/air-verse/air@latest; \
+		sudo DISABLE_AUTH=true AGENT_WRAPPER_PATH="$(abspath agent-wrapper)" $(GOPATH)/bin/air; \
+	fi
+
+dev-frontend: ## Run only the frontend development server
+	@echo "Starting frontend dev environment..."
+	@cd frontend && bun run dev
+
 
 run: all ebpf-bootstrap ## Build and run in production mode
 	@echo "Running production build..."

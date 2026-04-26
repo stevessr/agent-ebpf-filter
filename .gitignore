@@ -1,4 +1,15 @@
 agent-wrapper
 backend/agent-ebpf-filter
-agent-wrapper
-backend/agent-ebpf-filter
+tmp/
+node_modules/
+dist/
+.env
+.venv/
+*.o
+*.so
+backend/ebpf/agenttracker_bpfel.go
+backend/ebpf/agenttracker_bpfeb.go
+backend/ebpf/agenttracker_bpfel.o
+backend/ebpf/agenttracker_bpfeb.o
+frontend/src/pb/
+backend/pb/
