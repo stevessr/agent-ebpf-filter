@@ -33,7 +33,7 @@ const loading = ref(false);
 const tags = ref<string[]>([]);
 const selectedTag = ref('Security');
 const showHidden = ref(false);
-const viewMode = ref<'list' | 'grid'>('list');
+const viewMode = ref<'list' | 'grid'>('grid');
 const selectedPath = ref('');
 const previewLoading = ref(false);
 const showPreview = ref(false);
@@ -42,17 +42,8 @@ const homePath = ref('/');
 const route = useRoute();
 const router = useRouter();
 
-const pageSize = 50;
+const pageSize = ref(50);
 const currentPage = ref(1);
-
-const filteredEntries = computed(() => {
-  let result = entries.value;
-  if (!showHidden.value) {
-    result = result.filter(e => !e.name.startsWith('.'));
-  }
-  return result;
-});
-
 const totalItems = ref(0);
 
 const isImage = (entry: FileEntry) => {
@@ -75,30 +66,20 @@ const fetchHome = async () => {
   }
 };
 
-const fetchEntries = async (path: string, isAppend = false) => {
+const fetchEntries = async (path: string) => {
   loading.value = true;
-  if (!isAppend) {
-    currentPage.value = 1;
-    entries.value = [];
-  }
   try {
-    const offset = (currentPage.value - 1) * pageSize;
+    const offset = (currentPage.value - 1) * pageSize.value;
     const res = await axios.get('/system/ls', {
       params: {
         path: path,
         offset: offset,
-        limit: pageSize
+        limit: pageSize.value
       }
     });
-    const newItems = res.data.items || [];
+    entries.value = res.data.items || [];
     totalItems.value = res.data.total || 0;
-    
-    if (isAppend) {
-      entries.value = [...entries.value, ...newItems];
-    } else {
-      entries.value = newItems;
-      currentPath.value = path;
-    }
+    currentPath.value = path;
   } catch (err) {
     message.error('Failed to read directory');
   } finally {
@@ -106,16 +87,13 @@ const fetchEntries = async (path: string, isAppend = false) => {
   }
 };
 
-const paginatedEntries = computed(() => entries.value);
-
-const hasMore = computed(() => {
-  return entries.value.length < totalItems.value;
-});
-
-const loadMore = () => {
-  currentPage.value++;
-  void fetchEntries(currentPath.value, true);
+const handlePageChange = (page: number, size: number) => {
+  currentPage.value = page;
+  pageSize.value = size;
+  void fetchEntries(currentPath.value);
 };
+
+const paginatedEntries = computed(() => entries.value);
 
 const fetchTags = async () => {
   try {
@@ -173,10 +151,14 @@ const setExplorerTarget = async (path: string, preview = false) => {
 };
 
 const navigateToPath = async (path: string) => {
+  currentPage.value = 1;
   await setExplorerTarget(path, false);
 };
 
 const handleEntryClick = async (entry: FileEntry) => {
+  if (entry.isDir) {
+    currentPage.value = 1;
+  }
   await setExplorerTarget(entry.path, !entry.isDir);
 };
 
@@ -308,7 +290,7 @@ onMounted(async () => {
     </div>
 
     <div v-if="viewMode === 'list'">
-      <a-list :loading="loading" bordered :dataSource="paginatedEntries" size="small" :style="{ maxHeight: 'calc(100vh - 300px)', overflow: 'auto' }">
+      <a-list :loading="loading" bordered :dataSource="paginatedEntries" size="small" :style="{ maxHeight: 'calc(100vh - 350px)', overflow: 'auto' }">
         <template #renderItem="{ item }">
           <a-list-item :style="{ opacity: item.name.startsWith('.') ? 0.6 : 1, background: item.path === selectedPath ? '#f0f7ff' : 'transparent' }">
             <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
@@ -338,15 +320,10 @@ onMounted(async () => {
             </div>
           </a-list-item>
         </template>
-        <template #loadMore v-if="hasMore">
-          <div :style="{ textAlign: 'center', margin: '12px 0', height: '32px', lineHeight: '32px' }">
-            <a-button @click="loadMore">Load More</a-button>
-          </div>
-        </template>
       </a-list>
     </div>
 
-    <div v-else class="explorer-grid" :style="{ maxHeight: 'calc(100vh - 300px)', overflow: 'auto' }">
+    <div v-else class="explorer-grid" :style="{ maxHeight: 'calc(100vh - 350px)', overflow: 'auto' }">
       <a-spin :spinning="loading">
         <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 8px;">
           <div v-for="item in paginatedEntries" :key="item.path" 
@@ -374,11 +351,18 @@ onMounted(async () => {
                </a-dropdown>
             </div>
           </div>
-          <div v-if="hasMore" style="width: 100%; display: flex; justify-content: center; padding: 16px;">
-            <a-button @click="loadMore">Load More ({{ filteredEntries.length - paginatedEntries.length }} remaining)</a-button>
-          </div>
         </div>
       </a-spin>
+    </div>
+
+    <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
+      <a-pagination
+        v-model:current="currentPage"
+        v-model:pageSize="pageSize"
+        :total="totalItems"
+        show-size-changer
+        @change="handlePageChange"
+      />
     </div>
 
     <FilePreviewDrawer
