@@ -49,8 +49,9 @@ ebpf-bootstrap: ## Pre-build the backend binary (bootstrap happens automatically
 	@(cd backend/ebpf && go generate)
 	@(cd backend && go build -o agent-ebpf-filter)
 
-dev: proto wrapper ## Run both backend and frontend development server
-	@$(MAKE) -j2 dev-backend dev-frontend
+dev: proto wrapper ## Run both backend and frontend development server (nx TUI separated)
+	@if [ ! -d "node_modules" ]; then bun install; fi
+	@./node_modules/.bin/nx run-many --targets=dev-backend,dev-frontend --parallel=2
 
 dev-backend: ## Run only the backend with self-implemented hot-reload
 	@echo "Starting backend dev environment..."

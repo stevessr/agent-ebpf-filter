@@ -1,0 +1,20 @@
+{
+  "name": "agent-ebpf-filter",
+  "$schema": "./node_modules/nx/schemas/project-schema.json",
+  "targets": {
+    "dev-backend": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": ".",
+        "command": "./scripts/dev-backend.sh"
+      }
+    },
+    "dev-frontend": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "frontend",
+        "command": "bun run dev"
+      }
+    }
+  }
+}

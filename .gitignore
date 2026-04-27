@@ -13,3 +13,4 @@ backend/ebpf/agenttracker_bpfel.o
 backend/ebpf/agenttracker_bpfeb.o
 frontend/src/pb/
 backend/pb/
+.nx

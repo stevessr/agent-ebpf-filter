@@ -1,0 +1,7 @@
+{
+  "name": "agent-ebpf-filter",
+  "private": true,
+  "devDependencies": {
+    "nx": "^22.7.0"
+  }
+}
