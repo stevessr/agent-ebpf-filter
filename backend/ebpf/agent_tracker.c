@@ -801,15 +801,14 @@ int tracepoint__syscalls__sys_exit_recvfrom(struct trace_event_raw_sys_exit *ctx
 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
-    
+
+    fill_from_exit_meta(e, pid_tgid, &meta);
+    e->retval = ctx->ret;
+
     // Read the address now that the syscall has completed
     if (meta.addr_ptr && ctx->ret > 0) {
         fill_network_endpoint(e, (void *)meta.addr_ptr, NET_DIR_INCOMING, (u32)ctx->ret);
     }
-    
-    fill_from_exit_meta(e, pid_tgid, &meta);
-    e->retval = ctx->ret;
-    if (ctx->ret > 0) e->net_bytes = (u32)ctx->ret;
 
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
     if (pd) {
@@ -1448,12 +1447,12 @@ int tracepoint__syscalls__sys_exit_accept(struct trace_event_raw_sys_exit *ctx) 
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
 
+    fill_from_exit_meta(e, pid_tgid, &meta);
+    e->retval = ctx->ret;
+
     if (meta.addr_ptr && ctx->ret >= 0) {
         fill_network_endpoint(e, (void *)meta.addr_ptr, NET_DIR_INCOMING, 0);
     }
-
-    fill_from_exit_meta(e, pid_tgid, &meta);
-    e->retval = ctx->ret;
 
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
     if (pd) {
@@ -1505,12 +1504,12 @@ int tracepoint__syscalls__sys_exit_accept4(struct trace_event_raw_sys_exit *ctx)
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) return 0;
 
+    fill_from_exit_meta(e, pid_tgid, &meta);
+    e->retval = ctx->ret;
+
     if (meta.addr_ptr && ctx->ret >= 0) {
         fill_network_endpoint(e, (void *)meta.addr_ptr, NET_DIR_INCOMING, 0);
     }
-
-    fill_from_exit_meta(e, pid_tgid, &meta);
-    e->retval = ctx->ret;
 
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
     if (pd) {
