@@ -10,24 +10,47 @@ const props = defineProps<{
 
 const processSearch = ref('');
 const processViewMode = ref<'flat' | 'tree' | 'merged'>('flat');
+const userFilter = ref<string>('');
+const userFilterMode = ref<'include' | 'exclude'>('include');
+
+const allUsers = computed(() => {
+  const users = new Set<string>();
+  props.processes.forEach(p => { if (p.user) users.add(p.user); });
+  return Array.from(users).sort();
+});
 
 const processColumns = [
-  { title: 'PID', dataIndex: 'pid', key: 'pid', width: 100, sorter: (a: any, b: any) => a.pid - b.pid },
+  { title: 'PID', dataIndex: 'pid', key: 'pid', width: 100, sorter: (a: any, b: any) => (a.pid ?? 0) - (b.pid ?? 0) },
   { title: 'Name', dataIndex: 'name', key: 'name', sorter: (a: any, b: any) => a.name.localeCompare(b.name) },
-  { title: 'CPU %', dataIndex: 'cpu', key: 'cpu', width: 90, align: 'right', sorter: (a: any, b: any) => a.cpu - b.cpu },
-  { title: 'Mem %', dataIndex: 'mem', key: 'mem', width: 90, align: 'right', sorter: (a: any, b: any) => a.mem - b.mem },
-  { title: 'GPU Util', dataIndex: 'gpuUtil', key: 'gpuUtil', width: 90, align: 'right', sorter: (a: any, b: any) => a.gpuUtil - b.gpuUtil },
-  { title: 'VRAM', dataIndex: 'gpuMem', key: 'gpuMem', width: 90, align: 'right', sorter: (a: any, b: any) => a.gpuMem - b.gpuMem },
-  { title: 'User', dataIndex: 'user', key: 'user', width: 100 },
-  { title: 'Action', key: 'action', width: 260, align: 'right' },
+  { title: 'CPU %', dataIndex: 'cpu', key: 'cpu', width: 90, align: 'right' as const, sorter: (a: any, b: any) => (a.cpu ?? 0) - (b.cpu ?? 0), defaultSortOrder: 'descend' as const },
+  { title: 'Mem %', dataIndex: 'mem', key: 'mem', width: 90, align: 'right' as const, sorter: (a: any, b: any) => (a.mem ?? 0) - (b.mem ?? 0) },
+  { title: 'GPU Util', dataIndex: 'gpuUtil', key: 'gpuUtil', width: 90, align: 'right' as const, sorter: (a: any, b: any) => (a.gpuUtil ?? 0) - (b.gpuUtil ?? 0) },
+  { title: 'VRAM', dataIndex: 'gpuMem', key: 'gpuMem', width: 90, align: 'right' as const, sorter: (a: any, b: any) => (a.gpuMem ?? 0) - (b.gpuMem ?? 0) },
+  { title: 'User', dataIndex: 'user', key: 'user', width: 100, sorter: (a: any, b: any) => a.user.localeCompare(b.user) },
+  { title: 'Action', key: 'action', width: 260, align: 'right' as const },
 ];
 
 const processedProcesses = computed(() => {
-  let list = props.processes.map(p => ({ ...p, key: p.pid }));
+  let list = props.processes.map(p => ({
+    ...p,
+    cpu: p.cpu ?? 0,
+    mem: p.mem ?? 0,
+    gpuUtil: p.gpuUtil ?? 0,
+    gpuMem: p.gpuMem ?? 0,
+    key: p.pid
+  }));
 
   if (processSearch.value) {
     const q = processSearch.value.toLowerCase();
     list = list.filter(p => p.name.toLowerCase().includes(q) || p.pid.toString().includes(q) || (p.cmdline && p.cmdline.toLowerCase().includes(q)));
+  }
+
+  if (userFilter.value) {
+    if (userFilterMode.value === 'include') {
+      list = list.filter(p => p.user === userFilter.value);
+    } else {
+      list = list.filter(p => p.user !== userFilter.value);
+    }
   }
 
   if (processViewMode.value === 'merged') {
@@ -82,18 +105,27 @@ const onKill = (record: any) => {
 
 <template>
   <div style="background: #fff; padding: 20px; border-radius: 4px;">
-    <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 16px;">
-      <a-space>
+    <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+      <a-space wrap>
         <a-radio-group v-model:value="processViewMode" button-style="solid" size="small">
           <a-radio-button value="flat">Flat</a-radio-button>
           <a-radio-button value="tree">Tree</a-radio-button>
           <a-radio-button value="merged">Merged</a-radio-button>
         </a-radio-group>
-        <a-input-search v-model:value="processSearch" placeholder="Search processes (name/PID/cmd)..." style="width: 300px" size="small" allow-clear />
+        <a-input-search v-model:value="processSearch" placeholder="Search (name/PID/cmd)..." style="width: 260px" size="small" allow-clear />
+        <a-select v-model:value="userFilterMode" size="small" style="width: 80px;">
+          <a-select-option value="include">User =</a-select-option>
+          <a-select-option value="exclude">User ≠</a-select-option>
+        </a-select>
+        <a-select v-model:value="userFilter" size="small" style="width: 140px;" placeholder="All users" allow-clear show-search>
+          <a-select-option v-for="u in allUsers" :key="u" :value="u">{{ u }}</a-select-option>
+        </a-select>
       </a-space>
       <span style="font-size: 12px; color: #888;">Total: {{ processes.length }} processes</span>
     </div>
-    <a-table :dataSource="processedProcesses" :columns="processColumns" size="small" rowKey="key" :scroll="{ y: 'calc(100vh - 420px)' }" :pagination="false">
+    <a-table :dataSource="processedProcesses" :columns="processColumns" size="small" rowKey="key"
+      :scroll="{ y: 'calc(100vh - 420px)' }" :pagination="false"
+      :showSorterTooltip="false">
       <template #bodyCell="{ column, record, text }">
         <template v-if="column.key === 'pid'">
           <span v-if="record.key && typeof record.key === 'string' && record.key.startsWith('group-')" style="color: #888;">Multiple</span>

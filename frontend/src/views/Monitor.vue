@@ -199,7 +199,7 @@ onUnmounted(() => {
                 @update:mergeFaultProcesses="mergeFaultProcesses = $event" />
             </a-tab-pane>
             <a-tab-pane key="gpu" tab="GPU">
-              <HealthGpu :gpus="gpus" />
+              <HealthGpu :gpus="gpus" :statsHistory="statsHistory" :openHistoryChart="openHistoryChart" />
             </a-tab-pane>
           </a-tabs>
         </div>

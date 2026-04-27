@@ -63,6 +63,7 @@ export interface StatsHistory {
   faults: { time: number; value: number }[];
   swapIn: { time: number; value: number }[];
   swapOut: { time: number; value: number }[];
+  gpus: Record<number, { util: { time: number; value: number }[]; mem: { time: number; value: number }[] }>;
   netDevices: Record<string, { recv: { time: number; value: number }[]; sent: { time: number; value: number }[] }>;
   diskDevices: Record<string, { read: { time: number; value: number }[]; write: { time: number; value: number }[] }>;
 }
@@ -71,7 +72,7 @@ function createEmptyHistory(): StatsHistory {
   return {
     cpu: [], cores: {}, mem: [], memUsed: [], memCached: [], memBuffers: [],
     swapUsage: [], zramUsage: [], netRecv: [], netSent: [], diskRead: [], diskWrite: [],
-    faults: [], swapIn: [], swapOut: [], netDevices: {}, diskDevices: {}
+    faults: [], swapIn: [], swapOut: [], gpus: {}, netDevices: {}, diskDevices: {}
   };
 }
 
@@ -206,6 +207,15 @@ export function useMonitorData() {
 
       const now = Date.now();
       statsHistory.value.cpu.push({ time: now, value: systemStats.value.cpuTotal });
+
+      gpus.value.forEach(gpu => {
+        if (!statsHistory.value.gpus[gpu.index]) statsHistory.value.gpus[gpu.index] = { util: [], mem: [] };
+        const gh = statsHistory.value.gpus[gpu.index];
+        gh.util.push({ time: now, value: gpu.utilGpu });
+        gh.mem.push({ time: now, value: gpu.utilMem });
+        if (gh.util.length > 60) gh.util.shift();
+        if (gh.mem.length > 60) gh.mem.shift();
+      });
 
       systemStats.value.cpuCoresDetailed.forEach(core => {
         if (!statsHistory.value.cores[core.index]) statsHistory.value.cores[core.index] = [];
