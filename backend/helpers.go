@@ -19,6 +19,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/protobuf/proto"
 )
 
 const hookMarker = "agent-ebpf-hook-active"
@@ -602,5 +603,31 @@ func refreshHooksPaths() {
 				availableHooks[i].NativeConfigPath = filepath.Join(home, ".copilot", "config.json")
 			}
 		}
+	}
+}
+
+// ── Proto response negotiation ─────────────────────────────────────────
+
+func clientPrefersProto(c *gin.Context) bool {
+	accept := c.GetHeader("Accept")
+	return strings.Contains(accept, "application/x-protobuf") || strings.Contains(accept, "application/protobuf")
+}
+
+func writeProtoResponse(c *gin.Context, code int, msg proto.Message) {
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "proto marshal failed"})
+		return
+	}
+	c.Data(code, "application/x-protobuf", data)
+}
+
+// writeProtoOrJSON sends a protobuf response if the client prefers it, otherwise JSON.
+// jsonData should be a value compatible with gin's c.JSON().
+func writeProtoOrJSON(c *gin.Context, code int, msg proto.Message, jsonData interface{}) {
+	if clientPrefersProto(c) {
+		writeProtoResponse(c, code, msg)
+	} else {
+		c.JSON(code, jsonData)
 	}
 }

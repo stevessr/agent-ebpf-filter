@@ -1,6 +1,7 @@
 import { ref, computed, watch } from 'vue';
 import axios from 'axios';
 import { buildWebSocketUrl } from '../utils/requestContext';
+import { pb } from '../pb/tracker_pb.js';
 
 export function useSensors() {
   // Sensor state
@@ -30,10 +31,16 @@ export function useSensors() {
     if (sensorWs) sensorWs.close();
     const wsUrl = buildWebSocketUrl(`/ws/sensors?interval=${sensorInterval.value}`);
     sensorWs = new WebSocket(wsUrl);
+    sensorWs.binaryType = 'arraybuffer';
     sensorWs.onmessage = (e) => {
-      const res = JSON.parse(e.data);
-      const temps = res.temperatures || [];
-      fanData.value = res.fans || [];
+      let temps: any[] = [];
+      let fans: string[] = [];
+      if (e.data instanceof ArrayBuffer) {
+        const snap = pb.SensorsSnapshot.decode(new Uint8Array(e.data));
+        temps = (snap.temperatures || []).map(t => ({ sensorKey: t.key, temperature: t.value }));
+        fans = snap.fans || [];
+      }
+      fanData.value = fans;
       sensorData.value = temps.map((s: any) => ({ ...s, sensorKey: s.sensorKey || s.label, category: getSensorCategory(s.sensorKey || '', s.label || '') }));
       const now = Date.now();
       sensorData.value.forEach(s => {

@@ -251,7 +251,14 @@ func handleSystemdLogs(c *gin.Context) {
 
 func handleSensors(c *gin.Context) {
 	temps, _ := host.SensorsTemperatures()
-	c.JSON(200, gin.H{"temperatures": temps, "fans": []string{}})
+	snap := &pb.SensorsSnapshot{Fans: []string{}}
+	for _, t := range temps {
+		snap.Temperatures = append(snap.Temperatures, &pb.SensorReading{
+			Key:   t.SensorKey,
+			Value: t.Temperature,
+		})
+	}
+	writeProtoOrJSON(c, 200, snap, gin.H{"temperatures": temps, "fans": []string{}})
 }
 
 func handleCameras(c *gin.Context) {
@@ -483,8 +490,11 @@ func serveSensorsWS(c *gin.Context) {
 		case <-ticker.C:
 			temps, _ := host.SensorsTemperatures()
 			snap := &pb.SensorsSnapshot{Fans: []string{}}
-			for k, v := range temps {
-				snap.Temperatures = append(snap.Temperatures, &pb.SensorReading{Key: k, Value: v})
+			for _, t := range temps {
+				snap.Temperatures = append(snap.Temperatures, &pb.SensorReading{
+					Key:   t.SensorKey,
+					Value: t.Temperature,
+				})
 			}
 			data, _ := proto.Marshal(snap)
 			if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {

@@ -53,6 +53,22 @@ export const buildRequestHeaders = () => {
   return headers;
 };
 
+import axios from 'axios';
+
+// Proto-aware fetch: requests protobuf binary, decodes with provided decode function.
+// Falls back to JSON if the server doesn't support proto.
+export const fetchProto = async <T>(url: string, decode: (data: Uint8Array) => T): Promise<T> => {
+  const headers = buildRequestHeaders();
+  headers['Accept'] = 'application/x-protobuf, application/json;q=0.9';
+  const res = await axios.get(url, { headers, responseType: 'arraybuffer' });
+  if (res.headers['content-type']?.includes('application/x-protobuf')) {
+    return decode(new Uint8Array(res.data));
+  }
+  // Backward-compatible JSON fallback
+  const text = new TextDecoder().decode(res.data);
+  return JSON.parse(text) as T;
+};
+
 export const buildWebSocketUrl = (path: string, params: Record<string, string | number | undefined> = {}) => {
   if (!isClient()) {
     return path;

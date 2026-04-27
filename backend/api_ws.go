@@ -106,5 +106,13 @@ func handleRecentEvents(c *gin.Context) {
 		}
 		records = filtered
 	}
-	c.JSON(http.StatusOK, gin.H{"source": source, "events": records})
+
+	resp := &pb.EventHistoryResponse{Source: source}
+	for _, r := range records {
+		resp.Events = append(resp.Events, &pb.CapturedEventRecord{
+			Event:     r.Event,
+			Timestamp: r.ReceivedAt.UnixMilli(),
+		})
+	}
+	writeProtoOrJSON(c, http.StatusOK, resp, gin.H{"source": source, "events": records})
 }

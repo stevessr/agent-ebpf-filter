@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"agent-ebpf-filter/pb"
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,7 +20,7 @@ func handleConfigTagsGet(c *gin.Context) {
 	for _, n := range tagMap {
 		t = append(t, n)
 	}
-	c.JSON(200, t)
+	writeProtoOrJSON(c, 200, &pb.ConfigTagList{Names: t}, t)
 }
 
 func handleConfigTagsPost(c *gin.Context) {
@@ -33,13 +34,17 @@ func handleConfigTagsPost(c *gin.Context) {
 
 func handleConfigCommsGet(c *gin.Context) {
 	items := []gin.H{}
+	list := &pb.TrackedCommList{}
 	iter := trackerMaps.TrackedComms.Iterate()
 	var k [16]byte
 	var tid uint32
 	for iter.Next(&k, &tid) {
-		items = append(items, gin.H{"comm": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)})
+		comm := string(bytes.TrimRight(k[:], "\x00"))
+		tag := getTagName(tid)
+		items = append(items, gin.H{"comm": comm, "tag": tag})
+		list.Items = append(list.Items, &pb.TrackedComm{Comm: comm, Tag: tag})
 	}
-	c.JSON(200, items)
+	writeProtoOrJSON(c, 200, list, items)
 }
 
 func handleConfigCommsPost(c *gin.Context) {
@@ -63,13 +68,17 @@ func handleConfigCommsDelete(c *gin.Context) {
 
 func handleConfigPathsGet(c *gin.Context) {
 	items := []gin.H{}
+	list := &pb.TrackedPathList{}
 	iter := trackerMaps.TrackedPaths.Iterate()
 	var k [256]byte
 	var tid uint32
 	for iter.Next(&k, &tid) {
-		items = append(items, gin.H{"path": string(bytes.TrimRight(k[:], "\x00")), "tag": getTagName(tid)})
+		path := string(bytes.TrimRight(k[:], "\x00"))
+		tag := getTagName(tid)
+		items = append(items, gin.H{"path": path, "tag": tag})
+		list.Items = append(list.Items, &pb.TrackedPath{Path: path, Tag: tag})
 	}
-	c.JSON(200, items)
+	writeProtoOrJSON(c, 200, list, items)
 }
 
 func handleConfigPathsPost(c *gin.Context) {
@@ -97,8 +106,9 @@ func handleConfigPathsDelete(c *gin.Context) {
 
 func handleConfigPrefixesGet(c *gin.Context) {
 	items := []gin.H{}
+	list := &pb.TrackedPrefixList{}
 	if trackerMaps.TrackedPrefixes == nil {
-		c.JSON(200, items)
+		writeProtoOrJSON(c, 200, list, items)
 		return
 	}
 	iter := trackerMaps.TrackedPrefixes.Iterate()
@@ -113,9 +123,11 @@ func handleConfigPrefixesGet(c *gin.Context) {
 		if prefixLen > 0 && uint32(len(prefix)) > prefixLen {
 			prefix = prefix[:prefixLen]
 		}
-		items = append(items, gin.H{"prefix": prefix, "tag": getTagName(tid)})
+		tag := getTagName(tid)
+		items = append(items, gin.H{"prefix": prefix, "tag": tag})
+		list.Items = append(list.Items, &pb.TrackedPrefix{Prefix: prefix, Tag: tag})
 	}
-	c.JSON(200, items)
+	writeProtoOrJSON(c, 200, list, items)
 }
 
 func handleConfigPrefixesPost(c *gin.Context) {
@@ -165,7 +177,18 @@ func handleConfigPrefixesDelete(c *gin.Context) {
 func handleConfigRulesGet(c *gin.Context) {
 	rulesMu.RLock()
 	defer rulesMu.RUnlock()
-	c.JSON(200, wrapperRules)
+	list := &pb.WrapperRuleList{}
+	for _, r := range wrapperRules {
+		list.Items = append(list.Items, &pb.WrapperRule{
+			Comm:        r.Comm,
+			Action:      r.Action,
+			RewrittenCmd: r.RewrittenCmd,
+			Regex:       r.Regex,
+			Replacement: r.Replacement,
+			Priority:    int32(r.Priority),
+		})
+	}
+	writeProtoOrJSON(c, 200, list, wrapperRules)
 }
 
 func handleConfigRulesPost(c *gin.Context) {
@@ -188,7 +211,22 @@ func handleConfigRulesDelete(c *gin.Context) {
 }
 
 func handleConfigRuntimeGet(c *gin.Context) {
-	c.JSON(http.StatusOK, buildRuntimeConfigResponse())
+	rc := buildRuntimeConfigResponse()
+	protoResp := &pb.RuntimeConfigResponse{
+		Runtime: &pb.RuntimeSettings{
+			LogPersistenceEnabled: rc.Runtime.LogPersistenceEnabled,
+			LogFilePath:           rc.Runtime.LogFilePath,
+			AccessToken:           rc.Runtime.AccessToken,
+			MaxEventCount:         int32(rc.Runtime.MaxEventCount),
+			MaxEventAge:           rc.Runtime.MaxEventAge,
+		},
+		McpEndpoint:            rc.MCPEndpoint,
+		AuthHeaderName:         rc.AuthHeaderName,
+		BearerAuthHeaderName:   rc.BearerAuthHeaderName,
+		PersistedEventLogPath:  rc.PersistedEventLogPath,
+		PersistedEventLogAlive: rc.PersistedEventLogAlive,
+	}
+	writeProtoOrJSON(c, http.StatusOK, protoResp, rc)
 }
 
 func handleConfigRuntimePut(c *gin.Context) {
@@ -245,7 +283,39 @@ func handleConfigExportGet(c *gin.Context) {
 		cfg.Rules[comm] = rule
 	}
 	rulesMu.RUnlock()
-	c.JSON(200, cfg)
+
+	protoCfg := &pb.ExportConfigData{
+		Tags: cfg.Tags,
+		Comms: make([]*pb.TrackedComm, 0, len(cfg.Comms)),
+		Paths: make([]*pb.TrackedPath, 0, len(cfg.Paths)),
+		Rules: make([]*pb.WrapperRule, 0, len(cfg.Rules)),
+	}
+	for comm, tag := range cfg.Comms {
+		protoCfg.Comms = append(protoCfg.Comms, &pb.TrackedComm{Comm: comm, Tag: tag})
+	}
+	for path, tag := range cfg.Paths {
+		protoCfg.Paths = append(protoCfg.Paths, &pb.TrackedPath{Path: path, Tag: tag})
+	}
+	for _, rule := range cfg.Rules {
+		protoCfg.Rules = append(protoCfg.Rules, &pb.WrapperRule{
+			Comm:        rule.Comm,
+			Action:      rule.Action,
+			RewrittenCmd: rule.RewrittenCmd,
+			Regex:       rule.Regex,
+			Replacement: rule.Replacement,
+			Priority:    int32(rule.Priority),
+		})
+	}
+	if cfg.Runtime != nil {
+		protoCfg.Runtime = &pb.RuntimeSettings{
+			LogPersistenceEnabled: cfg.Runtime.LogPersistenceEnabled,
+			LogFilePath:           cfg.Runtime.LogFilePath,
+			AccessToken:           cfg.Runtime.AccessToken,
+			MaxEventCount:         int32(cfg.Runtime.MaxEventCount),
+			MaxEventAge:           cfg.Runtime.MaxEventAge,
+		}
+	}
+	writeProtoOrJSON(c, 200, protoCfg, cfg)
 }
 
 func handleConfigImportPost(c *gin.Context) {
