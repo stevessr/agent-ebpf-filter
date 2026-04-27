@@ -7,7 +7,7 @@ const routes = [
     component: () => import('../views/Dashboard.vue'),
   },
   {
-    path: '/monitor/:tab?',
+    path: '/monitor/:tab?/:subtab?',
     name: 'Monitor',
     component: () => import('../views/Monitor.vue'),
   },
