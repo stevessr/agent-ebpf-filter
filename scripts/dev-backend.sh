@@ -1,19 +1,25 @@
 #!/bin/bash
 # Auto-reload script with eBPF-aware hot-reload and privilege handling
+# On startup: always clean old BPF pins to force a fresh bootstrap
+# On shutdown: clean BPF pins so no stale state lingers
 
 BACKEND_DIR="backend"
 WRAPPER_PATH="$(pwd)/agent-wrapper"
-BPF_C_FILE="backend/ebpf/agent_tracker.c"
-BPF_CHECKSUM_FILE=".bpf_checksum"
+BPF_PIN_ROOT="/sys/fs/bpf/agent-ebpf"
 
-trap "echo 'Stopping...'; [ -n \"$PID\" ] && sudo kill $PID; exit" SIGINT SIGTERM
+cleanup() {
+    echo "--- [Dev] Shutting down ---"
+    [ -n "$PID" ] && sudo kill $PID 2>/dev/null
+    wait $PID 2>/dev/null
+    echo "--- [Dev] Cleaning BPF pins ---"
+    sudo rm -rf "$BPF_PIN_ROOT" 2>/dev/null
+    exit
+}
+
+trap cleanup SIGINT SIGTERM
 
 get_checksum() {
     find "$BACKEND_DIR" proto/ \( -name "*.go" -o -name "*.c" -o -name "*.h" -o -name "*.proto" \) -exec md5sum {} + 2>/dev/null | md5sum
-}
-
-get_bpf_checksum() {
-    [ -f "$BPF_C_FILE" ] && md5sum "$BPF_C_FILE" | awk '{print $1}'
 }
 
 while true; do
@@ -23,19 +29,9 @@ while true; do
         find backend/ebpf/ -name "agenttracker_bpf*" -user root -exec sudo rm -f {} +
     fi
 
-    # When the eBPF C source changes, wipe old BPF pins to force fresh bootstrap
-    CURRENT_BPF_SUM=$(get_bpf_checksum)
-    SAVED_BPF_SUM=$(cat "$BPF_CHECKSUM_FILE" 2>/dev/null)
-
-    if [ -n "$CURRENT_BPF_SUM" ] && [ "$CURRENT_BPF_SUM" != "$SAVED_BPF_SUM" ]; then
-        if [ -n "$SAVED_BPF_SUM" ]; then
-            echo "--- [Dev] eBPF C code changed, flushing old BPF pins ---"
-        else
-            echo "--- [Dev] First run or new eBPF code, cleaning BPF pins ---"
-        fi
-        sudo rm -rf /sys/fs/bpf/agent-ebpf 2>/dev/null
-        echo "$CURRENT_BPF_SUM" > "$BPF_CHECKSUM_FILE"
-    fi
+    # Always wipe old BPF pins on startup to force a fresh eBPF bootstrap
+    echo "--- [Dev] Cleaning old BPF pins for fresh bootstrap ---"
+    sudo rm -rf "$BPF_PIN_ROOT" 2>/dev/null
 
     echo "--- [Dev] Building Backend ---"
     (cd backend/ebpf && go generate) && (cd backend && go build -o agent-ebpf-filter .)
