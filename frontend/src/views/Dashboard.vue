@@ -260,12 +260,20 @@ const categoryTabs = [
   { key: 'hook', label: '钩子' },
 ] as const;
 
-const activeTab = computed(() => {
+const activeTab = ref<string>('all');
+
+const syncTabFromRoute = () => {
   const tab = route.params.tab as string | undefined;
-  return tab && categoryTabs.some(t => t.key === tab) ? tab : 'all';
-});
+  const resolved = tab && categoryTabs.some(t => t.key === tab) ? tab : 'all';
+  if (activeTab.value !== resolved) {
+    activeTab.value = resolved;
+  }
+};
+
+syncTabFromRoute();
 
 const onTabChange = (key: string) => {
+  activeTab.value = key;
   router.push(key === 'all' ? '/dashboard' : `/dashboard/${key}`);
 };
 
@@ -538,6 +546,13 @@ const clearHeaderFilter = (key: string | number | symbol) => {
 watch([selectedTags, selectedTypes, timeFilter, pidFilter, commandFilter, pathFilter, isDeduplicated, hideUnknown], () => {
   if (showAllRows.value) return;
   currentPage.value = 1;
+});
+
+watch(() => route.params.tab, () => {
+  syncTabFromRoute();
+  if (!showAllRows.value) {
+    currentPage.value = 1;
+  }
 });
 
 watch(streamDirection, (direction) => {
