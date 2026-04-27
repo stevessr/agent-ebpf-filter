@@ -944,6 +944,36 @@ export namespace pb {
 
         /** GPUStatus temp */
         temp?: (number|null);
+
+        /** GPUStatus encUtil */
+        encUtil?: (number|null);
+
+        /** GPUStatus decUtil */
+        decUtil?: (number|null);
+
+        /** GPUStatus smClockMhz */
+        smClockMhz?: (number|null);
+
+        /** GPUStatus memClockMhz */
+        memClockMhz?: (number|null);
+
+        /** GPUStatus gfxClockMhz */
+        gfxClockMhz?: (number|null);
+
+        /** GPUStatus powerW */
+        powerW?: (number|null);
+
+        /** GPUStatus powerLimitW */
+        powerLimitW?: (number|null);
+
+        /** GPUStatus fanSpeed */
+        fanSpeed?: (number|null);
+
+        /** GPUStatus pcieGen */
+        pcieGen?: (number|null);
+
+        /** GPUStatus pcieWidth */
+        pcieWidth?: (number|null);
     }
 
     /** Represents a GPUStatus. */
@@ -975,6 +1005,36 @@ export namespace pb {
 
         /** GPUStatus temp. */
         public temp: number;
+
+        /** GPUStatus encUtil. */
+        public encUtil: number;
+
+        /** GPUStatus decUtil. */
+        public decUtil: number;
+
+        /** GPUStatus smClockMhz. */
+        public smClockMhz: number;
+
+        /** GPUStatus memClockMhz. */
+        public memClockMhz: number;
+
+        /** GPUStatus gfxClockMhz. */
+        public gfxClockMhz: number;
+
+        /** GPUStatus powerW. */
+        public powerW: number;
+
+        /** GPUStatus powerLimitW. */
+        public powerLimitW: number;
+
+        /** GPUStatus fanSpeed. */
+        public fanSpeed: number;
+
+        /** GPUStatus pcieGen. */
+        public pcieGen: number;
+
+        /** GPUStatus pcieWidth. */
+        public pcieWidth: number;
 
         /**
          * Creates a new GPUStatus instance using the specified properties.

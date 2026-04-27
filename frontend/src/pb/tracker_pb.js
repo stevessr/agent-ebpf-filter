@@ -2558,6 +2558,16 @@ export const pb = $root.pb = (() => {
          * @property {number|null} [memTotal] GPUStatus memTotal
          * @property {number|null} [memUsed] GPUStatus memUsed
          * @property {number|null} [temp] GPUStatus temp
+         * @property {number|null} [encUtil] GPUStatus encUtil
+         * @property {number|null} [decUtil] GPUStatus decUtil
+         * @property {number|null} [smClockMhz] GPUStatus smClockMhz
+         * @property {number|null} [memClockMhz] GPUStatus memClockMhz
+         * @property {number|null} [gfxClockMhz] GPUStatus gfxClockMhz
+         * @property {number|null} [powerW] GPUStatus powerW
+         * @property {number|null} [powerLimitW] GPUStatus powerLimitW
+         * @property {number|null} [fanSpeed] GPUStatus fanSpeed
+         * @property {number|null} [pcieGen] GPUStatus pcieGen
+         * @property {number|null} [pcieWidth] GPUStatus pcieWidth
          */
 
         /**
@@ -2632,6 +2642,86 @@ export const pb = $root.pb = (() => {
         GPUStatus.prototype.temp = 0;
 
         /**
+         * GPUStatus encUtil.
+         * @member {number} encUtil
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.encUtil = 0;
+
+        /**
+         * GPUStatus decUtil.
+         * @member {number} decUtil
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.decUtil = 0;
+
+        /**
+         * GPUStatus smClockMhz.
+         * @member {number} smClockMhz
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.smClockMhz = 0;
+
+        /**
+         * GPUStatus memClockMhz.
+         * @member {number} memClockMhz
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.memClockMhz = 0;
+
+        /**
+         * GPUStatus gfxClockMhz.
+         * @member {number} gfxClockMhz
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.gfxClockMhz = 0;
+
+        /**
+         * GPUStatus powerW.
+         * @member {number} powerW
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.powerW = 0;
+
+        /**
+         * GPUStatus powerLimitW.
+         * @member {number} powerLimitW
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.powerLimitW = 0;
+
+        /**
+         * GPUStatus fanSpeed.
+         * @member {number} fanSpeed
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.fanSpeed = 0;
+
+        /**
+         * GPUStatus pcieGen.
+         * @member {number} pcieGen
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.pcieGen = 0;
+
+        /**
+         * GPUStatus pcieWidth.
+         * @member {number} pcieWidth
+         * @memberof pb.GPUStatus
+         * @instance
+         */
+        GPUStatus.prototype.pcieWidth = 0;
+
+        /**
          * Creates a new GPUStatus instance using the specified properties.
          * @function create
          * @memberof pb.GPUStatus
@@ -2669,6 +2759,26 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 6, wireType 0 =*/48).uint32(message.memUsed);
             if (message.temp != null && Object.hasOwnProperty.call(message, "temp"))
                 writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.temp);
+            if (message.encUtil != null && Object.hasOwnProperty.call(message, "encUtil"))
+                writer.uint32(/* id 8, wireType 0 =*/64).uint32(message.encUtil);
+            if (message.decUtil != null && Object.hasOwnProperty.call(message, "decUtil"))
+                writer.uint32(/* id 9, wireType 0 =*/72).uint32(message.decUtil);
+            if (message.smClockMhz != null && Object.hasOwnProperty.call(message, "smClockMhz"))
+                writer.uint32(/* id 10, wireType 0 =*/80).uint32(message.smClockMhz);
+            if (message.memClockMhz != null && Object.hasOwnProperty.call(message, "memClockMhz"))
+                writer.uint32(/* id 11, wireType 0 =*/88).uint32(message.memClockMhz);
+            if (message.gfxClockMhz != null && Object.hasOwnProperty.call(message, "gfxClockMhz"))
+                writer.uint32(/* id 12, wireType 0 =*/96).uint32(message.gfxClockMhz);
+            if (message.powerW != null && Object.hasOwnProperty.call(message, "powerW"))
+                writer.uint32(/* id 13, wireType 0 =*/104).uint32(message.powerW);
+            if (message.powerLimitW != null && Object.hasOwnProperty.call(message, "powerLimitW"))
+                writer.uint32(/* id 14, wireType 0 =*/112).uint32(message.powerLimitW);
+            if (message.fanSpeed != null && Object.hasOwnProperty.call(message, "fanSpeed"))
+                writer.uint32(/* id 15, wireType 0 =*/120).uint32(message.fanSpeed);
+            if (message.pcieGen != null && Object.hasOwnProperty.call(message, "pcieGen"))
+                writer.uint32(/* id 16, wireType 0 =*/128).int32(message.pcieGen);
+            if (message.pcieWidth != null && Object.hasOwnProperty.call(message, "pcieWidth"))
+                writer.uint32(/* id 17, wireType 0 =*/136).int32(message.pcieWidth);
             return writer;
         };
 
@@ -2733,6 +2843,46 @@ export const pb = $root.pb = (() => {
                         message.temp = reader.uint32();
                         break;
                     }
+                case 8: {
+                        message.encUtil = reader.uint32();
+                        break;
+                    }
+                case 9: {
+                        message.decUtil = reader.uint32();
+                        break;
+                    }
+                case 10: {
+                        message.smClockMhz = reader.uint32();
+                        break;
+                    }
+                case 11: {
+                        message.memClockMhz = reader.uint32();
+                        break;
+                    }
+                case 12: {
+                        message.gfxClockMhz = reader.uint32();
+                        break;
+                    }
+                case 13: {
+                        message.powerW = reader.uint32();
+                        break;
+                    }
+                case 14: {
+                        message.powerLimitW = reader.uint32();
+                        break;
+                    }
+                case 15: {
+                        message.fanSpeed = reader.uint32();
+                        break;
+                    }
+                case 16: {
+                        message.pcieGen = reader.int32();
+                        break;
+                    }
+                case 17: {
+                        message.pcieWidth = reader.int32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -2789,6 +2939,36 @@ export const pb = $root.pb = (() => {
             if (message.temp != null && message.hasOwnProperty("temp"))
                 if (!$util.isInteger(message.temp))
                     return "temp: integer expected";
+            if (message.encUtil != null && message.hasOwnProperty("encUtil"))
+                if (!$util.isInteger(message.encUtil))
+                    return "encUtil: integer expected";
+            if (message.decUtil != null && message.hasOwnProperty("decUtil"))
+                if (!$util.isInteger(message.decUtil))
+                    return "decUtil: integer expected";
+            if (message.smClockMhz != null && message.hasOwnProperty("smClockMhz"))
+                if (!$util.isInteger(message.smClockMhz))
+                    return "smClockMhz: integer expected";
+            if (message.memClockMhz != null && message.hasOwnProperty("memClockMhz"))
+                if (!$util.isInteger(message.memClockMhz))
+                    return "memClockMhz: integer expected";
+            if (message.gfxClockMhz != null && message.hasOwnProperty("gfxClockMhz"))
+                if (!$util.isInteger(message.gfxClockMhz))
+                    return "gfxClockMhz: integer expected";
+            if (message.powerW != null && message.hasOwnProperty("powerW"))
+                if (!$util.isInteger(message.powerW))
+                    return "powerW: integer expected";
+            if (message.powerLimitW != null && message.hasOwnProperty("powerLimitW"))
+                if (!$util.isInteger(message.powerLimitW))
+                    return "powerLimitW: integer expected";
+            if (message.fanSpeed != null && message.hasOwnProperty("fanSpeed"))
+                if (!$util.isInteger(message.fanSpeed))
+                    return "fanSpeed: integer expected";
+            if (message.pcieGen != null && message.hasOwnProperty("pcieGen"))
+                if (!$util.isInteger(message.pcieGen))
+                    return "pcieGen: integer expected";
+            if (message.pcieWidth != null && message.hasOwnProperty("pcieWidth"))
+                if (!$util.isInteger(message.pcieWidth))
+                    return "pcieWidth: integer expected";
             return null;
         };
 
@@ -2818,6 +2998,26 @@ export const pb = $root.pb = (() => {
                 message.memUsed = object.memUsed >>> 0;
             if (object.temp != null)
                 message.temp = object.temp >>> 0;
+            if (object.encUtil != null)
+                message.encUtil = object.encUtil >>> 0;
+            if (object.decUtil != null)
+                message.decUtil = object.decUtil >>> 0;
+            if (object.smClockMhz != null)
+                message.smClockMhz = object.smClockMhz >>> 0;
+            if (object.memClockMhz != null)
+                message.memClockMhz = object.memClockMhz >>> 0;
+            if (object.gfxClockMhz != null)
+                message.gfxClockMhz = object.gfxClockMhz >>> 0;
+            if (object.powerW != null)
+                message.powerW = object.powerW >>> 0;
+            if (object.powerLimitW != null)
+                message.powerLimitW = object.powerLimitW >>> 0;
+            if (object.fanSpeed != null)
+                message.fanSpeed = object.fanSpeed >>> 0;
+            if (object.pcieGen != null)
+                message.pcieGen = object.pcieGen | 0;
+            if (object.pcieWidth != null)
+                message.pcieWidth = object.pcieWidth | 0;
             return message;
         };
 
@@ -2842,6 +3042,16 @@ export const pb = $root.pb = (() => {
                 object.memTotal = 0;
                 object.memUsed = 0;
                 object.temp = 0;
+                object.encUtil = 0;
+                object.decUtil = 0;
+                object.smClockMhz = 0;
+                object.memClockMhz = 0;
+                object.gfxClockMhz = 0;
+                object.powerW = 0;
+                object.powerLimitW = 0;
+                object.fanSpeed = 0;
+                object.pcieGen = 0;
+                object.pcieWidth = 0;
             }
             if (message.index != null && message.hasOwnProperty("index"))
                 object.index = message.index;
@@ -2857,6 +3067,26 @@ export const pb = $root.pb = (() => {
                 object.memUsed = message.memUsed;
             if (message.temp != null && message.hasOwnProperty("temp"))
                 object.temp = message.temp;
+            if (message.encUtil != null && message.hasOwnProperty("encUtil"))
+                object.encUtil = message.encUtil;
+            if (message.decUtil != null && message.hasOwnProperty("decUtil"))
+                object.decUtil = message.decUtil;
+            if (message.smClockMhz != null && message.hasOwnProperty("smClockMhz"))
+                object.smClockMhz = message.smClockMhz;
+            if (message.memClockMhz != null && message.hasOwnProperty("memClockMhz"))
+                object.memClockMhz = message.memClockMhz;
+            if (message.gfxClockMhz != null && message.hasOwnProperty("gfxClockMhz"))
+                object.gfxClockMhz = message.gfxClockMhz;
+            if (message.powerW != null && message.hasOwnProperty("powerW"))
+                object.powerW = message.powerW;
+            if (message.powerLimitW != null && message.hasOwnProperty("powerLimitW"))
+                object.powerLimitW = message.powerLimitW;
+            if (message.fanSpeed != null && message.hasOwnProperty("fanSpeed"))
+                object.fanSpeed = message.fanSpeed;
+            if (message.pcieGen != null && message.hasOwnProperty("pcieGen"))
+                object.pcieGen = message.pcieGen;
+            if (message.pcieWidth != null && message.hasOwnProperty("pcieWidth"))
+                object.pcieWidth = message.pcieWidth;
             return object;
         };
 

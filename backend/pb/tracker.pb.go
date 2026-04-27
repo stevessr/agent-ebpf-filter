@@ -834,14 +834,25 @@ func (x *Process) GetMajorFaults() uint64 {
 }
 
 type GPUStatus struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Index         uint32                 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	UtilGpu       uint32                 `protobuf:"varint,3,opt,name=util_gpu,json=utilGpu,proto3" json:"util_gpu,omitempty"`
-	UtilMem       uint32                 `protobuf:"varint,4,opt,name=util_mem,json=utilMem,proto3" json:"util_mem,omitempty"`
-	MemTotal      uint32                 `protobuf:"varint,5,opt,name=mem_total,json=memTotal,proto3" json:"mem_total,omitempty"`
-	MemUsed       uint32                 `protobuf:"varint,6,opt,name=mem_used,json=memUsed,proto3" json:"mem_used,omitempty"`
-	Temp          uint32                 `protobuf:"varint,7,opt,name=temp,proto3" json:"temp,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Index    uint32                 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Name     string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	UtilGpu  uint32                 `protobuf:"varint,3,opt,name=util_gpu,json=utilGpu,proto3" json:"util_gpu,omitempty"`
+	UtilMem  uint32                 `protobuf:"varint,4,opt,name=util_mem,json=utilMem,proto3" json:"util_mem,omitempty"`
+	MemTotal uint32                 `protobuf:"varint,5,opt,name=mem_total,json=memTotal,proto3" json:"mem_total,omitempty"`
+	MemUsed  uint32                 `protobuf:"varint,6,opt,name=mem_used,json=memUsed,proto3" json:"mem_used,omitempty"`
+	Temp     uint32                 `protobuf:"varint,7,opt,name=temp,proto3" json:"temp,omitempty"`
+	// NVIDIA detailed engine stats
+	EncUtil       uint32 `protobuf:"varint,8,opt,name=enc_util,json=encUtil,proto3" json:"enc_util,omitempty"`
+	DecUtil       uint32 `protobuf:"varint,9,opt,name=dec_util,json=decUtil,proto3" json:"dec_util,omitempty"`
+	SmClockMhz    uint32 `protobuf:"varint,10,opt,name=sm_clock_mhz,json=smClockMhz,proto3" json:"sm_clock_mhz,omitempty"`
+	MemClockMhz   uint32 `protobuf:"varint,11,opt,name=mem_clock_mhz,json=memClockMhz,proto3" json:"mem_clock_mhz,omitempty"`
+	GfxClockMhz   uint32 `protobuf:"varint,12,opt,name=gfx_clock_mhz,json=gfxClockMhz,proto3" json:"gfx_clock_mhz,omitempty"`
+	PowerW        uint32 `protobuf:"varint,13,opt,name=power_w,json=powerW,proto3" json:"power_w,omitempty"`
+	PowerLimitW   uint32 `protobuf:"varint,14,opt,name=power_limit_w,json=powerLimitW,proto3" json:"power_limit_w,omitempty"`
+	FanSpeed      uint32 `protobuf:"varint,15,opt,name=fan_speed,json=fanSpeed,proto3" json:"fan_speed,omitempty"`
+	PcieGen       int32  `protobuf:"varint,16,opt,name=pcie_gen,json=pcieGen,proto3" json:"pcie_gen,omitempty"`
+	PcieWidth     int32  `protobuf:"varint,17,opt,name=pcie_width,json=pcieWidth,proto3" json:"pcie_width,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -921,6 +932,76 @@ func (x *GPUStatus) GetMemUsed() uint32 {
 func (x *GPUStatus) GetTemp() uint32 {
 	if x != nil {
 		return x.Temp
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetEncUtil() uint32 {
+	if x != nil {
+		return x.EncUtil
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetDecUtil() uint32 {
+	if x != nil {
+		return x.DecUtil
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetSmClockMhz() uint32 {
+	if x != nil {
+		return x.SmClockMhz
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetMemClockMhz() uint32 {
+	if x != nil {
+		return x.MemClockMhz
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetGfxClockMhz() uint32 {
+	if x != nil {
+		return x.GfxClockMhz
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetPowerW() uint32 {
+	if x != nil {
+		return x.PowerW
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetPowerLimitW() uint32 {
+	if x != nil {
+		return x.PowerLimitW
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetFanSpeed() uint32 {
+	if x != nil {
+		return x.FanSpeed
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetPcieGen() int32 {
+	if x != nil {
+		return x.PcieGen
+	}
+	return 0
+}
+
+func (x *GPUStatus) GetPcieWidth() int32 {
+	if x != nil {
+		return x.PcieWidth
 	}
 	return 0
 }
@@ -1978,7 +2059,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\vcreate_time\x18\v \x01(\x03R\n" +
 	"createTime\x12!\n" +
 	"\fminor_faults\x18\f \x01(\x04R\vminorFaults\x12!\n" +
-	"\fmajor_faults\x18\r \x01(\x04R\vmajorFaults\"\xb7\x01\n" +
+	"\fmajor_faults\x18\r \x01(\x04R\vmajorFaults\"\xeb\x03\n" +
 	"\tGPUStatus\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\rR\x05index\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
@@ -1986,7 +2067,20 @@ const file_tracker_proto_rawDesc = "" +
 	"\butil_mem\x18\x04 \x01(\rR\autilMem\x12\x1b\n" +
 	"\tmem_total\x18\x05 \x01(\rR\bmemTotal\x12\x19\n" +
 	"\bmem_used\x18\x06 \x01(\rR\amemUsed\x12\x12\n" +
-	"\x04temp\x18\a \x01(\rR\x04temp\"\x84\x02\n" +
+	"\x04temp\x18\a \x01(\rR\x04temp\x12\x19\n" +
+	"\benc_util\x18\b \x01(\rR\aencUtil\x12\x19\n" +
+	"\bdec_util\x18\t \x01(\rR\adecUtil\x12 \n" +
+	"\fsm_clock_mhz\x18\n" +
+	" \x01(\rR\n" +
+	"smClockMhz\x12\"\n" +
+	"\rmem_clock_mhz\x18\v \x01(\rR\vmemClockMhz\x12\"\n" +
+	"\rgfx_clock_mhz\x18\f \x01(\rR\vgfxClockMhz\x12\x17\n" +
+	"\apower_w\x18\r \x01(\rR\x06powerW\x12\"\n" +
+	"\rpower_limit_w\x18\x0e \x01(\rR\vpowerLimitW\x12\x1b\n" +
+	"\tfan_speed\x18\x0f \x01(\rR\bfanSpeed\x12\x19\n" +
+	"\bpcie_gen\x18\x10 \x01(\x05R\apcieGen\x12\x1d\n" +
+	"\n" +
+	"pcie_width\x18\x11 \x01(\x05R\tpcieWidth\"\x84\x02\n" +
 	"\aCPUInfo\x12\x14\n" +
 	"\x05total\x18\x01 \x01(\x01R\x05total\x12\x14\n" +
 	"\x05cores\x18\x02 \x03(\x01R\x05cores\x123\n" +

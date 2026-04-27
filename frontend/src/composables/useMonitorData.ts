@@ -6,6 +6,11 @@ import { buildWebSocketUrl } from '../utils/requestContext';
 export interface GPUStatus {
   index: number; name: string; utilGpu: number; utilMem: number;
   memTotal: number; memUsed: number; temp: number;
+  encUtil: number; decUtil: number;
+  smClockMhz: number; memClockMhz: number; gfxClockMhz: number;
+  powerW: number; powerLimitW: number;
+  fanSpeed: number;
+  pcieGen: number; pcieWidth: number;
 }
 
 export interface ProcessInfo {
