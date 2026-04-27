@@ -145,20 +145,24 @@ const connectWebSocket = () => {
   socket.onopen = () => isConnected.value = true;
   socket.onmessage = (me) => {
     if (isPaused.value) return;
-    const incoming = (payload: Uint8Array): pb.IEvent[] => (payload[0] === 10 ? pb.EventBatch.decode(payload).events || [] : [pb.Event.decode(payload)]);
-    incoming(new Uint8Array(me.data)).forEach(d => {
-      const et = extractEventType(d);
-      if (!isNetworkEvent(et, d.type || '')) return;
-      netEventBuffer.push({
-        key: `${d.pid}-${d.type}-${Date.now()}-${Math.random()}`,
-        pid: d.pid || 0, ppid: d.ppid || 0, uid: d.uid || 0,
-        type: d.type || '', eventType: et, tag: d.tag || '',
-        comm: d.comm || '', path: d.path || '',
-        netDirection: d.netDirection || '', netEndpoint: d.netEndpoint || '',
-        netFamily: d.netFamily || '', netBytes: Number(d.netBytes || 0),
-        time: new Date().toLocaleTimeString(),
+    try {
+      const incoming = (payload: Uint8Array): pb.IEvent[] => (payload[0] === 10 ? pb.EventBatch.decode(payload).events || [] : [pb.Event.decode(payload)]);
+      incoming(new Uint8Array(me.data)).forEach(d => {
+        const et = extractEventType(d);
+        if (!isNetworkEvent(et, d.type || '')) return;
+        netEventBuffer.push({
+          key: `${d.pid}-${d.type}-${Date.now()}-${Math.random()}`,
+          pid: d.pid || 0, ppid: d.ppid || 0, uid: d.uid || 0,
+          type: d.type || '', eventType: et, tag: d.tag || '',
+          comm: d.comm || '', path: d.path || '',
+          netDirection: d.netDirection || '', netEndpoint: d.netEndpoint || '',
+          netFamily: d.netFamily || '', netBytes: Number(d.netBytes || 0),
+          time: new Date().toLocaleTimeString(),
+        });
       });
-    });
+    } catch (e) {
+      console.error('Network: failed to parse message', e);
+    }
     if (netRafId === null) {
       netRafId = requestAnimationFrame(flushNetEventBuffer);
     }

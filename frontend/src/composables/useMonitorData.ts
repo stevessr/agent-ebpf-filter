@@ -184,7 +184,8 @@ export function useMonitorData() {
     ws = socket; socket.binaryType = 'arraybuffer';
     socket.onopen = () => { loading.value = false; };
     socket.onmessage = (me) => {
-      const s = pb.SystemStats.decode(new Uint8Array(me.data));
+      try {
+        const s = pb.SystemStats.decode(new Uint8Array(me.data));
       processes.value = (s.processes || []) as any;
       gpus.value = (s.gpus || []) as any;
       systemStats.value = {
@@ -268,6 +269,9 @@ export function useMonitorData() {
           if (val.length > 60) val.shift();
         }
       });
+      } catch (err) {
+        console.error('Monitor: failed to parse stats', err);
+      }
     };
     socket.onclose = () => { if (shouldReconnect) reconnectTimer = setTimeout(connectWebSocket, 3000); };
   };

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -50,7 +51,11 @@ func startEventBroadcaster() {
 			copy(events, batch)
 			batch = batch[:0]
 			msg := &pb.EventBatch{Events: events}
-			data, _ := proto.Marshal(msg)
+			data, err := proto.Marshal(msg)
+			if err != nil {
+				log.Printf("[ERROR] failed to marshal EventBatch: %v", err)
+				return
+			}
 			clientsMu.Lock()
 			for c := range clients {
 				if c == nil {

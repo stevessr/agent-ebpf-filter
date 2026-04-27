@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { EyeOutlined, FilterOutlined, FolderOpenOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
@@ -61,6 +61,7 @@ const pageSize = ref(20);
 const tableWrapperRef = ref<HTMLElement | null>(null);
 const tableContentWidth = ref(0);
 const router = useRouter();
+const route = useRoute();
 let ws: WebSocket | null = null;
 let reconnectTimer: number | null = null;
 let shouldReconnect = true;
@@ -212,6 +213,60 @@ const networkEventTypes = new Set<number>([
   pb.EventType.ACCEPT,
 ]);
 
+// Event category sets for tab filtering
+const eventCategories: Record<string, Set<number>> = {
+  network: new Set([
+    pb.EventType.NETWORK_CONNECT,
+    pb.EventType.NETWORK_BIND,
+    pb.EventType.NETWORK_SENDTO,
+    pb.EventType.NETWORK_RECVFROM,
+    pb.EventType.SOCKET,
+    pb.EventType.ACCEPT,
+    pb.EventType.ACCEPT4,
+  ]),
+  file: new Set([
+    pb.EventType.OPENAT,
+    pb.EventType.IOCTL,
+    pb.EventType.READ,
+    pb.EventType.WRITE,
+    pb.EventType.OPEN,
+    pb.EventType.CHMOD,
+    pb.EventType.CHOWN,
+    pb.EventType.RENAME,
+    pb.EventType.LINK,
+    pb.EventType.SYMLINK,
+    pb.EventType.MKNOD,
+    pb.EventType.MKDIR,
+    pb.EventType.UNLINK,
+  ]),
+  process: new Set([
+    pb.EventType.EXECVE,
+    pb.EventType.CLONE,
+    pb.EventType.EXIT,
+  ]),
+  hook: new Set([
+    pb.EventType.WRAPPER_INTERCEPT,
+    pb.EventType.NATIVE_HOOK,
+  ]),
+};
+
+const categoryTabs = [
+  { key: 'all', label: '全部' },
+  { key: 'network', label: '网络' },
+  { key: 'file', label: '文件' },
+  { key: 'process', label: '进程' },
+  { key: 'hook', label: '钩子' },
+] as const;
+
+const activeTab = computed(() => {
+  const tab = route.params.tab as string | undefined;
+  return tab && categoryTabs.some(t => t.key === tab) ? tab : 'all';
+});
+
+const onTabChange = (key: string) => {
+  router.push(key === 'all' ? '/dashboard' : `/dashboard/${key}`);
+};
+
 const decodeIncomingEvents = (payload: Uint8Array): pb.IEvent[] => {
   if (payload[0] === 10) {
     return pb.EventBatch.decode(payload).events || [];
@@ -298,6 +353,12 @@ const filteredEvents = computed(() => {
       seen.add(id);
       return true;
     });
+  }
+  if (activeTab.value !== 'all') {
+    const categorySet = eventCategories[activeTab.value];
+    if (categorySet) {
+      result = result.filter(e => e.eventType !== undefined && categorySet.has(e.eventType));
+    }
   }
   return streamDirection.value === 'bottom' ? [...result].reverse() : result;
 });
@@ -766,6 +827,14 @@ onUnmounted(() => {
 
 <template>
   <div class="dashboard-page">
+    <a-tabs
+      :activeKey="activeTab"
+      size="small"
+      @change="onTabChange"
+      class="dashboard-tabs"
+    >
+      <a-tab-pane v-for="tab in categoryTabs" :key="tab.key" :tab="tab.label" />
+    </a-tabs>
     <div class="dashboard-toolbar">
       <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; width: 100%;">
         <div style="display: flex; align-items: center; gap: 16px;">
@@ -1061,6 +1130,10 @@ onUnmounted(() => {
   color: #1f2937;
   width: 100%;
   box-sizing: border-box;
+}
+
+.dashboard-tabs {
+  margin-bottom: 4px;
 }
 
 .dashboard-toolbar {

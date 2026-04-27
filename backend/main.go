@@ -127,7 +127,10 @@ func main() {
 			if err != nil {
 				return
 			}
-			_ = binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event)
+			if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event); err != nil {
+				log.Printf("[WARN] failed to decode eBPF event: %v (sample len=%d)", err, len(record.RawSample))
+				continue
+			}
 			if event.PID == selfPid {
 				continue
 			}

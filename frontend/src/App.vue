@@ -5,13 +5,15 @@ import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutline
 
 const route = useRoute();
 const router = useRouter();
-const selectedKeys = ref<string[]>(['/']);
+const selectedKeys = ref<string[]>(['/dashboard']);
 
 watch(() => route.path, (path) => {
   if (path.startsWith('/executor')) {
     selectedKeys.value = ['/executor'];
   } else if (path.startsWith('/config')) {
     selectedKeys.value = ['/config'];
+  } else if (path.startsWith('/dashboard')) {
+    selectedKeys.value = ['/dashboard'];
   } else {
     selectedKeys.value = [path];
   }
@@ -37,7 +39,7 @@ const handleMenuClick = ({ key }: { key: string }) => {
         :style="{ lineHeight: '64px', flex: 1, minWidth: 0 }"
         @click="handleMenuClick"
       >
-        <a-menu-item key="/">
+        <a-menu-item key="/dashboard">
           <template #icon><DashboardOutlined /></template>
           Dashboard
         </a-menu-item>
