@@ -137,10 +137,16 @@ func formatNetworkSummary(direction, endpoint string, bytes uint32) string {
 	return strings.TrimSpace(strings.Join(parts, " "))
 }
 
+// sanitizeUTF8 converts a raw byte slice from the kernel to a valid UTF-8 string,
+// replacing any invalid bytes with the Unicode replacement character.
+func sanitizeUTF8(b []byte) string {
+	return strings.ToValidUTF8(strings.TrimRight(string(b), "\x00"), "�")
+}
+
 func buildKernelEvent(event bpfEvent) *pb.Event {
-	comm := strings.TrimRight(string(event.Comm[:]), "\x00")
-	path := strings.TrimRight(string(event.Path[:]), "\x00")
-	extraPath := strings.TrimRight(string(event.Extra4[:]), "\x00")
+	comm := sanitizeUTF8(event.Comm[:])
+	path := sanitizeUTF8(event.Path[:])
+	extraPath := sanitizeUTF8(event.Extra4[:])
 	typeName := kernelEventTypeName(event.Type)
 
 	out := &pb.Event{

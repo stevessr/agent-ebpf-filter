@@ -44,7 +44,8 @@ func handleConfigCommsGet(c *gin.Context) {
 
 func handleConfigCommsPost(c *gin.Context) {
 	var r struct {
-		Comm, Tag string `json:"comm" json:"tag"`
+		Comm string `json:"comm"`
+		Tag  string `json:"tag"`
 	}
 	_ = c.ShouldBindJSON(&r)
 	var k [16]byte
@@ -73,7 +74,8 @@ func handleConfigPathsGet(c *gin.Context) {
 
 func handleConfigPathsPost(c *gin.Context) {
 	var r struct {
-		Path, Tag string `json:"path" json:"tag"`
+		Path string `json:"path"`
+		Tag  string `json:"tag"`
 	}
 	_ = c.ShouldBindJSON(&r)
 	var k [256]byte

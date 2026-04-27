@@ -117,7 +117,11 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 			}
 			return replacements, nil
 		}
+		// Preserve tracked data before closing old map handles
+		backup := extractTrackedData(replacements)
 		closeMapHandles(replacements)
+		// Fall through to fresh bootstrap but restore backed-up data
+		defer restoreTrackedData(backup)
 	}
 
 	_ = os.RemoveAll(ebpfPinRoot)
@@ -309,6 +313,103 @@ func privilegeEscalationCmd() (string, error) {
 		return p, nil
 	}
 	return "", fmt.Errorf("need sudo or pkexec for privileged backend startup")
+}
+
+// ── tracked data preservation ─────────────────────────────────────────────────
+
+type trackedDataBackup struct {
+	Comms    map[[16]byte]uint32
+	Paths    map[[256]byte]uint32
+	Prefixes []prefixBackupEntry
+}
+
+type prefixBackupEntry struct {
+	Data      [64]byte
+	PrefixLen uint32
+	Value     uint32
+}
+
+func extractTrackedData(maps map[string]*ebpf.Map) *trackedDataBackup {
+	b := &trackedDataBackup{
+		Comms: make(map[[16]byte]uint32),
+		Paths: make(map[[256]byte]uint32),
+	}
+
+	if m, ok := maps["tracked_comms"]; ok && m != nil {
+		iter := m.Iterate()
+		var k [16]byte
+		var v uint32
+		for iter.Next(&k, &v) {
+			b.Comms[k] = v
+		}
+	}
+
+	if m, ok := maps["tracked_paths"]; ok && m != nil {
+		iter := m.Iterate()
+		var k [256]byte
+		var v uint32
+		for iter.Next(&k, &v) {
+			b.Paths[k] = v
+		}
+	}
+
+	if m, ok := maps["tracked_prefixes"]; ok && m != nil {
+		iter := m.Iterate()
+		for {
+			var k struct {
+				PrefixLen uint32
+				Data      [64]byte
+			}
+			var v uint32
+			if !iter.Next(&k, &v) {
+				break
+			}
+			b.Prefixes = append(b.Prefixes, prefixBackupEntry{
+				Data:      k.Data,
+				PrefixLen: k.PrefixLen,
+				Value:     v,
+			})
+		}
+	}
+
+	return b
+}
+
+func restoreTrackedData(backup *trackedDataBackup) {
+	if backup == nil {
+		return
+	}
+
+	maps, err := loadPinnedMapHandles()
+	if err != nil {
+		return
+	}
+	defer closeMapHandles(maps)
+
+	if m, ok := maps["tracked_comms"]; ok && m != nil {
+		for k, v := range backup.Comms {
+			_ = m.Put(k, v)
+		}
+	}
+
+	if m, ok := maps["tracked_paths"]; ok && m != nil {
+		for k, v := range backup.Paths {
+			_ = m.Put(k, v)
+		}
+	}
+
+	if m, ok := maps["tracked_prefixes"]; ok && m != nil {
+		for _, entry := range backup.Prefixes {
+			k := struct {
+				PrefixLen uint32
+				Data      [64]byte
+			}{
+				PrefixLen: entry.PrefixLen,
+				Data:      entry.Data,
+			}
+			_ = m.Put(k, entry.Value)
+		}
+	}
 }
 
 // ── shared helpers ────────────────────────────────────────────────────────────

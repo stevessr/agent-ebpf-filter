@@ -34,12 +34,22 @@ const eventTypeColorMap: Record<number, string> = {
   [pb.EventType.NETWORK_SENDTO]: 'cyan', [pb.EventType.NETWORK_RECVFROM]: 'geekblue',
   [pb.EventType.ACCEPT]: 'volcano', [pb.EventType.ACCEPT4]: 'volcano',
 };
+const networkTypeTabs: [number, string][] = [
+  [pb.EventType.NETWORK_CONNECT, 'Connect'],
+  [pb.EventType.NETWORK_SENDTO, 'Send'],
+  [pb.EventType.NETWORK_RECVFROM, 'Recv'],
+  [pb.EventType.NETWORK_BIND, 'Bind'],
+  [pb.EventType.ACCEPT, 'Accept'],
+  [pb.EventType.ACCEPT4, 'Accept4'],
+];
 
 const events = ref<NetworkEvent[]>([]);
 const tags = ref<string[]>([]);
 const selectedTags = ref<string[]>([]);
 const selectedTypes = ref<number[]>([]);
 const searchQuery = ref('');
+const activeTypeTab = ref<string>('all');
+const cumulativeBytes = ref(0);
 const isDeduplicated = ref(false);
 const isPaused = ref(false);
 const isConnected = ref(false);
@@ -93,6 +103,7 @@ const networkFilteredEvents = computed(() => {
   }
   if (selectedTags.value.length > 0) list = list.filter(e => selectedTags.value.includes(e.tag));
   if (selectedTypes.value.length > 0) list = list.filter(e => e.eventType !== undefined && selectedTypes.value.includes(e.eventType));
+  if (activeTypeTab.value !== 'all') list = list.filter(e => e.eventType === Number(activeTypeTab.value));
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase();
     list = list.filter(e => e.comm.toLowerCase().includes(q) || e.netEndpoint.toLowerCase().includes(q) || String(e.pid).includes(q));
@@ -108,7 +119,7 @@ const summaryStats = computed(() => {
     listening: fe.filter(e => e.netDirection === 'listening').length,
     uniquePids: new Set(fe.map(e => e.pid)).size,
     uniqueEndpoints: new Set(fe.map(e => e.netEndpoint).filter(Boolean)).size,
-    totalBytes: fe.reduce((sum, e) => sum + (e.netBytes || 0), 0),
+    totalBytes: cumulativeBytes.value,
   };
 });
 
@@ -133,6 +144,7 @@ const fetchRecentEvents = async () => {
         time: new Date(r.Timestamp).toLocaleTimeString(),
       };
     }).filter((e: any) => isNetworkEvent(e.eventType, e.type));
+    cumulativeBytes.value = events.value.reduce((sum, e) => sum + (e.netBytes || 0), 0);
   } catch (err) {}
 };
 
@@ -150,6 +162,7 @@ const connectWebSocket = () => {
       incoming(new Uint8Array(me.data)).forEach(d => {
         const et = extractEventType(d);
         if (!isNetworkEvent(et, d.type || '')) return;
+        cumulativeBytes.value += Number(d.netBytes || 0);
         netEventBuffer.push({
           key: `${d.pid}-${d.type}-${Date.now()}-${Math.random()}`,
           pid: d.pid || 0, ppid: d.ppid || 0, uid: d.uid || 0,
@@ -180,6 +193,7 @@ onMounted(() => {
 });
 const clearNetworkEvents = () => {
   events.value = [];
+  cumulativeBytes.value = 0;
   netEventBuffer.length = 0;
   if (netRafId !== null) {
     cancelAnimationFrame(netRafId);
@@ -225,6 +239,11 @@ onUnmounted(() => {
           <a-select v-model:value="selectedTags" mode="multiple" placeholder="Tags" style="min-width: 120px" size="small" :options="tags.map(t => ({label:t, value:t}))" max-tag-count="responsive" />
         </a-space>
       </div>
+
+      <a-tabs v-model:activeKey="activeTypeTab" size="small" style="margin-bottom: 8px;">
+        <a-tab-pane key="all" tab="All" />
+        <a-tab-pane v-for="[et, label] in networkTypeTabs" :key="String(et)" :tab="label" />
+      </a-tabs>
 
       <a-table :dataSource="networkFilteredEvents" row-key="key" size="small" :pagination="{ pageSize: 20, showSizeChanger: true }">
         <a-table-column title="Time" dataIndex="time" key="time" width="100" />
