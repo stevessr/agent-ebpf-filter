@@ -67,6 +67,24 @@ let shouldReconnect = true;
 let resizeObserver: ResizeObserver | null = null;
 let cleanupColumnResize: (() => void) | null = null;
 let recentRowTimer: number | null = null;
+const eventBuffer: AgentEvent[] = [];
+let rafId: number | null = null;
+
+const flushEventBuffer = () => {
+  rafId = null;
+  if (eventBuffer.length === 0) return;
+
+  const newEvents = [...eventBuffer.reverse(), ...events.value];
+  if (newEvents.length > 1000) {
+    newEvents.length = 1000;
+  }
+  events.value = newEvents;
+  eventBuffer.length = 0;
+
+  if (newEvents.length > 0) {
+    markRecentRow(newEvents[0].key);
+  }
+};
 
 const STREAM_DIRECTION_STORAGE_KEY = 'dashboard.streamDirection';
 const SHOW_ALL_ROWS_STORAGE_KEY = 'dashboard.showAllRows';
@@ -574,8 +592,6 @@ const connectWebSocket = () => {
     if (isPaused.value) return;
     try {
       const incomingEvents = decodeIncomingEvents(new Uint8Array(message.data));
-      let latestKey: string | null = null;
-
       incomingEvents.forEach((data) => {
         const type = data.type ?? '';
         const path = data.path ?? '';
@@ -587,7 +603,7 @@ const connectWebSocket = () => {
         const eventType = extractEventType(data);
         const networkEvent = isNetworkEvent(eventType, type);
         const now = new Date();
-        const nextEvent: AgentEvent = {
+        eventBuffer.push({
           key: `${pid}-${path}-${Date.now()}-${Math.random()}`,
           pid,
           ppid,
@@ -612,16 +628,11 @@ const connectWebSocket = () => {
           uidArg: typeof data.uidArg === 'number' ? Number(data.uidArg) : undefined,
           gidArg: typeof data.gidArg === 'number' ? Number(data.gidArg) : undefined,
           time: now.toLocaleTimeString(),
-        };
-        events.value.unshift(nextEvent);
-        latestKey = nextEvent.key;
+        });
       });
 
-      while (events.value.length > 1000) {
-        events.value.pop();
-      }
-      if (latestKey) {
-        markRecentRow(latestKey);
+      if (rafId === null) {
+        rafId = requestAnimationFrame(flushEventBuffer);
       }
     } catch (e) {
       console.error('Failed to parse message', e);
@@ -646,12 +657,22 @@ const clearEvents = async () => {
   try {
     await axios.post('/data/clear-events-memory');
     events.value = [];
+    eventBuffer.length = 0;
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
     recentRowKey.value = null;
     currentPage.value = 1;
     message.success('Event buffer cleared on backend');
   } catch (err: any) {
     message.error(err?.response?.data?.error || 'Failed to clear events');
     events.value = [];
+    eventBuffer.length = 0;
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
     recentRowKey.value = null;
     currentPage.value = 1;
   }
@@ -724,6 +745,11 @@ onUnmounted(() => {
     window.clearTimeout(recentRowTimer);
     recentRowTimer = null;
   }
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+  eventBuffer.length = 0;
   if (reconnectTimer !== null) {
     window.clearTimeout(reconnectTimer);
     reconnectTimer = null;

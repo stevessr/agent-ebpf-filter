@@ -49,6 +49,20 @@ const selectedEvent = ref<NetworkEvent | null>(null);
 let ws: WebSocket | null = null;
 let reconnectTimer: any = null;
 let shouldReconnect = true;
+const netEventBuffer: NetworkEvent[] = [];
+let netRafId: number | null = null;
+
+const flushNetEventBuffer = () => {
+  netRafId = null;
+  if (netEventBuffer.length === 0) return;
+
+  const newEvents = [...netEventBuffer.reverse(), ...events.value];
+  if (newEvents.length > 2000) {
+    newEvents.length = 2000;
+  }
+  events.value = newEvents;
+  netEventBuffer.length = 0;
+};
 
 const formatBytes = (bytes: number) => {
   if (!bytes) return '0 B';
@@ -135,7 +149,7 @@ const connectWebSocket = () => {
     incoming(new Uint8Array(me.data)).forEach(d => {
       const et = extractEventType(d);
       if (!isNetworkEvent(et, d.type || '')) return;
-      events.value.unshift({
+      netEventBuffer.push({
         key: `${d.pid}-${d.type}-${Date.now()}-${Math.random()}`,
         pid: d.pid || 0, ppid: d.ppid || 0, uid: d.uid || 0,
         type: d.type || '', eventType: et, tag: d.tag || '',
@@ -144,8 +158,10 @@ const connectWebSocket = () => {
         netFamily: d.netFamily || '', netBytes: Number(d.netBytes || 0),
         time: new Date().toLocaleTimeString(),
       });
-      if (events.value.length > 2000) events.value.pop();
     });
+    if (netRafId === null) {
+      netRafId = requestAnimationFrame(flushNetEventBuffer);
+    }
   };
   socket.onclose = () => {
     isConnected.value = false;
@@ -158,9 +174,23 @@ onMounted(() => {
   connectWebSocket();
   axios.get('/config/tags').then(res => tags.value = res.data);
 });
+const clearNetworkEvents = () => {
+  events.value = [];
+  netEventBuffer.length = 0;
+  if (netRafId !== null) {
+    cancelAnimationFrame(netRafId);
+    netRafId = null;
+  }
+};
+
 onUnmounted(() => {
   shouldReconnect = false;
   if (reconnectTimer) clearTimeout(reconnectTimer);
+  if (netRafId !== null) {
+    cancelAnimationFrame(netRafId);
+    netRafId = null;
+  }
+  netEventBuffer.length = 0;
   if (ws) ws.close();
 });
 </script>
@@ -184,7 +214,7 @@ onUnmounted(() => {
             <template #icon><PauseOutlined v-if="isPaused" /><PlayCircleOutlined v-else /></template>
             {{ isPaused ? 'Resume' : 'Pause' }}
           </a-button>
-          <a-button danger @click="events = []" size="small"><template #icon><DeleteOutlined /></template>Clear</a-button>
+          <a-button danger @click="clearNetworkEvents" size="small"><template #icon><DeleteOutlined /></template>Clear</a-button>
         </a-space>
         <a-space>
           <a-input-search v-model:value="searchQuery" placeholder="Search..." size="small" style="width: 180px" />
