@@ -467,7 +467,6 @@ int tracepoint__syscalls__sys_enter_connect(struct trace_event_raw_sys_enter *ct
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 tag_id = get_tag_id(pid, comm, NULL);
-    if (tag_id == 0) tag_id = 7;
 
     struct exit_meta meta = {};
     meta.type = TYPE_CONNECT;
@@ -671,7 +670,6 @@ int tracepoint__syscalls__sys_enter_bind(struct trace_event_raw_sys_enter *ctx) 
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 tag_id = get_tag_id(pid, comm, NULL);
-    if (tag_id == 0) tag_id = 7;
 
     struct exit_meta meta = {};
     meta.type = TYPE_BIND;
@@ -722,7 +720,6 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 tag_id = get_tag_id(pid, comm, NULL);
-    if (tag_id == 0) tag_id = 7;
 
     struct exit_meta meta = {};
     meta.type = TYPE_SENDTO;
@@ -774,7 +771,6 @@ int tracepoint__syscalls__sys_enter_recvfrom(struct trace_event_raw_sys_enter *c
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 tag_id = get_tag_id(pid, comm, NULL);
-    if (tag_id == 0) tag_id = 7;
 
     struct exit_meta meta = {};
     meta.type = TYPE_RECVFROM;
@@ -1419,7 +1415,6 @@ int tracepoint__syscalls__sys_enter_accept(struct trace_event_raw_sys_enter *ctx
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 tag_id = get_tag_id(pid, comm, NULL);
-    if (tag_id == 0) tag_id = 7;
 
     struct exit_meta meta = {};
     meta.type = TYPE_ACCEPT;
@@ -1476,7 +1471,6 @@ int tracepoint__syscalls__sys_enter_accept4(struct trace_event_raw_sys_enter *ct
     bpf_get_current_comm(&comm, sizeof(comm));
 
     u32 tag_id = get_tag_id(pid, comm, NULL);
-    if (tag_id == 0) tag_id = 7;
 
     struct exit_meta meta = {};
     meta.type = TYPE_ACCEPT4;

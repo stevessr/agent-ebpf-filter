@@ -54,6 +54,7 @@ const pidFilter = ref('');
 const commandFilter = ref('');
 const pathFilter = ref('');
 const isDeduplicated = ref(false);
+const hideUnknown = ref(true);
 const activeHeaderFilter = ref<string | null>(null);
 const tags = ref<string[]>([]);
 const currentPage = ref(1);
@@ -360,6 +361,9 @@ const filteredEvents = computed(() => {
       result = result.filter(e => e.eventType !== undefined && categorySet.has(e.eventType));
     }
   }
+  if (hideUnknown.value) {
+    result = result.filter(e => e.tag !== 'Unknown');
+  }
   return streamDirection.value === 'bottom' ? [...result].reverse() : result;
 });
 
@@ -527,7 +531,7 @@ const clearHeaderFilter = (key: string | number | symbol) => {
   }
 };
 
-watch([selectedTags, selectedTypes, timeFilter, pidFilter, commandFilter, pathFilter, isDeduplicated], () => {
+watch([selectedTags, selectedTypes, timeFilter, pidFilter, commandFilter, pathFilter, isDeduplicated, hideUnknown], () => {
   if (showAllRows.value) return;
   currentPage.value = 1;
 });
@@ -855,6 +859,9 @@ onUnmounted(() => {
           </a-select>
           <a-checkbox v-model:checked="showAllRows">
             <span style="font-size: 12px;">No Page Limit</span>
+          </a-checkbox>
+          <a-checkbox v-model:checked="hideUnknown" size="small">
+            <span style="font-size: 12px;">Hide Unknown</span>
           </a-checkbox>
           <a-checkbox v-model:checked="isDeduplicated" size="small">
             <span style="font-size: 12px;">Clean Duplicates</span>

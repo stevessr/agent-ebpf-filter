@@ -55,6 +55,8 @@ const isPaused = ref(false);
 const isConnected = ref(false);
 const showDetails = ref(false);
 const selectedEvent = ref<NetworkEvent | null>(null);
+const maxEvents = ref(5000);
+const maxEventsOptions = ['2000', '5000', '10000', '20000', '50000'];
 
 let ws: WebSocket | null = null;
 let reconnectTimer: any = null;
@@ -67,8 +69,8 @@ const flushNetEventBuffer = () => {
   if (netEventBuffer.length === 0) return;
 
   const newEvents = [...netEventBuffer.reverse(), ...events.value];
-  if (newEvents.length > 2000) {
-    newEvents.length = 2000;
+  if (newEvents.length > maxEvents.value) {
+    newEvents.length = maxEvents.value;
   }
   events.value = newEvents;
   netEventBuffer.length = 0;
@@ -220,7 +222,7 @@ onUnmounted(() => {
       <template #extra>
         <a-space>
           <a-badge :status="isConnected ? 'success' : 'error'" :text="isConnected ? 'Live' : 'Offline'" />
-          <a-tag color="purple">{{ events.length }} events</a-tag>
+          <a-tag color="purple">{{ events.length }} / {{ maxEvents }} events</a-tag>
         </a-space>
       </template>
 
@@ -233,6 +235,9 @@ onUnmounted(() => {
             {{ isPaused ? 'Resume' : 'Pause' }}
           </a-button>
           <a-button danger @click="clearNetworkEvents" size="small"><template #icon><DeleteOutlined /></template>Clear</a-button>
+          <a-select v-model:value="maxEvents" size="small" style="width: 100px">
+            <a-select-option v-for="opt in maxEventsOptions" :key="opt" :value="Number(opt)">{{ opt }}</a-select-option>
+          </a-select>
         </a-space>
         <a-space>
           <a-input-search v-model:value="searchQuery" placeholder="Search..." size="small" style="width: 180px" />
