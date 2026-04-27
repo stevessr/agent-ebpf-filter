@@ -51,6 +51,7 @@ const searchQuery = ref('');
 const activeTypeTab = ref<string>('all');
 const cumulativeBytes = ref(0);
 const isDeduplicated = ref(false);
+const bypassFilters = ref(false);
 const isPaused = ref(false);
 const isConnected = ref(false);
 const showDetails = ref(false);
@@ -95,6 +96,7 @@ const isNetworkEvent = (eventType: number | undefined, type?: string) => {
 
 const networkFilteredEvents = computed(() => {
   let list = events.value;
+  if (bypassFilters.value) return list;
   if (isDeduplicated.value) {
     const seen = new Set<string>();
     list = list.filter(e => {
@@ -230,6 +232,9 @@ onUnmounted(() => {
 
       <div style="display: flex; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
         <a-space>
+          <a-button @click="bypassFilters = !bypassFilters" :type="bypassFilters ? 'primary' : 'default'" size="small" :danger="bypassFilters">
+            {{ bypassFilters ? 'Bypassing' : 'Bypass Filters' }}
+          </a-button>
           <a-button @click="isPaused = !isPaused" :type="isPaused ? 'primary' : 'default'" danger size="small">
             <template #icon><PauseOutlined v-if="isPaused" /><PlayCircleOutlined v-else /></template>
             {{ isPaused ? 'Resume' : 'Pause' }}

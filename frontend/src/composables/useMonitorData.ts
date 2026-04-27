@@ -297,18 +297,22 @@ export function useMonitorData() {
   const showHistoryModal = ref(false);
   const historyModalTitle = ref('');
   const historySeries = ref<any[]>([]);
-  const historyChartOptions = computed(() => ({
+  const historyChartOptions = computed(() => {
+    const t = historyModalTitle.value.toLowerCase();
+    const isByteChart = t.includes('speed') || t.includes('recv') || t.includes('sent') || t.includes('read') || t.includes('write') || t.includes('activity') || t.includes('memory usage') || t.includes('swap usage') || t.includes('zram usage');
+    const isPercentChart = t.includes('mem %') || t.includes('cpu') || t.includes('core') || (t.includes('usage') && t.includes('%'));
+    return {
     chart: { id: 'history-chart', animations: { enabled: true }, toolbar: { show: true }, background: 'transparent' },
     xaxis: { type: 'datetime' as const, labels: { datetimeUTC: false, style: { fontSize: '10px' } } },
     yaxis: {
+      min: (isByteChart && !t.includes('%')) ? 0 : undefined,
       labels: {
         style: { fontSize: '10px' },
         formatter: (val: number) => {
-          const t = historyModalTitle.value.toLowerCase();
-          if (t.includes('speed') || t.includes('recv') || t.includes('sent') || t.includes('read') || t.includes('write') || t.includes('activity') || t.includes('memory usage') || t.includes('swap usage') || t.includes('zram usage')) {
+          if (isByteChart) {
             if (!t.includes('%')) return formatBytesWithUnit(val) + (t.includes('usage') ? '' : '/s');
           }
-          if (t.includes('mem %') || t.includes('cpu') || t.includes('core') || (t.includes('usage') && t.includes('%'))) return val.toFixed(1) + '%';
+          if (isPercentChart) return val.toFixed(1) + '%';
           return val.toFixed(1);
         }
       }
@@ -316,7 +320,7 @@ export function useMonitorData() {
     stroke: { width: 2, curve: 'smooth' as const },
     tooltip: { x: { format: 'HH:mm:ss' } },
     legend: { position: 'top' as const, horizontalAlign: 'right' as const }
-  }));
+  }});
 
   const openHistoryChart = (title: string, datasets: { name: string; data: { time: number; value: number }[]; color?: string }[]) => {
     historyModalTitle.value = title;
