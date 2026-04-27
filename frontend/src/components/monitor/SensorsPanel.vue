@@ -103,7 +103,7 @@ onUnmounted(() => {
               <a-col :span="8">
                 <div style="max-height: 260px; overflow-y: auto; padding-right: 4px;">
                   <div v-for="s in sensors" :key="s.sensorKey" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 6px 10px; background: #fff; border: 1px solid #f0f0f0; border-radius: 4px;">
-                    <a-checkbox :checked="sensorVisibility[s.sensorKey]" @change="emit('update:sensorVisibility', ($event.target as any).checked, s.sensorKey)" style="display: flex; align-items: center; flex: 1; overflow: hidden;">
+                    <a-checkbox :checked="sensorVisibility[s.sensorKey]" @change="(e: any) => emit('update:sensorVisibility', e?.target?.checked ?? e, s.sensorKey)" style="display: flex; align-items: center; flex: 1; overflow: hidden;">
                       <span style="font-size: 12px; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;" :title="s.label || s.sensorKey">{{ s.label || s.sensorKey }}</span>
                     </a-checkbox>
                     <span :style="{ color: s.temperature > 75 ? 'red' : s.temperature > 60 ? 'orange' : 'green', fontWeight:'bold', fontSize: '12px', marginLeft: '8px' }">{{ s.temperature.toFixed(1) }}°C</span>
@@ -121,7 +121,7 @@ onUnmounted(() => {
 
       <a-tab-pane key="camera" tab="Camera">
         <a-card title="Live Feed" size="small">
-          <template #extra><a-space><a-tag v-if="cameraLiveMode" color="red">LIVE</a-tag><span>Live:</span><a-switch :checked="cameraLiveMode" @change="emit('update:cameraLiveMode', ($event.target as any).checked)" size="small" /></a-space></template>
+          <template #extra><a-space><a-tag v-if="cameraLiveMode" color="red">LIVE</a-tag><span>Live:</span><a-switch :checked="cameraLiveMode" @change="(checked: boolean) => emit('update:cameraLiveMode', checked)" size="small" /></a-space></template>
           <div style="display:flex;gap:16px;">
             <div style="flex:1;">
               <a-select :value="selectedCamera" style="width:100%;margin-bottom:12px;" @change="emit('update:selectedCamera', $event); emit('refreshCamera')">
@@ -139,7 +139,7 @@ onUnmounted(() => {
 
       <a-tab-pane key="mic" tab="Microphone">
         <a-card title="Input Monitor" size="small">
-          <template #extra><a-space><a-tag v-if="micLiveMode" color="green">ON</a-tag><a-switch :checked="micLiveMode" @change="emit('update:micLiveMode', ($event.target as any).checked)" size="small" /></a-space></template>
+          <template #extra><a-space><a-tag v-if="micLiveMode" color="green">ON</a-tag><a-switch :checked="micLiveMode" @change="(checked: boolean) => emit('update:micLiveMode', checked)" size="small" /></a-space></template>
           <div style="display:flex;gap:24px;align-items:center;">
             <div style="flex:1;"><div style="margin-bottom:8px;font-size:12px;color:#888;">Waveform</div><canvas ref="micCanvasRef" width="600" height="120" style="width:100%;height:120px;background:#fafafa;border-radius:4px;border:1px solid #f0f0f0;"></canvas></div>
             <div style="width:280px;">

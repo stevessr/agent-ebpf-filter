@@ -61,7 +61,7 @@ const activeTab = ref((route.params.tab as string) || 'dashboard');
 const sensorSubTab = ref('hardware');
 const healthTab = ref('cpu');
 
-// Parse subtab from URL on init
+// Parse subtab from URL on init; redirect to default if missing
 if (route.params.subtab) {
   const subtab = route.params.subtab as string;
   if (activeTab.value === 'dashboard' && ['cpu', 'mem', 'io', 'faults', 'gpu'].includes(subtab)) {
@@ -69,6 +69,10 @@ if (route.params.subtab) {
   } else if (activeTab.value === 'sensors' && ['hardware', 'camera', 'mic'].includes(subtab)) {
     sensorSubTab.value = subtab;
   }
+} else if (activeTab.value === 'dashboard') {
+  void router.replace({ name: 'Monitor', params: { tab: 'dashboard', subtab: healthTab.value } });
+} else if (activeTab.value === 'sensors') {
+  void router.replace({ name: 'Monitor', params: { tab: 'sensors', subtab: sensorSubTab.value } });
 }
 
 const navigate = (tab: string, subtab?: string) => {

@@ -28,7 +28,7 @@ const emit = defineEmits<{
   <div style="background: #fff; padding: 20px; border-radius: 4px; border: 1px solid #f0f0f0;">
     <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
       <a-space>
-        <a-radio-group :value="systemdScope" @change="emit('update:systemdScope', ($event.target as any).value)" button-style="solid" size="small">
+        <a-radio-group :value="systemdScope" @change="(e: any) => emit('update:systemdScope', e?.target?.value ?? e)" button-style="solid" size="small">
           <a-radio-button value="system">System</a-radio-button>
           <a-radio-button value="user">User</a-radio-button>
         </a-radio-group>

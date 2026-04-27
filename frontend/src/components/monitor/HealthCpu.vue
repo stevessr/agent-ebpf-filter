@@ -18,7 +18,7 @@ const emit = defineEmits<{
 <template>
   <div style="padding-top: 16px;">
     <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-      <a-radio-group :value="cpuView" @change="emit('update:cpuView', ($event.target as any).value)" button-style="solid" size="small">
+      <a-radio-group :value="cpuView" @change="(e: any) => emit('update:cpuView', e?.target?.value ?? e)" button-style="solid" size="small">
         <a-radio-button value="overall">Overall</a-radio-button>
         <a-radio-button value="cores">Per Core</a-radio-button>
       </a-radio-group>

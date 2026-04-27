@@ -42,7 +42,7 @@ const emit = defineEmits<{
               <a-select-option :value="10">10</a-select-option>
               <a-select-option :value="20">20</a-select-option>
             </a-select>
-            <a-checkbox :checked="mergeFaultProcesses" @change="emit('update:mergeFaultProcesses', ($event.target as any).checked)" style="font-size: 12px; color: #888;">Merge by Name</a-checkbox>
+            <a-checkbox :checked="mergeFaultProcesses" @change="(e: any) => emit('update:mergeFaultProcesses', e?.target?.checked ?? e)" style="font-size: 12px; color: #888;">Merge by Name</a-checkbox>
           </a-space>
         </template>
         <a-table :dataSource="topFaultProcesses" :columns="[
