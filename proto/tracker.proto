@@ -235,3 +235,183 @@ message WrapperResponse {
 message ProcessList {
   repeated Process processes = 1;
 }
+
+// ── Config / Registry types ──────────────────────────────────────────
+
+message ConfigTag {
+  string name = 1;
+}
+
+message ConfigTagList {
+  repeated string names = 1;
+}
+
+message TrackedComm {
+  string comm = 1;
+  string tag = 2;
+}
+
+message TrackedCommList {
+  repeated TrackedComm items = 1;
+}
+
+message TrackedPath {
+  string path = 1;
+  string tag = 2;
+}
+
+message TrackedPathList {
+  repeated TrackedPath items = 1;
+}
+
+message TrackedPrefix {
+  string prefix = 1;
+  string tag = 2;
+}
+
+message TrackedPrefixList {
+  repeated TrackedPrefix items = 1;
+}
+
+message WrapperRule {
+  string comm = 1;
+  string action = 2;
+  repeated string rewritten_cmd = 3;
+  string regex = 4;
+  string replacement = 5;
+  int32 priority = 6;
+}
+
+message WrapperRuleList {
+  repeated WrapperRule items = 1;
+}
+
+message RuntimeSettings {
+  bool log_persistence_enabled = 1;
+  string log_file_path = 2;
+  string access_token = 3;
+  int32 max_event_count = 4;
+  string max_event_age = 5;
+}
+
+message RuntimeConfigResponse {
+  RuntimeSettings runtime = 1;
+  string mcp_endpoint = 2;
+  string auth_header_name = 3;
+  string bearer_auth_header_name = 4;
+  string persisted_event_log_path = 5;
+  bool persisted_event_log_alive = 6;
+}
+
+message ExportConfigData {
+  repeated string tags = 1;
+  repeated TrackedComm comms = 2;
+  repeated TrackedPath paths = 3;
+  repeated TrackedPrefix prefixes = 4;
+  repeated WrapperRule rules = 5;
+  RuntimeSettings runtime = 6;
+}
+
+message StatusResponse {
+  string status = 1;
+  string message = 2;
+}
+
+// ── File browsing types ──────────────────────────────────────────────
+
+message FileEntry {
+  string name = 1;
+  bool is_dir = 2;
+  string path = 3;
+  string mime_type = 4;
+  int64 size = 5;
+  string mod_time = 6;
+}
+
+message FileListResponse {
+  repeated FileEntry items = 1;
+  int32 total = 2;
+  int32 offset = 3;
+  int32 limit = 4;
+}
+
+message FilePreviewResponse {
+  string content = 1;
+  string mime_type = 2;
+  string path = 3;
+  int64 size = 4;
+  string mod_time = 5;
+  bool truncated = 6;
+}
+
+// ── Systemd / Sensors types ──────────────────────────────────────────
+
+message SystemdUnit {
+  string unit = 1;
+  string load = 2;
+  string active = 3;
+  string sub = 4;
+  string description = 5;
+}
+
+message SystemdUnitList {
+  repeated SystemdUnit services = 1;
+}
+
+message SensorReading {
+  string key = 1;
+  double value = 2;
+  string unit = 3;
+}
+
+message SensorsSnapshot {
+  repeated SensorReading temperatures = 1;
+  repeated string fans = 2;
+}
+
+// ── Shell session types ──────────────────────────────────────────────
+
+message ShellSession {
+  string id = 1;
+  string label = 2;
+  int32 pid = 3;
+  bool active = 4;
+  int64 created_at = 5;
+  string cols = 6;
+  string rows = 7;
+  string cwd = 8;
+}
+
+message ShellSessionList {
+  repeated ShellSession sessions = 1;
+}
+
+message ShellSessionCreateRequest {
+  string workdir = 1;
+  repeated string args = 2;
+  string label = 3;
+}
+
+// ── Event history types ──────────────────────────────────────────────
+
+message CapturedEventRecord {
+  Event event = 1;
+  int64 timestamp = 2;
+}
+
+message EventHistoryResponse {
+  repeated CapturedEventRecord events = 1;
+  string source = 2;
+}
+
+// ── Generic request/response wrappers ────────────────────────────────
+
+message ConfigKeyRequest {
+  string key = 1;
+  string name = 2;
+}
+
+message ConfigBoolResponse {
+  bool value = 1;
+  string message = 2;
+}

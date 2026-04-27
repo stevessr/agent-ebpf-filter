@@ -482,7 +482,12 @@ func serveSensorsWS(c *gin.Context) {
 		select {
 		case <-ticker.C:
 			temps, _ := host.SensorsTemperatures()
-			if err := conn.WriteJSON(gin.H{"temperatures": temps, "fans": []string{}}); err != nil {
+			snap := &pb.SensorsSnapshot{Fans: []string{}}
+			for k, v := range temps {
+				snap.Temperatures = append(snap.Temperatures, &pb.SensorReading{Key: k, Value: v})
+			}
+			data, _ := proto.Marshal(snap)
+			if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
 				return
 			}
 		case <-done:

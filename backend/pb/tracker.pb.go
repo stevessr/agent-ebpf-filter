@@ -1938,6 +1938,1686 @@ func (x *ProcessList) GetProcesses() []*Process {
 	return nil
 }
 
+type ConfigTag struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigTag) Reset() {
+	*x = ConfigTag{}
+	mi := &file_tracker_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigTag) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigTag) ProtoMessage() {}
+
+func (x *ConfigTag) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigTag.ProtoReflect.Descriptor instead.
+func (*ConfigTag) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *ConfigTag) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type ConfigTagList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Names         []string               `protobuf:"bytes,1,rep,name=names,proto3" json:"names,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigTagList) Reset() {
+	*x = ConfigTagList{}
+	mi := &file_tracker_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigTagList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigTagList) ProtoMessage() {}
+
+func (x *ConfigTagList) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigTagList.ProtoReflect.Descriptor instead.
+func (*ConfigTagList) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ConfigTagList) GetNames() []string {
+	if x != nil {
+		return x.Names
+	}
+	return nil
+}
+
+type TrackedComm struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Comm          string                 `protobuf:"bytes,1,opt,name=comm,proto3" json:"comm,omitempty"`
+	Tag           string                 `protobuf:"bytes,2,opt,name=tag,proto3" json:"tag,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TrackedComm) Reset() {
+	*x = TrackedComm{}
+	mi := &file_tracker_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TrackedComm) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TrackedComm) ProtoMessage() {}
+
+func (x *TrackedComm) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TrackedComm.ProtoReflect.Descriptor instead.
+func (*TrackedComm) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *TrackedComm) GetComm() string {
+	if x != nil {
+		return x.Comm
+	}
+	return ""
+}
+
+func (x *TrackedComm) GetTag() string {
+	if x != nil {
+		return x.Tag
+	}
+	return ""
+}
+
+type TrackedCommList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*TrackedComm         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TrackedCommList) Reset() {
+	*x = TrackedCommList{}
+	mi := &file_tracker_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TrackedCommList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TrackedCommList) ProtoMessage() {}
+
+func (x *TrackedCommList) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TrackedCommList.ProtoReflect.Descriptor instead.
+func (*TrackedCommList) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *TrackedCommList) GetItems() []*TrackedComm {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type TrackedPath struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Tag           string                 `protobuf:"bytes,2,opt,name=tag,proto3" json:"tag,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TrackedPath) Reset() {
+	*x = TrackedPath{}
+	mi := &file_tracker_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TrackedPath) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TrackedPath) ProtoMessage() {}
+
+func (x *TrackedPath) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TrackedPath.ProtoReflect.Descriptor instead.
+func (*TrackedPath) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *TrackedPath) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *TrackedPath) GetTag() string {
+	if x != nil {
+		return x.Tag
+	}
+	return ""
+}
+
+type TrackedPathList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*TrackedPath         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TrackedPathList) Reset() {
+	*x = TrackedPathList{}
+	mi := &file_tracker_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TrackedPathList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TrackedPathList) ProtoMessage() {}
+
+func (x *TrackedPathList) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TrackedPathList.ProtoReflect.Descriptor instead.
+func (*TrackedPathList) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *TrackedPathList) GetItems() []*TrackedPath {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type TrackedPrefix struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Prefix        string                 `protobuf:"bytes,1,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	Tag           string                 `protobuf:"bytes,2,opt,name=tag,proto3" json:"tag,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TrackedPrefix) Reset() {
+	*x = TrackedPrefix{}
+	mi := &file_tracker_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TrackedPrefix) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TrackedPrefix) ProtoMessage() {}
+
+func (x *TrackedPrefix) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TrackedPrefix.ProtoReflect.Descriptor instead.
+func (*TrackedPrefix) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *TrackedPrefix) GetPrefix() string {
+	if x != nil {
+		return x.Prefix
+	}
+	return ""
+}
+
+func (x *TrackedPrefix) GetTag() string {
+	if x != nil {
+		return x.Tag
+	}
+	return ""
+}
+
+type TrackedPrefixList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*TrackedPrefix       `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TrackedPrefixList) Reset() {
+	*x = TrackedPrefixList{}
+	mi := &file_tracker_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TrackedPrefixList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TrackedPrefixList) ProtoMessage() {}
+
+func (x *TrackedPrefixList) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TrackedPrefixList.ProtoReflect.Descriptor instead.
+func (*TrackedPrefixList) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *TrackedPrefixList) GetItems() []*TrackedPrefix {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type WrapperRule struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Comm          string                 `protobuf:"bytes,1,opt,name=comm,proto3" json:"comm,omitempty"`
+	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
+	RewrittenCmd  []string               `protobuf:"bytes,3,rep,name=rewritten_cmd,json=rewrittenCmd,proto3" json:"rewritten_cmd,omitempty"`
+	Regex         string                 `protobuf:"bytes,4,opt,name=regex,proto3" json:"regex,omitempty"`
+	Replacement   string                 `protobuf:"bytes,5,opt,name=replacement,proto3" json:"replacement,omitempty"`
+	Priority      int32                  `protobuf:"varint,6,opt,name=priority,proto3" json:"priority,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WrapperRule) Reset() {
+	*x = WrapperRule{}
+	mi := &file_tracker_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WrapperRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WrapperRule) ProtoMessage() {}
+
+func (x *WrapperRule) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WrapperRule.ProtoReflect.Descriptor instead.
+func (*WrapperRule) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *WrapperRule) GetComm() string {
+	if x != nil {
+		return x.Comm
+	}
+	return ""
+}
+
+func (x *WrapperRule) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *WrapperRule) GetRewrittenCmd() []string {
+	if x != nil {
+		return x.RewrittenCmd
+	}
+	return nil
+}
+
+func (x *WrapperRule) GetRegex() string {
+	if x != nil {
+		return x.Regex
+	}
+	return ""
+}
+
+func (x *WrapperRule) GetReplacement() string {
+	if x != nil {
+		return x.Replacement
+	}
+	return ""
+}
+
+func (x *WrapperRule) GetPriority() int32 {
+	if x != nil {
+		return x.Priority
+	}
+	return 0
+}
+
+type WrapperRuleList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*WrapperRule         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WrapperRuleList) Reset() {
+	*x = WrapperRuleList{}
+	mi := &file_tracker_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WrapperRuleList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WrapperRuleList) ProtoMessage() {}
+
+func (x *WrapperRuleList) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WrapperRuleList.ProtoReflect.Descriptor instead.
+func (*WrapperRuleList) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *WrapperRuleList) GetItems() []*WrapperRule {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type RuntimeSettings struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	LogPersistenceEnabled bool                   `protobuf:"varint,1,opt,name=log_persistence_enabled,json=logPersistenceEnabled,proto3" json:"log_persistence_enabled,omitempty"`
+	LogFilePath           string                 `protobuf:"bytes,2,opt,name=log_file_path,json=logFilePath,proto3" json:"log_file_path,omitempty"`
+	AccessToken           string                 `protobuf:"bytes,3,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	MaxEventCount         int32                  `protobuf:"varint,4,opt,name=max_event_count,json=maxEventCount,proto3" json:"max_event_count,omitempty"`
+	MaxEventAge           string                 `protobuf:"bytes,5,opt,name=max_event_age,json=maxEventAge,proto3" json:"max_event_age,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *RuntimeSettings) Reset() {
+	*x = RuntimeSettings{}
+	mi := &file_tracker_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuntimeSettings) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuntimeSettings) ProtoMessage() {}
+
+func (x *RuntimeSettings) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuntimeSettings.ProtoReflect.Descriptor instead.
+func (*RuntimeSettings) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *RuntimeSettings) GetLogPersistenceEnabled() bool {
+	if x != nil {
+		return x.LogPersistenceEnabled
+	}
+	return false
+}
+
+func (x *RuntimeSettings) GetLogFilePath() string {
+	if x != nil {
+		return x.LogFilePath
+	}
+	return ""
+}
+
+func (x *RuntimeSettings) GetAccessToken() string {
+	if x != nil {
+		return x.AccessToken
+	}
+	return ""
+}
+
+func (x *RuntimeSettings) GetMaxEventCount() int32 {
+	if x != nil {
+		return x.MaxEventCount
+	}
+	return 0
+}
+
+func (x *RuntimeSettings) GetMaxEventAge() string {
+	if x != nil {
+		return x.MaxEventAge
+	}
+	return ""
+}
+
+type RuntimeConfigResponse struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Runtime                *RuntimeSettings       `protobuf:"bytes,1,opt,name=runtime,proto3" json:"runtime,omitempty"`
+	McpEndpoint            string                 `protobuf:"bytes,2,opt,name=mcp_endpoint,json=mcpEndpoint,proto3" json:"mcp_endpoint,omitempty"`
+	AuthHeaderName         string                 `protobuf:"bytes,3,opt,name=auth_header_name,json=authHeaderName,proto3" json:"auth_header_name,omitempty"`
+	BearerAuthHeaderName   string                 `protobuf:"bytes,4,opt,name=bearer_auth_header_name,json=bearerAuthHeaderName,proto3" json:"bearer_auth_header_name,omitempty"`
+	PersistedEventLogPath  string                 `protobuf:"bytes,5,opt,name=persisted_event_log_path,json=persistedEventLogPath,proto3" json:"persisted_event_log_path,omitempty"`
+	PersistedEventLogAlive bool                   `protobuf:"varint,6,opt,name=persisted_event_log_alive,json=persistedEventLogAlive,proto3" json:"persisted_event_log_alive,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *RuntimeConfigResponse) Reset() {
+	*x = RuntimeConfigResponse{}
+	mi := &file_tracker_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuntimeConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuntimeConfigResponse) ProtoMessage() {}
+
+func (x *RuntimeConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuntimeConfigResponse.ProtoReflect.Descriptor instead.
+func (*RuntimeConfigResponse) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *RuntimeConfigResponse) GetRuntime() *RuntimeSettings {
+	if x != nil {
+		return x.Runtime
+	}
+	return nil
+}
+
+func (x *RuntimeConfigResponse) GetMcpEndpoint() string {
+	if x != nil {
+		return x.McpEndpoint
+	}
+	return ""
+}
+
+func (x *RuntimeConfigResponse) GetAuthHeaderName() string {
+	if x != nil {
+		return x.AuthHeaderName
+	}
+	return ""
+}
+
+func (x *RuntimeConfigResponse) GetBearerAuthHeaderName() string {
+	if x != nil {
+		return x.BearerAuthHeaderName
+	}
+	return ""
+}
+
+func (x *RuntimeConfigResponse) GetPersistedEventLogPath() string {
+	if x != nil {
+		return x.PersistedEventLogPath
+	}
+	return ""
+}
+
+func (x *RuntimeConfigResponse) GetPersistedEventLogAlive() bool {
+	if x != nil {
+		return x.PersistedEventLogAlive
+	}
+	return false
+}
+
+type ExportConfigData struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tags          []string               `protobuf:"bytes,1,rep,name=tags,proto3" json:"tags,omitempty"`
+	Comms         []*TrackedComm         `protobuf:"bytes,2,rep,name=comms,proto3" json:"comms,omitempty"`
+	Paths         []*TrackedPath         `protobuf:"bytes,3,rep,name=paths,proto3" json:"paths,omitempty"`
+	Prefixes      []*TrackedPrefix       `protobuf:"bytes,4,rep,name=prefixes,proto3" json:"prefixes,omitempty"`
+	Rules         []*WrapperRule         `protobuf:"bytes,5,rep,name=rules,proto3" json:"rules,omitempty"`
+	Runtime       *RuntimeSettings       `protobuf:"bytes,6,opt,name=runtime,proto3" json:"runtime,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportConfigData) Reset() {
+	*x = ExportConfigData{}
+	mi := &file_tracker_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportConfigData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportConfigData) ProtoMessage() {}
+
+func (x *ExportConfigData) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportConfigData.ProtoReflect.Descriptor instead.
+func (*ExportConfigData) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ExportConfigData) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *ExportConfigData) GetComms() []*TrackedComm {
+	if x != nil {
+		return x.Comms
+	}
+	return nil
+}
+
+func (x *ExportConfigData) GetPaths() []*TrackedPath {
+	if x != nil {
+		return x.Paths
+	}
+	return nil
+}
+
+func (x *ExportConfigData) GetPrefixes() []*TrackedPrefix {
+	if x != nil {
+		return x.Prefixes
+	}
+	return nil
+}
+
+func (x *ExportConfigData) GetRules() []*WrapperRule {
+	if x != nil {
+		return x.Rules
+	}
+	return nil
+}
+
+func (x *ExportConfigData) GetRuntime() *RuntimeSettings {
+	if x != nil {
+		return x.Runtime
+	}
+	return nil
+}
+
+type StatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StatusResponse) Reset() {
+	*x = StatusResponse{}
+	mi := &file_tracker_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StatusResponse) ProtoMessage() {}
+
+func (x *StatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StatusResponse.ProtoReflect.Descriptor instead.
+func (*StatusResponse) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *StatusResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *StatusResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type FileEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	IsDir         bool                   `protobuf:"varint,2,opt,name=is_dir,json=isDir,proto3" json:"is_dir,omitempty"`
+	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	MimeType      string                 `protobuf:"bytes,4,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
+	Size          int64                  `protobuf:"varint,5,opt,name=size,proto3" json:"size,omitempty"`
+	ModTime       string                 `protobuf:"bytes,6,opt,name=mod_time,json=modTime,proto3" json:"mod_time,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileEntry) Reset() {
+	*x = FileEntry{}
+	mi := &file_tracker_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileEntry) ProtoMessage() {}
+
+func (x *FileEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileEntry.ProtoReflect.Descriptor instead.
+func (*FileEntry) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *FileEntry) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FileEntry) GetIsDir() bool {
+	if x != nil {
+		return x.IsDir
+	}
+	return false
+}
+
+func (x *FileEntry) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *FileEntry) GetMimeType() string {
+	if x != nil {
+		return x.MimeType
+	}
+	return ""
+}
+
+func (x *FileEntry) GetSize() int64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *FileEntry) GetModTime() string {
+	if x != nil {
+		return x.ModTime
+	}
+	return ""
+}
+
+type FileListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*FileEntry           `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileListResponse) Reset() {
+	*x = FileListResponse{}
+	mi := &file_tracker_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileListResponse) ProtoMessage() {}
+
+func (x *FileListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileListResponse.ProtoReflect.Descriptor instead.
+func (*FileListResponse) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *FileListResponse) GetItems() []*FileEntry {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *FileListResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *FileListResponse) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *FileListResponse) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type FilePreviewResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Content       string                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
+	MimeType      string                 `protobuf:"bytes,2,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
+	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	Size          int64                  `protobuf:"varint,4,opt,name=size,proto3" json:"size,omitempty"`
+	ModTime       string                 `protobuf:"bytes,5,opt,name=mod_time,json=modTime,proto3" json:"mod_time,omitempty"`
+	Truncated     bool                   `protobuf:"varint,6,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FilePreviewResponse) Reset() {
+	*x = FilePreviewResponse{}
+	mi := &file_tracker_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FilePreviewResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FilePreviewResponse) ProtoMessage() {}
+
+func (x *FilePreviewResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FilePreviewResponse.ProtoReflect.Descriptor instead.
+func (*FilePreviewResponse) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *FilePreviewResponse) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *FilePreviewResponse) GetMimeType() string {
+	if x != nil {
+		return x.MimeType
+	}
+	return ""
+}
+
+func (x *FilePreviewResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *FilePreviewResponse) GetSize() int64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *FilePreviewResponse) GetModTime() string {
+	if x != nil {
+		return x.ModTime
+	}
+	return ""
+}
+
+func (x *FilePreviewResponse) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+type SystemdUnit struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Unit          string                 `protobuf:"bytes,1,opt,name=unit,proto3" json:"unit,omitempty"`
+	Load          string                 `protobuf:"bytes,2,opt,name=load,proto3" json:"load,omitempty"`
+	Active        string                 `protobuf:"bytes,3,opt,name=active,proto3" json:"active,omitempty"`
+	Sub           string                 `protobuf:"bytes,4,opt,name=sub,proto3" json:"sub,omitempty"`
+	Description   string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SystemdUnit) Reset() {
+	*x = SystemdUnit{}
+	mi := &file_tracker_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SystemdUnit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SystemdUnit) ProtoMessage() {}
+
+func (x *SystemdUnit) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SystemdUnit.ProtoReflect.Descriptor instead.
+func (*SystemdUnit) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *SystemdUnit) GetUnit() string {
+	if x != nil {
+		return x.Unit
+	}
+	return ""
+}
+
+func (x *SystemdUnit) GetLoad() string {
+	if x != nil {
+		return x.Load
+	}
+	return ""
+}
+
+func (x *SystemdUnit) GetActive() string {
+	if x != nil {
+		return x.Active
+	}
+	return ""
+}
+
+func (x *SystemdUnit) GetSub() string {
+	if x != nil {
+		return x.Sub
+	}
+	return ""
+}
+
+func (x *SystemdUnit) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+type SystemdUnitList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Services      []*SystemdUnit         `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SystemdUnitList) Reset() {
+	*x = SystemdUnitList{}
+	mi := &file_tracker_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SystemdUnitList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SystemdUnitList) ProtoMessage() {}
+
+func (x *SystemdUnitList) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SystemdUnitList.ProtoReflect.Descriptor instead.
+func (*SystemdUnitList) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *SystemdUnitList) GetServices() []*SystemdUnit {
+	if x != nil {
+		return x.Services
+	}
+	return nil
+}
+
+type SensorReading struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value         float64                `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
+	Unit          string                 `protobuf:"bytes,3,opt,name=unit,proto3" json:"unit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SensorReading) Reset() {
+	*x = SensorReading{}
+	mi := &file_tracker_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SensorReading) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SensorReading) ProtoMessage() {}
+
+func (x *SensorReading) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SensorReading.ProtoReflect.Descriptor instead.
+func (*SensorReading) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *SensorReading) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *SensorReading) GetValue() float64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+func (x *SensorReading) GetUnit() string {
+	if x != nil {
+		return x.Unit
+	}
+	return ""
+}
+
+type SensorsSnapshot struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Temperatures  []*SensorReading       `protobuf:"bytes,1,rep,name=temperatures,proto3" json:"temperatures,omitempty"`
+	Fans          []string               `protobuf:"bytes,2,rep,name=fans,proto3" json:"fans,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SensorsSnapshot) Reset() {
+	*x = SensorsSnapshot{}
+	mi := &file_tracker_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SensorsSnapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SensorsSnapshot) ProtoMessage() {}
+
+func (x *SensorsSnapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SensorsSnapshot.ProtoReflect.Descriptor instead.
+func (*SensorsSnapshot) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *SensorsSnapshot) GetTemperatures() []*SensorReading {
+	if x != nil {
+		return x.Temperatures
+	}
+	return nil
+}
+
+func (x *SensorsSnapshot) GetFans() []string {
+	if x != nil {
+		return x.Fans
+	}
+	return nil
+}
+
+type ShellSession struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Label         string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	Pid           int32                  `protobuf:"varint,3,opt,name=pid,proto3" json:"pid,omitempty"`
+	Active        bool                   `protobuf:"varint,4,opt,name=active,proto3" json:"active,omitempty"`
+	CreatedAt     int64                  `protobuf:"varint,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	Cols          string                 `protobuf:"bytes,6,opt,name=cols,proto3" json:"cols,omitempty"`
+	Rows          string                 `protobuf:"bytes,7,opt,name=rows,proto3" json:"rows,omitempty"`
+	Cwd           string                 `protobuf:"bytes,8,opt,name=cwd,proto3" json:"cwd,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ShellSession) Reset() {
+	*x = ShellSession{}
+	mi := &file_tracker_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ShellSession) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ShellSession) ProtoMessage() {}
+
+func (x *ShellSession) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ShellSession.ProtoReflect.Descriptor instead.
+func (*ShellSession) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *ShellSession) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ShellSession) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *ShellSession) GetPid() int32 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *ShellSession) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+func (x *ShellSession) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *ShellSession) GetCols() string {
+	if x != nil {
+		return x.Cols
+	}
+	return ""
+}
+
+func (x *ShellSession) GetRows() string {
+	if x != nil {
+		return x.Rows
+	}
+	return ""
+}
+
+func (x *ShellSession) GetCwd() string {
+	if x != nil {
+		return x.Cwd
+	}
+	return ""
+}
+
+type ShellSessionList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sessions      []*ShellSession        `protobuf:"bytes,1,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ShellSessionList) Reset() {
+	*x = ShellSessionList{}
+	mi := &file_tracker_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ShellSessionList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ShellSessionList) ProtoMessage() {}
+
+func (x *ShellSessionList) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ShellSessionList.ProtoReflect.Descriptor instead.
+func (*ShellSessionList) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *ShellSessionList) GetSessions() []*ShellSession {
+	if x != nil {
+		return x.Sessions
+	}
+	return nil
+}
+
+type ShellSessionCreateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workdir       string                 `protobuf:"bytes,1,opt,name=workdir,proto3" json:"workdir,omitempty"`
+	Args          []string               `protobuf:"bytes,2,rep,name=args,proto3" json:"args,omitempty"`
+	Label         string                 `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ShellSessionCreateRequest) Reset() {
+	*x = ShellSessionCreateRequest{}
+	mi := &file_tracker_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ShellSessionCreateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ShellSessionCreateRequest) ProtoMessage() {}
+
+func (x *ShellSessionCreateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ShellSessionCreateRequest.ProtoReflect.Descriptor instead.
+func (*ShellSessionCreateRequest) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *ShellSessionCreateRequest) GetWorkdir() string {
+	if x != nil {
+		return x.Workdir
+	}
+	return ""
+}
+
+func (x *ShellSessionCreateRequest) GetArgs() []string {
+	if x != nil {
+		return x.Args
+	}
+	return nil
+}
+
+func (x *ShellSessionCreateRequest) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+type CapturedEventRecord struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Event         *Event                 `protobuf:"bytes,1,opt,name=event,proto3" json:"event,omitempty"`
+	Timestamp     int64                  `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CapturedEventRecord) Reset() {
+	*x = CapturedEventRecord{}
+	mi := &file_tracker_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CapturedEventRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CapturedEventRecord) ProtoMessage() {}
+
+func (x *CapturedEventRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CapturedEventRecord.ProtoReflect.Descriptor instead.
+func (*CapturedEventRecord) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *CapturedEventRecord) GetEvent() *Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *CapturedEventRecord) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+type EventHistoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Events        []*CapturedEventRecord `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	Source        string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EventHistoryResponse) Reset() {
+	*x = EventHistoryResponse{}
+	mi := &file_tracker_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EventHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EventHistoryResponse) ProtoMessage() {}
+
+func (x *EventHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EventHistoryResponse.ProtoReflect.Descriptor instead.
+func (*EventHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *EventHistoryResponse) GetEvents() []*CapturedEventRecord {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+func (x *EventHistoryResponse) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+type ConfigKeyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigKeyRequest) Reset() {
+	*x = ConfigKeyRequest{}
+	mi := &file_tracker_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigKeyRequest) ProtoMessage() {}
+
+func (x *ConfigKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigKeyRequest.ProtoReflect.Descriptor instead.
+func (*ConfigKeyRequest) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *ConfigKeyRequest) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *ConfigKeyRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type ConfigBoolResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Value         bool                   `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigBoolResponse) Reset() {
+	*x = ConfigBoolResponse{}
+	mi := &file_tracker_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigBoolResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigBoolResponse) ProtoMessage() {}
+
+func (x *ConfigBoolResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tracker_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigBoolResponse.ProtoReflect.Descriptor instead.
+func (*ConfigBoolResponse) Descriptor() ([]byte, []int) {
+	return file_tracker_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *ConfigBoolResponse) GetValue() bool {
+	if x != nil {
+		return x.Value
+	}
+	return false
+}
+
+func (x *ConfigBoolResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 type CPUInfo_Core struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Index         uint32                 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
@@ -1949,7 +3629,7 @@ type CPUInfo_Core struct {
 
 func (x *CPUInfo_Core) Reset() {
 	*x = CPUInfo_Core{}
-	mi := &file_tracker_proto_msgTypes[21]
+	mi := &file_tracker_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1961,7 +3641,7 @@ func (x *CPUInfo_Core) String() string {
 func (*CPUInfo_Core) ProtoMessage() {}
 
 func (x *CPUInfo_Core) ProtoReflect() protoreflect.Message {
-	mi := &file_tracker_proto_msgTypes[21]
+	mi := &file_tracker_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2179,7 +3859,120 @@ const file_tracker_proto_rawDesc = "" +
 	"\aREWRITE\x10\x02\x12\t\n" +
 	"\x05ALERT\x10\x03\"8\n" +
 	"\vProcessList\x12)\n" +
-	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocesses*\xdb\x02\n" +
+	"\tprocesses\x18\x01 \x03(\v2\v.pb.ProcessR\tprocesses\"\x1f\n" +
+	"\tConfigTag\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"%\n" +
+	"\rConfigTagList\x12\x14\n" +
+	"\x05names\x18\x01 \x03(\tR\x05names\"3\n" +
+	"\vTrackedComm\x12\x12\n" +
+	"\x04comm\x18\x01 \x01(\tR\x04comm\x12\x10\n" +
+	"\x03tag\x18\x02 \x01(\tR\x03tag\"8\n" +
+	"\x0fTrackedCommList\x12%\n" +
+	"\x05items\x18\x01 \x03(\v2\x0f.pb.TrackedCommR\x05items\"3\n" +
+	"\vTrackedPath\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x10\n" +
+	"\x03tag\x18\x02 \x01(\tR\x03tag\"8\n" +
+	"\x0fTrackedPathList\x12%\n" +
+	"\x05items\x18\x01 \x03(\v2\x0f.pb.TrackedPathR\x05items\"9\n" +
+	"\rTrackedPrefix\x12\x16\n" +
+	"\x06prefix\x18\x01 \x01(\tR\x06prefix\x12\x10\n" +
+	"\x03tag\x18\x02 \x01(\tR\x03tag\"<\n" +
+	"\x11TrackedPrefixList\x12'\n" +
+	"\x05items\x18\x01 \x03(\v2\x11.pb.TrackedPrefixR\x05items\"\xb2\x01\n" +
+	"\vWrapperRule\x12\x12\n" +
+	"\x04comm\x18\x01 \x01(\tR\x04comm\x12\x16\n" +
+	"\x06action\x18\x02 \x01(\tR\x06action\x12#\n" +
+	"\rrewritten_cmd\x18\x03 \x03(\tR\frewrittenCmd\x12\x14\n" +
+	"\x05regex\x18\x04 \x01(\tR\x05regex\x12 \n" +
+	"\vreplacement\x18\x05 \x01(\tR\vreplacement\x12\x1a\n" +
+	"\bpriority\x18\x06 \x01(\x05R\bpriority\"8\n" +
+	"\x0fWrapperRuleList\x12%\n" +
+	"\x05items\x18\x01 \x03(\v2\x0f.pb.WrapperRuleR\x05items\"\xdc\x01\n" +
+	"\x0fRuntimeSettings\x126\n" +
+	"\x17log_persistence_enabled\x18\x01 \x01(\bR\x15logPersistenceEnabled\x12\"\n" +
+	"\rlog_file_path\x18\x02 \x01(\tR\vlogFilePath\x12!\n" +
+	"\faccess_token\x18\x03 \x01(\tR\vaccessToken\x12&\n" +
+	"\x0fmax_event_count\x18\x04 \x01(\x05R\rmaxEventCount\x12\"\n" +
+	"\rmax_event_age\x18\x05 \x01(\tR\vmaxEventAge\"\xbe\x02\n" +
+	"\x15RuntimeConfigResponse\x12-\n" +
+	"\aruntime\x18\x01 \x01(\v2\x13.pb.RuntimeSettingsR\aruntime\x12!\n" +
+	"\fmcp_endpoint\x18\x02 \x01(\tR\vmcpEndpoint\x12(\n" +
+	"\x10auth_header_name\x18\x03 \x01(\tR\x0eauthHeaderName\x125\n" +
+	"\x17bearer_auth_header_name\x18\x04 \x01(\tR\x14bearerAuthHeaderName\x127\n" +
+	"\x18persisted_event_log_path\x18\x05 \x01(\tR\x15persistedEventLogPath\x129\n" +
+	"\x19persisted_event_log_alive\x18\x06 \x01(\bR\x16persistedEventLogAlive\"\xf9\x01\n" +
+	"\x10ExportConfigData\x12\x12\n" +
+	"\x04tags\x18\x01 \x03(\tR\x04tags\x12%\n" +
+	"\x05comms\x18\x02 \x03(\v2\x0f.pb.TrackedCommR\x05comms\x12%\n" +
+	"\x05paths\x18\x03 \x03(\v2\x0f.pb.TrackedPathR\x05paths\x12-\n" +
+	"\bprefixes\x18\x04 \x03(\v2\x11.pb.TrackedPrefixR\bprefixes\x12%\n" +
+	"\x05rules\x18\x05 \x03(\v2\x0f.pb.WrapperRuleR\x05rules\x12-\n" +
+	"\aruntime\x18\x06 \x01(\v2\x13.pb.RuntimeSettingsR\aruntime\"B\n" +
+	"\x0eStatusResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x96\x01\n" +
+	"\tFileEntry\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x15\n" +
+	"\x06is_dir\x18\x02 \x01(\bR\x05isDir\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x1b\n" +
+	"\tmime_type\x18\x04 \x01(\tR\bmimeType\x12\x12\n" +
+	"\x04size\x18\x05 \x01(\x03R\x04size\x12\x19\n" +
+	"\bmod_time\x18\x06 \x01(\tR\amodTime\"{\n" +
+	"\x10FileListResponse\x12#\n" +
+	"\x05items\x18\x01 \x03(\v2\r.pb.FileEntryR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\xad\x01\n" +
+	"\x13FilePreviewResponse\x12\x18\n" +
+	"\acontent\x18\x01 \x01(\tR\acontent\x12\x1b\n" +
+	"\tmime_type\x18\x02 \x01(\tR\bmimeType\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x12\n" +
+	"\x04size\x18\x04 \x01(\x03R\x04size\x12\x19\n" +
+	"\bmod_time\x18\x05 \x01(\tR\amodTime\x12\x1c\n" +
+	"\ttruncated\x18\x06 \x01(\bR\ttruncated\"\x81\x01\n" +
+	"\vSystemdUnit\x12\x12\n" +
+	"\x04unit\x18\x01 \x01(\tR\x04unit\x12\x12\n" +
+	"\x04load\x18\x02 \x01(\tR\x04load\x12\x16\n" +
+	"\x06active\x18\x03 \x01(\tR\x06active\x12\x10\n" +
+	"\x03sub\x18\x04 \x01(\tR\x03sub\x12 \n" +
+	"\vdescription\x18\x05 \x01(\tR\vdescription\">\n" +
+	"\x0fSystemdUnitList\x12+\n" +
+	"\bservices\x18\x01 \x03(\v2\x0f.pb.SystemdUnitR\bservices\"K\n" +
+	"\rSensorReading\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x01R\x05value\x12\x12\n" +
+	"\x04unit\x18\x03 \x01(\tR\x04unit\"\\\n" +
+	"\x0fSensorsSnapshot\x125\n" +
+	"\ftemperatures\x18\x01 \x03(\v2\x11.pb.SensorReadingR\ftemperatures\x12\x12\n" +
+	"\x04fans\x18\x02 \x03(\tR\x04fans\"\xb7\x01\n" +
+	"\fShellSession\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\x12\x10\n" +
+	"\x03pid\x18\x03 \x01(\x05R\x03pid\x12\x16\n" +
+	"\x06active\x18\x04 \x01(\bR\x06active\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\x03R\tcreatedAt\x12\x12\n" +
+	"\x04cols\x18\x06 \x01(\tR\x04cols\x12\x12\n" +
+	"\x04rows\x18\a \x01(\tR\x04rows\x12\x10\n" +
+	"\x03cwd\x18\b \x01(\tR\x03cwd\"@\n" +
+	"\x10ShellSessionList\x12,\n" +
+	"\bsessions\x18\x01 \x03(\v2\x10.pb.ShellSessionR\bsessions\"_\n" +
+	"\x19ShellSessionCreateRequest\x12\x18\n" +
+	"\aworkdir\x18\x01 \x01(\tR\aworkdir\x12\x12\n" +
+	"\x04args\x18\x02 \x03(\tR\x04args\x12\x14\n" +
+	"\x05label\x18\x03 \x01(\tR\x05label\"T\n" +
+	"\x13CapturedEventRecord\x12\x1f\n" +
+	"\x05event\x18\x01 \x01(\v2\t.pb.EventR\x05event\x12\x1c\n" +
+	"\ttimestamp\x18\x02 \x01(\x03R\ttimestamp\"_\n" +
+	"\x14EventHistoryResponse\x12/\n" +
+	"\x06events\x18\x01 \x03(\v2\x17.pb.CapturedEventRecordR\x06events\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\"8\n" +
+	"\x10ConfigKeyRequest\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"D\n" +
+	"\x12ConfigBoolResponse\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\bR\x05value\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage*\xdb\x02\n" +
 	"\tEventType\x12\n" +
 	"\n" +
 	"\x06EXECVE\x10\x00\x12\n" +
@@ -2227,38 +4020,66 @@ func file_tracker_proto_rawDescGZIP() []byte {
 }
 
 var file_tracker_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_tracker_proto_msgTypes = make([]protoimpl.MessageInfo, 50)
 var file_tracker_proto_goTypes = []any{
-	(EventType)(0),              // 0: pb.EventType
-	(CPUInfo_Core_Type)(0),      // 1: pb.CPUInfo.Core.Type
-	(WrapperResponse_Action)(0), // 2: pb.WrapperResponse.Action
-	(*RegisterRequest)(nil),     // 3: pb.RegisterRequest
-	(*RegisterResponse)(nil),    // 4: pb.RegisterResponse
-	(*UnregisterRequest)(nil),   // 5: pb.UnregisterRequest
-	(*UnregisterResponse)(nil),  // 6: pb.UnregisterResponse
-	(*Event)(nil),               // 7: pb.Event
-	(*EventBatch)(nil),          // 8: pb.EventBatch
-	(*Process)(nil),             // 9: pb.Process
-	(*GPUStatus)(nil),           // 10: pb.GPUStatus
-	(*CPUInfo)(nil),             // 11: pb.CPUInfo
-	(*MemoryInfo)(nil),          // 12: pb.MemoryInfo
-	(*Hook)(nil),                // 13: pb.Hook
-	(*HookRequest)(nil),         // 14: pb.HookRequest
-	(*HookResponse)(nil),        // 15: pb.HookResponse
-	(*NetworkInterface)(nil),    // 16: pb.NetworkInterface
-	(*DiskDevice)(nil),          // 17: pb.DiskDevice
-	(*IOInfo)(nil),              // 18: pb.IOInfo
-	(*FaultInfo)(nil),           // 19: pb.FaultInfo
-	(*SystemStats)(nil),         // 20: pb.SystemStats
-	(*WrapperRequest)(nil),      // 21: pb.WrapperRequest
-	(*WrapperResponse)(nil),     // 22: pb.WrapperResponse
-	(*ProcessList)(nil),         // 23: pb.ProcessList
-	(*CPUInfo_Core)(nil),        // 24: pb.CPUInfo.Core
+	(EventType)(0),                    // 0: pb.EventType
+	(CPUInfo_Core_Type)(0),            // 1: pb.CPUInfo.Core.Type
+	(WrapperResponse_Action)(0),       // 2: pb.WrapperResponse.Action
+	(*RegisterRequest)(nil),           // 3: pb.RegisterRequest
+	(*RegisterResponse)(nil),          // 4: pb.RegisterResponse
+	(*UnregisterRequest)(nil),         // 5: pb.UnregisterRequest
+	(*UnregisterResponse)(nil),        // 6: pb.UnregisterResponse
+	(*Event)(nil),                     // 7: pb.Event
+	(*EventBatch)(nil),                // 8: pb.EventBatch
+	(*Process)(nil),                   // 9: pb.Process
+	(*GPUStatus)(nil),                 // 10: pb.GPUStatus
+	(*CPUInfo)(nil),                   // 11: pb.CPUInfo
+	(*MemoryInfo)(nil),                // 12: pb.MemoryInfo
+	(*Hook)(nil),                      // 13: pb.Hook
+	(*HookRequest)(nil),               // 14: pb.HookRequest
+	(*HookResponse)(nil),              // 15: pb.HookResponse
+	(*NetworkInterface)(nil),          // 16: pb.NetworkInterface
+	(*DiskDevice)(nil),                // 17: pb.DiskDevice
+	(*IOInfo)(nil),                    // 18: pb.IOInfo
+	(*FaultInfo)(nil),                 // 19: pb.FaultInfo
+	(*SystemStats)(nil),               // 20: pb.SystemStats
+	(*WrapperRequest)(nil),            // 21: pb.WrapperRequest
+	(*WrapperResponse)(nil),           // 22: pb.WrapperResponse
+	(*ProcessList)(nil),               // 23: pb.ProcessList
+	(*ConfigTag)(nil),                 // 24: pb.ConfigTag
+	(*ConfigTagList)(nil),             // 25: pb.ConfigTagList
+	(*TrackedComm)(nil),               // 26: pb.TrackedComm
+	(*TrackedCommList)(nil),           // 27: pb.TrackedCommList
+	(*TrackedPath)(nil),               // 28: pb.TrackedPath
+	(*TrackedPathList)(nil),           // 29: pb.TrackedPathList
+	(*TrackedPrefix)(nil),             // 30: pb.TrackedPrefix
+	(*TrackedPrefixList)(nil),         // 31: pb.TrackedPrefixList
+	(*WrapperRule)(nil),               // 32: pb.WrapperRule
+	(*WrapperRuleList)(nil),           // 33: pb.WrapperRuleList
+	(*RuntimeSettings)(nil),           // 34: pb.RuntimeSettings
+	(*RuntimeConfigResponse)(nil),     // 35: pb.RuntimeConfigResponse
+	(*ExportConfigData)(nil),          // 36: pb.ExportConfigData
+	(*StatusResponse)(nil),            // 37: pb.StatusResponse
+	(*FileEntry)(nil),                 // 38: pb.FileEntry
+	(*FileListResponse)(nil),          // 39: pb.FileListResponse
+	(*FilePreviewResponse)(nil),       // 40: pb.FilePreviewResponse
+	(*SystemdUnit)(nil),               // 41: pb.SystemdUnit
+	(*SystemdUnitList)(nil),           // 42: pb.SystemdUnitList
+	(*SensorReading)(nil),             // 43: pb.SensorReading
+	(*SensorsSnapshot)(nil),           // 44: pb.SensorsSnapshot
+	(*ShellSession)(nil),              // 45: pb.ShellSession
+	(*ShellSessionList)(nil),          // 46: pb.ShellSessionList
+	(*ShellSessionCreateRequest)(nil), // 47: pb.ShellSessionCreateRequest
+	(*CapturedEventRecord)(nil),       // 48: pb.CapturedEventRecord
+	(*EventHistoryResponse)(nil),      // 49: pb.EventHistoryResponse
+	(*ConfigKeyRequest)(nil),          // 50: pb.ConfigKeyRequest
+	(*ConfigBoolResponse)(nil),        // 51: pb.ConfigBoolResponse
+	(*CPUInfo_Core)(nil),              // 52: pb.CPUInfo.Core
 }
 var file_tracker_proto_depIdxs = []int32{
 	0,  // 0: pb.Event.event_type:type_name -> pb.EventType
 	7,  // 1: pb.EventBatch.events:type_name -> pb.Event
-	24, // 2: pb.CPUInfo.core_details:type_name -> pb.CPUInfo.Core
+	52, // 2: pb.CPUInfo.core_details:type_name -> pb.CPUInfo.Core
 	16, // 3: pb.IOInfo.networks:type_name -> pb.NetworkInterface
 	17, // 4: pb.IOInfo.disks:type_name -> pb.DiskDevice
 	9,  // 5: pb.SystemStats.processes:type_name -> pb.Process
@@ -2269,12 +4090,28 @@ var file_tracker_proto_depIdxs = []int32{
 	19, // 10: pb.SystemStats.faults:type_name -> pb.FaultInfo
 	2,  // 11: pb.WrapperResponse.action:type_name -> pb.WrapperResponse.Action
 	9,  // 12: pb.ProcessList.processes:type_name -> pb.Process
-	1,  // 13: pb.CPUInfo.Core.type:type_name -> pb.CPUInfo.Core.Type
-	14, // [14:14] is the sub-list for method output_type
-	14, // [14:14] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	26, // 13: pb.TrackedCommList.items:type_name -> pb.TrackedComm
+	28, // 14: pb.TrackedPathList.items:type_name -> pb.TrackedPath
+	30, // 15: pb.TrackedPrefixList.items:type_name -> pb.TrackedPrefix
+	32, // 16: pb.WrapperRuleList.items:type_name -> pb.WrapperRule
+	34, // 17: pb.RuntimeConfigResponse.runtime:type_name -> pb.RuntimeSettings
+	26, // 18: pb.ExportConfigData.comms:type_name -> pb.TrackedComm
+	28, // 19: pb.ExportConfigData.paths:type_name -> pb.TrackedPath
+	30, // 20: pb.ExportConfigData.prefixes:type_name -> pb.TrackedPrefix
+	32, // 21: pb.ExportConfigData.rules:type_name -> pb.WrapperRule
+	34, // 22: pb.ExportConfigData.runtime:type_name -> pb.RuntimeSettings
+	38, // 23: pb.FileListResponse.items:type_name -> pb.FileEntry
+	41, // 24: pb.SystemdUnitList.services:type_name -> pb.SystemdUnit
+	43, // 25: pb.SensorsSnapshot.temperatures:type_name -> pb.SensorReading
+	45, // 26: pb.ShellSessionList.sessions:type_name -> pb.ShellSession
+	7,  // 27: pb.CapturedEventRecord.event:type_name -> pb.Event
+	48, // 28: pb.EventHistoryResponse.events:type_name -> pb.CapturedEventRecord
+	1,  // 29: pb.CPUInfo.Core.type:type_name -> pb.CPUInfo.Core.Type
+	30, // [30:30] is the sub-list for method output_type
+	30, // [30:30] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_tracker_proto_init() }
@@ -2288,7 +4125,7 @@ func file_tracker_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tracker_proto_rawDesc), len(file_tracker_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   22,
+			NumMessages:   50,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
