@@ -55,7 +55,6 @@ const commandFilter = ref('');
 const pathFilter = ref('');
 const isDeduplicated = ref(false);
 const hideUnknown = ref(true);
-const bypassFilters = ref(false);
 const activeHeaderFilter = ref<string | null>(null);
 const tags = ref<string[]>([]);
 const currentPage = ref(1);
@@ -331,9 +330,6 @@ const fetchTags = async () => {
 
 const filteredEvents = computed(() => {
   let result = events.value;
-  if (bypassFilters.value) {
-    return streamDirection.value === 'bottom' ? [...result].reverse() : result;
-  }
   if (selectedTags.value.length) {
     const activeTags = new Set(selectedTags.value);
     result = result.filter(e => activeTags.has(e.tag));
@@ -864,9 +860,6 @@ onUnmounted(() => {
           <a-badge :status="isConnected ? 'success' : 'error'" :text="isConnected ? 'Connected' : 'Disconnected'" />
           <span style="font-weight: 500;">Total Events: {{ events.length }}</span>
           <a-divider type="vertical" />
-          <a-button @click="bypassFilters = !bypassFilters" :type="bypassFilters ? 'primary' : 'default'" size="small" :danger="bypassFilters">
-            {{ bypassFilters ? 'Bypassing Filters' : 'Bypass Filters' }}
-          </a-button>
           <a-button @click="isPaused = !isPaused" :type="isPaused ? 'primary' : 'default'" size="small" danger>
             {{ isPaused ? 'Resume Stream' : 'Pause Stream' }}
           </a-button>
