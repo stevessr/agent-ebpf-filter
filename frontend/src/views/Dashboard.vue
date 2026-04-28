@@ -257,9 +257,11 @@ const categoryTabs = [
   { key: 'file', label: '文件' },
   { key: 'process', label: '进程' },
   { key: 'hook', label: '钩子' },
+  { key: 'syscall', label: '系统调用' },
 ] as const;
 
 const activeTab = ref<string>('all');
+const netDirFilter = ref<string>('all');
 
 const syncTabFromRoute = () => {
   const tab = route.params.tab as string | undefined;
@@ -369,10 +371,23 @@ const filteredEvents = computed(() => {
       result = result.filter(e => e.eventType !== undefined && categorySet.has(e.eventType));
     }
   }
+  if (activeTab.value === 'network' && netDirFilter.value !== 'all') {
+    result = result.filter(e => (e.netDirection || 'unknown') === netDirFilter.value);
+  }
   if (hideUnknown.value) {
     result = result.filter(e => e.tag !== 'Unknown');
   }
   return streamDirection.value === 'bottom' ? [...result].reverse() : result;
+});
+
+const networkDirStats = computed(() => {
+  const list = activeTab.value === 'network' ? filteredEvents.value : [];
+  const dirs = { outgoing: 0, incoming: 0, listening: 0, unknown: 0 };
+  for (const e of list) {
+    const d = e.netDirection || 'unknown';
+    if (d in dirs) (dirs as any)[d]++; else dirs.unknown++;
+  }
+  return dirs;
 });
 
 const tablePagination = computed(() => {
@@ -896,6 +911,20 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <div v-if="activeTab === 'network'" class="net-dir-bar">
+      <span style="font-weight: 600; margin-right: 8px; color: #555;">Direction:</span>
+      <a-tag
+        v-for="d in ['outgoing','incoming','listening','unknown']" :key="d"
+        :color="netDirFilter === d ? 'blue' : 'default'"
+        style="cursor: pointer;"
+        @click="netDirFilter = netDirFilter === d ? 'all' : d"
+      >
+        {{ d === 'unknown' ? 'Unknown' : d.charAt(0).toUpperCase() + d.slice(1) }}
+        <span style="margin-left: 2px; font-weight: 600;">{{ (networkDirStats as any)[d] }}</span>
+      </a-tag>
+      <a-tag v-if="netDirFilter !== 'all'" color="red" style="cursor: pointer;" @click="netDirFilter = 'all'">✕ Clear</a-tag>
+    </div>
+
     <div ref="tableWrapperRef" class="dashboard-table-wrap">
       <a-table
         class="excel-table"
@@ -1144,6 +1173,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.net-dir-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0 10px;
+  flex-wrap: wrap;
+}
 .dashboard-page {
   min-height: 280px;
   padding: 0;

@@ -204,9 +204,59 @@ const syscallGroups: SyscallGroup[] = [
     ],
   },
   {
-    key: 'other', title: 'Other Syscalls (raw)', icon: 'global', color: '#595959',
+    key: 'file_ex', title: 'File (Extended)', icon: 'file', color: '#096dd9',
     syscalls: [
-      { type: 25, name: 'syscall', desc: 'All ~312 remaining Linux syscalls captured via raw tracepoints (mmap, mprotect, kill, ptrace, mount, seccomp, bpf, ...)' },
+      { type: 25, name: 'stat / lstat', desc: 'Get file status' },
+      { type: 25, name: 'access', desc: 'Check file accessibility' },
+      { type: 25, name: 'truncate / creat', desc: 'Truncate or create file' },
+      { type: 25, name: 'chdir', desc: 'Change working directory' },
+      { type: 25, name: 'mkdir / rmdir', desc: 'Create/remove directory' },
+      { type: 25, name: 'unlink / readlink', desc: 'Remove or read symlink' },
+      { type: 25, name: 'chroot', desc: 'Change root directory' },
+      { type: 25, name: 'mount / umount2', desc: 'Mount / unmount filesystem' },
+      { type: 25, name: 'swapon / swapoff', desc: 'Enable/disable swap' },
+      { type: 25, name: 'sethostname / setdomainname', desc: 'Set host/domain name' },
+      { type: 25, name: 'xattr (8 syscalls)', desc: 'Extended attributes: get/set/list/remove' },
+      { type: 25, name: 'fsopen', desc: 'Open filesystem context' },
+      { type: 25, name: 'memfd_create', desc: 'Create anonymous in-memory file' },
+      { type: 25, name: 'execveat', desc: 'Execute program (fd-relative)' },
+      { type: 25, name: 'pivot_root', desc: 'Change root filesystem' },
+    ],
+  },
+  {
+    key: 'at_syscalls', title: 'At-Syscalls (fd-relative)', icon: 'folder', color: '#08979c',
+    syscalls: [
+      { type: 25, name: 'mknodat', desc: 'Create device node (fd-relative)' },
+      { type: 25, name: 'fchownat / fchmodat', desc: 'Change owner/mode (fd-relative)' },
+      { type: 25, name: 'futimesat / utimensat', desc: 'Set file timestamps (fd-relative)' },
+      { type: 25, name: 'newfstatat / readlinkat', desc: 'Stat/readlink (fd-relative)' },
+      { type: 25, name: 'faccessat / faccessat2', desc: 'Check access (fd-relative)' },
+      { type: 25, name: 'name_to_handle_at', desc: 'Get file handle by name' },
+      { type: 25, name: 'openat2 / open_tree', desc: 'Open file / mount tree (fd-relative)' },
+      { type: 25, name: 'inotify_add_watch', desc: 'Add inotify file watch' },
+      { type: 25, name: 'fanotify_mark', desc: 'Add fanotify mark on file' },
+      { type: 25, name: 'renameat / renameat2', desc: 'Rename file (fd-relative, dual-path)' },
+      { type: 25, name: 'linkat / symlinkat', desc: 'Link (fd-relative, dual-path)' },
+      { type: 25, name: 'move_mount', desc: 'Move mount point (dual-path)' },
+    ],
+  },
+  {
+    key: 'security', title: 'Security Critical', icon: 'safety', color: '#cf1322',
+    syscalls: [
+      { type: 25, name: 'kill / tkill / tgkill', desc: 'Send signal to process' },
+      { type: 25, name: 'ptrace', desc: 'Trace/debug another process' },
+      { type: 25, name: 'prctl', desc: 'Process control operations' },
+      { type: 25, name: 'seccomp', desc: 'Secure computing (sandbox)' },
+      { type: 25, name: 'bpf', desc: 'Load/manage eBPF programs' },
+      { type: 25, name: 'init_module', desc: 'Load kernel module' },
+      { type: 25, name: 'kexec_load / kexec_file_load', desc: 'Load new kernel image' },
+      { type: 25, name: 'iopl / ioperm', desc: 'I/O privilege level change' },
+      { type: 25, name: 'capget / capset', desc: 'Get/set process capabilities' },
+      { type: 25, name: 'syslog', desc: 'Read kernel message buffer' },
+      { type: 25, name: 'setns / unshare', desc: 'Switch/unshare namespace' },
+      { type: 25, name: 'process_vm_readv / writev', desc: 'Read/write remote process memory' },
+      { type: 25, name: 'kcmp', desc: 'Compare kernel objects' },
+      { type: 25, name: 'request_key / keyctl', desc: 'Kernel key management' },
     ],
   },
 ];
@@ -1125,9 +1175,12 @@ onMounted(async () => {
                   <div style="border: 1px solid #f0f0f0; border-radius: 8px; overflow: hidden; height: 100%;">
                     <div :style="`background: ${group.color}; color: #fff; padding: 10px 14px; display: flex; align-items: center; gap: 8px;`">
                       <FileOutlined v-if="group.icon === 'file'" />
+                      <FolderOutlined v-else-if="group.icon === 'folder'" />
                       <GlobalOutlined v-else-if="group.icon === 'global'" />
                       <ThunderboltOutlined v-else-if="group.icon === 'thunderbolt'" />
-                      <ControlOutlined v-else />
+                      <ControlOutlined v-else-if="group.icon === 'control'" />
+                      <SafetyCertificateOutlined v-else-if="group.icon === 'safety'" />
+                      <AppstoreOutlined v-else />
                       <span style="font-weight: 600; font-size: 13px;">{{ group.title }}</span>
                       <span style="margin-left: auto; font-size: 11px; opacity: 0.85;">{{ group.syscalls.filter(s => !disabledEventTypes.has(s.type)).length }}/{{ group.syscalls.length }}</span>
                     </div>
