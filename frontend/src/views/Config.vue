@@ -18,8 +18,15 @@ import {
   CopyOutlined,
   ReloadOutlined,
   DeleteOutlined,
+  FileOutlined,
+  GlobalOutlined,
+  ThunderboltOutlined,
+  ControlOutlined,
+  EyeOutlined,
+  EyeInvisibleOutlined,
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
+import { pb } from "../pb/tracker_pb.js";
 import PathNavigatorDrawer from "../components/PathNavigatorDrawer.vue";
 import {
   getStoredClusterTarget,
@@ -144,6 +151,78 @@ const newRuleRegex = ref('');
 const newRuleReplacement = ref('');
 const newRulePriority = ref(0);
 const previewTestInput = ref('');
+
+// ── eBPF Syscall Interception ────────────────────────────────────────
+interface SyscallDef {
+  type: number; name: string; desc: string;
+}
+interface SyscallGroup {
+  key: string; title: string; icon: string; color: string; syscalls: SyscallDef[];
+}
+const syscallGroups: SyscallGroup[] = [
+  {
+    key: 'file', title: 'File Operations', icon: 'file', color: '#1677ff',
+    syscalls: [
+      { type: pb.EventType.OPENAT, name: 'openat', desc: 'Open file (fd-relative)' },
+      { type: pb.EventType.OPEN, name: 'open', desc: 'Open file' },
+      { type: pb.EventType.READ, name: 'read', desc: 'Read from file descriptor' },
+      { type: pb.EventType.WRITE, name: 'write', desc: 'Write to file descriptor' },
+      { type: pb.EventType.MKDIR, name: 'mkdirat', desc: 'Create directory' },
+      { type: pb.EventType.UNLINK, name: 'unlinkat', desc: 'Delete file/directory' },
+      { type: pb.EventType.CHMOD, name: 'chmod', desc: 'Change file permissions' },
+      { type: pb.EventType.CHOWN, name: 'chown', desc: 'Change file ownership' },
+      { type: pb.EventType.RENAME, name: 'rename', desc: 'Rename / move file' },
+      { type: pb.EventType.LINK, name: 'link', desc: 'Create hard link' },
+      { type: pb.EventType.SYMLINK, name: 'symlink', desc: 'Create symbolic link' },
+      { type: pb.EventType.MKNOD, name: 'mknod', desc: 'Create device node' },
+    ],
+  },
+  {
+    key: 'network', title: 'Network Operations', icon: 'global', color: '#722ed1',
+    syscalls: [
+      { type: pb.EventType.NETWORK_CONNECT, name: 'connect', desc: 'Outgoing TCP/UDP connection' },
+      { type: pb.EventType.NETWORK_BIND, name: 'bind', desc: 'Bind socket to address/port' },
+      { type: pb.EventType.NETWORK_SENDTO, name: 'sendto', desc: 'Send data to socket' },
+      { type: pb.EventType.NETWORK_RECVFROM, name: 'recvfrom', desc: 'Receive data from socket' },
+      { type: pb.EventType.SOCKET, name: 'socket', desc: 'Create socket endpoint' },
+      { type: pb.EventType.ACCEPT, name: 'accept', desc: 'Accept incoming connection' },
+      { type: pb.EventType.ACCEPT4, name: 'accept4', desc: 'Accept4 connection (with flags)' },
+    ],
+  },
+  {
+    key: 'process', title: 'Process Operations', icon: 'thunderbolt', color: '#fa8c16',
+    syscalls: [
+      { type: pb.EventType.EXECVE, name: 'execve', desc: 'Execute a new program' },
+      { type: pb.EventType.CLONE, name: 'clone', desc: 'Create child process/thread' },
+      { type: pb.EventType.EXIT, name: 'exit', desc: 'Terminate process' },
+    ],
+  },
+  {
+    key: 'device', title: 'Device Operations', icon: 'control', color: '#f5222d',
+    syscalls: [
+      { type: pb.EventType.IOCTL, name: 'ioctl', desc: 'Device I/O control operation' },
+    ],
+  },
+];
+const disabledEventTypes = ref<Set<number>>(new Set());
+
+const fetchDisabledEventTypes = async () => {
+  try {
+    const res = await axios.get('/config/event-types');
+    disabledEventTypes.value = new Set(res.data.disabled_event_types || []);
+  } catch (err) {}
+};
+
+const toggleEventType = async (type: number, disabled: boolean) => {
+  try {
+    if (disabled) {
+      await axios.delete(`/config/event-types/${type}/disable`);
+    } else {
+      await axios.post(`/config/event-types/${type}/disable`);
+    }
+    fetchDisabledEventTypes();
+  } catch (err) {}
+};
 
 const activeTabKey = ref(route.params.tab as string || 'registry');
 const registryTabKey = ref(route.params.subtab as string || 'tags');
@@ -654,6 +733,7 @@ onMounted(async () => {
   fetchTrackedPaths();
   fetchTrackedPrefixes();
   fetchRules();
+  fetchDisabledEventTypes();
 });
 </script>
 
@@ -1021,6 +1101,53 @@ onMounted(async () => {
                   </template>
                 </a-table-column>
               </a-table>
+            </a-card>
+          </a-col>
+
+          <!-- eBPF Syscall Interception -->
+          <a-col :span="24">
+            <a-card title="eBPF Syscall Interception" size="small">
+              <template #extra>
+                <a-tag color="green">{{ syscallGroups.reduce((c, g) => c + g.syscalls.length, 0) }} syscalls monitored</a-tag>
+              </template>
+              <a-alert
+                type="info" show-icon style="margin-bottom: 16px;"
+                message="Toggle individual syscall monitoring. Disabled syscalls are silently dropped in the kernel event pipeline — no events will be generated for them."
+              />
+              <a-row :gutter="[16, 16]">
+                <a-col v-for="group in syscallGroups" :key="group.key" :xs="24" :sm="12" :lg="6">
+                  <div style="border: 1px solid #f0f0f0; border-radius: 8px; overflow: hidden; height: 100%;">
+                    <div :style="`background: ${group.color}; color: #fff; padding: 10px 14px; display: flex; align-items: center; gap: 8px;`">
+                      <FileOutlined v-if="group.icon === 'file'" />
+                      <GlobalOutlined v-else-if="group.icon === 'global'" />
+                      <ThunderboltOutlined v-else-if="group.icon === 'thunderbolt'" />
+                      <ControlOutlined v-else />
+                      <span style="font-weight: 600; font-size: 13px;">{{ group.title }}</span>
+                      <span style="margin-left: auto; font-size: 11px; opacity: 0.85;">{{ group.syscalls.filter(s => !disabledEventTypes.has(s.type)).length }}/{{ group.syscalls.length }}</span>
+                    </div>
+                    <div style="padding: 0;">
+                      <div
+                        v-for="s in group.syscalls" :key="s.type"
+                        style="display: flex; align-items: center; justify-content: space-between; padding: 7px 14px; border-bottom: 1px solid #fafafa; transition: background 0.15s;"
+                        :style="disabledEventTypes.has(s.type) ? 'opacity: 0.45;' : ''"
+                      >
+                        <div style="min-width: 0; flex: 1;">
+                          <div style="font-size: 12px; font-weight: 600; font-family: monospace; color: #1f1f1f;">{{ s.name }}</div>
+                          <div style="font-size: 11px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ s.desc }}</div>
+                        </div>
+                        <a-switch
+                          :checked="!disabledEventTypes.has(s.type)"
+                          size="small"
+                          @change="toggleEventType(s.type, disabledEventTypes.has(s.type))"
+                        >
+                          <template #checkedChildren><EyeOutlined /></template>
+                          <template #unCheckedChildren><EyeInvisibleOutlined /></template>
+                        </a-switch>
+                      </div>
+                    </div>
+                  </div>
+                </a-col>
+              </a-row>
             </a-card>
           </a-col>
         </a-row>

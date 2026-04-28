@@ -195,6 +195,9 @@ var (
 	disabledCommsMu sync.RWMutex
 	disabledComms   = make(map[string]struct{})
 
+	disabledEventTypesMu sync.RWMutex
+	disabledEventTypes   = make(map[uint32]struct{})
+
 	nvmlInitialized bool
 
 	// For non-NVIDIA GPU tracking (Intel/AMD via fdinfo)

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"agent-ebpf-filter/pb"
@@ -36,6 +37,13 @@ func isCommDisabled(comm string) bool {
 	disabledCommsMu.RLock()
 	defer disabledCommsMu.RUnlock()
 	_, ok := disabledComms[comm]
+	return ok
+}
+
+func isEventTypeDisabled(et uint32) bool {
+	disabledEventTypesMu.RLock()
+	defer disabledEventTypesMu.RUnlock()
+	_, ok := disabledEventTypes[et]
 	return ok
 }
 
@@ -91,6 +99,40 @@ func handleConfigCommsEnable(c *gin.Context) {
 	disabledCommsMu.Lock()
 	delete(disabledComms, comm)
 	disabledCommsMu.Unlock()
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleConfigEventTypesGet(c *gin.Context) {
+	disabledEventTypesMu.RLock()
+	defer disabledEventTypesMu.RUnlock()
+	disabled := make([]uint32, 0, len(disabledEventTypes))
+	for et := range disabledEventTypes {
+		disabled = append(disabled, et)
+	}
+	c.JSON(200, gin.H{"disabled_event_types": disabled})
+}
+
+func handleConfigEventTypeDisable(c *gin.Context) {
+	typeID, err := strconv.Atoi(c.Param("type"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid event type"})
+		return
+	}
+	disabledEventTypesMu.Lock()
+	disabledEventTypes[uint32(typeID)] = struct{}{}
+	disabledEventTypesMu.Unlock()
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleConfigEventTypeEnable(c *gin.Context) {
+	typeID, err := strconv.Atoi(c.Param("type"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid event type"})
+		return
+	}
+	disabledEventTypesMu.Lock()
+	delete(disabledEventTypes, uint32(typeID))
+	disabledEventTypesMu.Unlock()
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -540,6 +582,9 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 	rg.DELETE("/comms/:comm", handleConfigCommsDelete)
 	rg.POST("/comms/:comm/disable", handleConfigCommsDisable)
 	rg.DELETE("/comms/:comm/disable", handleConfigCommsEnable)
+	rg.GET("/event-types", handleConfigEventTypesGet)
+	rg.POST("/event-types/:type/disable", handleConfigEventTypeDisable)
+	rg.DELETE("/event-types/:type/disable", handleConfigEventTypeEnable)
 	rg.GET("/paths", handleConfigPathsGet)
 	rg.POST("/paths", handleConfigPathsPost)
 	rg.DELETE("/paths/*path", handleConfigPathsDelete)

@@ -138,6 +138,9 @@ func main() {
 			if isCommDisabled(comm) {
 				continue
 			}
+			if isEventTypeDisabled(event.Type) {
+				continue
+			}
 			broadcast <- buildKernelEvent(event)
 		}
 	}()
