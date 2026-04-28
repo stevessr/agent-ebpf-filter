@@ -2030,6 +2030,7 @@ type TrackedComm struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Comm          string                 `protobuf:"bytes,1,opt,name=comm,proto3" json:"comm,omitempty"`
 	Tag           string                 `protobuf:"bytes,2,opt,name=tag,proto3" json:"tag,omitempty"`
+	Disabled      bool                   `protobuf:"varint,3,opt,name=disabled,proto3" json:"disabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2076,6 +2077,13 @@ func (x *TrackedComm) GetTag() string {
 		return x.Tag
 	}
 	return ""
+}
+
+func (x *TrackedComm) GetDisabled() bool {
+	if x != nil {
+		return x.Disabled
+	}
+	return false
 }
 
 type TrackedCommList struct {
@@ -3863,10 +3871,11 @@ const file_tracker_proto_rawDesc = "" +
 	"\tConfigTag\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"%\n" +
 	"\rConfigTagList\x12\x14\n" +
-	"\x05names\x18\x01 \x03(\tR\x05names\"3\n" +
+	"\x05names\x18\x01 \x03(\tR\x05names\"O\n" +
 	"\vTrackedComm\x12\x12\n" +
 	"\x04comm\x18\x01 \x01(\tR\x04comm\x12\x10\n" +
-	"\x03tag\x18\x02 \x01(\tR\x03tag\"8\n" +
+	"\x03tag\x18\x02 \x01(\tR\x03tag\x12\x1a\n" +
+	"\bdisabled\x18\x03 \x01(\bR\bdisabled\"8\n" +
 	"\x0fTrackedCommList\x12%\n" +
 	"\x05items\x18\x01 \x03(\v2\x0f.pb.TrackedCommR\x05items\"3\n" +
 	"\vTrackedPath\x12\x12\n" +

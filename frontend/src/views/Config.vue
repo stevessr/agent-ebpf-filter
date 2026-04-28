@@ -42,6 +42,7 @@ interface TrackedItem {
   path?: string;
   prefix?: string;
   tag: string;
+  disabled?: boolean;
 }
 
 interface WrapperRule {
@@ -438,6 +439,21 @@ const removeComm = async (comm: string) => {
   } catch (err) {}
 };
 
+const toggleCommDisabled = async (comm: string, disabled: boolean) => {
+  try {
+    if (disabled) {
+      await axios.delete(`/config/comms/${comm}/disable`);
+      message.success(`Re-enabled ${comm}`);
+    } else {
+      await axios.post(`/config/comms/${comm}/disable`);
+      message.success(`Disabled ${comm}`);
+    }
+    fetchTrackedComms();
+  } catch (err) {
+    message.error(`Failed to toggle ${comm}`);
+  }
+};
+
 const addPath = async () => {
   if (!newPathName.value || !newPathTag.value) return;
   try {
@@ -579,10 +595,10 @@ const importConfig = async (event: Event) => {
 };
 
 const groupedTrackedItems = computed(() => {
-  const groups: Record<string, string[]> = {};
+  const groups: Record<string, { comm: string; disabled: boolean }[]> = {};
   trackedItems.value.forEach((item) => {
     if (!groups[item.tag]) groups[item.tag] = [];
-    if (item.comm) groups[item.tag].push(item.comm);
+    if (item.comm) groups[item.tag].push({ comm: item.comm, disabled: item.disabled || false });
   });
   return groups;
 });
@@ -816,13 +832,18 @@ onMounted(async () => {
                         </div>
                         <div style="display: flex; flex-wrap: wrap; gap: 6px">
                           <a-tag
-                            v-for="comm in comms"
-                            :key="comm"
+                            v-for="entry in comms"
+                            :key="entry.comm"
                             closable
-                            @close.prevent="removeComm(comm)"
-                            :color="getCategoryColor(tag as string)"
-                            >{{ comm }}</a-tag
+                            @close.prevent="removeComm(entry.comm)"
+                            :color="entry.disabled ? 'default' : getCategoryColor(tag as string)"
                           >
+                            <span
+                              :style="entry.disabled ? 'text-decoration: line-through; opacity: 0.55; cursor: pointer;' : 'cursor: pointer;'"
+                              @click.stop="toggleCommDisabled(entry.comm, entry.disabled)"
+                            >{{ entry.comm }}</span>
+                            <span v-if="entry.disabled" style="margin-left: 4px; font-size: 10px; opacity: 0.7;">off</span>
+                          </a-tag>
                         </div>
                       </div>
                     </a-col>

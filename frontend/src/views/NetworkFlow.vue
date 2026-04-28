@@ -30,8 +30,6 @@ const showInterfaceChartModal = ref(false);
 const selectedInterfaceName = ref('');
 const interfaceChartTimeRange = ref(60);
 
-let lastCumRecv = 0;
-let lastCumSent = 0;
 let lastIO: { networks: NetworkSnapshot; time: number } | null = null;
 let ws: WebSocket | null = null;
 let reconnectTimer: number | null = null;
@@ -287,39 +285,33 @@ const connectWebSocket = () => {
         const networkList = decoded.io.networks || [];
         interfaceNames.value = networkList.map((network: any) => network.name);
 
-        if (lastIO) {
-          const dt = (now - lastIO.time) / 1000;
-          networkList.forEach((network: any) => {
-            const prev = lastIO?.networks[network.name];
-            const readSpeed = prev && dt > 0 ? Math.max(0, (Number(network.recvBytes) - prev.r) / dt) : 0;
-            const writeSpeed = prev && dt > 0 ? Math.max(0, (Number(network.sentBytes) - prev.s) / dt) : 0;
-            rememberSample(network.name, { time: now, readSpeed, writeSpeed });
-          });
-        } else {
-          networkList.forEach((network: any) => {
-            rememberSample(network.name, { time: now, readSpeed: 0, writeSpeed: 0 });
-          });
-        }
-
-        const networks: NetworkSnapshot = {};
+        const dt = lastIO ? (now - lastIO.time) / 1000 : 0;
         let curRecv = 0;
         let curSent = 0;
 
+        // Backend sends rates (bytes/sec), use them directly — do NOT
+        // compute another delta/dt on top (that would be a double division).
         networkList.forEach((network: any) => {
-          const recvBytes = Number(network.recvBytes);
-          const sentBytes = Number(network.sentBytes);
-          networks[network.name] = { r: recvBytes, s: sentBytes };
-          curRecv += recvBytes;
-          curSent += sentBytes;
+          const readSpeed = Number(network.recvBytes);
+          const writeSpeed = Number(network.sentBytes);
+          rememberSample(network.name, { time: now, readSpeed, writeSpeed });
+          curRecv += readSpeed;
+          curSent += writeSpeed;
         });
 
-        if (lastCumRecv > 0) {
-          cumRecv.value += Math.max(0, curRecv - lastCumRecv);
-          cumSent.value += Math.max(0, curSent - lastCumSent);
+        // Accumulate session total: rate × interval = bytes transferred
+        if (dt > 0) {
+          cumRecv.value += curRecv * dt;
+          cumSent.value += curSent * dt;
         }
 
-        lastCumRecv = curRecv;
-        lastCumSent = curSent;
+        const networks: NetworkSnapshot = {};
+        networkList.forEach((network: any) => {
+          networks[network.name] = {
+            r: Number(network.recvBytes),
+            s: Number(network.sentBytes),
+          };
+        });
         lastIO = { networks, time: now };
       }
     } catch (error) {

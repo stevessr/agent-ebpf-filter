@@ -249,6 +249,7 @@ message ConfigTagList {
 message TrackedComm {
   string comm = 1;
   string tag = 2;
+  bool disabled = 3;
 }
 
 message TrackedCommList {

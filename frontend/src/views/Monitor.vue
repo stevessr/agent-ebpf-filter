@@ -14,6 +14,7 @@ import HealthMemory from '../components/monitor/HealthMemory.vue';
 import HealthIO from '../components/monitor/HealthIO.vue';
 import HealthFaults from '../components/monitor/HealthFaults.vue';
 import HealthGpu from '../components/monitor/HealthGpu.vue';
+import HealthProcMem from '../components/monitor/HealthProcMem.vue';
 import ProcessTable from '../components/monitor/ProcessTable.vue';
 import SystemdPanel from '../components/monitor/SystemdPanel.vue';
 import SensorsPanel from '../components/monitor/SensorsPanel.vue';
@@ -64,7 +65,7 @@ const healthTab = ref('cpu');
 // Parse subtab from URL on init; redirect to default if missing
 if (route.params.subtab) {
   const subtab = route.params.subtab as string;
-  if (activeTab.value === 'dashboard' && ['cpu', 'mem', 'io', 'faults', 'gpu'].includes(subtab)) {
+  if (activeTab.value === 'dashboard' && ['cpu', 'mem', 'io', 'faults', 'gpu', 'procmem'].includes(subtab)) {
     healthTab.value = subtab;
   } else if (activeTab.value === 'sensors' && ['hardware', 'camera', 'mic'].includes(subtab)) {
     sensorSubTab.value = subtab;
@@ -200,6 +201,9 @@ onUnmounted(() => {
             </a-tab-pane>
             <a-tab-pane key="gpu" tab="GPU">
               <HealthGpu :gpus="gpus" :statsHistory="statsHistory" :openHistoryChart="openHistoryChart" />
+            </a-tab-pane>
+            <a-tab-pane key="procmem" tab="Proc Mem">
+              <HealthProcMem :processes="processes" :formatBytesWithUnit="formatBytesWithUnit" />
             </a-tab-pane>
           </a-tabs>
         </div>

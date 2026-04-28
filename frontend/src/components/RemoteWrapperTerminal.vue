@@ -106,6 +106,7 @@ const closeSession = async () => {
   }
 
   session.value = null;
+  trackedPids.value.delete(current.pid);
   try {
     await axios.delete(`/shell-sessions/${current.id}`);
   } catch (err: any) {
@@ -156,6 +157,7 @@ const launchCommand = async () => {
     }
 
     session.value = created;
+    trackedPids.value.add(created.pid);
 
     const full = `${executable} ${args.value}`.trim();
     if (!recentCommands.value.includes(full)) {
@@ -180,6 +182,8 @@ interface WrapperEventRecord {
 }
 
 const recentEvents = ref<WrapperEventRecord[]>([]);
+const maxRecentEvents = 100;
+const trackedPids = ref<Set<number>>(new Set());
 const wsConnected = ref(false);
 let ws: WebSocket | null = null;
 let wsReconnectTimer: number | null = null;
@@ -226,19 +230,22 @@ const connectWebSocket = () => {
         const eventType = Object.prototype.hasOwnProperty.call(data, 'eventType') && data.eventType !== null && data.eventType !== undefined
           ? Number(data.eventType)
           : undefined;
-        if (eventType !== pb.EventType.WRAPPER_INTERCEPT && data.type !== 'wrapper_intercept') return;
+        const isWrapperIntercept = eventType === pb.EventType.WRAPPER_INTERCEPT || data.type === 'wrapper_intercept';
+        const isTrackedPid = trackedPids.value.has(data.pid ?? 0);
+        if (!isWrapperIntercept && !isTrackedPid) return;
 
+        const evType = data.type || '';
         const record: WrapperEventRecord = {
-          key: `${data.pid}-${data.path}-${Date.now()}-${Math.random()}`,
+          key: `${data.pid}-${data.path}-${data.type ?? 'event'}-${Date.now()}-${Math.random()}`,
           pid: data.pid ?? 0,
           comm: data.comm ?? '',
           tag: data.tag ?? '',
-          path: data.path ?? '',
+          path: isWrapperIntercept ? (data.path ?? '') : (evType ? `[${evType}] ${data.path ?? ''}` : (data.path ?? '')),
           receivedAt: new Date().toISOString(),
         };
         recentEvents.value.unshift(record);
       });
-      while (recentEvents.value.length > 20) recentEvents.value.pop();
+      while (recentEvents.value.length > maxRecentEvents) recentEvents.value.pop();
     } catch (e) {
       console.error('Failed to parse wrapper event', e);
     }

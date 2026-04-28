@@ -1206,9 +1206,10 @@ onUnmounted(() => {
   background: linear-gradient(180deg, #f7fbf4 0%, #edf4e8 100%);
   color: #1f3a1f;
   font-weight: 700;
+  font-size: 13px;
   border-right: 1px solid #d9e4d1;
   border-bottom: 1px solid #c7d7bf;
-  padding: 10px 12px;
+  padding: 10px 14px;
   white-space: nowrap;
 }
 
@@ -1332,6 +1333,8 @@ onUnmounted(() => {
   white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .excel-table :deep(.ant-table-thead > tr > th:last-child),
@@ -1342,13 +1345,15 @@ onUnmounted(() => {
 .excel-table :deep(.ant-table-tbody > tr > td) {
   border-right: 1px solid #e6ece0;
   border-bottom: 1px solid #e6ece0;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: #fff;
   vertical-align: top;
   min-width: 0;
   white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .excel-table :deep(.ant-table-tbody > tr.excel-row-even > td) {

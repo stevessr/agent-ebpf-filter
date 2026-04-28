@@ -1303,6 +1303,17 @@ int tracepoint__syscalls__sys_exit_clone(struct trace_event_raw_sys_exit *ctx) {
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
 
+    // Auto-track child PID: if the parent is tracked in agent_pids,
+    // register the child with the same tag for full process-tree tracing.
+    u32 child_pid = (u32)ctx->ret;
+    if (child_pid > 0) {
+        u32 parent_pid = (u32)(pid_tgid >> 32);
+        u32 *tag = bpf_map_lookup_elem(&agent_pids, &parent_pid);
+        if (tag) {
+            bpf_map_update_elem(&agent_pids, &child_pid, tag, BPF_NOEXIST);
+        }
+    }
+
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
     if (pd) {
         __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);

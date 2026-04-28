@@ -63,6 +63,20 @@ func startUDSServer(broadcast chan *pb.Event) {
 						}
 					}
 				}
+				// Register wrapper PID in eBPF agent_pids so the launched
+				// program (same PID after syscall.Exec) and its children
+				// generate full eBPF syscall events.
+				if trackerMaps.AgentPids != nil {
+					_ = trackerMaps.AgentPids.Put(req.Pid, getTagID("Wrapper"))
+				}
+				// Also register the command name in tracked_comms as a
+				// fallback for child processes (comm-based matching).
+				if trackerMaps.TrackedComms != nil {
+					var k [16]byte
+					copy(k[:], req.Comm)
+					_ = trackerMaps.TrackedComms.Put(k, getTagID("Wrapper"))
+				}
+
 				select {
 				case broadcast <- &pb.Event{Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept", EventType: pb.EventType_WRAPPER_INTERCEPT, Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " ")}:
 				default:

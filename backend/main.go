@@ -134,6 +134,10 @@ func main() {
 			if event.PID == selfPid {
 				continue
 			}
+			comm := sanitizeUTF8(event.Comm[:])
+			if isCommDisabled(comm) {
+				continue
+			}
 			broadcast <- buildKernelEvent(event)
 		}
 	}()
@@ -210,7 +214,27 @@ func main() {
 	r.Static("/assets", filepath.Join(staticDir, "assets"))
 	r.NoRoute(func(c *gin.Context) { c.File(filepath.Join(staticDir, "index.html")) })
 
-	commonCLIs := map[string]string{"git": "Git", "npm": "Package Manager", "bun": "Package Manager", "pnpm": "Package Manager", "yarn": "Package Manager", "node": "Runtime", "python": "Runtime", "python3": "Runtime", "go": "Build Tool", "cargo": "Build Tool", "rustc": "Build Tool", "gcc": "Build Tool", "g++": "Build Tool", "clang": "Build Tool", "make": "Build Tool", "cmake": "Build Tool", "docker": "System Tool", "kubectl": "Network Tool"}
+	commonCLIs := map[string]string{
+		"git": "Git", "npm": "Package Manager", "bun": "Package Manager", "pnpm": "Package Manager",
+		"yarn": "Package Manager", "node": "Runtime", "python": "Runtime", "python3": "Runtime",
+		"go": "Build Tool", "cargo": "Build Tool", "rustc": "Build Tool", "gcc": "Build Tool",
+		"g++": "Build Tool", "clang": "Build Tool", "make": "Build Tool", "cmake": "Build Tool",
+		"docker": "System Tool", "kubectl": "Network Tool",
+		"podman": "System Tool", "dpkg": "Package Manager", "apt": "Package Manager",
+		"apt-get": "Package Manager", "snap": "Package Manager", "flatpak": "Package Manager",
+		"pacman": "Package Manager", "yay": "Package Manager", "paru": "Package Manager",
+		"dnf": "Package Manager", "yum": "Package Manager", "zypper": "Package Manager",
+		"rpm": "Package Manager", "systemctl": "System Tool", "journalctl": "System Tool",
+		"ssh": "Network Tool", "scp": "Network Tool", "rsync": "Network Tool",
+		"curl": "Network Tool", "wget": "Network Tool", "ffmpeg": "System Tool",
+		"tar": "System Tool", "gzip": "System Tool", "unzip": "System Tool",
+		"pip": "Package Manager", "pip3": "Package Manager", "gem": "Package Manager",
+		"nix": "Package Manager", "brew": "Package Manager",
+		"ninja": "Build Tool", "meson": "Build Tool", "gradle": "Build Tool", "mvn": "Build Tool",
+		"java": "Runtime", "ruby": "Runtime", "perl": "Runtime", "lua": "Runtime",
+		"deno": "Runtime", "pwsh": "Runtime", "bash": "Runtime", "zsh": "Runtime",
+		"fish": "Runtime", "sh": "Runtime",
+	}
 	for cl, t := range commonCLIs {
 		var k [16]byte
 		copy(k[:], cl)

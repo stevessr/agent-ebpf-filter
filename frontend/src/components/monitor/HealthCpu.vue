@@ -30,7 +30,7 @@ const eCores = computed(() => props.systemStats.cpuCoresDetailed.filter(c => pro
     </div>
 
     <div v-if="cpuView === 'overall'" style="background: #fafafa; padding: 24px; border-radius: 8px; text-align: center; border: 1px solid #f0f0f0;">
-      <a-progress type="dashboard" :percent="Math.round(systemStats.cpuTotal)" :width="180" :stroke-color="systemStats.cpuTotal > 80 ? '#ff4d4f' : '#1890ff'" @click="openHistoryChart('CPU Usage History', [{ name: 'Total CPU', data: statsHistory.cpu, color: '#1890ff' }])" style="cursor: pointer;" />
+      <a-progress type="dashboard" :percent="Math.min(Math.round(systemStats.cpuTotal), 99)" :width="180" :stroke-color="systemStats.cpuTotal > 80 ? '#ff4d4f' : '#1890ff'" @click="openHistoryChart('CPU Usage History', [{ name: 'Total CPU', data: statsHistory.cpu, color: '#1890ff' }])" style="cursor: pointer;" />
       <div style="margin-top: 16px; font-size: 18px; font-weight: bold;">System CPU Usage: {{ systemStats.cpuTotal.toFixed(1) }}%</div>
     </div>
 
@@ -49,7 +49,7 @@ const eCores = computed(() => props.systemStats.cpuCoresDetailed.filter(c => pro
               <span style="font-family: monospace; font-size: 11px; font-weight: bold;">#{{ core.index }}</span>
               <a-tag :color="getCoreTypeColor(core.type)" style="font-size: 9px; padding: 0 4px; line-height: 16px;">{{ getCoreTypeName(core.type) }}</a-tag>
             </div>
-            <a-progress type="dashboard" :percent="Math.round(core.usage)" :width="70" :stroke-color="core.usage > 80 ? '#ff4d4f' : getCoreTypeColor(core.type)" />
+            <a-progress type="dashboard" :percent="Math.min(Math.round(core.usage), 99)" :width="70" :stroke-color="core.usage > 80 ? '#ff4d4f' : getCoreTypeColor(core.type)" />
           </div>
         </div>
       </div>
@@ -68,7 +68,7 @@ const eCores = computed(() => props.systemStats.cpuCoresDetailed.filter(c => pro
               <span style="font-family: monospace; font-size: 11px; font-weight: bold;">#{{ core.index }}</span>
               <a-tag :color="getCoreTypeColor(core.type)" style="font-size: 9px; padding: 0 4px; line-height: 16px;">{{ getCoreTypeName(core.type) }}</a-tag>
             </div>
-            <a-progress type="dashboard" :percent="Math.round(core.usage)" :width="70" :stroke-color="core.usage > 80 ? '#ff4d4f' : getCoreTypeColor(core.type)" />
+            <a-progress type="dashboard" :percent="Math.min(Math.round(core.usage), 99)" :width="70" :stroke-color="core.usage > 80 ? '#ff4d4f' : getCoreTypeColor(core.type)" />
           </div>
         </div>
       </div>

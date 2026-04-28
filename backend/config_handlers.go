@@ -32,6 +32,13 @@ func handleConfigTagsPost(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
+func isCommDisabled(comm string) bool {
+	disabledCommsMu.RLock()
+	defer disabledCommsMu.RUnlock()
+	_, ok := disabledComms[comm]
+	return ok
+}
+
 func handleConfigCommsGet(c *gin.Context) {
 	items := []gin.H{}
 	list := &pb.TrackedCommList{}
@@ -41,8 +48,9 @@ func handleConfigCommsGet(c *gin.Context) {
 	for iter.Next(&k, &tid) {
 		comm := string(bytes.TrimRight(k[:], "\x00"))
 		tag := getTagName(tid)
-		items = append(items, gin.H{"comm": comm, "tag": tag})
-		list.Items = append(list.Items, &pb.TrackedComm{Comm: comm, Tag: tag})
+		disabled := isCommDisabled(comm)
+		items = append(items, gin.H{"comm": comm, "tag": tag, "disabled": disabled})
+		list.Items = append(list.Items, &pb.TrackedComm{Comm: comm, Tag: tag, Disabled: disabled})
 	}
 	writeProtoOrJSON(c, 200, list, items)
 }
@@ -63,6 +71,26 @@ func handleConfigCommsDelete(c *gin.Context) {
 	var k [16]byte
 	copy(k[:], c.Param("comm"))
 	_ = trackerMaps.TrackedComms.Delete(k)
+	// also remove from disabled set
+	disabledCommsMu.Lock()
+	delete(disabledComms, c.Param("comm"))
+	disabledCommsMu.Unlock()
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleConfigCommsDisable(c *gin.Context) {
+	comm := c.Param("comm")
+	disabledCommsMu.Lock()
+	disabledComms[comm] = struct{}{}
+	disabledCommsMu.Unlock()
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func handleConfigCommsEnable(c *gin.Context) {
+	comm := c.Param("comm")
+	disabledCommsMu.Lock()
+	delete(disabledComms, comm)
+	disabledCommsMu.Unlock()
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -510,6 +538,8 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 	rg.GET("/comms", handleConfigCommsGet)
 	rg.POST("/comms", handleConfigCommsPost)
 	rg.DELETE("/comms/:comm", handleConfigCommsDelete)
+	rg.POST("/comms/:comm/disable", handleConfigCommsDisable)
+	rg.DELETE("/comms/:comm/disable", handleConfigCommsEnable)
 	rg.GET("/paths", handleConfigPathsGet)
 	rg.POST("/paths", handleConfigPathsPost)
 	rg.DELETE("/paths/*path", handleConfigPathsDelete)

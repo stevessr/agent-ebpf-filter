@@ -192,6 +192,9 @@ var (
 	rulesMu      sync.RWMutex
 	wrapperRules = make(map[string]WrapperRule)
 
+	disabledCommsMu sync.RWMutex
+	disabledComms   = make(map[string]struct{})
+
 	nvmlInitialized bool
 
 	// For non-NVIDIA GPU tracking (Intel/AMD via fdinfo)

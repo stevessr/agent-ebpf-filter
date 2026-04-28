@@ -8123,6 +8123,7 @@ $root.pb = (function() {
          * @interface ITrackedComm
          * @property {string|null} [comm] TrackedComm comm
          * @property {string|null} [tag] TrackedComm tag
+         * @property {boolean|null} [disabled] TrackedComm disabled
          */
 
         /**
@@ -8157,6 +8158,14 @@ $root.pb = (function() {
         TrackedComm.prototype.tag = "";
 
         /**
+         * TrackedComm disabled.
+         * @member {boolean} disabled
+         * @memberof pb.TrackedComm
+         * @instance
+         */
+        TrackedComm.prototype.disabled = false;
+
+        /**
          * Creates a new TrackedComm instance using the specified properties.
          * @function create
          * @memberof pb.TrackedComm
@@ -8184,6 +8193,8 @@ $root.pb = (function() {
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.comm);
             if (message.tag != null && Object.hasOwnProperty.call(message, "tag"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.tag);
+            if (message.disabled != null && Object.hasOwnProperty.call(message, "disabled"))
+                writer.uint32(/* id 3, wireType 0 =*/24).bool(message.disabled);
             return writer;
         };
 
@@ -8228,6 +8239,10 @@ $root.pb = (function() {
                         message.tag = reader.string();
                         break;
                     }
+                case 3: {
+                        message.disabled = reader.bool();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -8269,6 +8284,9 @@ $root.pb = (function() {
             if (message.tag != null && message.hasOwnProperty("tag"))
                 if (!$util.isString(message.tag))
                     return "tag: string expected";
+            if (message.disabled != null && message.hasOwnProperty("disabled"))
+                if (typeof message.disabled !== "boolean")
+                    return "disabled: boolean expected";
             return null;
         };
 
@@ -8288,6 +8306,8 @@ $root.pb = (function() {
                 message.comm = String(object.comm);
             if (object.tag != null)
                 message.tag = String(object.tag);
+            if (object.disabled != null)
+                message.disabled = Boolean(object.disabled);
             return message;
         };
 
@@ -8307,11 +8327,14 @@ $root.pb = (function() {
             if (options.defaults) {
                 object.comm = "";
                 object.tag = "";
+                object.disabled = false;
             }
             if (message.comm != null && message.hasOwnProperty("comm"))
                 object.comm = message.comm;
             if (message.tag != null && message.hasOwnProperty("tag"))
                 object.tag = message.tag;
+            if (message.disabled != null && message.hasOwnProperty("disabled"))
+                object.disabled = message.disabled;
             return object;
         };
 

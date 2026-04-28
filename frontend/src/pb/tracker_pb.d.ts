@@ -2980,6 +2980,9 @@ export namespace pb {
 
         /** TrackedComm tag */
         tag?: (string|null);
+
+        /** TrackedComm disabled */
+        disabled?: (boolean|null);
     }
 
     /** Represents a TrackedComm. */
@@ -2996,6 +2999,9 @@ export namespace pb {
 
         /** TrackedComm tag. */
         public tag: string;
+
+        /** TrackedComm disabled. */
+        public disabled: boolean;
 
         /**
          * Creates a new TrackedComm instance using the specified properties.
