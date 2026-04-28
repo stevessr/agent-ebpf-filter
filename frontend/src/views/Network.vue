@@ -28,19 +28,22 @@ const eventTypeLabelMap: Record<number, string> = {
   [pb.EventType.NETWORK_RECVFROM]: 'network_recvfrom',
   [pb.EventType.ACCEPT]: 'accept',
   [pb.EventType.ACCEPT4]: 'accept4',
+  [pb.EventType.SOCKET]: 'socket',
 };
 const eventTypeColorMap: Record<number, string> = {
   [pb.EventType.NETWORK_CONNECT]: 'orange', [pb.EventType.NETWORK_BIND]: 'volcano',
   [pb.EventType.NETWORK_SENDTO]: 'cyan', [pb.EventType.NETWORK_RECVFROM]: 'geekblue',
   [pb.EventType.ACCEPT]: 'volcano', [pb.EventType.ACCEPT4]: 'volcano',
+  [pb.EventType.SOCKET]: 'default',
 };
-const networkTypeTabs: [number, string][] = [
+const networkTypeTabs: [number | string, string][] = [
   [pb.EventType.NETWORK_CONNECT, 'Connect'],
   [pb.EventType.NETWORK_SENDTO, 'Send'],
   [pb.EventType.NETWORK_RECVFROM, 'Recv'],
   [pb.EventType.NETWORK_BIND, 'Bind'],
   [pb.EventType.ACCEPT, 'Accept'],
   [pb.EventType.ACCEPT4, 'Accept4'],
+  ['unknown', 'Unknown'],
 ];
 
 const events = ref<NetworkEvent[]>([]);
@@ -105,7 +108,8 @@ const networkFilteredEvents = computed(() => {
   }
   if (selectedTags.value.length > 0) list = list.filter(e => selectedTags.value.includes(e.tag));
   if (selectedTypes.value.length > 0) list = list.filter(e => e.eventType !== undefined && selectedTypes.value.includes(e.eventType));
-  if (activeTypeTab.value !== 'all') list = list.filter(e => e.eventType === Number(activeTypeTab.value));
+  if (activeTypeTab.value === 'unknown') list = list.filter(e => !e.netDirection || e.eventType === pb.EventType.SOCKET);
+  else if (activeTypeTab.value !== 'all') list = list.filter(e => e.eventType === Number(activeTypeTab.value));
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase();
     list = list.filter(e => e.comm.toLowerCase().includes(q) || e.netEndpoint.toLowerCase().includes(q) || String(e.pid).includes(q));
