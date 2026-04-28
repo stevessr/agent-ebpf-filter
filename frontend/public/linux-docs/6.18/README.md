@@ -1,6 +1,6 @@
 # Linux 6.18 LTS local doc cache
 
-This directory stores locally cached snapshots for the Config page preview tab.
+This directory stores locally cached snapshots for the Config page popup preview.
 Most files are markdown snapshots; a few pages fall back to HTML-converted captures when the crawler returned no markdown.
 
 - Release: Linux 6.18 LTS

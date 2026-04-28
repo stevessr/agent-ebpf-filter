@@ -52,7 +52,7 @@ Events are written to a ring buffer and consumed by the Go backend.
 - **Executor**: open a temporary wrapper-backed PTY tab for ad-hoc commands, keep shell PTY sessions separate from tmux, and let the Remote tab self-destruct when you leave it
 - **Executor**: launch coding CLIs in tmux, start Python/Node/Ruby/sh/pwsh/Deno/Bun scripts with optional virtualenv selection, and manage shared launch environment variables in a dedicated config tab with backend-detected env suggestions
 - **Hooks**: install or edit native hook configs / wrapper aliases
-- **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, runtime log persistence, the backend access token, and a quick Linux 6.18 LTS syscall / eBPF docs preview tab backed by local snapshots
+- **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, runtime log persistence, the backend access token, and a quick Linux 6.18 LTS syscall / eBPF docs popup preview backed by local snapshots
 - **Cluster control**: master/slave routing, node switching, and forwarded inspection requests through the master backend
 
 The backend can optionally persist captured events as JSONL under `~/.config/agent-ebpf-filter/events.jsonl`, and exposes an authenticated MCP SSE endpoint at `/mcp` using the runtime access token generated from the Configuration page. MCP clients may authenticate with `X-API-KEY`, `Authorization: Bearer`, or `?key=<token>`.

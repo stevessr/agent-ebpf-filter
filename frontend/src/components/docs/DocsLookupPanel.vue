@@ -4,6 +4,7 @@ import { message } from "ant-design-vue";
 import {
   BookOutlined,
   CopyOutlined,
+  EyeOutlined,
   LinkOutlined,
   SearchOutlined,
 } from "@ant-design/icons-vue";
@@ -22,6 +23,7 @@ type SearchScope = "all" | LinuxReferenceKind;
 const searchText = ref("");
 const searchScope = ref<SearchScope>("all");
 const releaseLabel = linuxReferenceRelease;
+const previewOpen = ref(false);
 
 const featuredNames = new Set([
   "openat",
@@ -151,7 +153,7 @@ const copyText = async (text: string) => {
     document.execCommand("copy");
     document.body.removeChild(textarea);
     message.success("Link copied");
-  } catch (err) {
+  } catch {
     message.error("Failed to copy link");
   }
 };
@@ -174,11 +176,22 @@ const selectEntry = (entry: LinuxReferenceEntry) => {
   selectedEntryId.value = entry.id;
 };
 
+const openPreview = (entry: LinuxReferenceEntry) => {
+  selectEntry(entry);
+  previewOpen.value = true;
+};
+
+const openSelectedPreview = () => {
+  if (!selectedEntry.value) return;
+  previewOpen.value = true;
+};
+
 const getRowClassName = (record: LinuxReferenceEntry) =>
   record.id === selectedEntryId.value ? "docs-row--selected" : "";
 
 const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
   onClick: () => selectEntry(record),
+  onDblclick: () => openPreview(record),
 });
 </script>
 
@@ -198,7 +211,7 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
           type="info"
           show-icon
           style="margin-bottom: 16px;"
-          :message="`Search by syscall name, helper name, alias, or keyword. Pick a row below to preview the local snapshot on the right. Cached files live under /linux-docs/6.18.`"
+          :message="`Search by syscall name, helper name, alias, or keyword. Select a row below, then open the popup preview for the rendered snapshot. Cached files live under /linux-docs/6.18.`"
         />
 
         <a-row :gutter="[12, 12]" align="middle">
@@ -245,7 +258,7 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
       </a-card>
     </a-col>
 
-    <a-col :xs="24" :xl="10">
+    <a-col :xs="24" :xl="16">
       <a-card class="docs-index-card" title="Local Snapshot Index" size="small">
         <template #extra>
           <a-tag color="purple">{{ sortedEntries.length }} matches</a-tag>
@@ -298,11 +311,11 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
             </template>
           </a-table-column>
 
-          <a-table-column title="Actions" key="actions" width="180px">
+          <a-table-column title="Actions" key="actions" width="220px">
             <template #default="{ record }">
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <a-button type="link" size="small" @click="selectEntry(record)">
-                  Preview
+                <a-button type="link" size="small" @click="openPreview(record)">
+                  <EyeOutlined /> Preview
                 </a-button>
                 <a-button type="link" size="small" @click="openDocs(record.url)">
                   <LinkOutlined /> Source
@@ -317,10 +330,66 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
       </a-card>
     </a-col>
 
-    <a-col :xs="24" :xl="14">
-      <DocPreviewPane :entry="selectedEntry" />
+    <a-col :xs="24" :xl="8">
+      <a-card class="docs-selected-card" title="Selected Snapshot" size="small">
+        <template #extra>
+          <a-button
+            size="small"
+            type="primary"
+            :disabled="!selectedEntry"
+            @click="openSelectedPreview"
+          >
+            Open popup
+          </a-button>
+        </template>
+
+        <a-empty
+          v-if="!selectedEntry"
+          description="Pick one entry from the index to inspect its metadata."
+          style="padding: 40px 0;"
+        />
+
+        <div v-else class="docs-selected-card__body">
+          <div class="docs-selected-card__title-row">
+            <div>
+              <div class="docs-selected-card__name">{{ selectedEntry.name }}</div>
+              <div class="docs-selected-card__summary">{{ selectedEntry.summary }}</div>
+            </div>
+            <a-tag :color="selectedEntry.kind === 'syscall' ? 'blue' : 'green'">
+              {{ selectedEntry.kind === "syscall" ? "syscall" : "eBPF helper" }}
+            </a-tag>
+          </div>
+
+          <div class="docs-selected-card__synopsis">
+            <code>{{ selectedEntry.synopsis }}</code>
+          </div>
+
+          <div class="docs-selected-card__details">
+            <div><strong>Category:</strong> {{ selectedEntry.category }}</div>
+            <div><strong>Source:</strong> {{ selectedEntry.source }}</div>
+            <div>
+              <strong>Cached:</strong>
+              <code>{{ selectedEntry.localPath }}</code>
+            </div>
+          </div>
+
+          <a-space wrap>
+            <a-button type="primary" @click="openSelectedPreview">
+              <EyeOutlined /> Preview
+            </a-button>
+            <a-button @click="openDocs(selectedEntry.url)">
+              <LinkOutlined /> Open source
+            </a-button>
+            <a-button @click="copyText(selectedEntry.url)">
+              <CopyOutlined /> Copy URL
+            </a-button>
+          </a-space>
+        </div>
+      </a-card>
     </a-col>
   </a-row>
+
+  <DocPreviewPane v-model:open="previewOpen" :entry="selectedEntry" />
 </template>
 
 <style scoped>
@@ -330,5 +399,97 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
 
 .docs-index-card :deep(.docs-row--selected td) {
   background: #e6f4ff !important;
+}
+
+.docs-selected-card {
+  position: sticky;
+  top: 16px;
+  --docs-panel-surface: #ffffff;
+  --docs-panel-surface-2: #f8fafc;
+  --docs-panel-border: #e5e7eb;
+  --docs-panel-text: #334155;
+  --docs-panel-text-strong: #0f172a;
+}
+
+@media (prefers-color-scheme: dark) {
+  .docs-selected-card {
+    --docs-panel-surface: #111827;
+    --docs-panel-surface-2: #1f2937;
+    --docs-panel-border: #374151;
+    --docs-panel-text: #cbd5e1;
+    --docs-panel-text-strong: #f8fafc;
+  }
+}
+
+.docs-selected-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.docs-selected-card :deep(.ant-card-head) {
+  background: var(--docs-panel-surface);
+  border-bottom: 1px solid var(--docs-panel-border);
+}
+
+.docs-selected-card :deep(.ant-card-body) {
+  background: var(--docs-panel-surface);
+  color: var(--docs-panel-text);
+}
+
+.docs-selected-card :deep(.ant-card-head-title),
+.docs-selected-card :deep(.ant-card-extra) {
+  color: var(--docs-panel-text-strong);
+}
+
+.docs-selected-card__title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.docs-selected-card__name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--docs-panel-text-strong);
+  line-height: 1.25;
+}
+
+.docs-selected-card__summary {
+  margin-top: 4px;
+  color: var(--docs-panel-text);
+}
+
+.docs-selected-card__synopsis code,
+.docs-selected-card__details code {
+  font-family: var(--mono);
+}
+
+.docs-selected-card__synopsis code {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.docs-selected-card__details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--docs-panel-text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.docs-selected-card__details code {
+  word-break: break-word;
+}
+
+@media (max-width: 1199px) {
+  .docs-selected-card {
+    position: static;
+  }
 }
 </style>
