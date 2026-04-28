@@ -12,3 +12,4 @@ frontend/src/pb/
 backend/pb/
 .nx
 *.o
+*.tmp

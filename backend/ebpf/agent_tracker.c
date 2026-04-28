@@ -1528,188 +1528,311 @@ int tracepoint__syscalls__sys_exit_accept4(struct trace_event_raw_sys_exit *ctx)
 }
 
 // ============================================================
-// Raw syscall tracepoints — catch ALL syscalls not covered above
-// This covers ~312 additional syscalls with just 2 tracepoints.
+// Per-syscall handlers — generated via macros for all remaining
+// path-carrying and security-relevant Linux syscalls.
 // ============================================================
 
-#define TYPE_RAW_SYSCALL 25
+#define TYPE_GENERIC_SYSCALL 25
 
-// Syscalls already handled by per-syscall tracepoints (skip in raw handler)
-static __always_inline int is_handled_syscall(long id) {
-    switch (id) {
-    case 0:  return 1; // read
-    case 1:  return 1; // write
-    case 2:  return 1; // open
-    case 16: return 1; // ioctl
-    case 41: return 1; // socket
-    case 42: return 1; // connect
-    case 43: return 1; // accept
-    case 44: return 1; // sendto
-    case 45: return 1; // recvfrom
-    case 49: return 1; // bind
-    case 56: return 1; // clone
-    case 59: return 1; // execve
-    case 82: return 1; // rename
-    case 86: return 1; // link
-    case 88: return 1; // symlink
-    case 90: return 1; // chmod
-    case 92: return 1; // chown
-    case 133: return 1; // mknod
-    case 231: return 1; // exit_group
-    case 257: return 1; // openat
-    case 258: return 1; // mkdirat
-    case 263: return 1; // unlinkat
-    case 288: return 1; // accept4
-    default: return 0;
-    }
-}
+// ── enter/exit helpers shared by macros ──
 
-SEC("tracepoint/raw_syscalls/sys_enter")
-int tracepoint__raw_syscalls__sys_enter(struct trace_event_raw_sys_enter *ctx) {
-    long id = ctx->id;
-    if (is_handled_syscall(id)) return 0;
-
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = pid_tgid >> 32;
-    char comm[TASK_COMM_LEN];
-    bpf_get_current_comm(&comm, sizeof(comm));
-
-    u32 zero = 0;
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
-    if (!pd) return 0;
-
-    int has_path = 0;
-    switch (id) {
-    // ── path at args[0] ──
-    case 4:   bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // stat
-    case 6:   bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // lstat
-    case 21:  bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // access
-    case 76:  bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // truncate
-    case 80:  bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // chdir
-    case 83:  bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // mkdir
-    case 84:  bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // rmdir
-    case 85:  bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // creat
-    case 87:  bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // unlink
-    case 89:  bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // readlink
-    case 155: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); // pivot_root new_root
-              bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // put_old
-    case 161: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // chroot
-    case 165: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); // mount source
-              bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // target
-    case 319: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // memfd_create
-    case 322: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // execveat
-    // ── path at args[1] (fd-relative at-syscalls) ──
-    case 254: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // inotify_add_watch
-    case 259: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // mknodat
-    case 260: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // fchownat
-    case 261: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // futimesat
-    case 262: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // newfstatat
-    case 267: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // readlinkat
-    case 268: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // fchmodat
-    case 269: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // faccessat
-    case 280: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // utimensat
-    case 303: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // name_to_handle_at
-    case 437: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // openat2
-    // ── dual-path at syscalls: primary=args[1], secondary=args[3] ──
-    case 264: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); // renameat oldpath
-              bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[3]); has_path = 1; break; // newpath
-    case 265: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); // linkat oldpath
-              bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[3]); has_path = 1; break; // newpath
-    case 316: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); // renameat2 oldpath
-              bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[3]); has_path = 1; break; // newpath
-    // ── symlinkat: target=args[0], linkpath=args[2] ──
-    case 266: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); // symlinkat target
-              bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[2]); has_path = 1; break; // linkpath
-    // ── remaining path at args[0] ──
-    case 166: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // umount2
-    case 167: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // swapon
-    case 168: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // swapoff
-    case 170: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // sethostname
-    case 171: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // setdomainname
-    case 188: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // setxattr
-    case 189: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // lsetxattr
-    case 191: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // getxattr
-    case 192: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // lgetxattr
-    case 194: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // listxattr
-    case 195: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // llistxattr
-    case 197: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // removexattr
-    case 198: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // lremovexattr
-    case 430: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); has_path = 1; break; // fsopen
-    // ── remaining path at args[1] ──
-    case 301: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[4]); has_path = 1; break; // fanotify_mark
-    case 428: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // open_tree
-    case 439: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); has_path = 1; break; // faccessat2
-    // ── remaining dual-path ──
-    case 429: bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); // move_mount from
-              bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[3]); has_path = 1; break; // to
-    }
-
-    char *path_ptr = has_path ? pd->path : NULL;
-    u32 tag_id = get_tag_id(pid, comm, path_ptr);
+static __always_inline int sys_enter_common_path(u32 pid, char *comm, char *path, u32 nr, u32 extra2, u32 extra3) {
+    u32 tag_id = get_tag_id(pid, comm, path);
     if (tag_id == 0) return 0;
-
     struct exit_meta meta = {};
-    meta.type = TYPE_RAW_SYSCALL;
+    meta.type = TYPE_GENERIC_SYSCALL;
     meta.tag_id = tag_id;
-    meta.extra1 = (u32)id;
-
-    // Extract meaningful numeric args for security-relevant syscalls
-    switch (id) {
-    case 62:  meta.extra2 = (u32)ctx->args[1]; break; // kill: sig
-    case 101: meta.extra2 = (u32)ctx->args[0]; break; // ptrace: request
-    case 103: meta.extra2 = (u32)ctx->args[0]; break; // syslog: type
-    case 125: meta.extra2 = (u32)ctx->args[0]; break; // capget
-    case 126: meta.extra2 = (u32)ctx->args[0]; break; // capset
-    case 157: meta.extra2 = (u32)ctx->args[0]; break; // prctl: option
-    case 172: meta.extra2 = (u32)ctx->args[0]; break; // iopl: level
-    case 173: meta.extra2 = (u32)ctx->args[0]; break; // ioperm: from
-    case 175: meta.extra2 = (u32)ctx->args[1]; break; // init_module: len
-    case 200: meta.extra2 = (u32)ctx->args[0]; break; // tkill: sig
-    case 234: meta.extra2 = (u32)ctx->args[2]; break; // tgkill: sig
-    case 246: meta.extra2 = (u32)ctx->args[0]; meta.extra3 = (u32)ctx->args[1]; break; // kexec_load
-    case 249: meta.extra2 = (u32)ctx->args[0]; break; // request_key: type
-    case 250: meta.extra2 = (u32)ctx->args[0]; break; // keyctl: option
-    case 272: meta.extra2 = (u32)ctx->args[0]; break; // unshare: flags
-    case 308: meta.extra2 = (u32)ctx->args[1]; break; // setns: nstype
-    case 310: meta.extra2 = (u32)ctx->args[0]; break; // process_vm_readv: pid
-    case 311: meta.extra2 = (u32)ctx->args[0]; break; // process_vm_writev: pid
-    case 312: meta.extra2 = (u32)ctx->args[2]; break; // kcmp: type
-    case 317: meta.extra2 = (u32)ctx->args[0]; meta.extra3 = (u32)ctx->args[1]; break; // seccomp
-    case 319: meta.extra2 = (u32)ctx->args[1]; break; // memfd_create: flags
-    case 320: meta.extra2 = (u32)ctx->args[0]; break; // kexec_file_load: kernel_fd
-    case 321: meta.extra2 = (u32)ctx->args[0]; break; // bpf: cmd
-    }
-
-    store_exit_meta(pid_tgid, &meta);
-    if (has_path) {
-        bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
-    }
-    return 0;
+    meta.extra1 = nr;
+    meta.extra2 = extra2;
+    meta.extra3 = extra3;
+    u64 ptid = bpf_get_current_pid_tgid();
+    store_exit_meta(ptid, &meta);
+    return 1;
 }
 
-SEC("tracepoint/raw_syscalls/sys_exit")
-int tracepoint__raw_syscalls__sys_exit(struct trace_event_raw_sys_exit *ctx) {
-    long id = ctx->id;
-    if (is_handled_syscall(id)) return 0;
+static __always_inline int sys_enter_common_nopath(u32 pid, char *comm, u32 nr, u32 extra2, u32 extra3) {
+    u32 tag_id = get_tag_id(pid, comm, NULL);
+    if (tag_id == 0) return 0;
+    struct exit_meta meta = {};
+    meta.type = TYPE_GENERIC_SYSCALL;
+    meta.tag_id = tag_id;
+    meta.extra1 = nr;
+    meta.extra2 = extra2;
+    meta.extra3 = extra3;
+    u64 ptid = bpf_get_current_pid_tgid();
+    store_exit_meta(ptid, &meta);
+    return 1;
+}
 
+static __always_inline void sys_exit_common(struct trace_event_raw_sys_exit *ctx, int has_path) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct exit_meta meta = {};
-    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
-
+    if (!consume_exit_meta(pid_tgid, &meta)) return;
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
-    if (!e) return 0;
+    if (!e) return;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
-
-    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
-    if (pd) {
-        __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
-        __builtin_memcpy(e->extra4, pd->extra4, MAX_PATH_LEN);
-        bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
+    if (has_path) {
+        struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
+        if (pd) {
+            __builtin_memcpy(e->path, pd->path, MAX_PATH_LEN);
+            __builtin_memcpy(e->extra4, pd->extra4, MAX_PATH_LEN);
+            bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
+        }
     }
-
     bpf_ringbuf_submit(e, 0);
-    return 0;
 }
+
+// ── Helper: store pid_tgid as lvalue ──
+#define STORE_PID_TGID() u64 ptid = bpf_get_current_pid_tgid()
+
+// ── Macro: path at args[0], single path ──
+#define SYS_PATH0(name, nr) \
+SEC("tracepoint/syscalls/sys_enter_" #name) \
+int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
+    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    char comm[TASK_COMM_LEN]; \
+    bpf_get_current_comm(&comm, sizeof(comm)); \
+    u32 zero = 0; \
+    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
+    if (!pd) return 0; \
+    bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
+    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    return 0; \
+} \
+SEC("tracepoint/syscalls/sys_exit_" #name) \
+int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
+    sys_exit_common(ctx, 1); \
+    return 0; \
+}
+
+// ── Macro: path at args[0], dual-path (args[0]=primary, args[1]=secondary) ──
+#define SYS_PATH01(name, nr) \
+SEC("tracepoint/syscalls/sys_enter_" #name) \
+int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
+    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    char comm[TASK_COMM_LEN]; \
+    bpf_get_current_comm(&comm, sizeof(comm)); \
+    u32 zero = 0; \
+    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
+    if (!pd) return 0; \
+    bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
+    bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[1]); \
+    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    return 0; \
+} \
+SEC("tracepoint/syscalls/sys_exit_" #name) \
+int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
+    sys_exit_common(ctx, 1); \
+    return 0; \
+}
+
+// ── Macro: path at args[1] (fd-relative), single path ──
+#define SYS_PATH1(name, nr) \
+SEC("tracepoint/syscalls/sys_enter_" #name) \
+int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
+    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    char comm[TASK_COMM_LEN]; \
+    bpf_get_current_comm(&comm, sizeof(comm)); \
+    u32 zero = 0; \
+    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
+    if (!pd) return 0; \
+    bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); \
+    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    return 0; \
+} \
+SEC("tracepoint/syscalls/sys_exit_" #name) \
+int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
+    sys_exit_common(ctx, 1); \
+    return 0; \
+}
+
+// ── Macro: dual path at args[1]+args[3] ──
+#define SYS_PATH13(name, nr) \
+SEC("tracepoint/syscalls/sys_enter_" #name) \
+int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
+    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    char comm[TASK_COMM_LEN]; \
+    bpf_get_current_comm(&comm, sizeof(comm)); \
+    u32 zero = 0; \
+    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
+    if (!pd) return 0; \
+    bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); \
+    bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[3]); \
+    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    return 0; \
+} \
+SEC("tracepoint/syscalls/sys_exit_" #name) \
+int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
+    sys_exit_common(ctx, 1); \
+    return 0; \
+}
+
+// ── Macro: symlinkat — target=args[0], linkpath=args[2] ──
+#define SYS_PATH02(name, nr) \
+SEC("tracepoint/syscalls/sys_enter_" #name) \
+int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
+    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    char comm[TASK_COMM_LEN]; \
+    bpf_get_current_comm(&comm, sizeof(comm)); \
+    u32 zero = 0; \
+    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
+    if (!pd) return 0; \
+    bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
+    bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[2]); \
+    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    return 0; \
+} \
+SEC("tracepoint/syscalls/sys_exit_" #name) \
+int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
+    sys_exit_common(ctx, 1); \
+    return 0; \
+}
+
+// ── Macro: fanotify_mark — path at args[4] ──
+#define SYS_PATH4(name, nr) \
+SEC("tracepoint/syscalls/sys_enter_" #name) \
+int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
+    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    char comm[TASK_COMM_LEN]; \
+    bpf_get_current_comm(&comm, sizeof(comm)); \
+    u32 zero = 0; \
+    struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
+    if (!pd) return 0; \
+    bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[4]); \
+    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
+    return 0; \
+} \
+SEC("tracepoint/syscalls/sys_exit_" #name) \
+int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
+    sys_exit_common(ctx, 1); \
+    return 0; \
+}
+
+// ── Macro: comm-only with numeric extra2 at args[N] ──
+#define SYS_NUM(name, nr, arg_idx) \
+SEC("tracepoint/syscalls/sys_enter_" #name) \
+int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
+    u32 pid = (u32)(bpf_get_current_pid_tgid() >> 32); \
+    char comm[TASK_COMM_LEN]; \
+    bpf_get_current_comm(&comm, sizeof(comm)); \
+    sys_enter_common_nopath(pid, comm, nr, (u32)ctx->args[arg_idx], 0); \
+    return 0; \
+} \
+SEC("tracepoint/syscalls/sys_exit_" #name) \
+int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
+    sys_exit_common(ctx, 0); \
+    return 0; \
+}
+
+// ── Macro: comm-only with extra2=args[a], extra3=args[b] ──
+#define SYS_NUM2(name, nr, a_idx, b_idx) \
+SEC("tracepoint/syscalls/sys_enter_" #name) \
+int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
+    u32 pid = (u32)(bpf_get_current_pid_tgid() >> 32); \
+    char comm[TASK_COMM_LEN]; \
+    bpf_get_current_comm(&comm, sizeof(comm)); \
+    sys_enter_common_nopath(pid, comm, nr, (u32)ctx->args[a_idx], (u32)ctx->args[b_idx]); \
+    return 0; \
+} \
+SEC("tracepoint/syscalls/sys_exit_" #name) \
+int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) { \
+    sys_exit_common(ctx, 0); \
+    return 0; \
+}
+
+// ═══════════════════════════════════════════════════════════
+// Instantiate all syscall handlers via macros
+// ═══════════════════════════════════════════════════════════
+
+// ── Path at args[0] ──
+SYS_PATH0(stat,        4)
+SYS_PATH0(lstat,       6)
+SYS_PATH0(access,      21)
+SYS_PATH0(truncate,    76)
+SYS_PATH0(chdir,       80)
+SYS_PATH0(mkdir,       83)
+SYS_PATH0(rmdir,       84)
+SYS_PATH0(creat,       85)
+SYS_PATH0(unlink,      87)
+SYS_PATH0(readlink,    89)
+SYS_PATH0(chroot,      161)
+SYS_PATH0(umount2,     166)
+SYS_PATH0(swapon,      167)
+SYS_PATH0(swapoff,     168)
+SYS_PATH0(sethostname, 170)
+SYS_PATH0(setdomainname, 171)
+SYS_PATH0(setxattr,    188)
+SYS_PATH0(lsetxattr,   189)
+SYS_PATH0(getxattr,    191)
+SYS_PATH0(lgetxattr,   192)
+SYS_PATH0(listxattr,   194)
+SYS_PATH0(llistxattr,  195)
+SYS_PATH0(removexattr, 197)
+SYS_PATH0(lremovexattr, 198)
+SYS_PATH0(fsopen,      430)
+SYS_PATH0(memfd_create, 319)
+SYS_PATH0(execveat,    322)
+
+// ── Dual path at args[0]+args[1] ──
+SYS_PATH01(pivot_root, 155)
+SYS_PATH01(mount,      165)
+
+// ── Path at args[1] (fd-relative) ──
+SYS_PATH1(mknodat,     259)
+SYS_PATH1(fchownat,    260)
+SYS_PATH1(futimesat,   261)
+SYS_PATH1(newfstatat,  262)
+SYS_PATH1(readlinkat,  267)
+SYS_PATH1(fchmodat,    268)
+SYS_PATH1(faccessat,   269)
+SYS_PATH1(utimensat,   280)
+SYS_PATH1(name_to_handle_at, 303)
+SYS_PATH1(openat2,     437)
+SYS_PATH1(faccessat2,  439)
+SYS_PATH1(inotify_add_watch, 254)
+SYS_PATH1(open_tree,   428)
+
+// ── Dual path at args[1]+args[3] ──
+SYS_PATH13(renameat,   264)
+SYS_PATH13(linkat,     265)
+SYS_PATH13(renameat2,  316)
+SYS_PATH13(move_mount, 429)
+
+// ── Special: symlinkat target=args[0], linkpath=args[2] ──
+SYS_PATH02(symlinkat,  266)
+
+// ── Special: fanotify_mark path at args[4] ──
+SYS_PATH4(fanotify_mark, 301)
+
+// ── Security-relevant comm-only ──
+SYS_NUM(kill,          62,  1)  // sig
+SYS_NUM(tkill,         200, 0)  // sig
+SYS_NUM2(tgkill,       234, 1, 2) // tgid, sig
+SYS_NUM(ptrace,        101, 0)  // request
+SYS_NUM(prctl,         157, 0)  // option
+SYS_NUM(syslog,        103, 0)  // type
+SYS_NUM(capget,        125, 0)  // header
+SYS_NUM(capset,        126, 0)  // header
+SYS_NUM(iopl,          172, 0)  // level
+SYS_NUM(ioperm,        173, 0)  // from
+SYS_NUM(init_module,    175, 1) // len
+SYS_NUM(unshare,       272, 0)  // flags
+SYS_NUM(setns,         308, 1)  // nstype
+SYS_NUM(process_vm_readv,  310, 0) // pid
+SYS_NUM(process_vm_writev, 311, 0) // pid
+SYS_NUM(kcmp,          312, 2)  // type
+SYS_NUM2(seccomp,      317, 0, 1) // operation, flags
+SYS_NUM2(kexec_load,   246, 0, 1) // entry, nr_segments
+SYS_NUM(kexec_file_load, 320, 0) // kernel_fd
+SYS_NUM(bpf,           321, 0)  // cmd
+SYS_NUM(request_key,   249, 0)  // type
+SYS_NUM(keyctl,        250, 0)  // option
 
 char _license[] SEC("license") = "Dual MIT/GPL";
