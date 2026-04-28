@@ -72,13 +72,16 @@ let recentRowTimer: number | null = null;
 const eventBuffer: AgentEvent[] = [];
 let rafId: number | null = null;
 
+const maxEvents = ref(5000);
+const maxEventsOptions = ['2000', '5000', '10000', '20000', '50000'];
+
 const flushEventBuffer = () => {
   rafId = null;
   if (eventBuffer.length === 0) return;
 
   const newEvents = [...eventBuffer.reverse(), ...events.value];
-  if (newEvents.length > 1000) {
-    newEvents.length = 1000;
+  if (newEvents.length > maxEvents.value) {
+    newEvents.length = maxEvents.value;
   }
   events.value = newEvents;
   eventBuffer.length = 0;
@@ -270,6 +273,48 @@ const categoryTabs = [
 
 const activeTab = ref<string>('all');
 const netDirFilter = ref<string>('all');
+const syscallCatFilter = ref<string>('all');
+
+const parseSyscallNr = (info?: string): number => {
+  const m = info?.match(/\((\d+)\)/);
+  return m ? Number(m[1]) : 0;
+};
+
+const syscallCategory = (nr: number): string => {
+  if (nr >= 0 && nr <= 40) return 'io';       // read,write,open,close,stat,poll,mmap,brk,dup,pipe,nanosleep...
+  if (nr >= 41 && nr <= 55) return 'net';      // socket,connect,accept,sendto,recvfrom,bind,listen...
+  if (nr >= 56 && nr <= 61) return 'proc';     // clone,fork,vfork,execve,exit
+  if (nr >= 62 && nr <= 63) return 'sig';      // kill,uname
+  if (nr >= 64 && nr <= 71) return 'ipc';      // System V IPC
+  if (nr >= 72 && nr <= 100) return 'io';      // fcntl,flock,fsync,truncate,chdir,mkdir,chmod,chown...
+  if (nr >= 101 && nr <= 200) return 'sec';    // ptrace,prctl,capget,setuid,mount,pivot_root,chroot...
+  if (nr >= 201 && nr <= 256) return 'misc';   // futex,epoll,timer,clock,mbind,inotify,migrate...
+  if (nr >= 257 && nr <= 334) return 'io';     // openat,mkdirat,unlinkat,renameat,execveat,memfd_create...
+  if (nr >= 424 && nr <= 453) return 'sec';    // pidfd,io_uring,open_tree,mount,landlock,clone3...
+  return 'other';
+};
+
+const syscallCatLabels: Record<string, string> = {
+  io: 'I/O & FS',
+  net: 'Network',
+  proc: 'Process',
+  sig: 'Signal',
+  ipc: 'SysV IPC',
+  sec: 'Security',
+  misc: 'Misc',
+  other: 'Other',
+};
+
+const syscallCatColors: Record<string, string> = {
+  io: 'cyan', net: 'purple', proc: 'orange', sig: 'red',
+  ipc: 'gold', sec: 'red', misc: 'default', other: 'default',
+};
+
+const syscallDisplayName = (info?: string): string => {
+  if (!info) return '';
+  const m = info.match(/^(\w+)\(\d+\)/);
+  return m ? m[1] : '';
+};
 
 const syncTabFromRoute = () => {
   const tab = route.params.tab as string | undefined;
@@ -338,7 +383,8 @@ const fetchTags = async () => {
   }
 };
 
-const filteredEvents = computed(() => {
+// Events with global + tab filters only (used for stats bars)
+const tabFilteredEvents = computed(() => {
   let result = events.value;
   if (selectedTags.value.length) {
     const activeTags = new Set(selectedTags.value);
@@ -349,21 +395,13 @@ const filteredEvents = computed(() => {
     result = result.filter((e) => e.eventType !== undefined && activeTypes.has(e.eventType));
   }
   const timeQuery = timeFilter.value.trim().toLowerCase();
-  if (timeQuery) {
-    result = result.filter(e => e.time.toLowerCase().includes(timeQuery));
-  }
+  if (timeQuery) result = result.filter(e => e.time.toLowerCase().includes(timeQuery));
   const pidQuery = pidFilter.value.trim();
   const commQuery = commandFilter.value.trim().toLowerCase();
   const pathQuery = pathFilter.value.trim().toLowerCase();
-  if (pidQuery) {
-    result = result.filter(e => String(e.pid).includes(pidQuery));
-  }
-  if (commQuery) {
-    result = result.filter(e => e.comm.toLowerCase().includes(commQuery));
-  }
-  if (pathQuery) {
-    result = result.filter(e => e.path.toLowerCase().includes(pathQuery));
-  }
+  if (pidQuery) result = result.filter(e => String(e.pid).includes(pidQuery));
+  if (commQuery) result = result.filter(e => e.comm.toLowerCase().includes(commQuery));
+  if (pathQuery) result = result.filter(e => e.path.toLowerCase().includes(pathQuery));
   if (isDeduplicated.value) {
     const seen = new Set();
     result = result.filter(e => {
@@ -379,23 +417,41 @@ const filteredEvents = computed(() => {
       result = result.filter(e => e.eventType !== undefined && categorySet.has(e.eventType));
     }
   }
+  if (hideUnknown.value) result = result.filter(e => e.tag !== 'Unknown');
+  return result;
+});
+
+// Full filtered events including sub-filters
+const filteredEvents = computed(() => {
+  let result = tabFilteredEvents.value;
   if (activeTab.value === 'network' && netDirFilter.value !== 'all') {
     result = result.filter(e => (e.netDirection || 'unknown') === netDirFilter.value);
   }
-  if (hideUnknown.value) {
-    result = result.filter(e => e.tag !== 'Unknown');
+  if (activeTab.value === 'syscall' && syscallCatFilter.value !== 'all') {
+    result = result.filter(e => syscallCategory(parseSyscallNr(e.extraInfo)) === syscallCatFilter.value);
   }
   return streamDirection.value === 'bottom' ? [...result].reverse() : result;
 });
 
+// Stats use tabFilteredEvents (pre-sub-filter) to avoid zeroing out
 const networkDirStats = computed(() => {
-  const list = activeTab.value === 'network' ? filteredEvents.value : [];
+  const list = activeTab.value === 'network' ? tabFilteredEvents.value : [];
   const dirs = { outgoing: 0, incoming: 0, listening: 0, unknown: 0 };
   for (const e of list) {
     const d = e.netDirection || 'unknown';
     if (d in dirs) (dirs as any)[d]++; else dirs.unknown++;
   }
   return dirs;
+});
+
+const syscallCatStats = computed(() => {
+  const list = activeTab.value === 'syscall' ? tabFilteredEvents.value : [];
+  const cats: Record<string, number> = {};
+  for (const e of list) {
+    const cat = syscallCategory(parseSyscallNr(e.extraInfo));
+    cats[cat] = (cats[cat] || 0) + 1;
+  }
+  return cats;
 });
 
 const tablePagination = computed(() => {
@@ -905,7 +961,11 @@ onUnmounted(() => {
             <span style="font-size: 12px;">Clean Duplicates</span>
           </a-checkbox>
         </div>
-        <div style="display: flex; gap: 8px;">
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="font-size: 12px; color: #888;">Max:</span>
+          <a-select v-model:value="maxEvents" size="small" style="width: 80px">
+            <a-select-option v-for="opt in maxEventsOptions" :key="opt" :value="Number(opt)">{{ opt }}</a-select-option>
+          </a-select>
           <a-dropdown>
             <template #overlay>
               <a-menu>
@@ -931,6 +991,20 @@ onUnmounted(() => {
         <span style="margin-left: 2px; font-weight: 600;">{{ (networkDirStats as any)[d] }}</span>
       </a-tag>
       <a-tag v-if="netDirFilter !== 'all'" color="red" style="cursor: pointer;" @click="netDirFilter = 'all'">✕ Clear</a-tag>
+    </div>
+
+    <div v-if="activeTab === 'syscall'" class="net-dir-bar">
+      <span style="font-weight: 600; margin-right: 8px; color: #555;">Category:</span>
+      <a-tag
+        v-for="cat in Object.keys(syscallCatLabels)" :key="cat"
+        :color="syscallCatFilter === cat ? syscallCatColors[cat] : 'default'"
+        style="cursor: pointer;"
+        @click="syscallCatFilter = syscallCatFilter === cat ? 'all' : cat"
+      >
+        {{ syscallCatLabels[cat] }}
+        <span style="margin-left: 2px; font-weight: 600;">{{ syscallCatStats[cat] || 0 }}</span>
+      </a-tag>
+      <a-tag v-if="syscallCatFilter !== 'all'" color="red" style="cursor: pointer;" @click="syscallCatFilter = 'all'">✕ Clear</a-tag>
     </div>
 
     <div ref="tableWrapperRef" class="dashboard-table-wrap">
@@ -1055,7 +1129,9 @@ onUnmounted(() => {
       </template>
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'type'">
-          <a-tag :color="getTagColor(record.eventType, record.type)">{{ record.type.toUpperCase() }}</a-tag>
+          <a-tag :color="getTagColor(record.eventType, record.type)">
+            {{ record.type === 'syscall' && syscallDisplayName(record.extraInfo) ? syscallDisplayName(record.extraInfo) : record.type.toUpperCase() }}
+          </a-tag>
         </template>
         <template v-if="column.key === 'tag'">
           <a-tag :color="getCategoryColor(record.tag)">{{ record.tag }}</a-tag>
