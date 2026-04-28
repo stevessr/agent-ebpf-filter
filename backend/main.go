@@ -190,7 +190,7 @@ func main() {
 	{
 		registerConfigRoutes(api.Group("/config"))
 		registerSystemRoutes(api.Group("/system"))
-		
+
 		data := api.Group("/data")
 		{
 			data.POST("/clear-events", handleClearEvents)
@@ -215,37 +215,60 @@ func main() {
 	r.NoRoute(func(c *gin.Context) { c.File(filepath.Join(staticDir, "index.html")) })
 
 	commonCLIs := map[string]string{
-		"git": "Git", "npm": "Package Manager", "bun": "Package Manager", "pnpm": "Package Manager",
-		"yarn": "Package Manager", "node": "Runtime", "python": "Runtime", "python3": "Runtime",
-		"go": "Build Tool", "cargo": "Build Tool", "rustc": "Build Tool", "gcc": "Build Tool",
-		"g++": "Build Tool", "clang": "Build Tool", "make": "Build Tool", "cmake": "Build Tool",
-		"docker": "System Tool", "kubectl": "Network Tool",
-		"podman": "System Tool", "dpkg": "Package Manager", "apt": "Package Manager",
-		"apt-get": "Package Manager", "snap": "Package Manager", "flatpak": "Package Manager",
-		"pacman": "Package Manager", "yay": "Package Manager", "paru": "Package Manager",
-		"dnf": "Package Manager", "yum": "Package Manager", "zypper": "Package Manager",
-		"rpm": "Package Manager", "systemctl": "System Tool", "journalctl": "System Tool",
+		// Git
+		"git": "Git",
+		// Language Pkg (npm/pip/cargo/uv etc.)
+		"npm": "Language Pkg", "bun": "Language Pkg", "pnpm": "Language Pkg",
+		"yarn": "Language Pkg", "pip": "Language Pkg", "pip3": "Language Pkg",
+		"gem": "Language Pkg", "uv": "Language Pkg", "zig": "Language Pkg",
+		// System Pkg (apt/pacman/dnf/brew etc.)
+		"dpkg": "System Pkg", "apt": "System Pkg", "apt-get": "System Pkg",
+		"snap": "System Pkg", "flatpak": "System Pkg",
+		"pacman": "System Pkg", "yay": "System Pkg", "paru": "System Pkg",
+		"dnf": "System Pkg", "yum": "System Pkg", "zypper": "System Pkg",
+		"rpm": "System Pkg", "nix": "System Pkg", "brew": "System Pkg",
+		// Container CLI
+		"docker": "Container CLI", "podman": "Container CLI", "kubectl": "Container CLI",
+		// Agent CLI
+		"claude": "Agent CLI", "gemini": "Agent CLI", "codex": "Agent CLI",
+		"kiro-cli": "Agent CLI", "gh": "Agent CLI", "cursor": "Agent CLI",
+		// Build Tool
+		"go": "Build Tool", "cargo": "Build Tool", "rustc": "Build Tool",
+		"gcc": "Build Tool", "g++": "Build Tool", "clang": "Build Tool",
+		"make": "Build Tool", "cmake": "Build Tool", "ninja": "Build Tool",
+		"meson": "Build Tool", "gradle": "Build Tool", "mvn": "Build Tool",
+		"lldb": "Build Tool", "gdb": "Build Tool",
+		// Runtime
+		"node": "Runtime", "python": "Runtime", "python3": "Runtime",
+		"java": "Runtime", "javac": "Runtime", "ruby": "Runtime",
+		"perl": "Runtime", "lua": "Runtime", "deno": "Runtime", "pwsh": "Runtime",
+		"php": "Runtime", "dotnet": "Runtime", "erl": "Runtime", "ghc": "Runtime",
+		// System Tool
+		"systemctl": "System Tool", "journalctl": "System Tool",
+		"ffmpeg": "System Tool", "tar": "System Tool", "gzip": "System Tool",
+		"unzip": "System Tool",
+		// Network Tool
 		"ssh": "Network Tool", "scp": "Network Tool", "rsync": "Network Tool",
-		"curl": "Network Tool", "wget": "Network Tool", "ffmpeg": "System Tool",
-		"tar": "System Tool", "gzip": "System Tool", "unzip": "System Tool",
-		"pip": "Package Manager", "pip3": "Package Manager", "gem": "Package Manager",
-		"nix": "Package Manager", "brew": "Package Manager",
-		"ninja": "Build Tool", "meson": "Build Tool", "gradle": "Build Tool", "mvn": "Build Tool",
-		"java": "Runtime", "ruby": "Runtime", "perl": "Runtime", "lua": "Runtime",
-		"deno": "Runtime", "pwsh": "Runtime", "bash": "Runtime", "zsh": "Runtime",
-		"fish": "Runtime", "sh": "Runtime",
+		"curl": "Network Tool", "wget": "Network Tool",
+		// Shell (shadow-banned by default)
+		"bash": "Shell", "zsh": "Shell", "fish": "Shell",
+		"sh": "Shell", "dash": "Shell", "ash": "Shell",
 	}
 	for cl, t := range commonCLIs {
 		var k [16]byte
 		copy(k[:], cl)
 		_ = objs.TrackedComms.Put(k, getTagID(t))
 	}
+	// Shadow-ban shell binaries by default (too noisy for debugging)
+	for _, sh := range []string{"bash", "zsh", "fish", "sh", "dash", "ash"} {
+		disabledComms[sh] = struct{}{}
+	}
 
 	startPort, maxTries, actualPort := 8080, 10, 8080
 	for i := 0; i < maxTries; i++ {
 		l, err := net.Listen("tcp", fmt.Sprintf(":%d", startPort+i))
 		if err == nil {
-			actualPort = startPort+i
+			actualPort = startPort + i
 			l.Close()
 			break
 		}

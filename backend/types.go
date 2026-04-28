@@ -185,9 +185,9 @@ var (
 	trackerMaps trackerMapSet
 
 	tagsMu      sync.RWMutex
-	tagMap             = map[uint32]string{0: "Unknown", 1: "AI Agent", 2: "Git", 3: "Build Tool", 4: "Package Manager", 5: "Runtime", 6: "System Tool", 7: "Network Tool", 8: "Security"}
-	tagNameToID        = map[string]uint32{"AI Agent": 1, "Git": 2, "Build Tool": 3, "Package Manager": 4, "Runtime": 5, "System Tool": 6, "Network Tool": 7, "Security": 8}
-	nextTagID   uint32 = 9
+	tagMap             = map[uint32]string{0: "Unknown", 1: "AI Agent", 2: "Git", 3: "Build Tool", 4: "System Pkg", 5: "Runtime", 6: "System Tool", 7: "Network Tool", 8: "Security", 9: "Shell", 10: "Language Pkg", 11: "Container CLI", 12: "Agent CLI"}
+	tagNameToID        = map[string]uint32{"AI Agent": 1, "Git": 2, "Build Tool": 3, "System Pkg": 4, "Runtime": 5, "System Tool": 6, "Network Tool": 7, "Security": 8, "Shell": 9, "Language Pkg": 10, "Container CLI": 11, "Agent CLI": 12}
+	nextTagID   uint32 = 13
 
 	rulesMu      sync.RWMutex
 	wrapperRules = make(map[string]WrapperRule)
@@ -202,7 +202,7 @@ var (
 	fdinfoHistoryMu sync.RWMutex
 	fdinfoTime      time.Time
 
-	sudoUser         *user.User
+	sudoUser          *user.User
 	sudoUserHomeCache string
 )
 

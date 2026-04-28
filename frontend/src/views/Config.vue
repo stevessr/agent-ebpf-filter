@@ -630,11 +630,15 @@ const getCategoryColor = (tag: string) => {
     "AI Agent": "magenta",
     Git: "orange",
     "Build Tool": "cyan",
-    "Package Manager": "green",
+    "System Pkg": "green",
+    "Language Pkg": "lime",
     Runtime: "blue",
     "System Tool": "geekblue",
     "Network Tool": "purple",
     Security: "red",
+    Shell: "default",
+    "Container CLI": "volcano",
+    "Agent CLI": "magenta",
     Wrapper: "gold",
   };
   return colors[tag] || "default";
