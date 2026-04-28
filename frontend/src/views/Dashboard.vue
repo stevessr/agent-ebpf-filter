@@ -146,6 +146,8 @@ const eventTypes = [
   'exit',
   'socket',
   'accept',
+  'accept4',
+  'syscall',
   'wrapper_intercept',
   'native_hook',
 ];
@@ -173,6 +175,8 @@ const eventTypeLabelMap: Record<number, string> = {
   [pb.EventType.EXIT]: 'exit',
   [pb.EventType.SOCKET]: 'socket',
   [pb.EventType.ACCEPT]: 'accept',
+  [pb.EventType.ACCEPT4]: 'accept4',
+  25: 'syscall',
   [pb.EventType.WRAPPER_INTERCEPT]: 'wrapper_intercept',
   [pb.EventType.NATIVE_HOOK]: 'native_hook',
 };
@@ -199,6 +203,8 @@ const eventTypeColorMap: Record<number, string> = {
   [pb.EventType.EXIT]: 'red',
   [pb.EventType.SOCKET]: 'orange',
   [pb.EventType.ACCEPT]: 'volcano',
+  [pb.EventType.ACCEPT4]: 'volcano',
+  25: 'geekblue',
 };
 const selectableEventTypes = eventTypes
   .map((label) => {
@@ -212,6 +218,8 @@ const networkEventTypes = new Set<number>([
   pb.EventType.NETWORK_SENDTO,
   pb.EventType.NETWORK_RECVFROM,
   pb.EventType.ACCEPT,
+  pb.EventType.ACCEPT4,
+  pb.EventType.SOCKET,
 ]);
 
 // Event category sets for tab filtering
@@ -294,7 +302,7 @@ const isNetworkEvent = (eventType: number | undefined, type?: string) => {
   if (eventType !== undefined && networkEventTypes.has(eventType)) {
     return true;
   }
-  return type === 'accept' || Boolean(type?.startsWith('network_'));
+  return type === 'accept' || type === 'accept4' || Boolean(type?.startsWith('network_'));
 };
 
 const baseColumns = [
