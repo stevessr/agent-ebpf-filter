@@ -1,0 +1,277 @@
+> Local snapshot: Linux 6.18 LTS
+> Source: https://man7.org/linux/man-pages/man2/mkdir.2.html
+> Cached: 2026-04-28
+
+---
+
+
+
+# mkdir(2) — Linux manual page
+
+|  |
+| --- |
+| [NAME](#NAME) | [LIBRARY](#LIBRARY) | [SYNOPSIS](#SYNOPSIS) | [DESCRIPTION](#DESCRIPTION) | [RETURN VALUE](#RETURN_VALUE) | [ERRORS](#ERRORS) | [VERSIONS](#VERSIONS) | [STANDARDS](#STANDARDS) | [HISTORY](#HISTORY) | [NOTES](#NOTES) | [SEE ALSO](#SEE_ALSO) | [COLOPHON](#COLOPHON) |
+|  |  |
+
+```
+mkdir(2)                   System Calls Manual                   mkdir(2)
+
+```
+
+## NAME         [top](#top_of_page)
+
+```
+       mkdir, mkdirat - create a directory
+
+```
+
+## LIBRARY         [top](#top_of_page)
+
+```
+       Standard C library (libc, -lc)
+
+```
+
+## SYNOPSIS         [top](#top_of_page)
+
+```
+       #include <sys/stat.h>
+
+       int mkdir(const char *path, mode_t mode);
+
+       #include <fcntl.h>           /* Definition of AT_* constants */
+       #include <sys/stat.h>
+
+       int mkdirat(int dirfd, const char *path, mode_t mode);
+
+   Feature Test Macro Requirements for glibc (see
+   feature_test_macros(7)):
+
+       mkdirat():
+           Since glibc 2.10:
+               _POSIX_C_SOURCE >= 200809L
+           Before glibc 2.10:
+               _ATFILE_SOURCE
+
+```
+
+## DESCRIPTION         [top](#top_of_page)
+
+```
+       mkdir() attempts to create a directory named path.
+
+       The argument mode specifies the mode for the new directory (see
+       inode(7)).  It is modified by the process's umask in the usual
+       way: in the absence of a default ACL, the mode of the created
+       directory is (mode & ~umask & 0777).  Whether other mode bits are
+       honored for the created directory depends on the operating system.
+       For Linux, see VERSIONS below.
+
+       The newly created directory will be owned by the effective user ID
+       of the process.  If the directory containing the file has the set-
+       group-ID bit set, or if the filesystem is mounted with BSD group
+       semantics (mount -o bsdgroups or, synonymously mount -o grpid),
+       the new directory will inherit the group ownership from its
+       parent; otherwise it will be owned by the effective group ID of
+       the process.
+
+       If the parent directory has the set-group-ID bit set, then so will
+       the newly created directory.
+
+   mkdirat()
+       The mkdirat() system call operates in exactly the same way as
+       mkdir(), except for the differences described here.
+
+       If path is relative, then it is interpreted relative to the
+       directory referred to by the file descriptor dirfd (rather than
+       relative to the current working directory of the calling process,
+       as is done by mkdir() for a relative pathname).
+
+       If path is relative and dirfd is the special value AT_FDCWD, then
+       path is interpreted relative to the current working directory of
+       the calling process (like mkdir()).
+
+       If path is absolute, then dirfd is ignored.
+
+       See openat(2) for an explanation of the need for mkdirat().
+
+```
+
+## RETURN VALUE         [top](#top_of_page)
+
+```
+       mkdir() and mkdirat() return zero on success.  On error, -1 is
+       returned and errno is set to indicate the error.
+
+```
+
+## ERRORS         [top](#top_of_page)
+
+```
+       EACCES The parent directory does not allow write permission to the
+              process, or one of the directories in path did not allow
+              search permission.  (See also path_resolution(7).)
+
+       EBADF  (mkdirat()) path is relative but dirfd is neither AT_FDCWD
+              nor a valid file descriptor.
+
+       EDQUOT The user's quota of disk blocks or inodes on the filesystem
+              has been exhausted.
+
+       EEXIST path already exists (not necessarily as a directory).  This
+              includes the case where path is a symbolic link, dangling
+              or not.
+
+       EFAULT path points outside your accessible address space.
+
+       EINVAL The final component ("basename") of the new directory's
+              path is invalid (e.g., it contains characters not permitted
+              by the underlying filesystem).
+
+       ELOOP  Too many symbolic links were encountered in resolving path.
+
+       EMLINK The number of links to the parent directory would exceed
+              LINK_MAX.
+
+       ENAMETOOLONG
+              path was too long.
+
+       ENOENT A directory component in path does not exist or is a
+              dangling symbolic link.
+
+       ENOMEM Insufficient kernel memory was available.
+
+       ENOSPC The device containing path has no room for the new
+              directory.
+
+       ENOSPC The new directory cannot be created because the user's disk
+              quota is exhausted.
+
+       ENOTDIR
+              A component used as a directory in path is not, in fact, a
+              directory.
+
+       ENOTDIR
+              (mkdirat()) path is relative and dirfd is a file descriptor
+              referring to a file other than a directory.
+
+       EPERM  The filesystem containing path does not support the
+              creation of directories.
+
+       EROFS  path refers to a file on a read-only filesystem.
+
+       EOVERFLOW
+              UID or GID mappings (see user_namespaces(7)) have not been
+              configured.
+
+```
+
+## VERSIONS         [top](#top_of_page)
+
+```
+       Under Linux, apart from the permission bits, the S_ISVTX mode bit
+       is also honored.
+
+   glibc notes
+       On older kernels where mkdirat() is unavailable, the glibc wrapper
+       function falls back to the use of mkdir().  When path is relative,
+       glibc constructs a pathname based on the symbolic link in
+       /proc/self/fd that corresponds to the dirfd argument.
+
+```
+
+## STANDARDS         [top](#top_of_page)
+
+```
+       POSIX.1-2024.
+
+```
+
+## HISTORY         [top](#top_of_page)
+
+```
+       mkdir()
+              SVr4, BSD, POSIX.1-2001.
+
+       mkdirat()
+              POSIX.1-2008.  Linux 2.6.16, glibc 2.4.
+
+```
+
+## NOTES         [top](#top_of_page)
+
+```
+       There are many infelicities in the protocol underlying NFS.  Some
+       of these affect mkdir().
+
+```
+
+## SEE ALSO         [top](#top_of_page)
+
+```
+       mkdir(1), chmod(2), chown(2), mknod(2), mount(2), rmdir(2),
+       stat(2), umask(2), unlink(2), acl(5), path_resolution(7)
+
+```
+
+## COLOPHON         [top](#top_of_page)
+
+```
+       This page is part of the man-pages (Linux kernel and C library
+       user-space interface documentation) project.  Information about
+       the project can be found at 
+       ⟨https://www.kernel.org/doc/man-pages/⟩.  If you have a bug report
+       for this manual page, see
+       ⟨https://git.kernel.org/pub/scm/docs/man-pages/man-pages.git/tree/CONTRIBUTING⟩.
+       This page was obtained from the tarball man-pages-6.16.tar.gz
+       fetched from
+       ⟨https://mirrors.edge.kernel.org/pub/linux/docs/man-pages/⟩ on
+       2026-01-16.  If you discover any rendering problems in this HTML
+       version of the page, or you believe there is a better or more up-
+       to-date source for the page, or you have corrections or
+       improvements to the information in this COLOPHON (which is not
+       part of the original manual page), send a mail to
+       man-pages@man7.org
+
+Linux man-pages 6.16            2025-10-29                       mkdir(2)
+
+```
+
+---
+
+Pages that refer to this page:
+[mkdir(1)](../man1/mkdir.1.html), 
+[chmod(2)](../man2/chmod.2.html), 
+[chown(2)](../man2/chown.2.html), 
+[fanotify\_mark(2)](../man2/fanotify_mark.2.html), 
+[F\_NOTIFY(2const)](../man2/F_NOTIFY.2const.html), 
+[io\_uring\_enter2(2)](../man2/io_uring_enter2.2.html), 
+[io\_uring\_enter(2)](../man2/io_uring_enter.2.html), 
+[mknod(2)](../man2/mknod.2.html), 
+[open(2)](../man2/open.2.html), 
+[rmdir(2)](../man2/rmdir.2.html), 
+[seccomp\_unotify(2)](../man2/seccomp_unotify.2.html), 
+[syscalls(2)](../man2/syscalls.2.html), 
+[umask(2)](../man2/umask.2.html), 
+[io\_uring\_prep\_mkdir(3)](../man3/io_uring_prep_mkdir.3.html), 
+[io\_uring\_prep\_mkdirat(3)](../man3/io_uring_prep_mkdirat.3.html), 
+[mkdtemp(3)](../man3/mkdtemp.3.html), 
+[mode\_t(3type)](../man3/mode_t.3type.html), 
+[proc\_pid\_attr(5)](../man5/proc_pid_attr.5.html), 
+[cpuset(7)](../man7/cpuset.7.html), 
+[inotify(7)](../man7/inotify.7.html), 
+[rpm-lua(7)](../man7/rpm-lua.7.html), 
+[signal-safety(7)](../man7/signal-safety.7.html), 
+[mount(8)](../man8/mount.8.html)
+
+---
+
+
+
+---
+
+|  |  |  |
+| --- | --- | --- |
+| HTML rendering created 2026-01-16 by [Michael Kerrisk](https://man7.org/mtk/index.html), author of [*The Linux Programming Interface*](https://man7.org/tlpi/).  For details of in-depth **Linux/UNIX system programming training courses** that I teach, look [here](https://man7.org/training/).  Hosting by [jambit GmbH](https://www.jambit.com/index_en.html). |  |  |
+
+---

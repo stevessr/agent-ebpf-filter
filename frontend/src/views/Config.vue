@@ -10,6 +10,7 @@ import {
   ExportOutlined,
   ImportOutlined,
   SafetyCertificateOutlined,
+  BookOutlined,
   ClusterOutlined,
   SwapOutlined,
   StopOutlined,
@@ -28,6 +29,7 @@ import {
 import { message } from "ant-design-vue";
 import { pb } from "../pb/tracker_pb.js";
 import PathNavigatorDrawer from "../components/PathNavigatorDrawer.vue";
+import DocsLookupPanel from "../components/docs/DocsLookupPanel.vue";
 import {
   getStoredClusterTarget,
   isLocalClusterTarget,
@@ -1440,7 +1442,16 @@ onMounted(async () => {
         </a-row>
       </a-tab-pane>
 
-      <!-- Tab 4: Cluster Control -->
+      <!-- Tab 4: Linux 6.18 LTS Docs -->
+      <a-tab-pane key="docs" tab="Linux 6.18 LTS">
+        <template #tab>
+          <span><BookOutlined /> Linux 6.18 LTS</span>
+        </template>
+
+        <DocsLookupPanel />
+      </a-tab-pane>
+
+      <!-- Tab 5: Cluster Control -->
       <a-tab-pane key="cluster" tab="Cluster Control">
         <template #tab>
           <span><ClusterOutlined /> Cluster Control</span>

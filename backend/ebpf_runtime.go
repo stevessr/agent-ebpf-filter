@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	bpf "agent-ebpf-filter/ebpf"
@@ -19,59 +22,59 @@ const bootstrapFlag = "--ebpf-bootstrap"
 // mapNames defines the required pinned eBPF maps.
 var mapNames = []string{"agent_pids", "events", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_path_buf", "exit_path_ctx"}
 
-var trackerAttachSpecs = []struct {
-	category, name, pinName string
-	program                 func(*bpf.AgentTrackerObjects) *ebpf.Program
-}{
-	// Existing sys_enter
-	{"syscalls", "sys_enter_execve", "sys_enter_execve", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterExecve }},
-	{"syscalls", "sys_enter_openat", "sys_enter_openat", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterOpenat }},
-	{"syscalls", "sys_enter_connect", "sys_enter_connect", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterConnect }},
-	{"syscalls", "sys_enter_mkdirat", "sys_enter_mkdirat", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterMkdirat }},
-	{"syscalls", "sys_enter_unlinkat", "sys_enter_unlinkat", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterUnlinkat }},
-	{"syscalls", "sys_enter_ioctl", "sys_enter_ioctl", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterIoctl }},
-	{"syscalls", "sys_enter_bind", "sys_enter_bind", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterBind }},
-	{"syscalls", "sys_enter_sendto", "sys_enter_sendto", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterSendto }},
-	{"syscalls", "sys_enter_recvfrom", "sys_enter_recvfrom", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterRecvfrom }},
-	// New sys_enter
-	{"syscalls", "sys_enter_read", "sys_enter_read", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterRead }},
-	{"syscalls", "sys_enter_write", "sys_enter_write", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterWrite }},
-	{"syscalls", "sys_enter_open", "sys_enter_open", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterOpen }},
-	{"syscalls", "sys_enter_chmod", "sys_enter_chmod", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterChmod }},
-	{"syscalls", "sys_enter_chown", "sys_enter_chown", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterChown }},
-	{"syscalls", "sys_enter_rename", "sys_enter_rename", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterRename }},
-	{"syscalls", "sys_enter_link", "sys_enter_link", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterLink }},
-	{"syscalls", "sys_enter_symlink", "sys_enter_symlink", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterSymlink }},
-	{"syscalls", "sys_enter_mknod", "sys_enter_mknod", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterMknod }},
-	{"syscalls", "sys_enter_clone", "sys_enter_clone", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterClone }},
-	{"syscalls", "sys_enter_exit_group", "sys_enter_exit_group", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterExitGroup }},
-	{"syscalls", "sys_enter_socket", "sys_enter_socket", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterSocket }},
-	{"syscalls", "sys_enter_accept", "sys_enter_accept", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterAccept }},
-	{"syscalls", "sys_enter_accept4", "sys_enter_accept4", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysEnterAccept4 }},
-	// sys_exit for ALL 22 syscalls
-	{"syscalls", "sys_exit_execve", "sys_exit_execve", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitExecve }},
-	{"syscalls", "sys_exit_openat", "sys_exit_openat", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitOpenat }},
-	{"syscalls", "sys_exit_connect", "sys_exit_connect", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitConnect }},
-	{"syscalls", "sys_exit_mkdirat", "sys_exit_mkdirat", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitMkdirat }},
-	{"syscalls", "sys_exit_unlinkat", "sys_exit_unlinkat", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitUnlinkat }},
-	{"syscalls", "sys_exit_ioctl", "sys_exit_ioctl", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitIoctl }},
-	{"syscalls", "sys_exit_bind", "sys_exit_bind", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitBind }},
-	{"syscalls", "sys_exit_sendto", "sys_exit_sendto", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitSendto }},
-	{"syscalls", "sys_exit_recvfrom", "sys_exit_recvfrom", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitRecvfrom }},
-	{"syscalls", "sys_exit_read", "sys_exit_read", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitRead }},
-	{"syscalls", "sys_exit_write", "sys_exit_write", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitWrite }},
-	{"syscalls", "sys_exit_open", "sys_exit_open", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitOpen }},
-	{"syscalls", "sys_exit_chmod", "sys_exit_chmod", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitChmod }},
-	{"syscalls", "sys_exit_chown", "sys_exit_chown", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitChown }},
-	{"syscalls", "sys_exit_rename", "sys_exit_rename", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitRename }},
-	{"syscalls", "sys_exit_link", "sys_exit_link", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitLink }},
-	{"syscalls", "sys_exit_symlink", "sys_exit_symlink", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitSymlink }},
-	{"syscalls", "sys_exit_mknod", "sys_exit_mknod", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitMknod }},
-	{"syscalls", "sys_exit_clone", "sys_exit_clone", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitClone }},
-	{"syscalls", "sys_exit_exit_group", "sys_exit_exit_group", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitExitGroup }},
-	{"syscalls", "sys_exit_socket", "sys_exit_socket", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitSocket }},
-	{"syscalls", "sys_exit_accept", "sys_exit_accept", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitAccept }},
-	{"syscalls", "sys_exit_accept4", "sys_exit_accept4", func(o *bpf.AgentTrackerObjects) *ebpf.Program { return o.TracepointSyscallsSysExitAccept4 }},
+type tracepointAttachSpec struct {
+	category string
+	name     string
+	pinName  string
+	program  *ebpf.Program
+}
+
+// collectTracepointAttachSpecs reflects over the generated bpf2go object and
+// attaches every compiled tracepoint program. This keeps the runtime in sync
+// with backend/ebpf/agent_tracker.c without manually duplicating the syscall
+// list in Go.
+func collectTracepointAttachSpecs(programs *bpf.AgentTrackerPrograms) []tracepointAttachSpec {
+	if programs == nil {
+		return nil
+	}
+
+	rv := reflect.ValueOf(programs).Elem()
+	rt := rv.Type()
+	specs := make([]tracepointAttachSpec, 0, rv.NumField())
+	for i := 0; i < rv.NumField(); i++ {
+		field := rt.Field(i)
+		category, name, ok := tracepointNameFromTag(field.Tag.Get("ebpf"))
+		if !ok {
+			continue
+		}
+
+		program, _ := rv.Field(i).Interface().(*ebpf.Program)
+		if program == nil {
+			continue
+		}
+
+		specs = append(specs, tracepointAttachSpec{
+			category: category,
+			name:     name,
+			pinName:  name,
+			program:  program,
+		})
+	}
+	return specs
+}
+
+func tracepointNameFromTag(tag string) (category, name string, ok bool) {
+	const prefix = "tracepoint__"
+	if !strings.HasPrefix(tag, prefix) {
+		return "", "", false
+	}
+
+	parts := strings.SplitN(strings.TrimPrefix(tag, prefix), "__", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+
+	return parts[0], parts[1], true
 }
 
 // ── mode detection ────────────────────────────────────────────────────────────
@@ -160,9 +163,14 @@ func pinMaps(objs *bpf.AgentTrackerObjects) error {
 }
 
 func pinLinks(objs *bpf.AgentTrackerObjects) error {
-	for _, s := range trackerAttachSpecs {
-		l, err := link.Tracepoint(s.category, s.name, s.program(objs), nil)
+	skipped := make([]string, 0)
+	for _, s := range collectTracepointAttachSpecs(&objs.AgentTrackerPrograms) {
+		l, err := link.Tracepoint(s.category, s.name, s.program, nil)
 		if err != nil {
+			if isMissingTracepointError(err) {
+				skipped = append(skipped, fmt.Sprintf("%s/%s", s.category, s.name))
+				continue
+			}
 			return fmt.Errorf("attach %s/%s: %w", s.category, s.name, err)
 		}
 		if err := l.Pin(filepath.Join(ebpfPinLinksDir, s.pinName)); err != nil {
@@ -171,7 +179,31 @@ func pinLinks(objs *bpf.AgentTrackerObjects) error {
 		}
 		_ = l.Close()
 	}
+
+	if len(skipped) > 0 {
+		preview := skipped
+		if len(preview) > 8 {
+			preview = preview[:8]
+		}
+		suffix := ""
+		if len(skipped) > len(preview) {
+			suffix = fmt.Sprintf(" (+%d more)", len(skipped)-len(preview))
+		}
+		log.Printf("[WARN] skipped %d unavailable tracepoints: %s%s", len(skipped), strings.Join(preview, ", "), suffix)
+	}
+
 	return nil
+}
+
+func isMissingTracepointError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "no such file or directory") && strings.Contains(msg, "/events/")
 }
 
 // ── service mode ──────────────────────────────────────────────────────────────

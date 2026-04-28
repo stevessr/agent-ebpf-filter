@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { pb } from '../../pb/tracker_pb.js';
 
 const props = defineProps<{
   processes: any[];

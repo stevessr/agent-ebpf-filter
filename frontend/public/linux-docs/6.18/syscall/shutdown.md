@@ -1,0 +1,108 @@
+> Local snapshot: Linux 6.18 LTS
+> Source: https://man7.org/linux/man-pages/man2/shutdown.2.html
+> Cached: 2026-04-28
+
+|  |  |
+| --- | --- |
+| [man7.org](../../../index.html) > Linux > [man-pages](../index.html) | [Linux/UNIX system programming training](http://man7.org/training/) |
+
+---
+
+# shutdown(2) — Linux manual page
+
+|  |
+| --- |
+| [NAME](#NAME) | [LIBRARY](#LIBRARY) | [SYNOPSIS](#SYNOPSIS) | [DESCRIPTION](#DESCRIPTION) | [RETURN VALUE](#RETURN_VALUE) | [ERRORS](#ERRORS) | [STANDARDS](#STANDARDS) | [HISTORY](#HISTORY) | [NOTES](#NOTES) | [BUGS](#BUGS) | [SEE ALSO](#SEE_ALSO) | [COLOPHON](#COLOPHON) |
+|  |  |
+
+```
+shutdown(2) System Calls Manual shutdown(2)
+```
+
+## NAME         [top](#top_of_page)
+
+```
+shutdown - shut down part of a full-duplex connection 
+```
+
+## LIBRARY         [top](#top_of_page)
+
+```
+Standard C library (libc, -lc) 
+```
+
+## SYNOPSIS         [top](#top_of_page)
+
+```
+#include  int shutdown(int sockfd, int how); 
+```
+
+## DESCRIPTION         [top](#top_of_page)
+
+```
+The shutdown() call causes all or part of a full-duplex connection on the socket associated with sockfd to be shut down. If how is SHUT_RD, further receptions will be disallowed. If how is SHUT_WR, further transmissions will be disallowed. If how is SHUT_RDWR, further receptions and transmissions will be disallowed. 
+```
+
+## RETURN VALUE         [top](#top_of_page)
+
+```
+On success, zero is returned. On error, -1 is returned, and errno is set to indicate the error. 
+```
+
+## ERRORS         [top](#top_of_page)
+
+```
+EBADF sockfd is not a valid file descriptor. EINVAL An invalid value was specified in how (but see BUGS). ENOTCONN The specified socket is not connected. ENOTSOCK The file descriptor sockfd does not refer to a socket. 
+```
+
+## STANDARDS         [top](#top_of_page)
+
+```
+POSIX.1-2024. 
+```
+
+## HISTORY         [top](#top_of_page)
+
+```
+POSIX.1-2001, 4.4BSD (first appeared in 4.2BSD). 
+```
+
+## NOTES         [top](#top_of_page)
+
+```
+The constants SHUT_RD, SHUT_WR, SHUT_RDWR have the value 0, 1, 2, respectively, and are defined in  since glibc-2.1.91. 
+```
+
+## BUGS         [top](#top_of_page)
+
+```
+Checks for the validity of how are done in domain-specific code, and before Linux 3.7 not all domains performed these checks. Most notably, UNIX domain sockets simply ignored invalid values. This problem was fixed for UNIX domain sockets in Linux 3.7. 
+```
+
+## SEE ALSO         [top](#top_of_page)
+
+```
+close(2), connect(2), socket(2), socket(7) 
+```
+
+## COLOPHON         [top](#top_of_page)
+
+```
+Linux man-pages 6.16 2025-10-29 shutdown(2)
+```
+
+---
+
+Pages that refer to this page: [close(2)](../man2/close.2.html),  [io\_uring\_enter2(2)](../man2/io_uring_enter2.2.html),  [io\_uring\_enter(2)](../man2/io_uring_enter.2.html),  [recv(2)](../man2/recv.2.html),  [send(2)](../man2/send.2.html),  [socket(2)](../man2/socket.2.html),  [socketcall(2)](../man2/socketcall.2.html),  [syscalls(2)](../man2/syscalls.2.html),  [io\_uring\_prep\_shutdown(3)](../man3/io_uring_prep_shutdown.3.html),  [sd\_listen\_fds(3)](../man3/sd_listen_fds.3.html),  [systemd.socket(5)](../man5/systemd.socket.5.html),  [signal-safety(7)](../man7/signal-safety.7.html),  [sock\_diag(7)](../man7/sock_diag.7.html),  [socket(7)](../man7/socket.7.html),  [lsof(8)](../man8/lsof.8.html)
+
+---
+
+ 
+
+---
+
+|  |  |  |
+| --- | --- | --- |
+| HTML rendering created 2026-01-16 by [Michael Kerrisk](https://man7.org/mtk/index.html), author of [*The Linux Programming Interface*](https://man7.org/tlpi/).  For details of in-depth **Linux/UNIX system programming training courses** that I teach, look [here](https://man7.org/training/).  Hosting by [jambit GmbH](https://www.jambit.com/index_en.html). |  |  |
+
+---

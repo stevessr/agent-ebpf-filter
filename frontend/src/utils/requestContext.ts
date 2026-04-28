@@ -61,7 +61,8 @@ export const fetchProto = async <T>(url: string, decode: (data: Uint8Array) => T
   const headers = buildRequestHeaders();
   headers['Accept'] = 'application/x-protobuf, application/json;q=0.9';
   const res = await axios.get(url, { headers, responseType: 'arraybuffer' });
-  if (res.headers['content-type']?.includes('application/x-protobuf')) {
+  const contentType = String(res.headers['content-type'] ?? '');
+  if (contentType.includes('application/x-protobuf')) {
     return decode(new Uint8Array(res.data));
   }
   // Backward-compatible JSON fallback

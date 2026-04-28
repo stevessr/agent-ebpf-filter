@@ -16,7 +16,7 @@ It is responsible for:
 ## Key files
 
 - `main.go` — routes, event broadcasting, system metrics, hook management, wrapper UDS
-- `ebpf_runtime.go` — bootstrap / pin / privilege escalation flow
+- `ebpf_runtime.go` — bootstrap / pin / privilege escalation flow; auto-attaches every tracepoint program compiled from `ebpf/agent_tracker.c` and skips tracepoints the running kernel does not expose
 - `shell_sessions.go` — persistent PTY session manager
 - `privileges.go` — drop spawned commands back to the invoking user
 - `ebpf/agent_tracker.c` — eBPF source
@@ -31,7 +31,7 @@ Runtime behavior:
 1. start backend normally,
 2. backend checks whether it is already privileged,
 3. if not, it relaunches itself, preferring desktop/polkit elevation (`pkexec`) when a graphical session is available, otherwise falling back to `sudo`,
-4. eBPF maps and links are pinned under `/sys/fs/bpf/agent-ebpf`.
+4. eBPF maps and links are pinned under `/sys/fs/bpf/agent-ebpf`, and compiled tracepoint programs are attached when the running kernel exposes the matching tracepoint.
 
 Spawned shells and wrapper-launched commands attempt to drop privileges back to the original invoking user using `SUDO_UID` / `SUDO_GID`.
 

@@ -1,0 +1,114 @@
+> Local snapshot: Linux 6.18 LTS
+> Source: https://man7.org/linux/man-pages/man2/recvfrom.2.html
+> Cached: 2026-04-28
+
+|  |  |
+| --- | --- |
+| [man7.org](../../../index.html) > Linux > [man-pages](../index.html) | [Linux/UNIX system programming training](http://man7.org/training/) |
+
+---
+
+# recv(2) — Linux manual page
+
+|  |
+| --- |
+| [NAME](#NAME) | [LIBRARY](#LIBRARY) | [SYNOPSIS](#SYNOPSIS) | [DESCRIPTION](#DESCRIPTION) | [RETURN VALUE](#RETURN_VALUE) | [ERRORS](#ERRORS) | [VERSIONS](#VERSIONS) | [STANDARDS](#STANDARDS) | [HISTORY](#HISTORY) | [NOTES](#NOTES) | [EXAMPLES](#EXAMPLES) | [SEE ALSO](#SEE_ALSO) | [COLOPHON](#COLOPHON) |
+|  |  |
+
+```
+recv(2) System Calls Manual recv(2)
+```
+
+## NAME         [top](#top_of_page)
+
+```
+recv, recvfrom, recvmsg - receive a message from a socket 
+```
+
+## LIBRARY         [top](#top_of_page)
+
+```
+Standard C library (libc, -lc) 
+```
+
+## SYNOPSIS         [top](#top_of_page)
+
+```
+#include  ssize_t recv(size_t size; int sockfd, void buf[size], size_t size, int flags); ssize_t recvfrom(size_t size; int sockfd, void buf[restrict size], size_t size, int flags, struct sockaddr *_Nullable restrict src_addr, socklen_t *_Nullable restrict addrlen); ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags); 
+```
+
+## DESCRIPTION         [top](#top_of_page)
+
+```
+The recv(), recvfrom(), and recvmsg() calls are used to receive messages from a socket. They may be used to receive data on both connectionless and connection-oriented sockets. This page first describes common features of all three system calls, and then describes the differences between the calls. The only difference between recv() and read(2) is the presence of flags. With a zero flags argument, recv() is generally equivalent to read(2) (but see NOTES). Also, the following call recv(sockfd, buf, size, flags); is equivalent to recvfrom(sockfd, buf, size, flags, NULL, NULL); All three calls return the size of the message on successful completion. If a message is too long to fit in the supplied buffer, excess bytes may be discarded depending on the type of socket the message is received from. If no messages are available at the socket, the receive calls wait for a message to arrive, unless the socket is nonblocking (see fcntl(2)), in which case the value -1 is returned and errno is set to EAGAIN or EWOULDBLOCK. The receive calls normally return any data available, up to the requested amount, rather than waiting for receipt of the full amount requested. An application can use select(2), poll(2), or epoll(7) to determine when more data arrives on a socket. The flags argument The flags argument is formed by ORing one or more of the following values: MSG_CMSG_CLOEXEC (recvmsg() only; since Linux 2.6.23) Set the close-on-exec flag for the file descriptor received via a UNIX domain file descriptor using the SCM_RIGHTS operation (described in unix(7)). This flag is useful for the same reasons as the O_CLOEXEC flag of open(2). MSG_DONTWAIT (since Linux 2.2) Enables nonblocking operation; if the operation would block, the call fails with EAGAIN or EWOULDBLOCK. This provides similar behavior to setting the O_NONBLOCK flag (via the fcntl(2) F_SETFL operation), but differs in that MSG_DONTWAIT is a per-call option, whereas O_NONBLOCK is a setting on the open file description (see open(2)), which will affect all threads in the calling process as well as other processes that hold file descriptors referring to the same open file description. MSG_ERRQUEUE (since Linux 2.2) This flag specifies that queued errors should be received from the socket error queue. The error is passed in an ancillary message with a type dependent on the protocol (for IPv4 IP_RECVERR). The user should supply a buffer of sufficient size. See cmsg(3) and ip(7) for more information. The payload of the original packet that caused the error is passed as normal data via msg_iovec. The original destination address of the datagram that caused the error is supplied via msg_name. The error is supplied in a sock_extended_err structure: #define SO_EE_ORIGIN_NONE 0 #define SO_EE_ORIGIN_LOCAL 1 #define SO_EE_ORIGIN_ICMP 2 #define SO_EE_ORIGIN_ICMP6 3 struct sock_extended_err { uint32_t ee_errno; /* Error number */ uint8_t ee_origin; /* Where the error originated */ uint8_t ee_type; /* Type */ uint8_t ee_code; /* Code */ uint8_t ee_pad; /* Padding */ uint32_t ee_info; /* Additional information */ uint32_t ee_data; /* Other data */ /* More data may follow */ }; struct sockaddr *SO_EE_OFFENDER(struct sock_extended_err *); ee_errno contains the errno number of the queued error. ee_origin is the origin code of where the error originated. The other fields are protocol-specific. The macro SO_EE_OFFENDER returns a pointer to the address of the network object where the error originated from given a pointer to the ancillary message. If this address is not known, the sa_family member of the sockaddr contains AF_UNSPEC and the other fields of the sockaddr are undefined. The payload of the packet that caused the error is passed as normal data. For local errors, no address is passed (this can be checked with the cmsg_len member of the cmsghdr). For error receives, the MSG_ERRQUEUE flag is set in the msghdr. After an error has been passed, the pending socket error is regenerated based on the next queued error and will be passed on the next socket operation. MSG_OOB This flag requests receipt of out-of-band data that would not be received in the normal data stream. Some protocols place expedited data at the head of the normal data queue, and thus this flag cannot be used with such protocols. MSG_PEEK This flag causes the receive operation to return data from the beginning of the receive queue without removing that data from the queue. Thus, a subsequent receive call will return the same data. MSG_TRUNC (since Linux 2.2) For raw (AF_PACKET), Internet datagram (since Linux 2.4.27/2.6.8), netlink (since Linux 2.6.22), and UNIX datagram as well as sequenced-packet (since Linux 3.4) sockets: return the real size of the packet or datagram, even when it was longer than the passed buffer. For use with Internet stream sockets, see tcp(7). MSG_WAITALL (since Linux 2.2) This flag requests that the operation block until the full request is satisfied. However, the call may still return less data than requested if a signal is caught, an error or disconnect occurs, or the next data to be received is of a different type than that returned. This flag has no effect for datagram sockets. recvfrom() recvfrom() places the received message into the buffer buf. The caller must specify the size of the buffer in size. If src_addr is not NULL, and the underlying protocol provides the source address of the message, that source address is placed in the buffer pointed to by src_addr. In this case, addrlen is a value-result argument. Before the call, it should be initialized to the size of the buffer associated with src_addr. Upon return, addrlen is updated to contain the actual size of the source address. The returned address is truncated if the buffer provided is too small; in this case, addrlen will return a value greater than was supplied to the call. If the caller is not interested in the source address, src_addr and addrlen should be specified as NULL. recv() The recv() call is normally used only on a connected socket (see connect(2)). It is equivalent to the call: recvfrom(fd, buf, size, flags, NULL, NULL); recvmsg() The recvmsg() call uses a msghdr structure to minimize the number of directly supplied arguments. This structure is defined as follows in : struct msghdr { void *msg_name; /* Optional address */ socklen_t msg_namelen; /* Size of address */ struct iovec *msg_iov; /* Scatter/gather array */ size_t msg_iovlen; /* # elements in msg_iov */ void *msg_control; /* Ancillary data, see below */ size_t msg_controllen; /* Ancillary data buffer size */ int msg_flags; /* Flags on received message */ }; The msg_name field points to a caller-allocated buffer that is used to return the source address if the socket is unconnected. The caller should set msg_namelen to the size of this buffer before this call; upon return from a successful call, msg_namelen will contain the size of the returned address. If the application does not need to know the source address, msg_name can be specified as NULL. The fields msg_iov and msg_iovlen describe scatter-gather locations, as discussed in readv(2). The field msg_control, which has size msg_controllen, points to a buffer for other protocol control-related messages or miscellaneous ancillary data. When recvmsg() is called, msg_controllen should contain the size of the available buffer in msg_control; upon return from a successful call it will contain the size of the control message sequence. The messages are of the form: struct cmsghdr { size_t cmsg_len; /* Data byte count, including header (type is socklen_t in POSIX) */ int cmsg_level; /* Originating protocol */ int cmsg_type; /* Protocol-specific type */ /* followed by unsigned char cmsg_data[]; */ }; Ancillary data should be accessed only by the macros defined in cmsg(3). As an example, Linux uses this ancillary data mechanism to pass extended errors, IP options, or file descriptors over UNIX domain sockets. For further information on the use of ancillary data in various socket domains, see unix(7) and ip(7). The msg_flags field in the msghdr is set on return of recvmsg(). It can contain several flags: MSG_EOR indicates end-of-record; the data returned completed a record (generally, used with sockets of type SOCK_SEQPACKET). MSG_TRUNC indicates that the trailing portion of a datagram was discarded because the datagram was larger than the buffer supplied. MSG_CTRUNC indicates that some control data was discarded due to lack of space in the buffer for ancillary data. MSG_OOB is returned to indicate that expedited or out-of-band data was received. MSG_ERRQUEUE indicates that no data was received but an extended error from the socket error queue. MSG_CMSG_CLOEXEC (since Linux 2.6.23) indicates that MSG_CMSG_CLOEXEC was specified in the flags argument of recvmsg(). 
+```
+
+## RETURN VALUE         [top](#top_of_page)
+
+```
+These calls return the number of bytes received, or -1 if an error occurred. In the event of an error, errno is set to indicate the error. When a stream socket peer has performed an orderly shutdown, the return value will be 0 (the traditional "end-of-file" return). Datagram sockets in various domains (e.g., the UNIX and Internet domains) permit zero-size datagrams. When such a datagram is received, the return value is 0. The value 0 may also be returned if the requested number of bytes to receive from a stream socket was 0. 
+```
+
+## ERRORS         [top](#top_of_page)
+
+```
+These are some standard errors generated by the socket layer. Additional errors may be generated and returned from the underlying protocol modules; see their manual pages. EAGAIN or EWOULDBLOCK The socket is marked nonblocking and the receive operation would block, or a receive timeout had been set and the timeout expired before data was received. POSIX.1 allows either error to be returned for this case, and does not require these constants to have the same value, so a portable application should check for both possibilities. EBADF The argument sockfd is an invalid file descriptor. ECONNREFUSED A remote host refused to allow the network connection (typically because it is not running the requested service). EFAULT The receive buffer pointer(s) point outside the process's address space. EINTR The receive was interrupted by delivery of a signal before any data was available; see signal(7). EINVAL Invalid argument passed. ENOMEM Could not allocate memory for recvmsg(). ENOTCONN The socket is associated with a connection-oriented protocol and has not been connected (see connect(2) and accept(2)). ENOTSOCK The file descriptor sockfd does not refer to a socket. 
+```
+
+## VERSIONS         [top](#top_of_page)
+
+```
+According to POSIX.1, the msg_controllen field of the msghdr structure should be typed as socklen_t, and the msg_iovlen field should be typed as int, but glibc currently types both as size_t. 
+```
+
+## STANDARDS         [top](#top_of_page)
+
+```
+POSIX.1-2024. 
+```
+
+## HISTORY         [top](#top_of_page)
+
+```
+POSIX.1-2001, 4.2BSD. POSIX.1 describes only the MSG_OOB, MSG_PEEK, and MSG_WAITALL flags. 
+```
+
+## NOTES         [top](#top_of_page)
+
+```
+If a zero-size datagram is pending, read(2) and recv() with a flags argument of zero provide different behavior. In this circumstance, read(2) has no effect (the datagram remains pending), while recv() consumes the pending datagram. See recvmmsg(2) for information about a Linux-specific system call that can be used to receive multiple datagrams in a single call. 
+```
+
+## EXAMPLES         [top](#top_of_page)
+
+```
+An example of the use of recvfrom() is shown in getaddrinfo(3). 
+```
+
+## SEE ALSO         [top](#top_of_page)
+
+```
+fcntl(2), getsockopt(2), read(2), recvmmsg(2), select(2), shutdown(2), socket(2), cmsg(3), sockatmark(3), ip(7), ipv6(7), socket(7), tcp(7), udp(7), unix(7) 
+```
+
+## COLOPHON         [top](#top_of_page)
+
+```
+Linux man-pages 6.16 2025-10-29 recv(2)
+```
+
+---
+
+Pages that refer to this page: [getpeername(2)](../man2/getpeername.2.html),  [io\_uring\_enter2(2)](../man2/io_uring_enter2.2.html),  [io\_uring\_enter(2)](../man2/io_uring_enter.2.html),  [recvmmsg(2)](../man2/recvmmsg.2.html),  [select(2)](../man2/select.2.html),  [select\_tut(2)](../man2/select_tut.2.html),  [send(2)](../man2/send.2.html),  [socket(2)](../man2/socket.2.html),  [socketcall(2)](../man2/socketcall.2.html),  [syscalls(2)](../man2/syscalls.2.html),  [cmsg(3)](../man3/cmsg.3.html),  [getifaddrs(3)](../man3/getifaddrs.3.html),  [getnameinfo(3)](../man3/getnameinfo.3.html),  [if\_nameindex(3)](../man3/if_nameindex.3.html),  [io\_uring\_prep\_recv(3)](../man3/io_uring_prep_recv.3.html),  [io\_uring\_prep\_recvmsg(3)](../man3/io_uring_prep_recvmsg.3.html),  [io\_uring\_prep\_recvmsg\_multishot(3)](../man3/io_uring_prep_recvmsg_multishot.3.html),  [io\_uring\_prep\_recv\_multishot(3)](../man3/io_uring_prep_recv_multishot.3.html),  [rtime(3)](../man3/rtime.3.html),  [size\_t(3type)](../man3/size_t.3type.html),  [sockatmark(3)](../man3/sockatmark.3.html),  [ddp(7)](../man7/ddp.7.html),  [ip(7)](../man7/ip.7.html),  [mctp(7)](../man7/mctp.7.html),  [netlink(7)](../man7/netlink.7.html),  [packet(7)](../man7/packet.7.html),  [raw(7)](../man7/raw.7.html),  [sctp(7)](../man7/sctp.7.html),  [signal(7)](../man7/signal.7.html),  [signal-safety(7)](../man7/signal-safety.7.html),  [socket(7)](../man7/socket.7.html),  [tcp(7)](../man7/tcp.7.html),  [udp(7)](../man7/udp.7.html),  [unix(7)](../man7/unix.7.html),  [vsock(7)](../man7/vsock.7.html)
+
+---
+
+ 
+
+---
+
+|  |  |  |
+| --- | --- | --- |
+| HTML rendering created 2026-01-16 by [Michael Kerrisk](https://man7.org/mtk/index.html), author of [*The Linux Programming Interface*](https://man7.org/tlpi/).  For details of in-depth **Linux/UNIX system programming training courses** that I teach, look [here](https://man7.org/training/).  Hosting by [jambit GmbH](https://www.jambit.com/index_en.html). |  | [Cover of TLPI](https://man7.org/tlpi/) |
+
+---

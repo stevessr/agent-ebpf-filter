@@ -1,0 +1,108 @@
+> Local snapshot: Linux 6.18 LTS
+> Source: https://man7.org/linux/man-pages/man2/listen.2.html
+> Cached: 2026-04-28
+
+|  |  |
+| --- | --- |
+| [man7.org](../../../index.html) > Linux > [man-pages](../index.html) | [Linux/UNIX system programming training](http://man7.org/training/) |
+
+---
+
+# listen(2) — Linux manual page
+
+|  |
+| --- |
+| [NAME](#NAME) | [LIBRARY](#LIBRARY) | [SYNOPSIS](#SYNOPSIS) | [DESCRIPTION](#DESCRIPTION) | [RETURN VALUE](#RETURN_VALUE) | [ERRORS](#ERRORS) | [STANDARDS](#STANDARDS) | [HISTORY](#HISTORY) | [NOTES](#NOTES) | [EXAMPLES](#EXAMPLES) | [SEE ALSO](#SEE_ALSO) | [COLOPHON](#COLOPHON) |
+|  |  |
+
+```
+listen(2) System Calls Manual listen(2)
+```
+
+## NAME         [top](#top_of_page)
+
+```
+listen - listen for connections on a socket 
+```
+
+## LIBRARY         [top](#top_of_page)
+
+```
+Standard C library (libc, -lc) 
+```
+
+## SYNOPSIS         [top](#top_of_page)
+
+```
+#include  int listen(int sockfd, int backlog); 
+```
+
+## DESCRIPTION         [top](#top_of_page)
+
+```
+listen() marks the socket referred to by sockfd as a passive socket, that is, as a socket that will be used to accept incoming connection requests using accept(2). The sockfd argument is a file descriptor that refers to a socket of type SOCK_STREAM or SOCK_SEQPACKET. The backlog argument defines the maximum length to which the queue of pending connections for sockfd may grow. If a connection request arrives when the queue is full, the client may receive an error with an indication of ECONNREFUSED or, if the underlying protocol supports retransmission, the request may be ignored so that a later reattempt at connection succeeds. 
+```
+
+## RETURN VALUE         [top](#top_of_page)
+
+```
+On success, zero is returned. On error, -1 is returned, and errno is set to indicate the error. 
+```
+
+## ERRORS         [top](#top_of_page)
+
+```
+EADDRINUSE Another socket is already listening on the same port. EADDRINUSE (Internet domain sockets) The socket referred to by sockfd had not previously been bound to an address and, upon attempting to bind it to an ephemeral port, it was determined that all port numbers in the ephemeral port range are currently in use. See the discussion of /proc/sys/net/ipv4/ip_local_port_range in ip(7). EBADF The argument sockfd is not a valid file descriptor. ENOTSOCK The file descriptor sockfd does not refer to a socket. EOPNOTSUPP The socket is not of a type that supports the listen() operation. 
+```
+
+## STANDARDS         [top](#top_of_page)
+
+```
+POSIX.1-2024. 
+```
+
+## HISTORY         [top](#top_of_page)
+
+```
+POSIX.1-2001, 4.4BSD (first appeared in 4.2BSD). 
+```
+
+## NOTES         [top](#top_of_page)
+
+```
+To accept connections, the following steps are performed: (1) A socket is created with socket(2). (2) The socket is bound to a local address using bind(2), so that other sockets may be connect(2)ed to it. (3) A willingness to accept incoming connections and a queue limit for incoming connections are specified with listen(). (4) Connections are accepted with accept(2). The behavior of the backlog argument on TCP sockets changed with Linux 2.2. Now it specifies the queue length for completely established sockets waiting to be accepted, instead of the number of incomplete connection requests. The maximum length of the queue for incomplete sockets can be set using /proc/sys/net/ipv4/tcp_max_syn_backlog. When syncookies are enabled there is no logical maximum length and this setting is ignored. See tcp(7) for more information. If the backlog argument is greater than the value in /proc/sys/net/core/somaxconn, then it is silently capped to that value. Since Linux 5.4, the default in this file is 4096; in earlier kernels, the default value is 128. Before Linux 2.4.25, this limit was a hard coded value, SOMAXCONN, with the value 128. 
+```
+
+## EXAMPLES         [top](#top_of_page)
+
+```
+See bind(2). 
+```
+
+## SEE ALSO         [top](#top_of_page)
+
+```
+accept(2), bind(2), connect(2), socket(2), socket(7) 
+```
+
+## COLOPHON         [top](#top_of_page)
+
+```
+Linux man-pages 6.16 2025-10-29 listen(2)
+```
+
+---
+
+Pages that refer to this page: [accept(2)](../man2/accept.2.html),  [bind(2)](../man2/bind.2.html),  [connect(2)](../man2/connect.2.html),  [io\_uring\_enter2(2)](../man2/io_uring_enter2.2.html),  [io\_uring\_enter(2)](../man2/io_uring_enter.2.html),  [socket(2)](../man2/socket.2.html),  [socketcall(2)](../man2/socketcall.2.html),  [syscalls(2)](../man2/syscalls.2.html),  [io\_uring\_prep\_listen(3)](../man3/io_uring_prep_listen.3.html),  [proc\_sys\_net(5)](../man5/proc_sys_net.5.html),  [services(5)](../man5/services.5.html),  [systemd.socket(5)](../man5/systemd.socket.5.html),  [epoll(7)](../man7/epoll.7.html),  [ip(7)](../man7/ip.7.html),  [sctp(7)](../man7/sctp.7.html),  [signal-safety(7)](../man7/signal-safety.7.html),  [sock\_diag(7)](../man7/sock_diag.7.html),  [socket(7)](../man7/socket.7.html),  [tcp(7)](../man7/tcp.7.html),  [unix(7)](../man7/unix.7.html),  [vsock(7)](../man7/vsock.7.html)
+
+---
+
+ 
+
+---
+
+|  |  |  |
+| --- | --- | --- |
+| HTML rendering created 2026-01-16 by [Michael Kerrisk](https://man7.org/mtk/index.html), author of [*The Linux Programming Interface*](https://man7.org/tlpi/).  For details of in-depth **Linux/UNIX system programming training courses** that I teach, look [here](https://man7.org/training/).  Hosting by [jambit GmbH](https://www.jambit.com/index_en.html). |  | [Cover of TLPI](https://man7.org/tlpi/) |
+
+---
