@@ -203,6 +203,12 @@ const syscallGroups: SyscallGroup[] = [
       { type: pb.EventType.IOCTL, name: 'ioctl', desc: 'Device I/O control operation' },
     ],
   },
+  {
+    key: 'other', title: 'Other Syscalls (raw)', icon: 'global', color: '#595959',
+    syscalls: [
+      { type: 25, name: 'syscall', desc: 'All ~312 remaining Linux syscalls captured via raw tracepoints (mmap, mprotect, kill, ptrace, mount, seccomp, bpf, ...)' },
+    ],
+  },
 ];
 const disabledEventTypes = ref<Set<number>>(new Set());
 
