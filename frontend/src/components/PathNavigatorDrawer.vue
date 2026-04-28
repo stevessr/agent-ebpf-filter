@@ -78,8 +78,9 @@ const loadPath = async (path: string, keepSelection = false) => {
   loading.value = true;
   try {
     const res = await axios.get('/system/ls', { params: { path: target } });
-    entries.value = Array.isArray(res.data)
-      ? [...res.data].sort((a: PathEntry, b: PathEntry) => {
+    const raw = res.data?.items ?? res.data;
+    entries.value = Array.isArray(raw)
+      ? [...raw].sort((a: PathEntry, b: PathEntry) => {
           if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
           return a.name.localeCompare(b.name);
         })
