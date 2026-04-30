@@ -68,7 +68,12 @@ export interface StatsHistory {
   faults: { time: number; value: number }[];
   swapIn: { time: number; value: number }[];
   swapOut: { time: number; value: number }[];
-  gpus: Record<number, { util: { time: number; value: number }[]; mem: { time: number; value: number }[] }>;
+  gpus: Record<number, {
+    util: { time: number; value: number }[];
+    mem: { time: number; value: number }[];
+    vram: { time: number; value: number }[];
+    power: { time: number; value: number }[];
+  }>;
   netDevices: Record<string, { recv: { time: number; value: number }[]; sent: { time: number; value: number }[] }>;
   diskDevices: Record<string, { read: { time: number; value: number }[]; write: { time: number; value: number }[] }>;
 }
@@ -215,12 +220,16 @@ export function useMonitorData() {
       statsHistory.value.cpu.push({ time: now, value: systemStats.value.cpuTotal });
 
       gpus.value.forEach(gpu => {
-        if (!statsHistory.value.gpus[gpu.index]) statsHistory.value.gpus[gpu.index] = { util: [], mem: [] };
+        if (!statsHistory.value.gpus[gpu.index]) statsHistory.value.gpus[gpu.index] = { util: [], mem: [], vram: [], power: [] };
         const gh = statsHistory.value.gpus[gpu.index];
         gh.util.push({ time: now, value: gpu.utilGpu });
         gh.mem.push({ time: now, value: gpu.utilMem });
+        gh.vram.push({ time: now, value: Number(gpu.memUsed || 0) * 1024 * 1024 });
+        gh.power.push({ time: now, value: Number(gpu.powerW || 0) });
         if (gh.util.length > 60) gh.util.shift();
         if (gh.mem.length > 60) gh.mem.shift();
+        if (gh.vram.length > 60) gh.vram.shift();
+        if (gh.power.length > 60) gh.power.shift();
       });
 
       systemStats.value.cpuCoresDetailed.forEach(core => {
@@ -299,16 +308,18 @@ export function useMonitorData() {
   const historySeries = ref<any[]>([]);
   const historyChartOptions = computed(() => {
     const t = historyModalTitle.value.toLowerCase();
-    const isByteChart = t.includes('speed') || t.includes('recv') || t.includes('sent') || t.includes('read') || t.includes('write') || t.includes('activity') || t.includes('memory usage') || t.includes('swap usage') || t.includes('zram usage');
-    const isPercentChart = t.includes('mem %') || t.includes('cpu') || t.includes('core') || (t.includes('usage') && t.includes('%'));
+    const isPowerChart = t.includes('power');
+    const isByteChart = t.includes('speed') || t.includes('recv') || t.includes('sent') || t.includes('read') || t.includes('write') || t.includes('activity') || t.includes('memory usage') || t.includes('swap usage') || t.includes('zram usage') || (t.includes('vram') && t.includes('usage'));
+    const isPercentChart = t.includes('mem %') || t.includes('cpu') || t.includes('core') || t.includes('utilization') || t.includes('util') || (t.includes('usage') && t.includes('%'));
     return {
     chart: { id: 'history-chart', animations: { enabled: true }, toolbar: { show: true }, background: 'transparent' },
     xaxis: { type: 'datetime' as const, labels: { datetimeUTC: false, style: { fontSize: '10px' } } },
     yaxis: {
-      min: (isByteChart && !t.includes('%')) ? 0 : undefined,
+      min: ((isByteChart || isPowerChart) && !t.includes('%')) ? 0 : undefined,
       labels: {
         style: { fontSize: '10px' },
         formatter: (val: number) => {
+          if (isPowerChart) return val.toFixed(1) + ' W';
           if (isByteChart) {
             if (!t.includes('%')) return formatBytesWithUnit(val) + (t.includes('usage') ? '' : '/s');
           }

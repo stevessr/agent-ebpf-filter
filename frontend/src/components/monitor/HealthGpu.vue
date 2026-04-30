@@ -23,6 +23,36 @@ const encColor = (pct: number) => pct > 80 ? '#ff4d4f' : '#eb2f96';
 const decColor = (pct: number) => pct > 80 ? '#ff4d4f' : '#fa8c16';
 
 const fmtPct = (val: number) => () => `${Math.round(val ?? 0)}%`;
+
+const openGpuUtilHistory = (gpu: GPUStatus) => {
+  props.openHistoryChart(`GPU #${gpu.index} Utilization`, [
+    { name: 'GPU Util', data: props.statsHistory.gpus[gpu.index]?.util || [], color: '#722ed1' }
+  ]);
+};
+
+const openGpuVramUtilHistory = (gpu: GPUStatus) => {
+  props.openHistoryChart(`GPU #${gpu.index} VRAM Utilization`, [
+    { name: 'VRAM Util', data: props.statsHistory.gpus[gpu.index]?.mem || [], color: '#13c2c2' }
+  ]);
+};
+
+const openGpuVramUsageHistory = (gpu: GPUStatus) => {
+  const history = props.statsHistory.gpus[gpu.index]?.vram || [];
+  const totalBytes = Number(gpu.memTotal || 0) * 1024 * 1024;
+  props.openHistoryChart(`GPU #${gpu.index} VRAM Usage`, [
+    { name: 'VRAM Used', data: history, color: '#13c2c2' },
+    { name: 'VRAM Total', data: history.map(d => ({ time: d.time, value: totalBytes })), color: '#8c8c8c' }
+  ]);
+};
+
+const openGpuPowerHistory = (gpu: GPUStatus) => {
+  const history = props.statsHistory.gpus[gpu.index]?.power || [];
+  const limit = Number(gpu.powerLimitW || 0);
+  props.openHistoryChart(`GPU #${gpu.index} Power Usage`, [
+    { name: 'Power', data: history, color: '#52c41a' },
+    ...(limit > 0 ? [{ name: 'Power Limit', data: history.map(d => ({ time: d.time, value: limit })), color: '#faad14' }] : [])
+  ]);
+};
 </script>
 
 <template>
@@ -48,13 +78,9 @@ const fmtPct = (val: number) => () => `${Math.round(val ?? 0)}%`;
             <a-progress type="dashboard" :percent="Math.round(gpu.utilGpu ?? 0)" :width="120"
               :stroke-color="gpuColor(gpu.utilGpu ?? 0)" :format="fmtPct(gpu.utilGpu ?? 0)"
               style="cursor: pointer;"
-              @click="openHistoryChart(`GPU #${gpu.index} Utilization`, [
-                { name: 'GPU Util', data: statsHistory.gpus[gpu.index]?.util || [], color: '#722ed1' }
-              ])" />
+              @click="openGpuUtilHistory(gpu)" />
             <div style="margin-top: 8px; font-size: 13px; color: #888; cursor: pointer;"
-              @click="openHistoryChart(`GPU #${gpu.index} Utilization`, [
-                { name: 'GPU Util', data: statsHistory.gpus[gpu.index]?.util || [], color: '#722ed1' }
-              ])">GPU Utilization</div>
+              @click="openGpuUtilHistory(gpu)">GPU Utilization</div>
           </a-col>
 
           <!-- VRAM or Shared Memory -->
@@ -62,13 +88,9 @@ const fmtPct = (val: number) => () => `${Math.round(val ?? 0)}%`;
             <a-progress type="dashboard" :percent="Math.round(gpu.utilMem ?? 0)" :width="120"
               :stroke-color="memColor(gpu.utilMem ?? 0)" :format="fmtPct(gpu.utilMem ?? 0)"
               style="cursor: pointer;"
-              @click="openHistoryChart(`GPU #${gpu.index} VRAM`, [
-                { name: 'VRAM Util', data: statsHistory.gpus[gpu.index]?.mem || [], color: '#13c2c2' }
-              ])" />
+              @click="openGpuVramUtilHistory(gpu)" />
             <div style="margin-top: 8px; font-size: 13px; color: #888; cursor: pointer;"
-              @click="openHistoryChart(`GPU #${gpu.index} VRAM`, [
-                { name: 'VRAM Util', data: statsHistory.gpus[gpu.index]?.mem || [], color: '#13c2c2' }
-              ])">VRAM Utilization</div>
+              @click="openGpuVramUtilHistory(gpu)">VRAM Utilization</div>
           </a-col>
           <a-col v-else :span="8" style="text-align: center;">
             <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 140px;">
@@ -82,10 +104,22 @@ const fmtPct = (val: number) => () => `${Math.round(val ?? 0)}%`;
             <div style="display: grid; gap: 8px; padding-top: 4px;">
               <!-- VRAM stats -->
               <template v-if="!isIntegrated(gpu) && (gpu.memTotal ?? 0) > 0">
-                <div style="font-size: 12px; color: #888;">VRAM: {{ ((gpu.memUsed ?? 0) / 1024).toFixed(1) }} / {{ ((gpu.memTotal ?? 0) / 1024).toFixed(1) }} GB</div>
-                <a-progress :percent="Math.round((gpu.memUsed ?? 0) / (gpu.memTotal || 1) * 100)" size="small"
+                <div
+                  style="font-size: 12px; color: #888; cursor: pointer;"
+                  title="点击查看 VRAM 使用历史"
+                  @click="openGpuVramUsageHistory(gpu)"
+                >
+                  VRAM: {{ ((gpu.memUsed ?? 0) / 1024).toFixed(1) }} / {{ ((gpu.memTotal ?? 0) / 1024).toFixed(1) }} GB
+                </div>
+                <a-progress
+                  :percent="Math.round((gpu.memUsed ?? 0) / (gpu.memTotal || 1) * 100)"
+                  size="small"
                   :stroke-color="(gpu.memUsed ?? 0) / (gpu.memTotal || 1) > 0.9 ? '#ff4d4f' : '#1890ff'"
-                  :show-info="false" style="margin-bottom: 4px;" />
+                  :show-info="false"
+                  style="margin-bottom: 4px; cursor: pointer;"
+                  title="点击查看 VRAM 使用历史"
+                  @click="openGpuVramUsageHistory(gpu)"
+                />
               </template>
               <template v-else-if="isIntegrated(gpu) && (gpu.memUsed ?? 0) > 0">
                 <div style="font-size: 12px; color: #888;">Shared Mem: {{ ((gpu.memUsed ?? 0) / 1024).toFixed(2) }} GB</div>
@@ -101,10 +135,23 @@ const fmtPct = (val: number) => () => `${Math.round(val ?? 0)}%`;
 
               <!-- Power -->
               <div v-if="(gpu.powerW ?? 0) > 0" style="font-size: 12px; color: #888;">
-                Power: {{ gpu.powerW }}W
-                <template v-if="(gpu.powerLimitW ?? 0) > 0"> / {{ gpu.powerLimitW }}W limit</template>
-                <a-progress :percent="(gpu.powerLimitW ?? 0) > 0 ? Math.round((gpu.powerW ?? 0) / (gpu.powerLimitW || 1) * 100) : 0"
-                  size="small" :show-info="false" :stroke-color="(gpu.powerLimitW ?? 0) > 0 && (gpu.powerW ?? 0) / (gpu.powerLimitW || 1) > 0.8 ? '#faad14' : '#52c41a'" />
+                <div
+                  style="cursor: pointer;"
+                  title="点击查看功率历史"
+                  @click="openGpuPowerHistory(gpu)"
+                >
+                  Power: {{ gpu.powerW }}W
+                  <template v-if="(gpu.powerLimitW ?? 0) > 0"> / {{ gpu.powerLimitW }}W limit</template>
+                </div>
+                <a-progress
+                  :percent="(gpu.powerLimitW ?? 0) > 0 ? Math.round((gpu.powerW ?? 0) / (gpu.powerLimitW || 1) * 100) : 0"
+                  size="small"
+                  :show-info="false"
+                  :stroke-color="(gpu.powerLimitW ?? 0) > 0 && (gpu.powerW ?? 0) / (gpu.powerLimitW || 1) > 0.8 ? '#faad14' : '#52c41a'"
+                  style="cursor: pointer;"
+                  title="点击查看功率历史"
+                  @click="openGpuPowerHistory(gpu)"
+                />
               </div>
 
               <!-- Fan -->
