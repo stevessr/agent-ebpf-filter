@@ -42,6 +42,14 @@ type DisplayedAgentEvent = AgentEvent & {
   mergeSignature?: string;
 };
 
+interface BuiltinFilterRule {
+  id: string;
+  label: string;
+  test: (event: AgentEvent) => boolean;
+}
+
+type BuiltinFilterState = Record<string, boolean>;
+
 type ResizableColumnKey = 'time' | 'tag' | 'pid' | 'comm' | 'type' | 'path' | 'action';
 
 const events = ref<AgentEvent[]>([]);
@@ -105,6 +113,7 @@ const scheduleEventBufferFlush = () => {
 
 const STREAM_DIRECTION_STORAGE_KEY = 'dashboard.streamDirection';
 const SHOW_ALL_ROWS_STORAGE_KEY = 'dashboard.showAllRows';
+const BUILTIN_FILTER_STATE_STORAGE_KEY = 'dashboard.builtinFilters';
 const streamDirection = ref<'top' | 'bottom'>(getStoredStreamDirection());
 const showAllRows = ref(getStoredShowAllRows());
 
@@ -362,6 +371,87 @@ const isNetworkEvent = (eventType: number | undefined, type?: string) => {
   return type === 'accept' || type === 'accept4' || Boolean(type?.startsWith('network_'));
 };
 
+const builtinFilterRules: BuiltinFilterRule[] = [
+  {
+    id: 'tty',
+    label: 'TTY / PTY',
+    test: (event) => {
+      const path = `${event.path ?? ''}\n${event.extraPath ?? ''}`.toLowerCase();
+      const comm = event.comm.toLowerCase();
+      return comm === 'tty'
+        || path.includes('/dev/tty')
+        || path.includes('/dev/pts/');
+    },
+  },
+  {
+    id: 'git',
+    label: '.git metadata',
+    test: (event) => {
+      const path = `${event.path ?? ''}\n${event.extraPath ?? ''}`;
+      return /(^|\/)\.git(\/|$)/.test(path);
+    },
+  },
+  {
+    id: 'temp',
+    label: 'Temp / cache',
+    test: (event) => {
+      const path = `${event.path ?? ''}\n${event.extraPath ?? ''}`;
+      return /(^|\/)(?:\.cache|__pycache__)(\/|$)/.test(path)
+        || /(?:\.swp|\.tmp|~)$/i.test(path);
+    },
+  },
+  {
+    id: 'builddirs',
+    label: '.venv / node_modules / target',
+    test: (event) => {
+      const path = `${event.path ?? ''}\n${event.extraPath ?? ''}`;
+      return /(^|\/)(?:\.venv|node_modules|target)(\/|$)/.test(path);
+    },
+  },
+];
+
+function createDefaultBuiltinFilterState(): BuiltinFilterState {
+  return Object.fromEntries(builtinFilterRules.map((rule) => [rule.id, true])) as BuiltinFilterState;
+}
+
+function getStoredBuiltinFilterState(): BuiltinFilterState {
+  const defaults = createDefaultBuiltinFilterState();
+  if (typeof window === 'undefined') return defaults;
+  try {
+    const raw = window.localStorage.getItem(BUILTIN_FILTER_STATE_STORAGE_KEY);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return builtinFilterRules.reduce((state, rule) => {
+      state[rule.id] = typeof parsed[rule.id] === 'boolean' ? parsed[rule.id] as boolean : defaults[rule.id];
+      return state;
+    }, { ...defaults } as BuiltinFilterState);
+  } catch {
+    return defaults;
+  }
+}
+
+const builtinFilterState = ref<BuiltinFilterState>(getStoredBuiltinFilterState());
+
+watch(builtinFilterState, (state) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(BUILTIN_FILTER_STATE_STORAGE_KEY, JSON.stringify(state));
+}, { deep: true });
+
+const activeBuiltinFilterRules = computed(() => builtinFilterRules.filter((rule) => builtinFilterState.value[rule.id] !== false));
+
+const builtinFilterSummary = computed(() => {
+  const labels = activeBuiltinFilterRules.value.map((rule) => rule.label);
+  return labels.length > 0 ? labels.join(' · ') : 'No built-in filters enabled';
+});
+
+const shouldKeepBuiltinEvent = (event: AgentEvent) => !activeBuiltinFilterRules.value.some((rule) => rule.test(event));
+
+const setBuiltinFiltersEnabled = (enabled: boolean) => {
+  builtinFilterState.value = Object.fromEntries(
+    builtinFilterRules.map((rule) => [rule.id, enabled]),
+  ) as BuiltinFilterState;
+};
+
 const baseColumns = [
   { title: 'Time', dataIndex: 'time', key: 'time' },
   { title: 'Tag', dataIndex: 'tag', key: 'tag' },
@@ -395,9 +485,12 @@ const fetchTags = async () => {
   }
 };
 
-// Events with global + tab filters only (used for stats bars)
+// Built-in filters are always applied first and can be toggled per rule.
+const builtinFilteredEvents = computed(() => events.value.filter((event) => shouldKeepBuiltinEvent(event)));
+
+// Events with built-in + user filters only (used for stats bars)
 const tabFilteredEvents = computed(() => {
-  let result = events.value;
+  let result = builtinFilteredEvents.value;
   if (selectedTags.value.length) {
     const activeTags = new Set(selectedTags.value);
     result = result.filter(e => activeTags.has(e.tag));
@@ -1025,6 +1118,34 @@ onUnmounted(() => {
           <a-checkbox v-model:checked="isDeduplicated" size="small">
             <span style="font-size: 12px;">Clean Duplicates</span>
           </a-checkbox>
+          <a-popover trigger="click" placement="bottomLeft" :arrow="false">
+            <template #content>
+              <div class="builtin-filter-popover">
+                <div class="builtin-filter-popover-title">Built-in Filters</div>
+                <div class="builtin-filter-popover-summary">{{ builtinFilterSummary }}</div>
+                <a-space direction="vertical" :size="4" style="width: 100%;">
+                  <a-checkbox
+                    v-for="rule in builtinFilterRules"
+                    :key="rule.id"
+                    v-model:checked="builtinFilterState[rule.id]"
+                  >
+                    {{ rule.label }}
+                  </a-checkbox>
+                </a-space>
+                <div class="builtin-filter-popover-actions">
+                  <a-button size="small" @click="setBuiltinFiltersEnabled(true)">Enable All</a-button>
+                  <a-button size="small" @click="setBuiltinFiltersEnabled(false)">Disable All</a-button>
+                </div>
+              </div>
+            </template>
+            <a-tag
+              color="blue"
+              style="cursor: pointer;"
+              :title="builtinFilterSummary"
+            >
+              Built-in Filters
+            </a-tag>
+          </a-popover>
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
           <span style="font-size: 12px; color: #888;">Max:</span>
@@ -1364,6 +1485,32 @@ onUnmounted(() => {
 .dashboard-toolbar {
   justify-content: space-between;
   margin-bottom: 10px;
+}
+
+.builtin-filter-popover {
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.builtin-filter-popover-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.builtin-filter-popover-summary {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.builtin-filter-popover-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .excel-table {
