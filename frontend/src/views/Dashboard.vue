@@ -1194,9 +1194,14 @@ onUnmounted(() => {
       </template>
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'type'">
-          <a-tag :color="getTagColor(record.eventType, record.type)">
-            {{ record.type === 'syscall' && syscallDisplayName(record.extraInfo) ? syscallDisplayName(record.extraInfo) : record.type.toUpperCase() }}
-          </a-tag>
+          <div class="excel-type-cell">
+            <a-tag :color="getTagColor(record.eventType, record.type)">
+              {{ record.type === 'syscall' && syscallDisplayName(record.extraInfo) ? syscallDisplayName(record.extraInfo) : record.type.toUpperCase() }}
+            </a-tag>
+            <a-tag v-if="(record.occurrenceCount ?? 1) > 1" color="blue" class="excel-occurrence-tag">
+              ×{{ record.occurrenceCount }}
+            </a-tag>
+          </div>
         </template>
         <template v-if="column.key === 'tag'">
           <a-tag :color="getCategoryColor(record.tag)">{{ record.tag }}</a-tag>
@@ -1509,6 +1514,19 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
+}
+
+.excel-type-cell {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.excel-occurrence-tag {
+  font-size: 12px;
+  line-height: 1;
+  margin: 0;
 }
 
 .excel-path-text {
