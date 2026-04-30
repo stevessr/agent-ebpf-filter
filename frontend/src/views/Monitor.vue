@@ -203,7 +203,10 @@ onUnmounted(() => {
               <HealthGpu :gpus="gpus" :statsHistory="statsHistory" :openHistoryChart="openHistoryChart" />
             </a-tab-pane>
             <a-tab-pane key="procmem" tab="Proc Mem">
-              <HealthProcMem :processes="processes" :formatBytesWithUnit="formatBytesWithUnit" />
+              <HealthProcMem
+                :processes="processes"
+                :systemMemTotal="systemStats.memTotal"
+                :formatBytesWithUnit="formatBytesWithUnit" />
             </a-tab-pane>
           </a-tabs>
         </div>

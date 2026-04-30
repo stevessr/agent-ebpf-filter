@@ -297,11 +297,15 @@ const onPreviewClick = (event: MouseEvent) => {
 <template>
   <a-drawer
     v-model:open="drawerOpen"
-  rootClassName="docs-preview-drawer"
-  :title="entry ? `Document Preview · ${entry.name}` : 'Document Preview'"
-  width="92vw"
-  :bodyStyle="{ padding: '16px 20px 20px' }"
-  destroyOnClose
+    rootClassName="docs-preview-drawer"
+    :title="entry ? `Document Preview · ${entry.name}` : 'Document Preview'"
+    width="92vw"
+    :drawerStyle="{ background: 'var(--docs-surface)' }"
+    :contentWrapperStyle="{ background: 'var(--docs-surface)' }"
+    :headerStyle="{ background: 'var(--docs-surface)' }"
+    :bodyStyle="{ padding: '16px 20px 20px', background: 'var(--docs-surface)' }"
+    :maskStyle="{ backgroundColor: 'rgba(15, 23, 42, 0.42)' }"
+    destroyOnClose
   >
     <a-empty
       v-if="!entry"
@@ -439,7 +443,7 @@ const onPreviewClick = (event: MouseEvent) => {
 </template>
 
 <style scoped>
-.docs-preview-drawer {
+:global(.docs-preview-drawer) {
   --docs-surface: #ffffff;
   --docs-surface-2: #f8fafc;
   --docs-border: #e5e7eb;
@@ -455,7 +459,7 @@ const onPreviewClick = (event: MouseEvent) => {
 }
 
 @media (prefers-color-scheme: dark) {
-  .docs-preview-drawer {
+  :global(.docs-preview-drawer) {
     --docs-surface: #0f172a;
     --docs-surface-2: #111827;
     --docs-border: #243042;
