@@ -70,25 +70,32 @@ let resizeObserver: ResizeObserver | null = null;
 let cleanupColumnResize: (() => void) | null = null;
 let recentRowTimer: number | null = null;
 const eventBuffer: AgentEvent[] = [];
-let rafId: number | null = null;
+let flushTimer: number | null = null;
+const EVENT_BATCH_WINDOW_MS = 80;
 
 const maxEvents = ref(5000);
 const maxEventsOptions = ['2000', '5000', '10000', '20000', '50000'];
 
 const flushEventBuffer = () => {
-  rafId = null;
   if (eventBuffer.length === 0) return;
 
-  const newEvents = [...eventBuffer.reverse(), ...events.value];
+  const bufferedEvents = [...eventBuffer];
+  const newEvents = [...bufferedEvents.reverse(), ...events.value];
   if (newEvents.length > maxEvents.value) {
     newEvents.length = maxEvents.value;
   }
   events.value = newEvents;
   eventBuffer.length = 0;
 
-  if (newEvents.length > 0) {
-    markRecentRow(newEvents[0].key);
-  }
+  markRecentRows(newEvents.slice(0, bufferedEvents.length).map((event) => event.key));
+};
+
+const scheduleEventBufferFlush = () => {
+  if (flushTimer !== null) return;
+  flushTimer = window.setTimeout(() => {
+    flushTimer = null;
+    flushEventBuffer();
+  }, EVENT_BATCH_WINDOW_MS);
 };
 
 const STREAM_DIRECTION_STORAGE_KEY = 'dashboard.streamDirection';
@@ -474,24 +481,29 @@ const handleTableChange = (pagination: { current?: number; pageSize?: number }) 
   pageSize.value = pagination.pageSize ?? pageSize.value;
 };
 
-const recentRowKey = ref<string | null>(null);
+const recentRowKeys = ref<Set<string>>(new Set());
 
-const markRecentRow = (key: string) => {
-  recentRowKey.value = key;
+const markRecentRows = (keys: string[]) => {
+  if (keys.length === 0) return;
+
+  const nextKeys = new Set(recentRowKeys.value);
+  for (const key of keys) {
+    nextKeys.add(key);
+  }
+  recentRowKeys.value = nextKeys;
+
   if (recentRowTimer !== null) {
     window.clearTimeout(recentRowTimer);
   }
   recentRowTimer = window.setTimeout(() => {
-    if (recentRowKey.value === key) {
-      recentRowKey.value = null;
-    }
+    recentRowKeys.value = new Set();
     recentRowTimer = null;
   }, 320);
 };
 
 const getRowClassName = (record: AgentEvent, index: number) => {
   const classes = [index % 2 === 0 ? 'excel-row-even' : 'excel-row-odd'];
-  if (recentRowKey.value === record.key) {
+  if (recentRowKeys.value.has(record.key)) {
     classes.push(streamDirection.value === 'bottom' ? 'excel-row-enter-bottom' : 'excel-row-enter-top');
   }
   return classes.join(' ');
@@ -790,9 +802,7 @@ const connectWebSocket = () => {
         });
       });
 
-      if (rafId === null) {
-        rafId = requestAnimationFrame(flushEventBuffer);
-      }
+      scheduleEventBufferFlush();
     } catch (e) {
       console.error('Failed to parse message', e);
     }
@@ -817,22 +827,22 @@ const clearEvents = async () => {
     await axios.post('/data/clear-events-memory');
     events.value = [];
     eventBuffer.length = 0;
-    if (rafId !== null) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
+    if (flushTimer !== null) {
+      window.clearTimeout(flushTimer);
+      flushTimer = null;
     }
-    recentRowKey.value = null;
+    recentRowKeys.value = new Set();
     currentPage.value = 1;
     message.success('Event buffer cleared on backend');
   } catch (err: any) {
     message.error(err?.response?.data?.error || 'Failed to clear events');
     events.value = [];
     eventBuffer.length = 0;
-    if (rafId !== null) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
+    if (flushTimer !== null) {
+      window.clearTimeout(flushTimer);
+      flushTimer = null;
     }
-    recentRowKey.value = null;
+    recentRowKeys.value = new Set();
     currentPage.value = 1;
   }
 };
@@ -904,9 +914,9 @@ onUnmounted(() => {
     window.clearTimeout(recentRowTimer);
     recentRowTimer = null;
   }
-  if (rafId !== null) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
+  if (flushTimer !== null) {
+    window.clearTimeout(flushTimer);
+    flushTimer = null;
   }
   eventBuffer.length = 0;
   if (reconnectTimer !== null) {
