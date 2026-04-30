@@ -35,11 +35,13 @@ interface AgentEvent {
   uidArg?: number;
   gidArg?: number;
   time: string;
+  receivedAtMs?: number;
   occurrenceCount?: number;
 }
 
 type DisplayedAgentEvent = AgentEvent & {
   mergeSignature?: string;
+  lastReceivedAtMs?: number;
 };
 
 interface BuiltinFilterRule {
@@ -85,6 +87,7 @@ let recentRowTimer: number | null = null;
 const eventBuffer: AgentEvent[] = [];
 let flushTimer: number | null = null;
 const EVENT_BATCH_WINDOW_MS = 80;
+const EVENT_MERGE_WINDOW_MS = 5000;
 
 const maxEvents = ref(5000);
 const maxEventsOptions = ['2000', '5000', '10000', '20000', '50000'];
@@ -564,29 +567,39 @@ const createEventMergeSignature = (event: AgentEvent) =>
     event.gidArg ?? '',
   ].map((value) => String(value)).join('\u001f');
 
-const mergeAdjacentEvents = (list: AgentEvent[]) => {
+const mergeEventsWithinWindow = (list: AgentEvent[]) => {
   const merged: DisplayedAgentEvent[] = [];
+  const groupsBySignature = new Map<string, DisplayedAgentEvent>();
 
   for (const event of list) {
     const signature = createEventMergeSignature(event);
-    const last = merged[merged.length - 1];
+    const eventReceivedAtMs = event.receivedAtMs ?? 0;
+    const currentGroup = groupsBySignature.get(signature);
 
-    if (last?.mergeSignature === signature) {
-      last.occurrenceCount = (last.occurrenceCount ?? 1) + 1;
+    if (
+      currentGroup
+      && currentGroup.lastReceivedAtMs !== undefined
+      && Math.abs(eventReceivedAtMs - currentGroup.lastReceivedAtMs) <= EVENT_MERGE_WINDOW_MS
+    ) {
+      currentGroup.occurrenceCount = (currentGroup.occurrenceCount ?? 1) + 1;
+      currentGroup.lastReceivedAtMs = eventReceivedAtMs;
       continue;
     }
 
-    merged.push({
+    const nextGroup: DisplayedAgentEvent = {
       ...event,
       occurrenceCount: 1,
       mergeSignature: signature,
-    });
+      lastReceivedAtMs: eventReceivedAtMs,
+    };
+    merged.push(nextGroup);
+    groupsBySignature.set(signature, nextGroup);
   }
 
-  return merged.map(({ mergeSignature, ...event }) => event);
+  return merged.map(({ mergeSignature, lastReceivedAtMs, ...event }) => event);
 };
 
-const displayedEvents = computed(() => mergeAdjacentEvents(filteredEvents.value));
+const displayedEvents = computed(() => mergeEventsWithinWindow(filteredEvents.value));
 
 // Stats use tabFilteredEvents (pre-sub-filter) to avoid zeroing out
 const networkDirStats = computed(() => {
@@ -922,8 +935,9 @@ const connectWebSocket = () => {
         const eventType = extractEventType(data);
         const networkEvent = isNetworkEvent(eventType, type);
         const now = new Date();
+        const receivedAtMs = now.getTime();
         eventBuffer.push({
-          key: `${pid}-${path}-${Date.now()}-${Math.random()}`,
+          key: `${pid}-${path}-${receivedAtMs}-${Math.random()}`,
           pid,
           ppid,
           uid,
@@ -947,6 +961,7 @@ const connectWebSocket = () => {
           uidArg: typeof data.uidArg === 'number' ? Number(data.uidArg) : undefined,
           gidArg: typeof data.gidArg === 'number' ? Number(data.gidArg) : undefined,
           time: now.toLocaleTimeString(),
+          receivedAtMs,
         });
       });
 
