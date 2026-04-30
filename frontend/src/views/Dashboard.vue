@@ -35,7 +35,12 @@ interface AgentEvent {
   uidArg?: number;
   gidArg?: number;
   time: string;
+  occurrenceCount?: number;
 }
+
+type DisplayedAgentEvent = AgentEvent & {
+  mergeSignature?: string;
+};
 
 type ResizableColumnKey = 'time' | 'tag' | 'pid' | 'comm' | 'type' | 'path' | 'action';
 
@@ -440,6 +445,56 @@ const filteredEvents = computed(() => {
   return streamDirection.value === 'bottom' ? [...result].reverse() : result;
 });
 
+const createEventMergeSignature = (event: AgentEvent) =>
+  [
+    event.eventType ?? '',
+    event.type,
+    event.tag,
+    event.pid,
+    event.ppid,
+    event.uid,
+    event.comm,
+    event.path,
+    event.netDirection ?? '',
+    event.netEndpoint ?? '',
+    event.netFamily ?? '',
+    event.netBytes ?? '',
+    event.retval ?? '',
+    event.extraInfo ?? '',
+    event.extraPath ?? '',
+    event.bytes ?? '',
+    event.mode ?? '',
+    event.domain ?? '',
+    event.sockType ?? '',
+    event.protocol ?? '',
+    event.uidArg ?? '',
+    event.gidArg ?? '',
+  ].map((value) => String(value)).join('\u001f');
+
+const mergeAdjacentEvents = (list: AgentEvent[]) => {
+  const merged: DisplayedAgentEvent[] = [];
+
+  for (const event of list) {
+    const signature = createEventMergeSignature(event);
+    const last = merged[merged.length - 1];
+
+    if (last?.mergeSignature === signature) {
+      last.occurrenceCount = (last.occurrenceCount ?? 1) + 1;
+      continue;
+    }
+
+    merged.push({
+      ...event,
+      occurrenceCount: 1,
+      mergeSignature: signature,
+    });
+  }
+
+  return merged.map(({ mergeSignature, ...event }) => event);
+};
+
+const displayedEvents = computed(() => mergeAdjacentEvents(filteredEvents.value));
+
 // Stats use tabFilteredEvents (pre-sub-filter) to avoid zeroing out
 const networkDirStats = computed(() => {
   const list = activeTab.value === 'network' ? tabFilteredEvents.value : [];
@@ -468,7 +523,7 @@ const tablePagination = computed(() => {
   return {
     current: currentPage.value,
     pageSize: pageSize.value,
-    total: filteredEvents.value.length,
+    total: displayedEvents.value.length,
     showSizeChanger: true,
     pageSizeOptions,
     showTotal: (total: number, range: [number, number]) => `${range[0]}-${range[1]} / ${total}`,
@@ -648,7 +703,7 @@ watch(streamDirection, (direction) => {
   }
   if (showAllRows.value) return;
   currentPage.value = direction === 'bottom'
-    ? Math.max(1, Math.ceil(filteredEvents.value.length / pageSize.value))
+    ? Math.max(1, Math.ceil(displayedEvents.value.length / pageSize.value))
     : 1;
 });
 
@@ -660,11 +715,11 @@ watch(showAllRows, (enabled) => {
     currentPage.value = 1;
     return;
   }
-  const maxPage = Math.max(1, Math.ceil(filteredEvents.value.length / pageSize.value));
+  const maxPage = Math.max(1, Math.ceil(displayedEvents.value.length / pageSize.value));
   currentPage.value = streamDirection.value === 'bottom' ? maxPage : 1;
 });
 
-watch([() => filteredEvents.value.length, pageSize, streamDirection], ([total]) => {
+watch([() => displayedEvents.value.length, pageSize, streamDirection], ([total]) => {
   if (showAllRows.value) return;
   const maxPage = Math.max(1, Math.ceil(total / pageSize.value));
   if (streamDirection.value === 'bottom') {
@@ -1020,7 +1075,7 @@ onUnmounted(() => {
     <div ref="tableWrapperRef" class="dashboard-table-wrap">
       <a-table
         class="excel-table"
-        :dataSource="filteredEvents"
+        :dataSource="displayedEvents"
         :columns="tableColumns"
         size="small"
         :pagination="tablePagination"
@@ -1203,6 +1258,9 @@ onUnmounted(() => {
         </a-descriptions-item>
         <a-descriptions-item v-if="selectedEvent.retval !== undefined" label="Return Value">
           <a-typography-text :type="selectedEvent.retval < 0 ? 'danger' : undefined" code>{{ selectedEvent.retval }}</a-typography-text>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="(selectedEvent.occurrenceCount ?? 1) > 1" label="Occurrences">
+          <a-tag color="blue">×{{ selectedEvent.occurrenceCount ?? 1 }}</a-tag>
         </a-descriptions-item>
         <a-descriptions-item v-if="selectedEvent.extraInfo" label="Extra Info">
           <a-typography-text code>{{ selectedEvent.extraInfo }}</a-typography-text>
