@@ -257,6 +257,22 @@ message WrapperResponse {
   string message = 2;
   repeated string rewritten_args = 3;
   BehaviorClassification classification = 4;
+  double ml_score = 5;
+  double anomaly_score = 6;
+  string ml_action = 7;
+  string ml_reasoning = 8;
+}
+
+message MLStatus {
+  bool model_loaded = 1;
+  int32 num_trees = 2;
+  int32 num_samples = 3;
+  int32 num_labeled_samples = 4;
+  string last_trained = 5;
+  double test_accuracy = 6;
+  string model_path = 7;
+  bool training_in_progress = 8;
+  double training_progress = 9;
 }
 
 message ProcessList {

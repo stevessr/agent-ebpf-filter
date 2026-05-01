@@ -7607,6 +7607,10 @@ export const pb = $root.pb = (() => {
          * @property {string|null} [message] WrapperResponse message
          * @property {Array.<string>|null} [rewrittenArgs] WrapperResponse rewrittenArgs
          * @property {pb.IBehaviorClassification|null} [classification] WrapperResponse classification
+         * @property {number|null} [mlScore] WrapperResponse mlScore
+         * @property {number|null} [anomalyScore] WrapperResponse anomalyScore
+         * @property {string|null} [mlAction] WrapperResponse mlAction
+         * @property {string|null} [mlReasoning] WrapperResponse mlReasoning
          */
 
         /**
@@ -7658,6 +7662,38 @@ export const pb = $root.pb = (() => {
         WrapperResponse.prototype.classification = null;
 
         /**
+         * WrapperResponse mlScore.
+         * @member {number} mlScore
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.mlScore = 0;
+
+        /**
+         * WrapperResponse anomalyScore.
+         * @member {number} anomalyScore
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.anomalyScore = 0;
+
+        /**
+         * WrapperResponse mlAction.
+         * @member {string} mlAction
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.mlAction = "";
+
+        /**
+         * WrapperResponse mlReasoning.
+         * @member {string} mlReasoning
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.mlReasoning = "";
+
+        /**
          * Creates a new WrapperResponse instance using the specified properties.
          * @function create
          * @memberof pb.WrapperResponse
@@ -7690,6 +7726,14 @@ export const pb = $root.pb = (() => {
                     writer.uint32(/* id 3, wireType 2 =*/26).string(message.rewrittenArgs[i]);
             if (message.classification != null && Object.hasOwnProperty.call(message, "classification"))
                 $root.pb.BehaviorClassification.encode(message.classification, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            if (message.mlScore != null && Object.hasOwnProperty.call(message, "mlScore"))
+                writer.uint32(/* id 5, wireType 1 =*/41).double(message.mlScore);
+            if (message.anomalyScore != null && Object.hasOwnProperty.call(message, "anomalyScore"))
+                writer.uint32(/* id 6, wireType 1 =*/49).double(message.anomalyScore);
+            if (message.mlAction != null && Object.hasOwnProperty.call(message, "mlAction"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.mlAction);
+            if (message.mlReasoning != null && Object.hasOwnProperty.call(message, "mlReasoning"))
+                writer.uint32(/* id 8, wireType 2 =*/66).string(message.mlReasoning);
             return writer;
         };
 
@@ -7742,6 +7786,22 @@ export const pb = $root.pb = (() => {
                     }
                 case 4: {
                         message.classification = $root.pb.BehaviorClassification.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 5: {
+                        message.mlScore = reader.double();
+                        break;
+                    }
+                case 6: {
+                        message.anomalyScore = reader.double();
+                        break;
+                    }
+                case 7: {
+                        message.mlAction = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.mlReasoning = reader.string();
                         break;
                     }
                 default:
@@ -7804,6 +7864,18 @@ export const pb = $root.pb = (() => {
                 if (error)
                     return "classification." + error;
             }
+            if (message.mlScore != null && message.hasOwnProperty("mlScore"))
+                if (typeof message.mlScore !== "number")
+                    return "mlScore: number expected";
+            if (message.anomalyScore != null && message.hasOwnProperty("anomalyScore"))
+                if (typeof message.anomalyScore !== "number")
+                    return "anomalyScore: number expected";
+            if (message.mlAction != null && message.hasOwnProperty("mlAction"))
+                if (!$util.isString(message.mlAction))
+                    return "mlAction: string expected";
+            if (message.mlReasoning != null && message.hasOwnProperty("mlReasoning"))
+                if (!$util.isString(message.mlReasoning))
+                    return "mlReasoning: string expected";
             return null;
         };
 
@@ -7857,6 +7929,14 @@ export const pb = $root.pb = (() => {
                     throw TypeError(".pb.WrapperResponse.classification: object expected");
                 message.classification = $root.pb.BehaviorClassification.fromObject(object.classification);
             }
+            if (object.mlScore != null)
+                message.mlScore = Number(object.mlScore);
+            if (object.anomalyScore != null)
+                message.anomalyScore = Number(object.anomalyScore);
+            if (object.mlAction != null)
+                message.mlAction = String(object.mlAction);
+            if (object.mlReasoning != null)
+                message.mlReasoning = String(object.mlReasoning);
             return message;
         };
 
@@ -7879,6 +7959,10 @@ export const pb = $root.pb = (() => {
                 object.action = options.enums === String ? "ALLOW" : 0;
                 object.message = "";
                 object.classification = null;
+                object.mlScore = 0;
+                object.anomalyScore = 0;
+                object.mlAction = "";
+                object.mlReasoning = "";
             }
             if (message.action != null && message.hasOwnProperty("action"))
                 object.action = options.enums === String ? $root.pb.WrapperResponse.Action[message.action] === undefined ? message.action : $root.pb.WrapperResponse.Action[message.action] : message.action;
@@ -7891,6 +7975,14 @@ export const pb = $root.pb = (() => {
             }
             if (message.classification != null && message.hasOwnProperty("classification"))
                 object.classification = $root.pb.BehaviorClassification.toObject(message.classification, options);
+            if (message.mlScore != null && message.hasOwnProperty("mlScore"))
+                object.mlScore = options.json && !isFinite(message.mlScore) ? String(message.mlScore) : message.mlScore;
+            if (message.anomalyScore != null && message.hasOwnProperty("anomalyScore"))
+                object.anomalyScore = options.json && !isFinite(message.anomalyScore) ? String(message.anomalyScore) : message.anomalyScore;
+            if (message.mlAction != null && message.hasOwnProperty("mlAction"))
+                object.mlAction = message.mlAction;
+            if (message.mlReasoning != null && message.hasOwnProperty("mlReasoning"))
+                object.mlReasoning = message.mlReasoning;
             return object;
         };
 
@@ -7939,6 +8031,396 @@ export const pb = $root.pb = (() => {
         })();
 
         return WrapperResponse;
+    })();
+
+    pb.MLStatus = (function() {
+
+        /**
+         * Properties of a MLStatus.
+         * @memberof pb
+         * @interface IMLStatus
+         * @property {boolean|null} [modelLoaded] MLStatus modelLoaded
+         * @property {number|null} [numTrees] MLStatus numTrees
+         * @property {number|null} [numSamples] MLStatus numSamples
+         * @property {number|null} [numLabeledSamples] MLStatus numLabeledSamples
+         * @property {string|null} [lastTrained] MLStatus lastTrained
+         * @property {number|null} [testAccuracy] MLStatus testAccuracy
+         * @property {string|null} [modelPath] MLStatus modelPath
+         * @property {boolean|null} [trainingInProgress] MLStatus trainingInProgress
+         * @property {number|null} [trainingProgress] MLStatus trainingProgress
+         */
+
+        /**
+         * Constructs a new MLStatus.
+         * @memberof pb
+         * @classdesc Represents a MLStatus.
+         * @implements IMLStatus
+         * @constructor
+         * @param {pb.IMLStatus=} [properties] Properties to set
+         */
+        function MLStatus(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * MLStatus modelLoaded.
+         * @member {boolean} modelLoaded
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.modelLoaded = false;
+
+        /**
+         * MLStatus numTrees.
+         * @member {number} numTrees
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.numTrees = 0;
+
+        /**
+         * MLStatus numSamples.
+         * @member {number} numSamples
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.numSamples = 0;
+
+        /**
+         * MLStatus numLabeledSamples.
+         * @member {number} numLabeledSamples
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.numLabeledSamples = 0;
+
+        /**
+         * MLStatus lastTrained.
+         * @member {string} lastTrained
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.lastTrained = "";
+
+        /**
+         * MLStatus testAccuracy.
+         * @member {number} testAccuracy
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.testAccuracy = 0;
+
+        /**
+         * MLStatus modelPath.
+         * @member {string} modelPath
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.modelPath = "";
+
+        /**
+         * MLStatus trainingInProgress.
+         * @member {boolean} trainingInProgress
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.trainingInProgress = false;
+
+        /**
+         * MLStatus trainingProgress.
+         * @member {number} trainingProgress
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.trainingProgress = 0;
+
+        /**
+         * Creates a new MLStatus instance using the specified properties.
+         * @function create
+         * @memberof pb.MLStatus
+         * @static
+         * @param {pb.IMLStatus=} [properties] Properties to set
+         * @returns {pb.MLStatus} MLStatus instance
+         */
+        MLStatus.create = function create(properties) {
+            return new MLStatus(properties);
+        };
+
+        /**
+         * Encodes the specified MLStatus message. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
+         * @function encode
+         * @memberof pb.MLStatus
+         * @static
+         * @param {pb.IMLStatus} message MLStatus message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        MLStatus.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.modelLoaded != null && Object.hasOwnProperty.call(message, "modelLoaded"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.modelLoaded);
+            if (message.numTrees != null && Object.hasOwnProperty.call(message, "numTrees"))
+                writer.uint32(/* id 2, wireType 0 =*/16).int32(message.numTrees);
+            if (message.numSamples != null && Object.hasOwnProperty.call(message, "numSamples"))
+                writer.uint32(/* id 3, wireType 0 =*/24).int32(message.numSamples);
+            if (message.numLabeledSamples != null && Object.hasOwnProperty.call(message, "numLabeledSamples"))
+                writer.uint32(/* id 4, wireType 0 =*/32).int32(message.numLabeledSamples);
+            if (message.lastTrained != null && Object.hasOwnProperty.call(message, "lastTrained"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.lastTrained);
+            if (message.testAccuracy != null && Object.hasOwnProperty.call(message, "testAccuracy"))
+                writer.uint32(/* id 6, wireType 1 =*/49).double(message.testAccuracy);
+            if (message.modelPath != null && Object.hasOwnProperty.call(message, "modelPath"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.modelPath);
+            if (message.trainingInProgress != null && Object.hasOwnProperty.call(message, "trainingInProgress"))
+                writer.uint32(/* id 8, wireType 0 =*/64).bool(message.trainingInProgress);
+            if (message.trainingProgress != null && Object.hasOwnProperty.call(message, "trainingProgress"))
+                writer.uint32(/* id 9, wireType 1 =*/73).double(message.trainingProgress);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified MLStatus message, length delimited. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.MLStatus
+         * @static
+         * @param {pb.IMLStatus} message MLStatus message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        MLStatus.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a MLStatus message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.MLStatus
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.MLStatus} MLStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        MLStatus.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.MLStatus();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.modelLoaded = reader.bool();
+                        break;
+                    }
+                case 2: {
+                        message.numTrees = reader.int32();
+                        break;
+                    }
+                case 3: {
+                        message.numSamples = reader.int32();
+                        break;
+                    }
+                case 4: {
+                        message.numLabeledSamples = reader.int32();
+                        break;
+                    }
+                case 5: {
+                        message.lastTrained = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.testAccuracy = reader.double();
+                        break;
+                    }
+                case 7: {
+                        message.modelPath = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.trainingInProgress = reader.bool();
+                        break;
+                    }
+                case 9: {
+                        message.trainingProgress = reader.double();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a MLStatus message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.MLStatus
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.MLStatus} MLStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        MLStatus.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a MLStatus message.
+         * @function verify
+         * @memberof pb.MLStatus
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        MLStatus.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.modelLoaded != null && message.hasOwnProperty("modelLoaded"))
+                if (typeof message.modelLoaded !== "boolean")
+                    return "modelLoaded: boolean expected";
+            if (message.numTrees != null && message.hasOwnProperty("numTrees"))
+                if (!$util.isInteger(message.numTrees))
+                    return "numTrees: integer expected";
+            if (message.numSamples != null && message.hasOwnProperty("numSamples"))
+                if (!$util.isInteger(message.numSamples))
+                    return "numSamples: integer expected";
+            if (message.numLabeledSamples != null && message.hasOwnProperty("numLabeledSamples"))
+                if (!$util.isInteger(message.numLabeledSamples))
+                    return "numLabeledSamples: integer expected";
+            if (message.lastTrained != null && message.hasOwnProperty("lastTrained"))
+                if (!$util.isString(message.lastTrained))
+                    return "lastTrained: string expected";
+            if (message.testAccuracy != null && message.hasOwnProperty("testAccuracy"))
+                if (typeof message.testAccuracy !== "number")
+                    return "testAccuracy: number expected";
+            if (message.modelPath != null && message.hasOwnProperty("modelPath"))
+                if (!$util.isString(message.modelPath))
+                    return "modelPath: string expected";
+            if (message.trainingInProgress != null && message.hasOwnProperty("trainingInProgress"))
+                if (typeof message.trainingInProgress !== "boolean")
+                    return "trainingInProgress: boolean expected";
+            if (message.trainingProgress != null && message.hasOwnProperty("trainingProgress"))
+                if (typeof message.trainingProgress !== "number")
+                    return "trainingProgress: number expected";
+            return null;
+        };
+
+        /**
+         * Creates a MLStatus message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.MLStatus
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.MLStatus} MLStatus
+         */
+        MLStatus.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.MLStatus)
+                return object;
+            let message = new $root.pb.MLStatus();
+            if (object.modelLoaded != null)
+                message.modelLoaded = Boolean(object.modelLoaded);
+            if (object.numTrees != null)
+                message.numTrees = object.numTrees | 0;
+            if (object.numSamples != null)
+                message.numSamples = object.numSamples | 0;
+            if (object.numLabeledSamples != null)
+                message.numLabeledSamples = object.numLabeledSamples | 0;
+            if (object.lastTrained != null)
+                message.lastTrained = String(object.lastTrained);
+            if (object.testAccuracy != null)
+                message.testAccuracy = Number(object.testAccuracy);
+            if (object.modelPath != null)
+                message.modelPath = String(object.modelPath);
+            if (object.trainingInProgress != null)
+                message.trainingInProgress = Boolean(object.trainingInProgress);
+            if (object.trainingProgress != null)
+                message.trainingProgress = Number(object.trainingProgress);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a MLStatus message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.MLStatus
+         * @static
+         * @param {pb.MLStatus} message MLStatus
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        MLStatus.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.modelLoaded = false;
+                object.numTrees = 0;
+                object.numSamples = 0;
+                object.numLabeledSamples = 0;
+                object.lastTrained = "";
+                object.testAccuracy = 0;
+                object.modelPath = "";
+                object.trainingInProgress = false;
+                object.trainingProgress = 0;
+            }
+            if (message.modelLoaded != null && message.hasOwnProperty("modelLoaded"))
+                object.modelLoaded = message.modelLoaded;
+            if (message.numTrees != null && message.hasOwnProperty("numTrees"))
+                object.numTrees = message.numTrees;
+            if (message.numSamples != null && message.hasOwnProperty("numSamples"))
+                object.numSamples = message.numSamples;
+            if (message.numLabeledSamples != null && message.hasOwnProperty("numLabeledSamples"))
+                object.numLabeledSamples = message.numLabeledSamples;
+            if (message.lastTrained != null && message.hasOwnProperty("lastTrained"))
+                object.lastTrained = message.lastTrained;
+            if (message.testAccuracy != null && message.hasOwnProperty("testAccuracy"))
+                object.testAccuracy = options.json && !isFinite(message.testAccuracy) ? String(message.testAccuracy) : message.testAccuracy;
+            if (message.modelPath != null && message.hasOwnProperty("modelPath"))
+                object.modelPath = message.modelPath;
+            if (message.trainingInProgress != null && message.hasOwnProperty("trainingInProgress"))
+                object.trainingInProgress = message.trainingInProgress;
+            if (message.trainingProgress != null && message.hasOwnProperty("trainingProgress"))
+                object.trainingProgress = options.json && !isFinite(message.trainingProgress) ? String(message.trainingProgress) : message.trainingProgress;
+            return object;
+        };
+
+        /**
+         * Converts this MLStatus to JSON.
+         * @function toJSON
+         * @memberof pb.MLStatus
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        MLStatus.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for MLStatus
+         * @function getTypeUrl
+         * @memberof pb.MLStatus
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        MLStatus.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.MLStatus";
+        };
+
+        return MLStatus;
     })();
 
     pb.ProcessList = (function() {
