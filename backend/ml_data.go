@@ -13,13 +13,19 @@ import (
 // TrainingSample represents one labeled wrapper intercept event for ML training
 type TrainingSample struct {
 	Features     [FeatureDim]float64
-	Label        int32  // 0=ALLOW, 1=BLOCK, 2=REWRITE, 3=ALERT, -1=unlabeled
+	Label        int32 // 0=ALLOW, 1=BLOCK, 2=REWRITE, 3=ALERT, -1=unlabeled
 	Comm         string
 	Args         []string
 	Category     string
 	AnomalyScore float64
 	Timestamp    time.Time
 	UserLabel    string // "accepted", "rejected", "auto", ""
+}
+
+// IndexedTrainingSample keeps the ring-buffer slot alongside the sample data.
+type IndexedTrainingSample struct {
+	Index  int
+	Sample TrainingSample
 }
 
 // IsLabeled returns true if the sample has a user-provided label
@@ -213,26 +219,50 @@ func (s *TrainingDataStore) LabelSample(index int, label string) bool {
 }
 
 // AllSamplesWithIndex returns all non-zero samples with their ring buffer index
-func (s *TrainingDataStore) AllSamplesWithIndex() []struct {
-	Index  int
-	Sample TrainingSample
-} {
+func (s *TrainingDataStore) AllSamplesWithIndex() []IndexedTrainingSample {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var out []struct {
-		Index  int
-		Sample TrainingSample
-	}
+	var out []IndexedTrainingSample
 	for i := range s.samples {
 		if !s.samples[i].Timestamp.IsZero() {
-			out = append(out, struct {
-				Index  int
-				Sample TrainingSample
-			}{Index: i, Sample: s.samples[i]})
+			out = append(out, IndexedTrainingSample{Index: i, Sample: s.samples[i]})
 		}
 	}
 	return out
+}
+
+// ExactMatches returns all samples whose command and arguments exactly match.
+func (s *TrainingDataStore) ExactMatches(comm string, args []string) []IndexedTrainingSample {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var out []IndexedTrainingSample
+	for i := range s.samples {
+		if s.samples[i].Timestamp.IsZero() {
+			continue
+		}
+		if s.samples[i].Comm == comm && sameStringSlice(s.samples[i].Args, args) {
+			out = append(out, IndexedTrainingSample{Index: i, Sample: s.samples[i]})
+		}
+	}
+	return out
+}
+
+// HasExactCommand reports whether an exact command sample already exists.
+func (s *TrainingDataStore) HasExactCommand(comm string, args []string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for i := range s.samples {
+		if s.samples[i].Timestamp.IsZero() {
+			continue
+		}
+		if s.samples[i].Comm == comm && sameStringSlice(s.samples[i].Args, args) {
+			return true
+		}
+	}
+	return false
 }
 
 // Status returns summary statistics

@@ -939,10 +939,20 @@ interface SampleEntry {
   index: number; comm: string; args: string[]; label: string;
   category: string; anomalyScore: number; timestamp: string; userLabel: string;
 }
+interface ExistingCommandCandidate {
+  commandLine: string; comm: string; args: string[]; eventType: string; source: string;
+  category: string; timestamp: string; duplicate: boolean;
+}
 const allSamples = ref<SampleEntry[]>([]);
 const loadingSamples = ref(false);
 const sampleTablePageSize = ref(15);
 const sampleSearchText = ref('');
+const existingDataLimit = ref(200);
+const existingLabelMode = ref<'unlabeled' | 'heuristic'>('unlabeled');
+const existingCommandCandidates = ref<ExistingCommandCandidate[]>([]);
+const loadingExistingData = ref(false);
+const importingExistingData = ref(false);
+const existingDataSource = ref('');
 const dataMaskEnabled = ref(false);
 
 const maskSensitiveData = (text: string): string => {
@@ -988,6 +998,9 @@ const filteredSamples = computed(() => {
   );
 });
 
+const existingDuplicateCount = computed(() => existingCommandCandidates.value.filter(item => item.duplicate).length);
+const importableExistingCount = computed(() => existingCommandCandidates.value.length - existingDuplicateCount.value);
+
 const fetchAllSamples = async () => {
   loadingSamples.value = true;
   try {
@@ -995,6 +1008,40 @@ const fetchAllSamples = async () => {
     allSamples.value = res.data.samples || [];
   } catch (_) {} finally {
     loadingSamples.value = false;
+  }
+};
+
+const fetchExistingCommandData = async () => {
+  loadingExistingData.value = true;
+  try {
+    const res = await axios.get('/config/ml/existing-commands', {
+      params: { limit: existingDataLimit.value },
+    });
+    existingCommandCandidates.value = res.data.candidates || [];
+    existingDataSource.value = res.data.source || '';
+    message.success(`拉取到 ${existingCommandCandidates.value.length} 条历史命令数据`);
+  } catch (e: any) {
+    message.error(e.response?.data?.error || '拉取已有命令数据失败');
+  } finally {
+    loadingExistingData.value = false;
+  }
+};
+
+const importExistingCommandData = async () => {
+  importingExistingData.value = true;
+  try {
+    const res = await axios.post('/config/ml/import-existing', {
+      limit: existingDataLimit.value,
+      labelMode: existingLabelMode.value,
+    });
+    message.success(`导入 ${res.data.imported} 条，跳过 ${res.data.skipped} 条重复/无效数据`);
+    await fetchMLStatus();
+    await fetchAllSamples();
+    await fetchExistingCommandData();
+  } catch (e: any) {
+    message.error(e.response?.data?.error || '导入已有命令数据失败');
+  } finally {
+    importingExistingData.value = false;
   }
 };
 
@@ -1123,6 +1170,39 @@ const highRiskPresets = [
   { comm: 'chmod', args: '+x script.sh', label: 'ALLOW', desc: '添加执行权限' },
 ];
 
+const splitCommandLine = (input: string): string[] => {
+  const parts: string[] = [];
+  let current = '';
+  let inSingle = false;
+  let inDouble = false;
+  let escaped = false;
+  const emit = () => {
+    if (!current) return;
+    parts.push(current);
+    current = '';
+  };
+
+  for (const ch of input.trim()) {
+    if (escaped) {
+      current += ch;
+      escaped = false;
+    } else if (ch === '\\' && !inSingle) {
+      escaped = true;
+    } else if (ch === "'" && !inDouble) {
+      inSingle = !inSingle;
+    } else if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+    } else if (/\s/.test(ch) && !inSingle && !inDouble) {
+      emit();
+    } else {
+      current += ch;
+    }
+  }
+  if (escaped) current += '\\';
+  emit();
+  return parts;
+};
+
 const submitManualSample = async () => {
   if (!sampleCommandLine.value.trim()) return;
   
@@ -1136,7 +1216,8 @@ const submitManualSample = async () => {
   
   try {
     for (const cmdStr of commands) {
-      const parts = cmdStr.split(/\s+/);
+      const parts = splitCommandLine(cmdStr);
+      if (parts.length === 0) continue;
       const comm = parts[0];
       const args = parts.slice(1);
       const argsStr = args.join(' ');
@@ -1172,7 +1253,7 @@ const submitManualSample = async () => {
 
 const addPresetSample = async (preset: { comm: string; args: string; label: string }) => {
   // Check for duplicates
-  const argsArray = preset.args ? preset.args.split(/\s+/) : [];
+  const argsArray = preset.args ? splitCommandLine(preset.args) : [];
   const argsStr = argsArray.join(' ');
   const duplicate = allSamples.value.find(s => 
     s.comm === preset.comm && (s.args || []).join(' ') === argsStr
@@ -1195,32 +1276,29 @@ const addPresetSample = async (preset: { comm: string; args: string; label: stri
   }
 };
 
-// ── Backtesting ──
-const backtestComm = ref('');
-const backtestArgs = ref('');
+// ── Command safety assessment ──
+const backtestCommandLine = ref('');
 const backtesting = ref(false);
 const backtestResult = ref<any>(null);
 
 const runBacktest = async () => {
-  if (!backtestComm.value) return;
+  if (!backtestCommandLine.value.trim()) return;
   backtesting.value = true;
   backtestResult.value = null;
   try {
-    const args = backtestArgs.value ? backtestArgs.value.split(/\s+/) : [];
-    const res = await axios.post('/config/ml/backtest', {
-      comm: backtestComm.value, args,
+    const res = await axios.post('/config/ml/assess', {
+      commandLine: backtestCommandLine.value,
     });
     backtestResult.value = res.data;
   } catch (e: any) {
-    message.error(e.response?.data?.error || 'Backtest failed');
+    message.error(e.response?.data?.error || '命令安全性判断失败');
   } finally {
     backtesting.value = false;
   }
 };
 
 const runBacktestPreset = async (comm: string, argsStr: string) => {
-  backtestComm.value = comm;
-  backtestArgs.value = argsStr;
+  backtestCommandLine.value = `${comm} ${argsStr || ''}`.trim();
   await runBacktest();
 };
 
@@ -2005,6 +2083,85 @@ onMounted(async () => {
             </a-card>
           </a-col>
 
+          <!-- Row: Pull existing command data -->
+          <a-col :xs="24">
+            <a-card size="small">
+              <template #title>
+                <span>Existing Command Data</span>
+                <a-tag color="cyan" style="margin-left: 8px">拉取已有 wrapper / hook 事件</a-tag>
+              </template>
+              <template #extra>
+                <a-space wrap>
+                  <span style="font-size: 12px; color: #666">Limit</span>
+                  <a-input-number v-model:value="existingDataLimit" :min="10" :max="5000" size="small" style="width: 100px" />
+                  <a-select v-model:value="existingLabelMode" size="small" style="width: 150px">
+                    <a-select-option value="unlabeled">导入为未标注</a-select-option>
+                    <a-select-option value="heuristic">按安全判断标注</a-select-option>
+                  </a-select>
+                  <a-button size="small" @click="fetchExistingCommandData" :loading="loadingExistingData">
+                    <ReloadOutlined /> 拉取已有数据
+                  </a-button>
+                  <a-button
+                    size="small"
+                    type="primary"
+                    @click="importExistingCommandData"
+                    :loading="importingExistingData"
+                    :disabled="importableExistingCount <= 0"
+                  >
+                    <ImportOutlined /> 导入 {{ importableExistingCount }}
+                  </a-button>
+                </a-space>
+              </template>
+              <a-alert
+                type="info"
+                show-icon
+                style="margin-bottom: 12px"
+                message="从 /events/recent 读取历史 wrapper_intercept / native_hook 命令。默认导入为未标注样本；选择“按安全判断标注”会用当前规则/ML/网络审计结果自动给出 ALLOW/ALERT/BLOCK 标签。"
+              />
+              <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap">
+                <a-tag v-if="existingDataSource" color="blue">source: {{ existingDataSource }}</a-tag>
+                <a-tag color="purple">{{ existingCommandCandidates.length }} pulled</a-tag>
+                <a-tag color="default">{{ existingDuplicateCount }} duplicates</a-tag>
+              </div>
+              <a-table
+                :dataSource="existingCommandCandidates"
+                :pagination="{ pageSize: 8, showSizeChanger: true, pageSizeOptions: ['8','15','30'] }"
+                :scroll="{ x: 900 }"
+                size="small"
+                rowKey="commandLine"
+              >
+                <a-table-column title="Command" dataIndex="commandLine" :width="300" ellipsis>
+                  <template #default="{ record }">
+                    <code>{{ maskSensitiveData(record.commandLine) }}</code>
+                  </template>
+                </a-table-column>
+                <a-table-column title="Event" dataIndex="eventType" :width="120">
+                  <template #default="{ record }">
+                    <a-tag size="small" color="geekblue">{{ record.eventType }}</a-tag>
+                  </template>
+                </a-table-column>
+                <a-table-column title="Category" dataIndex="category" :width="120">
+                  <template #default="{ record }">
+                    <a-tag v-if="record.category" :color="getCategoryColor(record.category)" size="small">{{ record.category }}</a-tag>
+                    <span v-else style="color: #999">—</span>
+                  </template>
+                </a-table-column>
+                <a-table-column title="Time" dataIndex="timestamp" :width="180">
+                  <template #default="{ record }">
+                    <span style="font-size: 12px; color: #666">{{ record.timestamp ? new Date(record.timestamp).toLocaleString() : '—' }}</span>
+                  </template>
+                </a-table-column>
+                <a-table-column title="State" dataIndex="duplicate" :width="100">
+                  <template #default="{ record }">
+                    <a-tag :color="record.duplicate ? 'default' : 'green'" size="small">
+                      {{ record.duplicate ? '已存在' : '可导入' }}
+                    </a-tag>
+                  </template>
+                </a-table-column>
+              </a-table>
+            </a-card>
+          </a-col>
+
           <!-- Row: Sample Data Browser -->
           <a-col :xs="24">
             <a-card size="small">
@@ -2191,20 +2348,24 @@ onMounted(async () => {
             </a-card>
           </a-col>
 
-          <!-- Row 5: Backtesting -->
+          <!-- Row 5: Command Safety Assessment -->
           <a-col :xs="24">
-            <a-card title="Risk Backtesting" size="small">
+            <a-card title="Command Safety Assessment" size="small">
               <template #extra>
-                <a-tag color="purple">输入命令查看风险评分</a-tag>
+                <a-tag color="purple">输入完整命令进行安全性判断</a-tag>
               </template>
               <a-row :gutter="[16, 16]">
                 <a-col :xs="24" :md="8">
-                  <div style="font-weight: 600; margin-bottom: 8px">测试命令</div>
+                  <div style="font-weight: 600; margin-bottom: 8px">待判断命令</div>
                   <a-space direction="vertical" style="width: 100%">
-                    <a-input v-model:value="backtestComm" placeholder="命令 (e.g. sudo)" size="small" @keyup.enter="runBacktest" />
-                    <a-input v-model:value="backtestArgs" placeholder="参数 (可选)" size="small" @keyup.enter="runBacktest" />
+                    <a-textarea
+                      v-model:value="backtestCommandLine"
+                      placeholder="完整命令 (e.g. sudo systemctl disable firewalld)"
+                      :auto-size="{ minRows: 3, maxRows: 6 }"
+                      @keyup.ctrl.enter="runBacktest"
+                    />
                     <a-button type="primary" @click="runBacktest" :loading="backtesting" block>
-                      <SearchOutlined /> 分析风险
+                      <SearchOutlined /> 判断安全性
                     </a-button>
                   </a-space>
                   <div style="margin-top: 12px; font-size: 12px; color: #999">
@@ -2246,10 +2407,10 @@ onMounted(async () => {
 
                     <!-- Detail breakdown -->
                     <a-descriptions :column="3" size="small" bordered>
-                      <a-descriptions-item label="Command">{{ backtestResult.comm }}</a-descriptions-item>
+                      <a-descriptions-item label="Command">{{ backtestResult.commandLine || backtestResult.comm }}</a-descriptions-item>
                       <a-descriptions-item label="Args">{{ backtestResult.args?.join(' ') || '—' }}</a-descriptions-item>
                       <a-descriptions-item label="Recommended Action">
-                        <a-tag :color="backtestResult.recommendedAction === 'BLOCK' ? 'red' : backtestResult.recommendedAction === 'ALERT' ? 'orange' : 'green'">
+                        <a-tag :color="backtestResult.recommendedAction === 'BLOCK' ? 'red' : backtestResult.recommendedAction === 'ALERT' ? 'orange' : backtestResult.recommendedAction === 'REWRITE' ? 'blue' : 'green'">
                           {{ backtestResult.recommendedAction }}
                         </a-tag>
                       </a-descriptions-item>
@@ -2268,6 +2429,42 @@ onMounted(async () => {
                       </a-descriptions-item>
                       <a-descriptions-item label="Reasoning" :span="3">{{ backtestResult.reasoning || '—' }}</a-descriptions-item>
                     </a-descriptions>
+
+                    <!-- Existing labeled sample evidence -->
+                    <div v-if="backtestResult.sampleEvidence?.totalMatches > 0">
+                      <a-alert
+                        show-icon
+                        :type="backtestResult.sampleEvidence?.decision === 'BLOCK' ? 'error' : backtestResult.sampleEvidence?.decision === 'ALERT' ? 'warning' : 'info'"
+                        :message="`命中已有样本 ${backtestResult.sampleEvidence.totalMatches} 条，已标注 ${backtestResult.sampleEvidence.labeledMatches} 条`"
+                        :description="backtestResult.sampleEvidence?.decision ? `历史标注倾向：${backtestResult.sampleEvidence.decision}，置信度 ${(backtestResult.sampleEvidence.confidence * 100).toFixed(0)}%` : '暂无可直接用于判断的标注，但命令已存在于样本库。'"
+                        style="margin-bottom: 8px"
+                      />
+                      <a-table
+                        :dataSource="backtestResult.sampleMatches || []"
+                        :pagination="false"
+                        size="small"
+                        rowKey="index"
+                        :scroll="{ x: 700 }"
+                      >
+                        <a-table-column title="#" dataIndex="index" :width="60" />
+                        <a-table-column title="Command" dataIndex="commandLine" :width="260" ellipsis>
+                          <template #default="{ record }">
+                            <code>{{ maskSensitiveData(record.commandLine) }}</code>
+                          </template>
+                        </a-table-column>
+                        <a-table-column title="Label" dataIndex="label" :width="90">
+                          <template #default="{ record }">
+                            <a-tag :color="getLabelColor(record.label)" size="small">{{ record.label }}</a-tag>
+                          </template>
+                        </a-table-column>
+                        <a-table-column title="User Label" dataIndex="userLabel" :width="120" />
+                        <a-table-column title="Anomaly" dataIndex="anomalyScore" :width="90">
+                          <template #default="{ record }">
+                            {{ record.anomalyScore?.toFixed(2) }}
+                          </template>
+                        </a-table-column>
+                      </a-table>
+                    </div>
 
                     <!-- Network Audit Findings -->
                     <div v-if="backtestResult.networkAudit && backtestResult.networkAudit.findings?.length > 0" style="margin-top: 16px">
@@ -2298,7 +2495,7 @@ onMounted(async () => {
                     </div>
                   </div>
                   <div v-else style="color: #999; text-align: center; padding: 40px">
-                    输入命令并点击"分析风险"查看评估结果
+                    输入命令并点击“判断安全性”查看评估结果；若已有完全匹配的标注样本，会优先作为判断证据。
                   </div>
                 </a-col>
               </a-row>

@@ -293,6 +293,7 @@ Protected by `authMiddleware()` in release mode:
 - `/config/access-token`
 - `/config/hooks`
 - `/config/hooks/:id/raw`
+- `/config/ml/existing-commands`, `/config/ml/import-existing`, `/config/ml/assess` — pull historical wrapper/hook command data into ML samples and run command safety assessment
 - `/system/ls`
 - `/system/run`
 - `/system/env`

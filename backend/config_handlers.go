@@ -252,12 +252,12 @@ func handleConfigRulesGet(c *gin.Context) {
 	list := &pb.WrapperRuleList{}
 	for _, r := range wrapperRules {
 		list.Items = append(list.Items, &pb.WrapperRule{
-			Comm:        r.Comm,
-			Action:      r.Action,
+			Comm:         r.Comm,
+			Action:       r.Action,
 			RewrittenCmd: r.RewrittenCmd,
-			Regex:       r.Regex,
-			Replacement: r.Replacement,
-			Priority:    int32(r.Priority),
+			Regex:        r.Regex,
+			Replacement:  r.Replacement,
+			Priority:     int32(r.Priority),
 		})
 	}
 	writeProtoOrJSON(c, 200, list, wrapperRules)
@@ -357,7 +357,7 @@ func handleConfigExportGet(c *gin.Context) {
 	rulesMu.RUnlock()
 
 	protoCfg := &pb.ExportConfigData{
-		Tags: cfg.Tags,
+		Tags:  cfg.Tags,
 		Comms: make([]*pb.TrackedComm, 0, len(cfg.Comms)),
 		Paths: make([]*pb.TrackedPath, 0, len(cfg.Paths)),
 		Rules: make([]*pb.WrapperRule, 0, len(cfg.Rules)),
@@ -370,12 +370,12 @@ func handleConfigExportGet(c *gin.Context) {
 	}
 	for _, rule := range cfg.Rules {
 		protoCfg.Rules = append(protoCfg.Rules, &pb.WrapperRule{
-			Comm:        rule.Comm,
-			Action:      rule.Action,
+			Comm:         rule.Comm,
+			Action:       rule.Action,
 			RewrittenCmd: rule.RewrittenCmd,
-			Regex:       rule.Regex,
-			Replacement: rule.Replacement,
-			Priority:    int32(rule.Priority),
+			Regex:        rule.Regex,
+			Replacement:  rule.Replacement,
+			Priority:     int32(rule.Priority),
 		})
 	}
 	if cfg.Runtime != nil {
@@ -615,6 +615,9 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		ml.PUT("/samples/label", handleMLSampleLabelPut)
 		ml.PUT("/samples/anomaly", handleMLSampleAnomalyPut)
 		ml.DELETE("/samples/:index", handleMLSampleDelete)
+		ml.GET("/existing-commands", handleMLExistingCommandsGet)
+		ml.POST("/import-existing", handleMLImportExistingPost)
+		ml.POST("/assess", handleMLAssessPost)
 		ml.POST("/backtest", handleMLBacktestPost)
 	}
 
@@ -637,17 +640,17 @@ func handleMLStatusGet(c *gin.Context) {
 		logItems[i] = gin.H{"time": entry.Timestamp.Format("15:04:05"), "message": entry.Message}
 	}
 	writeProtoOrJSON(c, 200, status, gin.H{
-		"modelLoaded":         status.ModelLoaded,
-		"numTrees":            status.NumTrees,
-		"numSamples":          status.NumSamples,
-		"numLabeledSamples":   status.NumLabeledSamples,
-		"lastTrained":         status.LastTrained,
-		"testAccuracy":        status.TestAccuracy,
-		"modelPath":           status.ModelPath,
-		"trainingInProgress":  status.TrainingInProgress,
-		"trainingProgress":    status.TrainingProgress,
-		"mlEnabled":           mlEnabled,
-		"trainingLogs":        logItems,
+		"modelLoaded":        status.ModelLoaded,
+		"numTrees":           status.NumTrees,
+		"numSamples":         status.NumSamples,
+		"numLabeledSamples":  status.NumLabeledSamples,
+		"lastTrained":        status.LastTrained,
+		"testAccuracy":       status.TestAccuracy,
+		"modelPath":          status.ModelPath,
+		"trainingInProgress": status.TrainingInProgress,
+		"trainingProgress":   status.TrainingProgress,
+		"mlEnabled":          mlEnabled,
+		"trainingLogs":       logItems,
 		"hyperParams": gin.H{
 			"numTrees":       mlConfig.NumTrees,
 			"maxDepth":       mlConfig.MaxDepth,
@@ -717,9 +720,9 @@ func handleMLTrainPost(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{
-		"status":    "ok",
-		"accuracy":  result.Accuracy,
-		"numTrees":  result.NumTrees,
+		"status":     "ok",
+		"accuracy":   result.Accuracy,
+		"numTrees":   result.NumTrees,
 		"numSamples": result.NumSamples,
 	})
 }
@@ -846,9 +849,9 @@ func handleMLSampleAnomalyPut(c *gin.Context) {
 // handleMLSamplesPost adds a manually labeled training sample
 func handleMLSamplesPost(c *gin.Context) {
 	var req struct {
-		Comm   string   `json:"comm"`
-		Args   []string `json:"args"`
-		Label  string   `json:"label"` // "BLOCK", "ALERT", "ALLOW"
+		Comm  string   `json:"comm"`
+		Args  []string `json:"args"`
+		Label string   `json:"label"` // "BLOCK", "ALERT", "ALLOW"
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": "invalid request"})
@@ -889,68 +892,15 @@ func handleMLSamplesPost(c *gin.Context) {
 
 	total, labeled := globalTrainingStore.Status()
 	c.JSON(200, gin.H{
-		"status":        "ok",
-		"totalSamples":  total,
+		"status":         "ok",
+		"totalSamples":   total,
 		"labeledSamples": labeled,
 	})
 }
 
 // handleMLBacktestPost runs a point-in-time risk assessment on a given command
 func handleMLBacktestPost(c *gin.Context) {
-	var req struct {
-		Comm string   `json:"comm"`
-		Args []string `json:"args"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "invalid request"})
-		return
-	}
-	if req.Comm == "" {
-		c.JSON(400, gin.H{"error": "comm is required"})
-	}
-
-	// Layer 1: Regex-based classification
-	classification := ClassifyBehavior(req.Comm, req.Args)
-
-	// Embedding + anomaly scoring
-	_, emb := globalEmbedder.ClassifyAndEmbed(req.Comm, req.Args)
-	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
-
-	// Feature extraction for ML
-	features := globalFeatureExtractor.Extract(req.Comm, req.Args, "", 0)
-
-	// Layer 2: ML prediction (if available)
-	var mlPrediction Prediction
-	if mlEnabled && mlModelLoaded {
-		mlPrediction = mlEngine.Predict(features)
-	}
-
-	// Decision fusion (simulate what resolveAction would do)
-	simulatedAction, reason := resolveAction(
-		&pb.WrapperRequest{Comm: req.Comm, Args: req.Args},
-		"", 0, // no existing rule
-		classification, anomalyScore, mlPrediction, mlConfig,
-	)
-
-	// Network audit
-	cmdline := strings.Join(req.Args, " ")
-	netAudit := AuditNetworkBehavior(req.Comm, cmdline)
-
-	// Build overall risk score (0-100)
-	riskScore := computeRiskScore(classification, anomalyScore, mlPrediction, netAudit)
-
-	c.JSON(200, gin.H{
-		"comm":             req.Comm,
-		"args":             req.Args,
-		"classification":   classification,
-		"anomalyScore":     anomalyScore,
-		"mlPrediction":     gin.H{"action": actionLabel[mlPrediction.Action], "confidence": mlPrediction.Confidence},
-		"recommendedAction": actionLabel[int32(simulatedAction)],
-		"reasoning":        reason,
-		"riskScore":        riskScore,
-		"riskLevel":        riskLevel(riskScore),
-		"networkAudit":     netAudit,
-	})
+	handleMLAssessPost(c)
 }
 
 // computeRiskScore combines classification, anomaly, and ML into a 0-100 risk score
@@ -972,7 +922,7 @@ func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore fl
 			score += 8
 		case "PACKAGE_MANAGER", "COMPRESSION":
 			score += 5
-}
+		}
 
 		if classification.Confidence == "high" {
 			score += 10
