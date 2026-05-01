@@ -874,6 +874,7 @@ onMounted(async () => {
   fetchTrackedPrefixes();
   fetchRules();
   fetchDisabledEventTypes();
+  fetchMLStatus();
 });
 </script>
 

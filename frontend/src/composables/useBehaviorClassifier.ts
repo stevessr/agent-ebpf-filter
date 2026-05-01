@@ -41,3 +41,33 @@ export function getBehaviorLabel(category: string): string {
 export function getBehaviorColor(category: string): string {
   return behaviorCategoryColors[category] || 'default';
 }
+
+// ── ML score helpers ──
+
+export function getMLScoreColor(score: number): string {
+  if (score >= 0.85) return '#52c41a';
+  if (score >= 0.60) return '#faad14';
+  return '#ff4d4f';
+}
+
+export function getAnomalyScoreColor(score: number): string {
+  if (score <= 0.30) return '#52c41a';
+  if (score <= 0.70) return '#faad14';
+  return '#ff4d4f';
+}
+
+export function getAnomalyLevel(score: number): string {
+  if (score <= 0.30) return 'Normal';
+  if (score <= 0.70) return 'Suspicious';
+  return 'Anomalous';
+}
+
+export function formatMLScore(score: number | undefined | null): string {
+  if (score === undefined || score === null || score === 0) return '-';
+  return (score * 100).toFixed(0) + '%';
+}
+
+export function formatAnomalyScore(score: number | undefined | null): string {
+  if (score === undefined || score === null) return '-';
+  return score.toFixed(2);
+}
