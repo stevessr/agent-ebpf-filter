@@ -277,6 +277,110 @@ const newRuleReplacement = ref('');
 const newRulePriority = ref(0);
 const previewTestInput = ref('');
 
+type SecurityRuleAction = 'BLOCK' | 'ALERT';
+
+interface SecurityRulePreset {
+  comm: string;
+  action: SecurityRuleAction;
+  priority: number;
+  source: string;
+  summary: string;
+}
+
+const quickRulePresets: SecurityRulePreset[] = [
+  {
+    comm: 'rm',
+    action: 'BLOCK',
+    priority: 200,
+    source: 'Gemini CLI / Hermes',
+    summary: '递归删除、删除根目录或其他高风险删除操作',
+  },
+  {
+    comm: 'mkfs',
+    action: 'BLOCK',
+    priority: 200,
+    source: 'Hermes',
+    summary: '格式化磁盘 / 文件系统',
+  },
+  {
+    comm: 'dd',
+    action: 'BLOCK',
+    priority: 200,
+    source: 'Hermes',
+    summary: '原始磁盘复制、覆盖或破坏性写入',
+  },
+  {
+    comm: 'kill',
+    action: 'BLOCK',
+    priority: 200,
+    source: 'Hermes',
+    summary: '强制终止进程或进程组',
+  },
+  {
+    comm: 'pkill',
+    action: 'BLOCK',
+    priority: 200,
+    source: 'Hermes',
+    summary: '按模式强制终止进程',
+  },
+  {
+    comm: 'eval',
+    action: 'BLOCK',
+    priority: 200,
+    source: 'Codex',
+    summary: '动态执行 shell / 代码片段',
+  },
+  {
+    comm: 'chmod',
+    action: 'ALERT',
+    priority: 180,
+    source: 'Hermes',
+    summary: '世界可写、递归权限变更等高风险权限修改',
+  },
+  {
+    comm: 'chown',
+    action: 'ALERT',
+    priority: 180,
+    source: 'Hermes',
+    summary: '递归改 owner / root 归属变更',
+  },
+  {
+    comm: 'systemctl',
+    action: 'ALERT',
+    priority: 180,
+    source: 'Hermes',
+    summary: '停止、禁用或掩蔽系统服务',
+  },
+  {
+    comm: 'git',
+    action: 'ALERT',
+    priority: 180,
+    source: 'Gemini CLI',
+    summary: '对 git 操作先提醒确认',
+  },
+  {
+    comm: 'curl',
+    action: 'ALERT',
+    priority: 180,
+    source: 'Codex',
+    summary: 'curl | bash 一类的下载即执行模式',
+  },
+  {
+    comm: 'bash',
+    action: 'ALERT',
+    priority: 180,
+    source: 'Codex',
+    summary: 'bash -c / shell payload 执行',
+  },
+  {
+    comm: 'sudo',
+    action: 'ALERT',
+    priority: 180,
+    source: 'Cross-agent baseline',
+    summary: '特权提升 / 提权执行',
+  },
+];
+
 // ── eBPF Syscall Interception ────────────────────────────────────────
 interface SyscallDef {
   type: number; name: string; desc: string;
@@ -684,6 +788,31 @@ const fetchRules = async () => {
   } catch (err) {}
 };
 
+const postRule = async (rule: WrapperRule) => {
+  await axios.post('/config/rules', rule);
+};
+
+const buildManualRulePayload = (): WrapperRule => ({
+  comm: newRuleComm.value,
+  action: newRuleAction.value,
+  rewritten_cmd:
+    newRuleAction.value === 'REWRITE' && !newRuleRegex.value
+      ? newRuleRewritten.value.split(' ').filter((s) => s)
+      : [],
+  regex: newRuleRegex.value,
+  replacement: newRuleReplacement.value,
+  priority: newRulePriority.value,
+});
+
+const resetRuleForm = () => {
+  newRuleComm.value = '';
+  newRuleRewritten.value = '';
+  newRuleRegex.value = '';
+  newRuleReplacement.value = '';
+  newRulePriority.value = 0;
+  previewTestInput.value = '';
+};
+
 const addTag = async () => {
   if (!newTagName.value) return;
   try {
@@ -783,23 +912,52 @@ const removePrefix = async (prefix: string) => {
 const saveRule = async () => {
   if (!newRuleComm.value) return;
   try {
-    const rule: WrapperRule = {
-      comm: newRuleComm.value,
-      action: newRuleAction.value,
-      rewritten_cmd: newRuleAction.value === 'REWRITE' && !newRuleRegex.value ? newRuleRewritten.value.split(' ').filter(s => s) : [],
-      regex: newRuleRegex.value,
-      replacement: newRuleReplacement.value,
-      priority: newRulePriority.value
-    };
-    await axios.post('/config/rules', rule);
+    await postRule(buildManualRulePayload());
     message.success('Rule saved');
-    newRuleComm.value = '';
-    newRuleRewritten.value = '';
-    newRuleRegex.value = '';
-    newRuleReplacement.value = '';
-    newRulePriority.value = 0;
-    fetchRules();
-  } catch (err) {}
+    resetRuleForm();
+    await fetchRules();
+  } catch (err) {
+    message.error('Failed to save rule');
+  }
+};
+
+const addQuickRulePreset = async (preset: SecurityRulePreset) => {
+  try {
+    await postRule({
+      comm: preset.comm,
+      action: preset.action,
+      rewritten_cmd: [],
+      priority: preset.priority,
+    });
+    message.success(`已添加预设：${preset.comm} → ${preset.action}`);
+    await fetchRules();
+  } catch (err) {
+    message.error(`Failed to add preset rule: ${preset.comm}`);
+  }
+};
+
+const addAllQuickRulePresets = async () => {
+  let success = 0;
+  let failed = 0;
+  for (const preset of quickRulePresets) {
+    try {
+      await postRule({
+        comm: preset.comm,
+        action: preset.action,
+        rewritten_cmd: [],
+        priority: preset.priority,
+      });
+      success++;
+    } catch (err) {
+      failed++;
+    }
+  }
+  await fetchRules();
+  if (failed > 0) {
+    message.warning(`一键添加完成：成功 ${success} 条，失败 ${failed} 条`);
+  } else {
+    message.success(`一键添加完成：写入/更新 ${success} 条预设规则`);
+  }
 };
 
 const deleteRule = async (comm: string) => {
@@ -2200,6 +2358,42 @@ onMounted(async () => {
           <a-col :span="24">
             <a-card title="Wrapper Security Policies" size="small">
               <template #extra><SafetyCertificateOutlined /></template>
+              <a-alert
+                type="info"
+                show-icon
+                style="margin-bottom: 12px;"
+                message="快捷按钮会按 comm 精确匹配直接写入规则；更细的参数条件仍可在下方手动补充 regex、rewrite 或 priority。"
+              />
+              <div style="margin-bottom: 16px; background: #fafafa; padding: 16px; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px;">
+                  <div>
+                    <div style="font-weight: 600;">典型规则快捷添加</div>
+                    <div style="font-size: 12px; color: #999;">
+                      参考 Gemini CLI / Codex / Hermes 的常见高风险命令，点击即可写入预设规则。
+                    </div>
+                  </div>
+                  <a-button size="small" type="link" @click="addAllQuickRulePresets">一键添加全部</a-button>
+                </div>
+                <a-space wrap>
+                  <a-tooltip
+                    v-for="preset in quickRulePresets"
+                    :key="`${preset.comm}-${preset.action}`"
+                    :title="`${preset.source} · ${preset.summary}`"
+                  >
+                    <a-button
+                      size="small"
+                      :type="preset.action === 'BLOCK' ? 'primary' : 'default'"
+                      :danger="preset.action === 'BLOCK'"
+                      :style="preset.action === 'ALERT' ? 'border-color: #faad14; color: #d48806;' : ''"
+                      @click="addQuickRulePreset(preset)"
+                    >
+                      <component :is="preset.action === 'BLOCK' ? StopOutlined : AlertOutlined" />
+                      <span style="margin-left: 4px;">{{ preset.comm }}</span>
+                      <span style="margin-left: 4px; opacity: 0.72;">{{ preset.action }}</span>
+                    </a-button>
+                  </a-tooltip>
+                </a-space>
+              </div>
               <div style="margin-bottom: 16px; background: #fafafa; padding: 16px; border-radius: 8px;">
                 <a-row :gutter="[16, 16]" align="middle">
                   <a-col :xs="24" :md="5">
