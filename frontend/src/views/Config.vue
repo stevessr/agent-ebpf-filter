@@ -808,20 +808,12 @@ const fetchMLStatus = async () => {
       mlThresholds.value.lowAnomalyThreshold = res.data.lowAnomalyThreshold || 0.30;
       mlThresholds.value.highAnomalyThreshold = res.data.highAnomalyThreshold || 0.70;
     }
+    if (res.data.hyperParams) {
+      hyperParams.value.numTrees = res.data.hyperParams.numTrees || 31;
+      hyperParams.value.maxDepth = res.data.hyperParams.maxDepth || 8;
+      hyperParams.value.minSamplesLeaf = res.data.hyperParams.minSamplesLeaf || 5;
+    }
   } catch (_) {}
-};
-
-const trainModel = async () => {
-  trainingModel.value = true;
-  try {
-    const res = await axios.post('/config/ml/train');
-    message.success(`Model trained: accuracy=${(res.data.accuracy * 100).toFixed(1)}%`);
-    await fetchMLStatus();
-  } catch (e: any) {
-    message.error(e.response?.data?.error || 'Training failed');
-  } finally {
-    trainingModel.value = false;
-  }
 };
 
 const submitFeedback = async () => {
@@ -856,11 +848,74 @@ const saveMLThresholds = async () => {
         minSamplesForTraining: 1000,
         activeLearningEnabled: false,
         featureHistorySize: 100,
+        numTrees: hyperParams.value.numTrees,
+        maxDepth: hyperParams.value.maxDepth,
+        minSamplesLeaf: hyperParams.value.minSamplesLeaf,
       },
     });
     message.success('ML thresholds saved');
   } catch (_) {
     message.error('Failed to save thresholds');
+  }
+};
+
+// ── Sample data browser ──
+interface SampleEntry {
+  index: number; comm: string; args: string[]; label: string;
+  category: string; anomalyScore: number; timestamp: string; userLabel: string;
+}
+const allSamples = ref<SampleEntry[]>([]);
+const loadingSamples = ref(false);
+const sampleTablePageSize = ref(15);
+
+const fetchAllSamples = async () => {
+  loadingSamples.value = true;
+  try {
+    const res = await axios.get('/config/ml/samples');
+    allSamples.value = res.data.samples || [];
+  } catch (_) {} finally {
+    loadingSamples.value = false;
+  }
+};
+
+const labelSample = async (index: number, label: string) => {
+  try {
+    await axios.put('/config/ml/samples/label', { index, label });
+    const entry = allSamples.value.find(s => s.index === index);
+    if (entry) { entry.label = label; entry.userLabel = 'manual-index'; }
+    message.success(`Sample #${index} labeled as ${label}`);
+  } catch (e: any) {
+    message.error('Failed to label sample');
+  }
+};
+
+const getLabelColor = (label: string) => {
+  const m: Record<string, string> = {
+    'BLOCK': 'red', 'ALERT': 'orange', 'ALLOW': 'green', 'REWRITE': 'blue', '-': 'default',
+  };
+  return m[label] || 'default';
+};
+
+// ── Hyperparameters ──
+const hyperParams = ref({ numTrees: 31, maxDepth: 8, minSamplesLeaf: 5 });
+
+const trainWithParams = async () => {
+  trainingModel.value = true;
+  try {
+    // Save hyperparams first
+    await saveMLThresholds();
+    // Then train with them
+    const res = await axios.post('/config/ml/train', {
+      numTrees: hyperParams.value.numTrees,
+      maxDepth: hyperParams.value.maxDepth,
+      minSamplesLeaf: hyperParams.value.minSamplesLeaf,
+    });
+    message.success(`Model trained: accuracy=${(res.data.accuracy * 100).toFixed(1)}%, ${res.data.numTrees} trees`);
+    await fetchMLStatus();
+  } catch (e: any) {
+    message.error(e.response?.data?.error || 'Training failed');
+  } finally {
+    trainingModel.value = false;
   }
 };
 
@@ -1655,7 +1710,7 @@ onMounted(async () => {
           <a-col :xs="24" :md="12">
             <a-card title="Training Controls" size="small">
               <a-space direction="vertical" style="width: 100%">
-                <a-button type="primary" @click="trainModel" :loading="trainingModel" block>
+                <a-button type="primary" @click="trainWithParams" :loading="trainingModel" block>
                   Train Model Now
                 </a-button>
                 <a-divider style="margin: 8px 0">Batch Feedback</a-divider>
@@ -1672,7 +1727,94 @@ onMounted(async () => {
             </a-card>
           </a-col>
 
-          <!-- Row 2: Manual Training Data -->
+          <!-- Row 2: Sample Data Browser -->
+          <a-col :xs="24">
+            <a-card size="small">
+              <template #title>
+                <span>Training Data Browser</span>
+                <a-tag color="purple" style="margin-left: 8px">{{ allSamples.length }} total</a-tag>
+              </template>
+              <template #extra>
+                <a-button size="small" @click="fetchAllSamples" :loading="loadingSamples">
+                  <ReloadOutlined /> Refresh
+                </a-button>
+              </template>
+              <a-table
+                :dataSource="allSamples"
+                :pagination="{ pageSize: sampleTablePageSize, showSizeChanger: true, pageSizeOptions: ['10','15','30','50'], showTotal: (t:number) => `${t} samples` }"
+                :scroll="{ x: 900 }"
+                size="small"
+                rowKey="index"
+              >
+                <a-table-column title="#" dataIndex="index" :width="50" />
+                <a-table-column title="Comm" dataIndex="comm" :width="100">
+                  <template #default="{ record }">
+                    <strong>{{ record.comm }}</strong>
+                  </template>
+                </a-table-column>
+                <a-table-column title="Args" dataIndex="args" :width="200" ellipsis>
+                  <template #default="{ record }">
+                    <span style="font-size: 12px; color: #666">{{ (record.args || []).join(' ') || '—' }}</span>
+                  </template>
+                </a-table-column>
+                <a-table-column title="Category" dataIndex="category" :width="110">
+                  <template #default="{ record }">
+                    <a-tag :color="getCategoryColor(record.category)" size="small">{{ record.category }}</a-tag>
+                  </template>
+                </a-table-column>
+                <a-table-column title="Anomaly" dataIndex="anomalyScore" :width="80">
+                  <template #default="{ record }">
+                    <span :style="{ color: record.anomalyScore > 0.7 ? '#d4380d' : record.anomalyScore > 0.3 ? '#d48806' : '#52c41a' }">{{ record.anomalyScore?.toFixed(2) }}</span>
+                  </template>
+                </a-table-column>
+                <a-table-column title="Label" dataIndex="label" :width="90">
+                  <template #default="{ record }">
+                    <a-tag :color="getLabelColor(record.label)" size="small">{{ record.label }}</a-tag>
+                  </template>
+                </a-table-column>
+                <a-table-column title="Actions" :width="200">
+                  <template #default="{ record }">
+                    <a-space :size="4">
+                      <a-button size="small" type="primary" ghost @click="labelSample(record.index, 'ALLOW')" :disabled="record.label === 'ALLOW'">ALLOW</a-button>
+                      <a-button size="small" style="border-color: #faad14; color: #d48806" ghost @click="labelSample(record.index, 'ALERT')" :disabled="record.label === 'ALERT'">ALERT</a-button>
+                      <a-button size="small" danger ghost @click="labelSample(record.index, 'BLOCK')" :disabled="record.label === 'BLOCK'">BLOCK</a-button>
+                    </a-space>
+                  </template>
+                </a-table-column>
+              </a-table>
+            </a-card>
+          </a-col>
+
+          <!-- Row: Model Hyperparameters -->
+          <a-col :xs="24">
+            <a-card title="Model Hyperparameters" size="small">
+              <template #extra>
+                <a-tag color="geekblue">调整神经元层数和训练参数</a-tag>
+              </template>
+              <a-row :gutter="[24, 16]">
+                <a-col :xs="24" :md="8">
+                  <span style="font-weight: 600">Num Trees (树的数量)</span>
+                  <a-slider v-model:value="hyperParams.numTrees" :min="5" :max="200" :step="1" />
+                  <a-input-number v-model:value="hyperParams.numTrees" :min="5" :max="200" size="small" style="width: 100%" />
+                  <div style="font-size: 11px; color: #999">更多树 = 更高精度但更慢训练。推荐 31-101</div>
+                </a-col>
+                <a-col :xs="24" :md="8">
+                  <span style="font-weight: 600">Max Depth (最大深度)</span>
+                  <a-slider v-model:value="hyperParams.maxDepth" :min="3" :max="20" :step="1" />
+                  <a-input-number v-model:value="hyperParams.maxDepth" :min="3" :max="20" size="small" style="width: 100%" />
+                  <div style="font-size: 11px; color: #999">更深的树 = 更复杂决策边界。推荐 6-12</div>
+                </a-col>
+                <a-col :xs="24" :md="8">
+                  <span style="font-weight: 600">Min Samples Leaf (叶节点最小样本)</span>
+                  <a-slider v-model:value="hyperParams.minSamplesLeaf" :min="1" :max="50" :step="1" />
+                  <a-input-number v-model:value="hyperParams.minSamplesLeaf" :min="1" :max="50" size="small" style="width: 100%" />
+                  <div style="font-size: 11px; color: #999">更大值防止过拟合。推荐 2-10</div>
+                </a-col>
+              </a-row>
+            </a-card>
+          </a-col>
+
+          <!-- Row 4: Manual Training Data -->
           <a-col :xs="24">
             <a-card title="Manual Training Data" size="small">
               <template #extra>
@@ -1721,7 +1863,7 @@ onMounted(async () => {
             </a-card>
           </a-col>
 
-          <!-- Row 3: Backtesting -->
+          <!-- Row 5: Backtesting -->
           <a-col :xs="24">
             <a-card title="Risk Backtesting" size="small">
               <template #extra>
@@ -1807,7 +1949,7 @@ onMounted(async () => {
             </a-card>
           </a-col>
 
-          <!-- Row 4: Detection Thresholds -->
+          <!-- Row 6: Detection Thresholds -->
           <a-col :xs="24">
             <a-card title="Detection Thresholds" size="small">
               <a-row :gutter="[24, 16]">

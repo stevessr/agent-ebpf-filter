@@ -31,8 +31,16 @@ export default defineConfig({
       '/shell-sessions': backendUrl,
       '/mcp': backendUrl,
       '/cluster': backendUrl,
+      '/data': backendUrl,
       // Proxy API calls but let frontend handle UI routes
-      '^/config/(tags|comms|paths|prefixes|rules|runtime|access-token|export|import|hooks).*': backendUrl,
+      '^/config/(tags|comms|paths|prefixes|rules|runtime|access-token|export|import|hooks|ml|event-types).*': {
+        target: backendUrl,
+        bypass: (req) => {
+          if (req.headers.accept?.includes('text/html')) {
+            return '/index.html';
+          }
+        },
+      },
       '/system': backendUrl,
     },
   },

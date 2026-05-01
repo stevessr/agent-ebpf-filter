@@ -192,6 +192,15 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings.MLConfig.ModelPath == "" {
 		settings.MLConfig.ModelPath = filepath.Join(runtimeSettingsDir(), "ml_model.bin")
 	}
+	if settings.MLConfig.NumTrees == 0 {
+		settings.MLConfig.NumTrees = 31
+	}
+	if settings.MLConfig.MaxDepth == 0 {
+		settings.MLConfig.MaxDepth = 8
+	}
+	if settings.MLConfig.MinSamplesLeaf == 0 {
+		settings.MLConfig.MinSamplesLeaf = 5
+	}
 	settings.MLConfig.Enabled = true
 	return nil
 }

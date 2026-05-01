@@ -21,6 +21,9 @@ type MLConfig struct {
 	RuleOverridePriority     int     `json:"ruleOverridePriority"`
 	ActiveLearningEnabled    bool    `json:"activeLearningEnabled"`
 	FeatureHistorySize       int     `json:"featureHistorySize"`
+	NumTrees                 int     `json:"numTrees"`
+	MaxDepth                 int     `json:"maxDepth"`
+	MinSamplesLeaf           int     `json:"minSamplesLeaf"`
 }
 
 // DefaultMLConfig returns sensible defaults
@@ -38,6 +41,9 @@ func DefaultMLConfig() MLConfig {
 		RuleOverridePriority:     100,
 		ActiveLearningEnabled:    false,
 		FeatureHistorySize:       100,
+		NumTrees:                 31,
+		MaxDepth:                 8,
+		MinSamplesLeaf:           5,
 	}
 }
 
@@ -194,7 +200,7 @@ func mlAutoTrainLoop() {
 		_, labeled := globalTrainingStore.Status()
 		if labeled >= mlConfig.MinSamplesForTraining {
 			log.Printf("[ML] Auto-training triggered: %d labeled samples available", labeled)
-			forest, result := globalTrainer.Train(globalTrainingStore, 31, 8, 5)
+			forest, result := globalTrainer.Train(globalTrainingStore, mlConfig.NumTrees, mlConfig.MaxDepth, mlConfig.MinSamplesLeaf)
 			if result.Error != "" {
 				log.Printf("[ML] Auto-training failed: %s", result.Error)
 				continue

@@ -608,7 +608,9 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		ml.GET("/status", handleMLStatusGet)
 		ml.POST("/train", handleMLTrainPost)
 		ml.POST("/feedback", handleMLFeedbackPost)
+		ml.GET("/samples", handleMLSamplesGet)
 		ml.POST("/samples", handleMLSamplesPost)
+		ml.PUT("/samples/label", handleMLSampleLabelPut)
 		ml.POST("/backtest", handleMLBacktestPost)
 	}
 
@@ -636,6 +638,11 @@ func handleMLStatusGet(c *gin.Context) {
 		"trainingInProgress":  status.TrainingInProgress,
 		"trainingProgress":    status.TrainingProgress,
 		"mlEnabled":           mlEnabled,
+		"hyperParams": gin.H{
+			"numTrees":       mlConfig.NumTrees,
+			"maxDepth":       mlConfig.MaxDepth,
+			"minSamplesLeaf": mlConfig.MinSamplesLeaf,
+		},
 	})
 }
 
@@ -644,7 +651,29 @@ func handleMLTrainPost(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "ML engine is not enabled on this node"})
 		return
 	}
-	forest, result := globalTrainer.Train(globalTrainingStore, 31, 8, 5)
+
+	// Accept optional hyperparameter overrides
+	var req struct {
+		NumTrees       int `json:"numTrees"`
+		MaxDepth       int `json:"maxDepth"`
+		MinSamplesLeaf int `json:"minSamplesLeaf"`
+	}
+	_ = c.ShouldBindJSON(&req)
+
+	numTrees := mlConfig.NumTrees
+	if req.NumTrees > 0 {
+		numTrees = req.NumTrees
+	}
+	maxDepth := mlConfig.MaxDepth
+	if req.MaxDepth > 0 {
+		maxDepth = req.MaxDepth
+	}
+	minLeaf := mlConfig.MinSamplesLeaf
+	if req.MinSamplesLeaf > 0 {
+		minLeaf = req.MinSamplesLeaf
+	}
+
+	forest, result := globalTrainer.Train(globalTrainingStore, numTrees, maxDepth, minLeaf)
 	if result.Error != "" {
 		c.JSON(500, gin.H{"error": result.Error})
 		return
@@ -684,6 +713,64 @@ func handleMLFeedbackPost(c *gin.Context) {
 	}
 	matched := globalTrainingStore.ApplyFeedback(req.Comm, req.UserAction)
 	c.JSON(200, gin.H{"status": "ok", "matched": matched})
+}
+
+// handleMLSamplesGet returns all training samples for the data browser
+func handleMLSamplesGet(c *gin.Context) {
+	if globalTrainingStore == nil {
+		c.JSON(400, gin.H{"error": "ML training store not initialized"})
+		return
+	}
+	items := globalTrainingStore.AllSamplesWithIndex()
+	type sampleJSON struct {
+		Index        int      `json:"index"`
+		Comm         string   `json:"comm"`
+		Args         []string `json:"args"`
+		Label        string   `json:"label"`
+		Category     string   `json:"category"`
+		AnomalyScore float64  `json:"anomalyScore"`
+		Timestamp    string   `json:"timestamp"`
+		UserLabel    string   `json:"userLabel"`
+	}
+	out := make([]sampleJSON, 0, len(items))
+	for _, it := range items {
+		lbl := "-"
+		if it.Sample.Label >= 0 {
+			lbl = actionLabel[it.Sample.Label]
+		}
+		out = append(out, sampleJSON{
+			Index:        it.Index,
+			Comm:         it.Sample.Comm,
+			Args:         it.Sample.Args,
+			Label:        lbl,
+			Category:     it.Sample.Category,
+			AnomalyScore: it.Sample.AnomalyScore,
+			Timestamp:    it.Sample.Timestamp.Format(time.RFC3339),
+			UserLabel:    it.Sample.UserLabel,
+		})
+	}
+	c.JSON(200, gin.H{"samples": out, "total": len(out)})
+}
+
+// handleMLSampleLabelPut labels a specific sample by its ring index
+func handleMLSampleLabelPut(c *gin.Context) {
+	var req struct {
+		Index int    `json:"index"`
+		Label string `json:"label"` // "BLOCK", "ALERT", "ALLOW"
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
+	if globalTrainingStore == nil {
+		c.JSON(400, gin.H{"error": "ML training store not initialized"})
+		return
+	}
+	if !globalTrainingStore.LabelSample(req.Index, req.Label) {
+		c.JSON(400, gin.H{"error": "invalid index or sample not found"})
+		return
+	}
+	c.JSON(200, gin.H{"status": "ok"})
 }
 
 // handleMLSamplesPost adds a manually labeled training sample

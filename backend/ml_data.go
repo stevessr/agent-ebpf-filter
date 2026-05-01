@@ -131,6 +131,61 @@ func (s *TrainingDataStore) ApplyFeedback(comm string, userAction string) int {
 	return matched
 }
 
+// LabelSample labels a specific sample by its index in the ring buffer
+func (s *TrainingDataStore) LabelSample(index int, label string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if index < 0 || index >= s.maxSamples {
+		return false
+	}
+	if s.samples[index].Timestamp.IsZero() {
+		return false
+	}
+
+	labelInt := int32(-1)
+	switch label {
+	case "BLOCK":
+		labelInt = 1
+	case "ALERT":
+		labelInt = 3
+	case "ALLOW":
+		labelInt = 0
+	case "REWRITE":
+		labelInt = 2
+	default:
+		return false
+	}
+
+	s.samples[index].Label = labelInt
+	s.samples[index].UserLabel = "manual-index"
+	s.dirtyCount++
+	return true
+}
+
+// AllSamplesWithIndex returns all non-zero samples with their ring buffer index
+func (s *TrainingDataStore) AllSamplesWithIndex() []struct {
+	Index  int
+	Sample TrainingSample
+} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var out []struct {
+		Index  int
+		Sample TrainingSample
+	}
+	for i := range s.samples {
+		if !s.samples[i].Timestamp.IsZero() {
+			out = append(out, struct {
+				Index  int
+				Sample TrainingSample
+			}{Index: i, Sample: s.samples[i]})
+		}
+	}
+	return out
+}
+
 // Status returns summary statistics
 func (s *TrainingDataStore) Status() (totalSamples, labeledSamples int) {
 	s.mu.RLock()
