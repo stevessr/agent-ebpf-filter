@@ -798,7 +798,12 @@ const mlThresholds = ref({
 const trainingLogs = ref<{ time: string; message: string }[]>([]);
 const logPollTimer = ref<ReturnType<typeof setInterval> | null>(null);
 const trainingHistory = ref<any[]>([]);
+const mlSubTabKey = ref(localStorage.getItem('config_ml_subtab') || 'status');
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+
+watch(mlSubTabKey, (val) => {
+  localStorage.setItem('config_ml_subtab', val);
+});
 
 const startLogPolling = () => {
   if (logPollTimer.value) return;
@@ -943,6 +948,32 @@ interface ExistingCommandCandidate {
   commandLine: string; comm: string; args: string[]; eventType: string; source: string;
   category: string; timestamp: string; duplicate: boolean;
 }
+interface RemoteDatasetRow {
+  row: number;
+  commandLine: string;
+  comm: string;
+  args: string[];
+  label: string;
+  labelSource: string;
+  category: string;
+  anomalyScore: number;
+  timestamp: string;
+  userLabel: string;
+  duplicate: boolean;
+}
+interface RemoteDatasetResponse {
+  source: string;
+  format: string;
+  contentType: string;
+  total: number;
+  limit: number;
+  truncated: boolean;
+  imported?: number;
+  skipped?: number;
+  totalSamples?: number;
+  labeledSamples?: number;
+  rows?: RemoteDatasetRow[];
+}
 const allSamples = ref<SampleEntry[]>([]);
 const loadingSamples = ref(false);
 const sampleTablePageSize = ref(15);
@@ -953,6 +984,14 @@ const existingCommandCandidates = ref<ExistingCommandCandidate[]>([]);
 const loadingExistingData = ref(false);
 const importingExistingData = ref(false);
 const existingDataSource = ref('');
+const remoteDatasetUrl = ref('');
+const remoteDatasetFormat = ref<'auto' | 'json' | 'jsonl' | 'csv' | 'tsv' | 'text'>('auto');
+const remoteDatasetLabelMode = ref<'preserve' | 'unlabeled' | 'heuristic'>('preserve');
+const remoteDatasetLimit = ref(200);
+const loadingRemoteDataset = ref(false);
+const importingRemoteDataset = ref(false);
+const remoteDatasetPreview = ref<RemoteDatasetRow[]>([]);
+const remoteDatasetMeta = ref<RemoteDatasetResponse | null>(null);
 const dataMaskEnabled = ref(false);
 
 const maskSensitiveData = (text: string): string => {
@@ -1042,6 +1081,55 @@ const importExistingCommandData = async () => {
     message.error(e.response?.data?.error || '导入已有命令数据失败');
   } finally {
     importingExistingData.value = false;
+  }
+};
+
+const fetchRemoteDatasetPreview = async () => {
+  if (!remoteDatasetUrl.value.trim()) {
+    message.warning('请输入数据集 URL');
+    return;
+  }
+  loadingRemoteDataset.value = true;
+  try {
+    const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/pull', {
+      url: remoteDatasetUrl.value.trim(),
+      format: remoteDatasetFormat.value,
+      limit: remoteDatasetLimit.value,
+      labelMode: remoteDatasetLabelMode.value,
+    });
+    remoteDatasetMeta.value = res.data;
+    remoteDatasetPreview.value = res.data.rows || [];
+    message.success(`拉取到 ${res.data.total || 0} 条远程数据`);
+  } catch (e: any) {
+    message.error(e.response?.data?.error || '拉取远程数据集失败');
+  } finally {
+    loadingRemoteDataset.value = false;
+  }
+};
+
+const importRemoteDataset = async () => {
+  if (!remoteDatasetUrl.value.trim()) {
+    message.warning('请输入数据集 URL');
+    return;
+  }
+  importingRemoteDataset.value = true;
+  try {
+    const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/import', {
+      url: remoteDatasetUrl.value.trim(),
+      format: remoteDatasetFormat.value,
+      limit: remoteDatasetLimit.value,
+      labelMode: remoteDatasetLabelMode.value,
+    });
+    remoteDatasetMeta.value = res.data;
+    remoteDatasetPreview.value = res.data.rows || [];
+    message.success(`导入 ${res.data.imported || 0} 条，跳过 ${res.data.skipped || 0} 条`);
+    await fetchMLStatus();
+    await fetchAllSamples();
+    await fetchExistingCommandData();
+  } catch (e: any) {
+    message.error(e.response?.data?.error || '导入远程数据集失败');
+  } finally {
+    importingRemoteDataset.value = false;
   }
 };
 

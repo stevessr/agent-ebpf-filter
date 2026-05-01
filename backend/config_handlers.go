@@ -618,6 +618,8 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		ml.GET("/existing-commands", handleMLExistingCommandsGet)
 		ml.POST("/import-existing", handleMLImportExistingPost)
 		ml.POST("/assess", handleMLAssessPost)
+		ml.POST("/datasets/pull", handleMLDatasetPullPost)
+		ml.POST("/datasets/import", handleMLDatasetImportPost)
 		ml.POST("/backtest", handleMLBacktestPost)
 	}
 
