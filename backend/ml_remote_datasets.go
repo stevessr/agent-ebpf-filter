@@ -490,39 +490,45 @@ func unxzRemoteDatasetPayload(data []byte) ([]byte, error) {
 }
 
 func isZipPayload(data []byte, contentType, source string) bool {
+	if len(data) >= 4 && bytes.Equal(data[:4], []byte("PK\x03\x04")) {
+		return true
+	}
 	ct := strings.ToLower(strings.TrimSpace(contentType))
 	if strings.Contains(ct, "zip") {
 		return true
 	}
 	lower := strings.ToLower(source)
-	return strings.HasSuffix(lower, ".zip") || (len(data) >= 4 && bytes.Equal(data[:4], []byte("PK\x03\x04")))
+	return strings.HasSuffix(lower, ".zip") || strings.HasSuffix(lower, ".jar") || strings.HasSuffix(lower, ".war")
 }
 
 func isTarPayload(data []byte, contentType, source string) bool {
+	if len(data) >= 262 && bytes.Equal(data[257:262], []byte("ustar")) {
+		return true
+	}
 	ct := strings.ToLower(strings.TrimSpace(contentType))
 	if strings.Contains(ct, "tar") {
 		return true
 	}
 	lower := strings.ToLower(source)
-	if strings.HasSuffix(lower, ".tar") {
-		return true
-	}
-	return len(data) >= 262 && bytes.Equal(data[257:262], []byte("ustar"))
+	return strings.HasSuffix(lower, ".tar")
 }
 
 func isGzipPayload(data []byte, contentType, source string) bool {
+	if len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b {
+		return true
+	}
 	ct := strings.ToLower(strings.TrimSpace(contentType))
 	if strings.Contains(ct, "gzip") || strings.Contains(ct, "x-gzip") {
 		return true
 	}
 	lower := strings.ToLower(source)
-	if strings.HasSuffix(lower, ".gz") || strings.HasSuffix(lower, ".tgz") || strings.HasSuffix(lower, ".tar.gz") {
-		return true
-	}
-	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
+	return strings.HasSuffix(lower, ".gz") || strings.HasSuffix(lower, ".tgz") || strings.HasSuffix(lower, ".tar.gz")
 }
 
 func isBzip2Payload(data []byte, contentType, source string) bool {
+	if len(data) >= 3 && bytes.Equal(data[:3], []byte("BZh")) {
+		return true
+	}
 	ct := strings.ToLower(strings.TrimSpace(contentType))
 	if strings.Contains(ct, "bzip2") || strings.Contains(ct, "x-bzip2") {
 		return true
@@ -532,15 +538,15 @@ func isBzip2Payload(data []byte, contentType, source string) bool {
 }
 
 func isXzPayload(data []byte, contentType, source string) bool {
+	if len(data) >= 6 && bytes.Equal(data[:6], []byte{0xfd, '7', 'z', 'X', 'Z', 0x00}) {
+		return true
+	}
 	ct := strings.ToLower(strings.TrimSpace(contentType))
 	if strings.Contains(ct, "x-xz") || strings.Contains(ct, "xz") {
 		return true
 	}
 	lower := strings.ToLower(source)
-	if strings.HasSuffix(lower, ".xz") || strings.HasSuffix(lower, ".txz") {
-		return true
-	}
-	return len(data) >= 6 && bytes.Equal(data[:6], []byte{0xfd, '7', 'z', 'X', 'Z', 0x00})
+	return strings.HasSuffix(lower, ".xz") || strings.HasSuffix(lower, ".txz")
 }
 
 func stripCompressionSuffix(source string) string {
@@ -598,7 +604,19 @@ func shouldSkipArchiveMember(name string) bool {
 		strings.HasSuffix(base, ".jpg"),
 		strings.HasSuffix(base, ".jpeg"),
 		strings.HasSuffix(base, ".gif"),
-		strings.HasSuffix(base, ".svg"):
+		strings.HasSuffix(base, ".svg"),
+		strings.HasSuffix(base, ".exe"),
+		strings.HasSuffix(base, ".dll"),
+		strings.HasSuffix(base, ".so"),
+		strings.HasSuffix(base, ".o"),
+		strings.HasSuffix(base, ".a"),
+		strings.HasSuffix(base, ".pyc"),
+		strings.HasSuffix(base, ".class"),
+		strings.HasSuffix(base, ".zip"),
+		strings.HasSuffix(base, ".gz"),
+		strings.HasSuffix(base, ".tar"),
+		strings.HasSuffix(base, ".bz2"),
+		strings.HasSuffix(base, ".xz"):
 		return true
 	}
 	return false
@@ -618,17 +636,24 @@ func mergeDatasetFormat(current, next string) string {
 	}
 	return "archive"
 }
-
 func looksLikeHTMLDataset(raw []byte, contentType string) bool {
 	ct := strings.ToLower(strings.TrimSpace(contentType))
 	if strings.Contains(ct, "text/html") || strings.Contains(ct, "application/xhtml") {
 		return true
 	}
 
-	trimmed := strings.ToLower(strings.TrimSpace(string(raw)))
+	if isBinary(raw) {
+		return false
+	}
+
+	// Only check the first few hundred bytes for common HTML tags
+	checkLen := len(raw)
+	if checkLen > 1024 {
+		checkLen = 1024
+	}
+	trimmed := strings.ToLower(strings.TrimSpace(string(raw[:checkLen])))
 	return strings.HasPrefix(trimmed, "<!doctype html") ||
 		strings.HasPrefix(trimmed, "<html") ||
-		strings.HasPrefix(trimmed, "<head") ||
 		strings.HasPrefix(trimmed, "<body")
 }
 
@@ -771,10 +796,41 @@ func trainingSampleToRemoteDatasetRow(index int, sample TrainingSample) remoteDa
 	}
 }
 
+func isBinary(data []byte) bool {
+	if len(data) == 0 {
+		return false
+	}
+	// Check first 1024 bytes for null bytes or excessive non-printable characters
+	checkLen := len(data)
+	if checkLen > 1024 {
+		checkLen = 1024
+	}
+	nullCount := 0
+	controlCount := 0
+	for i := 0; i < checkLen; i++ {
+		b := data[i]
+		if b == 0 {
+			nullCount++
+		} else if b < 32 && b != '\n' && b != '\r' && b != '\t' {
+			controlCount++
+		}
+	}
+	// Binary files almost always have nulls or many control characters.
+	// ASCII/UTF-8 text files should not have nulls and very few control characters.
+	return nullCount > 0 || controlCount > (checkLen/10)
+}
+
 func parseRemoteDatasetRecords(raw []byte, format string) ([]remoteDatasetRecord, string, error) {
 	format = strings.ToLower(strings.TrimSpace(format))
 	if format == "" {
 		format = "auto"
+	}
+
+	// Early check for binary data if format is auto or text
+	if (format == "auto" || format == "text" || format == "txt") && isBinary(raw) {
+		// If it's binary but we're here, it means it wasn't recognized as an archive
+		// or it's a corrupted archive. We should NOT treat it as text.
+		return nil, "", errors.New("unsupported binary data format; expected JSON, CSV, TSV or plain text")
 	}
 
 	switch format {
@@ -930,6 +986,13 @@ func parseTextDatasetRecords(raw []byte) []remoteDatasetRecord {
 		record := remoteDatasetRecord{Row: i + 1}
 		record.CommandLine = line
 		record.Comm, record.Args = normalizeCommandInput(line, "", nil)
+		if record.Comm == "" {
+			continue
+		}
+		// Skip pure integers (likely syscall traces from datasets like ADFA-LD)
+		if _, err := strconv.Atoi(record.Comm); err == nil {
+			continue
+		}
 		record.UserLabel = "remote-import"
 		records = append(records, record)
 	}
