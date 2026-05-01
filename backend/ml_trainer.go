@@ -19,6 +19,15 @@ type TrainingLogEntry struct {
 	Message   string
 }
 
+// TrainingHistoryEntry records metrics from a single training run
+type TrainingHistoryEntry struct {
+	Timestamp  time.Time `json:"timestamp"`
+	Accuracy   float64   `json:"accuracy"`
+	NumTrees   int       `json:"numTrees"`
+	NumSamples int       `json:"numSamples"`
+	Duration   float64   `json:"duration"` // seconds
+}
+
 // ModelTrainer builds and evaluates random forest models
 type ModelTrainer struct {
 	mu        chan struct{} // single-training mutex via channel
@@ -33,6 +42,9 @@ type ModelTrainer struct {
 	logMaxSize int
 	logNext    int
 	logTotal   int
+	// Training history
+	historyMu sync.RWMutex
+	history   []TrainingHistoryEntry
 }
 
 var globalTrainer = &ModelTrainer{
@@ -74,6 +86,26 @@ func (t *ModelTrainer) GetLogs(limit int) []TrainingLogEntry {
 	return out
 }
 
+// GetHistory returns training history entries
+func (t *ModelTrainer) GetHistory() []TrainingHistoryEntry {
+	t.historyMu.RLock()
+	defer t.historyMu.RUnlock()
+	out := make([]TrainingHistoryEntry, len(t.history))
+	copy(out, t.history)
+	return out
+}
+
+// addHistory records a training run to history
+func (t *ModelTrainer) addHistory(entry TrainingHistoryEntry) {
+	t.historyMu.Lock()
+	defer t.historyMu.Unlock()
+	t.history = append(t.history, entry)
+	// Keep last 100 entries
+	if len(t.history) > 100 {
+		t.history = t.history[len(t.history)-100:]
+	}
+}
+
 // TrainResult holds the outcome of a training run
 type TrainResult struct {
 	Accuracy   float64
@@ -108,6 +140,7 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 
 	t.isRunning = true
 	t.progress = 0
+	trainStart := time.Now()
 	t.logf("══════ Training started ══════")
 	t.logf("Config: trees=%d, maxDepth=%d, minSamplesLeaf=%d", numTrees, maxDepth, minSamplesLeaf)
 	defer func() {
@@ -203,6 +236,15 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 	t.accuracy = accuracy
 	t.lastTrain = time.Now()
 	t.logf("══════ Training complete in %s ══════", treeElapsed.Round(time.Millisecond))
+
+	// Record to history
+	t.addHistory(TrainingHistoryEntry{
+		Timestamp:  trainStart,
+		Accuracy:   accuracy,
+		NumTrees:   numTrees,
+		NumSamples: len(labeled),
+		Duration:   time.Since(trainStart).Seconds(),
+	})
 
 	result := TrainResult{
 		Accuracy:   accuracy,

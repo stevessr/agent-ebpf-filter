@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch, defineAsyncComponent } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import axios from "axios";
 import {
@@ -797,6 +797,8 @@ const mlThresholds = ref({
 });
 const trainingLogs = ref<{ time: string; message: string }[]>([]);
 const logPollTimer = ref<ReturnType<typeof setInterval> | null>(null);
+const trainingHistory = ref<any[]>([]);
+const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 
 const startLogPolling = () => {
   if (logPollTimer.value) return;
@@ -846,8 +848,48 @@ const fetchMLStatus = async () => {
       hyperParams.value.maxDepth = res.data.hyperParams.maxDepth || 8;
       hyperParams.value.minSamplesLeaf = res.data.hyperParams.minSamplesLeaf || 5;
     }
+    await fetchTrainingHistory();
   } catch (_) {}
 };
+
+const fetchTrainingHistory = async () => {
+  try {
+    const res = await axios.get('/config/ml/history');
+    trainingHistory.value = res.data.history || [];
+  } catch (_) {}
+};
+
+const trainingChartOptions = computed(() => ({
+  chart: { type: 'line' as const, height: 280, toolbar: { show: false }, animations: { enabled: true } },
+  stroke: { curve: 'smooth' as const, width: 2 },
+  xaxis: {
+    type: 'datetime' as const,
+    labels: { format: 'HH:mm' },
+  },
+  yaxis: [
+    { title: { text: 'Accuracy' }, min: 0, max: 1, labels: { formatter: (v: number) => (v * 100).toFixed(0) + '%' } },
+    { opposite: true, title: { text: 'Samples' }, min: 0 },
+  ],
+  tooltip: { x: { format: 'yyyy-MM-dd HH:mm' } },
+  legend: { position: 'top' as const },
+  colors: ['#52c41a', '#1890ff'],
+}));
+
+const trainingChartSeries = computed(() => {
+  if (!trainingHistory.value.length) return [];
+  return [
+    {
+      name: 'Accuracy',
+      type: 'line',
+      data: trainingHistory.value.map((h: any) => ({ x: new Date(h.timestamp).getTime(), y: h.accuracy })),
+    },
+    {
+      name: 'Samples',
+      type: 'line',
+      data: trainingHistory.value.map((h: any) => ({ x: new Date(h.timestamp).getTime(), y: h.numSamples })),
+    },
+  ];
+});
 
 const submitFeedback = async () => {
   if (!feedbackComm.value) return;
@@ -1816,6 +1858,26 @@ onMounted(async () => {
                   Waiting for training to start...
                 </div>
               </div>
+            </a-card>
+          </a-col>
+
+          <!-- Row: Training Curve Visualization -->
+          <a-col :xs="24" v-if="trainingHistory.length > 0">
+            <a-card title="Training History" size="small">
+              <template #extra>
+                <a-tag color="blue">{{ trainingHistory.length }} runs</a-tag>
+              </template>
+              <Suspense>
+                <VueApexCharts
+                  type="line"
+                  height="280"
+                  :options="trainingChartOptions"
+                  :series="trainingChartSeries"
+                />
+                <template #fallback>
+                  <div style="text-align: center; padding: 40px; color: #999">Loading chart...</div>
+                </template>
+              </Suspense>
             </a-card>
           </a-col>
 
