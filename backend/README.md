@@ -128,7 +128,8 @@ Config routes:
 - `/config/hooks`
 - `/config/hooks/:id/raw`
 - `/config/ml/existing-commands`, `/config/ml/import-existing`, `/config/ml/assess`
-- `/config/ml/datasets/pull`, `/config/ml/datasets/import`
+- `/config/ml/datasets/pull`, `/config/ml/datasets/import`, `/config/ml/datasets/export`, `DELETE /config/ml/datasets`
+- the frontend also exposes a curated classic OS-security dataset catalog for reference, URL seeding, and importer preset fill
 
 `authMiddleware()` accepts `?key=<token>`, `X-API-KEY`, or `Authorization: Bearer <token>`.
 The token is generated and stored by the runtime settings file at:

@@ -974,6 +974,13 @@ interface RemoteDatasetResponse {
   labeledSamples?: number;
   rows?: RemoteDatasetRow[];
 }
+interface ClassicSecurityDatasetPreset {
+  name: string;
+  family: string;
+  platform: string;
+  pageUrl: string;
+  note: string;
+}
 const allSamples = ref<SampleEntry[]>([]);
 const loadingSamples = ref(false);
 const sampleTablePageSize = ref(15);
@@ -992,6 +999,58 @@ const loadingRemoteDataset = ref(false);
 const importingRemoteDataset = ref(false);
 const remoteDatasetPreview = ref<RemoteDatasetRow[]>([]);
 const remoteDatasetMeta = ref<RemoteDatasetResponse | null>(null);
+const trainingDatasetImportInput = ref<HTMLInputElement | null>(null);
+const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
+  {
+    name: 'ADFA-LD',
+    family: '经典 HIDS',
+    platform: 'Linux',
+    pageUrl: 'https://research.unsw.edu.au/projects/adfa-ids-datasets',
+    note: 'UNSW/ADFA 的 Linux 主机入侵检测数据集，适合系统调用级 HIDS 研究。',
+  },
+  {
+    name: 'ADFA-WD / SAA',
+    family: '经典 HIDS',
+    platform: 'Windows',
+    pageUrl: 'https://research.unsw.edu.au/projects/adfa-ids-datasets',
+    note: 'Windows 主机入侵检测数据集与 stealth attacks addendum，官方页提供下载入口。',
+  },
+  {
+    name: 'CERT Insider Threat Test',
+    family: '内鬼威胁',
+    platform: 'Windows / 企业行为',
+    pageUrl: 'https://sei.cmu.edu/library/insider-threat-test-dataset/',
+    note: 'SEI/CERT 的合成内鬼威胁测试集，包含 background 与 malicious actor 数据。',
+  },
+  {
+    name: 'LANL Unified Host + Network',
+    family: '主机+网络',
+    platform: 'Windows',
+    pageUrl: 'https://csr.lanl.gov/data/2017/',
+    note: 'Los Alamos 的统一主机/网络事件集，适合主机审计与认证行为分析。',
+  },
+  {
+    name: 'DARPA 1998 IDS',
+    family: '经典 IDS',
+    platform: '多平台审计',
+    pageUrl: 'https://archive.ll.mit.edu/ideval/data/1998data.html',
+    note: 'DARPA 1998 入侵检测评估，包含网络流量与审计日志，是经典基线。',
+  },
+  {
+    name: 'DARPA 1999 IDS',
+    family: '经典 IDS',
+    platform: '多平台审计',
+    pageUrl: 'https://archive.ll.mit.edu/ideval/data/1999data.html',
+    note: 'DARPA 1999 入侵检测评估，含网络与主机审计日志，常用于对照实验。',
+  },
+  {
+    name: 'LLS DDoS 1.0',
+    family: '场景化攻击',
+    platform: 'Solaris / 网络',
+    pageUrl: 'https://archive.ll.mit.edu/ideval/data/2000/LLS_DDOS_1.0.html',
+    note: 'DARPA 2000 场景化攻击数据，描述 sadmind 利用与 DDoS 攻击链。',
+  },
+];
 const dataMaskEnabled = ref(false);
 
 const maskSensitiveData = (text: string): string => {
@@ -1086,7 +1145,7 @@ const importExistingCommandData = async () => {
   }
 };
 
-const fetchRemoteDatasetPreview = async () => {
+const fetchRemoteDatasetPreview = async (silent = false) => {
   if (!remoteDatasetUrl.value.trim()) {
     message.warning('请输入数据集 URL');
     return;
@@ -1101,9 +1160,13 @@ const fetchRemoteDatasetPreview = async () => {
     });
     remoteDatasetMeta.value = res.data;
     remoteDatasetPreview.value = res.data.rows || [];
-    message.success(`拉取到 ${res.data.total || 0} 条远程数据`);
+    if (!silent) {
+      message.success(`拉取到 ${res.data.total || 0} 条远程数据`);
+    }
   } catch (e: any) {
-    message.error(e.response?.data?.error || '拉取远程数据集失败');
+    if (!silent) {
+      message.error(e.response?.data?.error || '拉取远程数据集失败');
+    }
   } finally {
     loadingRemoteDataset.value = false;
   }
@@ -1116,23 +1179,76 @@ const importRemoteDataset = async () => {
   }
   importingRemoteDataset.value = true;
   try {
-    const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/import', {
-      url: remoteDatasetUrl.value.trim(),
-      format: remoteDatasetFormat.value,
-      limit: remoteDatasetLimit.value,
-      labelMode: remoteDatasetLabelMode.value,
-    });
-    remoteDatasetMeta.value = res.data;
-    remoteDatasetPreview.value = res.data.rows || [];
+    const res = await importRemoteDatasetPayload({ url: remoteDatasetUrl.value.trim() });
     message.success(`导入 ${res.data.imported || 0} 条，跳过 ${res.data.skipped || 0} 条`);
-    await fetchMLStatus();
-    await fetchAllSamples();
-    await fetchExistingCommandData(true);
   } catch (e: any) {
     message.error(e.response?.data?.error || '导入远程数据集失败');
   } finally {
     importingRemoteDataset.value = false;
   }
+};
+
+const useClassicSecurityDatasetPreset = (preset: ClassicSecurityDatasetPreset) => {
+  remoteDatasetUrl.value = preset.pageUrl;
+  remoteDatasetFormat.value = 'auto';
+  remoteDatasetLabelMode.value = 'preserve';
+  remoteDatasetLimit.value = 200;
+  remoteDatasetMeta.value = null;
+  remoteDatasetPreview.value = [];
+  message.info(`已填充 ${preset.name} 导入器预置项`);
+};
+
+const openClassicSecurityDatasetPage = (preset: ClassicSecurityDatasetPreset) => {
+  window.open(preset.pageUrl, '_blank', 'noopener,noreferrer');
+};
+
+const copyClassicSecurityDatasetPage = async (preset: ClassicSecurityDatasetPreset) => {
+  try {
+    await navigator.clipboard.writeText(preset.pageUrl);
+    message.success(`已复制 ${preset.name} 链接`);
+  } catch (_) {
+    message.error('复制链接失败');
+  }
+};
+
+const downloadJsonFile = (filename: string, payload: unknown) => {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+
+const openTrainingDatasetImportPicker = () => {
+  trainingDatasetImportInput.value?.click();
+};
+
+const importRemoteDatasetPayload = async (payload: {
+  url?: string;
+  content?: string;
+  sourceName?: string;
+  importAll?: boolean;
+}) => {
+  const url = payload.url ?? (payload.content ? '' : remoteDatasetUrl.value.trim());
+  const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/import', {
+    url,
+    content: payload.content,
+    sourceName: payload.sourceName,
+    format: remoteDatasetFormat.value,
+    limit: remoteDatasetLimit.value,
+    labelMode: remoteDatasetLabelMode.value,
+    importAll: payload.importAll ?? false,
+  });
+  remoteDatasetMeta.value = res.data;
+  remoteDatasetPreview.value = res.data.rows || [];
+  await fetchMLStatus();
+  await fetchAllSamples();
+  await fetchExistingCommandData(true);
+  return res;
 };
 
 const labelSample = async (index: number, label: string) => {
@@ -1162,6 +1278,56 @@ const updateAnomaly = async (index: number, anomalyScore: number) => {
     await axios.put('/config/ml/samples/anomaly', { index, anomalyScore });
   } catch (e: any) {
     message.error('Failed to update anomaly score');
+  }
+};
+
+const importTrainingDatasetFromFile = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  importingRemoteDataset.value = true;
+  try {
+    const content = await file.text();
+    if (!content.trim()) {
+      message.warning('所选文件为空');
+      return;
+    }
+    await importRemoteDatasetPayload({
+      content,
+      sourceName: file.name,
+      importAll: true,
+    });
+    message.success(`已导入本地数据集 ${file.name}`);
+  } catch (e: any) {
+    message.error(e.response?.data?.error || '导入本地数据集失败');
+  } finally {
+    importingRemoteDataset.value = false;
+    input.value = '';
+  }
+};
+
+const exportTrainingDataset = async () => {
+  try {
+    const res = await axios.get<RemoteDatasetResponse>('/config/ml/datasets/export');
+    downloadJsonFile('agent-ebpf-filter-training-dataset.json', res.data);
+    message.success(`已导出 ${res.data.total || 0} 条训练样本`);
+  } catch (e: any) {
+    message.error(e.response?.data?.error || '导出训练集失败');
+  }
+};
+
+const clearTrainingDataset = async () => {
+  try {
+    const res = await axios.delete('/config/ml/datasets');
+    message.success(`已清空 ${res.data.cleared || 0} 条训练样本`);
+    remoteDatasetMeta.value = null;
+    remoteDatasetPreview.value = [];
+    await fetchMLStatus();
+    await fetchAllSamples();
+    await fetchExistingCommandData(true);
+  } catch (e: any) {
+    message.error(e.response?.data?.error || '清空训练集失败');
   }
 };
 
@@ -2188,6 +2354,63 @@ onMounted(async () => {
             </a-card>
           </a-col>
 
+          <!-- Row: Classic OS Security Datasets -->
+          <a-col v-if="mlSubTabKey === 'training'" :xs="24">
+            <a-card size="small">
+              <template #title>
+                <span><BookOutlined /> 经典 OS 安全数据集</span>
+                <a-tag color="gold" style="margin-left: 8px">官方页 / 典型基准</a-tag>
+              </template>
+              <a-alert
+                type="info"
+                show-icon
+                style="margin-bottom: 12px"
+                message="这些是经典主机审计、内鬼威胁和入侵检测基准，适合作为对照实验或二次处理后的训练来源；多数是归档包或官方页面，不一定能直接作为纯文本导入。"
+              />
+              <a-list :data-source="classicSecurityDatasetPresets" :split="false" size="small">
+                <template #renderItem="{ item }">
+                  <a-list-item>
+                    <a-card size="small" style="width: 100%">
+                      <a-space direction="vertical" style="width: 100%">
+                        <div
+                          style="
+                            display: flex;
+                            justify-content: space-between;
+                            gap: 12px;
+                            align-items: flex-start;
+                            flex-wrap: wrap;
+                          "
+                        >
+                          <div>
+                            <div style="font-weight: 600">{{ item.name }}</div>
+                            <div style="color: #666; font-size: 12px">
+                              {{ item.note }}
+                            </div>
+                          </div>
+                          <a-space wrap>
+                            <a-tag color="blue">{{ item.family }}</a-tag>
+                            <a-tag color="geekblue">{{ item.platform }}</a-tag>
+                          </a-space>
+                        </div>
+                        <a-space wrap>
+                          <a-button size="small" @click="openClassicSecurityDatasetPage(item)">
+                            <GlobalOutlined /> 打开官网
+                          </a-button>
+                          <a-button size="small" @click="useClassicSecurityDatasetPreset(item)">
+                            <ImportOutlined /> 一键填充导入器
+                          </a-button>
+                          <a-button size="small" @click="copyClassicSecurityDatasetPage(item)">
+                            <CopyOutlined /> 复制链接
+                          </a-button>
+                        </a-space>
+                      </a-space>
+                    </a-card>
+                  </a-list-item>
+                </template>
+              </a-list>
+            </a-card>
+          </a-col>
+
           <!-- Row: Internet Dataset Import -->
           <a-col v-if="mlSubTabKey === 'training'" :xs="24">
             <a-card size="small">
@@ -2197,8 +2420,18 @@ onMounted(async () => {
               </template>
               <template #extra>
                 <a-space>
+                  <input
+                    type="file"
+                    ref="trainingDatasetImportInput"
+                    @change="importTrainingDatasetFromFile"
+                    style="display: none"
+                    accept=".json,.jsonl,.ndjson,.csv,.tsv,.txt,.log"
+                  />
                   <a-button size="small" @click="fetchRemoteDatasetPreview" :loading="loadingRemoteDataset">
                     <ReloadOutlined /> 拉取预览
+                  </a-button>
+                  <a-button size="small" @click="openTrainingDatasetImportPicker" :loading="importingRemoteDataset">
+                    <FileOutlined /> 导入本地文件
                   </a-button>
                   <a-button size="small" type="primary" @click="importRemoteDataset" :loading="importingRemoteDataset">
                     <ImportOutlined /> 导入训练集
@@ -2210,7 +2443,7 @@ onMounted(async () => {
                 type="info"
                 show-icon
                 style="margin-bottom: 12px"
-                message="后端会直接从 HTTP/HTTPS 地址抓取数据集，并转成训练样本；可以保留原始标签、统一标为未标注，或按当前规则自动推断。"
+                message="后端会直接从 HTTP/HTTPS 地址抓取数据集，并转成训练样本；也可以用“导入本地文件”把 JSON、JSONL、CSV、TSV 或纯文本一次性灌入训练集。"
               />
 
               <a-row :gutter="[16, 16]">
@@ -2419,7 +2652,7 @@ onMounted(async () => {
                 <a-tag color="purple" style="margin-left: 8px">{{ filteredSamples.length }} / {{ allSamples.length }}</a-tag>
               </template>
               <template #extra>
-                <a-space>
+                <a-space wrap>
                   <a-button 
                     size="small" 
                     @click="dataMaskEnabled = !dataMaskEnabled"
@@ -2428,6 +2661,14 @@ onMounted(async () => {
                     <component :is="dataMaskEnabled ? EyeInvisibleOutlined : EyeOutlined" />
                     {{ dataMaskEnabled ? '脱敏' : '明文' }}
                   </a-button>
+                  <a-button size="small" @click="exportTrainingDataset">
+                    <ExportOutlined /> 导出训练集
+                  </a-button>
+                  <a-popconfirm title="确定要清空当前训练集吗？" @confirm="clearTrainingDataset">
+                    <a-button size="small" danger>
+                      <DeleteOutlined /> 清空训练集
+                    </a-button>
+                  </a-popconfirm>
                   <a-input 
                     v-model:value="sampleSearchText" 
                     placeholder="搜索命令或参数..." 

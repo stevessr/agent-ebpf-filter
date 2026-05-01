@@ -18,12 +18,16 @@ import (
 )
 
 const remoteDatasetFetchLimitBytes = 20 << 20
+const remoteDatasetUploadLimitBytes = 100 << 20
 
 type remoteDatasetRequest struct {
-	URL       string `json:"url"`
-	Format    string `json:"format"`
-	Limit     int    `json:"limit"`
-	LabelMode string `json:"labelMode"`
+	URL        string `json:"url"`
+	Content    string `json:"content"`
+	SourceName string `json:"sourceName"`
+	Format     string `json:"format"`
+	Limit      int    `json:"limit"`
+	LabelMode  string `json:"labelMode"`
+	ImportAll  bool   `json:"importAll"`
 }
 
 type remoteDatasetRow struct {
@@ -137,6 +141,54 @@ func handleMLDatasetImportPost(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func handleMLDatasetExportGet(c *gin.Context) {
+	if globalTrainingStore == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ML training store not initialized"})
+		return
+	}
+
+	items := globalTrainingStore.AllSamplesWithIndex()
+	rows := make([]remoteDatasetRow, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, trainingSampleToRemoteDatasetRow(item.Index, item.Sample))
+	}
+	total, labeled := globalTrainingStore.Status()
+	resp := remoteDatasetResponse{
+		Source:         "local-training-store",
+		Format:         "json",
+		ContentType:    "application/json",
+		Total:          total,
+		Limit:          total,
+		Truncated:      false,
+		TotalSamples:   total,
+		LabeledSamples: labeled,
+		Rows:           rows,
+	}
+	c.Header("Content-Disposition", `attachment; filename="agent-ebpf-filter-training-dataset.json"`)
+	c.JSON(http.StatusOK, resp)
+}
+
+func handleMLDatasetClearDelete(c *gin.Context) {
+	if globalTrainingStore == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ML training store not initialized"})
+		return
+	}
+
+	cleared := globalTrainingStore.Clear()
+	if err := globalTrainingStore.Flush(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cleared training store but failed to persist: " + err.Error()})
+		return
+	}
+
+	total, labeled := globalTrainingStore.Status()
+	c.JSON(http.StatusOK, gin.H{
+		"status":         "ok",
+		"cleared":        cleared,
+		"totalSamples":   total,
+		"labeledSamples": labeled,
+	})
+}
+
 func bindRemoteDatasetRequest(c *gin.Context) (remoteDatasetRequest, bool) {
 	var req remoteDatasetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -145,23 +197,40 @@ func bindRemoteDatasetRequest(c *gin.Context) (remoteDatasetRequest, bool) {
 	}
 
 	req.URL = strings.TrimSpace(req.URL)
-	if req.URL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "url is required"})
+	req.SourceName = strings.TrimSpace(req.SourceName)
+	hasContent := strings.TrimSpace(req.Content) != ""
+	if req.URL == "" && !hasContent {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "url or content is required"})
 		return req, false
 	}
-	if _, err := validateRemoteDatasetURL(req.URL); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return req, false
+	if req.URL != "" {
+		if _, err := validateRemoteDatasetURL(req.URL); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return req, false
+		}
 	}
 
-	req.Format = normalizeRemoteDatasetFormat(req.Format, req.URL)
+	sourceRef := req.SourceName
+	if sourceRef == "" {
+		sourceRef = req.URL
+	}
+	if hasContent {
+		req.Format = strings.ToLower(strings.TrimSpace(req.Format))
+		if req.Format != "" && req.Format != "auto" {
+			req.Format = normalizeRemoteDatasetFormat(req.Format, "")
+		} else {
+			req.Format = "auto"
+		}
+	} else {
+		req.Format = normalizeRemoteDatasetFormat(req.Format, sourceRef)
+	}
 	req.Limit = parseDatasetLimit(req.Limit)
 	req.LabelMode = normalizeRemoteDatasetLabelMode(req.LabelMode)
 	return req, true
 }
 
 func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error) {
-	downloaded, contentType, err := downloadRemoteDataset(req.URL)
+	downloaded, contentType, source, err := loadRemoteDatasetPayload(req)
 	if err != nil {
 		return nil, err
 	}
@@ -181,20 +250,53 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 	}
 
 	truncated := false
-	if req.Limit > 0 && len(rows) > req.Limit {
+	if !req.ImportAll && req.Limit > 0 && len(rows) > req.Limit {
 		rows = rows[:req.Limit]
 		truncated = true
 	}
+	limit := req.Limit
+	if req.ImportAll {
+		limit = len(rows)
+	}
+	if contentType == "" {
+		contentType = contentTypeForDatasetFormat(format)
+	}
+	if source == "" {
+		source = req.URL
+	}
 
 	return &remoteDatasetResponse{
-		Source:      req.URL,
+		Source:      source,
 		Format:      format,
 		ContentType: contentType,
 		Total:       len(records),
-		Limit:       req.Limit,
+		Limit:       limit,
 		Truncated:   truncated,
 		Rows:        rows,
 	}, nil
+}
+
+func loadRemoteDatasetPayload(req remoteDatasetRequest) ([]byte, string, string, error) {
+	if strings.TrimSpace(req.Content) != "" {
+		raw := []byte(req.Content)
+		if len(raw) > remoteDatasetUploadLimitBytes {
+			return nil, "", "", fmt.Errorf("remote dataset content is larger than %d bytes", remoteDatasetUploadLimitBytes)
+		}
+		source := strings.TrimSpace(req.SourceName)
+		if source == "" {
+			source = "inline"
+		}
+		return raw, "", source, nil
+	}
+	downloaded, contentType, err := downloadRemoteDataset(req.URL)
+	if err != nil {
+		return nil, "", "", err
+	}
+	source := req.URL
+	if req.SourceName != "" {
+		source = req.SourceName
+	}
+	return downloaded, contentType, source, nil
 }
 
 func downloadRemoteDataset(rawURL string) ([]byte, string, error) {
@@ -285,6 +387,23 @@ func normalizeRemoteDatasetLabelMode(mode string) string {
 	}
 }
 
+func contentTypeForDatasetFormat(format string) string {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "json":
+		return "application/json"
+	case "jsonl", "ndjson":
+		return "application/x-ndjson"
+	case "csv":
+		return "text/csv; charset=utf-8"
+	case "tsv":
+		return "text/tab-separated-values; charset=utf-8"
+	case "text", "txt":
+		return "text/plain; charset=utf-8"
+	default:
+		return "text/plain; charset=utf-8"
+	}
+}
+
 func parseDatasetLimit(limit int) int {
 	if limit <= 0 {
 		return 200
@@ -293,6 +412,30 @@ func parseDatasetLimit(limit int) int {
 		return 5000
 	}
 	return limit
+}
+
+func trainingSampleToRemoteDatasetRow(index int, sample TrainingSample) remoteDatasetRow {
+	label := sampleLabelName(sample.Label)
+	if label == "" {
+		label = "-"
+	}
+	timestamp := sample.Timestamp.UTC()
+	if timestamp.IsZero() {
+		timestamp = time.Now().UTC()
+	}
+	return remoteDatasetRow{
+		Row:          index,
+		CommandLine:  joinCommandLine(sample.Comm, sample.Args),
+		Comm:         sample.Comm,
+		Args:         append([]string(nil), sample.Args...),
+		Label:        label,
+		LabelSource:  sample.UserLabel,
+		Category:     sample.Category,
+		AnomalyScore: sample.AnomalyScore,
+		HasAnomaly:   true,
+		Timestamp:    timestamp.Format(time.RFC3339),
+		UserLabel:    sample.UserLabel,
+	}
 }
 
 func parseRemoteDatasetRecords(raw []byte, format string) ([]remoteDatasetRecord, string, error) {

@@ -74,6 +74,24 @@ func (s *TrainingDataStore) Add(sample TrainingSample) {
 	s.dirtyCount++
 }
 
+// Clear removes all samples from the store and resets the ring buffer state.
+func (s *TrainingDataStore) Clear() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cleared := 0
+	for i := range s.samples {
+		if !s.samples[i].Timestamp.IsZero() {
+			cleared++
+		}
+		s.samples[i] = TrainingSample{}
+	}
+	s.nextWrite = 0
+	s.totalAdded = 0
+	s.dirtyCount++
+	return cleared
+}
+
 // LabeledSamples returns all samples with user labels
 func (s *TrainingDataStore) LabeledSamples() []TrainingSample {
 	s.mu.RLock()
