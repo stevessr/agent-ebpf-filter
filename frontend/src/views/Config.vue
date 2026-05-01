@@ -2959,8 +2959,8 @@ onMounted(async () => {
                   <a-col :xs="24" :md="8">
                     <div style="font-weight: 600; margin-bottom: 6px">数据源</div>
                     <a-select v-model:value="llmBatchConfig.source" style="width: 100%">
-                      <a-select-option value="validation">验证集</a-select-option>
-                      <a-select-option value="training">训练集</a-select-option>
+                      <a-select-option value="training">生成数据（生成新样本并打分）</a-select-option>
+                      <a-select-option value="validation">已有数据（对现有样本重打分）</a-select-option>
                     </a-select>
                   </a-col>
                   <a-col :xs="24" :md="8">
