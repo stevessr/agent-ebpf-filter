@@ -78,6 +78,430 @@ $root.pb = (function() {
         return values;
     })();
 
+    /**
+     * BehaviorCategory enum.
+     * @name pb.BehaviorCategory
+     * @enum {number}
+     * @property {number} UNKNOWN=0 UNKNOWN value
+     * @property {number} FILE_READ=1 FILE_READ value
+     * @property {number} FILE_WRITE=2 FILE_WRITE value
+     * @property {number} FILE_DELETE=3 FILE_DELETE value
+     * @property {number} FILE_PERMISSION=4 FILE_PERMISSION value
+     * @property {number} NETWORK=5 NETWORK value
+     * @property {number} PROCESS_EXEC=6 PROCESS_EXEC value
+     * @property {number} PROCESS_KILL=7 PROCESS_KILL value
+     * @property {number} SYSTEM_INFO=8 SYSTEM_INFO value
+     * @property {number} PACKAGE_MANAGER=9 PACKAGE_MANAGER value
+     * @property {number} DATABASE=10 DATABASE value
+     * @property {number} COMPRESSION=11 COMPRESSION value
+     * @property {number} DEVELOPMENT=12 DEVELOPMENT value
+     * @property {number} CONTAINER=13 CONTAINER value
+     * @property {number} SENSITIVE=14 SENSITIVE value
+     */
+    pb.BehaviorCategory = (function() {
+        var valuesById = {}, values = Object.create(valuesById);
+        values[valuesById[0] = "UNKNOWN"] = 0;
+        values[valuesById[1] = "FILE_READ"] = 1;
+        values[valuesById[2] = "FILE_WRITE"] = 2;
+        values[valuesById[3] = "FILE_DELETE"] = 3;
+        values[valuesById[4] = "FILE_PERMISSION"] = 4;
+        values[valuesById[5] = "NETWORK"] = 5;
+        values[valuesById[6] = "PROCESS_EXEC"] = 6;
+        values[valuesById[7] = "PROCESS_KILL"] = 7;
+        values[valuesById[8] = "SYSTEM_INFO"] = 8;
+        values[valuesById[9] = "PACKAGE_MANAGER"] = 9;
+        values[valuesById[10] = "DATABASE"] = 10;
+        values[valuesById[11] = "COMPRESSION"] = 11;
+        values[valuesById[12] = "DEVELOPMENT"] = 12;
+        values[valuesById[13] = "CONTAINER"] = 13;
+        values[valuesById[14] = "SENSITIVE"] = 14;
+        return values;
+    })();
+
+    pb.BehaviorClassification = (function() {
+
+        /**
+         * Properties of a BehaviorClassification.
+         * @memberof pb
+         * @interface IBehaviorClassification
+         * @property {Array.<pb.BehaviorCategory>|null} [categories] BehaviorClassification categories
+         * @property {string|null} [primaryCategory] BehaviorClassification primaryCategory
+         * @property {string|null} [confidence] BehaviorClassification confidence
+         * @property {string|null} [reasoning] BehaviorClassification reasoning
+         */
+
+        /**
+         * Constructs a new BehaviorClassification.
+         * @memberof pb
+         * @classdesc Represents a BehaviorClassification.
+         * @implements IBehaviorClassification
+         * @constructor
+         * @param {pb.IBehaviorClassification=} [properties] Properties to set
+         */
+        function BehaviorClassification(properties) {
+            this.categories = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * BehaviorClassification categories.
+         * @member {Array.<pb.BehaviorCategory>} categories
+         * @memberof pb.BehaviorClassification
+         * @instance
+         */
+        BehaviorClassification.prototype.categories = $util.emptyArray;
+
+        /**
+         * BehaviorClassification primaryCategory.
+         * @member {string} primaryCategory
+         * @memberof pb.BehaviorClassification
+         * @instance
+         */
+        BehaviorClassification.prototype.primaryCategory = "";
+
+        /**
+         * BehaviorClassification confidence.
+         * @member {string} confidence
+         * @memberof pb.BehaviorClassification
+         * @instance
+         */
+        BehaviorClassification.prototype.confidence = "";
+
+        /**
+         * BehaviorClassification reasoning.
+         * @member {string} reasoning
+         * @memberof pb.BehaviorClassification
+         * @instance
+         */
+        BehaviorClassification.prototype.reasoning = "";
+
+        /**
+         * Creates a new BehaviorClassification instance using the specified properties.
+         * @function create
+         * @memberof pb.BehaviorClassification
+         * @static
+         * @param {pb.IBehaviorClassification=} [properties] Properties to set
+         * @returns {pb.BehaviorClassification} BehaviorClassification instance
+         */
+        BehaviorClassification.create = function create(properties) {
+            return new BehaviorClassification(properties);
+        };
+
+        /**
+         * Encodes the specified BehaviorClassification message. Does not implicitly {@link pb.BehaviorClassification.verify|verify} messages.
+         * @function encode
+         * @memberof pb.BehaviorClassification
+         * @static
+         * @param {pb.IBehaviorClassification} message BehaviorClassification message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        BehaviorClassification.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.categories != null && message.categories.length) {
+                writer.uint32(/* id 1, wireType 2 =*/10).fork();
+                for (var i = 0; i < message.categories.length; ++i)
+                    writer.int32(message.categories[i]);
+                writer.ldelim();
+            }
+            if (message.primaryCategory != null && Object.hasOwnProperty.call(message, "primaryCategory"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.primaryCategory);
+            if (message.confidence != null && Object.hasOwnProperty.call(message, "confidence"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.confidence);
+            if (message.reasoning != null && Object.hasOwnProperty.call(message, "reasoning"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.reasoning);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified BehaviorClassification message, length delimited. Does not implicitly {@link pb.BehaviorClassification.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.BehaviorClassification
+         * @static
+         * @param {pb.IBehaviorClassification} message BehaviorClassification message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        BehaviorClassification.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a BehaviorClassification message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.BehaviorClassification
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.BehaviorClassification} BehaviorClassification
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        BehaviorClassification.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.BehaviorClassification();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        if (!(message.categories && message.categories.length))
+                            message.categories = [];
+                        if ((tag & 7) === 2) {
+                            var end2 = reader.uint32() + reader.pos;
+                            while (reader.pos < end2)
+                                message.categories.push(reader.int32());
+                        } else
+                            message.categories.push(reader.int32());
+                        break;
+                    }
+                case 2: {
+                        message.primaryCategory = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.confidence = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.reasoning = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a BehaviorClassification message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.BehaviorClassification
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.BehaviorClassification} BehaviorClassification
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        BehaviorClassification.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a BehaviorClassification message.
+         * @function verify
+         * @memberof pb.BehaviorClassification
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        BehaviorClassification.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.categories != null && message.hasOwnProperty("categories")) {
+                if (!Array.isArray(message.categories))
+                    return "categories: array expected";
+                for (var i = 0; i < message.categories.length; ++i)
+                    switch (message.categories[i]) {
+                    default:
+                        return "categories: enum value[] expected";
+                    case 0:
+                    case 1:
+                    case 2:
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 6:
+                    case 7:
+                    case 8:
+                    case 9:
+                    case 10:
+                    case 11:
+                    case 12:
+                    case 13:
+                    case 14:
+                        break;
+                    }
+            }
+            if (message.primaryCategory != null && message.hasOwnProperty("primaryCategory"))
+                if (!$util.isString(message.primaryCategory))
+                    return "primaryCategory: string expected";
+            if (message.confidence != null && message.hasOwnProperty("confidence"))
+                if (!$util.isString(message.confidence))
+                    return "confidence: string expected";
+            if (message.reasoning != null && message.hasOwnProperty("reasoning"))
+                if (!$util.isString(message.reasoning))
+                    return "reasoning: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a BehaviorClassification message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.BehaviorClassification
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.BehaviorClassification} BehaviorClassification
+         */
+        BehaviorClassification.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.BehaviorClassification)
+                return object;
+            var message = new $root.pb.BehaviorClassification();
+            if (object.categories) {
+                if (!Array.isArray(object.categories))
+                    throw TypeError(".pb.BehaviorClassification.categories: array expected");
+                message.categories = [];
+                for (var i = 0; i < object.categories.length; ++i)
+                    switch (object.categories[i]) {
+                    default:
+                        if (typeof object.categories[i] === "number") {
+                            message.categories[i] = object.categories[i];
+                            break;
+                        }
+                    case "UNKNOWN":
+                    case 0:
+                        message.categories[i] = 0;
+                        break;
+                    case "FILE_READ":
+                    case 1:
+                        message.categories[i] = 1;
+                        break;
+                    case "FILE_WRITE":
+                    case 2:
+                        message.categories[i] = 2;
+                        break;
+                    case "FILE_DELETE":
+                    case 3:
+                        message.categories[i] = 3;
+                        break;
+                    case "FILE_PERMISSION":
+                    case 4:
+                        message.categories[i] = 4;
+                        break;
+                    case "NETWORK":
+                    case 5:
+                        message.categories[i] = 5;
+                        break;
+                    case "PROCESS_EXEC":
+                    case 6:
+                        message.categories[i] = 6;
+                        break;
+                    case "PROCESS_KILL":
+                    case 7:
+                        message.categories[i] = 7;
+                        break;
+                    case "SYSTEM_INFO":
+                    case 8:
+                        message.categories[i] = 8;
+                        break;
+                    case "PACKAGE_MANAGER":
+                    case 9:
+                        message.categories[i] = 9;
+                        break;
+                    case "DATABASE":
+                    case 10:
+                        message.categories[i] = 10;
+                        break;
+                    case "COMPRESSION":
+                    case 11:
+                        message.categories[i] = 11;
+                        break;
+                    case "DEVELOPMENT":
+                    case 12:
+                        message.categories[i] = 12;
+                        break;
+                    case "CONTAINER":
+                    case 13:
+                        message.categories[i] = 13;
+                        break;
+                    case "SENSITIVE":
+                    case 14:
+                        message.categories[i] = 14;
+                        break;
+                    }
+            }
+            if (object.primaryCategory != null)
+                message.primaryCategory = String(object.primaryCategory);
+            if (object.confidence != null)
+                message.confidence = String(object.confidence);
+            if (object.reasoning != null)
+                message.reasoning = String(object.reasoning);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a BehaviorClassification message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.BehaviorClassification
+         * @static
+         * @param {pb.BehaviorClassification} message BehaviorClassification
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        BehaviorClassification.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.categories = [];
+            if (options.defaults) {
+                object.primaryCategory = "";
+                object.confidence = "";
+                object.reasoning = "";
+            }
+            if (message.categories && message.categories.length) {
+                object.categories = [];
+                for (var j = 0; j < message.categories.length; ++j)
+                    object.categories[j] = options.enums === String ? $root.pb.BehaviorCategory[message.categories[j]] === undefined ? message.categories[j] : $root.pb.BehaviorCategory[message.categories[j]] : message.categories[j];
+            }
+            if (message.primaryCategory != null && message.hasOwnProperty("primaryCategory"))
+                object.primaryCategory = message.primaryCategory;
+            if (message.confidence != null && message.hasOwnProperty("confidence"))
+                object.confidence = message.confidence;
+            if (message.reasoning != null && message.hasOwnProperty("reasoning"))
+                object.reasoning = message.reasoning;
+            return object;
+        };
+
+        /**
+         * Converts this BehaviorClassification to JSON.
+         * @function toJSON
+         * @memberof pb.BehaviorClassification
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        BehaviorClassification.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for BehaviorClassification
+         * @function getTypeUrl
+         * @memberof pb.BehaviorClassification
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        BehaviorClassification.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.BehaviorClassification";
+        };
+
+        return BehaviorClassification;
+    })();
+
     pb.RegisterRequest = (function() {
 
         /**
@@ -974,6 +1398,7 @@ $root.pb = (function() {
          * @property {number|null} [uidArg] Event uidArg
          * @property {number|null} [gidArg] Event gidArg
          * @property {pb.EventType|null} [eventType] Event eventType
+         * @property {pb.IBehaviorClassification|null} [behavior] Event behavior
          */
 
         /**
@@ -1168,6 +1593,14 @@ $root.pb = (function() {
         Event.prototype.eventType = 0;
 
         /**
+         * Event behavior.
+         * @member {pb.IBehaviorClassification|null|undefined} behavior
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.behavior = null;
+
+        /**
          * Creates a new Event instance using the specified properties.
          * @function create
          * @memberof pb.Event
@@ -1235,6 +1668,8 @@ $root.pb = (function() {
                 writer.uint32(/* id 21, wireType 0 =*/168).uint32(message.gidArg);
             if (message.eventType != null && Object.hasOwnProperty.call(message, "eventType"))
                 writer.uint32(/* id 22, wireType 0 =*/176).int32(message.eventType);
+            if (message.behavior != null && Object.hasOwnProperty.call(message, "behavior"))
+                $root.pb.BehaviorClassification.encode(message.behavior, writer.uint32(/* id 23, wireType 2 =*/186).fork()).ldelim();
             return writer;
         };
 
@@ -1357,6 +1792,10 @@ $root.pb = (function() {
                     }
                 case 22: {
                         message.eventType = reader.int32();
+                        break;
+                    }
+                case 23: {
+                        message.behavior = $root.pb.BehaviorClassification.decode(reader, reader.uint32());
                         break;
                     }
                 default:
@@ -1488,6 +1927,11 @@ $root.pb = (function() {
                 case 24:
                     break;
                 }
+            if (message.behavior != null && message.hasOwnProperty("behavior")) {
+                var error = $root.pb.BehaviorClassification.verify(message.behavior);
+                if (error)
+                    return "behavior." + error;
+            }
             return null;
         };
 
@@ -1667,6 +2111,11 @@ $root.pb = (function() {
                 message.eventType = 24;
                 break;
             }
+            if (object.behavior != null) {
+                if (typeof object.behavior !== "object")
+                    throw TypeError(".pb.Event.behavior: object expected");
+                message.behavior = $root.pb.BehaviorClassification.fromObject(object.behavior);
+            }
             return message;
         };
 
@@ -1714,6 +2163,7 @@ $root.pb = (function() {
                 object.uidArg = 0;
                 object.gidArg = 0;
                 object.eventType = options.enums === String ? "EXECVE" : 0;
+                object.behavior = null;
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -1765,6 +2215,8 @@ $root.pb = (function() {
                 object.gidArg = message.gidArg;
             if (message.eventType != null && message.hasOwnProperty("eventType"))
                 object.eventType = options.enums === String ? $root.pb.EventType[message.eventType] === undefined ? message.eventType : $root.pb.EventType[message.eventType] : message.eventType;
+            if (message.behavior != null && message.hasOwnProperty("behavior"))
+                object.behavior = $root.pb.BehaviorClassification.toObject(message.behavior, options);
             return object;
         };
 
@@ -7156,6 +7608,7 @@ $root.pb = (function() {
          * @property {pb.WrapperResponse.Action|null} [action] WrapperResponse action
          * @property {string|null} [message] WrapperResponse message
          * @property {Array.<string>|null} [rewrittenArgs] WrapperResponse rewrittenArgs
+         * @property {pb.IBehaviorClassification|null} [classification] WrapperResponse classification
          */
 
         /**
@@ -7199,6 +7652,14 @@ $root.pb = (function() {
         WrapperResponse.prototype.rewrittenArgs = $util.emptyArray;
 
         /**
+         * WrapperResponse classification.
+         * @member {pb.IBehaviorClassification|null|undefined} classification
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.classification = null;
+
+        /**
          * Creates a new WrapperResponse instance using the specified properties.
          * @function create
          * @memberof pb.WrapperResponse
@@ -7229,6 +7690,8 @@ $root.pb = (function() {
             if (message.rewrittenArgs != null && message.rewrittenArgs.length)
                 for (var i = 0; i < message.rewrittenArgs.length; ++i)
                     writer.uint32(/* id 3, wireType 2 =*/26).string(message.rewrittenArgs[i]);
+            if (message.classification != null && Object.hasOwnProperty.call(message, "classification"))
+                $root.pb.BehaviorClassification.encode(message.classification, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
             return writer;
         };
 
@@ -7277,6 +7740,10 @@ $root.pb = (function() {
                         if (!(message.rewrittenArgs && message.rewrittenArgs.length))
                             message.rewrittenArgs = [];
                         message.rewrittenArgs.push(reader.string());
+                        break;
+                    }
+                case 4: {
+                        message.classification = $root.pb.BehaviorClassification.decode(reader, reader.uint32());
                         break;
                     }
                 default:
@@ -7334,6 +7801,11 @@ $root.pb = (function() {
                     if (!$util.isString(message.rewrittenArgs[i]))
                         return "rewrittenArgs: string[] expected";
             }
+            if (message.classification != null && message.hasOwnProperty("classification")) {
+                var error = $root.pb.BehaviorClassification.verify(message.classification);
+                if (error)
+                    return "classification." + error;
+            }
             return null;
         };
 
@@ -7382,6 +7854,11 @@ $root.pb = (function() {
                 for (var i = 0; i < object.rewrittenArgs.length; ++i)
                     message.rewrittenArgs[i] = String(object.rewrittenArgs[i]);
             }
+            if (object.classification != null) {
+                if (typeof object.classification !== "object")
+                    throw TypeError(".pb.WrapperResponse.classification: object expected");
+                message.classification = $root.pb.BehaviorClassification.fromObject(object.classification);
+            }
             return message;
         };
 
@@ -7403,6 +7880,7 @@ $root.pb = (function() {
             if (options.defaults) {
                 object.action = options.enums === String ? "ALLOW" : 0;
                 object.message = "";
+                object.classification = null;
             }
             if (message.action != null && message.hasOwnProperty("action"))
                 object.action = options.enums === String ? $root.pb.WrapperResponse.Action[message.action] === undefined ? message.action : $root.pb.WrapperResponse.Action[message.action] : message.action;
@@ -7413,6 +7891,8 @@ $root.pb = (function() {
                 for (var j = 0; j < message.rewrittenArgs.length; ++j)
                     object.rewrittenArgs[j] = message.rewrittenArgs[j];
             }
+            if (message.classification != null && message.hasOwnProperty("classification"))
+                object.classification = $root.pb.BehaviorClassification.toObject(message.classification, options);
             return object;
         };
 

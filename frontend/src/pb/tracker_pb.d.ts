@@ -32,6 +32,140 @@ export namespace pb {
         NATIVE_HOOK = 24
     }
 
+    /** BehaviorCategory enum. */
+    enum BehaviorCategory {
+        UNKNOWN = 0,
+        FILE_READ = 1,
+        FILE_WRITE = 2,
+        FILE_DELETE = 3,
+        FILE_PERMISSION = 4,
+        NETWORK = 5,
+        PROCESS_EXEC = 6,
+        PROCESS_KILL = 7,
+        SYSTEM_INFO = 8,
+        PACKAGE_MANAGER = 9,
+        DATABASE = 10,
+        COMPRESSION = 11,
+        DEVELOPMENT = 12,
+        CONTAINER = 13,
+        SENSITIVE = 14
+    }
+
+    /** Properties of a BehaviorClassification. */
+    interface IBehaviorClassification {
+
+        /** BehaviorClassification categories */
+        categories?: (pb.BehaviorCategory[]|null);
+
+        /** BehaviorClassification primaryCategory */
+        primaryCategory?: (string|null);
+
+        /** BehaviorClassification confidence */
+        confidence?: (string|null);
+
+        /** BehaviorClassification reasoning */
+        reasoning?: (string|null);
+    }
+
+    /** Represents a BehaviorClassification. */
+    class BehaviorClassification implements IBehaviorClassification {
+
+        /**
+         * Constructs a new BehaviorClassification.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IBehaviorClassification);
+
+        /** BehaviorClassification categories. */
+        public categories: pb.BehaviorCategory[];
+
+        /** BehaviorClassification primaryCategory. */
+        public primaryCategory: string;
+
+        /** BehaviorClassification confidence. */
+        public confidence: string;
+
+        /** BehaviorClassification reasoning. */
+        public reasoning: string;
+
+        /**
+         * Creates a new BehaviorClassification instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns BehaviorClassification instance
+         */
+        public static create(properties?: pb.IBehaviorClassification): pb.BehaviorClassification;
+
+        /**
+         * Encodes the specified BehaviorClassification message. Does not implicitly {@link pb.BehaviorClassification.verify|verify} messages.
+         * @param message BehaviorClassification message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IBehaviorClassification, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified BehaviorClassification message, length delimited. Does not implicitly {@link pb.BehaviorClassification.verify|verify} messages.
+         * @param message BehaviorClassification message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IBehaviorClassification, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a BehaviorClassification message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns BehaviorClassification
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.BehaviorClassification;
+
+        /**
+         * Decodes a BehaviorClassification message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns BehaviorClassification
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.BehaviorClassification;
+
+        /**
+         * Verifies a BehaviorClassification message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a BehaviorClassification message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns BehaviorClassification
+         */
+        public static fromObject(object: { [k: string]: any }): pb.BehaviorClassification;
+
+        /**
+         * Creates a plain object from a BehaviorClassification message. Also converts values to other types if specified.
+         * @param message BehaviorClassification
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.BehaviorClassification, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this BehaviorClassification to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for BehaviorClassification
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of a RegisterRequest. */
     interface IRegisterRequest {
 
@@ -500,6 +634,9 @@ export namespace pb {
 
         /** Event eventType */
         eventType?: (pb.EventType|null);
+
+        /** Event behavior */
+        behavior?: (pb.IBehaviorClassification|null);
     }
 
     /** Represents an Event. */
@@ -576,6 +713,9 @@ export namespace pb {
 
         /** Event eventType. */
         public eventType: pb.EventType;
+
+        /** Event behavior. */
+        public behavior?: (pb.IBehaviorClassification|null);
 
         /**
          * Creates a new Event instance using the specified properties.
@@ -2572,6 +2712,9 @@ export namespace pb {
 
         /** WrapperResponse rewrittenArgs */
         rewrittenArgs?: (string[]|null);
+
+        /** WrapperResponse classification */
+        classification?: (pb.IBehaviorClassification|null);
     }
 
     /** Represents a WrapperResponse. */
@@ -2591,6 +2734,9 @@ export namespace pb {
 
         /** WrapperResponse rewrittenArgs. */
         public rewrittenArgs: string[];
+
+        /** WrapperResponse classification. */
+        public classification?: (pb.IBehaviorClassification|null);
 
         /**
          * Creates a new WrapperResponse instance using the specified properties.

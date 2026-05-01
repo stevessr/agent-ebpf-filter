@@ -32,6 +32,31 @@ enum EventType {
   NATIVE_HOOK = 24;
 }
 
+enum BehaviorCategory {
+  UNKNOWN = 0;
+  FILE_READ = 1;
+  FILE_WRITE = 2;
+  FILE_DELETE = 3;
+  FILE_PERMISSION = 4;
+  NETWORK = 5;
+  PROCESS_EXEC = 6;
+  PROCESS_KILL = 7;
+  SYSTEM_INFO = 8;
+  PACKAGE_MANAGER = 9;
+  DATABASE = 10;
+  COMPRESSION = 11;
+  DEVELOPMENT = 12;
+  CONTAINER = 13;
+  SENSITIVE = 14;
+}
+
+message BehaviorClassification {
+  repeated BehaviorCategory categories = 1;
+  string primary_category = 2;
+  string confidence = 3;
+  string reasoning = 4;
+}
+
 // Represents a process registration request
 message RegisterRequest {
   uint32 pid = 1;
@@ -78,6 +103,7 @@ message Event {
   uint32 uid_arg = 20;
   uint32 gid_arg = 21;
   EventType event_type = 22;
+  BehaviorClassification behavior = 23;
 }
 
 // Batch of events for WebSocket delivery efficiency
@@ -229,7 +255,8 @@ message WrapperResponse {
   }
   Action action = 1;
   string message = 2;
-  repeated string rewritten_args = 3; // Only if action is REWRITE
+  repeated string rewritten_args = 3;
+  BehaviorClassification classification = 4;
 }
 
 message ProcessList {
