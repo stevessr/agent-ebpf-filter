@@ -167,6 +167,13 @@ var availableHooks = []HookDef{
 		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
+		ID: "augment", Name: "Augment (Auggie CLI)", HookType: HookTypeNative,
+		Description:     "Uses Auggie's native PreToolUse hook in ~/.augment/settings.json to intercept tool calls",
+		TargetCmd:       "auggie",
+		NativeHookEvent: "PreToolUse",
+		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
 		ID: "cursor", Name: "Cursor", HookType: HookTypeWrapper,
 		Description: "Intercepts cursor execution via shell alias wrapper",
 		TargetCmd:   "cursor",

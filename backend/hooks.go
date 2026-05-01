@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"net/http"
 
 	"agent-ebpf-filter/pb"
+
 	"github.com/gin-gonic/gin"
 	"github.com/pelletier/go-toml/v2"
 )
@@ -58,6 +59,8 @@ func handleNativeHookEvent(c *gin.Context) {
 		tag = "GitHub Copilot"
 	} else if sourceCLI == "kiro" || strings.Contains(ua, "kiro") {
 		tag = "Kiro CLI"
+	} else if sourceCLI == "augment" || strings.Contains(ua, "augment") || strings.Contains(ua, "auggie") {
+		tag = "Augment"
 	} else {
 		if hookEvent == "BeforeTool" {
 			tag = "Gemini CLI"
@@ -492,7 +495,13 @@ func installNativeHook(h HookDef) error {
 		"command":       hookCommand,
 		"statusMessage": "agent-ebpf-hook-active: inspecting...",
 	}
-	if h.ID != "codex" {
+	switch h.ID {
+	case "codex":
+		// Codex doesn't support async hooks
+	case "augment":
+		// Augment uses `timeout` (ms) rather than async
+		hookEntry["timeout"] = 5000
+	default:
 		hookEntry["async"] = true
 	}
 	matcher := map[string]interface{}{"hooks": []interface{}{hookEntry}}
