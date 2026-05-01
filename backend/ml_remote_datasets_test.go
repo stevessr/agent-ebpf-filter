@@ -183,6 +183,43 @@ func TestPullRemoteDatasetFromTarXzArchive(t *testing.T) {
 	}
 }
 
+func TestParseRemoteDatasetRecordsGTFOBinsAndLOLBAS(t *testing.T) {
+	// GTFOBins style
+	gtfoRaw := []byte(`{
+		"7z": {
+			"functions": {
+				"file-read": [
+					{ "code": "7z a -ttar -an -so /etc/shadow | 7z e -ttar -si -so" }
+				]
+			}
+		}
+	}`)
+	records, _, err := parseRemoteDatasetRecords(gtfoRaw, "auto")
+	if err != nil {
+		t.Fatalf("GTFOBins parse error = %v", err)
+	}
+	if len(records) != 1 || records[0].Comm != "7z" || records[0].Category != "file-read" {
+		t.Fatalf("GTFOBins record = %#v", records[0])
+	}
+
+	// LOLBAS style
+	lolbasRaw := []byte(`[
+		{
+			"Name": "7z.exe",
+			"Commands": [
+				{ "Command": "7z.exe a -ttar -an -so /etc/shadow", "Category": "Download" }
+			]
+		}
+	]`)
+	records, _, err = parseRemoteDatasetRecords(lolbasRaw, "auto")
+	if err != nil {
+		t.Fatalf("LOLBAS parse error = %v", err)
+	}
+	if len(records) != 1 || records[0].Comm != "7z.exe" || records[0].Category != "Download" {
+		t.Fatalf("LOLBAS record = %#v", records[0])
+	}
+}
+
 func buildZipArchive(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 

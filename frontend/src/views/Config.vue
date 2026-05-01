@@ -1269,52 +1269,55 @@ const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     name: 'ADFA-LD',
     family: '经典 HIDS',
     platform: 'Linux',
-    pageUrl: 'https://research.unsw.edu.au/projects/adfa-ids-datasets',
-    downloadUrl: 'https://cloudstor.aarnet.edu.au/plus/index.php/s/2DhnLGDdEECo4ys/download?path=&files=ADFA-LD.zip',
-    note: 'UNSW/ADFA 的 Linux 主机入侵检测数据集，适合系统调用级 HIDS 研究。',
+    pageUrl: 'https://github.com/verazuo/a-labelled-version-of-the-ADFA-LD-dataset',
+    downloadUrl: 'https://github.com/verazuo/a-labelled-version-of-the-ADFA-LD-dataset/raw/master/ADFA-LD.zip',
+    note: 'UNSW/ADFA 的 Linux 主机入侵检测数据集 (GitHub Mirror)，包含系统调用序列。',
   },
   {
-    name: 'ADFA-WD / SAA',
-    family: '经典 HIDS',
+    name: 'GTFOBins',
+    family: '特权提升',
+    platform: 'Linux / Unix',
+    pageUrl: 'https://gtfobins.github.io/',
+    downloadUrl: 'https://gtfobins.github.io/api.json',
+    note: '精选的 Unix 二进制文件列表，可用于绕过本地安全限制。',
+  },
+  {
+    name: 'LOLBAS',
+    family: '离地攻击',
     platform: 'Windows',
-    pageUrl: 'https://research.unsw.edu.au/projects/adfa-ids-datasets',
-    downloadUrl: 'https://cloudstor.aarnet.edu.au/plus/index.php/s/2DhnLGDdEECo4ys/download?path=&files=ADFA-WD.zip',
-    note: 'Windows 主机入侵检测数据集与 stealth attacks addendum，官方页提供下载入口。',
+    pageUrl: 'https://lolbas-project.github.io/',
+    downloadUrl: 'https://lolbas-project.github.io/api/lolbas.json',
+    note: 'Windows 官方签名二进制文件、脚本和库，可被滥用用于提权或持久化。',
   },
   {
-    name: 'CERT Insider Threat Test',
+    name: 'Zenodo Shell Commands',
+    family: '真实行为',
+    platform: 'Linux / Metasploit',
+    pageUrl: 'https://zenodo.org/record/8136017',
+    downloadUrl: 'https://zenodo.org/record/8136017/files/shell_commands.json?download=1',
+    note: '21,000+ 条真实网络安全练习中的 Shell 命令历史。',
+  },
+  {
+    name: 'NSL-KDD (Train+)',
+    family: '经典 IDS',
+    platform: '多平台 / 网络',
+    pageUrl: 'https://www.unb.ca/cic/datasets/nsl.html',
+    downloadUrl: 'https://github.com/defcom17/NSL-KDD/raw/master/NSL-KDD/KDDTrain%2B.csv',
+    note: 'KDD 99 的改进版，解决了重复记录问题，是入侵检测领域的经典基线。',
+  },
+  {
+    name: 'CERT Insider Threat',
     family: '内鬼威胁',
     platform: 'Windows / 企业行为',
     pageUrl: 'https://doi.org/10.1184/R1/1284328',
-    note: 'SEI/CERT 的合成内鬼威胁测试集，包含 background 与 malicious actor 数据。需注册后下载。',
+    note: 'SEI/CERT 的合成内鬼威胁测试集。需注册后从官网或 Figshare 下载后手动导入。',
   },
   {
-    name: 'LANL Unified Host + Network',
-    family: '主机 + 网络',
-    platform: 'Windows',
-    pageUrl: 'https://csr.lanl.gov/data/2017/',
-    note: 'Los Alamos 的统一主机/网络事件集，适合主机审计与认证行为分析。需申请访问。',
-  },
-  {
-    name: 'DARPA 1998 IDS',
+    name: 'DARPA 1998/1999 IDS',
     family: '经典 IDS',
-    platform: '多平台审计',
-    pageUrl: 'https://archive.ll.mit.edu/ideval/data/1998data.html',
-    note: 'DARPA 1998 入侵检测评估，包含网络流量与审计日志，是经典基线。',
-  },
-  {
-    name: 'DARPA 1999 IDS',
-    family: '经典 IDS',
-    platform: '多平台审计',
-    pageUrl: 'https://archive.ll.mit.edu/ideval/data/1999data.html',
-    note: 'DARPA 1999 入侵检测评估，含网络与主机审计日志，常用于对照实验。',
-  },
-  {
-    name: 'LLS DDoS 1.0',
-    family: '场景化攻击',
-    platform: 'Solaris / 网络',
-    pageUrl: 'https://archive.ll.mit.edu/ideval/data/2000/LLS_DDOS_1.0.html',
-    note: 'DARPA 2000 场景化攻击数据，描述 sadmind 利用与 DDoS 攻击链。',
+    platform: '多平台',
+    pageUrl: 'https://www.ll.mit.edu/r-d/datasets/1998-darpa-intrusion-detection-evaluation-dataset',
+    note: '入侵检测评估领域的鼻祖，数据量极巨且多为 PCAP，建议按需从官网下载特定部分。',
   },
 ];
 const importingClassicDataset = ref(false);
@@ -1818,6 +1821,33 @@ const addPresetSample = async (preset: { comm: string; args: string; label: stri
   } catch (e: any) {
     message.error('Failed to add preset');
   }
+};
+
+const importAllHighRiskPresets = async () => {
+  let added = 0;
+  let skipped = 0;
+  for (const preset of highRiskPresets) {
+    const argsArray = preset.args ? splitCommandLine(preset.args) : [];
+    const argsStr = argsArray.join(' ');
+    const duplicate = allSamples.value.find(s => 
+      s.comm === preset.comm && (s.args || []).join(' ') === argsStr
+    );
+    if (duplicate) {
+      skipped++;
+      continue;
+    }
+    try {
+      await axios.post('/config/ml/samples', {
+        comm: preset.comm, args: argsArray, label: preset.label,
+      });
+      added++;
+    } catch (_) {
+      skipped++;
+    }
+  }
+  message.success(`一键导入完成：新增 ${added} 条，跳过 ${skipped} 条`);
+  await fetchMLStatus();
+  await fetchAllSamples();
 };
 
 // ── Command safety assessment ──
@@ -2898,8 +2928,9 @@ onMounted(async () => {
                 type="info"
                 show-icon
                 style="margin-bottom: 12px"
-                message=”有下载链接的数据集可一键导入；无下载链接的会跳转官方页面，下载后用”导入本地文件”上传。导入器支持 zip、gz、tar、tgz、bz2 等归档及 JSON、JSONL、CSV、TSV、纯文本。”
+                message="有下载链接的数据集可一键导入；无下载链接的会跳转官方页面，下载后用“导入本地文件”上传。导入器支持 zip, gz, tar, tgz, bz2 等归档及 JSON, JSONL, CSV, TSV, 纯文本。"
               />
+
               <a-list :data-source="classicSecurityDatasetPresets" :split="false" size="small">
                 <template #renderItem="{ item }">
                   <a-list-item>
@@ -2981,7 +3012,7 @@ onMounted(async () => {
                 type="info"
                 show-icon
                 style="margin-bottom: 12px"
-                message="后端只接受可直接 GET 到的原始数据文件；如果地址返回的是 HTML 介绍页、下载页或归档页，会直接报错。也可以用“导入本地文件”上传 JSON、JSONL、CSV、TSV、纯文本或常见压缩包，后端会自动尝试解压 zip、gz、tar、tar.gz、tgz、bz2 等归档。"
+                message="后端只接受可直接 GET 到的原始数据文件；如果地址返回的是 HTML 介绍页、下载页或归档页，会直接报错。也可以用“导入本地文件”上传 JSON, JSONL, CSV, TSV, 纯文本或常见压缩包，后端会自动尝试解压 zip, gz, tar, tar.gz, tgz, bz2 等归档。"
               />
 
               <a-row :gutter="[16, 16]">
@@ -3318,7 +3349,10 @@ onMounted(async () => {
               <a-row :gutter="[16, 16]">
                 <!-- Quick presets -->
                 <a-col :xs="24" :md="14">
-                  <div style="font-weight: 600; margin-bottom: 8px">高危行为预设（点击即可添加已标注样本）</div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+                    <div style="font-weight: 600">高危行为预设（点击即可添加已标注样本）</div>
+                    <a-button size="small" type="link" @click="importAllHighRiskPresets">一键导入全部预设</a-button>
+                  </div>
                   <a-space wrap>
                     <a-tag
                       v-for="(p, i) in highRiskPresets"

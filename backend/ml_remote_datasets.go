@@ -937,21 +937,100 @@ func parseTextDatasetRecords(raw []byte) []remoteDatasetRecord {
 }
 
 func flattenDatasetJSON(decoded any) []any {
+	var items []any
 	switch value := decoded.(type) {
 	case []any:
-		return value
+		items = value
 	case map[string]any:
+		found := false
 		for _, key := range []string{"rows", "records", "items", "samples", "data", "commands"} {
 			if nested, ok := value[key]; ok {
 				if arr, ok := nested.([]any); ok {
-					return arr
+					items = arr
+					found = true
+					break
 				}
 			}
 		}
-		return []any{value}
+		if !found {
+			// Check if it's a map of objects (GTFOBins style)
+			allObjects := true
+			for _, v := range value {
+				if _, ok := v.(map[string]any); !ok {
+					allObjects = false
+					break
+				}
+			}
+			if allObjects && len(value) > 0 {
+				for k, v := range value {
+					m := v.(map[string]any)
+					m["_injected_name"] = k
+					items = append(items, m)
+				}
+			} else {
+				items = []any{value}
+			}
+		}
 	default:
 		return []any{decoded}
 	}
+
+	// Second pass: expand nested commands (GTFOBins 'functions' or LOLBAS 'Commands')
+	var expanded []any
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			expanded = append(expanded, item)
+			continue
+		}
+
+		// GTFOBins expansion
+		if funcs, ok := m["functions"].(map[string]any); ok {
+			for fName, fList := range funcs {
+				if fl, ok := fList.([]any); ok {
+					for _, fi := range fl {
+						if fim, ok := fi.(map[string]any); ok {
+							newM := make(map[string]any)
+							for k, v := range m { // copy original
+								if k != "functions" {
+									newM[k] = v
+								}
+							}
+							for k, v := range fim { // merge function entry
+								newM[k] = v
+							}
+							newM["_injected_category"] = fName
+							expanded = append(expanded, newM)
+						}
+					}
+				}
+			}
+			continue
+		}
+
+		// LOLBAS expansion
+		if cmds, ok := m["Commands"].([]any); ok {
+			for _, ci := range cmds {
+				if cim, ok := ci.(map[string]any); ok {
+					newM := make(map[string]any)
+					for k, v := range m { // copy original
+						if k != "Commands" {
+							newM[k] = v
+						}
+					}
+					for k, v := range cim { // merge command entry
+						newM[k] = v
+					}
+					expanded = append(expanded, newM)
+				}
+			}
+			continue
+		}
+
+		expanded = append(expanded, m)
+	}
+
+	return expanded
 }
 
 func remoteDatasetRecordFromAny(decoded any, rowIndex int) (remoteDatasetRecord, bool) {
@@ -978,8 +1057,8 @@ func remoteDatasetRecordFromAny(decoded any, rowIndex int) (remoteDatasetRecord,
 func remoteDatasetRecordFromMap(row map[string]any, rowIndex int) (remoteDatasetRecord, bool) {
 	record := remoteDatasetRecord{Row: rowIndex, UserLabel: "remote-import"}
 
-	commandLine := firstStringValue(row, "commandLine", "cmdline", "full_command", "command", "shell", "text")
-	comm := firstStringValue(row, "comm", "commandName", "name", "executable")
+	commandLine := firstStringValue(row, "commandLine", "cmdline", "full_command", "command", "shell", "text", "Command", "code")
+	comm := firstStringValue(row, "comm", "commandName", "name", "executable", "Name", "_injected_name")
 	args := extractDatasetArgs(row, commandLine)
 	if commandLine == "" && comm != "" {
 		commandLine = joinCommandLine(comm, args)
@@ -1005,7 +1084,7 @@ func remoteDatasetRecordFromMap(row map[string]any, rowIndex int) (remoteDataset
 		record.LabelSource = "dataset"
 	}
 
-	record.Category = firstStringValue(row, "category", "behavior", "type", "group")
+	record.Category = firstStringValue(row, "category", "behavior", "type", "group", "Category", "_injected_category")
 	if anomaly, ok := extractDatasetFloat(row, "anomalyScore", "anomaly_score", "score", "riskScore"); ok {
 		record.Anomaly = anomaly
 		record.HasAnomaly = true
