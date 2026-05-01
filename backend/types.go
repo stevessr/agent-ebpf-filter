@@ -39,6 +39,7 @@ type WrapperRule struct {
 	Regex        string   `json:"regex,omitempty"`
 	Replacement  string   `json:"replacement,omitempty"`
 	Priority     int      `json:"priority,omitempty"`
+	Behavior     string   `json:"behavior,omitempty"`
 }
 
 type shellControlMessage struct {
