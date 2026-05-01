@@ -58,6 +58,9 @@ func startUDSServer(broadcast chan *pb.Event) {
 				globalEmbedder.AddToCluster(embedding)
 				anomalyScore := globalEmbedder.ComputeAnomalyScore(embedding)
 
+				// ── Network audit ──
+				netAudit := AuditNetworkBehavior(req.Comm, req.Args)
+
 				// ── Layer 2: ML random forest prediction ──
 				features := globalFeatureExtractor.Extract(req.Comm, req.Args, req.User, req.Pid)
 				var mlPrediction Prediction
@@ -142,6 +145,7 @@ func startUDSServer(broadcast chan *pb.Event) {
 					Tag:       "Wrapper",
 					Path:      strings.Join(append([]string{req.Comm}, req.Args...), " "),
 					Behavior:  classification,
+					ExtraInfo: fmt.Sprintf("net_audit:%s risk:%.0f", netAudit.RiskLevel, netAudit.RiskScore),
 				}:
 				default:
 				}

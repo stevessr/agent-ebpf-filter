@@ -294,8 +294,12 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	f[114] = float64(now.Hour()) / 24.0   // hour of day
 	f[115] = float64(now.Weekday()) / 7.0 // day of week
 
-	// ── Group F: Reserved [120-127] ──
-	// Left as zeros for future use
+	// ── Group F: Network Audit Features [120-127] ──
+	netAudit := AuditNetworkBehavior(comm, args)
+	netFeatures := NetworkAuditToFeatures(netAudit)
+	for i := 0; i < 8; i++ {
+		f[120+i] = netFeatures[i]
+	}
 
 	fe.updateStats(f)
 	return f

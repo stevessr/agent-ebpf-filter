@@ -90,6 +90,32 @@ var rules = []classificationRule{
 	{category: pb.BehaviorCategory_CONTAINER, commRe: regexp.MustCompile(`^(docker|podman|kubectl|k3s|helm|nerdctl|buildah|skopeo)$`)},
 	// Sensitive
 	{category: pb.BehaviorCategory_SENSITIVE, commRe: regexp.MustCompile(`^(sudo|su|doas|pkexec|passwd|chpasswd|cryptsetup|mount|umount|fdisk|parted|mkfs|lvm|pvcreate|vgcreate|iptables|nft|ufw|firewall-cmd|setenforce|sysctl)$`)},
+	// Network auditing & sniffing (ALERT level)
+	{category: pb.BehaviorCategory_NETWORK, commRe: regexp.MustCompile(`^(tcpdump|tshark|dumpcap|wireshark|ettercap|dsniff|arpspoof|arpping|arp-scan|netdiscover)$`)},
+	// Network config manipulation
+	{category: pb.BehaviorCategory_NETWORK, commRe: regexp.MustCompile(`^(ip|ifconfig|route|brctl|ethtool|iwconfig|iw|tc|ss|lsof|fuser)$`)},
+	// Process inspection (ALERT level)
+	{category: pb.BehaviorCategory_SENSITIVE, commRe: regexp.MustCompile(`^(strace|ltrace|gdb|ptrace|lldb|objdump|readelf|nm|strings)$`)},
+	// Kernel module manipulation
+	{category: pb.BehaviorCategory_SENSITIVE, commRe: regexp.MustCompile(`^(insmod|rmmod|modprobe|depmod|lsmod)$`)},
+	// System service & scheduled tasks
+	{category: pb.BehaviorCategory_SENSITIVE, commRe: regexp.MustCompile(`^(crontab|at|batch|anacron|systemctl|service|chkconfig|update-rc\.d|rc-update)$`)},
+	// Privilege boundary crossing
+	{category: pb.BehaviorCategory_SENSITIVE, commRe: regexp.MustCompile(`^(newgrp|chsh|chfn|usermod|groupmod|visudo|pwck|grpck|useradd|groupadd)$`)},
+	// Sensitive data aggregation
+	{category: pb.BehaviorCategory_FILE_READ, commRe: regexp.MustCompile(`^(cat|tail|head|less)$`), argRe: regexp.MustCompile(`(/etc/shadow|/etc/passwd|~.ssh|~.gnupg|~.aws|id_rsa|id_ed25519)`)},
+	// Find with exec (potential pivoting)
+	{category: pb.BehaviorCategory_SENSITIVE, commRe: regexp.MustCompile(`^find$`), argRe: regexp.MustCompile(`-exec|-ok`)},
+	// Compression with output to network or sensitive paths
+	{category: pb.BehaviorCategory_COMPRESSION, commRe: regexp.MustCompile(`^(tar|zip|gzip)$`), argRe: regexp.MustCompile(`/etc/|/var/log/|/root/`)},
+	// Reverse shell via scripting languages
+	{category: pb.BehaviorCategory_NETWORK, commRe: regexp.MustCompile(`^(python|python3|perl|ruby|php|lua)$`), argRe: regexp.MustCompile(`(-c|-e|socket|subprocess|pty)`)},
+	// SSH tunneling & port forwarding
+	{category: pb.BehaviorCategory_NETWORK, commRe: regexp.MustCompile(`^ssh$`), argRe: regexp.MustCompile(`-[DRL].*:\\d+`)},
+	// Data exfiltration via network tools
+	{category: pb.BehaviorCategory_NETWORK, commRe: regexp.MustCompile(`^(curl|wget)$`), argRe: regexp.MustCompile(`(--data|--post|--upload|-F|@/etc/)`)},
+	// Bash -c with network redirects
+	{category: pb.BehaviorCategory_PROCESS_EXEC, commRe: regexp.MustCompile(`^(bash|sh|zsh)$`), argRe: regexp.MustCompile(`-c.*(/dev/tcp|/dev/udp|>&|<>).*`)},
 }
 
 type Classifier struct{}

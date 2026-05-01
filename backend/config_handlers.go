@@ -879,8 +879,11 @@ func handleMLBacktestPost(c *gin.Context) {
 		classification, anomalyScore, mlPrediction, mlConfig,
 	)
 
+	// Network audit
+	netAudit := AuditNetworkBehavior(req.Comm, req.Args)
+
 	// Build overall risk score (0-100)
-	riskScore := computeRiskScore(classification, anomalyScore, mlPrediction)
+	riskScore := computeRiskScore(classification, anomalyScore, mlPrediction, netAudit)
 
 	c.JSON(200, gin.H{
 		"comm":             req.Comm,
@@ -892,29 +895,30 @@ func handleMLBacktestPost(c *gin.Context) {
 		"reasoning":        reason,
 		"riskScore":        riskScore,
 		"riskLevel":        riskLevel(riskScore),
+		"networkAudit":     netAudit,
 	})
 }
 
 // computeRiskScore combines classification, anomaly, and ML into a 0-100 risk score
-func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore float64, mlPrediction Prediction) float64 {
+func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore float64, mlPrediction Prediction, netAudit NetworkAuditResult) float64 {
 	score := 0.0
 
-	// Category-based contribution (0-40)
+	// Category-based contribution (0-35)
 	if classification != nil {
 		switch classification.PrimaryCategory {
 		case "SENSITIVE":
-			score += 40
+			score += 35
 		case "FILE_DELETE", "PROCESS_KILL":
-			score += 30
+			score += 28
 		case "FILE_PERMISSION", "NETWORK":
-			score += 20
+			score += 18
 		case "PROCESS_EXEC", "FILE_WRITE":
-			score += 15
+			score += 13
 		case "CONTAINER", "DATABASE":
-			score += 10
+			score += 8
 		case "PACKAGE_MANAGER", "COMPRESSION":
 			score += 5
-		}
+}
 
 		if classification.Confidence == "high" {
 			score += 10
@@ -926,16 +930,28 @@ func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore fl
 	// Anomaly contribution (0-30)
 	score += anomalyScore * 30
 
-	// ML prediction contribution (0-30)
+	// ML prediction contribution (0-25)
 	if mlPrediction.Confidence >= 0.60 {
 		switch mlPrediction.Action {
 		case 1: // BLOCK
-			score += mlPrediction.Confidence * 30
+			score += mlPrediction.Confidence * 25
 		case 3: // ALERT
-			score += mlPrediction.Confidence * 20
+			score += mlPrediction.Confidence * 15
 		case 2: // REWRITE
-			score += mlPrediction.Confidence * 10
+			score += mlPrediction.Confidence * 8
 		}
+	}
+
+	// Network audit contribution (0-20)
+	switch netAudit.RiskLevel {
+	case "CRITICAL":
+		score += 20
+	case "HIGH":
+		score += 15
+	case "MEDIUM":
+		score += 10
+	case "LOW":
+		score += 5
 	}
 
 	if score > 100 {

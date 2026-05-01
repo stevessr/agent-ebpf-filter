@@ -148,6 +148,17 @@ func resolveAction(
 		}
 	}
 
+	// ── Layer 1.5: Network audit escalation ──
+	netAudit := AuditNetworkBehavior(req.Comm, req.Args)
+	if netAudit.RiskLevel == "CRITICAL" {
+		return pb.WrapperResponse_ALERT,
+			"CRITICAL network audit: " + netAudit.Findings[0].Description
+	}
+	if netAudit.RiskLevel == "HIGH" && anomalyScore > 0.5 {
+		return pb.WrapperResponse_ALERT,
+			"HIGH network risk with anomalous pattern"
+	}
+
 	// ── Layer 2: ML model ──
 	if mlEnabled && mlModelLoaded && mlPrediction.Confidence >= cfg.MlMinConfidence {
 		switch mlPrediction.Action {
