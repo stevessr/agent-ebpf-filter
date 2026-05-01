@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -773,7 +774,7 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string) TrainingSample 
 			label = actionFromLabel(normalized)
 			userLabel = "remote-source-label"
 		} else if mode == "heuristic" {
-			assessment := assessCommandSafety(comm, args, "", 0)
+			assessment := assessCommandSafety(context.Background(), comm, args, "", 0)
 			if action, ok := assessment["recommendedAction"].(string); ok {
 				label = actionFromLabel(action)
 				userLabel = "remote-heuristic"

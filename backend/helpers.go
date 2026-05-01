@@ -354,6 +354,7 @@ func buildRuntimeConfigResponseFromSettings(settings RuntimeSettings) RuntimeCon
 			logAlive = true
 		}
 	}
+	settings.MLConfig.LlmAPIKey = ""
 	return RuntimeConfigResponse{
 		Runtime:                settings,
 		MCPEndpoint:            fmt.Sprintf("http://127.0.0.1:%d/mcp", resolveBackendPort()),

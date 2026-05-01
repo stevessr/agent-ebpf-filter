@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,7 +50,7 @@ func handleMLAssessPost(c *gin.Context) {
 		return
 	}
 
-	result := assessCommandSafety(req.Comm, req.Args, req.User, req.PID)
+	result := assessCommandSafety(c.Request.Context(), req.Comm, req.Args, req.User, req.PID)
 	c.JSON(http.StatusOK, result)
 }
 
@@ -115,7 +117,7 @@ func handleMLImportExistingPost(c *gin.Context) {
 		label := int32(-1)
 		userLabel := ""
 		if labelMode == "heuristic" {
-			assessment := assessCommandSafety(candidate.Comm, candidate.Args, "", 0)
+			assessment := assessCommandSafety(context.Background(), candidate.Comm, candidate.Args, "", 0)
 			if action, ok := assessment["recommendedAction"].(string); ok {
 				label = actionFromLabel(action)
 				userLabel = "import-heuristic"
@@ -165,7 +167,7 @@ func bindCommandSafetyRequest(c *gin.Context) (commandSafetyRequest, bool) {
 	return req, true
 }
 
-func assessCommandSafety(comm string, args []string, user string, pid uint32) gin.H {
+func assessCommandSafety(ctx context.Context, comm string, args []string, user string, pid uint32) gin.H {
 	commandLine := joinCommandLine(comm, args)
 
 	classification := ClassifyBehavior(comm, args)
@@ -188,7 +190,7 @@ func assessCommandSafety(comm string, args []string, user string, pid uint32) gi
 	}
 
 	netAudit := AuditNetworkBehavior(comm, strings.Join(args, " "))
-	riskScore := computeRiskScore(classification, anomalyScore, mlPrediction, netAudit)
+	riskScore := computeRiskScore(classification, anomalyScore, mlPrediction, netAudit, nil)
 	recommendedAction := actionLabel[int32(simulatedAction)]
 
 	var matches []IndexedTrainingSample
@@ -198,6 +200,37 @@ func assessCommandSafety(comm string, args []string, user string, pid uint32) gi
 
 	sampleMatches := sampleMatchesJSON(matches)
 	sampleEvidence := summarizeSampleEvidence(matches)
+	sampleEvidenceSummary := fmt.Sprintf(
+		"matches=%v labeled=%v decision=%v confidence=%.2f",
+		sampleEvidence["totalMatches"], sampleEvidence["labeledMatches"], sampleEvidence["decision"], sampleEvidence["confidence"],
+	)
+	var llmResult *llmAssessment
+	if llmScoringConfigured() {
+		llmReq := llmScoreRequest{
+			CommandLine:    commandLine,
+			Comm:           comm,
+			Args:           append([]string(nil), args...),
+			Category:       classification.PrimaryCategory,
+			AnomalyScore:   anomalyScore,
+			Classification: classification,
+			MlAction:       actionLabel[mlPrediction.Action],
+			MlConfidence:   mlPrediction.Confidence,
+			NetworkRisk:    netAudit.RiskLevel,
+			NetworkScore:   netAudit.RiskScore,
+			SampleEvidence: sampleEvidenceSummary,
+			CurrentLabel:   fmt.Sprint(sampleEvidence["decision"]),
+			Source:         "assessment",
+		}
+		if result, err := scoreBehaviorWithLLM(ctx, llmReq); err != nil {
+			llmResult = llmAssessmentFromScore(nil, err)
+		} else {
+			llmResult = llmAssessmentFromScore(result, nil)
+			riskScore = computeRiskScore(classification, anomalyScore, mlPrediction, netAudit, llmResult)
+		}
+	} else {
+		riskScore = computeRiskScore(classification, anomalyScore, mlPrediction, netAudit, nil)
+	}
+
 	recommendedAction, reason, riskScore = applySampleEvidence(recommendedAction, reason, riskScore, sampleEvidence)
 
 	return gin.H{
@@ -214,6 +247,7 @@ func assessCommandSafety(comm string, args []string, user string, pid uint32) gi
 		"networkAudit":      netAudit,
 		"sampleMatches":     sampleMatches,
 		"sampleEvidence":    sampleEvidence,
+		"llmAssessment":     llmResult,
 		"modelLoaded":       mlModelLoaded,
 		"mlEnabled":         mlEnabled,
 	}

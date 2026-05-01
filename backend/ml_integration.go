@@ -25,6 +25,15 @@ type MLConfig struct {
 	NumTrees                 int     `json:"numTrees"`
 	MaxDepth                 int     `json:"maxDepth"`
 	MinSamplesLeaf           int     `json:"minSamplesLeaf"`
+	ValidationSplitRatio     float64 `json:"validationSplitRatio"`
+	LlmEnabled               bool    `json:"llmEnabled"`
+	LlmBaseURL               string  `json:"llmBaseUrl"`
+	LlmAPIKey                string  `json:"llmApiKey,omitempty"`
+	LlmModel                 string  `json:"llmModel"`
+	LlmTimeoutSeconds        int     `json:"llmTimeoutSeconds"`
+	LlmTemperature           float64 `json:"llmTemperature"`
+	LlmMaxTokens             int     `json:"llmMaxTokens"`
+	LlmSystemPrompt          string  `json:"llmSystemPrompt"`
 }
 
 // DefaultMLConfig returns sensible defaults
@@ -45,6 +54,15 @@ func DefaultMLConfig() MLConfig {
 		NumTrees:                 31,
 		MaxDepth:                 8,
 		MinSamplesLeaf:           5,
+		ValidationSplitRatio:     0.20,
+		LlmEnabled:               false,
+		LlmBaseURL:               "",
+		LlmAPIKey:                "",
+		LlmModel:                 "",
+		LlmTimeoutSeconds:        45,
+		LlmTemperature:           0.0,
+		LlmMaxTokens:             256,
+		LlmSystemPrompt:          "",
 	}
 }
 

@@ -201,6 +201,18 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings.MLConfig.MinSamplesLeaf == 0 {
 		settings.MLConfig.MinSamplesLeaf = 5
 	}
+	if settings.MLConfig.ValidationSplitRatio == 0 {
+		settings.MLConfig.ValidationSplitRatio = 0.20
+	}
+	if settings.MLConfig.LlmTimeoutSeconds == 0 {
+		settings.MLConfig.LlmTimeoutSeconds = 45
+	}
+	if settings.MLConfig.LlmMaxTokens == 0 {
+		settings.MLConfig.LlmMaxTokens = 256
+	}
+	if strings.TrimSpace(settings.MLConfig.LlmSystemPrompt) == "" {
+		settings.MLConfig.LlmSystemPrompt = defaultLLMScoringSystemPrompt
+	}
 	settings.MLConfig.Enabled = true
 	return nil
 }
@@ -356,6 +368,11 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 	defer s.mu.Unlock()
 
 	seedRuntimeAccessTokenFromEnv(&settings)
+	if settings.MLConfig == (MLConfig{}) {
+		settings.MLConfig = s.settings.MLConfig
+	} else if settings.MLConfig.LlmAPIKey == "" {
+		settings.MLConfig.LlmAPIKey = s.settings.MLConfig.LlmAPIKey
+	}
 	s.settings = settings
 	if err := normalizeRuntimeSettings(&s.settings); err != nil {
 		return RuntimeSettings{}, err

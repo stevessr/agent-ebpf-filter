@@ -618,6 +618,8 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		ml.GET("/existing-commands", handleMLExistingCommandsGet)
 		ml.POST("/import-existing", handleMLImportExistingPost)
 		ml.POST("/assess", handleMLAssessPost)
+		ml.POST("/llm/score", handleMLLLMScorePost)
+		ml.POST("/llm/batch-score", handleMLLLMBatchScorePost)
 		ml.POST("/datasets/pull", handleMLDatasetPullPost)
 		ml.POST("/datasets/import", handleMLDatasetImportPost)
 		ml.GET("/datasets/export", handleMLDatasetExportGet)
@@ -639,6 +641,7 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 func handleMLStatusGet(c *gin.Context) {
 	status := mlStatus()
 	logs := globalTrainer.GetLogs(100)
+	trainAccuracy, validationAccuracy, validationRatio, trainSamples, validationSamples := globalTrainer.SplitMetrics()
 	logItems := make([]gin.H, len(logs))
 	for i, entry := range logs {
 		logItems[i] = gin.H{"time": entry.Timestamp.Format("15:04:05"), "message": entry.Message}
@@ -654,6 +657,23 @@ func handleMLStatusGet(c *gin.Context) {
 		"trainingInProgress": status.TrainingInProgress,
 		"trainingProgress":   status.TrainingProgress,
 		"mlEnabled":          mlEnabled,
+		"trainAccuracy":      trainAccuracy,
+		"validationAccuracy": validationAccuracy,
+		"trainSamples":       trainSamples,
+		"validationSamples":  validationSamples,
+		"validationSplitRatio": validationRatio,
+		"llmReview":          globalTrainer.LastLLMReview(),
+		"mlConfig": gin.H{
+			"validationSplitRatio": mlConfig.ValidationSplitRatio,
+			"llmEnabled":          mlConfig.LlmEnabled,
+			"llmBaseUrl":          mlConfig.LlmBaseURL,
+			"llmApiKeyConfigured": strings.TrimSpace(mlConfig.LlmAPIKey) != "",
+			"llmModel":            mlConfig.LlmModel,
+			"llmTimeoutSeconds":   mlConfig.LlmTimeoutSeconds,
+			"llmTemperature":      mlConfig.LlmTemperature,
+			"llmMaxTokens":        mlConfig.LlmMaxTokens,
+			"llmSystemPrompt":     mlConfig.LlmSystemPrompt,
+		},
 		"trainingLogs":       logItems,
 		"hyperParams": gin.H{
 			"numTrees":       mlConfig.NumTrees,
@@ -724,10 +744,17 @@ func handleMLTrainPost(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{
-		"status":     "ok",
-		"accuracy":   result.Accuracy,
-		"numTrees":   result.NumTrees,
-		"numSamples": result.NumSamples,
+		"status":              "ok",
+		"accuracy":            result.Accuracy,
+		"trainAccuracy":       result.TrainAccuracy,
+		"validationAccuracy":  result.ValidationAccuracy,
+		"numTrees":            result.NumTrees,
+		"numSamples":          result.NumSamples,
+		"trainSamples":        result.TrainSamples,
+		"validationSamples":   result.ValidationSamples,
+		"llmScoredSamples":    result.LLMScoredSamples,
+		"llmAverageRiskScore": result.LLMAverageRiskScore,
+		"llmAgreement":        result.LLMAgreement,
 	})
 }
 
@@ -908,7 +935,7 @@ func handleMLBacktestPost(c *gin.Context) {
 }
 
 // computeRiskScore combines classification, anomaly, and ML into a 0-100 risk score
-func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore float64, mlPrediction Prediction, netAudit NetworkAuditResult) float64 {
+func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore float64, mlPrediction Prediction, netAudit NetworkAuditResult, llmAssessment *llmAssessment) float64 {
 	score := 0.0
 
 	// Category-based contribution (0-35)
@@ -960,6 +987,22 @@ func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore fl
 		score += 10
 	case "LOW":
 		score += 5
+	}
+
+	// LLM contribution (0-20)
+	if llmAssessment != nil && strings.TrimSpace(llmAssessment.Error) == "" {
+		score += clampFloat64(llmAssessment.RiskScore*0.18, 0, 20)
+		if llmAssessment.Confidence > 0 {
+			score += clampFloat64(llmAssessment.Confidence*6, 0, 6)
+		}
+		switch llmAssessment.RecommendedAction {
+		case "BLOCK":
+			score += 8
+		case "ALERT":
+			score += 5
+		case "REWRITE":
+			score += 3
+		}
 	}
 
 	if score > 100 {

@@ -21,11 +21,19 @@ type TrainingLogEntry struct {
 
 // TrainingHistoryEntry records metrics from a single training run
 type TrainingHistoryEntry struct {
-	Timestamp  time.Time `json:"timestamp"`
-	Accuracy   float64   `json:"accuracy"`
-	NumTrees   int       `json:"numTrees"`
-	NumSamples int       `json:"numSamples"`
-	Duration   float64   `json:"duration"` // seconds
+	Timestamp             time.Time `json:"timestamp"`
+	Accuracy              float64   `json:"accuracy"`
+	TrainAccuracy         float64   `json:"trainAccuracy,omitempty"`
+	ValidationAccuracy    float64   `json:"validationAccuracy,omitempty"`
+	NumTrees              int       `json:"numTrees"`
+	NumSamples            int       `json:"numSamples"`
+	TrainSamples          int       `json:"trainSamples,omitempty"`
+	ValidationSamples     int       `json:"validationSamples,omitempty"`
+	ValidationSplitRatio   float64   `json:"validationSplitRatio,omitempty"`
+	LLMScoredSamples      int       `json:"llmScoredSamples,omitempty"`
+	LLMAverageRiskScore   float64   `json:"llmAverageRiskScore,omitempty"`
+	LLMAgreement          float64   `json:"llmAgreement,omitempty"`
+	Duration              float64   `json:"duration"` // seconds
 }
 
 // ModelTrainer builds and evaluates random forest models
@@ -36,6 +44,9 @@ type ModelTrainer struct {
 	lastError string
 	lastTrain time.Time
 	accuracy  float64
+	trainAccuracy      float64
+	validationAccuracy float64
+	validationRatio    float64
 	// Training log ring buffer
 	logMu      sync.RWMutex
 	logs       []TrainingLogEntry
@@ -45,6 +56,10 @@ type ModelTrainer struct {
 	// Training history
 	historyMu sync.RWMutex
 	history   []TrainingHistoryEntry
+	splitMu   sync.RWMutex
+	lastTrainSamples      []TrainingSample
+	lastValidationSamples []TrainingSample
+	lastLLMReview         *LLMReviewSummary
 }
 
 var globalTrainer = &ModelTrainer{
@@ -108,10 +123,17 @@ func (t *ModelTrainer) addHistory(entry TrainingHistoryEntry) {
 
 // TrainResult holds the outcome of a training run
 type TrainResult struct {
-	Accuracy   float64
-	NumTrees   int
-	NumSamples int
-	Error      string
+	Accuracy           float64
+	TrainAccuracy      float64
+	ValidationAccuracy float64
+	NumTrees           int
+	NumSamples         int
+	TrainSamples       int
+	ValidationSamples   int
+	LLMScoredSamples   int
+	LLMAverageRiskScore float64
+	LLMAgreement       float64
+	Error              string
 }
 
 // splitPoint represents a candidate feature split during training
@@ -166,12 +188,29 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 	t.logf("Class distribution: ALLOW=%d, BLOCK=%d, ALERT=%d, REWRITE=%d",
 		classDist[0], classDist[1], classDist[3], classDist[2])
 
-	// 80/20 train/test split
-	rand.Shuffle(len(samples), func(i, j int) { samples[i], samples[j] = samples[j], samples[i] })
-	split := len(samples) * 8 / 10
-	trainSet := samples[:split]
-	testSet := samples[split:]
-	t.logf("Data split: train=%d, test=%d", len(trainSet), len(testSet))
+	// Train/validation split
+	validationRatio := mlConfig.ValidationSplitRatio
+	if validationRatio <= 0 || validationRatio >= 0.5 {
+		validationRatio = 0.20
+	}
+	shuffledRaw := append([]TrainingSample(nil), labeled...)
+	rand.Shuffle(len(samples), func(i, j int) {
+		samples[i], samples[j] = samples[j], samples[i]
+		shuffledRaw[i], shuffledRaw[j] = shuffledRaw[j], shuffledRaw[i]
+	})
+	validationCount := int(math.Round(float64(len(samples)) * validationRatio))
+	if validationCount < 1 {
+		validationCount = 1
+	}
+	if validationCount >= len(samples) {
+		validationCount = len(samples) - 1
+	}
+	trainCount := len(samples) - validationCount
+	trainSet := samples[:trainCount]
+	validationSet := samples[trainCount:]
+	trainRaw := append([]TrainingSample(nil), shuffledRaw[:trainCount]...)
+	validationRaw := append([]TrainingSample(nil), shuffledRaw[trainCount:]...)
+	t.logf("Data split: train=%d, validation=%d (ratio=%.2f)", len(trainSet), len(validationSet), validationRatio)
 
 	// Build forest
 	t.logf("Building random forest with %d trees...", numTrees)
@@ -208,16 +247,17 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 
 	forest.IsTrained = true
 
-	// Evaluate on test set
-	t.logf("Evaluating model on %d test samples...", len(testSet))
+	// Evaluate on train and validation sets
+	t.logf("Evaluating model on %d train samples and %d validation samples...", len(trainSet), len(validationSet))
 	evalStart := time.Now()
-	accuracy := evaluateForest(forest, testSet)
+	trainAccuracy := evaluateForest(forest, trainSet)
+	validationAccuracy := evaluateForest(forest, validationSet)
 	evalElapsed := time.Since(evalStart)
 
 	// Per-class metrics
 	perClassCorrect := make(map[int32]int)
 	perClassTotal := make(map[int32]int)
-	for _, s := range testSet {
+	for _, s := range validationSet {
 		pred := forest.Predict(s.features)
 		perClassTotal[s.label]++
 		if pred.Action == s.label {
@@ -231,28 +271,119 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 			t.logf("  %s: %d/%d correct (%.1f%%)", actionLabel[lbl], perClassCorrect[lbl], perClassTotal[lbl], acc)
 		}
 	}
-	t.logf("Overall accuracy: %.2f%%", accuracy*100)
+	t.logf("Train accuracy: %.2f%%", trainAccuracy*100)
+	t.logf("Validation accuracy: %.2f%%", validationAccuracy*100)
 
-	t.accuracy = accuracy
+	llmReviewSamples := 0
+	llmAverageRiskScore := 0.0
+	llmAgreement := 0.0
+	if mlConfig.LlmEnabled {
+		if review, err := t.reviewValidationWithLLM(validationRaw); err != nil {
+			t.logf("WARN: LLM post-training review failed: %v", err)
+		} else if review != nil {
+			llmReviewSamples = review.ScoredSamples
+			llmAverageRiskScore = review.AverageRiskScore
+			llmAgreement = review.Agreement
+			t.logf("LLM post-training review: %d samples, avg risk %.1f, agreement %.1f%%", review.ScoredSamples, review.AverageRiskScore, review.Agreement*100)
+			t.setLastLLMReview(review)
+		}
+	}
+
+	t.accuracy = validationAccuracy
+	t.trainAccuracy = trainAccuracy
+	t.validationAccuracy = validationAccuracy
+	t.validationRatio = validationRatio
 	t.lastTrain = time.Now()
 	t.logf("══════ Training complete in %s ══════", treeElapsed.Round(time.Millisecond))
+	t.setLastSplit(trainRaw, validationRaw)
 
 	// Record to history
 	t.addHistory(TrainingHistoryEntry{
-		Timestamp:  trainStart,
-		Accuracy:   accuracy,
-		NumTrees:   numTrees,
-		NumSamples: len(labeled),
-		Duration:   time.Since(trainStart).Seconds(),
+		Timestamp:           trainStart,
+		Accuracy:            validationAccuracy,
+		TrainAccuracy:       trainAccuracy,
+		ValidationAccuracy:  validationAccuracy,
+		NumTrees:            numTrees,
+		NumSamples:          len(labeled),
+		TrainSamples:        len(trainRaw),
+		ValidationSamples:   len(validationRaw),
+		ValidationSplitRatio: validationRatio,
+		LLMScoredSamples:    llmReviewSamples,
+		LLMAverageRiskScore: llmAverageRiskScore,
+		LLMAgreement:        llmAgreement,
+		Duration:            time.Since(trainStart).Seconds(),
 	})
 
 	result := TrainResult{
-		Accuracy:   accuracy,
-		NumTrees:   numTrees,
-		NumSamples: len(labeled),
+		Accuracy:           validationAccuracy,
+		TrainAccuracy:      trainAccuracy,
+		ValidationAccuracy: validationAccuracy,
+		NumTrees:           numTrees,
+		NumSamples:         len(labeled),
+		TrainSamples:       len(trainRaw),
+		ValidationSamples:  len(validationRaw),
+		LLMScoredSamples:   llmReviewSamples,
+		LLMAverageRiskScore: llmAverageRiskScore,
+		LLMAgreement:       llmAgreement,
 	}
 
 	return forest, result
+}
+
+func (t *ModelTrainer) setLastSplit(trainSamples, validationSamples []TrainingSample) {
+	t.splitMu.Lock()
+	defer t.splitMu.Unlock()
+
+	t.lastTrainSamples = append(t.lastTrainSamples[:0], trainSamples...)
+	t.lastValidationSamples = append(t.lastValidationSamples[:0], validationSamples...)
+}
+
+func (t *ModelTrainer) setLastLLMReview(review *LLMReviewSummary) {
+	t.splitMu.Lock()
+	defer t.splitMu.Unlock()
+
+	if review == nil {
+		t.lastLLMReview = nil
+		return
+	}
+	copyReview := *review
+	t.lastLLMReview = &copyReview
+}
+
+func (t *ModelTrainer) LastValidationSamples() []TrainingSample {
+	t.splitMu.RLock()
+	defer t.splitMu.RUnlock()
+
+	out := make([]TrainingSample, len(t.lastValidationSamples))
+	copy(out, t.lastValidationSamples)
+	return out
+}
+
+func (t *ModelTrainer) LastTrainSamples() []TrainingSample {
+	t.splitMu.RLock()
+	defer t.splitMu.RUnlock()
+
+	out := make([]TrainingSample, len(t.lastTrainSamples))
+	copy(out, t.lastTrainSamples)
+	return out
+}
+
+func (t *ModelTrainer) LastLLMReview() *LLMReviewSummary {
+	t.splitMu.RLock()
+	defer t.splitMu.RUnlock()
+
+	if t.lastLLMReview == nil {
+		return nil
+	}
+	copyReview := *t.lastLLMReview
+	return &copyReview
+}
+
+func (t *ModelTrainer) SplitMetrics() (trainAccuracy, validationAccuracy, validationRatio float64, trainSamples, validationSamples int) {
+	t.splitMu.RLock()
+	defer t.splitMu.RUnlock()
+
+	return t.trainAccuracy, t.validationAccuracy, t.validationRatio, len(t.lastTrainSamples), len(t.lastValidationSamples)
 }
 
 // buildTree recursively builds a decision tree using Gini impurity
