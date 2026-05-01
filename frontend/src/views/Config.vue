@@ -45,6 +45,32 @@ interface RuntimeSettings {
   accessToken: string;
   maxEventCount: number;
   maxEventAge: string;
+  mlConfig?: {
+    enabled?: boolean;
+    blockConfidenceThreshold?: number;
+    mlMinConfidence?: number;
+    ruleOverridePriority?: number;
+    lowAnomalyThreshold?: number;
+    highAnomalyThreshold?: number;
+    modelPath?: string;
+    autoTrain?: boolean;
+    trainInterval?: string;
+    minSamplesForTraining?: number;
+    activeLearningEnabled?: boolean;
+    featureHistorySize?: number;
+    numTrees?: number;
+    maxDepth?: number;
+    minSamplesLeaf?: number;
+    validationSplitRatio?: number;
+    llmEnabled?: boolean;
+    llmBaseUrl?: string;
+    llmApiKeyConfigured?: boolean;
+    llmModel?: string;
+    llmTimeoutSeconds?: number;
+    llmTemperature?: number;
+    llmMaxTokens?: number;
+    llmSystemPrompt?: string;
+  };
 }
 
 interface TrackedItem {
@@ -93,6 +119,102 @@ interface RuntimeConfigResponse {
   bearerAuthHeaderName: string;
   persistedEventLogPath: string;
   persistedEventLogAlive: boolean;
+}
+
+interface MLReviewSummary {
+  source: string;
+  model: string;
+  scoredSamples: number;
+  averageRiskScore: number;
+  agreement: number;
+  validationSplitRatio?: number;
+  reviewedAt: string;
+}
+
+interface MLStatusState {
+  model_loaded: boolean;
+  num_trees: number;
+  num_samples: number;
+  num_labeled_samples: number;
+  last_trained: string;
+  test_accuracy: number;
+  model_path: string;
+  training_in_progress: boolean;
+  training_progress: number;
+  train_accuracy: number;
+  validation_accuracy: number;
+  train_samples: number;
+  validation_samples: number;
+  validation_split_ratio: number;
+  llm_review: MLReviewSummary | null;
+}
+
+interface MLLlmConfig {
+  enabled: boolean;
+  baseUrl: string;
+  apiKey: string;
+  apiKeyConfigured: boolean;
+  model: string;
+  timeoutSeconds: number;
+  temperature: number;
+  maxTokens: number;
+  systemPrompt: string;
+}
+
+interface MLLlmAssessment {
+  enabled: boolean;
+  model?: string;
+  riskScore: number;
+  confidence: number;
+  recommendedAction: string;
+  reasoning: string;
+  signals?: string[];
+  error?: string;
+  rawContent?: string;
+}
+
+interface MLLlmBatchEntry {
+  index?: number;
+  commandLine: string;
+  comm: string;
+  args: string[];
+  currentLabel?: string;
+  riskScore: number;
+  confidence: number;
+  recommendedAction: string;
+  reasoning: string;
+  applied?: boolean;
+  error?: string;
+}
+
+interface MLLlmBatchResponse {
+  source: string;
+  model: string;
+  total: number;
+  scored: number;
+  applied: number;
+  skipped: number;
+  averageRiskScore: number;
+  agreement: number;
+  validationSplitRatio?: number;
+  review?: MLReviewSummary | null;
+  entries: MLLlmBatchEntry[];
+}
+
+interface MLTrainingHistoryEntry {
+  timestamp: string;
+  accuracy: number;
+  trainAccuracy?: number;
+  validationAccuracy?: number;
+  numTrees: number;
+  numSamples: number;
+  trainSamples?: number;
+  validationSamples?: number;
+  validationSplitRatio?: number;
+  llmScoredSamples?: number;
+  llmAverageRiskScore?: number;
+  llmAgreement?: number;
+  duration?: number;
 }
 
 const tags = ref<string[]>([]);
@@ -418,6 +540,26 @@ const applyRuntimeResponse = (data: RuntimeConfigResponse) => {
     maxEventCount: data.runtime.maxEventCount ?? 1500,
     maxEventAge: data.runtime.maxEventAge ?? "0",
   };
+  const mlConfig = data.runtime.mlConfig;
+  if (mlConfig) {
+    mlThresholds.value.blockConfidenceThreshold = mlConfig.blockConfidenceThreshold ?? mlThresholds.value.blockConfidenceThreshold;
+    mlThresholds.value.mlMinConfidence = mlConfig.mlMinConfidence ?? mlThresholds.value.mlMinConfidence;
+    mlThresholds.value.ruleOverridePriority = mlConfig.ruleOverridePriority ?? mlThresholds.value.ruleOverridePriority;
+    mlThresholds.value.lowAnomalyThreshold = mlConfig.lowAnomalyThreshold ?? mlThresholds.value.lowAnomalyThreshold;
+    mlThresholds.value.highAnomalyThreshold = mlConfig.highAnomalyThreshold ?? mlThresholds.value.highAnomalyThreshold;
+    hyperParams.value.numTrees = mlConfig.numTrees ?? hyperParams.value.numTrees;
+    hyperParams.value.maxDepth = mlConfig.maxDepth ?? hyperParams.value.maxDepth;
+    hyperParams.value.minSamplesLeaf = mlConfig.minSamplesLeaf ?? hyperParams.value.minSamplesLeaf;
+    mlTrainingConfig.value.validationSplitRatio = mlConfig.validationSplitRatio ?? mlTrainingConfig.value.validationSplitRatio;
+    llmScoringConfig.value.enabled = mlConfig.llmEnabled ?? llmScoringConfig.value.enabled;
+    llmScoringConfig.value.baseUrl = mlConfig.llmBaseUrl ?? llmScoringConfig.value.baseUrl;
+    llmScoringConfig.value.apiKeyConfigured = mlConfig.llmApiKeyConfigured ?? llmScoringConfig.value.apiKeyConfigured;
+    llmScoringConfig.value.model = mlConfig.llmModel ?? llmScoringConfig.value.model;
+    llmScoringConfig.value.timeoutSeconds = mlConfig.llmTimeoutSeconds ?? llmScoringConfig.value.timeoutSeconds;
+    llmScoringConfig.value.temperature = mlConfig.llmTemperature ?? llmScoringConfig.value.temperature;
+    llmScoringConfig.value.maxTokens = mlConfig.llmMaxTokens ?? llmScoringConfig.value.maxTokens;
+    llmScoringConfig.value.systemPrompt = mlConfig.llmSystemPrompt ?? llmScoringConfig.value.systemPrompt;
+  }
   mcpEndpoint.value = data.mcpEndpoint;
   authHeaderName.value = data.authHeaderName;
   bearerAuthHeaderName.value = data.bearerAuthHeaderName;
@@ -784,9 +926,22 @@ const getCategoryColor = (tag: string) => {
 
 // ── ML Classification state ──
 const mlEnabled = ref(false);
-const mlStatus = ref({
-  model_loaded: false, num_trees: 0, num_samples: 0, num_labeled_samples: 0,
-  last_trained: '', test_accuracy: 0, model_path: '', training_in_progress: false, training_progress: 0,
+const mlStatus = ref<MLStatusState>({
+  model_loaded: false,
+  num_trees: 0,
+  num_samples: 0,
+  num_labeled_samples: 0,
+  last_trained: '',
+  test_accuracy: 0,
+  model_path: '',
+  training_in_progress: false,
+  training_progress: 0,
+  train_accuracy: 0,
+  validation_accuracy: 0,
+  train_samples: 0,
+  validation_samples: 0,
+  validation_split_ratio: 0.2,
+  llm_review: null,
 });
 const trainingModel = ref(false);
 const feedbackComm = ref('');
@@ -795,9 +950,31 @@ const mlThresholds = ref({
   blockConfidenceThreshold: 0.85, mlMinConfidence: 0.60, ruleOverridePriority: 100,
   lowAnomalyThreshold: 0.30, highAnomalyThreshold: 0.70,
 });
+const mlTrainingConfig = ref({
+  validationSplitRatio: 0.2,
+});
+const llmScoringConfig = ref<MLLlmConfig>({
+  enabled: false,
+  baseUrl: '',
+  apiKey: '',
+  apiKeyConfigured: false,
+  model: '',
+  timeoutSeconds: 45,
+  temperature: 0,
+  maxTokens: 256,
+  systemPrompt: '',
+});
+const llmBatchConfig = ref({
+  source: 'validation' as 'training' | 'validation',
+  limit: 20,
+  onlyUnlabeled: false,
+  applyLabels: false,
+});
+const llmBatchResponse = ref<MLLlmBatchResponse | null>(null);
+const llmBatchLoading = ref(false);
 const trainingLogs = ref<{ time: string; message: string }[]>([]);
 const logPollTimer = ref<ReturnType<typeof setInterval> | null>(null);
-const trainingHistory = ref<any[]>([]);
+const trainingHistory = ref<MLTrainingHistoryEntry[]>([]);
 const mlSubTabKey = ref(localStorage.getItem('config_ml_subtab') || 'status');
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 
@@ -805,16 +982,49 @@ watch(mlSubTabKey, (val) => {
   localStorage.setItem('config_ml_subtab', val);
 });
 
+const applyMLStatusResponse = (data: any) => {
+  mlEnabled.value = data.mlEnabled ?? data.ml_enabled ?? false;
+  mlStatus.value.model_loaded = data.modelLoaded ?? data.model_loaded ?? false;
+  mlStatus.value.num_trees = data.numTrees ?? data.num_trees ?? 0;
+  mlStatus.value.num_samples = data.numSamples ?? data.num_samples ?? 0;
+  mlStatus.value.num_labeled_samples = data.numLabeledSamples ?? data.num_labeled_samples ?? 0;
+  mlStatus.value.last_trained = data.lastTrained ?? data.last_trained ?? '';
+  mlStatus.value.test_accuracy = data.testAccuracy ?? data.test_accuracy ?? 0;
+  mlStatus.value.model_path = data.modelPath ?? data.model_path ?? '';
+  mlStatus.value.training_in_progress = data.trainingInProgress ?? data.training_in_progress ?? false;
+  mlStatus.value.training_progress = data.trainingProgress ?? data.training_progress ?? 0;
+  mlStatus.value.train_accuracy = data.trainAccuracy ?? data.train_accuracy ?? 0;
+  mlStatus.value.validation_accuracy = data.validationAccuracy ?? data.validation_accuracy ?? 0;
+  mlStatus.value.train_samples = data.trainSamples ?? data.train_samples ?? 0;
+  mlStatus.value.validation_samples = data.validationSamples ?? data.validation_samples ?? 0;
+  mlStatus.value.validation_split_ratio = data.validationSplitRatio ?? data.validation_split_ratio ?? mlStatus.value.validation_split_ratio ?? 0.2;
+  mlStatus.value.llm_review = data.llmReview ?? data.llm_review ?? null;
+
+  const mlConfig = data.mlConfig ?? data.ml_config ?? {};
+  if (mlConfig) {
+    mlTrainingConfig.value.validationSplitRatio = mlConfig.validationSplitRatio ?? mlConfig.validation_split_ratio ?? mlStatus.value.validation_split_ratio ?? 0.2;
+    llmScoringConfig.value.enabled = mlConfig.llmEnabled ?? mlConfig.llm_enabled ?? llmScoringConfig.value.enabled;
+    llmScoringConfig.value.baseUrl = mlConfig.llmBaseUrl ?? mlConfig.llm_base_url ?? llmScoringConfig.value.baseUrl;
+    llmScoringConfig.value.apiKeyConfigured = mlConfig.llmApiKeyConfigured ?? mlConfig.llm_api_key_configured ?? llmScoringConfig.value.apiKeyConfigured;
+    llmScoringConfig.value.model = mlConfig.llmModel ?? mlConfig.llm_model ?? llmScoringConfig.value.model;
+    llmScoringConfig.value.timeoutSeconds = mlConfig.llmTimeoutSeconds ?? mlConfig.llm_timeout_seconds ?? llmScoringConfig.value.timeoutSeconds;
+    llmScoringConfig.value.temperature = mlConfig.llmTemperature ?? mlConfig.llm_temperature ?? llmScoringConfig.value.temperature;
+    llmScoringConfig.value.maxTokens = mlConfig.llmMaxTokens ?? mlConfig.llm_max_tokens ?? llmScoringConfig.value.maxTokens;
+    llmScoringConfig.value.systemPrompt = mlConfig.llmSystemPrompt ?? mlConfig.llm_system_prompt ?? llmScoringConfig.value.systemPrompt;
+  }
+
+  if (Array.isArray(data.trainingLogs)) {
+    trainingLogs.value = data.trainingLogs;
+  }
+};
+
 const startLogPolling = () => {
   if (logPollTimer.value) return;
   logPollTimer.value = setInterval(async () => {
     try {
       const res = await axios.get('/config/ml/status');
-      if (res.data.trainingLogs) {
-        trainingLogs.value = res.data.trainingLogs;
-      }
       const wasRunning = mlStatus.value.training_in_progress;
-      Object.assign(mlStatus.value, res.data);
+      applyMLStatusResponse(res.data);
       // Stop polling if training just ended
       if (wasRunning && !mlStatus.value.training_in_progress) {
         stopLogPolling();
@@ -836,22 +1046,18 @@ const stopLogPolling = () => {
 const fetchMLStatus = async () => {
   try {
     const res = await axios.get('/config/ml/status');
-    mlEnabled.value = res.data.mlEnabled || false;
-    Object.assign(mlStatus.value, res.data);
-    if (res.data.trainingLogs) {
-      trainingLogs.value = res.data.trainingLogs;
-    }
+    applyMLStatusResponse(res.data);
     if (res.data.blockConfidenceThreshold !== undefined) {
-      mlThresholds.value.blockConfidenceThreshold = res.data.blockConfidenceThreshold || 0.85;
-      mlThresholds.value.mlMinConfidence = res.data.mlMinConfidence || 0.60;
-      mlThresholds.value.ruleOverridePriority = res.data.ruleOverridePriority || 100;
-      mlThresholds.value.lowAnomalyThreshold = res.data.lowAnomalyThreshold || 0.30;
-      mlThresholds.value.highAnomalyThreshold = res.data.highAnomalyThreshold || 0.70;
+      mlThresholds.value.blockConfidenceThreshold = res.data.blockConfidenceThreshold ?? 0.85;
+      mlThresholds.value.mlMinConfidence = res.data.mlMinConfidence ?? 0.60;
+      mlThresholds.value.ruleOverridePriority = res.data.ruleOverridePriority ?? 100;
+      mlThresholds.value.lowAnomalyThreshold = res.data.lowAnomalyThreshold ?? 0.30;
+      mlThresholds.value.highAnomalyThreshold = res.data.highAnomalyThreshold ?? 0.70;
     }
     if (res.data.hyperParams) {
-      hyperParams.value.numTrees = res.data.hyperParams.numTrees || 31;
-      hyperParams.value.maxDepth = res.data.hyperParams.maxDepth || 8;
-      hyperParams.value.minSamplesLeaf = res.data.hyperParams.minSamplesLeaf || 5;
+      hyperParams.value.numTrees = res.data.hyperParams.numTrees ?? 31;
+      hyperParams.value.maxDepth = res.data.hyperParams.maxDepth ?? 8;
+      hyperParams.value.minSamplesLeaf = res.data.hyperParams.minSamplesLeaf ?? 5;
     }
     await fetchTrainingHistory();
   } catch (_) {}
@@ -873,25 +1079,30 @@ const trainingChartOptions = computed(() => ({
   },
   yaxis: [
     { title: { text: 'Accuracy' }, min: 0, max: 1, labels: { formatter: (v: number) => (v * 100).toFixed(0) + '%' } },
-    { opposite: true, title: { text: 'Samples' }, min: 0 },
+    { seriesName: 'Samples', opposite: true, title: { text: 'Samples' }, min: 0 },
   ],
   tooltip: { x: { format: 'yyyy-MM-dd HH:mm' } },
   legend: { position: 'top' as const },
-  colors: ['#52c41a', '#1890ff'],
+  colors: ['#52c41a', '#1890ff', '#faad14'],
 }));
 
 const trainingChartSeries = computed(() => {
   if (!trainingHistory.value.length) return [];
   return [
     {
-      name: 'Accuracy',
+      name: 'Train Accuracy',
       type: 'line',
-      data: trainingHistory.value.map((h: any) => ({ x: new Date(h.timestamp).getTime(), y: h.accuracy })),
+      data: trainingHistory.value.map((h) => ({ x: new Date(h.timestamp).getTime(), y: h.trainAccuracy ?? h.accuracy })),
+    },
+    {
+      name: 'Validation Accuracy',
+      type: 'line',
+      data: trainingHistory.value.map((h) => ({ x: new Date(h.timestamp).getTime(), y: h.validationAccuracy ?? h.accuracy })),
     },
     {
       name: 'Samples',
       type: 'line',
-      data: trainingHistory.value.map((h: any) => ({ x: new Date(h.timestamp).getTime(), y: h.numSamples })),
+      data: trainingHistory.value.map((h) => ({ x: new Date(h.timestamp).getTime(), y: h.numSamples })),
     },
   ];
 });
@@ -913,31 +1124,83 @@ const submitFeedback = async () => {
 const saveMLThresholds = async () => {
   try {
     const currentRuntime = { ...runtimeSettings.value };
+    const mlConfig: Record<string, any> = {
+      enabled: true,
+      blockConfidenceThreshold: mlThresholds.value.blockConfidenceThreshold,
+      mlMinConfidence: mlThresholds.value.mlMinConfidence,
+      ruleOverridePriority: mlThresholds.value.ruleOverridePriority,
+      lowAnomalyThreshold: mlThresholds.value.lowAnomalyThreshold,
+      highAnomalyThreshold: mlThresholds.value.highAnomalyThreshold,
+      modelPath: mlStatus.value.model_path || '',
+      autoTrain: true,
+      trainInterval: '24h',
+      minSamplesForTraining: 1000,
+      activeLearningEnabled: false,
+      featureHistorySize: 100,
+      numTrees: hyperParams.value.numTrees,
+      maxDepth: hyperParams.value.maxDepth,
+      minSamplesLeaf: hyperParams.value.minSamplesLeaf,
+      validationSplitRatio: mlTrainingConfig.value.validationSplitRatio,
+      llmEnabled: llmScoringConfig.value.enabled,
+      llmBaseUrl: llmScoringConfig.value.baseUrl,
+      llmModel: llmScoringConfig.value.model,
+      llmTimeoutSeconds: llmScoringConfig.value.timeoutSeconds,
+      llmTemperature: llmScoringConfig.value.temperature,
+      llmMaxTokens: llmScoringConfig.value.maxTokens,
+      llmSystemPrompt: llmScoringConfig.value.systemPrompt,
+    };
+    if (llmScoringConfig.value.apiKey.trim()) {
+      mlConfig.llmApiKey = llmScoringConfig.value.apiKey.trim();
+    }
     await axios.put('/config/runtime', {
       ...currentRuntime,
-      mlConfig: {
-        enabled: true,
-        blockConfidenceThreshold: mlThresholds.value.blockConfidenceThreshold,
-        mlMinConfidence: mlThresholds.value.mlMinConfidence,
-        ruleOverridePriority: mlThresholds.value.ruleOverridePriority,
-        lowAnomalyThreshold: mlThresholds.value.lowAnomalyThreshold,
-        highAnomalyThreshold: mlThresholds.value.highAnomalyThreshold,
-        modelPath: mlStatus.value.model_path || '',
-        autoTrain: true,
-        trainInterval: '24h',
-        minSamplesForTraining: 1000,
-        activeLearningEnabled: false,
-        featureHistorySize: 100,
-        numTrees: hyperParams.value.numTrees,
-        maxDepth: hyperParams.value.maxDepth,
-        minSamplesLeaf: hyperParams.value.minSamplesLeaf,
-      },
+      mlConfig,
     });
     message.success('ML thresholds saved');
+    await fetchMLStatus();
   } catch (_) {
     message.error('Failed to save thresholds');
   }
 };
+
+watch(
+  () => llmBatchConfig.value.source,
+  (source) => {
+    if (source !== 'training') {
+      llmBatchConfig.value.applyLabels = false;
+    }
+  },
+);
+
+const llmBatchCanApplyLabels = computed(() => llmBatchConfig.value.source === 'training');
+
+const runLLMBatchScore = async () => {
+  llmBatchLoading.value = true;
+  try {
+    const res = await axios.post<MLLlmBatchResponse>('/config/ml/llm/batch-score', {
+      source: llmBatchConfig.value.source,
+      limit: llmBatchConfig.value.limit,
+      onlyUnlabeled: llmBatchConfig.value.onlyUnlabeled,
+      applyLabels: llmBatchConfig.value.applyLabels && llmBatchCanApplyLabels.value,
+    });
+    llmBatchResponse.value = res.data;
+    if (res.data.review) {
+      mlStatus.value.llm_review = res.data.review;
+    }
+    if (res.data.applied > 0) {
+      await fetchMLStatus();
+      await fetchAllSamples();
+    }
+    message.success(`LLM 打分完成：${res.data.scored}/${res.data.total}，平均风险 ${(res.data.averageRiskScore ?? 0).toFixed(1)}`);
+  } catch (e: any) {
+    message.error(e.response?.data?.error || 'LLM 批量打分失败');
+  } finally {
+    llmBatchLoading.value = false;
+  }
+};
+
+const llmBatchRowKey = (record: MLLlmBatchEntry, index: number) =>
+  record.index !== undefined ? `${record.index}-${index}` : `${record.commandLine}-${index}`;
 
 // ── Sample data browser ──
 interface SampleEntry {
@@ -1220,13 +1483,15 @@ const openTrainingDatasetImportPicker = () => {
 const importRemoteDatasetPayload = async (payload: {
   url?: string;
   content?: string;
+  contentBase64?: string;
   sourceName?: string;
   importAll?: boolean;
 }) => {
-  const url = payload.url ?? (payload.content ? '' : remoteDatasetUrl.value.trim());
+  const url = payload.url ?? ((payload.content || payload.contentBase64) ? '' : remoteDatasetUrl.value.trim());
   const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/import', {
     url,
     content: payload.content,
+    contentBase64: payload.contentBase64,
     sourceName: payload.sourceName,
     format: remoteDatasetFormat.value,
     limit: remoteDatasetLimit.value,
@@ -1239,6 +1504,16 @@ const importRemoteDatasetPayload = async (payload: {
   await fetchAllSamples();
   await fetchExistingCommandData(true);
   return res;
+};
+
+const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return window.btoa(binary);
 };
 
 const labelSample = async (index: number, label: string) => {
@@ -1278,13 +1553,13 @@ const importTrainingDatasetFromFile = async (event: Event) => {
 
   importingRemoteDataset.value = true;
   try {
-    const content = await file.text();
-    if (!content.trim()) {
+    const buffer = await file.arrayBuffer();
+    if (buffer.byteLength === 0) {
       message.warning('所选文件为空');
       return;
     }
     await importRemoteDatasetPayload({
-      content,
+      contentBase64: arrayBufferToBase64(buffer),
       sourceName: file.name,
       importAll: true,
     });
@@ -1523,9 +1798,26 @@ const addPresetSample = async (preset: { comm: string; args: string; label: stri
 };
 
 // ── Command safety assessment ──
+interface MLCommandSafetyResult {
+  riskScore?: number;
+  riskLevel?: string;
+  commandLine?: string;
+  comm?: string;
+  args?: string[];
+  recommendedAction?: string;
+  classification?: any;
+  anomalyScore?: number;
+  mlPrediction?: { action?: string; confidence?: number };
+  reasoning?: string;
+  sampleEvidence?: any;
+  sampleMatches?: any[];
+  networkAudit?: any;
+  llmAssessment?: MLLlmAssessment;
+}
+
 const backtestCommandLine = ref('');
 const backtesting = ref(false);
-const backtestResult = ref<any>(null);
+const backtestResult = ref<MLCommandSafetyResult | null>(null);
 
 const runBacktest = async () => {
   if (!backtestCommandLine.value.trim()) return;
@@ -1548,12 +1840,12 @@ const runBacktestPreset = async (comm: string, argsStr: string) => {
   await runBacktest();
 };
 
-const riskLevelColor = (level: string) => {
+const riskLevelColor = (level?: string) => {
   const m: Record<string, string> = {
     'CRITICAL': '#cf1322', 'HIGH': '#d4380d', 'MEDIUM': '#d48806',
     'LOW': '#389e0d', 'SAFE': '#52c41a',
   };
-  return m[level] || '#666';
+  return (level && m[level]) || '#666';
 };
 
 const riskMeterColor = (score: number) => {
@@ -2253,16 +2545,24 @@ onMounted(async () => {
                   <ReloadOutlined />
                 </a-button>
               </template>
-              <a-descriptions :column="1" size="small" bordered>                <a-descriptions-item label="ML Engine">
+              <a-descriptions :column="1" size="small" bordered>
+                <a-descriptions-item label="ML Engine">
                   <a-tag :color="mlEnabled ? 'green' : 'red'">{{ mlEnabled ? 'Active' : 'Inactive' }}</a-tag>
                 </a-descriptions-item>
                 <a-descriptions-item label="Model Loaded">
                   <a-tag :color="mlStatus.model_loaded ? 'green' : 'orange'">{{ mlStatus.model_loaded ? 'Yes' : 'No' }}</a-tag>
                 </a-descriptions-item>
                 <a-descriptions-item label="Trees">{{ mlStatus.num_trees || 0 }}</a-descriptions-item>
-                <a-descriptions-item label="Training Samples">{{ mlStatus.num_samples || 0 }}</a-descriptions-item>
+                <a-descriptions-item label="Train Accuracy">
+                  {{ mlStatus.train_accuracy ? (mlStatus.train_accuracy * 100).toFixed(1) + '%' : 'N/A' }}
+                </a-descriptions-item>
+                <a-descriptions-item label="Validation Accuracy">
+                  {{ mlStatus.validation_accuracy ? (mlStatus.validation_accuracy * 100).toFixed(1) + '%' : 'N/A' }}
+                </a-descriptions-item>
+                <a-descriptions-item label="Training Samples">{{ mlStatus.train_samples || 0 }}</a-descriptions-item>
+                <a-descriptions-item label="Validation Samples">{{ mlStatus.validation_samples || 0 }}</a-descriptions-item>
                 <a-descriptions-item label="Labeled Samples">{{ mlStatus.num_labeled_samples || 0 }}</a-descriptions-item>
-                <a-descriptions-item label="Test Accuracy">{{ mlStatus.test_accuracy ? (mlStatus.test_accuracy * 100).toFixed(1) + '%' : 'N/A' }}</a-descriptions-item>
+                <a-descriptions-item label="Validation Split">{{ ((mlStatus.validation_split_ratio || 0) * 100).toFixed(0) }}%</a-descriptions-item>
                 <a-descriptions-item label="Last Trained">{{ mlStatus.last_trained || 'Never' }}</a-descriptions-item>
                 <a-descriptions-item label="Model Path">{{ mlStatus.model_path || '' }}</a-descriptions-item>
                 <a-descriptions-item v-if="mlStatus.training_in_progress" label="Training Progress">
@@ -2287,6 +2587,153 @@ onMounted(async () => {
                   </a-select>
                   <a-button type="dashed" @click="submitFeedback" style="width: 30%">Submit</a-button>
                 </a-input-group>
+              </a-space>
+            </a-card>
+          </a-col>
+
+          <a-col v-if="mlSubTabKey === 'model'" :xs="24" :md="12">
+            <a-card title="LLM Scoring" size="small">
+              <template #extra>
+                <a-tag color="purple">OpenAI-compatible API</a-tag>
+              </template>
+              <a-space direction="vertical" style="width: 100%">
+                <a-alert
+                  type="info"
+                  show-icon
+                  message="这里配置外部 OpenAI 风格 LLM 的打分 API。API Key 留空会保留后端已保存的密钥。训练时会按验证集比例自动切分，并在后训练阶段对验证集进行 LLM 复核。"
+                />
+                <a-row :gutter="[12, 12]">
+                  <a-col :xs="24">
+                    <a-space align="center" wrap>
+                      <a-switch v-model:checked="llmScoringConfig.enabled" />
+                      <span>启用 LLM 打分</span>
+                      <a-tag v-if="llmScoringConfig.apiKeyConfigured" color="green">Key 已配置</a-tag>
+                      <a-tag v-else color="default">Key 未配置</a-tag>
+                    </a-space>
+                  </a-col>
+                  <a-col :xs="24">
+                    <div style="font-weight: 600; margin-bottom: 6px">API Base URL</div>
+                    <a-input v-model:value="llmScoringConfig.baseUrl" placeholder="https://api.openai.com" allow-clear />
+                  </a-col>
+                  <a-col :xs="24" :md="12">
+                    <div style="font-weight: 600; margin-bottom: 6px">Model</div>
+                    <a-input v-model:value="llmScoringConfig.model" placeholder="gpt-4o-mini / gpt-5 / 自建兼容模型" allow-clear />
+                  </a-col>
+                  <a-col :xs="24" :md="12">
+                    <div style="font-weight: 600; margin-bottom: 6px">API Key</div>
+                    <a-input-password v-model:value="llmScoringConfig.apiKey" placeholder="留空则保留后端现有密钥" allow-clear />
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <div style="font-weight: 600; margin-bottom: 6px">Timeout (s)</div>
+                    <a-input-number v-model:value="llmScoringConfig.timeoutSeconds" :min="5" :max="300" :step="5" style="width: 100%" />
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <div style="font-weight: 600; margin-bottom: 6px">Temperature</div>
+                    <a-input-number v-model:value="llmScoringConfig.temperature" :min="0" :max="2" :step="0.1" style="width: 100%" />
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <div style="font-weight: 600; margin-bottom: 6px">Max Tokens</div>
+                    <a-input-number v-model:value="llmScoringConfig.maxTokens" :min="32" :max="4096" :step="32" style="width: 100%" />
+                  </a-col>
+                  <a-col :xs="24">
+                    <div style="font-weight: 600; margin-bottom: 6px">System Prompt</div>
+                    <a-textarea
+                      v-model:value="llmScoringConfig.systemPrompt"
+                      :auto-size="{ minRows: 3, maxRows: 8 }"
+                      placeholder="你是安全行为分析器，只返回严格 JSON ..."
+                    />
+                  </a-col>
+                </a-row>
+                <a-divider style="margin: 8px 0">批量打分 / 后训练复核</a-divider>
+                <a-row :gutter="[12, 12]">
+                  <a-col :xs="24" :md="8">
+                    <div style="font-weight: 600; margin-bottom: 6px">数据源</div>
+                    <a-select v-model:value="llmBatchConfig.source" style="width: 100%">
+                      <a-select-option value="validation">验证集</a-select-option>
+                      <a-select-option value="training">训练集</a-select-option>
+                    </a-select>
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <div style="font-weight: 600; margin-bottom: 6px">Limit</div>
+                    <a-input-number v-model:value="llmBatchConfig.limit" :min="1" :max="5000" :step="1" style="width: 100%" />
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <div style="font-weight: 600; margin-bottom: 6px">只看未标注</div>
+                    <a-switch v-model:checked="llmBatchConfig.onlyUnlabeled" />
+                  </a-col>
+                  <a-col :xs="24">
+                    <a-space align="center" wrap>
+                      <a-switch v-model:checked="llmBatchConfig.applyLabels" :disabled="!llmBatchCanApplyLabels" />
+                      <span>把 LLM 结果回写为训练标签</span>
+                      <a-tag v-if="!llmBatchCanApplyLabels" color="default">仅训练集可回写</a-tag>
+                    </a-space>
+                  </a-col>
+                </a-row>
+                <a-button type="primary" @click="runLLMBatchScore" :loading="llmBatchLoading" block>
+                  <ThunderboltOutlined /> 开始批量打分
+                </a-button>
+
+                <div v-if="llmBatchResponse" style="display: flex; flex-direction: column; gap: 12px">
+                  <a-alert
+                    type="success"
+                    show-icon
+                    :message="`已处理 ${llmBatchResponse.scored}/${llmBatchResponse.total} 条，平均风险 ${(llmBatchResponse.averageRiskScore ?? 0).toFixed(1)}，一致性 ${(llmBatchResponse.agreement * 100).toFixed(0)}%`"
+                    :description="llmBatchResponse.review?.validationSplitRatio !== undefined ? `验证集切分比例 ${(llmBatchResponse.review.validationSplitRatio * 100).toFixed(0)}%` : 'LLM 批量复核已完成。'"
+                  />
+                  <a-space wrap>
+                    <a-tag color="blue">source: {{ llmBatchResponse.source }}</a-tag>
+                    <a-tag color="geekblue">model: {{ llmBatchResponse.model }}</a-tag>
+                    <a-tag color="green">applied: {{ llmBatchResponse.applied }}</a-tag>
+                    <a-tag color="orange">skipped: {{ llmBatchResponse.skipped }}</a-tag>
+                  </a-space>
+                  <a-table
+                    :dataSource="llmBatchResponse.entries"
+                    :pagination="{ pageSize: 5, showSizeChanger: true, pageSizeOptions: ['5', '10', '20'] }"
+                    size="small"
+                    :rowKey="llmBatchRowKey"
+                    :scroll="{ x: 980 }"
+                  >
+                    <a-table-column title="Command" dataIndex="commandLine" :width="280" ellipsis>
+                      <template #default="{ record }">
+                        <code>{{ maskSensitiveData(record.commandLine) }}</code>
+                      </template>
+                    </a-table-column>
+                    <a-table-column title="Label" dataIndex="currentLabel" :width="100">
+                      <template #default="{ record }">
+                        <a-tag :color="getLabelColor(record.currentLabel || '-')">{{ record.currentLabel || '—' }}</a-tag>
+                      </template>
+                    </a-table-column>
+                    <a-table-column title="Risk" dataIndex="riskScore" :width="90">
+                      <template #default="{ record }">
+                        {{ record.riskScore?.toFixed(0) }}
+                      </template>
+                    </a-table-column>
+                    <a-table-column title="Action" dataIndex="recommendedAction" :width="110">
+                      <template #default="{ record }">
+                        <a-tag :color="record.recommendedAction === 'BLOCK' ? 'red' : record.recommendedAction === 'ALERT' ? 'orange' : record.recommendedAction === 'REWRITE' ? 'blue' : 'green'">
+                          {{ record.recommendedAction }}
+                        </a-tag>
+                      </template>
+                    </a-table-column>
+                    <a-table-column title="Confidence" dataIndex="confidence" :width="110">
+                      <template #default="{ record }">
+                        {{ record.confidence ? (record.confidence * 100).toFixed(0) + '%' : '—' }}
+                      </template>
+                    </a-table-column>
+                    <a-table-column title="State" dataIndex="applied" :width="100">
+                      <template #default="{ record }">
+                        <a-tag v-if="record.error" color="red">Error</a-tag>
+                        <a-tag v-else-if="record.applied" color="green">Applied</a-tag>
+                        <a-tag v-else color="blue">Scored</a-tag>
+                      </template>
+                    </a-table-column>
+                    <a-table-column title="Reasoning" dataIndex="reasoning" ellipsis>
+                      <template #default="{ record }">
+                        <span>{{ record.reasoning || record.error || '—' }}</span>
+                      </template>
+                    </a-table-column>
+                  </a-table>
+                </div>
               </a-space>
             </a-card>
           </a-col>
@@ -2344,6 +2791,31 @@ onMounted(async () => {
             </a-card>
           </a-col>
 
+          <a-col v-if="mlSubTabKey === 'status' && mlStatus.llm_review" :xs="24">
+            <a-card title="LLM Post-Training Review" size="small">
+              <template #extra>
+                <a-tag color="purple">OpenAI-style batch review</a-tag>
+              </template>
+              <a-descriptions :column="3" size="small" bordered>
+                <a-descriptions-item label="Source">{{ mlStatus.llm_review?.source || '—' }}</a-descriptions-item>
+                <a-descriptions-item label="Model">{{ mlStatus.llm_review?.model || llmScoringConfig.model || '—' }}</a-descriptions-item>
+                <a-descriptions-item label="Scored Samples">{{ mlStatus.llm_review?.scoredSamples ?? 0 }}</a-descriptions-item>
+                <a-descriptions-item label="Average Risk">
+                  {{ mlStatus.llm_review ? mlStatus.llm_review.averageRiskScore.toFixed(1) : '—' }}
+                </a-descriptions-item>
+                <a-descriptions-item label="Agreement">
+                  {{ mlStatus.llm_review ? (mlStatus.llm_review.agreement * 100).toFixed(0) + '%' : '—' }}
+                </a-descriptions-item>
+                <a-descriptions-item label="Validation Split">
+                  {{ mlStatus.llm_review?.validationSplitRatio !== undefined ? (mlStatus.llm_review.validationSplitRatio * 100).toFixed(0) + '%' : '—' }}
+                </a-descriptions-item>
+                <a-descriptions-item label="Reviewed At" :span="3">
+                  {{ mlStatus.llm_review?.reviewedAt ? new Date(mlStatus.llm_review.reviewedAt).toLocaleString() : '—' }}
+                </a-descriptions-item>
+              </a-descriptions>
+            </a-card>
+          </a-col>
+
           <!-- Row: Classic OS Security Datasets -->
           <a-col v-if="mlSubTabKey === 'training'" :xs="24">
             <a-card size="small">
@@ -2355,7 +2827,7 @@ onMounted(async () => {
                 type="info"
                 show-icon
                 style="margin-bottom: 12px"
-                message="这些是经典主机审计、内鬼威胁和入侵检测基准的官方页面/下载入口，不是可直接导入的原始数据文件。请先下载并解压出 JSON、JSONL、CSV、TSV 或纯文本，再使用“导入本地文件”。"
+                message="这些是经典主机审计、内鬼威胁和入侵检测基准的官方页面/下载入口，不是可直接导入的原始数据文件。下载压缩包后可直接用“导入本地文件”，导入器会自动尝试展开 zip、gz、tar、tgz、bz2 等归档，再解析其中的 JSON、JSONL、CSV、TSV 或纯文本样本。"
               />
               <a-list :data-source="classicSecurityDatasetPresets" :split="false" size="small">
                 <template #renderItem="{ item }">
@@ -2406,13 +2878,13 @@ onMounted(async () => {
                 <a-tag color="blue" style="margin-left: 8px">HTTP/HTTPS JSON、JSONL、CSV、TSV、文本</a-tag>
               </template>
               <template #extra>
-                <a-space>
+                  <a-space>
                   <input
                     type="file"
                     ref="trainingDatasetImportInput"
                     @change="importTrainingDatasetFromFile"
                     style="display: none"
-                    accept=".json,.jsonl,.ndjson,.csv,.tsv,.txt,.log"
+                    accept=".json,.jsonl,.ndjson,.csv,.tsv,.txt,.log,.zip,.gz,.tgz,.tar,.bz2,.tbz,.tbz2,.txz"
                   />
                   <a-button size="small" @click="fetchRemoteDatasetPreview" :loading="loadingRemoteDataset">
                     <ReloadOutlined /> 拉取预览
@@ -2430,7 +2902,7 @@ onMounted(async () => {
                 type="info"
                 show-icon
                 style="margin-bottom: 12px"
-                message="后端只接受可直接 GET 到的原始数据文件；如果地址返回的是 HTML 介绍页、下载页或归档页，会直接报错。也可以用“导入本地文件”把 JSON、JSONL、CSV、TSV 或纯文本一次性灌入训练集。"
+                message="后端只接受可直接 GET 到的原始数据文件；如果地址返回的是 HTML 介绍页、下载页或归档页，会直接报错。也可以用“导入本地文件”上传 JSON、JSONL、CSV、TSV、纯文本或常见压缩包，后端会自动尝试解压 zip、gz、tar、tar.gz、tgz、bz2 等归档。"
               />
 
               <a-row :gutter="[16, 16]">
@@ -2896,7 +3368,7 @@ onMounted(async () => {
                       </a-descriptions-item>
                       <a-descriptions-item label="Classify Confidence">{{ backtestResult.classification?.confidence || '—' }}</a-descriptions-item>
                       <a-descriptions-item label="Anomaly Score">
-                        <span :style="{ color: backtestResult.anomalyScore > 0.7 ? '#d4380d' : backtestResult.anomalyScore > 0.3 ? '#d48806' : '#52c41a' }">
+                        <span :style="{ color: (backtestResult.anomalyScore ?? 0) > 0.7 ? '#d4380d' : (backtestResult.anomalyScore ?? 0) > 0.3 ? '#d48806' : '#52c41a' }">
                           {{ backtestResult.anomalyScore?.toFixed(3) || '—' }}
                         </span>
                       </a-descriptions-item>
@@ -2906,6 +3378,44 @@ onMounted(async () => {
                       </a-descriptions-item>
                       <a-descriptions-item label="Reasoning" :span="3">{{ backtestResult.reasoning || '—' }}</a-descriptions-item>
                     </a-descriptions>
+
+                    <!-- LLM scoring breakdown -->
+                    <div v-if="backtestResult.llmAssessment" style="margin-top: 8px">
+                      <div style="font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px">
+                        <span>LLM 打分结果</span>
+                        <a-tag :color="backtestResult.llmAssessment.error ? 'red' : 'purple'">
+                          {{ backtestResult.llmAssessment.error ? 'Error' : 'OpenAI-style' }}
+                        </a-tag>
+                      </div>
+                      <a-alert
+                        v-if="backtestResult.llmAssessment.error"
+                        type="error"
+                        show-icon
+                        :message="backtestResult.llmAssessment.error"
+                        style="margin-bottom: 8px"
+                      />
+                      <a-descriptions v-else :column="3" size="small" bordered>
+                        <a-descriptions-item label="Model">{{ backtestResult.llmAssessment.model || '—' }}</a-descriptions-item>
+                        <a-descriptions-item label="Risk Score">{{ backtestResult.llmAssessment.riskScore?.toFixed(0) || '—' }}</a-descriptions-item>
+                        <a-descriptions-item label="Confidence">
+                          {{ backtestResult.llmAssessment.confidence ? (backtestResult.llmAssessment.confidence * 100).toFixed(0) + '%' : '—' }}
+                        </a-descriptions-item>
+                        <a-descriptions-item label="Recommended Action">
+                          <a-tag :color="backtestResult.llmAssessment.recommendedAction === 'BLOCK' ? 'red' : backtestResult.llmAssessment.recommendedAction === 'ALERT' ? 'orange' : backtestResult.llmAssessment.recommendedAction === 'REWRITE' ? 'blue' : 'green'">
+                            {{ backtestResult.llmAssessment.recommendedAction }}
+                          </a-tag>
+                        </a-descriptions-item>
+                        <a-descriptions-item label="Reasoning" :span="2">{{ backtestResult.llmAssessment.reasoning || '—' }}</a-descriptions-item>
+                        <a-descriptions-item label="Signals" :span="3">
+                          <a-space wrap>
+                            <a-tag v-for="(signal, i) in backtestResult.llmAssessment.signals || []" :key="i" color="purple">
+                              {{ signal }}
+                            </a-tag>
+                            <span v-if="(backtestResult.llmAssessment.signals || []).length === 0" style="color: #999">—</span>
+                          </a-space>
+                        </a-descriptions-item>
+                      </a-descriptions>
+                    </div>
 
                     <!-- Existing labeled sample evidence -->
                     <div v-if="backtestResult.sampleEvidence?.totalMatches > 0">
@@ -2980,6 +3490,28 @@ onMounted(async () => {
           </a-col>
 
           <!-- Row 6: Detection Thresholds -->
+          <a-col v-if="mlSubTabKey === 'params'" :xs="24">
+            <a-card title="Training / Validation Split" size="small">
+              <template #extra>
+                <a-tag color="purple">训练后会自动切分验证集，并可选做 LLM 后训练复核</a-tag>
+              </template>
+              <a-row :gutter="[24, 16]">
+                <a-col :xs="24" :md="12">
+                  <span>Validation Split Ratio</span>
+                  <a-slider v-model:value="mlTrainingConfig.validationSplitRatio" :min="0.1" :max="0.4" :step="0.05" @afterChange="saveMLThresholds" />
+                  <a-input-number v-model:value="mlTrainingConfig.validationSplitRatio" :min="0.1" :max="0.4" :step="0.05" size="small" style="width: 100%" />
+                </a-col>
+                <a-col :xs="24" :md="12">
+                  <div style="font-size: 13px; color: #666; line-height: 1.7; margin-top: 24px">
+                    <div>• 训练时会先随机切分训练集 / 验证集，再分别记录 train / validation accuracy。</div>
+                    <div>• 后训练阶段可用外部 OpenAI 风格 LLM 对验证集做批量复核。</div>
+                    <div>• 若训练集打分选择“回写标签”，仅训练集会被改写，验证集只读。</div>
+                  </div>
+                </a-col>
+              </a-row>
+            </a-card>
+          </a-col>
+
           <a-col v-if="mlSubTabKey === 'params'" :xs="24">
             <a-card title="Detection Thresholds" size="small">
               <a-row :gutter="[24, 16]">

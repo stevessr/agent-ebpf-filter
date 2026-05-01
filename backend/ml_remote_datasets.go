@@ -1,7 +1,13 @@
 package main
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"bytes"
+	"compress/bzip2"
+	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -16,19 +22,21 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ulikunitz/xz"
 )
 
 const remoteDatasetFetchLimitBytes = 20 << 20
 const remoteDatasetUploadLimitBytes = 100 << 20
 
 type remoteDatasetRequest struct {
-	URL        string `json:"url"`
-	Content    string `json:"content"`
-	SourceName string `json:"sourceName"`
-	Format     string `json:"format"`
-	Limit      int    `json:"limit"`
-	LabelMode  string `json:"labelMode"`
-	ImportAll  bool   `json:"importAll"`
+	URL           string `json:"url"`
+	Content       string `json:"content"`
+	ContentBase64 string `json:"contentBase64"`
+	SourceName    string `json:"sourceName"`
+	Format        string `json:"format"`
+	Limit         int    `json:"limit"`
+	LabelMode     string `json:"labelMode"`
+	ImportAll     bool   `json:"importAll"`
 }
 
 type remoteDatasetRow struct {
@@ -72,6 +80,12 @@ type remoteDatasetRecord struct {
 	HasAnomaly  bool
 	Timestamp   time.Time
 	UserLabel   string
+}
+
+type remoteDatasetPayload struct {
+	Source      string
+	ContentType string
+	Data        []byte
 }
 
 func handleMLDatasetPullPost(c *gin.Context) {
@@ -199,7 +213,8 @@ func bindRemoteDatasetRequest(c *gin.Context) (remoteDatasetRequest, bool) {
 
 	req.URL = strings.TrimSpace(req.URL)
 	req.SourceName = strings.TrimSpace(req.SourceName)
-	hasContent := strings.TrimSpace(req.Content) != ""
+	req.ContentBase64 = strings.TrimSpace(req.ContentBase64)
+	hasContent := strings.TrimSpace(req.Content) != "" || req.ContentBase64 != ""
 	if req.URL == "" && !hasContent {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "url or content is required"})
 		return req, false
@@ -242,9 +257,32 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 		return nil, fmt.Errorf("dataset source %q looks like an HTML landing page; please use a raw file URL or import a local file instead", source)
 	}
 
-	records, format, err := parseRemoteDatasetRecords(downloaded, req.Format)
+	payloads, err := expandRemoteDatasetPayloads(downloaded, contentType, source, 0)
 	if err != nil {
 		return nil, err
+	}
+
+	records := make([]remoteDatasetRecord, 0)
+	format := ""
+	for _, payload := range payloads {
+		payloadRecords, payloadFormat, parseErr := parseRemoteDatasetRecords(payload.Data, req.Format)
+		if parseErr != nil {
+			if len(payloads) == 1 {
+				return nil, parseErr
+			}
+			continue
+		}
+		if len(payloadRecords) == 0 {
+			continue
+		}
+		records = append(records, payloadRecords...)
+		format = mergeDatasetFormat(format, payloadFormat)
+	}
+	if len(records) == 0 {
+		return nil, errors.New("no dataset records found in payload")
+	}
+	if format == "" {
+		format = normalizeRemoteDatasetFormat(req.Format, source)
 	}
 
 	rows := make([]remoteDatasetRow, 0, len(records))
@@ -284,6 +322,20 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 }
 
 func loadRemoteDatasetPayload(req remoteDatasetRequest) ([]byte, string, string, error) {
+	if strings.TrimSpace(req.ContentBase64) != "" {
+		raw, err := base64.StdEncoding.DecodeString(req.ContentBase64)
+		if err != nil {
+			return nil, "", "", fmt.Errorf("invalid base64 dataset content: %w", err)
+		}
+		if len(raw) > remoteDatasetUploadLimitBytes {
+			return nil, "", "", fmt.Errorf("remote dataset content is larger than %d bytes", remoteDatasetUploadLimitBytes)
+		}
+		source := strings.TrimSpace(req.SourceName)
+		if source == "" {
+			source = "inline"
+		}
+		return raw, "", source, nil
+	}
 	if strings.TrimSpace(req.Content) != "" {
 		raw := []byte(req.Content)
 		if len(raw) > remoteDatasetUploadLimitBytes {
@@ -304,6 +356,267 @@ func loadRemoteDatasetPayload(req remoteDatasetRequest) ([]byte, string, string,
 		source = req.SourceName
 	}
 	return downloaded, contentType, source, nil
+}
+
+func expandRemoteDatasetPayloads(data []byte, contentType, source string, depth int) ([]remoteDatasetPayload, error) {
+	if depth > 4 {
+		return []remoteDatasetPayload{{Source: source, ContentType: contentType, Data: data}}, nil
+	}
+	if isZipPayload(data, contentType, source) {
+		return expandZipRemoteDatasetPayload(data, source, depth)
+	}
+	if isTarPayload(data, contentType, source) {
+		return expandTarRemoteDatasetPayload(data, source, depth)
+	}
+	if isGzipPayload(data, contentType, source) {
+		decompressed, err := gunzipRemoteDatasetPayload(data)
+		if err != nil {
+			return nil, err
+		}
+		return expandRemoteDatasetPayloads(decompressed, "", stripCompressionSuffix(source), depth+1)
+	}
+	if isBzip2Payload(data, contentType, source) {
+		decompressed, err := bunzip2RemoteDatasetPayload(data)
+		if err != nil {
+			return nil, err
+		}
+		return expandRemoteDatasetPayloads(decompressed, "", stripCompressionSuffix(source), depth+1)
+	}
+	if isXzPayload(data, contentType, source) {
+		decompressed, err := unxzRemoteDatasetPayload(data)
+		if err != nil {
+			return nil, err
+		}
+		return expandRemoteDatasetPayloads(decompressed, "", stripCompressionSuffix(source), depth+1)
+	}
+	return []remoteDatasetPayload{{Source: source, ContentType: contentType, Data: data}}, nil
+}
+
+func expandZipRemoteDatasetPayload(data []byte, source string, depth int) ([]remoteDatasetPayload, error) {
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+
+	payloads := make([]remoteDatasetPayload, 0, len(reader.File))
+	for _, file := range reader.File {
+		if file.FileInfo().IsDir() {
+			continue
+		}
+		if shouldSkipArchiveMember(file.Name) {
+			continue
+		}
+		rc, err := file.Open()
+		if err != nil {
+			continue
+		}
+		fileData, readErr := io.ReadAll(io.LimitReader(rc, remoteDatasetFetchLimitBytes+1))
+		_ = rc.Close()
+		if readErr != nil {
+			continue
+		}
+		if len(fileData) > remoteDatasetFetchLimitBytes {
+			return nil, fmt.Errorf("extracted file %q is larger than %d bytes", file.Name, remoteDatasetFetchLimitBytes)
+		}
+		nextSource := joinDatasetSource(source, file.Name)
+		nested, err := expandRemoteDatasetPayloads(fileData, "", nextSource, depth+1)
+		if err != nil {
+			continue
+		}
+		payloads = append(payloads, nested...)
+	}
+	if len(payloads) == 0 {
+		return nil, fmt.Errorf("zip archive %q did not contain any extractable dataset files", source)
+	}
+	return payloads, nil
+}
+
+func expandTarRemoteDatasetPayload(data []byte, source string, depth int) ([]remoteDatasetPayload, error) {
+	reader := tar.NewReader(bytes.NewReader(data))
+	payloads := make([]remoteDatasetPayload, 0)
+	for {
+		hdr, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			continue
+		}
+		if hdr == nil || hdr.FileInfo().IsDir() {
+			continue
+		}
+		if shouldSkipArchiveMember(hdr.Name) {
+			continue
+		}
+		if hdr.Size > remoteDatasetFetchLimitBytes {
+			return nil, fmt.Errorf("extracted file %q is larger than %d bytes", hdr.Name, remoteDatasetFetchLimitBytes)
+		}
+		fileData, err := io.ReadAll(io.LimitReader(reader, remoteDatasetFetchLimitBytes+1))
+		if err != nil {
+			continue
+		}
+		nextSource := joinDatasetSource(source, hdr.Name)
+		nested, err := expandRemoteDatasetPayloads(fileData, "", nextSource, depth+1)
+		if err != nil {
+			continue
+		}
+		payloads = append(payloads, nested...)
+	}
+	if len(payloads) == 0 {
+		return nil, fmt.Errorf("tar archive %q did not contain any extractable dataset files", source)
+	}
+	return payloads, nil
+}
+
+func gunzipRemoteDatasetPayload(data []byte) ([]byte, error) {
+	reader, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	return io.ReadAll(io.LimitReader(reader, remoteDatasetFetchLimitBytes+1))
+}
+
+func bunzip2RemoteDatasetPayload(data []byte) ([]byte, error) {
+	return io.ReadAll(io.LimitReader(bzip2.NewReader(bytes.NewReader(data)), remoteDatasetFetchLimitBytes+1))
+}
+
+func unxzRemoteDatasetPayload(data []byte) ([]byte, error) {
+	reader, err := xz.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	return io.ReadAll(io.LimitReader(reader, remoteDatasetFetchLimitBytes+1))
+}
+
+func isZipPayload(data []byte, contentType, source string) bool {
+	ct := strings.ToLower(strings.TrimSpace(contentType))
+	if strings.Contains(ct, "zip") {
+		return true
+	}
+	lower := strings.ToLower(source)
+	return strings.HasSuffix(lower, ".zip") || (len(data) >= 4 && bytes.Equal(data[:4], []byte("PK\x03\x04")))
+}
+
+func isTarPayload(data []byte, contentType, source string) bool {
+	ct := strings.ToLower(strings.TrimSpace(contentType))
+	if strings.Contains(ct, "tar") {
+		return true
+	}
+	lower := strings.ToLower(source)
+	if strings.HasSuffix(lower, ".tar") {
+		return true
+	}
+	return len(data) >= 262 && bytes.Equal(data[257:262], []byte("ustar"))
+}
+
+func isGzipPayload(data []byte, contentType, source string) bool {
+	ct := strings.ToLower(strings.TrimSpace(contentType))
+	if strings.Contains(ct, "gzip") || strings.Contains(ct, "x-gzip") {
+		return true
+	}
+	lower := strings.ToLower(source)
+	if strings.HasSuffix(lower, ".gz") || strings.HasSuffix(lower, ".tgz") || strings.HasSuffix(lower, ".tar.gz") {
+		return true
+	}
+	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
+}
+
+func isBzip2Payload(data []byte, contentType, source string) bool {
+	ct := strings.ToLower(strings.TrimSpace(contentType))
+	if strings.Contains(ct, "bzip2") || strings.Contains(ct, "x-bzip2") {
+		return true
+	}
+	lower := strings.ToLower(source)
+	return strings.HasSuffix(lower, ".bz2") || strings.HasSuffix(lower, ".tbz2") || strings.HasSuffix(lower, ".tbz")
+}
+
+func isXzPayload(data []byte, contentType, source string) bool {
+	ct := strings.ToLower(strings.TrimSpace(contentType))
+	if strings.Contains(ct, "x-xz") || strings.Contains(ct, "xz") {
+		return true
+	}
+	lower := strings.ToLower(source)
+	if strings.HasSuffix(lower, ".xz") || strings.HasSuffix(lower, ".txz") {
+		return true
+	}
+	return len(data) >= 6 && bytes.Equal(data[:6], []byte{0xfd, '7', 'z', 'X', 'Z', 0x00})
+}
+
+func stripCompressionSuffix(source string) string {
+	lower := strings.ToLower(strings.TrimSpace(source))
+	switch {
+	case strings.HasSuffix(lower, ".tar.gz"):
+		return source[:len(source)-3]
+	case strings.HasSuffix(lower, ".tar.bz2"):
+		return source[:len(source)-4]
+	case strings.HasSuffix(lower, ".tgz"), strings.HasSuffix(lower, ".tbz2"), strings.HasSuffix(lower, ".tbz"), strings.HasSuffix(lower, ".txz"):
+		if idx := strings.LastIndex(source, "."); idx > 0 {
+			return source[:idx] + ".tar"
+		}
+	case strings.HasSuffix(lower, ".gz"):
+		return source[:len(source)-3]
+	case strings.HasSuffix(lower, ".bz2"):
+		return source[:len(source)-4]
+	case strings.HasSuffix(lower, ".xz"):
+		return source[:len(source)-3]
+	}
+	return source
+}
+
+func joinDatasetSource(parent, child string) string {
+	parent = strings.TrimSpace(parent)
+	child = strings.TrimSpace(child)
+	switch {
+	case parent == "":
+		return child
+	case child == "":
+		return parent
+	default:
+		return parent + "!" + child
+	}
+}
+
+func shouldSkipArchiveMember(name string) bool {
+	base := strings.ToLower(strings.TrimSpace(filepath.Base(name)))
+	if base == "" {
+		return true
+	}
+	switch {
+	case strings.HasPrefix(base, "readme"),
+		strings.HasPrefix(base, "license"),
+		strings.HasPrefix(base, "notice"),
+		strings.HasPrefix(base, "changelog"),
+		strings.HasPrefix(base, "copying"):
+		return true
+	case strings.HasSuffix(base, ".md"),
+		strings.HasSuffix(base, ".rst"),
+		strings.HasSuffix(base, ".html"),
+		strings.HasSuffix(base, ".htm"),
+		strings.HasSuffix(base, ".pdf"),
+		strings.HasSuffix(base, ".png"),
+		strings.HasSuffix(base, ".jpg"),
+		strings.HasSuffix(base, ".jpeg"),
+		strings.HasSuffix(base, ".gif"),
+		strings.HasSuffix(base, ".svg"):
+		return true
+	}
+	return false
+}
+
+func mergeDatasetFormat(current, next string) string {
+	current = strings.ToLower(strings.TrimSpace(current))
+	next = strings.ToLower(strings.TrimSpace(next))
+	if next == "" {
+		return current
+	}
+	if current == "" {
+		return next
+	}
+	if current == next {
+		return current
+	}
+	return "archive"
 }
 
 func looksLikeHTMLDataset(raw []byte, contentType string) bool {
