@@ -1026,6 +1026,10 @@ func flattenDatasetJSON(decoded any) []any {
 			}
 			if allObjects && len(value) > 0 {
 				for k, v := range value {
+					// Skip known metadata keys at the top level
+					if k == "functions" || k == "metadata" || k == "categories" || k == "contexts" {
+						continue
+					}
 					m := v.(map[string]any)
 					m["_injected_name"] = k
 					items = append(items, m)
@@ -1404,9 +1408,21 @@ func parseUnixTimestamp(v int64) time.Time {
 
 func firstStringValue(row map[string]any, keys ...string) string {
 	for _, key := range keys {
-		if raw, ok := row[key]; ok {
-			if s := fmt.Sprint(raw); strings.TrimSpace(s) != "" && s != "<nil>" {
-				return strings.TrimSpace(s)
+		if raw, ok := row[key]; ok && raw != nil {
+			switch v := raw.(type) {
+			case string:
+				if strings.TrimSpace(v) != "" {
+					return strings.TrimSpace(v)
+				}
+			case map[string]any, []any:
+				// Special serialization: if it's an object/array, return as JSON string
+				b, _ := json.Marshal(v)
+				return string(b)
+			default:
+				s := fmt.Sprint(v)
+				if strings.TrimSpace(s) != "" && s != "<nil>" {
+					return strings.TrimSpace(s)
+				}
 			}
 		}
 	}

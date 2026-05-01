@@ -220,6 +220,26 @@ func TestParseRemoteDatasetRecordsGTFOBinsAndLOLBAS(t *testing.T) {
 	}
 }
 
+func TestParseRemoteDatasetRecordsSpecialSerialization(t *testing.T) {
+	// Object that isn't expanded but is picked up as a value
+	raw := []byte(`[
+		{
+			"comm": "test-binary",
+			"metadata": { "author": "me", "version": 1.0 }
+		}
+	]`)
+	records, _, err := parseRemoteDatasetRecords(raw, "auto")
+	if err != nil {
+		t.Fatalf("parse error = %v", err)
+	}
+	_ = records
+	// If we looked for 'metadata' as a string, it should now be a JSON string
+	val := firstStringValue(map[string]any{"m": map[string]any{"a": 1}}, "m")
+	if val != `{"a":1}` {
+		t.Fatalf("got %q, want {\"a\":1}", val)
+	}
+}
+
 func buildZipArchive(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 
