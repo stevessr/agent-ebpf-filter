@@ -943,6 +943,41 @@ const allSamples = ref<SampleEntry[]>([]);
 const loadingSamples = ref(false);
 const sampleTablePageSize = ref(15);
 const sampleSearchText = ref('');
+const dataMaskEnabled = ref(false);
+
+const maskSensitiveData = (text: string): string => {
+  if (!dataMaskEnabled.value || !text) return text;
+  
+  // Mask IP addresses
+  text = text.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '***.***.***.**');
+  
+  // Mask email addresses
+  text = text.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '***@***.***');
+  
+  // Mask URLs (keep protocol and domain structure)
+  text = text.replace(/https?:\/\/[^\s]+/g, (url) => {
+    const parts = url.split('/');
+    if (parts.length > 2) {
+      return parts[0] + '//' + parts[2].replace(/[a-zA-Z0-9]/g, '*') + '/***';
+    }
+    return url;
+  });
+  
+  // Mask file paths with home directory
+  text = text.replace(/\/home\/[^\/\s]+/g, '/home/***');
+  text = text.replace(/~\/[^\s]+/g, '~/***');
+  
+  // Mask passwords in common patterns
+  text = text.replace(/(password|passwd|pwd|token|key|secret)[\s=:]+[^\s]+/gi, '$1=***');
+  
+  // Mask AWS keys
+  text = text.replace(/AKIA[0-9A-Z]{16}/g, 'AKIA****************');
+  
+  // Mask common sensitive paths
+  text = text.replace(/\/etc\/(passwd|shadow|sudoers)/g, '/etc/***');
+  
+  return text;
+};
 
 const filteredSamples = computed(() => {
   if (!sampleSearchText.value.trim()) return allSamples.value;
@@ -1091,30 +1126,43 @@ const highRiskPresets = [
 const submitManualSample = async () => {
   if (!sampleCommandLine.value.trim()) return;
   
-  const parts = sampleCommandLine.value.trim().split(/\s+/);
-  const comm = parts[0];
-  const args = parts.slice(1);
-  const argsStr = args.join(' ');
+  // Split by pipe operator
+  const commands = sampleCommandLine.value.trim().split('|').map(c => c.trim()).filter(c => c);
   
-  // Check for duplicates
-  const duplicate = allSamples.value.find(s => 
-    s.comm === comm && (s.args || []).join(' ') === argsStr
-  );
-  
-  if (duplicate) {
-    message.warning(`样本已存在 (Index #${duplicate.index}, Label: ${duplicate.label})`);
-    return;
-  }
+  if (commands.length === 0) return;
   
   submittingSample.value = true;
+  let addedCount = 0;
+  
   try {
-    await axios.post('/config/ml/samples', {
-      comm, args, label: sampleLabel.value,
-    });
-    message.success(`Sample added: ${comm} → ${sampleLabel.value}`);
-    sampleCommandLine.value = '';
-    await fetchMLStatus();
-    await fetchAllSamples();
+    for (const cmdStr of commands) {
+      const parts = cmdStr.split(/\s+/);
+      const comm = parts[0];
+      const args = parts.slice(1);
+      const argsStr = args.join(' ');
+      
+      // Check for duplicates
+      const duplicate = allSamples.value.find(s => 
+        s.comm === comm && (s.args || []).join(' ') === argsStr
+      );
+      
+      if (duplicate) {
+        message.warning(`样本已存在: ${comm} (Index #${duplicate.index})`);
+        continue;
+      }
+      
+      await axios.post('/config/ml/samples', {
+        comm, args, label: sampleLabel.value,
+      });
+      addedCount++;
+    }
+    
+    if (addedCount > 0) {
+      message.success(`已添加 ${addedCount} 个样本 → ${sampleLabel.value}`);
+      sampleCommandLine.value = '';
+      await fetchMLStatus();
+      await fetchAllSamples();
+    }
   } catch (e: any) {
     message.error(e.response?.data?.error || 'Failed to add sample');
   } finally {
@@ -1966,6 +2014,14 @@ onMounted(async () => {
               </template>
               <template #extra>
                 <a-space>
+                  <a-button 
+                    size="small" 
+                    @click="dataMaskEnabled = !dataMaskEnabled"
+                    :type="dataMaskEnabled ? 'primary' : 'default'"
+                  >
+                    <component :is="dataMaskEnabled ? EyeInvisibleOutlined : EyeOutlined" />
+                    {{ dataMaskEnabled ? '脱敏' : '明文' }}
+                  </a-button>
                   <a-input 
                     v-model:value="sampleSearchText" 
                     placeholder="搜索命令或参数..." 
@@ -1995,7 +2051,7 @@ onMounted(async () => {
                 </a-table-column>
                 <a-table-column title="Args" dataIndex="args" :width="200" ellipsis>
                   <template #default="{ record }">
-                    <span style="font-size: 12px; color: #666">{{ (record.args || []).join(' ') || '—' }}</span>
+                    <span style="font-size: 12px; color: #666">{{ maskSensitiveData((record.args || []).join(' ')) || '—' }}</span>
                   </template>
                 </a-table-column>
                 <a-table-column title="Category" dataIndex="category" :width="110">
@@ -2097,7 +2153,7 @@ onMounted(async () => {
                   <div style="font-weight: 600; margin-bottom: 8px">Step 1: 输入完整命令行</div>
                   <a-input 
                     v-model:value="sampleCommandLine" 
-                    placeholder="完整命令 (e.g. rm -rf /tmp/test 或 sudo systemctl restart nginx)" 
+                    placeholder="完整命令 (支持管道: cat file.txt | grep error | wc -l)" 
                     size="small" 
                     style="margin-bottom: 10px"
                     @keyup.enter="submitManualSample"
@@ -2118,11 +2174,13 @@ onMounted(async () => {
                     </a-radio-group>
                   </div>
                   <div style="background: #fffbe6; border: 1px solid #ffe58f; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 13px" v-if="sampleCommandLine.trim()">
-                    <span style="color: #666">将添加：</span>
-                    <strong>{{ sampleCommandLine.trim().split(/\s+/)[0] }}</strong>
-                    <span v-if="sampleCommandLine.trim().split(/\s+/).length > 1" style="color: #666"> {{ sampleCommandLine.trim().split(/\s+/).slice(1).join(' ').slice(0, 40) }}{{ sampleCommandLine.trim().split(/\s+/).slice(1).join(' ').length > 40 ? '…' : '' }}</span>
-                    <span style="color: #666"> → </span>
-                    <a-tag :color="sampleLabel === 'BLOCK' ? 'red' : sampleLabel === 'ALERT' ? 'orange' : 'green'" size="small">{{ sampleLabel }}</a-tag>
+                    <div v-for="(cmd, idx) in sampleCommandLine.trim().split('|').map(c => c.trim()).filter(c => c)" :key="idx" style="margin-bottom: 2px">
+                      <span style="color: #666">{{ idx + 1 }}. </span>
+                      <strong>{{ cmd.split(/\s+/)[0] }}</strong>
+                      <span v-if="cmd.split(/\s+/).length > 1" style="color: #666"> {{ cmd.split(/\s+/).slice(1).join(' ').slice(0, 30) }}{{ cmd.split(/\s+/).slice(1).join(' ').length > 30 ? '…' : '' }}</span>
+                      <span style="color: #666"> → </span>
+                      <a-tag :color="sampleLabel === 'BLOCK' ? 'red' : sampleLabel === 'ALERT' ? 'orange' : 'green'" size="small">{{ sampleLabel }}</a-tag>
+                    </div>
                   </div>
 
                   <a-button type="primary" @click="submitManualSample" :loading="submittingSample" block>
