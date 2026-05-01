@@ -41,7 +41,7 @@ const routes = [
     component: () => import('../views/Hooks.vue'),
   },
   {
-    path: '/config/:tab?/:subtab?',
+    path: '/config/:tab?/:subtab?/:subsubtab?',
     name: 'Config',
     component: () => import('../views/Config.vue'),
   },

@@ -511,21 +511,39 @@ const toggleEventType = async (type: number, disabled: boolean) => {
 
 const activeTabKey = ref(route.params.tab as string || 'registry');
 const registryTabKey = ref(route.params.subtab as string || 'tags');
+const mlSubTabKey = ref((route.params.subsubtab as string) || (route.params.subtab as string) || localStorage.getItem('config_ml_subtab') || 'status');
 
-watch(() => [route.params.tab, route.params.subtab], ([tab, subtab]) => {
+watch(() => [route.params.tab, route.params.subtab, route.params.subsubtab], ([tab, subtab, subsub]) => {
   if (tab) activeTabKey.value = tab as string;
   if (subtab) registryTabKey.value = subtab as string;
+  // For ML we accept either the second or third segment for backward compatibility
+  if (subsub) mlSubTabKey.value = subsub as string;
+  else if (tab === 'ml' && subtab) mlSubTabKey.value = subtab as string;
 });
 
 watch(activeTabKey, (val) => {
   if (val !== route.params.tab) {
-    router.replace({ name: 'Config', params: { tab: val, subtab: val === 'registry' ? registryTabKey.value : undefined } });
+    router.replace({
+      name: 'Config',
+      params: {
+        tab: val,
+        subtab: val === 'registry' ? registryTabKey.value : (val === 'ml' ? mlSubTabKey.value : undefined),
+      },
+    });
   }
 });
 
 watch(registryTabKey, (val) => {
   if (activeTabKey.value === 'registry' && val !== route.params.subtab) {
     router.replace({ name: 'Config', params: { tab: activeTabKey.value, subtab: val } });
+  }
+});
+
+watch(mlSubTabKey, (val) => {
+  localStorage.setItem('config_ml_subtab', val);
+  if (activeTabKey.value === 'ml' && val !== (route.params.subsubtab || route.params.subtab)) {
+    // Prefer the short (second segment) URL for ML subtabs
+    router.replace({ name: 'Config', params: { tab: 'ml', subtab: val } });
   }
 });
 
@@ -1133,12 +1151,8 @@ const llmBatchLoading = ref(false);
 const trainingLogs = ref<{ time: string; message: string }[]>([]);
 const logPollTimer = ref<ReturnType<typeof setInterval> | null>(null);
 const trainingHistory = ref<MLTrainingHistoryEntry[]>([]);
-const mlSubTabKey = ref(localStorage.getItem('config_ml_subtab') || 'status');
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 
-watch(mlSubTabKey, (val) => {
-  localStorage.setItem('config_ml_subtab', val);
-});
 
 const applyMLStatusResponse = (data: any) => {
   mlEnabled.value = data.mlEnabled ?? data.ml_enabled ?? false;
@@ -2781,6 +2795,7 @@ onMounted(async () => {
           <a-tab-pane key="status" tab="状况"></a-tab-pane>
           <a-tab-pane key="params" tab="参数"></a-tab-pane>
           <a-tab-pane key="model" tab="模型管理"></a-tab-pane>
+          <a-tab-pane key="llm" tab="LLM 打分"></a-tab-pane>
           <a-tab-pane key="training" tab="训练集管理"></a-tab-pane>
         </a-tabs>
         <a-row :gutter="[24, 24]">
@@ -2886,7 +2901,7 @@ onMounted(async () => {
             </a-card>
           </a-col>
 
-          <a-col v-if="mlSubTabKey === 'model'" :xs="24" :md="12">
+          <a-col v-if="mlSubTabKey === 'llm'" :xs="24" :md="12">
             <a-card title="LLM Scoring" size="small">
               <template #extra>
                 <a-tag color="purple">OpenAI-compatible API</a-tag>
