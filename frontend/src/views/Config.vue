@@ -1242,6 +1242,7 @@ interface ClassicSecurityDatasetPreset {
   family: string;
   platform: string;
   pageUrl: string;
+  downloadUrl?: string;
   note: string;
 }
 const allSamples = ref<SampleEntry[]>([]);
@@ -1269,6 +1270,7 @@ const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     family: '经典 HIDS',
     platform: 'Linux',
     pageUrl: 'https://research.unsw.edu.au/projects/adfa-ids-datasets',
+    downloadUrl: 'https://cloudstor.aarnet.edu.au/plus/index.php/s/2DhnLGDdEECo4ys/download?path=&files=ADFA-LD.zip',
     note: 'UNSW/ADFA 的 Linux 主机入侵检测数据集，适合系统调用级 HIDS 研究。',
   },
   {
@@ -1276,21 +1278,22 @@ const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     family: '经典 HIDS',
     platform: 'Windows',
     pageUrl: 'https://research.unsw.edu.au/projects/adfa-ids-datasets',
+    downloadUrl: 'https://cloudstor.aarnet.edu.au/plus/index.php/s/2DhnLGDdEECo4ys/download?path=&files=ADFA-WD.zip',
     note: 'Windows 主机入侵检测数据集与 stealth attacks addendum，官方页提供下载入口。',
   },
   {
     name: 'CERT Insider Threat Test',
     family: '内鬼威胁',
     platform: 'Windows / 企业行为',
-    pageUrl: 'https://sei.cmu.edu/library/insider-threat-test-dataset/',
-    note: 'SEI/CERT 的合成内鬼威胁测试集，包含 background 与 malicious actor 数据。',
+    pageUrl: 'https://doi.org/10.1184/R1/1284328',
+    note: 'SEI/CERT 的合成内鬼威胁测试集，包含 background 与 malicious actor 数据。需注册后下载。',
   },
   {
     name: 'LANL Unified Host + Network',
-    family: '主机+网络',
+    family: '主机 + 网络',
     platform: 'Windows',
     pageUrl: 'https://csr.lanl.gov/data/2017/',
-    note: 'Los Alamos 的统一主机/网络事件集，适合主机审计与认证行为分析。',
+    note: 'Los Alamos 的统一主机/网络事件集，适合主机审计与认证行为分析。需申请访问。',
   },
   {
     name: 'DARPA 1998 IDS',
@@ -1314,6 +1317,26 @@ const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     note: 'DARPA 2000 场景化攻击数据，描述 sadmind 利用与 DDoS 攻击链。',
   },
 ];
+const importingClassicDataset = ref(false);
+const importClassicDataset = async (preset: ClassicSecurityDatasetPreset) => {
+  if (!preset.downloadUrl) {
+    window.open(preset.pageUrl, '_blank');
+    return;
+  }
+  importingClassicDataset.value = true;
+  try {
+    const res = await importRemoteDatasetPayload({
+      url: preset.downloadUrl,
+      sourceName: preset.name,
+      importAll: true,
+    });
+    message.success(`已导入 ${preset.name}（${res.data.imported ?? res.data.total ?? 0} 条）`);
+  } catch (e: any) {
+    message.error(`导入 ${preset.name} 失败：${e.response?.data?.error || e.message}`);
+  } finally {
+    importingClassicDataset.value = false;
+  }
+};
 const dataMaskEnabled = ref(false);
 
 const maskSensitiveData = (text: string): string => {
@@ -1749,7 +1772,7 @@ const submitManualSample = async () => {
       );
       
       if (duplicate) {
-        message.warning(`样本已存在: ${comm} (Index #${duplicate.index})`);
+        message.warning(`样本已存在：${comm} (Index #${duplicate.index})`);
         continue;
       }
       
@@ -1781,7 +1804,7 @@ const addPresetSample = async (preset: { comm: string; args: string; label: stri
   );
   
   if (duplicate) {
-    message.warning(`样本已存在: ${preset.comm} (Index #${duplicate.index})`);
+    message.warning(`样本已存在：${preset.comm} (Index #${duplicate.index})`);
     return;
   }
   
@@ -2538,37 +2561,85 @@ onMounted(async () => {
         </a-tabs>
         <a-row :gutter="[24, 24]">
           <!-- Row 1: Model Status + Training Controls -->
-          <a-col v-if="mlSubTabKey === 'status'" :xs="24" :md="12">
-            <a-card title="Model Status" size="small">
-              <template #extra>
-                <a-button size="small" type="link" @click="fetchMLStatus">
-                  <ReloadOutlined />
-                </a-button>
+          <a-col v-if="mlSubTabKey === 'status'" :xs="24">
+            <a-card size="small">
+              <template #title>
+                <span>Model Status</span>
               </template>
-              <a-descriptions :column="1" size="small" bordered>
-                <a-descriptions-item label="ML Engine">
-                  <a-tag :color="mlEnabled ? 'green' : 'red'">{{ mlEnabled ? 'Active' : 'Inactive' }}</a-tag>
-                </a-descriptions-item>
-                <a-descriptions-item label="Model Loaded">
-                  <a-tag :color="mlStatus.model_loaded ? 'green' : 'orange'">{{ mlStatus.model_loaded ? 'Yes' : 'No' }}</a-tag>
-                </a-descriptions-item>
-                <a-descriptions-item label="Trees">{{ mlStatus.num_trees || 0 }}</a-descriptions-item>
-                <a-descriptions-item label="Train Accuracy">
-                  {{ mlStatus.train_accuracy ? (mlStatus.train_accuracy * 100).toFixed(1) + '%' : 'N/A' }}
-                </a-descriptions-item>
-                <a-descriptions-item label="Validation Accuracy">
-                  {{ mlStatus.validation_accuracy ? (mlStatus.validation_accuracy * 100).toFixed(1) + '%' : 'N/A' }}
-                </a-descriptions-item>
-                <a-descriptions-item label="Training Samples">{{ mlStatus.train_samples || 0 }}</a-descriptions-item>
-                <a-descriptions-item label="Validation Samples">{{ mlStatus.validation_samples || 0 }}</a-descriptions-item>
-                <a-descriptions-item label="Labeled Samples">{{ mlStatus.num_labeled_samples || 0 }}</a-descriptions-item>
-                <a-descriptions-item label="Validation Split">{{ ((mlStatus.validation_split_ratio || 0) * 100).toFixed(0) }}%</a-descriptions-item>
-                <a-descriptions-item label="Last Trained">{{ mlStatus.last_trained || 'Never' }}</a-descriptions-item>
-                <a-descriptions-item label="Model Path">{{ mlStatus.model_path || '' }}</a-descriptions-item>
-                <a-descriptions-item v-if="mlStatus.training_in_progress" label="Training Progress">
-                  <a-progress :percent="Math.round((mlStatus.training_progress || 0) * 100)" size="small" />
-                </a-descriptions-item>
-              </a-descriptions>
+              <template #extra>
+                <a-space>
+                  <a-button size="small" @click="mlSubTabKey = 'training'">
+                    <ImportOutlined /> 导入
+                  </a-button>
+                  <a-button size="small" @click="exportTrainingDataset">
+                    <ExportOutlined /> 下载
+                  </a-button>
+                  <a-button size="small" type="link" @click="fetchMLStatus">
+                    <ReloadOutlined />
+                  </a-button>
+                </a-space>
+              </template>
+              <a-row :gutter="[12, 12]">
+                <a-col :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <a-statistic title="ML Engine" :value="mlEnabled ? 'Active' : 'Inactive'" :value-style="{ color: mlEnabled ? '#3f8600' : '#cf1322', fontSize: '18px' }" />
+                  </a-card>
+                </a-col>
+                <a-col :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <a-statistic title="Model Loaded" :value="mlStatus.model_loaded ? 'Yes' : 'No'" :value-style="{ color: mlStatus.model_loaded ? '#3f8600' : '#d48806', fontSize: '18px' }" />
+                  </a-card>
+                </a-col>
+                <a-col :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <a-statistic title="Trees" :value="mlStatus.num_trees || 0" />
+                  </a-card>
+                </a-col>
+                <a-col :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <a-statistic title="Train Accuracy" :value="mlStatus.train_accuracy ? (mlStatus.train_accuracy * 100).toFixed(1) : '—'" :suffix="mlStatus.train_accuracy ? '%' : ''" />
+                  </a-card>
+                </a-col>
+                <a-col :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <a-statistic title="Validation Acc" :value="mlStatus.validation_accuracy ? (mlStatus.validation_accuracy * 100).toFixed(1) : '—'" :suffix="mlStatus.validation_accuracy ? '%' : ''" />
+                  </a-card>
+                </a-col>
+                <a-col :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <a-statistic title="Train Samples" :value="mlStatus.train_samples || 0" />
+                  </a-card>
+                </a-col>
+                <a-col :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <a-statistic title="Validation Samples" :value="mlStatus.validation_samples || 0" />
+                  </a-card>
+                </a-col>
+                <a-col :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <a-statistic title="Labeled Samples" :value="mlStatus.num_labeled_samples || 0" />
+                  </a-card>
+                </a-col>
+                <a-col :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <a-statistic title="Validation Split" :value="((mlStatus.validation_split_ratio || 0) * 100).toFixed(0)" suffix="%" />
+                  </a-card>
+                </a-col>
+                <a-col :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <a-statistic title="Last Trained" :value="mlStatus.last_trained || 'Never'" :value-style="{ fontSize: '14px' }" />
+                  </a-card>
+                </a-col>
+                <a-col v-if="mlStatus.training_in_progress" :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <div style="font-weight: 600; margin-bottom: 8px; color: #999">Training</div>
+                    <a-progress type="circle" :percent="Math.round((mlStatus.training_progress || 0) * 100)" :size="64" />
+                  </a-card>
+                </a-col>
+              </a-row>
+              <div v-if="mlStatus.model_path" style="margin-top: 12px; font-size: 12px; color: #999; word-break: break-all">
+                Model Path: {{ mlStatus.model_path }}
+              </div>
             </a-card>
           </a-col>
           <a-col v-if="mlSubTabKey === 'model'" :xs="24" :md="12">
@@ -2821,13 +2892,13 @@ onMounted(async () => {
             <a-card size="small">
               <template #title>
                 <span><BookOutlined /> 经典 OS 安全数据集</span>
-                <a-tag color="gold" style="margin-left: 8px">官方页 / 归档入口</a-tag>
+                <a-tag color="green" style="margin-left: 8px">支持一键导入</a-tag>
               </template>
               <a-alert
                 type="info"
                 show-icon
                 style="margin-bottom: 12px"
-                message="这些是经典主机审计、内鬼威胁和入侵检测基准的官方页面/下载入口，不是可直接导入的原始数据文件。下载压缩包后可直接用“导入本地文件”，导入器会自动尝试展开 zip、gz、tar、tgz、bz2 等归档，再解析其中的 JSON、JSONL、CSV、TSV 或纯文本样本。"
+                message=”有下载链接的数据集可一键导入；无下载链接的会跳转官方页面，下载后用”导入本地文件”上传。导入器支持 zip、gz、tar、tgz、bz2 等归档及 JSON、JSONL、CSV、TSV、纯文本。”
               />
               <a-list :data-source="classicSecurityDatasetPresets" :split="false" size="small">
                 <template #renderItem="{ item }">
@@ -2855,6 +2926,14 @@ onMounted(async () => {
                           </a-space>
                         </div>
                         <a-space wrap>
+                          <a-button
+                            size="small"
+                            type="primary"
+                            :loading="importingClassicDataset"
+                            @click="importClassicDataset(item)"
+                          >
+                            <ImportOutlined /> {{ item.downloadUrl ? '一键导入' : '前往下载' }}
+                          </a-button>
                           <a-button size="small" @click="openClassicSecurityDatasetPage(item)">
                             <GlobalOutlined /> 打开官网
                           </a-button>
@@ -3460,7 +3539,7 @@ onMounted(async () => {
                         <a-tag :color="backtestResult.networkAudit.riskLevel === 'CRITICAL' ? 'red' : backtestResult.networkAudit.riskLevel === 'HIGH' ? 'orange' : backtestResult.networkAudit.riskLevel === 'MEDIUM' ? 'gold' : 'blue'">
                           {{ backtestResult.networkAudit.riskLevel }}
                         </a-tag>
-                        <span style="color: #999; font-size: 12px">风险分: {{ backtestResult.networkAudit.riskScore?.toFixed(0) }}</span>
+                        <span style="color: #999; font-size: 12px">风险分：{{ backtestResult.networkAudit.riskScore?.toFixed(0) }}</span>
                       </div>
                       <a-list size="small" bordered :data-source="backtestResult.networkAudit.findings">
                         <template #renderItem="{ item }">
