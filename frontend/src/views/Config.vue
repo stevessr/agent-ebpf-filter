@@ -781,6 +781,88 @@ const getCategoryColor = (tag: string) => {
   return colors[tag] || "default";
 };
 
+// ── ML Classification state ──
+const mlEnabled = ref(false);
+const mlStatus = ref({
+  model_loaded: false, num_trees: 0, num_samples: 0, num_labeled_samples: 0,
+  last_trained: '', test_accuracy: 0, model_path: '', training_in_progress: false, training_progress: 0,
+});
+const trainingModel = ref(false);
+const feedbackComm = ref('');
+const feedbackAction = ref('accepted');
+const mlThresholds = ref({
+  blockConfidenceThreshold: 0.85, mlMinConfidence: 0.60, ruleOverridePriority: 100,
+  lowAnomalyThreshold: 0.30, highAnomalyThreshold: 0.70,
+});
+
+const fetchMLStatus = async () => {
+  try {
+    const res = await axios.get('/config/ml/status');
+    mlEnabled.value = res.data.mlEnabled || false;
+    Object.assign(mlStatus.value, res.data);
+    if (res.data.blockConfidenceThreshold !== undefined) {
+      mlThresholds.value.blockConfidenceThreshold = res.data.blockConfidenceThreshold || 0.85;
+      mlThresholds.value.mlMinConfidence = res.data.mlMinConfidence || 0.60;
+      mlThresholds.value.ruleOverridePriority = res.data.ruleOverridePriority || 100;
+      mlThresholds.value.lowAnomalyThreshold = res.data.lowAnomalyThreshold || 0.30;
+      mlThresholds.value.highAnomalyThreshold = res.data.highAnomalyThreshold || 0.70;
+    }
+  } catch (_) {}
+};
+
+const trainModel = async () => {
+  trainingModel.value = true;
+  try {
+    const res = await axios.post('/config/ml/train');
+    message.success(`Model trained: accuracy=${(res.data.accuracy * 100).toFixed(1)}%`);
+    await fetchMLStatus();
+  } catch (e: any) {
+    message.error(e.response?.data?.error || 'Training failed');
+  } finally {
+    trainingModel.value = false;
+  }
+};
+
+const submitFeedback = async () => {
+  if (!feedbackComm.value) return;
+  try {
+    const res = await axios.post('/config/ml/feedback', {
+      comm: feedbackComm.value, userAction: feedbackAction.value,
+    });
+    message.success(`Feedback applied: ${res.data.matched} samples labeled`);
+    feedbackComm.value = '';
+    await fetchMLStatus();
+  } catch (e: any) {
+    message.error('Failed to submit feedback');
+  }
+};
+
+const saveMLThresholds = async () => {
+  try {
+    const currentRuntime = { ...runtimeSettings.value };
+    await axios.put('/config/runtime', {
+      ...currentRuntime,
+      mlConfig: {
+        enabled: true,
+        blockConfidenceThreshold: mlThresholds.value.blockConfidenceThreshold,
+        mlMinConfidence: mlThresholds.value.mlMinConfidence,
+        ruleOverridePriority: mlThresholds.value.ruleOverridePriority,
+        lowAnomalyThreshold: mlThresholds.value.lowAnomalyThreshold,
+        highAnomalyThreshold: mlThresholds.value.highAnomalyThreshold,
+        modelPath: mlStatus.value.model_path || '',
+        autoTrain: true,
+        trainInterval: '24h',
+        minSamplesForTraining: 1000,
+        activeLearningEnabled: false,
+        featureHistorySize: 100,
+      },
+    });
+    message.success('ML thresholds saved');
+  } catch (_) {
+    message.error('Failed to save thresholds');
+  }
+};
+
 onMounted(async () => {
   updateClusterTargetFromStorage();
   await fetchClusterState();
@@ -1435,6 +1517,86 @@ onMounted(async () => {
                       JSONL log file will be permanently deleted.
                     </a-typography-text>
                   </div>
+                </a-col>
+              </a-row>
+            </a-card>
+          </a-col>
+        </a-row>
+      </a-tab-pane>
+
+      <!-- Tab: ML Classification -->
+      <a-tab-pane key="ml" tab="ML Classification">
+        <template #tab>
+          <span><ThunderboltOutlined /> ML Classification</span>
+        </template>
+        <a-row :gutter="[24, 24]">
+          <a-col :xs="24" :md="12">
+            <a-card title="Model Status" size="small">
+              <a-descriptions :column="1" size="small" bordered>
+                <a-descriptions-item label="ML Engine">
+                  <a-tag :color="mlEnabled ? 'green' : 'red'">{{ mlEnabled ? 'Active' : 'Inactive' }}</a-tag>
+                </a-descriptions-item>
+                <a-descriptions-item label="Model Loaded">
+                  <a-tag :color="mlStatus.model_loaded ? 'green' : 'orange'">{{ mlStatus.model_loaded ? 'Yes' : 'No' }}</a-tag>
+                </a-descriptions-item>
+                <a-descriptions-item label="Trees">{{ mlStatus.num_trees || 0 }}</a-descriptions-item>
+                <a-descriptions-item label="Training Samples">{{ mlStatus.num_samples || 0 }}</a-descriptions-item>
+                <a-descriptions-item label="Labeled Samples">{{ mlStatus.num_labeled_samples || 0 }}</a-descriptions-item>
+                <a-descriptions-item label="Test Accuracy">{{ mlStatus.test_accuracy ? (mlStatus.test_accuracy * 100).toFixed(1) + '%' : 'N/A' }}</a-descriptions-item>
+                <a-descriptions-item label="Last Trained">{{ mlStatus.last_trained || 'Never' }}</a-descriptions-item>
+                <a-descriptions-item label="Model Path">{{ mlStatus.model_path || '' }}</a-descriptions-item>
+                <a-descriptions-item v-if="mlStatus.training_in_progress" label="Training Progress">
+                  <a-progress :percent="Math.round((mlStatus.training_progress || 0) * 100)" size="small" />
+                </a-descriptions-item>
+              </a-descriptions>
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :md="12">
+            <a-card title="Training Controls" size="small">
+              <a-space direction="vertical" style="width: 100%">
+                <a-button type="primary" @click="trainModel" :loading="trainingModel" block>
+                  Train Model Now
+                </a-button>
+                <a-divider style="margin: 8px 0">Feedback</a-divider>
+                <a-input-group compact>
+                  <a-input v-model:value="feedbackComm" placeholder="Command (e.g. rm)" style="width: 40%" />
+                  <a-select v-model:value="feedbackAction" style="width: 30%">
+                    <a-select-option value="accepted">Accepted (ALLOW)</a-select-option>
+                    <a-select-option value="rejected">Rejected (BLOCK)</a-select-option>
+                    <a-select-option value="alerted">Alerted (ALERT)</a-select-option>
+                  </a-select>
+                  <a-button type="dashed" @click="submitFeedback" style="width: 30%">Submit</a-button>
+                </a-input-group>
+              </a-space>
+            </a-card>
+          </a-col>
+          <a-col :xs="24">
+            <a-card title="Detection Thresholds" size="small">
+              <a-row :gutter="[24, 16]">
+                <a-col :xs="24" :md="8">
+                  <span>Block Confidence Threshold</span>
+                  <a-slider v-model:value="mlThresholds.blockConfidenceThreshold" :min="0.5" :max="1.0" :step="0.05" @afterChange="saveMLThresholds" />
+                  <a-input-number v-model:value="mlThresholds.blockConfidenceThreshold" :min="0.5" :max="1.0" :step="0.05" size="small" style="width: 100%" />
+                </a-col>
+                <a-col :xs="24" :md="8">
+                  <span>ML Minimum Confidence</span>
+                  <a-slider v-model:value="mlThresholds.mlMinConfidence" :min="0.3" :max="1.0" :step="0.05" @afterChange="saveMLThresholds" />
+                  <a-input-number v-model:value="mlThresholds.mlMinConfidence" :min="0.3" :max="1.0" :step="0.05" size="small" style="width: 100%" />
+                </a-col>
+                <a-col :xs="24" :md="8">
+                  <span>Rule Override Priority</span>
+                  <a-slider v-model:value="mlThresholds.ruleOverridePriority" :min="0" :max="200" :step="10" @afterChange="saveMLThresholds" />
+                  <a-input-number v-model:value="mlThresholds.ruleOverridePriority" :min="0" :max="200" :step="10" size="small" style="width: 100%" />
+                </a-col>
+                <a-col :xs="24" :md="8">
+                  <span>Low Anomaly Threshold (below = normal)</span>
+                  <a-slider v-model:value="mlThresholds.lowAnomalyThreshold" :min="0.0" :max="0.5" :step="0.05" @afterChange="saveMLThresholds" />
+                  <a-input-number v-model:value="mlThresholds.lowAnomalyThreshold" :min="0.0" :max="0.5" :step="0.05" size="small" style="width: 100%" />
+                </a-col>
+                <a-col :xs="24" :md="8">
+                  <span>High Anomaly Threshold (above = alert)</span>
+                  <a-slider v-model:value="mlThresholds.highAnomalyThreshold" :min="0.5" :max="1.0" :step="0.05" @afterChange="saveMLThresholds" />
+                  <a-input-number v-model:value="mlThresholds.highAnomalyThreshold" :min="0.5" :max="1.0" :step="0.05" size="small" style="width: 100%" />
                 </a-col>
               </a-row>
             </a-card>

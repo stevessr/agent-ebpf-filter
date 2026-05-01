@@ -600,6 +600,14 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 	rg.GET("/export", handleConfigExportGet)
 	rg.POST("/import", handleConfigImportPost)
 
+	// ML classification endpoints
+	ml := rg.Group("/ml")
+	{
+		ml.GET("/status", handleMLStatusGet)
+		ml.POST("/train", handleMLTrainPost)
+		ml.POST("/feedback", handleMLFeedbackPost)
+	}
+
 	hooks := rg.Group("/hooks")
 	{
 		hooks.GET("", handleConfigHooksList)
@@ -607,4 +615,69 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		hooks.GET("/:id/raw", handleConfigHooksRawGet)
 		hooks.POST("/:id/raw", handleConfigHooksRawPost)
 	}
+}
+
+// ── ML classification handlers ──
+
+func handleMLStatusGet(c *gin.Context) {
+	status := mlStatus()
+	writeProtoOrJSON(c, 200, status, gin.H{
+		"modelLoaded":         status.ModelLoaded,
+		"numTrees":            status.NumTrees,
+		"numSamples":          status.NumSamples,
+		"numLabeledSamples":   status.NumLabeledSamples,
+		"lastTrained":         status.LastTrained,
+		"testAccuracy":        status.TestAccuracy,
+		"modelPath":           status.ModelPath,
+		"trainingInProgress":  status.TrainingInProgress,
+		"trainingProgress":    status.TrainingProgress,
+		"mlEnabled":           mlEnabled,
+	})
+}
+
+func handleMLTrainPost(c *gin.Context) {
+	if !mlEnabled {
+		c.JSON(400, gin.H{"error": "ML engine is not enabled on this node"})
+		return
+	}
+	forest, result := globalTrainer.Train(globalTrainingStore, 31, 8, 5)
+	if result.Error != "" {
+		c.JSON(500, gin.H{"error": result.Error})
+		return
+	}
+	mlEngine = forest
+	mlModelLoaded = true
+
+	modelPath := mlConfig.ModelPath
+	if modelPath == "" {
+		modelPath = defaultMLModelPath()
+	}
+	if err := forest.Serialize(modelPath); err != nil {
+		c.JSON(500, gin.H{"error": "model trained but failed to save: " + err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"status":    "ok",
+		"accuracy":  result.Accuracy,
+		"numTrees":  result.NumTrees,
+		"numSamples": result.NumSamples,
+	})
+}
+
+func handleMLFeedbackPost(c *gin.Context) {
+	var req struct {
+		Comm       string `json:"comm"`
+		UserAction string `json:"userAction"` // "accepted" or "rejected"
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
+	if globalTrainingStore == nil {
+		c.JSON(400, gin.H{"error": "ML training store not initialized"})
+		return
+	}
+	matched := globalTrainingStore.ApplyFeedback(req.Comm, req.UserAction)
+	c.JSON(200, gin.H{"status": "ok", "matched": matched})
 }

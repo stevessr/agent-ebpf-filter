@@ -17,11 +17,12 @@ import (
 )
 
 type RuntimeSettings struct {
-	LogPersistenceEnabled bool   `json:"logPersistenceEnabled"`
-	LogFilePath           string `json:"logFilePath"`
-	AccessToken           string `json:"accessToken"`
-	MaxEventCount         int    `json:"maxEventCount"`
-	MaxEventAge           string `json:"maxEventAge"`
+	LogPersistenceEnabled bool     `json:"logPersistenceEnabled"`
+	LogFilePath           string   `json:"logFilePath"`
+	AccessToken           string   `json:"accessToken"`
+	MaxEventCount         int      `json:"maxEventCount"`
+	MaxEventAge           string   `json:"maxEventAge"`
+	MLConfig              MLConfig `json:"mlConfig,omitempty"`
 }
 
 type CapturedEventRecord struct {
@@ -163,6 +164,35 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if strings.TrimSpace(settings.MaxEventAge) == "" {
 		settings.MaxEventAge = "0"
 	}
+	// ML config defaults
+	if settings.MLConfig.BlockConfidenceThreshold == 0 {
+		settings.MLConfig.BlockConfidenceThreshold = 0.85
+	}
+	if settings.MLConfig.MlMinConfidence == 0 {
+		settings.MLConfig.MlMinConfidence = 0.60
+	}
+	if settings.MLConfig.LowAnomalyThreshold == 0 {
+		settings.MLConfig.LowAnomalyThreshold = 0.30
+	}
+	if settings.MLConfig.HighAnomalyThreshold == 0 {
+		settings.MLConfig.HighAnomalyThreshold = 0.70
+	}
+	if settings.MLConfig.RuleOverridePriority == 0 {
+		settings.MLConfig.RuleOverridePriority = 100
+	}
+	if settings.MLConfig.MinSamplesForTraining == 0 {
+		settings.MLConfig.MinSamplesForTraining = 1000
+	}
+	if settings.MLConfig.TrainInterval == "" {
+		settings.MLConfig.TrainInterval = "24h"
+	}
+	if settings.MLConfig.FeatureHistorySize == 0 {
+		settings.MLConfig.FeatureHistorySize = 100
+	}
+	if settings.MLConfig.ModelPath == "" {
+		settings.MLConfig.ModelPath = filepath.Join(runtimeSettingsDir(), "ml_model.bin")
+	}
+	settings.MLConfig.Enabled = true
 	return nil
 }
 

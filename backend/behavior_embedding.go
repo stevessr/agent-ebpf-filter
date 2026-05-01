@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"agent-ebpf-filter/pb"
 )
 
 // BehaviorEmbedding represents a 64-dimension feature vector for an eBPF event.

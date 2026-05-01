@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"agent-ebpf-filter/pb"
 	"google.golang.org/protobuf/proto"
@@ -35,42 +37,96 @@ func startUDSServer(broadcast chan *pb.Event) {
 				if err := proto.Unmarshal(buf[:n], req); err != nil {
 					continue
 				}
-				resp := &pb.WrapperResponse{Action: pb.WrapperResponse_ALLOW}
+
 				rulesMu.RLock()
-				rule, ok := wrapperRules[req.Comm]
+				rule, hasRule := wrapperRules[req.Comm]
 				rulesMu.RUnlock()
-				if ok {
-					switch rule.Action {
-					case "BLOCK":
-						resp.Action = pb.WrapperResponse_BLOCK
-						resp.Message = "Blocked by policy"
-					case "ALERT":
-						resp.Action = pb.WrapperResponse_ALERT
-						resp.Message = "Security alert"
-					case "REWRITE":
-						resp.Action = pb.WrapperResponse_REWRITE
-						if rule.Regex != "" {
-							fullArgs := strings.Join(req.Args, " ")
-							re, err := regexp.Compile(rule.Regex)
-							if err == nil {
-								newFull := re.ReplaceAllString(fullArgs, rule.Replacement)
-								resp.RewrittenArgs = strings.Fields(newFull)
-							} else {
-								resp.RewrittenArgs = rule.RewrittenCmd
-							}
+
+				ruleAction := ""
+				rulePriority := 0
+				if hasRule {
+					ruleAction = rule.Action
+					rulePriority = rule.Priority
+				}
+
+				// ── Layer 1: Rule-based classification + embedding + anomaly scoring ──
+				classification, embedding := globalEmbedder.ClassifyAndEmbed(req.Comm, req.Args)
+				globalEmbedder.RegisterVocab(fmt.Sprintf("process %s performed wrapper_intercept on %s %s tagged Wrapper",
+					req.Comm, req.Comm, strings.Join(req.Args, " ")))
+
+				// Only cluster if we have enough history (avoid cold-start noise)
+				globalEmbedder.AddToCluster(embedding)
+				anomalyScore := globalEmbedder.ComputeAnomalyScore(embedding)
+
+				// ── Layer 2: ML random forest prediction ──
+				features := globalFeatureExtractor.Extract(req.Comm, req.Args, req.User, req.Pid)
+				var mlPrediction Prediction
+				if mlEnabled && mlModelLoaded {
+					mlPrediction = mlEngine.Predict(features)
+				}
+
+				// ── Decision fusion ──
+				resolvedAction, reason := resolveAction(
+					req, ruleAction, rulePriority,
+					classification, anomalyScore, mlPrediction, mlConfig,
+				)
+
+				// ── Apply REWRITE logic ──
+				resp := &pb.WrapperResponse{
+					Action:         resolvedAction,
+					Classification: classification,
+					AnomalyScore:   anomalyScore,
+				}
+
+				if mlEnabled && mlModelLoaded {
+					resp.MlScore = mlPrediction.Confidence
+					resp.MlAction = actionLabel[mlPrediction.Action]
+					resp.MlReasoning = mlReasoning(mlPrediction, anomalyScore, classification)
+				}
+
+				resp.Message = reason
+
+				if resolvedAction == pb.WrapperResponse_REWRITE && hasRule {
+					resp.Action = pb.WrapperResponse_REWRITE
+					if rule.Regex != "" {
+						fullArgs := strings.Join(req.Args, " ")
+						re, err := regexp.Compile(rule.Regex)
+						if err == nil {
+							newFull := re.ReplaceAllString(fullArgs, rule.Replacement)
+							resp.RewrittenArgs = strings.Fields(newFull)
 						} else {
 							resp.RewrittenArgs = rule.RewrittenCmd
 						}
+					} else {
+						resp.RewrittenArgs = rule.RewrittenCmd
 					}
 				}
-				// Register wrapper PID in eBPF agent_pids so the launched
-				// program (same PID after syscall.Exec) and its children
-				// generate full eBPF syscall events.
+
+				// ── Record to training store and history buffer ──
+				if mlEnabled && globalTrainingStore != nil {
+					sample := TrainingSample{
+						Features:     features,
+						Label:        -1, // unlabeled initially
+						Comm:         req.Comm,
+						Args:         req.Args,
+						Category:     classification.PrimaryCategory,
+						AnomalyScore: anomalyScore,
+						Timestamp:    time.Now(),
+					}
+					globalTrainingStore.Add(sample)
+				}
+
+				globalFeatureExtractor.AddHistory(
+					req.Comm,
+					classification.PrimaryCategory,
+					actionLabel[mlPrediction.Action],
+					anomalyScore,
+				)
+
+				// Register wrapper PID in eBPF agent_pids
 				if trackerMaps.AgentPids != nil {
 					_ = trackerMaps.AgentPids.Put(req.Pid, getTagID("Wrapper"))
 				}
-				// Also register the command name in tracked_comms as a
-				// fallback for child processes (comm-based matching).
 				if trackerMaps.TrackedComms != nil {
 					var k [16]byte
 					copy(k[:], req.Comm)
@@ -78,7 +134,15 @@ func startUDSServer(broadcast chan *pb.Event) {
 				}
 
 				select {
-				case broadcast <- &pb.Event{Pid: req.Pid, Comm: req.Comm, Type: "wrapper_intercept", EventType: pb.EventType_WRAPPER_INTERCEPT, Tag: "Wrapper", Path: strings.Join(append([]string{req.Comm}, req.Args...), " ")}:
+				case broadcast <- &pb.Event{
+					Pid:       req.Pid,
+					Comm:      req.Comm,
+					Type:      "wrapper_intercept",
+					EventType: pb.EventType_WRAPPER_INTERCEPT,
+					Tag:       "Wrapper",
+					Path:      strings.Join(append([]string{req.Comm}, req.Args...), " "),
+					Behavior:  classification,
+				}:
 				default:
 				}
 				out, _ := proto.Marshal(resp)
@@ -86,4 +150,4 @@ func startUDSServer(broadcast chan *pb.Event) {
 			}
 		}(conn)
 	}
-}
+	}

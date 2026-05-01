@@ -100,7 +100,6 @@ func ClassifyBehavior(comm string, args []string) *pb.BehaviorClassification {
 	type present struct{}
 	cats := make(map[pb.BehaviorCategory]present)
 	confidence := "low"
-	exactMatch := false
 
 	for _, r := range rules {
 		if !r.commRe.MatchString(comm) {
@@ -114,7 +113,6 @@ func ClassifyBehavior(comm string, args []string) *pb.BehaviorClassification {
 			confidence = "medium"
 		} else {
 			cats[r.category] = present{}
-			exactMatch = true
 			confidence = "high"
 		}
 	}

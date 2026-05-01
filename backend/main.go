@@ -279,5 +279,14 @@ func main() {
 	clusterManagerStore.ConfigurePort(actualPort)
 	writePortFile(actualPort)
 	startClusterHeartbeatLoop()
+
+	// Initialize ML behavior classifier (master node only)
+	go func() {
+		time.Sleep(1 * time.Second) // brief delay to let cluster role settle
+		settings := runtimeSettingsStore.Snapshot()
+		InitMLEngine(settings.MLConfig)
+		StartMLEngine()
+	}()
+
 	_ = r.Run(fmt.Sprintf(":%d", actualPort))
 }
