@@ -606,6 +606,7 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 	ml := rg.Group("/ml")
 	{
 		ml.GET("/status", handleMLStatusGet)
+		ml.GET("/logs", handleMLLogsGet)
 		ml.POST("/train", handleMLTrainPost)
 		ml.POST("/feedback", handleMLFeedbackPost)
 		ml.GET("/samples", handleMLSamplesGet)
@@ -627,6 +628,11 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 
 func handleMLStatusGet(c *gin.Context) {
 	status := mlStatus()
+	logs := globalTrainer.GetLogs(100)
+	logItems := make([]gin.H, len(logs))
+	for i, entry := range logs {
+		logItems[i] = gin.H{"time": entry.Timestamp.Format("15:04:05"), "message": entry.Message}
+	}
 	writeProtoOrJSON(c, 200, status, gin.H{
 		"modelLoaded":         status.ModelLoaded,
 		"numTrees":            status.NumTrees,
@@ -638,12 +644,23 @@ func handleMLStatusGet(c *gin.Context) {
 		"trainingInProgress":  status.TrainingInProgress,
 		"trainingProgress":    status.TrainingProgress,
 		"mlEnabled":           mlEnabled,
+		"trainingLogs":        logItems,
 		"hyperParams": gin.H{
 			"numTrees":       mlConfig.NumTrees,
 			"maxDepth":       mlConfig.MaxDepth,
 			"minSamplesLeaf": mlConfig.MinSamplesLeaf,
 		},
 	})
+}
+
+// handleMLLogsGet returns dedicated training log entries
+func handleMLLogsGet(c *gin.Context) {
+	logs := globalTrainer.GetLogs(200)
+	items := make([]gin.H, len(logs))
+	for i, entry := range logs {
+		items[i] = gin.H{"time": entry.Timestamp.Format("15:04:05"), "message": entry.Message}
+	}
+	c.JSON(200, gin.H{"logs": items, "total": globalTrainer.logTotal})
 }
 
 func handleMLTrainPost(c *gin.Context) {
@@ -675,7 +692,7 @@ func handleMLTrainPost(c *gin.Context) {
 
 	forest, result := globalTrainer.Train(globalTrainingStore, numTrees, maxDepth, minLeaf)
 	if result.Error != "" {
-		c.JSON(500, gin.H{"error": result.Error})
+		c.JSON(400, gin.H{"error": result.Error})
 		return
 	}
 	mlEngine = forest

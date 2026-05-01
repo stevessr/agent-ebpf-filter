@@ -795,12 +795,45 @@ const mlThresholds = ref({
   blockConfidenceThreshold: 0.85, mlMinConfidence: 0.60, ruleOverridePriority: 100,
   lowAnomalyThreshold: 0.30, highAnomalyThreshold: 0.70,
 });
+const trainingLogs = ref<{ time: string; message: string }[]>([]);
+const logPollTimer = ref<ReturnType<typeof setInterval> | null>(null);
+
+const startLogPolling = () => {
+  if (logPollTimer.value) return;
+  logPollTimer.value = setInterval(async () => {
+    try {
+      const res = await axios.get('/config/ml/status');
+      if (res.data.trainingLogs) {
+        trainingLogs.value = res.data.trainingLogs;
+      }
+      const wasRunning = mlStatus.value.training_in_progress;
+      Object.assign(mlStatus.value, res.data);
+      // Stop polling if training just ended
+      if (wasRunning && !mlStatus.value.training_in_progress) {
+        stopLogPolling();
+        // Final fetch to get complete logs
+        await fetchMLStatus();
+        await fetchAllSamples();
+      }
+    } catch (_) {}
+  }, 1000);
+};
+
+const stopLogPolling = () => {
+  if (logPollTimer.value) {
+    clearInterval(logPollTimer.value);
+    logPollTimer.value = null;
+  }
+};
 
 const fetchMLStatus = async () => {
   try {
     const res = await axios.get('/config/ml/status');
     mlEnabled.value = res.data.mlEnabled || false;
     Object.assign(mlStatus.value, res.data);
+    if (res.data.trainingLogs) {
+      trainingLogs.value = res.data.trainingLogs;
+    }
     if (res.data.blockConfidenceThreshold !== undefined) {
       mlThresholds.value.blockConfidenceThreshold = res.data.blockConfidenceThreshold || 0.85;
       mlThresholds.value.mlMinConfidence = res.data.mlMinConfidence || 0.60;
@@ -901,10 +934,10 @@ const hyperParams = ref({ numTrees: 31, maxDepth: 8, minSamplesLeaf: 5 });
 
 const trainWithParams = async () => {
   trainingModel.value = true;
+  trainingLogs.value = [];
   try {
-    // Save hyperparams first
     await saveMLThresholds();
-    // Then train with them
+    startLogPolling();
     const res = await axios.post('/config/ml/train', {
       numTrees: hyperParams.value.numTrees,
       maxDepth: hyperParams.value.maxDepth,
@@ -912,10 +945,12 @@ const trainWithParams = async () => {
     });
     message.success(`Model trained: accuracy=${(res.data.accuracy * 100).toFixed(1)}%, ${res.data.numTrees} trees`);
     await fetchMLStatus();
+    await fetchAllSamples();
   } catch (e: any) {
     message.error(e.response?.data?.error || 'Training failed');
   } finally {
     trainingModel.value = false;
+    stopLogPolling();
   }
 };
 
@@ -1028,7 +1063,8 @@ onMounted(async () => {
   fetchTrackedPrefixes();
   fetchRules();
   fetchDisabledEventTypes();
-  fetchMLStatus();
+  await fetchMLStatus();
+  fetchAllSamples();
 });
 </script>
 
@@ -1688,8 +1724,12 @@ onMounted(async () => {
           <!-- Row 1: Model Status + Training Controls -->
           <a-col :xs="24" :md="12">
             <a-card title="Model Status" size="small">
-              <a-descriptions :column="1" size="small" bordered>
-                <a-descriptions-item label="ML Engine">
+              <template #extra>
+                <a-button size="small" type="link" @click="fetchMLStatus">
+                  <ReloadOutlined />
+                </a-button>
+              </template>
+              <a-descriptions :column="1" size="small" bordered>                <a-descriptions-item label="ML Engine">
                   <a-tag :color="mlEnabled ? 'green' : 'red'">{{ mlEnabled ? 'Active' : 'Inactive' }}</a-tag>
                 </a-descriptions-item>
                 <a-descriptions-item label="Model Loaded">
@@ -1727,7 +1767,37 @@ onMounted(async () => {
             </a-card>
           </a-col>
 
-          <!-- Row 2: Sample Data Browser -->
+          <!-- Row: Training Progress & Logs -->
+          <a-col :xs="24" v-if="mlStatus.training_in_progress || trainingLogs.length > 0">
+            <a-card size="small">
+              <template #title>
+                <span>Training Progress</span>
+                <a-tag color="processing" style="margin-left: 8px" v-if="mlStatus.training_in_progress">Running...</a-tag>
+                <a-tag color="green" style="margin-left: 8px" v-else>Complete</a-tag>
+              </template>
+              <a-progress
+                :percent="Math.round((mlStatus.training_progress || 0) * 100)"
+                :status="mlStatus.training_in_progress ? 'active' : 'success'"
+                style="margin-bottom: 12px"
+              />
+              <div
+                ref="logContainer"
+                style="background: #1e1e1e; color: #d4d4d4; border-radius: 6px; padding: 10px 14px; max-height: 320px; overflow-y: auto; font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6"
+              >
+                <div v-for="(line, i) in trainingLogs" :key="i" style="white-space: pre-wrap; word-break: break-all">
+                  <span style="color: #6a9955">{{ line.time }}</span>
+                  <span v-if="line.message.startsWith('ERROR')" style="color: #f44747">{{ ' ' + line.message }}</span>
+                  <span v-else-if="line.message.startsWith('═══')" style="color: #569cd6; font-weight: bold">{{ ' ' + line.message }}</span>
+                  <span v-else style="color: #d4d4d4">{{ ' ' + line.message }}</span>
+                </div>
+                <div v-if="trainingLogs.length === 0 && mlStatus.training_in_progress" style="color: #888">
+                  Waiting for training to start...
+                </div>
+              </div>
+            </a-card>
+          </a-col>
+
+          <!-- Row: Sample Data Browser -->
           <a-col :xs="24">
             <a-card size="small">
               <template #title>
@@ -1816,14 +1886,15 @@ onMounted(async () => {
 
           <!-- Row 4: Manual Training Data -->
           <a-col :xs="24">
-            <a-card title="Manual Training Data" size="small">
-              <template #extra>
-                <a-tag color="blue">添加标注样本以训练模型</a-tag>
+            <a-card size="small">
+              <template #title>
+                <span>Add Labeled Training Data</span>
+                <a-tag color="blue" style="margin-left: 8px">手动添加标注样本</a-tag>
               </template>
               <a-row :gutter="[16, 16]">
                 <!-- Quick presets -->
                 <a-col :xs="24" :md="14">
-                  <div style="font-weight: 600; margin-bottom: 8px">高危行为预设（点击快速添加）</div>
+                  <div style="font-weight: 600; margin-bottom: 8px">高危行为预设（点击即可添加已标注样本）</div>
                   <a-space wrap>
                     <a-tag
                       v-for="(p, i) in highRiskPresets"
@@ -1838,26 +1909,37 @@ onMounted(async () => {
                   </a-space>
                 </a-col>
 
-                <!-- Manual form -->
+                <!-- Manual form with explicit labeling -->
                 <a-col :xs="24" :md="10">
-                  <div style="font-weight: 600; margin-bottom: 8px">手动输入</div>
-                  <a-space direction="vertical" style="width: 100%">
-                    <a-input v-model:value="sampleComm" placeholder="命令 (e.g. rm)" size="small" />
-                    <a-input v-model:value="sampleArgs" placeholder='参数 (e.g. -rf / --no-preserve-root)' size="small" />
-                    <a-input-group compact>
-                      <a-select v-model:value="sampleLabel" style="width: 55%">
-                        <a-select-option value="BLOCK">BLOCK (拦截)</a-select-option>
-                        <a-select-option value="ALERT">ALERT (警报)</a-select-option>
-                        <a-select-option value="ALLOW">ALLOW (放行)</a-select-option>
-                      </a-select>
-                      <a-button
-                        type="primary"
-                        @click="submitManualSample"
-                        :loading="submittingSample"
-                        style="width: 45%"
-                      >添加样本</a-button>
-                    </a-input-group>
-                  </a-space>
+                  <div style="font-weight: 600; margin-bottom: 8px">Step 1: 输入命令</div>
+                  <a-input v-model:value="sampleComm" placeholder="命令名称 (e.g. rm, sudo, chmod)" size="small" style="margin-bottom: 6px" />
+                  <a-input v-model:value="sampleArgs" placeholder='完整参数 (e.g. -rf / --no-preserve-root)' size="small" style="margin-bottom: 10px" />
+
+                  <div style="font-weight: 600; margin-bottom: 8px">Step 2: 标注行为 <a-tag color="processing" size="small">选择标签</a-tag></div>
+                  <div style="display: flex; gap: 8px; margin-bottom: 6px">
+                    <a-radio-group v-model:value="sampleLabel" button-style="solid" size="small">
+                      <a-radio-button value="BLOCK" style="border-color: #ff4d4f; color: #ff4d4f">
+                        <StopOutlined /> BLOCK 拦截
+                      </a-radio-button>
+                      <a-radio-button value="ALERT" style="border-color: #faad14; color: #d48806">
+                        <AlertOutlined /> ALERT 警报
+                      </a-radio-button>
+                      <a-radio-button value="ALLOW" style="border-color: #52c41a; color: #52c41a">
+                        <span style="font-size: 11px">&#10003;</span> ALLOW 放行
+                      </a-radio-button>
+                    </a-radio-group>
+                  </div>
+                  <div style="background: #fffbe6; border: 1px solid #ffe58f; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 13px" v-if="sampleComm">
+                    <span style="color: #666">将添加: </span>
+                    <strong>{{ sampleComm }}</strong>
+                    <span v-if="sampleArgs" style="color: #666"> {{ sampleArgs.slice(0, 40) }}{{ sampleArgs.length > 40 ? '…' : '' }}</span>
+                    <span style="color: #666"> → </span>
+                    <a-tag :color="sampleLabel === 'BLOCK' ? 'red' : sampleLabel === 'ALERT' ? 'orange' : 'green'" size="small">{{ sampleLabel }}</a-tag>
+                  </div>
+
+                  <a-button type="primary" @click="submitManualSample" :loading="submittingSample" block>
+                    <PlusOutlined /> 添加此标注样本
+                  </a-button>
                 </a-col>
               </a-row>
             </a-card>

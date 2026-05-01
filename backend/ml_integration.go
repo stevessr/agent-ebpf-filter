@@ -68,7 +68,8 @@ func InitMLEngine(cfg MLConfig) {
 		return
 	}
 
-	mlEnabled = true
+	// Initialize training store
+	InitTrainingStore(100000)
 
 	// Try loading existing model
 	if cfg.ModelPath != "" {
@@ -80,11 +81,18 @@ func InitMLEngine(cfg MLConfig) {
 			mlModelLoaded = true
 			log.Printf("[ML] Loaded pre-trained model: %d trees, %d features", len(forest.Trees), forest.NumFeatures)
 		}
+	} else {
+		// Try default path
+		defaultPath := defaultMLModelPath()
+		if forest, err := DeserializeForest(defaultPath); err == nil {
+			mlEngine = forest
+			mlModelLoaded = true
+			log.Printf("[ML] Loaded default pre-trained model from %s", defaultPath)
+		}
 	}
 
-	// Initialize training store
-	InitTrainingStore(100000)
 	log.Printf("[ML] Behavior classifier initialized on master node (features=%d dims)", FeatureDim)
+	mlEnabled = true
 }
 
 // StartMLEngine starts background tasks for the ML engine

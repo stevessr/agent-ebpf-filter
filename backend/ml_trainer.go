@@ -1,14 +1,23 @@
 package main
 
 import (
+	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"agent-ebpf-filter/pb"
 )
+
+// TrainingLogEntry is a single timestamped log line during training
+type TrainingLogEntry struct {
+	Timestamp time.Time
+	Message   string
+}
 
 // ModelTrainer builds and evaluates random forest models
 type ModelTrainer struct {
@@ -18,18 +27,59 @@ type ModelTrainer struct {
 	lastError string
 	lastTrain time.Time
 	accuracy  float64
+	// Training log ring buffer
+	logMu      sync.RWMutex
+	logs       []TrainingLogEntry
+	logMaxSize int
+	logNext    int
+	logTotal   int
 }
 
 var globalTrainer = &ModelTrainer{
-	mu: make(chan struct{}, 1),
+	mu:         make(chan struct{}, 1),
+	logMaxSize: 200,
+}
+
+func (t *ModelTrainer) logf(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	log.Printf("[ML-Train] %s", msg)
+
+	t.logMu.Lock()
+	entry := TrainingLogEntry{Timestamp: time.Now(), Message: msg}
+	if len(t.logs) < t.logMaxSize {
+		t.logs = append(t.logs, entry)
+	} else {
+		t.logs[t.logNext] = entry
+	}
+	t.logNext = (t.logNext + 1) % t.logMaxSize
+	t.logTotal++
+	t.logMu.Unlock()
+}
+
+// GetLogs returns recent training log entries (newest last)
+func (t *ModelTrainer) GetLogs(limit int) []TrainingLogEntry {
+	t.logMu.RLock()
+	defer t.logMu.RUnlock()
+
+	n := len(t.logs)
+	if limit <= 0 || limit > n {
+		limit = n
+	}
+	if n == 0 {
+		return nil
+	}
+	// Return in chronological order
+	out := make([]TrainingLogEntry, limit)
+	copy(out, t.logs[max(0, n-limit):])
+	return out
 }
 
 // TrainResult holds the outcome of a training run
 type TrainResult struct {
-	Accuracy  float64
-	NumTrees  int
+	Accuracy   float64
+	NumTrees   int
 	NumSamples int
-	Error     string
+	Error      string
 }
 
 // splitPoint represents a candidate feature split during training
@@ -58,31 +108,49 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 
 	t.isRunning = true
 	t.progress = 0
-	defer func() { t.isRunning = false; t.progress = 1.0 }()
+	t.logf("══════ Training started ══════")
+	t.logf("Config: trees=%d, maxDepth=%d, minSamplesLeaf=%d", numTrees, maxDepth, minSamplesLeaf)
+	defer func() {
+		t.isRunning = false
+		t.progress = 1.0
+	}()
 
 	labeled := store.LabeledSamples()
 	if len(labeled) < minSamplesLeaf*10 {
-		return nil, TrainResult{Error: "insufficient labeled samples for training"}
+		msg := fmt.Sprintf("Insufficient labeled samples: need >=%d, have %d", minSamplesLeaf*10, len(labeled))
+		t.logf("ERROR: %s", msg)
+		return nil, TrainResult{Error: msg}
 	}
+	t.logf("Labeled samples loaded: %d", len(labeled))
 
 	// Convert to internal format
 	samples := make([]trainSample, len(labeled))
+	classDist := make(map[int32]int)
 	for i, s := range labeled {
 		samples[i] = trainSample{features: s.Features, label: s.Label}
+		classDist[s.Label]++
 	}
+	t.logf("Class distribution: ALLOW=%d, BLOCK=%d, ALERT=%d, REWRITE=%d",
+		classDist[0], classDist[1], classDist[3], classDist[2])
 
 	// 80/20 train/test split
 	rand.Shuffle(len(samples), func(i, j int) { samples[i], samples[j] = samples[j], samples[i] })
 	split := len(samples) * 8 / 10
 	trainSet := samples[:split]
 	testSet := samples[split:]
+	t.logf("Data split: train=%d, test=%d", len(trainSet), len(testSet))
 
 	// Build forest
+	t.logf("Building random forest with %d trees...", numTrees)
 	forest := NewDecisionForest(numTrees, maxDepth, 4)
 	featureSampleCount := int(math.Sqrt(float64(FeatureDim))) // sqrt(F) features per split
+	t.logf("Feature sampling: %d of %d per split", featureSampleCount, FeatureDim)
 
+	totalNodes := 0
+	treeStart := time.Now()
 	for ti := 0; ti < numTrees; ti++ {
 		t.progress = float64(ti) / float64(numTrees)
+		tStart := time.Now()
 
 		// Bootstrap sample
 		bootstrap := make([]trainSample, len(trainSet))
@@ -93,15 +161,48 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 		// Build tree
 		nodes := buildTree(bootstrap, 0, maxDepth, minSamplesLeaf, featureSampleCount)
 		forest.Trees[ti] = DecisionTree{Nodes: nodes}
+		totalNodes += len(nodes)
+
+		elapsed := time.Since(tStart)
+		if ti%10 == 0 || ti == numTrees-1 {
+			t.logf("Tree %d/%d built: %d nodes, %s (%.0f%%)",
+				ti+1, numTrees, len(nodes), elapsed.Round(time.Microsecond), t.progress*100)
+		}
 	}
+	treeElapsed := time.Since(treeStart)
+	t.logf("All %d trees built in %s, total nodes: %d, avg nodes/tree: %d",
+		numTrees, treeElapsed.Round(time.Millisecond), totalNodes, totalNodes/numTrees)
 
 	forest.IsTrained = true
 
 	// Evaluate on test set
+	t.logf("Evaluating model on %d test samples...", len(testSet))
+	evalStart := time.Now()
 	accuracy := evaluateForest(forest, testSet)
+	evalElapsed := time.Since(evalStart)
+
+	// Per-class metrics
+	perClassCorrect := make(map[int32]int)
+	perClassTotal := make(map[int32]int)
+	for _, s := range testSet {
+		pred := forest.Predict(s.features)
+		perClassTotal[s.label]++
+		if pred.Action == s.label {
+			perClassCorrect[s.label]++
+		}
+	}
+	t.logf("Evaluation complete in %s", evalElapsed.Round(time.Millisecond))
+	for _, lbl := range []int32{0, 1, 2, 3} {
+		if perClassTotal[lbl] > 0 {
+			acc := float64(perClassCorrect[lbl]) / float64(perClassTotal[lbl]) * 100
+			t.logf("  %s: %d/%d correct (%.1f%%)", actionLabel[lbl], perClassCorrect[lbl], perClassTotal[lbl], acc)
+		}
+	}
+	t.logf("Overall accuracy: %.2f%%", accuracy*100)
 
 	t.accuracy = accuracy
 	t.lastTrain = time.Now()
+	t.logf("══════ Training complete in %s ══════", treeElapsed.Round(time.Millisecond))
 
 	result := TrainResult{
 		Accuracy:   accuracy,
@@ -114,8 +215,6 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 
 // buildTree recursively builds a decision tree using Gini impurity
 func buildTree(samples []trainSample, depth, maxDepth, minSamplesLeaf, featureSampleCount int) []DecisionNode {
-	nodes := make([]DecisionNode, 0, 1<<uint(depth+1))
-
 	// Check termination conditions
 	if depth >= maxDepth || len(samples) < minSamplesLeaf*2 {
 		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
@@ -162,12 +261,12 @@ func buildTree(samples []trainSample, depth, maxDepth, minSamplesLeaf, featureSa
 	root := DecisionNode{
 		FeatureIndex: uint8(best.featureIdx),
 		Threshold:    float32(best.threshold),
-		LeftChild:    1, // Next node in array
+		LeftChild:    1,                         // Next node in array
 		RightChild:   int16(1 + len(leftNodes)), // After left subtree
 		LeafValue:    0,
 	}
 
-	nodes = append(nodes, root)
+	nodes := []DecisionNode{root}
 	nodes = append(nodes, leftNodes...)
 	offset := len(nodes)
 	nodes[0].RightChild = int16(offset) // Update right child index
@@ -280,19 +379,12 @@ func evaluateForest(forest *DecisionForest, testSet []trainSample) float64 {
 
 // GetStatus returns training status for the API
 func (t *ModelTrainer) GetStatus() map[string]interface{} {
-	select {
-	case t.mu <- struct{}{}:
-		<-t.mu
-		// not running
-	default:
-		// is running
-	}
 	return map[string]interface{}{
-		"isRunning":  t.isRunning,
-		"progress":   t.progress,
-		"lastError":  t.lastError,
-		"lastTrain":  t.lastTrain.Format(time.RFC3339),
-		"accuracy":   t.accuracy,
+		"isRunning": t.isRunning,
+		"progress":  t.progress,
+		"lastError": t.lastError,
+		"lastTrain": t.lastTrain.Format(time.RFC3339),
+		"accuracy":  t.accuracy,
 	}
 }
 

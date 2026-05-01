@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 )
 
 // DecisionNode stores one node in a decision tree.
@@ -156,6 +157,11 @@ func (f *DecisionForest) Serialize(path string) error {
 	}
 
 	// Atomic write
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
 	tmpPath := path + ".tmp"
 	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
 		return err
