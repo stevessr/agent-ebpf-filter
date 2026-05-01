@@ -985,6 +985,14 @@ const deleteSample = async (index: number) => {
   }
 };
 
+const updateAnomaly = async (index: number, anomalyScore: number) => {
+  try {
+    await axios.put('/config/ml/samples/anomaly', { index, anomalyScore });
+  } catch (e: any) {
+    message.error('Failed to update anomaly score');
+  }
+};
+
 const getLabelColor = (label: string) => {
   const m: Record<string, string> = {
     'BLOCK': 'red', 'ALERT': 'orange', 'ALLOW': 'green', 'REWRITE': 'blue', '-': 'default',
@@ -1995,9 +2003,18 @@ onMounted(async () => {
                     <a-tag :color="getCategoryColor(record.category)" size="small">{{ record.category }}</a-tag>
                   </template>
                 </a-table-column>
-                <a-table-column title="Anomaly" dataIndex="anomalyScore" :width="80">
+                <a-table-column title="Anomaly" dataIndex="anomalyScore" :width="100">
                   <template #default="{ record }">
-                    <span :style="{ color: record.anomalyScore > 0.7 ? '#d4380d' : record.anomalyScore > 0.3 ? '#d48806' : '#52c41a' }">{{ record.anomalyScore?.toFixed(2) }}</span>
+                    <a-input-number 
+                      v-model:value="record.anomalyScore" 
+                      :min="0" 
+                      :max="1" 
+                      :step="0.01" 
+                      :precision="2"
+                      size="small"
+                      style="width: 70px"
+                      @change="updateAnomaly(record.index, record.anomalyScore)"
+                    />
                   </template>
                 </a-table-column>
                 <a-table-column title="Label" dataIndex="label" :width="90">

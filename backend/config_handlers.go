@@ -613,6 +613,7 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		ml.GET("/samples", handleMLSamplesGet)
 		ml.POST("/samples", handleMLSamplesPost)
 		ml.PUT("/samples/label", handleMLSampleLabelPut)
+		ml.PUT("/samples/anomaly", handleMLSampleAnomalyPut)
 		ml.DELETE("/samples/:index", handleMLSampleDelete)
 		ml.POST("/backtest", handleMLBacktestPost)
 	}
@@ -811,6 +812,31 @@ func handleMLSampleDelete(c *gin.Context) {
 		return
 	}
 	if !globalTrainingStore.RemoveSample(index) {
+		c.JSON(400, gin.H{"error": "invalid index or sample not found"})
+		return
+	}
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+// handleMLSampleAnomalyPut updates the anomaly score of a sample
+func handleMLSampleAnomalyPut(c *gin.Context) {
+	var req struct {
+		Index        int     `json:"index"`
+		AnomalyScore float64 `json:"anomalyScore"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
+	if globalTrainingStore == nil {
+		c.JSON(400, gin.H{"error": "ML training store not initialized"})
+		return
+	}
+	if req.AnomalyScore < 0 || req.AnomalyScore > 1 {
+		c.JSON(400, gin.H{"error": "anomaly score must be between 0 and 1"})
+		return
+	}
+	if !globalTrainingStore.UpdateSampleAnomaly(req.Index, req.AnomalyScore) {
 		c.JSON(400, gin.H{"error": "invalid index or sample not found"})
 		return
 	}

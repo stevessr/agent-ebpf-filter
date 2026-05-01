@@ -137,6 +137,22 @@ func (s *TrainingDataStore) UpdateSampleLabel(index int, label int32, userLabel 
 	return true
 }
 
+// UpdateSampleAnomaly updates the anomaly score of a sample by index
+func (s *TrainingDataStore) UpdateSampleAnomaly(index int, anomalyScore float64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if index < 0 || index >= len(s.samples) {
+		return false
+	}
+	if s.samples[index].Timestamp.IsZero() {
+		return false
+	}
+	s.samples[index].AnomalyScore = anomalyScore
+	s.dirtyCount++
+	return true
+}
+
 // ApplyFeedback applies user feedback to label matching samples
 func (s *TrainingDataStore) ApplyFeedback(comm string, userAction string) int {
 	s.mu.Lock()
