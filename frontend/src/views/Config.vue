@@ -1050,7 +1050,7 @@ const fetchAllSamples = async () => {
   }
 };
 
-const fetchExistingCommandData = async () => {
+const fetchExistingCommandData = async (silent = false) => {
   loadingExistingData.value = true;
   try {
     const res = await axios.get('/config/ml/existing-commands', {
@@ -1058,7 +1058,9 @@ const fetchExistingCommandData = async () => {
     });
     existingCommandCandidates.value = res.data.candidates || [];
     existingDataSource.value = res.data.source || '';
-    message.success(`拉取到 ${existingCommandCandidates.value.length} 条历史命令数据`);
+    if (!silent) {
+      message.success(`拉取到 ${existingCommandCandidates.value.length} 条历史命令数据`);
+    }
   } catch (e: any) {
     message.error(e.response?.data?.error || '拉取已有命令数据失败');
   } finally {
@@ -1076,7 +1078,7 @@ const importExistingCommandData = async () => {
     message.success(`导入 ${res.data.imported} 条，跳过 ${res.data.skipped} 条重复/无效数据`);
     await fetchMLStatus();
     await fetchAllSamples();
-    await fetchExistingCommandData();
+    await fetchExistingCommandData(true);
   } catch (e: any) {
     message.error(e.response?.data?.error || '导入已有命令数据失败');
   } finally {
@@ -1125,7 +1127,7 @@ const importRemoteDataset = async () => {
     message.success(`导入 ${res.data.imported || 0} 条，跳过 ${res.data.skipped || 0} 条`);
     await fetchMLStatus();
     await fetchAllSamples();
-    await fetchExistingCommandData();
+    await fetchExistingCommandData(true);
   } catch (e: any) {
     message.error(e.response?.data?.error || '导入远程数据集失败');
   } finally {
@@ -1419,6 +1421,7 @@ onMounted(async () => {
   fetchDisabledEventTypes();
   await fetchMLStatus();
   fetchAllSamples();
+  fetchExistingCommandData(true);
 });
 </script>
 
@@ -2074,9 +2077,20 @@ onMounted(async () => {
         <template #tab>
           <span><ThunderboltOutlined /> ML Classification</span>
         </template>
+        <a-tabs
+          v-model:activeKey="mlSubTabKey"
+          size="small"
+          type="card"
+          style="margin: 8px 0 16px"
+        >
+          <a-tab-pane key="status" tab="状况"></a-tab-pane>
+          <a-tab-pane key="params" tab="参数"></a-tab-pane>
+          <a-tab-pane key="model" tab="模型管理"></a-tab-pane>
+          <a-tab-pane key="training" tab="训练集管理"></a-tab-pane>
+        </a-tabs>
         <a-row :gutter="[24, 24]">
           <!-- Row 1: Model Status + Training Controls -->
-          <a-col :xs="24" :md="12">
+          <a-col v-if="mlSubTabKey === 'status'" :xs="24" :md="12">
             <a-card title="Model Status" size="small">
               <template #extra>
                 <a-button size="small" type="link" @click="fetchMLStatus">
@@ -2101,7 +2115,7 @@ onMounted(async () => {
               </a-descriptions>
             </a-card>
           </a-col>
-          <a-col :xs="24" :md="12">
+          <a-col v-if="mlSubTabKey === 'model'" :xs="24" :md="12">
             <a-card title="Training Controls" size="small">
               <a-space direction="vertical" style="width: 100%">
                 <a-button type="primary" @click="trainWithParams" :loading="trainingModel" block>
@@ -2122,7 +2136,10 @@ onMounted(async () => {
           </a-col>
 
           <!-- Row: Training Progress & Logs -->
-          <a-col :xs="24" v-if="mlStatus.training_in_progress || trainingLogs.length > 0">
+          <a-col
+            v-if="mlSubTabKey === 'status' && (mlStatus.training_in_progress || trainingLogs.length > 0)"
+            :xs="24"
+          >
             <a-card size="small">
               <template #title>
                 <span>Training Progress</span>
@@ -2152,7 +2169,7 @@ onMounted(async () => {
           </a-col>
 
           <!-- Row: Training Curve Visualization -->
-          <a-col :xs="24" v-if="trainingHistory.length > 0">
+          <a-col v-if="mlSubTabKey === 'status' && trainingHistory.length > 0" :xs="24">
             <a-card title="Training History" size="small">
               <template #extra>
                 <a-tag color="blue">{{ trainingHistory.length }} runs</a-tag>
@@ -2171,8 +2188,152 @@ onMounted(async () => {
             </a-card>
           </a-col>
 
+          <!-- Row: Internet Dataset Import -->
+          <a-col v-if="mlSubTabKey === 'training'" :xs="24">
+            <a-card size="small">
+              <template #title>
+                <span><GlobalOutlined /> 互联网数据集拉取</span>
+                <a-tag color="blue" style="margin-left: 8px">HTTP/HTTPS JSON、JSONL、CSV、TSV、文本</a-tag>
+              </template>
+              <template #extra>
+                <a-space>
+                  <a-button size="small" @click="fetchRemoteDatasetPreview" :loading="loadingRemoteDataset">
+                    <ReloadOutlined /> 拉取预览
+                  </a-button>
+                  <a-button size="small" type="primary" @click="importRemoteDataset" :loading="importingRemoteDataset">
+                    <ImportOutlined /> 导入训练集
+                  </a-button>
+                </a-space>
+              </template>
+
+              <a-alert
+                type="info"
+                show-icon
+                style="margin-bottom: 12px"
+                message="后端会直接从 HTTP/HTTPS 地址抓取数据集，并转成训练样本；可以保留原始标签、统一标为未标注，或按当前规则自动推断。"
+              />
+
+              <a-row :gutter="[16, 16]">
+                <a-col :xs="24" :md="10">
+                  <div style="display: flex; flex-direction: column; gap: 12px">
+                    <div>
+                      <div style="font-weight: 600; margin-bottom: 6px">数据集 URL</div>
+                      <a-input
+                        v-model:value="remoteDatasetUrl"
+                        placeholder="https://example.com/dataset.jsonl"
+                        allow-clear
+                      />
+                    </div>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap">
+                      <div style="flex: 1; min-width: 180px">
+                        <div style="font-weight: 600; margin-bottom: 6px">格式</div>
+                        <a-select v-model:value="remoteDatasetFormat" style="width: 100%">
+                          <a-select-option value="auto">自动识别</a-select-option>
+                          <a-select-option value="json">JSON</a-select-option>
+                          <a-select-option value="jsonl">JSONL / NDJSON</a-select-option>
+                          <a-select-option value="csv">CSV</a-select-option>
+                          <a-select-option value="tsv">TSV</a-select-option>
+                          <a-select-option value="text">纯文本命令行</a-select-option>
+                        </a-select>
+                      </div>
+                      <div style="flex: 1; min-width: 180px">
+                        <div style="font-weight: 600; margin-bottom: 6px">标签模式</div>
+                        <a-select v-model:value="remoteDatasetLabelMode" style="width: 100%">
+                          <a-select-option value="preserve">保留原始标签</a-select-option>
+                          <a-select-option value="unlabeled">统一未标注</a-select-option>
+                          <a-select-option value="heuristic">按规则自动标注</a-select-option>
+                        </a-select>
+                      </div>
+                    </div>
+                    <div>
+                      <div style="font-weight: 600; margin-bottom: 6px">拉取条数</div>
+                      <a-input-number
+                        v-model:value="remoteDatasetLimit"
+                        :min="1"
+                        :max="5000"
+                        :step="1"
+                        style="width: 100%"
+                      />
+                    </div>
+                    <a-typography-text type="secondary">
+                      支持公开数据集、实验室内网数据集或你自己的样本仓库，只要 URL 可直接 GET 访问即可。
+                    </a-typography-text>
+                  </div>
+                </a-col>
+                <a-col :xs="24" :md="14">
+                  <div style="display: flex; flex-direction: column; gap: 10px">
+                    <a-space wrap>
+                      <a-tag v-if="remoteDatasetMeta" color="blue">source: {{ remoteDatasetMeta.source }}</a-tag>
+                      <a-tag v-if="remoteDatasetMeta" color="cyan">format: {{ remoteDatasetMeta.format }}</a-tag>
+                      <a-tag v-if="remoteDatasetMeta" color="geekblue">type: {{ remoteDatasetMeta.contentType || 'unknown' }}</a-tag>
+                      <a-tag v-if="remoteDatasetMeta" color="purple">total: {{ remoteDatasetMeta.total }}</a-tag>
+                      <a-tag v-if="remoteDatasetMeta?.truncated" color="orange">truncated</a-tag>
+                      <a-tag v-if="remoteDatasetMeta" color="green">imported: {{ remoteDatasetMeta.imported ?? 0 }}</a-tag>
+                      <a-tag v-if="remoteDatasetMeta" color="gold">skipped: {{ remoteDatasetMeta.skipped ?? 0 }}</a-tag>
+                    </a-space>
+                    <a-alert
+                      v-if="remoteDatasetMeta"
+                      type="success"
+                      show-icon
+                      :message="`已拉取 ${remoteDatasetMeta.total} 条，当前预览显示 ${remoteDatasetPreview.length} 条`"
+                      :description="remoteDatasetMeta.truncated ? '列表已按 Limit 截断，导入时也会使用同样的条数上限。' : '列表展示的是当前请求返回的全部可见数据。'"
+                    />
+                    <a-alert
+                      v-else
+                      type="warning"
+                      show-icon
+                      message="输入数据集 URL 后点击“拉取预览”，即可先查看格式识别和样本解析情况。"
+                    />
+                    <a-table
+                      :dataSource="remoteDatasetPreview"
+                      :pagination="{ pageSize: 6, showSizeChanger: true, pageSizeOptions: ['6', '10', '20'] }"
+                      :scroll="{ x: 980 }"
+                      size="small"
+                      rowKey="row"
+                    >
+                      <a-table-column title="#" dataIndex="row" :width="60" />
+                      <a-table-column title="Command" dataIndex="commandLine" :width="280" ellipsis>
+                        <template #default="{ record }">
+                          <code>{{ maskSensitiveData(record.commandLine) }}</code>
+                        </template>
+                      </a-table-column>
+                      <a-table-column title="Label" dataIndex="label" :width="100">
+                        <template #default="{ record }">
+                          <a-tag :color="getLabelColor(record.label)" size="small">{{ record.label }}</a-tag>
+                        </template>
+                      </a-table-column>
+                      <a-table-column title="Category" dataIndex="category" :width="120">
+                        <template #default="{ record }">
+                          <a-tag v-if="record.category" :color="getCategoryColor(record.category)" size="small">{{ record.category }}</a-tag>
+                          <span v-else style="color: #999">—</span>
+                        </template>
+                      </a-table-column>
+                      <a-table-column title="Anomaly" dataIndex="anomalyScore" :width="90">
+                        <template #default="{ record }">
+                          {{ record.anomalyScore?.toFixed(2) }}
+                        </template>
+                      </a-table-column>
+                      <a-table-column title="State" dataIndex="duplicate" :width="100">
+                        <template #default="{ record }">
+                          <a-tag :color="record.duplicate ? 'default' : 'green'" size="small">
+                            {{ record.duplicate ? '已存在' : '可导入' }}
+                          </a-tag>
+                        </template>
+                      </a-table-column>
+                      <a-table-column title="Time" dataIndex="timestamp" :width="180">
+                        <template #default="{ record }">
+                          <span style="font-size: 12px; color: #666">{{ record.timestamp ? new Date(record.timestamp).toLocaleString() : '—' }}</span>
+                        </template>
+                      </a-table-column>
+                    </a-table>
+                  </div>
+                </a-col>
+              </a-row>
+            </a-card>
+          </a-col>
+
           <!-- Row: Pull existing command data -->
-          <a-col :xs="24">
+          <a-col v-if="mlSubTabKey === 'training'" :xs="24">
             <a-card size="small">
               <template #title>
                 <span>Existing Command Data</span>
@@ -2251,7 +2412,7 @@ onMounted(async () => {
           </a-col>
 
           <!-- Row: Sample Data Browser -->
-          <a-col :xs="24">
+          <a-col v-if="mlSubTabKey === 'training'" :xs="24">
             <a-card size="small">
               <template #title>
                 <span>Training Data Browser</span>
@@ -2340,7 +2501,7 @@ onMounted(async () => {
           </a-col>
 
           <!-- Row: Model Hyperparameters -->
-          <a-col :xs="24">
+          <a-col v-if="mlSubTabKey === 'params'" :xs="24">
             <a-card title="Model Hyperparameters" size="small">
               <template #extra>
                 <a-tag color="geekblue">调整神经元层数和训练参数</a-tag>
@@ -2369,7 +2530,7 @@ onMounted(async () => {
           </a-col>
 
           <!-- Row 4: Manual Training Data -->
-          <a-col :xs="24">
+          <a-col v-if="mlSubTabKey === 'training'" :xs="24">
             <a-card size="small">
               <template #title>
                 <span>Add Labeled Training Data</span>
@@ -2437,7 +2598,7 @@ onMounted(async () => {
           </a-col>
 
           <!-- Row 5: Command Safety Assessment -->
-          <a-col :xs="24">
+          <a-col v-if="mlSubTabKey === 'model'" :xs="24">
             <a-card title="Command Safety Assessment" size="small">
               <template #extra>
                 <a-tag color="purple">输入完整命令进行安全性判断</a-tag>
@@ -2591,7 +2752,7 @@ onMounted(async () => {
           </a-col>
 
           <!-- Row 6: Detection Thresholds -->
-          <a-col :xs="24">
+          <a-col v-if="mlSubTabKey === 'params'" :xs="24">
             <a-card title="Detection Thresholds" size="small">
               <a-row :gutter="[24, 16]">
                 <a-col :xs="24" :md="8">

@@ -128,6 +128,7 @@ Config routes:
 - `/config/hooks`
 - `/config/hooks/:id/raw`
 - `/config/ml/existing-commands`, `/config/ml/import-existing`, `/config/ml/assess`
+- `/config/ml/datasets/pull`, `/config/ml/datasets/import`
 
 `authMiddleware()` accepts `?key=<token>`, `X-API-KEY`, or `Authorization: Bearer <token>`.
 The token is generated and stored by the runtime settings file at:

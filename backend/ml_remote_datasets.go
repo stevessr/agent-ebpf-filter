@@ -42,17 +42,17 @@ type remoteDatasetRow struct {
 }
 
 type remoteDatasetResponse struct {
-	Source      string            `json:"source"`
-	Format      string            `json:"format"`
-	ContentType string            `json:"contentType"`
-	Total       int               `json:"total"`
-	Limit       int               `json:"limit"`
-	Truncated   bool              `json:"truncated"`
-	Imported    int               `json:"imported,omitempty"`
-	Skipped     int               `json:"skipped,omitempty"`
-	TotalSamples int              `json:"totalSamples,omitempty"`
-	LabeledSamples int            `json:"labeledSamples,omitempty"`
-	Rows        []remoteDatasetRow `json:"rows,omitempty"`
+	Source         string             `json:"source"`
+	Format         string             `json:"format"`
+	ContentType    string             `json:"contentType"`
+	Total          int                `json:"total"`
+	Limit          int                `json:"limit"`
+	Truncated      bool               `json:"truncated"`
+	Imported       int                `json:"imported,omitempty"`
+	Skipped        int                `json:"skipped,omitempty"`
+	TotalSamples   int                `json:"totalSamples,omitempty"`
+	LabeledSamples int                `json:"labeledSamples,omitempty"`
+	Rows           []remoteDatasetRow `json:"rows,omitempty"`
 }
 
 type remoteDatasetRecord struct {
@@ -61,6 +61,7 @@ type remoteDatasetRecord struct {
 	Comm        string
 	Args        []string
 	Label       string
+	LabelSource string
 	Category    string
 	Anomaly     float64
 	HasAnomaly  bool
@@ -358,9 +359,7 @@ func parseJSONDatasetRecords(raw []byte) ([]remoteDatasetRecord, string, error) 
 	}
 
 	var decoded any
-	dec := json.NewDecoder(strings.NewReader(trimmed))
-	dec.UseNumber()
-	if err := dec.Decode(&decoded); err != nil {
+	if err := json.Unmarshal([]byte(trimmed), &decoded); err != nil {
 		return nil, "", err
 	}
 
@@ -532,11 +531,11 @@ func remoteDatasetRecordFromMap(row map[string]any, rowIndex int) (remoteDataset
 
 	record.Category = firstStringValue(row, "category", "behavior", "type", "group")
 	if anomaly, ok := extractDatasetFloat(row, "anomalyScore", "anomaly_score", "score", "riskScore"); ok {
-		record.AnomalyScore = anomaly
+		record.Anomaly = anomaly
 		record.HasAnomaly = true
 	}
 	if ts, ok := extractDatasetTimestamp(row); ok {
-		record.Timestamp = ts.Format(time.RFC3339)
+		record.Timestamp = ts
 	}
 	if userLabel := firstStringValue(row, "userLabel", "user_label"); userLabel != "" {
 		record.UserLabel = userLabel
@@ -560,15 +559,15 @@ func buildRemoteDatasetRow(record remoteDatasetRecord) remoteDatasetRow {
 	if category == "" {
 		category = ClassifyBehavior(comm, args).PrimaryCategory
 	}
-	anomaly := record.AnomalyScore
+	anomaly := record.Anomaly
 	if !record.HasAnomaly {
 		_, emb := globalEmbedder.ClassifyAndEmbed(comm, args)
 		anomaly = globalEmbedder.ComputeAnomalyScore(emb)
 	}
 
-	timestamp := record.Timestamp
-	if timestamp == "" {
-		timestamp = time.Now().UTC().Format(time.RFC3339)
+	timestamp := record.Timestamp.UTC()
+	if timestamp.IsZero() {
+		timestamp = time.Now().UTC()
 	}
 
 	return remoteDatasetRow{
@@ -580,7 +579,8 @@ func buildRemoteDatasetRow(record remoteDatasetRecord) remoteDatasetRow {
 		LabelSource:  labelSource,
 		Category:     category,
 		AnomalyScore: anomaly,
-		Timestamp:    timestamp,
+		HasAnomaly:   record.HasAnomaly,
+		Timestamp:    timestamp.Format(time.RFC3339),
 		UserLabel:    record.UserLabel,
 	}
 }
