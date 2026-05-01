@@ -942,6 +942,16 @@ interface SampleEntry {
 const allSamples = ref<SampleEntry[]>([]);
 const loadingSamples = ref(false);
 const sampleTablePageSize = ref(15);
+const sampleSearchText = ref('');
+
+const filteredSamples = computed(() => {
+  if (!sampleSearchText.value.trim()) return allSamples.value;
+  const search = sampleSearchText.value.toLowerCase();
+  return allSamples.value.filter(s => 
+    s.comm.toLowerCase().includes(search) || 
+    (s.args || []).join(' ').toLowerCase().includes(search)
+  );
+});
 
 const fetchAllSamples = async () => {
   loadingSamples.value = true;
@@ -1008,8 +1018,7 @@ const trainWithParams = async () => {
 };
 
 // ── Manual training samples ──
-const sampleComm = ref('');
-const sampleArgs = ref('');
+const sampleCommandLine = ref('');
 const sampleLabel = ref('BLOCK');
 const submittingSample = ref(false);
 
@@ -1072,17 +1081,32 @@ const highRiskPresets = [
 ];
 
 const submitManualSample = async () => {
-  if (!sampleComm.value) return;
+  if (!sampleCommandLine.value.trim()) return;
+  
+  const parts = sampleCommandLine.value.trim().split(/\s+/);
+  const comm = parts[0];
+  const args = parts.slice(1);
+  const argsStr = args.join(' ');
+  
+  // Check for duplicates
+  const duplicate = allSamples.value.find(s => 
+    s.comm === comm && (s.args || []).join(' ') === argsStr
+  );
+  
+  if (duplicate) {
+    message.warning(`样本已存在 (Index #${duplicate.index}, Label: ${duplicate.label})`);
+    return;
+  }
+  
   submittingSample.value = true;
   try {
-    const args = sampleArgs.value ? sampleArgs.value.split(/\s+/) : [];
     await axios.post('/config/ml/samples', {
-      comm: sampleComm.value, args, label: sampleLabel.value,
+      comm, args, label: sampleLabel.value,
     });
-    message.success(`Sample added: ${sampleComm.value} → ${sampleLabel.value}`);
-    sampleComm.value = '';
-    sampleArgs.value = '';
+    message.success(`Sample added: ${comm} → ${sampleLabel.value}`);
+    sampleCommandLine.value = '';
     await fetchMLStatus();
+    await fetchAllSamples();
   } catch (e: any) {
     message.error(e.response?.data?.error || 'Failed to add sample');
   } finally {
@@ -1091,13 +1115,25 @@ const submitManualSample = async () => {
 };
 
 const addPresetSample = async (preset: { comm: string; args: string; label: string }) => {
+  // Check for duplicates
+  const argsArray = preset.args ? preset.args.split(/\s+/) : [];
+  const argsStr = argsArray.join(' ');
+  const duplicate = allSamples.value.find(s => 
+    s.comm === preset.comm && (s.args || []).join(' ') === argsStr
+  );
+  
+  if (duplicate) {
+    message.warning(`样本已存在: ${preset.comm} (Index #${duplicate.index})`);
+    return;
+  }
+  
   try {
-    const args = preset.args ? preset.args.split(/\s+/) : [];
     await axios.post('/config/ml/samples', {
-      comm: preset.comm, args, label: preset.label,
+      comm: preset.comm, args: argsArray, label: preset.label,
     });
     message.success(`Preset added: ${preset.comm} → ${preset.label}`);
     await fetchMLStatus();
+    await fetchAllSamples();
   } catch (e: any) {
     message.error('Failed to add preset');
   }
@@ -1918,15 +1954,26 @@ onMounted(async () => {
             <a-card size="small">
               <template #title>
                 <span>Training Data Browser</span>
-                <a-tag color="purple" style="margin-left: 8px">{{ allSamples.length }} total</a-tag>
+                <a-tag color="purple" style="margin-left: 8px">{{ filteredSamples.length }} / {{ allSamples.length }}</a-tag>
               </template>
               <template #extra>
-                <a-button size="small" @click="fetchAllSamples" :loading="loadingSamples">
-                  <ReloadOutlined /> Refresh
-                </a-button>
+                <a-space>
+                  <a-input 
+                    v-model:value="sampleSearchText" 
+                    placeholder="搜索命令或参数..." 
+                    size="small" 
+                    style="width: 200px"
+                    allow-clear
+                  >
+                    <template #prefix><SearchOutlined /></template>
+                  </a-input>
+                  <a-button size="small" @click="fetchAllSamples" :loading="loadingSamples">
+                    <ReloadOutlined /> Refresh
+                  </a-button>
+                </a-space>
               </template>
               <a-table
-                :dataSource="allSamples"
+                :dataSource="filteredSamples"
                 :pagination="{ pageSize: sampleTablePageSize, showSizeChanger: true, pageSizeOptions: ['10','15','30','50'], showTotal: (t:number) => `${t} samples` }"
                 :scroll="{ x: 900 }"
                 size="small"
@@ -2030,9 +2077,14 @@ onMounted(async () => {
 
                 <!-- Manual form with explicit labeling -->
                 <a-col :xs="24" :md="10">
-                  <div style="font-weight: 600; margin-bottom: 8px">Step 1: 输入命令</div>
-                  <a-input v-model:value="sampleComm" placeholder="命令名称 (e.g. rm, sudo, chmod)" size="small" style="margin-bottom: 6px" />
-                  <a-input v-model:value="sampleArgs" placeholder='完整参数 (e.g. -rf / --no-preserve-root)' size="small" style="margin-bottom: 10px" />
+                  <div style="font-weight: 600; margin-bottom: 8px">Step 1: 输入完整命令行</div>
+                  <a-input 
+                    v-model:value="sampleCommandLine" 
+                    placeholder="完整命令 (e.g. rm -rf /tmp/test 或 sudo systemctl restart nginx)" 
+                    size="small" 
+                    style="margin-bottom: 10px"
+                    @keyup.enter="submitManualSample"
+                  />
 
                   <div style="font-weight: 600; margin-bottom: 8px">Step 2: 标注行为 <a-tag color="processing" size="small">选择标签</a-tag></div>
                   <div style="display: flex; gap: 8px; margin-bottom: 6px">
@@ -2048,10 +2100,10 @@ onMounted(async () => {
                       </a-radio-button>
                     </a-radio-group>
                   </div>
-                  <div style="background: #fffbe6; border: 1px solid #ffe58f; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 13px" v-if="sampleComm">
+                  <div style="background: #fffbe6; border: 1px solid #ffe58f; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 13px" v-if="sampleCommandLine.trim()">
                     <span style="color: #666">将添加：</span>
-                    <strong>{{ sampleComm }}</strong>
-                    <span v-if="sampleArgs" style="color: #666"> {{ sampleArgs.slice(0, 40) }}{{ sampleArgs.length > 40 ? '…' : '' }}</span>
+                    <strong>{{ sampleCommandLine.trim().split(/\s+/)[0] }}</strong>
+                    <span v-if="sampleCommandLine.trim().split(/\s+/).length > 1" style="color: #666"> {{ sampleCommandLine.trim().split(/\s+/).slice(1).join(' ').slice(0, 40) }}{{ sampleCommandLine.trim().split(/\s+/).slice(1).join(' ').length > 40 ? '…' : '' }}</span>
                     <span style="color: #666"> → </span>
                     <a-tag :color="sampleLabel === 'BLOCK' ? 'red' : sampleLabel === 'ALERT' ? 'orange' : 'green'" size="small">{{ sampleLabel }}</a-tag>
                   </div>
