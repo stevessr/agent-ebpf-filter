@@ -2044,6 +2044,34 @@ onMounted(async () => {
                       </a-descriptions-item>
                       <a-descriptions-item label="Reasoning" :span="3">{{ backtestResult.reasoning || '—' }}</a-descriptions-item>
                     </a-descriptions>
+
+                    <!-- Network Audit Findings -->
+                    <div v-if="backtestResult.networkAudit && backtestResult.networkAudit.findings?.length > 0" style="margin-top: 16px">
+                      <div style="font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px">
+                        <span>网络审计发现</span>
+                        <a-tag :color="backtestResult.networkAudit.riskLevel === 'CRITICAL' ? 'red' : backtestResult.networkAudit.riskLevel === 'HIGH' ? 'orange' : backtestResult.networkAudit.riskLevel === 'MEDIUM' ? 'gold' : 'blue'">
+                          {{ backtestResult.networkAudit.riskLevel }}
+                        </a-tag>
+                        <span style="color: #999; font-size: 12px">风险分: {{ backtestResult.networkAudit.riskScore?.toFixed(0) }}</span>
+                      </div>
+                      <a-list size="small" bordered :data-source="backtestResult.networkAudit.findings">
+                        <template #renderItem="{ item }">
+                          <a-list-item>
+                            <a-list-item-meta>
+                              <template #title>
+                                <span style="display: flex; align-items: center; gap: 8px">
+                                  <a-tag :color="item.severity === 'critical' ? 'red' : item.severity === 'high' ? 'orange' : item.severity === 'medium' ? 'gold' : 'blue'" size="small">
+                                    {{ item.severity.toUpperCase() }}
+                                  </a-tag>
+                                  <span>{{ item.type }}</span>
+                                </span>
+                              </template>
+                              <template #description>{{ item.description }}</template>
+                            </a-list-item-meta>
+                          </a-list-item>
+                        </template>
+                      </a-list>
+                    </div>
                   </div>
                   <div v-else style="color: #999; text-align: center; padding: 40px">
                     输入命令并点击"分析风险"查看评估结果

@@ -880,7 +880,8 @@ func handleMLBacktestPost(c *gin.Context) {
 	)
 
 	// Network audit
-	netAudit := AuditNetworkBehavior(req.Comm, req.Args)
+	cmdline := strings.Join(req.Args, " ")
+	netAudit := AuditNetworkBehavior(req.Comm, cmdline)
 
 	// Build overall risk score (0-100)
 	riskScore := computeRiskScore(classification, anomalyScore, mlPrediction, netAudit)

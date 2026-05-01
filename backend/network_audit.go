@@ -31,12 +31,13 @@ type NetworkAuditResult struct {
 func AuditNetworkBehavior(comm, cmdline string) NetworkAuditResult {
 	result := NetworkAuditResult{Findings: []NetworkAuditFinding{}}
 	lower := strings.ToLower(cmdline)
+	fullCmd := strings.ToLower(comm + " " + cmdline)
 
 	// Reverse shell patterns
-	if strings.Contains(lower, "nc -e") || strings.Contains(lower, "nc.traditional -e") ||
-		strings.Contains(lower, "bash -i >& /dev/tcp") || strings.Contains(lower, "bash -i > /dev/tcp") ||
-		strings.Contains(lower, "python -c 'import socket") || strings.Contains(lower, `python -c "import socket`) ||
-		strings.Contains(lower, "socat exec:") || strings.Contains(lower, "perl -e 'use socket") {
+	if strings.Contains(fullCmd, "nc -e") || strings.Contains(fullCmd, "nc.traditional -e") ||
+		strings.Contains(fullCmd, "bash -i >& /dev/tcp") || strings.Contains(fullCmd, "bash -i > /dev/tcp") ||
+		strings.Contains(fullCmd, "python -c 'import socket") || strings.Contains(fullCmd, `python -c "import socket`) ||
+		strings.Contains(fullCmd, "socat exec:") || strings.Contains(fullCmd, "perl -e 'use socket") {
 		result.Flags.ReverseShell = true
 		result.Findings = append(result.Findings, NetworkAuditFinding{
 			Type:        "reverse_shell",
@@ -46,8 +47,8 @@ func AuditNetworkBehavior(comm, cmdline string) NetworkAuditResult {
 	}
 
 	// Data exfiltration patterns
-	if (strings.Contains(lower, "curl -d @") || strings.Contains(lower, "curl --data @") ||
-		strings.Contains(lower, "wget --post-file") || strings.Contains(lower, "nc <")) &&
+	if (strings.Contains(fullCmd, "curl -d @") || strings.Contains(fullCmd, "curl --data @") ||
+		strings.Contains(fullCmd, "wget --post-file") || strings.Contains(fullCmd, "nc <")) &&
 		(strings.Contains(lower, "/etc/passwd") || strings.Contains(lower, "/etc/shadow") ||
 			strings.Contains(lower, "~/.ssh") || strings.Contains(lower, "~/.aws")) {
 		result.Flags.DataExfil = true

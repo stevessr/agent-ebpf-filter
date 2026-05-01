@@ -295,11 +295,16 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	f[115] = float64(now.Weekday()) / 7.0 // day of week
 
 	// ── Group F: Network Audit Features [120-127] ──
-	netAudit := AuditNetworkBehavior(comm, args)
-	netFeatures := NetworkAuditToFeatures(netAudit)
-	for i := 0; i < 8; i++ {
-		f[120+i] = netFeatures[i]
-	}
+	cmdline := strings.Join(args, " ")
+	netAudit := AuditNetworkBehavior(comm, cmdline)
+	f[120] = netAudit.RiskScore / 100.0 // normalized risk score
+	f[121] = boolToFloat(netAudit.Flags.SuspiciousPort)
+	f[122] = boolToFloat(netAudit.Flags.ReverseShell)
+	f[123] = boolToFloat(netAudit.Flags.DataExfil)
+	f[124] = boolToFloat(netAudit.Flags.DNSTunnel)
+	f[125] = boolToFloat(netAudit.Flags.ClearTextProto)
+	f[126] = boolToFloat(netAudit.Flags.UnusualTarget)
+	f[127] = boolToFloat(netAudit.Flags.PortScan)
 
 	fe.updateStats(f)
 	return f

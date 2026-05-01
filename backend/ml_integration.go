@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strings"
 	"time"
 
 	"agent-ebpf-filter/pb"
@@ -149,7 +150,8 @@ func resolveAction(
 	}
 
 	// ── Layer 1.5: Network audit escalation ──
-	netAudit := AuditNetworkBehavior(req.Comm, req.Args)
+	cmdline := strings.Join(req.Args, " ")
+	netAudit := AuditNetworkBehavior(req.Comm, cmdline)
 	if netAudit.RiskLevel == "CRITICAL" {
 		return pb.WrapperResponse_ALERT,
 			"CRITICAL network audit: " + netAudit.Findings[0].Description

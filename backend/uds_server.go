@@ -59,7 +59,8 @@ func startUDSServer(broadcast chan *pb.Event) {
 				anomalyScore := globalEmbedder.ComputeAnomalyScore(embedding)
 
 				// ── Network audit ──
-				netAudit := AuditNetworkBehavior(req.Comm, req.Args)
+				cmdline := strings.Join(req.Args, " ")
+				netAudit := AuditNetworkBehavior(req.Comm, cmdline)
 
 				// ── Layer 2: ML random forest prediction ──
 				features := globalFeatureExtractor.Extract(req.Comm, req.Args, req.User, req.Pid)
