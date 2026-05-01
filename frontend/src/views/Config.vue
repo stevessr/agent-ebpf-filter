@@ -964,6 +964,17 @@ const labelSample = async (index: number, label: string) => {
   }
 };
 
+const deleteSample = async (index: number) => {
+  try {
+    await axios.delete(`/config/ml/samples/${index}`);
+    allSamples.value = allSamples.value.filter(s => s.index !== index);
+    message.success(`Sample #${index} deleted`);
+    await fetchMLStatus();
+  } catch (e: any) {
+    message.error('Failed to delete sample');
+  }
+};
+
 const getLabelColor = (label: string) => {
   const m: Record<string, string> = {
     'BLOCK': 'red', 'ALERT': 'orange', 'ALLOW': 'green', 'REWRITE': 'blue', '-': 'default',
@@ -1037,6 +1048,27 @@ const highRiskPresets = [
   { comm: 'gdb', args: '-p 1', label: 'ALERT', desc: '调试 init 进程' },
   { comm: 'kill', args: '-9 1', label: 'BLOCK', desc: '强制终止 init 进程' },
   { comm: 'chroot', args: '/tmp /bin/bash', label: 'ALERT', desc: '切换根目录逃逸' },
+  // Benign operations (20 ALLOW samples for balance)
+  { comm: 'ls', args: '-la', label: 'ALLOW', desc: '列出目录内容' },
+  { comm: 'cat', args: 'README.md', label: 'ALLOW', desc: '读取文档文件' },
+  { comm: 'git', args: 'status', label: 'ALLOW', desc: 'Git 状态查询' },
+  { comm: 'npm', args: 'install', label: 'ALLOW', desc: 'NPM 安装依赖' },
+  { comm: 'make', args: 'build', label: 'ALLOW', desc: '编译项目' },
+  { comm: 'docker', args: 'ps', label: 'ALLOW', desc: '查看容器列表' },
+  { comm: 'ps', args: 'aux', label: 'ALLOW', desc: '查看进程列表' },
+  { comm: 'df', args: '-h', label: 'ALLOW', desc: '查看磁盘使用' },
+  { comm: 'top', args: '', label: 'ALLOW', desc: '系统监控' },
+  { comm: 'grep', args: 'TODO src/', label: 'ALLOW', desc: '搜索代码注释' },
+  { comm: 'find', args: 'src/ -name "*.ts"', label: 'ALLOW', desc: '查找源文件' },
+  { comm: 'curl', args: 'https://api.github.com/repos/torvalds/linux', label: 'ALLOW', desc: 'API 查询' },
+  { comm: 'wget', args: 'https://example.com/data.json', label: 'ALLOW', desc: '下载数据文件' },
+  { comm: 'ssh', args: 'user@server.com', label: 'ALLOW', desc: '正常 SSH 连接' },
+  { comm: 'scp', args: 'file.txt user@server:/tmp/', label: 'ALLOW', desc: '文件传输' },
+  { comm: 'tar', args: 'czf backup.tar.gz ~/Documents', label: 'ALLOW', desc: '备份文档' },
+  { comm: 'cp', args: 'config.yaml config.yaml.bak', label: 'ALLOW', desc: '备份配置' },
+  { comm: 'mv', args: 'old.txt new.txt', label: 'ALLOW', desc: '重命名文件' },
+  { comm: 'mkdir', args: '-p build/output', label: 'ALLOW', desc: '创建目录' },
+  { comm: 'chmod', args: '+x script.sh', label: 'ALLOW', desc: '添加执行权限' },
 ];
 
 const submitManualSample = async () => {
@@ -1926,12 +1958,15 @@ onMounted(async () => {
                     <a-tag :color="getLabelColor(record.label)" size="small">{{ record.label }}</a-tag>
                   </template>
                 </a-table-column>
-                <a-table-column title="Actions" :width="200">
+                <a-table-column title="Actions" :width="240">
                   <template #default="{ record }">
                     <a-space :size="4">
                       <a-button size="small" type="primary" ghost @click="labelSample(record.index, 'ALLOW')" :disabled="record.label === 'ALLOW'">ALLOW</a-button>
                       <a-button size="small" style="border-color: #faad14; color: #d48806" ghost @click="labelSample(record.index, 'ALERT')" :disabled="record.label === 'ALERT'">ALERT</a-button>
                       <a-button size="small" danger ghost @click="labelSample(record.index, 'BLOCK')" :disabled="record.label === 'BLOCK'">BLOCK</a-button>
+                      <a-button size="small" danger type="text" @click="deleteSample(record.index)">
+                        <DeleteOutlined />
+                      </a-button>
                     </a-space>
                   </template>
                 </a-table-column>

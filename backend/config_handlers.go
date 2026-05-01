@@ -613,6 +613,7 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		ml.GET("/samples", handleMLSamplesGet)
 		ml.POST("/samples", handleMLSamplesPost)
 		ml.PUT("/samples/label", handleMLSampleLabelPut)
+		ml.DELETE("/samples/:index", handleMLSampleDelete)
 		ml.POST("/backtest", handleMLBacktestPost)
 	}
 
@@ -791,6 +792,25 @@ func handleMLSampleLabelPut(c *gin.Context) {
 		return
 	}
 	if !globalTrainingStore.LabelSample(req.Index, req.Label) {
+		c.JSON(400, gin.H{"error": "invalid index or sample not found"})
+		return
+	}
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+// handleMLSampleDelete removes a training sample by index
+func handleMLSampleDelete(c *gin.Context) {
+	indexStr := c.Param("index")
+	var index int
+	if _, err := fmt.Sscanf(indexStr, "%d", &index); err != nil {
+		c.JSON(400, gin.H{"error": "invalid index"})
+		return
+	}
+	if globalTrainingStore == nil {
+		c.JSON(400, gin.H{"error": "ML training store not initialized"})
+		return
+	}
+	if !globalTrainingStore.RemoveSample(index) {
 		c.JSON(400, gin.H{"error": "invalid index or sample not found"})
 		return
 	}
