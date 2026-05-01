@@ -59,3 +59,27 @@ func TestPullRemoteDatasetFromHTTPServer(t *testing.T) {
 		t.Fatalf("first row = %#v", resp.Rows[0])
 	}
 }
+
+func TestPullRemoteDatasetRejectsHTMLLandingPage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte(`<!DOCTYPE html>
+<html lang=en dir=ltr prefix=content: http://purl.org/rss/1.0/modules/content/ dc: http://purl.org/dc/terms/>
+<head><title>Dataset</title></head>
+<body>Download page</body>
+</html>`))
+	}))
+	defer srv.Close()
+
+	_, err := pullRemoteDataset(remoteDatasetRequest{
+		URL:    srv.URL,
+		Format: "auto",
+		Limit:  10,
+	})
+	if err == nil {
+		t.Fatalf("pullRemoteDataset() error = nil, want HTML landing page rejection")
+	}
+	if got := err.Error(); !strings.Contains(got, "HTML landing page") {
+		t.Fatalf("error = %q, want HTML landing page rejection", got)
+	}
+}

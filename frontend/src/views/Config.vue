@@ -1188,16 +1188,6 @@ const importRemoteDataset = async () => {
   }
 };
 
-const useClassicSecurityDatasetPreset = (preset: ClassicSecurityDatasetPreset) => {
-  remoteDatasetUrl.value = preset.pageUrl;
-  remoteDatasetFormat.value = 'auto';
-  remoteDatasetLabelMode.value = 'preserve';
-  remoteDatasetLimit.value = 200;
-  remoteDatasetMeta.value = null;
-  remoteDatasetPreview.value = [];
-  message.info(`已填充 ${preset.name} 导入器预置项`);
-};
-
 const openClassicSecurityDatasetPage = (preset: ClassicSecurityDatasetPreset) => {
   window.open(preset.pageUrl, '_blank', 'noopener,noreferrer');
 };
@@ -2359,13 +2349,13 @@ onMounted(async () => {
             <a-card size="small">
               <template #title>
                 <span><BookOutlined /> 经典 OS 安全数据集</span>
-                <a-tag color="gold" style="margin-left: 8px">官方页 / 典型基准</a-tag>
+                <a-tag color="gold" style="margin-left: 8px">官方页 / 归档入口</a-tag>
               </template>
               <a-alert
                 type="info"
                 show-icon
                 style="margin-bottom: 12px"
-                message="这些是经典主机审计、内鬼威胁和入侵检测基准，适合作为对照实验或二次处理后的训练来源；多数是归档包或官方页面，不一定能直接作为纯文本导入。"
+                message="这些是经典主机审计、内鬼威胁和入侵检测基准的官方页面/下载入口，不是可直接导入的原始数据文件。请先下载并解压出 JSON、JSONL、CSV、TSV 或纯文本，再使用“导入本地文件”。"
               />
               <a-list :data-source="classicSecurityDatasetPresets" :split="false" size="small">
                 <template #renderItem="{ item }">
@@ -2395,9 +2385,6 @@ onMounted(async () => {
                         <a-space wrap>
                           <a-button size="small" @click="openClassicSecurityDatasetPage(item)">
                             <GlobalOutlined /> 打开官网
-                          </a-button>
-                          <a-button size="small" @click="useClassicSecurityDatasetPreset(item)">
-                            <ImportOutlined /> 一键填充导入器
                           </a-button>
                           <a-button size="small" @click="copyClassicSecurityDatasetPage(item)">
                             <CopyOutlined /> 复制链接
@@ -2443,7 +2430,7 @@ onMounted(async () => {
                 type="info"
                 show-icon
                 style="margin-bottom: 12px"
-                message="后端会直接从 HTTP/HTTPS 地址抓取数据集，并转成训练样本；也可以用“导入本地文件”把 JSON、JSONL、CSV、TSV 或纯文本一次性灌入训练集。"
+                message="后端只接受可直接 GET 到的原始数据文件；如果地址返回的是 HTML 介绍页、下载页或归档页，会直接报错。也可以用“导入本地文件”把 JSON、JSONL、CSV、TSV 或纯文本一次性灌入训练集。"
               />
 
               <a-row :gutter="[16, 16]">

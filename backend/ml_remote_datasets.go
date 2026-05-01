@@ -234,6 +234,12 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 	if err != nil {
 		return nil, err
 	}
+	if looksLikeHTMLDataset(downloaded, contentType) {
+		if source == "" {
+			source = req.URL
+		}
+		return nil, fmt.Errorf("dataset source %q looks like an HTML landing page; please use a raw file URL or import a local file instead", source)
+	}
 
 	records, format, err := parseRemoteDatasetRecords(downloaded, req.Format)
 	if err != nil {
@@ -297,6 +303,19 @@ func loadRemoteDatasetPayload(req remoteDatasetRequest) ([]byte, string, string,
 		source = req.SourceName
 	}
 	return downloaded, contentType, source, nil
+}
+
+func looksLikeHTMLDataset(raw []byte, contentType string) bool {
+	ct := strings.ToLower(strings.TrimSpace(contentType))
+	if strings.Contains(ct, "text/html") || strings.Contains(ct, "application/xhtml") {
+		return true
+	}
+
+	trimmed := strings.ToLower(strings.TrimSpace(string(raw)))
+	return strings.HasPrefix(trimmed, "<!doctype html") ||
+		strings.HasPrefix(trimmed, "<html") ||
+		strings.HasPrefix(trimmed, "<head") ||
+		strings.HasPrefix(trimmed, "<body")
 }
 
 func downloadRemoteDataset(rawURL string) ([]byte, string, error) {

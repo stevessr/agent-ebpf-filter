@@ -294,8 +294,8 @@ Protected by `authMiddleware()` in release mode:
 - `/config/hooks`
 - `/config/hooks/:id/raw`
 - `/config/ml/existing-commands`, `/config/ml/import-existing`, `/config/ml/assess` — pull historical wrapper/hook command data into ML samples and run command safety assessment
-- `/config/ml/datasets/pull`, `/config/ml/datasets/import`, `/config/ml/datasets/export`, `DELETE /config/ml/datasets` — fetch remote HTTP/HTTPS datasets or local file content, preview them, import them into the ML training store, export the current training set, or clear it in one step
-- the Configuration UI also includes a curated classic OS-security dataset catalog for ADFA, CERT Insider Threat, LANL host/network, and DARPA IDS references, with one-click preset fill for the dataset importer
+- `/config/ml/datasets/pull`, `/config/ml/datasets/import`, `/config/ml/datasets/export`, `DELETE /config/ml/datasets` — fetch remote HTTP/HTTPS raw datasets or local file content, preview them, import them into the ML training store, export the current training set, or clear it in one step
+- the Configuration UI also includes a curated classic OS-security dataset catalog for ADFA, CERT Insider Threat, LANL host/network, and DARPA IDS references; these are reference/archival pages, not raw importer sources, so download or extract the actual data files first
 - `/system/ls`
 - `/system/run`
 - `/system/env`
