@@ -70,8 +70,8 @@ export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     pageUrl: 'https://gtfobins.github.io/',
     downloadUrl: 'https://gtfobins.github.io/api.json',
     format: 'auto',
-    labelMode: 'heuristic',
-    note: 'Unix 二进制文件绕过本地安全限制的精选列表，支持一键导入为训练样本 (BLOCK/ALERT)。',
+    labelMode: 'block',
+    note: 'Unix 二进制文件绕过本地安全限制的精选列表，支持一键导入为训练样本，默认标注为 BLOCK。',
   },
   {
     name: 'LOLBAS',
@@ -80,8 +80,8 @@ export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     pageUrl: 'https://lolbas-project.github.io/',
     downloadUrl: 'https://lolbas-project.github.io/api/lolbas.json',
     format: 'auto',
-    labelMode: 'heuristic',
-    note: 'Windows 签名二进制文件/脚本/库滥用列表，支持一键导入为训练样本。',
+    labelMode: 'block',
+    note: 'Windows 签名二进制文件/脚本/库滥用列表，支持一键导入为训练样本，默认标注为 BLOCK。',
   },
   {
     name: 'Claude Code Safety Net',
@@ -499,7 +499,7 @@ export function useConfigML() {
   const importRemoteDatasetPayload = async (payload: {
     url?: string; content?: string; contentBase64?: string; sourceName?: string; importAll?: boolean;
     format?: 'auto' | 'json' | 'jsonl' | 'csv' | 'tsv' | 'text';
-    labelMode?: 'preserve' | 'unlabeled' | 'heuristic';
+    labelMode?: 'preserve' | 'unlabeled' | 'heuristic' | 'block';
   }) => {
     const url = payload.url ?? ((payload.content || payload.contentBase64) ? '' : remoteDatasetUrl.value.trim());
     const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/import', {

@@ -287,7 +287,7 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 
 	rows := make([]remoteDatasetRow, 0, len(records))
 	for _, record := range records {
-		row := buildRemoteDatasetRow(record)
+		row := buildRemoteDatasetRow(record, req.LabelMode)
 		if globalTrainingStore != nil {
 			row.Duplicate = globalTrainingStore.HasExactCommand(row.Comm, row.Args)
 		}
@@ -740,6 +740,8 @@ func normalizeRemoteDatasetLabelMode(mode string) string {
 		return "unlabeled"
 	case "heuristic", "auto", "automatic":
 		return "heuristic"
+	case "block", "dangerous", "highrisk", "high-risk":
+		return "block"
 	default:
 		return "preserve"
 	}
@@ -980,7 +982,7 @@ func parseTextDatasetRecords(raw []byte) []remoteDatasetRecord {
 	records := make([]remoteDatasetRecord, 0, len(lines))
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
+		if shouldSkipTextDatasetLine(line) {
 			continue
 		}
 		parts := splitCommandLine(line)
@@ -1012,6 +1014,35 @@ func parseTextDatasetRecords(raw []byte) []remoteDatasetRecord {
 		records = append(records, record)
 	}
 	return records
+}
+
+func shouldSkipTextDatasetLine(line string) bool {
+	if line == "" {
+		return true
+	}
+
+	trimmed := strings.TrimSpace(line)
+	lower := strings.ToLower(trimmed)
+	switch {
+	case strings.HasPrefix(trimmed, "#"),
+		strings.HasPrefix(trimmed, "//"),
+		strings.HasPrefix(trimmed, "/*"),
+		strings.HasPrefix(trimmed, "*/"),
+		strings.HasPrefix(trimmed, "*"),
+		strings.HasPrefix(lower, "__syscall("),
+		strings.HasPrefix(lower, "#include"),
+		strings.HasPrefix(lower, "#define"),
+		strings.HasPrefix(lower, "#pragma"),
+		strings.HasPrefix(lower, "typedef "),
+		strings.HasPrefix(lower, "struct "),
+		strings.HasPrefix(lower, "enum "),
+		strings.HasPrefix(lower, "union "),
+		strings.HasPrefix(lower, "static "),
+		strings.HasPrefix(lower, "extern "):
+		return true
+	}
+
+	return false
 }
 
 func flattenDatasetJSON(decoded any) []any {
@@ -1204,14 +1235,17 @@ func remoteDatasetRecordFromMap(row map[string]any, rowIndex int) (remoteDataset
 	return record, true
 }
 
-func buildRemoteDatasetRow(record remoteDatasetRecord) remoteDatasetRow {
+func buildRemoteDatasetRow(record remoteDatasetRecord, mode string) remoteDatasetRow {
 	comm, args := normalizeCommandInput(record.CommandLine, record.Comm, record.Args)
 	label := record.Label
 	labelSource := record.LabelSource
 	if label == "" {
 		label = "-"
 	}
-	if labelSource == "" {
+	if strings.EqualFold(strings.TrimSpace(mode), "block") {
+		label = "BLOCK"
+		labelSource = "forced"
+	} else if labelSource == "" {
 		labelSource = "inferred"
 	}
 
@@ -1268,13 +1302,17 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string) TrainingSample 
 
 	label := int32(-1)
 	userLabel := "remote-import"
-	if mode == "unlabeled" {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "block":
+		label = actionFromLabel("BLOCK")
+		userLabel = "remote-block"
+	case "unlabeled":
 		userLabel = "remote-import-unlabeled"
-	} else {
+	default:
 		if normalized := normalizeActionLabel(row.Label); normalized != "" {
 			label = actionFromLabel(normalized)
 			userLabel = "remote-source-label"
-		} else if mode == "heuristic" {
+		} else if strings.EqualFold(strings.TrimSpace(mode), "heuristic") {
 			assessment := assessCommandSafety(context.Background(), comm, args, "", 0)
 			if action, ok := assessment["recommendedAction"].(string); ok {
 				label = actionFromLabel(action)

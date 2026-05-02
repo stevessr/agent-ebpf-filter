@@ -318,6 +318,45 @@ func TestParseRemoteDatasetRecordsSafetyNetRules(t *testing.T) {
 	}
 }
 
+func TestParseRemoteDatasetRecordsTextSkipsCommentNoise(t *testing.T) {
+	raw := []byte("/*\n* This file contains the system call numbers, based on the\n__SYSCALL(__NR_io_setup, sys_io_setup)\necho hello\n")
+	records, format, err := parseRemoteDatasetRecords(raw, "auto", "noisy.txt")
+	if err != nil {
+		t.Fatalf("parse error = %v", err)
+	}
+	if format != "text" {
+		t.Fatalf("format = %q, want text", format)
+	}
+	if len(records) != 1 {
+		t.Fatalf("records length = %d, want 1", len(records))
+	}
+	if records[0].Comm != "echo" || strings.Join(records[0].Args, " ") != "hello" {
+		t.Fatalf("record = %#v", records[0])
+	}
+}
+
+func TestBuildRemoteDatasetSampleForceBlock(t *testing.T) {
+	row := remoteDatasetRow{
+		CommandLine: "openvt -- /bin/sh",
+		Comm:        "openvt",
+		Args:        []string{"--", "/bin/sh"},
+		Label:       "ALLOW",
+		Category:    "shell",
+		Timestamp:   "2026-01-01T00:00:00Z",
+		UserLabel:   "dataset",
+	}
+	sample := buildRemoteDatasetSample(row, "block")
+	if sample.Label != 1 {
+		t.Fatalf("sample.Label = %d, want BLOCK", sample.Label)
+	}
+	if sample.UserLabel != "remote-block" {
+		t.Fatalf("sample.UserLabel = %q, want remote-block", sample.UserLabel)
+	}
+	if sample.CommandLine != row.CommandLine {
+		t.Fatalf("sample.CommandLine = %q, want %q", sample.CommandLine, row.CommandLine)
+	}
+}
+
 func buildZipArchive(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 

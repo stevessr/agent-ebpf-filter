@@ -273,7 +273,7 @@ export interface ClassicSecurityDatasetPreset {
   pageUrl: string;
   downloadUrl?: string;
   format?: 'auto' | 'json' | 'jsonl' | 'csv' | 'tsv' | 'text';
-  labelMode?: 'preserve' | 'unlabeled' | 'heuristic';
+  labelMode?: 'preserve' | 'unlabeled' | 'heuristic' | 'block';
   note: string;
 }
 
