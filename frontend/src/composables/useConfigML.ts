@@ -108,7 +108,10 @@ export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     family: '真实行为',
     platform: 'Linux / Metasploit',
     pageUrl: 'https://zenodo.org/records/8136017',
-    note: '21,000+ 条真实网络安全练习中的 Shell 命令历史。需从 Zenodo 页面手动下载 shell_commands.json 后通过"导入本地文件"上传。',
+    downloadUrl: 'https://zenodo.org/records/8136017/files/data.zip?download=1',
+    format: 'jsonl',
+    labelMode: 'heuristic',
+    note: '21,000+ 条真实网络安全练习中的 Shell 命令历史，可直接一键导入 Zenodo 附件 data.zip，并默认启发式标注。',
   },
   {
     name: 'NSL-KDD (Train+)',
@@ -480,12 +483,24 @@ export function useConfigML() {
     } finally { importingExistingData.value = false; }
   };
 
+  const resolveDatasetUrl = (input: string) => {
+    const trimmed = input.trim();
+    if (!trimmed) return '';
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed) || trimmed.startsWith('//')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('/') || trimmed.startsWith('./') || trimmed.startsWith('../')) {
+      return new URL(trimmed, window.location.origin).toString();
+    }
+    return trimmed;
+  };
+
   const fetchRemoteDatasetPreview = async (silent = false) => {
     if (!remoteDatasetUrl.value.trim()) { message.warning('请输入数据集 URL'); return; }
     loadingRemoteDataset.value = true;
     try {
       const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/pull', {
-        url: remoteDatasetUrl.value.trim(), format: remoteDatasetFormat.value,
+        url: resolveDatasetUrl(remoteDatasetUrl.value), format: remoteDatasetFormat.value,
         limit: remoteDatasetLimit.value, labelMode: remoteDatasetLabelMode.value,
       });
       remoteDatasetMeta.value = res.data;
@@ -501,7 +516,7 @@ export function useConfigML() {
     format?: 'auto' | 'json' | 'jsonl' | 'csv' | 'tsv' | 'text';
     labelMode?: 'preserve' | 'unlabeled' | 'heuristic' | 'block';
   }) => {
-    const url = payload.url ?? ((payload.content || payload.contentBase64) ? '' : remoteDatasetUrl.value.trim());
+    const url = resolveDatasetUrl(payload.url ?? ((payload.content || payload.contentBase64) ? '' : remoteDatasetUrl.value.trim()));
     const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/import', {
       url, content: payload.content, contentBase64: payload.contentBase64,
       sourceName: payload.sourceName, format: payload.format ?? remoteDatasetFormat.value,
