@@ -297,7 +297,11 @@ export function useConfigML() {
   const hyperParams = ref({ numTrees: 31, maxDepth: 8, minSamplesLeaf: 5 });
   const autoTuneXAxis = ref<MLAutoTuneAxis>('numTrees');
   const autoTuneYAxis = ref<MLAutoTuneAxis>('maxDepth');
-  const autoTuneGridSize = ref<3 | 5 | 7 | 9 | 11>(5);
+  const autoTuneGridSize = ref<number>(5);
+  const autoTuneMinX = ref<number | undefined>(undefined);
+  const autoTuneMaxX = ref<number | undefined>(undefined);
+  const autoTuneMinY = ref<number | undefined>(undefined);
+  const autoTuneMaxY = ref<number | undefined>(undefined);
   const autoTuneGranularity = ref<MLAutoTuneGranularity>(1);
   const autoTuneMetric = ref<MLAutoTuneMetric>('validationAccuracy');
   const autoTuneLoading = ref(false);
@@ -744,14 +748,19 @@ export function useConfigML() {
     autoTuneTotal.value = 0;
     autoTuneMessage.value = '正在启动自动调参...';
     try {
-      const res = await axios.post('/config/ml/tune', {
+      const payload: Record<string, any> = {
         xAxis: autoTuneXAxis.value,
         yAxis: autoTuneYAxis.value,
         gridSize: autoTuneGridSize.value,
         granularity: autoTuneGranularity.value,
         metric: autoTuneMetric.value,
         validationSplitRatio: mlTrainingConfig.value.validationSplitRatio,
-      });
+      };
+      if (autoTuneMinX.value != null) payload.minX = autoTuneMinX.value;
+      if (autoTuneMaxX.value != null) payload.maxX = autoTuneMaxX.value;
+      if (autoTuneMinY.value != null) payload.minY = autoTuneMinY.value;
+      if (autoTuneMaxY.value != null) payload.maxY = autoTuneMaxY.value;
+      const res = await axios.post('/config/ml/tune', payload);
       autoTuneJobId.value = res.data.jobId || '';
       if (res.data.started) {
         autoTuneInProgress.value = true;
@@ -1413,6 +1422,7 @@ export function useConfigML() {
     modelType, autoTuneAxisOptions, cudaAvailable, cudaInfo, cudaMemUsedMB, cudaMemTotalMB, cancelTraining, cancellingTraining,
     trainingHistory, hyperParams,
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
+    autoTuneMinX, autoTuneMaxX, autoTuneMinY, autoTuneMaxY,
     autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError, autoTuneJobId,
     autoTuneResponse, autoTuneSelectedCell,
     autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat,

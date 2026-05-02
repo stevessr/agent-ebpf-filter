@@ -22,6 +22,7 @@ const {
   llmBatchResponse, llmBatchLoading, trainingLogs, wsActive,
   trainingHistory, hyperParams,
   autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
+  autoTuneMinX, autoTuneMaxX, autoTuneMinY, autoTuneMaxY,
   autoTuneAxisOptions,
   autoTuneLoading, autoTuneInProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError,
   autoTuneResponse, autoTuneSelectedCell,
@@ -1057,8 +1058,8 @@ onMounted(() => {
                 <a-radio-button value="logistic">Logistic Regression</a-radio-button>
               </a-radio-group>
               <a-space style="margin-top: 8px; display: flex; align-items: center;">
-                <a-tag :color="cudaAvailable ? 'success' : 'default'">
-                  {{ cudaAvailable ? 'CUDA: ' + cudaInfo : 'CPU Only' }}
+                <a-tag :color="cudaAvailable ? 'success' : 'warning'">
+                  {{ cudaAvailable ? 'CUDA: ' + cudaInfo : 'CPU 训练 (未检测到 NVIDIA GPU)' }}
                 </a-tag>
                 <a-typography-text type="secondary">
                   切换模型类型后会自动保存，训练和推理将使用所选模型。
@@ -1456,13 +1457,23 @@ onMounted(() => {
                     </div>
                     <div>
                       <div style="font-weight: 600; margin-bottom: 6px">方阵大小</div>
-                      <a-radio-group v-model:value="autoTuneGridSize" button-style="solid">
-                        <a-radio-button :value="3">3×3</a-radio-button>
-                        <a-radio-button :value="5">5×5</a-radio-button>
-                        <a-radio-button :value="7">7×7</a-radio-button>
-                        <a-radio-button :value="9">9×9</a-radio-button>
-                        <a-radio-button :value="11">11×11</a-radio-button>
+                      <a-radio-group v-model:value="autoTuneGridSize" button-style="solid" size="small">
+                        <a-radio-button :value="3">3</a-radio-button>
+                        <a-radio-button :value="5">5</a-radio-button>
+                        <a-radio-button :value="7">7</a-radio-button>
+                        <a-radio-button :value="9">9</a-radio-button>
+                        <a-radio-button :value="11">11</a-radio-button>
+                        <a-radio-button :value="15">15</a-radio-button>
+                        <a-radio-button :value="21">21</a-radio-button>
+                        <a-radio-button :value="31">31</a-radio-button>
                       </a-radio-group>
+                      <a-input-number
+                        v-if="![3,5,7,9,11,15,21,31].includes(autoTuneGridSize)"
+                        v-model:value="autoTuneGridSize"
+                        :min="3" :max="51" :step="2"
+                        placeholder="自定义 (3-51)"
+                        style="width: 100%; margin-top: 4px;"
+                      />
                     </div>
                     <div>
                       <div style="font-weight: 600; margin-bottom: 6px">颗粒度</div>
@@ -1482,6 +1493,24 @@ onMounted(() => {
                         <a-radio-button value="inferenceThroughput">推理速度</a-radio-button>
                       </a-radio-group>
                     </div>
+                    <a-collapse :bordered="false" style="background: transparent;">
+                      <a-collapse-panel key="range" header="展开：自定义参数范围">
+                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                          <span style="font-size: 12px; width: 50px;">{{ autoTuneAxisLabel(autoTuneXAxis) }}</span>
+                          <a-input-number v-model:value="autoTuneMinX" :min="1" size="small" placeholder="最小" style="width: 70px;" />
+                          <span style="font-size: 12px;">~</span>
+                          <a-input-number v-model:value="autoTuneMaxX" :min="1" size="small" placeholder="最大" style="width: 70px;" />
+                          <a-button size="small" type="link" @click="autoTuneMinX = undefined; autoTuneMaxX = undefined;">自动</a-button>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                          <span style="font-size: 12px; width: 50px;">{{ autoTuneAxisLabel(autoTuneYAxis) }}</span>
+                          <a-input-number v-model:value="autoTuneMinY" :min="1" size="small" placeholder="最小" style="width: 70px;" />
+                          <span style="font-size: 12px;">~</span>
+                          <a-input-number v-model:value="autoTuneMaxY" :min="1" size="small" placeholder="最大" style="width: 70px;" />
+                          <a-button size="small" type="link" @click="autoTuneMinY = undefined; autoTuneMaxY = undefined;">自动</a-button>
+                        </div>
+                      </a-collapse-panel>
+                    </a-collapse>
                     <a-alert
                       type="warning"
                       show-icon

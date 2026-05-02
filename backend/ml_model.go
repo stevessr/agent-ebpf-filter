@@ -42,6 +42,10 @@ func NewModel(t ModelType) (Model, error) {
 	return factory(), nil
 }
 
+func init() {
+	RegisterModel(ModelRandomForest, func() Model { return NewDecisionForest(31, 8, 4) })
+}
+
 // modelName returns a human-readable name for a model type
 func modelName(t ModelType) string {
 	switch t {

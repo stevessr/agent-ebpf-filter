@@ -26,7 +26,20 @@
 // ── Device info ────────────────────────────────────────────────────
 
 extern "C" int cuda_dev_count() {
-    int n; cudaGetDeviceCount(&n); return n;
+    int n;
+    cudaError_t err = cudaGetDeviceCount(&n);
+    if (err != cudaSuccess) return 0;
+    return n;
+}
+
+extern "C" const char* cuda_driver_version() {
+    int v;
+    if (cudaDriverGetVersion(&v) == cudaSuccess) {
+        static char buf[32];
+        snprintf(buf, sizeof(buf), "%d.%d", v/1000, (v%100)/10);
+        return buf;
+    }
+    return "unknown";
 }
 
 extern "C" const char* cuda_dev_name(int d) {

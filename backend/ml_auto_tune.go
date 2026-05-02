@@ -22,6 +22,10 @@ type MLAutoTuneRequest struct {
 	Granularity          float64 `json:"granularity"`
 	Metric               string  `json:"metric"`
 	ValidationSplitRatio float64 `json:"validationSplitRatio"`
+	MinX                 *int    `json:"minX,omitempty"`
+	MaxX                 *int    `json:"maxX,omitempty"`
+	MinY                 *int    `json:"minY,omitempty"`
+	MaxY                 *int    `json:"maxY,omitempty"`
 }
 
 type MLAutoTuneCell struct {
@@ -301,8 +305,8 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 		return nil, err
 	}
 
-	xValues := autoTuneAxisValues(xAxis, gridSize, granularity, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf)
-	yValues := autoTuneAxisValues(yAxis, gridSize, granularity, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf)
+	xValues := autoTuneAxisValuesWithRange(xAxis, gridSize, granularity, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf, req.MinX, req.MaxX)
+	yValues := autoTuneAxisValuesWithRange(yAxis, gridSize, granularity, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf, req.MinY, req.MaxY)
 	maxRequiredLeaf := autoTuneMaxInt(baseMinSamplesLeaf, maxAxisValue(xAxis, xValues, yAxis, yValues, "minSamplesLeaf"))
 	if len(labeled) < maxRequiredLeaf*10 {
 		msg := fmt.Sprintf("Insufficient labeled samples for tuning: need >=%d, have %d", maxRequiredLeaf*10, len(labeled))
@@ -734,6 +738,15 @@ func normalizeAutoTuneGranularity(granularity float64) float64 {
 }
 
 func autoTuneAxisValues(axis string, gridSize int, granularity float64, numTrees, maxDepth, minSamplesLeaf int) []int {
+	center := axisCenter(axis, numTrees, maxDepth, minSamplesLeaf)
+	minValue, maxValue := autoTuneAxisRange(axis, center, gridSize, granularity)
+	return linspaceInt(minValue, maxValue, gridSize)
+}
+
+func autoTuneAxisValuesWithRange(axis string, gridSize int, granularity float64, numTrees, maxDepth, minSamplesLeaf int, minOverride, maxOverride *int) []int {
+	if minOverride != nil && maxOverride != nil && *minOverride > 0 && *maxOverride >= *minOverride {
+		return linspaceInt(*minOverride, *maxOverride, gridSize)
+	}
 	center := axisCenter(axis, numTrees, maxDepth, minSamplesLeaf)
 	minValue, maxValue := autoTuneAxisRange(axis, center, gridSize, granularity)
 	return linspaceInt(minValue, maxValue, gridSize)

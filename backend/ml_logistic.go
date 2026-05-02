@@ -193,19 +193,18 @@ func (m *LogisticModel) Serialize(path string) error {
 		binary.LittleEndian.PutUint32(b, v)
 		data = append(data, b...)
 	}
-
-	data = append(data[:0], []byte("LOGR")...)
-	putU32(1) // version
-	putU32(uint32(m.NumClasses))
-	putU32(uint32(math.Float64bits(m.LearningRate)))
-	putU32(uint32(len(m.Regularization)))
-	data = append(data, []byte(m.Regularization)...)
-
 	putU32F := func(v float64) {
 		b := make([]byte, 8)
 		binary.LittleEndian.PutUint64(b, math.Float64bits(v))
 		data = append(data, b...)
 	}
+
+	data = append(data[:0], []byte("LOGR")...)
+	putU32(1) // version
+	putU32(uint32(m.NumClasses))
+	putU32F(m.LearningRate)
+	putU32(uint32(len(m.Regularization)))
+	data = append(data, []byte(m.Regularization)...)
 
 	for c := 0; c < m.NumClasses; c++ {
 		for i := 0; i <= FeatureDim; i++ {
@@ -246,10 +245,9 @@ func DeserializeLogistic(path string) (*LogisticModel, error) {
 		return v
 	}
 
-	_ = readU32() // version
-	pos += 4
+	_ = readU32() // version (readU32 advances pos by 4)
 	numClasses := int(readU32())
-	learningRate := math.Float64frombits(uint64(readU32()))
+	learningRate := readF64()
 	regLen := int(readU32())
 	regularization := string(raw[pos : pos+regLen])
 	pos += regLen
