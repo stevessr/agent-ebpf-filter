@@ -1,7 +1,7 @@
 package cuda
 
 /*
-#cgo LDFLAGS: -L${SRCDIR} -lmlcuda -lcudart -lcuda
+#cgo LDFLAGS: -L${SRCDIR} -L/opt/cuda/lib64 -lmlcuda -lcudart -lcuda -lstdc++ -Wl,-rpath,/opt/cuda/lib64
 #cgo CFLAGS: -I/opt/cuda/include
 
 #include <stdlib.h>

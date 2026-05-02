@@ -307,7 +307,7 @@ func (m *LogisticModel) trainWithCUDA(samples [][FeatureDim]float64, labels []in
 		if iter%50 == 0 && iter > 0 {
 			avgLoss := float32(0)
 			for s := 0; s < nSamples; s++ {
-				prob := P[s*m.NumClasses+L[s]]
+				prob := P[s*m.NumClasses+int(L[s])]
 				if prob > 1e-10 {
 					avgLoss += float32(-math.Log(float64(prob)))
 				}
