@@ -24,6 +24,7 @@ func buildMLStatusJSON() []byte {
 	}
 
 	payload := map[string]interface{}{
+		"modelType":            string(currentModelType),
 		"modelLoaded":          status.ModelLoaded,
 		"numTrees":             status.NumTrees,
 		"numSamples":           status.NumSamples,
@@ -49,6 +50,7 @@ func buildMLStatusJSON() []byte {
 		"autoTuneError":        autoTuneState.Error,
 		"autoTuneResult":       autoTuneState.Result,
 		"mlConfig": map[string]interface{}{
+			"modelType":            string(cfg.ModelType),
 			"validationSplitRatio": cfg.ValidationSplitRatio,
 			"llmEnabled":           cfg.LlmEnabled,
 			"llmBaseUrl":           cfg.LlmBaseURL,

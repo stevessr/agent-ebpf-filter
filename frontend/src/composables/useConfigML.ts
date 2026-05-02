@@ -250,8 +250,9 @@ export const highRiskPresets = [
 export function useConfigML() {
   // ── ML Status ──
   const mlEnabled = ref(false);
+  const modelType = ref<string>('random_forest');
   const mlStatus = ref<MLStatusState>({
-    model_loaded: false, num_trees: 0, num_samples: 0, num_labeled_samples: 0,
+    model_type: 'random_forest', model_loaded: false, num_trees: 0, num_samples: 0, num_labeled_samples: 0,
     last_trained: '', test_accuracy: 0, model_path: '',
     training_in_progress: false, training_progress: 0,
     train_accuracy: 0, validation_accuracy: 0,
@@ -349,6 +350,8 @@ export function useConfigML() {
   // ── Helpers ──
   const applyMLStatusResponse = (data: any) => {
     mlEnabled.value = data.mlEnabled ?? data.ml_enabled ?? false;
+    modelType.value = data.modelType ?? data.model_type ?? modelType.value;
+    mlStatus.value.model_type = modelType.value;
     mlStatus.value.model_loaded = data.modelLoaded ?? data.model_loaded ?? false;
     mlStatus.value.num_trees = data.numTrees ?? data.num_trees ?? 0;
     mlStatus.value.num_samples = data.numSamples ?? data.num_samples ?? 0;
@@ -388,6 +391,7 @@ export function useConfigML() {
     if (mlConfig) {
       llmConfigApplyingRemote.value = true;
       try {
+        if (mlConfig.modelType) modelType.value = mlConfig.modelType;
         mlTrainingConfig.value.validationSplitRatio = mlConfig.validationSplitRatio ?? mlConfig.validation_split_ratio ?? mlStatus.value.validation_split_ratio ?? 0.2;
         llmScoringConfig.value.enabled = mlConfig.llmEnabled ?? mlConfig.llm_enabled ?? llmScoringConfig.value.enabled;
         llmScoringConfig.value.baseUrl = mlConfig.llmBaseUrl ?? mlConfig.llm_base_url ?? llmScoringConfig.value.baseUrl;
@@ -496,13 +500,37 @@ export function useConfigML() {
   });
 
   const autoTuneAxisLabel = (axis: MLAutoTuneAxis) => {
-    const labels: Record<MLAutoTuneAxis, string> = {
-      numTrees: '树数',
-      maxDepth: '最大深度',
-      minSamplesLeaf: '叶节点样本',
+    const labels: Record<string, string> = {
+      numTrees: '树数', maxDepth: '最大深度', minSamplesLeaf: '叶节点样本',
+      k: 'K 值', distance: '距离度量', weight: '权重方案',
+      learningRate: '学习率', regularization: '正则化', maxIterations: '最大迭代',
     };
-    return labels[axis];
+    return labels[axis] || axis;
   };
+
+  // Model-type-aware auto-tune axis options
+  const autoTuneAxisOptions = computed(() => {
+    const mt = modelType.value;
+    if (mt === 'knn') {
+      return [
+        { value: 'k', label: 'K 值 (k)' },
+        { value: 'distance', label: '距离度量 (distance)' },
+        { value: 'weight', label: '权重方案 (weight)' },
+      ];
+    }
+    if (mt === 'logistic') {
+      return [
+        { value: 'learningRate', label: '学习率 (learningRate)' },
+        { value: 'regularization', label: '正则化 (regularization)' },
+        { value: 'maxIterations', label: '最大迭代 (maxIterations)' },
+      ];
+    }
+    return [
+      { value: 'numTrees', label: '树数 (numTrees)' },
+      { value: 'maxDepth', label: '最大深度 (maxDepth)' },
+      { value: 'minSamplesLeaf', label: '叶节点样本 (minSamplesLeaf)' },
+    ];
+  });
 
   const autoTuneMetricLabel = (metric: MLAutoTuneMetric) => {
     const labels: Record<MLAutoTuneMetric, string> = {
@@ -753,6 +781,7 @@ export function useConfigML() {
   const buildThresholdRuntimePayload = () => {
     const payload: Record<string, any> = {
       enabled: true,
+      modelType: modelType.value,
       blockConfidenceThreshold: mlThresholds.value.blockConfidenceThreshold,
       mlMinConfidence: mlThresholds.value.mlMinConfidence,
       ruleOverridePriority: mlThresholds.value.ruleOverridePriority,
@@ -1360,6 +1389,7 @@ export function useConfigML() {
     mlThresholds, mlTrainingConfig, llmScoringConfig, llmBatchConfig,
     llmBatchResponse, llmBatchLoading, trainingLogs, wsActive, logPollTimer,
     llmSaveStatus, saveLLMConfigNow,
+    modelType, autoTuneAxisOptions,
     trainingHistory, hyperParams,
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
     autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError, autoTuneJobId,

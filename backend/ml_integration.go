@@ -10,36 +10,38 @@ import (
 
 // MLConfig holds configuration for the ML behavior classifier
 type MLConfig struct {
-	Enabled                  bool    `json:"enabled"`
-	ModelPath                string  `json:"modelPath"`
-	AutoTrain                bool    `json:"autoTrain"`
-	TrainInterval            string  `json:"trainInterval"`
-	MinSamplesForTraining    int     `json:"minSamplesForTraining"`
-	BlockConfidenceThreshold float64 `json:"blockConfidenceThreshold"`
-	MlMinConfidence          float64 `json:"mlMinConfidence"`
-	LowAnomalyThreshold      float64 `json:"lowAnomalyThreshold"`
-	HighAnomalyThreshold     float64 `json:"highAnomalyThreshold"`
-	RuleOverridePriority     int     `json:"ruleOverridePriority"`
-	ActiveLearningEnabled    bool    `json:"activeLearningEnabled"`
-	FeatureHistorySize       int     `json:"featureHistorySize"`
-	NumTrees                 int     `json:"numTrees"`
-	MaxDepth                 int     `json:"maxDepth"`
-	MinSamplesLeaf           int     `json:"minSamplesLeaf"`
-	ValidationSplitRatio     float64 `json:"validationSplitRatio"`
-	LlmEnabled               bool    `json:"llmEnabled"`
-	LlmBaseURL               string  `json:"llmBaseUrl"`
-	LlmAPIKey                string  `json:"llmApiKey,omitempty"`
-	LlmModel                 string  `json:"llmModel"`
-	LlmTimeoutSeconds        int     `json:"llmTimeoutSeconds"`
-	LlmTemperature           float64 `json:"llmTemperature"`
-	LlmMaxTokens             int     `json:"llmMaxTokens"`
-	LlmSystemPrompt          string  `json:"llmSystemPrompt"`
+	Enabled                  bool      `json:"enabled"`
+	ModelType                ModelType `json:"modelType"`
+	ModelPath                string    `json:"modelPath"`
+	AutoTrain                bool      `json:"autoTrain"`
+	TrainInterval            string    `json:"trainInterval"`
+	MinSamplesForTraining    int       `json:"minSamplesForTraining"`
+	BlockConfidenceThreshold float64   `json:"blockConfidenceThreshold"`
+	MlMinConfidence          float64   `json:"mlMinConfidence"`
+	LowAnomalyThreshold      float64   `json:"lowAnomalyThreshold"`
+	HighAnomalyThreshold     float64   `json:"highAnomalyThreshold"`
+	RuleOverridePriority     int       `json:"ruleOverridePriority"`
+	ActiveLearningEnabled    bool      `json:"activeLearningEnabled"`
+	FeatureHistorySize       int       `json:"featureHistorySize"`
+	NumTrees                 int       `json:"numTrees"`
+	MaxDepth                 int       `json:"maxDepth"`
+	MinSamplesLeaf           int       `json:"minSamplesLeaf"`
+	ValidationSplitRatio     float64   `json:"validationSplitRatio"`
+	LlmEnabled               bool      `json:"llmEnabled"`
+	LlmBaseURL               string    `json:"llmBaseUrl"`
+	LlmAPIKey                string    `json:"llmApiKey,omitempty"`
+	LlmModel                 string    `json:"llmModel"`
+	LlmTimeoutSeconds        int       `json:"llmTimeoutSeconds"`
+	LlmTemperature           float64   `json:"llmTemperature"`
+	LlmMaxTokens             int       `json:"llmMaxTokens"`
+	LlmSystemPrompt          string    `json:"llmSystemPrompt"`
 }
 
 // DefaultMLConfig returns sensible defaults
 func DefaultMLConfig() MLConfig {
 	return MLConfig{
 		Enabled:                  true,
+		ModelType:                ModelRandomForest,
 		ModelPath:                "",
 		AutoTrain:                true,
 		TrainInterval:            "24h",
@@ -68,10 +70,11 @@ func DefaultMLConfig() MLConfig {
 
 // Global ML state
 var (
-	mlEngine      *DecisionForest
-	mlConfig      MLConfig
-	mlEnabled     bool
-	mlModelLoaded bool
+	mlEngine        Model
+	mlConfig        MLConfig
+	mlEnabled       bool
+	mlModelLoaded   bool
+	currentModelType ModelType
 )
 
 func currentMLConfig() MLConfig {
@@ -94,28 +97,45 @@ func InitMLEngine(cfg MLConfig) {
 	// Initialize training store
 	InitTrainingStore(100000)
 
+	if cfg.ModelType == "" {
+		cfg.ModelType = ModelRandomForest
+	}
+	currentModelType = cfg.ModelType
+
 	// Try loading existing model
-	if cfg.ModelPath != "" {
-		forest, err := DeserializeForest(cfg.ModelPath)
-		if err != nil {
-			log.Printf("[ML] No pre-trained model found at %s (%v) — will train once sufficient data is collected", cfg.ModelPath, err)
-		} else {
-			mlEngine = forest
-			mlModelLoaded = true
-			log.Printf("[ML] Loaded pre-trained model: %d trees, %d features", len(forest.Trees), forest.NumFeatures)
-		}
-	} else {
-		// Try default path
-		defaultPath := defaultMLModelPath()
-		if forest, err := DeserializeForest(defaultPath); err == nil {
-			mlEngine = forest
-			mlModelLoaded = true
-			log.Printf("[ML] Loaded default pre-trained model from %s", defaultPath)
-		}
+	modelPath := cfg.ModelPath
+	if modelPath == "" {
+		modelPath = defaultMLModelPath()
 	}
 
-	log.Printf("[ML] Behavior classifier initialized on master node (features=%d dims)", FeatureDim)
+	if m := tryLoadModel(modelPath, cfg.ModelType); m != nil {
+		mlEngine = m
+		mlModelLoaded = true
+		log.Printf("[ML] Loaded pre-trained %s model from %s", modelName(cfg.ModelType), modelPath)
+	} else {
+		log.Printf("[ML] No pre-trained %s model found at %s — will train once sufficient data is collected", modelName(cfg.ModelType), modelPath)
+	}
+
+	log.Printf("[ML] Behavior classifier initialized on master node (type=%s, features=%d dims)", cfg.ModelType, FeatureDim)
 	mlEnabled = true
+}
+
+func tryLoadModel(path string, t ModelType) Model {
+	switch t {
+	case ModelRandomForest:
+		if m, err := DeserializeForest(path); err == nil {
+			return m
+		}
+	case ModelKNN:
+		if m, err := DeserializeKNN(path); err == nil {
+			return m
+		}
+	case ModelLogisticRegression:
+		if m, err := DeserializeLogistic(path); err == nil {
+			return m
+		}
+	}
+	return nil
 }
 
 // StartMLEngine starts background tasks for the ML engine
@@ -243,21 +263,21 @@ func mlAutoTrainLoop() {
 		_, labeled := globalTrainingStore.Status()
 		if labeled >= mlConfig.MinSamplesForTraining {
 			log.Printf("[ML] Auto-training triggered: %d labeled samples available", labeled)
-			forest, result := globalTrainer.Train(globalTrainingStore, mlConfig.NumTrees, mlConfig.MaxDepth, mlConfig.MinSamplesLeaf)
+			model, result := globalTrainer.TrainWithConfig(globalTrainingStore, mlConfig)
 			if result.Error != "" {
 				log.Printf("[ML] Auto-training failed: %s", result.Error)
 				continue
 			}
-			mlEngine = forest
+			mlEngine = model
 			mlModelLoaded = true
-			log.Printf("[ML] Auto-training complete: accuracy=%.2f%%, trees=%d", result.Accuracy*100, result.NumTrees)
+			log.Printf("[ML] Auto-training complete: accuracy=%.2f%%, type=%s", result.Accuracy*100, model.Type())
 
 			// Persist model
 			modelPath := mlConfig.ModelPath
 			if modelPath == "" {
 				modelPath = defaultMLModelPath()
 			}
-			if err := forest.Serialize(modelPath); err != nil {
+			if err := model.Serialize(modelPath); err != nil {
 				log.Printf("[ML] Failed to save model: %v", err)
 			}
 		}
@@ -295,7 +315,9 @@ func mlStatus() *pb.MLStatus {
 	}
 
 	if mlEngine != nil {
-		status.NumTrees = int32(len(mlEngine.Trees))
+		if rf, ok := mlEngine.(*DecisionForest); ok {
+			status.NumTrees = int32(len(rf.Trees))
+		}
 	}
 
 	if globalTrainingStore != nil {

@@ -28,6 +28,7 @@ export interface RuntimeSettings {
     llmTimeoutSeconds?: number;
     llmTemperature?: number;
     llmMaxTokens?: number;
+    modelType?: string;
     llmSystemPrompt?: string;
   };
 }
@@ -91,6 +92,7 @@ export interface MLReviewSummary {
 }
 
 export interface MLStatusState {
+  model_type?: string;
   model_loaded: boolean;
   num_trees: number;
   num_samples: number;
@@ -176,7 +178,7 @@ export interface MLTrainingHistoryEntry {
   duration?: number;
 }
 
-export type MLAutoTuneAxis = 'numTrees' | 'maxDepth' | 'minSamplesLeaf';
+export type MLAutoTuneAxis = string;
 export type MLAutoTuneMetric = 'validationAccuracy' | 'inferenceThroughput';
 export type MLAutoTuneGranularity = 1 | 2 | 4;
 

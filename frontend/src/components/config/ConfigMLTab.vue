@@ -22,6 +22,7 @@ const {
   llmBatchResponse, llmBatchLoading, trainingLogs, wsActive,
   trainingHistory, hyperParams,
   autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
+  autoTuneAxisOptions,
   autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError,
   autoTuneResponse, autoTuneSelectedCell,
   autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat,
@@ -53,7 +54,7 @@ const {
   submitManualSample, addPresetSample, importAllHighRiskPresets,
   importAllSafetyNetPresets,
   runBacktest, runBacktestPreset, riskLevelColor, riskMeterColor,
-  llmApiKeyStatus, llmSaveStatus, saveLLMConfigNow,
+  llmApiKeyStatus, llmSaveStatus, saveLLMConfigNow, modelType,
 } = props.ml;
 
 void trainingDatasetImportInput;
@@ -139,6 +140,11 @@ onMounted(() => {
                 <a-col :xs="12" :sm="8" :md="6">
                   <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
                     <a-statistic title="Model Loaded" :value="mlStatus.model_loaded ? 'Yes' : 'No'" :value-style="{ color: mlStatus.model_loaded ? '#3f8600' : '#d48806', fontSize: '18px' }" />
+                  </a-card>
+                </a-col>
+                <a-col :xs="12" :sm="8" :md="6">
+                  <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
+                    <a-statistic title="Model Type" :value="modelType === 'random_forest' ? 'RF' : modelType === 'knn' ? 'KNN' : modelType === 'logistic' ? 'LR' : modelType" :value-style="{ color: '#1890ff', fontSize: '18px' }" />
                   </a-card>
                 </a-col>
                 <a-col :xs="12" :sm="8" :md="6">
@@ -996,13 +1002,34 @@ onMounted(() => {
             </a-card>
           </a-col>
 
-          <!-- Row: Model Hyperparameters -->
+          <!-- Row: Model Type Selector + Hyperparameters -->
+          <a-col v-if="mlSubTabKey === 'params'" :xs="24">
+            <a-card size="small">
+              <template #title>
+                <span>Model Type</span>
+                <a-tag :color="modelType === 'random_forest' ? 'green' : modelType === 'knn' ? 'blue' : 'purple'" style="margin-left: 8px;">
+                  {{ modelType === 'random_forest' ? 'Random Forest' : modelType === 'knn' ? 'K-Nearest Neighbors' : modelType === 'logistic' ? 'Logistic Regression' : modelType }}
+                </a-tag>
+              </template>
+              <a-radio-group v-model:value="modelType" button-style="solid" @change="saveMLThresholds">
+                <a-radio-button value="random_forest">Random Forest</a-radio-button>
+                <a-radio-button value="knn">KNN</a-radio-button>
+                <a-radio-button value="logistic">Logistic Regression</a-radio-button>
+              </a-radio-group>
+              <a-typography-text type="secondary" style="display: block; margin-top: 8px;">
+                切换模型类型后会自动保存配置。训练和推理将使用所选模型。
+              </a-typography-text>
+            </a-card>
+          </a-col>
+
+          <!-- Hyperparameters (model-type-aware) -->
           <a-col v-if="mlSubTabKey === 'params'" :xs="24">
             <a-card title="Model Hyperparameters" size="small">
               <template #extra>
-                <a-tag color="geekblue">调整神经元层数和训练参数</a-tag>
+                <a-tag color="geekblue">{{ modelType === 'random_forest' ? 'Random Forest' : modelType === 'knn' ? 'KNN' : 'Logistic' }} 参数</a-tag>
               </template>
-              <a-row :gutter="[24, 16]">
+              <!-- Random Forest params -->
+              <a-row v-if="modelType === 'random_forest'" :gutter="[24, 16]">
                 <a-col :xs="24" :md="8">
                   <span style="font-weight: 600">Num Trees (树的数量)</span>
                   <a-slider v-model:value="hyperParams.numTrees" :min="5" :max="200" :step="1" />
@@ -1020,6 +1047,47 @@ onMounted(() => {
                   <a-slider v-model:value="hyperParams.minSamplesLeaf" :min="1" :max="50" :step="1" />
                   <a-input-number v-model:value="hyperParams.minSamplesLeaf" :min="1" :max="50" size="small" style="width: 100%" />
                   <div style="font-size: 11px; color: #999">更大值防止过拟合。推荐 2-10</div>
+                </a-col>
+              </a-row>
+              <!-- KNN params -->
+              <a-row v-if="modelType === 'knn'" :gutter="[24, 16]">
+                <a-col :xs="24" :md="12">
+                  <span style="font-weight: 600">K (邻居数量)</span>
+                  <a-slider v-model:value="hyperParams.numTrees" :min="1" :max="31" :step="2" />
+                  <a-input-number v-model:value="hyperParams.numTrees" :min="1" :max="31" size="small" style="width: 100%" />
+                  <div style="font-size: 11px; color: #999">较小的 K 对噪声敏感，较大的 K 决策边界更平滑。推荐 3-11</div>
+                </a-col>
+                <a-col :xs="24" :md="12">
+                  <span style="font-weight: 600">Distance (距离度量)</span>
+                  <a-select v-model:value="hyperParams.maxDepth" style="width: 100%">
+                    <a-select-option :value="8">Euclidean</a-select-option>
+                    <a-select-option :value="16">Manhattan</a-select-option>
+                  </a-select>
+                  <div style="font-size: 11px; color: #999; margin-top: 8px;">Euclidean 适合连续特征，Manhattan 适合高维稀疏数据</div>
+                </a-col>
+              </a-row>
+              <!-- Logistic Regression params -->
+              <a-row v-if="modelType === 'logistic'" :gutter="[24, 16]">
+                <a-col :xs="24" :md="8">
+                  <span style="font-weight: 600">Learning Rate (学习率)</span>
+                  <a-slider v-model:value="hyperParams.numTrees" :min="1" :max="100" :step="1" />
+                  <a-input-number v-model:value="hyperParams.numTrees" :min="1" :max="100" size="small" style="width: 100%" :formatter="(v: number) => (v / 1000).toFixed(3)" :parser="(v: string) => parseFloat(v) * 1000" />
+                  <div style="font-size: 11px; color: #999">较小值收敛更稳定。推荐 0.005-0.05</div>
+                </a-col>
+                <a-col :xs="24" :md="8">
+                  <span style="font-weight: 600">Regularization (正则化)</span>
+                  <a-select v-model:value="hyperParams.maxDepth" style="width: 100%">
+                    <a-select-option :value="8">L2 (Ridge)</a-select-option>
+                    <a-select-option :value="12">L1 (Lasso)</a-select-option>
+                    <a-select-option :value="4">None</a-select-option>
+                  </a-select>
+                  <div style="font-size: 11px; color: #999; margin-top: 8px;">L2 防止大权重，L1 产生稀疏特征选择</div>
+                </a-col>
+                <a-col :xs="24" :md="8">
+                  <span style="font-weight: 600">Max Iterations (最大迭代)</span>
+                  <a-slider v-model:value="hyperParams.minSamplesLeaf" :min="100" :max="5000" :step="100" />
+                  <a-input-number v-model:value="hyperParams.minSamplesLeaf" :min="100" :max="5000" size="small" style="width: 100%" />
+                  <div style="font-size: 11px; color: #999">SGD 最大迭代数。推荐 500-2000</div>
                 </a-col>
               </a-row>
             </a-card>
@@ -1332,17 +1400,13 @@ onMounted(() => {
                     <div>
                       <div style="font-weight: 600; margin-bottom: 6px">X 轴参数</div>
                       <a-select v-model:value="autoTuneXAxis" style="width: 100%">
-                        <a-select-option value="numTrees">树数 (numTrees)</a-select-option>
-                        <a-select-option value="maxDepth">最大深度 (maxDepth)</a-select-option>
-                        <a-select-option value="minSamplesLeaf">叶节点样本 (minSamplesLeaf)</a-select-option>
+                        <a-select-option v-for="opt in autoTuneAxisOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
                       </a-select>
                     </div>
                     <div>
                       <div style="font-weight: 600; margin-bottom: 6px">Y 轴参数</div>
                       <a-select v-model:value="autoTuneYAxis" style="width: 100%">
-                        <a-select-option value="numTrees">树数 (numTrees)</a-select-option>
-                        <a-select-option value="maxDepth">最大深度 (maxDepth)</a-select-option>
-                        <a-select-option value="minSamplesLeaf">叶节点样本 (minSamplesLeaf)</a-select-option>
+                        <a-select-option v-for="opt in autoTuneAxisOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
                       </a-select>
                     </div>
                     <div>

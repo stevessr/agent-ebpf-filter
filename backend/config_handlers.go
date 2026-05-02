@@ -351,6 +351,7 @@ type MLConfigPatch struct {
 	LowAnomalyThreshold      *float64 `json:"lowAnomalyThreshold,omitempty"`
 	HighAnomalyThreshold     *float64 `json:"highAnomalyThreshold,omitempty"`
 	RuleOverridePriority     *int     `json:"ruleOverridePriority,omitempty"`
+	ModelType                *string  `json:"modelType,omitempty"`
 	ModelPath                *string  `json:"modelPath,omitempty"`
 	AutoTrain                *bool    `json:"autoTrain,omitempty"`
 	TrainInterval            *string  `json:"trainInterval,omitempty"`
@@ -389,6 +390,13 @@ func applyMLConfigPatch(dst *MLConfig, patch MLConfigPatch) {
 	}
 	if patch.RuleOverridePriority != nil {
 		dst.RuleOverridePriority = *patch.RuleOverridePriority
+	}
+	if patch.ModelType != nil {
+		t := ModelType(strings.TrimSpace(*patch.ModelType))
+		if t == ModelRandomForest || t == ModelKNN || t == ModelLogisticRegression {
+			dst.ModelType = t
+			currentModelType = t
+		}
 	}
 	if patch.ModelPath != nil {
 		dst.ModelPath = strings.TrimSpace(*patch.ModelPath)
@@ -825,19 +833,30 @@ func handleMLTrainPost(c *gin.Context) {
 		minLeaf = req.MinSamplesLeaf
 	}
 
-	forest, result := globalTrainer.Train(globalTrainingStore, numTrees, maxDepth, minLeaf)
+	cfg := currentMLConfig()
+	if numTrees > 0 {
+		cfg.NumTrees = numTrees
+	}
+	if maxDepth > 0 {
+		cfg.MaxDepth = maxDepth
+	}
+	if minLeaf > 0 {
+		cfg.MinSamplesLeaf = minLeaf
+	}
+
+	model, result := globalTrainer.TrainWithConfig(globalTrainingStore, cfg)
 	if result.Error != "" {
 		c.JSON(400, gin.H{"error": result.Error})
 		return
 	}
-	mlEngine = forest
+	mlEngine = model
 	mlModelLoaded = true
 
 	modelPath := mlConfig.ModelPath
 	if modelPath == "" {
 		modelPath = defaultMLModelPath()
 	}
-	if err := forest.Serialize(modelPath); err != nil {
+	if err := model.Serialize(modelPath); err != nil {
 		c.JSON(500, gin.H{"error": "model trained but failed to save: " + err.Error()})
 		return
 	}

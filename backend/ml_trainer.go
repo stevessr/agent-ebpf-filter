@@ -589,3 +589,159 @@ func mlReasoning(pred Prediction, anomalyScore float64, classification *pb.Behav
 
 	return strings.Join(parts, "; ")
 }
+
+// TrainWithConfig trains a model based on the MLConfig.ModelType.
+// Returns a Model interface so callers don't need to know the concrete type.
+func (t *ModelTrainer) TrainWithConfig(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
+	switch cfg.ModelType {
+	case ModelRandomForest:
+		forest, result := t.Train(store, cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
+		return forest, result
+	case ModelKNN:
+		return t.trainKNN(store, cfg)
+	case ModelLogisticRegression:
+		return t.trainLogistic(store, cfg)
+	default:
+		forest, result := t.Train(store, cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
+		return forest, result
+	}
+}
+
+func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
+	t.mu <- struct{}{}
+	defer func() { <-t.mu }()
+
+	t.isRunning = true
+	t.progress = 0
+	defer func() { t.isRunning = false; t.progress = 1.0 }()
+
+	labeled := store.LabeledSamples()
+	if len(labeled) == 0 {
+		return nil, TrainResult{Error: "no labeled samples available"}
+	}
+
+	k := cfg.NumTrees
+	if k < 1 {
+		k = 5
+	}
+	if k > len(labeled) {
+		k = len(labeled)
+	}
+
+	model := NewKNNModel(k, "euclidean", "uniform")
+	model.NumClasses = 4
+	model.Samples = make([][FeatureDim]float64, len(labeled))
+	model.Labels = make([]int32, len(labeled))
+	for i, s := range labeled {
+		model.Samples[i] = s.Features
+		model.Labels[i] = s.Label
+	}
+
+	t.logf("KNN 训练完成: k=%d, samples=%d", k, len(labeled))
+
+	correct := 0
+	for i, s := range labeled {
+		pred := model.Predict(s.Features)
+		if pred.Action == s.Label {
+			correct++
+		}
+	}
+	accuracy := float64(correct) / float64(len(labeled))
+
+	t.lastTrain = time.Now()
+	t.accuracy = accuracy
+	t.trainAccuracy = accuracy
+	t.validationAccuracy = accuracy
+
+	t.addHistory(TrainingHistoryEntry{
+		Timestamp:  t.lastTrain,
+		Accuracy:   accuracy,
+		NumSamples: len(labeled),
+	})
+
+	return model, TrainResult{
+		Accuracy:          accuracy,
+		TrainAccuracy:     accuracy,
+		ValidationAccuracy: accuracy,
+		NumSamples:        len(labeled),
+		TrainSamples:      len(labeled),
+	}
+}
+
+func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
+	t.mu <- struct{}{}
+	defer func() { <-t.mu }()
+
+	t.isRunning = true
+	t.progress = 0
+	defer func() { t.isRunning = false; t.progress = 1.0 }()
+
+	labeled := store.LabeledSamples()
+	if len(labeled) < 10 {
+		return nil, TrainResult{Error: "need at least 10 labeled samples for logistic regression"}
+	}
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	shuffled := make([]TrainingSample, len(labeled))
+	copy(shuffled, labeled)
+	rng.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
+
+	splitIdx := int(float64(len(shuffled)) * (1.0 - cfg.ValidationSplitRatio))
+	if splitIdx < 1 {
+		splitIdx = 1
+	}
+
+	trainSamples := make([][FeatureDim]float64, splitIdx)
+	trainLabels := make([]int32, splitIdx)
+	for i := 0; i < splitIdx; i++ {
+		trainSamples[i] = shuffled[i].Features
+		trainLabels[i] = shuffled[i].Label
+	}
+
+	model := NewLogisticModel(0.01, "l2", 1000)
+	model.NumClasses = 4
+	model.Train(trainSamples, trainLabels)
+
+	t.logf("逻辑回归训练完成: samples=%d", splitIdx)
+
+	trainCorrect := 0
+	for i := 0; i < splitIdx; i++ {
+		if pred := model.Predict(trainSamples[i]); pred.Action == trainLabels[i] {
+			trainCorrect++
+		}
+	}
+	trainAcc := float64(trainCorrect) / float64(splitIdx)
+
+	valAcc := trainAcc
+	valSamples := 0
+	if splitIdx < len(shuffled) {
+		valSamples = len(shuffled) - splitIdx
+		valCorrect := 0
+		for i := splitIdx; i < len(shuffled); i++ {
+			if pred := model.Predict(shuffled[i].Features); pred.Action == shuffled[i].Label {
+				valCorrect++
+			}
+		}
+		valAcc = float64(valCorrect) / float64(valSamples)
+	}
+
+	t.lastTrain = time.Now()
+	t.accuracy = valAcc
+	t.trainAccuracy = trainAcc
+	t.validationAccuracy = valAcc
+
+	t.addHistory(TrainingHistoryEntry{
+		Timestamp:  t.lastTrain,
+		Accuracy:   valAcc,
+		NumSamples: len(labeled),
+	})
+
+	return model, TrainResult{
+		Accuracy:           valAcc,
+		TrainAccuracy:      trainAcc,
+		ValidationAccuracy: valAcc,
+		NumSamples:         len(labeled),
+		TrainSamples:       splitIdx,
+		ValidationSamples:  valSamples,
+	}
+}
