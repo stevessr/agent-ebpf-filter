@@ -68,6 +68,9 @@ type DecisionForest struct {
 	IsTrained   bool
 }
 
+// Type returns the model type identifier
+func (f *DecisionForest) Type() ModelType { return ModelRandomForest }
+
 // NewDecisionForest creates a new random forest
 func NewDecisionForest(numTrees, maxDepth, numClasses int) *DecisionForest {
 	return &DecisionForest{

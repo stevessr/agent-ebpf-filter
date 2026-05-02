@@ -640,7 +640,7 @@ func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, 
 	t.logf("KNN 训练完成: k=%d, samples=%d", k, len(labeled))
 
 	correct := 0
-	for i, s := range labeled {
+	for _, s := range labeled {
 		pred := model.Predict(s.Features)
 		if pred.Action == s.Label {
 			correct++

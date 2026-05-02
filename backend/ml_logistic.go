@@ -186,8 +186,7 @@ func (m *LogisticModel) Serialize(path string) error {
 		data = append(data, b...)
 	}
 
-	copy(append(data[:0], []byte{0,0,0,0}), []byte("LOGR"))
-	data = data[:4]
+	data = append(data[:0], []byte("LOGR")...)
 	putU32(1) // version
 	putU32(uint32(m.NumClasses))
 	putU32(uint32(math.Float64bits(m.LearningRate)))
