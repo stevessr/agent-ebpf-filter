@@ -5,6 +5,7 @@ import type {
   MLStatusState, MLLlmConfig, MLLlmBatchEntry, MLLlmBatchResponse,
   MLTrainingHistoryEntry, MLCommandSafetyResult,
   SampleEntry, ExistingCommandCandidate, RemoteDatasetRow, RemoteDatasetResponse,
+  LLMProductionDatasetResponse, LLMProductionDatasetRow,
   ClassicSecurityDatasetPreset,
 } from '../types/config';
 
@@ -231,6 +232,12 @@ export function useConfigML() {
   const importingRemoteDataset = ref(false);
   const remoteDatasetPreview = ref<RemoteDatasetRow[]>([]);
   const remoteDatasetMeta = ref<RemoteDatasetResponse | null>(null);
+  const llmProductionDatasetLimit = ref(500);
+  const llmProductionAllowHeuristic = ref(false);
+  const llmProductionDeduplicate = ref(true);
+  const llmProductionLoading = ref(false);
+  const llmProductionPreview = ref<LLMProductionDatasetRow[]>([]);
+  const llmProductionMeta = ref<LLMProductionDatasetResponse | null>(null);
   const trainingDatasetImportInput = ref<HTMLInputElement | null>(null);
   const importingClassicDataset = ref(false);
   const dataMaskEnabled = ref(false);
@@ -549,6 +556,55 @@ export function useConfigML() {
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
+  const downloadTextFile = (filename: string, content: string, mimeType = 'text/plain;charset=utf-8') => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
+  const llmProductionPayloadForRow = (row: LLMProductionDatasetRow) => ({
+    messages: row.messages,
+  });
+
+  const buildLLMProductionJsonl = (rows: LLMProductionDatasetRow[]) =>
+    rows.map((row) => JSON.stringify(llmProductionPayloadForRow(row))).join('\n');
+
+  const fetchLLMProductionDataset = async (silent = false) => {
+    llmProductionLoading.value = true;
+    try {
+      const res = await axios.post<LLMProductionDatasetResponse>('/config/ml/llm/production-dataset/pull', {
+        limit: llmProductionDatasetLimit.value,
+        allowHeuristic: llmProductionAllowHeuristic.value,
+        deduplicate: llmProductionDeduplicate.value,
+      });
+      llmProductionMeta.value = res.data;
+      llmProductionPreview.value = res.data.rows || [];
+      if (!silent) {
+        message.success(`已拉取 ${res.data.included || 0} 条 LLM 生产训练样本`);
+      }
+    } catch (e: any) {
+      if (!silent) {
+        message.error(e.response?.data?.error || '拉取 LLM 生产训练集失败');
+      }
+    } finally {
+      llmProductionLoading.value = false;
+    }
+  };
+
+  const exportLLMProductionDataset = async () => {
+    if (llmProductionPreview.value.length === 0) {
+      message.warning('没有可导出的 LLM 生产训练样本');
+      return;
+    }
+    const jsonl = buildLLMProductionJsonl(llmProductionPreview.value);
+    downloadTextFile('agent-ebpf-filter-llm-production-training.jsonl', jsonl, 'application/x-ndjson;charset=utf-8');
+    message.success(`已导出 ${llmProductionPreview.value.length} 条 LLM 生产训练样本`);
+  };
+
   const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
     let binary = '';
     const bytes = new Uint8Array(buffer);
@@ -733,6 +789,8 @@ export function useConfigML() {
     loadingExistingData, importingExistingData, existingDataSource,
     remoteDatasetUrl, remoteDatasetFormat, remoteDatasetLabelMode, remoteDatasetLimit,
     loadingRemoteDataset, importingRemoteDataset, remoteDatasetPreview, remoteDatasetMeta,
+    llmProductionDatasetLimit, llmProductionAllowHeuristic, llmProductionDeduplicate,
+    llmProductionLoading, llmProductionPreview, llmProductionMeta,
     trainingDatasetImportInput, importingClassicDataset, dataMaskEnabled,
     sampleCommandLine, sampleLabel, submittingSample,
     backtestCommandLine, backtesting, backtestResult,
@@ -742,6 +800,7 @@ export function useConfigML() {
     filteredSamples, existingDuplicateCount, importableExistingCount,
     fetchAllSamples, fetchExistingCommandData, importExistingCommandData,
     fetchRemoteDatasetPreview, importRemoteDataset, importRemoteDatasetPayload,
+    fetchLLMProductionDataset, exportLLMProductionDataset,
     importClassicDataset, openClassicSecurityDatasetPage, copyClassicSecurityDatasetPage,
     maskSensitiveData, downloadJsonFile, arrayBufferToBase64,
     labelSample, deleteSample, updateAnomaly,

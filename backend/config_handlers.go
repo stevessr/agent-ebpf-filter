@@ -620,6 +620,7 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		ml.POST("/assess", handleMLAssessPost)
 		ml.POST("/llm/score", handleMLLLMScorePost)
 		ml.POST("/llm/batch-score", handleMLLLMBatchScorePost)
+		ml.POST("/llm/production-dataset/pull", handleMLLLMProductionDatasetPullPost)
 		ml.POST("/datasets/pull", handleMLDatasetPullPost)
 		ml.POST("/datasets/import", handleMLDatasetImportPost)
 		ml.GET("/datasets/export", handleMLDatasetExportGet)
@@ -647,34 +648,34 @@ func handleMLStatusGet(c *gin.Context) {
 		logItems[i] = gin.H{"time": entry.Timestamp.Format("15:04:05"), "message": entry.Message}
 	}
 	writeProtoOrJSON(c, 200, status, gin.H{
-		"modelLoaded":        status.ModelLoaded,
-		"numTrees":           status.NumTrees,
-		"numSamples":         status.NumSamples,
-		"numLabeledSamples":  status.NumLabeledSamples,
-		"lastTrained":        status.LastTrained,
-		"testAccuracy":       status.TestAccuracy,
-		"modelPath":          status.ModelPath,
-		"trainingInProgress": status.TrainingInProgress,
-		"trainingProgress":   status.TrainingProgress,
-		"mlEnabled":          mlEnabled,
-		"trainAccuracy":      trainAccuracy,
-		"validationAccuracy": validationAccuracy,
-		"trainSamples":       trainSamples,
-		"validationSamples":  validationSamples,
+		"modelLoaded":          status.ModelLoaded,
+		"numTrees":             status.NumTrees,
+		"numSamples":           status.NumSamples,
+		"numLabeledSamples":    status.NumLabeledSamples,
+		"lastTrained":          status.LastTrained,
+		"testAccuracy":         status.TestAccuracy,
+		"modelPath":            status.ModelPath,
+		"trainingInProgress":   status.TrainingInProgress,
+		"trainingProgress":     status.TrainingProgress,
+		"mlEnabled":            mlEnabled,
+		"trainAccuracy":        trainAccuracy,
+		"validationAccuracy":   validationAccuracy,
+		"trainSamples":         trainSamples,
+		"validationSamples":    validationSamples,
 		"validationSplitRatio": validationRatio,
-		"llmReview":          globalTrainer.LastLLMReview(),
+		"llmReview":            globalTrainer.LastLLMReview(),
 		"mlConfig": gin.H{
 			"validationSplitRatio": mlConfig.ValidationSplitRatio,
-			"llmEnabled":          mlConfig.LlmEnabled,
-			"llmBaseUrl":          mlConfig.LlmBaseURL,
-			"llmApiKeyConfigured": strings.TrimSpace(mlConfig.LlmAPIKey) != "",
-			"llmModel":            mlConfig.LlmModel,
-			"llmTimeoutSeconds":   mlConfig.LlmTimeoutSeconds,
-			"llmTemperature":      mlConfig.LlmTemperature,
-			"llmMaxTokens":        mlConfig.LlmMaxTokens,
-			"llmSystemPrompt":     mlConfig.LlmSystemPrompt,
+			"llmEnabled":           mlConfig.LlmEnabled,
+			"llmBaseUrl":           mlConfig.LlmBaseURL,
+			"llmApiKeyConfigured":  strings.TrimSpace(mlConfig.LlmAPIKey) != "",
+			"llmModel":             mlConfig.LlmModel,
+			"llmTimeoutSeconds":    mlConfig.LlmTimeoutSeconds,
+			"llmTemperature":       mlConfig.LlmTemperature,
+			"llmMaxTokens":         mlConfig.LlmMaxTokens,
+			"llmSystemPrompt":      mlConfig.LlmSystemPrompt,
 		},
-		"trainingLogs":       logItems,
+		"trainingLogs": logItems,
 		"hyperParams": gin.H{
 			"numTrees":       mlConfig.NumTrees,
 			"maxDepth":       mlConfig.MaxDepth,

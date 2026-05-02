@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -327,8 +329,8 @@ func (s *TrainingDataStore) persistLocked() error {
 	defer f.Close()
 
 	// Format: [4 bytes count][records...]
-	// Each record: timestamp(8), label(4), comm_len(2), args_count(2), anomaly_score(8),
-	//             features(128*8), comm_bytes..., args_bytes...
+	// Each record: timestamp(8), label(4), anomaly_score(8), comm_len(2), comm_bytes...,
+	//             args_len(2), args_json_bytes..., features(128*8)
 	count := uint32(0)
 	startPos := s.nextWrite
 	if s.totalAdded < s.maxSamples {
@@ -366,8 +368,10 @@ func (s *TrainingDataStore) persistLocked() error {
 		if _, err := f.Write(commBytes); err != nil {
 			return err
 		}
-		argsJoined := fmt.Sprintf("%v", sample.Args) // simple serialization
-		argsBytes := []byte(argsJoined)
+		argsBytes, err := json.Marshal(sample.Args)
+		if err != nil {
+			return err
+		}
 		if err := binary.Write(f, binary.LittleEndian, uint16(len(argsBytes))); err != nil {
 			return err
 		}
@@ -433,8 +437,19 @@ func (s *TrainingDataStore) loadFromDisk() error {
 		if offset+argsLen > len(data) {
 			break
 		}
-		// args deserialization is best-effort
-		sample.Args = []string{string(data[offset : offset+argsLen])}
+		// Prefer JSON array encoding, but keep compatibility with older bracketed string records.
+		argsRaw := strings.TrimSpace(string(data[offset : offset+argsLen]))
+		if argsRaw != "" {
+			var parsedArgs []string
+			if err := json.Unmarshal([]byte(argsRaw), &parsedArgs); err == nil {
+				sample.Args = parsedArgs
+			} else {
+				fallback := strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(argsRaw, "]"), "["))
+				if fallback != "" {
+					sample.Args = splitCommandLine(fallback)
+				}
+			}
+		}
 		offset += argsLen
 
 		if offset+FeatureDim*8 > len(data) {

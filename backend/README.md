@@ -128,6 +128,7 @@ Config routes:
 - `/config/hooks`
 - `/config/hooks/:id/raw`
 - `/config/ml/existing-commands`, `/config/ml/import-existing`, `/config/ml/assess`
+- `/config/ml/llm/production-dataset/pull` — pull a cleaned OpenAI chat-style JSONL preview from the current training store for LLM fine-tuning
 - `/config/ml/datasets/pull`, `/config/ml/datasets/import`, `/config/ml/datasets/export`, `DELETE /config/ml/datasets`
 - the ML config also supports OpenAI-compatible LLM scoring and post-training review; the frontend persists the LLM base URL, model, API key, timeout, temperature, max tokens, and validation split ratio
 - the dataset importer accepts raw HTTP/HTTPS payloads or local file uploads, and will recursively expand common archives / compressed payloads such as zip, tar, gzip, bzip2, and xz before parsing rows

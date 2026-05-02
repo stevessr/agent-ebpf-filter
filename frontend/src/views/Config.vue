@@ -91,6 +91,8 @@ const {
   loadingExistingData, importingExistingData, existingDataSource,
   remoteDatasetUrl, remoteDatasetFormat, remoteDatasetLabelMode, remoteDatasetLimit,
   loadingRemoteDataset, importingRemoteDataset, remoteDatasetPreview, remoteDatasetMeta,
+  llmProductionDatasetLimit, llmProductionAllowHeuristic, llmProductionDeduplicate,
+  llmProductionLoading, llmProductionPreview, llmProductionMeta,
   trainingDatasetImportInput, importingClassicDataset, dataMaskEnabled,
   sampleCommandLine, sampleLabel, submittingSample,
   backtestCommandLine, backtesting, backtestResult,
@@ -98,15 +100,18 @@ const {
   submitFeedback, saveMLThresholds, runLLMBatchScore, llmBatchRowKey, llmBatchCanApplyLabels,
   filteredSamples, existingDuplicateCount, importableExistingCount,
   fetchAllSamples, fetchExistingCommandData, importExistingCommandData,
-  fetchRemoteDatasetPreview, importRemoteDataset, importRemoteDatasetPayload,
+  fetchRemoteDatasetPreview, importRemoteDataset,
+  fetchLLMProductionDataset, exportLLMProductionDataset,
   importClassicDataset, openClassicSecurityDatasetPage, copyClassicSecurityDatasetPage,
-  maskSensitiveData, downloadJsonFile, arrayBufferToBase64,
+  maskSensitiveData,
   labelSample, deleteSample, updateAnomaly,
   importTrainingDatasetFromFile, exportTrainingDataset, clearTrainingDataset,
   openTrainingDatasetImportPicker, getLabelColor, trainWithParams,
-  importAllSafetyNetPresets, splitCommandLine, submitManualSample, addPresetSample, importAllHighRiskPresets,
+  importAllSafetyNetPresets, submitManualSample, addPresetSample, importAllHighRiskPresets,
   runBacktest, runBacktestPreset, riskLevelColor, riskMeterColor,
 } = ml;
+
+void trainingDatasetImportInput;
 
 const {
   clusterState, clusterNodes, selectedClusterTarget,
@@ -1192,6 +1197,153 @@ onMounted(async () => {
                     </a-table-column>
                   </a-table>
                 </div>
+              </a-space>
+            </a-card>
+          </a-col>
+
+          <a-col v-if="mlSubTabKey === 'llm'" :xs="24">
+            <a-card title="LLM 生产训练集" size="small">
+              <template #extra>
+                <a-tag color="green">来源：/config/ml/training</a-tag>
+              </template>
+              <a-space direction="vertical" style="width: 100%">
+                <a-alert
+                  type="info"
+                  show-icon
+                  message="直接从当前训练存储生成 OpenAI chat JSONL，不抓网页 HTML，也不会把未标注样本洗进训练集。默认只保留已标注样本，并按 commandLine + label 去重；如确实需要噪声样本，可手动打开启发式标签。"
+                />
+                <a-row :gutter="[12, 12]">
+                  <a-col :xs="24" :md="8">
+                    <div style="font-weight: 600; margin-bottom: 6px">样本上限</div>
+                    <a-input-number
+                      v-model:value="llmProductionDatasetLimit"
+                      :min="1"
+                      :max="5000"
+                      :step="1"
+                      style="width: 100%"
+                    />
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <a-space direction="vertical" style="width: 100%">
+                      <a-space align="center" wrap>
+                        <a-switch v-model:checked="llmProductionDeduplicate" />
+                        <span>命令 + 标签去重</span>
+                      </a-space>
+                      <a-space align="center" wrap>
+                        <a-switch v-model:checked="llmProductionAllowHeuristic" />
+                        <span>允许启发式 / LLM 自动标签</span>
+                      </a-space>
+                    </a-space>
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <a-space direction="vertical" style="width: 100%">
+                      <a-button type="primary" @click="fetchLLMProductionDataset" :loading="llmProductionLoading" block>
+                        <ReloadOutlined /> 拉取当前训练集
+                      </a-button>
+                      <a-button @click="exportLLMProductionDataset" :disabled="llmProductionPreview.length === 0 || llmProductionLoading" block>
+                        <DownloadOutlined /> 导出 JSONL
+                      </a-button>
+                    </a-space>
+                  </a-col>
+                </a-row>
+
+                <a-space wrap>
+                  <a-tag v-if="llmProductionMeta" color="blue">source: {{ llmProductionMeta.source }}</a-tag>
+                  <a-tag v-if="llmProductionMeta" color="cyan">format: {{ llmProductionMeta.format }}</a-tag>
+                  <a-tag v-if="llmProductionMeta" color="geekblue">total: {{ llmProductionMeta.total }}</a-tag>
+                  <a-tag v-if="llmProductionMeta" color="green">included: {{ llmProductionMeta.included }}</a-tag>
+                  <a-tag v-if="llmProductionMeta" color="default">skip unlabeled: {{ llmProductionMeta.skippedUnlabeled }}</a-tag>
+                  <a-tag v-if="llmProductionMeta && llmProductionMeta.skippedHeuristic > 0" color="orange">skip noisy: {{ llmProductionMeta.skippedHeuristic }}</a-tag>
+                  <a-tag v-if="llmProductionMeta && llmProductionMeta.skippedDuplicates > 0" color="gold">skip dup: {{ llmProductionMeta.skippedDuplicates }}</a-tag>
+                  <a-tag v-if="llmProductionMeta?.truncated" color="red">truncated</a-tag>
+                </a-space>
+
+                <a-alert
+                  v-if="llmProductionMeta"
+                  type="success"
+                  show-icon
+                  :message="`已生成 ${llmProductionMeta.included} 条 LLM 生产训练样本`"
+                  :description="`导出 JSONL 每行仅包含 messages，适合 chat fine-tuning；系统提示词来自当前 LLM 配置：${llmProductionMeta.systemPrompt}`"
+                />
+                <a-alert
+                  v-else
+                  type="warning"
+                  show-icon
+                  message="点击“拉取当前训练集”后，会直接从训练存储生成可训练的 chat JSONL 预览。"
+                />
+
+                <a-table
+                  v-if="llmProductionPreview.length > 0"
+                  :dataSource="llmProductionPreview"
+                  :pagination="{ pageSize: 5, showSizeChanger: true, pageSizeOptions: ['5', '10', '20'] }"
+                  :scroll="{ x: 1280 }"
+                  size="small"
+                  rowKey="index"
+                >
+                  <a-table-column title="#" dataIndex="index" :width="70" />
+                  <a-table-column title="Command" dataIndex="commandLine" :width="260" ellipsis>
+                    <template #default="{ record }">
+                      <code>{{ maskSensitiveData(record.commandLine) }}</code>
+                    </template>
+                  </a-table-column>
+                  <a-table-column title="Label" dataIndex="label" :width="100">
+                    <template #default="{ record }">
+                      <a-tag :color="getLabelColor(record.label)">{{ record.label }}</a-tag>
+                    </template>
+                  </a-table-column>
+                  <a-table-column title="Risk" dataIndex="targetRiskScore" :width="90">
+                    <template #default="{ record }">
+                      {{ record.targetRiskScore?.toFixed(0) }}
+                    </template>
+                  </a-table-column>
+                  <a-table-column title="Confidence" dataIndex="targetConfidence" :width="110">
+                    <template #default="{ record }">
+                      {{ record.targetConfidence ? (record.targetConfidence * 100).toFixed(0) + '%' : '—' }}
+                    </template>
+                  </a-table-column>
+                  <a-table-column title="Source" dataIndex="userLabel" :width="140">
+                    <template #default="{ record }">
+                      <a-tag color="purple">{{ record.userLabel || '—' }}</a-tag>
+                    </template>
+                  </a-table-column>
+                  <a-table-column title="Signals" dataIndex="signals" :width="220">
+                    <template #default="{ record }">
+                      <a-space wrap size="small">
+                        <a-tag v-for="(signal, i) in record.signals || []" :key="i" color="purple" size="small">
+                          {{ signal }}
+                        </a-tag>
+                      </a-space>
+                    </template>
+                  </a-table-column>
+                  <a-table-column title="Reasoning" dataIndex="reasoning" ellipsis>
+                    <template #default="{ record }">
+                      <span>{{ record.reasoning || '—' }}</span>
+                    </template>
+                  </a-table-column>
+                </a-table>
+
+                <a-card v-if="llmProductionPreview.length > 0" size="small" title="首条样本 JSON 预览">
+                  <a-descriptions :column="2" size="small" bordered>
+                    <a-descriptions-item label="Command">{{ maskSensitiveData(llmProductionPreview[0].commandLine) }}</a-descriptions-item>
+                    <a-descriptions-item label="Label">
+                      <a-tag :color="getLabelColor(llmProductionPreview[0].label)">{{ llmProductionPreview[0].label }}</a-tag>
+                    </a-descriptions-item>
+                    <a-descriptions-item label="Prompt" :span="2">
+                      <a-textarea
+                        :value="maskSensitiveData(llmProductionPreview[0].prompt)"
+                        :auto-size="{ minRows: 4, maxRows: 8 }"
+                        readonly
+                      />
+                    </a-descriptions-item>
+                    <a-descriptions-item label="Completion" :span="2">
+                      <a-textarea
+                        :value="maskSensitiveData(llmProductionPreview[0].completion)"
+                        :auto-size="{ minRows: 4, maxRows: 8 }"
+                        readonly
+                      />
+                    </a-descriptions-item>
+                  </a-descriptions>
+                </a-card>
               </a-space>
             </a-card>
           </a-col>

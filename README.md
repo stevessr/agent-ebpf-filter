@@ -53,6 +53,7 @@ Events are written to a ring buffer and consumed by the Go backend.
 - **Executor**: launch coding CLIs in tmux, start Python/Node/Ruby/sh/pwsh/Deno/Bun scripts with optional virtualenv selection, and manage shared launch environment variables in a dedicated config tab with backend-detected env suggestions
 - **Hooks**: install or edit native hook configs / wrapper aliases
 - **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, runtime log persistence, the backend access token, a quick Linux 6.18 LTS syscall / eBPF docs popup preview backed by local snapshots, and ML subtabs for status / parameters / model management / training-set management, including OpenAI-compatible LLM scoring and validation split controls
+- **Configuration**: the LLM subtab can now pull a cleaned production training set directly from the current training store and export it as OpenAI chat JSONL
 - **Cluster control**: master/slave routing, node switching, and forwarded inspection requests through the master backend
 
 The backend can optionally persist captured events as JSONL under `~/.config/agent-ebpf-filter/events.jsonl`, and exposes an authenticated MCP SSE endpoint at `/mcp` using the runtime access token generated from the Configuration page. MCP clients may authenticate with `X-API-KEY`, `Authorization: Bearer`, or `?key=<token>`.

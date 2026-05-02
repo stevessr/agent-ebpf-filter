@@ -226,6 +226,45 @@ export interface RemoteDatasetResponse {
   rows?: RemoteDatasetRow[];
 }
 
+export interface LLMProductionDatasetMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface LLMProductionDatasetRow {
+  index: number;
+  commandLine: string;
+  comm: string;
+  args: string[];
+  label: string;
+  category: string;
+  anomalyScore: number;
+  timestamp: string;
+  userLabel: string;
+  targetRiskScore: number;
+  targetConfidence: number;
+  reasoning: string;
+  signals: string[];
+  prompt: string;
+  completion: string;
+  messages: LLMProductionDatasetMessage[];
+}
+
+export interface LLMProductionDatasetResponse {
+  source: string;
+  format: string;
+  contentType: string;
+  total: number;
+  limit: number;
+  truncated: boolean;
+  included: number;
+  skippedUnlabeled: number;
+  skippedHeuristic: number;
+  skippedDuplicates: number;
+  systemPrompt: string;
+  rows?: LLMProductionDatasetRow[];
+}
+
 export interface ClassicSecurityDatasetPreset {
   name: string;
   family: string;

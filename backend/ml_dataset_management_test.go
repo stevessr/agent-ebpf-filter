@@ -140,3 +140,139 @@ func TestHandleMLDatasetExportAndClear(t *testing.T) {
 		t.Fatalf("store status after clear = %d/%d, want 0/0", total, labeled)
 	}
 }
+
+func TestTrainingDataStorePersistenceRestoresArgs(t *testing.T) {
+	store := newTrainingDataStore(8)
+	tmpDir := t.TempDir()
+	store.dataDir = tmpDir
+	store.persistPath = filepath.Join(tmpDir, "ml_training_data.bin")
+	store.Add(TrainingSample{
+		Label:        1,
+		Comm:         "rm",
+		Args:         []string{"-rf", "/tmp/demo"},
+		Category:     "FILE_DELETE",
+		AnomalyScore: 0.82,
+		Timestamp:    time.Unix(1700000000, 0).UTC(),
+		UserLabel:    "manual",
+	})
+	if err := store.Flush(); err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+
+	loaded := newTrainingDataStore(8)
+	loaded.dataDir = tmpDir
+	loaded.persistPath = filepath.Join(tmpDir, "ml_training_data.bin")
+	if err := loaded.loadFromDisk(); err != nil {
+		t.Fatalf("loadFromDisk() error = %v", err)
+	}
+
+	items := loaded.AllSamplesWithIndex()
+	if len(items) != 1 {
+		t.Fatalf("loaded sample count = %d, want 1", len(items))
+	}
+	gotArgs := items[0].Sample.Args
+	wantArgs := []string{"-rf", "/tmp/demo"}
+	if len(gotArgs) != len(wantArgs) {
+		t.Fatalf("loaded args = %#v, want %#v", gotArgs, wantArgs)
+	}
+	for i := range wantArgs {
+		if gotArgs[i] != wantArgs[i] {
+			t.Fatalf("loaded args[%d] = %q, want %q", i, gotArgs[i], wantArgs[i])
+		}
+	}
+}
+
+func TestBuildLLMProductionDatasetCleansTrainingSamples(t *testing.T) {
+	oldStore := globalTrainingStore
+	oldConfig := mlConfig
+	globalTrainingStore = newTrainingDataStore(8)
+	mlConfig.LlmSystemPrompt = "SYSTEM PROMPT"
+	t.Cleanup(func() {
+		globalTrainingStore = oldStore
+		mlConfig = oldConfig
+	})
+
+	globalTrainingStore.Add(TrainingSample{
+		Label:        1,
+		Comm:         "rm",
+		Args:         []string{"-rf", "/tmp/demo"},
+		Category:     "FILE_DELETE",
+		AnomalyScore: 0.82,
+		Timestamp:    time.Unix(1700000000, 0).UTC(),
+		UserLabel:    "manual",
+	})
+	globalTrainingStore.Add(TrainingSample{
+		Label:        1,
+		Comm:         "rm",
+		Args:         []string{"-rf", "/tmp/demo"},
+		Category:     "FILE_DELETE",
+		AnomalyScore: 0.82,
+		Timestamp:    time.Unix(1700000001, 0).UTC(),
+		UserLabel:    "manual",
+	})
+	globalTrainingStore.Add(TrainingSample{
+		Label:        3,
+		Comm:         "git",
+		Args:         []string{"status"},
+		Category:     "SAFE",
+		AnomalyScore: 0.12,
+		Timestamp:    time.Unix(1700000002, 0).UTC(),
+		UserLabel:    "remote-heuristic",
+	})
+	globalTrainingStore.Add(TrainingSample{
+		Label:        -1,
+		Comm:         "echo",
+		Args:         []string{"hello"},
+		Category:     "SAFE",
+		AnomalyScore: 0.01,
+		Timestamp:    time.Unix(1700000003, 0).UTC(),
+		UserLabel:    "remote-import",
+	})
+
+	resp, err := buildLLMProductionDataset(llmProductionDatasetRequest{
+		Limit:          10,
+		AllowHeuristic: false,
+		Deduplicate:    true,
+	})
+	if err != nil {
+		t.Fatalf("buildLLMProductionDataset() error = %v", err)
+	}
+	if resp.Source != "local-training-store" {
+		t.Fatalf("Source = %q, want local-training-store", resp.Source)
+	}
+	if resp.Included != 1 {
+		t.Fatalf("Included = %d, want 1", resp.Included)
+	}
+	if resp.SkippedDuplicates != 1 {
+		t.Fatalf("SkippedDuplicates = %d, want 1", resp.SkippedDuplicates)
+	}
+	if resp.SkippedHeuristic != 1 {
+		t.Fatalf("SkippedHeuristic = %d, want 1", resp.SkippedHeuristic)
+	}
+	if resp.SkippedUnlabeled != 1 {
+		t.Fatalf("SkippedUnlabeled = %d, want 1", resp.SkippedUnlabeled)
+	}
+	if len(resp.Rows) != 1 {
+		t.Fatalf("Rows length = %d, want 1", len(resp.Rows))
+	}
+
+	row := resp.Rows[0]
+	if row.Label != "BLOCK" {
+		t.Fatalf("row.Label = %q, want BLOCK", row.Label)
+	}
+	if row.Messages[0].Content != "SYSTEM PROMPT" {
+		t.Fatalf("system prompt = %q, want SYSTEM PROMPT", row.Messages[0].Content)
+	}
+	if row.Messages[1].Role != "user" || row.Messages[2].Role != "assistant" {
+		t.Fatalf("unexpected message roles = %#v", row.Messages)
+	}
+	if row.TargetRiskScore != 95 {
+		t.Fatalf("TargetRiskScore = %v, want 95", row.TargetRiskScore)
+	}
+	if row.TargetConfidence < 0.98 {
+		t.Fatalf("TargetConfidence = %v, want >= 0.98", row.TargetConfidence)
+	}
+	if row.Completion == "" || row.Prompt == "" {
+		t.Fatalf("prompt/completion should not be empty: %#v", row)
+	}
+}
