@@ -139,6 +139,16 @@ export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     note: '社区维护的 AI 编码代理安全规则集，覆盖 git/rm/find/xargs 等高风险命令模式。一键导入 36 条经过验证的训练样本。',
   },
   {
+    name: '内置平衡训练集',
+    family: '综合安全',
+    platform: 'Linux / Unix',
+    pageUrl: '',
+    downloadUrl: '/builtin-training-dataset.json',
+    format: 'auto',
+    labelMode: 'preserve',
+    note: '从 GTFOBins 清洗生成的平衡训练集（939 条），包含 BLOCK/ALLOW/ALERT 三类标签，可直接用于 ML 模型训练。',
+  },
+  {
     name: 'ADFA-LD',
     family: '经典 HIDS',
     platform: 'Linux',
