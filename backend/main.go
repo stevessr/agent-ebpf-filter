@@ -175,6 +175,7 @@ func main() {
 	r.GET("/ws/camera", serveCameraWS)
 	r.GET("/ws/sensors", serveSensorsWS)
 	r.GET("/ws/microphone", serveMicrophoneWS)
+	r.GET("/ws/ml-status", serveMLStatusWS)
 	r.POST("/shell-sessions", handleCreateShellSession)
 	r.GET("/shell-sessions", handleListShellSessions)
 	r.DELETE("/shell-sessions/:id", handleDeleteShellSession)

@@ -773,58 +773,13 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 // ── ML classification handlers ──
 
 func handleMLStatusGet(c *gin.Context) {
-	cfg := currentMLConfig()
 	status := mlStatus()
-	logs := globalTrainer.GetLogs(100)
-	trainAccuracy, validationAccuracy, validationRatio, trainSamples, validationSamples := globalTrainer.SplitMetrics()
-	autoTuneState := globalAutoTuneState.snapshot()
-	logItems := make([]gin.H, len(logs))
-	for i, entry := range logs {
-		logItems[i] = gin.H{"time": entry.Timestamp.Format("15:04:05"), "message": entry.Message}
+	var payload gin.H
+	if err := json.Unmarshal(buildMLStatusJSON(), &payload); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to build ML status"})
+		return
 	}
-	writeProtoOrJSON(c, 200, status, gin.H{
-		"modelLoaded":          status.ModelLoaded,
-		"numTrees":             status.NumTrees,
-		"numSamples":           status.NumSamples,
-		"numLabeledSamples":    status.NumLabeledSamples,
-		"lastTrained":          status.LastTrained,
-		"testAccuracy":         status.TestAccuracy,
-		"modelPath":            status.ModelPath,
-		"trainingInProgress":   status.TrainingInProgress,
-		"trainingProgress":     status.TrainingProgress,
-		"mlEnabled":            mlEnabled,
-		"trainAccuracy":        trainAccuracy,
-		"validationAccuracy":   validationAccuracy,
-		"trainSamples":         trainSamples,
-		"validationSamples":    validationSamples,
-		"validationSplitRatio": validationRatio,
-		"llmReview":            globalTrainer.LastLLMReview(),
-		"autoTuneJobId":        autoTuneState.JobID,
-		"autoTuneInProgress":   autoTuneState.Running,
-		"autoTuneProgress":     autoTuneState.Progress,
-		"autoTuneCompleted":    autoTuneState.Completed,
-		"autoTuneTotal":        autoTuneState.Total,
-		"autoTuneMessage":      autoTuneState.Message,
-		"autoTuneError":        autoTuneState.Error,
-		"autoTuneResult":       autoTuneState.Result,
-		"mlConfig": gin.H{
-			"validationSplitRatio": cfg.ValidationSplitRatio,
-			"llmEnabled":           cfg.LlmEnabled,
-			"llmBaseUrl":           cfg.LlmBaseURL,
-			"llmApiKeyConfigured":  strings.TrimSpace(cfg.LlmAPIKey) != "",
-			"llmModel":             cfg.LlmModel,
-			"llmTimeoutSeconds":    cfg.LlmTimeoutSeconds,
-			"llmTemperature":       cfg.LlmTemperature,
-			"llmMaxTokens":         cfg.LlmMaxTokens,
-			"llmSystemPrompt":      cfg.LlmSystemPrompt,
-		},
-		"trainingLogs": logItems,
-		"hyperParams": gin.H{
-			"numTrees":       cfg.NumTrees,
-			"maxDepth":       cfg.MaxDepth,
-			"minSamplesLeaf": cfg.MinSamplesLeaf,
-		},
-	})
+	writeProtoOrJSON(c, 200, status, payload)
 }
 
 // handleMLLogsGet returns dedicated training log entries

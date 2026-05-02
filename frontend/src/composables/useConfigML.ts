@@ -277,6 +277,7 @@ export function useConfigML() {
   const llmBatchResponse = ref<MLLlmBatchResponse | null>(null);
   const llmBatchLoading = ref(false);
   const trainingLogs = ref<{ time: string; message: string }[]>([]);
+  const wsActive = ref(false);
   const logPollTimer = ref<ReturnType<typeof setInterval> | null>(null);
   const llmConfigReady = ref(false);
   const llmConfigApplyingRemote = ref(false);
@@ -405,7 +406,7 @@ export function useConfigML() {
   };
 
   const startLogPolling = () => {
-    if (logPollTimer.value) return;
+    if (wsActive.value || logPollTimer.value) return;
     logPollTimer.value = setInterval(async () => {
       try {
         const res = await axios.get('/config/ml/status');
@@ -644,6 +645,7 @@ export function useConfigML() {
   };
 
   const startAutoTunePolling = (jobId: string) => {
+    if (wsActive.value) return;
     stopAutoTunePolling();
     autoTunePollTimer.value = setInterval(async () => {
       if (autoTunePollInFlight.value) return;
@@ -1334,7 +1336,7 @@ export function useConfigML() {
   return {
     mlEnabled, mlStatus, trainingModel, feedbackComm, feedbackAction,
     mlThresholds, mlTrainingConfig, llmScoringConfig, llmBatchConfig,
-    llmBatchResponse, llmBatchLoading, trainingLogs, logPollTimer,
+    llmBatchResponse, llmBatchLoading, trainingLogs, wsActive, logPollTimer,
     trainingHistory, hyperParams,
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
     autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError, autoTuneJobId,
