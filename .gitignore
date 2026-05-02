@@ -13,3 +13,4 @@ backend/pb/
 .nx
 *.o
 *.tmp
+backend/cuda/libmlcuda.a

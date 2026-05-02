@@ -2,9 +2,19 @@
 GOPATH ?= $(shell go env GOPATH)
 export PATH := $(PATH):$(GOPATH)/bin
 
-.PHONY: all backend frontend wrapper clean proto help dev run deps ebpf-bootstrap
+.PHONY: all backend frontend wrapper clean proto help dev run deps ebpf-bootstrap cuda
 
 all: proto backend frontend wrapper ## Build all components
+
+cuda: ## Build CUDA acceleration library
+	@if [ -x /opt/cuda/bin/nvcc ]; then \
+		echo "Building CUDA kernels..."; \
+		cd backend/cuda && nvcc -c -Xcompiler -fPIC -o kernels.o kernels.cu && ar rcs libmlcuda.a kernels.o && rm -f kernels.o; \
+		echo "CUDA library built (libmlcuda.a)"; \
+	else \
+		echo "nvcc not found — skipping CUDA build (CPU only)"; \
+	fi
+
 
 deps: ## Ensure Go and Python build dependencies are installed
 	@echo "Checking dependencies..."
@@ -32,7 +42,7 @@ proto: deps ## Generate Protocol Buffers code
 	cd frontend && bunx pbts -o src/pb/tracker_pb.d.ts src/pb/tracker_pb.js
 	@echo "Proto generation complete."
 
-backend: proto ## Build Go backend and compile eBPF
+backend: cuda proto ## Build Go backend and compile eBPF
 	@echo "Building backend..."
 	cd backend/ebpf && go generate
 	cd backend && go build -o agent-ebpf-filter

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"agent-ebpf-filter/cuda"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -23,7 +24,15 @@ func buildMLStatusJSON() []byte {
 		logItems[i] = map[string]string{"time": entry.Timestamp.Format("15:04:05"), "message": entry.Message}
 	}
 
+	cudaAvailable := cuda.IsAvailable()
+	cudaInfo := ""
+	if cudaAvailable {
+		cudaInfo = cuda.DeviceInfo()
+	}
+
 	payload := map[string]interface{}{
+		"cudaAvailable":        cudaAvailable,
+		"cudaInfo":             cudaInfo,
 		"modelType":            string(currentModelType),
 		"modelLoaded":          status.ModelLoaded,
 		"numTrees":             status.NumTrees,

@@ -6,6 +6,8 @@ import (
 	"math"
 	"math/rand"
 	"os"
+
+	"agent-ebpf-filter/cuda"
 	"path/filepath"
 )
 
@@ -117,7 +119,13 @@ func (m *LogisticModel) Train(samples [][FeatureDim]float64, labels []int32) {
 		}
 	}
 
-	// SGD loop
+	// ── CUDA-accelerated training path ──
+	if cuda.IsAvailable() && nSamples >= 100 {
+		m.trainWithCUDA(samples, labels, nSamples)
+		return
+	}
+
+	// SGD loop (CPU fallback)
 	for iter := 0; iter < m.MaxIterations; iter++ {
 		// Learning rate decay
 		lr := m.LearningRate * (1.0 - float64(iter)/float64(m.MaxIterations)*0.95)
@@ -260,4 +268,61 @@ func DeserializeLogistic(path string) (*LogisticModel, error) {
 	}
 
 	return m, nil
+}
+
+// trainWithCUDA uses GPU-accelerated mini-batch SGD via CUDA.
+func (m *LogisticModel) trainWithCUDA(samples [][FeatureDim]float64, labels []int32, nSamples int) {
+	// Convert data to float32 for CUDA
+	X := make([]float32, nSamples*FeatureDim)
+	L := make([]int32, nSamples)
+	for i := 0; i < nSamples; i++ {
+		for d := 0; d < FeatureDim; d++ {
+			X[i*FeatureDim+d] = float32(samples[i][d])
+		}
+		L[i] = labels[i]
+	}
+
+	W := make([]float32, m.NumClasses*(FeatureDim+1))
+	// Initialize weights with small random values
+	for i := range W {
+		W[i] = (float32(i%100)/100.0 - 0.5) * 0.01
+	}
+
+	for iter := 0; iter < m.MaxIterations; iter++ {
+		lr := float32(m.LearningRate * (1.0 - float64(iter)/float64(m.MaxIterations)*0.95))
+
+		// Forward: compute softmax probabilities on GPU
+		P := cuda.LogisticForward(X, W, nSamples, FeatureDim, m.NumClasses)
+
+		// Gradient: compute on GPU
+		G := make([]float32, m.NumClasses*(FeatureDim+1))
+		cuda.LogisticGradient(X, P, L, G, nSamples, FeatureDim, m.NumClasses)
+
+		// Update weights with learning rate
+		for i := range W {
+			W[i] -= lr * (G[i] + 0.0005*W[i]) // L2 regularization
+		}
+
+		// Early stopping: check average loss
+		if iter%50 == 0 && iter > 0 {
+			avgLoss := float32(0)
+			for s := 0; s < nSamples; s++ {
+				prob := P[s*m.NumClasses+L[s]]
+				if prob > 1e-10 {
+					avgLoss += float32(-math.Log(float64(prob)))
+				}
+			}
+			avgLoss /= float32(nSamples)
+			if avgLoss < 0.05 && iter > 200 {
+				break
+			}
+		}
+	}
+
+	// Copy trained weights back
+	for c := 0; c < m.NumClasses; c++ {
+		for d := 0; d <= FeatureDim; d++ {
+			m.Weights[c][d] = float64(W[c*(FeatureDim+1)+d])
+		}
+	}
 }

@@ -251,6 +251,8 @@ export function useConfigML() {
   // ── ML Status ──
   const mlEnabled = ref(false);
   const modelType = ref<string>('random_forest');
+  const cudaAvailable = ref(false);
+  const cudaInfo = ref('');
   const mlStatus = ref<MLStatusState>({
     model_type: 'random_forest', model_loaded: false, num_trees: 0, num_samples: 0, num_labeled_samples: 0,
     last_trained: '', test_accuracy: 0, model_path: '',
@@ -351,6 +353,8 @@ export function useConfigML() {
   const applyMLStatusResponse = (data: any) => {
     mlEnabled.value = data.mlEnabled ?? data.ml_enabled ?? false;
     modelType.value = data.modelType ?? data.model_type ?? modelType.value;
+    cudaAvailable.value = data.cudaAvailable ?? data.cuda_available ?? false;
+    cudaInfo.value = data.cudaInfo ?? data.cuda_info ?? '';
     mlStatus.value.model_type = modelType.value;
     mlStatus.value.model_loaded = data.modelLoaded ?? data.model_loaded ?? false;
     mlStatus.value.num_trees = data.numTrees ?? data.num_trees ?? 0;
@@ -1389,7 +1393,7 @@ export function useConfigML() {
     mlThresholds, mlTrainingConfig, llmScoringConfig, llmBatchConfig,
     llmBatchResponse, llmBatchLoading, trainingLogs, wsActive, logPollTimer,
     llmSaveStatus, saveLLMConfigNow,
-    modelType, autoTuneAxisOptions,
+    modelType, autoTuneAxisOptions, cudaAvailable, cudaInfo,
     trainingHistory, hyperParams,
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
     autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError, autoTuneJobId,

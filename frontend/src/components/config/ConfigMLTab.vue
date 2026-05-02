@@ -54,7 +54,7 @@ const {
   submitManualSample, addPresetSample, importAllHighRiskPresets,
   importAllSafetyNetPresets,
   runBacktest, runBacktestPreset, riskLevelColor, riskMeterColor,
-  llmApiKeyStatus, llmSaveStatus, saveLLMConfigNow, modelType,
+  llmApiKeyStatus, llmSaveStatus, saveLLMConfigNow, modelType, cudaAvailable, cudaInfo,
 } = props.ml;
 
 void trainingDatasetImportInput;
@@ -1016,9 +1016,14 @@ onMounted(() => {
                 <a-radio-button value="knn">KNN</a-radio-button>
                 <a-radio-button value="logistic">Logistic Regression</a-radio-button>
               </a-radio-group>
-              <a-typography-text type="secondary" style="display: block; margin-top: 8px;">
-                切换模型类型后会自动保存配置。训练和推理将使用所选模型。
-              </a-typography-text>
+              <a-space style="margin-top: 8px; display: flex; align-items: center;">
+                <a-tag :color="cudaAvailable ? 'success' : 'default'">
+                  {{ cudaAvailable ? 'CUDA: ' + cudaInfo : 'CPU Only' }}
+                </a-tag>
+                <a-typography-text type="secondary">
+                  切换模型类型后会自动保存，训练和推理将使用所选模型。
+                </a-typography-text>
+              </a-space>
             </a-card>
           </a-col>
 

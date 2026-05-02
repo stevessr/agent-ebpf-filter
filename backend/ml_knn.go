@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"agent-ebpf-filter/cuda"
 )
 
 func init() {
@@ -44,10 +46,28 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 	}
 
 	neighbors := make([]neighbor, len(m.Samples))
-	for i, sample := range m.Samples {
-		neighbors[i] = neighbor{idx: i, distance: m.computeDistance(features, sample)}
+	if cuda.IsAvailable() && len(m.Samples) >= 1000 {
+		// GPU-accelerated batch distance computation
+		q := make([]float32, FeatureDim)
+		r := make([]float32, len(m.Samples)*FeatureDim)
+		for d := 0; d < FeatureDim; d++ {
+			q[d] = float32(features[d])
+		}
+		for i, s := range m.Samples {
+			for d := 0; d < FeatureDim; d++ {
+				r[i*FeatureDim+d] = float32(s[d])
+			}
+		}
+		dists := cuda.KNNDistances(q, r, 1, len(m.Samples), FeatureDim, m.Distance)
+		for i := range neighbors {
+			neighbors[i] = neighbor{idx: i, distance: float64(dists[i])}
+		}
+	} else {
+		// CPU fallback
+		for i, sample := range m.Samples {
+			neighbors[i] = neighbor{idx: i, distance: m.computeDistance(features, sample)}
+		}
 	}
-
 	sort.Slice(neighbors, func(i, j int) bool {
 		return neighbors[i].distance < neighbors[j].distance
 	})
