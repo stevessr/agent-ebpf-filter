@@ -382,7 +382,11 @@ export function useConfigML() {
     mlStatus.value.llm_review = data.llmReview ?? data.llm_review ?? null;
 
     autoTuneJobId.value = data.autoTuneJobId ?? data.auto_tune_job_id ?? autoTuneJobId.value;
+    const wasRunning = autoTuneInProgress.value;
     autoTuneInProgress.value = data.autoTuneInProgress ?? data.auto_tune_in_progress ?? false;
+    if (wasRunning && !autoTuneInProgress.value) {
+      autoTuneLoading.value = false;
+    }
     autoTuneProgress.value = data.autoTuneProgress ?? data.auto_tune_progress ?? autoTuneProgress.value ?? 0;
     autoTuneCompleted.value = data.autoTuneCompleted ?? data.auto_tune_completed ?? autoTuneCompleted.value ?? 0;
     autoTuneTotal.value = data.autoTuneTotal ?? data.auto_tune_total ?? autoTuneTotal.value ?? 0;
@@ -596,6 +600,25 @@ export function useConfigML() {
 
   const autoTuneHeatmapOptions = computed<ApexOptions>(() => {
     const response = autoTuneResponse.value;
+    // Build single-hue gradient from actual cell values
+    const cells = response?.cells || [];
+    const scores = cells.map(c => autoTuneScore(c));
+    const minScore = scores.length > 0 ? Math.min(...scores) : 0;
+    const maxScore = scores.length > 0 ? Math.max(...scores) : 1;
+    const range = maxScore - minScore || 1;
+
+    // Generate 10 evenly spaced color stops from light to deep blue
+    const colorRanges = Array.from({ length: 10 }, (_, i) => {
+      const t = i / 9;
+      const from = minScore + range * (i / 10);
+      const to = minScore + range * ((i + 1) / 10);
+      // Light blue (#e0f0ff) → Deep blue (#003a8c)
+      const r = Math.round(0xe0 - t * 0xe0).toString(16).padStart(2, '0');
+      const g = Math.round(0xf0 - t * 0x92).toString(16).padStart(2, '0');
+      const b = Math.round(0xff - t * 0x73).toString(16).padStart(2, '0');
+      return { from, to, color: `#${r}${g}${b}`, name: `${(from * 100).toFixed(0)}-${(to * 100).toFixed(0)}%` };
+    });
+
     return {
       chart: {
         type: 'heatmap' as const,
@@ -621,7 +644,7 @@ export function useConfigML() {
           shadeIntensity: 0.85,
           distributed: false,
           colorScale: {
-            ranges: [],
+            ranges: colorRanges,
           },
           reverseNegativeShade: false,
         },
