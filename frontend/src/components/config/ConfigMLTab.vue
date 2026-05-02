@@ -23,7 +23,7 @@ const {
   trainingHistory, hyperParams,
   autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
   autoTuneAxisOptions,
-  autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError,
+  autoTuneLoading, autoTuneInProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError,
   autoTuneResponse, autoTuneSelectedCell,
   autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat,
   autoTuneGranularityLabel,
@@ -54,7 +54,7 @@ const {
   submitManualSample, addPresetSample, importAllHighRiskPresets,
   importAllSafetyNetPresets,
   runBacktest, runBacktestPreset, riskLevelColor, riskMeterColor,
-  llmApiKeyStatus, llmSaveStatus, saveLLMConfigNow, modelType, cudaAvailable, cudaInfo,
+  llmApiKeyStatus, llmSaveStatus, saveLLMConfigNow, modelType, cudaAvailable, cudaInfo, cudaMemUsedMB, cudaMemTotalMB, cancelTraining, cancellingTraining,
 } = props.ml;
 
 void trainingDatasetImportInput;
@@ -202,9 +202,37 @@ onMounted(() => {
           <a-col v-if="mlSubTabKey === 'model'" :xs="24" :md="12">
             <a-card title="Training Controls" size="small">
               <a-space direction="vertical" style="width: 100%">
-                <a-button type="primary" @click="trainWithParams" :loading="trainingModel" block>
-                  Train Model Now
-                </a-button>
+                <!-- Training resource status -->
+                <div v-if="mlStatus.training_in_progress" style="background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; padding: 8px 12px; font-size: 12px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px;">
+                    <span>
+                      <ReloadOutlined spin style="margin-right: 4px; color: #52c41a;" />
+                      <b>训练中</b> {{ Math.round((mlStatus.training_progress || 0) * 100) }}%
+                    </span>
+                    <span v-if="cudaAvailable && cudaMemTotalMB > 0" style="color: #666;">
+                      GPU: {{ cudaMemUsedMB }} / {{ cudaMemTotalMB }} MB
+                    </span>
+                  </div>
+                  <a-progress :percent="Math.round((mlStatus.training_progress || 0) * 100)" :show-info="false" style="margin-top: 4px;" />
+                </div>
+                <!-- Train / Cancel buttons -->
+                <div style="display: flex; gap: 8px;">
+                  <a-button type="primary" @click="trainWithParams" :loading="trainingModel" :disabled="mlStatus.training_in_progress" style="flex: 1">
+                    <ThunderboltOutlined /> Train Model Now
+                  </a-button>
+                  <a-popconfirm
+                    v-if="mlStatus.training_in_progress"
+                    title="确定要中止当前训练吗？"
+                    @confirm="cancelTraining"
+                    ok-text="中止训练"
+                    cancel-text="继续等待"
+                    ok-type="danger"
+                  >
+                    <a-button danger :loading="cancellingTraining">
+                      <StopOutlined /> 中止
+                    </a-button>
+                  </a-popconfirm>
+                </div>
                 <a-divider style="margin: 8px 0">Batch Feedback</a-divider>
                 <a-input-group compact>
                   <a-input v-model:value="feedbackComm" placeholder="Command (e.g. rm)" style="width: 40%" />
@@ -526,34 +554,46 @@ onMounted(() => {
             </a-card>
           </a-col>
 
-          <!-- Row: Training Progress & Logs -->
-          <a-col
-            v-if="mlSubTabKey === 'status' && (mlStatus.training_in_progress || trainingLogs.length > 0)"
-            :xs="24"
-          >
+          <!-- Row: Model Logs (always visible) -->
+          <a-col v-if="mlSubTabKey === 'status'" :xs="24">
             <a-card size="small">
               <template #title>
-                <span>Training Progress</span>
-                <a-tag color="processing" style="margin-left: 8px" v-if="mlStatus.training_in_progress">Running...</a-tag>
-                <a-tag color="green" style="margin-left: 8px" v-else>Complete</a-tag>
+                <span>模型日志</span>
+                <a-tag v-if="mlStatus.training_in_progress" color="processing" style="margin-left: 8px">
+                  <ReloadOutlined spin style="margin-right: 2px;" />训练中...
+                </a-tag>
+                <a-tag v-else-if="trainingLogs.length > 0" color="green" style="margin-left: 8px">
+                  {{ trainingLogs.length }} 条
+                </a-tag>
+                <a-tag v-else style="margin-left: 8px">等待训练</a-tag>
               </template>
-              <a-progress
-                :percent="Math.round((mlStatus.training_progress || 0) * 100)"
-                :status="mlStatus.training_in_progress ? 'active' : 'success'"
-                style="margin-bottom: 12px"
-              />
+              <!-- Progress bar (only when training) -->
+              <div v-if="mlStatus.training_in_progress" style="margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 4px;">
+                  <span>训练进度</span>
+                  <span>{{ Math.round((mlStatus.training_progress || 0) * 100) }}%</span>
+                </div>
+                <a-progress
+                  :percent="Math.round((mlStatus.training_progress || 0) * 100)"
+                  :status="'active'"
+                />
+              </div>
+              <!-- Log viewer -->
               <div
                 ref="logContainer"
                 style="background: #1e1e1e; color: #d4d4d4; border-radius: 6px; padding: 10px 14px; max-height: 320px; overflow-y: auto; font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6"
               >
-                <div v-for="(line, i) in trainingLogs" :key="i" style="white-space: pre-wrap; word-break: break-all">
-                  <span style="color: #6a9955">{{ line.time }}</span>
-                  <span v-if="line.message.startsWith('ERROR')" style="color: #f44747">{{ ' ' + line.message }}</span>
-                  <span v-else-if="line.message.startsWith('═══')" style="color: #569cd6; font-weight: bold">{{ ' ' + line.message }}</span>
-                  <span v-else style="color: #d4d4d4">{{ ' ' + line.message }}</span>
-                </div>
-                <div v-if="trainingLogs.length === 0 && mlStatus.training_in_progress" style="color: #888">
-                  Waiting for training to start...
+                <template v-if="trainingLogs.length > 0">
+                  <div v-for="(line, i) in trainingLogs" :key="i" style="white-space: pre-wrap; word-break: break-all">
+                    <span style="color: #6a9955">{{ line.time }}</span>
+                    <span v-if="line.message.includes('ERROR') || line.message.startsWith('ERROR')" style="color: #f44747">{{ ' ' + line.message }}</span>
+                    <span v-else-if="line.message.startsWith('═══')" style="color: #569cd6; font-weight: bold">{{ ' ' + line.message }}</span>
+                    <span v-else-if="line.message.includes('完成') || line.message.includes('complete') || line.message.includes('accuracy')" style="color: #89d185">{{ ' ' + line.message }}</span>
+                    <span v-else style="color: #d4d4d4">{{ ' ' + line.message }}</span>
+                  </div>
+                </template>
+                <div v-else style="color: #888; text-align: center; padding: 20px 0;">
+                  {{ mlStatus.training_in_progress ? '等待训练开始...' : '暂无日志，点击训练按钮开始模型的训练和评估' }}
                 </div>
               </div>
             </a-card>
@@ -1459,14 +1499,13 @@ onMounted(() => {
                         </span>
                       </div>
                       <a-progress
-                        :percent="Math.max(0, Math.min(100, Math.round((autoTuneProgress || (autoTuneInProgress ? 0.01 : 0)) * 100)))"
-                        :status="autoTuneError ? 'exception' : ((autoTuneLoading || autoTuneInProgress) ? 'active' : 'success')"
-                        :show-info="true"
+                        :percent="autoTuneTotal > 0 ? Math.round(autoTuneCompleted / autoTuneTotal * 100) : (autoTuneInProgress ? 0 : 100)"
+                        :status="autoTuneError ? 'exception' : (autoTuneInProgress ? 'active' : 'success')"
                         style="margin-bottom: 4px;"
                       />
                       <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: #666;">
-                        <span>{{ autoTuneMessage || (autoTuneInProgress ? '正在评估参数组合...' : '') }}</span>
-                        <span>{{ autoTuneCompleted || 0 }} / {{ autoTuneTotal || autoTuneGridSize * autoTuneGridSize }} 格</span>
+                        <span>{{ autoTuneMessage || (autoTuneInProgress ? '正在评估参数组合...' : '已完成') }}</span>
+                        <span>{{ autoTuneCompleted }} / {{ autoTuneTotal || autoTuneGridSize * autoTuneGridSize }} 格</span>
                       </div>
                       <a-alert
                         v-if="autoTuneError"

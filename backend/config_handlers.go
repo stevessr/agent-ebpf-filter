@@ -749,6 +749,7 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		ml.GET("/logs", handleMLLogsGet)
 		ml.GET("/history", handleMLHistoryGet)
 		ml.POST("/train", handleMLTrainPost)
+		ml.POST("/train/cancel", handleMLTrainCancelPost)
 		ml.POST("/tune", handleMLTunePost)
 		ml.POST("/feedback", handleMLFeedbackPost)
 		ml.GET("/samples", handleMLSamplesGet)
@@ -798,6 +799,15 @@ func handleMLLogsGet(c *gin.Context) {
 		items[i] = gin.H{"time": entry.Timestamp.Format("15:04:05"), "message": entry.Message}
 	}
 	c.JSON(200, gin.H{"logs": items, "total": globalTrainer.logTotal})
+}
+
+func handleMLTrainCancelPost(c *gin.Context) {
+	if !globalTrainer.isRunning {
+		c.JSON(200, gin.H{"message": "no training in progress"})
+		return
+	}
+	globalTrainer.CancelTraining()
+	c.JSON(200, gin.H{"message": "cancellation requested"})
 }
 
 // handleMLHistoryGet returns training history for visualization

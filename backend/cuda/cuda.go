@@ -9,11 +9,13 @@ package cuda
 int cuda_dev_count();
 const char* cuda_dev_name(int d);
 int cuda_dev_mem_mb(int d);
+int cuda_mem_used_mb();
+int cuda_mem_total_mb();
 
-void knn_dist_launch(const float* q, const float* r, float* d, int nQ, int nR, int dim);
-void knn_manh_launch(const float* q, const float* r, float* d, int nQ, int nR, int dim);
-void logit_fwd_launch(const float* X, const float* W, float* P, int N, int D, int C);
-void logit_grad_launch(const float* X, const float* P, const int* L, float* G, int N, int D, int C);
+int knn_dist_launch(const float* q, const float* r, float* d, int nQ, int nR, int dim);
+int knn_manh_launch(const float* q, const float* r, float* d, int nQ, int nR, int dim);
+int logit_fwd_launch(const float* X, const float* W, float* P, int N, int D, int C);
+int logit_grad_launch(const float* X, const float* P, const int* L, float* G, int N, int D, int C);
 */
 import "C"
 import (
@@ -59,26 +61,59 @@ func DeviceInfo() string {
 	return fmt.Sprintf("%s (%d MB)", status.Device, status.MemoryMB)
 }
 
+// MemUsedMB returns current GPU memory usage in MB.
+func MemUsedMB() int {
+	if !status.Available {
+		return 0
+	}
+	return int(C.cuda_mem_used_mb())
+}
+
+// MemTotalMB returns total GPU memory in MB.
+func MemTotalMB() int {
+	if !status.Available {
+		return 0
+	}
+	return int(C.cuda_mem_total_mb())
+}
+
+// RuntimeStatus returns live GPU status for display.
+func RuntimeStatus() string {
+	if !status.Available {
+		return ""
+	}
+	used := MemUsedMB()
+	total := MemTotalMB()
+	if total <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("GPU: %d/%d MB", used, total)
+}
+
 // KNNDistances computes pairwise distances (GPU or CPU fallback).
 func KNNDistances(queries, refs []float32, nQ, nR, dim int, metric string) []float32 {
 	out := make([]float32, nQ*nR)
 	if !status.Available {
 		return cpuKNNDistances(queries, refs, nQ, nR, dim, metric, out)
 	}
+	var ret C.int
 	if metric == "manhattan" {
-		C.knn_manh_launch(
+		ret = C.knn_manh_launch(
 			(*C.float)(unsafe.Pointer(&queries[0])),
 			(*C.float)(unsafe.Pointer(&refs[0])),
 			(*C.float)(unsafe.Pointer(&out[0])),
 			C.int(nQ), C.int(nR), C.int(dim),
 		)
 	} else {
-		C.knn_dist_launch(
+		ret = C.knn_dist_launch(
 			(*C.float)(unsafe.Pointer(&queries[0])),
 			(*C.float)(unsafe.Pointer(&refs[0])),
 			(*C.float)(unsafe.Pointer(&out[0])),
 			C.int(nQ), C.int(nR), C.int(dim),
 		)
+	}
+	if ret != 0 {
+		return cpuKNNDistances(queries, refs, nQ, nR, dim, metric, out)
 	}
 	return out
 }
@@ -125,12 +160,14 @@ func LogisticForward(X, W []float32, N, D, C int) []float32 {
 	if !status.Available {
 		return cpuLogisticForward(X, W, N, D, C, P)
 	}
-	C.logit_fwd_launch(
+	if C.logit_fwd_launch(
 		(*C.float)(unsafe.Pointer(&X[0])),
 		(*C.float)(unsafe.Pointer(&W[0])),
 		(*C.float)(unsafe.Pointer(&P[0])),
 		C.int(N), C.int(D), C.int(C),
-	)
+	) != 0 {
+		return cpuLogisticForward(X, W, N, D, C, P)
+	}
 	return P
 }
 
@@ -184,13 +221,15 @@ func LogisticGradient(X, P []float32, L []int32, G []float32, N, D, C int) {
 		cpuLogisticGradient(X, P, L, G, N, D, C)
 		return
 	}
-	C.logit_grad_launch(
+	if C.logit_grad_launch(
 		(*C.float)(unsafe.Pointer(&X[0])),
 		(*C.float)(unsafe.Pointer(&P[0])),
 		(*C.int)(unsafe.Pointer(&L[0])),
 		(*C.float)(unsafe.Pointer(&G[0])),
 		C.int(N), C.int(D), C.int(C),
-	)
+	) != 0 {
+		cpuLogisticGradient(X, P, L, G, N, D, C)
+	}
 }
 
 func cpuLogisticGradient(X, P []float32, L []int32, G []float32, N, D, C int) {

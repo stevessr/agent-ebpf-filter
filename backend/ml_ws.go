@@ -33,6 +33,8 @@ func buildMLStatusJSON() []byte {
 	payload := map[string]interface{}{
 		"cudaAvailable":        cudaAvailable,
 		"cudaInfo":             cudaInfo,
+		"cudaMemUsedMB":        cuda.MemUsedMB(),
+		"cudaMemTotalMB":       cuda.MemTotalMB(),
 		"modelType":            string(currentModelType),
 		"modelLoaded":          status.ModelLoaded,
 		"numTrees":             status.NumTrees,

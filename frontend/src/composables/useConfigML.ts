@@ -253,6 +253,9 @@ export function useConfigML() {
   const modelType = ref<string>('random_forest');
   const cudaAvailable = ref(false);
   const cudaInfo = ref('');
+  const cudaMemUsedMB = ref(0);
+  const cudaMemTotalMB = ref(0);
+  const cancellingTraining = ref(false);
   const mlStatus = ref<MLStatusState>({
     model_type: 'random_forest', model_loaded: false, num_trees: 0, num_samples: 0, num_labeled_samples: 0,
     last_trained: '', test_accuracy: 0, model_path: '',
@@ -355,6 +358,8 @@ export function useConfigML() {
     modelType.value = data.modelType ?? data.model_type ?? modelType.value;
     cudaAvailable.value = data.cudaAvailable ?? data.cuda_available ?? false;
     cudaInfo.value = data.cudaInfo ?? data.cuda_info ?? '';
+    cudaMemUsedMB.value = data.cudaMemUsedMB ?? data.cuda_mem_used_mb ?? 0;
+    cudaMemTotalMB.value = data.cudaMemTotalMB ?? data.cuda_mem_total_mb ?? 0;
     mlStatus.value.model_type = modelType.value;
     mlStatus.value.model_loaded = data.modelLoaded ?? data.model_loaded ?? false;
     mlStatus.value.num_trees = data.numTrees ?? data.num_trees ?? 0;
@@ -1257,6 +1262,18 @@ export function useConfigML() {
     return m[label] || 'default';
   };
 
+  const cancelTraining = async () => {
+    cancellingTraining.value = true;
+    try {
+      await axios.post('/config/ml/train/cancel');
+      message.info('已发送中止请求');
+    } catch (e: any) {
+      message.error(e.response?.data?.error || '取消失败');
+    } finally {
+      cancellingTraining.value = false;
+    }
+  };
+
   const trainWithParams = async () => {
     trainingModel.value = true;
     trainingLogs.value = [];
@@ -1393,7 +1410,7 @@ export function useConfigML() {
     mlThresholds, mlTrainingConfig, llmScoringConfig, llmBatchConfig,
     llmBatchResponse, llmBatchLoading, trainingLogs, wsActive, logPollTimer,
     llmSaveStatus, saveLLMConfigNow,
-    modelType, autoTuneAxisOptions, cudaAvailable, cudaInfo,
+    modelType, autoTuneAxisOptions, cudaAvailable, cudaInfo, cudaMemUsedMB, cudaMemTotalMB, cancelTraining, cancellingTraining,
     trainingHistory, hyperParams,
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
     autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError, autoTuneJobId,

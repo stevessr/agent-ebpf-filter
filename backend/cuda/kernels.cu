@@ -4,6 +4,24 @@
 #include <cuda_runtime.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+#define CUDA_CHECK(call) do { \
+    cudaError_t _e = (call); \
+    if (_e != cudaSuccess) { \
+        fprintf(stderr, "[CUDA ERROR] %s:%d: %s\n", __FILE__, __LINE__, cudaGetErrorString(_e)); \
+        return 1; \
+    } \
+} while(0)
+
+#define KERNEL_CHECK() do { \
+    cudaError_t _e = cudaGetLastError(); \
+    if (_e != cudaSuccess) { \
+        fprintf(stderr, "[CUDA KERNEL ERROR] %s:%d: %s\n", __FILE__, __LINE__, cudaGetErrorString(_e)); \
+        return 1; \
+    } \
+} while(0)
+#include <stdio.h>
 
 // ── Device info ────────────────────────────────────────────────────
 
@@ -28,6 +46,20 @@ extern "C" int cuda_dev_mem_mb(int d) {
     return 0;
 }
 
+extern "C" int cuda_mem_used_mb() {
+    size_t free_bytes, total_bytes;
+    if (cudaMemGetInfo(&free_bytes, &total_bytes) == cudaSuccess)
+        return (int)((total_bytes - free_bytes) / (1024*1024));
+    return 0;
+}
+
+extern "C" int cuda_mem_total_mb() {
+    size_t free_bytes, total_bytes;
+    if (cudaMemGetInfo(&free_bytes, &total_bytes) == cudaSuccess)
+        return (int)(total_bytes / (1024*1024));
+    return 0;
+}
+
 // ── KNN Euclidean Distance ─────────────────────────────────────────
 
 __global__ void knn_dist_kernel(
@@ -46,19 +78,23 @@ __global__ void knn_dist_kernel(
     }
 }
 
-extern "C" void knn_dist_launch(
+extern "C" int knn_dist_launch(
     const float* q, const float* r, float* d,
     int nQ, int nR, int dim
 ) {
-    float *dq, *dr, *dd;
-    cudaMalloc(&dq, nQ*dim*4); cudaMemcpy(dq, q, nQ*dim*4, cudaMemcpyHostToDevice);
-    cudaMalloc(&dr, nR*dim*4); cudaMemcpy(dr, r, nR*dim*4, cudaMemcpyHostToDevice);
-    cudaMalloc(&dd, nQ*nR*4);
+    float *dq=0, *dr=0, *dd=0;
+    CUDA_CHECK(cudaMalloc(&dq, nQ*dim*4));
+    CUDA_CHECK(cudaMemcpy(dq, q, nQ*dim*4, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&dr, nR*dim*4));
+    CUDA_CHECK(cudaMemcpy(dr, r, nR*dim*4, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&dd, nQ*nR*4));
     int blk = (nQ + 255) / 256;
     knn_dist_kernel<<<blk, 256>>>(dq, dr, dd, nQ, nR, dim);
-    cudaDeviceSynchronize();
-    cudaMemcpy(d, dd, nQ*nR*4, cudaMemcpyDeviceToHost);
+    KERNEL_CHECK();
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaMemcpy(d, dd, nQ*nR*4, cudaMemcpyDeviceToHost));
     cudaFree(dq); cudaFree(dr); cudaFree(dd);
+    return 0;
 }
 
 // ── KNN Manhattan Distance ─────────────────────────────────────────
@@ -77,19 +113,23 @@ __global__ void knn_manh_kernel(
     }
 }
 
-extern "C" void knn_manh_launch(
+extern "C" int knn_manh_launch(
     const float* q, const float* r, float* d,
     int nQ, int nR, int dim
 ) {
-    float *dq, *dr, *dd;
-    cudaMalloc(&dq, nQ*dim*4); cudaMemcpy(dq, q, nQ*dim*4, cudaMemcpyHostToDevice);
-    cudaMalloc(&dr, nR*dim*4); cudaMemcpy(dr, r, nR*dim*4, cudaMemcpyHostToDevice);
-    cudaMalloc(&dd, nQ*nR*4);
+    float *dq=0, *dr=0, *dd=0;
+    CUDA_CHECK(cudaMalloc(&dq, nQ*dim*4));
+    CUDA_CHECK(cudaMemcpy(dq, q, nQ*dim*4, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&dr, nR*dim*4));
+    CUDA_CHECK(cudaMemcpy(dr, r, nR*dim*4, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&dd, nQ*nR*4));
     int blk = (nQ + 255) / 256;
     knn_manh_kernel<<<blk, 256>>>(dq, dr, dd, nQ, nR, dim);
-    cudaDeviceSynchronize();
-    cudaMemcpy(d, dd, nQ*nR*4, cudaMemcpyDeviceToHost);
+    KERNEL_CHECK();
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaMemcpy(d, dd, nQ*nR*4, cudaMemcpyDeviceToHost));
     cudaFree(dq); cudaFree(dr); cudaFree(dd);
+    return 0;
 }
 
 // ── Logistic Softmax Forward ────────────────────────────────────────
@@ -117,19 +157,23 @@ __global__ void logit_fwd_kernel(
     for (int c = 0; c < C; c++) P[s*C+c] /= sum;
 }
 
-extern "C" void logit_fwd_launch(
+extern "C" int logit_fwd_launch(
     const float* X, const float* W, float* P,
     int N, int D, int C
 ) {
-    float *dX, *dW, *dP;
-    cudaMalloc(&dX, N*D*4); cudaMemcpy(dX, X, N*D*4, cudaMemcpyHostToDevice);
-    cudaMalloc(&dW, C*(D+1)*4); cudaMemcpy(dW, W, C*(D+1)*4, cudaMemcpyHostToDevice);
-    cudaMalloc(&dP, N*C*4);
+    float *dX=0, *dW=0, *dP=0;
+    CUDA_CHECK(cudaMalloc(&dX, N*D*4));
+    CUDA_CHECK(cudaMemcpy(dX, X, N*D*4, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&dW, C*(D+1)*4));
+    CUDA_CHECK(cudaMemcpy(dW, W, C*(D+1)*4, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&dP, N*C*4));
     int blk = (N + 255) / 256;
     logit_fwd_kernel<<<blk, 256>>>(dX, dW, dP, N, D, C);
-    cudaDeviceSynchronize();
-    cudaMemcpy(P, dP, N*C*4, cudaMemcpyDeviceToHost);
+    KERNEL_CHECK();
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaMemcpy(P, dP, N*C*4, cudaMemcpyDeviceToHost));
     cudaFree(dX); cudaFree(dW); cudaFree(dP);
+    return 0;
 }
 
 // ── Logistic Gradient ───────────────────────────────────────────────
@@ -157,20 +201,26 @@ __global__ void logit_grad_kernel(
     G[tid] += grad / (float)N;
 }
 
-extern "C" void logit_grad_launch(
+extern "C" int logit_grad_launch(
     const float* X, const float* P, const int* L,
     float* G, int N, int D, int C
 ) {
-    float *dX, *dP, *dG;
-    int* dL;
-    cudaMalloc(&dX, N*D*4); cudaMemcpy(dX, X, N*D*4, cudaMemcpyHostToDevice);
-    cudaMalloc(&dP, N*C*4); cudaMemcpy(dP, P, N*C*4, cudaMemcpyHostToDevice);
-    cudaMalloc(&dL, N*4); cudaMemcpy(dL, L, N*4, cudaMemcpyHostToDevice);
-    cudaMalloc(&dG, C*(D+1)*4); cudaMemset(dG, 0, C*(D+1)*4);
+    float *dX=0, *dP=0, *dG=0;
+    int* dL=0;
+    CUDA_CHECK(cudaMalloc(&dX, N*D*4));
+    CUDA_CHECK(cudaMemcpy(dX, X, N*D*4, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&dP, N*C*4));
+    CUDA_CHECK(cudaMemcpy(dP, P, N*C*4, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&dL, N*4));
+    CUDA_CHECK(cudaMemcpy(dL, L, N*4, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&dG, C*(D+1)*4));
+    CUDA_CHECK(cudaMemset(dG, 0, C*(D+1)*4));
     int total = C * (D + 1);
     int blk = (total + 255) / 256;
     logit_grad_kernel<<<blk, 256>>>(dX, dP, dL, dG, N, D, C);
-    cudaDeviceSynchronize();
-    cudaMemcpy(G, dG, C*(D+1)*4, cudaMemcpyDeviceToHost);
+    KERNEL_CHECK();
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaMemcpy(G, dG, C*(D+1)*4, cudaMemcpyDeviceToHost));
     cudaFree(dX); cudaFree(dP); cudaFree(dL); cudaFree(dG);
+    return 0;
 }

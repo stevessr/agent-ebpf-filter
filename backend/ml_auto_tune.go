@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"sort"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"agent-ebpf-filter/cuda"
 	"github.com/gin-gonic/gin"
 )
 
@@ -128,6 +130,21 @@ func (s *autoTuneRuntime) update(jobID string, completed, total int, message str
 	s.state.Error = ""
 }
 
+func (s *autoTuneRuntime) setError(jobID string, errMsg string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state.Running = false
+	s.state.Error = errMsg
+	s.state.Message = "调优失败"
+}
+
+func autoTuneBestScore(resp *MLAutoTuneResponse) float64 {
+	if resp == nil || resp.Best == nil {
+		return 0
+	}
+	return resp.Best.Score
+}
+
 func (s *autoTuneRuntime) finish(jobID string, result *MLAutoTuneResponse, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -196,9 +213,25 @@ func handleMLTunePost(c *gin.Context) {
 	}
 
 	go func(jobID string, req MLAutoTuneRequest) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[ML] Auto-tune panic: %v", r)
+				globalAutoTuneState.setError(jobID, fmt.Sprintf("panic: %v", r))
+			}
+		}()
+		log.Printf("[ML] Auto-tune started: jobID=%s, model=%s, grid=%dx%d, x=%s, y=%s",
+			jobID, mlConfig.ModelType, req.GridSize, req.GridSize, req.XAxis, req.YAxis)
 		resp, err := globalTrainer.AutoTune(globalTrainingStore, req, func(completed, total int, message string) {
+			if completed%5 == 0 || completed == total {
+				log.Printf("[ML] Auto-tune progress: %d/%d — %s", completed, total, message)
+			}
 			globalAutoTuneState.update(jobID, completed, total, message)
 		})
+		if err != nil {
+			log.Printf("[ML] Auto-tune error: %v", err)
+		} else {
+			log.Printf("[ML] Auto-tune done: %d cells, best score=%.4f", len(resp.Cells), autoTuneBestScore(resp))
+		}
 		globalAutoTuneState.finish(jobID, resp, err)
 	}(jobID, req)
 
@@ -280,8 +313,24 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 	if totalCombos <= 0 {
 		return nil, errors.New("no valid parameter combinations found for tuning")
 	}
+	mt := mlConfig.ModelType
+	if mt == "" {
+		mt = ModelRandomForest
+	}
+	globalTrainer.logf("══════ 自动调参开始 ══════")
+	globalTrainer.logf("模型类型: %s, 方阵: %dx%d, 轴: %s×%s", modelName(mt), gridSize, gridSize, xAxis, yAxis)
+	if cuda.IsAvailable() {
+		globalTrainer.logf("CUDA 加速已启用: %s", cuda.DeviceInfo())
+	} else {
+		globalTrainer.logf("CPU 模式（无 CUDA 设备）")
+	}
+
 	if progressCb != nil {
-		progressCb(0, totalCombos, "开始评估自动调参方阵")
+		startMsg := "开始评估自动调参方阵"
+		if cuda.IsAvailable() {
+			startMsg += fmt.Sprintf(" [CUDA: %s]", cuda.DeviceInfo())
+		}
+		progressCb(0, totalCombos, startMsg)
 	}
 
 	start := time.Now()
@@ -289,33 +338,95 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 	var best *MLAutoTuneCell
 	bestScore := math.Inf(-1)
 
+	cudaLog := ""
+	if cuda.IsAvailable() {
+		cudaLog = fmt.Sprintf(" [CUDA: %s]", cuda.DeviceInfo())
+	}
+
 	done := 0
 	for yi, yValue := range yValues {
 		for xi, xValue := range xValues {
+			if globalTrainer.IsCancelled() {
+				globalTrainer.logf("自动调参已中止: %d/%d 格完成", done, totalCombos)
+				return nil, errors.New("cancelled")
+			}
 			numTrees, maxDepth, minLeaf := baseNumTrees, baseMaxDepth, baseMinSamplesLeaf
 			numTrees, maxDepth, minLeaf = setAutoTuneAxisValue(xAxis, xValue, numTrees, maxDepth, minLeaf)
 			numTrees, maxDepth, minLeaf = setAutoTuneAxisValue(yAxis, yValue, numTrees, maxDepth, minLeaf)
 
-			// Ensure the candidate respects the same minimum requirement as normal training.
-			if len(labeled) < minLeaf*10 {
-				done++
-				if progressCb != nil {
-					progressCb(done, totalCombos, fmt.Sprintf("跳过 %d/%d 个组合（样本不足）", done, totalCombos))
+			cellStart := time.Now()
+			var trainAccuracy, validationAccuracy, throughput, msPerSample float64
+			var evalDuration time.Duration
+
+			switch mt {
+			case ModelRandomForest:
+				if len(labeled) < minLeaf*10 {
+					done++
+					if progressCb != nil {
+						progressCb(done, totalCombos, fmt.Sprintf("跳过 %d/%d (RF 样本不足)", done, totalCombos))
+					}
+					continue
 				}
-				continue
+				seed := int64((yi+1)*100000 + (xi+1)*1000 + numTrees*31 + maxDepth*17 + minLeaf*13)
+				forest := buildAutoTuneForest(trainSet, numTrees, maxDepth, minLeaf, seed)
+				trainAccuracy = evaluateForest(forest, trainSet)
+				evalStart := time.Now()
+				validationAccuracy = evaluateForest(forest, validationSet)
+				evalDuration = time.Since(evalStart)
+
+			case ModelKNN:
+				k := numTrees
+				if k < 1 {
+					k = 5
+				}
+				if k > len(trainSet) {
+					k = len(trainSet)
+				}
+				model := NewKNNModel(k, "euclidean", "uniform")
+				model.NumClasses = 4
+				model.Samples = make([][FeatureDim]float64, len(trainSet))
+				model.Labels = make([]int32, len(trainSet))
+				for i, s := range trainSet {
+					model.Samples[i] = s.features
+					model.Labels[i] = s.label
+				}
+				trainAccuracy = evalKNNModel(model, trainSet)
+				evalStart := time.Now()
+				validationAccuracy = evalKNNModel(model, validationSet)
+				evalDuration = time.Since(evalStart)
+
+			case ModelLogisticRegression:
+				lr := float64(numTrees) / 1000.0 // numTrees field reused as learningRate*1000
+				if lr < 0.001 {
+					lr = 0.01
+				}
+				reg := "l2"
+				if maxDepth == 12 {
+					reg = "l1"
+				} else if maxDepth == 4 {
+					reg = "none"
+				}
+				maxIter := minLeaf
+				if maxIter < 100 {
+					maxIter = 1000
+				}
+
+				trainSamples := make([][FeatureDim]float64, len(trainSet))
+				trainLabels := make([]int32, len(trainSet))
+				for i, s := range trainSet {
+					trainSamples[i] = s.features
+					trainLabels[i] = s.label
+				}
+				lrModel := NewLogisticModel(lr, reg, maxIter)
+				lrModel.NumClasses = 4
+				lrModel.Train(trainSamples, trainLabels)
+				trainAccuracy = evalLogisticModel(lrModel, trainSet)
+				evalStart := time.Now()
+				validationAccuracy = evalLogisticModel(lrModel, validationSet)
+				evalDuration = time.Since(evalStart)
 			}
 
-			seed := int64((yi+1)*100000 + (xi+1)*1000 + numTrees*31 + maxDepth*17 + minLeaf*13)
-			cellStart := time.Now()
-			forest := buildAutoTuneForest(trainSet, numTrees, maxDepth, minLeaf, seed)
-			trainAccuracy := evaluateForest(forest, trainSet)
-			evalStart := time.Now()
-			validationAccuracy := evaluateForest(forest, validationSet)
-			evalDuration := time.Since(evalStart)
 			cellDuration := time.Since(cellStart)
-
-			throughput := 0.0
-			msPerSample := 0.0
 			if len(validationSet) > 0 && evalDuration > 0 {
 				throughput = float64(len(validationSet)) / evalDuration.Seconds()
 				msPerSample = evalDuration.Seconds() * 1000 / float64(len(validationSet))
@@ -350,8 +461,11 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 			}
 
 			done++
+			if done%3 == 0 || done == totalCombos {
+				globalTrainer.logf("%s 调优: %d/%d 格 (准确率 %.1f%%)", modelName(mt), done, totalCombos, validationAccuracy*100)
+			}
 			if progressCb != nil {
-				progressCb(done, totalCombos, fmt.Sprintf("评估 %d/%d 个组合", done, totalCombos))
+				progressCb(done, totalCombos, fmt.Sprintf("%s 评估 %d/%d%s", modelName(mt), done, totalCombos, cudaLog))
 			}
 		}
 	}
@@ -741,4 +855,34 @@ func autoTuneMaxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// evalKNNModel evaluates a KNN model on a set of samples.
+func evalKNNModel(model *KNNModel, samples []trainSample) float64 {
+	if len(samples) == 0 {
+		return 0
+	}
+	correct := 0
+	for _, s := range samples {
+		pred := model.Predict(s.features)
+		if pred.Action == s.label {
+			correct++
+		}
+	}
+	return float64(correct) / float64(len(samples))
+}
+
+// evalLogisticModel evaluates a logistic regression model on a set of samples.
+func evalLogisticModel(model *LogisticModel, samples []trainSample) float64 {
+	if len(samples) == 0 {
+		return 0
+	}
+	correct := 0
+	for _, s := range samples {
+		pred := model.Predict(s.features)
+		if pred.Action == s.label {
+			correct++
+		}
+	}
+	return float64(correct) / float64(len(samples))
 }

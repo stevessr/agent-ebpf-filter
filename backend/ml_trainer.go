@@ -39,6 +39,7 @@ type TrainingHistoryEntry struct {
 // ModelTrainer builds and evaluates random forest models
 type ModelTrainer struct {
 	mu        chan struct{} // single-training mutex via channel
+	cancelCh  chan struct{} // closed to request cancellation
 	isRunning bool
 	progress  float64
 	lastError string
@@ -62,8 +63,32 @@ type ModelTrainer struct {
 	lastLLMReview         *LLMReviewSummary
 }
 
+// CancelTraining signals any running training to stop.
+func (t *ModelTrainer) CancelTraining() {
+	if t.isRunning {
+		t.logf("训练中止请求已接收")
+		close(t.cancelCh)
+	}
+}
+
+// IsCancelled returns true if cancellation has been requested.
+func (t *ModelTrainer) IsCancelled() bool {
+	select {
+	case <-t.cancelCh:
+		return true
+	default:
+		return false
+	}
+}
+
+// ResetCancel prepares a new cancel channel for the next training run.
+func (t *ModelTrainer) ResetCancel() {
+	t.cancelCh = make(chan struct{})
+}
+
 var globalTrainer = &ModelTrainer{
 	mu:         make(chan struct{}, 1),
+	cancelCh:   make(chan struct{}),
 	logMaxSize: 200,
 }
 
@@ -160,6 +185,7 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 		return nil, TrainResult{Error: "training already in progress"}
 	}
 
+	t.ResetCancel()
 	t.isRunning = true
 	t.progress = 0
 	trainStart := time.Now()
@@ -221,6 +247,10 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 	totalNodes := 0
 	treeStart := time.Now()
 	for ti := 0; ti < numTrees; ti++ {
+		if t.IsCancelled() {
+			t.logf("训练已中止")
+			return nil, TrainResult{Error: "cancelled"}
+		}
 		t.progress = float64(ti) / float64(numTrees)
 		tStart := time.Now()
 
@@ -611,6 +641,7 @@ func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, 
 	t.mu <- struct{}{}
 	defer func() { <-t.mu }()
 
+	t.ResetCancel()
 	t.isRunning = true
 	t.progress = 0
 	defer func() { t.isRunning = false; t.progress = 1.0 }()
@@ -672,6 +703,7 @@ func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Mo
 	t.mu <- struct{}{}
 	defer func() { <-t.mu }()
 
+	t.ResetCancel()
 	t.isRunning = true
 	t.progress = 0
 	defer func() { t.isRunning = false; t.progress = 1.0 }()
