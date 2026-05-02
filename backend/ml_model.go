@@ -6,14 +6,25 @@ import "fmt"
 type ModelType string
 
 const (
-	ModelRandomForest      ModelType = "random_forest"
-	ModelKNN               ModelType = "knn"
-	ModelLogisticRegression ModelType = "logistic"
+	ModelRandomForest        ModelType = "random_forest"
+	ModelKNN                 ModelType = "knn"
+	ModelLogisticRegression  ModelType = "logistic"
+	ModelNaiveBayes          ModelType = "naive_bayes"
+	ModelExtraTrees          ModelType = "extra_trees"
+	ModelAdaBoost            ModelType = "adaboost"
+	ModelSVM                 ModelType = "svm"
+	ModelRidge               ModelType = "ridge"
+	ModelPerceptron          ModelType = "perceptron"
+	ModelPassiveAggressive   ModelType = "passive_aggressive"
 )
 
 // AllModelTypes returns all registered model types
 func AllModelTypes() []ModelType {
-	return []ModelType{ModelRandomForest, ModelKNN, ModelLogisticRegression}
+	return []ModelType{
+		ModelRandomForest, ModelKNN, ModelLogisticRegression,
+		ModelNaiveBayes, ModelExtraTrees, ModelAdaBoost,
+		ModelSVM, ModelRidge, ModelPerceptron, ModelPassiveAggressive,
+	}
 }
 
 // Model is the interface that all ML models must implement
@@ -55,6 +66,20 @@ func modelName(t ModelType) string {
 		return "K-Nearest Neighbors"
 	case ModelLogisticRegression:
 		return "Logistic Regression"
+	case ModelNaiveBayes:
+		return "Naive Bayes"
+	case ModelExtraTrees:
+		return "Extra Trees"
+	case ModelAdaBoost:
+		return "AdaBoost"
+	case ModelSVM:
+		return "Linear SVM"
+	case ModelRidge:
+		return "Ridge Classifier"
+	case ModelPerceptron:
+		return "Perceptron"
+	case ModelPassiveAggressive:
+		return "Passive-Aggressive"
 	default:
 		return string(t)
 	}

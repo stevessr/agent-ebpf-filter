@@ -361,6 +361,7 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 			cellStart := time.Now()
 			var trainAccuracy, validationAccuracy, throughput, msPerSample float64
 			var evalDuration time.Duration
+			var evalStart time.Time
 
 			switch mt {
 			case ModelRandomForest:
@@ -374,7 +375,7 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				seed := int64((yi+1)*100000 + (xi+1)*1000 + numTrees*31 + maxDepth*17 + minLeaf*13)
 				forest := buildAutoTuneForest(trainSet, numTrees, maxDepth, minLeaf, seed)
 				trainAccuracy = evaluateForest(forest, trainSet)
-				evalStart := time.Now()
+				evalStart = time.Now()
 				validationAccuracy = evaluateForest(forest, validationSet)
 				evalDuration = time.Since(evalStart)
 
@@ -395,38 +396,93 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 					model.Labels[i] = s.label
 				}
 				trainAccuracy = evalKNNModel(model, trainSet)
-				evalStart := time.Now()
+				evalStart = time.Now()
 				validationAccuracy = evalKNNModel(model, validationSet)
 				evalDuration = time.Since(evalStart)
 
 			case ModelLogisticRegression:
-				lr := float64(numTrees) / 1000.0 // numTrees field reused as learningRate*1000
-				if lr < 0.001 {
-					lr = 0.01
-				}
+				lr := float64(numTrees) / 1000.0
+				if lr < 0.001 { lr = 0.01 }
 				reg := "l2"
-				if maxDepth == 12 {
-					reg = "l1"
-				} else if maxDepth == 4 {
-					reg = "none"
-				}
-				maxIter := minLeaf
-				if maxIter < 100 {
-					maxIter = 1000
-				}
-
-				trainSamples := make([][FeatureDim]float64, len(trainSet))
-				trainLabels := make([]int32, len(trainSet))
-				for i, s := range trainSet {
-					trainSamples[i] = s.features
-					trainLabels[i] = s.label
-				}
+				if maxDepth == 12 { reg = "l1" } else if maxDepth == 4 { reg = "none" }
+				maxIter := minLeaf; if maxIter < 100 { maxIter = 1000 }
+				trainS, trainL := extractTrainData(trainSet)
 				lrModel := NewLogisticModel(lr, reg, maxIter)
 				lrModel.NumClasses = 4
-				lrModel.Train(trainSamples, trainLabels)
+				lrModel.Train(trainS, trainL)
 				trainAccuracy = evalLogisticModel(lrModel, trainSet)
-				evalStart := time.Now()
+				evalStart = time.Now()
 				validationAccuracy = evalLogisticModel(lrModel, validationSet)
+				evalDuration = time.Since(evalStart)
+
+			case ModelNaiveBayes:
+				nb := NewNaiveBayes()
+				nb.Means = make([][FeatureDim]float64, 4)
+				nb.Vars = make([][FeatureDim]float64, 4)
+				nb.Priors = make([]float64, 4)
+				counts := make([]int, 4)
+				for _, s := range trainSet {
+					c := s.label; counts[c]++
+					for d := 0; d < FeatureDim; d++ { nb.Means[c][d] += s.features[d] }
+				}
+				for c := 0; c < 4; c++ {
+					nb.Priors[c] = float64(counts[c]) / float64(len(trainSet))
+					if counts[c] > 0 { for d := 0; d < FeatureDim; d++ { nb.Means[c][d] /= float64(counts[c]) } }
+				}
+				for _, s := range trainSet {
+					c := s.label
+					for d := 0; d < FeatureDim; d++ {
+						diff := s.features[d] - nb.Means[c][d]
+						nb.Vars[c][d] += diff * diff
+					}
+				}
+				for c := 0; c < 4; c++ {
+					if counts[c] > 1 { for d := 0; d < FeatureDim; d++ { nb.Vars[c][d] /= float64(counts[c] - 1) } }
+				}
+				trainAccuracy = evalModelSamples(nb, trainSet)
+				evalStart = time.Now()
+				validationAccuracy = evalModelSamples(nb, validationSet)
+				evalDuration = time.Since(evalStart)
+
+			case ModelExtraTrees:
+				seed := int64((yi+1)*100000 + (xi+1)*1000 + numTrees*31 + maxDepth*17 + minLeaf*13)
+				et := buildExtraTrees(trainSet, numTrees, maxDepth, minLeaf, seed)
+				trainAccuracy = evalModelSamples(&ExtraTreesModel{Forest: et}, trainSet)
+				evalStart = time.Now()
+				validationAccuracy = evalModelSamples(&ExtraTreesModel{Forest: et}, validationSet)
+				evalDuration = time.Since(evalStart)
+
+			case ModelAdaBoost:
+				trainS, trainL := extractTrainData(trainSet)
+				ab := trainAdaBoostFromData(trainS, trainL, numTrees)
+				trainAccuracy = evalModelSamples(ab, trainSet)
+				evalStart = time.Now()
+				validationAccuracy = evalModelSamples(ab, validationSet)
+				evalDuration = time.Since(evalStart)
+
+			case ModelSVM, ModelPerceptron, ModelPassiveAggressive, ModelRidge:
+				W := make([][FeatureDim + 1]float64, 4)
+				for c := range W {
+					for d := range W[c] { W[c][d] = (rand.Float64() - 0.5) * 0.01 }
+				}
+				lr := float64(numTrees) / 1000.0; if lr < 0.001 { lr = 0.01 }
+				C := float64(numTrees) / 10.0; if C < 0.1 { C = 1.0 }
+				maxIter := minLeaf; if maxIter < 100 { maxIter = 1000 }
+				loss := "hinge"
+				if mt == ModelPerceptron { loss = "perceptron" }
+				if mt == ModelPassiveAggressive { loss = "pa" }
+				if mt == ModelRidge {
+					ridgeFit(W, 4, labeled[:len(trainSet)], float64(numTrees)/100.0+0.1)
+				} else {
+					labeledSubset := make([]TrainingSample, len(trainSet))
+					for i, s := range trainSet {
+						labeledSubset[i] = TrainingSample{Features: s.features, Label: s.label}
+					}
+					trainSGD(W, 4, labeledSubset, lr, maxIter, C, loss, globalTrainer)
+				}
+				trainAccuracy = evalLinearModel(W, 4, trainSet)
+				evalStart = time.Now()
+				validationAccuracy = evalLinearModel(W, 4, validationSet)
 				evalDuration = time.Since(evalStart)
 			}
 
@@ -882,6 +938,51 @@ func autoTuneClampInt(v, minValue, maxValue int) int {
 		return maxValue
 	}
 	return v
+}
+
+func extractTrainData(samples []trainSample) ([][FeatureDim]float64, []int32) {
+	X := make([][FeatureDim]float64, len(samples))
+	Y := make([]int32, len(samples))
+	for i, s := range samples { X[i] = s.features; Y[i] = s.label }
+	return X, Y
+}
+
+func trainAdaBoostFromData(X [][FeatureDim]float64, Y []int32, nEst int) *AdaBoostModel {
+	n := len(X)
+	if nEst < 10 { nEst = 50 }
+	m := NewAdaBoost(nEst)
+	weights := make([]float64, n)
+	for i := range weights { weights[i] = 1.0 / float64(n) }
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for e := 0; e < nEst; e++ {
+		cum := make([]float64, n); cum[0] = weights[0]
+		for i := 1; i < n; i++ { cum[i] = cum[i-1] + weights[i] }
+		totalW := cum[n-1]
+		bestStump := adaboostStump{Feature: -1}; bestErr := 1e9
+		for tries := 0; tries < 30; tries++ {
+			fi := rng.Intn(FeatureDim)
+			thresh := X[rng.Intn(n)][fi]
+			var lErr, rErr, lW, rW float64
+			for i := 0; i < n; i++ {
+				cl := 0; if Y[i] == 1 { cl = 1 }
+				if X[i][fi] < thresh { if cl != 1 { lErr += weights[i] }; lW += weights[i] } else { if cl != 0 { rErr += weights[i] }; rW += weights[i] }
+			}
+			err := (lErr + rErr) / totalW
+			if err < bestErr { bestErr = err; bestStump = adaboostStump{Feature: fi, Threshold: thresh, LeftVote: 1, RightVote: 0}; if lErr/lW > rErr/rW { bestStump.LeftVote = 0; bestStump.RightVote = 1 } }
+		}
+		if bestStump.Feature < 0 { continue }
+		err := math.Max(bestErr, 1e-10)
+		alpha := 0.5 * math.Log((1-err)/err)
+		if alpha <= 0 { continue }
+		for i := 0; i < n; i++ {
+			pred := 0
+			if X[i][bestStump.Feature] < bestStump.Threshold { pred = int(bestStump.LeftVote) } else { pred = int(bestStump.RightVote) }
+			cl := int(Y[i])
+			if pred != cl { weights[i] *= math.Exp(alpha) }
+		}
+		m.Stumps = append(m.Stumps, bestStump); m.Alphas = append(m.Alphas, alpha)
+	}
+	return m
 }
 
 func autoTuneMaxInt(a, b int) int {

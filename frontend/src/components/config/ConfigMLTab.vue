@@ -1052,10 +1052,17 @@ onMounted(() => {
                   {{ modelType === 'random_forest' ? 'Random Forest' : modelType === 'knn' ? 'K-Nearest Neighbors' : modelType === 'logistic' ? 'Logistic Regression' : modelType }}
                 </a-tag>
               </template>
-              <a-radio-group v-model:value="modelType" button-style="solid" @change="saveMLThresholds">
+              <a-radio-group v-model:value="modelType" button-style="solid" size="small" @change="saveMLThresholds">
                 <a-radio-button value="random_forest">Random Forest</a-radio-button>
+                <a-radio-button value="extra_trees">Extra Trees</a-radio-button>
+                <a-radio-button value="adaboost">AdaBoost</a-radio-button>
                 <a-radio-button value="knn">KNN</a-radio-button>
-                <a-radio-button value="logistic">Logistic Regression</a-radio-button>
+                <a-radio-button value="naive_bayes">Naive Bayes</a-radio-button>
+                <a-radio-button value="logistic">Logistic</a-radio-button>
+                <a-radio-button value="svm">SVM</a-radio-button>
+                <a-radio-button value="ridge">Ridge</a-radio-button>
+                <a-radio-button value="perceptron">Perceptron</a-radio-button>
+                <a-radio-button value="passive_aggressive">PA</a-radio-button>
               </a-radio-group>
               <a-space style="margin-top: 8px; display: flex; align-items: center;">
                 <a-tag :color="cudaAvailable ? 'success' : 'warning'">

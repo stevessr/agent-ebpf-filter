@@ -647,6 +647,20 @@ func (t *ModelTrainer) TrainWithConfig(store *TrainingDataStore, cfg MLConfig) (
 		return t.trainKNN(store, cfg)
 	case ModelLogisticRegression:
 		return t.trainLogistic(store, cfg)
+	case ModelNaiveBayes:
+		return t.trainNaiveBayes(store, cfg)
+	case ModelExtraTrees:
+		return t.trainExtraTrees(store, cfg)
+	case ModelAdaBoost:
+		return t.trainAdaBoost(store, cfg)
+	case ModelSVM:
+		return t.trainSVM(store, cfg)
+	case ModelRidge:
+		return t.trainRidge(store, cfg)
+	case ModelPerceptron:
+		return t.trainPerceptron(store, cfg)
+	case ModelPassiveAggressive:
+		return t.trainPA(store, cfg)
 	default:
 		forest, result := t.Train(store, cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
 		return forest, result

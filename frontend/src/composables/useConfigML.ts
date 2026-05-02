@@ -535,15 +535,30 @@ export function useConfigML() {
         { value: 'weight', label: '权重方案 (weight)' },
       ];
     }
-    if (mt === 'logistic') {
+    if (mt === 'logistic' || mt === 'svm' || mt === 'perceptron' || mt === 'passive_aggressive') {
       return [
         { value: 'learningRate', label: '学习率 (learningRate)' },
-        { value: 'regularization', label: '正则化 (regularization)' },
         { value: 'maxIterations', label: '最大迭代 (maxIterations)' },
+        { value: 'regularization', label: '正则化 (regularization)' },
       ];
     }
+    if (mt === 'naive_bayes' || mt === 'ridge') {
+      return [
+        { value: 'alpha', label: '平滑/正则化 (alpha)' },
+        { value: 'numTrees', label: '变体参数1' },
+        { value: 'maxDepth', label: '变体参数2' },
+      ];
+    }
+    if (mt === 'adaboost') {
+      return [
+        { value: 'numTrees', label: '估计器数 (nEstimators)' },
+        { value: 'maxDepth', label: '学习率' },
+        { value: 'minSamplesLeaf', label: '最小样本' },
+      ];
+    }
+    // RF, Extra Trees, and defaults
     return [
-      { value: 'numTrees', label: '树数 (numTrees)' },
+      { value: 'numTrees', label: '树数/估计器 (numTrees)' },
       { value: 'maxDepth', label: '最大深度 (maxDepth)' },
       { value: 'minSamplesLeaf', label: '叶节点样本 (minSamplesLeaf)' },
     ];
