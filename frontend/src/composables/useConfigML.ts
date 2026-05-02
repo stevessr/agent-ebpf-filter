@@ -285,6 +285,8 @@ export function useConfigML() {
   const llmConfigSyncPromise = ref<Promise<void> | null>(null);
   const llmConfigSyncInFlight = ref(false);
   const llmConfigSyncQueued = ref(false);
+  const llmSaveStatus = ref<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const llmStorageTimer = ref<ReturnType<typeof setTimeout> | null>(null);
   const trainingHistory = ref<MLTrainingHistoryEntry[]>([]);
   const hyperParams = ref({ numTrees: 31, maxDepth: 8, minSamplesLeaf: 5 });
   const autoTuneXAxis = ref<MLAutoTuneAxis>('numTrees');
@@ -832,12 +834,18 @@ export function useConfigML() {
       llmConfigSyncTimer.value = null;
     }
     llmConfigSyncInFlight.value = true;
+    llmSaveStatus.value = 'saving';
     const runSync = async () => {
       try {
         do {
           llmConfigSyncQueued.value = false;
           await axios.put('/config/runtime', buildLLMRuntimePayload());
         } while (llmConfigSyncQueued.value);
+        llmSaveStatus.value = 'saved';
+        setTimeout(() => { if (llmSaveStatus.value === 'saved') llmSaveStatus.value = 'idle'; }, 2000);
+      } catch (e: any) {
+        llmSaveStatus.value = 'error';
+        message.error(e.response?.data?.error || 'LLM 配置保存失败');
       } finally {
         llmConfigSyncInFlight.value = false;
         llmConfigSyncPromise.value = null;
@@ -849,17 +857,30 @@ export function useConfigML() {
 
   const queueLLMScoringConfigAutosave = () => {
     if (!llmConfigReady.value || llmConfigApplyingRemote.value) return;
-    persistLLMScoringConfigToStorage();
-    if (llmConfigSyncTimer.value) {
-      clearTimeout(llmConfigSyncTimer.value);
-    }
+    // Debounce localStorage write (300ms to avoid writing on every keystroke)
+    if (llmStorageTimer.value) clearTimeout(llmStorageTimer.value);
+    llmStorageTimer.value = setTimeout(() => {
+      llmStorageTimer.value = null;
+      persistLLMScoringConfigToStorage();
+    }, 300);
+    // Debounce backend sync (600ms)
+    if (llmConfigSyncTimer.value) clearTimeout(llmConfigSyncTimer.value);
     llmConfigSyncTimer.value = setTimeout(() => {
       llmConfigSyncTimer.value = null;
       void syncLLMScoringConfigToBackend();
     }, 600);
   };
 
+  const saveLLMConfigNow = async () => {
+    // Flush debounce timers immediately
+    if (llmStorageTimer.value) { clearTimeout(llmStorageTimer.value); llmStorageTimer.value = null; }
+    persistLLMScoringConfigToStorage();
+    if (llmConfigSyncTimer.value) { clearTimeout(llmConfigSyncTimer.value); llmConfigSyncTimer.value = null; }
+    await syncLLMScoringConfigToBackend();
+  };
+
   const flushLLMScoringConfigAutosave = async () => {
+    if (llmStorageTimer.value) { clearTimeout(llmStorageTimer.value); llmStorageTimer.value = null; }
     persistLLMScoringConfigToStorage();
     if (llmConfigSyncTimer.value) {
       clearTimeout(llmConfigSyncTimer.value);
@@ -1327,6 +1348,7 @@ export function useConfigML() {
   onUnmounted(() => {
     stopLogPolling();
     stopAutoTunePolling();
+    if (llmStorageTimer.value) { clearTimeout(llmStorageTimer.value); llmStorageTimer.value = null; }
     if (llmConfigSyncTimer.value) {
       clearTimeout(llmConfigSyncTimer.value);
       llmConfigSyncTimer.value = null;
@@ -1337,6 +1359,7 @@ export function useConfigML() {
     mlEnabled, mlStatus, trainingModel, feedbackComm, feedbackAction,
     mlThresholds, mlTrainingConfig, llmScoringConfig, llmBatchConfig,
     llmBatchResponse, llmBatchLoading, trainingLogs, wsActive, logPollTimer,
+    llmSaveStatus, saveLLMConfigNow,
     trainingHistory, hyperParams,
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
     autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError, autoTuneJobId,

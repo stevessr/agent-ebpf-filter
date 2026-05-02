@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, defineAsyncComponent } from 'vue';
+import { ref, onMounted, defineAsyncComponent, watch, computed } from 'vue';
 import {
   ThunderboltOutlined, ReloadOutlined, SearchOutlined, PlusOutlined,
   ImportOutlined, ExportOutlined, DownloadOutlined, CopyOutlined, DeleteOutlined,
-  FileOutlined, StopOutlined, AlertOutlined,
+  FileOutlined, StopOutlined, AlertOutlined, CheckCircleOutlined, ExclamationCircleOutlined,
   EyeOutlined, EyeInvisibleOutlined, BookOutlined, GlobalOutlined,
 } from '@ant-design/icons-vue';
 import { getCategoryColor } from '../../composables/useConfigRegistry';
@@ -53,7 +53,7 @@ const {
   submitManualSample, addPresetSample, importAllHighRiskPresets,
   importAllSafetyNetPresets,
   runBacktest, runBacktestPreset, riskLevelColor, riskMeterColor,
-  llmApiKeyStatus,
+  llmApiKeyStatus, llmSaveStatus, saveLLMConfigNow,
 } = props.ml;
 
 void trainingDatasetImportInput;
@@ -64,10 +64,32 @@ const { connect: wsConnect } = useMLStatusStream(applyMLStatusResponse);
 const mlSubTabKey = ref(localStorage.getItem('config_ml_subtab') || 'status');
 
 // Persist sub-tab selection
-import { watch } from 'vue';
 watch(mlSubTabKey, (val) => {
   localStorage.setItem('config_ml_subtab', val);
 });
+
+// Auto-tune elapsed time tracking
+const autoTuneStartTime = ref(0);
+const autoTuneElapsed = ref('');
+let autoTuneElapsedTimer: ReturnType<typeof setInterval> | null = null;
+
+watch(autoTuneInProgress, (running) => {
+  if (running) {
+    autoTuneStartTime.value = Date.now();
+    autoTuneElapsed.value = '0s';
+    autoTuneElapsedTimer = setInterval(() => {
+      const sec = Math.floor((Date.now() - autoTuneStartTime.value) / 1000);
+      autoTuneElapsed.value = sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m${sec % 60}s`;
+    }, 1000);
+  } else {
+    if (autoTuneElapsedTimer) { clearInterval(autoTuneElapsedTimer); autoTuneElapsedTimer = null; }
+  }
+});
+
+// Computed: if auto-tune just completed (has result and was running)
+const autoTuneJustCompleted = computed(() =>
+  !autoTuneInProgress.value && autoTuneResponse.value && autoTuneLoading.value === false
+);
 
 onMounted(() => {
   wsActive.value = true;
@@ -194,13 +216,18 @@ onMounted(() => {
           <a-col v-if="mlSubTabKey === 'llm'" :xs="24" :md="12">
             <a-card title="LLM Scoring" size="small">
               <template #extra>
-                <a-tag color="purple">OpenAI-compatible API</a-tag>
+                <a-space>
+                  <a-tag v-if="llmSaveStatus === 'saving'" color="processing"><ReloadOutlined spin /> Saving...</a-tag>
+                  <a-tag v-else-if="llmSaveStatus === 'saved'" color="success"><CheckCircleOutlined /> Saved</a-tag>
+                  <a-tag v-else-if="llmSaveStatus === 'error'" color="error"><ExclamationCircleOutlined /> Save Failed</a-tag>
+                  <a-tag color="purple">OpenAI-compatible API</a-tag>
+                </a-space>
               </template>
               <a-space direction="vertical" style="width: 100%">
                 <a-alert
                   type="info"
                   show-icon
-                  message="这里配置外部 OpenAI 风格 LLM 的打分 API。修改会实时保存到浏览器本地，并自动同步到后端；API Key 留空会保留后端已保存的密钥。训练时会按验证集比例自动切分，并在后训练阶段对验证集进行 LLM 复核。"
+                  message="修改自动保存到浏览器本地并同步后端。API Key 留空则保留后端已保存的密钥。"
                 />
                 <a-row :gutter="[12, 12]">
                   <a-col :xs="24">
@@ -243,6 +270,15 @@ onMounted(() => {
                     />
                   </a-col>
                 </a-row>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <a-button size="small" type="primary" @click="saveLLMConfigNow"
+                    :loading="llmSaveStatus === 'saving'">
+                    <CheckCircleOutlined /> 保存 LLM 配置
+                  </a-button>
+                  <span v-if="llmSaveStatus === 'saved'" style="color: #52c41a; font-size: 12px;">已保存到后端</span>
+                  <span v-else-if="llmSaveStatus === 'error'" style="color: #ff4d4f; font-size: 12px;">保存失败，请重试</span>
+                  <span v-else-if="llmSaveStatus === 'idle'" style="color: #999; font-size: 12px;">修改后自动保存</span>
+                </div>
                 <a-divider style="margin: 8px 0">批量打分 / 后训练复核</a-divider>
                 <a-row :gutter="[12, 12]">
                   <a-col :xs="24" :md="8">
@@ -1342,15 +1378,26 @@ onMounted(() => {
                       show-icon
                       message="X/Y 轴不能相同；调优结果会直接更新到当前滑块。"
                     />
-                    <div v-if="autoTuneLoading || autoTuneInProgress || autoTuneMessage || autoTuneError">
+                    <!-- Auto-tune Progress -->
+                    <div v-if="autoTuneLoading || autoTuneInProgress || autoTuneMessage || autoTuneError" style="background: #fafafa; padding: 12px; border-radius: 8px; border: 1px solid #f0f0f0;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-weight: 600; font-size: 13px;">
+                          <ReloadOutlined v-if="autoTuneLoading || autoTuneInProgress" spin style="margin-right: 4px;" />
+                          {{ autoTuneLoading || autoTuneInProgress ? '调优进行中' : '调优完成' }}
+                        </span>
+                        <span v-if="autoTuneLoading || autoTuneInProgress" style="font-size: 12px; color: #999;">
+                          已用 {{ autoTuneElapsed }}
+                        </span>
+                      </div>
                       <a-progress
                         :percent="Math.max(0, Math.min(100, Math.round((autoTuneProgress || (autoTuneInProgress ? 0.01 : 0)) * 100)))"
                         :status="autoTuneError ? 'exception' : ((autoTuneLoading || autoTuneInProgress) ? 'active' : 'success')"
                         :show-info="true"
+                        style="margin-bottom: 4px;"
                       />
-                      <div style="display: flex; justify-content: space-between; gap: 12px; margin-top: 4px; font-size: 12px; color: #666;">
-                        <span>{{ autoTuneMessage || (autoTuneLoading || autoTuneInProgress ? '调优进行中...' : '等待开始') }}</span>
-                        <span>{{ autoTuneCompleted || 0 }}/{{ autoTuneTotal || autoTuneGridSize * autoTuneGridSize }}</span>
+                      <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: #666;">
+                        <span>{{ autoTuneMessage || (autoTuneInProgress ? '正在评估参数组合...' : '') }}</span>
+                        <span>{{ autoTuneCompleted || 0 }} / {{ autoTuneTotal || autoTuneGridSize * autoTuneGridSize }} 格</span>
                       </div>
                       <a-alert
                         v-if="autoTuneError"
@@ -1359,7 +1406,34 @@ onMounted(() => {
                         :message="autoTuneError"
                         style="margin-top: 8px"
                       />
+                      <!-- Success summary after completion -->
+                      <a-alert
+                        v-if="autoTuneJustCompleted && autoTuneBestCell"
+                        type="success"
+                        show-icon
+                        style="margin-top: 8px"
+                      >
+                        <template #message>
+                          <span style="font-weight: 600;">最佳参数：</span>
+                          树数={{ autoTuneBestCell.numTrees }}，
+                          深度={{ autoTuneBestCell.maxDepth }}，
+                          叶样本={{ autoTuneBestCell.minSamplesLeaf }}
+                          <span style="margin-left: 8px; color: #52c41a;">
+                            {{ autoTuneMetricLabel(autoTuneMetric) }}={{ autoTuneMetricFormat(autoTuneScore(autoTuneBestCell)) }}
+                          </span>
+                        </template>
+                      </a-alert>
                     </div>
+                    <!-- Training logs during auto-tune -->
+                    <details v-if="autoTuneInProgress && trainingLogs.length > 0" style="margin-top: 4px;">
+                      <summary style="cursor: pointer; font-size: 12px; color: #888;">查看调优日志 ({{ trainingLogs.length }})</summary>
+                      <div style="max-height: 160px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; font-family: monospace; font-size: 11px; padding: 8px; border-radius: 4px; margin-top: 4px;">
+                        <div v-for="(log, i) in trainingLogs.slice(-50)" :key="i"
+                          :style="{ color: log.message.includes('ERROR') ? '#f48771' : log.message.includes('完成') || log.message.includes('best') ? '#89d185' : '#d4d4d4' }">
+                          <span style="color: #888;">{{ log.time }}</span> {{ log.message }}
+                        </div>
+                      </div>
+                    </details>
                   </a-space>
                 </a-col>
 
@@ -1415,6 +1489,7 @@ onMounted(() => {
                 <a-col :xs="24" :md="8">
                   <a-card size="small" title="最佳结果">
                     <template v-if="autoTuneBestCell">
+                      <a-tag color="success" style="margin-bottom: 8px;">最优 {{ autoTuneMetricLabel(autoTuneMetric) }}</a-tag>
                       <a-descriptions :column="1" size="small" bordered>
                         <a-descriptions-item :label="autoTuneAxisLabel(autoTuneXAxis)">{{ autoTuneBestCell.xValue }}</a-descriptions-item>
                         <a-descriptions-item :label="autoTuneAxisLabel(autoTuneYAxis)">{{ autoTuneBestCell.yValue }}</a-descriptions-item>
@@ -1422,10 +1497,16 @@ onMounted(() => {
                         <a-descriptions-item label="最大深度">{{ autoTuneBestCell.maxDepth }}</a-descriptions-item>
                         <a-descriptions-item label="叶节点样本">{{ autoTuneBestCell.minSamplesLeaf }}</a-descriptions-item>
                         <a-descriptions-item :label="autoTuneMetricLabel(autoTuneMetric)">
-                          {{ autoTuneMetricFormat(autoTuneScore(autoTuneBestCell)) }}
+                          <b>{{ autoTuneMetricFormat(autoTuneScore(autoTuneBestCell)) }}</b>
+                        </a-descriptions-item>
+                        <a-descriptions-item label="验证集准确率">
+                          {{ (autoTuneBestCell.validationAccuracy * 100).toFixed(1) }}%
                         </a-descriptions-item>
                         <a-descriptions-item label="推理速度">
                           {{ autoTuneMetricFormat(autoTuneBestCell.inferenceThroughput, 'inferenceThroughput') }}
+                        </a-descriptions-item>
+                        <a-descriptions-item label="训练/评估耗时">
+                          {{ autoTuneBestCell.trainDuration.toFixed(2) }}s / {{ autoTuneBestCell.evalDuration.toFixed(2) }}s
                         </a-descriptions-item>
                       </a-descriptions>
                     </template>
@@ -1459,10 +1540,11 @@ onMounted(() => {
                 </a-col>
               </a-row>
 
-              <div v-if="autoTuneResponse" style="margin-top: 12px; color: #666; font-size: 12px">
-                共评估 {{ autoTuneResponse.cells.length }} 个组合，样本 {{ autoTuneResponse.sampleCount }}，验证集 {{ autoTuneResponse.validationCount }}，
-                方阵 {{ autoTuneResponse.gridSize }}×{{ autoTuneResponse.gridSize }}，颗粒度 {{ autoTuneGranularityLabel(autoTuneResponse.granularity) }}，
-                用时 {{ autoTuneResponse.totalDuration.toFixed(1) }}s。
+              <div v-if="autoTuneResponse" style="margin-top: 12px; padding: 8px 12px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; font-size: 12px;">
+                <CheckCircleOutlined style="color: #52c41a; margin-right: 6px;" />
+                共评估 <b>{{ autoTuneResponse.cells.length }}</b> 个参数组合（{{ autoTuneResponse.gridSize }}×{{ autoTuneResponse.gridSize }} 方阵，颗粒度 {{ autoTuneGranularityLabel(autoTuneResponse.granularity) }}），
+                样本 <b>{{ autoTuneResponse.sampleCount }}</b>，验证集 <b>{{ autoTuneResponse.validationCount }}</b>，
+                总用时 <b>{{ autoTuneResponse.totalDuration.toFixed(1) }}s</b>
               </div>
             </a-card>
           </a-col>
