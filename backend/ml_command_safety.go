@@ -51,6 +51,9 @@ func handleMLAssessPost(c *gin.Context) {
 	}
 
 	result := assessCommandSafety(c.Request.Context(), req.Comm, req.Args, req.User, req.PID)
+	if strings.TrimSpace(req.CommandLine) != "" {
+		result["commandLine"] = req.CommandLine
+	}
 	c.JSON(http.StatusOK, result)
 }
 
@@ -155,7 +158,8 @@ func bindCommandSafetyRequest(c *gin.Context) (commandSafetyRequest, bool) {
 		return req, false
 	}
 
-	comm, args := normalizeCommandInput(req.CommandLine, req.Comm, req.Args)
+	rawCommandLine := strings.TrimSpace(req.CommandLine)
+	comm, args := normalizeCommandInput(rawCommandLine, req.Comm, req.Args)
 	if comm == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "commandLine or comm is required"})
 		return req, false
@@ -163,7 +167,11 @@ func bindCommandSafetyRequest(c *gin.Context) (commandSafetyRequest, bool) {
 
 	req.Comm = comm
 	req.Args = args
-	req.CommandLine = joinCommandLine(comm, args)
+	if rawCommandLine != "" {
+		req.CommandLine = rawCommandLine
+	} else {
+		req.CommandLine = joinCommandLine(comm, args)
+	}
 	return req, true
 }
 
@@ -349,6 +357,7 @@ func buildCommandTrainingSample(comm string, args []string, user string, pid uin
 	return TrainingSample{
 		Features:     features,
 		Label:        label,
+		CommandLine:  joinCommandLine(comm, args),
 		Comm:         comm,
 		Args:         args,
 		Category:     classification.PrimaryCategory,
@@ -444,13 +453,20 @@ func joinCommandLine(comm string, args []string) string {
 	return strings.Join(compact, " ")
 }
 
+func trainingSampleCommandLine(sample TrainingSample) string {
+	if strings.TrimSpace(sample.CommandLine) != "" {
+		return strings.TrimSpace(sample.CommandLine)
+	}
+	return joinCommandLine(sample.Comm, sample.Args)
+}
+
 func sampleMatchesJSON(matches []IndexedTrainingSample) []commandSampleMatch {
 	out := make([]commandSampleMatch, 0, len(matches))
 	for _, match := range matches {
 		sample := match.Sample
 		out = append(out, commandSampleMatch{
 			Index:        match.Index,
-			CommandLine:  joinCommandLine(sample.Comm, sample.Args),
+			CommandLine:  trainingSampleCommandLine(sample),
 			Comm:         sample.Comm,
 			Args:         sample.Args,
 			Label:        sampleLabelName(sample.Label),

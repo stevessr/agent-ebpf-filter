@@ -111,6 +111,7 @@ func startUDSServer(broadcast chan *pb.Event) {
 					sample := TrainingSample{
 						Features:     features,
 						Label:        -1, // unlabeled initially
+						CommandLine:  joinCommandLine(req.Comm, req.Args),
 						Comm:         req.Comm,
 						Args:         req.Args,
 						Category:     classification.PrimaryCategory,
@@ -155,4 +156,4 @@ func startUDSServer(broadcast chan *pb.Event) {
 			}
 		}(conn)
 	}
-	}
+}

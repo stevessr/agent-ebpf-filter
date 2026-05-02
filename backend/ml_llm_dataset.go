@@ -143,7 +143,10 @@ func buildLLMProductionDataset(req llmProductionDatasetRequest) (*llmProductionD
 
 func buildLLMProductionDatasetRow(index int, sample TrainingSample, systemPrompt string) llmProductionDatasetRow {
 	comm, args := normalizeCommandInput("", sample.Comm, sample.Args)
-	commandLine := joinCommandLine(comm, args)
+	commandLine := trainingSampleCommandLine(sample)
+	if strings.TrimSpace(commandLine) == "" {
+		commandLine = joinCommandLine(comm, args)
+	}
 
 	category := strings.TrimSpace(sample.Category)
 	if category == "" {

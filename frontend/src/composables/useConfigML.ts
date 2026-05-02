@@ -69,6 +69,8 @@ export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     platform: 'Linux / Unix',
     pageUrl: 'https://gtfobins.github.io/',
     downloadUrl: 'https://gtfobins.github.io/api.json',
+    format: 'auto',
+    labelMode: 'heuristic',
     note: 'Unix 二进制文件绕过本地安全限制的精选列表，支持一键导入为训练样本 (BLOCK/ALERT)。',
   },
   {
@@ -77,6 +79,8 @@ export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     platform: 'Windows',
     pageUrl: 'https://lolbas-project.github.io/',
     downloadUrl: 'https://lolbas-project.github.io/api/lolbas.json',
+    format: 'auto',
+    labelMode: 'heuristic',
     note: 'Windows 签名二进制文件/脚本/库滥用列表，支持一键导入为训练样本。',
   },
   {
@@ -85,6 +89,8 @@ export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     platform: 'Linux / macOS / Windows',
     pageUrl: 'https://github.com/kenryu42/claude-code-safety-net',
     downloadUrl: '/safety-net-rules.json',
+    format: 'auto',
+    labelMode: 'preserve',
     note: '社区维护的 AI 编码代理安全规则集，覆盖 git/rm/find/xargs 等高风险命令模式。一键导入 36 条经过验证的训练样本。',
   },
   {
@@ -93,6 +99,8 @@ export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     platform: 'Linux',
     pageUrl: 'https://github.com/verazuo/a-labelled-version-of-the-ADFA-LD-dataset',
     downloadUrl: 'https://github.com/verazuo/a-labelled-version-of-the-ADFA-LD-dataset/raw/master/ADFA-LD.zip',
+    format: 'auto',
+    labelMode: 'preserve',
     note: 'UNSW/ADFA 的 Linux 主机入侵检测数据集 (GitHub Mirror)，包含系统调用序列。',
   },
   {
@@ -108,6 +116,8 @@ export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     platform: '多平台 / 网络',
     pageUrl: 'https://www.unb.ca/cic/datasets/nsl.html',
     downloadUrl: 'https://github.com/defcom17/NSL-KDD/raw/master/NSL-KDD/KDDTrain%2B.csv',
+    format: 'auto',
+    labelMode: 'preserve',
     note: 'KDD 99 的改进版，解决了重复记录问题，是入侵检测领域的经典基线 (CSV 格式)。',
   },
   {
@@ -432,6 +442,7 @@ export function useConfigML() {
     if (!sampleSearchText.value.trim()) return allSamples.value;
     const search = sampleSearchText.value.toLowerCase();
     return allSamples.value.filter(s =>
+      (s.commandLine || '').toLowerCase().includes(search) ||
       s.comm.toLowerCase().includes(search) ||
       (s.args || []).join(' ').toLowerCase().includes(search)
     );
@@ -487,12 +498,14 @@ export function useConfigML() {
 
   const importRemoteDatasetPayload = async (payload: {
     url?: string; content?: string; contentBase64?: string; sourceName?: string; importAll?: boolean;
+    format?: 'auto' | 'json' | 'jsonl' | 'csv' | 'tsv' | 'text';
+    labelMode?: 'preserve' | 'unlabeled' | 'heuristic';
   }) => {
     const url = payload.url ?? ((payload.content || payload.contentBase64) ? '' : remoteDatasetUrl.value.trim());
     const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/import', {
       url, content: payload.content, contentBase64: payload.contentBase64,
-      sourceName: payload.sourceName, format: remoteDatasetFormat.value,
-      limit: remoteDatasetLimit.value, labelMode: remoteDatasetLabelMode.value,
+      sourceName: payload.sourceName, format: payload.format ?? remoteDatasetFormat.value,
+      limit: remoteDatasetLimit.value, labelMode: payload.labelMode ?? remoteDatasetLabelMode.value,
       importAll: payload.importAll ?? false,
     });
     remoteDatasetMeta.value = res.data;
@@ -516,7 +529,13 @@ export function useConfigML() {
     if (!preset.downloadUrl) { window.open(preset.pageUrl, '_blank'); return; }
     importingClassicDataset.value = true;
     try {
-      const res = await importRemoteDatasetPayload({ url: preset.downloadUrl, sourceName: preset.name, importAll: true });
+      const res = await importRemoteDatasetPayload({
+        url: preset.downloadUrl,
+        sourceName: preset.name,
+        importAll: true,
+        format: preset.format ?? 'auto',
+        labelMode: preset.labelMode ?? remoteDatasetLabelMode.value,
+      });
       message.success(`已导入 ${preset.name}（${res.data.imported ?? res.data.total ?? 0} 条）`);
     } catch (e: any) {
       message.error(`导入 ${preset.name} 失败：${e.response?.data?.error || e.message}`);
@@ -721,7 +740,7 @@ export function useConfigML() {
         const comm = parts[0], args = parts.slice(1), argsStr = args.join(' ');
         const duplicate = allSamples.value.find(s => s.comm === comm && (s.args || []).join(' ') === argsStr);
         if (duplicate) { message.warning(`样本已存在：${comm} (Index #${duplicate.index})`); continue; }
-        await axios.post('/config/ml/samples', { comm, args, label: sampleLabel.value });
+        await axios.post('/config/ml/samples', { commandLine: cmdStr, comm, args, label: sampleLabel.value });
         addedCount++;
       }
       if (addedCount > 0) { message.success(`已添加 ${addedCount} 个样本 → ${sampleLabel.value}`); sampleCommandLine.value = ''; await fetchMLStatus(); await fetchAllSamples(); }
@@ -735,7 +754,8 @@ export function useConfigML() {
     const duplicate = allSamples.value.find(s => s.comm === preset.comm && (s.args || []).join(' ') === argsStr);
     if (duplicate) { message.warning(`样本已存在：${preset.comm} (Index #${duplicate.index})`); return; }
     try {
-      await axios.post('/config/ml/samples', { comm: preset.comm, args: argsArray, label: preset.label });
+      const commandLine = [preset.comm, preset.args].filter((part) => part && part.trim()).join(' ');
+      await axios.post('/config/ml/samples', { commandLine, comm: preset.comm, args: argsArray, label: preset.label });
       message.success(`Preset added: ${preset.comm} → ${preset.label}`);
       await fetchMLStatus(); await fetchAllSamples();
     } catch (_: any) { message.error('Failed to add preset'); }
@@ -747,7 +767,11 @@ export function useConfigML() {
       const argsArray = preset.args ? splitCommandLine(preset.args) : [];
       const argsStr = argsArray.join(' ');
       if (allSamples.value.find(s => s.comm === preset.comm && (s.args || []).join(' ') === argsStr)) { skipped++; continue; }
-      try { await axios.post('/config/ml/samples', { comm: preset.comm, args: argsArray, label: preset.label }); added++; }
+      try {
+        const commandLine = [preset.comm, preset.args].filter((part) => part && part.trim()).join(' ');
+        await axios.post('/config/ml/samples', { commandLine, comm: preset.comm, args: argsArray, label: preset.label });
+        added++;
+      }
       catch (_) { skipped++; }
     }
     message.success(`一键导入完成：新增 ${added} 条，跳过 ${skipped} 条`);
@@ -809,14 +833,18 @@ export function useConfigML() {
     openTrainingDatasetImportPicker: () => { trainingDatasetImportInput.value?.click(); },
     splitCommandLine, submitManualSample, addPresetSample, importAllHighRiskPresets,
     importAllSafetyNetPresets: async () => {
-      let added = 0, skipped = 0;
-      for (const preset of safetyNetHighRiskPresets) {
-        const argsArray = preset.args ? splitCommandLine(preset.args) : [];
-        const argsStr = argsArray.join(' ');
-        if (allSamples.value.find(s => s.comm === preset.comm && (s.args || []).join(' ') === argsStr)) { skipped++; continue; }
-        try { await axios.post('/config/ml/samples', { comm: preset.comm, args: argsArray, label: preset.label }); added++; }
-        catch (_) { skipped++; }
+    let added = 0, skipped = 0;
+    for (const preset of safetyNetHighRiskPresets) {
+      const argsArray = preset.args ? splitCommandLine(preset.args) : [];
+      const argsStr = argsArray.join(' ');
+      if (allSamples.value.find(s => s.comm === preset.comm && (s.args || []).join(' ') === argsStr)) { skipped++; continue; }
+      try {
+        const commandLine = [preset.comm, preset.args].filter((part) => part && part.trim()).join(' ');
+        await axios.post('/config/ml/samples', { commandLine, comm: preset.comm, args: argsArray, label: preset.label });
+        added++;
       }
+      catch (_) { skipped++; }
+    }
       message.success(`Safety Net 导入完成：新增 ${added} 条，跳过 ${skipped} 条`);
       await fetchMLStatus(); await fetchAllSamples();
     },

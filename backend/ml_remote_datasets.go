@@ -783,7 +783,7 @@ func trainingSampleToRemoteDatasetRow(index int, sample TrainingSample) remoteDa
 	}
 	return remoteDatasetRow{
 		Row:          index,
-		CommandLine:  joinCommandLine(sample.Comm, sample.Args),
+		CommandLine:  trainingSampleCommandLine(sample),
 		Comm:         sample.Comm,
 		Args:         append([]string(nil), sample.Args...),
 		Label:        label,
@@ -1229,10 +1229,14 @@ func buildRemoteDatasetRow(record remoteDatasetRecord) remoteDatasetRow {
 	if timestamp.IsZero() {
 		timestamp = time.Now().UTC()
 	}
+	commandLine := strings.TrimSpace(record.CommandLine)
+	if commandLine == "" {
+		commandLine = joinCommandLine(comm, args)
+	}
 
 	return remoteDatasetRow{
 		Row:          record.Row,
-		CommandLine:  joinCommandLine(comm, args),
+		CommandLine:  commandLine,
 		Comm:         comm,
 		Args:         args,
 		Label:        label,
@@ -1280,9 +1284,14 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string) TrainingSample 
 	}
 
 	features := globalFeatureExtractor.Extract(comm, args, "", 0)
+	commandLine := strings.TrimSpace(row.CommandLine)
+	if commandLine == "" {
+		commandLine = joinCommandLine(comm, args)
+	}
 	return TrainingSample{
 		Features:     features,
 		Label:        label,
+		CommandLine:  commandLine,
 		Comm:         comm,
 		Args:         args,
 		Category:     category,

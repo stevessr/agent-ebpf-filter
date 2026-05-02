@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -141,6 +142,53 @@ func TestHandleMLDatasetExportAndClear(t *testing.T) {
 	}
 }
 
+func TestHandleMLSamplesPostPreservesCommandLine(t *testing.T) {
+	oldStore := globalTrainingStore
+	globalTrainingStore = newTrainingDataStore(8)
+	t.Cleanup(func() {
+		globalTrainingStore = oldStore
+	})
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/config/ml/samples", strings.NewReader(`{
+		"commandLine": "bash -c \"rm -rf /tmp/demo\"",
+		"label": "BLOCK"
+	}`))
+	handleMLSamplesPost(ctx)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	items := globalTrainingStore.AllSamplesWithIndex()
+	if len(items) != 1 {
+		t.Fatalf("sample count = %d, want 1", len(items))
+	}
+	if got := items[0].Sample.CommandLine; got != `bash -c "rm -rf /tmp/demo"` {
+		t.Fatalf("stored commandLine = %q", got)
+	}
+
+	exportRec := httptest.NewRecorder()
+	exportCtx, _ := gin.CreateTestContext(exportRec)
+	exportCtx.Request = httptest.NewRequest(http.MethodGet, "/config/ml/samples", nil)
+	handleMLSamplesGet(exportCtx)
+	if exportRec.Code != http.StatusOK {
+		t.Fatalf("export status = %d, body = %s", exportRec.Code, exportRec.Body.String())
+	}
+	var payload struct {
+		Samples []struct {
+			CommandLine string `json:"commandLine"`
+		} `json:"samples"`
+	}
+	if err := json.Unmarshal(exportRec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if len(payload.Samples) != 1 || payload.Samples[0].CommandLine != `bash -c "rm -rf /tmp/demo"` {
+		t.Fatalf("response samples = %#v", payload.Samples)
+	}
+}
+
 func TestTrainingDataStorePersistenceRestoresArgs(t *testing.T) {
 	store := newTrainingDataStore(8)
 	tmpDir := t.TempDir()
@@ -148,6 +196,7 @@ func TestTrainingDataStorePersistenceRestoresArgs(t *testing.T) {
 	store.persistPath = filepath.Join(tmpDir, "ml_training_data.bin")
 	store.Add(TrainingSample{
 		Label:        1,
+		CommandLine:  `bash -c "rm -rf /tmp/demo"`,
 		Comm:         "rm",
 		Args:         []string{"-rf", "/tmp/demo"},
 		Category:     "FILE_DELETE",
@@ -179,6 +228,9 @@ func TestTrainingDataStorePersistenceRestoresArgs(t *testing.T) {
 		if gotArgs[i] != wantArgs[i] {
 			t.Fatalf("loaded args[%d] = %q, want %q", i, gotArgs[i], wantArgs[i])
 		}
+	}
+	if got := items[0].Sample.CommandLine; got != `bash -c "rm -rf /tmp/demo"` {
+		t.Fatalf("loaded commandLine = %q, want raw commandLine", got)
 	}
 }
 

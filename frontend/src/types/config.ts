@@ -178,6 +178,7 @@ export interface MLTrainingHistoryEntry {
 
 export interface SampleEntry {
   index: number;
+  commandLine?: string;
   comm: string;
   args: string[];
   label: string;
@@ -271,6 +272,8 @@ export interface ClassicSecurityDatasetPreset {
   platform: string;
   pageUrl: string;
   downloadUrl?: string;
+  format?: 'auto' | 'json' | 'jsonl' | 'csv' | 'tsv' | 'text';
+  labelMode?: 'preserve' | 'unlabeled' | 'heuristic';
   note: string;
 }
 

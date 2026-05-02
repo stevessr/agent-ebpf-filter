@@ -1764,11 +1764,16 @@ onMounted(async () => {
               <a-table
                 :dataSource="filteredSamples"
                 :pagination="{ pageSize: sampleTablePageSize, showSizeChanger: true, pageSizeOptions: ['10','15','30','50'], showTotal: (t:number) => `${t} samples` }"
-                :scroll="{ x: 900 }"
+                :scroll="{ x: 1100 }"
                 size="small"
                 rowKey="index"
               >
                 <a-table-column title="#" dataIndex="index" :width="50" />
+                <a-table-column title="Command" dataIndex="commandLine" :width="240" ellipsis>
+                  <template #default="{ record }">
+                    <code>{{ maskSensitiveData(record.commandLine || [record.comm, ...(record.args || [])].filter(Boolean).join(' ')) }}</code>
+                  </template>
+                </a-table-column>
                 <a-table-column title="Comm" dataIndex="comm" :width="100">
                   <template #default="{ record }">
                     <strong>{{ record.comm }}</strong>

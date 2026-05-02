@@ -21,19 +21,19 @@ const defaultLLMScoringSystemPrompt = "You are a cybersecurity behavior analyst.
 const defaultLLMReviewLimit = 50
 
 type llmScoreRequest struct {
-	CommandLine   string                       `json:"commandLine"`
-	Comm          string                       `json:"comm"`
-	Args          []string                     `json:"args"`
-	Category      string                       `json:"category"`
-	AnomalyScore  float64                      `json:"anomalyScore"`
-	Classification *pb.BehaviorClassification  `json:"classification,omitempty"`
-	MlAction      string                       `json:"mlAction,omitempty"`
-	MlConfidence  float64                      `json:"mlConfidence,omitempty"`
-	NetworkRisk   string                       `json:"networkRisk,omitempty"`
-	NetworkScore  float64                      `json:"networkScore,omitempty"`
-	SampleEvidence string                      `json:"sampleEvidence,omitempty"`
-	CurrentLabel  string                       `json:"currentLabel,omitempty"`
-	Source        string                       `json:"source,omitempty"`
+	CommandLine    string                     `json:"commandLine"`
+	Comm           string                     `json:"comm"`
+	Args           []string                   `json:"args"`
+	Category       string                     `json:"category"`
+	AnomalyScore   float64                    `json:"anomalyScore"`
+	Classification *pb.BehaviorClassification `json:"classification,omitempty"`
+	MlAction       string                     `json:"mlAction,omitempty"`
+	MlConfidence   float64                    `json:"mlConfidence,omitempty"`
+	NetworkRisk    string                     `json:"networkRisk,omitempty"`
+	NetworkScore   float64                    `json:"networkScore,omitempty"`
+	SampleEvidence string                     `json:"sampleEvidence,omitempty"`
+	CurrentLabel   string                     `json:"currentLabel,omitempty"`
+	Source         string                     `json:"source,omitempty"`
 }
 
 type llmBatchScoreRequest struct {
@@ -49,35 +49,35 @@ type llmScoreSubject struct {
 }
 
 type llmScoringResult struct {
-	Model               string   `json:"model,omitempty"`
-	RiskScore           float64  `json:"riskScore"`
-	Confidence          float64  `json:"confidence"`
-	RecommendedAction   string   `json:"recommendedAction"`
-	Reasoning           string   `json:"reasoning"`
-	Signals             []string `json:"signals,omitempty"`
-	RawContent          string   `json:"rawContent,omitempty"`
+	Model             string   `json:"model,omitempty"`
+	RiskScore         float64  `json:"riskScore"`
+	Confidence        float64  `json:"confidence"`
+	RecommendedAction string   `json:"recommendedAction"`
+	Reasoning         string   `json:"reasoning"`
+	Signals           []string `json:"signals,omitempty"`
+	RawContent        string   `json:"rawContent,omitempty"`
 }
 
 type llmAssessment struct {
-	Enabled             bool     `json:"enabled"`
-	Model               string   `json:"model,omitempty"`
-	RiskScore           float64  `json:"riskScore"`
-	Confidence          float64  `json:"confidence"`
-	RecommendedAction   string   `json:"recommendedAction"`
-	Reasoning           string   `json:"reasoning"`
-	Signals             []string `json:"signals,omitempty"`
-	Error               string   `json:"error,omitempty"`
-	RawContent          string   `json:"rawContent,omitempty"`
+	Enabled           bool     `json:"enabled"`
+	Model             string   `json:"model,omitempty"`
+	RiskScore         float64  `json:"riskScore"`
+	Confidence        float64  `json:"confidence"`
+	RecommendedAction string   `json:"recommendedAction"`
+	Reasoning         string   `json:"reasoning"`
+	Signals           []string `json:"signals,omitempty"`
+	Error             string   `json:"error,omitempty"`
+	RawContent        string   `json:"rawContent,omitempty"`
 }
 
 type LLMReviewSummary struct {
-	Source              string    `json:"source"`
-	Model               string    `json:"model"`
-	ScoredSamples       int       `json:"scoredSamples"`
-	AverageRiskScore    float64   `json:"averageRiskScore"`
-	Agreement           float64   `json:"agreement"`
+	Source               string    `json:"source"`
+	Model                string    `json:"model"`
+	ScoredSamples        int       `json:"scoredSamples"`
+	AverageRiskScore     float64   `json:"averageRiskScore"`
+	Agreement            float64   `json:"agreement"`
 	ValidationSplitRatio float64   `json:"validationSplitRatio,omitempty"`
-	ReviewedAt          time.Time `json:"reviewedAt"`
+	ReviewedAt           time.Time `json:"reviewedAt"`
 }
 
 type llmBatchScoreEntry struct {
@@ -95,17 +95,17 @@ type llmBatchScoreEntry struct {
 }
 
 type llmBatchScoreResponse struct {
-	Source              string               `json:"source"`
-	Model               string               `json:"model"`
-	Total               int                  `json:"total"`
-	Scored              int                  `json:"scored"`
-	Applied             int                  `json:"applied"`
-	Skipped             int                  `json:"skipped"`
-	AverageRiskScore    float64              `json:"averageRiskScore"`
-	Agreement           float64              `json:"agreement"`
+	Source               string               `json:"source"`
+	Model                string               `json:"model"`
+	Total                int                  `json:"total"`
+	Scored               int                  `json:"scored"`
+	Applied              int                  `json:"applied"`
+	Skipped              int                  `json:"skipped"`
+	AverageRiskScore     float64              `json:"averageRiskScore"`
+	Agreement            float64              `json:"agreement"`
 	ValidationSplitRatio float64              `json:"validationSplitRatio,omitempty"`
-	Review              *LLMReviewSummary    `json:"review,omitempty"`
-	Entries             []llmBatchScoreEntry `json:"entries"`
+	Review               *LLMReviewSummary    `json:"review,omitempty"`
+	Entries              []llmBatchScoreEntry `json:"entries"`
 }
 
 type openAIChatMessage struct {
@@ -114,11 +114,11 @@ type openAIChatMessage struct {
 }
 
 type openAIChatRequest struct {
-	Model       string             `json:"model"`
+	Model       string              `json:"model"`
 	Messages    []openAIChatMessage `json:"messages"`
-	Temperature float64            `json:"temperature,omitempty"`
-	MaxTokens   int                `json:"max_tokens,omitempty"`
-	Stream      bool               `json:"stream,omitempty"`
+	Temperature float64             `json:"temperature,omitempty"`
+	MaxTokens   int                 `json:"max_tokens,omitempty"`
+	Stream      bool                `json:"stream,omitempty"`
 }
 
 type openAIChatResponse struct {
@@ -184,7 +184,7 @@ func handleMLLLMScorePost(c *gin.Context) {
 		MlConfidence:   req.MlConfidence,
 		NetworkRisk:    req.NetworkRisk,
 		NetworkScore:   req.NetworkScore,
-		SampleEvidence:  req.SampleEvidence,
+		SampleEvidence: req.SampleEvidence,
 		CurrentLabel:   req.CurrentLabel,
 		Source:         req.Source,
 	})
@@ -327,26 +327,26 @@ func buildLLMBehaviorContext(req llmScoreRequest) llmScoreContext {
 		MlConfidence:   req.MlConfidence,
 		NetworkRisk:    strings.TrimSpace(req.NetworkRisk),
 		NetworkScore:   req.NetworkScore,
-		SampleEvidence:  strings.TrimSpace(req.SampleEvidence),
+		SampleEvidence: strings.TrimSpace(req.SampleEvidence),
 		CurrentLabel:   strings.TrimSpace(req.CurrentLabel),
 		Source:         strings.TrimSpace(req.Source),
 	}
 }
 
 type llmScoreContext struct {
-	CommandLine    string                      `json:"commandLine"`
-	Comm           string                      `json:"comm"`
-	Args           []string                    `json:"args"`
-	Category       string                      `json:"category,omitempty"`
-	AnomalyScore   float64                     `json:"anomalyScore,omitempty"`
+	CommandLine    string                     `json:"commandLine"`
+	Comm           string                     `json:"comm"`
+	Args           []string                   `json:"args"`
+	Category       string                     `json:"category,omitempty"`
+	AnomalyScore   float64                    `json:"anomalyScore,omitempty"`
 	Classification *pb.BehaviorClassification `json:"classification,omitempty"`
-	MlAction       string                      `json:"mlAction,omitempty"`
-	MlConfidence   float64                     `json:"mlConfidence,omitempty"`
-	NetworkRisk    string                      `json:"networkRisk,omitempty"`
-	NetworkScore   float64                     `json:"networkScore,omitempty"`
-	SampleEvidence string                      `json:"sampleEvidence,omitempty"`
-	CurrentLabel   string                      `json:"currentLabel,omitempty"`
-	Source         string                      `json:"source,omitempty"`
+	MlAction       string                     `json:"mlAction,omitempty"`
+	MlConfidence   float64                    `json:"mlConfidence,omitempty"`
+	NetworkRisk    string                     `json:"networkRisk,omitempty"`
+	NetworkScore   float64                    `json:"networkScore,omitempty"`
+	SampleEvidence string                     `json:"sampleEvidence,omitempty"`
+	CurrentLabel   string                     `json:"currentLabel,omitempty"`
+	Source         string                     `json:"source,omitempty"`
 }
 
 func buildLLMScoringPrompt(contextJSON string) string {
@@ -551,7 +551,7 @@ func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmSc
 		}
 
 		scoredReq := llmScoreRequest{
-			CommandLine:  joinCommandLine(subject.Sample.Comm, subject.Sample.Args),
+			CommandLine:  trainingSampleCommandLine(subject.Sample),
 			Comm:         subject.Sample.Comm,
 			Args:         append([]string(nil), subject.Sample.Args...),
 			Category:     subject.Sample.Category,

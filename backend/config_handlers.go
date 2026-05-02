@@ -785,6 +785,7 @@ func handleMLSamplesGet(c *gin.Context) {
 	items := globalTrainingStore.AllSamplesWithIndex()
 	type sampleJSON struct {
 		Index        int      `json:"index"`
+		CommandLine  string   `json:"commandLine"`
 		Comm         string   `json:"comm"`
 		Args         []string `json:"args"`
 		Label        string   `json:"label"`
@@ -801,6 +802,7 @@ func handleMLSamplesGet(c *gin.Context) {
 		}
 		out = append(out, sampleJSON{
 			Index:        it.Index,
+			CommandLine:  trainingSampleCommandLine(it.Sample),
 			Comm:         it.Sample.Comm,
 			Args:         it.Sample.Args,
 			Label:        lbl,
@@ -881,16 +883,13 @@ func handleMLSampleAnomalyPut(c *gin.Context) {
 // handleMLSamplesPost adds a manually labeled training sample
 func handleMLSamplesPost(c *gin.Context) {
 	var req struct {
-		Comm  string   `json:"comm"`
-		Args  []string `json:"args"`
-		Label string   `json:"label"` // "BLOCK", "ALERT", "ALLOW"
+		CommandLine string   `json:"commandLine"`
+		Comm        string   `json:"comm"`
+		Args        []string `json:"args"`
+		Label       string   `json:"label"` // "BLOCK", "ALERT", "ALLOW"
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": "invalid request"})
-		return
-	}
-	if req.Comm == "" {
-		c.JSON(400, gin.H{"error": "comm is required"})
 		return
 	}
 	if globalTrainingStore == nil {
@@ -898,19 +897,36 @@ func handleMLSamplesPost(c *gin.Context) {
 		return
 	}
 
+	commandLine := strings.TrimSpace(req.CommandLine)
+	comm := strings.TrimSpace(req.Comm)
+	args := req.Args
+	if commandLine != "" {
+		comm, args = normalizeCommandInput(commandLine, comm, req.Args)
+		if comm == "" {
+			c.JSON(400, gin.H{"error": "commandLine is required"})
+			return
+		}
+	} else if comm == "" {
+		c.JSON(400, gin.H{"error": "comm is required"})
+		return
+	}
+	if commandLine == "" {
+		commandLine = joinCommandLine(comm, args)
+	}
 	// Build feature vector and classification for the sample
-	classification := ClassifyBehavior(req.Comm, req.Args)
-	_, emb := globalEmbedder.ClassifyAndEmbed(req.Comm, req.Args)
+	classification := ClassifyBehavior(comm, args)
+	_, emb := globalEmbedder.ClassifyAndEmbed(comm, args)
 	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
-	features := globalFeatureExtractor.Extract(req.Comm, req.Args, "", 0)
+	features := globalFeatureExtractor.Extract(comm, args, "", 0)
 
 	labelInt := actionFromLabel(req.Label)
 
 	sample := TrainingSample{
 		Features:     features,
 		Label:        labelInt,
-		Comm:         req.Comm,
-		Args:         req.Args,
+		CommandLine:  commandLine,
+		Comm:         comm,
+		Args:         args,
 		Category:     classification.PrimaryCategory,
 		AnomalyScore: anomalyScore,
 		Timestamp:    time.Now(),
@@ -920,7 +936,7 @@ func handleMLSamplesPost(c *gin.Context) {
 
 	// Also add to history buffer and cluster
 	globalEmbedder.AddToCluster(emb)
-	globalFeatureExtractor.AddHistory(req.Comm, classification.PrimaryCategory, req.Label, anomalyScore)
+	globalFeatureExtractor.AddHistory(comm, classification.PrimaryCategory, req.Label, anomalyScore)
 
 	total, labeled := globalTrainingStore.Status()
 	c.JSON(200, gin.H{

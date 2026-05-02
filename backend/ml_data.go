@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -12,10 +13,13 @@ import (
 	"time"
 )
 
+const trainingStoreMagic = "AEF2"
+
 // TrainingSample represents one labeled wrapper intercept event for ML training
 type TrainingSample struct {
 	Features     [FeatureDim]float64
 	Label        int32 // 0=ALLOW, 1=BLOCK, 2=REWRITE, 3=ALERT, -1=unlabeled
+	CommandLine  string
 	Comm         string
 	Args         []string
 	Category     string
@@ -328,14 +332,12 @@ func (s *TrainingDataStore) persistLocked() error {
 	}
 	defer f.Close()
 
-	// Format: [4 bytes count][records...]
-	// Each record: timestamp(8), label(4), anomaly_score(8), comm_len(2), comm_bytes...,
+	// Format: [4 bytes magic][4 bytes count][records...]
+	// Each record: timestamp(8), label(4), anomaly_score(8),
+	//             command_line_len(2), command_line_bytes...,
+	//             comm_len(2), comm_bytes...,
 	//             args_len(2), args_json_bytes..., features(128*8)
 	count := uint32(0)
-	startPos := s.nextWrite
-	if s.totalAdded < s.maxSamples {
-		startPos = 0
-	}
 	// Count valid entries first
 	for i := range s.samples {
 		if !s.samples[i].Timestamp.IsZero() {
@@ -343,6 +345,9 @@ func (s *TrainingDataStore) persistLocked() error {
 		}
 	}
 
+	if _, err := f.Write([]byte(trainingStoreMagic)); err != nil {
+		return err
+	}
 	if err := binary.Write(f, binary.LittleEndian, count); err != nil {
 		return err
 	}
@@ -359,6 +364,17 @@ func (s *TrainingDataStore) persistLocked() error {
 			return err
 		}
 		if err := binary.Write(f, binary.LittleEndian, float64(sample.AnomalyScore)); err != nil {
+			return err
+		}
+		commandLine := strings.TrimSpace(sample.CommandLine)
+		if commandLine == "" {
+			commandLine = joinCommandLine(sample.Comm, sample.Args)
+		}
+		commandLineBytes := []byte(commandLine)
+		if err := binary.Write(f, binary.LittleEndian, uint16(len(commandLineBytes))); err != nil {
+			return err
+		}
+		if _, err := f.Write(commandLineBytes); err != nil {
 			return err
 		}
 		commBytes := []byte(sample.Comm)
@@ -387,7 +403,6 @@ func (s *TrainingDataStore) persistLocked() error {
 			return err
 		}
 	}
-	_ = startPos // used for ring ordering
 
 	return os.Rename(tmpPath, s.persistPath)
 }
@@ -407,16 +422,21 @@ func (s *TrainingDataStore) loadFromDisk() error {
 		return fmt.Errorf("training data file too short")
 	}
 
-	count := binary.LittleEndian.Uint32(data[0:4])
+	versioned := len(data) >= 8 && bytes.Equal(data[0:4], []byte(trainingStoreMagic))
 	offset := 4
+	count := binary.LittleEndian.Uint32(data[0:4])
+	if versioned {
+		count = binary.LittleEndian.Uint32(data[4:8])
+		offset = 8
+	}
 
 	loaded := 0
 	for i := uint32(0); i < count && loaded < s.maxSamples; i++ {
+		var sample TrainingSample
 		if offset+24 > len(data) {
 			break
 		}
 
-		var sample TrainingSample
 		sample.Timestamp = time.Unix(0, int64(binary.LittleEndian.Uint64(data[offset:offset+8])))
 		offset += 8
 		sample.Label = int32(binary.LittleEndian.Uint32(data[offset : offset+4]))
@@ -424,33 +444,77 @@ func (s *TrainingDataStore) loadFromDisk() error {
 		sample.AnomalyScore = math.Float64frombits(binary.LittleEndian.Uint64(data[offset : offset+8]))
 		offset += 8
 
-		commLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
-		offset += 2
-		if offset+commLen > len(data) {
-			break
-		}
-		sample.Comm = string(data[offset : offset+commLen])
-		offset += commLen
+		if versioned {
+			commandLineLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
+			offset += 2
+			if offset+commandLineLen > len(data) {
+				break
+			}
+			commandLine := string(data[offset : offset+commandLineLen])
+			offset += commandLineLen
 
-		argsLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
-		offset += 2
-		if offset+argsLen > len(data) {
-			break
-		}
-		// Prefer JSON array encoding, but keep compatibility with older bracketed string records.
-		argsRaw := strings.TrimSpace(string(data[offset : offset+argsLen]))
-		if argsRaw != "" {
-			var parsedArgs []string
-			if err := json.Unmarshal([]byte(argsRaw), &parsedArgs); err == nil {
-				sample.Args = parsedArgs
-			} else {
-				fallback := strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(argsRaw, "]"), "["))
-				if fallback != "" {
-					sample.Args = splitCommandLine(fallback)
+			commLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
+			offset += 2
+			if offset+commLen > len(data) {
+				break
+			}
+			sample.Comm = string(data[offset : offset+commLen])
+			offset += commLen
+
+			argsLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
+			offset += 2
+			if offset+argsLen > len(data) {
+				break
+			}
+			// Prefer JSON array encoding, but keep compatibility with older bracketed string records.
+			argsRaw := strings.TrimSpace(string(data[offset : offset+argsLen]))
+			if argsRaw != "" {
+				var parsedArgs []string
+				if err := json.Unmarshal([]byte(argsRaw), &parsedArgs); err == nil {
+					sample.Args = parsedArgs
+				} else {
+					fallback := strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(argsRaw, "]"), "["))
+					if fallback != "" {
+						sample.Args = splitCommandLine(fallback)
+					}
 				}
 			}
+			offset += argsLen
+			sample.CommandLine = strings.TrimSpace(commandLine)
+		} else {
+			commLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
+			offset += 2
+			if offset+commLen > len(data) {
+				break
+			}
+			sample.Comm = string(data[offset : offset+commLen])
+			offset += commLen
+
+			argsLen := int(binary.LittleEndian.Uint16(data[offset : offset+2]))
+			offset += 2
+			if offset+argsLen > len(data) {
+				break
+			}
+			// Prefer JSON array encoding, but keep compatibility with older bracketed string records.
+			argsRaw := strings.TrimSpace(string(data[offset : offset+argsLen]))
+			if argsRaw != "" {
+				var parsedArgs []string
+				if err := json.Unmarshal([]byte(argsRaw), &parsedArgs); err == nil {
+					sample.Args = parsedArgs
+				} else {
+					fallback := strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(argsRaw, "]"), "["))
+					if fallback != "" {
+						sample.Args = splitCommandLine(fallback)
+					}
+				}
+			}
+			offset += argsLen
+			sample.CommandLine = joinCommandLine(sample.Comm, sample.Args)
 		}
-		offset += argsLen
+
+		if strings.TrimSpace(sample.CommandLine) == "" {
+			sample.CommandLine = joinCommandLine(sample.Comm, sample.Args)
+		}
 
 		if offset+FeatureDim*8 > len(data) {
 			break
