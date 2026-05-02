@@ -271,6 +271,7 @@ export function useConfigML() {
   const llmConfigReady = ref(false);
   const llmConfigApplyingRemote = ref(false);
   const llmConfigSyncTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+  const llmConfigSyncPromise = ref<Promise<void> | null>(null);
   const llmConfigSyncInFlight = ref(false);
   const llmConfigSyncQueued = ref(false);
   const trainingHistory = ref<MLTrainingHistoryEntry[]>([]);
@@ -810,24 +811,28 @@ export function useConfigML() {
   };
 
   const syncLLMScoringConfigToBackend = async () => {
-    if (llmConfigSyncInFlight.value) {
+    if (llmConfigSyncPromise.value) {
       llmConfigSyncQueued.value = true;
-      return;
+      return llmConfigSyncPromise.value;
     }
     if (llmConfigSyncTimer.value) {
       clearTimeout(llmConfigSyncTimer.value);
       llmConfigSyncTimer.value = null;
     }
     llmConfigSyncInFlight.value = true;
-    try {
-      await axios.put('/config/runtime', buildLLMRuntimePayload());
-    } finally {
-      llmConfigSyncInFlight.value = false;
-      if (llmConfigSyncQueued.value) {
-        llmConfigSyncQueued.value = false;
-        void syncLLMScoringConfigToBackend();
+    const runSync = async () => {
+      try {
+        do {
+          llmConfigSyncQueued.value = false;
+          await axios.put('/config/runtime', buildLLMRuntimePayload());
+        } while (llmConfigSyncQueued.value);
+      } finally {
+        llmConfigSyncInFlight.value = false;
+        llmConfigSyncPromise.value = null;
       }
-    }
+    };
+    llmConfigSyncPromise.value = runSync();
+    return llmConfigSyncPromise.value;
   };
 
   const queueLLMScoringConfigAutosave = () => {

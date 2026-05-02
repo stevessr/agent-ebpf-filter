@@ -773,6 +773,7 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 // ── ML classification handlers ──
 
 func handleMLStatusGet(c *gin.Context) {
+	cfg := currentMLConfig()
 	status := mlStatus()
 	logs := globalTrainer.GetLogs(100)
 	trainAccuracy, validationAccuracy, validationRatio, trainSamples, validationSamples := globalTrainer.SplitMetrics()
@@ -807,21 +808,21 @@ func handleMLStatusGet(c *gin.Context) {
 		"autoTuneError":        autoTuneState.Error,
 		"autoTuneResult":       autoTuneState.Result,
 		"mlConfig": gin.H{
-			"validationSplitRatio": mlConfig.ValidationSplitRatio,
-			"llmEnabled":           mlConfig.LlmEnabled,
-			"llmBaseUrl":           mlConfig.LlmBaseURL,
-			"llmApiKeyConfigured":  strings.TrimSpace(mlConfig.LlmAPIKey) != "",
-			"llmModel":             mlConfig.LlmModel,
-			"llmTimeoutSeconds":    mlConfig.LlmTimeoutSeconds,
-			"llmTemperature":       mlConfig.LlmTemperature,
-			"llmMaxTokens":         mlConfig.LlmMaxTokens,
-			"llmSystemPrompt":      mlConfig.LlmSystemPrompt,
+			"validationSplitRatio": cfg.ValidationSplitRatio,
+			"llmEnabled":           cfg.LlmEnabled,
+			"llmBaseUrl":           cfg.LlmBaseURL,
+			"llmApiKeyConfigured":  strings.TrimSpace(cfg.LlmAPIKey) != "",
+			"llmModel":             cfg.LlmModel,
+			"llmTimeoutSeconds":    cfg.LlmTimeoutSeconds,
+			"llmTemperature":       cfg.LlmTemperature,
+			"llmMaxTokens":         cfg.LlmMaxTokens,
+			"llmSystemPrompt":      cfg.LlmSystemPrompt,
 		},
 		"trainingLogs": logItems,
 		"hyperParams": gin.H{
-			"numTrees":       mlConfig.NumTrees,
-			"maxDepth":       mlConfig.MaxDepth,
-			"minSamplesLeaf": mlConfig.MinSamplesLeaf,
+			"numTrees":       cfg.NumTrees,
+			"maxDepth":       cfg.MaxDepth,
+			"minSamplesLeaf": cfg.MinSamplesLeaf,
 		},
 	})
 }

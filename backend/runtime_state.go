@@ -383,6 +383,8 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 	if err := s.applyLoggingLocked(); err != nil {
 		return RuntimeSettings{}, err
 	}
+	mlConfig = s.settings.MLConfig
+	mlEnabled = s.settings.MLConfig.Enabled && clusterManagerStore.IsMaster()
 	return s.settings, nil
 }
 

@@ -68,11 +68,15 @@ func DefaultMLConfig() MLConfig {
 
 // Global ML state
 var (
-	mlEngine  *DecisionForest
-	mlConfig  MLConfig
-	mlEnabled bool
+	mlEngine      *DecisionForest
+	mlConfig      MLConfig
+	mlEnabled     bool
 	mlModelLoaded bool
 )
+
+func currentMLConfig() MLConfig {
+	return runtimeSettingsStore.Snapshot().MLConfig
+}
 
 // InitMLEngine initializes the ML engine. Only active on master nodes.
 func InitMLEngine(cfg MLConfig) {
@@ -283,8 +287,9 @@ func defaultMLModelPath() string {
 
 // mlStatus builds the ML status protobuf for the API
 func mlStatus() *pb.MLStatus {
+	cfg := currentMLConfig()
 	status := &pb.MLStatus{
-		ModelLoaded:    mlModelLoaded,
+		ModelLoaded:        mlModelLoaded,
 		TrainingInProgress: globalTrainer.isRunning,
 		TrainingProgress:   globalTrainer.progress,
 	}
@@ -304,8 +309,8 @@ func mlStatus() *pb.MLStatus {
 		status.TestAccuracy = globalTrainer.accuracy
 	}
 
-	if mlConfig.ModelPath != "" {
-		status.ModelPath = mlConfig.ModelPath
+	if cfg.ModelPath != "" {
+		status.ModelPath = cfg.ModelPath
 	} else {
 		status.ModelPath = defaultMLModelPath()
 	}

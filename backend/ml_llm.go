@@ -210,7 +210,8 @@ func handleMLLLMBatchScorePost(c *gin.Context) {
 }
 
 func llmScoringConfigured() bool {
-	return mlConfig.LlmEnabled && strings.TrimSpace(mlConfig.LlmBaseURL) != "" && strings.TrimSpace(mlConfig.LlmModel) != ""
+	cfg := currentMLConfig()
+	return cfg.LlmEnabled && strings.TrimSpace(cfg.LlmBaseURL) != "" && strings.TrimSpace(cfg.LlmModel) != ""
 }
 
 func normalizedLLMCompletionURL(rawBaseURL string) (string, error) {
@@ -237,16 +238,17 @@ func normalizedLLMCompletionURL(rawBaseURL string) (string, error) {
 }
 
 func scoreBehaviorWithLLM(ctx context.Context, req llmScoreRequest) (*llmScoringResult, error) {
+	cfg := currentMLConfig()
 	if !llmScoringConfigured() {
 		return nil, errors.New("LLM scoring is not configured")
 	}
 
-	endpoint, err := normalizedLLMCompletionURL(mlConfig.LlmBaseURL)
+	endpoint, err := normalizedLLMCompletionURL(cfg.LlmBaseURL)
 	if err != nil {
 		return nil, err
 	}
 
-	sysPrompt := strings.TrimSpace(mlConfig.LlmSystemPrompt)
+	sysPrompt := strings.TrimSpace(cfg.LlmSystemPrompt)
 	if sysPrompt == "" {
 		sysPrompt = defaultLLMScoringSystemPrompt
 	}
@@ -258,10 +260,10 @@ func scoreBehaviorWithLLM(ctx context.Context, req llmScoreRequest) (*llmScoring
 
 	prompt := buildLLMScoringPrompt(string(contentJSON))
 	openAIReq := openAIChatRequest{
-		Model:       strings.TrimSpace(mlConfig.LlmModel),
+		Model:       strings.TrimSpace(cfg.LlmModel),
 		Messages:    []openAIChatMessage{{Role: "system", Content: sysPrompt}, {Role: "user", Content: prompt}},
-		Temperature: clampFloat64(mlConfig.LlmTemperature, 0, 2),
-		MaxTokens:   clampInt(mlConfig.LlmMaxTokens, 32, 4096),
+		Temperature: clampFloat64(cfg.LlmTemperature, 0, 2),
+		MaxTokens:   clampInt(cfg.LlmMaxTokens, 32, 4096),
 	}
 
 	body, err := json.Marshal(openAIReq)
@@ -274,11 +276,11 @@ func scoreBehaviorWithLLM(ctx context.Context, req llmScoreRequest) (*llmScoring
 		return nil, err
 	}
 	reqHTTP.Header.Set("Content-Type", "application/json")
-	if key := strings.TrimSpace(mlConfig.LlmAPIKey); key != "" {
+	if key := strings.TrimSpace(cfg.LlmAPIKey); key != "" {
 		reqHTTP.Header.Set("Authorization", "Bearer "+key)
 	}
 
-	client := &http.Client{Timeout: time.Duration(maxInt(mlConfig.LlmTimeoutSeconds, 45)) * time.Second}
+	client := &http.Client{Timeout: time.Duration(maxInt(cfg.LlmTimeoutSeconds, 45)) * time.Second}
 	resp, err := client.Do(reqHTTP)
 	if err != nil {
 		return nil, err
@@ -522,6 +524,7 @@ func scoreLLMBatch(ctx context.Context, req llmBatchScoreRequest) (*llmBatchScor
 }
 
 func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmScoreSubject, limit int, onlyUnlabeled, applyLabels bool, validationRatio float64) (*llmBatchScoreResponse, error) {
+	cfg := currentMLConfig()
 	if !llmScoringConfigured() {
 		return nil, errors.New("LLM scoring is not configured")
 	}
@@ -560,7 +563,7 @@ func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmSc
 			Source:       source,
 		}
 
-		subCtx, cancel := context.WithTimeout(ctx, time.Duration(maxInt(mlConfig.LlmTimeoutSeconds, 45))*time.Second)
+		subCtx, cancel := context.WithTimeout(ctx, time.Duration(maxInt(cfg.LlmTimeoutSeconds, 45))*time.Second)
 		assessment, err := scoreBehaviorWithLLM(subCtx, scoredReq)
 		cancel()
 		if err != nil {
@@ -612,7 +615,7 @@ func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmSc
 
 	review := &LLMReviewSummary{
 		Source:               source,
-		Model:                strings.TrimSpace(mlConfig.LlmModel),
+		Model:                strings.TrimSpace(cfg.LlmModel),
 		ScoredSamples:        scored,
 		AverageRiskScore:     0,
 		Agreement:            0,
@@ -628,7 +631,7 @@ func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmSc
 
 	resp := &llmBatchScoreResponse{
 		Source:               source,
-		Model:                strings.TrimSpace(mlConfig.LlmModel),
+		Model:                strings.TrimSpace(cfg.LlmModel),
 		Total:                len(subjects),
 		Scored:               scored,
 		Applied:              applied,
@@ -648,6 +651,7 @@ func scoreLLMSampleSubjects(ctx context.Context, source string, subjects []llmSc
 }
 
 func llmBatchSubjects(source string, limit int) ([]llmScoreSubject, float64, error) {
+	cfg := currentMLConfig()
 	switch source {
 	case "", "training":
 		if globalTrainingStore == nil {
@@ -658,7 +662,7 @@ func llmBatchSubjects(source string, limit int) ([]llmScoreSubject, float64, err
 		for _, item := range items {
 			subjects = append(subjects, llmScoreSubject{Index: item.Index, Sample: item.Sample})
 		}
-		return limitLLMSubjects(subjects, limit), mlConfig.ValidationSplitRatio, nil
+		return limitLLMSubjects(subjects, limit), cfg.ValidationSplitRatio, nil
 	case "validation":
 		if globalTrainer == nil {
 			return nil, 0, errors.New("ML trainer not initialized")
@@ -668,7 +672,7 @@ func llmBatchSubjects(source string, limit int) ([]llmScoreSubject, float64, err
 		for _, sample := range items {
 			subjects = append(subjects, llmScoreSubject{Index: -1, Sample: sample})
 		}
-		return limitLLMSubjects(subjects, limit), mlConfig.ValidationSplitRatio, nil
+		return limitLLMSubjects(subjects, limit), cfg.ValidationSplitRatio, nil
 	default:
 		return nil, 0, fmt.Errorf("unsupported llm score source %q", source)
 	}
@@ -765,6 +769,7 @@ func (t *ModelTrainer) reviewValidationWithLLM(samples []TrainingSample) (*LLMRe
 	if !llmScoringConfigured() || len(samples) == 0 {
 		return nil, nil
 	}
+	cfg := currentMLConfig()
 
 	limit := defaultLLMReviewLimit
 	if len(samples) < limit {
@@ -775,7 +780,7 @@ func (t *ModelTrainer) reviewValidationWithLLM(samples []TrainingSample) (*LLMRe
 	for i := 0; i < len(samples); i++ {
 		subjects = append(subjects, llmScoreSubject{Index: -1, Sample: samples[i]})
 	}
-	resp, err := scoreLLMSampleSubjects(context.Background(), "validation", subjects, limit, false, false, mlConfig.ValidationSplitRatio)
+	resp, err := scoreLLMSampleSubjects(context.Background(), "validation", subjects, limit, false, false, cfg.ValidationSplitRatio)
 	if err != nil {
 		return nil, err
 	}
