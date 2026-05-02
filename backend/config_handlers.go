@@ -302,18 +302,150 @@ func handleConfigRuntimeGet(c *gin.Context) {
 }
 
 func handleConfigRuntimePut(c *gin.Context) {
-	var req RuntimeSettings
+	var req runtimeSettingsPatch
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid runtime settings"})
 		return
 	}
-	settings, err := runtimeSettingsStore.Replace(req)
+
+	settings := runtimeSettingsStore.Snapshot()
+	if req.LogPersistenceEnabled != nil {
+		settings.LogPersistenceEnabled = *req.LogPersistenceEnabled
+	}
+	if req.LogFilePath != nil {
+		settings.LogFilePath = strings.TrimSpace(*req.LogFilePath)
+	}
+	if req.AccessToken != nil {
+		settings.AccessToken = strings.TrimSpace(*req.AccessToken)
+	}
+	if req.MaxEventCount != nil {
+		settings.MaxEventCount = *req.MaxEventCount
+	}
+	if req.MaxEventAge != nil {
+		settings.MaxEventAge = strings.TrimSpace(*req.MaxEventAge)
+	}
+	applyMLConfigPatch(&settings.MLConfig, req.MLConfigPatch)
+
+	settings, err := runtimeSettingsStore.Replace(settings)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	applyRetentionConfig(settings)
 	c.JSON(http.StatusOK, buildRuntimeConfigResponseFromSettings(settings))
+}
+
+type runtimeSettingsPatch struct {
+	LogPersistenceEnabled *bool   `json:"logPersistenceEnabled,omitempty"`
+	LogFilePath           *string `json:"logFilePath,omitempty"`
+	AccessToken           *string `json:"accessToken,omitempty"`
+	MaxEventCount         *int    `json:"maxEventCount,omitempty"`
+	MaxEventAge           *string `json:"maxEventAge,omitempty"`
+	MLConfigPatch
+}
+
+type MLConfigPatch struct {
+	Enabled                  *bool    `json:"enabled,omitempty"`
+	BlockConfidenceThreshold *float64 `json:"blockConfidenceThreshold,omitempty"`
+	MlMinConfidence          *float64 `json:"mlMinConfidence,omitempty"`
+	LowAnomalyThreshold      *float64 `json:"lowAnomalyThreshold,omitempty"`
+	HighAnomalyThreshold     *float64 `json:"highAnomalyThreshold,omitempty"`
+	RuleOverridePriority     *int     `json:"ruleOverridePriority,omitempty"`
+	ModelPath                *string  `json:"modelPath,omitempty"`
+	AutoTrain                *bool    `json:"autoTrain,omitempty"`
+	TrainInterval            *string  `json:"trainInterval,omitempty"`
+	MinSamplesForTraining    *int     `json:"minSamplesForTraining,omitempty"`
+	ActiveLearningEnabled    *bool    `json:"activeLearningEnabled,omitempty"`
+	FeatureHistorySize       *int     `json:"featureHistorySize,omitempty"`
+	NumTrees                 *int     `json:"numTrees,omitempty"`
+	MaxDepth                 *int     `json:"maxDepth,omitempty"`
+	MinSamplesLeaf           *int     `json:"minSamplesLeaf,omitempty"`
+	ValidationSplitRatio     *float64 `json:"validationSplitRatio,omitempty"`
+	LlmEnabled               *bool    `json:"llmEnabled,omitempty"`
+	LlmBaseURL               *string  `json:"llmBaseUrl,omitempty"`
+	LlmAPIKey                *string  `json:"llmApiKey,omitempty"`
+	LlmModel                 *string  `json:"llmModel,omitempty"`
+	LlmTimeoutSeconds        *int     `json:"llmTimeoutSeconds,omitempty"`
+	LlmTemperature           *float64 `json:"llmTemperature,omitempty"`
+	LlmMaxTokens             *int     `json:"llmMaxTokens,omitempty"`
+	LlmSystemPrompt          *string  `json:"llmSystemPrompt,omitempty"`
+}
+
+func applyMLConfigPatch(dst *MLConfig, patch MLConfigPatch) {
+	if patch.Enabled != nil {
+		dst.Enabled = *patch.Enabled
+	}
+	if patch.BlockConfidenceThreshold != nil {
+		dst.BlockConfidenceThreshold = *patch.BlockConfidenceThreshold
+	}
+	if patch.MlMinConfidence != nil {
+		dst.MlMinConfidence = *patch.MlMinConfidence
+	}
+	if patch.LowAnomalyThreshold != nil {
+		dst.LowAnomalyThreshold = *patch.LowAnomalyThreshold
+	}
+	if patch.HighAnomalyThreshold != nil {
+		dst.HighAnomalyThreshold = *patch.HighAnomalyThreshold
+	}
+	if patch.RuleOverridePriority != nil {
+		dst.RuleOverridePriority = *patch.RuleOverridePriority
+	}
+	if patch.ModelPath != nil {
+		dst.ModelPath = strings.TrimSpace(*patch.ModelPath)
+	}
+	if patch.AutoTrain != nil {
+		dst.AutoTrain = *patch.AutoTrain
+	}
+	if patch.TrainInterval != nil {
+		dst.TrainInterval = strings.TrimSpace(*patch.TrainInterval)
+	}
+	if patch.MinSamplesForTraining != nil {
+		dst.MinSamplesForTraining = *patch.MinSamplesForTraining
+	}
+	if patch.ActiveLearningEnabled != nil {
+		dst.ActiveLearningEnabled = *patch.ActiveLearningEnabled
+	}
+	if patch.FeatureHistorySize != nil {
+		dst.FeatureHistorySize = *patch.FeatureHistorySize
+	}
+	if patch.NumTrees != nil {
+		dst.NumTrees = *patch.NumTrees
+	}
+	if patch.MaxDepth != nil {
+		dst.MaxDepth = *patch.MaxDepth
+	}
+	if patch.MinSamplesLeaf != nil {
+		dst.MinSamplesLeaf = *patch.MinSamplesLeaf
+	}
+	if patch.ValidationSplitRatio != nil {
+		dst.ValidationSplitRatio = *patch.ValidationSplitRatio
+	}
+	if patch.LlmEnabled != nil {
+		dst.LlmEnabled = *patch.LlmEnabled
+	}
+	if patch.LlmBaseURL != nil {
+		dst.LlmBaseURL = strings.TrimSpace(*patch.LlmBaseURL)
+	}
+	if patch.LlmAPIKey != nil {
+		if key := strings.TrimSpace(*patch.LlmAPIKey); key != "" {
+			dst.LlmAPIKey = key
+		}
+	}
+	if patch.LlmModel != nil {
+		dst.LlmModel = strings.TrimSpace(*patch.LlmModel)
+	}
+	if patch.LlmTimeoutSeconds != nil {
+		dst.LlmTimeoutSeconds = *patch.LlmTimeoutSeconds
+	}
+	if patch.LlmTemperature != nil {
+		dst.LlmTemperature = *patch.LlmTemperature
+	}
+	if patch.LlmMaxTokens != nil {
+		dst.LlmMaxTokens = *patch.LlmMaxTokens
+	}
+	if patch.LlmSystemPrompt != nil {
+		dst.LlmSystemPrompt = *patch.LlmSystemPrompt
+	}
 }
 
 func handleConfigAccessTokenPost(c *gin.Context) {

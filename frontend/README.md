@@ -88,7 +88,7 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 - provides ML subtabs for status / parameters / model management / training-set management, plus an auto-parameter-tuning heatmap on the parameters tab for comparing tree count, depth, and leaf-size combinations with larger square sizes, selectable granularity, and visible run progress
 - pulls existing wrapper/native-hook command events into the ML sample browser, fetches remote HTTP/HTTPS raw datasets or local file content into the training store, recursively expands common archives / compressed payloads such as zip, tar, gzip, bzip2, and xz before parsing, and provides export / clear actions for the current dataset plus a full-command safety assessment panel that uses exact labeled samples as evidence
 - includes a curated catalog of classic OS-security datasets such as ADFA, CERT Insider Threat, LANL host/network, and DARPA IDS corpora for quick reference; those catalog entries point to reference/archival pages and must be downloaded or extracted before import
-- includes an OpenAI-compatible LLM scoring panel for post-training review, with configurable base URL, model, API key, timeout, temperature, max tokens, and validation split control
+- includes an OpenAI-compatible LLM scoring panel for post-training review, with configurable base URL, model, API key, timeout, temperature, max tokens, and validation split control; the panel now auto-saves changes to browser storage and silently syncs them back to the backend before scoring
 
 ## Development
 

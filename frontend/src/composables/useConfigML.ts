@@ -19,6 +19,49 @@ export interface MLThresholds {
   highAnomalyThreshold: number;
 }
 
+const LLM_SCORING_STORAGE_KEY = 'agent-ebpf-filter.ml.llm-scoring-config';
+
+type StoredLLMScoringConfig = Pick<
+  MLLlmConfig,
+  'enabled' | 'baseUrl' | 'apiKey' | 'model' | 'timeoutSeconds' | 'temperature' | 'maxTokens' | 'systemPrompt'
+>;
+
+const defaultLLMScoringConfig = (): MLLlmConfig => ({
+  enabled: false,
+  baseUrl: '',
+  apiKey: '',
+  apiKeyConfigured: false,
+  model: '',
+  timeoutSeconds: 45,
+  temperature: 0,
+  maxTokens: 256,
+  systemPrompt: '',
+});
+
+const readStoredLLMScoringConfig = (): Partial<StoredLLMScoringConfig> | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(LLM_SCORING_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<StoredLLMScoringConfig>;
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const pickLLMScoringConfigForStorage = (config: MLLlmConfig): StoredLLMScoringConfig => ({
+  enabled: !!config.enabled,
+  baseUrl: config.baseUrl || '',
+  apiKey: config.apiKey || '',
+  model: config.model || '',
+  timeoutSeconds: Number.isFinite(config.timeoutSeconds) ? config.timeoutSeconds : 45,
+  temperature: Number.isFinite(config.temperature) ? config.temperature : 0,
+  maxTokens: Number.isFinite(config.maxTokens) ? config.maxTokens : 256,
+  systemPrompt: config.systemPrompt || '',
+});
+
 // ── Claude Code Safety Net training samples ──
 // Curated from github.com/kenryu42/claude-code-safety-net rules
 export const safetyNetHighRiskPresets = [
@@ -214,8 +257,8 @@ export function useConfigML() {
   });
   const mlTrainingConfig = ref({ validationSplitRatio: 0.2 });
   const llmScoringConfig = ref<MLLlmConfig>({
-    enabled: false, baseUrl: '', apiKey: '', apiKeyConfigured: false,
-    model: '', timeoutSeconds: 45, temperature: 0, maxTokens: 256, systemPrompt: '',
+    ...defaultLLMScoringConfig(),
+    ...(readStoredLLMScoringConfig() || {}),
   });
   const llmBatchConfig = ref({
     source: 'validation' as 'training' | 'validation',
@@ -225,6 +268,11 @@ export function useConfigML() {
   const llmBatchLoading = ref(false);
   const trainingLogs = ref<{ time: string; message: string }[]>([]);
   const logPollTimer = ref<ReturnType<typeof setInterval> | null>(null);
+  const llmConfigReady = ref(false);
+  const llmConfigApplyingRemote = ref(false);
+  const llmConfigSyncTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+  const llmConfigSyncInFlight = ref(false);
+  const llmConfigSyncQueued = ref(false);
   const trainingHistory = ref<MLTrainingHistoryEntry[]>([]);
   const hyperParams = ref({ numTrees: 31, maxDepth: 8, minSamplesLeaf: 5 });
   const autoTuneXAxis = ref<MLAutoTuneAxis>('numTrees');
@@ -324,15 +372,21 @@ export function useConfigML() {
 
     const mlConfig = data.mlConfig ?? data.ml_config ?? {};
     if (mlConfig) {
-      mlTrainingConfig.value.validationSplitRatio = mlConfig.validationSplitRatio ?? mlConfig.validation_split_ratio ?? mlStatus.value.validation_split_ratio ?? 0.2;
-      llmScoringConfig.value.enabled = mlConfig.llmEnabled ?? mlConfig.llm_enabled ?? llmScoringConfig.value.enabled;
-      llmScoringConfig.value.baseUrl = mlConfig.llmBaseUrl ?? mlConfig.llm_base_url ?? llmScoringConfig.value.baseUrl;
-      llmScoringConfig.value.apiKeyConfigured = mlConfig.llmApiKeyConfigured ?? mlConfig.llm_api_key_configured ?? llmScoringConfig.value.apiKeyConfigured;
-      llmScoringConfig.value.model = mlConfig.llmModel ?? mlConfig.llm_model ?? llmScoringConfig.value.model;
-      llmScoringConfig.value.timeoutSeconds = mlConfig.llmTimeoutSeconds ?? mlConfig.llm_timeout_seconds ?? llmScoringConfig.value.timeoutSeconds;
-      llmScoringConfig.value.temperature = mlConfig.llmTemperature ?? mlConfig.llm_temperature ?? llmScoringConfig.value.temperature;
-      llmScoringConfig.value.maxTokens = mlConfig.llmMaxTokens ?? mlConfig.llm_max_tokens ?? llmScoringConfig.value.maxTokens;
-      llmScoringConfig.value.systemPrompt = mlConfig.llmSystemPrompt ?? mlConfig.llm_system_prompt ?? llmScoringConfig.value.systemPrompt;
+      llmConfigApplyingRemote.value = true;
+      try {
+        mlTrainingConfig.value.validationSplitRatio = mlConfig.validationSplitRatio ?? mlConfig.validation_split_ratio ?? mlStatus.value.validation_split_ratio ?? 0.2;
+        llmScoringConfig.value.enabled = mlConfig.llmEnabled ?? mlConfig.llm_enabled ?? llmScoringConfig.value.enabled;
+        llmScoringConfig.value.baseUrl = mlConfig.llmBaseUrl ?? mlConfig.llm_base_url ?? llmScoringConfig.value.baseUrl;
+        llmScoringConfig.value.apiKeyConfigured = mlConfig.llmApiKeyConfigured ?? mlConfig.llm_api_key_configured ?? llmScoringConfig.value.apiKeyConfigured;
+        llmScoringConfig.value.model = mlConfig.llmModel ?? mlConfig.llm_model ?? llmScoringConfig.value.model;
+        llmScoringConfig.value.timeoutSeconds = mlConfig.llmTimeoutSeconds ?? mlConfig.llm_timeout_seconds ?? llmScoringConfig.value.timeoutSeconds;
+        llmScoringConfig.value.temperature = mlConfig.llmTemperature ?? mlConfig.llm_temperature ?? llmScoringConfig.value.temperature;
+        llmScoringConfig.value.maxTokens = mlConfig.llmMaxTokens ?? mlConfig.llm_max_tokens ?? llmScoringConfig.value.maxTokens;
+        llmScoringConfig.value.systemPrompt = mlConfig.llmSystemPrompt ?? mlConfig.llm_system_prompt ?? llmScoringConfig.value.systemPrompt;
+        applyStoredLLMScoringConfig();
+      } finally {
+        llmConfigApplyingRemote.value = false;
+      }
     }
     if (Array.isArray(data.trainingLogs)) {
       trainingLogs.value = data.trainingLogs;
@@ -363,6 +417,7 @@ export function useConfigML() {
   };
 
   const fetchMLStatus = async () => {
+    let fetchedOk = false;
     try {
       const res = await axios.get('/config/ml/status');
       applyMLStatusResponse(res.data);
@@ -379,7 +434,16 @@ export function useConfigML() {
         hyperParams.value.minSamplesLeaf = res.data.hyperParams.minSamplesLeaf ?? 5;
       }
       await fetchTrainingHistory();
+      fetchedOk = true;
     } catch (_) {}
+    finally {
+      if (!llmConfigReady.value) {
+        llmConfigReady.value = true;
+      }
+      if (fetchedOk) {
+        queueLLMScoringConfigAutosave();
+      }
+    }
   };
 
   const fetchTrainingHistory = async () => {
@@ -671,6 +735,130 @@ export function useConfigML() {
     message.success('已应用调优参数到当前滑块');
   };
 
+  const buildThresholdRuntimePayload = () => {
+    const payload: Record<string, any> = {
+      enabled: true,
+      blockConfidenceThreshold: mlThresholds.value.blockConfidenceThreshold,
+      mlMinConfidence: mlThresholds.value.mlMinConfidence,
+      ruleOverridePriority: mlThresholds.value.ruleOverridePriority,
+      lowAnomalyThreshold: mlThresholds.value.lowAnomalyThreshold,
+      highAnomalyThreshold: mlThresholds.value.highAnomalyThreshold,
+      modelPath: mlStatus.value.model_path || '',
+      autoTrain: true,
+      trainInterval: '24h',
+      minSamplesForTraining: 1000,
+      activeLearningEnabled: false,
+      featureHistorySize: 100,
+      numTrees: hyperParams.value.numTrees,
+      maxDepth: hyperParams.value.maxDepth,
+      minSamplesLeaf: hyperParams.value.minSamplesLeaf,
+      validationSplitRatio: mlTrainingConfig.value.validationSplitRatio,
+      llmEnabled: llmScoringConfig.value.enabled,
+      llmBaseUrl: llmScoringConfig.value.baseUrl,
+      llmModel: llmScoringConfig.value.model,
+      llmTimeoutSeconds: llmScoringConfig.value.timeoutSeconds,
+      llmTemperature: llmScoringConfig.value.temperature,
+      llmMaxTokens: llmScoringConfig.value.maxTokens,
+      llmSystemPrompt: llmScoringConfig.value.systemPrompt,
+    };
+    const apiKey = llmScoringConfig.value.apiKey.trim();
+    if (apiKey) {
+      payload.llmApiKey = apiKey;
+    }
+    return payload;
+  };
+
+  const buildLLMRuntimePayload = () => {
+    const payload: Record<string, any> = {
+      llmEnabled: llmScoringConfig.value.enabled,
+      llmBaseUrl: llmScoringConfig.value.baseUrl,
+      llmModel: llmScoringConfig.value.model,
+      llmTimeoutSeconds: llmScoringConfig.value.timeoutSeconds,
+      llmTemperature: llmScoringConfig.value.temperature,
+      llmMaxTokens: llmScoringConfig.value.maxTokens,
+      llmSystemPrompt: llmScoringConfig.value.systemPrompt,
+    };
+    const apiKey = llmScoringConfig.value.apiKey.trim();
+    if (apiKey) {
+      payload.llmApiKey = apiKey;
+    }
+    return payload;
+  };
+
+  const persistLLMScoringConfigToStorage = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(
+        LLM_SCORING_STORAGE_KEY,
+        JSON.stringify(pickLLMScoringConfigForStorage(llmScoringConfig.value)),
+      );
+    } catch (_) {}
+  };
+
+  const applyStoredLLMScoringConfig = () => {
+    const stored = readStoredLLMScoringConfig();
+    if (!stored) return false;
+    if (stored.enabled !== undefined) llmScoringConfig.value.enabled = stored.enabled;
+    if (stored.baseUrl !== undefined) llmScoringConfig.value.baseUrl = stored.baseUrl;
+    if (stored.apiKey !== undefined) llmScoringConfig.value.apiKey = stored.apiKey;
+    if (stored.model !== undefined) llmScoringConfig.value.model = stored.model;
+    if (stored.timeoutSeconds !== undefined) llmScoringConfig.value.timeoutSeconds = stored.timeoutSeconds;
+    if (stored.temperature !== undefined) llmScoringConfig.value.temperature = stored.temperature;
+    if (stored.maxTokens !== undefined) llmScoringConfig.value.maxTokens = stored.maxTokens;
+    if (stored.systemPrompt !== undefined) llmScoringConfig.value.systemPrompt = stored.systemPrompt;
+    return true;
+  };
+
+  const syncLLMScoringConfigToBackend = async () => {
+    if (llmConfigSyncInFlight.value) {
+      llmConfigSyncQueued.value = true;
+      return;
+    }
+    if (llmConfigSyncTimer.value) {
+      clearTimeout(llmConfigSyncTimer.value);
+      llmConfigSyncTimer.value = null;
+    }
+    llmConfigSyncInFlight.value = true;
+    try {
+      await axios.put('/config/runtime', buildLLMRuntimePayload());
+    } finally {
+      llmConfigSyncInFlight.value = false;
+      if (llmConfigSyncQueued.value) {
+        llmConfigSyncQueued.value = false;
+        void syncLLMScoringConfigToBackend();
+      }
+    }
+  };
+
+  const queueLLMScoringConfigAutosave = () => {
+    if (!llmConfigReady.value || llmConfigApplyingRemote.value) return;
+    persistLLMScoringConfigToStorage();
+    if (llmConfigSyncTimer.value) {
+      clearTimeout(llmConfigSyncTimer.value);
+    }
+    llmConfigSyncTimer.value = setTimeout(() => {
+      llmConfigSyncTimer.value = null;
+      void syncLLMScoringConfigToBackend();
+    }, 600);
+  };
+
+  const flushLLMScoringConfigAutosave = async () => {
+    persistLLMScoringConfigToStorage();
+    if (llmConfigSyncTimer.value) {
+      clearTimeout(llmConfigSyncTimer.value);
+      llmConfigSyncTimer.value = null;
+    }
+    await syncLLMScoringConfigToBackend();
+  };
+
+  const persistRuntimeMLConfig = async (payload: Record<string, any>) => {
+    const res = await axios.put('/config/runtime', payload);
+    try {
+      await fetchMLStatus();
+    } catch (_) {}
+    return res.data;
+  };
+
   const submitFeedback = async () => {
     if (!feedbackComm.value) return;
     try {
@@ -685,32 +873,19 @@ export function useConfigML() {
 
   const saveMLThresholds = async () => {
     try {
-      const mlConfig: Record<string, any> = {
-        enabled: true,
-        blockConfidenceThreshold: mlThresholds.value.blockConfidenceThreshold,
-        mlMinConfidence: mlThresholds.value.mlMinConfidence,
-        ruleOverridePriority: mlThresholds.value.ruleOverridePriority,
-        lowAnomalyThreshold: mlThresholds.value.lowAnomalyThreshold,
-        highAnomalyThreshold: mlThresholds.value.highAnomalyThreshold,
-        modelPath: mlStatus.value.model_path || '',
-        autoTrain: true, trainInterval: '24h', minSamplesForTraining: 1000, activeLearningEnabled: false, featureHistorySize: 100,
-        numTrees: hyperParams.value.numTrees, maxDepth: hyperParams.value.maxDepth, minSamplesLeaf: hyperParams.value.minSamplesLeaf,
-        validationSplitRatio: mlTrainingConfig.value.validationSplitRatio,
-        llmEnabled: llmScoringConfig.value.enabled, llmBaseUrl: llmScoringConfig.value.baseUrl,
-        llmModel: llmScoringConfig.value.model, llmTimeoutSeconds: llmScoringConfig.value.timeoutSeconds,
-        llmTemperature: llmScoringConfig.value.temperature, llmMaxTokens: llmScoringConfig.value.maxTokens,
-        llmSystemPrompt: llmScoringConfig.value.systemPrompt,
-      };
-      if (llmScoringConfig.value.apiKey.trim()) {
-        mlConfig.llmApiKey = llmScoringConfig.value.apiKey.trim();
-      }
-      await axios.put('/config/runtime', { ...mlConfig });
-      message.success('ML thresholds saved');
-      await fetchMLStatus();
+      await persistRuntimeMLConfig(buildThresholdRuntimePayload());
+      message.success('ML settings saved');
     } catch (_) {
       message.error('Failed to save thresholds');
     }
   };
+
+  watch(llmScoringConfig, () => {
+    if (llmConfigApplyingRemote.value) return;
+    persistLLMScoringConfigToStorage();
+    if (!llmConfigReady.value) return;
+    queueLLMScoringConfigAutosave();
+  }, { deep: true });
 
   watch(() => llmBatchConfig.value.source, (source) => {
     if (source !== 'training') llmBatchConfig.value.applyLabels = false;
@@ -721,6 +896,12 @@ export function useConfigML() {
   const runLLMBatchScore = async () => {
     llmBatchLoading.value = true;
     try {
+      try {
+        await flushLLMScoringConfigAutosave();
+      } catch (e: any) {
+        message.error(e.response?.data?.error || 'LLM 配置自动保存失败，请先检查 Base URL / Model / API Key');
+        return;
+      }
       const res = await axios.post<MLLlmBatchResponse>('/config/ml/llm/batch-score', {
         source: llmBatchConfig.value.source, limit: llmBatchConfig.value.limit,
         onlyUnlabeled: llmBatchConfig.value.onlyUnlabeled,
@@ -1116,9 +1297,23 @@ export function useConfigML() {
     if (score >= 40) return '#d48806'; if (score >= 20) return '#389e0d'; return '#52c41a';
   };
 
+  const llmApiKeyStatus = computed(() => {
+    if (llmScoringConfig.value.apiKey.trim()) {
+      return { text: 'Key 已自动保存', color: 'green' };
+    }
+    if (llmScoringConfig.value.apiKeyConfigured) {
+      return { text: 'Key 已配置', color: 'green' };
+    }
+    return { text: 'Key 未配置', color: 'default' };
+  });
+
   onUnmounted(() => {
     stopLogPolling();
     stopAutoTunePolling();
+    if (llmConfigSyncTimer.value) {
+      clearTimeout(llmConfigSyncTimer.value);
+      llmConfigSyncTimer.value = null;
+    }
   });
 
   return {
@@ -1174,5 +1369,6 @@ export function useConfigML() {
       await fetchMLStatus(); await fetchAllSamples();
     },
     runBacktest, runBacktestPreset, riskLevelColor, riskMeterColor,
+    llmApiKeyStatus,
   };
 }

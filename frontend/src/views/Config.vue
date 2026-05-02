@@ -94,6 +94,7 @@ const {
   autoTuneGranularityLabel,
   autoTuneScore,
   runAutoTune, applyAutoTuneCell,
+  llmApiKeyStatus,
   allSamples, loadingSamples, sampleTablePageSize, sampleSearchText,
   existingDataLimit, existingLabelMode, existingCommandCandidates,
   loadingExistingData, importingExistingData, existingDataSource,
@@ -1071,15 +1072,14 @@ onMounted(async () => {
                 <a-alert
                   type="info"
                   show-icon
-                  message="这里配置外部 OpenAI 风格 LLM 的打分 API。API Key 留空会保留后端已保存的密钥。训练时会按验证集比例自动切分，并在后训练阶段对验证集进行 LLM 复核。"
+                  message="这里配置外部 OpenAI 风格 LLM 的打分 API。修改会实时保存到浏览器本地，并自动同步到后端；API Key 留空会保留后端已保存的密钥。训练时会按验证集比例自动切分，并在后训练阶段对验证集进行 LLM 复核。"
                 />
                 <a-row :gutter="[12, 12]">
                   <a-col :xs="24">
                     <a-space align="center" wrap>
                       <a-switch v-model:checked="llmScoringConfig.enabled" />
                       <span>启用 LLM 打分</span>
-                      <a-tag v-if="llmScoringConfig.apiKeyConfigured" color="green">Key 已配置</a-tag>
-                      <a-tag v-else color="default">Key 未配置</a-tag>
+                      <a-tag :color="llmApiKeyStatus.color">{{ llmApiKeyStatus.text }}</a-tag>
                     </a-space>
                   </a-col>
                   <a-col :xs="24">
