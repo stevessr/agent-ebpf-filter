@@ -35,7 +35,7 @@ import { useConfigRuntime } from "../composables/useConfigRuntime";
 import { useConfigML } from "../composables/useConfigML";
 import { useConfigCluster } from "../composables/useConfigCluster";
 import { quickRulePresets, externalRuleSources, syscallGroups } from "../composables/useConfigSecurity";
-import { classicSecurityDatasetPresets, highRiskPresets } from "../composables/useConfigML";
+import { classicSecurityDatasetPresets, highRiskPresets, safetyNetHighRiskPresets } from "../composables/useConfigML";
 
 // ── Composable Instantiations ──
 const registry = useConfigRegistry();
@@ -104,7 +104,7 @@ const {
   labelSample, deleteSample, updateAnomaly,
   importTrainingDatasetFromFile, exportTrainingDataset, clearTrainingDataset,
   openTrainingDatasetImportPicker, getLabelColor, trainWithParams,
-  splitCommandLine, submitManualSample, addPresetSample, importAllHighRiskPresets,
+  importAllSafetyNetPresets, splitCommandLine, submitManualSample, addPresetSample, importAllHighRiskPresets,
   runBacktest, runBacktestPreset, riskLevelColor, riskMeterColor,
 } = ml;
 
@@ -1719,6 +1719,26 @@ onMounted(async () => {
                       @click="addPresetSample(p)"
                     >
                       {{ p.comm }} {{ p.args ? p.args.slice(0, 30) + '…' : '' }}
+                      <span style="opacity: 0.7; margin-left: 4px">→ {{ p.desc }}</span>
+                    </a-tag>
+                  </a-space>
+                </a-col>
+
+                <!-- Safety Net presets -->
+                <a-col :xs="24" :md="10">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+                    <div style="font-weight: 600">Claude Code Safety Net 预设</div>
+                    <a-button size="small" type="link" @click="importAllSafetyNetPresets">一键导入全部</a-button>
+                  </div>
+                  <a-space wrap>
+                    <a-tag
+                      v-for="(p, i) in safetyNetHighRiskPresets"
+                      :key="'sn'+i"
+                      :color="p.label === 'BLOCK' ? 'red' : p.label === 'ALLOW' ? 'green' : 'orange'"
+                      style="cursor: pointer; padding: 4px 8px; font-size: 12px"
+                      @click="addPresetSample(p)"
+                    >
+                      <code>{{ p.comm }}</code> {{ p.args.slice(0, 35) }}{{ p.args.length > 35 ? '…' : '' }}
                       <span style="opacity: 0.7; margin-left: 4px">→ {{ p.desc }}</span>
                     </a-tag>
                   </a-space>

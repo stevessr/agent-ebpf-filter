@@ -16,7 +16,76 @@ export interface MLThresholds {
   highAnomalyThreshold: number;
 }
 
+// ── Claude Code Safety Net training samples ──
+// Curated from github.com/kenryu42/claude-code-safety-net rules
+export const safetyNetHighRiskPresets = [
+  // git destructive commands
+  { comm: 'git', args: 'checkout -- file.txt', label: 'BLOCK', desc: 'git checkout -- 丢弃未提交更改' },
+  { comm: 'git', args: 'checkout --force', label: 'BLOCK', desc: 'git checkout --force 强制覆盖' },
+  { comm: 'git', args: 'reset --hard HEAD~1', label: 'BLOCK', desc: 'git reset --hard 永久销毁未提交更改' },
+  { comm: 'git', args: 'reset --merge', label: 'BLOCK', desc: 'git reset --merge 可能丢失未提交更改' },
+  { comm: 'git', args: 'clean -fd', label: 'BLOCK', desc: 'git clean -f 永久删除未跟踪文件' },
+  { comm: 'git', args: 'push --force origin main', label: 'BLOCK', desc: 'git push --force 销毁远程历史' },
+  { comm: 'git', args: 'branch -D feature', label: 'ALERT', desc: 'git branch -D 强制删除分支' },
+  { comm: 'git', args: 'stash drop', label: 'ALERT', desc: 'git stash drop 永久删除暂存更改' },
+  { comm: 'git', args: 'stash clear', label: 'BLOCK', desc: 'git stash clear 删除所有暂存' },
+  { comm: 'git', args: 'restore .', label: 'ALERT', desc: 'git restore 丢弃未提交更改' },
+  { comm: 'git', args: 'worktree remove --force', label: 'ALERT', desc: 'git worktree remove --force 可能丢失更改' },
+  // rm dangerous patterns
+  { comm: 'rm', args: '-rf /', label: 'BLOCK', desc: 'rm -rf 根目录（极其危险）' },
+  { comm: 'rm', args: '-rf ~', label: 'BLOCK', desc: 'rm -rf 家目录' },
+  { comm: 'rm', args: '-rf $HOME', label: 'BLOCK', desc: 'rm -rf $HOME 家目录' },
+  { comm: 'rm', args: '-rf /tmp/*', label: 'ALLOW', desc: 'rm -rf /tmp 安全（临时目录）' },
+  { comm: 'rm', args: '-rf .', label: 'ALERT', desc: 'rm -rf cwd 自身（需确认）' },
+  { comm: 'rm', args: '-rf ../outside', label: 'BLOCK', desc: 'rm -rf 超出 cwd 范围' },
+  // find dangerous patterns
+  { comm: 'find', args: '. -name "*.log" -delete', label: 'ALERT', desc: 'find -delete 批量删除文件' },
+  { comm: 'find', args: '. -type f -exec rm {} \;', label: 'BLOCK', desc: 'find -exec rm 批量执行删除' },
+  { comm: 'find', args: '/tmp -name "*.txt" -exec sh -c', label: 'ALERT', desc: 'find -exec 自定义命令' },
+  // xargs dangerous patterns
+  { comm: 'xargs', args: 'rm -rf', label: 'BLOCK', desc: 'xargs rm -rf 不可预测批量删除' },
+  { comm: 'xargs', args: 'sh -c', label: 'BLOCK', desc: 'xargs sh -c 任意命令执行' },
+  // shell wrapper bypasses
+  { comm: 'bash', args: '-c "rm -rf /"', label: 'BLOCK', desc: 'bash -c 包装危险命令' },
+  { comm: 'sh', args: '-c "rm -rf /"', label: 'BLOCK', desc: 'sh -c 包装危险命令' },
+  { comm: 'env', args: 'rm -rf /', label: 'BLOCK', desc: 'env 包装器绕过' },
+  { comm: 'sudo', args: 'rm -rf /', label: 'BLOCK', desc: 'sudo 特权提升 + 破坏性操作' },
+  { comm: 'watch', args: '-n 1 "rm -rf /tmp"', label: 'ALERT', desc: 'watch 重复执行命令' },
+  // Benign allow samples for balance
+  { comm: 'git', args: 'status', label: 'ALLOW', desc: 'git status 安全' },
+  { comm: 'git', args: 'log --oneline', label: 'ALLOW', desc: 'git log 安全' },
+  { comm: 'git', args: 'diff', label: 'ALLOW', desc: 'git diff 安全' },
+  { comm: 'rm', args: 'file.txt', label: 'ALLOW', desc: 'rm 普通文件' },
+  { comm: 'rm', args: '-r node_modules', label: 'ALLOW', desc: 'rm -r node_modules 常见操作' },
+  { comm: 'find', args: '. -name "*.ts"', label: 'ALLOW', desc: 'find 只读操作' },
+  { comm: 'xargs', args: 'echo', label: 'ALLOW', desc: 'xargs echo 安全操作' },
+];
+
 export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
+  {
+    name: 'GTFOBins',
+    family: '特权提升',
+    platform: 'Linux / Unix',
+    pageUrl: 'https://gtfobins.github.io/',
+    downloadUrl: 'https://gtfobins.github.io/api.json',
+    note: 'Unix 二进制文件绕过本地安全限制的精选列表，支持一键导入为训练样本 (BLOCK/ALERT)。',
+  },
+  {
+    name: 'LOLBAS',
+    family: '离地攻击',
+    platform: 'Windows',
+    pageUrl: 'https://lolbas-project.github.io/',
+    downloadUrl: 'https://lolbas-project.github.io/api/lolbas.json',
+    note: 'Windows 签名二进制文件/脚本/库滥用列表，支持一键导入为训练样本。',
+  },
+  {
+    name: 'Claude Code Safety Net',
+    family: 'AI Agent 安全',
+    platform: 'Linux / macOS / Windows',
+    pageUrl: 'https://github.com/kenryu42/claude-code-safety-net',
+    downloadUrl: '/safety-net-rules.json',
+    note: '社区维护的 AI 编码代理安全规则集，覆盖 git/rm/find/xargs 等高风险命令模式。一键导入 36 条经过验证的训练样本。',
+  },
   {
     name: 'ADFA-LD',
     family: '经典 HIDS',
@@ -26,28 +95,11 @@ export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     note: 'UNSW/ADFA 的 Linux 主机入侵检测数据集 (GitHub Mirror)，包含系统调用序列。',
   },
   {
-    name: 'GTFOBins',
-    family: '特权提升',
-    platform: 'Linux / Unix',
-    pageUrl: 'https://gtfobins.github.io/',
-    downloadUrl: 'https://gtfobins.github.io/api.json',
-    note: '精选的 Unix 二进制文件列表，可用于绕过本地安全限制。',
-  },
-  {
-    name: 'LOLBAS',
-    family: '离地攻击',
-    platform: 'Windows',
-    pageUrl: 'https://lolbas-project.github.io/',
-    downloadUrl: 'https://lolbas-project.github.io/api/lolbas.json',
-    note: 'Windows 官方签名二进制文件、脚本和库，可被滥用用于提权或持久化。',
-  },
-  {
     name: 'Zenodo Shell Commands',
     family: '真实行为',
     platform: 'Linux / Metasploit',
-    pageUrl: 'https://zenodo.org/record/8136017',
-    downloadUrl: 'https://zenodo.org/record/8136017/files/shell_commands.json?download=1',
-    note: '21,000+ 条真实网络安全练习中的 Shell 命令历史。',
+    pageUrl: 'https://zenodo.org/records/8136017',
+    note: '21,000+ 条真实网络安全练习中的 Shell 命令历史。需从 Zenodo 页面手动下载 shell_commands.json 后通过"导入本地文件"上传。',
   },
   {
     name: 'NSL-KDD (Train+)',
@@ -55,7 +107,7 @@ export const classicSecurityDatasetPresets: ClassicSecurityDatasetPreset[] = [
     platform: '多平台 / 网络',
     pageUrl: 'https://www.unb.ca/cic/datasets/nsl.html',
     downloadUrl: 'https://github.com/defcom17/NSL-KDD/raw/master/NSL-KDD/KDDTrain%2B.csv',
-    note: 'KDD 99 的改进版，解决了重复记录问题，是入侵检测领域的经典基线。',
+    note: 'KDD 99 的改进版，解决了重复记录问题，是入侵检测领域的经典基线 (CSV 格式)。',
   },
   {
     name: 'CERT Insider Threat',
@@ -697,6 +749,18 @@ export function useConfigML() {
     getLabelColor, trainWithParams,
     openTrainingDatasetImportPicker: () => { trainingDatasetImportInput.value?.click(); },
     splitCommandLine, submitManualSample, addPresetSample, importAllHighRiskPresets,
+    importAllSafetyNetPresets: async () => {
+      let added = 0, skipped = 0;
+      for (const preset of safetyNetHighRiskPresets) {
+        const argsArray = preset.args ? splitCommandLine(preset.args) : [];
+        const argsStr = argsArray.join(' ');
+        if (allSamples.value.find(s => s.comm === preset.comm && (s.args || []).join(' ') === argsStr)) { skipped++; continue; }
+        try { await axios.post('/config/ml/samples', { comm: preset.comm, args: argsArray, label: preset.label }); added++; }
+        catch (_) { skipped++; }
+      }
+      message.success(`Safety Net 导入完成：新增 ${added} 条，跳过 ${skipped} 条`);
+      await fetchMLStatus(); await fetchAllSamples();
+    },
     runBacktest, runBacktestPreset, riskLevelColor, riskMeterColor,
   };
 }

@@ -57,7 +57,6 @@ export const quickRulePresets: SecurityRulePreset[] = [
 
   // ── General shell/security critical ──
   { comm: 'wget', action: 'ALERT', priority: 180, source: 'Cross-agent baseline', summary: 'wget -O — 将文件下载到磁盘，可能为恶意 payload' },
-  { comm: 'mount', action: 'ALERT', priority: 170, source: 'Cross-agent baseline', summary: 'mount — 文件系统挂载（潜在的外部卷或 bind mount 逃逸）' },
   { comm: 'chroot', action: 'BLOCK', priority: 200, source: 'Cross-agent baseline', summary: 'chroot — 容器/监狱逃逸' },
   { comm: 'insmod', action: 'BLOCK', priority: 200, source: 'Cross-agent baseline', summary: 'insmod — 加载内核模块' },
   { comm: 'modprobe', action: 'BLOCK', priority: 200, source: 'Cross-agent baseline', summary: 'modprobe — 加载内核模块' },
@@ -66,6 +65,15 @@ export const quickRulePresets: SecurityRulePreset[] = [
   { comm: 'usermod', action: 'ALERT', priority: 170, source: 'Cross-agent baseline', summary: 'usermod — 用户账户操纵（提权/添加组）' },
   { comm: 'passwd', action: 'ALERT', priority: 170, source: 'Cross-agent baseline', summary: 'passwd — 非交互式脚本中修改密码' },
   { comm: 'gcloud', action: 'ALERT', priority: 190, source: 'Cross-agent baseline', summary: 'gcloud — GCP 云资源删除/修改操作' },
+
+  // ── Claude Code Safety Net (git/rm/find/xargs deep analysis) ──
+  { comm: 'xargs', action: 'ALERT', priority: 190, source: 'Claude Code Safety Net', summary: 'xargs — 批量管道执行，可能将不可信输入传递给危险命令' },
+  { comm: 'git', action: 'ALERT', priority: 175, source: 'Claude Code Safety Net', summary: 'git reset --hard / clean -f / push --force 等破坏性操作需人工确认' },
+  { comm: 'rm', action: 'BLOCK', priority: 195, source: 'Claude Code Safety Net', summary: 'rm -rf 根/家目录或超出 cwd 范围始终阻止；/tmp 允许' },
+  { comm: 'watch', action: 'ALERT', priority: 170, source: 'Claude Code Safety Net', summary: 'watch — 重复执行命令，可能放大破坏性操作的影响' },
+  { comm: 'ionice', action: 'ALERT', priority: 160, source: 'Claude Code Safety Net', summary: 'ionice — I/O 优先级操纵，可能隐藏恶意 I/O 活动' },
+  { comm: 'setsid', action: 'ALERT', priority: 170, source: 'Claude Code Safety Net', summary: 'setsid — 从终端分离进程，绕过进程组管理和信号控制' },
+  { comm: 'mount', action: 'ALERT', priority: 175, source: 'Claude Code Safety Net', summary: 'mount --bind — bind mount 可能用于容器/jail 逃逸' },
 ];
 
 // ── External rule sources for one-click import ──
