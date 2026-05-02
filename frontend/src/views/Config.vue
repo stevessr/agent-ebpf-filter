@@ -86,10 +86,12 @@ const {
   llmBatchResponse, llmBatchLoading, trainingLogs,
   trainingHistory,
   hyperParams,
-  autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneMetric,
-  autoTuneLoading, autoTuneResponse, autoTuneSelectedCell,
+  autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
+  autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError,
+  autoTuneResponse, autoTuneSelectedCell,
   autoTuneHeatmapOptions, autoTuneHeatmapSeries, autoTuneBestCell,
   autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat,
+  autoTuneGranularityLabel,
   autoTuneScore,
   runAutoTune, applyAutoTuneCell,
   allSamples, loadingSamples, sampleTablePageSize, sampleSearchText,
@@ -2185,7 +2187,20 @@ onMounted(async () => {
                         <a-radio-button :value="3">3×3</a-radio-button>
                         <a-radio-button :value="5">5×5</a-radio-button>
                         <a-radio-button :value="7">7×7</a-radio-button>
+                        <a-radio-button :value="9">9×9</a-radio-button>
+                        <a-radio-button :value="11">11×11</a-radio-button>
                       </a-radio-group>
+                    </div>
+                    <div>
+                      <div style="font-weight: 600; margin-bottom: 6px">颗粒度</div>
+                      <a-radio-group v-model:value="autoTuneGranularity" button-style="solid">
+                        <a-radio-button :value="1">1x</a-radio-button>
+                        <a-radio-button :value="2">2x</a-radio-button>
+                        <a-radio-button :value="4">4x</a-radio-button>
+                      </a-radio-group>
+                      <a-typography-text type="secondary" style="display: block; margin-top: 4px">
+                        数值越大，搜索越细
+                      </a-typography-text>
                     </div>
                     <div>
                       <div style="font-weight: 600; margin-bottom: 6px">着色指标</div>
@@ -2199,6 +2214,24 @@ onMounted(async () => {
                       show-icon
                       message="X/Y 轴不能相同；调优结果会直接更新到当前滑块。"
                     />
+                    <div v-if="autoTuneLoading || autoTuneInProgress || autoTuneMessage || autoTuneError">
+                      <a-progress
+                        :percent="Math.max(0, Math.min(100, Math.round((autoTuneProgress || (autoTuneInProgress ? 0.01 : 0)) * 100)))"
+                        :status="autoTuneError ? 'exception' : ((autoTuneLoading || autoTuneInProgress) ? 'active' : 'success')"
+                        :show-info="true"
+                      />
+                      <div style="display: flex; justify-content: space-between; gap: 12px; margin-top: 4px; font-size: 12px; color: #666;">
+                        <span>{{ autoTuneMessage || (autoTuneLoading || autoTuneInProgress ? '调优进行中...' : '等待开始') }}</span>
+                        <span>{{ autoTuneCompleted || 0 }}/{{ autoTuneTotal || autoTuneGridSize * autoTuneGridSize }}</span>
+                      </div>
+                      <a-alert
+                        v-if="autoTuneError"
+                        type="error"
+                        show-icon
+                        :message="autoTuneError"
+                        style="margin-top: 8px"
+                      />
+                    </div>
                   </a-space>
                 </a-col>
 
@@ -2300,6 +2333,7 @@ onMounted(async () => {
 
               <div v-if="autoTuneResponse" style="margin-top: 12px; color: #666; font-size: 12px">
                 共评估 {{ autoTuneResponse.cells.length }} 个组合，样本 {{ autoTuneResponse.sampleCount }}，验证集 {{ autoTuneResponse.validationCount }}，
+                方阵 {{ autoTuneResponse.gridSize }}×{{ autoTuneResponse.gridSize }}，颗粒度 {{ autoTuneGranularityLabel(autoTuneResponse.granularity) }}，
                 用时 {{ autoTuneResponse.totalDuration.toFixed(1) }}s。
               </div>
             </a-card>

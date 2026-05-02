@@ -7,17 +7,19 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 type MLAutoTuneRequest struct {
-	XAxis                 string  `json:"xAxis"`
-	YAxis                 string  `json:"yAxis"`
-	GridSize              int     `json:"gridSize"`
-	Metric                string  `json:"metric"`
-	ValidationSplitRatio  float64 `json:"validationSplitRatio"`
+	XAxis                string  `json:"xAxis"`
+	YAxis                string  `json:"yAxis"`
+	GridSize             int     `json:"gridSize"`
+	Granularity          float64 `json:"granularity"`
+	Metric               string  `json:"metric"`
+	ValidationSplitRatio float64 `json:"validationSplitRatio"`
 }
 
 type MLAutoTuneCell struct {
@@ -38,17 +40,128 @@ type MLAutoTuneCell struct {
 }
 
 type MLAutoTuneResponse struct {
-	XAxis          string            `json:"xAxis"`
-	YAxis          string            `json:"yAxis"`
-	Metric         string            `json:"metric"`
-	GridSize       int               `json:"gridSize"`
-	XValues        []int             `json:"xValues"`
-	YValues        []int             `json:"yValues"`
-	SampleCount    int               `json:"sampleCount"`
+	XAxis           string           `json:"xAxis"`
+	YAxis           string           `json:"yAxis"`
+	Metric          string           `json:"metric"`
+	Granularity     float64          `json:"granularity"`
+	GridSize        int              `json:"gridSize"`
+	XValues         []int            `json:"xValues"`
+	YValues         []int            `json:"yValues"`
+	SampleCount     int              `json:"sampleCount"`
 	ValidationCount int              `json:"validationCount"`
-	TotalDuration  float64           `json:"totalDuration"`
-	Cells          []MLAutoTuneCell  `json:"cells"`
-	Best           *MLAutoTuneCell   `json:"best,omitempty"`
+	TotalDuration   float64          `json:"totalDuration"`
+	Cells           []MLAutoTuneCell `json:"cells"`
+	Best            *MLAutoTuneCell  `json:"best,omitempty"`
+}
+
+type MLAutoTuneState struct {
+	JobID      string              `json:"jobId"`
+	Running    bool                `json:"running"`
+	Progress   float64             `json:"progress"`
+	Completed  int                 `json:"completed"`
+	Total      int                 `json:"total"`
+	Message    string              `json:"message,omitempty"`
+	Error      string              `json:"error,omitempty"`
+	StartedAt  string              `json:"startedAt,omitempty"`
+	FinishedAt string              `json:"finishedAt,omitempty"`
+	Result     *MLAutoTuneResponse `json:"result,omitempty"`
+}
+
+type autoTuneRuntime struct {
+	mu     sync.RWMutex
+	state  MLAutoTuneState
+	result *MLAutoTuneResponse
+}
+
+var globalAutoTuneState = &autoTuneRuntime{}
+
+func (s *autoTuneRuntime) begin(jobID string, total int, message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state = MLAutoTuneState{
+		JobID:     jobID,
+		Running:   true,
+		Progress:  0,
+		Completed: 0,
+		Total:     total,
+		Message:   message,
+		StartedAt: time.Now().Format(time.RFC3339),
+	}
+	s.result = nil
+}
+
+func (s *autoTuneRuntime) tryBegin(jobID string, total int, message string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state.Running {
+		return false
+	}
+	s.state = MLAutoTuneState{
+		JobID:     jobID,
+		Running:   true,
+		Progress:  0,
+		Completed: 0,
+		Total:     total,
+		Message:   message,
+		StartedAt: time.Now().Format(time.RFC3339),
+	}
+	s.result = nil
+	return true
+}
+
+func (s *autoTuneRuntime) update(jobID string, completed, total int, message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if jobID != "" && s.state.JobID != "" && s.state.JobID != jobID {
+		return
+	}
+	s.state.JobID = jobID
+	s.state.Running = true
+	s.state.Completed = completed
+	s.state.Total = total
+	if total > 0 {
+		s.state.Progress = math.Max(0, math.Min(1, float64(completed)/float64(total)))
+	} else {
+		s.state.Progress = 0
+	}
+	s.state.Message = message
+	s.state.Error = ""
+}
+
+func (s *autoTuneRuntime) finish(jobID string, result *MLAutoTuneResponse, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if jobID != "" && s.state.JobID != "" && s.state.JobID != jobID {
+		return
+	}
+	s.state.Running = false
+	s.state.FinishedAt = time.Now().Format(time.RFC3339)
+	if err != nil {
+		s.state.Error = err.Error()
+		s.state.Message = "自动调参失败"
+		s.result = nil
+		s.state.Result = nil
+		return
+	}
+	s.state.Progress = 1
+	if result != nil {
+		s.result = result
+		s.state.Result = result
+	}
+	s.state.Error = ""
+	if s.state.Message == "" {
+		s.state.Message = "自动调参完成"
+	}
+}
+
+func (s *autoTuneRuntime) snapshot() MLAutoTuneState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	state := s.state
+	if s.result != nil {
+		state.Result = s.result
+	}
+	return state
 }
 
 func handleMLTunePost(c *gin.Context) {
@@ -67,16 +180,36 @@ func handleMLTunePost(c *gin.Context) {
 		return
 	}
 
-	resp, err := globalTrainer.AutoTune(globalTrainingStore, req)
-	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+	if globalAutoTuneState.snapshot().Running {
+		c.JSON(409, gin.H{"error": "auto tuning already in progress"})
+		return
+	}
+	if globalTrainer.isRunning {
+		c.JSON(409, gin.H{"error": "training already in progress"})
 		return
 	}
 
-	c.JSON(200, resp)
+	jobID := fmt.Sprintf("tune-%d", time.Now().UnixNano())
+	if !globalAutoTuneState.tryBegin(jobID, 0, "自动调参任务已接收") {
+		c.JSON(409, gin.H{"error": "auto tuning already in progress"})
+		return
+	}
+
+	go func(jobID string, req MLAutoTuneRequest) {
+		resp, err := globalTrainer.AutoTune(globalTrainingStore, req, func(completed, total int, message string) {
+			globalAutoTuneState.update(jobID, completed, total, message)
+		})
+		globalAutoTuneState.finish(jobID, resp, err)
+	}(jobID, req)
+
+	c.JSON(202, gin.H{
+		"jobId":   jobID,
+		"started": true,
+		"message": "自动调参已开始",
+	})
 }
 
-func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest) (*MLAutoTuneResponse, error) {
+func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest, progressCb func(completed, total int, message string)) (*MLAutoTuneResponse, error) {
 	select {
 	case t.mu <- struct{}{}:
 		defer func() { <-t.mu }()
@@ -97,6 +230,7 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest)
 	}
 
 	gridSize := normalizeAutoTuneGridSize(req.GridSize)
+	granularity := normalizeAutoTuneGranularity(req.Granularity)
 	metric := normalizeAutoTuneMetric(req.Metric)
 	if metric == "" {
 		metric = "validationAccuracy"
@@ -134,19 +268,28 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest)
 		return nil, err
 	}
 
-	xValues := autoTuneAxisValues(xAxis, gridSize, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf)
-	yValues := autoTuneAxisValues(yAxis, gridSize, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf)
+	xValues := autoTuneAxisValues(xAxis, gridSize, granularity, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf)
+	yValues := autoTuneAxisValues(yAxis, gridSize, granularity, baseNumTrees, baseMaxDepth, baseMinSamplesLeaf)
 	maxRequiredLeaf := autoTuneMaxInt(baseMinSamplesLeaf, maxAxisValue(xAxis, xValues, yAxis, yValues, "minSamplesLeaf"))
 	if len(labeled) < maxRequiredLeaf*10 {
 		msg := fmt.Sprintf("Insufficient labeled samples for tuning: need >=%d, have %d", maxRequiredLeaf*10, len(labeled))
 		return nil, errors.New(msg)
 	}
 
+	totalCombos := len(xValues) * len(yValues)
+	if totalCombos <= 0 {
+		return nil, errors.New("no valid parameter combinations found for tuning")
+	}
+	if progressCb != nil {
+		progressCb(0, totalCombos, "开始评估自动调参方阵")
+	}
+
 	start := time.Now()
-	cells := make([]MLAutoTuneCell, 0, len(xValues)*len(yValues))
+	cells := make([]MLAutoTuneCell, 0, totalCombos)
 	var best *MLAutoTuneCell
 	bestScore := math.Inf(-1)
 
+	done := 0
 	for yi, yValue := range yValues {
 		for xi, xValue := range xValues {
 			numTrees, maxDepth, minLeaf := baseNumTrees, baseMaxDepth, baseMinSamplesLeaf
@@ -155,6 +298,10 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest)
 
 			// Ensure the candidate respects the same minimum requirement as normal training.
 			if len(labeled) < minLeaf*10 {
+				done++
+				if progressCb != nil {
+					progressCb(done, totalCombos, fmt.Sprintf("跳过 %d/%d 个组合（样本不足）", done, totalCombos))
+				}
 				continue
 			}
 
@@ -201,6 +348,11 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest)
 				best = &copyCell
 				bestScore = score
 			}
+
+			done++
+			if progressCb != nil {
+				progressCb(done, totalCombos, fmt.Sprintf("评估 %d/%d 个组合", done, totalCombos))
+			}
 		}
 	}
 
@@ -208,10 +360,15 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest)
 		return nil, errors.New("no valid parameter combinations found for tuning")
 	}
 
+	if progressCb != nil {
+		progressCb(totalCombos, totalCombos, "自动调参完成")
+	}
+
 	return &MLAutoTuneResponse{
 		XAxis:           xAxis,
 		YAxis:           yAxis,
 		Metric:          metric,
+		Granularity:     granularity,
 		GridSize:        gridSize,
 		XValues:         xValues,
 		YValues:         yValues,
@@ -415,12 +572,12 @@ func normalizeAutoTuneGridSize(size int) int {
 	if size < 3 {
 		size = 3
 	}
-	if size > 9 {
-		size = 9
+	if size > 11 {
+		size = 11
 	}
 	if size%2 == 0 {
 		size++
-		if size > 9 {
+		if size > 11 {
 			size -= 2
 		}
 	}
@@ -430,9 +587,20 @@ func normalizeAutoTuneGridSize(size int) int {
 	return size
 }
 
-func autoTuneAxisValues(axis string, gridSize, numTrees, maxDepth, minSamplesLeaf int) []int {
+func normalizeAutoTuneGranularity(granularity float64) float64 {
+	switch {
+	case granularity >= 3:
+		return 4
+	case granularity >= 1.5:
+		return 2
+	default:
+		return 1
+	}
+}
+
+func autoTuneAxisValues(axis string, gridSize int, granularity float64, numTrees, maxDepth, minSamplesLeaf int) []int {
 	center := axisCenter(axis, numTrees, maxDepth, minSamplesLeaf)
-	minValue, maxValue := autoTuneAxisRange(axis, center, gridSize)
+	minValue, maxValue := autoTuneAxisRange(axis, center, gridSize, granularity)
 	return linspaceInt(minValue, maxValue, gridSize)
 }
 
@@ -447,17 +615,54 @@ func axisCenter(axis string, numTrees, maxDepth, minSamplesLeaf int) int {
 	}
 }
 
-func autoTuneAxisRange(axis string, center, gridSize int) (int, int) {
+func autoTuneAxisRange(axis string, center, gridSize int, granularity float64) (int, int) {
+	minBound, maxBound := autoTuneAxisBounds(axis)
+	step := autoTuneAxisStep(axis, granularity)
+	radius := gridSize / 2
+
+	minValue := center - step*radius
+	maxValue := center + step*radius
+
+	if minValue < minBound {
+		maxValue += minBound - minValue
+		minValue = minBound
+	}
+	if maxValue > maxBound {
+		minValue -= maxValue - maxBound
+		maxValue = maxBound
+	}
+
+	minValue = autoTuneClampInt(minValue, minBound, maxBound)
+	maxValue = autoTuneClampInt(maxValue, minBound, maxBound)
+	if maxValue < minValue {
+		maxValue = minValue
+	}
+	return minValue, maxValue
+}
+
+func autoTuneAxisStep(axis string, granularity float64) int {
+	if granularity <= 0 {
+		granularity = 1
+	}
+	base := 1
+	if axis == "numTrees" {
+		base = 5
+	}
+	step := int(math.Round(float64(base) / granularity))
+	if step < 1 {
+		step = 1
+	}
+	return step
+}
+
+func autoTuneAxisBounds(axis string) (int, int) {
 	switch axis {
 	case "maxDepth":
-		span := autoTuneMaxInt(2, gridSize-1)
-		return autoTuneClampInt(center-span, 3, 20), autoTuneClampInt(center+span, 3, 20)
+		return 3, 20
 	case "minSamplesLeaf":
-		span := autoTuneMaxInt(2, gridSize-1)
-		return autoTuneClampInt(center-span, 1, 50), autoTuneClampInt(center+span, 1, 50)
+		return 1, 50
 	default:
-		span := autoTuneMaxInt(10, 5*(gridSize-1))
-		return autoTuneClampInt(center-span/2, 5, 200), autoTuneClampInt(center+span/2, 5, 200)
+		return 5, 200
 	}
 }
 

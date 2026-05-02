@@ -178,6 +178,7 @@ export interface MLTrainingHistoryEntry {
 
 export type MLAutoTuneAxis = 'numTrees' | 'maxDepth' | 'minSamplesLeaf';
 export type MLAutoTuneMetric = 'validationAccuracy' | 'inferenceThroughput';
+export type MLAutoTuneGranularity = 1 | 2 | 4;
 
 export interface MLAutoTuneCell {
   xIndex: number;
@@ -200,6 +201,7 @@ export interface MLAutoTuneResponse {
   xAxis: MLAutoTuneAxis;
   yAxis: MLAutoTuneAxis;
   metric: MLAutoTuneMetric;
+  granularity: MLAutoTuneGranularity;
   gridSize: number;
   xValues: number[];
   yValues: number[];

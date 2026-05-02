@@ -644,6 +644,7 @@ func handleMLStatusGet(c *gin.Context) {
 	status := mlStatus()
 	logs := globalTrainer.GetLogs(100)
 	trainAccuracy, validationAccuracy, validationRatio, trainSamples, validationSamples := globalTrainer.SplitMetrics()
+	autoTuneState := globalAutoTuneState.snapshot()
 	logItems := make([]gin.H, len(logs))
 	for i, entry := range logs {
 		logItems[i] = gin.H{"time": entry.Timestamp.Format("15:04:05"), "message": entry.Message}
@@ -665,6 +666,14 @@ func handleMLStatusGet(c *gin.Context) {
 		"validationSamples":    validationSamples,
 		"validationSplitRatio": validationRatio,
 		"llmReview":            globalTrainer.LastLLMReview(),
+		"autoTuneJobId":        autoTuneState.JobID,
+		"autoTuneInProgress":   autoTuneState.Running,
+		"autoTuneProgress":     autoTuneState.Progress,
+		"autoTuneCompleted":    autoTuneState.Completed,
+		"autoTuneTotal":        autoTuneState.Total,
+		"autoTuneMessage":      autoTuneState.Message,
+		"autoTuneError":        autoTuneState.Error,
+		"autoTuneResult":       autoTuneState.Result,
 		"mlConfig": gin.H{
 			"validationSplitRatio": mlConfig.ValidationSplitRatio,
 			"llmEnabled":           mlConfig.LlmEnabled,

@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
 import type { ApexChartEventOpts, ApexOptions } from 'apexcharts';
@@ -8,7 +8,7 @@ import type {
   SampleEntry, ExistingCommandCandidate, RemoteDatasetRow, RemoteDatasetResponse,
   LLMProductionDatasetResponse, LLMProductionDatasetRow,
   ClassicSecurityDatasetPreset,
-  MLAutoTuneAxis, MLAutoTuneCell, MLAutoTuneMetric, MLAutoTuneResponse,
+  MLAutoTuneAxis, MLAutoTuneCell, MLAutoTuneGranularity, MLAutoTuneMetric, MLAutoTuneResponse,
 } from '../types/config';
 
 export interface MLThresholds {
@@ -229,11 +229,21 @@ export function useConfigML() {
   const hyperParams = ref({ numTrees: 31, maxDepth: 8, minSamplesLeaf: 5 });
   const autoTuneXAxis = ref<MLAutoTuneAxis>('numTrees');
   const autoTuneYAxis = ref<MLAutoTuneAxis>('maxDepth');
-  const autoTuneGridSize = ref<3 | 5 | 7>(5);
+  const autoTuneGridSize = ref<3 | 5 | 7 | 9 | 11>(5);
+  const autoTuneGranularity = ref<MLAutoTuneGranularity>(1);
   const autoTuneMetric = ref<MLAutoTuneMetric>('validationAccuracy');
   const autoTuneLoading = ref(false);
+  const autoTuneInProgress = ref(false);
+  const autoTuneProgress = ref(0);
+  const autoTuneCompleted = ref(0);
+  const autoTuneTotal = ref(0);
+  const autoTuneMessage = ref('');
+  const autoTuneError = ref('');
+  const autoTuneJobId = ref('');
   const autoTuneResponse = ref<MLAutoTuneResponse | null>(null);
   const autoTuneSelectedCell = ref<MLAutoTuneCell | null>(null);
+  const autoTunePollTimer = ref<ReturnType<typeof setInterval> | null>(null);
+  const autoTunePollInFlight = ref(false);
 
   // ── Sample Data ──
   const allSamples = ref<SampleEntry[]>([]);
@@ -292,6 +302,25 @@ export function useConfigML() {
     mlStatus.value.validation_samples = data.validationSamples ?? data.validation_samples ?? 0;
     mlStatus.value.validation_split_ratio = data.validationSplitRatio ?? data.validation_split_ratio ?? mlStatus.value.validation_split_ratio ?? 0.2;
     mlStatus.value.llm_review = data.llmReview ?? data.llm_review ?? null;
+
+    autoTuneJobId.value = data.autoTuneJobId ?? data.auto_tune_job_id ?? autoTuneJobId.value;
+    autoTuneInProgress.value = data.autoTuneInProgress ?? data.auto_tune_in_progress ?? false;
+    autoTuneProgress.value = data.autoTuneProgress ?? data.auto_tune_progress ?? autoTuneProgress.value ?? 0;
+    autoTuneCompleted.value = data.autoTuneCompleted ?? data.auto_tune_completed ?? autoTuneCompleted.value ?? 0;
+    autoTuneTotal.value = data.autoTuneTotal ?? data.auto_tune_total ?? autoTuneTotal.value ?? 0;
+    autoTuneMessage.value = data.autoTuneMessage ?? data.auto_tune_message ?? autoTuneMessage.value ?? '';
+    autoTuneError.value = data.autoTuneError ?? data.auto_tune_error ?? '';
+
+    const autoTuneResult = data.autoTuneResult ?? data.auto_tune_result ?? null;
+    if (autoTuneResult) {
+      autoTuneResponse.value = autoTuneResult;
+      autoTuneSelectedCell.value = autoTuneResult.best || autoTuneResult.cells?.[0] || null;
+      if (autoTuneSelectedCell.value) {
+        hyperParams.value.numTrees = autoTuneSelectedCell.value.numTrees;
+        hyperParams.value.maxDepth = autoTuneSelectedCell.value.maxDepth;
+        hyperParams.value.minSamplesLeaf = autoTuneSelectedCell.value.minSamplesLeaf;
+      }
+    }
 
     const mlConfig = data.mlConfig ?? data.ml_config ?? {};
     if (mlConfig) {
@@ -416,6 +445,8 @@ export function useConfigML() {
     return `${value.toFixed(0)}/s`;
   };
 
+  const autoTuneGranularityLabel = (granularity: MLAutoTuneGranularity) => `${granularity}x`;
+
   const autoTuneScore = (cell: MLAutoTuneCell, metric = autoTuneMetric.value) =>
     metric === 'validationAccuracy' ? cell.validationAccuracy : cell.inferenceThroughput;
 
@@ -477,7 +508,7 @@ export function useConfigML() {
         },
       },
       dataLabels: {
-        enabled: true,
+        enabled: !!response && response.gridSize <= 9,
         formatter: (value: number) => autoTuneMetricFormat(value),
         style: { colors: ['#111827'] },
       },
@@ -502,6 +533,7 @@ export function useConfigML() {
               <div>树数: <b>${cell.numTrees}</b></div>
               <div>深度: <b>${cell.maxDepth}</b></div>
               <div>叶节点样本: <b>${cell.minSamplesLeaf}</b></div>
+              <div>颗粒度: <b>${autoTuneGranularityLabel(response?.granularity || autoTuneGranularity.value)}</b></div>
               <div>${autoTuneMetricLabel(autoTuneMetric.value)}: <b>${autoTuneMetricFormat(autoTuneScore(cell))}</b></div>
               <div>验证集准确率: <b>${(cell.validationAccuracy * 100).toFixed(1)}%</b></div>
               <div>推理速度: <b>${autoTuneMetricFormat(cell.inferenceThroughput, 'inferenceThroughput')}</b></div>
@@ -528,32 +560,101 @@ export function useConfigML() {
 
   const autoTuneBestCell = computed(() => autoTuneResponse.value?.best || null);
 
+  const stopAutoTunePolling = () => {
+    if (autoTunePollTimer.value) {
+      clearInterval(autoTunePollTimer.value);
+      autoTunePollTimer.value = null;
+    }
+    autoTunePollInFlight.value = false;
+  };
+
+  const startAutoTunePolling = (jobId: string) => {
+    stopAutoTunePolling();
+    autoTunePollTimer.value = setInterval(async () => {
+      if (autoTunePollInFlight.value) return;
+      autoTunePollInFlight.value = true;
+      try {
+        const res = await axios.get('/config/ml/status');
+        applyMLStatusResponse(res.data);
+        const statusJobId = res.data.autoTuneJobId ?? res.data.auto_tune_job_id;
+        if (statusJobId && statusJobId !== jobId) {
+          return;
+        }
+        const result = res.data.autoTuneResult ?? res.data.auto_tune_result ?? null;
+        const error = res.data.autoTuneError ?? res.data.auto_tune_error ?? '';
+        const inProgress = res.data.autoTuneInProgress ?? res.data.auto_tune_in_progress ?? false;
+        if (result) {
+          autoTuneResponse.value = result;
+          autoTuneSelectedCell.value = result.best || result.cells?.[0] || null;
+          if (autoTuneSelectedCell.value) {
+            hyperParams.value.numTrees = autoTuneSelectedCell.value.numTrees;
+            hyperParams.value.maxDepth = autoTuneSelectedCell.value.maxDepth;
+            hyperParams.value.minSamplesLeaf = autoTuneSelectedCell.value.minSamplesLeaf;
+          }
+          autoTuneLoading.value = false;
+          stopAutoTunePolling();
+          message.success(`自动调参完成：${res.data.autoTuneCompleted ?? result.cells.length ?? 0}/${res.data.autoTuneTotal ?? result.cells.length ?? 0}`);
+          return;
+        }
+        if (!inProgress) {
+          autoTuneLoading.value = false;
+          stopAutoTunePolling();
+          if (error) {
+            autoTuneError.value = error;
+            message.error(error);
+          }
+        }
+      } catch (e: any) {
+        autoTuneLoading.value = false;
+        autoTuneError.value = e.response?.data?.error || e.message || '自动调参状态拉取失败';
+        stopAutoTunePolling();
+      } finally {
+        autoTunePollInFlight.value = false;
+      }
+    }, 900);
+  };
+
   const runAutoTune = async () => {
     if (autoTuneXAxis.value === autoTuneYAxis.value) {
       message.warning('X 轴和 Y 轴不能相同');
       return;
     }
     autoTuneLoading.value = true;
+    autoTuneResponse.value = null;
+    autoTuneSelectedCell.value = null;
+    autoTuneError.value = '';
+    autoTuneProgress.value = 0;
+    autoTuneCompleted.value = 0;
+    autoTuneTotal.value = 0;
+    autoTuneMessage.value = '正在启动自动调参...';
     try {
-      const res = await axios.post<MLAutoTuneResponse>('/config/ml/tune', {
+      const res = await axios.post('/config/ml/tune', {
         xAxis: autoTuneXAxis.value,
         yAxis: autoTuneYAxis.value,
         gridSize: autoTuneGridSize.value,
+        granularity: autoTuneGranularity.value,
         metric: autoTuneMetric.value,
         validationSplitRatio: mlTrainingConfig.value.validationSplitRatio,
       });
-      autoTuneResponse.value = res.data;
-      autoTuneSelectedCell.value = res.data.best || res.data.cells?.[0] || null;
-      if (autoTuneSelectedCell.value) {
-        hyperParams.value.numTrees = autoTuneSelectedCell.value.numTrees;
-        hyperParams.value.maxDepth = autoTuneSelectedCell.value.maxDepth;
-        hyperParams.value.minSamplesLeaf = autoTuneSelectedCell.value.minSamplesLeaf;
+      autoTuneJobId.value = res.data.jobId || '';
+      if (res.data.started) {
+        autoTuneInProgress.value = true;
+        autoTuneMessage.value = res.data.message || '自动调参已启动';
+        startAutoTunePolling(autoTuneJobId.value);
+        message.success(`已启动 ${autoTuneGridSize.value}×${autoTuneGridSize.value} 调优方阵`);
+      } else {
+        autoTuneLoading.value = false;
+        autoTuneMessage.value = '';
+        message.warning('自动调参没有启动');
       }
-      message.success(`已生成 ${res.data.gridSize}×${res.data.gridSize} 调优方阵`);
     } catch (e: any) {
       message.error(e.response?.data?.error || '自动调优失败');
-    } finally {
       autoTuneLoading.value = false;
+      autoTuneInProgress.value = false;
+      autoTuneMessage.value = '';
+      stopAutoTunePolling();
+    } finally {
+      void fetchMLStatus();
     }
   };
 
@@ -1015,14 +1116,21 @@ export function useConfigML() {
     if (score >= 40) return '#d48806'; if (score >= 20) return '#389e0d'; return '#52c41a';
   };
 
+  onUnmounted(() => {
+    stopLogPolling();
+    stopAutoTunePolling();
+  });
+
   return {
     mlEnabled, mlStatus, trainingModel, feedbackComm, feedbackAction,
     mlThresholds, mlTrainingConfig, llmScoringConfig, llmBatchConfig,
     llmBatchResponse, llmBatchLoading, trainingLogs, logPollTimer,
     trainingHistory, hyperParams,
-    autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneMetric,
-    autoTuneLoading, autoTuneResponse, autoTuneSelectedCell,
+    autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
+    autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError, autoTuneJobId,
+    autoTuneResponse, autoTuneSelectedCell,
     autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat,
+    autoTuneGranularityLabel,
     autoTuneScore, autoTuneHeatmapOptions, autoTuneHeatmapSeries, autoTuneBestCell,
     runAutoTune, applyAutoTuneCell,
     allSamples, loadingSamples, sampleTablePageSize, sampleSearchText,
