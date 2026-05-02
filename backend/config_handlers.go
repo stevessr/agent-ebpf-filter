@@ -609,6 +609,7 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		ml.GET("/logs", handleMLLogsGet)
 		ml.GET("/history", handleMLHistoryGet)
 		ml.POST("/train", handleMLTrainPost)
+		ml.POST("/tune", handleMLTunePost)
 		ml.POST("/feedback", handleMLFeedbackPost)
 		ml.GET("/samples", handleMLSamplesGet)
 		ml.POST("/samples", handleMLSamplesPost)

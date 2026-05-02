@@ -176,6 +176,40 @@ export interface MLTrainingHistoryEntry {
   duration?: number;
 }
 
+export type MLAutoTuneAxis = 'numTrees' | 'maxDepth' | 'minSamplesLeaf';
+export type MLAutoTuneMetric = 'validationAccuracy' | 'inferenceThroughput';
+
+export interface MLAutoTuneCell {
+  xIndex: number;
+  yIndex: number;
+  xValue: number;
+  yValue: number;
+  numTrees: number;
+  maxDepth: number;
+  minSamplesLeaf: number;
+  trainAccuracy: number;
+  validationAccuracy: number;
+  inferenceThroughput: number;
+  inferenceMsPerSample: number;
+  trainDuration: number;
+  evalDuration: number;
+  score: number;
+}
+
+export interface MLAutoTuneResponse {
+  xAxis: MLAutoTuneAxis;
+  yAxis: MLAutoTuneAxis;
+  metric: MLAutoTuneMetric;
+  gridSize: number;
+  xValues: number[];
+  yValues: number[];
+  sampleCount: number;
+  validationCount: number;
+  totalDuration: number;
+  cells: MLAutoTuneCell[];
+  best: MLAutoTuneCell | null;
+}
+
 export interface SampleEntry {
   index: number;
   commandLine?: string;

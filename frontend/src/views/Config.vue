@@ -86,6 +86,12 @@ const {
   llmBatchResponse, llmBatchLoading, trainingLogs,
   trainingHistory,
   hyperParams,
+  autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneMetric,
+  autoTuneLoading, autoTuneResponse, autoTuneSelectedCell,
+  autoTuneHeatmapOptions, autoTuneHeatmapSeries, autoTuneBestCell,
+  autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat,
+  autoTuneScore,
+  runAutoTune, applyAutoTuneCell,
   allSamples, loadingSamples, sampleTablePageSize, sampleSearchText,
   existingDataLimit, existingLabelMode, existingCommandCandidates,
   loadingExistingData, importingExistingData, existingDataSource,
@@ -2133,6 +2139,169 @@ onMounted(async () => {
                   </div>
                 </a-col>
               </a-row>
+            </a-card>
+          </a-col>
+
+          <a-col v-if="mlSubTabKey === 'params'" :xs="24">
+            <a-card title="Auto Parameter Tuning" size="small">
+              <template #extra>
+                <a-space>
+                  <a-tag color="magenta">{{ autoTuneGridSize }}×{{ autoTuneGridSize }} 方阵</a-tag>
+                  <a-button size="small" type="primary" :loading="autoTuneLoading" @click="runAutoTune">
+                    <ControlOutlined /> 开始调优
+                  </a-button>
+                </a-space>
+              </template>
+
+              <a-alert
+                type="info"
+                show-icon
+                style="margin-bottom: 12px"
+                :message="`选择两个参数做平方搜索，颜色越深表示所选指标越高。当前按「${autoTuneMetricLabel(autoTuneMetric)}」着色。`"
+              />
+
+              <a-row :gutter="[16, 16]">
+                <a-col :xs="24" :md="6">
+                  <a-space direction="vertical" style="width: 100%">
+                    <div>
+                      <div style="font-weight: 600; margin-bottom: 6px">X 轴参数</div>
+                      <a-select v-model:value="autoTuneXAxis" style="width: 100%">
+                        <a-select-option value="numTrees">树数 (numTrees)</a-select-option>
+                        <a-select-option value="maxDepth">最大深度 (maxDepth)</a-select-option>
+                        <a-select-option value="minSamplesLeaf">叶节点样本 (minSamplesLeaf)</a-select-option>
+                      </a-select>
+                    </div>
+                    <div>
+                      <div style="font-weight: 600; margin-bottom: 6px">Y 轴参数</div>
+                      <a-select v-model:value="autoTuneYAxis" style="width: 100%">
+                        <a-select-option value="numTrees">树数 (numTrees)</a-select-option>
+                        <a-select-option value="maxDepth">最大深度 (maxDepth)</a-select-option>
+                        <a-select-option value="minSamplesLeaf">叶节点样本 (minSamplesLeaf)</a-select-option>
+                      </a-select>
+                    </div>
+                    <div>
+                      <div style="font-weight: 600; margin-bottom: 6px">方阵大小</div>
+                      <a-radio-group v-model:value="autoTuneGridSize" button-style="solid">
+                        <a-radio-button :value="3">3×3</a-radio-button>
+                        <a-radio-button :value="5">5×5</a-radio-button>
+                        <a-radio-button :value="7">7×7</a-radio-button>
+                      </a-radio-group>
+                    </div>
+                    <div>
+                      <div style="font-weight: 600; margin-bottom: 6px">着色指标</div>
+                      <a-radio-group v-model:value="autoTuneMetric" button-style="solid">
+                        <a-radio-button value="validationAccuracy">回测准确率</a-radio-button>
+                        <a-radio-button value="inferenceThroughput">推理速度</a-radio-button>
+                      </a-radio-group>
+                    </div>
+                    <a-alert
+                      type="warning"
+                      show-icon
+                      message="X/Y 轴不能相同；调优结果会直接更新到当前滑块。"
+                    />
+                  </a-space>
+                </a-col>
+
+                <a-col :xs="24" :md="18">
+                  <div
+                    style="
+                      width: 100%;
+                      aspect-ratio: 1 / 1;
+                      min-height: 420px;
+                      background: #fff;
+                      border: 1px solid #f0f0f0;
+                      border-radius: 8px;
+                      padding: 8px;
+                    "
+                  >
+                    <VueApexCharts
+                      v-if="autoTuneHeatmapSeries.length > 0"
+                      type="heatmap"
+                      :height="Math.max(360, autoTuneGridSize * 64)"
+                      :options="autoTuneHeatmapOptions"
+                      :series="autoTuneHeatmapSeries"
+                    />
+                    <a-empty
+                      v-else
+                      description="点击“开始调优”生成参数方阵"
+                      style="height: 100%; display: flex; align-items: center; justify-content: center"
+                    />
+                  </div>
+                </a-col>
+              </a-row>
+
+              <a-divider />
+
+              <a-row :gutter="[16, 16]">
+                <a-col :xs="24" :md="8">
+                  <a-card size="small" title="当前选中">
+                    <template v-if="autoTuneSelectedCell">
+                      <a-descriptions :column="1" size="small" bordered>
+                        <a-descriptions-item :label="autoTuneAxisLabel(autoTuneXAxis)">{{ autoTuneSelectedCell.xValue }}</a-descriptions-item>
+                        <a-descriptions-item :label="autoTuneAxisLabel(autoTuneYAxis)">{{ autoTuneSelectedCell.yValue }}</a-descriptions-item>
+                        <a-descriptions-item label="树数">{{ autoTuneSelectedCell.numTrees }}</a-descriptions-item>
+                        <a-descriptions-item label="最大深度">{{ autoTuneSelectedCell.maxDepth }}</a-descriptions-item>
+                        <a-descriptions-item label="叶节点样本">{{ autoTuneSelectedCell.minSamplesLeaf }}</a-descriptions-item>
+                        <a-descriptions-item :label="autoTuneMetricLabel(autoTuneMetric)">
+                          {{ autoTuneMetricFormat(autoTuneScore(autoTuneSelectedCell)) }}
+                        </a-descriptions-item>
+                      </a-descriptions>
+                    </template>
+                    <a-empty v-else description="暂无选中项" />
+                  </a-card>
+                </a-col>
+
+                <a-col :xs="24" :md="8">
+                  <a-card size="small" title="最佳结果">
+                    <template v-if="autoTuneBestCell">
+                      <a-descriptions :column="1" size="small" bordered>
+                        <a-descriptions-item :label="autoTuneAxisLabel(autoTuneXAxis)">{{ autoTuneBestCell.xValue }}</a-descriptions-item>
+                        <a-descriptions-item :label="autoTuneAxisLabel(autoTuneYAxis)">{{ autoTuneBestCell.yValue }}</a-descriptions-item>
+                        <a-descriptions-item label="树数">{{ autoTuneBestCell.numTrees }}</a-descriptions-item>
+                        <a-descriptions-item label="最大深度">{{ autoTuneBestCell.maxDepth }}</a-descriptions-item>
+                        <a-descriptions-item label="叶节点样本">{{ autoTuneBestCell.minSamplesLeaf }}</a-descriptions-item>
+                        <a-descriptions-item :label="autoTuneMetricLabel(autoTuneMetric)">
+                          {{ autoTuneMetricFormat(autoTuneScore(autoTuneBestCell)) }}
+                        </a-descriptions-item>
+                        <a-descriptions-item label="推理速度">
+                          {{ autoTuneMetricFormat(autoTuneBestCell.inferenceThroughput, 'inferenceThroughput') }}
+                        </a-descriptions-item>
+                      </a-descriptions>
+                    </template>
+                    <a-empty v-else description="运行后自动选出最佳结果" />
+                  </a-card>
+                </a-col>
+
+                <a-col :xs="24" :md="8">
+                  <a-card size="small" title="应用操作">
+                    <a-space direction="vertical" style="width: 100%">
+                      <a-button
+                        type="primary"
+                        block
+                        :disabled="!autoTuneSelectedCell"
+                        @click="applyAutoTuneCell(autoTuneSelectedCell)"
+                      >
+                        <ControlOutlined /> 应用选中参数
+                      </a-button>
+                      <a-button
+                        block
+                        :disabled="!autoTuneBestCell"
+                        @click="applyAutoTuneCell(autoTuneBestCell)"
+                      >
+                        应用最佳参数
+                      </a-button>
+                      <a-button block @click="mlSubTabKey = 'model'">
+                        前往训练页
+                      </a-button>
+                    </a-space>
+                  </a-card>
+                </a-col>
+              </a-row>
+
+              <div v-if="autoTuneResponse" style="margin-top: 12px; color: #666; font-size: 12px">
+                共评估 {{ autoTuneResponse.cells.length }} 个组合，样本 {{ autoTuneResponse.sampleCount }}，验证集 {{ autoTuneResponse.validationCount }}，
+                用时 {{ autoTuneResponse.totalDuration.toFixed(1) }}s。
+              </div>
             </a-card>
           </a-col>
 

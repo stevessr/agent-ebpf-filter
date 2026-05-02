@@ -1,12 +1,14 @@
 import { ref, computed, watch } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
+import type { ApexChartEventOpts, ApexOptions } from 'apexcharts';
 import type {
   MLStatusState, MLLlmConfig, MLLlmBatchEntry, MLLlmBatchResponse,
   MLTrainingHistoryEntry, MLCommandSafetyResult,
   SampleEntry, ExistingCommandCandidate, RemoteDatasetRow, RemoteDatasetResponse,
   LLMProductionDatasetResponse, LLMProductionDatasetRow,
   ClassicSecurityDatasetPreset,
+  MLAutoTuneAxis, MLAutoTuneCell, MLAutoTuneMetric, MLAutoTuneResponse,
 } from '../types/config';
 
 export interface MLThresholds {
@@ -225,6 +227,13 @@ export function useConfigML() {
   const logPollTimer = ref<ReturnType<typeof setInterval> | null>(null);
   const trainingHistory = ref<MLTrainingHistoryEntry[]>([]);
   const hyperParams = ref({ numTrees: 31, maxDepth: 8, minSamplesLeaf: 5 });
+  const autoTuneXAxis = ref<MLAutoTuneAxis>('numTrees');
+  const autoTuneYAxis = ref<MLAutoTuneAxis>('maxDepth');
+  const autoTuneGridSize = ref<3 | 5 | 7>(5);
+  const autoTuneMetric = ref<MLAutoTuneMetric>('validationAccuracy');
+  const autoTuneLoading = ref(false);
+  const autoTuneResponse = ref<MLAutoTuneResponse | null>(null);
+  const autoTuneSelectedCell = ref<MLAutoTuneCell | null>(null);
 
   // ── Sample Data ──
   const allSamples = ref<SampleEntry[]>([]);
@@ -372,6 +381,194 @@ export function useConfigML() {
       { name: 'Samples', type: 'line', data: trainingHistory.value.map((h) => ({ x: new Date(h.timestamp).getTime(), y: h.numSamples })) },
     ];
   });
+
+  watch([autoTuneXAxis, autoTuneYAxis], ([xAxis, yAxis]) => {
+    if (xAxis === yAxis) {
+      autoTuneYAxis.value = xAxis === 'numTrees' ? 'maxDepth' : 'numTrees';
+    }
+  });
+
+  const autoTuneAxisLabel = (axis: MLAutoTuneAxis) => {
+    const labels: Record<MLAutoTuneAxis, string> = {
+      numTrees: '树数',
+      maxDepth: '最大深度',
+      minSamplesLeaf: '叶节点样本',
+    };
+    return labels[axis];
+  };
+
+  const autoTuneMetricLabel = (metric: MLAutoTuneMetric) => {
+    const labels: Record<MLAutoTuneMetric, string> = {
+      validationAccuracy: '回测准确率',
+      inferenceThroughput: '推理速度',
+    };
+    return labels[metric];
+  };
+
+  const autoTuneMetricFormat = (value: number, metric = autoTuneMetric.value) => {
+    if (!Number.isFinite(value)) return '—';
+    if (metric === 'validationAccuracy') {
+      return `${(value * 100).toFixed(1)}%`;
+    }
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(1)}k/s`;
+    }
+    return `${value.toFixed(0)}/s`;
+  };
+
+  const autoTuneScore = (cell: MLAutoTuneCell, metric = autoTuneMetric.value) =>
+    metric === 'validationAccuracy' ? cell.validationAccuracy : cell.inferenceThroughput;
+
+  const autoTuneCellKey = (xIndex: number, yIndex: number) => `${xIndex}:${yIndex}`;
+
+  const autoTuneCellMap = computed(() => {
+    const map = new Map<string, MLAutoTuneCell>();
+    for (const cell of autoTuneResponse.value?.cells || []) {
+      map.set(autoTuneCellKey(cell.xIndex, cell.yIndex), cell);
+    }
+    return map;
+  });
+
+  const autoTuneHeatmapSeries = computed(() => {
+    const response = autoTuneResponse.value;
+    if (!response) return [];
+    return response.yValues.map((yValue, yIndex) => ({
+      name: `${autoTuneAxisLabel(response.yAxis)}=${yValue}`,
+      data: response.xValues.map((xValue, xIndex) => {
+        const cell = autoTuneCellMap.value.get(autoTuneCellKey(xIndex, yIndex));
+        return {
+          x: `${xValue}`,
+          y: cell ? autoTuneScore(cell) : 0,
+        };
+      }),
+    }));
+  });
+
+  const autoTuneHeatmapOptions = computed<ApexOptions>(() => {
+    const response = autoTuneResponse.value;
+    return {
+      chart: {
+        type: 'heatmap' as const,
+        height: 420,
+        toolbar: { show: false },
+        animations: { enabled: true },
+        events: {
+          dataPointSelection: (_event: MouseEvent, _chart?: unknown, options?: ApexChartEventOpts) => {
+            const seriesIndex = options?.seriesIndex;
+            const dataPointIndex = options?.dataPointIndex;
+            if (typeof seriesIndex !== 'number' || typeof dataPointIndex !== 'number') return;
+            const cell = autoTuneCellMap.value.get(autoTuneCellKey(dataPointIndex, seriesIndex));
+            if (cell) {
+              autoTuneSelectedCell.value = cell;
+            }
+          },
+        },
+      },
+      plotOptions: {
+        heatmap: {
+          radius: 2,
+          enableShades: true,
+          shadeIntensity: 0.85,
+          distributed: false,
+          colorScale: {
+            ranges: [],
+          },
+          reverseNegativeShade: false,
+        },
+      },
+      dataLabels: {
+        enabled: true,
+        formatter: (value: number) => autoTuneMetricFormat(value),
+        style: { colors: ['#111827'] },
+      },
+      legend: { show: false },
+      stroke: { width: 1 },
+      xaxis: {
+        type: 'category' as const,
+        title: { text: autoTuneAxisLabel(response?.xAxis || autoTuneXAxis.value) },
+      },
+      yaxis: {
+        title: { text: autoTuneAxisLabel(response?.yAxis || autoTuneYAxis.value) },
+      },
+      tooltip: {
+        custom: ({ seriesIndex, dataPointIndex }: { seriesIndex: number; dataPointIndex: number }) => {
+          const cell = autoTuneCellMap.value.get(autoTuneCellKey(dataPointIndex, seriesIndex));
+          if (!cell) return '';
+          return `
+            <div style="padding: 10px 12px; min-width: 220px">
+              <div style="font-weight: 600; margin-bottom: 4px">调优结果</div>
+              <div>${autoTuneAxisLabel(response?.xAxis || autoTuneXAxis.value)}: <b>${cell.xValue}</b></div>
+              <div>${autoTuneAxisLabel(response?.yAxis || autoTuneYAxis.value)}: <b>${cell.yValue}</b></div>
+              <div>树数: <b>${cell.numTrees}</b></div>
+              <div>深度: <b>${cell.maxDepth}</b></div>
+              <div>叶节点样本: <b>${cell.minSamplesLeaf}</b></div>
+              <div>${autoTuneMetricLabel(autoTuneMetric.value)}: <b>${autoTuneMetricFormat(autoTuneScore(cell))}</b></div>
+              <div>验证集准确率: <b>${(cell.validationAccuracy * 100).toFixed(1)}%</b></div>
+              <div>推理速度: <b>${autoTuneMetricFormat(cell.inferenceThroughput, 'inferenceThroughput')}</b></div>
+              <div>训练耗时: <b>${cell.trainDuration.toFixed(2)}s</b></div>
+              <div>回测耗时: <b>${cell.evalDuration.toFixed(2)}s</b></div>
+            </div>
+          `;
+        },
+      },
+      noData: {
+        text: '点击“开始调优”生成方阵',
+      },
+      responsive: [
+        {
+          breakpoint: 768,
+          options: {
+            chart: { height: 340 },
+            dataLabels: { enabled: false },
+          },
+        },
+      ],
+    };
+  });
+
+  const autoTuneBestCell = computed(() => autoTuneResponse.value?.best || null);
+
+  const runAutoTune = async () => {
+    if (autoTuneXAxis.value === autoTuneYAxis.value) {
+      message.warning('X 轴和 Y 轴不能相同');
+      return;
+    }
+    autoTuneLoading.value = true;
+    try {
+      const res = await axios.post<MLAutoTuneResponse>('/config/ml/tune', {
+        xAxis: autoTuneXAxis.value,
+        yAxis: autoTuneYAxis.value,
+        gridSize: autoTuneGridSize.value,
+        metric: autoTuneMetric.value,
+        validationSplitRatio: mlTrainingConfig.value.validationSplitRatio,
+      });
+      autoTuneResponse.value = res.data;
+      autoTuneSelectedCell.value = res.data.best || res.data.cells?.[0] || null;
+      if (autoTuneSelectedCell.value) {
+        hyperParams.value.numTrees = autoTuneSelectedCell.value.numTrees;
+        hyperParams.value.maxDepth = autoTuneSelectedCell.value.maxDepth;
+        hyperParams.value.minSamplesLeaf = autoTuneSelectedCell.value.minSamplesLeaf;
+      }
+      message.success(`已生成 ${res.data.gridSize}×${res.data.gridSize} 调优方阵`);
+    } catch (e: any) {
+      message.error(e.response?.data?.error || '自动调优失败');
+    } finally {
+      autoTuneLoading.value = false;
+    }
+  };
+
+  const applyAutoTuneCell = (cell?: MLAutoTuneCell | null) => {
+    const target = cell || autoTuneSelectedCell.value;
+    if (!target) {
+      message.warning('请先运行调优或选择一个方格');
+      return;
+    }
+    hyperParams.value.numTrees = target.numTrees;
+    hyperParams.value.maxDepth = target.maxDepth;
+    hyperParams.value.minSamplesLeaf = target.minSamplesLeaf;
+    autoTuneSelectedCell.value = target;
+    message.success('已应用调优参数到当前滑块');
+  };
 
   const submitFeedback = async () => {
     if (!feedbackComm.value) return;
@@ -823,6 +1020,11 @@ export function useConfigML() {
     mlThresholds, mlTrainingConfig, llmScoringConfig, llmBatchConfig,
     llmBatchResponse, llmBatchLoading, trainingLogs, logPollTimer,
     trainingHistory, hyperParams,
+    autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneMetric,
+    autoTuneLoading, autoTuneResponse, autoTuneSelectedCell,
+    autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat,
+    autoTuneScore, autoTuneHeatmapOptions, autoTuneHeatmapSeries, autoTuneBestCell,
+    runAutoTune, applyAutoTuneCell,
     allSamples, loadingSamples, sampleTablePageSize, sampleSearchText,
     existingDataLimit, existingLabelMode, existingCommandCandidates,
     loadingExistingData, importingExistingData, existingDataSource,
