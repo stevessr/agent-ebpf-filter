@@ -460,19 +460,35 @@ func buildTree(samples []trainSample, depth, maxDepth, minSamplesLeaf, featureSa
 	leftNodes := buildTree(leftSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount)
 	rightNodes := buildTree(rightSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount)
 
-	// Create split node (left child follows immediately, right after left subtree)
+	// Rebase child pointers from subtree-relative to absolute positions
+	leftOffset := 1
+	rightOffset := 1 + len(leftNodes)
+
+	for i := range leftNodes {
+		n := &leftNodes[i]
+		if !n.IsLeaf() {
+			n.LeftChild += int16(leftOffset)
+			n.RightChild += int16(leftOffset)
+		}
+	}
+	for i := range rightNodes {
+		n := &rightNodes[i]
+		if !n.IsLeaf() {
+			n.LeftChild += int16(rightOffset)
+			n.RightChild += int16(rightOffset)
+		}
+	}
+
 	root := DecisionNode{
 		FeatureIndex: uint8(best.featureIdx),
 		Threshold:    float32(best.threshold),
-		LeftChild:    1,                         // Next node in array
-		RightChild:   int16(1 + len(leftNodes)), // After left subtree
+		LeftChild:    int16(leftOffset),
+		RightChild:   int16(rightOffset),
 		LeafValue:    0,
 	}
 
 	nodes := []DecisionNode{root}
 	nodes = append(nodes, leftNodes...)
-	offset := len(nodes)
-	nodes[0].RightChild = int16(offset) // Update right child index
 	nodes = append(nodes, rightNodes...)
 
 	return nodes

@@ -597,17 +597,38 @@ func buildAutoTuneTree(samples []trainSample, depth, maxDepth, minSamplesLeaf, f
 	leftNodes := buildAutoTuneTree(leftSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount, rng)
 	rightNodes := buildAutoTuneTree(rightSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount, rng)
 
+	// Build flat array: [root] + [left subtree] + [right subtree]
+	// Rebase child pointers from subtree-relative (0-based) to absolute positions.
+	leftOffset := 1
+	rightOffset := 1 + len(leftNodes)
+
 	root := DecisionNode{
 		FeatureIndex: uint8(best.featureIdx),
 		Threshold:    float32(best.threshold),
-		LeftChild:    1,
-		RightChild:   int16(1 + len(leftNodes)),
+		LeftChild:    int16(leftOffset),
+		RightChild:   int16(rightOffset),
 		LeafValue:    0,
 	}
 	nodes := []DecisionNode{root}
+
+	// Rebase left subtree indices
+	for i := range leftNodes {
+		n := &leftNodes[i]
+		if !n.IsLeaf() {
+			n.LeftChild += int16(leftOffset)
+			n.RightChild += int16(leftOffset)
+		}
+	}
 	nodes = append(nodes, leftNodes...)
-	offset := len(nodes)
-	nodes[0].RightChild = int16(offset)
+
+	// Rebase right subtree indices
+	for i := range rightNodes {
+		n := &rightNodes[i]
+		if !n.IsLeaf() {
+			n.LeftChild += int16(rightOffset)
+			n.RightChild += int16(rightOffset)
+		}
+	}
 	nodes = append(nodes, rightNodes...)
 	return nodes
 }
