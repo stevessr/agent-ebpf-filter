@@ -132,7 +132,7 @@ Config routes:
 - `/config/ml/datasets/pull`, `/config/ml/datasets/import`, `/config/ml/datasets/export`, `DELETE /config/ml/datasets`
 - the ML config also supports OpenAI-compatible LLM scoring and post-training review; the frontend persists the LLM base URL, model, API key, timeout, temperature, max tokens, and validation split ratio
 - the dataset importer accepts raw HTTP/HTTPS payloads or local file uploads, and will recursively expand common archives / compressed payloads such as zip, tar, gzip, bzip2, and xz before parsing rows
-- the frontend also exposes a curated classic OS-security dataset catalog for reference only; those pages are archival/official entry points, not raw dataset files, so the importer expects you to download or extract the actual data first
+- the frontend also exposes a curated classic OS-security dataset catalog for reference; raw GTFOBins / LOLBAS API feeds, Claude Code Safety Net rule JSON, and ADFA-LD numeric trace text can be imported directly, while archival pages still need you to download or extract the actual data first
 
 `authMiddleware()` accepts `?key=<token>`, `X-API-KEY`, or `Authorization: Bearer <token>`.
 The token is generated and stored by the runtime settings file at:

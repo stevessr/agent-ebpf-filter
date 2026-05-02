@@ -265,7 +265,7 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 	records := make([]remoteDatasetRecord, 0)
 	format := ""
 	for _, payload := range payloads {
-		payloadRecords, payloadFormat, parseErr := parseRemoteDatasetRecords(payload.Data, req.Format)
+		payloadRecords, payloadFormat, parseErr := parseRemoteDatasetRecords(payload.Data, req.Format, payload.Source)
 		if parseErr != nil {
 			if len(payloads) == 1 {
 				return nil, parseErr
@@ -820,7 +820,7 @@ func isBinary(data []byte) bool {
 	return nullCount > 0 || controlCount > (checkLen/10)
 }
 
-func parseRemoteDatasetRecords(raw []byte, format string) ([]remoteDatasetRecord, string, error) {
+func parseRemoteDatasetRecords(raw []byte, format string, source string) ([]remoteDatasetRecord, string, error) {
 	format = strings.ToLower(strings.TrimSpace(format))
 	if format == "" {
 		format = "auto"
@@ -983,14 +983,29 @@ func parseTextDatasetRecords(raw []byte) []remoteDatasetRecord {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		record := remoteDatasetRecord{Row: i + 1}
-		record.CommandLine = line
-		record.Comm, record.Args = normalizeCommandInput(line, "", nil)
-		if record.Comm == "" {
+		parts := splitCommandLine(line)
+		if len(parts) == 0 {
 			continue
 		}
-		// Skip pure integers (likely syscall traces from datasets like ADFA-LD)
-		if _, err := strconv.Atoi(record.Comm); err == nil {
+		allNumeric := true
+		for _, part := range parts {
+			if _, err := strconv.Atoi(part); err != nil {
+				allNumeric = false
+				break
+			}
+		}
+		record := remoteDatasetRecord{Row: i + 1}
+		record.CommandLine = line
+		if allNumeric {
+			if len(parts) == 1 {
+				continue
+			}
+			record.Comm = "syscall-seq"
+			record.Args = append([]string(nil), parts...)
+		} else {
+			record.Comm, record.Args = normalizeCommandInput(line, "", nil)
+		}
+		if record.Comm == "" {
 			continue
 		}
 		record.UserLabel = "remote-import"
@@ -1006,12 +1021,22 @@ func flattenDatasetJSON(decoded any) []any {
 		items = value
 	case map[string]any:
 		found := false
-		for _, key := range []string{"rows", "records", "items", "samples", "data", "commands"} {
+	outer:
+		for _, key := range []string{"rows", "records", "items", "samples", "data", "commands", "rules", "executables"} {
 			if nested, ok := value[key]; ok {
-				if arr, ok := nested.([]any); ok {
-					items = arr
+				switch nestedValue := nested.(type) {
+				case []any:
+					items = nestedValue
 					found = true
-					break
+					break outer
+				case map[string]any:
+					if expanded := expandDatasetObjectMap(nestedValue); len(expanded) > 0 {
+						items = expanded
+					} else {
+						items = []any{nestedValue}
+					}
+					found = true
+					break outer
 				}
 			}
 		}
@@ -1098,6 +1123,19 @@ func flattenDatasetJSON(decoded any) []any {
 	}
 
 	return expanded
+}
+
+func expandDatasetObjectMap(value map[string]any) []any {
+	items := make([]any, 0, len(value))
+	for k, v := range value {
+		m, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		m["_injected_name"] = k
+		items = append(items, m)
+	}
+	return items
 }
 
 func remoteDatasetRecordFromAny(decoded any, rowIndex int) (remoteDatasetRecord, bool) {

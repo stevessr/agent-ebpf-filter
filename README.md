@@ -296,7 +296,7 @@ Protected by `authMiddleware()` in release mode:
 - `/config/hooks/:id/raw`
 - `/config/ml/existing-commands`, `/config/ml/import-existing`, `/config/ml/assess` — pull historical wrapper/hook command data into ML samples and run command safety assessment
 - `/config/ml/datasets/pull`, `/config/ml/datasets/import`, `/config/ml/datasets/export`, `DELETE /config/ml/datasets` — fetch remote HTTP/HTTPS raw datasets or local file content, preview them, import them into the ML training store, export the current training set, or clear it in one step; archives are auto-expanded recursively for common zip / tar / gzip / bzip2 / xz payloads
-- the Configuration UI also includes a curated classic OS-security dataset catalog for ADFA, CERT Insider Threat, LANL host/network, and DARPA IDS references; these are reference/archival pages, not raw importer sources, so download or extract the actual data files first
+- the Configuration UI also includes a curated classic OS-security dataset catalog for GTFOBins, LOLBAS, Claude Code Safety Net, ADFA, CERT Insider Threat, LANL host/network, and DARPA IDS references; GTFOBins/LOLBAS API JSON, Safety Net rule JSON, and ADFA-LD numeric trace text are normalized by the importer, while archival pages still need you to download or extract the actual data files first
 - `/system/ls`
 - `/system/run`
 - `/system/env`
