@@ -220,7 +220,8 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 		validationRatio = 0.20
 	}
 	shuffledRaw := append([]TrainingSample(nil), labeled...)
-	rand.Shuffle(len(samples), func(i, j int) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng.Shuffle(len(samples), func(i, j int) {
 		samples[i], samples[j] = samples[j], samples[i]
 		shuffledRaw[i], shuffledRaw[j] = shuffledRaw[j], shuffledRaw[i]
 	})
@@ -257,11 +258,11 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 		// Bootstrap sample
 		bootstrap := make([]trainSample, len(trainSet))
 		for i := range bootstrap {
-			bootstrap[i] = trainSet[rand.Intn(len(trainSet))]
+			bootstrap[i] = trainSet[rng.Intn(len(trainSet))]
 		}
 
 		// Build tree
-		nodes := buildTree(bootstrap, 0, maxDepth, minSamplesLeaf, featureSampleCount)
+		nodes := buildTree(bootstrap, 0, maxDepth, minSamplesLeaf, featureSampleCount, rng)
 		forest.Trees[ti] = DecisionTree{Nodes: nodes}
 		totalNodes += len(nodes)
 
@@ -417,7 +418,7 @@ func (t *ModelTrainer) SplitMetrics() (trainAccuracy, validationAccuracy, valida
 }
 
 // buildTree recursively builds a decision tree using Gini impurity
-func buildTree(samples []trainSample, depth, maxDepth, minSamplesLeaf, featureSampleCount int) []DecisionNode {
+func buildTree(samples []trainSample, depth, maxDepth, minSamplesLeaf, featureSampleCount int, rng *rand.Rand) []DecisionNode {
 	// Check termination conditions
 	if depth >= maxDepth || len(samples) < minSamplesLeaf*2 {
 		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
@@ -437,7 +438,7 @@ func buildTree(samples []trainSample, depth, maxDepth, minSamplesLeaf, featureSa
 	}
 
 	// Find best split
-	best := findBestSplit(samples, featureSampleCount)
+	best := findBestSplit(samples, featureSampleCount, rng)
 	if best.giniGain <= 0 {
 		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
 	}
@@ -457,8 +458,8 @@ func buildTree(samples []trainSample, depth, maxDepth, minSamplesLeaf, featureSa
 	}
 
 	// Build children
-	leftNodes := buildTree(leftSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount)
-	rightNodes := buildTree(rightSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount)
+	leftNodes := buildTree(leftSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount, rng)
+	rightNodes := buildTree(rightSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount, rng)
 
 	// Rebase child pointers from subtree-relative to absolute positions
 	leftOffset := 1
@@ -495,7 +496,7 @@ func buildTree(samples []trainSample, depth, maxDepth, minSamplesLeaf, featureSa
 }
 
 // findBestSplit finds the best feature and threshold using Gini impurity
-func findBestSplit(samples []trainSample, featureSampleCount int) splitPoint {
+func findBestSplit(samples []trainSample, featureSampleCount int, rng *rand.Rand) splitPoint {
 	best := splitPoint{giniGain: -1}
 	parentGini := giniImpurity(samples)
 
@@ -504,7 +505,7 @@ func findBestSplit(samples []trainSample, featureSampleCount int) splitPoint {
 	for i := range features {
 		features[i] = i
 	}
-	rand.Shuffle(len(features), func(i, j int) { features[i], features[j] = features[j], features[i] })
+	rng.Shuffle(len(features), func(i, j int) { features[i], features[j] = features[j], features[i] })
 	selectedFeatures := features[:featureSampleCount]
 
 	for _, fi := range selectedFeatures {

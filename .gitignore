@@ -14,3 +14,5 @@ backend/pb/
 *.o
 *.tmp
 backend/cuda/libmlcuda.a
+reports/
+backend/reports/

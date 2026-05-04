@@ -2,7 +2,7 @@
 GOPATH ?= $(shell go env GOPATH)
 export PATH := $(PATH):$(GOPATH)/bin
 
-.PHONY: all backend frontend wrapper clean proto help dev run deps ebpf-bootstrap cuda
+.PHONY: all backend frontend wrapper clean proto help dev run deps ebpf-bootstrap cuda ml-sweep
 
 all: proto backend frontend wrapper ## Build all components
 
@@ -66,6 +66,9 @@ dev: proto wrapper ## Run both backend and frontend development server (nx TUI s
 dev-backend: ## Run only the backend with self-implemented hot-reload
 	@echo "Starting backend dev environment..."
 	@./scripts/dev-backend.sh
+
+ml-sweep: ## Run the offline ML benchmark sweep and emit SVG/HTML charts
+	@ML_SWEEP_MODE="$(ML_SWEEP_MODE)" ML_SWEEP_MODELS="$(ML_SWEEP_MODELS)" ML_SWEEP_OUTDIR="$(ML_SWEEP_OUTDIR)" ML_SWEEP_REPEATS="$(ML_SWEEP_REPEATS)" ML_SWEEP_STABILITY_TOP="$(ML_SWEEP_STABILITY_TOP)" ./scripts/ml-sweep.sh
 
 dev-frontend: ## Run only the frontend development server
 	@echo "Starting frontend dev environment..."

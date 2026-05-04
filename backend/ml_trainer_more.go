@@ -203,9 +203,10 @@ func (t *ModelTrainer) trainSVM(store *TrainingDataStore, cfg MLConfig) (Model, 
 
 	m := NewSVMModel(lr, maxIter)
 	m.Weights = make([][FeatureDim + 1]float64, m.Classes)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for c := range m.Weights {
 		for d := range m.Weights[c] {
-			m.Weights[c][d] = (rand.Float64() - 0.5) * 0.01
+			m.Weights[c][d] = (rng.Float64() - 0.5) * 0.01
 		}
 	}
 
@@ -261,9 +262,10 @@ func (t *ModelTrainer) trainPerceptron(store *TrainingDataStore, cfg MLConfig) (
 
 	m := NewPerceptron(lr, maxIter)
 	m.Weights = make([][FeatureDim + 1]float64, m.Classes)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for c := range m.Weights {
 		for d := range m.Weights[c] {
-			m.Weights[c][d] = (rand.Float64() - 0.5) * 0.01
+			m.Weights[c][d] = (rng.Float64() - 0.5) * 0.01
 		}
 	}
 
@@ -293,9 +295,10 @@ func (t *ModelTrainer) trainPA(store *TrainingDataStore, cfg MLConfig) (Model, T
 
 	m := NewPAModel(C, maxIter)
 	m.Weights = make([][FeatureDim + 1]float64, m.Classes)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for c := range m.Weights {
 		for d := range m.Weights[c] {
-			m.Weights[c][d] = (rand.Float64() - 0.5) * 0.01
+			m.Weights[c][d] = (rng.Float64() - 0.5) * 0.01
 		}
 	}
 
