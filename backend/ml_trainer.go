@@ -21,30 +21,30 @@ type TrainingLogEntry struct {
 
 // TrainingHistoryEntry records metrics from a single training run
 type TrainingHistoryEntry struct {
-	Timestamp             time.Time `json:"timestamp"`
-	Accuracy              float64   `json:"accuracy"`
-	TrainAccuracy         float64   `json:"trainAccuracy,omitempty"`
-	ValidationAccuracy    float64   `json:"validationAccuracy,omitempty"`
-	NumTrees              int       `json:"numTrees"`
-	NumSamples            int       `json:"numSamples"`
-	TrainSamples          int       `json:"trainSamples,omitempty"`
-	ValidationSamples     int       `json:"validationSamples,omitempty"`
-	ValidationSplitRatio   float64   `json:"validationSplitRatio,omitempty"`
-	LLMScoredSamples      int       `json:"llmScoredSamples,omitempty"`
-	LLMAverageRiskScore   float64   `json:"llmAverageRiskScore,omitempty"`
-	LLMAgreement          float64   `json:"llmAgreement,omitempty"`
-	Duration              float64   `json:"duration"` // seconds
+	Timestamp            time.Time `json:"timestamp"`
+	Accuracy             float64   `json:"accuracy"`
+	TrainAccuracy        float64   `json:"trainAccuracy,omitempty"`
+	ValidationAccuracy   float64   `json:"validationAccuracy,omitempty"`
+	NumTrees             int       `json:"numTrees"`
+	NumSamples           int       `json:"numSamples"`
+	TrainSamples         int       `json:"trainSamples,omitempty"`
+	ValidationSamples    int       `json:"validationSamples,omitempty"`
+	ValidationSplitRatio float64   `json:"validationSplitRatio,omitempty"`
+	LLMScoredSamples     int       `json:"llmScoredSamples,omitempty"`
+	LLMAverageRiskScore  float64   `json:"llmAverageRiskScore,omitempty"`
+	LLMAgreement         float64   `json:"llmAgreement,omitempty"`
+	Duration             float64   `json:"duration"` // seconds
 }
 
 // ModelTrainer builds and evaluates random forest models
 type ModelTrainer struct {
-	mu        chan struct{} // single-training mutex via channel
-	cancelCh  chan struct{} // closed to request cancellation
-	isRunning bool
-	progress  float64
-	lastError string
-	lastTrain time.Time
-	accuracy  float64
+	mu                 chan struct{} // single-training mutex via channel
+	cancelCh           chan struct{} // closed to request cancellation
+	isRunning          bool
+	progress           float64
+	lastError          string
+	lastTrain          time.Time
+	accuracy           float64
 	trainAccuracy      float64
 	validationAccuracy float64
 	validationRatio    float64
@@ -55,9 +55,9 @@ type ModelTrainer struct {
 	logNext    int
 	logTotal   int
 	// Training history
-	historyMu sync.RWMutex
-	history   []TrainingHistoryEntry
-	splitMu   sync.RWMutex
+	historyMu             sync.RWMutex
+	history               []TrainingHistoryEntry
+	splitMu               sync.RWMutex
 	lastTrainSamples      []TrainingSample
 	lastValidationSamples []TrainingSample
 	lastLLMReview         *LLMReviewSummary
@@ -148,17 +148,17 @@ func (t *ModelTrainer) addHistory(entry TrainingHistoryEntry) {
 
 // TrainResult holds the outcome of a training run
 type TrainResult struct {
-	Accuracy           float64
-	TrainAccuracy      float64
-	ValidationAccuracy float64
-	NumTrees           int
-	NumSamples         int
-	TrainSamples       int
+	Accuracy            float64
+	TrainAccuracy       float64
+	ValidationAccuracy  float64
+	NumTrees            int
+	NumSamples          int
+	TrainSamples        int
 	ValidationSamples   int
-	LLMScoredSamples   int
+	LLMScoredSamples    int
 	LLMAverageRiskScore float64
-	LLMAgreement       float64
-	Error              string
+	LLMAgreement        float64
+	Error               string
 }
 
 // splitPoint represents a candidate feature split during training
@@ -330,7 +330,22 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 
 	// Record to history
 	t.addHistory(TrainingHistoryEntry{
-		Timestamp:           trainStart,
+		Timestamp:            trainStart,
+		Accuracy:             validationAccuracy,
+		TrainAccuracy:        trainAccuracy,
+		ValidationAccuracy:   validationAccuracy,
+		NumTrees:             numTrees,
+		NumSamples:           len(labeled),
+		TrainSamples:         len(trainRaw),
+		ValidationSamples:    len(validationRaw),
+		ValidationSplitRatio: validationRatio,
+		LLMScoredSamples:     llmReviewSamples,
+		LLMAverageRiskScore:  llmAverageRiskScore,
+		LLMAgreement:         llmAgreement,
+		Duration:             time.Since(trainStart).Seconds(),
+	})
+
+	result := TrainResult{
 		Accuracy:            validationAccuracy,
 		TrainAccuracy:       trainAccuracy,
 		ValidationAccuracy:  validationAccuracy,
@@ -338,24 +353,9 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 		NumSamples:          len(labeled),
 		TrainSamples:        len(trainRaw),
 		ValidationSamples:   len(validationRaw),
-		ValidationSplitRatio: validationRatio,
 		LLMScoredSamples:    llmReviewSamples,
 		LLMAverageRiskScore: llmAverageRiskScore,
 		LLMAgreement:        llmAgreement,
-		Duration:            time.Since(trainStart).Seconds(),
-	})
-
-	result := TrainResult{
-		Accuracy:           validationAccuracy,
-		TrainAccuracy:      trainAccuracy,
-		ValidationAccuracy: validationAccuracy,
-		NumTrees:           numTrees,
-		NumSamples:         len(labeled),
-		TrainSamples:       len(trainRaw),
-		ValidationSamples:  len(validationRaw),
-		LLMScoredSamples:   llmReviewSamples,
-		LLMAverageRiskScore: llmAverageRiskScore,
-		LLMAgreement:       llmAgreement,
 	}
 
 	return forest, result
@@ -722,11 +722,11 @@ func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, 
 	})
 
 	return model, TrainResult{
-		Accuracy:          accuracy,
-		TrainAccuracy:     accuracy,
+		Accuracy:           accuracy,
+		TrainAccuracy:      accuracy,
 		ValidationAccuracy: accuracy,
-		NumSamples:        len(labeled),
-		TrainSamples:      len(labeled),
+		NumSamples:         len(labeled),
+		TrainSamples:       len(labeled),
 	}
 }
 
@@ -754,6 +754,24 @@ func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Mo
 		splitIdx = 1
 	}
 
+	learningRate := 0.01
+	if cfg.NumTrees > 0 {
+		learningRate = float64(cfg.NumTrees) / 1000.0
+	}
+
+	regularization := "l2"
+	switch cfg.MaxDepth {
+	case 4:
+		regularization = "none"
+	case 12:
+		regularization = "l1"
+	}
+
+	maxIter := cfg.MinSamplesLeaf
+	if maxIter < 100 {
+		maxIter = 1000
+	}
+
 	trainSamples := make([][FeatureDim]float64, splitIdx)
 	trainLabels := make([]int32, splitIdx)
 	for i := 0; i < splitIdx; i++ {
@@ -761,11 +779,11 @@ func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Mo
 		trainLabels[i] = shuffled[i].Label
 	}
 
-	model := NewLogisticModel(0.01, "l2", 1000)
+	model := NewLogisticModel(learningRate, regularization, maxIter)
 	model.NumClasses = 4
 	model.Train(trainSamples, trainLabels)
 
-	t.logf("逻辑回归训练完成: samples=%d", splitIdx)
+	t.logf("逻辑回归训练完成: lr=%.4f, reg=%s, iter=%d, samples=%d", learningRate, regularization, maxIter, splitIdx)
 
 	trainCorrect := 0
 	for i := 0; i < splitIdx; i++ {
