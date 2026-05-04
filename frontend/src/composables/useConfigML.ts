@@ -616,22 +616,17 @@ export function useConfigML() {
   const autoTuneHeatmapOptions = computed<ApexOptions>(() => {
     const response = autoTuneResponse.value;
     // Build single-hue gradient from actual cell values
-    const cells = response?.cells || [];
-    const scores = cells.map(c => autoTuneScore(c));
-    const minScore = scores.length > 0 ? Math.min(...scores) : 0;
-    const maxScore = scores.length > 0 ? Math.max(...scores) : 1;
-    const range = maxScore - minScore || 1;
-
-    // Generate 10 evenly spaced color stops from light to deep blue
+    // Fixed 0-100% scale: transparent at 0%, deep red at 100%
+    const metric = autoTuneMetric.value;
+    const fixedMax = metric === 'inferenceThroughput' ? 10000 : 1.0;
     const colorRanges = Array.from({ length: 10 }, (_, i) => {
-      const t = i / 9;
-      const from = minScore + range * (i / 10);
-      const to = minScore + range * ((i + 1) / 10);
-      // Light pink/white → Deep red (transparency gradient via opacity)
-      const r = Math.round(0xff - t * 0x60).toString(16).padStart(2, '0');
-      const g = Math.round(0xf0 - t * 0xd0).toString(16).padStart(2, '0');
-      const b = Math.round(0xf0 - t * 0xd0).toString(16).padStart(2, '0');
-      return { from, to, color: `#${r}${g}${b}`, name: `${(from * 100).toFixed(0)}-${(to * 100).toFixed(0)}%` };
+      const t = i / 9; // 0 → 1
+      const from = fixedMax * (i / 10);
+      const to = fixedMax * ((i + 1) / 10);
+      // Fixed red gradient: white 0% → deep red 100%
+      const r = 'ff';
+      const gb = Math.round(0xff - t * 0xcc).toString(16).padStart(2, '0');
+      return { from, to, color: `#${r}${gb}${gb}`, name: `${(from * 100).toFixed(0)}-${(to * 100).toFixed(0)}%` };
     });
 
     return {
