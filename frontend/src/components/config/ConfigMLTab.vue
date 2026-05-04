@@ -1618,11 +1618,11 @@ onMounted(() => {
                       <a-descriptions :column="1" size="small" bordered>
                         <a-descriptions-item :label="autoTuneAxisLabel(autoTuneXAxis)">{{ autoTuneSelectedCell.xValue }}</a-descriptions-item>
                         <a-descriptions-item :label="autoTuneAxisLabel(autoTuneYAxis)">{{ autoTuneSelectedCell.yValue }}</a-descriptions-item>
-                        <a-descriptions-item label="树数">{{ autoTuneSelectedCell.numTrees }}</a-descriptions-item>
-                        <a-descriptions-item label="最大深度">{{ autoTuneSelectedCell.maxDepth }}</a-descriptions-item>
-                        <a-descriptions-item label="叶节点样本">{{ autoTuneSelectedCell.minSamplesLeaf }}</a-descriptions-item>
                         <a-descriptions-item :label="autoTuneMetricLabel(autoTuneMetric)">
                           {{ autoTuneMetricFormat(autoTuneScore(autoTuneSelectedCell)) }}
+                        </a-descriptions-item>
+                        <a-descriptions-item label="验证集准确率">
+                          {{ (autoTuneSelectedCell.validationAccuracy * 100).toFixed(1) }}%
                         </a-descriptions-item>
                       </a-descriptions>
                     </template>
@@ -1637,9 +1637,6 @@ onMounted(() => {
                       <a-descriptions :column="1" size="small" bordered>
                         <a-descriptions-item :label="autoTuneAxisLabel(autoTuneXAxis)">{{ autoTuneBestCell.xValue }}</a-descriptions-item>
                         <a-descriptions-item :label="autoTuneAxisLabel(autoTuneYAxis)">{{ autoTuneBestCell.yValue }}</a-descriptions-item>
-                        <a-descriptions-item label="树数">{{ autoTuneBestCell.numTrees }}</a-descriptions-item>
-                        <a-descriptions-item label="最大深度">{{ autoTuneBestCell.maxDepth }}</a-descriptions-item>
-                        <a-descriptions-item label="叶节点样本">{{ autoTuneBestCell.minSamplesLeaf }}</a-descriptions-item>
                         <a-descriptions-item :label="autoTuneMetricLabel(autoTuneMetric)">
                           <b>{{ autoTuneMetricFormat(autoTuneScore(autoTuneBestCell)) }}</b>
                         </a-descriptions-item>

@@ -627,10 +627,10 @@ export function useConfigML() {
       const t = i / 9;
       const from = minScore + range * (i / 10);
       const to = minScore + range * ((i + 1) / 10);
-      // Light blue (#e0f0ff) → Deep blue (#003a8c)
-      const r = Math.round(0xe0 - t * 0xe0).toString(16).padStart(2, '0');
-      const g = Math.round(0xf0 - t * 0x92).toString(16).padStart(2, '0');
-      const b = Math.round(0xff - t * 0x73).toString(16).padStart(2, '0');
+      // Light pink/white → Deep red (transparency gradient via opacity)
+      const r = Math.round(0xff - t * 0x60).toString(16).padStart(2, '0');
+      const g = Math.round(0xf0 - t * 0xd0).toString(16).padStart(2, '0');
+      const b = Math.round(0xf0 - t * 0xd0).toString(16).padStart(2, '0');
       return { from, to, color: `#${r}${g}${b}`, name: `${(from * 100).toFixed(0)}-${(to * 100).toFixed(0)}%` };
     });
 
@@ -667,7 +667,7 @@ export function useConfigML() {
       dataLabels: {
         enabled: !!response && response.gridSize <= 9,
         formatter: (value: number) => autoTuneMetricFormat(value),
-        style: { colors: ['#111827'] },
+        style: { colors: ['#fff'] },
       },
       legend: { show: false },
       stroke: { width: 1 },
@@ -682,20 +682,19 @@ export function useConfigML() {
         custom: ({ seriesIndex, dataPointIndex }: { seriesIndex: number; dataPointIndex: number }) => {
           const cell = autoTuneCellMap.value.get(autoTuneCellKey(dataPointIndex, seriesIndex));
           if (!cell) return '';
+          const xLabel = autoTuneAxisLabel(response?.xAxis || autoTuneXAxis.value);
+          const yLabel = autoTuneAxisLabel(response?.yAxis || autoTuneYAxis.value);
           return `
             <div style="padding: 10px 12px; min-width: 220px">
               <div style="font-weight: 600; margin-bottom: 4px">调优结果</div>
-              <div>${autoTuneAxisLabel(response?.xAxis || autoTuneXAxis.value)}: <b>${cell.xValue}</b></div>
-              <div>${autoTuneAxisLabel(response?.yAxis || autoTuneYAxis.value)}: <b>${cell.yValue}</b></div>
-              <div>树数: <b>${cell.numTrees}</b></div>
-              <div>深度: <b>${cell.maxDepth}</b></div>
-              <div>叶节点样本: <b>${cell.minSamplesLeaf}</b></div>
-              <div>颗粒度: <b>${autoTuneGranularityLabel(response?.granularity || autoTuneGranularity.value)}</b></div>
-              <div>${autoTuneMetricLabel(autoTuneMetric.value)}: <b>${autoTuneMetricFormat(autoTuneScore(cell))}</b></div>
-              <div>验证集准确率: <b>${(cell.validationAccuracy * 100).toFixed(1)}%</b></div>
-              <div>推理速度: <b>${autoTuneMetricFormat(cell.inferenceThroughput, 'inferenceThroughput')}</b></div>
-              <div>训练耗时: <b>${cell.trainDuration.toFixed(2)}s</b></div>
-              <div>回测耗时: <b>${cell.evalDuration.toFixed(2)}s</b></div>
+              <div>${xLabel}: <b>${cell.xValue}</b></div>
+              <div>${yLabel}: <b>${cell.yValue}</b></div>
+              <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee; font-size: 11px; color: #888;">
+                ${autoTuneMetricLabel(autoTuneMetric.value)}: <b style="color: #333;">${autoTuneMetricFormat(autoTuneScore(cell))}</b><br/>
+                验证集准确率: <b style="color: #333;">${(cell.validationAccuracy * 100).toFixed(1)}%</b><br/>
+                训练耗时: <b style="color: #333;">${cell.trainDuration.toFixed(2)}s</b><br/>
+                回测耗时: <b style="color: #333;">${cell.evalDuration.toFixed(2)}s</b>
+              </div>
             </div>
           `;
         },

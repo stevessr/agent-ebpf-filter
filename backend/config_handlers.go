@@ -393,7 +393,7 @@ func applyMLConfigPatch(dst *MLConfig, patch MLConfigPatch) {
 	}
 	if patch.ModelType != nil {
 		t := ModelType(strings.TrimSpace(*patch.ModelType))
-		if t == ModelRandomForest || t == ModelKNN || t == ModelLogisticRegression {
+		if _, ok := modelRegistry[t]; ok {
 			dst.ModelType = t
 			currentModelType = t
 		}
