@@ -1,22 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import {
-  CopyOutlined,
-  DeleteOutlined,
-  EditOutlined,
   PlayCircleOutlined,
-  PlusOutlined,
-  ReloadOutlined,
-  SettingOutlined,
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
 import RemoteWrapperTerminal from '../components/RemoteWrapperTerminal.vue';
 import LocalShellTerminal from '../components/LocalShellTerminal.vue';
 import PathNavigatorDrawer from '../components/PathNavigatorDrawer.vue';
+import ExecutorLaunchEnvTab from '../components/ExecutorLaunchEnvTab.vue';
 import type { ShellSessionCreateRequest, ShellSessionInfo } from '../types/shell';
+import { useLaunchEnv } from '../composables/useLaunchEnv';
 
 type ExecutorTabKey = 'shell' | 'remote' | 'tmux' | 'scripts' | 'launch-env';
 type PathPickerTarget = 'coding-workdir' | 'script-path' | 'script-workdir' | 'python-venv';
@@ -34,24 +30,6 @@ type ScriptLaunchPlan = {
   args: string[];
   preview: string;
 };
-type LaunchEnvEntry = {
-  id: string;
-  key: string;
-  value: string;
-  enabled: boolean;
-};
-type LaunchEnvProfile = {
-  id: string;
-  name: string;
-  entries: LaunchEnvEntry[];
-};
-type DetectedLaunchEnvEntry = {
-  key: string;
-  value: string;
-};
-
-const LAUNCH_ENV_STORAGE_KEY = 'executor_launch_env_v2';
-const LAUNCH_ENV_LEGACY_KEY = 'executor_launch_env';
 
 const shellManagerRef = ref<LocalShellManagerExpose | null>(null);
 const tmuxManagerRef = ref<LocalShellManagerExpose | null>(null);
@@ -106,113 +84,7 @@ const scriptLanguageOptions: Array<{ label: string; value: ScriptLanguage }> = [
 const pathPickerOpen = ref(false);
 const pathPickerTarget = ref<PathPickerTarget>('coding-workdir');
 
-const profiles = ref<LaunchEnvProfile[]>(loadProfiles());
-const activeProfileId = ref<string>(localStorage.getItem('executor_active_profile_id') || profiles.value[0]?.id || '');
-const activeProfile = computed(() => profiles.value.find(p => p.id === activeProfileId.value) || profiles.value[0]);
-const launchEnvEntries = computed({
-  get: () => activeProfile.value?.entries || [],
-  set: (val) => {
-    const p = profiles.value.find(p => p.id === activeProfileId.value);
-    if (p) {
-      p.entries = val;
-    }
-  }
-});
 
-const newLaunchEnvKey = ref('');
-const newLaunchEnvValue = ref('');
-const detectedLaunchEnvEntries = ref<DetectedLaunchEnvEntry[]>([]);
-const detectedLaunchEnvSearch = ref('');
-const detectedLaunchEnvLoading = ref(false);
-const detectedLaunchEnvError = ref('');
-
-const profileRenameModalOpen = ref(false);
-const profileRenameValue = ref('');
-const profileRenameId = ref('');
-
-function loadProfiles(): LaunchEnvProfile[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem(LAUNCH_ENV_STORAGE_KEY) || 'null') as unknown;
-    if (Array.isArray(raw) && raw.length > 0) {
-      return raw as LaunchEnvProfile[];
-    }
-
-    // Try migrating legacy data
-    const legacy = JSON.parse(localStorage.getItem(LAUNCH_ENV_LEGACY_KEY) || '[]') as LaunchEnvEntry[];
-    if (Array.isArray(legacy) && legacy.length > 0) {
-      return [{
-        id: 'default',
-        name: 'Default Profile',
-        entries: legacy
-      }];
-    }
-
-    return [{
-      id: 'default',
-      name: 'Default Profile',
-      entries: []
-    }];
-  } catch {
-    return [{
-      id: 'default',
-      name: 'Default Profile',
-      entries: []
-    }];
-  }
-}
-
-function persistProfiles() {
-  localStorage.setItem(LAUNCH_ENV_STORAGE_KEY, JSON.stringify(profiles.value));
-  localStorage.setItem('executor_active_profile_id', activeProfileId.value);
-}
-
-function addNewProfile() {
-  const id = `profile-${Date.now()}`;
-  profiles.value.push({
-    id,
-    name: `New Profile ${profiles.value.length + 1}`,
-    entries: []
-  });
-  activeProfileId.value = id;
-}
-
-function copyProfile(profile: LaunchEnvProfile) {
-  const id = `profile-${Date.now()}`;
-  profiles.value.push({
-    id,
-    name: `${profile.name} (Copy)`,
-    entries: JSON.parse(JSON.stringify(profile.entries)) as LaunchEnvEntry[]
-  });
-  activeProfileId.value = id;
-}
-
-function deleteProfile(id: string) {
-  if (profiles.value.length <= 1) {
-    message.warning('Cannot delete the last profile');
-    return;
-  }
-  const index = profiles.value.findIndex(p => p.id === id);
-  if (index >= 0) {
-    profiles.value.splice(index, 1);
-    if (activeProfileId.value === id) {
-      activeProfileId.value = profiles.value[0].id;
-    }
-  }
-}
-
-function openRenameModal(profile: LaunchEnvProfile) {
-  profileRenameId.value = profile.id;
-  profileRenameValue.value = profile.name;
-  profileRenameModalOpen.value = true;
-}
-
-function applyRename() {
-  const p = profiles.value.find(p => p.id === profileRenameId.value);
-  if (p && profileRenameValue.value.trim()) {
-    p.name = profileRenameValue.value.trim();
-  }
-  profileRenameModalOpen.value = false;
-}
 
 const splitArgs = (input: string) => {
   const output: string[] = [];
@@ -479,166 +351,6 @@ const applyPickedPath = (path: string) => {
   }
 };
 
-const isValidLaunchEnvKey = (key: string) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key);
-
-const launchEnvEntriesCount = computed(() => {
-  return launchEnvEntries.value.filter(
-    (entry) => entry.enabled && isValidLaunchEnvKey(entry.key.trim()),
-  ).length;
-});
-
-const launchEnvEntryKeys = computed(() =>
-  new Set(
-    launchEnvEntries.value
-      .map((entry) => entry.key.trim())
-      .filter((key) => Boolean(key)),
-  ),
-);
-
-const launchEnvRecord = computed<Record<string, string>>(() => {
-  const env: Record<string, string> = {};
-  for (const entry of launchEnvEntries.value) {
-    const key = entry.key.trim();
-    if (!entry.enabled || !key || !isValidLaunchEnvKey(key)) continue;
-    env[key] = entry.value;
-  }
-  return env;
-});
-
-const launchEnvPreview = computed(() => {
-  const entries = Object.entries(launchEnvRecord.value);
-  if (!entries.length) {
-    return 'No launch environment overrides configured';
-  }
-  return entries.map(([key, value]) => `${key}=${value || '""'}`).join('  ');
-});
-
-const launchEnvScope = computed(() => {
-  const count = launchEnvEntriesCount.value;
-  if (!count) return 'Applies to all Executor launches';
-  return `${count} active variable${count === 1 ? '' : 's'} applied to Remote, Shell, Tmux, and Script launches`;
-});
-
-const launchEnvColumns = [
-  { title: 'Enabled', key: 'enabled', dataIndex: 'enabled' },
-  { title: 'Key', key: 'key', dataIndex: 'key' },
-  { title: 'Value', key: 'value', dataIndex: 'value' },
-  { title: 'Action', key: 'action', dataIndex: 'action' },
-];
-
-const detectedLaunchEnvColumns = [
-  { title: 'Key', key: 'key', dataIndex: 'key' },
-  { title: 'Value', key: 'value', dataIndex: 'value' },
-  { title: 'Action', key: 'action', dataIndex: 'action' },
-];
-
-const filteredDetectedLaunchEnvEntries = computed(() => {
-  const query = detectedLaunchEnvSearch.value.trim().toLowerCase();
-  if (!query) {
-    return detectedLaunchEnvEntries.value;
-  }
-  return detectedLaunchEnvEntries.value.filter((entry) => {
-    return entry.key.toLowerCase().includes(query) || entry.value.toLowerCase().includes(query);
-  });
-});
-
-watch([profiles, activeProfileId], persistProfiles, { deep: true });
-
-onMounted(() => {
-  void refreshDetectedLaunchEnvEntries();
-});
-
-const addLaunchEnvEntry = () => {
-  const key = newLaunchEnvKey.value.trim();
-  const value = newLaunchEnvValue.value;
-  if (!key) {
-    message.error('Please enter an environment variable name');
-    return;
-  }
-  if (!isValidLaunchEnvKey(key)) {
-    message.error('Environment variable names should look like FOO or FOO_BAR');
-    return;
-  }
-
-  launchEnvEntries.value = [
-    {
-      id: `launch-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      key,
-      value,
-      enabled: true,
-    },
-    ...launchEnvEntries.value,
-  ];
-  newLaunchEnvKey.value = '';
-  newLaunchEnvValue.value = '';
-};
-
-const removeLaunchEnvEntry = (id: string) => {
-  launchEnvEntries.value = launchEnvEntries.value.filter((entry) => entry.id !== id);
-};
-
-const clearDisabledLaunchEnvEntries = () => {
-  launchEnvEntries.value = launchEnvEntries.value.filter((entry) => entry.enabled);
-};
-
-const isLaunchEnvImported = (key: string) => launchEnvEntryKeys.value.has(key.trim());
-
-const importDetectedLaunchEnvEntry = (entry: DetectedLaunchEnvEntry) => {
-  const key = entry.key.trim();
-  if (!key || !isValidLaunchEnvKey(key)) {
-    return;
-  }
-
-  const next: LaunchEnvEntry = {
-    id: `launch-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    key,
-    value: entry.value,
-    enabled: true,
-  };
-
-  const index = launchEnvEntries.value.findIndex((item) => item.key.trim() === key);
-  if (index >= 0) {
-    const current = launchEnvEntries.value[index];
-    launchEnvEntries.value = [
-      ...launchEnvEntries.value.slice(0, index),
-      {
-        ...current,
-        key,
-        value: entry.value,
-        enabled: true,
-      },
-      ...launchEnvEntries.value.slice(index + 1),
-    ];
-    return;
-  }
-
-  launchEnvEntries.value = [next, ...launchEnvEntries.value];
-};
-
-const importAllDetectedLaunchEnvEntries = () => {
-  for (const entry of filteredDetectedLaunchEnvEntries.value) {
-    importDetectedLaunchEnvEntry(entry);
-  }
-};
-
-const refreshDetectedLaunchEnvEntries = async () => {
-  detectedLaunchEnvLoading.value = true;
-  detectedLaunchEnvError.value = '';
-  try {
-    const res = await axios.get('/system/env');
-    const items = Array.isArray(res.data?.items) ? (res.data.items as DetectedLaunchEnvEntry[]) : [];
-    detectedLaunchEnvEntries.value = items
-      .map((item) => ({
-        key: String(item?.key || '').trim(),
-        value: String(item?.value ?? ''),
-      }))
-      .filter((item) => Boolean(item.key));
-  } catch (err: any) {
-    detectedLaunchEnvError.value = err?.response?.data?.error || err?.message || 'Failed to load detected env vars';
-  } finally {
-    detectedLaunchEnvLoading.value = false;
-  }
-};
 
 const isTmuxSession = (session: ShellSessionInfo) => {
   const kind = (session.kind || '').trim().toLowerCase();
@@ -797,6 +509,8 @@ const launchScript = async () => {
     scriptLaunching.value = false;
   }
 };
+
+const { launchEnvRecord } = useLaunchEnv();
 </script>
 
 <template>
@@ -1037,267 +751,7 @@ const launchScript = async () => {
         </a-row>
       </a-tab-pane>
 
-      <a-tab-pane key="launch-env" tab="Launch Env">
-        <a-row :gutter="[16, 16]">
-          <a-col :span="24">
-            <a-card title="Profile Management" :bordered="false" style="margin-bottom: 16px;">
-              <template #extra>
-                <a-button type="primary" size="small" @click="addNewProfile">
-                  <template #icon><PlusOutlined /></template>
-                  New Profile
-                </a-button>
-              </template>
-              <a-space wrap :size="12">
-                <template v-for="profile in profiles" :key="profile.id">
-                  <a-card-grid
-                    :style="{
-                      width: '280px',
-                      padding: '12px',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      border: activeProfileId === profile.id ? '2px solid #1890ff' : '1px solid #f0f0f0',
-                      boxShadow: activeProfileId === profile.id ? '0 0 8px rgba(24,144,255,0.2)' : 'none',
-                      borderRadius: '4px',
-                      background: activeProfileId === profile.id ? '#e6f7ff' : '#fff'
-                    }"
-                    @click="activeProfileId = profile.id"
-                  >
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                      <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: 600; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" :title="profile.name">
-                          {{ profile.name }}
-                        </div>
-                        <div style="font-size: 12px; color: #666;">
-                          {{ profile.entries.length }} variables
-                        </div>
-                      </div>
-                      <a-dropdown :trigger="['click']" @click.stop>
-                        <SettingOutlined style="cursor: pointer; color: #1890ff;" />
-                        <template #overlay>
-                          <a-menu>
-                            <a-menu-item key="rename" @click="openRenameModal(profile)">
-                              <template #icon><EditOutlined /></template>
-                              Rename
-                            </a-menu-item>
-                            <a-menu-item key="copy" @click="copyProfile(profile)">
-                              <template #icon><CopyOutlined /></template>
-                              Duplicate
-                            </a-menu-item>
-                            <a-menu-divider />
-                            <a-menu-item key="delete" danger @click="deleteProfile(profile.id)">
-                              <template #icon><DeleteOutlined /></template>
-                              Delete
-                            </a-menu-item>
-                          </a-menu>
-                        </template>
-                      </a-dropdown>
-                    </div>
-                  </a-card-grid>
-                </template>
-              </a-space>
-            </a-card>
-          </a-col>
-        </a-row>
-
-        <a-row :gutter="[16, 16]">
-          <a-col :xs="24" :xl="11">
-            <a-card :title="`Variables in: ${activeProfile.name}`" :bordered="false">
-              <template #extra>
-                <a-space :size="8">
-                  <a-tag color="green">{{ launchEnvEntriesCount }} active</a-tag>
-                  <a-button size="small" @click="clearDisabledLaunchEnvEntries">
-                    Clear disabled
-                  </a-button>
-                </a-space>
-              </template>
-
-              <a-alert
-                type="info"
-                show-icon
-                style="margin-bottom: 16px;"
-                message="These key/value pairs are injected into every launch action from Executor."
-                description="Remote Executor, Shell Manager, tmux coding launches, and script runners all receive the enabled variables."
-              />
-
-              <a-form layout="vertical">
-                <a-row :gutter="12">
-                  <a-col :xs="24" :md="8">
-                    <a-form-item label="Key">
-                      <a-input
-                        v-model:value="newLaunchEnvKey"
-                        placeholder="FOO_BAR"
-                        @pressEnter="addLaunchEnvEntry"
-                      />
-                    </a-form-item>
-                  </a-col>
-                  <a-col :xs="24" :md="12">
-                    <a-form-item label="Value">
-                      <a-input
-                        v-model:value="newLaunchEnvValue"
-                        placeholder="value"
-                        @pressEnter="addLaunchEnvEntry"
-                      />
-                    </a-form-item>
-                  </a-col>
-                  <a-col :xs="24" :md="4" style="display: flex; align-items: flex-end;">
-                    <a-button type="primary" block @click="addLaunchEnvEntry">
-                      <template #icon>
-                        <PlusOutlined />
-                      </template>
-                      Add
-                    </a-button>
-                  </a-col>
-                </a-row>
-              </a-form>
-
-              <a-table
-                :data-source="launchEnvEntries"
-                :columns="launchEnvColumns"
-                :pagination="false"
-                size="small"
-                row-key="id"
-              >
-                <template #bodyCell="{ column, record }">
-                  <template v-if="column.key === 'enabled'">
-                    <a-switch v-model:checked="record.enabled" />
-                  </template>
-                  <template v-else-if="column.key === 'key'">
-                    <a-input v-model:value="record.key" placeholder="ENV_NAME" allow-clear />
-                  </template>
-                  <template v-else-if="column.key === 'value'">
-                    <a-input v-model:value="record.value" placeholder="value" allow-clear />
-                  </template>
-                  <template v-else-if="column.key === 'action'">
-                    <a-button size="small" danger @click="removeLaunchEnvEntry(record.id)">
-                      <template #icon>
-                        <DeleteOutlined />
-                      </template>
-                      Delete
-                    </a-button>
-                  </template>
-                </template>
-              </a-table>
-            </a-card>
-          </a-col>
-
-          <a-col :xs="24" :xl="13">
-            <a-card title="Launch env preview" :bordered="false">
-              <template #extra>
-                <a-space :size="8">
-                  <SettingOutlined />
-                  <span>Local browser persistence</span>
-                </a-space>
-              </template>
-
-              <a-space direction="vertical" :size="12" style="width: 100%;">
-                <a-descriptions bordered size="small" :column="1">
-                  <a-descriptions-item label="Active variables">
-                    <span>{{ launchEnvEntriesCount }}</span>
-                  </a-descriptions-item>
-                  <a-descriptions-item label="Scope">
-                    <span>{{ launchEnvScope }}</span>
-                  </a-descriptions-item>
-                  <a-descriptions-item label="Preview">
-                    <span>{{ launchEnvPreview }}</span>
-                  </a-descriptions-item>
-                </a-descriptions>
-
-                <a-alert
-                  type="warning"
-                  show-icon
-                  message="Environment variable names should use the usual shell style: FOO or FOO_BAR."
-                />
-                <a-alert
-                  type="info"
-                  show-icon
-                  message="Because this is stored in your browser, each workstation/browser can keep its own launch env profile."
-                />
-              </a-space>
-            </a-card>
-          </a-col>
-        </a-row>
-
-        <a-row :gutter="[16, 16]" style="margin-top: 16px;">
-          <a-col :span="24">
-            <a-card title="Detected environment from backend" :bordered="false">
-              <template #extra>
-                <a-space :size="8">
-                  <a-tag color="blue">{{ filteredDetectedLaunchEnvEntries.length }} visible</a-tag>
-                  <a-tag color="default">{{ detectedLaunchEnvEntries.length }} detected</a-tag>
-                  <a-button size="small" :loading="detectedLaunchEnvLoading" @click="refreshDetectedLaunchEnvEntries">
-                    <template #icon>
-                      <ReloadOutlined />
-                    </template>
-                    Refresh
-                  </a-button>
-                  <a-button
-                    size="small"
-                    type="primary"
-                    :disabled="filteredDetectedLaunchEnvEntries.length === 0"
-                    @click="importAllDetectedLaunchEnvEntries"
-                  >
-                    Import visible
-                  </a-button>
-                </a-space>
-              </template>
-
-              <a-alert
-                type="info"
-                show-icon
-                style="margin-bottom: 16px;"
-                message="This list is read from the backend runtime environment. Backend configuration vars such as AGENT_*, GIN_MODE, DISABLE_AUTH, SUDO_*, and PKEXEC_UID are hidden."
-              />
-
-              <a-alert
-                v-if="detectedLaunchEnvError"
-                type="warning"
-                show-icon
-                style="margin-bottom: 16px;"
-                :message="detectedLaunchEnvError"
-              />
-
-              <a-input-search
-                v-model:value="detectedLaunchEnvSearch"
-                placeholder="Filter detected env by key or value"
-                enter-button="Search"
-                style="margin-bottom: 16px;"
-              />
-
-              <a-table
-                :data-source="filteredDetectedLaunchEnvEntries"
-                :columns="detectedLaunchEnvColumns"
-                :loading="detectedLaunchEnvLoading"
-                :pagination="false"
-                row-key="key"
-                size="small"
-              >
-                <template #bodyCell="{ column, record }">
-                  <template v-if="column.key === 'key'">
-                    <code>{{ record.key }}</code>
-                  </template>
-                  <template v-else-if="column.key === 'value'">
-                    <span class="executor-env__value" :title="record.value">
-                      {{ record.value || '—' }}
-                    </span>
-                  </template>
-                  <template v-else-if="column.key === 'action'">
-                    <a-space>
-                      <a-tag v-if="isLaunchEnvImported(record.key)" color="green">Imported</a-tag>
-                      <a-button size="small" @click="importDetectedLaunchEnvEntry(record)">
-                        {{ isLaunchEnvImported(record.key) ? 'Update' : 'Use' }}
-                      </a-button>
-                    </a-space>
-                  </template>
-                </template>
-
-                <template #emptyText>
-                  <a-empty description="No backend runtime env vars detected" />
-                </template>
-              </a-table>
-            </a-card>
-          </a-col>
-        </a-row>
-      </a-tab-pane>
+      <ExecutorLaunchEnvTab />
     </a-tabs>
 
     <PathNavigatorDrawer
@@ -1308,17 +762,6 @@ const launchScript = async () => {
       @confirm="applyPickedPath"
     />
 
-    <a-modal
-      v-model:open="profileRenameModalOpen"
-      title="Rename Profile"
-      @ok="applyRename"
-    >
-      <a-form layout="vertical">
-        <a-form-item label="Profile Name">
-          <a-input v-model:value="profileRenameValue" placeholder="Enter profile name" @pressEnter="applyRename" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
   </div>
 </template>
 
