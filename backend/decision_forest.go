@@ -88,39 +88,34 @@ func (f *DecisionForest) Predict(features [FeatureDim]float64) Prediction {
 	}
 
 	classVotes := make([]float64, f.NumClasses)
-	var totalAnomaly float64
+	validVotes := 0.0
 
 	for i := range f.Trees {
-		v := f.Trees[i].Predict(features)
-		classVotes[i%f.NumClasses] += float64(v) / float64(len(f.Trees))
-		// Anomaly score from path depth (shallower = more anomalous in isolation forest style)
-		totalAnomaly += float64(1.0 - v)
+		leaf := f.Trees[i].Predict(features)
+		cls := int(math.Round(float64(leaf)))
+		if cls < 0 || cls >= f.NumClasses {
+			continue
+		}
+		classVotes[cls]++
+		validVotes++
 	}
 
-	// Find class with most votes
+	if validVotes == 0 {
+		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
+	}
+
+	// Find class with most votes.
 	bestClass := int32(0)
-	bestConfidence := classVotes[0]
+	bestVotes := classVotes[0]
 	for i := 1; i < f.NumClasses; i++ {
-		if classVotes[i] > bestConfidence {
-			bestConfidence = classVotes[i]
+		if classVotes[i] > bestVotes {
+			bestVotes = classVotes[i]
 			bestClass = int32(i)
 		}
 	}
 
-	// Normalize confidence to [0, 1]
-	sumVotes := 0.0
-	for _, v := range classVotes {
-		sumVotes += v
-	}
-	confidence := bestConfidence
-	if sumVotes > 0 {
-		confidence = bestConfidence / sumVotes
-	}
-
-	anomalyScore := totalAnomaly / float64(len(f.Trees))
-	if anomalyScore > 1.0 {
-		anomalyScore = 1.0
-	}
+	confidence := bestVotes / validVotes
+	anomalyScore := 1.0 - confidence
 
 	return Prediction{
 		Action:       bestClass,
@@ -135,7 +130,7 @@ func (f *DecisionForest) Serialize(path string) error {
 
 	// Header
 	header := make([]byte, 17)
-	copy(header[0:4], []byte("FORE"))          // magic
+	copy(header[0:4], []byte("FORE"))             // magic
 	binary.LittleEndian.PutUint32(header[4:8], 1) // version
 	binary.LittleEndian.PutUint32(header[8:12], uint32(len(f.Trees)))
 	binary.LittleEndian.PutUint32(header[12:16], uint32(f.MaxDepth))
