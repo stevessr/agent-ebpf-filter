@@ -13,6 +13,7 @@ import type {
 
 import { safetyNetHighRiskPresets, highRiskPresets } from './mlPresets';
 export { safetyNetHighRiskPresets, classicSecurityDatasetPresets, highRiskPresets } from './mlPresets';
+import { LLM_SCORING_STORAGE_KEY, defaultLLMScoringConfig, readStoredLLMScoringConfig, pickLLMScoringConfigForStorage, downloadJsonFile, downloadTextFile, buildLLMProductionJsonl, arrayBufferToBase64, getLabelColor, splitCommandLine, riskLevelColor, riskMeterColor } from './mlUtils';
 
 export interface MLThresholds {
   blockConfidenceThreshold: number;
@@ -22,48 +23,6 @@ export interface MLThresholds {
   highAnomalyThreshold: number;
 }
 
-const LLM_SCORING_STORAGE_KEY = 'agent-ebpf-filter.ml.llm-scoring-config';
-
-type StoredLLMScoringConfig = Pick<
-  MLLlmConfig,
-  'enabled' | 'baseUrl' | 'apiKey' | 'model' | 'timeoutSeconds' | 'temperature' | 'maxTokens' | 'systemPrompt'
->;
-
-const defaultLLMScoringConfig = (): MLLlmConfig => ({
-  enabled: false,
-  baseUrl: '',
-  apiKey: '',
-  apiKeyConfigured: false,
-  model: '',
-  timeoutSeconds: 45,
-  temperature: 0,
-  maxTokens: 256,
-  systemPrompt: '',
-});
-
-const readStoredLLMScoringConfig = (): Partial<StoredLLMScoringConfig> | null => {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(LLM_SCORING_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<StoredLLMScoringConfig>;
-    if (!parsed || typeof parsed !== 'object') return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-};
-
-const pickLLMScoringConfigForStorage = (config: MLLlmConfig): StoredLLMScoringConfig => ({
-  enabled: !!config.enabled,
-  baseUrl: config.baseUrl || '',
-  apiKey: config.apiKey || '',
-  model: config.model || '',
-  timeoutSeconds: Number.isFinite(config.timeoutSeconds) ? config.timeoutSeconds : 45,
-  temperature: Number.isFinite(config.temperature) ? config.temperature : 0,
-  maxTokens: Number.isFinite(config.maxTokens) ? config.maxTokens : 256,
-  systemPrompt: config.systemPrompt || '',
-});
 
 
 
@@ -999,29 +958,9 @@ export function useConfigML() {
     return text;
   };
 
-  const downloadJsonFile = (filename: string, payload: unknown) => {
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a'); link.href = url; link.download = filename; link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
-  };
 
-  const downloadTextFile = (filename: string, content: string, mimeType = 'text/plain;charset=utf-8') => {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
-  };
 
-  const llmProductionPayloadForRow = (row: LLMProductionDatasetRow) => ({
-    messages: row.messages,
-  });
 
-  const buildLLMProductionJsonl = (rows: LLMProductionDatasetRow[]) =>
-    rows.map((row) => JSON.stringify(llmProductionPayloadForRow(row))).join('\n');
 
   const fetchLLMProductionDataset = async (silent = false) => {
     llmProductionLoading.value = true;
@@ -1055,12 +994,6 @@ export function useConfigML() {
     message.success(`已导出 ${llmProductionPreview.value.length} 条 LLM 生产训练样本`);
   };
 
-  const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    return window.btoa(binary);
-  };
 
   const labelSample = async (index: number, label: string) => {
     try {
@@ -1116,13 +1049,6 @@ export function useConfigML() {
     } catch (e: any) { message.error(e.response?.data?.error || '清空训练集失败'); }
   };
 
-  const getLabelColor = (label: string) => {
-    const m: Record<string, string> = {
-      'BLOCK': 'red', 'ALERT': 'orange', 'ALLOW': 'green', 'REWRITE': 'blue', '-': 'default',
-    };
-    return m[label] || 'default';
-  };
-
   const cancelTraining = async () => {
     cancellingTraining.value = true;
     try {
@@ -1152,24 +1078,6 @@ export function useConfigML() {
   };
 
   // ── Manual Sample Submission ──
-  const splitCommandLine = (input: string): string[] => {
-    const parts: string[] = [];
-    let current = '';
-    let inSingle = false, inDouble = false, escaped = false;
-    const emit = () => { if (!current) return; parts.push(current); current = ''; };
-    for (const ch of input.trim()) {
-      if (escaped) { current += ch; escaped = false; }
-      else if (ch === '\\' && !inSingle) { escaped = true; }
-      else if (ch === "'" && !inDouble) { inSingle = !inSingle; }
-      else if (ch === '"' && !inSingle) { inDouble = !inDouble; }
-      else if (/\s/.test(ch) && !inSingle && !inDouble) { emit(); }
-      else { current += ch; }
-    }
-    if (escaped) current += '\\';
-    emit();
-    return parts;
-  };
-
   const submitManualSample = async () => {
     if (!sampleCommandLine.value.trim()) return;
     const commands = sampleCommandLine.value.trim().split('|').map(c => c.trim()).filter(c => c);
@@ -1234,16 +1142,6 @@ export function useConfigML() {
   const runBacktestPreset = async (comm: string, argsStr: string) => {
     backtestCommandLine.value = `${comm} ${argsStr || ''}`.trim();
     await runBacktest();
-  };
-
-  const riskLevelColor = (level?: string) => {
-    const m: Record<string, string> = { 'CRITICAL': '#cf1322', 'HIGH': '#d4380d', 'MEDIUM': '#d48806', 'LOW': '#389e0d', 'SAFE': '#52c41a' };
-    return (level && m[level]) || '#666';
-  };
-
-  const riskMeterColor = (score: number) => {
-    if (score >= 80) return '#cf1322'; if (score >= 60) return '#d4380d';
-    if (score >= 40) return '#d48806'; if (score >= 20) return '#389e0d'; return '#52c41a';
   };
 
   const llmApiKeyStatus = computed(() => {
