@@ -18,11 +18,12 @@ func init() {
 // LogisticModel is a one-vs-rest multinomial logistic regression classifier.
 // Pure Go SGD implementation — no external ML dependencies.
 type LogisticModel struct {
-	Weights      [][FeatureDim + 1]float64 `json:"-"` // +1 for bias, one per class
-	NumClasses   int                        `json:"numClasses"`
-	LearningRate float64                    `json:"learningRate"`
-	Regularization string                   `json:"regularization"` // l1, l2, none
-	MaxIterations int                       `json:"maxIterations"`
+	Weights        [][FeatureDim + 1]float64 `json:"-"` // +1 for bias, one per class
+	NumClasses     int                       `json:"numClasses"`
+	LearningRate   float64                   `json:"learningRate"`
+	Regularization string                    `json:"regularization"` // l1, l2, none
+	MaxIterations  int                       `json:"maxIterations"`
+	ClassWeights   []float64                 `json:"classWeights,omitempty"` // per-class loss weight for imbalance
 }
 
 func NewLogisticModel(learningRate float64, reg string, maxIter int) *LogisticModel {
@@ -143,13 +144,19 @@ func (m *LogisticModel) Train(samples [][FeatureDim]float64, labels []int32) {
 
 			probs := m.softmax(features)
 
-			// Cross-entropy loss gradient
+			// Class weight: upweight minority classes
+			cw := 1.0
+			if len(m.ClassWeights) == m.NumClasses {
+				cw = m.ClassWeights[trueLabel]
+			}
+
+			// Cross-entropy loss gradient (scaled by class weight)
 			for c := 0; c < m.NumClasses; c++ {
 				target := 0.0
 				if c == trueLabel {
 					target = 1.0
 				}
-				error := probs[c] - target
+				error := (probs[c] - target) * cw
 
 				// Update weights with regularization
 				for i := 0; i < FeatureDim; i++ {
@@ -171,7 +178,7 @@ func (m *LogisticModel) Train(samples [][FeatureDim]float64, labels []int32) {
 			}
 
 			if probs[trueLabel] > 0 {
-				totalLoss += -math.Log(probs[trueLabel])
+				totalLoss += -math.Log(probs[trueLabel]) * cw
 			}
 		}
 
@@ -182,6 +189,45 @@ func (m *LogisticModel) Train(samples [][FeatureDim]float64, labels []int32) {
 		}
 	}
 }
+// computeClassWeights computes inverse-frequency class weights to handle imbalance.
+// Minority classes get weight > 1, majority get weight <= 1.
+func computeClassWeights(labels []int32, numClasses int) []float64 {
+	counts := make([]int, numClasses)
+	for _, l := range labels {
+		if l >= 0 && int(l) < numClasses {
+			counts[l]++
+		}
+	}
+	total := 0
+	for _, c := range counts {
+		total += c
+	}
+	if total == 0 {
+		return nil
+	}
+
+	weights := make([]float64, numClasses)
+	maxW := 0.0
+	for c := 0; c < numClasses; c++ {
+		if counts[c] > 0 {
+			weights[c] = float64(total) / (float64(numClasses) * float64(counts[c]))
+			if weights[c] > maxW {
+				maxW = weights[c]
+			}
+		} else {
+			weights[c] = 1.0
+		}
+	}
+
+	// Cap max weight at 5.0 to prevent extreme values
+	if maxW > 5.0 {
+		for c := range weights {
+			weights[c] = weights[c] / maxW * 5.0
+		}
+	}
+	return weights
+}
+
 
 // Serialize writes the logistic model to a binary file
 func (m *LogisticModel) Serialize(path string) error {

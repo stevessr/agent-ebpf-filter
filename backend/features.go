@@ -268,7 +268,55 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 			f[100] = 0
 		}
 		f[101] = float64(len(categorySet)) / 15.0 // category diversity
-		f[102] = float64(len(history)) / float64(fe.history.maxSize) // buffer fill ratio
+
+		// Anomaly trend: recent half vs older half
+		if len(history) >= 4 {
+			mid := len(history) / 2
+			var recentMean, olderMean float64
+			for j, h := range history {
+				if j >= mid {
+					recentMean += h.AnomalyScore
+				} else {
+					olderMean += h.AnomalyScore
+				}
+			}
+			recentMean /= float64(len(history) - mid)
+			olderMean /= float64(mid)
+			f[102] = (recentMean - olderMean + 1.0) / 2.0
+		} else {
+			f[102] = 0.5
+		}
+
+		// Time-weighted recent activity (last 5 events)
+		if len(history) >= 3 {
+			recentComm := 0
+			tail := history
+			if len(tail) > 5 {
+				tail = tail[len(tail)-5:]
+			}
+			for _, h := range tail {
+				if h.Comm == comm {
+					recentComm++
+				}
+			}
+			f[103] = float64(recentComm) / float64(len(tail))
+		}
+
+		// Command repetition burst
+		if commMatch > 1 {
+			f[104] = math.Min(float64(commMatch-1)/10.0, 1.0)
+		}
+
+		// Comm-specific alert rate
+		commAlerts := 0
+		for _, h := range history {
+			if h.Comm == comm && h.Action == "ALERT" {
+				commAlerts++
+			}
+		}
+		if commMatch > 0 {
+			f[105] = float64(commAlerts) / float64(commMatch)
+		}
 	}
 
 	// ── Group E: Event Rate Features [112-119] ──

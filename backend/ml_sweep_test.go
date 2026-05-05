@@ -48,6 +48,7 @@ type sweepResult struct {
 	InferenceSamples    int
 	InferenceLatencyMs  float64
 	InferenceThroughput float64
+	MemoryBytes         int64
 	Error               string
 }
 
@@ -75,6 +76,7 @@ type repeatRunResult struct {
 	InferenceSamples    int
 	InferenceLatencyMs  float64
 	InferenceThroughput float64
+	MemoryBytes         int64
 	Error               string
 }
 
@@ -104,6 +106,10 @@ type repeatSummary struct {
 	InferenceLatencyStd  float64
 	TrainMin             float64
 	TrainMax             float64
+	MemoryMean          float64
+	MemoryStd           float64
+	MemoryMin           float64
+	MemoryMax           float64
 	SuccessRate          float64
 }
 
@@ -126,7 +132,7 @@ func runMLSweepReport() error {
 	if mode == "" {
 		mode = "quick"
 	}
-	if mode != "quick" && mode != "full" {
+	if mode != "quick" && mode != "full" && mode != "comprehensive" {
 		return fmt.Errorf("unsupported ML_SWEEP_MODE %q", mode)
 	}
 	repeats := parsePositiveInt(os.Getenv("ML_SWEEP_REPEATS"), 100)
@@ -188,7 +194,7 @@ func runMLSweepReport() error {
 	fmt.Printf("[ml-sweep] dataset=%d labeled samples, mode=%s, out=%s\n", len(labeled), mode, outDir)
 
 	summaries := make([]profileSummary, 0, len(profiles))
-	allResults := make([]sweepResult, 0, 128)
+	allResults := make([]sweepResult, 0, 4096)
 	stabilityCandidates := make([]stabilityTask, 0, len(profiles)*stabilityTop)
 
 	for _, profile := range profiles {
@@ -406,9 +412,16 @@ func runSingleConfig(profile sweepProfile, x, y int, benchmarkSamples []Training
 	cfg := profile.Build(x, y)
 	trainer := newSweepTrainer()
 
+	var memBefore, memAfter runtime.MemStats
+	runtime.ReadMemStats(&memBefore)
 	start := time.Now()
 	model, result := trainer.TrainWithConfig(globalTrainingStore, cfg)
 	duration := time.Since(start).Seconds()
+	runtime.ReadMemStats(&memAfter)
+	memUsed := int64(memAfter.Alloc - memBefore.Alloc)
+	if memUsed < 0 {
+		memUsed = 0
+	}
 
 	row := sweepResult{
 		Profile:            profile.Name,
@@ -429,7 +442,11 @@ func runSingleConfig(profile sweepProfile, x, y int, benchmarkSamples []Training
 		if row.ConfigSummary == "" {
 			row.ConfigSummary = string(model.Type())
 		}
+		infStartMem := allocMem()
 		row.InferenceDuration, row.InferenceThroughput, row.InferenceLatencyMs, row.InferenceSamples = benchmarkModelInference(model, benchmarkSamples)
+		row.MemoryBytes = int64(allocMem() - infStartMem) + memUsed
+	} else {
+		row.MemoryBytes = memUsed
 	}
 	if row.Error != "" {
 		row.ValidationAccuracy = 0
@@ -693,8 +710,10 @@ func aggregateRepeatRuns(runs []repeatRunResult) (repeatSummary, error) {
 	durations := make([]float64, 0, len(runs))
 	inferenceVals := make([]float64, 0, len(runs))
 	inferenceLatencyVals := make([]float64, 0, len(runs))
+		memoryVals := make([]float64, 0, len(runs))
 	for _, r := range runs {
 		durations = append(durations, r.Duration)
+		memoryVals = append(memoryVals, float64(r.MemoryBytes))
 		if r.Error != "" {
 			summary.FailureRuns++
 			continue
@@ -864,6 +883,12 @@ func stabilityBestJSON(summaries []repeatSummary) map[string]any {
 	}
 }
 
+func allocMem() uint64 {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return m.Alloc
+}
+
 func parsePositiveInt(raw string, fallback int) int {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -891,6 +916,22 @@ func profilesForMode(mode string) []sweepProfile {
 	}
 	_ = quick
 
+	// ── Parameter grids ──────────────────────────────────────────
+	// quick: ~9-50 points per model
+	// full: ~50-200 points per model
+	// comprehensive: 1000+ points per model
+
+	// Helper: linspaceInt generates count evenly-spaced integers from min to max
+	linspaceInt := func(minVal, maxVal, count int) []int {
+		if count <= 0 { return nil }
+		if count == 1 { return []int{(minVal + maxVal) / 2} }
+		out := make([]int, count)
+		for i := 0; i < count; i++ {
+			out[i] = minVal + (maxVal-minVal)*i/(count-1)
+		}
+		return out
+	}
+
 	rfX, rfY := []int{15, 31, 51}, []int{6, 8, 10}
 	etX, etY := []int{15, 31, 51}, []int{6, 8, 10}
 	logX, logY := []int{5, 10, 20, 50}, []int{4, 8, 12}
@@ -900,14 +941,30 @@ func profilesForMode(mode string) []sweepProfile {
 	adaX := []int{10, 25, 50, 100}
 	nbX := []int{0}
 
-	if mode == "full" {
-		rfX, rfY = []int{3, 5, 7, 11, 15, 21, 31, 51, 71}, []int{2, 3, 4, 6, 8, 10, 12}
-		etX, etY = []int{3, 5, 7, 11, 15, 21, 31, 51, 71}, []int{2, 3, 4, 6, 8, 10, 12}
-		logX, logY = []int{1, 2, 5, 10, 20, 50, 100, 200}, []int{4, 8, 12}
-		linearX, linearY = []int{1, 2, 5, 10, 20, 50, 100, 200}, []int{250, 500, 1000, 2000, 4000}
-		knnX = []int{1, 3, 5, 7, 9, 11, 13, 15, 17, 21, 31}
-		ridgeX = []int{1, 2, 5, 10, 25, 50, 100, 200, 500}
-		adaX = []int{5, 10, 20, 25, 50, 75, 100, 150, 200, 300}
+	switch mode {
+	case "full":
+		rfX, rfY = linspaceInt(3, 100, 15), linspaceInt(2, 16, 10)
+		etX, etY = linspaceInt(3, 100, 15), linspaceInt(2, 16, 10)
+		logX, logY = linspaceInt(1, 200, 20), []int{4, 8, 12}
+		linearX, linearY = linspaceInt(1, 200, 20), linspaceInt(100, 5000, 10)
+		knnX = linspaceInt(1, 31, 15)
+		ridgeX = linspaceInt(1, 500, 20)
+		adaX = linspaceInt(5, 300, 20)
+	case "comprehensive":
+		// 1000+ points per model with practical ranges
+		// RF: 32 trees x 32 depths = 1024 (cap trees at 50 for speed)
+		rfX, rfY = linspaceInt(1, 50, 32), linspaceInt(1, 24, 32)
+		etX, etY = linspaceInt(1, 50, 32), linspaceInt(1, 24, 32)
+		// Logistic: 40 lr x 30 reg/iter = 1200
+		logX, logY = linspaceInt(1, 250, 40), linspaceInt(100, 5000, 30)
+		// Linear models (reduced: low accuracy, fast sweep)
+		linearX, linearY = linspaceInt(1, 100, 10), linspaceInt(100, 4000, 10)
+		// KNN: 1000 values (fast: 0.1s each)
+		knnX = linspaceInt(1, 1000, 1000)
+		// Ridge: 1000 values (fast: 0.25s each)
+		ridgeX = linspaceInt(1, 1000, 1000)
+		// AdaBoost: 1000 values (fast: 0.06s each)
+		adaX = linspaceInt(1, 1000, 1000)
 	}
 
 	return []sweepProfile{
@@ -967,37 +1024,26 @@ func profilesForMode(mode string) []sweepProfile {
 			Comparable: true,
 			Kind:       "heatmap",
 			XName:      "learningRate×1000",
-			YName:      "regularization",
+			YName:      "maxIter",
 			XValues:    logX,
 			YValues:    logY,
 			Build: func(x, y int) MLConfig {
 				cfg := DefaultMLConfig()
 				cfg.ModelType = ModelLogisticRegression
 				cfg.NumTrees = x
-				cfg.MaxDepth = y
-				cfg.MinSamplesLeaf = 1000
+				cfg.MinSamplesLeaf = y
+				cfg.MaxDepth = 8
 				cfg.ValidationSplitRatio = 0.2
 				cfg.LlmEnabled = false
 				return cfg
 			},
 			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
-			YLabel: func(v int) string {
-				switch v {
-				case 4:
-					return "none"
-				case 12:
-					return "l1"
-				default:
-					return "l2"
-				}
-			},
+			YLabel: strconv.Itoa,
 			Summary: func(cfg MLConfig) string {
 				reg := "l2"
 				switch cfg.MaxDepth {
-				case 4:
-					reg = "none"
-				case 12:
-					reg = "l1"
+				case 4: reg = "none"
+				case 12: reg = "l1"
 				}
 				return fmt.Sprintf("lr=%.3f reg=%s iter=%d", float64(cfg.NumTrees)/1000.0, reg, cfg.MinSamplesLeaf)
 			},
@@ -1669,6 +1715,7 @@ func writeCSV(path string, results []sweepResult) error {
 		"profile", "modelType", "xValue", "yValue", "configSummary",
 		"trainAccuracy", "validationAccuracy", "durationSeconds",
 		"inferenceDurationSeconds", "inferenceSamples", "inferenceLatencyMs", "inferenceThroughput",
+		"memoryBytes",
 		"numSamples", "trainSamples", "validationSamples", "error",
 	}
 	if err := w.Write(header); err != nil {
@@ -1688,6 +1735,7 @@ func writeCSV(path string, results []sweepResult) error {
 			strconv.Itoa(r.InferenceSamples),
 			fmt.Sprintf("%.6f", r.InferenceLatencyMs),
 			fmt.Sprintf("%.6f", r.InferenceThroughput),
+		strconv.Itoa(int(r.MemoryBytes)),
 			strconv.Itoa(r.NumSamples),
 			strconv.Itoa(r.TrainSamples),
 			strconv.Itoa(r.ValidationSamples),
@@ -1714,6 +1762,7 @@ func writeRepeatCSV(path string, runs []repeatRunResult) error {
 		"profile", "modelType", "xValue", "yValue", "runIndex", "configSummary",
 		"trainAccuracy", "validationAccuracy", "durationSeconds",
 		"inferenceDurationSeconds", "inferenceSamples", "inferenceLatencyMs", "inferenceThroughput",
+		"memoryBytes",
 		"numSamples", "trainSamples", "validationSamples", "error",
 	}
 	if err := w.Write(header); err != nil {
@@ -1734,6 +1783,7 @@ func writeRepeatCSV(path string, runs []repeatRunResult) error {
 			strconv.Itoa(r.InferenceSamples),
 			fmt.Sprintf("%.6f", r.InferenceLatencyMs),
 			fmt.Sprintf("%.6f", r.InferenceThroughput),
+		strconv.Itoa(int(r.MemoryBytes)),
 			strconv.Itoa(r.NumSamples),
 			strconv.Itoa(r.TrainSamples),
 			strconv.Itoa(r.ValidationSamples),
@@ -1762,6 +1812,7 @@ func writeRepeatSummaryCSV(path string, summaries []repeatSummary) error {
 		"trainMean", "trainStd", "validationMean", "validationStd",
 		"validationMin", "validationMax", "durationMean", "durationStd",
 		"inferenceMean", "inferenceStd", "inferenceMin", "inferenceMax", "inferenceLatencyMean", "inferenceLatencyStd",
+		"memoryMean", "memoryStd", "memoryMin", "memoryMax",
 	}
 	if err := w.Write(header); err != nil {
 		return err

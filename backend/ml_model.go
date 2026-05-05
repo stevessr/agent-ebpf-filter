@@ -16,6 +16,7 @@ const (
 	ModelRidge               ModelType = "ridge"
 	ModelPerceptron          ModelType = "perceptron"
 	ModelPassiveAggressive   ModelType = "passive_aggressive"
+	ModelEnsemble            ModelType = "ensemble"
 )
 
 // AllModelTypes returns all registered model types
@@ -23,7 +24,7 @@ func AllModelTypes() []ModelType {
 	return []ModelType{
 		ModelRandomForest, ModelKNN, ModelLogisticRegression,
 		ModelNaiveBayes, ModelExtraTrees, ModelAdaBoost,
-		ModelSVM, ModelRidge, ModelPerceptron, ModelPassiveAggressive,
+		ModelSVM, ModelRidge, ModelPerceptron, ModelPassiveAggressive, ModelEnsemble,
 	}
 }
 
@@ -80,6 +81,8 @@ func modelName(t ModelType) string {
 		return "Perceptron"
 	case ModelPassiveAggressive:
 		return "Passive-Aggressive"
+	case ModelEnsemble:
+		return "Ensemble"
 	default:
 		return string(t)
 	}

@@ -255,11 +255,10 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 		t.progress = float64(ti) / float64(numTrees)
 		tStart := time.Now()
 
-		// Bootstrap sample
+		// Stratified bootstrap: draw from each class proportionally
+		// to ensure minority classes (BLOCK, ALERT, REWRITE) are represented.
 		bootstrap := make([]trainSample, len(trainSet))
-		for i := range bootstrap {
-			bootstrap[i] = trainSet[rng.Intn(len(trainSet))]
-		}
+		classStratifiedBootstrap(trainSet, bootstrap, rng)
 
 		// Build tree
 		nodes := buildTree(bootstrap, 0, maxDepth, minSamplesLeaf, featureSampleCount, rng)
@@ -277,6 +276,12 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 		numTrees, treeElapsed.Round(time.Millisecond), totalNodes, totalNodes/numTrees)
 
 	forest.IsTrained = true
+
+	// Prune underperforming trees
+	pruned := forest.Prune(trainSet)
+	if pruned > 0 {
+		t.logf("Pruned %d underperforming trees, %d remaining", pruned, len(forest.Trees))
+	}
 
 	// Evaluate on train and validation sets
 	t.logf("Evaluating model on %d train samples and %d validation samples...", len(trainSet), len(validationSet))
@@ -582,7 +587,39 @@ func majorityClass(samples []trainSample) float32 {
 	return float32(best)
 }
 
-// evaluateForest computes accuracy on a test set
+// classStratifiedBootstrap creates a bootstrap sample where each class
+// is proportionally represented. Minority classes are upsampled to ensure
+// they appear in every tree's training set.
+func classStratifiedBootstrap(src, dst []trainSample, rng *rand.Rand) {
+	// Group samples by class
+	groups := make(map[int32][]trainSample)
+	for _, s := range src {
+		groups[s.label] = append(groups[s.label], s)
+	}
+
+	// Each class gets equal slot count to upweight minorities
+	nClasses := len(groups)
+	if nClasses == 0 {
+		return
+	}
+	perClass := len(dst) / nClasses
+	if perClass < 1 {
+		perClass = 1
+	}
+
+	// Interleave: round-robin across classes
+	i := 0
+	for i < len(dst) {
+		for _, group := range groups {
+			if i >= len(dst) {
+				break
+			}
+			dst[i] = group[rng.Intn(len(group))]
+			i++
+		}
+	}
+}
+
 func evaluateForest(forest *DecisionForest, testSet []trainSample) float64 {
 	if len(testSet) == 0 {
 		return 1.0

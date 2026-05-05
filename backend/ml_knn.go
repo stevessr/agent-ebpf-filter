@@ -1,12 +1,12 @@
 package main
 
 import (
+	"container/heap"
 	"encoding/binary"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
-	"sort"
 
 	"agent-ebpf-filter/cuda"
 )
@@ -18,12 +18,13 @@ func init() {
 // KNNModel is a k-nearest neighbors classifier.
 // Pure Go — stores training data in memory for lazy inference.
 type KNNModel struct {
-	K          int      `json:"k"`
-	Distance   string   `json:"distance"`   // euclidean, manhattan
-	Weight     string   `json:"weight"`     // uniform, distance
-	Samples    [][FeatureDim]float64 `json:"-"`
-	Labels     []int32  `json:"-"`
-	NumClasses int      `json:"numClasses"`
+	K           int      `json:"k"`
+	Distance    string   `json:"distance"`   // euclidean, manhattan
+	Weight      string   `json:"weight"`     // uniform, distance
+	MaxDistance float64  `json:"maxDistance,omitempty"` // skip samples beyond this dist (0=unlimited)
+	Samples     [][FeatureDim]float64 `json:"-"`
+	Labels      []int32  `json:"-"`
+	NumClasses  int      `json:"numClasses"`
 }
 
 func NewKNNModel(k int, distance, weight string) *KNNModel {
@@ -35,17 +36,70 @@ func NewKNNModel(k int, distance, weight string) *KNNModel {
 
 func (m *KNNModel) Type() ModelType { return ModelKNN }
 
+// ── Heap-based KNN Search ──────────────────────────────────────────
+
+type knnHeapItem struct {
+	idx      int
+	distance float64
+}
+
+// max-heap of knnHeapItem (sorted by distance descending)
+type knnMaxHeap []knnHeapItem
+
+func (h knnMaxHeap) Len() int           { return len(h) }
+func (h knnMaxHeap) Less(i, j int) bool { return h[i].distance > h[j].distance }
+func (h knnMaxHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *knnMaxHeap) Push(x any)        { *h = append(*h, x.(knnHeapItem)) }
+func (h *knnMaxHeap) Pop() any {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
+}
+
+// knnSearch finds the K nearest neighbors using a max-heap (O(N log K)).
+// When MaxDistance > 0, skips samples beyond the threshold.
+func (m *KNNModel) knnSearch(features [FeatureDim]float64) []knnHeapItem {
+	k := m.K
+	if k <= 0 {
+		k = 1
+	}
+	if k > len(m.Samples) {
+		k = len(m.Samples)
+	}
+
+	h := &knnMaxHeap{}
+	heap.Init(h)
+
+	for i, sample := range m.Samples {
+		d := m.computeDistance(features, sample)
+		if m.MaxDistance > 0 && d > m.MaxDistance {
+			continue
+		}
+		if h.Len() < k {
+			heap.Push(h, knnHeapItem{idx: i, distance: d})
+		} else if d < (*h)[0].distance {
+			(*h)[0] = knnHeapItem{idx: i, distance: d}
+			heap.Fix(h, 0)
+		}
+	}
+
+	// Convert to sorted slice (ascending)
+	result := make([]knnHeapItem, h.Len())
+	for i := len(result) - 1; i >= 0; i-- {
+		result[i] = heap.Pop(h).(knnHeapItem)
+	}
+	return result
+}
+
 func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 	if len(m.Samples) == 0 {
 		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
 	}
 
-	type neighbor struct {
-		idx      int
-		distance float64
-	}
+	var neighbors []knnHeapItem
 
-	neighbors := make([]neighbor, len(m.Samples))
 	if cuda.IsAvailable() && len(m.Samples) >= 1000 {
 		// GPU-accelerated batch distance computation
 		q := make([]float32, FeatureDim)
@@ -59,24 +113,45 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 			}
 		}
 		dists := cuda.KNNDistances(q, r, 1, len(m.Samples), FeatureDim, m.Distance)
-		for i := range neighbors {
-			neighbors[i] = neighbor{idx: i, distance: float64(dists[i])}
+		allDists := make([]knnHeapItem, len(m.Samples))
+		for i := range allDists {
+			allDists[i] = knnHeapItem{idx: i, distance: float64(dists[i])}
+		}
+		// Use same heap-based selection for GPU path
+		k := m.K
+		if k <= 0 {
+			k = 1
+		}
+		if k > len(allDists) {
+			k = len(allDists)
+		}
+		h := &knnMaxHeap{}
+		heap.Init(h)
+		for _, n := range allDists {
+			if m.MaxDistance > 0 && n.distance > m.MaxDistance {
+				continue
+			}
+			if h.Len() < k {
+				heap.Push(h, n)
+			} else if n.distance < (*h)[0].distance {
+				(*h)[0] = n
+				heap.Fix(h, 0)
+			}
+		}
+		neighbors = make([]knnHeapItem, h.Len())
+		for i := len(neighbors) - 1; i >= 0; i-- {
+			neighbors[i] = heap.Pop(h).(knnHeapItem)
 		}
 	} else {
-		// CPU fallback
-		for i, sample := range m.Samples {
-			neighbors[i] = neighbor{idx: i, distance: m.computeDistance(features, sample)}
-		}
-	}
-	sort.Slice(neighbors, func(i, j int) bool {
-		return neighbors[i].distance < neighbors[j].distance
-	})
-
-	k := m.K
-	if k > len(neighbors) {
-		k = len(neighbors)
+		// CPU path: heap-based O(N log K)
+		neighbors = m.knnSearch(features)
 	}
 
+	if len(neighbors) == 0 {
+		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
+	}
+
+	k := len(neighbors)
 	classVotes := make([]float64, m.NumClasses)
 	totalWeight := 0.0
 	for i := 0; i < k; i++ {
@@ -103,13 +178,12 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 		confidence = bestVotes / totalWeight
 	}
 
-	// Anomaly: average distance to k nearest neighbors
 	avgDist := 0.0
 	for i := 0; i < k; i++ {
 		avgDist += neighbors[i].distance
 	}
 	avgDist /= float64(k)
-	anomalyScore := math.Tanh(avgDist) // normalize to [0, ~0.76]
+	anomalyScore := math.Tanh(avgDist)
 
 	return Prediction{Action: bestClass, Confidence: confidence, AnomalyScore: anomalyScore}
 }
@@ -131,7 +205,7 @@ func (m *KNNModel) computeDistance(a, b [FeatureDim]float64) float64 {
 }
 
 func (m *KNNModel) Serialize(path string) error {
-	size := 4*6 + len(m.Samples)*(FeatureDim*8+4)
+	size := 4*7 + len(m.Samples)*(FeatureDim*8+4)
 	data := make([]byte, 0, size)
 
 	putU32 := func(v uint32) {
@@ -141,7 +215,7 @@ func (m *KNNModel) Serialize(path string) error {
 	}
 
 	data = append(data, []byte("KNNN")...)
-	putU32(1)                          // version
+	putU32(2)                          // version (2 = added MaxDistance)
 	putU32(uint32(m.K))                // k
 	putU32(uint32(len(m.Distance)))    // dist len
 	data = append(data, []byte(m.Distance)...)
@@ -149,6 +223,10 @@ func (m *KNNModel) Serialize(path string) error {
 	data = append(data, []byte(m.Weight)...)
 	putU32(uint32(len(m.Samples)))     // sample count
 	putU32(uint32(m.NumClasses))
+	// MaxDistance (new in v2)
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, math.Float64bits(m.MaxDistance))
+	data = append(data, b...)
 
 	// Each sample: features (FeatureDim * 8 bytes) + label (4 bytes)
 	for i, feat := range m.Samples {
@@ -178,11 +256,10 @@ func DeserializeKNN(path string) (*KNNModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	pos := 0
 	if len(raw) < 24 || string(raw[0:4]) != "KNNN" {
 		return nil, fmt.Errorf("invalid KNN model file")
 	}
-	pos = 4
+	pos := 4
 
 	readU32 := func() uint32 {
 		v := binary.LittleEndian.Uint32(raw[pos:])
@@ -190,8 +267,7 @@ func DeserializeKNN(path string) (*KNNModel, error) {
 		return v
 	}
 
-	_ = readU32 // version
-	pos += 4
+	ver := readU32()
 	k := int(readU32())
 	distLen := int(readU32())
 	distance := string(raw[pos : pos+distLen])
@@ -203,6 +279,13 @@ func DeserializeKNN(path string) (*KNNModel, error) {
 	numClasses := int(readU32())
 
 	m := &KNNModel{K: k, Distance: distance, Weight: weight, NumClasses: numClasses}
+
+	// Read MaxDistance if v2+
+	if ver >= 2 {
+		m.MaxDistance = math.Float64frombits(binary.LittleEndian.Uint64(raw[pos:]))
+		pos += 8
+	}
+
 	m.Samples = make([][FeatureDim]float64, numSamples)
 	m.Labels = make([]int32, numSamples)
 
@@ -216,8 +299,4 @@ func DeserializeKNN(path string) (*KNNModel, error) {
 	}
 
 	return m, nil
-}
-
-func putString16(buf []byte, s string) {
-	copy(buf, s)
 }

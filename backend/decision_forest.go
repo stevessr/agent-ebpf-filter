@@ -224,6 +224,62 @@ func DeserializeForest(path string) (*DecisionForest, error) {
 	return forest, nil
 }
 
+// Prune removes underperforming trees from the forest.
+// Each tree is evaluated on the provided training samples; trees with accuracy
+// more than one standard deviation below the mean are removed.
+// Returns the number of trees removed.
+func (f *DecisionForest) Prune(samples []trainSample) int {
+	if !f.IsTrained || len(f.Trees) < 3 {
+		return 0
+	}
+
+	treeAcc := make([]float64, len(f.Trees))
+	for ti := range f.Trees {
+		correct := 0
+		for _, s := range samples {
+			pred := f.Trees[ti].Predict(s.features)
+			if int(math.Round(float64(pred))) == int(s.label) {
+				correct++
+			}
+		}
+		treeAcc[ti] = float64(correct) / float64(len(samples))
+	}
+
+	mean := 0.0
+	for _, acc := range treeAcc {
+		mean += acc
+	}
+	mean /= float64(len(treeAcc))
+
+	variance := 0.0
+	for _, acc := range treeAcc {
+		d := acc - mean
+		variance += d * d
+	}
+	variance /= float64(len(treeAcc))
+	stddev := math.Sqrt(variance)
+
+	threshold := mean - stddev
+	if threshold < 0.25 {
+		threshold = 0.25
+	}
+
+	kept := make([]DecisionTree, 0, len(f.Trees))
+	for ti, acc := range treeAcc {
+		if acc >= threshold || len(kept) < 2 {
+			kept = append(kept, f.Trees[ti])
+		}
+	}
+
+	removed := len(f.Trees) - len(kept)
+	if removed == 0 || len(kept) < 2 {
+		return 0
+	}
+
+	f.Trees = kept
+	return removed
+}
+
 // actionLabel maps action integers to strings
 var actionLabel = map[int32]string{
 	0: "ALLOW",
