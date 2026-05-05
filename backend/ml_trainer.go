@@ -757,6 +757,7 @@ func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, 
 		Accuracy:   accuracy,
 		NumSamples: len(labeled),
 	})
+	t.setLastSplit(labeled, labeled)
 
 	return model, TrainResult{
 		Accuracy:           accuracy,
@@ -853,6 +854,7 @@ func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Mo
 		Accuracy:   valAcc,
 		NumSamples: len(labeled),
 	})
+	t.setLastSplit(shuffled[:splitIdx], shuffled[splitIdx:])
 
 	return model, TrainResult{
 		Accuracy:           valAcc,

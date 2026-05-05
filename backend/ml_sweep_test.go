@@ -40,6 +40,7 @@ type sweepResult struct {
 	ConfigSummary       string
 	TrainAccuracy       float64
 	ValidationAccuracy  float64
+	AllowPassRate       float64
 	NumSamples          int
 	TrainSamples        int
 	ValidationSamples   int
@@ -68,6 +69,7 @@ type repeatRunResult struct {
 	RunIndex            int
 	TrainAccuracy       float64
 	ValidationAccuracy  float64
+	AllowPassRate       float64
 	NumSamples          int
 	TrainSamples        int
 	ValidationSamples   int
@@ -96,6 +98,10 @@ type repeatSummary struct {
 	ValidationStd        float64
 	ValidationMin        float64
 	ValidationMax        float64
+	AllowMean            float64
+	AllowStd             float64
+	AllowMin             float64
+	AllowMax             float64
 	DurationMean         float64
 	DurationStd          float64
 	InferenceMean        float64
@@ -106,10 +112,10 @@ type repeatSummary struct {
 	InferenceLatencyStd  float64
 	TrainMin             float64
 	TrainMax             float64
-	MemoryMean          float64
-	MemoryStd           float64
-	MemoryMin           float64
-	MemoryMax           float64
+	MemoryMean           float64
+	MemoryStd            float64
+	MemoryMin            float64
+	MemoryMax            float64
 	SuccessRate          float64
 }
 
@@ -319,6 +325,7 @@ func runMLSweepReport() error {
 			"configSummary":            screenBest.Best.ConfigSummary,
 			"trainAccuracy":            screenBest.Best.TrainAccuracy,
 			"validationAccuracy":       screenBest.Best.ValidationAccuracy,
+			"allowPassRate":            screenBest.Best.AllowPassRate,
 			"durationSeconds":          screenBest.Best.Duration,
 			"inferenceDurationSeconds": screenBest.Best.InferenceDuration,
 			"inferenceSamples":         screenBest.Best.InferenceSamples,
@@ -335,6 +342,10 @@ func runMLSweepReport() error {
 			"trainMean":            bestComparable.TrainMean,
 			"validationMean":       bestComparable.ValidationMean,
 			"validationStd":        bestComparable.ValidationStd,
+			"allowMean":            bestComparable.AllowMean,
+			"allowStd":             bestComparable.AllowStd,
+			"allowMin":             bestComparable.AllowMin,
+			"allowMax":             bestComparable.AllowMax,
 			"durationMean":         bestComparable.DurationMean,
 			"inferenceMean":        bestComparable.InferenceMean,
 			"inferenceStd":         bestComparable.InferenceStd,
@@ -350,6 +361,10 @@ func runMLSweepReport() error {
 			"trainMean":            stabilitySummaries[0].TrainMean,
 			"validationMean":       stabilitySummaries[0].ValidationMean,
 			"validationStd":        stabilitySummaries[0].ValidationStd,
+			"allowMean":            stabilitySummaries[0].AllowMean,
+			"allowStd":             stabilitySummaries[0].AllowStd,
+			"allowMin":             stabilitySummaries[0].AllowMin,
+			"allowMax":             stabilitySummaries[0].AllowMax,
 			"durationMean":         stabilitySummaries[0].DurationMean,
 			"inferenceMean":        stabilitySummaries[0].InferenceMean,
 			"inferenceStd":         stabilitySummaries[0].InferenceStd,
@@ -365,8 +380,8 @@ func runMLSweepReport() error {
 
 	fmt.Printf("[ml-sweep] report written to %s\n", filepath.Join(outDir, "index.html"))
 	if bestComparable := bestComparableSummary(stabilitySummaries); bestComparable != nil {
-		fmt.Printf("[ml-sweep] comparable best: %s | %s | mean=%.2f%% ± %.2f%% (100x)\n",
-			bestComparable.Profile, bestComparable.ConfigSummary, bestComparable.ValidationMean*100, bestComparable.ValidationStd*100)
+		fmt.Printf("[ml-sweep] comparable best: %s | %s | val=%.2f%% ± %.2f%% | allow=%.2f%% ± %.2f%% (100x)\n",
+			bestComparable.Profile, bestComparable.ConfigSummary, bestComparable.ValidationMean*100, bestComparable.ValidationStd*100, bestComparable.AllowMean*100, bestComparable.AllowStd*100)
 	}
 	return nil
 }
@@ -395,8 +410,9 @@ func runProfile(profile sweepProfile, benchmarkSamples []TrainingSample) ([]swee
 			}
 			results = append(results, row)
 			if row.Error == "" && (row.ValidationAccuracy > best.ValidationAccuracy ||
+				(row.ValidationAccuracy == best.ValidationAccuracy && row.AllowPassRate > best.AllowPassRate) ||
 				(row.ValidationAccuracy == best.ValidationAccuracy && row.InferenceThroughput > best.InferenceThroughput) ||
-				(row.ValidationAccuracy == best.ValidationAccuracy && row.InferenceThroughput == best.InferenceThroughput && row.Duration < best.Duration)) {
+				(row.ValidationAccuracy == best.ValidationAccuracy && row.AllowPassRate == best.AllowPassRate && row.InferenceThroughput == best.InferenceThroughput && row.Duration < best.Duration)) {
 				best = row
 			}
 		}
@@ -442,9 +458,13 @@ func runSingleConfig(profile sweepProfile, x, y int, benchmarkSamples []Training
 		if row.ConfigSummary == "" {
 			row.ConfigSummary = string(model.Type())
 		}
+		validationSamples := trainer.LastValidationSamples()
+		if len(validationSamples) > 0 {
+			row.AllowPassRate = evaluateClassMetrics(model, validationSamples).AllowPassRate
+		}
 		infStartMem := allocMem()
 		row.InferenceDuration, row.InferenceThroughput, row.InferenceLatencyMs, row.InferenceSamples = benchmarkModelInference(model, benchmarkSamples)
-		row.MemoryBytes = int64(allocMem() - infStartMem) + memUsed
+		row.MemoryBytes = int64(allocMem()-infStartMem) + memUsed
 	} else {
 		row.MemoryBytes = memUsed
 	}
@@ -524,6 +544,43 @@ func benchmarkModelInference(model Model, samples []TrainingSample) (float64, fl
 	return duration, throughput, latencyMs, totalPredictions
 }
 
+type classMetrics struct {
+	Accuracy      float64
+	AllowPassRate float64
+	AllowTotal    int
+	AllowCorrect  int
+}
+
+func evaluateClassMetrics(model Model, samples []TrainingSample) classMetrics {
+	if model == nil || len(samples) == 0 {
+		return classMetrics{}
+	}
+	correct := 0
+	allowTotal := 0
+	allowCorrect := 0
+	for _, sample := range samples {
+		pred := model.Predict(sample.Features)
+		if pred.Action == sample.Label {
+			correct++
+		}
+		if sample.Label == 0 {
+			allowTotal++
+			if pred.Action == 0 {
+				allowCorrect++
+			}
+		}
+	}
+	metrics := classMetrics{
+		Accuracy:     float64(correct) / float64(len(samples)),
+		AllowTotal:   allowTotal,
+		AllowCorrect: allowCorrect,
+	}
+	if allowTotal > 0 {
+		metrics.AllowPassRate = float64(allowCorrect) / float64(allowTotal)
+	}
+	return metrics
+}
+
 func selectTopRepeatConfigs(profile sweepProfile, results []sweepResult, topN int) []stabilityTask {
 	if topN < 1 {
 		topN = 1
@@ -537,6 +594,9 @@ func selectTopRepeatConfigs(profile sweepProfile, results []sweepResult, topN in
 	sort.Slice(filtered, func(i, j int) bool {
 		if filtered[i].ValidationAccuracy != filtered[j].ValidationAccuracy {
 			return filtered[i].ValidationAccuracy > filtered[j].ValidationAccuracy
+		}
+		if filtered[i].AllowPassRate != filtered[j].AllowPassRate {
+			return filtered[i].AllowPassRate > filtered[j].AllowPassRate
 		}
 		if filtered[i].TrainAccuracy != filtered[j].TrainAccuracy {
 			return filtered[i].TrainAccuracy > filtered[j].TrainAccuracy
@@ -669,6 +729,7 @@ func runSingleRepeat(task stabilityTask, repeatIndex int, benchmarkSamples []Tra
 		RunIndex:            repeatIndex,
 		TrainAccuracy:       row.TrainAccuracy,
 		ValidationAccuracy:  row.ValidationAccuracy,
+		AllowPassRate:       row.AllowPassRate,
 		NumSamples:          row.NumSamples,
 		TrainSamples:        row.TrainSamples,
 		ValidationSamples:   row.ValidationSamples,
@@ -707,10 +768,11 @@ func aggregateRepeatRuns(runs []repeatRunResult) (repeatSummary, error) {
 
 	trainVals := make([]float64, 0, len(runs))
 	valVals := make([]float64, 0, len(runs))
+	allowVals := make([]float64, 0, len(runs))
 	durations := make([]float64, 0, len(runs))
 	inferenceVals := make([]float64, 0, len(runs))
 	inferenceLatencyVals := make([]float64, 0, len(runs))
-		memoryVals := make([]float64, 0, len(runs))
+	memoryVals := make([]float64, 0, len(runs))
 	for _, r := range runs {
 		durations = append(durations, r.Duration)
 		memoryVals = append(memoryVals, float64(r.MemoryBytes))
@@ -721,6 +783,7 @@ func aggregateRepeatRuns(runs []repeatRunResult) (repeatSummary, error) {
 		summary.SuccessRuns++
 		trainVals = append(trainVals, r.TrainAccuracy)
 		valVals = append(valVals, r.ValidationAccuracy)
+		allowVals = append(allowVals, r.AllowPassRate)
 		if r.InferenceThroughput > 0 {
 			inferenceVals = append(inferenceVals, r.InferenceThroughput)
 		}
@@ -736,6 +799,8 @@ func aggregateRepeatRuns(runs []repeatRunResult) (repeatSummary, error) {
 	summary.FailureRuns = summary.Runs - summary.SuccessRuns
 	summary.TrainMean, summary.TrainStd = meanStd(trainVals)
 	summary.ValidationMean, summary.ValidationStd = meanStd(valVals)
+	summary.AllowMean, summary.AllowStd = meanStd(allowVals)
+	summary.AllowMin, summary.AllowMax = minMax(allowVals)
 	summary.DurationMean, summary.DurationStd = meanStd(durations)
 	summary.InferenceMean, summary.InferenceStd = meanStd(inferenceVals)
 	summary.InferenceLatencyMean, summary.InferenceLatencyStd = meanStd(inferenceLatencyVals)
@@ -805,8 +870,9 @@ func bestScreenSummary(summaries []profileSummary) *profileSummary {
 	best := &summaries[0]
 	for i := 1; i < len(summaries); i++ {
 		if summaries[i].Best.ValidationAccuracy > best.Best.ValidationAccuracy ||
+			(summaries[i].Best.ValidationAccuracy == best.Best.ValidationAccuracy && summaries[i].Best.AllowPassRate > best.Best.AllowPassRate) ||
 			(summaries[i].Best.ValidationAccuracy == best.Best.ValidationAccuracy && summaries[i].Best.InferenceThroughput > best.Best.InferenceThroughput) ||
-			(summaries[i].Best.ValidationAccuracy == best.Best.ValidationAccuracy && summaries[i].Best.InferenceThroughput == best.Best.InferenceThroughput && summaries[i].Best.Duration < best.Best.Duration) {
+			(summaries[i].Best.ValidationAccuracy == best.Best.ValidationAccuracy && summaries[i].Best.AllowPassRate == best.Best.AllowPassRate && summaries[i].Best.InferenceThroughput == best.Best.InferenceThroughput && summaries[i].Best.Duration < best.Best.Duration) {
 			best = &summaries[i]
 		}
 	}
@@ -821,10 +887,11 @@ func bestComparableSummary(summaries []repeatSummary) *repeatSummary {
 		}
 		if best == nil ||
 			summaries[i].ValidationMean > best.ValidationMean ||
+			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].AllowMean > best.AllowMean) ||
 			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].SuccessRate > best.SuccessRate) ||
-			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].SuccessRate == best.SuccessRate && summaries[i].ValidationStd < best.ValidationStd) ||
-			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].SuccessRate == best.SuccessRate && summaries[i].ValidationStd == best.ValidationStd && summaries[i].InferenceMean > best.InferenceMean) ||
-			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].SuccessRate == best.SuccessRate && summaries[i].ValidationStd == best.ValidationStd && summaries[i].DurationMean < best.DurationMean) {
+			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].AllowMean == best.AllowMean && summaries[i].SuccessRate == best.SuccessRate && summaries[i].ValidationStd < best.ValidationStd) ||
+			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].AllowMean == best.AllowMean && summaries[i].SuccessRate == best.SuccessRate && summaries[i].ValidationStd == best.ValidationStd && summaries[i].InferenceMean > best.InferenceMean) ||
+			(summaries[i].ValidationMean == best.ValidationMean && summaries[i].AllowMean == best.AllowMean && summaries[i].SuccessRate == best.SuccessRate && summaries[i].ValidationStd == best.ValidationStd && summaries[i].InferenceMean == best.InferenceMean && summaries[i].DurationMean < best.DurationMean) {
 			copy := summaries[i]
 			best = &copy
 		}
@@ -844,6 +911,10 @@ func stabilityBestJSON(summaries []repeatSummary) map[string]any {
 			"validationStd":        best.ValidationStd,
 			"validationMin":        best.ValidationMin,
 			"validationMax":        best.ValidationMax,
+			"allowMean":            best.AllowMean,
+			"allowStd":             best.AllowStd,
+			"allowMin":             best.AllowMin,
+			"allowMax":             best.AllowMax,
 			"durationMean":         best.DurationMean,
 			"durationStd":          best.DurationStd,
 			"inferenceMean":        best.InferenceMean,
@@ -870,6 +941,10 @@ func stabilityBestJSON(summaries []repeatSummary) map[string]any {
 		"validationStd":        best.ValidationStd,
 		"validationMin":        best.ValidationMin,
 		"validationMax":        best.ValidationMax,
+		"allowMean":            best.AllowMean,
+		"allowStd":             best.AllowStd,
+		"allowMin":             best.AllowMin,
+		"allowMax":             best.AllowMax,
 		"durationMean":         best.DurationMean,
 		"durationStd":          best.DurationStd,
 		"inferenceMean":        best.InferenceMean,
@@ -923,8 +998,12 @@ func profilesForMode(mode string) []sweepProfile {
 
 	// Helper: linspaceInt generates count evenly-spaced integers from min to max
 	linspaceInt := func(minVal, maxVal, count int) []int {
-		if count <= 0 { return nil }
-		if count == 1 { return []int{(minVal + maxVal) / 2} }
+		if count <= 0 {
+			return nil
+		}
+		if count == 1 {
+			return []int{(minVal + maxVal) / 2}
+		}
 		out := make([]int, count)
 		for i := 0; i < count; i++ {
 			out[i] = minVal + (maxVal-minVal)*i/(count-1)
@@ -1042,8 +1121,10 @@ func profilesForMode(mode string) []sweepProfile {
 			Summary: func(cfg MLConfig) string {
 				reg := "l2"
 				switch cfg.MaxDepth {
-				case 4: reg = "none"
-				case 12: reg = "l1"
+				case 4:
+					reg = "none"
+				case 12:
+					reg = "l1"
 				}
 				return fmt.Sprintf("lr=%.3f reg=%s iter=%d", float64(cfg.NumTrees)/1000.0, reg, cfg.MinSamplesLeaf)
 			},
@@ -1713,7 +1794,7 @@ func writeCSV(path string, results []sweepResult) error {
 
 	header := []string{
 		"profile", "modelType", "xValue", "yValue", "configSummary",
-		"trainAccuracy", "validationAccuracy", "durationSeconds",
+		"trainAccuracy", "validationAccuracy", "allowPassRate", "durationSeconds",
 		"inferenceDurationSeconds", "inferenceSamples", "inferenceLatencyMs", "inferenceThroughput",
 		"memoryBytes",
 		"numSamples", "trainSamples", "validationSamples", "error",
@@ -1730,12 +1811,13 @@ func writeCSV(path string, results []sweepResult) error {
 			r.ConfigSummary,
 			fmt.Sprintf("%.6f", r.TrainAccuracy),
 			fmt.Sprintf("%.6f", r.ValidationAccuracy),
+			fmt.Sprintf("%.6f", r.AllowPassRate),
 			fmt.Sprintf("%.6f", r.Duration),
 			fmt.Sprintf("%.6f", r.InferenceDuration),
 			strconv.Itoa(r.InferenceSamples),
 			fmt.Sprintf("%.6f", r.InferenceLatencyMs),
 			fmt.Sprintf("%.6f", r.InferenceThroughput),
-		strconv.Itoa(int(r.MemoryBytes)),
+			strconv.Itoa(int(r.MemoryBytes)),
 			strconv.Itoa(r.NumSamples),
 			strconv.Itoa(r.TrainSamples),
 			strconv.Itoa(r.ValidationSamples),
@@ -1760,7 +1842,7 @@ func writeRepeatCSV(path string, runs []repeatRunResult) error {
 
 	header := []string{
 		"profile", "modelType", "xValue", "yValue", "runIndex", "configSummary",
-		"trainAccuracy", "validationAccuracy", "durationSeconds",
+		"trainAccuracy", "validationAccuracy", "allowPassRate", "durationSeconds",
 		"inferenceDurationSeconds", "inferenceSamples", "inferenceLatencyMs", "inferenceThroughput",
 		"memoryBytes",
 		"numSamples", "trainSamples", "validationSamples", "error",
@@ -1778,12 +1860,13 @@ func writeRepeatCSV(path string, runs []repeatRunResult) error {
 			r.ConfigSummary,
 			fmt.Sprintf("%.6f", r.TrainAccuracy),
 			fmt.Sprintf("%.6f", r.ValidationAccuracy),
+			fmt.Sprintf("%.6f", r.AllowPassRate),
 			fmt.Sprintf("%.6f", r.Duration),
 			fmt.Sprintf("%.6f", r.InferenceDuration),
 			strconv.Itoa(r.InferenceSamples),
 			fmt.Sprintf("%.6f", r.InferenceLatencyMs),
 			fmt.Sprintf("%.6f", r.InferenceThroughput),
-		strconv.Itoa(int(r.MemoryBytes)),
+			strconv.Itoa(int(r.MemoryBytes)),
 			strconv.Itoa(r.NumSamples),
 			strconv.Itoa(r.TrainSamples),
 			strconv.Itoa(r.ValidationSamples),
@@ -1810,7 +1893,8 @@ func writeRepeatSummaryCSV(path string, summaries []repeatSummary) error {
 		"profile", "modelType", "comparable", "xValue", "yValue", "configSummary",
 		"runs", "successRuns", "failureRuns", "successRate",
 		"trainMean", "trainStd", "validationMean", "validationStd",
-		"validationMin", "validationMax", "durationMean", "durationStd",
+		"validationMin", "validationMax", "allowMean", "allowStd", "allowMin", "allowMax",
+		"durationMean", "durationStd",
 		"inferenceMean", "inferenceStd", "inferenceMin", "inferenceMax", "inferenceLatencyMean", "inferenceLatencyStd",
 		"memoryMean", "memoryStd", "memoryMin", "memoryMax",
 	}
@@ -1835,6 +1919,10 @@ func writeRepeatSummaryCSV(path string, summaries []repeatSummary) error {
 			fmt.Sprintf("%.6f", s.ValidationStd),
 			fmt.Sprintf("%.6f", s.ValidationMin),
 			fmt.Sprintf("%.6f", s.ValidationMax),
+			fmt.Sprintf("%.6f", s.AllowMean),
+			fmt.Sprintf("%.6f", s.AllowStd),
+			fmt.Sprintf("%.6f", s.AllowMin),
+			fmt.Sprintf("%.6f", s.AllowMax),
 			fmt.Sprintf("%.6f", s.DurationMean),
 			fmt.Sprintf("%.6f", s.DurationStd),
 			fmt.Sprintf("%.6f", s.InferenceMean),
@@ -1937,12 +2025,12 @@ func writeReportHTML(path string, summaries []profileSummary, repeats []repeatSu
 
 	fmt.Fprintf(&b, `<h1>ML Sweep Report</h1>`)
 	fmt.Fprintf(&b, `<p class="small">Generated at %s. Results are based on the persisted local training store used by the running backend.</p>`, html.EscapeString(time.Now().Format(time.RFC3339)))
-	fmt.Fprintf(&b, `<div class="card"><h2>Grid best</h2><p><b>%s</b> — %s — validation <b>%.2f%%</b>, train <b>%.2f%%</b>, infer <b>%.0f/s</b> (%.2fms)</p><p class="small">Charts: <code>overall_best.svg</code> and <code>overall_speed.svg</code>; raw CSV: <code>results.csv</code>; JSON summary: <code>best.json</code></p><div class="chart-row"><div class="chart"><img src="overall_best.svg" alt="Overall best chart" style="max-width:100%%;height:auto"></div><div class="chart"><img src="overall_speed.svg" alt="Overall speed chart" style="max-width:100%%;height:auto"></div></div></div>`,
-		html.EscapeString(best.Profile.Name), html.EscapeString(best.Best.ConfigSummary), best.Best.ValidationAccuracy*100, best.Best.TrainAccuracy*100, best.Best.InferenceThroughput, best.Best.InferenceLatencyMs)
+	fmt.Fprintf(&b, `<div class="card"><h2>Grid best</h2><p><b>%s</b> — %s — validation <b>%.2f%%</b>, ALLOW pass <b>%.2f%%</b>, train <b>%.2f%%</b>, infer <b>%.0f/s</b> (%.2fms)</p><p class="small">Charts: <code>overall_best.svg</code> and <code>overall_speed.svg</code>; raw CSV: <code>results.csv</code>; JSON summary: <code>best.json</code></p><div class="chart-row"><div class="chart"><img src="overall_best.svg" alt="Overall best chart" style="max-width:100%%;height:auto"></div><div class="chart"><img src="overall_speed.svg" alt="Overall speed chart" style="max-width:100%%;height:auto"></div></div></div>`,
+		html.EscapeString(best.Profile.Name), html.EscapeString(best.Best.ConfigSummary), best.Best.ValidationAccuracy*100, best.Best.AllowPassRate*100, best.Best.TrainAccuracy*100, best.Best.InferenceThroughput, best.Best.InferenceLatencyMs)
 
 	if stabilityBest != nil {
-		fmt.Fprintf(&b, `<div class="card"><h2>100-run stability best</h2><p><b>%s</b> — %s — mean validation <b>%.2f%%</b> ± <b>%.2f%%</b>; mean speed <b>%.0f/s</b> ± <b>%.0f/s</b> across %d runs</p><p class="small">Charts: <code>stability_best.svg</code> and <code>stability_speed.svg</code>; raw runs: <code>stability-runs.csv</code>; summary CSV: <code>stability-summary.csv</code></p><div class="chart-row"><div class="chart"><img src="stability_best.svg" alt="Stability chart" style="max-width:100%%;height:auto"></div><div class="chart"><img src="stability_speed.svg" alt="Stability speed chart" style="max-width:100%%;height:auto"></div></div></div>`,
-			html.EscapeString(stabilityBest.Profile), html.EscapeString(stabilityBest.ConfigSummary), stabilityBest.ValidationMean*100, stabilityBest.ValidationStd*100, stabilityBest.InferenceMean, stabilityBest.InferenceStd, repeatCount)
+		fmt.Fprintf(&b, `<div class="card"><h2>100-run stability best</h2><p><b>%s</b> — %s — mean validation <b>%.2f%%</b> ± <b>%.2f%%</b>, mean ALLOW pass <b>%.2f%%</b> ± <b>%.2f%%</b>; mean speed <b>%.0f/s</b> ± <b>%.0f/s</b> across %d runs</p><p class="small">Charts: <code>stability_best.svg</code> and <code>stability_speed.svg</code>; raw runs: <code>stability-runs.csv</code>; summary CSV: <code>stability-summary.csv</code></p><div class="chart-row"><div class="chart"><img src="stability_best.svg" alt="Stability chart" style="max-width:100%%;height:auto"></div><div class="chart"><img src="stability_speed.svg" alt="Stability speed chart" style="max-width:100%%;height:auto"></div></div></div>`,
+			html.EscapeString(stabilityBest.Profile), html.EscapeString(stabilityBest.ConfigSummary), stabilityBest.ValidationMean*100, stabilityBest.ValidationStd*100, stabilityBest.AllowMean*100, stabilityBest.AllowStd*100, stabilityBest.InferenceMean, stabilityBest.InferenceStd, repeatCount)
 	}
 
 	if best != nil {
@@ -1963,12 +2051,12 @@ func writeReportHTML(path string, summaries []profileSummary, repeats []repeatSu
 			}
 			return paramRows[i].YValue < paramRows[j].YValue
 		})
-		fmt.Fprintf(&b, `<div class="card"><h2>Best model parameter sweep</h2><p><b>%s</b> — grid best <b>%s</b>. The three charts below show <b>validation accuracy</b>, <b>training duration</b>, and <b>inference throughput</b> for every tested parameter point.</p><p class="small">Artifacts: <code>%s.svg</code>, <code>%s-duration.svg</code>, <code>%s-inference.svg</code>, <code>%s-grid.csv</code></p><div class="chart-row"><div class="chart"><img src="%s.svg" alt="%s validation heatmap" style="max-width:100%%;height:auto"></div><div class="chart"><img src="%s-duration.svg" alt="%s duration heatmap" style="max-width:100%%;height:auto"></div><div class="chart"><img src="%s-inference.svg" alt="%s inference heatmap" style="max-width:100%%;height:auto"></div></div>`,
+		fmt.Fprintf(&b, `<div class="card"><h2>Best model parameter sweep</h2><p><b>%s</b> — grid best <b>%s</b>. The charts below show <b>validation accuracy</b>, <b>training duration</b>, <b>inference throughput</b>, and <b>ALLOW pass rate</b> for every tested parameter point.</p><p class="small">Artifacts: <code>%s.svg</code>, <code>%s-duration.svg</code>, <code>%s-inference.svg</code>, <code>%s-grid.csv</code></p><div class="chart-row"><div class="chart"><img src="%s.svg" alt="%s validation heatmap" style="max-width:100%%;height:auto"></div><div class="chart"><img src="%s-duration.svg" alt="%s duration heatmap" style="max-width:100%%;height:auto"></div><div class="chart"><img src="%s-inference.svg" alt="%s inference heatmap" style="max-width:100%%;height:auto"></div></div>`,
 			html.EscapeString(best.Profile.Name), html.EscapeString(best.Best.ConfigSummary), bf, bf, bf, bf, bf, html.EscapeString(best.Profile.Name), bf, html.EscapeString(best.Profile.Name), bf, html.EscapeString(best.Profile.Name))
-		fmt.Fprintf(&b, `<table><thead><tr><th>Config</th><th>Train</th><th>Validation</th><th>Duration</th><th>Infer/s</th><th>Latency</th><th>X</th><th>Y</th></tr></thead><tbody>`)
+		fmt.Fprintf(&b, `<table><thead><tr><th>Config</th><th>Train</th><th>Validation</th><th>ALLOW pass</th><th>Duration</th><th>Infer/s</th><th>Latency</th><th>X</th><th>Y</th></tr></thead><tbody>`)
 		for _, r := range paramRows {
-			fmt.Fprintf(&b, `<tr><td><code>%s</code></td><td>%.2f%%</td><td>%.2f%%</td><td>%.2fs</td><td>%.0f/s</td><td>%.2fms</td><td>%d</td><td>%d</td></tr>`,
-				html.EscapeString(r.ConfigSummary), r.TrainAccuracy*100, r.ValidationAccuracy*100, r.Duration, r.InferenceThroughput, r.InferenceLatencyMs, r.XValue, r.YValue)
+			fmt.Fprintf(&b, `<tr><td><code>%s</code></td><td>%.2f%%</td><td>%.2f%%</td><td>%.2f%%</td><td>%.2fs</td><td>%.0f/s</td><td>%.2fms</td><td>%d</td><td>%d</td></tr>`,
+				html.EscapeString(r.ConfigSummary), r.TrainAccuracy*100, r.ValidationAccuracy*100, r.AllowPassRate*100, r.Duration, r.InferenceThroughput, r.InferenceLatencyMs, r.XValue, r.YValue)
 		}
 		fmt.Fprintf(&b, `</tbody></table></div>`)
 	}
@@ -1976,13 +2064,16 @@ func writeReportHTML(path string, summaries []profileSummary, repeats []repeatSu
 	fmt.Fprintf(&b, `<h2>Profile details</h2>`)
 	for _, s := range summaries {
 		fmt.Fprintf(&b, `<div class="card"><h3>%s</h3>`, html.EscapeString(s.Profile.Name))
-		fmt.Fprintf(&b, `<p class="small">Best grid point: <b>%s</b> — validation <b>%.2f%%</b> / train <b>%.2f%%</b> / infer <b>%.0f/s</b> (%.2fms) (%s)</p>`,
-			html.EscapeString(s.Best.ConfigSummary), s.Best.ValidationAccuracy*100, s.Best.TrainAccuracy*100, s.Best.InferenceThroughput, s.Best.InferenceLatencyMs, ternary(s.Profile.Comparable, "holdout-comparable", "train-set / optimistic"))
+		fmt.Fprintf(&b, `<p class="small">Best grid point: <b>%s</b> — validation <b>%.2f%%</b> / ALLOW pass <b>%.2f%%</b> / train <b>%.2f%%</b> / infer <b>%.0f/s</b> (%.2fms) (%s)</p>`,
+			html.EscapeString(s.Best.ConfigSummary), s.Best.ValidationAccuracy*100, s.Best.AllowPassRate*100, s.Best.TrainAccuracy*100, s.Best.InferenceThroughput, s.Best.InferenceLatencyMs, ternary(s.Profile.Comparable, "holdout-comparable", "train-set / optimistic"))
 		fmt.Fprintf(&b, `<div class="chart-row"><div class="chart"><img src="%s.svg" alt="%s" style="max-width:100%%;height:auto"></div><div class="chart"><img src="%s-inference.svg" alt="%s inference" style="max-width:100%%;height:auto"></div></div>`, slug(s.Profile.Name), html.EscapeString(s.Profile.Name), slug(s.Profile.Name), html.EscapeString(s.Profile.Name))
 		topRows := append([]sweepResult(nil), s.Results...)
 		sort.Slice(topRows, func(i, j int) bool {
 			if topRows[i].ValidationAccuracy != topRows[j].ValidationAccuracy {
 				return topRows[i].ValidationAccuracy > topRows[j].ValidationAccuracy
+			}
+			if topRows[i].AllowPassRate != topRows[j].AllowPassRate {
+				return topRows[i].AllowPassRate > topRows[j].AllowPassRate
 			}
 			if topRows[i].InferenceThroughput != topRows[j].InferenceThroughput {
 				return topRows[i].InferenceThroughput > topRows[j].InferenceThroughput
@@ -1992,26 +2083,26 @@ func writeReportHTML(path string, summaries []profileSummary, repeats []repeatSu
 		if len(topRows) > 5 {
 			topRows = topRows[:5]
 		}
-		fmt.Fprintf(&b, `<table><thead><tr><th>Config</th><th>Train</th><th>Validation</th><th>Duration</th><th>Infer/s</th><th>Latency</th><th>Error</th></tr></thead><tbody>`)
+		fmt.Fprintf(&b, `<table><thead><tr><th>Config</th><th>Train</th><th>Validation</th><th>ALLOW pass</th><th>Duration</th><th>Infer/s</th><th>Latency</th><th>Error</th></tr></thead><tbody>`)
 		for _, r := range topRows {
-			fmt.Fprintf(&b, `<tr><td><code>%s</code></td><td>%.2f%%</td><td>%.2f%%</td><td>%.2fs</td><td>%.0f/s</td><td>%.2fms</td><td>%s</td></tr>`,
-				html.EscapeString(r.ConfigSummary), r.TrainAccuracy*100, r.ValidationAccuracy*100, r.Duration, r.InferenceThroughput, r.InferenceLatencyMs, html.EscapeString(r.Error))
+			fmt.Fprintf(&b, `<tr><td><code>%s</code></td><td>%.2f%%</td><td>%.2f%%</td><td>%.2f%%</td><td>%.2fs</td><td>%.0f/s</td><td>%.2fms</td><td>%s</td></tr>`,
+				html.EscapeString(r.ConfigSummary), r.TrainAccuracy*100, r.ValidationAccuracy*100, r.AllowPassRate*100, r.Duration, r.InferenceThroughput, r.InferenceLatencyMs, html.EscapeString(r.Error))
 		}
 		fmt.Fprintf(&b, `</tbody></table></div>`)
 	}
 
-	fmt.Fprintf(&b, `<div class="card"><h2>Grid summary</h2><table><thead><tr><th>Model</th><th>Best config</th><th>Comparable</th><th>Train</th><th>Validation</th><th>Infer/s</th><th>Latency</th><th>Runs</th></tr></thead><tbody>`)
+	fmt.Fprintf(&b, `<div class="card"><h2>Grid summary</h2><table><thead><tr><th>Model</th><th>Best config</th><th>Comparable</th><th>Train</th><th>Validation</th><th>ALLOW pass</th><th>Infer/s</th><th>Latency</th><th>Runs</th></tr></thead><tbody>`)
 	for _, s := range summaries {
-		fmt.Fprintf(&b, `<tr><td>%s</td><td><code>%s</code></td><td>%s</td><td>%.2f%%</td><td>%.2f%%</td><td>%.0f/s</td><td>%.2fms</td><td>%d</td></tr>`,
-			html.EscapeString(s.Profile.Name), html.EscapeString(s.Best.ConfigSummary), ternary(s.Profile.Comparable, "yes", "no"), s.Best.TrainAccuracy*100, s.Best.ValidationAccuracy*100, s.Best.InferenceThroughput, s.Best.InferenceLatencyMs, len(s.Results))
+		fmt.Fprintf(&b, `<tr><td>%s</td><td><code>%s</code></td><td>%s</td><td>%.2f%%</td><td>%.2f%%</td><td>%.2f%%</td><td>%.0f/s</td><td>%.2fms</td><td>%d</td></tr>`,
+			html.EscapeString(s.Profile.Name), html.EscapeString(s.Best.ConfigSummary), ternary(s.Profile.Comparable, "yes", "no"), s.Best.TrainAccuracy*100, s.Best.ValidationAccuracy*100, s.Best.AllowPassRate*100, s.Best.InferenceThroughput, s.Best.InferenceLatencyMs, len(s.Results))
 	}
 	fmt.Fprintf(&b, `</tbody></table></div>`)
 
 	if len(repeats) > 0 {
-		fmt.Fprintf(&b, `<div class="card"><h2>100-run stability summary</h2><table><thead><tr><th>Model</th><th>Config</th><th>Comparable</th><th>Mean val</th><th>Std val</th><th>Mean speed</th><th>Std speed</th><th>Success</th><th>Runs</th></tr></thead><tbody>`)
+		fmt.Fprintf(&b, `<div class="card"><h2>100-run stability summary</h2><table><thead><tr><th>Model</th><th>Config</th><th>Comparable</th><th>Mean val</th><th>Std val</th><th>Mean ALLOW</th><th>Std ALLOW</th><th>Mean speed</th><th>Std speed</th><th>Success</th><th>Runs</th></tr></thead><tbody>`)
 		for _, s := range repeats {
-			fmt.Fprintf(&b, `<tr><td>%s</td><td><code>%s</code></td><td>%s</td><td>%.2f%%</td><td>%.2f%%</td><td>%.0f/s</td><td>%.0f/s</td><td>%.0f%%</td><td>%d</td></tr>`,
-				html.EscapeString(s.Profile), html.EscapeString(s.ConfigSummary), ternary(s.Comparable, "yes", "no"), s.ValidationMean*100, s.ValidationStd*100, s.InferenceMean, s.InferenceStd, s.SuccessRate*100, s.Runs)
+			fmt.Fprintf(&b, `<tr><td>%s</td><td><code>%s</code></td><td>%s</td><td>%.2f%%</td><td>%.2f%%</td><td>%.2f%%</td><td>%.2f%%</td><td>%.0f/s</td><td>%.0f/s</td><td>%.0f%%</td><td>%d</td></tr>`,
+				html.EscapeString(s.Profile), html.EscapeString(s.ConfigSummary), ternary(s.Comparable, "yes", "no"), s.ValidationMean*100, s.ValidationStd*100, s.AllowMean*100, s.AllowStd*100, s.InferenceMean, s.InferenceStd, s.SuccessRate*100, s.Runs)
 		}
 		fmt.Fprintf(&b, `</tbody></table></div>`)
 	}
@@ -2023,6 +2114,7 @@ func writeReportHTML(path string, summaries []profileSummary, repeats []repeatSu
 	fmt.Fprintf(&b, `<li>Phase 1 runs a horizontal grid sweep; phase 2 repeats each profile's top <code>%d</code> grid point(s) <code>%d</code> times for stability.</li>`, stabilityTop, repeatCount)
 	fmt.Fprintf(&b, `<li>Inference speed is benchmarked on a fixed cached sample slice from the persisted dataset, so throughput and latency are comparable across all families.</li>`)
 	fmt.Fprintf(&b, `<li><code>random_forest</code>, <code>extra_trees</code>, <code>logistic</code>, <code>svm</code>, <code>perceptron</code>, and <code>passive_aggressive</code> are holdout-comparable in this repo; <code>knn</code>, <code>ridge</code>, <code>adaboost</code>, and <code>naive_bayes</code> currently report training-set-based scores in their trainers.</li>`)
+	fmt.Fprintf(&b, `<li>We now track <strong>ALLOW pass rate</strong> alongside overall accuracy so the sweep does not over-optimize on catching bad commands while accidentally blocking good ones.</li>`)
 	fmt.Fprintf(&b, `<li>The sweep runs offline against the persisted dataset, so it does not require the live backend to be free.</li>`)
 	fmt.Fprintf(&b, `</ul></div>`)
 
