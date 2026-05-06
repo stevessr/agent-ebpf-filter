@@ -18,6 +18,23 @@ const {
   llmScoringConfig,
   fetchMLStatus, exportTrainingDataset,
 } = props.ml;
+
+const modelTypeLabel = (type: string) => {
+  switch (type) {
+    case 'random_forest': return 'RF';
+    case 'knn': return 'KNN';
+    case 'logistic': return 'LR';
+    case 'nearest_centroid': return 'NC';
+    case 'naive_bayes': return 'NB';
+    case 'adaboost': return 'Ada';
+    case 'extra_trees': return 'ET';
+    case 'svm': return 'SVM';
+    case 'ridge': return 'Ridge';
+    case 'perceptron': return 'Perc';
+    case 'passive_aggressive': return 'PA';
+    default: return type;
+  }
+};
 </script>
 
 <template>
@@ -45,7 +62,7 @@ const {
         </a-col>
         <a-col :xs="12" :sm="8" :md="6">
           <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
-            <a-statistic title="Model Type" :value="modelType === 'random_forest' ? 'RF' : modelType === 'knn' ? 'KNN' : modelType === 'logistic' ? 'LR' : modelType" :value-style="{ color: '#1890ff', fontSize: '18px' }" />
+            <a-statistic title="Model Type" :value="modelTypeLabel(modelType)" :value-style="{ color: '#1890ff', fontSize: '18px' }" />
           </a-card>
         </a-col>
         <a-col :xs="12" :sm="8" :md="6">

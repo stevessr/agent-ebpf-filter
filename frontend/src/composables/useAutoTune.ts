@@ -72,6 +72,11 @@ export function useAutoTune(deps: AutoTuneDeps) {
   });
 
   const autoTuneAxisLabel = (axis: MLAutoTuneAxis) => {
+    if (modelType.value === 'nearest_centroid') {
+      if (axis === 'numTrees') return '距离编码';
+      if (axis === 'maxDepth') return '先验编码';
+      if (axis === 'minSamplesLeaf') return '保留位';
+    }
     const labels: Record<string, string> = {
       numTrees: '树数', maxDepth: '最大深度', minSamplesLeaf: '叶节点样本',
       k: 'K 值', distance: '距离度量', weight: '权重方案',
@@ -87,6 +92,13 @@ export function useAutoTune(deps: AutoTuneDeps) {
         { value: 'k', label: 'K 值 (k)' },
         { value: 'distance', label: '距离度量 (distance)' },
         { value: 'weight', label: '权重方案 (weight)' },
+      ];
+    }
+    if (mt === 'nearest_centroid') {
+      return [
+        { value: 'numTrees', label: '距离编码 (≤24=cosine, 25-35=euclidean, ≥36=manhattan)' },
+        { value: 'maxDepth', label: '先验编码 (3-7=empirical, 8+=uniform)' },
+        { value: 'minSamplesLeaf', label: '保留位 (unused)' },
       ];
     }
     if (mt === 'logistic' || mt === 'svm' || mt === 'perceptron' || mt === 'passive_aggressive') {

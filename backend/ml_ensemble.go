@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -21,9 +22,17 @@ func init() {
 // EnsembleModel combines multiple base models via weighted voting.
 // Supports "hard" (majority) and "soft" (probability-weighted) voting.
 type EnsembleModel struct {
-	Models   []Model            `json:"-"`
-	Weights  []float64         `json:"weights"`
-	Voting   string            `json:"voting"` // hard, soft
+	Models  []Model   `json:"-"`
+	Weights []float64 `json:"weights"`
+	Voting  string    `json:"voting"` // hard, soft
+}
+
+type ensembleManifest struct {
+	Version    int       `json:"version"`
+	Voting     string    `json:"voting"`
+	Weights    []float64 `json:"weights"`
+	ModelTypes []string  `json:"modelTypes"`
+	ModelFiles []string  `json:"modelFiles"`
 }
 
 func NewEnsembleModel(models []Model, voting string, weights []float64) *EnsembleModel {
@@ -120,21 +129,79 @@ func (m *EnsembleModel) Serialize(path string) error {
 	dir := filepath.Dir(path)
 	os.MkdirAll(dir, 0755)
 	basePath := strings.TrimSuffix(path, filepath.Ext(path))
+	modelTypes := make([]string, 0, len(m.Models))
+	modelFiles := make([]string, 0, len(m.Models))
 	for i, model := range m.Models {
 		subPath := fmt.Sprintf("%s_ensemble_%d_%s.bin", basePath, i, model.Type())
 		if err := model.Serialize(subPath); err != nil {
 			return fmt.Errorf("ensemble serialize model[%d] %s: %w", i, model.Type(), err)
 		}
+		modelTypes = append(modelTypes, string(model.Type()))
+		modelFiles = append(modelFiles, filepath.Base(subPath))
 	}
-	return nil
+	manifest := ensembleManifest{
+		Version:    1,
+		Voting:     m.Voting,
+		Weights:    append([]float64(nil), m.Weights...),
+		ModelTypes: modelTypes,
+		ModelFiles: modelFiles,
+	}
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+func DeserializeEnsemble(path string) (*EnsembleModel, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var manifest ensembleManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		return nil, err
+	}
+	baseDir := filepath.Dir(path)
+	models := make([]Model, 0, len(manifest.ModelFiles))
+	for i, file := range manifest.ModelFiles {
+		if i >= len(manifest.ModelTypes) {
+			return nil, fmt.Errorf("ensemble manifest missing model type for %s", file)
+		}
+		mt := ModelType(manifest.ModelTypes[i])
+		subPath := filepath.Join(baseDir, file)
+		model, err := deserializeModelByType(mt, subPath)
+		if err != nil {
+			return nil, fmt.Errorf("ensemble load model[%d] %s: %w", i, mt, err)
+		}
+		models = append(models, model)
+	}
+	return NewEnsembleModel(models, manifest.Voting, manifest.Weights), nil
+}
+
+func deserializeModelByType(mt ModelType, path string) (Model, error) {
+	switch mt {
+	case ModelRandomForest:
+		return DeserializeForest(path)
+	case ModelKNN:
+		return DeserializeKNN(path)
+	case ModelLogisticRegression:
+		return DeserializeLogistic(path)
+	case ModelNaiveBayes:
+		return DeserializeNaiveBayes(path)
+	case ModelNearestCentroid:
+		return DeserializeNearestCentroid(path)
+	default:
+		return nil, fmt.Errorf("unsupported ensemble member type: %s", mt)
+	}
 }
 
 // ── Prediction Cache ────────────────────────────────────────────────
 
 type predictionCacheEntry struct {
-	Prediction  Prediction
-	CommandKey  string
-	AccessTime  time.Time
+	Prediction Prediction
+	CommandKey string
+	AccessTime time.Time
 }
 
 // PredictionCache is a bounded LRU cache for ML predictions.
@@ -332,7 +399,46 @@ func buildEnsembleFromStore(store *TrainingDataStore) *EnsembleModel {
 		modelNames = append(modelNames, "knn")
 	}
 
-	// 4. Lightweight Random Forest (5 trees, depth 6) for fast inference
+	// 4. Nearest Centroid (low-data friendly, extremely fast)
+	centroid := NewNearestCentroid("cosine", true)
+	centroid.Classes = 4
+	centroid.Centroids = make([][FeatureDim]float64, 4)
+	centroid.Priors = make([]float64, 4)
+	centroidCounts := make([]int, 4)
+	for _, s := range labeled {
+		if s.Label < 0 || int(s.Label) >= 4 {
+			continue
+		}
+		c := int(s.Label)
+		centroidCounts[c]++
+		for d := 0; d < FeatureDim; d++ {
+			centroid.Centroids[c][d] += s.Features[d]
+		}
+	}
+	totalCentroid := 0
+	for _, count := range centroidCounts {
+		totalCentroid += count
+	}
+	if totalCentroid > 0 {
+		nonEmptyCentroidClasses := 0
+		for _, count := range centroidCounts {
+			if count > 0 {
+				nonEmptyCentroidClasses++
+			}
+		}
+		for c := 0; c < 4; c++ {
+			if centroidCounts[c] > 0 {
+				for d := 0; d < FeatureDim; d++ {
+					centroid.Centroids[c][d] /= float64(centroidCounts[c])
+				}
+				centroid.Priors[c] = 1.0 / float64(nonEmptyCentroidClasses)
+			}
+		}
+		models = append(models, centroid)
+		modelNames = append(modelNames, "nearest_centroid")
+	}
+
+	// 5. Lightweight Random Forest (5 trees, depth 6) for fast inference
 	if len(labeled) >= 20 {
 		samples := toTrainSamples(labeled)
 		lightRF := NewDecisionForest(5, 6, 4)
@@ -406,11 +512,11 @@ func extractFeaturesLabels(labeled []TrainingSample) ([][FeatureDim]float64, []i
 // ── Model Auto-Benchmark ────────────────────────────────────────────
 
 type ModelBenchmark struct {
-	ModelType        string  `json:"modelType"`
-	Accuracy         float64 `json:"accuracy"`
-	TrainDuration    float64 `json:"trainDurationSeconds"`
-	InferenceTimeUs  float64 `json:"inferenceTimeUs"`
-	MemoryBytes      int64   `json:"memoryBytes,omitempty"`
+	ModelType       string  `json:"modelType"`
+	Accuracy        float64 `json:"accuracy"`
+	TrainDuration   float64 `json:"trainDurationSeconds"`
+	InferenceTimeUs float64 `json:"inferenceTimeUs"`
+	MemoryBytes     int64   `json:"memoryBytes,omitempty"`
 }
 
 // BenchmarkAllModels trains and evaluates all registered model types.
@@ -603,4 +709,3 @@ func predictWithOptimizations(features [FeatureDim]float64, cacheKey string) Pre
 
 	return pred
 }
-

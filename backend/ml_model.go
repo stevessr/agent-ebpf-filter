@@ -6,24 +6,25 @@ import "fmt"
 type ModelType string
 
 const (
-	ModelRandomForest        ModelType = "random_forest"
-	ModelKNN                 ModelType = "knn"
-	ModelLogisticRegression  ModelType = "logistic"
-	ModelNaiveBayes          ModelType = "naive_bayes"
-	ModelExtraTrees          ModelType = "extra_trees"
-	ModelAdaBoost            ModelType = "adaboost"
-	ModelSVM                 ModelType = "svm"
-	ModelRidge               ModelType = "ridge"
-	ModelPerceptron          ModelType = "perceptron"
-	ModelPassiveAggressive   ModelType = "passive_aggressive"
-	ModelEnsemble            ModelType = "ensemble"
+	ModelRandomForest       ModelType = "random_forest"
+	ModelKNN                ModelType = "knn"
+	ModelLogisticRegression ModelType = "logistic"
+	ModelNaiveBayes         ModelType = "naive_bayes"
+	ModelNearestCentroid    ModelType = "nearest_centroid"
+	ModelExtraTrees         ModelType = "extra_trees"
+	ModelAdaBoost           ModelType = "adaboost"
+	ModelSVM                ModelType = "svm"
+	ModelRidge              ModelType = "ridge"
+	ModelPerceptron         ModelType = "perceptron"
+	ModelPassiveAggressive  ModelType = "passive_aggressive"
+	ModelEnsemble           ModelType = "ensemble"
 )
 
 // AllModelTypes returns all registered model types
 func AllModelTypes() []ModelType {
 	return []ModelType{
 		ModelRandomForest, ModelKNN, ModelLogisticRegression,
-		ModelNaiveBayes, ModelExtraTrees, ModelAdaBoost,
+		ModelNaiveBayes, ModelNearestCentroid, ModelExtraTrees, ModelAdaBoost,
 		ModelSVM, ModelRidge, ModelPerceptron, ModelPassiveAggressive, ModelEnsemble,
 	}
 }
@@ -69,6 +70,8 @@ func modelName(t ModelType) string {
 		return "Logistic Regression"
 	case ModelNaiveBayes:
 		return "Naive Bayes"
+	case ModelNearestCentroid:
+		return "Nearest Centroid"
 	case ModelExtraTrees:
 		return "Extra Trees"
 	case ModelAdaBoost:

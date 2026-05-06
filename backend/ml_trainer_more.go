@@ -38,9 +38,19 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 		}
 	}
 	n := float64(len(labeled))
+	nonEmptyClasses := 0
+	for _, count := range counts {
+		if count > 0 {
+			nonEmptyClasses++
+		}
+	}
 	for c := 0; c < m.Classes; c++ {
-		m.Priors[c] = float64(counts[c]) / n
 		if counts[c] > 0 {
+			if cfg.BalanceClasses && nonEmptyClasses > 0 {
+				m.Priors[c] = 1.0 / float64(nonEmptyClasses)
+			} else {
+				m.Priors[c] = float64(counts[c]) / n
+			}
 			for d := 0; d < FeatureDim; d++ {
 				m.Means[c][d] /= float64(counts[c])
 			}
@@ -70,6 +80,78 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 	t.finishMetrics(acc, acc, acc, len(labeled), len(labeled), 0)
 	t.setLastSplit(labeled, labeled)
 	return m, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(labeled)}
+}
+
+// ── Nearest Centroid ───────────────────────────────────────────────
+
+func (t *ModelTrainer) trainNearestCentroid(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
+	t.acquire()
+	defer t.release()
+	t.ResetCancel()
+	t.isRunning = true
+	t.progress = 0
+	defer func() { t.isRunning = false; t.progress = 1.0 }()
+
+	labeled := store.LabeledSamples()
+	if len(labeled) < 10 {
+		return nil, TrainResult{Error: "need >=10 labeled samples"}
+	}
+
+	trainSet, valSet, _, _, err := prepareAutoTuneSplit(labeled, cfg.ValidationSplitRatio)
+	if err != nil {
+		return nil, TrainResult{Error: err.Error()}
+	}
+
+	metric := "euclidean"
+	switch cfg.MaxDepth {
+	case 4:
+		metric = "cosine"
+	case 12:
+		metric = "manhattan"
+	}
+
+	m := NewNearestCentroid(metric, cfg.BalanceClasses)
+	m.Classes = 4
+	m.Centroids = make([][FeatureDim]float64, m.Classes)
+	m.Priors = make([]float64, m.Classes)
+	counts := make([]int, m.Classes)
+	for _, s := range trainSet {
+		if s.label < 0 || int(s.label) >= m.Classes {
+			continue
+		}
+		c := int(s.label)
+		counts[c]++
+		for d := 0; d < FeatureDim; d++ {
+			m.Centroids[c][d] += s.features[d]
+		}
+	}
+	nonEmptyClasses := 0
+	for _, count := range counts {
+		if count > 0 {
+			nonEmptyClasses++
+		}
+	}
+	for c := 0; c < m.Classes; c++ {
+		if counts[c] > 0 {
+			for d := 0; d < FeatureDim; d++ {
+				m.Centroids[c][d] /= float64(counts[c])
+			}
+		}
+		if cfg.BalanceClasses && nonEmptyClasses > 0 {
+			if counts[c] > 0 {
+				m.Priors[c] = 1.0 / float64(nonEmptyClasses)
+			}
+		} else if len(trainSet) > 0 {
+			m.Priors[c] = float64(counts[c]) / float64(len(trainSet))
+		}
+	}
+
+	trainAcc := evalModelSamples(m, trainSet)
+	valAcc := evalModelSamples(m, valSet)
+	t.logf("Nearest Centroid 训练完成: metric=%s, balanced=%t", metric, cfg.BalanceClasses)
+	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(valSet))
+	t.setLastSplit(toTrainingSamples(trainSet), toTrainingSamples(valSet))
+	return m, TrainResult{Accuracy: valAcc, TrainAccuracy: trainAcc, ValidationAccuracy: valAcc, NumSamples: len(labeled), TrainSamples: len(trainSet), ValidationSamples: len(valSet)}
 }
 
 // ── Extra Trees ────────────────────────────────────────────────────
@@ -267,7 +349,12 @@ func (t *ModelTrainer) trainSVM(store *TrainingDataStore, cfg MLConfig) (Model, 
 		}
 	}
 
-	trainSGD(m.Weights, m.Classes, labeled, lr, maxIter, m.C, "hinge", t)
+	var classWeights []float64
+	if cfg.BalanceClasses {
+		_, labels := extractFeaturesLabels(labeled)
+		classWeights = computeClassWeights(labels, m.Classes)
+	}
+	trainSGD(m.Weights, m.Classes, labeled, lr, maxIter, m.C, "hinge", classWeights, t)
 	t.logf("SVM 训练完成: lr=%.4f, iter=%d", lr, maxIter)
 
 	samples := toTrainSamples(labeled)
@@ -343,7 +430,12 @@ func (t *ModelTrainer) trainPerceptron(store *TrainingDataStore, cfg MLConfig) (
 		}
 	}
 
-	trainSGD(m.Weights, m.Classes, labeled, lr, maxIter, 0, "perceptron", t)
+	var classWeights []float64
+	if cfg.BalanceClasses {
+		_, labels := extractFeaturesLabels(labeled)
+		classWeights = computeClassWeights(labels, m.Classes)
+	}
+	trainSGD(m.Weights, m.Classes, labeled, lr, maxIter, 0, "perceptron", classWeights, t)
 	t.logf("Perceptron 训练完成: lr=%.4f, iter=%d", lr, maxIter)
 
 	samples := toTrainSamples(labeled)
@@ -386,7 +478,12 @@ func (t *ModelTrainer) trainPA(store *TrainingDataStore, cfg MLConfig) (Model, T
 		}
 	}
 
-	trainSGD(m.Weights, m.Classes, labeled, 1.0, maxIter, C, "pa", t)
+	var classWeights []float64
+	if cfg.BalanceClasses {
+		_, labels := extractFeaturesLabels(labeled)
+		classWeights = computeClassWeights(labels, m.Classes)
+	}
+	trainSGD(m.Weights, m.Classes, labeled, 1.0, maxIter, C, "pa", classWeights, t)
 	t.logf("Passive-Aggressive 训练完成: C=%.2f, iter=%d", C, maxIter)
 
 	samples := toTrainSamples(labeled)
@@ -396,9 +493,37 @@ func (t *ModelTrainer) trainPA(store *TrainingDataStore, cfg MLConfig) (Model, T
 	return m, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(samples)}
 }
 
+// ── Ensemble ───────────────────────────────────────────────────────
+
+func (t *ModelTrainer) trainEnsemble(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
+	t.acquire()
+	defer t.release()
+	t.ResetCancel()
+	t.isRunning = true
+	t.progress = 0
+	defer func() { t.isRunning = false; t.progress = 1.0 }()
+
+	labeled := store.LabeledSamples()
+	if len(labeled) < 10 {
+		return nil, TrainResult{Error: "need >=10 labeled samples"}
+	}
+
+	model := buildEnsembleFromStore(store)
+	if model == nil {
+		return nil, TrainResult{Error: "failed to build ensemble"}
+	}
+
+	samples := toTrainSamples(labeled)
+	acc := evalModelSamples(model, samples)
+	t.logf("Ensemble 训练完成: voting=%s, models=%d", model.Voting, len(model.Models))
+	t.finishMetrics(acc, acc, acc, len(labeled), len(samples), 0)
+	t.setLastSplit(labeled, labeled)
+	return model, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(samples)}
+}
+
 // ── SGD Training Helper ─────────────────────────────────────────────
 
-func trainSGD(W [][FeatureDim + 1]float64, nClasses int, labeled []TrainingSample, lr float64, maxIter int, C float64, loss string, t *ModelTrainer) {
+func trainSGD(W [][FeatureDim + 1]float64, nClasses int, labeled []TrainingSample, lr float64, maxIter int, C float64, loss string, classWeights []float64, t *ModelTrainer) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for iter := 0; iter < maxIter; iter++ {
 		if t.IsCancelled() {
@@ -421,28 +546,33 @@ func trainSGD(W [][FeatureDim + 1]float64, nClasses int, labeled []TrainingSampl
 			}
 
 			trueC := int(s.Label)
-			wrongC := 0
-			if trueC == 0 {
-				wrongC = 1
+			bestWrongC := -1
+			bestWrongScore := math.Inf(-1)
+			for c := 0; c < nClasses; c++ {
+				if c == trueC {
+					continue
+				}
+				if scores[c] > bestWrongScore {
+					bestWrongScore = scores[c]
+					bestWrongC = c
+				}
 			}
-			margin := scores[trueC] - scores[wrongC]
+			if bestWrongC < 0 {
+				continue
+			}
+			margin := scores[trueC] - scores[bestWrongC]
+			sampleWeight := 1.0
+			if len(classWeights) == nClasses {
+				sampleWeight = classWeights[trueC]
+				if sampleWeight <= 0 {
+					sampleWeight = 1.0
+				}
+			}
 
 			switch loss {
 			case "hinge": // SVM
 				if margin < 1.0 {
-					for d := 0; d <= FeatureDim; d++ {
-						vT, vW := 0.0, 0.0
-						if d == FeatureDim {
-							vT, vW = 1.0, 1.0
-						} else {
-							vT, vW = s.Features[d], s.Features[d]
-						}
-						W[trueC][d] += eta * (vT - 2*C*W[trueC][d])
-						W[wrongC][d] -= eta * (vW + 2*C*W[wrongC][d])
-					}
-				}
-			case "perceptron":
-				if margin <= 0 {
+					step := eta * sampleWeight
 					for d := 0; d <= FeatureDim; d++ {
 						v := 0.0
 						if d == FeatureDim {
@@ -450,8 +580,22 @@ func trainSGD(W [][FeatureDim + 1]float64, nClasses int, labeled []TrainingSampl
 						} else {
 							v = s.Features[d]
 						}
-						W[trueC][d] += eta * v
-						W[wrongC][d] -= eta * v
+						W[trueC][d] += step * v
+						W[bestWrongC][d] -= step * v
+					}
+				}
+			case "perceptron":
+				if margin <= 0 {
+					step := eta * sampleWeight
+					for d := 0; d <= FeatureDim; d++ {
+						v := 0.0
+						if d == FeatureDim {
+							v = 1.0
+						} else {
+							v = s.Features[d]
+						}
+						W[trueC][d] += step * v
+						W[bestWrongC][d] -= step * v
 					}
 				}
 			case "pa":
@@ -462,6 +606,7 @@ func trainSGD(W [][FeatureDim + 1]float64, nClasses int, labeled []TrainingSampl
 					}
 					normSq += 1.0 // bias
 					tau := (1.0 - margin) / (normSq + 1.0/(2*C))
+					tau *= sampleWeight
 					for d := 0; d <= FeatureDim; d++ {
 						v := 0.0
 						if d == FeatureDim {
@@ -470,7 +615,7 @@ func trainSGD(W [][FeatureDim + 1]float64, nClasses int, labeled []TrainingSampl
 							v = s.Features[d]
 						}
 						W[trueC][d] += tau * v
-						W[wrongC][d] -= tau * v
+						W[bestWrongC][d] -= tau * v
 					}
 				}
 			}

@@ -360,6 +360,7 @@ type MLConfigPatch struct {
 	MaxDepth                 *int     `json:"maxDepth,omitempty"`
 	MinSamplesLeaf           *int     `json:"minSamplesLeaf,omitempty"`
 	ValidationSplitRatio     *float64 `json:"validationSplitRatio,omitempty"`
+	BalanceClasses           *bool    `json:"balanceClasses,omitempty"`
 	LlmEnabled               *bool    `json:"llmEnabled,omitempty"`
 	LlmBaseURL               *string  `json:"llmBaseUrl,omitempty"`
 	LlmAPIKey                *string  `json:"llmApiKey,omitempty"`
@@ -425,6 +426,9 @@ func applyMLConfigPatch(dst *MLConfig, patch MLConfigPatch) {
 	}
 	if patch.ValidationSplitRatio != nil {
 		dst.ValidationSplitRatio = *patch.ValidationSplitRatio
+	}
+	if patch.BalanceClasses != nil {
+		dst.BalanceClasses = *patch.BalanceClasses
 	}
 	if patch.LlmEnabled != nil {
 		dst.LlmEnabled = *patch.LlmEnabled
@@ -776,4 +780,3 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		hooks.POST("/:id/raw", handleConfigHooksRawPost)
 	}
 }
-

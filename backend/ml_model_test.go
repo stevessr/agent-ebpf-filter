@@ -289,7 +289,7 @@ func TestLogisticSerializeRoundtrip(t *testing.T) {
 // ── Model Registry ──────────────────────────────────────────────────
 
 func TestModelRegistry(t *testing.T) {
-	for _, mt := range []ModelType{ModelRandomForest, ModelKNN, ModelLogisticRegression} {
+	for _, mt := range []ModelType{ModelRandomForest, ModelKNN, ModelLogisticRegression, ModelNearestCentroid, ModelEnsemble} {
 		m, err := NewModel(mt)
 		if err != nil {
 			t.Fatalf("NewModel(%s): %v", mt, err)
@@ -358,10 +358,13 @@ func TestTrainerAllModelTypes(t *testing.T) {
 		nTrees    int
 		maxDepth  int
 		minLeaf   int
+		balance   bool
 	}{
-		{ModelRandomForest, 5, 3, 2},
-		{ModelKNN, 5, 8, 0},         // K uses nTrees, distance uses maxDepth
-		{ModelLogisticRegression, 10, 8, 500}, // LR=0.01, L2, 500 iters
+		{ModelRandomForest, 5, 3, 2, false},
+		{ModelKNN, 5, 8, 0, false},                   // K uses nTrees, distance uses maxDepth
+		{ModelLogisticRegression, 10, 8, 500, true},  // LR=0.01, L2, 500 iters
+		{ModelNearestCentroid, 0, 4, 0, true},        // cosine + uniform-prior path
+		{ModelEnsemble, 31, 8, 5, false},
 	}
 
 	for _, tc := range models {
@@ -372,6 +375,7 @@ func TestTrainerAllModelTypes(t *testing.T) {
 			cfg.NumTrees = tc.nTrees
 			cfg.MaxDepth = tc.maxDepth
 			cfg.MinSamplesLeaf = tc.minLeaf
+			cfg.BalanceClasses = tc.balance
 			mlConfig = cfg
 
 			globalTrainer.ResetCancel()

@@ -21,6 +21,7 @@ export interface RuntimeSettings {
     maxDepth?: number;
     minSamplesLeaf?: number;
     validationSplitRatio?: number;
+    balanceClasses?: boolean;
     llmEnabled?: boolean;
     llmBaseUrl?: string;
     llmApiKeyConfigured?: boolean;

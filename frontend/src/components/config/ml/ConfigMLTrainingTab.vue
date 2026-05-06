@@ -5,7 +5,7 @@ import {
   EyeOutlined, EyeInvisibleOutlined, BookOutlined, GlobalOutlined, ReloadOutlined,
 } from '@ant-design/icons-vue';
 import { getCategoryColor } from '../../../composables/useConfigRegistry';
-import { classicSecurityDatasetPresets, highRiskPresets, safetyNetHighRiskPresets, type useConfigML } from '../../../composables/useConfigML';
+import { classicSecurityDatasetPresets, highRiskPresets, safetyNetHighRiskPresets, syntheticExpansionPresets, type useConfigML } from '../../../composables/useConfigML';
 
 const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 
@@ -26,10 +26,14 @@ const {
   importTrainingDatasetFromFile, exportTrainingDataset, clearTrainingDataset,
   openTrainingDatasetImportPicker,
   submitManualSample, addPresetSample, importAllHighRiskPresets,
-  importAllSafetyNetPresets,
+  importAllSafetyNetPresets, importAllSyntheticPresets, importAllInternetDatasets,
+  importExpandedTrainingCorpus,
 } = props.ml;
 
 void trainingDatasetImportInput;
+
+const downloadableInternetDatasetCount = classicSecurityDatasetPresets.filter((preset) => Boolean(preset.downloadUrl)).length;
+const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
 </script>
 
 <template>
@@ -66,6 +70,31 @@ void trainingDatasetImportInput;
           </a-list-item>
         </template>
       </a-list>
+    </a-card>
+  </a-col>
+
+  <!-- Dataset Expansion -->
+  <a-col :xs="24">
+    <a-card size="small">
+      <template #title>
+        <span><ReloadOutlined /> 数据集扩增</span>
+        <a-tag color="purple" style="margin-left: 8px">合成样本 + 互联网数据</a-tag>
+      </template>
+      <template #extra>
+        <a-space wrap>
+          <a-tag color="geekblue">synthetic: {{ syntheticExpansionPresetCount }}</a-tag>
+          <a-tag color="blue">downloadable internet: {{ downloadableInternetDatasetCount }}</a-tag>
+          <a-button size="small" @click="importAllSyntheticPresets()" :loading="importingClassicDataset"><PlusOutlined /> 导入合成扩增样本</a-button>
+          <a-button size="small" @click="importAllInternetDatasets()" :loading="importingClassicDataset"><GlobalOutlined /> 导入全部互联网数据</a-button>
+          <a-button size="small" type="primary" @click="importExpandedTrainingCorpus()" :loading="importingClassicDataset"><ImportOutlined /> 扩增后立即训练</a-button>
+        </a-space>
+      </template>
+      <a-alert
+        type="info"
+        show-icon
+        message="合成扩增样本由命令模板自动生成，可快速补齐 ALLOW / ALERT / BLOCK 的边界样本；互联网数据会批量拉取当前可直接下载的经典安全数据集。"
+        description="如果你只想先看效果，可以先导入合成扩增样本，再按需补充互联网数据。若要直接放大训练集并重新训练，直接点“扩增后立即训练”。"
+      />
     </a-card>
   </a-col>
 

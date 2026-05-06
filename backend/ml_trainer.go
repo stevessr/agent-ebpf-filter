@@ -687,6 +687,8 @@ func (t *ModelTrainer) TrainWithConfig(store *TrainingDataStore, cfg MLConfig) (
 		return t.trainLogistic(store, cfg)
 	case ModelNaiveBayes:
 		return t.trainNaiveBayes(store, cfg)
+	case ModelNearestCentroid:
+		return t.trainNearestCentroid(store, cfg)
 	case ModelExtraTrees:
 		return t.trainExtraTrees(store, cfg)
 	case ModelAdaBoost:
@@ -699,6 +701,8 @@ func (t *ModelTrainer) TrainWithConfig(store *TrainingDataStore, cfg MLConfig) (
 		return t.trainPerceptron(store, cfg)
 	case ModelPassiveAggressive:
 		return t.trainPA(store, cfg)
+	case ModelEnsemble:
+		return t.trainEnsemble(store, cfg)
 	default:
 		forest, result := t.Train(store, cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
 		return forest, result
@@ -727,7 +731,18 @@ func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, 
 		k = len(labeled)
 	}
 
-	model := NewKNNModel(k, "euclidean", "uniform")
+	distance := "euclidean"
+	if cfg.MaxDepth >= 16 {
+		distance = "cosine"
+	} else if cfg.MaxDepth >= 12 {
+		distance = "manhattan"
+	}
+	weight := "uniform"
+	if cfg.MinSamplesLeaf >= 8 {
+		weight = "distance"
+	}
+
+	model := NewKNNModel(k, distance, weight)
 	model.NumClasses = 4
 	model.Samples = make([][FeatureDim]float64, len(labeled))
 	model.Labels = make([]int32, len(labeled))
@@ -736,7 +751,7 @@ func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, 
 		model.Labels[i] = s.Label
 	}
 
-	t.logf("KNN 训练完成: k=%d, samples=%d", k, len(labeled))
+	t.logf("KNN 训练完成: k=%d, distance=%s, weight=%s, samples=%d", k, distance, weight, len(labeled))
 
 	correct := 0
 	for _, s := range labeled {
@@ -819,6 +834,9 @@ func (t *ModelTrainer) trainLogistic(store *TrainingDataStore, cfg MLConfig) (Mo
 
 	model := NewLogisticModel(learningRate, regularization, maxIter)
 	model.NumClasses = 4
+	if cfg.BalanceClasses {
+		model.ClassWeights = computeClassWeights(trainLabels, model.NumClasses)
+	}
 	model.Train(trainSamples, trainLabels)
 
 	t.logf("逻辑回归训练完成: lr=%.4f, reg=%s, iter=%d, samples=%d", learningRate, regularization, maxIter, splitIdx)

@@ -46,6 +46,40 @@ watch(autoTuneInProgress, (running) => {
 const autoTuneJustCompleted = computed(() =>
   !autoTuneInProgress.value && autoTuneResponse.value && autoTuneLoading.value === false
 );
+
+const modelTypeLabel = computed(() => {
+  switch (modelType.value) {
+    case 'random_forest': return 'Random Forest';
+    case 'extra_trees': return 'Extra Trees';
+    case 'adaboost': return 'AdaBoost';
+    case 'knn': return 'K-Nearest Neighbors';
+    case 'naive_bayes': return 'Naive Bayes';
+    case 'nearest_centroid': return 'Nearest Centroid';
+    case 'logistic': return 'Logistic';
+    case 'svm': return 'SVM';
+    case 'ridge': return 'Ridge';
+    case 'perceptron': return 'Perceptron';
+    case 'passive_aggressive': return 'PA';
+    default: return modelType.value;
+  }
+});
+
+const modelTypeTagColor = computed(() => {
+  switch (modelType.value) {
+    case 'random_forest': return 'green';
+    case 'extra_trees': return 'purple';
+    case 'adaboost': return 'magenta';
+    case 'knn': return 'blue';
+    case 'naive_bayes': return 'gold';
+    case 'nearest_centroid': return 'geekblue';
+    case 'logistic': return 'cyan';
+    case 'svm': return 'red';
+    case 'ridge': return 'volcano';
+    case 'perceptron': return 'orange';
+    case 'passive_aggressive': return 'volcano';
+    default: return 'purple';
+  }
+});
 </script>
 
 <template>
@@ -54,8 +88,8 @@ const autoTuneJustCompleted = computed(() =>
     <a-card size="small">
       <template #title>
         <span>Model Type</span>
-        <a-tag :color="modelType === 'random_forest' ? 'green' : modelType === 'knn' ? 'blue' : 'purple'" style="margin-left: 8px;">
-          {{ modelType === 'random_forest' ? 'Random Forest' : modelType === 'knn' ? 'K-Nearest Neighbors' : modelType === 'logistic' ? 'Logistic Regression' : modelType }}
+        <a-tag :color="modelTypeTagColor" style="margin-left: 8px;">
+          {{ modelTypeLabel }}
         </a-tag>
       </template>
       <a-radio-group v-model:value="modelType" button-style="solid" size="small" @change="saveMLThresholds">
@@ -64,6 +98,7 @@ const autoTuneJustCompleted = computed(() =>
         <a-radio-button value="adaboost">AdaBoost</a-radio-button>
         <a-radio-button value="knn">KNN</a-radio-button>
         <a-radio-button value="naive_bayes">Naive Bayes</a-radio-button>
+        <a-radio-button value="nearest_centroid">Nearest Centroid</a-radio-button>
         <a-radio-button value="logistic">Logistic</a-radio-button>
         <a-radio-button value="svm">SVM</a-radio-button>
         <a-radio-button value="ridge">Ridge</a-radio-button>
@@ -83,7 +118,7 @@ const autoTuneJustCompleted = computed(() =>
   <a-col :xs="24">
     <a-card title="Model Hyperparameters" size="small">
       <template #extra>
-        <a-tag color="geekblue">{{ modelType === 'random_forest' ? 'Random Forest' : modelType === 'knn' ? 'KNN' : 'Logistic' }} 参数</a-tag>
+        <a-tag color="geekblue">{{ modelTypeLabel }} 参数</a-tag>
       </template>
       <!-- Random Forest params -->
       <a-row v-if="modelType === 'random_forest'" :gutter="[24, 16]">
@@ -145,6 +180,16 @@ const autoTuneJustCompleted = computed(() =>
           <a-slider v-model:value="hyperParams.minSamplesLeaf" :min="100" :max="5000" :step="100" />
           <a-input-number v-model:value="hyperParams.minSamplesLeaf" :min="100" :max="5000" size="small" style="width: 100%" />
           <div style="font-size: 11px; color: #999">SGD 最大迭代数。推荐 500-2000</div>
+        </a-col>
+      </a-row>
+      <!-- Nearest Centroid params -->
+      <a-row v-if="modelType === 'nearest_centroid'" :gutter="[24, 16]">
+        <a-col :xs="24">
+          <a-alert
+            type="info"
+            show-icon
+            message="Nearest Centroid uses the current defaults. The benchmark sweep explores euclidean / balanced / cosine variants offline."
+          />
         </a-col>
       </a-row>
     </a-card>

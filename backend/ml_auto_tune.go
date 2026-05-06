@@ -401,10 +401,19 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 
 			case ModelLogisticRegression:
 				lr := float64(numTrees) / 1000.0
-				if lr < 0.001 { lr = 0.01 }
+				if lr < 0.001 {
+					lr = 0.01
+				}
 				reg := "l2"
-				if maxDepth == 12 { reg = "l1" } else if maxDepth == 4 { reg = "none" }
-				maxIter := minLeaf; if maxIter < 100 { maxIter = 1000 }
+				if maxDepth == 12 {
+					reg = "l1"
+				} else if maxDepth == 4 {
+					reg = "none"
+				}
+				maxIter := minLeaf
+				if maxIter < 100 {
+					maxIter = 1000
+				}
 				trainS, trainL := extractTrainData(trainSet)
 				lrModel := NewLogisticModel(lr, reg, maxIter)
 				lrModel.NumClasses = 4
@@ -421,12 +430,19 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				nb.Priors = make([]float64, 4)
 				counts := make([]int, 4)
 				for _, s := range trainSet {
-					c := s.label; counts[c]++
-					for d := 0; d < FeatureDim; d++ { nb.Means[c][d] += s.features[d] }
+					c := s.label
+					counts[c]++
+					for d := 0; d < FeatureDim; d++ {
+						nb.Means[c][d] += s.features[d]
+					}
 				}
 				for c := 0; c < 4; c++ {
 					nb.Priors[c] = float64(counts[c]) / float64(len(trainSet))
-					if counts[c] > 0 { for d := 0; d < FeatureDim; d++ { nb.Means[c][d] /= float64(counts[c]) } }
+					if counts[c] > 0 {
+						for d := 0; d < FeatureDim; d++ {
+							nb.Means[c][d] /= float64(counts[c])
+						}
+					}
 				}
 				for _, s := range trainSet {
 					c := s.label
@@ -436,7 +452,11 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 					}
 				}
 				for c := 0; c < 4; c++ {
-					if counts[c] > 1 { for d := 0; d < FeatureDim; d++ { nb.Vars[c][d] /= float64(counts[c] - 1) } }
+					if counts[c] > 1 {
+						for d := 0; d < FeatureDim; d++ {
+							nb.Vars[c][d] /= float64(counts[c] - 1)
+						}
+					}
 				}
 				trainAccuracy = evalModelSamples(nb, trainSet)
 				evalStart = time.Now()
@@ -459,17 +479,101 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				validationAccuracy = evalModelSamples(ab, validationSet)
 				evalDuration = time.Since(evalStart)
 
+			case ModelEnsemble:
+				tmpStore := newTrainingDataStore(len(trainSet))
+				for i := range trainSet {
+					tmpStore.samples[i] = TrainingSample{
+						Features: trainSet[i].features,
+						Label:    trainSet[i].label,
+					}
+				}
+				tmpStore.nextWrite = len(trainSet)
+				ens := buildEnsembleFromStore(tmpStore)
+				if ens == nil {
+					done++
+					if progressCb != nil {
+						progressCb(done, totalCombos, fmt.Sprintf("跳过 %d/%d (ensemble 样本不足)", done, totalCombos))
+					}
+					continue
+				}
+				trainAccuracy = evalModelSamples(ens, trainSet)
+				evalStart = time.Now()
+				validationAccuracy = evalModelSamples(ens, validationSet)
+				evalDuration = time.Since(evalStart)
+
+			case ModelNearestCentroid:
+				metric := "euclidean"
+				switch {
+				case numTrees <= 24:
+					metric = "cosine"
+				case numTrees >= 36:
+					metric = "manhattan"
+				}
+				balanced := maxDepth >= 8
+				model := NewNearestCentroid(metric, balanced)
+				model.Classes = 4
+				model.Centroids = make([][FeatureDim]float64, model.Classes)
+				model.Priors = make([]float64, model.Classes)
+				counts := make([]int, model.Classes)
+				for _, s := range trainSet {
+					if s.label < 0 || int(s.label) >= model.Classes {
+						continue
+					}
+					c := int(s.label)
+					counts[c]++
+					for d := 0; d < FeatureDim; d++ {
+						model.Centroids[c][d] += s.features[d]
+					}
+				}
+				nonEmpty := 0
+				for _, count := range counts {
+					if count > 0 {
+						nonEmpty++
+					}
+				}
+				for c := 0; c < model.Classes; c++ {
+					if counts[c] > 0 {
+						for d := 0; d < FeatureDim; d++ {
+							model.Centroids[c][d] /= float64(counts[c])
+						}
+					}
+					if balanced && nonEmpty > 0 && counts[c] > 0 {
+						model.Priors[c] = 1.0 / float64(nonEmpty)
+					} else if len(trainSet) > 0 {
+						model.Priors[c] = float64(counts[c]) / float64(len(trainSet))
+					}
+				}
+				trainAccuracy = evalModelSamples(model, trainSet)
+				evalStart = time.Now()
+				validationAccuracy = evalModelSamples(model, validationSet)
+				evalDuration = time.Since(evalStart)
+
 			case ModelSVM, ModelPerceptron, ModelPassiveAggressive, ModelRidge:
 				W := make([][FeatureDim + 1]float64, 4)
 				for c := range W {
-					for d := range W[c] { W[c][d] = (rand.Float64() - 0.5) * 0.01 }
+					for d := range W[c] {
+						W[c][d] = (rand.Float64() - 0.5) * 0.01
+					}
 				}
-				lr := float64(numTrees) / 1000.0; if lr < 0.001 { lr = 0.01 }
-				C := float64(numTrees) / 10.0; if C < 0.1 { C = 1.0 }
-				maxIter := minLeaf; if maxIter < 100 { maxIter = 1000 }
+				lr := float64(numTrees) / 1000.0
+				if lr < 0.001 {
+					lr = 0.01
+				}
+				C := float64(numTrees) / 10.0
+				if C < 0.1 {
+					C = 1.0
+				}
+				maxIter := minLeaf
+				if maxIter < 100 {
+					maxIter = 1000
+				}
 				loss := "hinge"
-				if mt == ModelPerceptron { loss = "perceptron" }
-				if mt == ModelPassiveAggressive { loss = "pa" }
+				if mt == ModelPerceptron {
+					loss = "perceptron"
+				}
+				if mt == ModelPassiveAggressive {
+					loss = "pa"
+				}
 				if mt == ModelRidge {
 					ridgeFit(W, 4, labeled[:len(trainSet)], float64(numTrees)/100.0+0.1)
 				} else {
@@ -477,7 +581,7 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 					for i, s := range trainSet {
 						labeledSubset[i] = TrainingSample{Features: s.features, Label: s.label}
 					}
-					trainSGD(W, 4, labeledSubset, lr, maxIter, C, loss, globalTrainer)
+					trainSGD(W, 4, labeledSubset, lr, maxIter, C, loss, nil, globalTrainer)
 				}
 				trainAccuracy = evalLinearModel(W, 4, trainSet)
 				evalStart = time.Now()
@@ -737,4 +841,3 @@ func findAutoTuneBestSplit(samples []trainSample, featureSampleCount int, rng *r
 
 	return best
 }
-

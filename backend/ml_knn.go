@@ -189,6 +189,20 @@ func (m *KNNModel) Predict(features [FeatureDim]float64) Prediction {
 }
 
 func (m *KNNModel) computeDistance(a, b [FeatureDim]float64) float64 {
+	if m.Distance == "cosine" {
+		dot := 0.0
+		normA := 0.0
+		normB := 0.0
+		for i := 0; i < FeatureDim; i++ {
+			dot += a[i] * b[i]
+			normA += a[i] * a[i]
+			normB += b[i] * b[i]
+		}
+		if normA <= 0 || normB <= 0 {
+			return 1.0
+		}
+		return 1.0 - dot/(math.Sqrt(normA)*math.Sqrt(normB))
+	}
 	var sum float64
 	for i := 0; i < FeatureDim; i++ {
 		diff := a[i] - b[i]

@@ -27,6 +27,7 @@ type MLConfig struct {
 	MaxDepth                 int       `json:"maxDepth"`
 	MinSamplesLeaf           int       `json:"minSamplesLeaf"`
 	ValidationSplitRatio     float64   `json:"validationSplitRatio"`
+	BalanceClasses           bool      `json:"balanceClasses"`
 	LlmEnabled               bool      `json:"llmEnabled"`
 	LlmBaseURL               string    `json:"llmBaseUrl"`
 	LlmAPIKey                string    `json:"llmApiKey,omitempty"`
@@ -57,6 +58,7 @@ func DefaultMLConfig() MLConfig {
 		MaxDepth:                 8,
 		MinSamplesLeaf:           5,
 		ValidationSplitRatio:     0.20,
+		BalanceClasses:           false,
 		LlmEnabled:               false,
 		LlmBaseURL:               "",
 		LlmAPIKey:                "",
@@ -70,10 +72,10 @@ func DefaultMLConfig() MLConfig {
 
 // Global ML state
 var (
-	mlEngine        Model
-	mlConfig        MLConfig
-	mlEnabled       bool
-	mlModelLoaded   bool
+	mlEngine         Model
+	mlConfig         MLConfig
+	mlEnabled        bool
+	mlModelLoaded    bool
 	currentModelType ModelType
 )
 
@@ -132,6 +134,14 @@ func tryLoadModel(path string, t ModelType) Model {
 		}
 	case ModelLogisticRegression:
 		if m, err := DeserializeLogistic(path); err == nil {
+			return m
+		}
+	case ModelNearestCentroid:
+		if m, err := DeserializeNearestCentroid(path); err == nil {
+			return m
+		}
+	case ModelEnsemble:
+		if m, err := DeserializeEnsemble(path); err == nil {
 			return m
 		}
 	}

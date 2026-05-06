@@ -10,8 +10,9 @@ import type {
   ClassicSecurityDatasetPreset,
 } from '../types/config';
 
-import { safetyNetHighRiskPresets, highRiskPresets } from './mlPresets';
-export { safetyNetHighRiskPresets, classicSecurityDatasetPresets, highRiskPresets } from './mlPresets';
+import { safetyNetHighRiskPresets, classicSecurityDatasetPresets, syntheticExpansionPresets, highRiskPresets } from './mlPresets';
+import type { TrainingPreset } from './mlPresets';
+export { safetyNetHighRiskPresets, classicSecurityDatasetPresets, highRiskPresets, syntheticExpansionPresets } from './mlPresets';
 import { LLM_SCORING_STORAGE_KEY, defaultLLMScoringConfig, readStoredLLMScoringConfig, pickLLMScoringConfigForStorage, downloadJsonFile, downloadTextFile, buildLLMProductionJsonl, arrayBufferToBase64, getLabelColor, splitCommandLine, riskLevelColor, riskMeterColor } from './mlUtils';
 import { useAutoTune, type AutoTuneDeps } from './useAutoTune';
 
@@ -538,11 +539,17 @@ export function useConfigML() {
     } finally { loadingRemoteDataset.value = false; }
   };
 
+  const refreshTrainingDatasetViews = async () => {
+    await fetchMLStatus();
+    await fetchAllSamples();
+    await fetchExistingCommandData(true);
+  };
+
   const importRemoteDatasetPayload = async (payload: {
     url?: string; content?: string; contentBase64?: string; sourceName?: string; importAll?: boolean;
     format?: 'auto' | 'json' | 'jsonl' | 'csv' | 'tsv' | 'text';
     labelMode?: 'preserve' | 'unlabeled' | 'heuristic' | 'block';
-  }) => {
+  }, options?: { refreshViews?: boolean }) => {
     const url = resolveDatasetUrl(payload.url ?? ((payload.content || payload.contentBase64) ? '' : remoteDatasetUrl.value.trim()));
     const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/import', {
       url, content: payload.content, contentBase64: payload.contentBase64,
@@ -552,7 +559,9 @@ export function useConfigML() {
     });
     remoteDatasetMeta.value = res.data;
     remoteDatasetPreview.value = res.data.rows || [];
-    await fetchMLStatus(); await fetchAllSamples(); await fetchExistingCommandData(true);
+    if (options?.refreshViews !== false) {
+      await refreshTrainingDatasetViews();
+    }
     return res;
   };
 
@@ -591,6 +600,76 @@ export function useConfigML() {
   const copyClassicSecurityDatasetPage = async (preset: ClassicSecurityDatasetPreset) => {
     try { await navigator.clipboard.writeText(preset.pageUrl); message.success(`已复制 ${preset.name} 链接`); }
     catch (_) { message.error('复制链接失败'); }
+  };
+
+  const importClassicDatasetPayload = async (preset: ClassicSecurityDatasetPreset) => {
+    if (!preset.downloadUrl) {
+      throw new Error(`preset ${preset.name} does not provide a downloadUrl`);
+    }
+    return importRemoteDatasetPayload({
+      url: preset.downloadUrl,
+      sourceName: preset.name,
+      importAll: true,
+      format: preset.format ?? 'auto',
+      labelMode: preset.labelMode ?? remoteDatasetLabelMode.value,
+    }, { refreshViews: false });
+  };
+
+  const importAllInternetDatasets = async () => {
+    const downloadable = classicSecurityDatasetPresets.filter((preset) => Boolean(preset.downloadUrl));
+    let importedRows = 0;
+    let importedSets = 0;
+    let skippedSets = classicSecurityDatasetPresets.length - downloadable.length;
+    importingClassicDataset.value = true;
+    try {
+      for (const preset of downloadable) {
+        try {
+          const res = await importClassicDatasetPayload(preset);
+          importedRows += res.data.imported ?? res.data.total ?? 0;
+          importedSets += 1;
+        } catch (_) {
+          skippedSets += 1;
+        }
+      }
+      await refreshTrainingDatasetViews();
+      message.success(`互联网数据批量导入完成：${importedRows} 条，${importedSets} 个数据集，跳过 ${skippedSets} 个条目`);
+    } catch (e: any) {
+      message.error(e.response?.data?.error || e.message || '批量导入互联网数据失败');
+    } finally {
+      importingClassicDataset.value = false;
+    }
+  };
+
+  const importPresetBatch = async (presets: TrainingPreset[], label: string) => {
+    importingClassicDataset.value = true;
+    let added = 0;
+    let skipped = 0;
+    try {
+      for (const preset of presets) {
+        const argsArray = preset.args ? splitCommandLine(preset.args) : [];
+        const argsStr = argsArray.join(' ');
+        if (allSamples.value.find((s) => s.comm === preset.comm && (s.args || []).join(' ') === argsStr)) {
+          skipped++;
+          continue;
+        }
+        try {
+          const commandLine = [preset.comm, preset.args].filter((part) => part && part.trim()).join(' ');
+          await axios.post('/config/ml/samples', {
+            commandLine,
+            comm: preset.comm,
+            args: argsArray,
+            label: preset.label,
+          });
+          added++;
+        } catch (_) {
+          skipped++;
+        }
+      }
+      await refreshTrainingDatasetViews();
+      message.success(`${label} 导入完成：新增 ${added} 条，跳过 ${skipped} 条`);
+    } finally {
+      importingClassicDataset.value = false;
+    }
   };
 
   // ── Data Utilities ──
@@ -765,20 +844,19 @@ export function useConfigML() {
   };
 
   const importAllHighRiskPresets = async () => {
-    let added = 0, skipped = 0;
-    for (const preset of highRiskPresets) {
-      const argsArray = preset.args ? splitCommandLine(preset.args) : [];
-      const argsStr = argsArray.join(' ');
-      if (allSamples.value.find(s => s.comm === preset.comm && (s.args || []).join(' ') === argsStr)) { skipped++; continue; }
-      try {
-        const commandLine = [preset.comm, preset.args].filter((part) => part && part.trim()).join(' ');
-        await axios.post('/config/ml/samples', { commandLine, comm: preset.comm, args: argsArray, label: preset.label });
-        added++;
-      }
-      catch (_) { skipped++; }
-    }
-    message.success(`一键导入完成：新增 ${added} 条，跳过 ${skipped} 条`);
-    await fetchMLStatus(); await fetchAllSamples();
+    await importPresetBatch(highRiskPresets, '高危行为预设');
+  };
+
+  const importAllSyntheticPresets = async () => {
+    await importPresetBatch(syntheticExpansionPresets, '合成扩增样本');
+  };
+
+  const importExpandedTrainingCorpus = async () => {
+    await importPresetBatch(highRiskPresets, '高危行为预设');
+    await importPresetBatch(safetyNetHighRiskPresets, 'Safety Net 预设');
+    await importPresetBatch(syntheticExpansionPresets, '合成扩增样本');
+    await importAllInternetDatasets();
+    await trainWithParams();
   };
 
   // ── Command Safety Assessment ──
@@ -855,22 +933,10 @@ export function useConfigML() {
     getLabelColor, trainWithParams,
     openTrainingDatasetImportPicker: () => { trainingDatasetImportInput.value?.click(); },
     splitCommandLine, submitManualSample, addPresetSample, importAllHighRiskPresets,
-    importAllSafetyNetPresets: async () => {
-    let added = 0, skipped = 0;
-    for (const preset of safetyNetHighRiskPresets) {
-      const argsArray = preset.args ? splitCommandLine(preset.args) : [];
-      const argsStr = argsArray.join(' ');
-      if (allSamples.value.find(s => s.comm === preset.comm && (s.args || []).join(' ') === argsStr)) { skipped++; continue; }
-      try {
-        const commandLine = [preset.comm, preset.args].filter((part) => part && part.trim()).join(' ');
-        await axios.post('/config/ml/samples', { commandLine, comm: preset.comm, args: argsArray, label: preset.label });
-        added++;
-      }
-      catch (_) { skipped++; }
-    }
-      message.success(`Safety Net 导入完成：新增 ${added} 条，跳过 ${skipped} 条`);
-      await fetchMLStatus(); await fetchAllSamples();
-    },
+    importAllSafetyNetPresets: async () => { await importPresetBatch(safetyNetHighRiskPresets, 'Safety Net 预设'); },
+    importAllSyntheticPresets,
+    importAllInternetDatasets,
+    importExpandedTrainingCorpus,
     runBacktest, runBacktestPreset, riskLevelColor, riskMeterColor,
     llmApiKeyStatus,
   };

@@ -252,7 +252,7 @@ func runMLSweepReport() error {
 	overall := make([]barItem, 0, len(summaries))
 	for _, s := range summaries {
 		overall = append(overall, barItem{
-			Label: shortModelLabel(s.Profile.ModelType),
+			Label: shortProfileLabel(s.Profile.Name),
 			Value: s.Best.ValidationAccuracy,
 			Title: fmt.Sprintf("%s | %s | val=%.2f%%", s.Profile.Name, s.Best.ConfigSummary, s.Best.ValidationAccuracy*100),
 		})
@@ -818,8 +818,15 @@ func repeatKey(profile string, modelType ModelType, xValue, yValue int, configSu
 func profileComparable(profile string) bool {
 	// The sweep report uses the profile name to infer whether the model
 	// currently evaluates against a holdout split in this codebase.
-	switch profile {
-	case "random_forest", "extra_trees", "logistic", "svm", "perceptron", "passive_aggressive":
+	switch {
+	case strings.HasPrefix(profile, "random_forest"),
+		strings.HasPrefix(profile, "extra_trees"),
+		strings.HasPrefix(profile, "logistic"),
+		strings.HasPrefix(profile, "svm"),
+		strings.HasPrefix(profile, "perceptron"),
+		strings.HasPrefix(profile, "passive_aggressive"),
+		strings.HasPrefix(profile, "nearest_centroid"),
+		strings.HasPrefix(profile, "ensemble"):
 		return true
 	default:
 		return false
@@ -1283,6 +1290,495 @@ func profilesForMode(mode string) []sweepProfile {
 			XLabel: func(int) string { return "default" },
 			Summary: func(cfg MLConfig) string {
 				return "default"
+			},
+		},
+		{
+			Name:       "naive_bayes_balanced",
+			ModelType:  ModelNaiveBayes,
+			Comparable: false,
+			Kind:       "bar",
+			XName:      "preset",
+			XValues:    []int{0},
+			Build: func(_, _ int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelNaiveBayes
+				cfg.BalanceClasses = true
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(int) string { return "balanced" },
+			Summary: func(cfg MLConfig) string {
+				return "balanced-prior"
+			},
+		},
+		{
+			Name:       "logistic_balanced",
+			ModelType:  ModelLogisticRegression,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "learningRate×1000",
+			YName:      "maxIter",
+			XValues:    []int{3, 5, 10, 20, 50, 100},
+			YValues:    []int{1000, 2000, 4000},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelLogisticRegression
+				cfg.NumTrees = x
+				cfg.MinSamplesLeaf = y
+				cfg.MaxDepth = 12
+				cfg.BalanceClasses = true
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("lr=%.3f reg=l1 balanced iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "svm_balanced",
+			ModelType:  ModelSVM,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "learningRate×1000",
+			YName:      "iterations",
+			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:    []int{1000, 2000, 4000, 8000},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelSVM
+				cfg.NumTrees = x
+				cfg.MinSamplesLeaf = y
+				cfg.MaxDepth = 8
+				cfg.BalanceClasses = true
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("lr=%.3f balanced iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "perceptron_balanced",
+			ModelType:  ModelPerceptron,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "learningRate×1000",
+			YName:      "iterations",
+			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:    []int{1000, 2000, 4000, 8000},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelPerceptron
+				cfg.NumTrees = x
+				cfg.MinSamplesLeaf = y
+				cfg.MaxDepth = 8
+				cfg.BalanceClasses = true
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("lr=%.3f balanced iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "passive_aggressive_balanced",
+			ModelType:  ModelPassiveAggressive,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "learningRate×1000",
+			YName:      "iterations",
+			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:    []int{1000, 2000, 4000, 8000},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelPassiveAggressive
+				cfg.NumTrees = x
+				cfg.MinSamplesLeaf = y
+				cfg.MaxDepth = 8
+				cfg.BalanceClasses = true
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("lr=%.3f balanced iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "nearest_centroid",
+			ModelType:  ModelNearestCentroid,
+			Comparable: true,
+			Kind:       "bar",
+			XName:      "preset",
+			XValues:    []int{0},
+			Build: func(_, _ int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelNearestCentroid
+				cfg.MaxDepth = 8
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(int) string { return "euclidean" },
+			Summary: func(cfg MLConfig) string {
+				return "metric=euclidean prior=empirical"
+			},
+		},
+		{
+			Name:       "nearest_centroid_balanced",
+			ModelType:  ModelNearestCentroid,
+			Comparable: true,
+			Kind:       "bar",
+			XName:      "preset",
+			XValues:    []int{0},
+			Build: func(_, _ int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelNearestCentroid
+				cfg.MaxDepth = 8
+				cfg.BalanceClasses = true
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(int) string { return "euclidean + uniform prior" },
+			Summary: func(cfg MLConfig) string {
+				return "metric=euclidean prior=uniform"
+			},
+		},
+		{
+			Name:       "nearest_centroid_cosine",
+			ModelType:  ModelNearestCentroid,
+			Comparable: true,
+			Kind:       "bar",
+			XName:      "preset",
+			XValues:    []int{0},
+			Build: func(_, _ int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelNearestCentroid
+				cfg.MaxDepth = 4
+				cfg.BalanceClasses = true
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(int) string { return "cosine + uniform prior" },
+			Summary: func(cfg MLConfig) string {
+				return "metric=cosine prior=uniform"
+			},
+		},
+		{
+			Name:       "knn_cosine",
+			ModelType:  ModelKNN,
+			Comparable: false,
+			Kind:       "bar",
+			XName:      "k",
+			XValues:    []int{1, 3, 5, 7, 9, 11, 15, 21, 31},
+			Build: func(x, _ int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelKNN
+				cfg.NumTrees = x
+				cfg.MaxDepth = 16
+				cfg.MinSamplesLeaf = 10
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("k=%d distance=cosine weight=distance", cfg.NumTrees)
+			},
+		},
+		{
+			Name:       "random_forest_fast",
+			ModelType:  ModelRandomForest,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "numTrees",
+			YName:      "maxDepth",
+			XValues:    []int{5, 9, 13, 17, 21},
+			YValues:    []int{3, 4, 5, 6, 7},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelRandomForest
+				cfg.NumTrees = x
+				cfg.MaxDepth = y
+				cfg.MinSamplesLeaf = 2
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: strconv.Itoa,
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("trees=%d depth=%d leaf=%d", cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "random_forest_deep",
+			ModelType:  ModelRandomForest,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "numTrees",
+			YName:      "maxDepth",
+			XValues:    []int{31, 41, 51, 61, 71},
+			YValues:    []int{8, 10, 12, 14},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelRandomForest
+				cfg.NumTrees = x
+				cfg.MaxDepth = y
+				cfg.MinSamplesLeaf = 3
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: strconv.Itoa,
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("trees=%d depth=%d leaf=%d", cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "extra_trees_deep",
+			ModelType:  ModelExtraTrees,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "numTrees",
+			YName:      "maxDepth",
+			XValues:    []int{31, 41, 51, 61, 71},
+			YValues:    []int{8, 10, 12, 14},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelExtraTrees
+				cfg.NumTrees = x
+				cfg.MaxDepth = y
+				cfg.MinSamplesLeaf = 3
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: strconv.Itoa,
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("trees=%d depth=%d leaf=%d", cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "logistic_none",
+			ModelType:  ModelLogisticRegression,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "learningRate×1000",
+			YName:      "maxIter",
+			XValues:    []int{1, 3, 5, 10, 20, 50},
+			YValues:    []int{500, 1000, 2000, 4000},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelLogisticRegression
+				cfg.NumTrees = x
+				cfg.MinSamplesLeaf = y
+				cfg.MaxDepth = 4
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("lr=%.3f reg=none iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "logistic_l1",
+			ModelType:  ModelLogisticRegression,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "learningRate×1000",
+			YName:      "maxIter",
+			XValues:    []int{3, 5, 10, 20, 50, 100},
+			YValues:    []int{1000, 2000, 4000},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelLogisticRegression
+				cfg.NumTrees = x
+				cfg.MinSamplesLeaf = y
+				cfg.MaxDepth = 12
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("lr=%.3f reg=l1 iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "svm_long",
+			ModelType:  ModelSVM,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "learningRate×1000",
+			YName:      "iterations",
+			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:    []int{1000, 2000, 4000, 8000},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelSVM
+				cfg.NumTrees = x
+				cfg.MinSamplesLeaf = y
+				cfg.MaxDepth = 8
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("lr=%.3f iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "perceptron_long",
+			ModelType:  ModelPerceptron,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "learningRate×1000",
+			YName:      "iterations",
+			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:    []int{1000, 2000, 4000, 8000},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelPerceptron
+				cfg.NumTrees = x
+				cfg.MinSamplesLeaf = y
+				cfg.MaxDepth = 8
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("lr=%.3f iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "passive_aggressive_long",
+			ModelType:  ModelPassiveAggressive,
+			Comparable: true,
+			Kind:       "heatmap",
+			XName:      "learningRate×1000",
+			YName:      "iterations",
+			XValues:    []int{1, 5, 10, 20, 50, 100, 150},
+			YValues:    []int{1000, 2000, 4000, 8000},
+			Build: func(x, y int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelPassiveAggressive
+				cfg.NumTrees = x
+				cfg.MinSamplesLeaf = y
+				cfg.MaxDepth = 8
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(v int) string { return fmt.Sprintf("%.3f", float64(v)/1000.0) },
+			YLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("lr=%.3f iter=%d", float64(cfg.NumTrees)/1000.0, cfg.MinSamplesLeaf)
+			},
+		},
+		{
+			Name:       "knn_distance",
+			ModelType:  ModelKNN,
+			Comparable: false,
+			Kind:       "bar",
+			XName:      "k",
+			XValues:    []int{1, 3, 5, 7, 9, 11, 15, 21, 31},
+			Build: func(x, _ int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelKNN
+				cfg.NumTrees = x
+				cfg.MaxDepth = 12
+				cfg.MinSamplesLeaf = 10
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("k=%d distance=manhattan weight=distance", cfg.NumTrees)
+			},
+		},
+		{
+			Name:       "ridge_strong",
+			ModelType:  ModelRidge,
+			Comparable: false,
+			Kind:       "bar",
+			XName:      "alpha×100",
+			XValues:    []int{100, 150, 200, 250, 300, 400, 500},
+			Build: func(x, _ int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelRidge
+				cfg.NumTrees = x
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(v int) string { return fmt.Sprintf("%.2f", float64(v)/100.0) },
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("alpha=%.2f", float64(cfg.NumTrees)/100.0)
+			},
+		},
+		{
+			Name:       "adaboost_large",
+			ModelType:  ModelAdaBoost,
+			Comparable: false,
+			Kind:       "bar",
+			XName:      "estimators",
+			XValues:    []int{50, 100, 150, 200, 250, 300, 400},
+			Build: func(x, _ int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelAdaBoost
+				cfg.NumTrees = x
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: strconv.Itoa,
+			Summary: func(cfg MLConfig) string {
+				return fmt.Sprintf("estimators=%d", cfg.NumTrees)
+			},
+		},
+		{
+			Name:       "ensemble",
+			ModelType:  ModelEnsemble,
+			Comparable: true,
+			Kind:       "bar",
+			XName:      "voting",
+			XValues:    []int{0},
+			Build: func(_, _ int) MLConfig {
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelEnsemble
+				cfg.ValidationSplitRatio = 0.2
+				cfg.LlmEnabled = false
+				return cfg
+			},
+			XLabel: func(int) string { return "soft" },
+			Summary: func(_ MLConfig) string {
+				return "soft-vote ensemble"
 			},
 		},
 	}
@@ -1946,7 +2442,7 @@ func renderStabilityChart(summaries []repeatSummary) (string, error) {
 	items := make([]barItem, 0, len(summaries))
 	for _, s := range summaries {
 		items = append(items, barItem{
-			Label: shortModelLabel(s.ModelType),
+			Label: shortProfileLabel(s.Profile),
 			Value: s.ValidationMean,
 			Title: fmt.Sprintf("%s | %s | mean=%.2f%% ± %.2f%% | success=%.0f%%",
 				s.Profile, s.ConfigSummary, s.ValidationMean*100, s.ValidationStd*100, s.SuccessRate*100),
@@ -1962,7 +2458,7 @@ func renderOverallSpeedChart(summaries []profileSummary) (string, error) {
 	items := make([]barItem, 0, len(summaries))
 	for _, s := range summaries {
 		items = append(items, barItem{
-			Label: shortModelLabel(s.Profile.ModelType),
+			Label: shortProfileLabel(s.Profile.Name),
 			Value: s.Best.InferenceThroughput,
 			Title: fmt.Sprintf("%s | %s | infer=%.0f/s (%.2fms) | val=%.2f%%",
 				s.Profile.Name, s.Best.ConfigSummary, s.Best.InferenceThroughput, s.Best.InferenceLatencyMs, s.Best.ValidationAccuracy*100),
@@ -2113,7 +2609,7 @@ func writeReportHTML(path string, summaries []profileSummary, repeats []repeatSu
 	fmt.Fprintf(&b, `<li><code>svm</code>, <code>perceptron</code>, and <code>passive_aggressive</code> use <code>numTrees</code> as learning-rate × 1000 and <code>minSamplesLeaf</code> as iterations.</li>`)
 	fmt.Fprintf(&b, `<li>Phase 1 runs a horizontal grid sweep; phase 2 repeats each profile's top <code>%d</code> grid point(s) <code>%d</code> times for stability.</li>`, stabilityTop, repeatCount)
 	fmt.Fprintf(&b, `<li>Inference speed is benchmarked on a fixed cached sample slice from the persisted dataset, so throughput and latency are comparable across all families.</li>`)
-	fmt.Fprintf(&b, `<li><code>random_forest</code>, <code>extra_trees</code>, <code>logistic</code>, <code>svm</code>, <code>perceptron</code>, and <code>passive_aggressive</code> are holdout-comparable in this repo; <code>knn</code>, <code>ridge</code>, <code>adaboost</code>, and <code>naive_bayes</code> currently report training-set-based scores in their trainers.</li>`)
+	fmt.Fprintf(&b, `<li><code>random_forest</code>, <code>extra_trees</code>, <code>logistic</code>, <code>svm</code>, <code>perceptron</code>, <code>passive_aggressive</code>, and <code>nearest_centroid</code> are holdout-comparable in this repo; <code>knn</code>, <code>ridge</code>, <code>adaboost</code>, and <code>naive_bayes</code> currently report training-set-based scores in their trainers.</li>`)
 	fmt.Fprintf(&b, `<li>We now track <strong>ALLOW pass rate</strong> alongside overall accuracy so the sweep does not over-optimize on catching bad commands while accidentally blocking good ones.</li>`)
 	fmt.Fprintf(&b, `<li>The sweep runs offline against the persisted dataset, so it does not require the live backend to be free.</li>`)
 	fmt.Fprintf(&b, `</ul></div>`)
@@ -2168,6 +2664,31 @@ func shortModelLabel(mt ModelType) string {
 	default:
 		return string(mt)
 	}
+}
+
+func shortProfileLabel(profile string) string {
+	label := strings.ReplaceAll(strings.TrimSpace(profile), "_", " ")
+	repl := strings.NewReplacer(
+		"random forest", "RF",
+		"extra trees", "ET",
+		"nearest centroid cosine", "NC cos",
+		"nearest centroid balanced", "NC bal",
+		"nearest centroid", "NC",
+		"logistic regression", "LR",
+		"logistic balanced", "LR bal",
+		"logistic", "LR",
+		"passive aggressive", "PA",
+		"passive aggressive balanced", "PA bal",
+		"perceptron", "Perc",
+		"perceptron balanced", "Perc bal",
+		"knn", "KNN",
+		"knn cosine", "KNN cos",
+		"adaboost", "Ada",
+		"naive bayes", "NB",
+		"naive bayes balanced", "NB bal",
+		"ensemble", "Ens",
+	)
+	return repl.Replace(label)
 }
 
 func colorForScore(v, minV, maxV float64) string {

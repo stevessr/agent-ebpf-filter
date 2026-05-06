@@ -18,29 +18,47 @@ PROFILE_TITLES = {
     "random_forest": "Random Forest",
     "extra_trees": "Extra Trees",
     "logistic": "Logistic Regression",
+    "logistic_balanced": "Logistic Balanced",
     "svm": "Linear SVM",
+    "svm_balanced": "Linear SVM Balanced",
     "perceptron": "Perceptron",
+    "perceptron_balanced": "Perceptron Balanced",
     "passive_aggressive": "Passive Aggressive",
+    "passive_aggressive_balanced": "Passive Aggressive Balanced",
     "knn": "KNN",
+    "knn_cosine": "KNN Cosine",
     "ridge": "Ridge",
     "adaboost": "AdaBoost",
     "naive_bayes": "Naive Bayes",
+    "naive_bayes_balanced": "Naive Bayes Balanced",
+    "nearest_centroid": "Nearest Centroid",
+    "nearest_centroid_balanced": "Nearest Centroid Balanced",
+    "nearest_centroid_cosine": "Nearest Centroid Cosine",
 }
 
 PROFILE_ACCENTS = {
     "random_forest": "linear-gradient(135deg, #60a5fa 0%, #2563eb 100%)",
     "extra_trees": "linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%)",
     "logistic": "linear-gradient(135deg, #34d399 0%, #059669 100%)",
+    "logistic_balanced": "linear-gradient(135deg, #10b981 0%, #047857 100%)",
     "svm": "linear-gradient(135deg, #fb7185 0%, #e11d48 100%)",
+    "svm_balanced": "linear-gradient(135deg, #f43f5e 0%, #be123c 100%)",
     "perceptron": "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+    "perceptron_balanced": "linear-gradient(135deg, #f59e0b 0%, #b45309 100%)",
     "passive_aggressive": "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
+    "passive_aggressive_balanced": "linear-gradient(135deg, #fb923c 0%, #c2410c 100%)",
     "knn": "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
+    "knn_cosine": "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
     "ridge": "linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%)",
     "adaboost": "linear-gradient(135deg, #f472b6 0%, #db2777 100%)",
     "naive_bayes": "linear-gradient(135deg, #64748b 0%, #334155 100%)",
+    "naive_bayes_balanced": "linear-gradient(135deg, #475569 0%, #1e293b 100%)",
+    "nearest_centroid": "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)",
+    "nearest_centroid_balanced": "linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)",
+    "nearest_centroid_cosine": "linear-gradient(135deg, #d946ef 0%, #a21caf 100%)",
 }
 
-REPORT_TITLE = "ML Sweep 扩大研究与参数范围"
+REPORT_TITLE = "ML Sweep 扩大研究：基础模型扩展与最新论文脉络"
 
 
 def parse_args() -> argparse.Namespace:
@@ -203,6 +221,10 @@ def escape(value: Any) -> str:
     return html.escape(str(value))
 
 
+def display_profile_title(profile: str) -> str:
+    return PROFILE_TITLES.get(profile, profile.replace("_", " ").title())
+
+
 def latest_rows_by_profile(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for profile, items in grouped(rows, "profile").items():
@@ -213,10 +235,7 @@ def latest_rows_by_profile(rows: list[dict[str, Any]]) -> dict[str, dict[str, An
 def profile_range_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows_by_profile = grouped(rows, "profile")
     summaries: list[dict[str, Any]] = []
-    for profile in PROFILE_TITLES:
-        items = rows_by_profile.get(profile, [])
-        if not items:
-            continue
+    for profile, items in rows_by_profile.items():
         xs = sorted({r["xValue"] for r in items})
         ys = sorted({r["yValue"] for r in items if r["yValue"] != 0})
         combo_count = len(items)
@@ -229,7 +248,7 @@ def profile_range_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         summaries.append(
             {
                 "profile": profile,
-                "title": PROFILE_TITLES.get(profile, profile),
+                "title": display_profile_title(profile),
                 "xText": x_text,
                 "yText": y_text,
                 "combos": combo_count,
@@ -239,11 +258,10 @@ def profile_range_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return summaries
 
 
-def select_gallery_variants(rows: list[dict[str, Any]], per_profile: int = 4) -> list[dict[str, Any]]:
+def select_gallery_variants(rows: list[dict[str, Any]], per_profile: int = 2) -> list[dict[str, Any]]:
     rows_by_profile = grouped(rows, "profile")
     gallery: list[dict[str, Any]] = []
-    for profile in PROFILE_TITLES:
-        items = rows_by_profile.get(profile, [])
+    for profile, items in rows_by_profile.items():
         if not items:
             continue
         ordered = sorted(
@@ -260,7 +278,7 @@ def select_gallery_variants(rows: list[dict[str, Any]], per_profile: int = 4) ->
         )
         for rank, row in enumerate(ordered[:per_profile], start=1):
             copy = dict(row)
-            copy["familyLabel"] = PROFILE_TITLES.get(profile, profile)
+            copy["familyLabel"] = display_profile_title(profile)
             copy["familyRank"] = rank
             copy["familyAccent"] = PROFILE_ACCENTS.get(profile, "linear-gradient(135deg, #60a5fa, #2563eb)")
             copy["variantLabel"] = f"{copy['familyLabel']} #{rank}"
@@ -302,7 +320,7 @@ def stat_card(label: str, value: str, note: str = "", accent: str = "var(--accen
 
 
 def render_variant_card(row: dict[str, Any]) -> str:
-    note = "holdout-comparable" if row["profile"] in {"random_forest", "extra_trees", "logistic", "svm", "perceptron", "passive_aggressive"} else "train-set / optimistic"
+    note = "holdout-comparable" if any(row["profile"].startswith(prefix) for prefix in ("random_forest", "extra_trees", "logistic", "svm", "perceptron", "passive_aggressive", "nearest_centroid", "ensemble")) else "train-set / optimistic"
     return f"""
       <div class="variant-card" style="--variant-accent:{row['familyAccent']};">
         <div class="variant-top">
@@ -371,9 +389,10 @@ def slide(
 def slide_cover(report_dir: Path, best: dict[str, Any], stability_best: dict[str, Any], stats: dict[str, Any]) -> str:
     best_screen = best.get("screenBest", {})
     stable_best = best.get("stableBest", {})
-    best_model = PROFILE_TITLES.get(best_screen.get("profile", ""), best_screen.get("profile", ""))
+    best_model = display_profile_title(best_screen.get("profile", ""))
+    repeat_runs = int(best.get("repeats", stable_best.get("runs", 1)) or 1)
     subtitle = (
-        f"本页基于最新 full sweep 报告 {escape(report_dir.name)} 生成，覆盖 10 类模型与 {stats['galleryCount']} 个代表性变体，并做 100 次稳定性重复。"
+        f"本页基于最新 full sweep 报告 {escape(report_dir.name)} 生成，覆盖 {stats['profileCount']} 个模型族与 {stats['galleryCount']} 个代表性变体，并做 {repeat_runs} 次稳定性重复。"
     )
     body = f"""
       <div class="cover-layout">
@@ -381,7 +400,7 @@ def slide_cover(report_dir: Path, best: dict[str, Any], stability_best: dict[str
           <div class="hero-pill">PPTX-style HTML · detailed analysis</div>
           <h2>扩大研究尺度与参数范围</h2>
           <p class="cover-text">
-            本次将模型搜索空间从单一参数验证扩展为更宽的组合网格，并对最优配置做 100 次稳定性重复。
+            本次将模型搜索空间从单一参数验证扩展为更宽的组合网格，并对最优配置做 {repeat_runs} 次稳定性重复。
             目标不是只找“最高的一次”，而是找在更大搜索空间里仍然稳定、可复现、可解释的方案。
             本页也额外覆盖了 <strong>{stats['galleryCount']}</strong> 个代表性模型变体，且同时对比了准确率、ALLOW 放行率、训练耗时与推理速度。
           </p>
@@ -405,7 +424,7 @@ def slide_cover(report_dir: Path, best: dict[str, Any], stability_best: dict[str
           </div>
           <div class="feature-card feature-card-secondary">
             <div class="feature-label">稳定最优配置</div>
-            <div class="feature-title">{escape(PROFILE_TITLES.get(stable_best.get("profile", ""), stable_best.get("profile", "")))}</div>
+            <div class="feature-title">{escape(display_profile_title(stable_best.get("profile", "")))}</div>
             <div class="feature-config">{escape(stable_best.get("configSummary", ""))}</div>
             <div class="feature-grid">
               <div><span>Mean ± Std</span><strong>{fmt_pct(stable_best.get('validationMean', 0.0))} ± {fmt_pct(stable_best.get('validationStd', 0.0))}</strong></div>
@@ -421,15 +440,15 @@ def slide_cover(report_dir: Path, best: dict[str, Any], stability_best: dict[str
     return slide(1, "Cover", REPORT_TITLE, subtitle, body, "linear-gradient(135deg, #60a5fa, #8b5cf6)")
 
 
-def slide_scope(report_dir: Path, rows: list[dict[str, Any]], summaries: list[dict[str, Any]]) -> str:
-    left = """
+def slide_scope(report_dir: Path, rows: list[dict[str, Any]], summaries: list[dict[str, Any]], stats: dict[str, Any]) -> str:
+    left = f"""
       <div class="panel">
         <h3>研究如何被扩大</h3>
         <ul class="bullet-list">
-          <li>从单点验证扩展为 <strong>全模型横向 sweep</strong>，覆盖树模型、线性模型、KNN、Ridge、AdaBoost、Naive Bayes。</li>
+          <li>从单点验证扩展为 <strong>全模型横向 sweep</strong>，覆盖树模型、线性模型、KNN、Ridge、AdaBoost、Naive Bayes 与 Ensemble，并拆出更多变体家族。</li>
           <li>树模型参数改为更宽的 <strong>numTrees × maxDepth</strong> 网格；线性模型扩大 <strong>learning rate × iterations</strong> 的搜索范围。</li>
-          <li>演示页额外抽取每个 family 的 top 4 配置，形成 <strong>30+ 代表性模型变体</strong> 的可视化画廊。</li>
-          <li>对每个模型族选出的最优点，再做 <strong>100 次独立重复</strong> 观察均值、标准差和成功率。</li>
+          <li>演示页额外抽取每个 family 的 top 4 配置，形成 <strong>{stats['galleryCount']} 个代表性模型变体</strong> 的可视化画廊。</li>
+          <li>对每个模型族选出的最优点，再做 <strong>稳定性重复</strong> 观察均值、标准差和成功率。</li>
           <li>最终判断不再只看单次准确率，而是看 <strong>稳定均值、ALLOW 放行率、方差、推理速度、耗时</strong> 和数据集可编辑性。</li>
         </ul>
       </div>
@@ -451,8 +470,57 @@ def slide_scope(report_dir: Path, rows: list[dict[str, Any]], summaries: list[di
       </div>
     """
     body = f'<div class="grid grid-2">{left}{right}</div>'
-    subtitle = f"本轮 sweep 统计 {len(rows)} 条单次训练结果，重点展示扩大的搜索空间和参数组合总量，同时在演示页中加入 30+ 代表性变体。"
+    subtitle = f"本轮 sweep 统计 {len(rows)} 条单次训练结果，重点展示扩大的搜索空间和参数组合总量，同时在演示页中加入 {len(summaries)} 个模型族的代表性变体。"
     return slide(2, "Research scope", "更大的搜索空间，更严格的评价口径", subtitle, body, "linear-gradient(135deg, #34d399, #059669)")
+
+
+def slide_literature() -> str:
+    left = f"""
+      <div class="panel">
+        <h3>最新论文给了什么信号</h3>
+        <ul class="bullet-list">
+          <li><strong>CLIMB (2025)</strong>：类不平衡 tabular 任务里，单纯重采样不一定有效，ensemble 往往更稳；评价指标不能只看准确率。</li>
+          <li><strong>PMLBmini (2024)</strong>：在低数据区间里，简单逻辑回归仍然是强基线，AutoML / deep learning 并不总能稳定压过它。</li>
+          <li><strong>TabArena (2025)</strong>：living benchmark 的核心不是堆榜，而是持续更新数据集、模型与评测协议，并把 tuning + ensembling 看成真实上限的一部分。</li>
+          <li><strong>综合基准 (2024)</strong>：传统树模型依旧很强，但在充分调参与合并后，深度模型在部分 tabular 任务上也能接近甚至超过它们。</li>
+          <li><strong>对本仓库的直接启发</strong>：我把线性、树、近邻、朴素贝叶斯的“基础模型 + 变种”一起拉进来，并同时看准确率、ALLOW 放行率、推理速度与训练耗时。</li>
+        </ul>
+      </div>
+    """
+    rows_html = [
+        [
+            "CLIMB 2025",
+            "不平衡数据上，单纯重采样未必提升；ensemble 更稳，指标不能只看 accuracy。",
+            "增加 balanced 变体，并把 ALLOW 放行率纳入主表。",
+        ],
+        [
+            "PMLBmini 2024",
+            "小样本 tabular 里，逻辑回归仍然常常是强基线。",
+            "保留并扩展 logistic / ridge / nearest centroid 这类轻量基线。",
+        ],
+        [
+            "TabArena 2025",
+            "living benchmark 要持续更新数据、模型和协议，而不是静态堆分数。",
+            "把 sweep、repeat、图表、HTML 演示页做成可复用流程。",
+        ],
+        [
+            "综合基准 2024",
+            "树模型仍强，但调参 + 合并后，深度模型在部分 tabular 任务可竞争。",
+            "对随机森林 / Extra Trees / ensemble 做更宽参数扫描。",
+        ],
+    ]
+    right = f"""
+      <div class="panel">
+        <h3>论文 → 工程映射</h3>
+        {table(["论文", "关键结论", "本仓库里的对应动作"], rows_html, "compact")}
+        <div class="small" style="margin-top:10px;opacity:.82;">
+          注：最后一列是基于论文结论做出的工程映射（推断），不是论文原文。
+        </div>
+      </div>
+    """
+    body = f'<div class="grid grid-2">{left}{right}</div>'
+    subtitle = "这一页把近期 tabular benchmark 的共识，翻译成这次基础模型扩展与参数搜索的工程选择。"
+    return slide(3, "Literature", "参考最新论文，继续扩展基础模型", subtitle, body, "linear-gradient(135deg, #f59e0b, #d97706)")
 
 
 def slide_overall(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
@@ -465,7 +533,7 @@ def slide_overall(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
     for row in ordered:
         table_rows.append(
             [
-                escape(PROFILE_TITLES.get(row["profile"], row["profile"])),
+                escape(display_profile_title(row["profile"])),
                 escape(row["configSummary"]),
                 fmt_pct(row["validationAccuracy"]),
                 fmt_pct(row.get("allowPassRate", 0.0)),
@@ -494,7 +562,7 @@ def slide_overall(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
       </div>
     """
     subtitle = "除了整体验证准确率，这一页也把 ALLOW 放行率摆到同一张表里，避免只看错误率而误伤正确命令。"
-    return slide(3, "Model comparison", "所有模型的准确率与放行率横向对比", subtitle, body, "linear-gradient(135deg, #60a5fa, #2563eb)")
+    return slide(4, "Model comparison", "所有模型的准确率与放行率横向对比", subtitle, body, "linear-gradient(135deg, #60a5fa, #2563eb)")
 
 
 def slide_speed(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
@@ -507,7 +575,7 @@ def slide_speed(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
     for row in ordered:
         table_rows.append(
             [
-                escape(PROFILE_TITLES.get(row["profile"], row["profile"])),
+                escape(display_profile_title(row["profile"])),
                 escape(row["configSummary"]),
                 fmt_pct(row["validationAccuracy"]),
                 fmt_pct(row.get("allowPassRate", 0.0)),
@@ -530,14 +598,14 @@ def slide_speed(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
       </div>
     """
     subtitle = "推理速度采用同一批缓存样本进行计时，因此可以跨模型家族横向比较。"
-    return slide(4, "Inference speed", "推理速度横向对比", subtitle, body, "linear-gradient(135deg, #22c55e, #16a34a)")
+    return slide(5, "Inference speed", "推理速度横向对比", subtitle, body, "linear-gradient(135deg, #22c55e, #16a34a)")
 
 
 def slide_gallery_one(variants: list[dict[str, Any]]) -> str:
     subtitle = f"每个 family 取 top 4 的前半部分，共 {len(variants)} 个代表性配置。"
     return variant_gallery_slide(
-        5,
-        "30+ representative variants I",
+        6,
+        "Representative variants I",
         subtitle,
         variants,
         "linear-gradient(135deg, #f59e0b, #d97706)",
@@ -547,8 +615,8 @@ def slide_gallery_one(variants: list[dict[str, Any]]) -> str:
 def slide_gallery_two(variants: list[dict[str, Any]]) -> str:
     subtitle = f"每个 family 取 top 4 的中后段，共 {len(variants)} 个代表性配置。"
     return variant_gallery_slide(
-        6,
-        "30+ representative variants II",
+        7,
+        "Representative variants II",
         subtitle,
         variants,
         "linear-gradient(135deg, #f97316, #ea580c)",
@@ -558,8 +626,8 @@ def slide_gallery_two(variants: list[dict[str, Any]]) -> str:
 def slide_gallery_three(variants: list[dict[str, Any]]) -> str:
     subtitle = f"每个 family 取 top 4 的收尾部分，共 {len(variants)} 个代表性配置。"
     return variant_gallery_slide(
-        7,
-        "30+ representative variants III",
+        8,
+        "Representative variants III",
         subtitle,
         variants,
         "linear-gradient(135deg, #0ea5e9, #0284c7)",
@@ -567,6 +635,7 @@ def slide_gallery_three(variants: list[dict[str, Any]]) -> str:
 
 
 def slide_stability(stability: list[dict[str, Any]], best: dict[str, Any]) -> str:
+    repeat_runs = int(best.get("repeats", 1) or 1)
     comparable = [r for r in stability if r["comparable"]]
     comparable_sorted = sorted(
         comparable,
@@ -576,7 +645,7 @@ def slide_stability(stability: list[dict[str, Any]], best: dict[str, Any]) -> st
     for row in comparable_sorted:
         rows_html.append(
             [
-                escape(PROFILE_TITLES.get(row["profile"], row["profile"])),
+                escape(display_profile_title(row["profile"])),
                 escape(row["configSummary"]),
                 fmt_pct(row["validationMean"]),
                 fmt_pct(row["validationStd"]),
@@ -597,13 +666,18 @@ def slide_stability(stability: list[dict[str, Any]], best: dict[str, Any]) -> st
           </div>
         </div>
         <div class="panel">
-          <h3>可比模型 100 次重复统计</h3>
+          <h3>可比模型 {repeat_runs} 次重复统计</h3>
           {table(["模型", "最佳配置", "Mean", "Std", "ALLOW", "ALLOW Std", "Speed", "Latency", "Success"], rows_html, "compact")}
         </div>
       </div>
     """
-    subtitle = "真正决定可用性的，不是一次最高值，而是 100 次重复之后的均值、放行率、波动、成功率和推理速度。"
-    return slide(8, "Stability", "稳定性分析：谁在 100 次重复里站得住", subtitle, body, "linear-gradient(135deg, #a78bfa, #7c3aed)")
+    if repeat_runs > 1:
+        title = f"稳定性分析：谁在 {repeat_runs} 次重复里站得住"
+        subtitle = f"真正决定可用性的，不是一次最高值，而是 {repeat_runs} 次重复之后的均值、放行率、波动、成功率和推理速度。"
+    else:
+        title = "探索性稳定性分析：谁在这轮探索里站得住"
+        subtitle = "真正决定可用性的，不是一次最高值，而是这轮探索里观察到的均值、放行率、波动、成功率和推理速度。"
+    return slide(9, "Stability", title, subtitle, body, "linear-gradient(135deg, #a78bfa, #7c3aed)")
 
 
 def top_configs_table(rows: list[dict[str, Any]], limit: int = 5) -> str:
@@ -654,7 +728,7 @@ def slide_random_forest(rows: list[dict[str, Any]], stability: list[dict[str, An
       </div>
     """
     subtitle = "随机森林是本次 sweep 的核心候选，也是唯一在大多数重复里稳过 99% 的模型；这里同时看准确率、正确命令放行率、训练耗时和推理速度。"
-    return slide(9, "Deep dive", "最好模型的参数准确率与耗时分析", subtitle, body, "linear-gradient(135deg, #22c55e, #16a34a)", dense=True)
+    return slide(10, "Deep dive", "最好模型的参数准确率与耗时分析", subtitle, body, "linear-gradient(135deg, #22c55e, #16a34a)", dense=True)
 
 
 def slide_tree_family(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
@@ -676,8 +750,8 @@ def slide_tree_family(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
         <div class="panel">
           <h3>树模型最佳点对比</h3>
           {table(["模型", "最佳配置", "Val", "ALLOW", "Train", "Time", "Infer/s", "Latency"], [
-              [escape(PROFILE_TITLES.get(rf.get("profile", ""), "Random Forest")), escape(rf.get("configSummary", "")), fmt_pct(rf.get("validationAccuracy", 0.0)), fmt_pct(rf.get("allowPassRate", 0.0)), fmt_pct(rf.get("trainAccuracy", 0.0)), fmt_seconds(rf.get("durationSeconds", 0.0)), fmt_rate(rf.get("inferenceThroughput", 0.0)), fmt_latency_ms(rf.get("inferenceLatencyMs", 0.0))],
-              [escape(PROFILE_TITLES.get(et.get("profile", ""), "Extra Trees")), escape(et.get("configSummary", "")), fmt_pct(et.get("validationAccuracy", 0.0)), fmt_pct(et.get("allowPassRate", 0.0)), fmt_pct(et.get("trainAccuracy", 0.0)), fmt_seconds(et.get("durationSeconds", 0.0)), fmt_rate(et.get("inferenceThroughput", 0.0)), fmt_latency_ms(et.get("inferenceLatencyMs", 0.0))],
+              [escape(display_profile_title(rf.get("profile", ""))), escape(rf.get("configSummary", "")), fmt_pct(rf.get("validationAccuracy", 0.0)), fmt_pct(rf.get("allowPassRate", 0.0)), fmt_pct(rf.get("trainAccuracy", 0.0)), fmt_seconds(rf.get("durationSeconds", 0.0)), fmt_rate(rf.get("inferenceThroughput", 0.0)), fmt_latency_ms(rf.get("inferenceLatencyMs", 0.0))],
+              [escape(display_profile_title(et.get("profile", ""))), escape(et.get("configSummary", "")), fmt_pct(et.get("validationAccuracy", 0.0)), fmt_pct(et.get("allowPassRate", 0.0)), fmt_pct(et.get("trainAccuracy", 0.0)), fmt_seconds(et.get("durationSeconds", 0.0)), fmt_rate(et.get("inferenceThroughput", 0.0)), fmt_latency_ms(et.get("inferenceLatencyMs", 0.0))],
           ], "compact")}
         </div>
         <div class="panel">
@@ -690,7 +764,7 @@ def slide_tree_family(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
       </div>
     """
     subtitle = "树模型是当前数据集上最值得继续挖掘的方向，随机森林表现明显领先 Extra Trees。"
-    return slide(10, "Tree family", "树模型家族横向对比", subtitle, body, "linear-gradient(135deg, #8b5cf6, #7c3aed)", dense=True)
+    return slide(11, "Tree family", "树模型家族横向对比", subtitle, body, "linear-gradient(135deg, #8b5cf6, #7c3aed)", dense=True)
 
 
 def slide_linear_family(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
@@ -723,17 +797,17 @@ def slide_linear_family(rows: list[dict[str, Any]], best: dict[str, Any]) -> str
           </ul>
           <div class="mini-table">
             {table(["模型", "最佳配置", "Val", "ALLOW", "Train", "Time", "Infer/s", "Latency"], [
-                [escape(PROFILE_TITLES.get("logistic", "Logistic")), escape(best_map.get("logistic", {}).get("configSummary", "")), fmt_pct(best_map.get("logistic", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("logistic", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("logistic", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("logistic", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("logistic", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("logistic", {}).get("inferenceLatencyMs", 0.0))],
-                [escape(PROFILE_TITLES.get("svm", "SVM")), escape(best_map.get("svm", {}).get("configSummary", "")), fmt_pct(best_map.get("svm", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("svm", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("svm", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("svm", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("svm", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("svm", {}).get("inferenceLatencyMs", 0.0))],
-                [escape(PROFILE_TITLES.get("perceptron", "Perceptron")), escape(best_map.get("perceptron", {}).get("configSummary", "")), fmt_pct(best_map.get("perceptron", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("perceptron", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("perceptron", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("perceptron", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("perceptron", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("perceptron", {}).get("inferenceLatencyMs", 0.0))],
-                [escape(PROFILE_TITLES.get("passive_aggressive", "Passive Aggressive")), escape(best_map.get("passive_aggressive", {}).get("configSummary", "")), fmt_pct(best_map.get("passive_aggressive", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("passive_aggressive", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("passive_aggressive", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("passive_aggressive", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("passive_aggressive", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("passive_aggressive", {}).get("inferenceLatencyMs", 0.0))],
+                [escape(display_profile_title("logistic")), escape(best_map.get("logistic", {}).get("configSummary", "")), fmt_pct(best_map.get("logistic", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("logistic", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("logistic", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("logistic", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("logistic", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("logistic", {}).get("inferenceLatencyMs", 0.0))],
+                [escape(display_profile_title("svm")), escape(best_map.get("svm", {}).get("configSummary", "")), fmt_pct(best_map.get("svm", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("svm", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("svm", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("svm", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("svm", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("svm", {}).get("inferenceLatencyMs", 0.0))],
+                [escape(display_profile_title("perceptron")), escape(best_map.get("perceptron", {}).get("configSummary", "")), fmt_pct(best_map.get("perceptron", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("perceptron", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("perceptron", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("perceptron", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("perceptron", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("perceptron", {}).get("inferenceLatencyMs", 0.0))],
+                [escape(display_profile_title("passive_aggressive")), escape(best_map.get("passive_aggressive", {}).get("configSummary", "")), fmt_pct(best_map.get("passive_aggressive", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("passive_aggressive", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("passive_aggressive", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("passive_aggressive", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("passive_aggressive", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("passive_aggressive", {}).get("inferenceLatencyMs", 0.0))],
             ], "compact")}
           </div>
         </div>
       </div>
     """
     subtitle = "线性模型可以保留为轻量基线，但从结果上看并不是当前数据集的主力方案。"
-    return slide(11, "Linear family", "线性模型家族分析", subtitle, body, "linear-gradient(135deg, #f97316, #ea580c)", dense=True)
+    return slide(12, "Linear family", "线性模型家族分析", subtitle, body, "linear-gradient(135deg, #f97316, #ea580c)", dense=True)
 
 
 def slide_baselines(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
@@ -767,34 +841,36 @@ def slide_baselines(rows: list[dict[str, Any]], best: dict[str, Any]) -> str:
           </ul>
           <div class="mini-table">
             {table(["模型", "最佳配置", "Val", "ALLOW", "Train", "Time", "Infer/s", "Latency"], [
-                [escape(PROFILE_TITLES.get("knn", "KNN")), escape(best_map.get("knn", {}).get("configSummary", "")), fmt_pct(best_map.get("knn", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("knn", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("knn", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("knn", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("knn", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("knn", {}).get("inferenceLatencyMs", 0.0))],
-                [escape(PROFILE_TITLES.get("ridge", "Ridge")), escape(best_map.get("ridge", {}).get("configSummary", "")), fmt_pct(best_map.get("ridge", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("ridge", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("ridge", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("ridge", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("ridge", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("ridge", {}).get("inferenceLatencyMs", 0.0))],
-                [escape(PROFILE_TITLES.get("adaboost", "AdaBoost")), escape(best_map.get("adaboost", {}).get("configSummary", "")), fmt_pct(best_map.get("adaboost", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("adaboost", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("adaboost", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("adaboost", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("adaboost", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("adaboost", {}).get("inferenceLatencyMs", 0.0))],
-                [escape(PROFILE_TITLES.get("naive_bayes", "Naive Bayes")), escape(best_map.get("naive_bayes", {}).get("configSummary", "")), fmt_pct(best_map.get("naive_bayes", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("naive_bayes", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("naive_bayes", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("naive_bayes", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("naive_bayes", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("naive_bayes", {}).get("inferenceLatencyMs", 0.0))],
+                [escape(display_profile_title("knn")), escape(best_map.get("knn", {}).get("configSummary", "")), fmt_pct(best_map.get("knn", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("knn", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("knn", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("knn", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("knn", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("knn", {}).get("inferenceLatencyMs", 0.0))],
+                [escape(display_profile_title("ridge")), escape(best_map.get("ridge", {}).get("configSummary", "")), fmt_pct(best_map.get("ridge", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("ridge", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("ridge", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("ridge", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("ridge", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("ridge", {}).get("inferenceLatencyMs", 0.0))],
+                [escape(display_profile_title("adaboost")), escape(best_map.get("adaboost", {}).get("configSummary", "")), fmt_pct(best_map.get("adaboost", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("adaboost", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("adaboost", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("adaboost", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("adaboost", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("adaboost", {}).get("inferenceLatencyMs", 0.0))],
+                [escape(display_profile_title("naive_bayes")), escape(best_map.get("naive_bayes", {}).get("configSummary", "")), fmt_pct(best_map.get("naive_bayes", {}).get("validationAccuracy", 0.0)), fmt_pct(best_map.get("naive_bayes", {}).get("allowPassRate", 0.0)), fmt_pct(best_map.get("naive_bayes", {}).get("trainAccuracy", 0.0)), fmt_seconds(best_map.get("naive_bayes", {}).get("durationSeconds", 0.0)), fmt_rate(best_map.get("naive_bayes", {}).get("inferenceThroughput", 0.0)), fmt_latency_ms(best_map.get("naive_bayes", {}).get("inferenceLatencyMs", 0.0))],
             ], "compact")}
           </div>
         </div>
       </div>
     """
     subtitle = "这些模型的价值在于提供下限和速度参考，而不是与随机森林争夺最终选型。"
-    return slide(12, "Baselines", "KNN / Ridge / AdaBoost / Naive Bayes", subtitle, body, "linear-gradient(135deg, #64748b, #334155)", dense=True)
+    return slide(13, "Baselines", "KNN / Ridge / AdaBoost / Naive Bayes", subtitle, body, "linear-gradient(135deg, #64748b, #334155)", dense=True)
 
 
-def slide_conclusion(best: dict[str, Any], stability: list[dict[str, Any]], report_dir: Path, gallery_count: int) -> str:
+def slide_conclusion(best: dict[str, Any], stability: list[dict[str, Any]], report_dir: Path, gallery_count: int, profile_count: int) -> str:
     stable_best = best.get("stableBest", {})
     screen_best = best.get("screenBest", {})
+    stable_runs = int(stable_best.get("runs", best.get("repeats", 1)) or 1)
+    recommendation_label = "最终推荐" if stable_runs > 1 else "当前推荐"
     conclusion = []
     conclusion.append(
-        f"<li><strong>最终推荐：</strong> {escape(PROFILE_TITLES.get(stable_best.get('profile', ''), stable_best.get('profile', '')))}，配置 {escape(stable_best.get('configSummary', ''))}。</li>"
+        f"<li><strong>{recommendation_label}：</strong> {escape(display_profile_title(stable_best.get('profile', '')))}，配置 {escape(stable_best.get('configSummary', ''))}。</li>"
     )
     conclusion.append(
-        f"<li><strong>稳定性：</strong> 100 次重复均值 {fmt_pct(stable_best.get('validationMean', 0.0))}，ALLOW 放行 {fmt_pct(stable_best.get('allowMean', 0.0))}，标准差 {fmt_pct(stable_best.get('validationStd', 0.0))}，成功率 {fmt_pct(stable_best.get('successRate', 0.0))}，推理速度 {fmt_rate(stable_best.get('inferenceMean', 0.0))}。</li>"
+        f"<li><strong>稳定性：</strong> {stable_runs} 次重复均值 {fmt_pct(stable_best.get('validationMean', 0.0))}，ALLOW 放行 {fmt_pct(stable_best.get('allowMean', 0.0))}，标准差 {fmt_pct(stable_best.get('validationStd', 0.0))}，成功率 {fmt_pct(stable_best.get('successRate', 0.0))}，推理速度 {fmt_rate(stable_best.get('inferenceMean', 0.0))}。</li>"
     )
     conclusion.append(
-        f"<li><strong>单次峰值：</strong> {escape(PROFILE_TITLES.get(screen_best.get('profile', ''), screen_best.get('profile', '')))} 的单次最佳可达 {fmt_pct(screen_best.get('validationAccuracy', 0.0))}，ALLOW 放行 {fmt_pct(screen_best.get('allowPassRate', 0.0))}，推理速度 {fmt_rate(screen_best.get('inferenceThroughput', 0.0))}。</li>"
+        f"<li><strong>单次峰值：</strong> {escape(display_profile_title(screen_best.get('profile', '')))} 的单次最佳可达 {fmt_pct(screen_best.get('validationAccuracy', 0.0))}，ALLOW 放行 {fmt_pct(screen_best.get('allowPassRate', 0.0))}，推理速度 {fmt_rate(screen_best.get('inferenceThroughput', 0.0))}。</li>"
     )
     conclusion.append(
-        f"<li><strong>覆盖面：</strong> 当前 deck 覆盖 10 个模型族，并在画廊里展示了 {gallery_count} 个代表性变体。</li>"
+        f"<li><strong>覆盖面：</strong> 当前 deck 覆盖 {profile_count} 个模型族，并在画廊里展示了 {gallery_count} 个代表性变体。</li>"
     )
     conclusion.append(
         "<li><strong>建议：</strong> 保留数据集编辑入口，继续增加少量少数类样本后再复测，以观察稳定均值是否还能再抬高。</li>"
@@ -810,7 +886,7 @@ def slide_conclusion(best: dict[str, Any], stability: list[dict[str, Any]], repo
           <div class="callout">
             <div class="callout-title">一句话结论</div>
             <div class="callout-body">
-              在更大的参数空间里，<strong>随机森林</strong> 仍然是最稳、最接近目标胜率的方案；其它模型要么只在单次切分上偶尔冒尖，要么稳定性和上限都弱一些。现在我们还把 <strong>ALLOW 放行率</strong> 和推理速度一起放进了同一套横向比较里。
+              在更大的参数空间里，<strong>随机森林</strong> 仍然是最强的高精度候选；其它模型要么只在单次切分上偶尔冒尖，要么稳定性和上限都弱一些。现在我们还把 <strong>ALLOW 放行率</strong> 和推理速度一起放进了同一套横向比较里。
             </div>
           </div>
         </div>
@@ -833,7 +909,7 @@ def slide_conclusion(best: dict[str, Any], stability: list[dict[str, Any]], repo
       </div>
     """
     subtitle = "完成扩大范围后的研究后，最终输出不仅是答案，还有可复用的展示和复测脚本。"
-    return slide(13, "Summary", "最终结论与后续动作", subtitle, body, "linear-gradient(135deg, #0ea5e9, #0284c7)")
+    return slide(14, "Summary", "最终结论与后续动作", subtitle, body, "linear-gradient(135deg, #0ea5e9, #0284c7)")
 
 
 def build_html(report_dir: Path, best: dict[str, Any], rows: list[dict[str, Any]], stability: list[dict[str, Any]]) -> str:
@@ -852,7 +928,8 @@ def build_html(report_dir: Path, best: dict[str, Any], rows: list[dict[str, Any]
     }
 
     cover = slide_cover(report_dir, best, stability_best, stats)
-    scope = slide_scope(report_dir, rows, summaries)
+    scope = slide_scope(report_dir, rows, summaries, stats)
+    literature = slide_literature()
     overall = slide_overall(rows, best)
     speed = slide_speed(rows, best)
     gallery_slide_1 = slide_gallery_one(gallery_first)
@@ -863,30 +940,32 @@ def build_html(report_dir: Path, best: dict[str, Any], rows: list[dict[str, Any]
     tree_family = slide_tree_family(rows, best)
     linear_family = slide_linear_family(rows, best)
     baselines = slide_baselines(rows, best)
-    conclusion = slide_conclusion(best, stability, report_dir, stats["galleryCount"])
+    conclusion = slide_conclusion(best, stability, report_dir, stats["galleryCount"], stats["profileCount"])
 
     toc_links = "".join(
         f'<a href="#slide-{i}" class="toc-chip">{i:02d} · {title}</a>'
         for i, title in [
             (1, "Cover"),
             (2, "Scope"),
-            (3, "Overall"),
-            (4, "Speed"),
-            (5, "Gallery I"),
-            (6, "Gallery II"),
-            (7, "Gallery III"),
-            (8, "Stability"),
-            (9, "Random Forest"),
-            (10, "Tree Family"),
-            (11, "Linear Family"),
-            (12, "Baselines"),
-            (13, "Conclusion"),
+            (3, "Literature"),
+            (4, "Overall"),
+            (5, "Speed"),
+            (6, "Gallery I"),
+            (7, "Gallery II"),
+            (8, "Gallery III"),
+            (9, "Stability"),
+            (10, "Random Forest"),
+            (11, "Tree Family"),
+            (12, "Linear Family"),
+            (13, "Baselines"),
+            (14, "Conclusion"),
         ]
     )
 
     slides = "\n".join([
         cover,
         scope,
+        literature,
         overall,
         speed,
         gallery_slide_1,
