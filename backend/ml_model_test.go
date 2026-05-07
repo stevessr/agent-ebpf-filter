@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -26,10 +27,12 @@ func initMLTest(t *testing.T, nSamples int) {
 			features[d] = rng.Float64()
 		}
 		globalTrainingStore.Add(TrainingSample{
-			Features: features,
-			Label:    int32(i % 4),
-			Comm:     fmt.Sprintf("cmd-%d", i%4),
-			Args:     []string{fmt.Sprintf("arg-%d", i)},
+			Features:  features,
+			Label:     int32(i % 4),
+			Comm:      fmt.Sprintf("cmd-%d", i%4),
+			Args:      []string{fmt.Sprintf("arg-%d", i)},
+			Timestamp: time.Now(),
+			UserLabel: "test",
 		})
 	}
 }
@@ -371,6 +374,8 @@ func initTestStore(n int) *TrainingDataStore {
 			Label:       int32(i % 4),
 			Comm:        "test",
 			CommandLine: fmt.Sprintf("test-%d", i),
+			Timestamp:   time.Now(),
+			UserLabel:   "test",
 		})
 	}
 	return globalTrainingStore
@@ -450,6 +455,57 @@ func TestTrainerAllModelTypes(t *testing.T) {
 			t.Logf("model file: %s exists and reloads", path)
 		})
 	}
+}
+
+func TestMLCRuntimeStatusForForest(t *testing.T) {
+	initMLTest(t, 300)
+	cfg := DefaultMLConfig()
+	cfg.ModelType = ModelRandomForest
+	cfg.NumTrees = 5
+	cfg.MaxDepth = 4
+	cfg.MinSamplesLeaf = 2
+
+	globalTrainer.ResetCancel()
+	model, result := globalTrainer.TrainWithConfig(globalTrainingStore, cfg)
+	if result.Error != "" {
+		t.Fatalf("TrainWithConfig failed: %s", result.Error)
+	}
+	if model == nil {
+		t.Fatal("nil model returned")
+	}
+
+	mlCRuntimeMu.Lock()
+	mlCRuntimeAt = time.Time{}
+	mlCRuntimeKey = ""
+	mlCRuntimeMu.Unlock()
+
+	status := buildMLCRuntimeStatus(model, globalTrainingStore)
+	if !status.Available {
+		t.Fatal("C runtime status should be available")
+	}
+	if !status.CSupported {
+		t.Fatalf("random forest should have a C inference kernel: %+v", status)
+	}
+	if status.SampleCount == 0 {
+		t.Fatal("expected benchmark samples")
+	}
+	if status.GoMsPerSample <= 0 || status.CMsPerSample <= 0 {
+		t.Fatalf("expected positive runtime numbers: go=%f c=%f", status.GoMsPerSample, status.CMsPerSample)
+	}
+	if len(status.Backends) < 3 {
+		t.Fatalf("expected C CPU, CUDA, and Intel iGPU backend entries, got %d", len(status.Backends))
+	}
+	backendIDs := map[string]bool{}
+	for _, backend := range status.Backends {
+		backendIDs[backend.ID] = true
+	}
+	for _, id := range []string{"c_cpu", "cuda", "intel_igpu"} {
+		if !backendIDs[id] {
+			t.Fatalf("missing backend %s in %+v", id, status.Backends)
+		}
+	}
+	t.Logf("C runtime: go=%.6fms c=%.6fms speedup=%.2fx backend=%s",
+		status.GoMsPerSample, status.CMsPerSample, status.Speedup, status.ActiveBackend)
 }
 
 // ── Trainer edge cases ──────────────────────────────────────────────

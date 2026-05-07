@@ -110,6 +110,29 @@ export interface MLBuiltinModelCatalogItem {
   tags?: string[];
 }
 
+export interface MLCRuntimeBackend {
+  id: string;
+  label: string;
+  available: boolean;
+  accelerated: boolean;
+  detail?: string;
+}
+
+export interface MLCRuntimeStatus {
+  available: boolean;
+  activeBackend: string;
+  benchmarkBackend: string;
+  backends: MLCRuntimeBackend[];
+  modelType?: string;
+  cSupported: boolean;
+  sampleCount: number;
+  goMsPerSample?: number;
+  cMsPerSample?: number;
+  speedup?: number;
+  updatedAt?: string;
+  note?: string;
+}
+
 export interface MLStatusState {
   model_type?: string;
   model_loaded: boolean;

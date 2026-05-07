@@ -35,6 +35,7 @@ func buildMLStatusJSON() []byte {
 		"cudaInfo":             cudaInfo,
 		"cudaMemUsedMB":        cuda.MemUsedMB(),
 		"cudaMemTotalMB":       cuda.MemTotalMB(),
+		"cRuntime":             buildMLCRuntimeStatus(mlEngine, globalTrainingStore),
 		"modelType":            string(currentModelType),
 		"availableModelTypes":  AllModelTypeStrings(),
 		"builtinModels":        BuiltinModelCatalog(),

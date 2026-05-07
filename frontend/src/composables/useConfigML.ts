@@ -7,7 +7,7 @@ import type {
   MLTrainingHistoryEntry, MLCommandSafetyResult,
   SampleEntry, ExistingCommandCandidate, RemoteDatasetRow, RemoteDatasetResponse,
   LLMProductionDatasetResponse, LLMProductionDatasetRow,
-  ClassicSecurityDatasetPreset, MLBuiltinModelCatalogItem,
+  ClassicSecurityDatasetPreset, MLBuiltinModelCatalogItem, MLCRuntimeStatus,
 } from '../types/config';
 
 import { defaultMLBuiltinModelCatalog, findMLBuiltinModel } from '../data/mlModelCatalog';
@@ -39,6 +39,7 @@ export function useConfigML() {
   const cudaInfo = ref('');
   const cudaMemUsedMB = ref(0);
   const cudaMemTotalMB = ref(0);
+  const mlCRuntime = ref<MLCRuntimeStatus | null>(null);
   const cancellingTraining = ref(false);
   const mlStatus = ref<MLStatusState>({
     model_type: 'random_forest', model_loaded: false, num_trees: 0, num_samples: 0, num_labeled_samples: 0,
@@ -127,6 +128,7 @@ export function useConfigML() {
     cudaInfo.value = data.cudaInfo ?? data.cuda_info ?? '';
     cudaMemUsedMB.value = data.cudaMemUsedMB ?? data.cuda_mem_used_mb ?? 0;
     cudaMemTotalMB.value = data.cudaMemTotalMB ?? data.cuda_mem_total_mb ?? 0;
+    mlCRuntime.value = data.cRuntime ?? data.c_runtime ?? mlCRuntime.value;
     mlStatus.value.model_type = modelType.value;
     mlStatus.value.model_loaded = data.modelLoaded ?? data.model_loaded ?? false;
     mlStatus.value.num_trees = data.numTrees ?? data.num_trees ?? 0;
@@ -920,7 +922,7 @@ export function useConfigML() {
     mlThresholds, mlTrainingConfig, llmScoringConfig, llmBatchConfig,
     llmBatchResponse, llmBatchLoading, trainingLogs, wsActive, logPollTimer,
     llmSaveStatus, saveLLMConfigNow,
-    modelType, builtinModelCatalog, selectedBuiltinModel, modelBaseType, autoTuneAxisOptions, cudaAvailable, cudaInfo, cudaMemUsedMB, cudaMemTotalMB, cancelTraining, cancellingTraining,
+    modelType, builtinModelCatalog, selectedBuiltinModel, modelBaseType, autoTuneAxisOptions, cudaAvailable, cudaInfo, cudaMemUsedMB, cudaMemTotalMB, mlCRuntime, cancelTraining, cancellingTraining,
     trainingHistory, hyperParams,
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
     autoTuneMinX, autoTuneMaxX, autoTuneMinY, autoTuneMaxY,

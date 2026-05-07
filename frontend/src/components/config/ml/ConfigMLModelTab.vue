@@ -9,12 +9,53 @@ const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 
 const {
   mlStatus, trainingModel, feedbackComm, feedbackAction,
-  cudaAvailable, cudaMemUsedMB, cudaMemTotalMB, cancellingTraining,
+  cudaAvailable, cudaMemUsedMB, cudaMemTotalMB, mlCRuntime, cancellingTraining,
   backtestCommandLine, backtesting, backtestResult,
   trainWithParams, cancelTraining, submitFeedback,
   runBacktest, runBacktestPreset, riskLevelColor, riskMeterColor,
   getLabelColor, maskSensitiveData,
 } = props.ml;
+
+type RuntimeBackendView = {
+  id: string;
+  label: string;
+  available: boolean;
+  accelerated: boolean;
+  detail?: string;
+};
+
+const runtimeBackendColor = (backend: RuntimeBackendView) => {
+  if (backend.accelerated) return 'green';
+  if (backend.available) return 'blue';
+  return 'default';
+};
+
+const runtimeBackendSuffix = (backend: RuntimeBackendView) => {
+  if (backend.accelerated) return 'accelerated';
+  if (backend.available) return 'available';
+  return 'missing';
+};
+
+const runtimeBackendLabel = (backendId?: string) => {
+  const labels: Record<string, string> = {
+    c_cpu: 'Native C CPU',
+    cuda: 'NVIDIA CUDA',
+    intel_igpu: 'Intel iGPU',
+  };
+  return backendId ? labels[backendId] || backendId : '—';
+};
+
+const formatRuntimeMs = (value?: number) => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return '—';
+  if (value < 0.001) return `${(value * 1000).toFixed(2)} µs`;
+  if (value < 1) return `${value.toFixed(4)} ms`;
+  return `${value.toFixed(2)} ms`;
+};
+
+const formatRuntimeSpeedup = (value?: number) => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return '—';
+  return `${value.toFixed(2)}×`;
+};
 </script>
 
 <template>
@@ -44,6 +85,37 @@ const {
             <a-button danger :loading="cancellingTraining"><StopOutlined /> 中止</a-button>
           </a-popconfirm>
         </div>
+        <a-divider style="margin: 8px 0">Native C Runtime</a-divider>
+        <div v-if="mlCRuntime" style="border: 1px solid #f0f0f0; border-radius: 6px; padding: 8px 10px; background: #fafafa;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+            <div style="font-weight: 600">
+              C running time
+              <a-tag :color="mlCRuntime.cSupported ? 'green' : 'orange'" style="margin-left: 6px">
+                {{ mlCRuntime.cSupported ? 'kernel ready' : 'detect only' }}
+              </a-tag>
+            </div>
+            <a-tag color="geekblue">active: {{ runtimeBackendLabel(mlCRuntime.activeBackend) }}</a-tag>
+          </div>
+          <a-space wrap size="small" style="margin-bottom: 8px">
+            <a-tooltip v-for="backend in mlCRuntime.backends || []" :key="backend.id" :title="backend.detail || backend.label">
+              <a-tag :color="runtimeBackendColor(backend)">
+                {{ backend.label }} · {{ runtimeBackendSuffix(backend) }}
+              </a-tag>
+            </a-tooltip>
+          </a-space>
+          <a-descriptions :column="2" size="small" bordered>
+            <a-descriptions-item label="Go inference">{{ formatRuntimeMs(mlCRuntime.goMsPerSample) }}/sample</a-descriptions-item>
+            <a-descriptions-item label="C inference">{{ formatRuntimeMs(mlCRuntime.cMsPerSample) }}/sample</a-descriptions-item>
+            <a-descriptions-item label="Speedup">{{ formatRuntimeSpeedup(mlCRuntime.speedup) }}</a-descriptions-item>
+            <a-descriptions-item label="Samples">{{ mlCRuntime.sampleCount || 0 }}</a-descriptions-item>
+            <a-descriptions-item label="Benchmark backend">{{ runtimeBackendLabel(mlCRuntime.benchmarkBackend) }}</a-descriptions-item>
+            <a-descriptions-item label="Model">{{ mlCRuntime.modelType || mlStatus.model_type || '—' }}</a-descriptions-item>
+          </a-descriptions>
+          <div v-if="mlCRuntime.note" style="margin-top: 6px; color: #8c8c8c; font-size: 12px; line-height: 1.45">
+            {{ mlCRuntime.note }}
+          </div>
+        </div>
+        <a-alert v-else type="info" show-icon message="等待后端返回 C runtime / CUDA / Intel iGPU 状态" />
         <a-divider style="margin: 8px 0">Batch Feedback</a-divider>
         <a-input-group compact>
           <a-input v-model:value="feedbackComm" placeholder="Command (e.g. rm)" style="width: 40%" />

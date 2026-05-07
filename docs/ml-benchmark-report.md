@@ -28,6 +28,17 @@ Covered families:
 
 Each catalog entry carries a display label, base algorithm, category, description, recommended flag, tags, and default hyperparameters. Selecting a built-in profile in the UI applies its defaults immediately, but users can still manually tune `numTrees`, `maxDepth`, and `minSamplesLeaf` before training. Backend training resolves variants through their base implementation while preserving the requested profile ID in status and saved model metadata wrappers.
 
+## Native C runtime / GPU capability status
+
+The ML status payload now includes `cRuntime`, which is shown on the Model tab as **C running time**:
+
+- detects the always-available native C CPU benchmark backend
+- detects NVIDIA CUDA through the existing `backend/cuda` runtime
+- detects Intel iGPU devices from `/sys/class/drm` and reports whether an OpenCL ICD/runtime is present
+- benchmarks supported model kernels against the current labeled training store and reports Go ms/sample, C ms/sample, speedup, sample count, active backend, and backend details
+
+Current native C benchmark kernels cover Random Forest / Extra Trees and linear-weight families such as Logistic Regression, SVM, Ridge, Perceptron, and Passive-Aggressive. CUDA and Intel iGPU are exposed in the status panel as hardware-capability backends; the benchmark backend is reported separately so readers can distinguish today's C CPU timing from detected accelerated hardware.
+
 ## Dataset snapshot
 
 - Labeled samples: **949**
