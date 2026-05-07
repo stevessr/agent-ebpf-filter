@@ -677,36 +677,45 @@ func mlReasoning(pred Prediction, anomalyScore float64, classification *pb.Behav
 // TrainWithConfig trains a model based on the MLConfig.ModelType.
 // Returns a Model interface so callers don't need to know the concrete type.
 func (t *ModelTrainer) TrainWithConfig(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
-	switch cfg.ModelType {
-	case ModelRandomForest:
-		forest, result := t.Train(store, cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
-		return forest, result
-	case ModelKNN:
-		return t.trainKNN(store, cfg)
-	case ModelLogisticRegression:
-		return t.trainLogistic(store, cfg)
-	case ModelNaiveBayes:
-		return t.trainNaiveBayes(store, cfg)
-	case ModelNearestCentroid:
-		return t.trainNearestCentroid(store, cfg)
-	case ModelExtraTrees:
-		return t.trainExtraTrees(store, cfg)
-	case ModelAdaBoost:
-		return t.trainAdaBoost(store, cfg)
-	case ModelSVM:
-		return t.trainSVM(store, cfg)
-	case ModelRidge:
-		return t.trainRidge(store, cfg)
-	case ModelPerceptron:
-		return t.trainPerceptron(store, cfg)
-	case ModelPassiveAggressive:
-		return t.trainPA(store, cfg)
-	case ModelEnsemble:
-		return t.trainEnsemble(store, cfg)
-	default:
-		forest, result := t.Train(store, cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
-		return forest, result
+	requestedType := cfg.ModelType
+	if requestedType == "" {
+		requestedType = ModelRandomForest
 	}
+	effectiveCfg := applyBuiltinModelPreset(cfg)
+
+	var (
+		model  Model
+		result TrainResult
+	)
+	switch effectiveCfg.ModelType {
+	case ModelRandomForest:
+		model, result = t.Train(store, effectiveCfg.NumTrees, effectiveCfg.MaxDepth, effectiveCfg.MinSamplesLeaf)
+	case ModelKNN:
+		model, result = t.trainKNN(store, effectiveCfg)
+	case ModelLogisticRegression:
+		model, result = t.trainLogistic(store, effectiveCfg)
+	case ModelNaiveBayes:
+		model, result = t.trainNaiveBayes(store, effectiveCfg)
+	case ModelNearestCentroid:
+		model, result = t.trainNearestCentroid(store, effectiveCfg)
+	case ModelExtraTrees:
+		model, result = t.trainExtraTrees(store, effectiveCfg)
+	case ModelAdaBoost:
+		model, result = t.trainAdaBoost(store, effectiveCfg)
+	case ModelSVM:
+		model, result = t.trainSVM(store, effectiveCfg)
+	case ModelRidge:
+		model, result = t.trainRidge(store, effectiveCfg)
+	case ModelPerceptron:
+		model, result = t.trainPerceptron(store, effectiveCfg)
+	case ModelPassiveAggressive:
+		model, result = t.trainPA(store, effectiveCfg)
+	case ModelEnsemble:
+		model, result = t.trainEnsemble(store, effectiveCfg)
+	default:
+		model, result = t.Train(store, effectiveCfg.NumTrees, effectiveCfg.MaxDepth, effectiveCfg.MinSamplesLeaf)
+	}
+	return wrapModelType(model, requestedType), result
 }
 
 func (t *ModelTrainer) trainKNN(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {

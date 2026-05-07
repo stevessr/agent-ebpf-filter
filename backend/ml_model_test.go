@@ -289,10 +289,13 @@ func TestLogisticSerializeRoundtrip(t *testing.T) {
 // ── Model Registry ──────────────────────────────────────────────────
 
 func TestModelRegistry(t *testing.T) {
-	for _, mt := range []ModelType{ModelRandomForest, ModelKNN, ModelLogisticRegression, ModelNearestCentroid, ModelEnsemble} {
+	for _, mt := range AllModelTypes() {
 		m, err := NewModel(mt)
 		if err != nil {
 			t.Fatalf("NewModel(%s): %v", mt, err)
+		}
+		if m == nil {
+			t.Fatalf("NewModel(%s) returned nil", mt)
 		}
 		if m.Type() != mt {
 			t.Fatalf("type mismatch: expected %s, got %s", mt, m.Type())
@@ -313,6 +316,29 @@ func TestModelTypeNames(t *testing.T) {
 	types := AllModelTypes()
 	if len(types) < 3 {
 		t.Fatalf("expected at least 3 model types, got %d", len(types))
+	}
+}
+
+func TestBuiltinModelCatalogCoversAllModelTypes(t *testing.T) {
+	types := AllModelTypes()
+	catalog := BuiltinModelCatalog()
+	if len(types) < 30 {
+		t.Fatalf("expected at least 30 built-in model profiles, got %d", len(types))
+	}
+	if len(catalog) != len(types) {
+		t.Fatalf("catalog/model type mismatch: %d catalog vs %d model types", len(catalog), len(types))
+	}
+	seen := make(map[string]bool, len(catalog))
+	for _, item := range catalog {
+		if item.Value == "" || item.Label == "" || item.Base == "" || item.Category == "" {
+			t.Fatalf("incomplete catalog item: %+v", item)
+		}
+		seen[item.Value] = true
+	}
+	for _, mt := range types {
+		if !seen[string(mt)] {
+			t.Fatalf("model type %s missing from built-in catalog", mt)
+		}
 	}
 }
 
@@ -361,9 +387,18 @@ func TestTrainerAllModelTypes(t *testing.T) {
 		balance   bool
 	}{
 		{ModelRandomForest, 5, 3, 2, false},
-		{ModelKNN, 5, 8, 0, false},                   // K uses nTrees, distance uses maxDepth
-		{ModelLogisticRegression, 10, 8, 500, true},  // LR=0.01, L2, 500 iters
-		{ModelNearestCentroid, 0, 4, 0, true},        // cosine + uniform-prior path
+		{ModelRandomForestFast, 31, 8, 5, false},
+		{ModelKNN, 5, 8, 0, false}, // K uses nTrees, distance uses maxDepth
+		{ModelKNNDistance, 31, 8, 5, false},
+		{ModelLogisticRegression, 10, 8, 500, true}, // LR=0.01, L2, 500 iters
+		{ModelLogisticL1, 31, 8, 5, false},
+		{ModelSVM, 5, 8, 500, false},
+		{ModelRidge, 5, 8, 5, false},
+		{ModelPerceptron, 20, 8, 500, false},
+		{ModelPassiveAggressive, 10, 8, 500, false},
+		{ModelNearestCentroid, 0, 4, 0, true}, // cosine + uniform-prior path
+		{ModelNearestCentroidCosine, 31, 8, 5, false},
+		{ModelAdaBoostFast, 31, 8, 5, false},
 		{ModelEnsemble, 31, 8, 5, false},
 	}
 
@@ -405,7 +440,14 @@ func TestTrainerAllModelTypes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("model file missing: %v", err)
 			}
-			t.Logf("model file: %s exists", path)
+			loaded := tryLoadModel(path, tc.modelType)
+			if loaded == nil {
+				t.Fatalf("failed to reload %s model from %s", tc.modelType, path)
+			}
+			if loaded.Type() != tc.modelType {
+				t.Fatalf("loaded wrong type: %s vs %s", loaded.Type(), tc.modelType)
+			}
+			t.Logf("model file: %s exists and reloads", path)
 		})
 	}
 }

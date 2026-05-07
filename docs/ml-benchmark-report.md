@@ -14,6 +14,20 @@ We benchmarked the local ML pipeline behind `http://localhost:5173/config/ml` us
 
 > Note: this is an exploratory expansion pass (`repeats=1`), so the previous 100-run baseline is still the deployment reference until the expanded space is rerun at full stability.
 
+
+## Local built-in model catalog update
+
+The runtime model selector has now been expanded from the original base algorithms into **42 first-class local built-in model IDs**. The selector and `/config/ml/status` expose the same catalog so the UI and backend stay aligned.
+
+Covered families:
+
+- **Tree models:** Random Forest and Extra Trees with fast / shallow / stable / deep / wide profiles.
+- **Linear models:** Logistic, SVM, Ridge, Perceptron, and Passive-Aggressive variants, including L1, balanced, long-iteration, light, and strong-regularization presets.
+- **Prototype / neighbor models:** KNN Euclidean / Manhattan / Cosine / distance-weighted, plus Nearest Centroid balanced / cosine / Manhattan.
+- **Probabilistic and ensemble baselines:** Naive Bayes, balanced Naive Bayes, AdaBoost fast / large, and soft-vote ensemble.
+
+Each catalog entry carries a display label, base algorithm, category, description, recommended flag, tags, and default hyperparameters. Selecting a built-in profile in the UI applies its defaults immediately, but users can still manually tune `numTrees`, `maxDepth`, and `minSamplesLeaf` before training. Backend training resolves variants through their base implementation while preserving the requested profile ID in status and saved model metadata wrappers.
+
 ## Dataset snapshot
 
 - Labeled samples: **949**

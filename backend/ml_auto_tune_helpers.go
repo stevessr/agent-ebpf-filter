@@ -9,11 +9,11 @@ import (
 
 func normalizeAutoTuneAxis(axis string) string {
 	switch strings.ToLower(strings.TrimSpace(axis)) {
-	case "numtrees", "trees", "num_trees":
+	case "numtrees", "trees", "num_trees", "k", "learningrate", "learning_rate", "alpha", "nestimators", "n_estimators":
 		return "numTrees"
-	case "maxdepth", "depth", "max_depth":
+	case "maxdepth", "depth", "max_depth", "distance", "regularization":
 		return "maxDepth"
-	case "minsamplesleaf", "min_samples_leaf", "leaf":
+	case "minsamplesleaf", "min_samples_leaf", "leaf", "weight", "weights", "maxiterations", "max_iterations", "iterations":
 		return "minSamplesLeaf"
 	default:
 		return ""
@@ -211,44 +211,86 @@ func autoTuneClampInt(v, minValue, maxValue int) int {
 func extractTrainData(samples []trainSample) ([][FeatureDim]float64, []int32) {
 	X := make([][FeatureDim]float64, len(samples))
 	Y := make([]int32, len(samples))
-	for i, s := range samples { X[i] = s.features; Y[i] = s.label }
+	for i, s := range samples {
+		X[i] = s.features
+		Y[i] = s.label
+	}
 	return X, Y
 }
 
 func trainAdaBoostFromData(X [][FeatureDim]float64, Y []int32, nEst int) *AdaBoostModel {
 	n := len(X)
-	if nEst < 10 { nEst = 50 }
+	if nEst < 10 {
+		nEst = 50
+	}
 	m := NewAdaBoost(nEst)
 	weights := make([]float64, n)
-	for i := range weights { weights[i] = 1.0 / float64(n) }
+	for i := range weights {
+		weights[i] = 1.0 / float64(n)
+	}
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for e := 0; e < nEst; e++ {
-		cum := make([]float64, n); cum[0] = weights[0]
-		for i := 1; i < n; i++ { cum[i] = cum[i-1] + weights[i] }
+		cum := make([]float64, n)
+		cum[0] = weights[0]
+		for i := 1; i < n; i++ {
+			cum[i] = cum[i-1] + weights[i]
+		}
 		totalW := cum[n-1]
-		bestStump := adaboostStump{Feature: -1}; bestErr := 1e9
+		bestStump := adaboostStump{Feature: -1}
+		bestErr := 1e9
 		for tries := 0; tries < 30; tries++ {
 			fi := rng.Intn(FeatureDim)
 			thresh := X[rng.Intn(n)][fi]
 			var lErr, rErr, lW, rW float64
 			for i := 0; i < n; i++ {
-				cl := 0; if Y[i] == 1 { cl = 1 }
-				if X[i][fi] < thresh { if cl != 1 { lErr += weights[i] }; lW += weights[i] } else { if cl != 0 { rErr += weights[i] }; rW += weights[i] }
+				cl := 0
+				if Y[i] == 1 {
+					cl = 1
+				}
+				if X[i][fi] < thresh {
+					if cl != 1 {
+						lErr += weights[i]
+					}
+					lW += weights[i]
+				} else {
+					if cl != 0 {
+						rErr += weights[i]
+					}
+					rW += weights[i]
+				}
 			}
 			err := (lErr + rErr) / totalW
-			if err < bestErr { bestErr = err; bestStump = adaboostStump{Feature: fi, Threshold: thresh, LeftVote: 1, RightVote: 0}; if lErr/lW > rErr/rW { bestStump.LeftVote = 0; bestStump.RightVote = 1 } }
+			if err < bestErr {
+				bestErr = err
+				bestStump = adaboostStump{Feature: fi, Threshold: thresh, LeftVote: 1, RightVote: 0}
+				if lErr/lW > rErr/rW {
+					bestStump.LeftVote = 0
+					bestStump.RightVote = 1
+				}
+			}
 		}
-		if bestStump.Feature < 0 { continue }
+		if bestStump.Feature < 0 {
+			continue
+		}
 		err := math.Max(bestErr, 1e-10)
 		alpha := 0.5 * math.Log((1-err)/err)
-		if alpha <= 0 { continue }
+		if alpha <= 0 {
+			continue
+		}
 		for i := 0; i < n; i++ {
 			pred := 0
-			if X[i][bestStump.Feature] < bestStump.Threshold { pred = int(bestStump.LeftVote) } else { pred = int(bestStump.RightVote) }
+			if X[i][bestStump.Feature] < bestStump.Threshold {
+				pred = int(bestStump.LeftVote)
+			} else {
+				pred = int(bestStump.RightVote)
+			}
 			cl := int(Y[i])
-			if pred != cl { weights[i] *= math.Exp(alpha) }
+			if pred != cl {
+				weights[i] *= math.Exp(alpha)
+			}
 		}
-		m.Stumps = append(m.Stumps, bestStump); m.Alphas = append(m.Alphas, alpha)
+		m.Stumps = append(m.Stumps, bestStump)
+		m.Alphas = append(m.Alphas, alpha)
 	}
 	return m
 }

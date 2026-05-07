@@ -8,6 +8,7 @@ import type {
 
 export interface AutoTuneDeps {
   modelType: Ref<string>;
+  modelBaseType?: Ref<string>;
   mlTrainingConfig: Ref<{ validationSplitRatio: number }>;
   hyperParams: Ref<{ numTrees: number; maxDepth: number; minSamplesLeaf: number }>;
   wsActive: Ref<boolean>;
@@ -16,7 +17,8 @@ export interface AutoTuneDeps {
 }
 
 export function useAutoTune(deps: AutoTuneDeps) {
-  const { modelType, mlTrainingConfig, hyperParams, wsActive, fetchMLStatus, applyMLStatusResponse } = deps;
+  const { modelType, modelBaseType, mlTrainingConfig, hyperParams, wsActive, fetchMLStatus, applyMLStatusResponse } = deps;
+  const activeModelType = computed(() => modelBaseType?.value || modelType.value);
 
   const autoTuneXAxis = ref<MLAutoTuneAxis>('numTrees');
   const autoTuneYAxis = ref<MLAutoTuneAxis>('maxDepth');
@@ -72,7 +74,7 @@ export function useAutoTune(deps: AutoTuneDeps) {
   });
 
   const autoTuneAxisLabel = (axis: MLAutoTuneAxis) => {
-    if (modelType.value === 'nearest_centroid') {
+    if (activeModelType.value === 'nearest_centroid') {
       if (axis === 'numTrees') return '距离编码';
       if (axis === 'maxDepth') return '先验编码';
       if (axis === 'minSamplesLeaf') return '保留位';
@@ -86,7 +88,7 @@ export function useAutoTune(deps: AutoTuneDeps) {
   };
 
   const autoTuneAxisOptions = computed(() => {
-    const mt = modelType.value;
+    const mt = activeModelType.value;
     if (mt === 'knn') {
       return [
         { value: 'k', label: 'K 值 (k)' },

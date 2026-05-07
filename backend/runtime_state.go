@@ -189,6 +189,12 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings.MLConfig.FeatureHistorySize == 0 {
 		settings.MLConfig.FeatureHistorySize = 100
 	}
+	if settings.MLConfig.ModelType == "" {
+		settings.MLConfig.ModelType = ModelRandomForest
+	}
+	if _, ok := modelRegistry[settings.MLConfig.ModelType]; !ok {
+		settings.MLConfig.ModelType = ModelRandomForest
+	}
 	if settings.MLConfig.ModelPath == "" {
 		settings.MLConfig.ModelPath = filepath.Join(runtimeSettingsDir(), "ml_model.bin")
 	}

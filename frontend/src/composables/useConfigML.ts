@@ -7,9 +7,10 @@ import type {
   MLTrainingHistoryEntry, MLCommandSafetyResult,
   SampleEntry, ExistingCommandCandidate, RemoteDatasetRow, RemoteDatasetResponse,
   LLMProductionDatasetResponse, LLMProductionDatasetRow,
-  ClassicSecurityDatasetPreset,
+  ClassicSecurityDatasetPreset, MLBuiltinModelCatalogItem,
 } from '../types/config';
 
+import { defaultMLBuiltinModelCatalog, findMLBuiltinModel } from '../data/mlModelCatalog';
 import { safetyNetHighRiskPresets, classicSecurityDatasetPresets, syntheticExpansionPresets, highRiskPresets } from './mlPresets';
 import type { TrainingPreset } from './mlPresets';
 export { safetyNetHighRiskPresets, classicSecurityDatasetPresets, highRiskPresets, syntheticExpansionPresets } from './mlPresets';
@@ -31,6 +32,9 @@ export function useConfigML() {
   // ── ML Status ──
   const mlEnabled = ref(false);
   const modelType = ref<string>('random_forest');
+  const builtinModelCatalog = ref<MLBuiltinModelCatalogItem[]>(defaultMLBuiltinModelCatalog);
+  const selectedBuiltinModel = computed(() => findMLBuiltinModel(builtinModelCatalog.value, modelType.value));
+  const modelBaseType = computed(() => selectedBuiltinModel.value?.base || modelType.value);
   const cudaAvailable = ref(false);
   const cudaInfo = ref('');
   const cudaMemUsedMB = ref(0);
@@ -139,6 +143,10 @@ export function useConfigML() {
     mlStatus.value.validation_samples = data.validationSamples ?? data.validation_samples ?? 0;
     mlStatus.value.validation_split_ratio = data.validationSplitRatio ?? data.validation_split_ratio ?? mlStatus.value.validation_split_ratio ?? 0.2;
     mlStatus.value.llm_review = data.llmReview ?? data.llm_review ?? null;
+    const remoteBuiltinModels = data.builtinModels ?? data.builtin_models;
+    if (Array.isArray(remoteBuiltinModels) && remoteBuiltinModels.length > 0) {
+      builtinModelCatalog.value = remoteBuiltinModels;
+    }
     applyAutoTuneStatus(data);
 
     const mlConfig = data.mlConfig ?? data.ml_config ?? {};
@@ -219,7 +227,7 @@ export function useConfigML() {
   };
 
   // ── Auto-Tune ──
-  const _atDeps: AutoTuneDeps = { modelType, mlTrainingConfig, hyperParams, wsActive, fetchMLStatus, applyMLStatusResponse };
+  const _atDeps: AutoTuneDeps = { modelType, modelBaseType, mlTrainingConfig, hyperParams, wsActive, fetchMLStatus, applyMLStatusResponse };
   const {
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
     autoTuneMinX, autoTuneMaxX, autoTuneMinY, autoTuneMaxY,
@@ -427,6 +435,19 @@ export function useConfigML() {
     } catch (_) {
       message.error('Failed to save thresholds');
     }
+  };
+
+  const applySelectedModelDefaults = () => {
+    const defaults = selectedBuiltinModel.value?.defaults;
+    if (!defaults) return;
+    hyperParams.value.numTrees = defaults.numTrees ?? hyperParams.value.numTrees;
+    hyperParams.value.maxDepth = defaults.maxDepth ?? hyperParams.value.maxDepth;
+    hyperParams.value.minSamplesLeaf = defaults.minSamplesLeaf ?? hyperParams.value.minSamplesLeaf;
+  };
+
+  const saveMLModelType = async () => {
+    applySelectedModelDefaults();
+    await saveMLThresholds();
   };
 
   watch(llmScoringConfig, () => {
@@ -899,7 +920,7 @@ export function useConfigML() {
     mlThresholds, mlTrainingConfig, llmScoringConfig, llmBatchConfig,
     llmBatchResponse, llmBatchLoading, trainingLogs, wsActive, logPollTimer,
     llmSaveStatus, saveLLMConfigNow,
-    modelType, autoTuneAxisOptions, cudaAvailable, cudaInfo, cudaMemUsedMB, cudaMemTotalMB, cancelTraining, cancellingTraining,
+    modelType, builtinModelCatalog, selectedBuiltinModel, modelBaseType, autoTuneAxisOptions, cudaAvailable, cudaInfo, cudaMemUsedMB, cudaMemTotalMB, cancelTraining, cancellingTraining,
     trainingHistory, hyperParams,
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
     autoTuneMinX, autoTuneMaxX, autoTuneMinY, autoTuneMaxY,
@@ -921,7 +942,7 @@ export function useConfigML() {
     backtestCommandLine, backtesting, backtestResult,
     applyMLStatusResponse, startLogPolling, stopLogPolling,
     fetchMLStatus, fetchTrainingHistory, trainingChartOptions, trainingChartSeries,
-    submitFeedback, saveMLThresholds, runLLMBatchScore, llmBatchRowKey, llmBatchCanApplyLabels,
+    submitFeedback, saveMLThresholds, saveMLModelType, applySelectedModelDefaults, runLLMBatchScore, llmBatchRowKey, llmBatchCanApplyLabels,
     filteredSamples, existingDuplicateCount, importableExistingCount,
     fetchAllSamples, fetchExistingCommandData, importExistingCommandData,
     fetchRemoteDatasetPreview, importRemoteDataset, importRemoteDatasetPayload,

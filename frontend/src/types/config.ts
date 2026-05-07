@@ -92,6 +92,24 @@ export interface MLReviewSummary {
   reviewedAt: string;
 }
 
+
+export interface MLBuiltinModelDefaults {
+  numTrees?: number;
+  maxDepth?: number;
+  minSamplesLeaf?: number;
+}
+
+export interface MLBuiltinModelCatalogItem {
+  value: string;
+  label: string;
+  base: string;
+  category: string;
+  description: string;
+  recommended?: boolean;
+  defaults?: MLBuiltinModelDefaults;
+  tags?: string[];
+}
+
 export interface MLStatusState {
   model_type?: string;
   model_loaded: boolean;

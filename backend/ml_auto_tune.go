@@ -272,22 +272,23 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 		metric = "validationAccuracy"
 	}
 
-	baseNumTrees := mlConfig.NumTrees
+	effectiveCfg := applyBuiltinModelPreset(mlConfig)
+	baseNumTrees := effectiveCfg.NumTrees
 	if baseNumTrees <= 0 {
 		baseNumTrees = 31
 	}
-	baseMaxDepth := mlConfig.MaxDepth
+	baseMaxDepth := effectiveCfg.MaxDepth
 	if baseMaxDepth <= 0 {
 		baseMaxDepth = 8
 	}
-	baseMinSamplesLeaf := mlConfig.MinSamplesLeaf
+	baseMinSamplesLeaf := effectiveCfg.MinSamplesLeaf
 	if baseMinSamplesLeaf <= 0 {
 		baseMinSamplesLeaf = 5
 	}
 
 	validationRatio := req.ValidationSplitRatio
 	if validationRatio <= 0 || validationRatio >= 0.5 {
-		validationRatio = mlConfig.ValidationSplitRatio
+		validationRatio = effectiveCfg.ValidationSplitRatio
 	}
 	if validationRatio <= 0 || validationRatio >= 0.5 {
 		validationRatio = 0.20
@@ -316,12 +317,16 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 	if totalCombos <= 0 {
 		return nil, errors.New("no valid parameter combinations found for tuning")
 	}
-	mt := mlConfig.ModelType
+	requestedModelType := mlConfig.ModelType
+	if requestedModelType == "" {
+		requestedModelType = ModelRandomForest
+	}
+	mt := effectiveCfg.ModelType
 	if mt == "" {
 		mt = ModelRandomForest
 	}
 	globalTrainer.logf("══════ 自动调参开始 ══════")
-	globalTrainer.logf("模型类型: %s, 方阵: %dx%d, 轴: %s×%s", modelName(mt), gridSize, gridSize, xAxis, yAxis)
+	globalTrainer.logf("模型类型: %s, 方阵: %dx%d, 轴: %s×%s", modelName(requestedModelType), gridSize, gridSize, xAxis, yAxis)
 	if cuda.IsAvailable() {
 		globalTrainer.logf("CUDA 加速已启用: %s", cuda.DeviceInfo())
 	} else {
@@ -625,10 +630,10 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 
 			done++
 			if done%3 == 0 || done == totalCombos {
-				globalTrainer.logf("%s 调优: %d/%d 格 (准确率 %.1f%%)", modelName(mt), done, totalCombos, validationAccuracy*100)
+				globalTrainer.logf("%s 调优: %d/%d 格 (准确率 %.1f%%)", modelName(requestedModelType), done, totalCombos, validationAccuracy*100)
 			}
 			if progressCb != nil {
-				progressCb(done, totalCombos, fmt.Sprintf("%s 评估 %d/%d%s", modelName(mt), done, totalCombos, cudaLog))
+				progressCb(done, totalCombos, fmt.Sprintf("%s 评估 %d/%d%s", modelName(requestedModelType), done, totalCombos, cudaLog))
 			}
 		}
 	}

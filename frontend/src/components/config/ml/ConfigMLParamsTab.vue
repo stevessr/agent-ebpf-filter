@@ -4,6 +4,7 @@ import {
   ReloadOutlined, CheckCircleOutlined, ControlOutlined,
 } from '@ant-design/icons-vue';
 import type { useConfigML } from '../../../composables/useConfigML';
+import { mlModelCategoryColor } from '../../../data/mlModelCatalog';
 
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 
@@ -12,7 +13,7 @@ const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 const emit = defineEmits<{ (e: 'nav', tab: string): void }>();
 
 const {
-  modelType, cudaAvailable, cudaInfo,
+  modelType, builtinModelCatalog, selectedBuiltinModel, modelBaseType, cudaAvailable, cudaInfo,
   hyperParams, mlThresholds, mlTrainingConfig,
   autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
   autoTuneMinX, autoTuneMaxX, autoTuneMinY, autoTuneMaxY,
@@ -21,7 +22,7 @@ const {
   autoTuneMessage, autoTuneError, autoTuneResponse, autoTuneSelectedCell,
   autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat, autoTuneGranularityLabel,
   autoTuneScore, autoTuneHeatmapOptions, autoTuneHeatmapSeries, autoTuneBestCell,
-  runAutoTune, applyAutoTuneCell, saveMLThresholds,
+  runAutoTune, applyAutoTuneCell, saveMLThresholds, saveMLModelType,
   trainingLogs,
 } = props.ml;
 
@@ -47,39 +48,25 @@ const autoTuneJustCompleted = computed(() =>
   !autoTuneInProgress.value && autoTuneResponse.value && autoTuneLoading.value === false
 );
 
-const modelTypeLabel = computed(() => {
-  switch (modelType.value) {
-    case 'random_forest': return 'Random Forest';
-    case 'extra_trees': return 'Extra Trees';
-    case 'adaboost': return 'AdaBoost';
-    case 'knn': return 'K-Nearest Neighbors';
-    case 'naive_bayes': return 'Naive Bayes';
-    case 'nearest_centroid': return 'Nearest Centroid';
-    case 'logistic': return 'Logistic';
-    case 'svm': return 'SVM';
-    case 'ridge': return 'Ridge';
-    case 'perceptron': return 'Perceptron';
-    case 'passive_aggressive': return 'PA';
-    default: return modelType.value;
+const modelTypeLabel = computed(() => selectedBuiltinModel.value?.label || modelType.value);
+const modelTypeTagColor = computed(() => mlModelCategoryColor(selectedBuiltinModel.value?.category, modelBaseType.value));
+const modelTypeDescription = computed(() => selectedBuiltinModel.value?.description || '本地模型配置');
+const modelBaseLabel = computed(() => selectedBuiltinModel.value?.base || modelType.value);
+
+const modelCatalogGroups = computed(() => {
+  const groups = new Map<string, typeof builtinModelCatalog.value>();
+  for (const item of builtinModelCatalog.value) {
+    const key = item.category || '其他模型';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)?.push(item);
   }
+  return Array.from(groups.entries()).map(([category, models]) => ({ category, models }));
 });
 
-const modelTypeTagColor = computed(() => {
-  switch (modelType.value) {
-    case 'random_forest': return 'green';
-    case 'extra_trees': return 'purple';
-    case 'adaboost': return 'magenta';
-    case 'knn': return 'blue';
-    case 'naive_bayes': return 'gold';
-    case 'nearest_centroid': return 'geekblue';
-    case 'logistic': return 'cyan';
-    case 'svm': return 'red';
-    case 'ridge': return 'volcano';
-    case 'perceptron': return 'orange';
-    case 'passive_aggressive': return 'volcano';
-    default: return 'purple';
-  }
-});
+const isTreeLikeModel = computed(() => modelBaseType.value === 'random_forest' || modelBaseType.value === 'extra_trees');
+const isLinearModel = computed(() => ['logistic', 'svm', 'perceptron', 'passive_aggressive'].includes(modelBaseType.value));
+const isPrototypeModel = computed(() => modelBaseType.value === 'nearest_centroid');
+const hasCompactParams = computed(() => ['naive_bayes', 'ridge', 'adaboost', 'ensemble'].includes(modelBaseType.value));
 </script>
 
 <template>
@@ -92,20 +79,26 @@ const modelTypeTagColor = computed(() => {
           {{ modelTypeLabel }}
         </a-tag>
       </template>
-      <a-radio-group v-model:value="modelType" button-style="solid" size="small" @change="saveMLThresholds">
-        <a-radio-button value="random_forest">Random Forest</a-radio-button>
-        <a-radio-button value="extra_trees">Extra Trees</a-radio-button>
-        <a-radio-button value="adaboost">AdaBoost</a-radio-button>
-        <a-radio-button value="knn">KNN</a-radio-button>
-        <a-radio-button value="naive_bayes">Naive Bayes</a-radio-button>
-        <a-radio-button value="nearest_centroid">Nearest Centroid</a-radio-button>
-        <a-radio-button value="logistic">Logistic</a-radio-button>
-        <a-radio-button value="svm">SVM</a-radio-button>
-        <a-radio-button value="ridge">Ridge</a-radio-button>
-        <a-radio-button value="perceptron">Perceptron</a-radio-button>
-        <a-radio-button value="passive_aggressive">PA</a-radio-button>
-      </a-radio-group>
-      <a-space style="margin-top: 8px; display: flex; align-items: center;">
+      <a-select
+        v-model:value="modelType"
+        show-search
+        option-filter-prop="label"
+        style="width: 100%; max-width: 760px"
+        @change="saveMLModelType"
+      >
+        <a-select-opt-group v-for="group in modelCatalogGroups" :key="group.category" :label="group.category">
+          <a-select-option v-for="item in group.models" :key="item.value" :value="item.value" :label="`${item.label} ${item.value} ${item.tags?.join(' ') || ''}`">
+            <a-space>
+              <span>{{ item.label }}</span>
+              <a-tag v-if="item.recommended" color="green">推荐</a-tag>
+              <a-tag color="default">{{ item.base }}</a-tag>
+              <a-tag v-for="tag in item.tags || []" :key="`${item.value}-${tag}`" color="blue">{{ tag }}</a-tag>
+            </a-space>
+          </a-select-option>
+        </a-select-opt-group>
+      </a-select>
+      <a-alert type="info" show-icon style="margin-top: 10px" :message="modelTypeDescription" :description="`基础算法: ${modelBaseLabel}；切换内置模型会写入该 profile 的默认参数，随后可继续手动调参。`" />
+      <a-space style="margin-top: 8px; display: flex; align-items: center; flex-wrap: wrap;">
         <a-tag :color="cudaAvailable ? 'success' : 'warning'">
           {{ cudaAvailable ? 'CUDA: ' + cudaInfo : 'CPU 训练 (未检测到 NVIDIA GPU)' }}
         </a-tag>
@@ -121,9 +114,9 @@ const modelTypeTagColor = computed(() => {
         <a-tag color="geekblue">{{ modelTypeLabel }} 参数</a-tag>
       </template>
       <!-- Random Forest params -->
-      <a-row v-if="modelType === 'random_forest'" :gutter="[24, 16]">
+      <a-row v-if="isTreeLikeModel" :gutter="[24, 16]">
         <a-col :xs="24" :md="8">
-          <span style="font-weight: 600">Num Trees (树的数量)</span>
+          <span style="font-weight: 600">{{ modelBaseType === 'extra_trees' ? 'Num Extra Trees (极随机树数量)' : 'Num Trees (树的数量)' }}</span>
           <a-slider v-model:value="hyperParams.numTrees" :min="5" :max="200" :step="1" />
           <a-input-number v-model:value="hyperParams.numTrees" :min="5" :max="200" size="small" style="width: 100%" />
           <div style="font-size: 11px; color: #999">更多树 = 更高精度但更慢训练。推荐 31-101</div>
@@ -142,7 +135,7 @@ const modelTypeTagColor = computed(() => {
         </a-col>
       </a-row>
       <!-- KNN params -->
-      <a-row v-if="modelType === 'knn'" :gutter="[24, 16]">
+      <a-row v-if="modelBaseType === 'knn'" :gutter="[24, 16]">
         <a-col :xs="24" :md="12">
           <span style="font-weight: 600">K (邻居数量)</span>
           <a-slider v-model:value="hyperParams.numTrees" :min="1" :max="31" :step="2" />
@@ -153,15 +146,16 @@ const modelTypeTagColor = computed(() => {
           <span style="font-weight: 600">Distance (距离度量)</span>
           <a-select v-model:value="hyperParams.maxDepth" style="width: 100%">
             <a-select-option :value="8">Euclidean</a-select-option>
-            <a-select-option :value="16">Manhattan</a-select-option>
+            <a-select-option :value="12">Manhattan</a-select-option>
+            <a-select-option :value="16">Cosine</a-select-option>
           </a-select>
           <div style="font-size: 11px; color: #999; margin-top: 8px;">Euclidean 适合连续特征，Manhattan 适合高维稀疏数据</div>
         </a-col>
       </a-row>
       <!-- Logistic Regression params -->
-      <a-row v-if="modelType === 'logistic'" :gutter="[24, 16]">
+      <a-row v-if="isLinearModel" :gutter="[24, 16]">
         <a-col :xs="24" :md="8">
-          <span style="font-weight: 600">Learning Rate (学习率)</span>
+          <span style="font-weight: 600">{{ modelBaseType === 'ridge' ? 'Alpha ×100 (正则强度)' : 'Learning Rate / C 编码' }}</span>
           <a-slider v-model:value="hyperParams.numTrees" :min="1" :max="100" :step="1" />
           <a-input-number v-model:value="hyperParams.numTrees" :min="1" :max="100" size="small" style="width: 100%" :formatter="(v: number) => (v / 1000).toFixed(3)" :parser="(v: string) => parseFloat(v) * 1000" />
           <div style="font-size: 11px; color: #999">较小值收敛更稳定。推荐 0.005-0.05</div>
@@ -183,12 +177,22 @@ const modelTypeTagColor = computed(() => {
         </a-col>
       </a-row>
       <!-- Nearest Centroid params -->
-      <a-row v-if="modelType === 'nearest_centroid'" :gutter="[24, 16]">
+      <a-row v-if="isPrototypeModel" :gutter="[24, 16]">
         <a-col :xs="24">
           <a-alert
             type="info"
             show-icon
-            message="Nearest Centroid uses the current defaults. The benchmark sweep explores euclidean / balanced / cosine variants offline."
+            :message="`${modelTypeLabel} 使用距离/先验编码参数：numTrees 控制 metric，maxDepth 控制 prior，内置变体已预设常用组合。`"
+          />
+        </a-col>
+      </a-row>
+      <a-row v-if="hasCompactParams" :gutter="[24, 16]" style="margin-top: 12px">
+        <a-col :xs="24">
+          <a-alert
+            type="success"
+            show-icon
+            :message="`${modelTypeLabel} 已加载本地内置 profile`"
+            :description="`当前基础算法为 ${modelBaseLabel}，默认参数 numTrees=${hyperParams.numTrees} / maxDepth=${hyperParams.maxDepth} / minSamplesLeaf=${hyperParams.minSamplesLeaf}。`"
           />
         </a-col>
       </a-row>

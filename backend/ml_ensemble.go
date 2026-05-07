@@ -180,20 +180,45 @@ func DeserializeEnsemble(path string) (*EnsembleModel, error) {
 }
 
 func deserializeModelByType(mt ModelType, path string) (Model, error) {
-	switch mt {
+	base := baseModelType(mt)
+	var (
+		model Model
+		err   error
+	)
+	switch base {
 	case ModelRandomForest:
-		return DeserializeForest(path)
+		model, err = DeserializeForest(path)
+	case ModelExtraTrees:
+		var forest *DecisionForest
+		forest, err = DeserializeForest(path)
+		if err == nil {
+			model = &ExtraTreesModel{Forest: forest, MaxDepth: forest.MaxDepth, NumTrees: len(forest.Trees)}
+		}
 	case ModelKNN:
-		return DeserializeKNN(path)
+		model, err = DeserializeKNN(path)
 	case ModelLogisticRegression:
-		return DeserializeLogistic(path)
+		model, err = DeserializeLogistic(path)
 	case ModelNaiveBayes:
-		return DeserializeNaiveBayes(path)
+		model, err = DeserializeNaiveBayes(path)
 	case ModelNearestCentroid:
-		return DeserializeNearestCentroid(path)
+		model, err = DeserializeNearestCentroid(path)
+	case ModelAdaBoost:
+		model, err = DeserializeAdaBoost(path)
+	case ModelSVM:
+		model, err = DeserializeSVM(path)
+	case ModelRidge:
+		model, err = DeserializeRidge(path)
+	case ModelPerceptron:
+		model, err = DeserializePerceptron(path)
+	case ModelPassiveAggressive:
+		model, err = DeserializePA(path)
 	default:
 		return nil, fmt.Errorf("unsupported ensemble member type: %s", mt)
 	}
+	if err != nil {
+		return nil, err
+	}
+	return wrapModelType(model, mt), nil
 }
 
 // ── Prediction Cache ────────────────────────────────────────────────

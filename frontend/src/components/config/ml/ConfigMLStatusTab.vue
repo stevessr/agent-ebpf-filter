@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineAsyncComponent } from 'vue';
+import { computed, defineAsyncComponent } from 'vue';
 import {
   ImportOutlined, ExportOutlined, ReloadOutlined,
 } from '@ant-design/icons-vue';
@@ -12,29 +12,14 @@ const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 const emit = defineEmits<{ (e: 'nav', tab: string): void }>();
 
 const {
-  mlEnabled, mlStatus, modelType,
+  mlEnabled, mlStatus, modelType, selectedBuiltinModel,
   trainingLogs,
   trainingHistory, trainingChartOptions, trainingChartSeries,
   llmScoringConfig,
   fetchMLStatus, exportTrainingDataset,
 } = props.ml;
 
-const modelTypeLabel = (type: string) => {
-  switch (type) {
-    case 'random_forest': return 'RF';
-    case 'knn': return 'KNN';
-    case 'logistic': return 'LR';
-    case 'nearest_centroid': return 'NC';
-    case 'naive_bayes': return 'NB';
-    case 'adaboost': return 'Ada';
-    case 'extra_trees': return 'ET';
-    case 'svm': return 'SVM';
-    case 'ridge': return 'Ridge';
-    case 'perceptron': return 'Perc';
-    case 'passive_aggressive': return 'PA';
-    default: return type;
-  }
-};
+const modelTypeLabel = computed(() => selectedBuiltinModel.value?.label || modelType.value);
 </script>
 
 <template>
@@ -62,7 +47,7 @@ const modelTypeLabel = (type: string) => {
         </a-col>
         <a-col :xs="12" :sm="8" :md="6">
           <a-card size="small" hoverable style="text-align: center; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center">
-            <a-statistic title="Model Type" :value="modelTypeLabel(modelType)" :value-style="{ color: '#1890ff', fontSize: '18px' }" />
+            <a-statistic title="Model Type" :value="modelTypeLabel" :value-style="{ color: '#1890ff', fontSize: '18px' }" />
           </a-card>
         </a-col>
         <a-col :xs="12" :sm="8" :md="6">

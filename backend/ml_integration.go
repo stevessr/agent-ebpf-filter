@@ -102,6 +102,11 @@ func InitMLEngine(cfg MLConfig) {
 	if cfg.ModelType == "" {
 		cfg.ModelType = ModelRandomForest
 	}
+	if _, ok := modelRegistry[cfg.ModelType]; !ok {
+		log.Printf("[ML] Unknown model type %q; falling back to %s", cfg.ModelType, ModelRandomForest)
+		cfg.ModelType = ModelRandomForest
+	}
+	mlConfig = cfg
 	currentModelType = cfg.ModelType
 
 	// Try loading existing model
@@ -123,29 +128,60 @@ func InitMLEngine(cfg MLConfig) {
 }
 
 func tryLoadModel(path string, t ModelType) Model {
-	switch t {
+	requested := t
+	base := baseModelType(t)
+	var loaded Model
+	switch base {
 	case ModelRandomForest:
 		if m, err := DeserializeForest(path); err == nil {
-			return m
+			loaded = m
+		}
+	case ModelExtraTrees:
+		if m, err := DeserializeForest(path); err == nil {
+			loaded = &ExtraTreesModel{Forest: m, MaxDepth: m.MaxDepth, NumTrees: len(m.Trees)}
 		}
 	case ModelKNN:
 		if m, err := DeserializeKNN(path); err == nil {
-			return m
+			loaded = m
 		}
 	case ModelLogisticRegression:
 		if m, err := DeserializeLogistic(path); err == nil {
-			return m
+			loaded = m
+		}
+	case ModelNaiveBayes:
+		if m, err := DeserializeNaiveBayes(path); err == nil {
+			loaded = m
 		}
 	case ModelNearestCentroid:
 		if m, err := DeserializeNearestCentroid(path); err == nil {
-			return m
+			loaded = m
+		}
+	case ModelAdaBoost:
+		if m, err := DeserializeAdaBoost(path); err == nil {
+			loaded = m
+		}
+	case ModelSVM:
+		if m, err := DeserializeSVM(path); err == nil {
+			loaded = m
+		}
+	case ModelRidge:
+		if m, err := DeserializeRidge(path); err == nil {
+			loaded = m
+		}
+	case ModelPerceptron:
+		if m, err := DeserializePerceptron(path); err == nil {
+			loaded = m
+		}
+	case ModelPassiveAggressive:
+		if m, err := DeserializePA(path); err == nil {
+			loaded = m
 		}
 	case ModelEnsemble:
 		if m, err := DeserializeEnsemble(path); err == nil {
-			return m
+			loaded = m
 		}
 	}
-	return nil
+	return wrapModelType(loaded, requested)
 }
 
 // StartMLEngine starts background tasks for the ML engine
@@ -325,8 +361,19 @@ func mlStatus() *pb.MLStatus {
 	}
 
 	if mlEngine != nil {
-		if rf, ok := mlEngine.(*DecisionForest); ok {
-			status.NumTrees = int32(len(rf.Trees))
+		switch model := unwrapModelType(mlEngine).(type) {
+		case *DecisionForest:
+			status.NumTrees = int32(len(model.Trees))
+		case *ExtraTreesModel:
+			if model.Forest != nil {
+				status.NumTrees = int32(len(model.Forest.Trees))
+			} else {
+				status.NumTrees = int32(model.NumTrees)
+			}
+		case *AdaBoostModel:
+			status.NumTrees = int32(len(model.Stumps))
+		case *EnsembleModel:
+			status.NumTrees = int32(len(model.Models))
 		}
 	}
 
