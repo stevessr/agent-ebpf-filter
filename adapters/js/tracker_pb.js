@@ -47,6 +47,11 @@ $root.pb = (function() {
      * @property {number} ACCEPT4=22 ACCEPT4 value
      * @property {number} WRAPPER_INTERCEPT=23 WRAPPER_INTERCEPT value
      * @property {number} NATIVE_HOOK=24 NATIVE_HOOK value
+     * @property {number} GENERIC_SYSCALL=25 GENERIC_SYSCALL value
+     * @property {number} SCHED_PROCESS_FORK=26 SCHED_PROCESS_FORK value
+     * @property {number} SCHED_PROCESS_EXEC=27 SCHED_PROCESS_EXEC value
+     * @property {number} SCHED_PROCESS_EXIT=28 SCHED_PROCESS_EXIT value
+     * @property {number} WAIT4=29 WAIT4 value
      */
     pb.EventType = (function() {
         var valuesById = {}, values = Object.create(valuesById);
@@ -75,6 +80,11 @@ $root.pb = (function() {
         values[valuesById[22] = "ACCEPT4"] = 22;
         values[valuesById[23] = "WRAPPER_INTERCEPT"] = 23;
         values[valuesById[24] = "NATIVE_HOOK"] = 24;
+        values[valuesById[25] = "GENERIC_SYSCALL"] = 25;
+        values[valuesById[26] = "SCHED_PROCESS_FORK"] = 26;
+        values[valuesById[27] = "SCHED_PROCESS_EXEC"] = 27;
+        values[valuesById[28] = "SCHED_PROCESS_EXIT"] = 28;
+        values[valuesById[29] = "WAIT4"] = 29;
         return values;
     })();
 
@@ -521,6 +531,19 @@ $root.pb = (function() {
          * @memberof pb
          * @interface IRegisterRequest
          * @property {number|null} [pid] RegisterRequest pid
+         * @property {string|null} [tag] RegisterRequest tag
+         * @property {string|null} [agentRunId] RegisterRequest agentRunId
+         * @property {string|null} [conversationId] RegisterRequest conversationId
+         * @property {string|null} [turnId] RegisterRequest turnId
+         * @property {string|null} [toolCallId] RegisterRequest toolCallId
+         * @property {string|null} [toolName] RegisterRequest toolName
+         * @property {string|null} [traceId] RegisterRequest traceId
+         * @property {string|null} [spanId] RegisterRequest spanId
+         * @property {number|null} [rootAgentPid] RegisterRequest rootAgentPid
+         * @property {string|null} [decision] RegisterRequest decision
+         * @property {number|null} [riskScore] RegisterRequest riskScore
+         * @property {string|null} [containerId] RegisterRequest containerId
+         * @property {string|null} [argvDigest] RegisterRequest argvDigest
          */
 
         /**
@@ -545,6 +568,110 @@ $root.pb = (function() {
          * @instance
          */
         RegisterRequest.prototype.pid = 0;
+
+        /**
+         * RegisterRequest tag.
+         * @member {string} tag
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.tag = "";
+
+        /**
+         * RegisterRequest agentRunId.
+         * @member {string} agentRunId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.agentRunId = "";
+
+        /**
+         * RegisterRequest conversationId.
+         * @member {string} conversationId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.conversationId = "";
+
+        /**
+         * RegisterRequest turnId.
+         * @member {string} turnId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.turnId = "";
+
+        /**
+         * RegisterRequest toolCallId.
+         * @member {string} toolCallId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.toolCallId = "";
+
+        /**
+         * RegisterRequest toolName.
+         * @member {string} toolName
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.toolName = "";
+
+        /**
+         * RegisterRequest traceId.
+         * @member {string} traceId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.traceId = "";
+
+        /**
+         * RegisterRequest spanId.
+         * @member {string} spanId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.spanId = "";
+
+        /**
+         * RegisterRequest rootAgentPid.
+         * @member {number} rootAgentPid
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.rootAgentPid = 0;
+
+        /**
+         * RegisterRequest decision.
+         * @member {string} decision
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.decision = "";
+
+        /**
+         * RegisterRequest riskScore.
+         * @member {number} riskScore
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.riskScore = 0;
+
+        /**
+         * RegisterRequest containerId.
+         * @member {string} containerId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.containerId = "";
+
+        /**
+         * RegisterRequest argvDigest.
+         * @member {string} argvDigest
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.argvDigest = "";
 
         /**
          * Creates a new RegisterRequest instance using the specified properties.
@@ -572,6 +699,32 @@ $root.pb = (function() {
                 writer = $Writer.create();
             if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
                 writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.pid);
+            if (message.tag != null && Object.hasOwnProperty.call(message, "tag"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.tag);
+            if (message.agentRunId != null && Object.hasOwnProperty.call(message, "agentRunId"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.agentRunId);
+            if (message.conversationId != null && Object.hasOwnProperty.call(message, "conversationId"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.conversationId);
+            if (message.turnId != null && Object.hasOwnProperty.call(message, "turnId"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.turnId);
+            if (message.toolCallId != null && Object.hasOwnProperty.call(message, "toolCallId"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.toolCallId);
+            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.toolName);
+            if (message.traceId != null && Object.hasOwnProperty.call(message, "traceId"))
+                writer.uint32(/* id 8, wireType 2 =*/66).string(message.traceId);
+            if (message.spanId != null && Object.hasOwnProperty.call(message, "spanId"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.spanId);
+            if (message.rootAgentPid != null && Object.hasOwnProperty.call(message, "rootAgentPid"))
+                writer.uint32(/* id 10, wireType 0 =*/80).uint32(message.rootAgentPid);
+            if (message.decision != null && Object.hasOwnProperty.call(message, "decision"))
+                writer.uint32(/* id 11, wireType 2 =*/90).string(message.decision);
+            if (message.riskScore != null && Object.hasOwnProperty.call(message, "riskScore"))
+                writer.uint32(/* id 12, wireType 1 =*/97).double(message.riskScore);
+            if (message.containerId != null && Object.hasOwnProperty.call(message, "containerId"))
+                writer.uint32(/* id 13, wireType 2 =*/106).string(message.containerId);
+            if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
+                writer.uint32(/* id 14, wireType 2 =*/114).string(message.argvDigest);
             return writer;
         };
 
@@ -616,6 +769,58 @@ $root.pb = (function() {
                         message.pid = reader.uint32();
                         break;
                     }
+                case 2: {
+                        message.tag = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.agentRunId = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.conversationId = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.turnId = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.toolCallId = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.toolName = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.traceId = reader.string();
+                        break;
+                    }
+                case 9: {
+                        message.spanId = reader.string();
+                        break;
+                    }
+                case 10: {
+                        message.rootAgentPid = reader.uint32();
+                        break;
+                    }
+                case 11: {
+                        message.decision = reader.string();
+                        break;
+                    }
+                case 12: {
+                        message.riskScore = reader.double();
+                        break;
+                    }
+                case 13: {
+                        message.containerId = reader.string();
+                        break;
+                    }
+                case 14: {
+                        message.argvDigest = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7, long);
                     break;
@@ -658,6 +863,45 @@ $root.pb = (function() {
             if (message.pid != null && message.hasOwnProperty("pid"))
                 if (!$util.isInteger(message.pid))
                     return "pid: integer expected";
+            if (message.tag != null && message.hasOwnProperty("tag"))
+                if (!$util.isString(message.tag))
+                    return "tag: string expected";
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                if (!$util.isString(message.agentRunId))
+                    return "agentRunId: string expected";
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                if (!$util.isString(message.conversationId))
+                    return "conversationId: string expected";
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                if (!$util.isString(message.turnId))
+                    return "turnId: string expected";
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                if (!$util.isString(message.toolCallId))
+                    return "toolCallId: string expected";
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                if (!$util.isString(message.toolName))
+                    return "toolName: string expected";
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                if (!$util.isString(message.traceId))
+                    return "traceId: string expected";
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                if (!$util.isString(message.spanId))
+                    return "spanId: string expected";
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                if (!$util.isInteger(message.rootAgentPid))
+                    return "rootAgentPid: integer expected";
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                if (!$util.isString(message.decision))
+                    return "decision: string expected";
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                if (typeof message.riskScore !== "number")
+                    return "riskScore: number expected";
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                if (!$util.isString(message.containerId))
+                    return "containerId: string expected";
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                if (!$util.isString(message.argvDigest))
+                    return "argvDigest: string expected";
             return null;
         };
 
@@ -679,6 +923,32 @@ $root.pb = (function() {
             var message = new $root.pb.RegisterRequest();
             if (object.pid != null)
                 message.pid = object.pid >>> 0;
+            if (object.tag != null)
+                message.tag = String(object.tag);
+            if (object.agentRunId != null)
+                message.agentRunId = String(object.agentRunId);
+            if (object.conversationId != null)
+                message.conversationId = String(object.conversationId);
+            if (object.turnId != null)
+                message.turnId = String(object.turnId);
+            if (object.toolCallId != null)
+                message.toolCallId = String(object.toolCallId);
+            if (object.toolName != null)
+                message.toolName = String(object.toolName);
+            if (object.traceId != null)
+                message.traceId = String(object.traceId);
+            if (object.spanId != null)
+                message.spanId = String(object.spanId);
+            if (object.rootAgentPid != null)
+                message.rootAgentPid = object.rootAgentPid >>> 0;
+            if (object.decision != null)
+                message.decision = String(object.decision);
+            if (object.riskScore != null)
+                message.riskScore = Number(object.riskScore);
+            if (object.containerId != null)
+                message.containerId = String(object.containerId);
+            if (object.argvDigest != null)
+                message.argvDigest = String(object.argvDigest);
             return message;
         };
 
@@ -695,10 +965,50 @@ $root.pb = (function() {
             if (!options)
                 options = {};
             var object = {};
-            if (options.defaults)
+            if (options.defaults) {
                 object.pid = 0;
+                object.tag = "";
+                object.agentRunId = "";
+                object.conversationId = "";
+                object.turnId = "";
+                object.toolCallId = "";
+                object.toolName = "";
+                object.traceId = "";
+                object.spanId = "";
+                object.rootAgentPid = 0;
+                object.decision = "";
+                object.riskScore = 0;
+                object.containerId = "";
+                object.argvDigest = "";
+            }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
+            if (message.tag != null && message.hasOwnProperty("tag"))
+                object.tag = message.tag;
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                object.agentRunId = message.agentRunId;
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                object.conversationId = message.conversationId;
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                object.turnId = message.turnId;
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                object.toolCallId = message.toolCallId;
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                object.toolName = message.toolName;
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                object.traceId = message.traceId;
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                object.spanId = message.spanId;
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                object.rootAgentPid = message.rootAgentPid;
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                object.decision = message.decision;
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                object.riskScore = options.json && !isFinite(message.riskScore) ? String(message.riskScore) : message.riskScore;
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                object.containerId = message.containerId;
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                object.argvDigest = message.argvDigest;
             return object;
         };
 
@@ -1460,6 +1770,21 @@ $root.pb = (function() {
          * @property {pb.EventType|null} [eventType] Event eventType
          * @property {pb.IBehaviorClassification|null} [behavior] Event behavior
          * @property {number|Long|null} [durationNs] Event durationNs
+         * @property {string|null} [schemaVersion] Event schemaVersion
+         * @property {number|null} [gid] Event gid
+         * @property {number|Long|null} [cgroupId] Event cgroupId
+         * @property {number|null} [rootAgentPid] Event rootAgentPid
+         * @property {string|null} [agentRunId] Event agentRunId
+         * @property {string|null} [conversationId] Event conversationId
+         * @property {string|null} [turnId] Event turnId
+         * @property {string|null} [toolCallId] Event toolCallId
+         * @property {string|null} [toolName] Event toolName
+         * @property {string|null} [traceId] Event traceId
+         * @property {string|null} [spanId] Event spanId
+         * @property {string|null} [decision] Event decision
+         * @property {number|null} [riskScore] Event riskScore
+         * @property {string|null} [containerId] Event containerId
+         * @property {string|null} [argvDigest] Event argvDigest
          */
 
         /**
@@ -1670,6 +1995,126 @@ $root.pb = (function() {
         Event.prototype.durationNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
         /**
+         * Event schemaVersion.
+         * @member {string} schemaVersion
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.schemaVersion = "";
+
+        /**
+         * Event gid.
+         * @member {number} gid
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.gid = 0;
+
+        /**
+         * Event cgroupId.
+         * @member {number|Long} cgroupId
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.cgroupId = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event rootAgentPid.
+         * @member {number} rootAgentPid
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.rootAgentPid = 0;
+
+        /**
+         * Event agentRunId.
+         * @member {string} agentRunId
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.agentRunId = "";
+
+        /**
+         * Event conversationId.
+         * @member {string} conversationId
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.conversationId = "";
+
+        /**
+         * Event turnId.
+         * @member {string} turnId
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.turnId = "";
+
+        /**
+         * Event toolCallId.
+         * @member {string} toolCallId
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.toolCallId = "";
+
+        /**
+         * Event toolName.
+         * @member {string} toolName
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.toolName = "";
+
+        /**
+         * Event traceId.
+         * @member {string} traceId
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.traceId = "";
+
+        /**
+         * Event spanId.
+         * @member {string} spanId
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.spanId = "";
+
+        /**
+         * Event decision.
+         * @member {string} decision
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.decision = "";
+
+        /**
+         * Event riskScore.
+         * @member {number} riskScore
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.riskScore = 0;
+
+        /**
+         * Event containerId.
+         * @member {string} containerId
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.containerId = "";
+
+        /**
+         * Event argvDigest.
+         * @member {string} argvDigest
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.argvDigest = "";
+
+        /**
          * Creates a new Event instance using the specified properties.
          * @function create
          * @memberof pb.Event
@@ -1741,6 +2186,36 @@ $root.pb = (function() {
                 $root.pb.BehaviorClassification.encode(message.behavior, writer.uint32(/* id 23, wireType 2 =*/186).fork()).ldelim();
             if (message.durationNs != null && Object.hasOwnProperty.call(message, "durationNs"))
                 writer.uint32(/* id 24, wireType 0 =*/192).uint64(message.durationNs);
+            if (message.schemaVersion != null && Object.hasOwnProperty.call(message, "schemaVersion"))
+                writer.uint32(/* id 25, wireType 2 =*/202).string(message.schemaVersion);
+            if (message.gid != null && Object.hasOwnProperty.call(message, "gid"))
+                writer.uint32(/* id 26, wireType 0 =*/208).uint32(message.gid);
+            if (message.cgroupId != null && Object.hasOwnProperty.call(message, "cgroupId"))
+                writer.uint32(/* id 27, wireType 0 =*/216).uint64(message.cgroupId);
+            if (message.rootAgentPid != null && Object.hasOwnProperty.call(message, "rootAgentPid"))
+                writer.uint32(/* id 28, wireType 0 =*/224).uint32(message.rootAgentPid);
+            if (message.agentRunId != null && Object.hasOwnProperty.call(message, "agentRunId"))
+                writer.uint32(/* id 29, wireType 2 =*/234).string(message.agentRunId);
+            if (message.conversationId != null && Object.hasOwnProperty.call(message, "conversationId"))
+                writer.uint32(/* id 30, wireType 2 =*/242).string(message.conversationId);
+            if (message.turnId != null && Object.hasOwnProperty.call(message, "turnId"))
+                writer.uint32(/* id 31, wireType 2 =*/250).string(message.turnId);
+            if (message.toolCallId != null && Object.hasOwnProperty.call(message, "toolCallId"))
+                writer.uint32(/* id 32, wireType 2 =*/258).string(message.toolCallId);
+            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
+                writer.uint32(/* id 33, wireType 2 =*/266).string(message.toolName);
+            if (message.traceId != null && Object.hasOwnProperty.call(message, "traceId"))
+                writer.uint32(/* id 34, wireType 2 =*/274).string(message.traceId);
+            if (message.spanId != null && Object.hasOwnProperty.call(message, "spanId"))
+                writer.uint32(/* id 35, wireType 2 =*/282).string(message.spanId);
+            if (message.decision != null && Object.hasOwnProperty.call(message, "decision"))
+                writer.uint32(/* id 36, wireType 2 =*/290).string(message.decision);
+            if (message.riskScore != null && Object.hasOwnProperty.call(message, "riskScore"))
+                writer.uint32(/* id 37, wireType 1 =*/297).double(message.riskScore);
+            if (message.containerId != null && Object.hasOwnProperty.call(message, "containerId"))
+                writer.uint32(/* id 38, wireType 2 =*/306).string(message.containerId);
+            if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
+                writer.uint32(/* id 39, wireType 2 =*/314).string(message.argvDigest);
             return writer;
         };
 
@@ -1877,6 +2352,66 @@ $root.pb = (function() {
                         message.durationNs = reader.uint64();
                         break;
                     }
+                case 25: {
+                        message.schemaVersion = reader.string();
+                        break;
+                    }
+                case 26: {
+                        message.gid = reader.uint32();
+                        break;
+                    }
+                case 27: {
+                        message.cgroupId = reader.uint64();
+                        break;
+                    }
+                case 28: {
+                        message.rootAgentPid = reader.uint32();
+                        break;
+                    }
+                case 29: {
+                        message.agentRunId = reader.string();
+                        break;
+                    }
+                case 30: {
+                        message.conversationId = reader.string();
+                        break;
+                    }
+                case 31: {
+                        message.turnId = reader.string();
+                        break;
+                    }
+                case 32: {
+                        message.toolCallId = reader.string();
+                        break;
+                    }
+                case 33: {
+                        message.toolName = reader.string();
+                        break;
+                    }
+                case 34: {
+                        message.traceId = reader.string();
+                        break;
+                    }
+                case 35: {
+                        message.spanId = reader.string();
+                        break;
+                    }
+                case 36: {
+                        message.decision = reader.string();
+                        break;
+                    }
+                case 37: {
+                        message.riskScore = reader.double();
+                        break;
+                    }
+                case 38: {
+                        message.containerId = reader.string();
+                        break;
+                    }
+                case 39: {
+                        message.argvDigest = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7, long);
                     break;
@@ -2008,6 +2543,11 @@ $root.pb = (function() {
                 case 22:
                 case 23:
                 case 24:
+                case 25:
+                case 26:
+                case 27:
+                case 28:
+                case 29:
                     break;
                 }
             if (message.behavior != null && message.hasOwnProperty("behavior")) {
@@ -2018,6 +2558,51 @@ $root.pb = (function() {
             if (message.durationNs != null && message.hasOwnProperty("durationNs"))
                 if (!$util.isInteger(message.durationNs) && !(message.durationNs && $util.isInteger(message.durationNs.low) && $util.isInteger(message.durationNs.high)))
                     return "durationNs: integer|Long expected";
+            if (message.schemaVersion != null && message.hasOwnProperty("schemaVersion"))
+                if (!$util.isString(message.schemaVersion))
+                    return "schemaVersion: string expected";
+            if (message.gid != null && message.hasOwnProperty("gid"))
+                if (!$util.isInteger(message.gid))
+                    return "gid: integer expected";
+            if (message.cgroupId != null && message.hasOwnProperty("cgroupId"))
+                if (!$util.isInteger(message.cgroupId) && !(message.cgroupId && $util.isInteger(message.cgroupId.low) && $util.isInteger(message.cgroupId.high)))
+                    return "cgroupId: integer|Long expected";
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                if (!$util.isInteger(message.rootAgentPid))
+                    return "rootAgentPid: integer expected";
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                if (!$util.isString(message.agentRunId))
+                    return "agentRunId: string expected";
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                if (!$util.isString(message.conversationId))
+                    return "conversationId: string expected";
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                if (!$util.isString(message.turnId))
+                    return "turnId: string expected";
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                if (!$util.isString(message.toolCallId))
+                    return "toolCallId: string expected";
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                if (!$util.isString(message.toolName))
+                    return "toolName: string expected";
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                if (!$util.isString(message.traceId))
+                    return "traceId: string expected";
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                if (!$util.isString(message.spanId))
+                    return "spanId: string expected";
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                if (!$util.isString(message.decision))
+                    return "decision: string expected";
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                if (typeof message.riskScore !== "number")
+                    return "riskScore: number expected";
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                if (!$util.isString(message.containerId))
+                    return "containerId: string expected";
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                if (!$util.isString(message.argvDigest))
+                    return "argvDigest: string expected";
             return null;
         };
 
@@ -2200,6 +2785,26 @@ $root.pb = (function() {
             case 24:
                 message.eventType = 24;
                 break;
+            case "GENERIC_SYSCALL":
+            case 25:
+                message.eventType = 25;
+                break;
+            case "SCHED_PROCESS_FORK":
+            case 26:
+                message.eventType = 26;
+                break;
+            case "SCHED_PROCESS_EXEC":
+            case 27:
+                message.eventType = 27;
+                break;
+            case "SCHED_PROCESS_EXIT":
+            case 28:
+                message.eventType = 28;
+                break;
+            case "WAIT4":
+            case 29:
+                message.eventType = 29;
+                break;
             }
             if (object.behavior != null) {
                 if (typeof object.behavior !== "object")
@@ -2215,6 +2820,43 @@ $root.pb = (function() {
                     message.durationNs = object.durationNs;
                 else if (typeof object.durationNs === "object")
                     message.durationNs = new $util.LongBits(object.durationNs.low >>> 0, object.durationNs.high >>> 0).toNumber(true);
+            if (object.schemaVersion != null)
+                message.schemaVersion = String(object.schemaVersion);
+            if (object.gid != null)
+                message.gid = object.gid >>> 0;
+            if (object.cgroupId != null)
+                if ($util.Long)
+                    (message.cgroupId = $util.Long.fromValue(object.cgroupId)).unsigned = true;
+                else if (typeof object.cgroupId === "string")
+                    message.cgroupId = parseInt(object.cgroupId, 10);
+                else if (typeof object.cgroupId === "number")
+                    message.cgroupId = object.cgroupId;
+                else if (typeof object.cgroupId === "object")
+                    message.cgroupId = new $util.LongBits(object.cgroupId.low >>> 0, object.cgroupId.high >>> 0).toNumber(true);
+            if (object.rootAgentPid != null)
+                message.rootAgentPid = object.rootAgentPid >>> 0;
+            if (object.agentRunId != null)
+                message.agentRunId = String(object.agentRunId);
+            if (object.conversationId != null)
+                message.conversationId = String(object.conversationId);
+            if (object.turnId != null)
+                message.turnId = String(object.turnId);
+            if (object.toolCallId != null)
+                message.toolCallId = String(object.toolCallId);
+            if (object.toolName != null)
+                message.toolName = String(object.toolName);
+            if (object.traceId != null)
+                message.traceId = String(object.traceId);
+            if (object.spanId != null)
+                message.spanId = String(object.spanId);
+            if (object.decision != null)
+                message.decision = String(object.decision);
+            if (object.riskScore != null)
+                message.riskScore = Number(object.riskScore);
+            if (object.containerId != null)
+                message.containerId = String(object.containerId);
+            if (object.argvDigest != null)
+                message.argvDigest = String(object.argvDigest);
             return message;
         };
 
@@ -2268,6 +2910,25 @@ $root.pb = (function() {
                     object.durationNs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.durationNs = options.longs === String ? "0" : 0;
+                object.schemaVersion = "";
+                object.gid = 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.cgroupId = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.cgroupId = options.longs === String ? "0" : 0;
+                object.rootAgentPid = 0;
+                object.agentRunId = "";
+                object.conversationId = "";
+                object.turnId = "";
+                object.toolCallId = "";
+                object.toolName = "";
+                object.traceId = "";
+                object.spanId = "";
+                object.decision = "";
+                object.riskScore = 0;
+                object.containerId = "";
+                object.argvDigest = "";
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -2326,6 +2987,39 @@ $root.pb = (function() {
                     object.durationNs = options.longs === String ? String(message.durationNs) : message.durationNs;
                 else
                     object.durationNs = options.longs === String ? $util.Long.prototype.toString.call(message.durationNs) : options.longs === Number ? new $util.LongBits(message.durationNs.low >>> 0, message.durationNs.high >>> 0).toNumber(true) : message.durationNs;
+            if (message.schemaVersion != null && message.hasOwnProperty("schemaVersion"))
+                object.schemaVersion = message.schemaVersion;
+            if (message.gid != null && message.hasOwnProperty("gid"))
+                object.gid = message.gid;
+            if (message.cgroupId != null && message.hasOwnProperty("cgroupId"))
+                if (typeof message.cgroupId === "number")
+                    object.cgroupId = options.longs === String ? String(message.cgroupId) : message.cgroupId;
+                else
+                    object.cgroupId = options.longs === String ? $util.Long.prototype.toString.call(message.cgroupId) : options.longs === Number ? new $util.LongBits(message.cgroupId.low >>> 0, message.cgroupId.high >>> 0).toNumber(true) : message.cgroupId;
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                object.rootAgentPid = message.rootAgentPid;
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                object.agentRunId = message.agentRunId;
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                object.conversationId = message.conversationId;
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                object.turnId = message.turnId;
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                object.toolCallId = message.toolCallId;
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                object.toolName = message.toolName;
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                object.traceId = message.traceId;
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                object.spanId = message.spanId;
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                object.decision = message.decision;
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                object.riskScore = options.json && !isFinite(message.riskScore) ? String(message.riskScore) : message.riskScore;
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                object.containerId = message.containerId;
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                object.argvDigest = message.argvDigest;
             return object;
         };
 
@@ -7594,6 +8288,18 @@ $root.pb = (function() {
          * @property {string|null} [comm] WrapperRequest comm
          * @property {Array.<string>|null} [args] WrapperRequest args
          * @property {string|null} [user] WrapperRequest user
+         * @property {string|null} [agentRunId] WrapperRequest agentRunId
+         * @property {string|null} [conversationId] WrapperRequest conversationId
+         * @property {string|null} [turnId] WrapperRequest turnId
+         * @property {string|null} [toolCallId] WrapperRequest toolCallId
+         * @property {string|null} [toolName] WrapperRequest toolName
+         * @property {string|null} [traceId] WrapperRequest traceId
+         * @property {string|null} [spanId] WrapperRequest spanId
+         * @property {number|null} [rootAgentPid] WrapperRequest rootAgentPid
+         * @property {string|null} [decision] WrapperRequest decision
+         * @property {number|null} [riskScore] WrapperRequest riskScore
+         * @property {string|null} [containerId] WrapperRequest containerId
+         * @property {string|null} [argvDigest] WrapperRequest argvDigest
          */
 
         /**
@@ -7645,6 +8351,102 @@ $root.pb = (function() {
         WrapperRequest.prototype.user = "";
 
         /**
+         * WrapperRequest agentRunId.
+         * @member {string} agentRunId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.agentRunId = "";
+
+        /**
+         * WrapperRequest conversationId.
+         * @member {string} conversationId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.conversationId = "";
+
+        /**
+         * WrapperRequest turnId.
+         * @member {string} turnId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.turnId = "";
+
+        /**
+         * WrapperRequest toolCallId.
+         * @member {string} toolCallId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.toolCallId = "";
+
+        /**
+         * WrapperRequest toolName.
+         * @member {string} toolName
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.toolName = "";
+
+        /**
+         * WrapperRequest traceId.
+         * @member {string} traceId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.traceId = "";
+
+        /**
+         * WrapperRequest spanId.
+         * @member {string} spanId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.spanId = "";
+
+        /**
+         * WrapperRequest rootAgentPid.
+         * @member {number} rootAgentPid
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.rootAgentPid = 0;
+
+        /**
+         * WrapperRequest decision.
+         * @member {string} decision
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.decision = "";
+
+        /**
+         * WrapperRequest riskScore.
+         * @member {number} riskScore
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.riskScore = 0;
+
+        /**
+         * WrapperRequest containerId.
+         * @member {string} containerId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.containerId = "";
+
+        /**
+         * WrapperRequest argvDigest.
+         * @member {string} argvDigest
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.argvDigest = "";
+
+        /**
          * Creates a new WrapperRequest instance using the specified properties.
          * @function create
          * @memberof pb.WrapperRequest
@@ -7677,6 +8479,30 @@ $root.pb = (function() {
                     writer.uint32(/* id 3, wireType 2 =*/26).string(message.args[i]);
             if (message.user != null && Object.hasOwnProperty.call(message, "user"))
                 writer.uint32(/* id 4, wireType 2 =*/34).string(message.user);
+            if (message.agentRunId != null && Object.hasOwnProperty.call(message, "agentRunId"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.agentRunId);
+            if (message.conversationId != null && Object.hasOwnProperty.call(message, "conversationId"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.conversationId);
+            if (message.turnId != null && Object.hasOwnProperty.call(message, "turnId"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.turnId);
+            if (message.toolCallId != null && Object.hasOwnProperty.call(message, "toolCallId"))
+                writer.uint32(/* id 8, wireType 2 =*/66).string(message.toolCallId);
+            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.toolName);
+            if (message.traceId != null && Object.hasOwnProperty.call(message, "traceId"))
+                writer.uint32(/* id 10, wireType 2 =*/82).string(message.traceId);
+            if (message.spanId != null && Object.hasOwnProperty.call(message, "spanId"))
+                writer.uint32(/* id 11, wireType 2 =*/90).string(message.spanId);
+            if (message.rootAgentPid != null && Object.hasOwnProperty.call(message, "rootAgentPid"))
+                writer.uint32(/* id 12, wireType 0 =*/96).uint32(message.rootAgentPid);
+            if (message.decision != null && Object.hasOwnProperty.call(message, "decision"))
+                writer.uint32(/* id 13, wireType 2 =*/106).string(message.decision);
+            if (message.riskScore != null && Object.hasOwnProperty.call(message, "riskScore"))
+                writer.uint32(/* id 14, wireType 1 =*/113).double(message.riskScore);
+            if (message.containerId != null && Object.hasOwnProperty.call(message, "containerId"))
+                writer.uint32(/* id 15, wireType 2 =*/122).string(message.containerId);
+            if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
+                writer.uint32(/* id 16, wireType 2 =*/130).string(message.argvDigest);
             return writer;
         };
 
@@ -7735,6 +8561,54 @@ $root.pb = (function() {
                         message.user = reader.string();
                         break;
                     }
+                case 5: {
+                        message.agentRunId = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.conversationId = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.turnId = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.toolCallId = reader.string();
+                        break;
+                    }
+                case 9: {
+                        message.toolName = reader.string();
+                        break;
+                    }
+                case 10: {
+                        message.traceId = reader.string();
+                        break;
+                    }
+                case 11: {
+                        message.spanId = reader.string();
+                        break;
+                    }
+                case 12: {
+                        message.rootAgentPid = reader.uint32();
+                        break;
+                    }
+                case 13: {
+                        message.decision = reader.string();
+                        break;
+                    }
+                case 14: {
+                        message.riskScore = reader.double();
+                        break;
+                    }
+                case 15: {
+                        message.containerId = reader.string();
+                        break;
+                    }
+                case 16: {
+                        message.argvDigest = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7, long);
                     break;
@@ -7790,6 +8664,42 @@ $root.pb = (function() {
             if (message.user != null && message.hasOwnProperty("user"))
                 if (!$util.isString(message.user))
                     return "user: string expected";
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                if (!$util.isString(message.agentRunId))
+                    return "agentRunId: string expected";
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                if (!$util.isString(message.conversationId))
+                    return "conversationId: string expected";
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                if (!$util.isString(message.turnId))
+                    return "turnId: string expected";
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                if (!$util.isString(message.toolCallId))
+                    return "toolCallId: string expected";
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                if (!$util.isString(message.toolName))
+                    return "toolName: string expected";
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                if (!$util.isString(message.traceId))
+                    return "traceId: string expected";
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                if (!$util.isString(message.spanId))
+                    return "spanId: string expected";
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                if (!$util.isInteger(message.rootAgentPid))
+                    return "rootAgentPid: integer expected";
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                if (!$util.isString(message.decision))
+                    return "decision: string expected";
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                if (typeof message.riskScore !== "number")
+                    return "riskScore: number expected";
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                if (!$util.isString(message.containerId))
+                    return "containerId: string expected";
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                if (!$util.isString(message.argvDigest))
+                    return "argvDigest: string expected";
             return null;
         };
 
@@ -7822,6 +8732,30 @@ $root.pb = (function() {
             }
             if (object.user != null)
                 message.user = String(object.user);
+            if (object.agentRunId != null)
+                message.agentRunId = String(object.agentRunId);
+            if (object.conversationId != null)
+                message.conversationId = String(object.conversationId);
+            if (object.turnId != null)
+                message.turnId = String(object.turnId);
+            if (object.toolCallId != null)
+                message.toolCallId = String(object.toolCallId);
+            if (object.toolName != null)
+                message.toolName = String(object.toolName);
+            if (object.traceId != null)
+                message.traceId = String(object.traceId);
+            if (object.spanId != null)
+                message.spanId = String(object.spanId);
+            if (object.rootAgentPid != null)
+                message.rootAgentPid = object.rootAgentPid >>> 0;
+            if (object.decision != null)
+                message.decision = String(object.decision);
+            if (object.riskScore != null)
+                message.riskScore = Number(object.riskScore);
+            if (object.containerId != null)
+                message.containerId = String(object.containerId);
+            if (object.argvDigest != null)
+                message.argvDigest = String(object.argvDigest);
             return message;
         };
 
@@ -7844,6 +8778,18 @@ $root.pb = (function() {
                 object.pid = 0;
                 object.comm = "";
                 object.user = "";
+                object.agentRunId = "";
+                object.conversationId = "";
+                object.turnId = "";
+                object.toolCallId = "";
+                object.toolName = "";
+                object.traceId = "";
+                object.spanId = "";
+                object.rootAgentPid = 0;
+                object.decision = "";
+                object.riskScore = 0;
+                object.containerId = "";
+                object.argvDigest = "";
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -7856,6 +8802,30 @@ $root.pb = (function() {
             }
             if (message.user != null && message.hasOwnProperty("user"))
                 object.user = message.user;
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                object.agentRunId = message.agentRunId;
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                object.conversationId = message.conversationId;
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                object.turnId = message.turnId;
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                object.toolCallId = message.toolCallId;
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                object.toolName = message.toolName;
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                object.traceId = message.traceId;
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                object.spanId = message.spanId;
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                object.rootAgentPid = message.rootAgentPid;
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                object.decision = message.decision;
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                object.riskScore = options.json && !isFinite(message.riskScore) ? String(message.riskScore) : message.riskScore;
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                object.containerId = message.containerId;
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                object.argvDigest = message.argvDigest;
             return object;
         };
 

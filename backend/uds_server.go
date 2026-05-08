@@ -128,6 +128,11 @@ func startUDSServer(broadcast chan *pb.Event) {
 					anomalyScore,
 				)
 
+				decision := actionLabel[int32(resolvedAction)]
+				riskScore := maxFloat64(anomalyScore, mlPrediction.Confidence)
+				ctx := buildProcessContextFromWrapperRequest(req, decision, riskScore)
+				trackedProcessContexts.Set(req.Pid, ctx)
+
 				// Register wrapper PID in eBPF agent_pids
 				if trackerMaps.AgentPids != nil {
 					_ = trackerMaps.AgentPids.Put(req.Pid, getTagID("Wrapper"))
@@ -140,14 +145,27 @@ func startUDSServer(broadcast chan *pb.Event) {
 
 				select {
 				case broadcast <- &pb.Event{
-					Pid:       req.Pid,
-					Comm:      req.Comm,
-					Type:      "wrapper_intercept",
-					EventType: pb.EventType_WRAPPER_INTERCEPT,
-					Tag:       "Wrapper",
-					Path:      strings.Join(append([]string{req.Comm}, req.Args...), " "),
-					Behavior:  classification,
-					ExtraInfo: fmt.Sprintf("net_audit:%s risk:%.0f", netAudit.RiskLevel, netAudit.RiskScore),
+					Pid:            req.Pid,
+					Comm:           req.Comm,
+					Type:           "wrapper_intercept",
+					EventType:      pb.EventType_WRAPPER_INTERCEPT,
+					Tag:            "Wrapper",
+					Path:           strings.Join(append([]string{req.Comm}, req.Args...), " "),
+					Behavior:       classification,
+					ExtraInfo:      fmt.Sprintf("net_audit:%s risk:%.0f", netAudit.RiskLevel, netAudit.RiskScore),
+					SchemaVersion:  eventSchemaVersion,
+					RootAgentPid:   ctx.RootAgentPid,
+					AgentRunId:     ctx.AgentRunID,
+					ConversationId: ctx.ConversationID,
+					TurnId:         ctx.TurnID,
+					ToolCallId:     ctx.ToolCallID,
+					ToolName:       ctx.ToolName,
+					TraceId:        ctx.TraceID,
+					SpanId:         ctx.SpanID,
+					Decision:       ctx.Decision,
+					RiskScore:      ctx.RiskScore,
+					ContainerId:    ctx.ContainerID,
+					ArgvDigest:     ctx.ArgvDigest,
 				}:
 				default:
 				}

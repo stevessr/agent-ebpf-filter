@@ -59,6 +59,14 @@ func kernelEventTypeName(eventType uint32) string {
 		return "accept4"
 	case 25:
 		return "syscall"
+	case 26:
+		return "process_fork"
+	case 27:
+		return "process_exec"
+	case 28:
+		return "process_exit"
+	case 29:
+		return "wait4"
 	default:
 		return "unknown"
 	}
@@ -854,17 +862,20 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 	typeName := kernelEventTypeName(event.Type)
 
 	out := &pb.Event{
-		Pid:        event.PID,
-		Ppid:       event.PPID,
-		Uid:        event.UID,
-		Type:       typeName,
-		EventType:  pb.EventType(event.Type),
-		Tag:        getTagName(event.TagID),
-		Comm:       comm,
-		Path:       path,
-		Retval:     event.Retval,
-		DurationNs: event.DurationNs,
-		ExtraPath:  extraPath,
+		Pid:           event.PID,
+		Ppid:          event.PPID,
+		Uid:           event.UID,
+		Gid:           event.GID,
+		Type:          typeName,
+		EventType:     pb.EventType(event.Type),
+		Tag:           getTagName(event.TagID),
+		Comm:          comm,
+		Path:          path,
+		Retval:        event.Retval,
+		DurationNs:    event.DurationNs,
+		CgroupId:      event.CgroupID,
+		ExtraPath:     extraPath,
+		SchemaVersion: eventSchemaVersion,
 	}
 
 	// Populate type-specific fields
@@ -893,8 +904,22 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 		out.ExtraInfo = fmt.Sprintf("request=0x%x", event.Extra1)
 	case "clone":
 		out.ExtraInfo = fmt.Sprintf("flags=0x%x", event.Extra1)
+		if event.Retval > 0 {
+			out.ExtraInfo += fmt.Sprintf(" child_pid=%d", event.Retval)
+		}
 	case "exit":
 		out.ExtraInfo = fmt.Sprintf("status=%d", event.Extra1)
+	case "process_fork":
+		out.ExtraInfo = fmt.Sprintf("child_pid=%d", event.Extra1)
+		if path == "" {
+			out.Path = fmt.Sprintf("pid=%d", event.Extra1)
+		}
+	case "process_exec":
+		out.ExtraInfo = fmt.Sprintf("old_pid=%d", event.Extra1)
+	case "process_exit":
+		out.ExtraInfo = fmt.Sprintf("group_dead=%t", event.Extra1 != 0)
+	case "wait4":
+		out.ExtraInfo = fmt.Sprintf("target_pid=%d options=0x%x", int32(event.Extra1), event.Extra2)
 	case "socket":
 		out.Domain = networkFamilyLabel(event.Extra1)
 		if event.Extra1 == 1 {

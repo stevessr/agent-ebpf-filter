@@ -21,10 +21,7 @@ func handleRegister(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "agent pid map not initialized"})
 		return
 	}
-	var req struct {
-		PID uint32 `json:"pid"`
-		Tag string `json:"tag,omitempty"`
-	}
+	var req registerPayload
 	if err := c.ShouldBindJSON(&req); err != nil || req.PID == 0 {
 		c.JSON(400, gin.H{"error": "invalid pid"})
 		return
@@ -37,6 +34,7 @@ func handleRegister(c *gin.Context) {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
+	trackedProcessContexts.Set(req.PID, buildProcessContextFromRegister(req))
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -53,6 +51,7 @@ func handleUnregister(c *gin.Context) {
 		return
 	}
 	_ = trackerMaps.AgentPids.Delete(req.PID)
+	trackedProcessContexts.Delete(req.PID)
 	c.JSON(200, gin.H{"status": "ok"})
 }
 

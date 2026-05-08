@@ -29,7 +29,12 @@ export namespace pb {
         ACCEPT = 21,
         ACCEPT4 = 22,
         WRAPPER_INTERCEPT = 23,
-        NATIVE_HOOK = 24
+        NATIVE_HOOK = 24,
+        GENERIC_SYSCALL = 25,
+        SCHED_PROCESS_FORK = 26,
+        SCHED_PROCESS_EXEC = 27,
+        SCHED_PROCESS_EXIT = 28,
+        WAIT4 = 29
     }
 
     /** BehaviorCategory enum. */
@@ -171,6 +176,45 @@ export namespace pb {
 
         /** RegisterRequest pid */
         pid?: (number|null);
+
+        /** RegisterRequest tag */
+        tag?: (string|null);
+
+        /** RegisterRequest agentRunId */
+        agentRunId?: (string|null);
+
+        /** RegisterRequest conversationId */
+        conversationId?: (string|null);
+
+        /** RegisterRequest turnId */
+        turnId?: (string|null);
+
+        /** RegisterRequest toolCallId */
+        toolCallId?: (string|null);
+
+        /** RegisterRequest toolName */
+        toolName?: (string|null);
+
+        /** RegisterRequest traceId */
+        traceId?: (string|null);
+
+        /** RegisterRequest spanId */
+        spanId?: (string|null);
+
+        /** RegisterRequest rootAgentPid */
+        rootAgentPid?: (number|null);
+
+        /** RegisterRequest decision */
+        decision?: (string|null);
+
+        /** RegisterRequest riskScore */
+        riskScore?: (number|null);
+
+        /** RegisterRequest containerId */
+        containerId?: (string|null);
+
+        /** RegisterRequest argvDigest */
+        argvDigest?: (string|null);
     }
 
     /** Represents a RegisterRequest. */
@@ -184,6 +228,45 @@ export namespace pb {
 
         /** RegisterRequest pid. */
         public pid: number;
+
+        /** RegisterRequest tag. */
+        public tag: string;
+
+        /** RegisterRequest agentRunId. */
+        public agentRunId: string;
+
+        /** RegisterRequest conversationId. */
+        public conversationId: string;
+
+        /** RegisterRequest turnId. */
+        public turnId: string;
+
+        /** RegisterRequest toolCallId. */
+        public toolCallId: string;
+
+        /** RegisterRequest toolName. */
+        public toolName: string;
+
+        /** RegisterRequest traceId. */
+        public traceId: string;
+
+        /** RegisterRequest spanId. */
+        public spanId: string;
+
+        /** RegisterRequest rootAgentPid. */
+        public rootAgentPid: number;
+
+        /** RegisterRequest decision. */
+        public decision: string;
+
+        /** RegisterRequest riskScore. */
+        public riskScore: number;
+
+        /** RegisterRequest containerId. */
+        public containerId: string;
+
+        /** RegisterRequest argvDigest. */
+        public argvDigest: string;
 
         /**
          * Creates a new RegisterRequest instance using the specified properties.
@@ -640,6 +723,51 @@ export namespace pb {
 
         /** Event durationNs */
         durationNs?: (number|Long|null);
+
+        /** Event schemaVersion */
+        schemaVersion?: (string|null);
+
+        /** Event gid */
+        gid?: (number|null);
+
+        /** Event cgroupId */
+        cgroupId?: (number|Long|null);
+
+        /** Event rootAgentPid */
+        rootAgentPid?: (number|null);
+
+        /** Event agentRunId */
+        agentRunId?: (string|null);
+
+        /** Event conversationId */
+        conversationId?: (string|null);
+
+        /** Event turnId */
+        turnId?: (string|null);
+
+        /** Event toolCallId */
+        toolCallId?: (string|null);
+
+        /** Event toolName */
+        toolName?: (string|null);
+
+        /** Event traceId */
+        traceId?: (string|null);
+
+        /** Event spanId */
+        spanId?: (string|null);
+
+        /** Event decision */
+        decision?: (string|null);
+
+        /** Event riskScore */
+        riskScore?: (number|null);
+
+        /** Event containerId */
+        containerId?: (string|null);
+
+        /** Event argvDigest */
+        argvDigest?: (string|null);
     }
 
     /** Represents an Event. */
@@ -722,6 +850,51 @@ export namespace pb {
 
         /** Event durationNs. */
         public durationNs: (number|Long);
+
+        /** Event schemaVersion. */
+        public schemaVersion: string;
+
+        /** Event gid. */
+        public gid: number;
+
+        /** Event cgroupId. */
+        public cgroupId: (number|Long);
+
+        /** Event rootAgentPid. */
+        public rootAgentPid: number;
+
+        /** Event agentRunId. */
+        public agentRunId: string;
+
+        /** Event conversationId. */
+        public conversationId: string;
+
+        /** Event turnId. */
+        public turnId: string;
+
+        /** Event toolCallId. */
+        public toolCallId: string;
+
+        /** Event toolName. */
+        public toolName: string;
+
+        /** Event traceId. */
+        public traceId: string;
+
+        /** Event spanId. */
+        public spanId: string;
+
+        /** Event decision. */
+        public decision: string;
+
+        /** Event riskScore. */
+        public riskScore: number;
+
+        /** Event containerId. */
+        public containerId: string;
+
+        /** Event argvDigest. */
+        public argvDigest: string;
 
         /**
          * Creates a new Event instance using the specified properties.
@@ -2606,6 +2779,42 @@ export namespace pb {
 
         /** WrapperRequest user */
         user?: (string|null);
+
+        /** WrapperRequest agentRunId */
+        agentRunId?: (string|null);
+
+        /** WrapperRequest conversationId */
+        conversationId?: (string|null);
+
+        /** WrapperRequest turnId */
+        turnId?: (string|null);
+
+        /** WrapperRequest toolCallId */
+        toolCallId?: (string|null);
+
+        /** WrapperRequest toolName */
+        toolName?: (string|null);
+
+        /** WrapperRequest traceId */
+        traceId?: (string|null);
+
+        /** WrapperRequest spanId */
+        spanId?: (string|null);
+
+        /** WrapperRequest rootAgentPid */
+        rootAgentPid?: (number|null);
+
+        /** WrapperRequest decision */
+        decision?: (string|null);
+
+        /** WrapperRequest riskScore */
+        riskScore?: (number|null);
+
+        /** WrapperRequest containerId */
+        containerId?: (string|null);
+
+        /** WrapperRequest argvDigest */
+        argvDigest?: (string|null);
     }
 
     /** Represents a WrapperRequest. */
@@ -2628,6 +2837,42 @@ export namespace pb {
 
         /** WrapperRequest user. */
         public user: string;
+
+        /** WrapperRequest agentRunId. */
+        public agentRunId: string;
+
+        /** WrapperRequest conversationId. */
+        public conversationId: string;
+
+        /** WrapperRequest turnId. */
+        public turnId: string;
+
+        /** WrapperRequest toolCallId. */
+        public toolCallId: string;
+
+        /** WrapperRequest toolName. */
+        public toolName: string;
+
+        /** WrapperRequest traceId. */
+        public traceId: string;
+
+        /** WrapperRequest spanId. */
+        public spanId: string;
+
+        /** WrapperRequest rootAgentPid. */
+        public rootAgentPid: number;
+
+        /** WrapperRequest decision. */
+        public decision: string;
+
+        /** WrapperRequest riskScore. */
+        public riskScore: number;
+
+        /** WrapperRequest containerId. */
+        public containerId: string;
+
+        /** WrapperRequest argvDigest. */
+        public argvDigest: string;
 
         /**
          * Creates a new WrapperRequest instance using the specified properties.

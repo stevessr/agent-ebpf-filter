@@ -25,31 +25,36 @@ const (
 type EventType int32
 
 const (
-	EventType_EXECVE            EventType = 0
-	EventType_OPENAT            EventType = 1
-	EventType_NETWORK_CONNECT   EventType = 2
-	EventType_MKDIR             EventType = 3
-	EventType_UNLINK            EventType = 4
-	EventType_IOCTL             EventType = 5
-	EventType_NETWORK_BIND      EventType = 6
-	EventType_NETWORK_SENDTO    EventType = 7
-	EventType_NETWORK_RECVFROM  EventType = 8
-	EventType_READ              EventType = 9
-	EventType_WRITE             EventType = 10
-	EventType_OPEN              EventType = 11
-	EventType_CHMOD             EventType = 12
-	EventType_CHOWN             EventType = 13
-	EventType_RENAME            EventType = 14
-	EventType_LINK              EventType = 15
-	EventType_SYMLINK           EventType = 16
-	EventType_MKNOD             EventType = 17
-	EventType_CLONE             EventType = 18
-	EventType_EXIT              EventType = 19
-	EventType_SOCKET            EventType = 20
-	EventType_ACCEPT            EventType = 21
-	EventType_ACCEPT4           EventType = 22
-	EventType_WRAPPER_INTERCEPT EventType = 23
-	EventType_NATIVE_HOOK       EventType = 24
+	EventType_EXECVE             EventType = 0
+	EventType_OPENAT             EventType = 1
+	EventType_NETWORK_CONNECT    EventType = 2
+	EventType_MKDIR              EventType = 3
+	EventType_UNLINK             EventType = 4
+	EventType_IOCTL              EventType = 5
+	EventType_NETWORK_BIND       EventType = 6
+	EventType_NETWORK_SENDTO     EventType = 7
+	EventType_NETWORK_RECVFROM   EventType = 8
+	EventType_READ               EventType = 9
+	EventType_WRITE              EventType = 10
+	EventType_OPEN               EventType = 11
+	EventType_CHMOD              EventType = 12
+	EventType_CHOWN              EventType = 13
+	EventType_RENAME             EventType = 14
+	EventType_LINK               EventType = 15
+	EventType_SYMLINK            EventType = 16
+	EventType_MKNOD              EventType = 17
+	EventType_CLONE              EventType = 18
+	EventType_EXIT               EventType = 19
+	EventType_SOCKET             EventType = 20
+	EventType_ACCEPT             EventType = 21
+	EventType_ACCEPT4            EventType = 22
+	EventType_WRAPPER_INTERCEPT  EventType = 23
+	EventType_NATIVE_HOOK        EventType = 24
+	EventType_GENERIC_SYSCALL    EventType = 25
+	EventType_SCHED_PROCESS_FORK EventType = 26
+	EventType_SCHED_PROCESS_EXEC EventType = 27
+	EventType_SCHED_PROCESS_EXIT EventType = 28
+	EventType_WAIT4              EventType = 29
 )
 
 // Enum value maps for EventType.
@@ -80,33 +85,43 @@ var (
 		22: "ACCEPT4",
 		23: "WRAPPER_INTERCEPT",
 		24: "NATIVE_HOOK",
+		25: "GENERIC_SYSCALL",
+		26: "SCHED_PROCESS_FORK",
+		27: "SCHED_PROCESS_EXEC",
+		28: "SCHED_PROCESS_EXIT",
+		29: "WAIT4",
 	}
 	EventType_value = map[string]int32{
-		"EXECVE":            0,
-		"OPENAT":            1,
-		"NETWORK_CONNECT":   2,
-		"MKDIR":             3,
-		"UNLINK":            4,
-		"IOCTL":             5,
-		"NETWORK_BIND":      6,
-		"NETWORK_SENDTO":    7,
-		"NETWORK_RECVFROM":  8,
-		"READ":              9,
-		"WRITE":             10,
-		"OPEN":              11,
-		"CHMOD":             12,
-		"CHOWN":             13,
-		"RENAME":            14,
-		"LINK":              15,
-		"SYMLINK":           16,
-		"MKNOD":             17,
-		"CLONE":             18,
-		"EXIT":              19,
-		"SOCKET":            20,
-		"ACCEPT":            21,
-		"ACCEPT4":           22,
-		"WRAPPER_INTERCEPT": 23,
-		"NATIVE_HOOK":       24,
+		"EXECVE":             0,
+		"OPENAT":             1,
+		"NETWORK_CONNECT":    2,
+		"MKDIR":              3,
+		"UNLINK":             4,
+		"IOCTL":              5,
+		"NETWORK_BIND":       6,
+		"NETWORK_SENDTO":     7,
+		"NETWORK_RECVFROM":   8,
+		"READ":               9,
+		"WRITE":              10,
+		"OPEN":               11,
+		"CHMOD":              12,
+		"CHOWN":              13,
+		"RENAME":             14,
+		"LINK":               15,
+		"SYMLINK":            16,
+		"MKNOD":              17,
+		"CLONE":              18,
+		"EXIT":               19,
+		"SOCKET":             20,
+		"ACCEPT":             21,
+		"ACCEPT4":            22,
+		"WRAPPER_INTERCEPT":  23,
+		"NATIVE_HOOK":        24,
+		"GENERIC_SYSCALL":    25,
+		"SCHED_PROCESS_FORK": 26,
+		"SCHED_PROCESS_EXEC": 27,
+		"SCHED_PROCESS_EXIT": 28,
+		"WAIT4":              29,
 	}
 )
 
@@ -393,10 +408,23 @@ func (x *BehaviorClassification) GetReasoning() string {
 
 // Represents a process registration request
 type RegisterRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Pid           uint32                 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Pid            uint32                 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	Tag            string                 `protobuf:"bytes,2,opt,name=tag,proto3" json:"tag,omitempty"`
+	AgentRunId     string                 `protobuf:"bytes,3,opt,name=agent_run_id,json=agentRunId,proto3" json:"agent_run_id,omitempty"`
+	ConversationId string                 `protobuf:"bytes,4,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	TurnId         string                 `protobuf:"bytes,5,opt,name=turn_id,json=turnId,proto3" json:"turn_id,omitempty"`
+	ToolCallId     string                 `protobuf:"bytes,6,opt,name=tool_call_id,json=toolCallId,proto3" json:"tool_call_id,omitempty"`
+	ToolName       string                 `protobuf:"bytes,7,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	TraceId        string                 `protobuf:"bytes,8,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	SpanId         string                 `protobuf:"bytes,9,opt,name=span_id,json=spanId,proto3" json:"span_id,omitempty"`
+	RootAgentPid   uint32                 `protobuf:"varint,10,opt,name=root_agent_pid,json=rootAgentPid,proto3" json:"root_agent_pid,omitempty"`
+	Decision       string                 `protobuf:"bytes,11,opt,name=decision,proto3" json:"decision,omitempty"`
+	RiskScore      float64                `protobuf:"fixed64,12,opt,name=risk_score,json=riskScore,proto3" json:"risk_score,omitempty"`
+	ContainerId    string                 `protobuf:"bytes,13,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	ArgvDigest     string                 `protobuf:"bytes,14,opt,name=argv_digest,json=argvDigest,proto3" json:"argv_digest,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RegisterRequest) Reset() {
@@ -434,6 +462,97 @@ func (x *RegisterRequest) GetPid() uint32 {
 		return x.Pid
 	}
 	return 0
+}
+
+func (x *RegisterRequest) GetTag() string {
+	if x != nil {
+		return x.Tag
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetAgentRunId() string {
+	if x != nil {
+		return x.AgentRunId
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetTurnId() string {
+	if x != nil {
+		return x.TurnId
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetToolCallId() string {
+	if x != nil {
+		return x.ToolCallId
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetToolName() string {
+	if x != nil {
+		return x.ToolName
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetSpanId() string {
+	if x != nil {
+		return x.SpanId
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetRootAgentPid() uint32 {
+	if x != nil {
+		return x.RootAgentPid
+	}
+	return 0
+}
+
+func (x *RegisterRequest) GetDecision() string {
+	if x != nil {
+		return x.Decision
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetRiskScore() float64 {
+	if x != nil {
+		return x.RiskScore
+	}
+	return 0
+}
+
+func (x *RegisterRequest) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetArgvDigest() string {
+	if x != nil {
+		return x.ArgvDigest
+	}
+	return ""
 }
 
 // Represents a process registration response
@@ -589,33 +708,48 @@ func (x *UnregisterResponse) GetMessage() string {
 
 // Represents an intercepted eBPF event (e.g., file open, exec)
 type Event struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
-	Pid           uint32                  `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
-	Ppid          uint32                  `protobuf:"varint,2,opt,name=ppid,proto3" json:"ppid,omitempty"`
-	Uid           uint32                  `protobuf:"varint,3,opt,name=uid,proto3" json:"uid,omitempty"`
-	Type          string                  `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
-	Tag           string                  `protobuf:"bytes,5,opt,name=tag,proto3" json:"tag,omitempty"`
-	Comm          string                  `protobuf:"bytes,6,opt,name=comm,proto3" json:"comm,omitempty"`
-	Path          string                  `protobuf:"bytes,7,opt,name=path,proto3" json:"path,omitempty"`
-	NetDirection  string                  `protobuf:"bytes,8,opt,name=net_direction,json=netDirection,proto3" json:"net_direction,omitempty"`
-	NetEndpoint   string                  `protobuf:"bytes,9,opt,name=net_endpoint,json=netEndpoint,proto3" json:"net_endpoint,omitempty"`
-	NetBytes      uint32                  `protobuf:"varint,10,opt,name=net_bytes,json=netBytes,proto3" json:"net_bytes,omitempty"`
-	NetFamily     string                  `protobuf:"bytes,11,opt,name=net_family,json=netFamily,proto3" json:"net_family,omitempty"`
-	Retval        int64                   `protobuf:"varint,12,opt,name=retval,proto3" json:"retval,omitempty"`
-	ExtraInfo     string                  `protobuf:"bytes,13,opt,name=extra_info,json=extraInfo,proto3" json:"extra_info,omitempty"`
-	ExtraPath     string                  `protobuf:"bytes,14,opt,name=extra_path,json=extraPath,proto3" json:"extra_path,omitempty"`
-	Bytes         uint64                  `protobuf:"varint,15,opt,name=bytes,proto3" json:"bytes,omitempty"`
-	Mode          string                  `protobuf:"bytes,16,opt,name=mode,proto3" json:"mode,omitempty"`
-	Domain        string                  `protobuf:"bytes,17,opt,name=domain,proto3" json:"domain,omitempty"`
-	SockType      string                  `protobuf:"bytes,18,opt,name=sock_type,json=sockType,proto3" json:"sock_type,omitempty"`
-	Protocol      uint32                  `protobuf:"varint,19,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	UidArg        uint32                  `protobuf:"varint,20,opt,name=uid_arg,json=uidArg,proto3" json:"uid_arg,omitempty"`
-	GidArg        uint32                  `protobuf:"varint,21,opt,name=gid_arg,json=gidArg,proto3" json:"gid_arg,omitempty"`
-	EventType     EventType               `protobuf:"varint,22,opt,name=event_type,json=eventType,proto3,enum=pb.EventType" json:"event_type,omitempty"`
-	Behavior      *BehaviorClassification `protobuf:"bytes,23,opt,name=behavior,proto3" json:"behavior,omitempty"`
-	DurationNs    uint64                  `protobuf:"varint,24,opt,name=duration_ns,json=durationNs,proto3" json:"duration_ns,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState  `protogen:"open.v1"`
+	Pid            uint32                  `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	Ppid           uint32                  `protobuf:"varint,2,opt,name=ppid,proto3" json:"ppid,omitempty"`
+	Uid            uint32                  `protobuf:"varint,3,opt,name=uid,proto3" json:"uid,omitempty"`
+	Type           string                  `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
+	Tag            string                  `protobuf:"bytes,5,opt,name=tag,proto3" json:"tag,omitempty"`
+	Comm           string                  `protobuf:"bytes,6,opt,name=comm,proto3" json:"comm,omitempty"`
+	Path           string                  `protobuf:"bytes,7,opt,name=path,proto3" json:"path,omitempty"`
+	NetDirection   string                  `protobuf:"bytes,8,opt,name=net_direction,json=netDirection,proto3" json:"net_direction,omitempty"`
+	NetEndpoint    string                  `protobuf:"bytes,9,opt,name=net_endpoint,json=netEndpoint,proto3" json:"net_endpoint,omitempty"`
+	NetBytes       uint32                  `protobuf:"varint,10,opt,name=net_bytes,json=netBytes,proto3" json:"net_bytes,omitempty"`
+	NetFamily      string                  `protobuf:"bytes,11,opt,name=net_family,json=netFamily,proto3" json:"net_family,omitempty"`
+	Retval         int64                   `protobuf:"varint,12,opt,name=retval,proto3" json:"retval,omitempty"`
+	ExtraInfo      string                  `protobuf:"bytes,13,opt,name=extra_info,json=extraInfo,proto3" json:"extra_info,omitempty"`
+	ExtraPath      string                  `protobuf:"bytes,14,opt,name=extra_path,json=extraPath,proto3" json:"extra_path,omitempty"`
+	Bytes          uint64                  `protobuf:"varint,15,opt,name=bytes,proto3" json:"bytes,omitempty"`
+	Mode           string                  `protobuf:"bytes,16,opt,name=mode,proto3" json:"mode,omitempty"`
+	Domain         string                  `protobuf:"bytes,17,opt,name=domain,proto3" json:"domain,omitempty"`
+	SockType       string                  `protobuf:"bytes,18,opt,name=sock_type,json=sockType,proto3" json:"sock_type,omitempty"`
+	Protocol       uint32                  `protobuf:"varint,19,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	UidArg         uint32                  `protobuf:"varint,20,opt,name=uid_arg,json=uidArg,proto3" json:"uid_arg,omitempty"`
+	GidArg         uint32                  `protobuf:"varint,21,opt,name=gid_arg,json=gidArg,proto3" json:"gid_arg,omitempty"`
+	EventType      EventType               `protobuf:"varint,22,opt,name=event_type,json=eventType,proto3,enum=pb.EventType" json:"event_type,omitempty"`
+	Behavior       *BehaviorClassification `protobuf:"bytes,23,opt,name=behavior,proto3" json:"behavior,omitempty"`
+	DurationNs     uint64                  `protobuf:"varint,24,opt,name=duration_ns,json=durationNs,proto3" json:"duration_ns,omitempty"`
+	SchemaVersion  string                  `protobuf:"bytes,25,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	Gid            uint32                  `protobuf:"varint,26,opt,name=gid,proto3" json:"gid,omitempty"`
+	CgroupId       uint64                  `protobuf:"varint,27,opt,name=cgroup_id,json=cgroupId,proto3" json:"cgroup_id,omitempty"`
+	RootAgentPid   uint32                  `protobuf:"varint,28,opt,name=root_agent_pid,json=rootAgentPid,proto3" json:"root_agent_pid,omitempty"`
+	AgentRunId     string                  `protobuf:"bytes,29,opt,name=agent_run_id,json=agentRunId,proto3" json:"agent_run_id,omitempty"`
+	ConversationId string                  `protobuf:"bytes,30,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	TurnId         string                  `protobuf:"bytes,31,opt,name=turn_id,json=turnId,proto3" json:"turn_id,omitempty"`
+	ToolCallId     string                  `protobuf:"bytes,32,opt,name=tool_call_id,json=toolCallId,proto3" json:"tool_call_id,omitempty"`
+	ToolName       string                  `protobuf:"bytes,33,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	TraceId        string                  `protobuf:"bytes,34,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	SpanId         string                  `protobuf:"bytes,35,opt,name=span_id,json=spanId,proto3" json:"span_id,omitempty"`
+	Decision       string                  `protobuf:"bytes,36,opt,name=decision,proto3" json:"decision,omitempty"`
+	RiskScore      float64                 `protobuf:"fixed64,37,opt,name=risk_score,json=riskScore,proto3" json:"risk_score,omitempty"`
+	ContainerId    string                  `protobuf:"bytes,38,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	ArgvDigest     string                  `protobuf:"bytes,39,opt,name=argv_digest,json=argvDigest,proto3" json:"argv_digest,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Event) Reset() {
@@ -814,6 +948,111 @@ func (x *Event) GetDurationNs() uint64 {
 		return x.DurationNs
 	}
 	return 0
+}
+
+func (x *Event) GetSchemaVersion() string {
+	if x != nil {
+		return x.SchemaVersion
+	}
+	return ""
+}
+
+func (x *Event) GetGid() uint32 {
+	if x != nil {
+		return x.Gid
+	}
+	return 0
+}
+
+func (x *Event) GetCgroupId() uint64 {
+	if x != nil {
+		return x.CgroupId
+	}
+	return 0
+}
+
+func (x *Event) GetRootAgentPid() uint32 {
+	if x != nil {
+		return x.RootAgentPid
+	}
+	return 0
+}
+
+func (x *Event) GetAgentRunId() string {
+	if x != nil {
+		return x.AgentRunId
+	}
+	return ""
+}
+
+func (x *Event) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *Event) GetTurnId() string {
+	if x != nil {
+		return x.TurnId
+	}
+	return ""
+}
+
+func (x *Event) GetToolCallId() string {
+	if x != nil {
+		return x.ToolCallId
+	}
+	return ""
+}
+
+func (x *Event) GetToolName() string {
+	if x != nil {
+		return x.ToolName
+	}
+	return ""
+}
+
+func (x *Event) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+func (x *Event) GetSpanId() string {
+	if x != nil {
+		return x.SpanId
+	}
+	return ""
+}
+
+func (x *Event) GetDecision() string {
+	if x != nil {
+		return x.Decision
+	}
+	return ""
+}
+
+func (x *Event) GetRiskScore() float64 {
+	if x != nil {
+		return x.RiskScore
+	}
+	return 0
+}
+
+func (x *Event) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *Event) GetArgvDigest() string {
+	if x != nil {
+		return x.ArgvDigest
+	}
+	return ""
 }
 
 // Batch of events for WebSocket delivery efficiency
@@ -1936,13 +2175,25 @@ func (x *SystemStats) GetFaults() *FaultInfo {
 }
 
 type WrapperRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Pid           uint32                 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
-	Comm          string                 `protobuf:"bytes,2,opt,name=comm,proto3" json:"comm,omitempty"`
-	Args          []string               `protobuf:"bytes,3,rep,name=args,proto3" json:"args,omitempty"`
-	User          string                 `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Pid            uint32                 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	Comm           string                 `protobuf:"bytes,2,opt,name=comm,proto3" json:"comm,omitempty"`
+	Args           []string               `protobuf:"bytes,3,rep,name=args,proto3" json:"args,omitempty"`
+	User           string                 `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`
+	AgentRunId     string                 `protobuf:"bytes,5,opt,name=agent_run_id,json=agentRunId,proto3" json:"agent_run_id,omitempty"`
+	ConversationId string                 `protobuf:"bytes,6,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	TurnId         string                 `protobuf:"bytes,7,opt,name=turn_id,json=turnId,proto3" json:"turn_id,omitempty"`
+	ToolCallId     string                 `protobuf:"bytes,8,opt,name=tool_call_id,json=toolCallId,proto3" json:"tool_call_id,omitempty"`
+	ToolName       string                 `protobuf:"bytes,9,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	TraceId        string                 `protobuf:"bytes,10,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	SpanId         string                 `protobuf:"bytes,11,opt,name=span_id,json=spanId,proto3" json:"span_id,omitempty"`
+	RootAgentPid   uint32                 `protobuf:"varint,12,opt,name=root_agent_pid,json=rootAgentPid,proto3" json:"root_agent_pid,omitempty"`
+	Decision       string                 `protobuf:"bytes,13,opt,name=decision,proto3" json:"decision,omitempty"`
+	RiskScore      float64                `protobuf:"fixed64,14,opt,name=risk_score,json=riskScore,proto3" json:"risk_score,omitempty"`
+	ContainerId    string                 `protobuf:"bytes,15,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	ArgvDigest     string                 `protobuf:"bytes,16,opt,name=argv_digest,json=argvDigest,proto3" json:"argv_digest,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *WrapperRequest) Reset() {
@@ -1999,6 +2250,90 @@ func (x *WrapperRequest) GetArgs() []string {
 func (x *WrapperRequest) GetUser() string {
 	if x != nil {
 		return x.User
+	}
+	return ""
+}
+
+func (x *WrapperRequest) GetAgentRunId() string {
+	if x != nil {
+		return x.AgentRunId
+	}
+	return ""
+}
+
+func (x *WrapperRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *WrapperRequest) GetTurnId() string {
+	if x != nil {
+		return x.TurnId
+	}
+	return ""
+}
+
+func (x *WrapperRequest) GetToolCallId() string {
+	if x != nil {
+		return x.ToolCallId
+	}
+	return ""
+}
+
+func (x *WrapperRequest) GetToolName() string {
+	if x != nil {
+		return x.ToolName
+	}
+	return ""
+}
+
+func (x *WrapperRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+func (x *WrapperRequest) GetSpanId() string {
+	if x != nil {
+		return x.SpanId
+	}
+	return ""
+}
+
+func (x *WrapperRequest) GetRootAgentPid() uint32 {
+	if x != nil {
+		return x.RootAgentPid
+	}
+	return 0
+}
+
+func (x *WrapperRequest) GetDecision() string {
+	if x != nil {
+		return x.Decision
+	}
+	return ""
+}
+
+func (x *WrapperRequest) GetRiskScore() float64 {
+	if x != nil {
+		return x.RiskScore
+	}
+	return 0
+}
+
+func (x *WrapperRequest) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *WrapperRequest) GetArgvDigest() string {
+	if x != nil {
+		return x.ArgvDigest
 	}
 	return ""
 }
@@ -4016,9 +4351,27 @@ const file_tracker_proto_rawDesc = "" +
 	"\n" +
 	"confidence\x18\x03 \x01(\tR\n" +
 	"confidence\x12\x1c\n" +
-	"\treasoning\x18\x04 \x01(\tR\treasoning\"#\n" +
+	"\treasoning\x18\x04 \x01(\tR\treasoning\"\xb1\x03\n" +
 	"\x0fRegisterRequest\x12\x10\n" +
-	"\x03pid\x18\x01 \x01(\rR\x03pid\"F\n" +
+	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x10\n" +
+	"\x03tag\x18\x02 \x01(\tR\x03tag\x12 \n" +
+	"\fagent_run_id\x18\x03 \x01(\tR\n" +
+	"agentRunId\x12'\n" +
+	"\x0fconversation_id\x18\x04 \x01(\tR\x0econversationId\x12\x17\n" +
+	"\aturn_id\x18\x05 \x01(\tR\x06turnId\x12 \n" +
+	"\ftool_call_id\x18\x06 \x01(\tR\n" +
+	"toolCallId\x12\x1b\n" +
+	"\ttool_name\x18\a \x01(\tR\btoolName\x12\x19\n" +
+	"\btrace_id\x18\b \x01(\tR\atraceId\x12\x17\n" +
+	"\aspan_id\x18\t \x01(\tR\x06spanId\x12$\n" +
+	"\x0eroot_agent_pid\x18\n" +
+	" \x01(\rR\frootAgentPid\x12\x1a\n" +
+	"\bdecision\x18\v \x01(\tR\bdecision\x12\x1d\n" +
+	"\n" +
+	"risk_score\x18\f \x01(\x01R\triskScore\x12!\n" +
+	"\fcontainer_id\x18\r \x01(\tR\vcontainerId\x12\x1f\n" +
+	"\vargv_digest\x18\x0e \x01(\tR\n" +
+	"argvDigest\"F\n" +
 	"\x10RegisterResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"%\n" +
@@ -4026,7 +4379,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\"H\n" +
 	"\x12UnregisterResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x9b\x05\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xed\b\n" +
 	"\x05Event\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\rR\x04ppid\x12\x10\n" +
@@ -4057,7 +4410,26 @@ const file_tracker_proto_rawDesc = "" +
 	"event_type\x18\x16 \x01(\x0e2\r.pb.EventTypeR\teventType\x126\n" +
 	"\bbehavior\x18\x17 \x01(\v2\x1a.pb.BehaviorClassificationR\bbehavior\x12\x1f\n" +
 	"\vduration_ns\x18\x18 \x01(\x04R\n" +
-	"durationNs\"/\n" +
+	"durationNs\x12%\n" +
+	"\x0eschema_version\x18\x19 \x01(\tR\rschemaVersion\x12\x10\n" +
+	"\x03gid\x18\x1a \x01(\rR\x03gid\x12\x1b\n" +
+	"\tcgroup_id\x18\x1b \x01(\x04R\bcgroupId\x12$\n" +
+	"\x0eroot_agent_pid\x18\x1c \x01(\rR\frootAgentPid\x12 \n" +
+	"\fagent_run_id\x18\x1d \x01(\tR\n" +
+	"agentRunId\x12'\n" +
+	"\x0fconversation_id\x18\x1e \x01(\tR\x0econversationId\x12\x17\n" +
+	"\aturn_id\x18\x1f \x01(\tR\x06turnId\x12 \n" +
+	"\ftool_call_id\x18  \x01(\tR\n" +
+	"toolCallId\x12\x1b\n" +
+	"\ttool_name\x18! \x01(\tR\btoolName\x12\x19\n" +
+	"\btrace_id\x18\" \x01(\tR\atraceId\x12\x17\n" +
+	"\aspan_id\x18# \x01(\tR\x06spanId\x12\x1a\n" +
+	"\bdecision\x18$ \x01(\tR\bdecision\x12\x1d\n" +
+	"\n" +
+	"risk_score\x18% \x01(\x01R\triskScore\x12!\n" +
+	"\fcontainer_id\x18& \x01(\tR\vcontainerId\x12\x1f\n" +
+	"\vargv_digest\x18' \x01(\tR\n" +
+	"argvDigest\"/\n" +
 	"\n" +
 	"EventBatch\x12!\n" +
 	"\x06events\x18\x01 \x03(\v2\t.pb.EventR\x06events\"\xc7\x02\n" +
@@ -4180,12 +4552,29 @@ const file_tracker_proto_rawDesc = "" +
 	"\x06memory\x18\x04 \x01(\v2\x0e.pb.MemoryInfoR\x06memory\x12\x1a\n" +
 	"\x02io\x18\x05 \x01(\v2\n" +
 	".pb.IOInfoR\x02io\x12%\n" +
-	"\x06faults\x18\x06 \x01(\v2\r.pb.FaultInfoR\x06faults\"^\n" +
+	"\x06faults\x18\x06 \x01(\v2\r.pb.FaultInfoR\x06faults\"\xda\x03\n" +
 	"\x0eWrapperRequest\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
 	"\x04comm\x18\x02 \x01(\tR\x04comm\x12\x12\n" +
 	"\x04args\x18\x03 \x03(\tR\x04args\x12\x12\n" +
-	"\x04user\x18\x04 \x01(\tR\x04user\"\x82\x03\n" +
+	"\x04user\x18\x04 \x01(\tR\x04user\x12 \n" +
+	"\fagent_run_id\x18\x05 \x01(\tR\n" +
+	"agentRunId\x12'\n" +
+	"\x0fconversation_id\x18\x06 \x01(\tR\x0econversationId\x12\x17\n" +
+	"\aturn_id\x18\a \x01(\tR\x06turnId\x12 \n" +
+	"\ftool_call_id\x18\b \x01(\tR\n" +
+	"toolCallId\x12\x1b\n" +
+	"\ttool_name\x18\t \x01(\tR\btoolName\x12\x19\n" +
+	"\btrace_id\x18\n" +
+	" \x01(\tR\atraceId\x12\x17\n" +
+	"\aspan_id\x18\v \x01(\tR\x06spanId\x12$\n" +
+	"\x0eroot_agent_pid\x18\f \x01(\rR\frootAgentPid\x12\x1a\n" +
+	"\bdecision\x18\r \x01(\tR\bdecision\x12\x1d\n" +
+	"\n" +
+	"risk_score\x18\x0e \x01(\x01R\triskScore\x12!\n" +
+	"\fcontainer_id\x18\x0f \x01(\tR\vcontainerId\x12\x1f\n" +
+	"\vargv_digest\x18\x10 \x01(\tR\n" +
+	"argvDigest\"\x82\x03\n" +
 	"\x0fWrapperResponse\x122\n" +
 	"\x06action\x18\x01 \x01(\x0e2\x1a.pb.WrapperResponse.ActionR\x06action\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12%\n" +
@@ -4327,7 +4716,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"D\n" +
 	"\x12ConfigBoolResponse\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\bR\x05value\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage*\xdb\x02\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage*\xc3\x03\n" +
 	"\tEventType\x12\n" +
 	"\n" +
 	"\x06EXECVE\x10\x00\x12\n" +
@@ -4360,7 +4749,12 @@ const file_tracker_proto_rawDesc = "" +
 	"\x06ACCEPT\x10\x15\x12\v\n" +
 	"\aACCEPT4\x10\x16\x12\x15\n" +
 	"\x11WRAPPER_INTERCEPT\x10\x17\x12\x0f\n" +
-	"\vNATIVE_HOOK\x10\x18*\x89\x02\n" +
+	"\vNATIVE_HOOK\x10\x18\x12\x13\n" +
+	"\x0fGENERIC_SYSCALL\x10\x19\x12\x16\n" +
+	"\x12SCHED_PROCESS_FORK\x10\x1a\x12\x16\n" +
+	"\x12SCHED_PROCESS_EXEC\x10\x1b\x12\x16\n" +
+	"\x12SCHED_PROCESS_EXIT\x10\x1c\x12\t\n" +
+	"\x05WAIT4\x10\x1d*\x89\x02\n" +
 	"\x10BehaviorCategory\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\r\n" +
 	"\tFILE_READ\x10\x01\x12\x0e\n" +

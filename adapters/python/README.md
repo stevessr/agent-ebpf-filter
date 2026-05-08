@@ -50,11 +50,12 @@ When the process exits normally, the adapter attempts to unregister through `ate
   - `AGENT_BACKEND_URL`
   - repo-local `backend/.port`
   - fallback `http://127.0.0.1:8080`
+- the helper can also forward optional run / trace metadata from the constructor `context` dict or env vars such as `AGENT_EBPF_AGENT_RUN_ID`, `AGENT_EBPF_TOOL_CALL_ID`, and `AGENT_EBPF_TRACE_ID`
 
 ## Limitations
 
 - The helper does **not** currently expose a custom tag parameter.
-- Registration is **per process**; child processes are not auto-registered.
+- Descendant processes now inherit the registered context automatically.
 - If the backend is unavailable during shutdown, unregister is best-effort.
 
 ## Smoke test

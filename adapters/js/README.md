@@ -32,13 +32,14 @@ fs.writeFileSync('/tmp/node-agent-demo.txt', 'hello');
   - `AGENT_BACKEND_URL`
   - repo-local `backend/.port`
   - fallback `http://127.0.0.1:8080`
+- the helper can also forward optional run / trace metadata from constructor `context` or env vars such as `AGENT_EBPF_AGENT_RUN_ID`, `AGENT_EBPF_TOOL_CALL_ID`, and `AGENT_EBPF_TRACE_ID`
 
 ## Limitations
 
 - Registration is asynchronous.
 - Exit-time unregister is best-effort.
 - The helper currently uses the backend default tag (`AI Agent`) and does not expose custom tags.
-- Registration is per process; spawned child processes are not auto-registered.
+- Descendant processes now inherit the registered context automatically.
 
 ## Smoke test
 

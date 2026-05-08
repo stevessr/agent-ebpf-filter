@@ -2,6 +2,33 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+function firstEnv(...keys) {
+  for (const key of keys) {
+    const value = (process.env[key] || '').trim();
+    if (value) {
+      return value;
+    }
+  }
+  return '';
+}
+
+function parseEnvNumber(...keys) {
+  const raw = firstEnv(...keys);
+  if (!raw) {
+    return 0;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function buildArgvDigest(parts) {
+  const normalized = parts.map((part) => String(part || '').trim()).filter(Boolean);
+  if (normalized.length === 0) {
+    return '';
+  }
+  return require('crypto').createHash('sha256').update(normalized.join('\x00')).digest('hex');
+}
+
 function resolveBackendUrl(explicitUrl) {
   if (explicitUrl) {
     return explicitUrl;
@@ -27,10 +54,11 @@ function resolveBackendUrl(explicitUrl) {
 }
 
 class AgentTracker {
-  constructor(backendUrl) {
+  constructor(backendUrl, context = {}) {
     this.backendUrl = new URL(resolveBackendUrl(backendUrl));
     this.pid = process.pid;
     this.registered = false;
+    this.context = context;
   }
 
   start() {
@@ -77,7 +105,26 @@ class AgentTracker {
   }
 
   _sendRequest(path, callback) {
-    const data = JSON.stringify({ pid: this.pid });
+    const payload = {
+      pid: this.pid,
+      root_agent_pid: this.context.root_agent_pid || parseEnvNumber('AGENT_EBPF_ROOT_AGENT_PID', 'ROOT_AGENT_PID'),
+      agent_run_id: this.context.agent_run_id || firstEnv('AGENT_EBPF_AGENT_RUN_ID', 'AGENT_RUN_ID'),
+      conversation_id: this.context.conversation_id || firstEnv('AGENT_EBPF_CONVERSATION_ID', 'AGENT_CONVERSATION_ID'),
+      turn_id: this.context.turn_id || firstEnv('AGENT_EBPF_TURN_ID', 'AGENT_TURN_ID'),
+      tool_call_id: this.context.tool_call_id || firstEnv('AGENT_EBPF_TOOL_CALL_ID', 'AGENT_TOOL_CALL_ID'),
+      tool_name: this.context.tool_name || firstEnv('AGENT_EBPF_TOOL_NAME', 'AGENT_TOOL_NAME'),
+      trace_id: this.context.trace_id || firstEnv('AGENT_EBPF_TRACE_ID', 'TRACE_ID'),
+      span_id: this.context.span_id || firstEnv('AGENT_EBPF_SPAN_ID', 'SPAN_ID'),
+      decision: this.context.decision || firstEnv('AGENT_EBPF_DECISION', 'AGENT_DECISION'),
+      risk_score: this.context.risk_score || parseEnvNumber('AGENT_EBPF_RISK_SCORE', 'AGENT_RISK_SCORE'),
+      container_id: this.context.container_id || firstEnv('AGENT_EBPF_CONTAINER_ID', 'CONTAINER_ID'),
+      argv_digest: this.context.argv_digest || buildArgvDigest([
+        this.context.tool_name || firstEnv('AGENT_EBPF_TOOL_NAME', 'AGENT_TOOL_NAME'),
+        this.context.tool_call_id || firstEnv('AGENT_EBPF_TOOL_CALL_ID', 'AGENT_TOOL_CALL_ID'),
+        this.context.agent_run_id || firstEnv('AGENT_EBPF_AGENT_RUN_ID', 'AGENT_RUN_ID'),
+      ]),
+    };
+    const data = JSON.stringify(payload);
     const options = {
       hostname: this.backendUrl.hostname,
       port: this.backendUrl.port,

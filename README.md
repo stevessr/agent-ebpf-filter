@@ -38,7 +38,7 @@ Events are written to a ring buffer and consumed by the Go backend.
 
 ### User-space telemetry and control
 
-- **PID registration**: Python / Node adapters call `/register` and `/unregister`.
+- **PID registration**: Python / Node adapters call `/register` and `/unregister`, optionally attaching `agent_run_id` / `tool_call_id` / `trace_id` style metadata.
 - **Tracked command names**: common CLIs plus user-defined commands are tagged through `tracked_comms`.
 - **Tracked paths**: exact path matches are tagged through `tracked_paths`.
 - **Wrapper interception**: `agent-wrapper` asks the backend for `ALLOW`, `BLOCK`, `ALERT`, or `REWRITE`.
@@ -92,6 +92,7 @@ When a master is selected in the web UI, it can forward supported requests to a 
 
 3. **Agent registration**
    - Adapters register the current PID into the `agent_pids` BPF hash map.
+   - Registered process context is mirrored in user space and inherited across child processes so descendants can carry `root_agent_pid`, `agent_run_id`, `tool_call_id`, and trace IDs.
    - The eBPF program only emits events when a PID, command, or path matches a tracked rule.
 
 4. **Event fan-out**
@@ -315,12 +316,13 @@ Protected by `authMiddleware()` in release mode:
 
 ## Important behavior and limitations
 
-### PID registration is per process
+### PID registration seeds process lineage
 
-Registering a PID adds **that process** to `agent_pids`.
+Registering a PID adds the process to `agent_pids` and seeds a process-context record.
 
 - `execve` in-place keeps the PID and remains tracked.
-- child processes created later do **not** automatically inherit registration unless they are also registered or matched by tracked command/path rules.
+- child processes created later now inherit tracking through `sched_process_fork` / `clone` plus parent-PID context fallback in user space.
+- descendants can carry `root_agent_pid`, `agent_run_id`, `conversation_id`, `turn_id`, `tool_call_id`, `tool_name`, `trace_id`, `span_id`, `decision`, and `argv_digest` when the caller provides them.
 
 ### Command and path matching are exact-match maps
 

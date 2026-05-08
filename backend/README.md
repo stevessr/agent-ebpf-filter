@@ -63,6 +63,7 @@ Broadcasts `pb.Event` messages sourced from:
 - native AI CLI hook callbacks.
 
 Kernel event payloads include syscall exit duration so the dashboard can render strace-style summaries without requiring a separate tracer.
+They also carry `schema_version`, `gid`, `cgroup_id`, and inherited agent-run context when available.
 
 ### `/ws/system`
 
@@ -193,7 +194,7 @@ The backend exposes a Unix-domain socket at:
 
 - `/tmp/agent-ebpf.sock`
 
-`agent-wrapper` sends `pb.WrapperRequest`, the backend applies wrapper rules, then returns `pb.WrapperResponse`.
+`agent-wrapper` sends `pb.WrapperRequest`, the backend applies wrapper rules, then returns `pb.WrapperResponse`. The request can include optional run / trace metadata (`agent_run_id`, `tool_call_id`, `trace_id`, `span_id`, `root_agent_pid`, `argv_digest`, etc.) so descendant kernel events inherit the same execution context.
 
 Supported actions:
 

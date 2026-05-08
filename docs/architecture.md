@@ -240,7 +240,7 @@ The kernel filter currently uses **exact-match** maps:
 
 This means:
 
-- PID tracking is process-local
+- PID tracking starts at the registered process, then inherits to descendants through fork / clone lineage plus user-space parent fallback
 - command tracking works best for short executable names
 - path tracking is not recursive subtree tracking
 

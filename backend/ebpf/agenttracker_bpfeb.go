@@ -83,6 +83,9 @@ type AgentTrackerSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type AgentTrackerProgramSpecs struct {
+	TracepointSchedSchedProcessExec           *ebpf.ProgramSpec `ebpf:"tracepoint__sched__sched_process_exec"`
+	TracepointSchedSchedProcessExit           *ebpf.ProgramSpec `ebpf:"tracepoint__sched__sched_process_exit"`
+	TracepointSchedSchedProcessFork           *ebpf.ProgramSpec `ebpf:"tracepoint__sched__sched_process_fork"`
 	TracepointSyscallsSysEnterAccept          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_accept"`
 	TracepointSyscallsSysEnterAccept4         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_accept4"`
 	TracepointSyscallsSysEnterAccess          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_access"`
@@ -175,6 +178,7 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysEnterUnlinkat        *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_unlinkat"`
 	TracepointSyscallsSysEnterUnshare         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_unshare"`
 	TracepointSyscallsSysEnterUtimensat       *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_utimensat"`
+	TracepointSyscallsSysEnterWait4           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_wait4"`
 	TracepointSyscallsSysEnterWrite           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_write"`
 	TracepointSyscallsSysExitAccept           *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_accept"`
 	TracepointSyscallsSysExitAccept4          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_accept4"`
@@ -268,6 +272,7 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysExitUnlinkat         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_unlinkat"`
 	TracepointSyscallsSysExitUnshare          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_unshare"`
 	TracepointSyscallsSysExitUtimensat        *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_utimensat"`
+	TracepointSyscallsSysExitWait4            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_wait4"`
 	TracepointSyscallsSysExitWrite            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_write"`
 }
 
@@ -344,6 +349,9 @@ type AgentTrackerVariables struct {
 //
 // It can be passed to LoadAgentTrackerObjects or ebpf.CollectionSpec.LoadAndAssign.
 type AgentTrackerPrograms struct {
+	TracepointSchedSchedProcessExec           *ebpf.Program `ebpf:"tracepoint__sched__sched_process_exec"`
+	TracepointSchedSchedProcessExit           *ebpf.Program `ebpf:"tracepoint__sched__sched_process_exit"`
+	TracepointSchedSchedProcessFork           *ebpf.Program `ebpf:"tracepoint__sched__sched_process_fork"`
 	TracepointSyscallsSysEnterAccept          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_accept"`
 	TracepointSyscallsSysEnterAccept4         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_accept4"`
 	TracepointSyscallsSysEnterAccess          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_access"`
@@ -436,6 +444,7 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysEnterUnlinkat        *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_unlinkat"`
 	TracepointSyscallsSysEnterUnshare         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_unshare"`
 	TracepointSyscallsSysEnterUtimensat       *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_utimensat"`
+	TracepointSyscallsSysEnterWait4           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_wait4"`
 	TracepointSyscallsSysEnterWrite           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_write"`
 	TracepointSyscallsSysExitAccept           *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_accept"`
 	TracepointSyscallsSysExitAccept4          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_accept4"`
@@ -529,11 +538,15 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysExitUnlinkat         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_unlinkat"`
 	TracepointSyscallsSysExitUnshare          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_unshare"`
 	TracepointSyscallsSysExitUtimensat        *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_utimensat"`
+	TracepointSyscallsSysExitWait4            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_wait4"`
 	TracepointSyscallsSysExitWrite            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_write"`
 }
 
 func (p *AgentTrackerPrograms) Close() error {
 	return _AgentTrackerClose(
+		p.TracepointSchedSchedProcessExec,
+		p.TracepointSchedSchedProcessExit,
+		p.TracepointSchedSchedProcessFork,
 		p.TracepointSyscallsSysEnterAccept,
 		p.TracepointSyscallsSysEnterAccept4,
 		p.TracepointSyscallsSysEnterAccess,
@@ -626,6 +639,7 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysEnterUnlinkat,
 		p.TracepointSyscallsSysEnterUnshare,
 		p.TracepointSyscallsSysEnterUtimensat,
+		p.TracepointSyscallsSysEnterWait4,
 		p.TracepointSyscallsSysEnterWrite,
 		p.TracepointSyscallsSysExitAccept,
 		p.TracepointSyscallsSysExitAccept4,
@@ -719,6 +733,7 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysExitUnlinkat,
 		p.TracepointSyscallsSysExitUnshare,
 		p.TracepointSyscallsSysExitUtimensat,
+		p.TracepointSyscallsSysExitWait4,
 		p.TracepointSyscallsSysExitWrite,
 	)
 }

@@ -72,6 +72,7 @@ func startEventBroadcaster() {
 		for {
 			select {
 			case event := <-broadcast:
+				event = enrichEventContext(event)
 				recordCapturedEvent(event)
 				batch = append(batch, event)
 				if len(batch) >= 50 {

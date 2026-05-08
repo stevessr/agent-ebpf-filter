@@ -46,6 +46,11 @@ func handleNativeHookEvent(c *gin.Context) {
 		}
 	}
 
+	pid, ctx := buildProcessContextFromHookPayload(payload, toolName, path)
+	if pid != 0 {
+		trackedProcessContexts.Set(pid, ctx)
+	}
+
 	tag := "Native Hook"
 	sourceCLI := strings.ToLower(strings.TrimSpace(c.GetHeader("X-Agent-CLI")))
 	ua := strings.ToLower(c.GetHeader("User-Agent"))
@@ -72,11 +77,25 @@ func handleNativeHookEvent(c *gin.Context) {
 	}
 
 	broadcast <- &pb.Event{
-		Type:      "native_hook",
-		EventType: pb.EventType_NATIVE_HOOK,
-		Tag:       tag,
-		Comm:      fmt.Sprintf("%s:%s", hookEvent, toolName),
-		Path:      path,
+		Pid:            pid,
+		Type:           "native_hook",
+		EventType:      pb.EventType_NATIVE_HOOK,
+		Tag:            tag,
+		Comm:           fmt.Sprintf("%s:%s", hookEvent, toolName),
+		Path:           path,
+		SchemaVersion:  eventSchemaVersion,
+		RootAgentPid:   ctx.RootAgentPid,
+		AgentRunId:     ctx.AgentRunID,
+		ConversationId: ctx.ConversationID,
+		TurnId:         ctx.TurnID,
+		ToolCallId:     ctx.ToolCallID,
+		ToolName:       ctx.ToolName,
+		TraceId:        ctx.TraceID,
+		SpanId:         ctx.SpanID,
+		Decision:       ctx.Decision,
+		RiskScore:      ctx.RiskScore,
+		ContainerId:    ctx.ContainerID,
+		ArgvDigest:     ctx.ArgvDigest,
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

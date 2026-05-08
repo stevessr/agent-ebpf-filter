@@ -5,6 +5,7 @@ export interface AgentEvent {
   pid: number;
   ppid: number;
   uid: number;
+  gid?: number;
   type: string;
   eventType?: number;
   tag: string;
@@ -25,6 +26,20 @@ export interface AgentEvent {
   uidArg?: number;
   gidArg?: number;
   durationNs?: number;
+  schemaVersion?: string;
+  cgroupId?: number;
+  rootAgentPid?: number;
+  agentRunId?: string;
+  conversationId?: string;
+  turnId?: string;
+  toolCallId?: string;
+  toolName?: string;
+  traceId?: string;
+  spanId?: string;
+  decision?: string;
+  riskScore?: number;
+  containerId?: string;
+  argvDigest?: string;
   time: string;
   receivedAtMs?: number;
   occurrenceCount?: number;
@@ -69,6 +84,10 @@ export const eventTypes = [
   'mknod',
   'clone',
   'exit',
+  'process_fork',
+  'process_exec',
+  'process_exit',
+  'wait4',
   'socket',
   'accept',
   'accept4',
@@ -100,10 +119,14 @@ export const eventTypeLabelMap: Record<number, string> = {
   [pb.EventType.MKNOD]: 'mknod',
   [pb.EventType.CLONE]: 'clone',
   [pb.EventType.EXIT]: 'exit',
+  [pb.EventType.SCHED_PROCESS_FORK]: 'process_fork',
+  [pb.EventType.SCHED_PROCESS_EXEC]: 'process_exec',
+  [pb.EventType.SCHED_PROCESS_EXIT]: 'process_exit',
+  [pb.EventType.WAIT4]: 'wait4',
   [pb.EventType.SOCKET]: 'socket',
   [pb.EventType.ACCEPT]: 'accept',
   [pb.EventType.ACCEPT4]: 'accept4',
-  25: 'syscall',
+  [pb.EventType.GENERIC_SYSCALL]: 'syscall',
   [pb.EventType.WRAPPER_INTERCEPT]: 'wrapper_intercept',
   [pb.EventType.NATIVE_HOOK]: 'native_hook',
 };
@@ -129,10 +152,14 @@ export const eventTypeColorMap: Record<number, string> = {
   [pb.EventType.MKNOD]: 'purple',
   [pb.EventType.CLONE]: 'blue',
   [pb.EventType.EXIT]: 'red',
+  [pb.EventType.SCHED_PROCESS_FORK]: 'blue',
+  [pb.EventType.SCHED_PROCESS_EXEC]: 'cyan',
+  [pb.EventType.SCHED_PROCESS_EXIT]: 'red',
+  [pb.EventType.WAIT4]: 'gold',
   [pb.EventType.SOCKET]: 'orange',
   [pb.EventType.ACCEPT]: 'volcano',
   [pb.EventType.ACCEPT4]: 'volcano',
-  25: 'geekblue',
+  [pb.EventType.GENERIC_SYSCALL]: 'geekblue',
 };
 
 export const networkEventTypes = new Set<number>([
@@ -174,6 +201,10 @@ export const eventCategories: Record<string, Set<number>> = {
     pb.EventType.EXECVE,
     pb.EventType.CLONE,
     pb.EventType.EXIT,
+    pb.EventType.SCHED_PROCESS_FORK,
+    pb.EventType.SCHED_PROCESS_EXEC,
+    pb.EventType.SCHED_PROCESS_EXIT,
+    pb.EventType.WAIT4,
   ]),
   hook: new Set([
     pb.EventType.WRAPPER_INTERCEPT,

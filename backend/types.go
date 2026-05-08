@@ -16,21 +16,22 @@ const ebpfPinMapsDir = ebpfPinRoot + "/maps"
 const ebpfPinLinksDir = ebpfPinRoot + "/links"
 
 type bpfEvent struct {
-	PID, PPID, UID, Type, TagID uint32
-	Comm                        [16]byte
-	Path                        [256]byte
-	NetFamily                   uint32
-	NetDirection                uint32
-	NetBytes                    uint32
-	NetPort                     uint32
-	NetAddr                     [16]byte
-	_                           [4]byte // Padding for 8-byte alignment of Retval
-	Retval                      int64
-	DurationNs                  uint64
-	Extra1                      uint32
-	Extra2                      uint32
-	Extra3                      uint64
-	Extra4                      [256]byte
+	PID, PPID, UID, GID, Type, TagID uint32
+	Comm                             [16]byte
+	Path                             [256]byte
+	NetFamily                        uint32
+	NetDirection                     uint32
+	NetBytes                         uint32
+	NetPort                          uint32
+	NetAddr                          [16]byte
+	_                                [4]byte // Padding for 8-byte alignment of Retval
+	Retval                           int64
+	DurationNs                       uint64
+	CgroupID                         uint64
+	Extra1                           uint32
+	Extra2                           uint32
+	Extra3                           uint64
+	Extra4                           [256]byte
 }
 
 type WrapperRule struct {

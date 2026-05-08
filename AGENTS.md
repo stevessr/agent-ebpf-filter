@@ -84,7 +84,7 @@ Repo-root binaries such as `agent-wrapper` and `backend/agent-ebpf-filter` are b
 
 ### Matching model
 
-- PID tracking is **per registered process**.
+- PID tracking is seeded from the registered process and now inherits to descendants through fork/clone lineage.
 - `tracked_comms` is an exact 16-byte command-name map.
 - `tracked_paths` is an exact 256-byte path map.
 

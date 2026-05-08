@@ -9,6 +9,7 @@ typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
+typedef int s32;
 typedef long long s64;
 
 #define AF_INET 2
@@ -52,6 +53,11 @@ struct task_struct {
 #define TYPE_SOCKET   20
 #define TYPE_ACCEPT   21
 #define TYPE_ACCEPT4  22
+#define TYPE_GENERIC_SYSCALL 25
+#define TYPE_PROCESS_FORK 26
+#define TYPE_PROCESS_EXEC 27
+#define TYPE_PROCESS_EXIT 28
+#define TYPE_WAIT4 29
 
 struct trace_entry {
     short unsigned int type;
@@ -72,6 +78,29 @@ struct trace_event_raw_sys_exit {
     long int id;
     long int ret;
     char __data[0];
+};
+
+struct trace_event_raw_sched_process_fork {
+    struct trace_entry ent;
+    u32 parent_comm_loc;
+    s32 parent_pid;
+    u32 child_comm_loc;
+    s32 child_pid;
+};
+
+struct trace_event_raw_sched_process_exec {
+    struct trace_entry ent;
+    u32 filename_loc;
+    s32 pid;
+    s32 old_pid;
+};
+
+struct trace_event_raw_sched_process_exit {
+    struct trace_entry ent;
+    char comm[TASK_COMM_LEN];
+    s32 pid;
+    s32 prio;
+    u8 group_dead;
 };
 
 struct in_addr {
@@ -106,6 +135,7 @@ struct event {
     u32 pid;
     u32 ppid;
     u32 uid;
+    u32 gid;
     u32 type;
     u32 tag_id;
     char comm[TASK_COMM_LEN];
@@ -117,6 +147,7 @@ struct event {
     char net_addr[16];
     s64 retval;
     u64 duration_ns;
+    u64 cgroup_id;
     u32 extra1;
     u32 extra2;
     u64 extra3;
@@ -236,6 +267,15 @@ static __always_inline u32 get_tag_id(u32 pid, char *comm, char *path) {
     return 0;
 }
 
+static __always_inline void read_tracepoint_data_loc_str(char *dst, u32 size, const void *ctx, u32 data_loc) {
+    u32 offset = data_loc & 0xFFFF;
+    if (offset == 0) {
+        return;
+    }
+    const char *src = (const char *)ctx + offset;
+    bpf_probe_read_kernel_str(dst, size, src);
+}
+
 static __always_inline void fill_base_info(struct event *e, u32 pid, u32 tag_id, char *comm) {
     e->pid = pid;
     e->tag_id = tag_id;
@@ -254,6 +294,8 @@ static __always_inline void fill_base_info(struct event *e, u32 pid, u32 tag_id,
 
     u64 uid_gid = bpf_get_current_uid_gid();
     e->uid = (u32)uid_gid;
+    e->gid = (u32)(uid_gid >> 32);
+    e->cgroup_id = bpf_get_current_cgroup_id();
 
     // Get PPID
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
@@ -357,6 +399,91 @@ static __always_inline void fill_from_exit_meta(struct event *e, u64 pid_tgid, s
     e->net_bytes = meta->net_bytes;
     e->net_port = meta->net_port;
     __builtin_memcpy(e->net_addr, meta->net_addr, 16);
+}
+
+// ============================================================
+// sched tracepoints: process fork / exec / exit
+// ============================================================
+SEC("tracepoint/sched/sched_process_fork")
+int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_fork *ctx) {
+    u32 parent_pid = (u32)ctx->parent_pid;
+    u32 child_pid = (u32)ctx->child_pid;
+    if (parent_pid == 0 || child_pid == 0) return 0;
+
+    u32 *tag = bpf_map_lookup_elem(&agent_pids, &parent_pid);
+    if (!tag) return 0;
+
+    bpf_map_update_elem(&agent_pids, &child_pid, tag, BPF_ANY);
+
+    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    if (!e) return 0;
+
+    char parent_comm[TASK_COMM_LEN] = {};
+    read_tracepoint_data_loc_str(parent_comm, sizeof(parent_comm), ctx, ctx->parent_comm_loc);
+    fill_base_info(e, parent_pid, *tag, parent_comm);
+    e->type = TYPE_PROCESS_FORK;
+    e->retval = child_pid;
+    e->extra1 = child_pid;
+    read_tracepoint_data_loc_str(e->path, MAX_PATH_LEN, ctx, ctx->child_comm_loc);
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+
+SEC("tracepoint/sched/sched_process_exec")
+int tracepoint__sched__sched_process_exec(struct trace_event_raw_sched_process_exec *ctx) {
+    u32 pid = (u32)ctx->pid;
+    u32 old_pid = (u32)ctx->old_pid;
+    if (pid == 0) return 0;
+
+    u32 *tag = bpf_map_lookup_elem(&agent_pids, &pid);
+    if (!tag && old_pid != 0) {
+        tag = bpf_map_lookup_elem(&agent_pids, &old_pid);
+    }
+    if (!tag) return 0;
+
+    if (old_pid != 0 && old_pid != pid) {
+        bpf_map_update_elem(&agent_pids, &pid, tag, BPF_ANY);
+        bpf_map_delete_elem(&agent_pids, &old_pid);
+    }
+
+    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    if (!e) return 0;
+
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    fill_base_info(e, pid, *tag, comm);
+    e->type = TYPE_PROCESS_EXEC;
+    e->extra1 = old_pid;
+    read_tracepoint_data_loc_str(e->path, MAX_PATH_LEN, ctx, ctx->filename_loc);
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+
+SEC("tracepoint/sched/sched_process_exit")
+int tracepoint__sched__sched_process_exit(struct trace_event_raw_sched_process_exit *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tid = (u32)pid_tgid;
+    u32 tgid = (u32)(pid_tgid >> 32);
+
+    u32 *tag = bpf_map_lookup_elem(&agent_pids, &tgid);
+    if (!tag) {
+        tag = bpf_map_lookup_elem(&agent_pids, &tid);
+    }
+    if (!tag) return 0;
+
+    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    if (e) {
+        fill_base_info(e, tgid, *tag, ctx->comm);
+        e->type = TYPE_PROCESS_EXIT;
+        e->extra1 = ctx->group_dead ? 1 : 0;
+        bpf_ringbuf_submit(e, 0);
+    }
+
+    bpf_map_delete_elem(&agent_pids, &tid);
+    if (ctx->group_dead) {
+        bpf_map_delete_elem(&agent_pids, &tgid);
+    }
+    return 0;
 }
 
 // ============================================================
@@ -1374,6 +1501,50 @@ int tracepoint__syscalls__sys_exit_exit_group(struct trace_event_raw_sys_exit *c
 }
 
 // ============================================================
+// sys_enter / sys_exit: wait4 (target pid at args[0], options at args[2])
+// ============================================================
+SEC("tracepoint/syscalls/sys_enter_wait4")
+int tracepoint__syscalls__sys_enter_wait4(struct trace_event_raw_sys_enter *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+
+    u32 tag_id = get_tag_id(pid, comm, NULL);
+    if (tag_id == 0) return 0;
+
+    struct exit_meta meta = {};
+    meta.type = TYPE_WAIT4;
+    meta.tag_id = tag_id;
+    meta.extra1 = (u32)(s32)ctx->args[0];
+    meta.extra2 = (u32)ctx->args[2];
+    meta.start_ns = bpf_ktime_get_ns();
+
+    store_exit_meta(pid_tgid, &meta);
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_wait4")
+int tracepoint__syscalls__sys_exit_wait4(struct trace_event_raw_sys_exit *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct exit_meta meta = {};
+    if (!consume_exit_meta(pid_tgid, &meta)) return 0;
+
+    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    if (!e) return 0;
+    fill_from_exit_meta(e, pid_tgid, &meta);
+    e->retval = ctx->ret;
+    if (meta.start_ns != 0) {
+        u64 now = bpf_ktime_get_ns();
+        if (now >= meta.start_ns) {
+            e->duration_ns = now - meta.start_ns;
+        }
+    }
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+
+// ============================================================
 // sys_enter / sys_exit: socket (no path, domain at args[0], type at args[1], protocol at args[2])
 // ============================================================
 SEC("tracepoint/syscalls/sys_enter_socket")
@@ -1535,8 +1706,6 @@ int tracepoint__syscalls__sys_exit_accept4(struct trace_event_raw_sys_exit *ctx)
 // Per-syscall handlers — generated via macros for all remaining
 // path-carrying and security-relevant Linux syscalls.
 // ============================================================
-
-#define TYPE_GENERIC_SYSCALL 25
 
 // ── enter/exit helpers shared by macros ──
 

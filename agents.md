@@ -44,14 +44,14 @@ So the event is ignored unless at least one map returns a tag.
 
 - `tracked_comms` is an **exact** command-name match.
 - `tracked_paths` is an **exact** path match.
-- PID registration is **per process**.
+- PID registration is **seeded per process**, then inherited by descendants.
 
 That means:
 
 - `python`, `node`, `git`, `bun`, `npm` are good command keys.
 - `/tmp/foo.txt` is a good path key.
 - “watch everything under `/workspace` recursively” is **not** what the current code does.
-- child processes are **not** auto-registered just because the parent registered itself.
+- registered process context now propagates to descendants through `sched_process_fork` / `clone` plus parent-PID fallback in user space.
 
 ---
 
@@ -60,12 +60,16 @@ That means:
 Kernel-space event types currently mapped by the backend:
 
 - `execve`
+- `process_fork`
+- `process_exec`
+- `process_exit`
 - `openat`
 - `network_connect`
 - `mkdir`
 - `unlink`
 - `ioctl`
 - `network_bind`
+- `wait4`
 
 Additional user-space event types:
 
@@ -103,7 +107,7 @@ Notes:
 
 - the helper currently registers with the backend default tag (`AI Agent`);
 - if you need a custom tag today, extend the helper or call `/register` directly;
-- subprocesses created later are not automatically added to `agent_pids`.
+- subprocesses created later now inherit registration and any supplied run / trace metadata automatically.
 
 ---
 
@@ -187,11 +191,26 @@ Payload:
 ```json
 {
   "pid": 12345,
-  "tag": "AI Agent"
+  "tag": "AI Agent",
+  "agent_run_id": "run-123",
+  "tool_call_id": "tool-456",
+  "trace_id": "trace-789",
+  "root_agent_pid": 12345
 }
 ```
 
 `tag` is optional; the backend defaults to `AI Agent`.
+
+Additional optional context fields include:
+
+- `conversation_id`
+- `turn_id`
+- `tool_name`
+- `span_id`
+- `decision`
+- `risk_score`
+- `container_id`
+- `argv_digest`
 
 ### `POST /unregister`
 

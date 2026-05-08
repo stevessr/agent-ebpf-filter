@@ -30,6 +30,11 @@ enum EventType {
   ACCEPT4 = 22;
   WRAPPER_INTERCEPT = 23;
   NATIVE_HOOK = 24;
+  GENERIC_SYSCALL = 25;
+  SCHED_PROCESS_FORK = 26;
+  SCHED_PROCESS_EXEC = 27;
+  SCHED_PROCESS_EXIT = 28;
+  WAIT4 = 29;
 }
 
 enum BehaviorCategory {
@@ -60,6 +65,19 @@ message BehaviorClassification {
 // Represents a process registration request
 message RegisterRequest {
   uint32 pid = 1;
+  string tag = 2;
+  string agent_run_id = 3;
+  string conversation_id = 4;
+  string turn_id = 5;
+  string tool_call_id = 6;
+  string tool_name = 7;
+  string trace_id = 8;
+  string span_id = 9;
+  uint32 root_agent_pid = 10;
+  string decision = 11;
+  double risk_score = 12;
+  string container_id = 13;
+  string argv_digest = 14;
 }
 
 // Represents a process registration response
@@ -105,6 +123,21 @@ message Event {
   EventType event_type = 22;
   BehaviorClassification behavior = 23;
   uint64 duration_ns = 24;
+  string schema_version = 25;
+  uint32 gid = 26;
+  uint64 cgroup_id = 27;
+  uint32 root_agent_pid = 28;
+  string agent_run_id = 29;
+  string conversation_id = 30;
+  string turn_id = 31;
+  string tool_call_id = 32;
+  string tool_name = 33;
+  string trace_id = 34;
+  string span_id = 35;
+  string decision = 36;
+  double risk_score = 37;
+  string container_id = 38;
+  string argv_digest = 39;
 }
 
 // Batch of events for WebSocket delivery efficiency
@@ -245,6 +278,18 @@ message WrapperRequest {
   string comm = 2;
   repeated string args = 3;
   string user = 4;
+  string agent_run_id = 5;
+  string conversation_id = 6;
+  string turn_id = 7;
+  string tool_call_id = 8;
+  string tool_name = 9;
+  string trace_id = 10;
+  string span_id = 11;
+  uint32 root_agent_pid = 12;
+  string decision = 13;
+  double risk_score = 14;
+  string container_id = 15;
+  string argv_digest = 16;
 }
 
 message WrapperResponse {
