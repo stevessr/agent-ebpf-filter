@@ -68,7 +68,7 @@ dev-backend: ## Run only the backend with self-implemented hot-reload
 	@./scripts/dev-backend.sh
 
 ml-sweep: ## Run the offline ML benchmark sweep and emit SVG/HTML charts
-	@ML_SWEEP_MODE="$(ML_SWEEP_MODE)" ML_SWEEP_MODELS="$(ML_SWEEP_MODELS)" ML_SWEEP_OUTDIR="$(ML_SWEEP_OUTDIR)" ML_SWEEP_REPEATS="$(ML_SWEEP_REPEATS)" ML_SWEEP_STABILITY_TOP="$(ML_SWEEP_STABILITY_TOP)" ./scripts/ml-sweep.sh
+	@ML_SWEEP_MODE="$(ML_SWEEP_MODE)" ML_SWEEP_MODELS="$(ML_SWEEP_MODELS)" ML_SWEEP_DATASETS="$(ML_SWEEP_DATASETS)" ML_SWEEP_POINTS_PER_PARAM="$(ML_SWEEP_POINTS_PER_PARAM)" ML_SWEEP_WORKERS="$(ML_SWEEP_WORKERS)" ML_SWEEP_RESUME="$(ML_SWEEP_RESUME)" ML_SWEEP_OUTDIR="$(ML_SWEEP_OUTDIR)" ML_SWEEP_REPEATS="$(ML_SWEEP_REPEATS)" ML_SWEEP_STABILITY_TOP="$(ML_SWEEP_STABILITY_TOP)" ./scripts/ml-sweep.sh
 
 ml-presentation: ## Render the PPTX-style HTML presentation from the latest ML sweep report
 	@python scripts/render_ml_presentation.py

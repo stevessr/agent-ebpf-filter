@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -30,11 +32,27 @@ type sweepProfile struct {
 	YLabel     func(int) string
 	Build      func(x, y int) MLConfig
 	Summary    func(cfg MLConfig) string
+
+	// Parameter metadata is used by the comprehensive axis-sweep verifier.
+	// Numeric parameters must expose RequiredDiscretePoints unique values; small
+	// categorical parameters use ParameterKind="categorical" and a lower/zero
+	// requirement because there are only a few meaningful choices.
+	ParameterName          string
+	ParameterKind          string
+	RequiredDiscretePoints int
+	DatasetName            string
+	DatasetDescription     string
 }
 
 type sweepResult struct {
 	Profile             string
+	Dataset             string
+	BaseProfile         string
 	ModelType           ModelType
+	ParameterName       string
+	ParameterKind       string
+	RequiredPoints      int
+	ConfiguredPoints    int
 	XValue              int
 	YValue              int
 	ConfigSummary       string
@@ -120,8 +138,90 @@ type repeatSummary struct {
 }
 
 type stabilityTask struct {
-	Profile sweepProfile
-	Config  sweepResult
+	Profile          sweepProfile
+	Config           sweepResult
+	Store            *TrainingDataStore
+	BenchmarkSamples []TrainingSample
+}
+
+type sweepDataset struct {
+	Name        string
+	Description string
+	Samples     []TrainingSample
+}
+
+func TestComprehensiveSweepProfilesCoverThousandPointsPerNumericParameter(t *testing.T) {
+	profiles := profilesForMode("comprehensive")
+	seen := make(map[ModelType]map[string]int)
+	for _, profile := range profiles {
+		if profile.ParameterName == "" {
+			t.Fatalf("profile %s missing parameter metadata", profile.Name)
+		}
+		if profile.ParameterKind != "numeric" {
+			if unique := uniqueIntCount(profile.XValues); profile.RequiredDiscretePoints != unique {
+				t.Fatalf("%s categorical/fixed requirement=%d, want unique count %d", profile.Name, profile.RequiredDiscretePoints, unique)
+			}
+			continue
+		}
+		unique := uniqueIntCount(profile.XValues)
+		if unique < 1000 {
+			t.Fatalf("%s has %d unique points, want >=1000", profile.Name, unique)
+		}
+		if seen[profile.ModelType] == nil {
+			seen[profile.ModelType] = make(map[string]int)
+		}
+		seen[profile.ModelType][profile.ParameterName] = unique
+	}
+	for _, modelType := range AllModelTypes() {
+		for _, param := range numericSweepParametersForModel(modelType) {
+			if seen[modelType][param] < 1000 {
+				t.Fatalf("%s/%s coverage = %d, want >=1000 discrete points", modelType, param, seen[modelType][param])
+			}
+		}
+	}
+}
+
+func TestComprehensiveSweepDefaultsToMultipleDatasets(t *testing.T) {
+	samples := make([]TrainingSample, 0, 30)
+	for i := 0; i < 12; i++ {
+		samples = append(samples, sweepTestSample(0, "allow"))
+	}
+	for i := 0; i < 10; i++ {
+		samples = append(samples, sweepTestSample(1, "block"))
+	}
+	for i := 0; i < 8; i++ {
+		samples = append(samples, sweepTestSample(3, "alert"))
+	}
+
+	datasets := datasetProfilesForMode(samples, "comprehensive", nil)
+	if len(datasets) < 2 {
+		t.Fatalf("comprehensive datasets = %d, want at least 2", len(datasets))
+	}
+	if datasets[0].Name != "all" || len(datasets[0].Samples) != len(samples) {
+		t.Fatalf("first dataset = %s/%d, want all/%d", datasets[0].Name, len(datasets[0].Samples), len(samples))
+	}
+	foundBalanced := false
+	for _, dataset := range datasets {
+		if dataset.Name == "label-balanced" {
+			foundBalanced = true
+			if len(dataset.Samples) != 24 {
+				t.Fatalf("label-balanced samples = %d, want 24", len(dataset.Samples))
+			}
+		}
+	}
+	if !foundBalanced {
+		t.Fatalf("expected label-balanced dataset, got %#v", datasets)
+	}
+}
+
+func sweepTestSample(label int32, userLabel string) TrainingSample {
+	return TrainingSample{
+		Label:     label,
+		UserLabel: userLabel,
+		Timestamp: time.Now(),
+		Comm:      "cmd",
+		Args:      []string{fmt.Sprintf("%d", label)},
+	}
 }
 
 func TestMLSweep(t *testing.T) {
@@ -134,6 +234,12 @@ func TestMLSweep(t *testing.T) {
 }
 
 func runMLSweepReport() error {
+	if parseBoolEnv(os.Getenv("ML_SWEEP_QUIET_LOGS")) {
+		origLogOutput := log.Writer()
+		log.SetOutput(io.Discard)
+		defer log.SetOutput(origLogOutput)
+	}
+
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv("ML_SWEEP_MODE")))
 	if mode == "" {
 		mode = "quick"
@@ -149,14 +255,22 @@ func runMLSweepReport() error {
 	if stabilityTop < 1 {
 		stabilityTop = 1
 	}
+	pointsPerParam := parsePositiveInt(os.Getenv("ML_SWEEP_POINTS_PER_PARAM"), 1000)
+	workers := parsePositiveInt(os.Getenv("ML_SWEEP_WORKERS"), 1)
 
 	selectedModels := parseModelFilter(os.Getenv("ML_SWEEP_MODELS"))
+	selectedDatasets := parseNameFilter(os.Getenv("ML_SWEEP_DATASETS"))
+	resumeSweep := parseBoolEnv(os.Getenv("ML_SWEEP_RESUME"))
 	outDir := strings.TrimSpace(os.Getenv("ML_SWEEP_OUTDIR"))
 	if outDir == "" {
 		outDir = filepath.Join("..", "reports", "ml-sweep-"+time.Now().Format("20060102-150405"))
 	}
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return err
+	}
+	resultsPath := filepath.Join(outDir, "results.csv")
+	if !resumeSweep {
+		_ = os.Remove(resultsPath)
 	}
 
 	// Load the persisted dataset directly so the sweep can run even if the live
@@ -169,7 +283,10 @@ func runMLSweepReport() error {
 	if len(labeled) == 0 {
 		return fmt.Errorf("no labeled samples found in the persisted training store")
 	}
-	benchmarkSamples := selectBenchmarkSamples(labeled, 64)
+	datasets := datasetProfilesForMode(labeled, mode, selectedDatasets)
+	if len(datasets) == 0 {
+		return fmt.Errorf("no sweep datasets selected")
+	}
 
 	origMLConfig := mlConfig
 	defer func() {
@@ -183,11 +300,11 @@ func runMLSweepReport() error {
 	mlConfig.LlmModel = ""
 	mlConfig.LlmAPIKey = ""
 
-	profiles := profilesForMode(mode)
+	profiles := profilesForModeWithPoints(mode, pointsPerParam)
 	if len(selectedModels) > 0 {
 		filtered := make([]sweepProfile, 0, len(profiles))
 		for _, p := range profiles {
-			if selectedModels[p.ModelType] {
+			if modelFilterMatches(selectedModels, p.ModelType) {
 				filtered = append(filtered, p)
 			}
 		}
@@ -197,48 +314,77 @@ func runMLSweepReport() error {
 		return fmt.Errorf("no sweep profiles selected")
 	}
 
-	fmt.Printf("[ml-sweep] dataset=%d labeled samples, mode=%s, out=%s\n", len(labeled), mode, outDir)
+	fmt.Printf("[ml-sweep] dataset=%d labeled samples, mode=%s, datasets=%d, pointsPerParam=%d, workers=%d, out=%s\n", len(labeled), mode, len(datasets), pointsPerParam, workers, outDir)
 
 	summaries := make([]profileSummary, 0, len(profiles))
 	allResults := make([]sweepResult, 0, 4096)
 	stabilityCandidates := make([]stabilityTask, 0, len(profiles)*stabilityTop)
 
-	for _, profile := range profiles {
-		results, best, err := runProfile(profile, benchmarkSamples)
-		if err != nil {
-			return fmt.Errorf("%s: %w", profile.Name, err)
+	for _, dataset := range datasets {
+		store := trainingStoreFromSamples(dataset.Samples)
+		benchmarkSamples := selectBenchmarkSamples(dataset.Samples, 64)
+		fmt.Printf("[ml-sweep] dataset=%-18s samples=%d (%s)\n", dataset.Name, len(dataset.Samples), dataset.Description)
+		for _, baseProfile := range profiles {
+			profile := profileForDataset(baseProfile, dataset)
+			profileResultsPath := filepath.Join(outDir, slug(profile.Name)+"-grid.csv")
+			var results []sweepResult
+			var best sweepResult
+			if resumeSweep {
+				if cached, err := readSweepResultsCSV(profileResultsPath); err == nil && len(cached) >= expectedProfileResultCount(profile) {
+					results = annotateSweepResults(profile, cached)
+					best = bestSweepResult(results)
+					fmt.Printf("[ml-sweep] %-32s resume=%d rows\n", profile.Name, len(results))
+					if err := writeCSV(profileResultsPath, results); err != nil {
+						return err
+					}
+				}
+			}
+			if len(results) == 0 {
+				var err error
+				results, best, err = runProfile(profile, store, benchmarkSamples, workers)
+				if err != nil {
+					return fmt.Errorf("%s: %w", profile.Name, err)
+				}
+				results = annotateSweepResults(profile, results)
+				if err := writeCSV(profileResultsPath, results); err != nil {
+					return err
+				}
+				if err := appendSweepResultsCSV(resultsPath, results); err != nil {
+					return err
+				}
+			}
+			allResults = append(allResults, results...)
+			chart, err := renderProfileChart(profile, results)
+			if err != nil {
+				return fmt.Errorf("%s chart: %w", profile.Name, err)
+			}
+			if err := os.WriteFile(filepath.Join(outDir, slug(profile.Name)+".svg"), []byte(chart), 0o644); err != nil {
+				return err
+			}
+			inferenceChart, err := renderProfileInferenceChart(profile, results)
+			if err != nil {
+				return fmt.Errorf("%s inference chart: %w", profile.Name, err)
+			}
+			if err := os.WriteFile(filepath.Join(outDir, slug(profile.Name)+"-inference.svg"), []byte(inferenceChart), 0o644); err != nil {
+				return err
+			}
+			summaries = append(summaries, profileSummary{
+				Profile: profile,
+				Best:    best,
+				Results: results,
+				Chart:   chart,
+			})
+			stabilityCandidates = append(stabilityCandidates, selectTopRepeatConfigs(profile, results, stabilityTop, store, benchmarkSamples)...)
+			fmt.Printf("[ml-sweep] %-32s best=%s val=%.2f%% train=%.2f%%\n",
+				profile.Name, best.ConfigSummary, best.ValidationAccuracy*100, best.TrainAccuracy*100)
 		}
-		allResults = append(allResults, results...)
-		chart, err := renderProfileChart(profile, results)
-		if err != nil {
-			return fmt.Errorf("%s chart: %w", profile.Name, err)
-		}
-		if err := os.WriteFile(filepath.Join(outDir, slug(profile.Name)+".svg"), []byte(chart), 0o644); err != nil {
-			return err
-		}
-		inferenceChart, err := renderProfileInferenceChart(profile, results)
-		if err != nil {
-			return fmt.Errorf("%s inference chart: %w", profile.Name, err)
-		}
-		if err := os.WriteFile(filepath.Join(outDir, slug(profile.Name)+"-inference.svg"), []byte(inferenceChart), 0o644); err != nil {
-			return err
-		}
-		summaries = append(summaries, profileSummary{
-			Profile: profile,
-			Best:    best,
-			Results: results,
-			Chart:   chart,
-		})
-		stabilityCandidates = append(stabilityCandidates, selectTopRepeatConfigs(profile, results, stabilityTop)...)
-		fmt.Printf("[ml-sweep] %-18s best=%s val=%.2f%% train=%.2f%%\n",
-			profile.Name, best.ConfigSummary, best.ValidationAccuracy*100, best.TrainAccuracy*100)
 	}
 
-	if err := writeCSV(filepath.Join(outDir, "results.csv"), allResults); err != nil {
+	if err := writeCSV(resultsPath, allResults); err != nil {
 		return err
 	}
 
-	stabilityRuns, stabilitySummaries, err := runStabilityPhase(stabilityCandidates, repeats, benchmarkSamples)
+	stabilityRuns, stabilitySummaries, err := runStabilityPhase(stabilityCandidates, repeats)
 	if err != nil {
 		return err
 	}
@@ -246,6 +392,10 @@ func runMLSweepReport() error {
 		return err
 	}
 	if err := writeRepeatSummaryCSV(filepath.Join(outDir, "stability-summary.csv"), stabilitySummaries); err != nil {
+		return err
+	}
+	coverage := buildSweepCoverage(datasets, profiles, allResults, pointsPerParam)
+	if err := writeCoverageJSON(filepath.Join(outDir, "coverage.json"), coverage); err != nil {
 		return err
 	}
 
@@ -314,11 +464,15 @@ func runMLSweepReport() error {
 	}
 
 	bestJSON := map[string]any{
-		"datasetSize":  len(labeled),
-		"mode":         mode,
-		"repeats":      repeats,
-		"stabilityTop": stabilityTop,
-		"outDir":       outDir,
+		"datasetSize":    len(labeled),
+		"datasets":       coverage.Datasets,
+		"mode":           mode,
+		"pointsPerParam": pointsPerParam,
+		"workers":        workers,
+		"repeats":        repeats,
+		"stabilityTop":   stabilityTop,
+		"outDir":         outDir,
+		"coverage":       coverage.Summary,
 		"screenBest": map[string]any{
 			"profile":                  screenBest.Profile.Name,
 			"modelType":                screenBest.Profile.ModelType,
@@ -380,58 +534,373 @@ func runMLSweepReport() error {
 
 	fmt.Printf("[ml-sweep] report written to %s\n", filepath.Join(outDir, "index.html"))
 	if bestComparable := bestComparableSummary(stabilitySummaries); bestComparable != nil {
-		fmt.Printf("[ml-sweep] comparable best: %s | %s | val=%.2f%% ± %.2f%% | allow=%.2f%% ± %.2f%% (100x)\n",
-			bestComparable.Profile, bestComparable.ConfigSummary, bestComparable.ValidationMean*100, bestComparable.ValidationStd*100, bestComparable.AllowMean*100, bestComparable.AllowStd*100)
+		fmt.Printf("[ml-sweep] comparable best: %s | %s | val=%.2f%% ± %.2f%% | allow=%.2f%% ± %.2f%% (%dx)\n",
+			bestComparable.Profile, bestComparable.ConfigSummary, bestComparable.ValidationMean*100, bestComparable.ValidationStd*100, bestComparable.AllowMean*100, bestComparable.AllowStd*100, bestComparable.Runs)
 	}
 	return nil
 }
 
-func runProfile(profile sweepProfile, benchmarkSamples []TrainingSample) ([]sweepResult, sweepResult, error) {
-	results := make([]sweepResult, 0, len(profile.XValues)*max(1, len(profile.YValues)))
-	var best sweepResult
-	best.ValidationAccuracy = math.Inf(-1)
-
+func runProfile(profile sweepProfile, store *TrainingDataStore, benchmarkSamples []TrainingSample, workers int) ([]sweepResult, sweepResult, error) {
 	if len(profile.XValues) == 0 {
 		return nil, sweepResult{}, fmt.Errorf("profile %s has no x-values", profile.Name)
 	}
 	if profile.Kind == "heatmap" && len(profile.YValues) == 0 {
 		return nil, sweepResult{}, fmt.Errorf("profile %s has no y-values", profile.Name)
 	}
+	if canRunIncrementalCountProfile(profile) {
+		return runIncrementalCountProfile(profile, store, benchmarkSamples, workers)
+	}
 
+	points := profileGridPoints(profile)
+	results := make([]sweepResult, len(points))
+	if workers <= 1 || len(points) <= 1 {
+		for _, point := range points {
+			row, err := runSingleConfig(profile, store, point.X, point.Y, benchmarkSamples)
+			if err != nil {
+				return nil, sweepResult{}, err
+			}
+			results[point.Index] = row
+		}
+		return profileRunBest(profile, results)
+	}
+
+	if workers > len(points) {
+		workers = len(points)
+	}
+
+	type profileJob struct {
+		Index int
+		X     int
+		Y     int
+	}
+	type profileJobResult struct {
+		Index int
+		Row   sweepResult
+		Err   error
+	}
+	jobs := make(chan profileJob)
+	resultCh := make(chan profileJobResult)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				row, err := runSingleConfig(profile, store, job.X, job.Y, benchmarkSamples)
+				resultCh <- profileJobResult{Index: job.Index, Row: row, Err: err}
+			}
+		}()
+	}
+	go func() {
+		for _, point := range points {
+			jobs <- profileJob{Index: point.Index, X: point.X, Y: point.Y}
+		}
+		close(jobs)
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	var firstErr error
+	for result := range resultCh {
+		if result.Err != nil && firstErr == nil {
+			firstErr = result.Err
+		}
+		results[result.Index] = result.Row
+	}
+	if firstErr != nil {
+		return nil, sweepResult{}, firstErr
+	}
+	return profileRunBest(profile, results)
+}
+
+func canRunIncrementalCountProfile(profile sweepProfile) bool {
+	if profile.Kind != "bar" || profile.ParameterKind != "numeric" {
+		return false
+	}
+	switch baseModelType(profile.ModelType) {
+	case ModelRandomForest, ModelExtraTrees:
+		return profile.ParameterName == "numTrees"
+	case ModelAdaBoost:
+		return profile.ParameterName == "estimators"
+	default:
+		return false
+	}
+}
+
+type incrementalCountContext struct {
+	Profile        sweepProfile
+	MaxValue       int
+	BuildDuration  float64
+	MemoryBytes    int64
+	NumSamples     int
+	TrainSamples   int
+	ValSamples     int
+	TrainSet       []trainSample
+	ValSet         []trainSample
+	ValRaw         []TrainingSample
+	Benchmark      []TrainingSample
+	ModelForValue  func(int) Model
+	ConfigForValue func(int) MLConfig
+	SummaryForCfg  func(MLConfig) string
+}
+
+func runIncrementalCountProfile(profile sweepProfile, store *TrainingDataStore, benchmarkSamples []TrainingSample, workers int) ([]sweepResult, sweepResult, error) {
+	ctx, err := buildIncrementalCountContext(profile, store, benchmarkSamples)
+	if err != nil {
+		return nil, sweepResult{}, err
+	}
+	results := make([]sweepResult, len(profile.XValues))
+	if workers <= 1 || len(profile.XValues) <= 1 {
+		for i, x := range profile.XValues {
+			results[i] = runIncrementalCountValue(ctx, x)
+		}
+		return profileRunBest(profile, results)
+	}
+	if workers > len(profile.XValues) {
+		workers = len(profile.XValues)
+	}
+	type job struct {
+		Index int
+		X     int
+	}
+	jobs := make(chan job)
+	rows := make(chan struct {
+		Index int
+		Row   sweepResult
+	})
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				rows <- struct {
+					Index int
+					Row   sweepResult
+				}{Index: j.Index, Row: runIncrementalCountValue(ctx, j.X)}
+			}
+		}()
+	}
+	go func() {
+		for i, x := range profile.XValues {
+			jobs <- job{Index: i, X: x}
+		}
+		close(jobs)
+		wg.Wait()
+		close(rows)
+	}()
+	for row := range rows {
+		results[row.Index] = row.Row
+	}
+	return profileRunBest(profile, results)
+}
+
+func buildIncrementalCountContext(profile sweepProfile, store *TrainingDataStore, benchmarkSamples []TrainingSample) (incrementalCountContext, error) {
+	maxValue := maxSweepInt(profile.XValues)
+	if maxValue < 1 {
+		return incrementalCountContext{}, fmt.Errorf("%s has no positive count values", profile.Name)
+	}
+	labeled := store.LabeledSamples()
+	if len(labeled) == 0 {
+		return incrementalCountContext{}, fmt.Errorf("%s has no labeled samples", profile.Name)
+	}
+	cfgMax := profile.Build(maxValue, 0)
+	ctx := incrementalCountContext{
+		Profile:        profile,
+		MaxValue:       maxValue,
+		NumSamples:     len(labeled),
+		Benchmark:      benchmarkSamples,
+		ConfigForValue: func(v int) MLConfig { return profile.Build(v, 0) },
+		SummaryForCfg:  profile.Summary,
+	}
+
+	var memBefore, memAfter runtime.MemStats
+	runtime.ReadMemStats(&memBefore)
+	start := time.Now()
+	switch baseModelType(profile.ModelType) {
+	case ModelRandomForest:
+		if len(labeled) < cfgMax.MinSamplesLeaf*10 {
+			return incrementalCountContext{}, fmt.Errorf("insufficient labeled samples: need >=%d, have %d", cfgMax.MinSamplesLeaf*10, len(labeled))
+		}
+		trainSet, valSet, _, valRaw, err := prepareAutoTuneSplit(labeled, cfgMax.ValidationSplitRatio)
+		if err != nil {
+			return incrementalCountContext{}, err
+		}
+		forest := buildAutoTuneForest(trainSet, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano())
+		ctx.TrainSet = trainSet
+		ctx.ValSet = valSet
+		ctx.ValRaw = valRaw
+		ctx.TrainSamples = len(trainSet)
+		ctx.ValSamples = len(valSet)
+		ctx.ModelForValue = func(v int) Model {
+			return prefixDecisionForest(forest, v)
+		}
+	case ModelExtraTrees:
+		if len(labeled) < cfgMax.MinSamplesLeaf*10 {
+			return incrementalCountContext{}, fmt.Errorf("insufficient labeled samples: need >=%d, have %d", cfgMax.MinSamplesLeaf*10, len(labeled))
+		}
+		trainSet, valSet, _, valRaw, err := prepareAutoTuneSplit(labeled, cfgMax.ValidationSplitRatio)
+		if err != nil {
+			return incrementalCountContext{}, err
+		}
+		allSamples := toTrainSamples(labeled)
+		forest := buildExtraTrees(allSamples, maxValue, cfgMax.MaxDepth, cfgMax.MinSamplesLeaf, time.Now().UnixNano())
+		ctx.TrainSet = trainSet
+		ctx.ValSet = valSet
+		ctx.ValRaw = valRaw
+		ctx.TrainSamples = len(trainSet)
+		ctx.ValSamples = len(valSet)
+		ctx.ModelForValue = func(v int) Model {
+			return &ExtraTreesModel{Forest: prefixDecisionForest(forest, v), NumTrees: clampCount(v, len(forest.Trees)), MaxDepth: cfgMax.MaxDepth}
+		}
+	case ModelAdaBoost:
+		trainer := newSweepTrainer()
+		model, result := trainer.TrainWithConfig(store, cfgMax)
+		if result.Error != "" {
+			return incrementalCountContext{}, fmt.Errorf("%s", result.Error)
+		}
+		ada, ok := unwrapModelType(model).(*AdaBoostModel)
+		if !ok || ada == nil || len(ada.Stumps) == 0 {
+			return incrementalCountContext{}, fmt.Errorf("expected AdaBoost model for %s", profile.Name)
+		}
+		allSamples := toTrainSamples(labeled)
+		ctx.TrainSet = allSamples
+		ctx.ValSet = allSamples
+		ctx.ValRaw = labeled
+		ctx.TrainSamples = len(allSamples)
+		ctx.ValSamples = 0
+		ctx.ModelForValue = func(v int) Model {
+			return prefixAdaBoostModel(ada, v)
+		}
+	default:
+		return incrementalCountContext{}, fmt.Errorf("%s is not an incremental count profile", profile.Name)
+	}
+	ctx.BuildDuration = time.Since(start).Seconds()
+	runtime.ReadMemStats(&memAfter)
+	if memAfter.Alloc > memBefore.Alloc {
+		ctx.MemoryBytes = int64(memAfter.Alloc - memBefore.Alloc)
+	}
+	return ctx, nil
+}
+
+func runIncrementalCountValue(ctx incrementalCountContext, x int) sweepResult {
+	cfg := ctx.ConfigForValue(x)
+	model := ctx.ModelForValue(x)
+	trainAccuracy := evalModelTrainSamples(model, ctx.TrainSet)
+	validationAccuracy := trainAccuracy
+	if len(ctx.ValSet) > 0 {
+		validationAccuracy = evalModelTrainSamples(model, ctx.ValSet)
+	}
+	allowPassRate := 0.0
+	if len(ctx.ValRaw) > 0 {
+		allowPassRate = evaluateClassMetrics(model, ctx.ValRaw).AllowPassRate
+	}
+	inferenceDuration, inferenceThroughput, inferenceLatencyMs, inferenceSamples := benchmarkModelInference(model, ctx.Benchmark)
+	ratio := float64(clampCount(x, ctx.MaxValue)) / float64(ctx.MaxValue)
+	return sweepResult{
+		Profile:             ctx.Profile.Name,
+		Dataset:             ctx.Profile.DatasetName,
+		BaseProfile:         baseProfileSegment(ctx.Profile.Name),
+		ModelType:           cfg.ModelType,
+		ParameterName:       ctx.Profile.ParameterName,
+		ParameterKind:       ctx.Profile.ParameterKind,
+		RequiredPoints:      ctx.Profile.RequiredDiscretePoints,
+		ConfiguredPoints:    configuredProfilePointCount(ctx.Profile),
+		XValue:              x,
+		YValue:              0,
+		ConfigSummary:       ctx.SummaryForCfg(cfg),
+		TrainAccuracy:       trainAccuracy,
+		ValidationAccuracy:  validationAccuracy,
+		AllowPassRate:       allowPassRate,
+		Duration:            ctx.BuildDuration * ratio,
+		InferenceDuration:   inferenceDuration,
+		InferenceSamples:    inferenceSamples,
+		InferenceLatencyMs:  inferenceLatencyMs,
+		InferenceThroughput: inferenceThroughput,
+		MemoryBytes:         int64(float64(ctx.MemoryBytes) * ratio),
+		NumSamples:          ctx.NumSamples,
+		TrainSamples:        ctx.TrainSamples,
+		ValidationSamples:   ctx.ValSamples,
+	}
+}
+
+type profileGridPoint struct {
+	Index int
+	X     int
+	Y     int
+}
+
+func profileGridPoints(profile sweepProfile) []profileGridPoint {
+	points := make([]profileGridPoint, 0, configuredProfilePointCount(profile))
 	for _, x := range profile.XValues {
 		yValues := profile.YValues
 		if profile.Kind == "bar" {
 			yValues = []int{0}
 		}
 		for _, y := range yValues {
-			row, err := runSingleConfig(profile, x, y, benchmarkSamples)
-			if err != nil {
-				return nil, sweepResult{}, err
-			}
-			results = append(results, row)
-			if row.Error == "" && (row.ValidationAccuracy > best.ValidationAccuracy ||
-				(row.ValidationAccuracy == best.ValidationAccuracy && row.AllowPassRate > best.AllowPassRate) ||
-				(row.ValidationAccuracy == best.ValidationAccuracy && row.InferenceThroughput > best.InferenceThroughput) ||
-				(row.ValidationAccuracy == best.ValidationAccuracy && row.AllowPassRate == best.AllowPassRate && row.InferenceThroughput == best.InferenceThroughput && row.Duration < best.Duration)) {
-				best = row
-			}
+			points = append(points, profileGridPoint{Index: len(points), X: x, Y: y})
 		}
 	}
+	return points
+}
 
+func profileRunBest(profile sweepProfile, results []sweepResult) ([]sweepResult, sweepResult, error) {
+	best := bestSweepResult(results)
 	if math.IsInf(best.ValidationAccuracy, -1) {
 		return results, sweepResult{}, fmt.Errorf("profile %s produced no successful runs", profile.Name)
 	}
 	return results, best, nil
 }
 
-func runSingleConfig(profile sweepProfile, x, y int, benchmarkSamples []TrainingSample) (sweepResult, error) {
+func bestSweepResult(results []sweepResult) sweepResult {
+	var best sweepResult
+	best.ValidationAccuracy = math.Inf(-1)
+	for _, row := range results {
+		if row.Error == "" && (row.ValidationAccuracy > best.ValidationAccuracy ||
+			(row.ValidationAccuracy == best.ValidationAccuracy && row.AllowPassRate > best.AllowPassRate) ||
+			(row.ValidationAccuracy == best.ValidationAccuracy && row.InferenceThroughput > best.InferenceThroughput) ||
+			(row.ValidationAccuracy == best.ValidationAccuracy && row.AllowPassRate == best.AllowPassRate && row.InferenceThroughput == best.InferenceThroughput && row.Duration < best.Duration)) {
+			best = row
+		}
+	}
+	return best
+}
+
+func expectedProfileResultCount(profile sweepProfile) int {
+	return configuredProfilePointCount(profile)
+}
+
+func configuredProfilePointCount(profile sweepProfile) int {
+	if profile.Kind == "heatmap" {
+		return uniqueIntCount(profile.XValues) * uniqueIntCount(profile.YValues)
+	}
+	return uniqueIntCount(profile.XValues)
+}
+
+func annotateSweepResults(profile sweepProfile, results []sweepResult) []sweepResult {
+	configured := configuredProfilePointCount(profile)
+	out := make([]sweepResult, len(results))
+	for i, row := range results {
+		row.Profile = profile.Name
+		row.Dataset = profile.DatasetName
+		row.BaseProfile = baseProfileSegment(profile.Name)
+		row.ParameterName = profile.ParameterName
+		row.ParameterKind = profile.ParameterKind
+		row.RequiredPoints = profile.RequiredDiscretePoints
+		row.ConfiguredPoints = configured
+		out[i] = row
+	}
+	return out
+}
+
+func runSingleConfig(profile sweepProfile, store *TrainingDataStore, x, y int, benchmarkSamples []TrainingSample) (sweepResult, error) {
 	cfg := profile.Build(x, y)
 	trainer := newSweepTrainer()
 
 	var memBefore, memAfter runtime.MemStats
 	runtime.ReadMemStats(&memBefore)
 	start := time.Now()
-	model, result := trainer.TrainWithConfig(globalTrainingStore, cfg)
+	model, result := trainer.TrainWithConfig(store, cfg)
 	duration := time.Since(start).Seconds()
 	runtime.ReadMemStats(&memAfter)
 	memUsed := int64(memAfter.Alloc - memBefore.Alloc)
@@ -440,11 +909,18 @@ func runSingleConfig(profile sweepProfile, x, y int, benchmarkSamples []Training
 	}
 
 	row := sweepResult{
-		Profile:            profile.Name,
-		ModelType:          cfg.ModelType,
-		XValue:             x,
-		YValue:             y,
-		ConfigSummary:      profile.Summary(cfg),
+		Profile:          profile.Name,
+		Dataset:          profile.DatasetName,
+		BaseProfile:      baseProfileSegment(profile.Name),
+		ModelType:        cfg.ModelType,
+		ParameterName:    profile.ParameterName,
+		ParameterKind:    profile.ParameterKind,
+		RequiredPoints:   profile.RequiredDiscretePoints,
+		ConfiguredPoints: configuredProfilePointCount(profile),
+		XValue:           x,
+		YValue:           y,
+		ConfigSummary:    profile.Summary(cfg),
+
 		TrainAccuracy:      result.TrainAccuracy,
 		ValidationAccuracy: result.ValidationAccuracy,
 		NumSamples:         result.NumSamples,
@@ -581,7 +1057,7 @@ func evaluateClassMetrics(model Model, samples []TrainingSample) classMetrics {
 	return metrics
 }
 
-func selectTopRepeatConfigs(profile sweepProfile, results []sweepResult, topN int) []stabilityTask {
+func selectTopRepeatConfigs(profile sweepProfile, results []sweepResult, topN int, store *TrainingDataStore, benchmarkSamples []TrainingSample) []stabilityTask {
 	if topN < 1 {
 		topN = 1
 	}
@@ -617,12 +1093,12 @@ func selectTopRepeatConfigs(profile sweepProfile, results []sweepResult, topN in
 	}
 	out := make([]stabilityTask, 0, len(filtered))
 	for _, r := range filtered {
-		out = append(out, stabilityTask{Profile: profile, Config: r})
+		out = append(out, stabilityTask{Profile: profile, Config: r, Store: store, BenchmarkSamples: benchmarkSamples})
 	}
 	return out
 }
 
-func runStabilityPhase(tasks []stabilityTask, repeats int, benchmarkSamples []TrainingSample) ([]repeatRunResult, []repeatSummary, error) {
+func runStabilityPhase(tasks []stabilityTask, repeats int) ([]repeatRunResult, []repeatSummary, error) {
 	if repeats < 1 {
 		repeats = 1
 	}
@@ -649,7 +1125,7 @@ func runStabilityPhase(tasks []stabilityTask, repeats int, benchmarkSamples []Tr
 		go func() {
 			defer wg.Done()
 			for j := range jobs {
-				resultsCh <- runSingleRepeat(j.Task, j.Index, benchmarkSamples)
+				resultsCh <- runSingleRepeat(j.Task, j.Index)
 			}
 		}()
 	}
@@ -718,8 +1194,8 @@ func runStabilityPhase(tasks []stabilityTask, repeats int, benchmarkSamples []Tr
 	return rawRuns, summaries, nil
 }
 
-func runSingleRepeat(task stabilityTask, repeatIndex int, benchmarkSamples []TrainingSample) repeatRunResult {
-	row, err := runSingleConfig(task.Profile, task.Config.XValue, task.Config.YValue, benchmarkSamples)
+func runSingleRepeat(task stabilityTask, repeatIndex int) repeatRunResult {
+	row, err := runSingleConfig(task.Profile, task.Store, task.Config.XValue, task.Config.YValue, task.BenchmarkSamples)
 	return repeatRunResult{
 		Profile:             row.Profile,
 		ModelType:           row.ModelType,
@@ -738,6 +1214,7 @@ func runSingleRepeat(task stabilityTask, repeatIndex int, benchmarkSamples []Tra
 		InferenceSamples:    row.InferenceSamples,
 		InferenceLatencyMs:  row.InferenceLatencyMs,
 		InferenceThroughput: row.InferenceThroughput,
+		MemoryBytes:         row.MemoryBytes,
 		Error:               errIfAny(row.Error, err),
 	}
 }
@@ -805,6 +1282,8 @@ func aggregateRepeatRuns(runs []repeatRunResult) (repeatSummary, error) {
 	summary.InferenceMean, summary.InferenceStd = meanStd(inferenceVals)
 	summary.InferenceLatencyMean, summary.InferenceLatencyStd = meanStd(inferenceLatencyVals)
 	summary.InferenceMin, summary.InferenceMax = minMax(inferenceVals)
+	summary.MemoryMean, summary.MemoryStd = meanStd(memoryVals)
+	summary.MemoryMin, summary.MemoryMax = minMax(memoryVals)
 	summary.TrainMin, summary.TrainMax = minMax(trainVals)
 	summary.ValidationMin, summary.ValidationMax = minMax(valVals)
 	summary.SuccessRate = float64(summary.SuccessRuns) / float64(summary.Runs)
@@ -818,6 +1297,7 @@ func repeatKey(profile string, modelType ModelType, xValue, yValue int, configSu
 func profileComparable(profile string) bool {
 	// The sweep report uses the profile name to infer whether the model
 	// currently evaluates against a holdout split in this codebase.
+	profile = baseProfileSegment(profile)
 	switch {
 	case strings.HasPrefix(profile, "random_forest"),
 		strings.HasPrefix(profile, "extra_trees"),
@@ -831,6 +1311,17 @@ func profileComparable(profile string) bool {
 	default:
 		return false
 	}
+}
+
+func baseProfileSegment(profile string) string {
+	profile = strings.TrimSpace(profile)
+	if strings.Contains(profile, "/") {
+		parts := strings.Split(profile, "/")
+		if len(parts) >= 2 {
+			return parts[1]
+		}
+	}
+	return profile
 }
 
 func meanStd(values []float64) (float64, float64) {
@@ -868,6 +1359,66 @@ func minMax(values []float64) (float64, float64) {
 		}
 	}
 	return minV, maxV
+}
+
+func maxSweepInt(values []int) int {
+	maxV := 0
+	for _, value := range values {
+		if value > maxV {
+			maxV = value
+		}
+	}
+	return maxV
+}
+
+func clampCount(value, maxValue int) int {
+	if value < 1 {
+		return 1
+	}
+	if maxValue > 0 && value > maxValue {
+		return maxValue
+	}
+	return value
+}
+
+func prefixDecisionForest(forest *DecisionForest, count int) *DecisionForest {
+	if forest == nil || len(forest.Trees) == 0 {
+		return &DecisionForest{NumClasses: 4, NumFeatures: FeatureDim}
+	}
+	count = clampCount(count, len(forest.Trees))
+	return &DecisionForest{
+		Trees:       forest.Trees[:count],
+		NumClasses:  forest.NumClasses,
+		MaxDepth:    forest.MaxDepth,
+		NumFeatures: forest.NumFeatures,
+		IsTrained:   true,
+	}
+}
+
+func prefixAdaBoostModel(model *AdaBoostModel, count int) *AdaBoostModel {
+	if model == nil || len(model.Stumps) == 0 {
+		return NewAdaBoost(10)
+	}
+	count = clampCount(count, len(model.Stumps))
+	return &AdaBoostModel{
+		Stumps:  model.Stumps[:count],
+		Alphas:  model.Alphas[:count],
+		NEst:    count,
+		Classes: model.Classes,
+	}
+}
+
+func evalModelTrainSamples(model Model, samples []trainSample) float64 {
+	if model == nil || len(samples) == 0 {
+		return 0
+	}
+	correct := 0
+	for _, sample := range samples {
+		if pred := model.Predict(sample.features); pred.Action == sample.label {
+			correct++
+		}
+	}
+	return float64(correct) / float64(len(samples))
 }
 
 func bestScreenSummary(summaries []profileSummary) *profileSummary {
@@ -983,7 +1534,193 @@ func parsePositiveInt(raw string, fallback int) int {
 	return n
 }
 
+func parseBoolEnv(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseNameFilter(raw string) map[string]bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	out := make(map[string]bool)
+	for _, part := range strings.Split(raw, ",") {
+		name := strings.ToLower(strings.TrimSpace(part))
+		if name != "" {
+			out[name] = true
+		}
+	}
+	return out
+}
+
+func modelFilterMatches(selected map[ModelType]bool, modelType ModelType) bool {
+	if len(selected) == 0 {
+		return true
+	}
+	return selected[modelType] || selected[baseModelType(modelType)]
+}
+
+func datasetProfilesForMode(labeled []TrainingSample, mode string, selected map[string]bool) []sweepDataset {
+	candidates := buildSweepDatasetCandidates(labeled)
+	if len(candidates) == 0 {
+		return nil
+	}
+	if len(selected) > 0 {
+		out := make([]sweepDataset, 0, len(selected))
+		for _, ds := range candidates {
+			if selected[strings.ToLower(ds.Name)] {
+				out = append(out, ds)
+			}
+		}
+		return out
+	}
+	if mode != "comprehensive" {
+		return candidates[:1]
+	}
+	out := []sweepDataset{candidates[0]}
+	for _, ds := range candidates[1:] {
+		out = append(out, ds)
+		if len(out) >= 3 {
+			break
+		}
+	}
+	return out
+}
+
+func buildSweepDatasetCandidates(labeled []TrainingSample) []sweepDataset {
+	if len(labeled) == 0 {
+		return nil
+	}
+	out := []sweepDataset{{
+		Name:        "all",
+		Description: "all persisted labeled samples",
+		Samples:     append([]TrainingSample(nil), labeled...),
+	}}
+	if balanced := balancedLabelDataset(labeled); len(balanced) >= 10 && len(balanced) < len(labeled) {
+		out = append(out, sweepDataset{
+			Name:        "label-balanced",
+			Description: "deterministic class-balanced subset capped by the smallest present label",
+			Samples:     balanced,
+		})
+	}
+	if allowBlock := filterSamplesByLabel(labeled, map[int32]bool{0: true, 1: true}); len(allowBlock) >= 10 && len(allowBlock) < len(labeled) {
+		out = append(out, sweepDataset{
+			Name:        "allow-block",
+			Description: "binary ALLOW/BLOCK subset for false-block and miss-block sensitivity",
+			Samples:     allowBlock,
+		})
+	}
+	if even := deterministicIndexSubset(labeled, 0); len(even) >= 10 && len(out) < 3 {
+		out = append(out, sweepDataset{
+			Name:        "even-index",
+			Description: "deterministic even-index subset used when label-derived subsets are unavailable",
+			Samples:     even,
+		})
+	}
+	if odd := deterministicIndexSubset(labeled, 1); len(odd) >= 10 && len(out) < 3 {
+		out = append(out, sweepDataset{
+			Name:        "odd-index",
+			Description: "deterministic odd-index subset used when label-derived subsets are unavailable",
+			Samples:     odd,
+		})
+	}
+	return out
+}
+
+func balancedLabelDataset(samples []TrainingSample) []TrainingSample {
+	byLabel := make(map[int32][]TrainingSample)
+	for _, sample := range samples {
+		byLabel[sample.Label] = append(byLabel[sample.Label], sample)
+	}
+	if len(byLabel) < 2 {
+		return nil
+	}
+	minCount := int(^uint(0) >> 1)
+	labels := make([]int, 0, len(byLabel))
+	for label, group := range byLabel {
+		if len(group) == 0 {
+			continue
+		}
+		if len(group) < minCount {
+			minCount = len(group)
+		}
+		labels = append(labels, int(label))
+	}
+	if minCount <= 0 || len(labels) < 2 {
+		return nil
+	}
+	sort.Ints(labels)
+	out := make([]TrainingSample, 0, minCount*len(labels))
+	for _, label := range labels {
+		group := byLabel[int32(label)]
+		if len(group) > minCount {
+			group = group[:minCount]
+		}
+		out = append(out, group...)
+	}
+	return out
+}
+
+func filterSamplesByLabel(samples []TrainingSample, labels map[int32]bool) []TrainingSample {
+	out := make([]TrainingSample, 0, len(samples))
+	for _, sample := range samples {
+		if labels[sample.Label] {
+			out = append(out, sample)
+		}
+	}
+	return out
+}
+
+func deterministicIndexSubset(samples []TrainingSample, parity int) []TrainingSample {
+	out := make([]TrainingSample, 0, (len(samples)+1)/2)
+	for i, sample := range samples {
+		if i%2 == parity {
+			out = append(out, sample)
+		}
+	}
+	return out
+}
+
+func trainingStoreFromSamples(samples []TrainingSample) *TrainingDataStore {
+	maxSamples := len(samples)
+	if maxSamples < 1 {
+		maxSamples = 1
+	}
+	store := &TrainingDataStore{
+		samples:    make([]TrainingSample, maxSamples),
+		maxSamples: maxSamples,
+	}
+	for _, sample := range samples {
+		store.Add(sample)
+	}
+	store.dirtyCount = 0
+	return store
+}
+
+func profileForDataset(profile sweepProfile, dataset sweepDataset) sweepProfile {
+	scoped := profile
+	scoped.Name = dataset.Name + "/" + profile.Name
+	scoped.DatasetName = dataset.Name
+	scoped.DatasetDescription = dataset.Description
+	return scoped
+}
+
 func profilesForMode(mode string) []sweepProfile {
+	return profilesForModeWithPoints(mode, 1000)
+}
+
+func profilesForModeWithPoints(mode string, pointsPerParam int) []sweepProfile {
+	if pointsPerParam < 1 {
+		pointsPerParam = 1000
+	}
+	if mode == "comprehensive" {
+		return comprehensiveAxisSweepProfiles(pointsPerParam)
+	}
 	quick := map[string]bool{
 		string(ModelRandomForest):       true,
 		string(ModelExtraTrees):         true,
@@ -1036,21 +1773,6 @@ func profilesForMode(mode string) []sweepProfile {
 		knnX = linspaceInt(1, 31, 15)
 		ridgeX = linspaceInt(1, 500, 20)
 		adaX = linspaceInt(5, 300, 20)
-	case "comprehensive":
-		// 1000+ points per model with practical ranges
-		// RF: 32 trees x 32 depths = 1024 (cap trees at 50 for speed)
-		rfX, rfY = linspaceInt(1, 50, 32), linspaceInt(1, 24, 32)
-		etX, etY = linspaceInt(1, 50, 32), linspaceInt(1, 24, 32)
-		// Logistic: 40 lr x 30 reg/iter = 1200
-		logX, logY = linspaceInt(1, 250, 40), linspaceInt(100, 5000, 30)
-		// Linear models (reduced: low accuracy, fast sweep)
-		linearX, linearY = linspaceInt(1, 100, 10), linspaceInt(100, 4000, 10)
-		// KNN: 1000 values (fast: 0.1s each)
-		knnX = linspaceInt(1, 1000, 1000)
-		// Ridge: 1000 values (fast: 0.25s each)
-		ridgeX = linspaceInt(1, 1000, 1000)
-		// AdaBoost: 1000 values (fast: 0.06s each)
-		adaX = linspaceInt(1, 1000, 1000)
 	}
 
 	return []sweepProfile{
@@ -1784,6 +2506,313 @@ func profilesForMode(mode string) []sweepProfile {
 	}
 }
 
+func comprehensiveAxisSweepProfiles(pointsPerParam int) []sweepProfile {
+	if pointsPerParam < 1 {
+		pointsPerParam = 1000
+	}
+	profiles := make([]sweepProfile, 0, len(AllModelTypes())*3)
+	for _, mt := range AllModelTypes() {
+		base := baseModelType(mt)
+		switch base {
+		case ModelRandomForest, ModelExtraTrees:
+			profiles = append(profiles,
+				numericAxisProfile(mt, "numTrees", "numTrees", intRange(1, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.NumTrees = v }),
+				numericAxisProfile(mt, "maxDepth", "maxDepth", intRange(1, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.MaxDepth = v }),
+				numericAxisProfile(mt, "minSamplesLeaf", "minSamplesLeaf", intRange(1, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.MinSamplesLeaf = v }),
+			)
+		case ModelLogisticRegression:
+			profiles = append(profiles,
+				numericAxisProfile(mt, "learningRate", "learningRate×1000", intRange(1, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.NumTrees = v }),
+				numericAxisProfile(mt, "maxIter", "maxIter", intRange(100, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.MinSamplesLeaf = v }),
+				categoricalAxisProfile(mt, "regularization", "regularization", []int{4, 8, 12}, func(cfg *MLConfig, v int) { cfg.MaxDepth = v }, func(v int) string {
+					switch v {
+					case 4:
+						return "none"
+					case 12:
+						return "l1"
+					default:
+						return "l2"
+					}
+				}),
+			)
+		case ModelSVM, ModelPerceptron:
+			profiles = append(profiles,
+				numericAxisProfile(mt, "learningRate", "learningRate×1000", intRange(1, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.NumTrees = v }),
+				numericAxisProfile(mt, "iterations", "iterations", intRange(100, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.MinSamplesLeaf = v }),
+			)
+		case ModelPassiveAggressive:
+			profiles = append(profiles,
+				numericAxisProfile(mt, "aggressivenessC", "C×10", intRange(1, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.NumTrees = v }),
+				numericAxisProfile(mt, "iterations", "iterations", intRange(100, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.MinSamplesLeaf = v }),
+			)
+		case ModelKNN:
+			profiles = append(profiles,
+				numericAxisProfile(mt, "k", "k", intRange(1, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.NumTrees = v }),
+				categoricalAxisProfile(mt, "distance", "distance selector", []int{8, 12, 16}, func(cfg *MLConfig, v int) { cfg.MaxDepth = v }, func(v int) string {
+					switch {
+					case v >= 16:
+						return "cosine"
+					case v >= 12:
+						return "manhattan"
+					default:
+						return "euclidean"
+					}
+				}),
+				categoricalAxisProfile(mt, "weight", "weight selector", []int{5, 8}, func(cfg *MLConfig, v int) { cfg.MinSamplesLeaf = v }, func(v int) string {
+					if v >= 8 {
+						return "distance"
+					}
+					return "uniform"
+				}),
+			)
+		case ModelRidge:
+			profiles = append(profiles,
+				numericAxisProfile(mt, "alpha", "alpha×100", intRange(1, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.NumTrees = v }),
+			)
+		case ModelAdaBoost:
+			profiles = append(profiles,
+				numericAxisProfile(mt, "estimators", "estimators", intRange(10, pointsPerParam), pointsPerParam, func(cfg *MLConfig, v int) { cfg.NumTrees = v }),
+			)
+		case ModelNearestCentroid:
+			profiles = append(profiles,
+				categoricalAxisProfile(mt, "metric", "metric selector", []int{4, 8, 12}, func(cfg *MLConfig, v int) { cfg.MaxDepth = v }, func(v int) string {
+					switch v {
+					case 4:
+						return "cosine"
+					case 12:
+						return "manhattan"
+					default:
+						return "euclidean"
+					}
+				}),
+				categoricalAxisProfile(mt, "classPrior", "class prior", []int{0, 1}, func(cfg *MLConfig, v int) { cfg.BalanceClasses = v == 1 }, func(v int) string {
+					if v == 1 {
+						return "uniform"
+					}
+					return "empirical"
+				}),
+			)
+		case ModelNaiveBayes:
+			profiles = append(profiles,
+				categoricalAxisProfile(mt, "classPrior", "class prior", []int{0, 1}, func(cfg *MLConfig, v int) { cfg.BalanceClasses = v == 1 }, func(v int) string {
+					if v == 1 {
+						return "uniform"
+					}
+					return "empirical"
+				}),
+			)
+		case ModelEnsemble:
+			profiles = append(profiles, fixedAxisProfile(mt, "voting", "soft-vote ensemble"))
+		}
+	}
+	return profiles
+}
+
+func numericSweepParametersForModel(modelType ModelType) []string {
+	switch baseModelType(modelType) {
+	case ModelRandomForest, ModelExtraTrees:
+		return []string{"numTrees", "maxDepth", "minSamplesLeaf"}
+	case ModelLogisticRegression:
+		return []string{"learningRate", "maxIter"}
+	case ModelSVM, ModelPerceptron:
+		return []string{"learningRate", "iterations"}
+	case ModelPassiveAggressive:
+		return []string{"aggressivenessC", "iterations"}
+	case ModelKNN:
+		return []string{"k"}
+	case ModelRidge:
+		return []string{"alpha"}
+	case ModelAdaBoost:
+		return []string{"estimators"}
+	default:
+		return nil
+	}
+}
+
+func numericAxisProfile(modelType ModelType, paramName, xName string, values []int, required int, apply func(*MLConfig, int)) sweepProfile {
+	return axisProfile(modelType, paramName, "numeric", xName, values, required, apply, strconv.Itoa)
+}
+
+func categoricalAxisProfile(modelType ModelType, paramName, xName string, values []int, apply func(*MLConfig, int), label func(int) string) sweepProfile {
+	return axisProfile(modelType, paramName, "categorical", xName, values, len(values), apply, label)
+}
+
+func fixedAxisProfile(modelType ModelType, paramName, summary string) sweepProfile {
+	return sweepProfile{
+		Name:                   string(modelType) + "/" + paramName,
+		ModelType:              modelType,
+		Comparable:             profileComparable(string(modelType)),
+		Kind:                   "bar",
+		XName:                  paramName,
+		XValues:                []int{0},
+		XLabel:                 func(int) string { return "default" },
+		ParameterName:          paramName,
+		ParameterKind:          "fixed",
+		RequiredDiscretePoints: 1,
+		Build: func(_, _ int) MLConfig {
+			cfg := defaultSweepConfigForModel(modelType)
+			return cfg
+		},
+		Summary: func(MLConfig) string { return summary },
+	}
+}
+
+func axisProfile(modelType ModelType, paramName, paramKind, xName string, values []int, required int, apply func(*MLConfig, int), label func(int) string) sweepProfile {
+	if label == nil {
+		label = strconv.Itoa
+	}
+	return sweepProfile{
+		Name:                   string(modelType) + "/" + paramName,
+		ModelType:              modelType,
+		Comparable:             profileComparable(string(modelType)),
+		Kind:                   "bar",
+		XName:                  xName,
+		XValues:                values,
+		XLabel:                 label,
+		ParameterName:          paramName,
+		ParameterKind:          paramKind,
+		RequiredDiscretePoints: required,
+		Build: func(x, _ int) MLConfig {
+			cfg := defaultSweepConfigForModel(modelType)
+			if apply != nil {
+				apply(&cfg, x)
+			}
+			return cfg
+		},
+		Summary: summarizeSweepConfig,
+	}
+}
+
+func defaultSweepConfigForModel(modelType ModelType) MLConfig {
+	cfg := DefaultMLConfig()
+	cfg.ModelType = modelType
+	cfg.ValidationSplitRatio = 0.2
+	cfg.LlmEnabled = false
+	cfg.LlmBaseURL = ""
+	cfg.LlmModel = ""
+	cfg.LlmAPIKey = ""
+	for _, profile := range builtinModelProfiles {
+		if profile.Type != modelType {
+			continue
+		}
+		if v := profile.Defaults["numTrees"]; v > 0 {
+			cfg.NumTrees = v
+		}
+		if v := profile.Defaults["maxDepth"]; v > 0 {
+			cfg.MaxDepth = v
+		}
+		if v := profile.Defaults["minSamplesLeaf"]; v > 0 {
+			cfg.MinSamplesLeaf = v
+		}
+		if profile.Apply != nil {
+			cfg = profile.Apply(cfg)
+		}
+		break
+	}
+	return cfg
+}
+
+func summarizeSweepConfig(cfg MLConfig) string {
+	switch baseModelType(cfg.ModelType) {
+	case ModelRandomForest, ModelExtraTrees:
+		return fmt.Sprintf("trees=%d depth=%d leaf=%d", cfg.NumTrees, cfg.MaxDepth, cfg.MinSamplesLeaf)
+	case ModelLogisticRegression:
+		reg := "l2"
+		switch cfg.MaxDepth {
+		case 4:
+			reg = "none"
+		case 12:
+			reg = "l1"
+		}
+		balanced := ""
+		if cfg.BalanceClasses {
+			balanced = " balanced"
+		}
+		return fmt.Sprintf("lr=%.3f reg=%s%s iter=%d", float64(cfg.NumTrees)/1000.0, reg, balanced, cfg.MinSamplesLeaf)
+	case ModelSVM, ModelPerceptron:
+		balanced := ""
+		if cfg.BalanceClasses {
+			balanced = " balanced"
+		}
+		return fmt.Sprintf("lr=%.3f%s iter=%d", float64(cfg.NumTrees)/1000.0, balanced, cfg.MinSamplesLeaf)
+	case ModelPassiveAggressive:
+		balanced := ""
+		if cfg.BalanceClasses {
+			balanced = " balanced"
+		}
+		return fmt.Sprintf("C=%.2f%s iter=%d", float64(cfg.NumTrees)/10.0, balanced, cfg.MinSamplesLeaf)
+	case ModelKNN:
+		distance := "euclidean"
+		if cfg.MaxDepth >= 16 {
+			distance = "cosine"
+		} else if cfg.MaxDepth >= 12 {
+			distance = "manhattan"
+		}
+		weight := "uniform"
+		if cfg.MinSamplesLeaf >= 8 {
+			weight = "distance"
+		}
+		return fmt.Sprintf("k=%d distance=%s weight=%s", cfg.NumTrees, distance, weight)
+	case ModelRidge:
+		return fmt.Sprintf("alpha=%.2f", float64(cfg.NumTrees)/100.0)
+	case ModelAdaBoost:
+		return fmt.Sprintf("estimators=%d", cfg.NumTrees)
+	case ModelNearestCentroid:
+		metric := "euclidean"
+		switch cfg.MaxDepth {
+		case 4:
+			metric = "cosine"
+		case 12:
+			metric = "manhattan"
+		}
+		prior := "empirical"
+		if cfg.BalanceClasses {
+			prior = "uniform"
+		}
+		return fmt.Sprintf("metric=%s prior=%s", metric, prior)
+	case ModelNaiveBayes:
+		if cfg.BalanceClasses {
+			return "balanced-prior"
+		}
+		return "empirical-prior"
+	case ModelEnsemble:
+		return "soft-vote ensemble"
+	default:
+		return string(cfg.ModelType)
+	}
+}
+
+func intRange(minVal, count int) []int {
+	if count <= 0 {
+		return nil
+	}
+	out := make([]int, count)
+	for i := 0; i < count; i++ {
+		out[i] = minVal + i
+	}
+	return out
+}
+
+func linspaceIntGlobal(minVal, maxVal, count int) []int {
+	if count <= 0 {
+		return nil
+	}
+	if count == 1 {
+		return []int{(minVal + maxVal) / 2}
+	}
+	out := make([]int, count)
+	seen := make(map[int]bool, count)
+	for i := 0; i < count; i++ {
+		v := minVal + (maxVal-minVal)*i/(count-1)
+		for seen[v] {
+			v++
+		}
+		out[i] = v
+		seen[v] = true
+	}
+	return out
+}
+
 func parseModelFilter(raw string) map[ModelType]bool {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -2288,42 +3317,248 @@ func writeCSV(path string, results []sweepResult) error {
 	w := csv.NewWriter(f)
 	defer w.Flush()
 
-	header := []string{
-		"profile", "modelType", "xValue", "yValue", "configSummary",
+	if err := w.Write(sweepResultCSVHeader()); err != nil {
+		return err
+	}
+	for _, r := range results {
+		if err := w.Write(sweepResultCSVRow(r)); err != nil {
+			return err
+		}
+	}
+	return w.Error()
+}
+
+func appendSweepResultsCSV(path string, results []sweepResult) error {
+	if len(results) == 0 {
+		return nil
+	}
+	needsHeader := true
+	if st, err := os.Stat(path); err == nil && st.Size() > 0 {
+		needsHeader = false
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	if needsHeader {
+		if err := w.Write(sweepResultCSVHeader()); err != nil {
+			return err
+		}
+	}
+	for _, result := range results {
+		if err := w.Write(sweepResultCSVRow(result)); err != nil {
+			return err
+		}
+	}
+	return w.Error()
+}
+
+func sweepResultCSVHeader() []string {
+	return []string{
+		"profile", "dataset", "baseProfile", "modelType",
+		"parameterName", "parameterKind", "requiredDiscretePoints", "configuredDiscretePoints",
+		"xValue", "yValue", "configSummary",
 		"trainAccuracy", "validationAccuracy", "allowPassRate", "durationSeconds",
 		"inferenceDurationSeconds", "inferenceSamples", "inferenceLatencyMs", "inferenceThroughput",
 		"memoryBytes",
 		"numSamples", "trainSamples", "validationSamples", "error",
 	}
-	if err := w.Write(header); err != nil {
+}
+
+func sweepResultCSVRow(r sweepResult) []string {
+	return []string{
+		r.Profile,
+		r.Dataset,
+		r.BaseProfile,
+		string(r.ModelType),
+		r.ParameterName,
+		r.ParameterKind,
+		strconv.Itoa(r.RequiredPoints),
+		strconv.Itoa(r.ConfiguredPoints),
+		strconv.Itoa(r.XValue),
+		strconv.Itoa(r.YValue),
+		r.ConfigSummary,
+		fmt.Sprintf("%.6f", r.TrainAccuracy),
+		fmt.Sprintf("%.6f", r.ValidationAccuracy),
+		fmt.Sprintf("%.6f", r.AllowPassRate),
+		fmt.Sprintf("%.6f", r.Duration),
+		fmt.Sprintf("%.6f", r.InferenceDuration),
+		strconv.Itoa(r.InferenceSamples),
+		fmt.Sprintf("%.6f", r.InferenceLatencyMs),
+		fmt.Sprintf("%.6f", r.InferenceThroughput),
+		strconv.Itoa(int(r.MemoryBytes)),
+		strconv.Itoa(r.NumSamples),
+		strconv.Itoa(r.TrainSamples),
+		strconv.Itoa(r.ValidationSamples),
+		r.Error,
+	}
+}
+
+func readSweepResultsCSV(path string) ([]sweepResult, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	reader := csv.NewReader(f)
+	rows, err := reader.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) < 2 {
+		return nil, fmt.Errorf("no cached sweep rows in %s", path)
+	}
+	header := make(map[string]int, len(rows[0]))
+	for i, name := range rows[0] {
+		header[name] = i
+	}
+	out := make([]sweepResult, 0, len(rows)-1)
+	for _, row := range rows[1:] {
+		out = append(out, sweepResult{
+			Profile:             csvString(row, header, "profile"),
+			Dataset:             csvString(row, header, "dataset"),
+			BaseProfile:         csvString(row, header, "baseProfile"),
+			ModelType:           ModelType(csvString(row, header, "modelType")),
+			ParameterName:       csvString(row, header, "parameterName"),
+			ParameterKind:       csvString(row, header, "parameterKind"),
+			RequiredPoints:      csvInt(row, header, "requiredDiscretePoints"),
+			ConfiguredPoints:    csvInt(row, header, "configuredDiscretePoints"),
+			XValue:              csvInt(row, header, "xValue"),
+			YValue:              csvInt(row, header, "yValue"),
+			ConfigSummary:       csvString(row, header, "configSummary"),
+			TrainAccuracy:       csvFloat(row, header, "trainAccuracy"),
+			ValidationAccuracy:  csvFloat(row, header, "validationAccuracy"),
+			AllowPassRate:       csvFloat(row, header, "allowPassRate"),
+			Duration:            csvFloat(row, header, "durationSeconds"),
+			InferenceDuration:   csvFloat(row, header, "inferenceDurationSeconds"),
+			InferenceSamples:    csvInt(row, header, "inferenceSamples"),
+			InferenceLatencyMs:  csvFloat(row, header, "inferenceLatencyMs"),
+			InferenceThroughput: csvFloat(row, header, "inferenceThroughput"),
+			MemoryBytes:         int64(csvInt(row, header, "memoryBytes")),
+			NumSamples:          csvInt(row, header, "numSamples"),
+			TrainSamples:        csvInt(row, header, "trainSamples"),
+			ValidationSamples:   csvInt(row, header, "validationSamples"),
+			Error:               csvString(row, header, "error"),
+		})
+	}
+	return out, nil
+}
+
+func csvString(row []string, header map[string]int, name string) string {
+	idx, ok := header[name]
+	if !ok || idx < 0 || idx >= len(row) {
+		return ""
+	}
+	return row[idx]
+}
+
+func csvInt(row []string, header map[string]int, name string) int {
+	value, _ := strconv.Atoi(csvString(row, header, name))
+	return value
+}
+
+func csvFloat(row []string, header map[string]int, name string) float64 {
+	value, _ := strconv.ParseFloat(csvString(row, header, name), 64)
+	return value
+}
+
+type sweepCoverage struct {
+	Summary  map[string]any         `json:"summary"`
+	Datasets []map[string]any       `json:"datasets"`
+	Profiles []sweepCoverageProfile `json:"profiles"`
+}
+
+type sweepCoverageProfile struct {
+	Dataset                  string `json:"dataset"`
+	Profile                  string `json:"profile"`
+	ModelType                string `json:"modelType"`
+	Parameter                string `json:"parameter"`
+	ParameterKind            string `json:"parameterKind"`
+	RequiredDiscretePoints   int    `json:"requiredDiscretePoints"`
+	ConfiguredDiscretePoints int    `json:"configuredDiscretePoints"`
+	TestedRows               int    `json:"testedRows"`
+	Passed                   bool   `json:"passed"`
+}
+
+func buildSweepCoverage(datasets []sweepDataset, profiles []sweepProfile, results []sweepResult, pointsPerParam int) sweepCoverage {
+	rowCounts := make(map[string]int)
+	for _, result := range results {
+		rowCounts[result.Profile]++
+	}
+	entries := make([]sweepCoverageProfile, 0, len(datasets)*len(profiles))
+	passed := 0
+	required := 0
+	for _, dataset := range datasets {
+		for _, profile := range profiles {
+			scoped := profileForDataset(profile, dataset)
+			configured := configuredProfilePointCount(profile)
+			req := profile.RequiredDiscretePoints
+			if req < 1 {
+				req = configured
+			}
+			ok := rowCounts[scoped.Name] >= configured && configured >= req
+			if profile.ParameterKind == "categorical" || profile.ParameterKind == "fixed" {
+				ok = rowCounts[scoped.Name] >= configured && configured == req
+			}
+			required++
+			if ok {
+				passed++
+			}
+			entries = append(entries, sweepCoverageProfile{
+				Dataset:                  dataset.Name,
+				Profile:                  scoped.Name,
+				ModelType:                string(profile.ModelType),
+				Parameter:                profile.ParameterName,
+				ParameterKind:            profile.ParameterKind,
+				RequiredDiscretePoints:   req,
+				ConfiguredDiscretePoints: configured,
+				TestedRows:               rowCounts[scoped.Name],
+				Passed:                   ok,
+			})
+		}
+	}
+	datasetRows := make([]map[string]any, 0, len(datasets))
+	for _, dataset := range datasets {
+		datasetRows = append(datasetRows, map[string]any{
+			"name":        dataset.Name,
+			"description": dataset.Description,
+			"samples":     len(dataset.Samples),
+		})
+	}
+	return sweepCoverage{
+		Summary: map[string]any{
+			"datasets":               len(datasets),
+			"profiles":               len(profiles),
+			"coverageEntries":        required,
+			"passedEntries":          passed,
+			"pointsPerParam":         pointsPerParam,
+			"numericRequirementNote": "numeric comprehensive axis profiles require at least pointsPerParam unique tested values per tunable parameter; categorical/fixed profiles enumerate all meaningful values",
+		},
+		Datasets: datasetRows,
+		Profiles: entries,
+	}
+}
+
+func writeCoverageJSON(path string, coverage sweepCoverage) error {
+	data, err := json.MarshalIndent(coverage, "", "  ")
+	if err != nil {
 		return err
 	}
-	for _, r := range results {
-		row := []string{
-			r.Profile,
-			string(r.ModelType),
-			strconv.Itoa(r.XValue),
-			strconv.Itoa(r.YValue),
-			r.ConfigSummary,
-			fmt.Sprintf("%.6f", r.TrainAccuracy),
-			fmt.Sprintf("%.6f", r.ValidationAccuracy),
-			fmt.Sprintf("%.6f", r.AllowPassRate),
-			fmt.Sprintf("%.6f", r.Duration),
-			fmt.Sprintf("%.6f", r.InferenceDuration),
-			strconv.Itoa(r.InferenceSamples),
-			fmt.Sprintf("%.6f", r.InferenceLatencyMs),
-			fmt.Sprintf("%.6f", r.InferenceThroughput),
-			strconv.Itoa(int(r.MemoryBytes)),
-			strconv.Itoa(r.NumSamples),
-			strconv.Itoa(r.TrainSamples),
-			strconv.Itoa(r.ValidationSamples),
-			r.Error,
-		}
-		if err := w.Write(row); err != nil {
-			return err
-		}
+	return os.WriteFile(path, data, 0o644)
+}
+
+func uniqueIntCount(values []int) int {
+	if len(values) == 0 {
+		return 0
 	}
-	return w.Error()
+	seen := make(map[int]struct{}, len(values))
+	for _, value := range values {
+		seen[value] = struct{}{}
+	}
+	return len(seen)
 }
 
 func writeRepeatCSV(path string, runs []repeatRunResult) error {
@@ -2427,6 +3662,10 @@ func writeRepeatSummaryCSV(path string, summaries []repeatSummary) error {
 			fmt.Sprintf("%.6f", s.InferenceMax),
 			fmt.Sprintf("%.6f", s.InferenceLatencyMean),
 			fmt.Sprintf("%.6f", s.InferenceLatencyStd),
+			fmt.Sprintf("%.0f", s.MemoryMean),
+			fmt.Sprintf("%.0f", s.MemoryStd),
+			fmt.Sprintf("%.0f", s.MemoryMin),
+			fmt.Sprintf("%.0f", s.MemoryMax),
 		}
 		if err := w.Write(row); err != nil {
 			return err

@@ -25,18 +25,20 @@ const remoteDatasetFetchLimitBytes = 20 << 20
 const remoteDatasetUploadLimitBytes = 100 << 20
 
 type remoteDatasetRequest struct {
-	URL           string `json:"url"`
-	Content       string `json:"content"`
-	ContentBase64 string `json:"contentBase64"`
-	SourceName    string `json:"sourceName"`
-	Format        string `json:"format"`
-	Limit         int    `json:"limit"`
-	LabelMode     string `json:"labelMode"`
-	ImportAll     bool   `json:"importAll"`
+	URL            string `json:"url"`
+	Content        string `json:"content"`
+	ContentBase64  string `json:"contentBase64"`
+	SourceName     string `json:"sourceName"`
+	Format         string `json:"format"`
+	Limit          int    `json:"limit"`
+	LabelMode      string `json:"labelMode"`
+	ImportAll      bool   `json:"importAll"`
+	CleanSensitive bool   `json:"cleanSensitive"`
 }
 
 type remoteDatasetRow struct {
 	Row          int      `json:"row"`
+	Source       string   `json:"source,omitempty"`
 	CommandLine  string   `json:"commandLine"`
 	Comm         string   `json:"comm"`
 	Args         []string `json:"args"`
@@ -66,6 +68,7 @@ type remoteDatasetResponse struct {
 
 type remoteDatasetRecord struct {
 	Row         int
+	Source      string
 	CommandLine string
 	Comm        string
 	Args        []string
@@ -133,7 +136,7 @@ func handleMLDatasetImportPost(c *gin.Context) {
 			continue
 		}
 
-		sample := buildRemoteDatasetSample(row, req.LabelMode)
+		sample := buildRemoteDatasetSample(row, req.LabelMode, req.CleanSensitive)
 		globalTrainingStore.Add(sample)
 		recordCommandSampleSideEffects(sample)
 		imported++
@@ -283,7 +286,7 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 
 	rows := make([]remoteDatasetRow, 0, len(records))
 	for _, record := range records {
-		row := buildRemoteDatasetRow(record, req.LabelMode)
+		row := buildRemoteDatasetRow(record, req.LabelMode, req.CleanSensitive)
 		if globalTrainingStore != nil {
 			row.Duplicate = globalTrainingStore.HasExactCommand(row.Comm, row.Args)
 		}
@@ -793,4 +796,3 @@ func trainingSampleToRemoteDatasetRow(index int, sample TrainingSample) remoteDa
 		UserLabel:    sample.UserLabel,
 	}
 }
-

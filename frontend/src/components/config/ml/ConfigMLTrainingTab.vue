@@ -13,7 +13,7 @@ const {
   allSamples, loadingSamples, sampleTablePageSize, sampleSearchText,
   existingDataLimit, existingLabelMode, existingCommandCandidates,
   loadingExistingData, importingExistingData, existingDataSource,
-  remoteDatasetUrl, remoteDatasetFormat, remoteDatasetLabelMode, remoteDatasetLimit,
+  remoteDatasetUrl, remoteDatasetFormat, remoteDatasetLabelMode, remoteDatasetCleanSensitive, remoteDatasetLimit,
   loadingRemoteDataset, importingRemoteDataset, remoteDatasetPreview, remoteDatasetMeta,
   trainingDatasetImportInput, importingClassicDataset, dataMaskEnabled,
   sampleCommandLine, sampleLabel, submittingSample,
@@ -142,6 +142,10 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
                 </a-select>
               </div>
             </div>
+            <a-checkbox v-model:checked="remoteDatasetCleanSensitive">
+              清洗敏感字段（推荐）
+            </a-checkbox>
+            <a-typography-text type="secondary">会在导入前屏蔽密码、token、邮箱、IP、home 目录等敏感片段，保留命令结构用于训练。</a-typography-text>
             <div>
               <div style="font-weight: 600; margin-bottom: 6px">拉取条数</div>
               <a-input-number v-model:value="remoteDatasetLimit" :min="1" :max="5000" :step="1" style="width: 100%" />

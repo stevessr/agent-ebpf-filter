@@ -67,6 +67,43 @@ func TestPullRemoteDatasetFromHTTPServer(t *testing.T) {
 	}
 }
 
+func TestPullRemoteDatasetFromClassicCSVWithCleaning(t *testing.T) {
+	raw := []byte(`payload,length,attack_type,label
+"c/ caridad s/n",14,norm,norm
+"../etc/passwd",12,cmdi,anom
+`)
+
+	resp, err := pullRemoteDataset(remoteDatasetRequest{
+		Content:        string(raw),
+		SourceName:     "HttpParamsDataset/payload_train.csv",
+		Format:         "csv",
+		Limit:          10,
+		LabelMode:      "preserve",
+		CleanSensitive: true,
+	})
+	if err != nil {
+		t.Fatalf("pullRemoteDataset() error = %v", err)
+	}
+	if resp.Format != "csv" {
+		t.Fatalf("format = %q, want csv", resp.Format)
+	}
+	if len(resp.Rows) != 2 {
+		t.Fatalf("rows length = %d, want 2", len(resp.Rows))
+	}
+	if resp.Rows[0].Label != "ALLOW" {
+		t.Fatalf("first row label = %q, want ALLOW", resp.Rows[0].Label)
+	}
+	if resp.Rows[1].Label != "BLOCK" {
+		t.Fatalf("second row label = %q, want BLOCK", resp.Rows[1].Label)
+	}
+	if strings.Contains(resp.Rows[1].CommandLine, "/etc/passwd") {
+		t.Fatalf("sensitive path was not cleaned: %#v", resp.Rows[1])
+	}
+	if resp.Rows[1].Source != "HttpParamsDataset/payload_train.csv" {
+		t.Fatalf("row source = %q, want dataset source", resp.Rows[1].Source)
+	}
+}
+
 func TestPullRemoteDatasetRejectsHTMLLandingPage(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -345,7 +382,7 @@ func TestBuildRemoteDatasetSampleForceBlock(t *testing.T) {
 		Timestamp:   "2026-01-01T00:00:00Z",
 		UserLabel:   "dataset",
 	}
-	sample := buildRemoteDatasetSample(row, "block")
+	sample := buildRemoteDatasetSample(row, "block", false)
 	if sample.Label != 1 {
 		t.Fatalf("sample.Label = %d, want BLOCK", sample.Label)
 	}
@@ -354,6 +391,68 @@ func TestBuildRemoteDatasetSampleForceBlock(t *testing.T) {
 	}
 	if sample.CommandLine != row.CommandLine {
 		t.Fatalf("sample.CommandLine = %q, want %q", sample.CommandLine, row.CommandLine)
+	}
+}
+
+func TestBuildRemoteDatasetRowInfersLabelFromSource(t *testing.T) {
+	record := remoteDatasetRecord{
+		Row:         7,
+		Source:      "mpsd/powershell_benign_dataset/sample.ps1",
+		CommandLine: "Write-Host hello",
+		Comm:        "Write-Host",
+		Args:        []string{"hello"},
+	}
+
+	row := buildRemoteDatasetRow(record, "preserve", false)
+	if row.Label != "ALLOW" {
+		t.Fatalf("row.Label = %q, want ALLOW", row.Label)
+	}
+	if row.LabelSource != "source" {
+		t.Fatalf("row.LabelSource = %q, want source", row.LabelSource)
+	}
+	if row.Source != record.Source {
+		t.Fatalf("row.Source = %q, want %q", row.Source, record.Source)
+	}
+}
+
+func TestBuildRemoteDatasetSampleCleansSensitiveValues(t *testing.T) {
+	row := remoteDatasetRow{
+		Source:      "HttpParamsDataset/payload_train.csv",
+		CommandLine: "curl https://user:secret@example.com/path?token=abc123 -H \"Authorization: Bearer abc123\"",
+		Comm:        "curl",
+		Args:        []string{"https://user:secret@example.com/path?token=abc123", "-H", "Authorization: Bearer abc123"},
+		Label:       "BLOCK",
+		Category:    "NETWORK",
+		Timestamp:   "2026-01-01T00:00:00Z",
+		UserLabel:   "remote-source-label",
+	}
+
+	sample := buildRemoteDatasetSample(row, "preserve", true)
+	if strings.Contains(sample.CommandLine, "secret") || strings.Contains(sample.CommandLine, "token=abc123") {
+		t.Fatalf("sample.CommandLine still contains sensitive data: %q", sample.CommandLine)
+	}
+	if strings.Contains(strings.Join(sample.Args, " "), "secret") || strings.Contains(strings.Join(sample.Args, " "), "abc123") {
+		t.Fatalf("sample.Args still contains sensitive data: %#v", sample.Args)
+	}
+	if !strings.Contains(sample.CommandLine, "***") {
+		t.Fatalf("sample.CommandLine = %q, want masked content", sample.CommandLine)
+	}
+}
+
+func TestNormalizeActionLabelClassicDatasetSynonyms(t *testing.T) {
+	cases := map[string]string{
+		"norm":                 "ALLOW",
+		"BENIGN":               "ALLOW",
+		"anom":                 "BLOCK",
+		"cmdi":                 "BLOCK",
+		"sql injection":        "BLOCK",
+		"path traversal":       "BLOCK",
+		"cross-site scripting": "BLOCK",
+	}
+	for input, want := range cases {
+		if got := normalizeActionLabel(input); got != want {
+			t.Fatalf("normalizeActionLabel(%q) = %q, want %q", input, got, want)
+		}
 	}
 }
 

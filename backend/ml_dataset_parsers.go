@@ -50,33 +50,33 @@ func parseRemoteDatasetRecords(raw []byte, format string, source string) ([]remo
 
 	switch format {
 	case "json":
-		return parseJSONDatasetRecords(raw)
+		return parseJSONDatasetRecords(raw, source)
 	case "jsonl", "ndjson":
-		return parseJSONLinesDatasetRecords(raw)
+		return parseJSONLinesDatasetRecords(raw, source)
 	case "csv":
-		return parseDelimitedDatasetRecords(raw, ',')
+		return parseDelimitedDatasetRecords(raw, ',', source)
 	case "tsv":
-		return parseDelimitedDatasetRecords(raw, '\t')
+		return parseDelimitedDatasetRecords(raw, '\t', source)
 	case "text", "txt":
-		return parseTextDatasetRecords(raw), "text", nil
+		return parseTextDatasetRecords(raw, source), "text", nil
 	case "auto":
 		if looksLikeJSON(raw) {
-			if records, detected, err := parseJSONDatasetRecords(raw); err == nil {
+			if records, detected, err := parseJSONDatasetRecords(raw, source); err == nil {
 				return records, detected, nil
 			}
-			if records, detected, err := parseJSONLinesDatasetRecords(raw); err == nil && len(records) > 0 {
+			if records, detected, err := parseJSONLinesDatasetRecords(raw, source); err == nil && len(records) > 0 {
 				return records, detected, nil
 			}
 		}
 		if looksLikeDelimited(raw) {
-			if records, detected, err := parseDelimitedDatasetRecords(raw, ','); err == nil && len(records) > 0 {
+			if records, detected, err := parseDelimitedDatasetRecords(raw, ',', source); err == nil && len(records) > 0 {
 				return records, detected, nil
 			}
-			if records, detected, err := parseDelimitedDatasetRecords(raw, '\t'); err == nil && len(records) > 0 {
+			if records, detected, err := parseDelimitedDatasetRecords(raw, '\t', source); err == nil && len(records) > 0 {
 				return records, detected, nil
 			}
 		}
-		return parseTextDatasetRecords(raw), "text", nil
+		return parseTextDatasetRecords(raw, source), "text", nil
 	default:
 		return nil, "", fmt.Errorf("unsupported dataset format %q", format)
 	}
@@ -99,7 +99,7 @@ func looksLikeDelimited(raw []byte) bool {
 	return strings.Contains(firstLine, ",") || strings.Contains(firstLine, "\t")
 }
 
-func parseJSONDatasetRecords(raw []byte) ([]remoteDatasetRecord, string, error) {
+func parseJSONDatasetRecords(raw []byte, source string) ([]remoteDatasetRecord, string, error) {
 	trimmed := strings.TrimSpace(string(raw))
 	if trimmed == "" {
 		return nil, "json", nil
@@ -116,7 +116,7 @@ func parseJSONDatasetRecords(raw []byte) ([]remoteDatasetRecord, string, error) 
 	}
 	records := make([]remoteDatasetRecord, 0, len(items))
 	for i, item := range items {
-		record, ok := remoteDatasetRecordFromAny(item, i+1)
+		record, ok := remoteDatasetRecordFromAny(item, i+1, source)
 		if !ok {
 			continue
 		}
@@ -125,7 +125,7 @@ func parseJSONDatasetRecords(raw []byte) ([]remoteDatasetRecord, string, error) 
 	return records, "json", nil
 }
 
-func parseJSONLinesDatasetRecords(raw []byte) ([]remoteDatasetRecord, string, error) {
+func parseJSONLinesDatasetRecords(raw []byte, source string) ([]remoteDatasetRecord, string, error) {
 	lines := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
 	records := make([]remoteDatasetRecord, 0, len(lines))
 	for i, line := range lines {
@@ -139,7 +139,7 @@ func parseJSONLinesDatasetRecords(raw []byte) ([]remoteDatasetRecord, string, er
 		if err := dec.Decode(&decoded); err != nil {
 			continue
 		}
-		record, ok := remoteDatasetRecordFromAny(decoded, i+1)
+		record, ok := remoteDatasetRecordFromAny(decoded, i+1, source)
 		if !ok {
 			continue
 		}
@@ -148,7 +148,7 @@ func parseJSONLinesDatasetRecords(raw []byte) ([]remoteDatasetRecord, string, er
 	return records, "jsonl", nil
 }
 
-func parseDelimitedDatasetRecords(raw []byte, comma rune) ([]remoteDatasetRecord, string, error) {
+func parseDelimitedDatasetRecords(raw []byte, comma rune, source string) ([]remoteDatasetRecord, string, error) {
 	reader := csv.NewReader(strings.NewReader(string(raw)))
 	reader.Comma = comma
 	reader.FieldsPerRecord = -1
@@ -176,7 +176,7 @@ func parseDelimitedDatasetRecords(raw []byte, comma rune) ([]remoteDatasetRecord
 				rowMap[header[j]] = strings.TrimSpace(cell)
 			}
 		}
-		record, ok := remoteDatasetRecordFromMap(rowMap, i+1)
+		record, ok := remoteDatasetRecordFromMap(rowMap, i+1, source)
 		if !ok {
 			continue
 		}
@@ -190,7 +190,7 @@ func parseDelimitedDatasetRecords(raw []byte, comma rune) ([]remoteDatasetRecord
 	return records, format, nil
 }
 
-func parseTextDatasetRecords(raw []byte) []remoteDatasetRecord {
+func parseTextDatasetRecords(raw []byte, source string) []remoteDatasetRecord {
 	lines := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
 	records := make([]remoteDatasetRecord, 0, len(lines))
 	for i, line := range lines {
@@ -209,7 +209,7 @@ func parseTextDatasetRecords(raw []byte) []remoteDatasetRecord {
 				break
 			}
 		}
-		record := remoteDatasetRecord{Row: i + 1}
+		record := remoteDatasetRecord{Row: i + 1, Source: source}
 		record.CommandLine = line
 		if allNumeric {
 			if len(parts) == 1 {
@@ -382,7 +382,7 @@ func expandDatasetObjectMap(value map[string]any) []any {
 	return items
 }
 
-func remoteDatasetRecordFromAny(decoded any, rowIndex int) (remoteDatasetRecord, bool) {
+func remoteDatasetRecordFromAny(decoded any, rowIndex int, source string) (remoteDatasetRecord, bool) {
 	switch value := decoded.(type) {
 	case string:
 		comm, args := normalizeCommandInput(value, "", nil)
@@ -391,22 +391,23 @@ func remoteDatasetRecordFromAny(decoded any, rowIndex int) (remoteDatasetRecord,
 		}
 		return remoteDatasetRecord{
 			Row:         rowIndex,
+			Source:      source,
 			CommandLine: value,
 			Comm:        comm,
 			Args:        args,
 			UserLabel:   "remote-import",
 		}, true
 	case map[string]any:
-		return remoteDatasetRecordFromMap(value, rowIndex)
+		return remoteDatasetRecordFromMap(value, rowIndex, source)
 	default:
 		return remoteDatasetRecord{}, false
 	}
 }
 
-func remoteDatasetRecordFromMap(row map[string]any, rowIndex int) (remoteDatasetRecord, bool) {
-	record := remoteDatasetRecord{Row: rowIndex, UserLabel: "remote-import"}
+func remoteDatasetRecordFromMap(row map[string]any, rowIndex int, source string) (remoteDatasetRecord, bool) {
+	record := remoteDatasetRecord{Row: rowIndex, Source: source, UserLabel: "remote-import"}
 
-	commandLine := firstStringValue(row, "commandLine", "cmdline", "full_command", "command", "shell", "text", "Command", "code")
+	commandLine := firstStringValue(row, "commandLine", "cmdline", "full_command", "command", "shell", "payload", "text", "value", "Command", "code")
 	comm := firstStringValue(row, "comm", "commandName", "name", "executable", "Name", "_injected_name")
 	args := extractDatasetArgs(row, commandLine)
 	if commandLine == "" && comm != "" {
@@ -448,10 +449,19 @@ func remoteDatasetRecordFromMap(row map[string]any, rowIndex int) (remoteDataset
 	return record, true
 }
 
-func buildRemoteDatasetRow(record remoteDatasetRecord, mode string) remoteDatasetRow {
+func buildRemoteDatasetRow(record remoteDatasetRecord, mode string, cleanSensitive bool) remoteDatasetRow {
+	if cleanSensitive {
+		record = sanitizeRemoteDatasetRecord(record)
+	}
 	comm, args := normalizeCommandInput(record.CommandLine, record.Comm, record.Args)
 	label := record.Label
 	labelSource := record.LabelSource
+	if label == "" {
+		if inferredLabel, inferredSource := inferRemoteDatasetLabelFromSource(record.Source); inferredLabel != "" && strings.EqualFold(strings.TrimSpace(mode), "preserve") {
+			label = inferredLabel
+			labelSource = inferredSource
+		}
+	}
 	if label == "" {
 		label = "-"
 	}
@@ -483,6 +493,7 @@ func buildRemoteDatasetRow(record remoteDatasetRecord, mode string) remoteDatase
 
 	return remoteDatasetRow{
 		Row:          record.Row,
+		Source:       record.Source,
 		CommandLine:  commandLine,
 		Comm:         comm,
 		Args:         args,
@@ -496,7 +507,10 @@ func buildRemoteDatasetRow(record remoteDatasetRecord, mode string) remoteDatase
 	}
 }
 
-func buildRemoteDatasetSample(row remoteDatasetRow, mode string) TrainingSample {
+func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive bool) TrainingSample {
+	if cleanSensitive {
+		row = sanitizeRemoteDatasetRow(row)
+	}
 	comm, args := normalizeCommandInput(row.CommandLine, row.Comm, row.Args)
 	timestamp := time.Now().UTC()
 	if parsed, err := time.Parse(time.RFC3339, row.Timestamp); err == nil {
@@ -525,6 +539,11 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string) TrainingSample 
 		if normalized := normalizeActionLabel(row.Label); normalized != "" {
 			label = actionFromLabel(normalized)
 			userLabel = "remote-source-label"
+		} else if inferredLabel, inferredSource := inferRemoteDatasetLabelFromSource(row.Source); inferredLabel != "" {
+			label = actionFromLabel(inferredLabel)
+			if inferredSource != "" {
+				userLabel = "remote-source-label"
+			}
 		} else if strings.EqualFold(strings.TrimSpace(mode), "heuristic") {
 			assessment := assessCommandSafety(context.Background(), comm, args, "", 0)
 			if action, ok := assessment["recommendedAction"].(string); ok {
@@ -576,9 +595,9 @@ func normalizeDatasetLabelValue(raw any) string {
 
 func normalizeActionLabel(raw string) string {
 	switch strings.ToUpper(strings.TrimSpace(raw)) {
-	case "0", "ALLOW", "BENIGN", "SAFE", "NORMAL", "PASSED", "PASS":
+	case "0", "ALLOW", "BENIGN", "SAFE", "NORMAL", "NORM", "PASSED", "PASS":
 		return "ALLOW"
-	case "1", "BLOCK", "DENY", "REJECT", "MALICIOUS", "BAD":
+	case "1", "BLOCK", "DENY", "REJECT", "MALICIOUS", "MALWARE", "BAD", "ANOM", "ANOMALY", "ATTACK", "INTRUSION", "CMDI", "COMMAND INJECTION", "SQLI", "SQL INJECTION", "XSS", "CROSS-SITE SCRIPTING", "PATH-TRAVERSAL", "PATH_TRAVERSAL", "PATH TRAVERSAL":
 		return "BLOCK"
 	case "2", "REWRITE", "TRANSFORM", "MODIFY":
 		return "REWRITE"

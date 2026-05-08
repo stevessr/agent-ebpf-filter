@@ -95,6 +95,7 @@ export function useConfigML() {
   const remoteDatasetUrl = ref('');
   const remoteDatasetFormat = ref<'auto' | 'json' | 'jsonl' | 'csv' | 'tsv' | 'text'>('auto');
   const remoteDatasetLabelMode = ref<'preserve' | 'unlabeled' | 'heuristic'>('preserve');
+  const remoteDatasetCleanSensitive = ref(true);
   const remoteDatasetLimit = ref(200);
   const loadingRemoteDataset = ref(false);
   const importingRemoteDataset = ref(false);
@@ -553,6 +554,7 @@ export function useConfigML() {
       const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/pull', {
         url: resolveDatasetUrl(remoteDatasetUrl.value), format: remoteDatasetFormat.value,
         limit: remoteDatasetLimit.value, labelMode: remoteDatasetLabelMode.value,
+        cleanSensitive: remoteDatasetCleanSensitive.value,
       });
       remoteDatasetMeta.value = res.data;
       remoteDatasetPreview.value = res.data.rows || [];
@@ -572,6 +574,7 @@ export function useConfigML() {
     url?: string; content?: string; contentBase64?: string; sourceName?: string; importAll?: boolean;
     format?: 'auto' | 'json' | 'jsonl' | 'csv' | 'tsv' | 'text';
     labelMode?: 'preserve' | 'unlabeled' | 'heuristic' | 'block';
+    cleanSensitive?: boolean;
   }, options?: { refreshViews?: boolean }) => {
     const url = resolveDatasetUrl(payload.url ?? ((payload.content || payload.contentBase64) ? '' : remoteDatasetUrl.value.trim()));
     const res = await axios.post<RemoteDatasetResponse>('/config/ml/datasets/import', {
@@ -579,6 +582,7 @@ export function useConfigML() {
       sourceName: payload.sourceName, format: payload.format ?? remoteDatasetFormat.value,
       limit: remoteDatasetLimit.value, labelMode: payload.labelMode ?? remoteDatasetLabelMode.value,
       importAll: payload.importAll ?? false,
+      cleanSensitive: payload.cleanSensitive ?? remoteDatasetCleanSensitive.value,
     });
     remoteDatasetMeta.value = res.data;
     remoteDatasetPreview.value = res.data.rows || [];
@@ -609,6 +613,7 @@ export function useConfigML() {
         importAll: true,
         format: preset.format ?? 'auto',
         labelMode: preset.labelMode ?? remoteDatasetLabelMode.value,
+        cleanSensitive: remoteDatasetCleanSensitive.value,
       });
       message.success(`已导入 ${preset.name}（${res.data.imported ?? res.data.total ?? 0} 条）`);
     } catch (e: any) {
@@ -635,6 +640,7 @@ export function useConfigML() {
       importAll: true,
       format: preset.format ?? 'auto',
       labelMode: preset.labelMode ?? remoteDatasetLabelMode.value,
+      cleanSensitive: remoteDatasetCleanSensitive.value,
     }, { refreshViews: false });
   };
 
@@ -935,7 +941,7 @@ export function useConfigML() {
     allSamples, loadingSamples, sampleTablePageSize, sampleSearchText,
     existingDataLimit, existingLabelMode, existingCommandCandidates,
     loadingExistingData, importingExistingData, existingDataSource,
-    remoteDatasetUrl, remoteDatasetFormat, remoteDatasetLabelMode, remoteDatasetLimit,
+    remoteDatasetUrl, remoteDatasetFormat, remoteDatasetLabelMode, remoteDatasetCleanSensitive, remoteDatasetLimit,
     loadingRemoteDataset, importingRemoteDataset, remoteDatasetPreview, remoteDatasetMeta,
     llmProductionDatasetLimit, llmProductionAllowHeuristic, llmProductionDeduplicate,
     llmProductionLoading, llmProductionPreview, llmProductionMeta,

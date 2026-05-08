@@ -9,10 +9,38 @@ We benchmarked the local ML pipeline behind `http://localhost:5173/config/ml` us
 - **Repeat count in this pass:** **1**
 - **Current exploratory best:** **`random_forest_deep`** — `trees=31 depth=12 leaf=3`
 - **Fastest high-accuracy config:** **`random_forest_fast`** — `trees=5 depth=4 leaf=2`
+- **Latest stable rerun:** `reports/ml-sweep-20260506-160249/`
+- **Current stable best:** **`svm_long`** — `lr=0.100 iter=8000`
 - **Presentation HTML:** `docs/ml-benchmark-presentation.html`
 - **Evaluation axes:** validation accuracy, ALLOW pass rate, training duration, and inference throughput — not just error rate.
 
 > Note: this is an exploratory expansion pass (`repeats=1`), so the previous 100-run baseline is still the deployment reference until the expanded space is rerun at full stability.
+
+## 2026-05-07 comprehensive 1000-point matrix
+
+The full matrix requested for **different test sets × different model IDs × every tunable parameter** has been executed with `--mode comprehensive --datasets all,label-balanced --points-per-param 1000 --workers 8 --repeats 1 --stability-top 1`.
+
+- **Datasets:** `all` (949 samples) and `label-balanced` (93 samples)
+- **Model IDs covered:** **42 / 42** local built-in IDs
+- **Coverage entries:** **190 / 190 passed**
+- **Total grid rows:** **140,126**
+- **Numeric parameter rows:** **140,000** (`1000` points × `2` datasets for each numeric parameter/model ID)
+- **Categorical/fixed rows:** **126** (all meaningful values enumerated)
+
+Per-family report directories:
+
+- `reports/ml-sweep-random-forest-1000/`
+- `reports/ml-sweep-extra-trees-1000/`
+- `reports/ml-sweep-logistic-1000/`
+- `reports/ml-sweep-svm-1000/`
+- `reports/ml-sweep-perceptron-1000/`
+- `reports/ml-sweep-passive-aggressive-1000/`
+- `reports/ml-sweep-knn-1000/`
+- `reports/ml-sweep-ridge-1000/`
+- `reports/ml-sweep-adaboost-1000/`
+- `reports/ml-sweep-categorical-1000/`
+
+Each directory contains `coverage.json`, `results.csv`, `best.json`, `stability-summary.csv`, and `index.html`. `coverage.json` is the authoritative pass/fail manifest for the 1000-point requirement.
 
 
 ## Local built-in model catalog update
@@ -49,6 +77,14 @@ Current native C benchmark kernels cover Random Forest / Extra Trees and linear-
   - edit anomaly score
   - delete sample
   - import/export datasets
+
+The import surface now also carries a `cleanSensitive` option and a broader classic-dataset catalog:
+
+- **HttpParamsDataset** for benign `norm` versus SQLi/XSS/Command Injection/Path Traversal anomalies
+- **PowerShell MPSD** for `malicious_pure`, `powershell_benign_dataset`, and `mixed_malicious`
+- **Malicious PowerShell Dataset** for malicious-only PowerShell samples and obfuscation variants
+
+When `cleanSensitive` is enabled, the importer redacts credentials, bearer tokens, IPs, email addresses, and home-directory paths before rows enter the training store.
 
 ## Method
 
@@ -189,18 +225,32 @@ Interpretation:
 5. **This sweep is broader, but still exploratory.**  
    It answers “what got better when we added more models?”; it does not yet replace the earlier 100-run stability baseline.
 
+## Stable rerun / current winner
+
+The latest stability-oriented pass lives in `reports/ml-sweep-20260506-160249/`.
+
+- **Mode:** full
+- **Repeats:** 10
+- **Current stable best:** **`svm_long`** — `lr=0.100 iter=8000`
+- **Mean validation:** **100.00% ± 0.00%**
+- **Mean ALLOW pass:** **100.00% ± 0.00%**
+- **Mean throughput:** **813.8k/s ± 311.2k/s**
+- **Deployment note:** this is the best current holdout-comparable choice in the stable rerun; the earlier random-forest exploration remains a useful stress-test result, but the longer SVM sweep now takes the lead on stability.
+
 ## Decision
 
-**Current exploratory recommendation:** `random_forest_deep`
+**Current stable recommendation:** `svm_long`
 
-**Current exploratory config:** `trees=31 depth=12 leaf=3`
+**Current stable config:** `lr=0.100 iter=8000`
 
 Why this one:
 
 - it clears the requested **99%+** threshold on the sampled split
-- it keeps ALLOW pass at **99%+** too, so correct commands are not over-blocked
-- it is the strongest result in the broadened profile sweep
-- the fast-forest family gives you a strong speed/accuracy fallback if you want lower latency
+- it keeps ALLOW pass at **100%** too, so correct commands are not over-blocked
+- it is the strongest stable result in the current rerun
+- it remains perfectly stable across the repeated pass
+
+If you are comparing against the exploratory pass only, `random_forest_deep` was the best 1-repeat broadened candidate. For a deployment baseline, prefer the stable rerun above.
 
 If you need a fresh production baseline, rerun a dedicated 100-repeat stability pass on the widened search space before changing the deployment winner.
 
@@ -211,20 +261,27 @@ The repo includes an offline sweep runner that emits CSV, SVG, HTML, and JSON ar
 ```bash
 ./scripts/ml-sweep.sh --mode quick --repeats 1 --stability-top 1
 ./scripts/ml-sweep.sh --mode full --repeats 100 --stability-top 1
+./scripts/ml-sweep.sh --mode comprehensive --datasets all,label-balanced --points-per-param 1000 --workers 8 --repeats 1 --stability-top 1
+./scripts/ml-sweep.sh --mode comprehensive --datasets all,label-balanced --points-per-param 1000 --workers 8 --resume --outdir reports/ml-sweep-comprehensive-1000
 make ml-sweep
 ```
 
 Render the PPTX-style HTML presentation:
 
 ```bash
-python scripts/render_ml_presentation.py --report-dir reports/ml-sweep-20260506-150507 --out docs/ml-benchmark-presentation.html
+python scripts/render_ml_presentation.py --report-dir reports/ml-sweep-20260506-160249 --out docs/ml-benchmark-presentation.html
 make ml-presentation
 ```
 
 Useful options:
 
-- `--mode quick` or `--mode full`
+- `--mode quick`, `--mode full`, or `--mode comprehensive`
 - `--models random_forest,knn,logistic`
+- `--datasets all,label-balanced,allow-block`
+- `--points-per-param 1000`
+- `--workers 8` / `ML_SWEEP_WORKERS=8` to parallelize independent grid points
+- training logs are quiet by default; pass `--verbose-train-logs` when debugging a trainer
+- `--resume` / `ML_SWEEP_RESUME=1` to reuse completed per-profile `*-grid.csv` files in a long comprehensive run
 - `--outdir reports/ml-sweep-custom`
 - `--repeats 100`
 - `--stability-top 1`
@@ -244,6 +301,7 @@ Generated artifacts:
 - `stability-runs.csv` — all repeat runs
 - `stability-summary.csv` — aggregated repeat stats
 - `best.json` — best configuration snapshot
+- `coverage.json` — dataset/profile/parameter coverage manifest. In `comprehensive` mode every numeric tunable parameter is emitted as a separate axis profile with at least `--points-per-param` discrete values; categorical/fixed parameters enumerate all meaningful values.
 
 ## Latest automated sweep
 
@@ -259,4 +317,20 @@ Key output from that run:
 [ml-sweep] comparable best: random_forest_deep | trees=31 depth=12 leaf=3 | mean=100.00% ± 0.00% (1x)
 ```
 
-The current exploratory winner is the strongest broadened-space candidate. If you need the last 100-run stability baseline, keep the previous report at `reports/ml-sweep-20260505-225204/` as the deployment reference until the expanded search space is rerun at full stability.
+The current exploratory winner is the strongest broadened-space candidate. For deployment and submission reference, prefer the stable rerun at `reports/ml-sweep-20260506-160249/` described above.
+
+## Latest stable rerun
+
+The latest stability-oriented rerun is:
+
+```text
+reports/ml-sweep-20260506-160249/
+```
+
+Key output from that run:
+
+```text
+[ml-sweep] comparable best: svm_long | lr=0.100 iter=8000 | mean=100.00% ± 0.00% (10x)
+```
+
+This is the current deployment recommendation until a larger repeat-count run supersedes it.

@@ -8,17 +8,29 @@
 #   --repeats <N>
 #   --stability-top <N>
 #   --models <csv>
+#   --datasets <csv>
+#   --points-per-param <N>
+#   --workers <N>
+#   --verbose-train-logs
+#   --resume
 #   --outdir <path>
 
 set -euo pipefail
 
-cd "$(dirname "$0")/../backend"
+SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+REPO_ROOT="$(cd "$(dirname "$SCRIPT_PATH")/.." && pwd)"
+cd "${REPO_ROOT}/backend"
 
 MODE="${ML_SWEEP_MODE:-quick}"
 REPEATS="${ML_SWEEP_REPEATS:-5}"
 STABILITY_TOP="${ML_SWEEP_STABILITY_TOP:-1}"
 OUTDIR="${ML_SWEEP_OUTDIR:-}"
 MODEL_FILTER="${ML_SWEEP_MODELS:-}"
+DATASET_FILTER="${ML_SWEEP_DATASETS:-}"
+POINTS_PER_PARAM="${ML_SWEEP_POINTS_PER_PARAM:-}"
+WORKERS="${ML_SWEEP_WORKERS:-1}"
+QUIET_LOGS="${ML_SWEEP_QUIET_LOGS:-1}"
+RESUME="${ML_SWEEP_RESUME:-}"
 
 POSITIONAL=()
 while [ $# -gt 0 ]; do
@@ -39,12 +51,32 @@ while [ $# -gt 0 ]; do
             MODEL_FILTER="${2:-}"
             shift 2
             ;;
+        --datasets)
+            DATASET_FILTER="${2:-}"
+            shift 2
+            ;;
+        --points-per-param)
+            POINTS_PER_PARAM="${2:-}"
+            shift 2
+            ;;
+        --workers)
+            WORKERS="${2:-}"
+            shift 2
+            ;;
+        --verbose-train-logs)
+            QUIET_LOGS=0
+            shift
+            ;;
+        --resume)
+            RESUME=1
+            shift
+            ;;
         --outdir)
             OUTDIR="${2:-}"
             shift 2
             ;;
         --help|-h)
-            sed -n '1,24p' "$0"
+            sed -n '1,17p' "$SCRIPT_PATH"
             exit 0
             ;;
         --)
@@ -78,13 +110,20 @@ fi
 
 if [ -z "${OUTDIR}" ]; then
     TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-    OUTDIR="../reports/ml-sweep-${TIMESTAMP}"
+    OUTDIR="${REPO_ROOT}/reports/ml-sweep-${TIMESTAMP}"
+elif [[ "${OUTDIR}" != /* ]]; then
+    OUTDIR="${REPO_ROOT}/${OUTDIR}"
 fi
 
 echo "============================================"
 echo " ML Sweep Benchmark"
 echo " Mode: ${MODE}"
 echo " Models: ${MODEL_FILTER:-all}"
+echo " Datasets: ${DATASET_FILTER:-default}"
+echo " Points/param: ${POINTS_PER_PARAM:-1000}"
+echo " Workers: ${WORKERS}"
+echo " Quiet training logs: ${QUIET_LOGS}"
+echo " Resume: ${RESUME:-0}"
 echo " Output: ${OUTDIR}"
 echo "============================================"
 echo ""
@@ -100,9 +139,16 @@ export ML_SWEEP_MODE="${MODE}"
 export ML_SWEEP_REPEATS="${REPEATS}"
 export ML_SWEEP_STABILITY_TOP="${STABILITY_TOP}"
 export ML_SWEEP_OUTDIR="${OUTDIR}"
+export ML_SWEEP_POINTS_PER_PARAM="${POINTS_PER_PARAM:-1000}"
+export ML_SWEEP_WORKERS="${WORKERS}"
+export ML_SWEEP_QUIET_LOGS="${QUIET_LOGS}"
+export ML_SWEEP_RESUME="${RESUME:-0}"
 
 if [ -n "${MODEL_FILTER}" ]; then
     export ML_SWEEP_MODELS="${MODEL_FILTER}"
+fi
+if [ -n "${DATASET_FILTER}" ]; then
+    export ML_SWEEP_DATASETS="${DATASET_FILTER}"
 fi
 
 echo "Running model comparison..."

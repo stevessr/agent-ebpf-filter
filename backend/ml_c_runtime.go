@@ -74,6 +74,7 @@ static long long ml_c_forest_bench(
 import "C"
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -174,13 +175,14 @@ func buildMLCRuntimeStatus(model Model, store *TrainingDataStore) MLCRuntimeStat
 func mlCRuntimeCacheKey(model Model, store *TrainingDataStore) string {
 	modelType := "none"
 	if model != nil {
-		modelType = string(model.Type())
+		modelType = fmt.Sprintf("%T:%p", model, model)
 	}
-	sampleCount := 0
+	totalSamples := 0
+	labeledSamples := 0
 	if store != nil {
-		sampleCount = len(store.LabeledSamples())
+		totalSamples, labeledSamples = store.Status()
 	}
-	return modelType + ":" + strconv.Itoa(sampleCount)
+	return modelType + ":" + strconv.Itoa(totalSamples) + ":" + strconv.Itoa(labeledSamples)
 }
 
 func (s intelIGPUStatus) detail() string {

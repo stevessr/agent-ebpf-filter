@@ -281,6 +281,7 @@ export interface ExistingCommandCandidate {
 
 export interface RemoteDatasetRow {
   row: number;
+  source?: string;
   commandLine: string;
   comm: string;
   args: string[];
