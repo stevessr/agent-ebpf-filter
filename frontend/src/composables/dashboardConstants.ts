@@ -24,6 +24,7 @@ export interface AgentEvent {
   protocol?: number;
   uidArg?: number;
   gidArg?: number;
+  durationNs?: number;
   time: string;
   receivedAtMs?: number;
   occurrenceCount?: number;

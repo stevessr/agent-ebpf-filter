@@ -104,6 +104,7 @@ message Event {
   uint32 gid_arg = 21;
   EventType event_type = 22;
   BehaviorClassification behavior = 23;
+  uint64 duration_ns = 24;
 }
 
 // Batch of events for WebSocket delivery efficiency

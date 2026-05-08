@@ -116,6 +116,7 @@ struct event {
     u32 net_port;
     char net_addr[16];
     s64 retval;
+    u64 duration_ns;
     u32 extra1;
     u32 extra2;
     u64 extra3;
@@ -164,6 +165,7 @@ struct exit_meta {
     u32 net_port;
     char net_addr[16];
     u64 addr_ptr;
+    u64 start_ns;
 };
 
 struct {
@@ -244,6 +246,7 @@ static __always_inline void fill_base_info(struct event *e, u32 pid, u32 tag_id,
     e->extra1 = 0;
     e->extra2 = 0;
     e->extra3 = 0;
+    e->duration_ns = 0;
     for (int i = 0; i < 16; i++) e->net_addr[i] = 0;
     for (int i = 0; i < MAX_PATH_LEN; i++) e->path[i] = 0;
     for (int i = 0; i < MAX_PATH_LEN; i++) e->extra4[i] = 0;
@@ -345,6 +348,7 @@ static __always_inline void fill_from_exit_meta(struct event *e, u64 pid_tgid, s
     fill_base_info(e, (u32)(pid_tgid >> 32), meta->tag_id, comm);
     e->type = meta->type;
     e->retval = 0;  // to be filled by caller
+    e->duration_ns = 0;
     e->extra1 = meta->extra1;
     e->extra2 = meta->extra2;
     e->extra3 = meta->extra3;
@@ -1545,6 +1549,7 @@ static __always_inline int sys_enter_common_path(u32 pid, char *comm, char *path
     meta.extra1 = nr;
     meta.extra2 = extra2;
     meta.extra3 = extra3;
+    meta.start_ns = bpf_ktime_get_ns();
     u64 ptid = bpf_get_current_pid_tgid();
     store_exit_meta(ptid, &meta);
     return 1;
@@ -1559,6 +1564,7 @@ static __always_inline int sys_enter_common_nopath(u32 pid, char *comm, u32 nr, 
     meta.extra1 = nr;
     meta.extra2 = extra2;
     meta.extra3 = extra3;
+    meta.start_ns = bpf_ktime_get_ns();
     u64 ptid = bpf_get_current_pid_tgid();
     store_exit_meta(ptid, &meta);
     return 1;
@@ -1572,6 +1578,12 @@ static __always_inline void sys_exit_common(struct trace_event_raw_sys_exit *ctx
     if (!e) return;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
+    if (meta.start_ns != 0) {
+        u64 now = bpf_ktime_get_ns();
+        if (now >= meta.start_ns) {
+            e->duration_ns = now - meta.start_ns;
+        }
+    }
     if (has_path) {
         struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_ctx, &pid_tgid);
         if (pd) {

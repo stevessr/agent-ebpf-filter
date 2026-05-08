@@ -613,6 +613,7 @@ type Event struct {
 	GidArg        uint32                  `protobuf:"varint,21,opt,name=gid_arg,json=gidArg,proto3" json:"gid_arg,omitempty"`
 	EventType     EventType               `protobuf:"varint,22,opt,name=event_type,json=eventType,proto3,enum=pb.EventType" json:"event_type,omitempty"`
 	Behavior      *BehaviorClassification `protobuf:"bytes,23,opt,name=behavior,proto3" json:"behavior,omitempty"`
+	DurationNs    uint64                  `protobuf:"varint,24,opt,name=duration_ns,json=durationNs,proto3" json:"duration_ns,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -806,6 +807,13 @@ func (x *Event) GetBehavior() *BehaviorClassification {
 		return x.Behavior
 	}
 	return nil
+}
+
+func (x *Event) GetDurationNs() uint64 {
+	if x != nil {
+		return x.DurationNs
+	}
+	return 0
 }
 
 // Batch of events for WebSocket delivery efficiency
@@ -4018,7 +4026,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\"H\n" +
 	"\x12UnregisterResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\xfa\x04\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x9b\x05\n" +
 	"\x05Event\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\rR\x04ppid\x12\x10\n" +
@@ -4047,7 +4055,9 @@ const file_tracker_proto_rawDesc = "" +
 	"\agid_arg\x18\x15 \x01(\rR\x06gidArg\x12,\n" +
 	"\n" +
 	"event_type\x18\x16 \x01(\x0e2\r.pb.EventTypeR\teventType\x126\n" +
-	"\bbehavior\x18\x17 \x01(\v2\x1a.pb.BehaviorClassificationR\bbehavior\"/\n" +
+	"\bbehavior\x18\x17 \x01(\v2\x1a.pb.BehaviorClassificationR\bbehavior\x12\x1f\n" +
+	"\vduration_ns\x18\x18 \x01(\x04R\n" +
+	"durationNs\"/\n" +
 	"\n" +
 	"EventBatch\x12!\n" +
 	"\x06events\x18\x01 \x03(\v2\t.pb.EventR\x06events\"\xc7\x02\n" +

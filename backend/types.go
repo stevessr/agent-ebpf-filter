@@ -26,6 +26,7 @@ type bpfEvent struct {
 	NetAddr                     [16]byte
 	_                           [4]byte // Padding for 8-byte alignment of Retval
 	Retval                      int64
+	DurationNs                  uint64
 	Extra1                      uint32
 	Extra2                      uint32
 	Extra3                      uint64

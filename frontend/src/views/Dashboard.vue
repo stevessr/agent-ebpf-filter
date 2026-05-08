@@ -46,6 +46,7 @@ const {
   displayedEvents,
   openDetails,
   formatDetailValue,
+  selectedTraceSummary,
   canInteractWithPath,
   previewRecordPath,
   openInExplorer,
@@ -349,6 +350,9 @@ void tableWrapperRef;
     <a-modal v-model:open="showDetails" title="Event Details" :footer="null" width="600px">
       <a-descriptions bordered :column="1" size="small" v-if="selectedEvent">
         <a-descriptions-item label="Time">{{ selectedEvent.time }}</a-descriptions-item>
+        <a-descriptions-item v-if="selectedTraceSummary" label="Trace Summary">
+          <a-typography-text code style="word-break: break-all;">{{ selectedTraceSummary }}</a-typography-text>
+        </a-descriptions-item>
         <a-descriptions-item label="Event Type">
           <a-tag :color="getTagColor(selectedEvent.eventType, selectedEvent.type)">{{ selectedEvent.type.toUpperCase() }}</a-tag>
         </a-descriptions-item>

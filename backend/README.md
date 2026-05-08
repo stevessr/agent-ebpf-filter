@@ -62,6 +62,8 @@ Broadcasts `pb.Event` messages sourced from:
 - wrapper interceptions,
 - native AI CLI hook callbacks.
 
+Kernel event payloads include syscall exit duration so the dashboard can render strace-style summaries without requiring a separate tracer.
+
 ### `/ws/system`
 
 Broadcasts `pb.SystemStats` messages that include:

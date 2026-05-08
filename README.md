@@ -30,6 +30,8 @@ The eBPF program listens to these core syscall tracepoints:
 - `sys_enter_sendto`
 - `sys_enter_recvfrom`
 
+The kernel event payload now also carries syscall exit duration so the UI can render strace-style one-line summaries with timing context.
+
 The runtime now auto-attaches the extended tracepoints compiled from `backend/ebpf/agent_tracker.c`; on kernels that do not expose a specific tracepoint, the backend skips that one and continues booting.
 
 Events are written to a ring buffer and consumed by the Go backend.
@@ -45,7 +47,7 @@ Events are written to a ring buffer and consumed by the Go backend.
 
 ### UI surfaces
 
-- **Dashboard**: live event stream with tag / type / PID / command / path filters, log-flow ordering, and an optional no-pagination mode
+- **Dashboard**: live event stream with tag / type / PID / command / path filters, strace-style trace summaries with syscall timing, log-flow ordering, and an optional no-pagination mode
 - **Monitor**: process / CPU / memory / GPU / IO / page-fault telemetry
 - **Network**: syscall-derived network flow table with direction / endpoint filters
 - **Explorer**: browse the host filesystem and add tracked paths

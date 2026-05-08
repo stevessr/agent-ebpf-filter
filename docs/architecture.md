@@ -52,7 +52,7 @@ Responsibilities:
 - attach to syscall tracepoints
 - inspect current PID / command / path
 - look up matching tags from pinned BPF maps
-- emit normalized kernel events into the ring buffer
+- emit normalized kernel events into the ring buffer, including syscall exit timing for strace-style summaries
 
 Tracked syscall entrypoints:
 

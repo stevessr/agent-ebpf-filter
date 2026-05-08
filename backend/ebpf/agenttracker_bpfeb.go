@@ -26,6 +26,7 @@ type AgentTrackerExitMeta struct {
 	NetPort      uint32
 	NetAddr      [16]int8
 	AddrPtr      uint64
+	StartNs      uint64
 }
 
 type AgentTrackerExitPathData struct {

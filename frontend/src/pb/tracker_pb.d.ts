@@ -637,6 +637,9 @@ export namespace pb {
 
         /** Event behavior */
         behavior?: (pb.IBehaviorClassification|null);
+
+        /** Event durationNs */
+        durationNs?: (number|Long|null);
     }
 
     /** Represents an Event. */
@@ -716,6 +719,9 @@ export namespace pb {
 
         /** Event behavior. */
         public behavior?: (pb.IBehaviorClassification|null);
+
+        /** Event durationNs. */
+        public durationNs: (number|Long);
 
         /**
          * Creates a new Event instance using the specified properties.

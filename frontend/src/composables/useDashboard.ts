@@ -7,7 +7,7 @@ import { pb } from '../pb/tracker_pb.js';
 import { canPreviewEventPath, type FilePreviewResponse } from '../types/filePreview';
 import { buildWebSocketUrl, fetchProto } from '../utils/requestContext';
 import { minColumnWidths, pageSizeOptions, eventTypeLabelMap, selectableEventTypes, eventCategories, categoryTabs, syscallCatLabels, syscallCatColors, parseSyscallNr, syscallCategory, syscallDisplayName, builtinFilterRules, baseColumns, type AgentEvent, type BuiltinFilterRule } from './dashboardConstants';
-import { decodeIncomingEvents, getTagColor, getCategoryColor, buildAgentEvent, normalizeHistoryRecord } from './dashboardHelpers';
+import { decodeIncomingEvents, getTagColor, getCategoryColor, buildAgentEvent, formatTraceSummary, normalizeHistoryRecord } from './dashboardHelpers';
 
 export type { AgentEvent, BuiltinFilterRule };
 
@@ -306,6 +306,9 @@ const mergeEventsWithinWindow = (list: AgentEvent[]) => {
     ) {
       currentGroup.occurrenceCount = (currentGroup.occurrenceCount ?? 1) + 1;
       currentGroup.lastReceivedAtMs = eventReceivedAtMs;
+      if (event.durationNs !== undefined) {
+        currentGroup.durationNs = event.durationNs;
+      }
       continue;
     }
 
@@ -571,6 +574,8 @@ const formatDetailValue = (value: number | string | undefined | null) => {
   }
   return String(value);
 };
+
+const selectedTraceSummary = computed(() => formatTraceSummary(selectedEvent.value));
 
 const canInteractWithPath = (record: AgentEvent) => canPreviewEventPath(record);
 
@@ -950,6 +955,7 @@ onUnmounted(() => {
     displayedEvents,
     openDetails,
     formatDetailValue,
+    selectedTraceSummary,
     canInteractWithPath,
     previewRecordPath,
     openInExplorer,
