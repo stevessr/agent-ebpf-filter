@@ -17,3 +17,4 @@ backend/cuda/libmlcuda.a
 reports/
 backend/reports/
 __pycache__
+.codex/plan/*.md
