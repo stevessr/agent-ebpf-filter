@@ -162,7 +162,7 @@ func isHookInstalled(h HookDef) bool {
 }
 
 func ensureCodexHooksFeatureEnabled(cfgPath string) error {
-	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
+	if err := mkdirAllAsRealUser(filepath.Dir(cfgPath), 0755); err != nil {
 		return err
 	}
 
@@ -185,7 +185,7 @@ func ensureCodexHooksFeatureEnabled(cfgPath string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(cfgPath, out, 0644)
+	return writeFileAsRealUser(cfgPath, out, 0644)
 }
 
 func hookRelayScriptPath(h HookDef) string {
@@ -214,14 +214,14 @@ func readJSONObjectFile(path string) (map[string]interface{}, error) {
 }
 
 func writeJSONObjectFile(path string, cfg map[string]interface{}) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := mkdirAllAsRealUser(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0644)
+	return writeFileAsRealUser(path, b, 0644)
 }
 
 func kiroSettingsPath() string {
@@ -243,7 +243,7 @@ func ensureKiroManagedAgentExists() error {
 	}
 
 	agentsDir := filepath.Dir(agentPath)
-	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+	if err := mkdirAllAsRealUser(agentsDir, 0755); err != nil {
 		return err
 	}
 
@@ -276,14 +276,14 @@ func readKiroHookState() (kiroHookState, error) {
 }
 
 func writeKiroHookState(state kiroHookState) error {
-	if err := os.MkdirAll(filepath.Dir(kiroHookStatePath()), 0755); err != nil {
+	if err := mkdirAllAsRealUser(filepath.Dir(kiroHookStatePath()), 0755); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(kiroHookStatePath(), b, 0644)
+	return writeFileAsRealUser(kiroHookStatePath(), b, 0644)
 }
 
 func isKiroManagedAgentSelected() bool {
@@ -297,7 +297,7 @@ func isKiroManagedAgentSelected() bool {
 
 func ensureHookRelayScript(h HookDef) (string, error) {
 	scriptDir := filepath.Join(filepath.Dir(h.NativeConfigPath), "hooks")
-	if err := os.MkdirAll(scriptDir, 0755); err != nil {
+	if err := mkdirAllAsRealUser(scriptDir, 0755); err != nil {
 		return "", err
 	}
 
@@ -315,7 +315,7 @@ curl -fsS -X POST '%s' \
   >/dev/null 2>&1 || true
 `, resolveHookCallbackURL(), h.ID, hookSecret)
 
-	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
+	if err := writeFileAsRealUser(scriptPath, []byte(scriptContent), 0755); err != nil {
 		return "", err
 	}
 	return scriptPath, nil
@@ -489,7 +489,7 @@ func installNativeHook(h HookDef) error {
 	}
 
 	cfgPath := h.NativeConfigPath
-	if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
+	if err := mkdirAllAsRealUser(filepath.Dir(cfgPath), 0755); err != nil {
 		return err
 	}
 
@@ -572,7 +572,7 @@ func installNativeHook(h HookDef) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(cfgPath, b, 0644)
+	return writeFileAsRealUser(cfgPath, b, 0644)
 }
 
 // uninstallNativeHook removes the agent-ebpf hook from settings.
@@ -641,7 +641,7 @@ func uninstallNativeHook(h HookDef) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(h.NativeConfigPath, out, 0644); err != nil {
+	if err := writeFileAsRealUser(h.NativeConfigPath, out, 0644); err != nil {
 		return err
 	}
 	_ = os.Remove(hookRelayScriptPath(h))

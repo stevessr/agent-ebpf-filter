@@ -265,14 +265,14 @@ func seedRuntimeAccessTokenFromEnv(settings *RuntimeSettings) {
 }
 
 func (s *runtimeState) saveLocked() error {
-	if err := os.MkdirAll(runtimeSettingsDir(), 0755); err != nil {
+	if err := mkdirAllAsRealUser(runtimeSettingsDir(), 0755); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(s.settings, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(runtimeSettingsPath(), data, 0644)
+	return writeFileAsRealUser(runtimeSettingsPath(), data, 0644)
 }
 
 func (s *runtimeState) closeLogWriterLocked() {
@@ -291,7 +291,7 @@ func (s *runtimeState) applyLoggingLocked() error {
 	if !s.settings.LogPersistenceEnabled {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(s.settings.LogFilePath), 0755); err != nil {
+	if err := mkdirAllAsRealUser(filepath.Dir(s.settings.LogFilePath), 0755); err != nil {
 		return err
 	}
 	file, err := os.OpenFile(s.settings.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)

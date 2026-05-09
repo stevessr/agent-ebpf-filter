@@ -36,6 +36,32 @@ var (
 	getRealHomeVal  string
 )
 
+// writeFileAsRealUser writes a file with the real user's ownership instead of root
+func writeFileAsRealUser(path string, data []byte, perm os.FileMode) error {
+	if err := os.WriteFile(path, data, perm); err != nil {
+		return err
+	}
+	if os.Getuid() == 0 {
+		if uid, gid, ok := originalInvokerIDs(); ok {
+			_ = os.Chown(path, int(uid), int(gid))
+		}
+	}
+	return nil
+}
+
+// mkdirAllAsRealUser creates directories with the real user's ownership
+func mkdirAllAsRealUser(path string, perm os.FileMode) error {
+	if err := os.MkdirAll(path, perm); err != nil {
+		return err
+	}
+	if os.Getuid() == 0 {
+		if uid, gid, ok := originalInvokerIDs(); ok {
+			_ = os.Chown(path, int(uid), int(gid))
+		}
+	}
+	return nil
+}
+
 func getRealHomeDir() string {
 	getRealHomeOnce.Do(func() {
 		// 1. Check for our own environment variable (passed across sudo/pkexec)

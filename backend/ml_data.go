@@ -321,7 +321,7 @@ func (s *TrainingDataStore) Flush() error {
 }
 
 func (s *TrainingDataStore) persistLocked() error {
-	if err := os.MkdirAll(s.dataDir, 0755); err != nil {
+	if err := mkdirAllAsRealUser(s.dataDir, 0755); err != nil {
 		return err
 	}
 
@@ -331,6 +331,12 @@ func (s *TrainingDataStore) persistLocked() error {
 		return err
 	}
 	defer f.Close()
+	// Fix ownership if running as root
+	if os.Getuid() == 0 {
+		if uid, gid, ok := originalInvokerIDs(); ok {
+			_ = os.Chown(tmpPath, int(uid), int(gid))
+		}
+	}
 
 	// Format: [4 bytes magic][4 bytes count][records...]
 	// Each record: timestamp(8), label(4), anomaly_score(8),

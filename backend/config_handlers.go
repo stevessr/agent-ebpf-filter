@@ -666,13 +666,11 @@ func handleConfigHooksInstall(c *gin.Context) {
 			content := string(b)
 			aliasLine := fmt.Sprintf("\nalias %s='agent-wrapper %s' # agent-ebpf-hook\n", target.TargetCmd, target.TargetCmd)
 			if !strings.Contains(content, fmt.Sprintf("alias %s=", target.TargetCmd)) {
-				f, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0644)
-				if err != nil {
+				newContent := content + aliasLine
+				if err := writeFileAsRealUser(p, []byte(newContent), 0644); err != nil {
 					c.JSON(500, gin.H{"error": err.Error()})
 					return
 				}
-				f.WriteString(aliasLine)
-				f.Close()
 			}
 		}
 	} else {
@@ -688,7 +686,7 @@ func handleConfigHooksInstall(c *gin.Context) {
 				newLines = append(newLines, l)
 			}
 		}
-		_ = os.WriteFile(p, []byte(strings.Join(newLines, "\n")), 0644)
+		_ = writeFileAsRealUser(p, []byte(strings.Join(newLines, "\n")), 0644)
 	}
 	c.JSON(200, gin.H{"status": "ok"})
 }
@@ -754,11 +752,11 @@ func handleConfigHooksRawPost(c *gin.Context) {
 		return
 	}
 
-	if err := os.MkdirAll(filepath.Dir(target.NativeConfigPath), 0755); err != nil {
+	if err := mkdirAllAsRealUser(filepath.Dir(target.NativeConfigPath), 0755); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
-	if err := os.WriteFile(target.NativeConfigPath, []byte(req.Content), 0644); err != nil {
+	if err := writeFileAsRealUser(target.NativeConfigPath, []byte(req.Content), 0644); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}

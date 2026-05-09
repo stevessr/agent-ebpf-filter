@@ -90,7 +90,7 @@ func (s *eventRecordingState) Start(path string, truncate bool) (eventRecordingS
 	if strings.TrimSpace(path) == "" {
 		return eventRecordingStatus{}, errors.New("recording path is empty")
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := mkdirAllAsRealUser(filepath.Dir(path), 0o755); err != nil {
 		return eventRecordingStatus{}, err
 	}
 	flags := os.O_CREATE | os.O_WRONLY | os.O_APPEND
@@ -100,6 +100,12 @@ func (s *eventRecordingState) Start(path string, truncate bool) (eventRecordingS
 	file, err := os.OpenFile(path, flags, 0o600)
 	if err != nil {
 		return eventRecordingStatus{}, err
+	}
+	// Fix ownership if running as root
+	if os.Getuid() == 0 {
+		if uid, gid, ok := originalInvokerIDs(); ok {
+			_ = os.Chown(path, int(uid), int(gid))
+		}
 	}
 
 	s.mu.Lock()
@@ -230,10 +236,10 @@ func saveBrowserRecordingExport(path string, payload json.RawMessage) (string, i
 	if err != nil {
 		return "", 0, err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := mkdirAllAsRealUser(filepath.Dir(path), 0o755); err != nil {
 		return "", 0, err
 	}
-	if err := os.WriteFile(path, append(pretty, '\n'), 0o600); err != nil {
+	if err := writeFileAsRealUser(path, append(pretty, '\n'), 0o600); err != nil {
 		return "", 0, err
 	}
 	count := 0
