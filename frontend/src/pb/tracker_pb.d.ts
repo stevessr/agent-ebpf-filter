@@ -35,7 +35,11 @@ export namespace pb {
         SCHED_PROCESS_EXEC = 27,
         SCHED_PROCESS_EXIT = 28,
         WAIT4 = 29,
-        SEMANTIC_ALERT = 30
+        SEMANTIC_ALERT = 30,
+        TCP_CONNECT = 31,
+        TCP_CLOSE = 32,
+        TCP_STATE_CHANGE = 33,
+        DNS_QUERY = 34
     }
 
     /** BehaviorCategory enum. */
@@ -787,6 +791,9 @@ export namespace pb {
 
         /** Event cwd */
         cwd?: (string|null);
+
+        /** Event tgid */
+        tgid?: (number|null);
     }
 
     /** Represents an Event. */
@@ -920,6 +927,9 @@ export namespace pb {
 
         /** Event cwd. */
         public cwd: string;
+
+        /** Event tgid. */
+        public tgid: number;
 
         /**
          * Creates a new Event instance using the specified properties.

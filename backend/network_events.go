@@ -67,6 +67,14 @@ func kernelEventTypeName(eventType uint32) string {
 		return "process_exit"
 	case 29:
 		return "wait4"
+	case 30:
+		return "tcp_connect"
+	case 31:
+		return "tcp_close"
+	case 32:
+		return "tcp_state_change"
+	case 33:
+		return "dns_query"
 	default:
 		return "unknown"
 	}
@@ -74,7 +82,9 @@ func kernelEventTypeName(eventType uint32) string {
 
 func isNetworkEventType(eventType string) bool {
 	switch eventType {
-	case "network_connect", "network_bind", "network_sendto", "network_recvfrom", "accept", "accept4", "socket":
+	case "network_connect", "network_bind", "network_sendto", "network_recvfrom",
+		"accept", "accept4", "socket",
+		"tcp_connect", "tcp_close", "tcp_state_change", "dns_query":
 		return true
 	default:
 		return false
@@ -866,6 +876,7 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 		Ppid:          event.PPID,
 		Uid:           event.UID,
 		Gid:           event.GID,
+		Tgid:          event.TGID,
 		Type:          typeName,
 		EventType:     pb.EventType(event.Type),
 		Tag:           getTagName(event.TagID),
@@ -958,6 +969,34 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 		if event.Retval < 0 {
 			out.ExtraInfo += fmt.Sprintf(" err=%d", event.Retval)
 		}
+	case "tcp_connect":
+		saddr := formatIPv4Addr(event.Extra2)
+		daddr := formatIPv4Addr(uint32(event.Extra3))
+		out.NetDirection = "outgoing"
+		out.NetFamily = "AF_INET"
+		out.NetEndpoint = fmt.Sprintf("%s:%d", daddr, event.NetPort)
+		out.NetBytes = event.NetBytes
+		out.ExtraInfo = fmt.Sprintf("saddr=%s sport=%d dport=%d", saddr, event.Extra1, event.NetPort)
+	case "tcp_close":
+		daddr := formatIPv4Addr(uint32(event.Extra3))
+		out.NetDirection = "outgoing"
+		out.NetFamily = "AF_INET"
+		out.NetEndpoint = fmt.Sprintf("%s:%d", daddr, event.NetPort)
+		out.ExtraInfo = fmt.Sprintf("sport=%d dport=%d", event.Extra1, event.NetPort)
+	case "tcp_state_change":
+		oldState := uint8(event.DurationNs >> 32)
+		newState := uint8(event.DurationNs & 0xFFFFFFFF)
+		daddr := formatIPv4Addr(uint32(event.Extra3))
+		out.NetDirection = "outgoing"
+		out.NetFamily = "AF_INET"
+		out.NetEndpoint = fmt.Sprintf("%s:%d", daddr, event.NetPort)
+		out.ExtraInfo = fmt.Sprintf("%s->%s sport=%d dport=%d",
+			tcpStateName(oldState), tcpStateName(newState), event.Extra1, event.NetPort)
+	case "dns_query":
+		out.NetDirection = "outgoing"
+		out.NetFamily = "AF_INET"
+		out.NetEndpoint = fmt.Sprintf("dns:%d", event.NetPort)
+		out.Domain = sanitizeUTF8(event.Path[:])
 	default:
 		if event.Retval != 0 {
 			out.ExtraInfo = fmt.Sprintf("retval=%d", event.Retval)
@@ -979,4 +1018,30 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 	}
 
 	return out
+}
+
+func formatIPv4Addr(addr uint32) string {
+	return fmt.Sprintf("%d.%d.%d.%d",
+		addr&0xFF, (addr>>8)&0xFF, (addr>>16)&0xFF, (addr>>24)&0xFF)
+}
+
+var tcpStateNames = map[uint8]string{
+	1:  "ESTABLISHED",
+	2:  "SYN_SENT",
+	3:  "SYN_RECV",
+	4:  "FIN_WAIT1",
+	5:  "FIN_WAIT2",
+	6:  "TIME_WAIT",
+	7:  "CLOSE",
+	8:  "CLOSE_WAIT",
+	9:  "LAST_ACK",
+	10: "LISTEN",
+	11: "CLOSING",
+}
+
+func tcpStateName(state uint8) string {
+	if name, ok := tcpStateNames[state]; ok {
+		return name
+	}
+	return fmt.Sprintf("STATE_%d", state)
 }

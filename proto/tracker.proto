@@ -36,6 +36,10 @@ enum EventType {
   SCHED_PROCESS_EXIT = 28;
   WAIT4 = 29;
   SEMANTIC_ALERT = 30;
+  TCP_CONNECT = 31;
+  TCP_CLOSE = 32;
+  TCP_STATE_CHANGE = 33;
+  DNS_QUERY = 34;
 }
 
 enum BehaviorCategory {
@@ -143,6 +147,7 @@ message Event {
   string argv_digest = 39;
   string task_id = 40;
   string cwd = 41;
+  uint32 tgid = 42;
 }
 
 message ExecEvent {

@@ -147,6 +147,7 @@ func main() {
 
 	startEventBroadcaster()
 	go startUDSServer(broadcast)
+	startCgroupAttributionGC()
 
 	r := gin.Default()
 	r.Use(clusterGatewayMiddleware())

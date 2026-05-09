@@ -58,6 +58,10 @@ struct task_struct {
 #define TYPE_PROCESS_EXEC 27
 #define TYPE_PROCESS_EXIT 28
 #define TYPE_WAIT4 29
+#define TYPE_TCP_CONNECT 30
+#define TYPE_TCP_CLOSE 31
+#define TYPE_TCP_STATE_CHANGE 32
+#define TYPE_DNS_QUERY 33
 
 struct trace_entry {
     short unsigned int type;
@@ -103,6 +107,29 @@ struct trace_event_raw_sched_process_exit {
     u8 group_dead;
 };
 
+// TCP tracepoint structures for flow-level network tracking
+struct trace_event_raw_tcp_event {
+    struct trace_entry ent;
+    u64 saddr_v6[2]; // IPv4 mapped: saddr_v6[0] holds saddr, or full IPv6
+    u64 daddr_v6[2];
+    u16 sport;
+    u16 dport;
+    u32 __pad;
+};
+
+struct trace_event_raw_inet_sock_set_state {
+    struct trace_entry ent;
+    u64 saddr_v6[2];
+    u64 daddr_v6[2];
+    u16 sport;
+    u16 dport;
+    u32 __pad;
+    u8 protocol;
+    u8 oldstate;
+    u8 newstate;
+    u8 __pad2;
+};
+
 struct in_addr {
     u32 s_addr;
 };
@@ -132,7 +159,8 @@ struct sockaddr_in6 {
 };
 
 struct event {
-    u32 pid;
+    u32 pid;     // thread ID (tid)
+    u32 tgid;    // thread group ID (process ID)
     u32 ppid;
     u32 uid;
     u32 gid;
@@ -334,9 +362,10 @@ static __always_inline void fill_base_info(struct event *e, u32 pid, u32 tag_id,
     e->gid = (u32)(uid_gid >> 32);
     e->cgroup_id = bpf_get_current_cgroup_id();
 
-    // Get PPID
+    // Get PPID and TGID
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     e->ppid = BPF_CORE_READ(task, real_parent, tgid);
+    e->tgid = BPF_CORE_READ(task, tgid);
 }
 
 static __always_inline void fill_network_endpoint(struct event *e, const void *user_addr, u32 direction, u32 bytes) {
@@ -519,6 +548,153 @@ int tracepoint__sched__sched_process_exit(struct trace_event_raw_sched_process_e
     bpf_map_delete_elem(&agent_pids, &tid);
     if (ctx->group_dead) {
         bpf_map_delete_elem(&agent_pids, &tgid);
+    }
+    return 0;
+}
+
+// ============================================================
+// TCP flow tracepoints for flow-level network attribution
+// ============================================================
+
+static __always_inline void format_ipv4_from_v6(char *buf, u64 saddr_v6_lo) {
+    u32 ip = (u32)saddr_v6_lo;
+    // Format as "x.x.x.x" using simple snprintf
+    buf[0] = '0' + ((ip >> 0)  & 0xFF);
+    // Use a compact hex representation since bpf_snprintf may not be available
+    // Format: hex bytes for the address
+    for (int i = 0; i < 4; i++) {
+        u8 byte = (ip >> (i * 8)) & 0xFF;
+        // Approximate formatting - store as raw bytes in network order
+        buf[i] = (char)byte;
+    }
+    buf[4] = '\0';
+}
+
+static __always_inline int emit_tcp_flow_event(u32 pid, u32 tgid, u32 type,
+                                                u64 saddr_lo, u64 daddr_lo,
+                                                u16 sport, u16 dport,
+                                                u8 oldstate, u8 newstate,
+                                                u32 tag_id) {
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+
+    struct event *e = reserve_event();
+    if (!e) return 0;
+
+    fill_base_info(e, tgid, tag_id, comm);
+    e->type = type;
+
+    // Pack flow info into the event
+    e->net_family = (saddr_lo > 0xFFFFFFFFULL) ? AF_INET6 : AF_INET;
+    e->net_direction = NET_DIR_OUTGOING;
+    e->net_port = dport;
+    e->extra1 = sport;           // source port
+    e->extra2 = (u32)(saddr_lo); // source addr (lower 32 bits)
+    e->extra3 = daddr_lo;        // dest addr
+    // Store old/new state for inet_sock_set_state events
+    if (oldstate || newstate) {
+        e->duration_ns = ((u64)oldstate << 32) | newstate;
+    }
+
+    // Pack address bytes into net_addr (16 bytes available)
+    // Store saddr and daddr as compact hex for display
+    for (int i = 0; i < 4; i++) {
+        e->net_addr[i] = (u8)((daddr_lo >> (i * 8)) & 0xFF);
+    }
+    // Port as net_bytes for convenience
+    e->net_bytes = sport;
+
+    submit_event(e);
+    return 1;
+}
+
+SEC("tracepoint/tcp/tcp_connect")
+int tracepoint__tcp__tcp_connect(struct trace_event_raw_tcp_event *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = (u32)(pid_tgid >> 32);
+    u32 tid = (u32)pid_tgid;
+
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    if (!tag_id) {
+        tag_id = get_tag_id(tid, comm, NULL);
+    }
+    if (!tag_id) return 0;
+
+    emit_tcp_flow_event(tid, tgid, TYPE_TCP_CONNECT,
+                        ctx->saddr_v6[0], ctx->daddr_v6[0],
+                        ctx->sport, ctx->dport, 0, 0, tag_id);
+    return 0;
+}
+
+SEC("tracepoint/tcp/tcp_close")
+int tracepoint__tcp__tcp_close(struct trace_event_raw_tcp_event *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = (u32)(pid_tgid >> 32);
+    u32 tid = (u32)pid_tgid;
+
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    if (!tag_id) {
+        tag_id = get_tag_id(tid, comm, NULL);
+    }
+    if (!tag_id) return 0;
+
+    emit_tcp_flow_event(tid, tgid, TYPE_TCP_CLOSE,
+                        ctx->saddr_v6[0], ctx->daddr_v6[0],
+                        ctx->sport, ctx->dport, 0, 0, tag_id);
+    return 0;
+}
+
+SEC("tracepoint/sock/inet_sock_set_state")
+int tracepoint__sock__inet_sock_set_state(struct trace_event_raw_inet_sock_set_state *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = (u32)(pid_tgid >> 32);
+    u32 tid = (u32)pid_tgid;
+
+    // Only track TCP state changes
+    if (ctx->protocol != 6) return 0; // IPPROTO_TCP
+
+    char comm[TASK_COMM_LEN];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 tag_id = get_tag_id(tgid, comm, NULL);
+    if (!tag_id) {
+        tag_id = get_tag_id(tid, comm, NULL);
+    }
+    if (!tag_id) return 0;
+
+    emit_tcp_flow_event(tid, tgid, TYPE_TCP_STATE_CHANGE,
+                        ctx->saddr_v6[0], ctx->daddr_v6[0],
+                        ctx->sport, ctx->dport,
+                        ctx->oldstate, ctx->newstate, tag_id);
+    return 0;
+}
+
+// DNS query extraction helper for UDP sendto to port 53
+static __always_inline int detect_dns_query(struct event *e, const void *buf, u32 len, u32 dport) {
+    if (dport != 53 || len < 20 || !buf) return 0;
+    // DNS header is 12 bytes, try to read the QNAME
+    // We need at least a minimal DNS packet
+    char dns_data[64] = {};
+    if (bpf_probe_read_user(dns_data, sizeof(dns_data) < len ? sizeof(dns_data) : len, buf) < 0) {
+        return 0;
+    }
+    // Skip DNS header (12 bytes) and read QNAME
+    // Simple detection: look for printable domain chars starting at offset 12
+    u8 qname_len = dns_data[12];
+    if (qname_len > 0 && qname_len < 64) {
+        int pos = 13;
+        int out_pos = 0;
+        for (int i = 0; i < qname_len && pos < 63 && out_pos < 255; i++) {
+            if (dns_data[pos] >= 0x20 && dns_data[pos] < 0x7F) {
+                e->path[out_pos++] = dns_data[pos];
+            }
+            pos++;
+        }
+        e->path[out_pos] = '\0';
+        return out_pos > 0 ? 1 : 0;
     }
     return 0;
 }

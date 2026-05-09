@@ -222,8 +222,33 @@ func enrichEventContext(event *pb.Event) *pb.Event {
 			ctx, ok = trackedProcessContexts.Get(event.Pid)
 		}
 	}
+	// Try cgroup-based attribution if no direct PID context
+	if !ok && event.CgroupId != 0 {
+		if agentRunID, taskID, toolCallID := enrichEventWithCgroupContext(event.CgroupId); agentRunID != "" {
+			ctx = processContext{
+				AgentRunID: agentRunID,
+				TaskID:     taskID,
+				ToolCallID: toolCallID,
+			}
+			ok = true
+		}
+	}
 	if ok {
 		applyProcessContextToEvent(event, ctx)
+		// Lazily bind cgroup to agent context for future child attribution
+		if event.CgroupId != 0 && ctx.AgentRunID != "" {
+			cgroupAttribution.Set(event.CgroupId, cgroupAttributionEntry{
+				AgentRunID:   ctx.AgentRunID,
+				TaskID:       ctx.TaskID,
+				ToolCallID:   ctx.ToolCallID,
+				RootAgentPID: ctx.RootAgentPid,
+			})
+		}
+	}
+
+	// Record tool baseline for drift detection
+	if event.ToolName != "" && event.Comm != "" {
+		toolBaseline.Record(event.ToolName, event.Comm, event.Type, event.Path)
 	}
 
 	if event.Type == "process_exit" || event.Type == "exit" {

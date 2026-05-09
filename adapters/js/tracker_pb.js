@@ -53,6 +53,10 @@ $root.pb = (function() {
      * @property {number} SCHED_PROCESS_EXIT=28 SCHED_PROCESS_EXIT value
      * @property {number} WAIT4=29 WAIT4 value
      * @property {number} SEMANTIC_ALERT=30 SEMANTIC_ALERT value
+     * @property {number} TCP_CONNECT=31 TCP_CONNECT value
+     * @property {number} TCP_CLOSE=32 TCP_CLOSE value
+     * @property {number} TCP_STATE_CHANGE=33 TCP_STATE_CHANGE value
+     * @property {number} DNS_QUERY=34 DNS_QUERY value
      */
     pb.EventType = (function() {
         var valuesById = {}, values = Object.create(valuesById);
@@ -87,6 +91,10 @@ $root.pb = (function() {
         values[valuesById[28] = "SCHED_PROCESS_EXIT"] = 28;
         values[valuesById[29] = "WAIT4"] = 29;
         values[valuesById[30] = "SEMANTIC_ALERT"] = 30;
+        values[valuesById[31] = "TCP_CONNECT"] = 31;
+        values[valuesById[32] = "TCP_CLOSE"] = 32;
+        values[valuesById[33] = "TCP_STATE_CHANGE"] = 33;
+        values[valuesById[34] = "DNS_QUERY"] = 34;
         return values;
     })();
 
@@ -1835,6 +1843,7 @@ $root.pb = (function() {
          * @property {string|null} [argvDigest] Event argvDigest
          * @property {string|null} [taskId] Event taskId
          * @property {string|null} [cwd] Event cwd
+         * @property {number|null} [tgid] Event tgid
          */
 
         /**
@@ -2181,6 +2190,14 @@ $root.pb = (function() {
         Event.prototype.cwd = "";
 
         /**
+         * Event tgid.
+         * @member {number} tgid
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.tgid = 0;
+
+        /**
          * Creates a new Event instance using the specified properties.
          * @function create
          * @memberof pb.Event
@@ -2286,6 +2303,8 @@ $root.pb = (function() {
                 writer.uint32(/* id 40, wireType 2 =*/322).string(message.taskId);
             if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
                 writer.uint32(/* id 41, wireType 2 =*/330).string(message.cwd);
+            if (message.tgid != null && Object.hasOwnProperty.call(message, "tgid"))
+                writer.uint32(/* id 42, wireType 0 =*/336).uint32(message.tgid);
             return writer;
         };
 
@@ -2490,6 +2509,10 @@ $root.pb = (function() {
                         message.cwd = reader.string();
                         break;
                     }
+                case 42: {
+                        message.tgid = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7, long);
                     break;
@@ -2627,6 +2650,10 @@ $root.pb = (function() {
                 case 28:
                 case 29:
                 case 30:
+                case 31:
+                case 32:
+                case 33:
+                case 34:
                     break;
                 }
             if (message.behavior != null && message.hasOwnProperty("behavior")) {
@@ -2688,6 +2715,9 @@ $root.pb = (function() {
             if (message.cwd != null && message.hasOwnProperty("cwd"))
                 if (!$util.isString(message.cwd))
                     return "cwd: string expected";
+            if (message.tgid != null && message.hasOwnProperty("tgid"))
+                if (!$util.isInteger(message.tgid))
+                    return "tgid: integer expected";
             return null;
         };
 
@@ -2894,6 +2924,22 @@ $root.pb = (function() {
             case 30:
                 message.eventType = 30;
                 break;
+            case "TCP_CONNECT":
+            case 31:
+                message.eventType = 31;
+                break;
+            case "TCP_CLOSE":
+            case 32:
+                message.eventType = 32;
+                break;
+            case "TCP_STATE_CHANGE":
+            case 33:
+                message.eventType = 33;
+                break;
+            case "DNS_QUERY":
+            case 34:
+                message.eventType = 34;
+                break;
             }
             if (object.behavior != null) {
                 if (typeof object.behavior !== "object")
@@ -2950,6 +2996,8 @@ $root.pb = (function() {
                 message.taskId = String(object.taskId);
             if (object.cwd != null)
                 message.cwd = String(object.cwd);
+            if (object.tgid != null)
+                message.tgid = object.tgid >>> 0;
             return message;
         };
 
@@ -3024,6 +3072,7 @@ $root.pb = (function() {
                 object.argvDigest = "";
                 object.taskId = "";
                 object.cwd = "";
+                object.tgid = 0;
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -3119,6 +3168,8 @@ $root.pb = (function() {
                 object.taskId = message.taskId;
             if (message.cwd != null && message.hasOwnProperty("cwd"))
                 object.cwd = message.cwd;
+            if (message.tgid != null && message.hasOwnProperty("tgid"))
+                object.tgid = message.tgid;
             return object;
         };
 
@@ -6711,6 +6762,10 @@ $root.pb = (function() {
                 case 28:
                 case 29:
                 case 30:
+                case 31:
+                case 32:
+                case 33:
+                case 34:
                     break;
                 }
             if (message.legacyEvent != null && message.hasOwnProperty("legacyEvent")) {
@@ -7007,6 +7062,22 @@ $root.pb = (function() {
             case "SEMANTIC_ALERT":
             case 30:
                 message.eventType = 30;
+                break;
+            case "TCP_CONNECT":
+            case 31:
+                message.eventType = 31;
+                break;
+            case "TCP_CLOSE":
+            case 32:
+                message.eventType = 32;
+                break;
+            case "TCP_STATE_CHANGE":
+            case 33:
+                message.eventType = 33;
+                break;
+            case "DNS_QUERY":
+            case 34:
+                message.eventType = 34;
                 break;
             }
             if (object.legacyEvent != null) {

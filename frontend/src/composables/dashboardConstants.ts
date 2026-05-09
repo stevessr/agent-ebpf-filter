@@ -131,6 +131,10 @@ export const eventTypeLabelMap: Record<number, string> = {
   [pb.EventType.WRAPPER_INTERCEPT]: 'wrapper_intercept',
   [pb.EventType.NATIVE_HOOK]: 'native_hook',
   [pb.EventType.SEMANTIC_ALERT]: 'semantic_alert',
+  [pb.EventType.TCP_CONNECT]: 'tcp_connect',
+  [pb.EventType.TCP_CLOSE]: 'tcp_close',
+  [pb.EventType.TCP_STATE_CHANGE]: 'tcp_state_change',
+  [pb.EventType.DNS_QUERY]: 'dns_query',
 };
 
 export const eventTypeColorMap: Record<number, string> = {
@@ -163,6 +167,10 @@ export const eventTypeColorMap: Record<number, string> = {
   [pb.EventType.ACCEPT4]: 'volcano',
   [pb.EventType.GENERIC_SYSCALL]: 'geekblue',
   [pb.EventType.SEMANTIC_ALERT]: 'red',
+  [pb.EventType.TCP_CONNECT]: 'orange',
+  [pb.EventType.TCP_CLOSE]: 'volcano',
+  [pb.EventType.TCP_STATE_CHANGE]: 'gold',
+  [pb.EventType.DNS_QUERY]: 'purple',
 };
 
 export const networkEventTypes = new Set<number>([
@@ -184,6 +192,10 @@ export const eventCategories: Record<string, Set<number>> = {
     pb.EventType.SOCKET,
     pb.EventType.ACCEPT,
     pb.EventType.ACCEPT4,
+    pb.EventType.TCP_CONNECT,
+    pb.EventType.TCP_CLOSE,
+    pb.EventType.TCP_STATE_CHANGE,
+    pb.EventType.DNS_QUERY,
   ]),
   file: new Set([
     pb.EventType.OPENAT,

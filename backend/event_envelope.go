@@ -106,7 +106,7 @@ func buildEventEnvelope(record CapturedEventRecord) *pb.EventEnvelope {
 		TraceId:        event.GetTraceId(),
 		SpanId:         event.GetSpanId(),
 		Pid:            event.GetPid(),
-		Tgid:           event.GetPid(),
+		Tgid:           tgidOrPid(event),
 		Ppid:           event.GetPpid(),
 		Uid:            event.GetUid(),
 		Gid:            event.GetGid(),
@@ -378,4 +378,11 @@ func strconvFormatUint32(value uint32) string {
 
 func strconvFormatInt(value int64) string {
 	return fmt.Sprintf("%d", value)
+}
+
+func tgidOrPid(event *pb.Event) uint32 {
+	if tgid := event.GetTgid(); tgid != 0 {
+		return tgid
+	}
+	return event.GetPid()
 }

@@ -38,6 +38,42 @@ var readOnlyToolHints = []string{
 	"cat",
 }
 
+var prReviewToolHints = []string{
+	"review",
+	"pr_",
+	"pull_request",
+	"diff",
+	"patch",
+	"approve",
+}
+
+var browserFrontendToolHints = []string{
+	"browser",
+	"frontend",
+	"ui_",
+	"playwright",
+	"selenium",
+	"puppeteer",
+	"cypress",
+	"chrome",
+	"navigate",
+	"screenshot",
+}
+
+var ideHandoffToolHints = []string{
+	"handoff",
+	"ide_",
+	"open_in_",
+	"editor",
+}
+
+var remoteDevboxToolHints = []string{
+	"devbox",
+	"remote_",
+	"ssh_",
+	"ssm_",
+}
+
 var riskyExecComms = map[string]string{
 	"curl":   "network download tool",
 	"wget":   "network download tool",
@@ -189,6 +225,27 @@ func buildSemanticAlerts(event *pb.Event) []*pb.Event {
 
 	if target, ok := observeForkStorm(event, now); ok {
 		addAlert("RESOURCE_WASTING_LOOP", target, "observed repeated fork/clone activity suggesting a lightweight fork storm or runaway loop", 0.94)
+	}
+
+	// Codex-specific workflow semantic checks
+	if reason, ok := detectPRReviewAnomaly(event); ok {
+		addAlert("SEMANTIC_MISMATCH", firstNonEmpty(event.GetToolCallId(), event.GetPath()), reason, 0.96)
+	}
+	if reason, ok := detectBrowserTaskAnomaly(event); ok {
+		addAlert("TOOL_BEHAVIOR_DRIFT", firstNonEmpty(event.GetComm(), event.GetPath()), reason, 0.97)
+	}
+	if reason, ok := detectIDEHandoffAnomaly(event); ok {
+		addAlert("SEMANTIC_MISMATCH", event.GetPath(), reason, 0.98)
+	}
+	if reason, ok := detectRemoteDevboxAnomaly(event); ok {
+		addAlert("UNEXPECTED_NETWORK_EGRESS", event.GetNetEndpoint(), reason, 0.96)
+	}
+
+	// Per-tool baseline drift detection
+	if event.GetToolName() != "" && event.GetComm() != "" {
+		if reason, ok := toolBaseline.detectDrift(event.GetToolName(), event.GetComm(), event.GetType()); ok {
+			addAlert("TOOL_BEHAVIOR_DRIFT", firstNonEmpty(event.GetComm(), event.GetPath()), reason, 0.91)
+		}
 	}
 
 	return alerts
@@ -548,4 +605,123 @@ func (s *semanticAlertState) incrementForkCount(event *pb.Event, now time.Time) 
 	}
 	s.forkWindows[key] = observation
 	return observation.Count
+}
+
+// Codex-specific workflow semantic checks
+
+func detectPRReviewAnomaly(event *pb.Event) (string, bool) {
+	if !toolNameMatchesHints(event.GetToolName(), prReviewToolHints) {
+		return "", false
+	}
+	switch event.GetType() {
+	case "execve", "process_exec":
+		return fmt.Sprintf("PR review tool %q spawned a process (%s)", event.GetToolName(), event.GetComm()), true
+	case "network_connect", "network_sendto":
+		endpoint := strings.TrimSpace(event.GetNetEndpoint())
+		if endpoint != "" && !strings.Contains(endpoint, "127.0.0.1") && !strings.Contains(endpoint, "localhost") {
+			return fmt.Sprintf("PR review tool %q opened unexpected network egress to %s", event.GetToolName(), endpoint), true
+		}
+	case "write", "chmod", "unlink", "unlinkat":
+		return fmt.Sprintf("PR review tool %q modified filesystem (%s %s)", event.GetToolName(), event.GetType(), event.GetPath()), true
+	}
+	return "", false
+}
+
+func detectBrowserTaskAnomaly(event *pb.Event) (string, bool) {
+	if !toolNameMatchesHints(event.GetToolName(), browserFrontendToolHints) {
+		return "", false
+	}
+	switch event.GetType() {
+	case "execve", "process_exec":
+		comm := strings.ToLower(strings.TrimSpace(event.GetComm()))
+		for _, risky := range []string{"nc", "netcat", "socat", "ssh", "nohup", "disown"} {
+			if comm == risky || strings.HasPrefix(comm, risky) {
+				return fmt.Sprintf("browser/frontend tool %q spawned risky process %q", event.GetToolName(), event.GetComm()), true
+			}
+		}
+	case "network_connect", "network_sendto":
+		endpoint := strings.TrimSpace(event.GetNetEndpoint())
+		if isNonLocalhostEndpoint(endpoint) {
+			return fmt.Sprintf("browser/frontend tool %q opened unexpected network egress to %s", event.GetToolName(), endpoint), true
+		}
+	}
+	return "", false
+}
+
+func detectIDEHandoffAnomaly(event *pb.Event) (string, bool) {
+	if !toolNameMatchesHints(event.GetToolName(), ideHandoffToolHints) {
+		return "", false
+	}
+	if target, ok := extractSecretTarget(event); ok {
+		return fmt.Sprintf("IDE handoff tool %q accessed secret-like path %s", event.GetToolName(), target), true
+	}
+	if target, ok := extractWorkspaceEscapeTarget(event); ok {
+		return fmt.Sprintf("IDE handoff tool %q escaped workspace boundary to %s", event.GetToolName(), target), true
+	}
+	return "", false
+}
+
+func detectRemoteDevboxAnomaly(event *pb.Event) (string, bool) {
+	if !toolNameMatchesHints(event.GetToolName(), remoteDevboxToolHints) {
+		return "", false
+	}
+	switch event.GetType() {
+	case "network_connect", "network_sendto":
+		endpoint := strings.TrimSpace(event.GetNetEndpoint())
+		if isNonLocalhostEndpoint(endpoint) {
+			// For remote devbox tools, network egress is expected but monitor for suspicious endpoints
+			if isSuspiciousEndpoint(endpoint) {
+				return fmt.Sprintf("remote devbox tool %q connected to suspicious endpoint %s", event.GetToolName(), endpoint), true
+			}
+		}
+	case "execve", "process_exec":
+		comm := strings.ToLower(strings.TrimSpace(event.GetComm()))
+		for _, risky := range []string{"nc", "socat", "reverse", "backdoor"} {
+			if strings.Contains(comm, risky) {
+				return fmt.Sprintf("remote devbox tool %q spawned suspicious process %q", event.GetToolName(), event.GetComm()), true
+			}
+		}
+	}
+	return "", false
+}
+
+func toolNameMatchesHints(toolName string, hints []string) bool {
+	lower := strings.ToLower(strings.TrimSpace(toolName))
+	if lower == "" {
+		return false
+	}
+	for _, hint := range hints {
+		if strings.Contains(lower, hint) {
+			return true
+		}
+	}
+	return false
+}
+
+func isNonLocalhostEndpoint(endpoint string) bool {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return false
+	}
+	for _, hint := range []string{"127.0.0.1", "localhost", "::1", "0.0.0.0"} {
+		if strings.Contains(endpoint, hint) {
+			return false
+		}
+	}
+	return true
+}
+
+func isSuspiciousEndpoint(endpoint string) bool {
+	endpoint = strings.ToLower(strings.TrimSpace(endpoint))
+	suspiciousPatterns := []string{
+		".ngrok.io", ".serveo.net", ".localhost.run",
+		":4444", ":1337", ":31337", ":6666", ":6667",
+		"pastebin", "termbin", "ix.io",
+	}
+	for _, pattern := range suspiciousPatterns {
+		if strings.Contains(endpoint, pattern) {
+			return true
+		}
+	}
+	return false
 }

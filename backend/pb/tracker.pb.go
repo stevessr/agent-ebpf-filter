@@ -56,6 +56,10 @@ const (
 	EventType_SCHED_PROCESS_EXIT EventType = 28
 	EventType_WAIT4              EventType = 29
 	EventType_SEMANTIC_ALERT     EventType = 30
+	EventType_TCP_CONNECT        EventType = 31
+	EventType_TCP_CLOSE          EventType = 32
+	EventType_TCP_STATE_CHANGE   EventType = 33
+	EventType_DNS_QUERY          EventType = 34
 )
 
 // Enum value maps for EventType.
@@ -92,6 +96,10 @@ var (
 		28: "SCHED_PROCESS_EXIT",
 		29: "WAIT4",
 		30: "SEMANTIC_ALERT",
+		31: "TCP_CONNECT",
+		32: "TCP_CLOSE",
+		33: "TCP_STATE_CHANGE",
+		34: "DNS_QUERY",
 	}
 	EventType_value = map[string]int32{
 		"EXECVE":             0,
@@ -125,6 +133,10 @@ var (
 		"SCHED_PROCESS_EXIT": 28,
 		"WAIT4":              29,
 		"SEMANTIC_ALERT":     30,
+		"TCP_CONNECT":        31,
+		"TCP_CLOSE":          32,
+		"TCP_STATE_CHANGE":   33,
+		"DNS_QUERY":          34,
 	}
 )
 
@@ -769,6 +781,7 @@ type Event struct {
 	ArgvDigest     string                  `protobuf:"bytes,39,opt,name=argv_digest,json=argvDigest,proto3" json:"argv_digest,omitempty"`
 	TaskId         string                  `protobuf:"bytes,40,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	Cwd            string                  `protobuf:"bytes,41,opt,name=cwd,proto3" json:"cwd,omitempty"`
+	Tgid           uint32                  `protobuf:"varint,42,opt,name=tgid,proto3" json:"tgid,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1088,6 +1101,13 @@ func (x *Event) GetCwd() string {
 		return x.Cwd
 	}
 	return ""
+}
+
+func (x *Event) GetTgid() uint32 {
+	if x != nil {
+		return x.Tgid
+	}
+	return 0
 }
 
 type ExecEvent struct {
@@ -5622,7 +5642,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\"H\n" +
 	"\x12UnregisterResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x98\t\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xac\t\n" +
 	"\x05Event\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\rR\x04ppid\x12\x10\n" +
@@ -5674,7 +5694,8 @@ const file_tracker_proto_rawDesc = "" +
 	"\vargv_digest\x18' \x01(\tR\n" +
 	"argvDigest\x12\x17\n" +
 	"\atask_id\x18( \x01(\tR\x06taskId\x12\x10\n" +
-	"\x03cwd\x18) \x01(\tR\x03cwd\"\xaa\x01\n" +
+	"\x03cwd\x18) \x01(\tR\x03cwd\x12\x12\n" +
+	"\x04tgid\x18* \x01(\rR\x04tgid\"\xaa\x01\n" +
 	"\tExecEvent\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x16\n" +
 	"\x06retval\x18\x02 \x01(\x03R\x06retval\x12\x1f\n" +
@@ -6098,7 +6119,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"D\n" +
 	"\x12ConfigBoolResponse\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\bR\x05value\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage*\xd7\x03\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage*\x9c\x04\n" +
 	"\tEventType\x12\n" +
 	"\n" +
 	"\x06EXECVE\x10\x00\x12\n" +
@@ -6137,7 +6158,11 @@ const file_tracker_proto_rawDesc = "" +
 	"\x12SCHED_PROCESS_EXEC\x10\x1b\x12\x16\n" +
 	"\x12SCHED_PROCESS_EXIT\x10\x1c\x12\t\n" +
 	"\x05WAIT4\x10\x1d\x12\x12\n" +
-	"\x0eSEMANTIC_ALERT\x10\x1e*\x89\x02\n" +
+	"\x0eSEMANTIC_ALERT\x10\x1e\x12\x0f\n" +
+	"\vTCP_CONNECT\x10\x1f\x12\r\n" +
+	"\tTCP_CLOSE\x10 \x12\x14\n" +
+	"\x10TCP_STATE_CHANGE\x10!\x12\r\n" +
+	"\tDNS_QUERY\x10\"*\x89\x02\n" +
 	"\x10BehaviorCategory\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\r\n" +
 	"\tFILE_READ\x10\x01\x12\x0e\n" +
