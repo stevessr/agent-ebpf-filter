@@ -50,6 +50,7 @@ const groupedProcesses = computed<ProcGroup[]>(() => {
     groups[name].instances.push(p);
   }
   return Object.values(groups)
+    .filter(g => g.totalMemPercent > 0)
     .map(group => ({
       ...group,
       instances: [...group.instances].sort((a, b) => (b.mem ?? 0) - (a.mem ?? 0) || (b.cpu ?? 0) - (a.cpu ?? 0) || a.pid - b.pid),
@@ -61,7 +62,7 @@ const totalMemPercent = computed(() => groupedProcesses.value.reduce((sum, g) =>
 const totalApproxBytes = computed(() => groupedProcesses.value.reduce((sum, g) => sum + g.approxBytes, 0));
 const maxLogWeight = computed(() => {
   const maxBytes = groupedProcesses.value[0]?.approxBytes || 0;
-  const weight = Math.log1p(Math.max(maxBytes, 0) / (1024 * 1024));
+  const weight = Math.log1p(Math.max(maxBytes, 0) / (256 * 1024));
   return weight > 0 ? weight : 1;
 });
 
@@ -69,7 +70,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 const tiles = computed<ProcTile[]>(() => groupedProcesses.value.map((group, index) => {
   const bytes = Math.max(group.approxBytes, 0);
-  const logWeight = Math.log1p(bytes / (1024 * 1024));
+  const logWeight = Math.log1p(bytes / (256 * 1024));
   const normalized = maxLogWeight.value > 0 ? logWeight / maxLogWeight.value : 0;
   const shareOfListed = totalApproxBytes.value > 0 ? (bytes / totalApproxBytes.value) * 100 : 0;
 
@@ -77,8 +78,8 @@ const tiles = computed<ProcTile[]>(() => groupedProcesses.value.map((group, inde
     ...group,
     rank: index + 1,
     normalized,
-    width: clamp(Math.round(180 + normalized * 280), 180, 460),
-    height: clamp(Math.round(96 + normalized * 88), 96, 184),
+    width: clamp(Math.round(90 + normalized * 340), 220, 560),
+    height: clamp(Math.round(48 + normalized * 108), 112, 220),
     shareOfListed,
   };
 }));
@@ -136,8 +137,8 @@ const tileStyle = (tile: ProcTile) => ({
 const tileTitle = (tile: ProcTile) => [
   `${tile.name}`,
   `估算 RSS: ${props.formatBytesWithUnit(tile.approxBytes)}`,
-  `占已列出进程内存: ${formatPercent(tile.shareOfListed)}`,
-  `分组内存占比: ${formatPercent(tile.totalMemPercent)}`,
+  `占已列出进程内存：${formatPercent(tile.shareOfListed)}`,
+  `分组内存占比：${formatPercent(tile.totalMemPercent)}`,
   `PID: ${tile.pids.join(', ')}`,
 ].join('\n');
 </script>
