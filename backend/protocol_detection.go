@@ -204,11 +204,13 @@ func findCRLF(data []byte) int {
 type AppProtocol string
 
 const (
-	AppProtoTLS    AppProtocol = "TLS"
-	AppProtoHTTP   AppProtocol = "HTTP"
-	AppProtoSSH    AppProtocol = "SSH"
-	AppProtoDNS    AppProtocol = "DNS"
-	AppProtoQUIC   AppProtocol = "QUIC"
+	AppProtoTLS     AppProtocol = "TLS"
+	AppProtoHTTP    AppProtocol = "HTTP"
+	AppProtoSSH     AppProtocol = "SSH"
+	AppProtoDNS     AppProtocol = "DNS"
+	AppProtoQUIC    AppProtocol = "QUIC"
+	AppProtoDHCP    AppProtocol = "DHCP"
+	AppProtomDNS    AppProtocol = "mDNS"
 	AppProtoUnknown AppProtocol = "Unknown"
 )
 
@@ -237,6 +239,31 @@ func fingerprintProtocol(data []byte, dport uint32) AppProtocol {
 		return AppProtoSSH
 	}
 
+	// DHCP: BOOTP/DHCP flags
+	if len(data) >= 2 {
+		// DHCP messages start with BOOTP op(1) htype(1) hlen(1) hops(1) xid(4)
+		// Magic cookie at offset 236 (BOOTP base is 236 bytes)
+		if data[0] == 0x01 || data[0] == 0x02 { // BOOTREQUEST or BOOTREPLY
+			if len(data) >= 240 {
+				magic := binary.BigEndian.Uint32(data[236:240])
+				if magic == 0x63825363 { // DHCP magic cookie
+					return AppProtoDHCP
+				}
+			}
+		}
+	}
+
+	// mDNS: DNS format on port 5353 or multicast
+	if dport == 5353 || strings.Contains(string(data[:4]), "\x00\x00") {
+		if len(data) >= 12 {
+			flags := binary.BigEndian.Uint16(data[2:4])
+			qr := (flags >> 15) & 1
+			if qr == 0 && (dport == 5353) {
+				return AppProtomDNS
+			}
+		}
+	}
+
 	// Port-based inference
 	switch dport {
 	case 443:
@@ -247,6 +274,10 @@ func fingerprintProtocol(data []byte, dport uint32) AppProtocol {
 		return AppProtoSSH
 	case 53:
 		return AppProtoDNS
+	case 67, 68:
+		return AppProtoDHCP
+	case 5353:
+		return AppProtomDNS
 	}
 
 	return AppProtoUnknown
@@ -337,6 +368,20 @@ func detectAndRecordProtocol(dstIP string, dstPort uint32, data []byte) *protoDe
 			entry.HTTPHost = req.Host
 			entry.HTTPMethod = req.Method
 		}
+	case AppProtoSSH:
+		if ver, soft, err := extractSSHInfo(data); err == nil {
+			entry.SNI = soft
+			entry.HTTPHost = ver
+		}
+	case AppProtoDHCP:
+		if hostname, msgType, err := extractDHCPInfo(data); err == nil {
+			entry.HTTPHost = hostname
+			entry.SNI = msgType
+		}
+	case AppProtomDNS:
+		if queries := extractMDNSQueries(data); len(queries) > 0 {
+			entry.HTTPHost = strings.Join(queries, ", ")
+		}
 	}
 
 	key := fmt.Sprintf("%s:%d", dstIP, dstPort)
@@ -375,3 +420,157 @@ func splitEndpointHostPort(endpoint string) (string, string, error) {
 	}
 	return endpoint, "", fmt.Errorf("no port")
 }
+
+// ── SSH protocol detection ────────────────────────────────────────────
+
+func extractSSHInfo(data []byte) (version string, software string, err error) {
+	if len(data) < 9 {
+		return "", "", fmt.Errorf("too short for SSH banner")
+	}
+
+	// SSH banner: "SSH-2.0-OpenSSH_9.6\r\n" or similar
+	banner := string(data)
+	if !strings.HasPrefix(banner, "SSH-") {
+		return "", "", fmt.Errorf("not SSH")
+	}
+
+	// Find end of banner line
+	end := findCRLF(data)
+	if end < 0 {
+		end = len(data)
+	}
+
+	parts := strings.SplitN(banner[:end], "-", 3)
+	if len(parts) < 2 {
+		return banner[:min(end, 20)], "", nil
+	}
+
+	version = "SSH-" + parts[1]
+	if len(parts) >= 3 {
+		// parts[2] contains software version, possibly with trailing comments
+		software = strings.TrimSpace(parts[2])
+		// Strip comments after space
+		if idx := strings.Index(software, " "); idx > 0 {
+			software = software[:idx]
+		}
+	}
+
+	return version, software, nil
+}
+
+// ── DHCP protocol detection ───────────────────────────────────────────
+
+func extractDHCPInfo(data []byte) (string, string, error) {
+	if len(data) < 240 {
+		return "", "", fmt.Errorf("too short for DHCP")
+	}
+
+	// DHCP message type from option 53
+	msgType := data[0]
+	typeNames := map[byte]string{
+		1: "DHCPDISCOVER", 2: "DHCPOFFER", 3: "DHCPREQUEST",
+		4: "DHCPDECLINE", 5: "DHCPACK", 6: "DHCPNAK",
+		7: "DHCPRELEASE", 8: "DHCPINFORM",
+	}
+	typeName := typeNames[msgType]
+	if typeName == "" {
+		typeName = fmt.Sprintf("DHCP-%d", msgType)
+	}
+
+	// Extract hostname from option 12 (Host Name)
+	hostname := ""
+	if len(data) > 240 {
+		options := data[240:]
+		for i := 0; i < len(options)-2; {
+			optCode := options[i]
+			if optCode == 255 { // End
+				break
+			}
+			if optCode == 0 { // Pad
+				i++
+				continue
+			}
+			if i+1 >= len(options) {
+				break
+			}
+			optLen := int(options[i+1])
+			if optCode == 12 && optLen > 0 && i+2+optLen <= len(options) {
+				hostname = string(options[i+2 : i+2+optLen])
+				break
+			}
+			i += 2 + optLen
+		}
+	}
+
+	return hostname, typeName, nil
+}
+
+// ── mDNS query extraction ─────────────────────────────────────────────
+
+func extractMDNSQueries(data []byte) []string {
+	if len(data) < 12 {
+		return nil
+	}
+
+	// DNS header: ID(2) Flags(2) QDCOUNT(2) ANCOUNT(2) NSCOUNT(2) ARCOUNT(2)
+	qdcount := int(binary.BigEndian.Uint16(data[4:6]))
+	if qdcount == 0 || qdcount > 10 {
+		return nil
+	}
+
+	queries := make([]string, 0, qdcount)
+	offset := 12
+
+	for q := 0; q < qdcount && offset < len(data); q++ {
+		name, newOffset := parseDNSName(data, offset)
+		if name != "" {
+			queries = append(queries, name)
+		}
+		offset = newOffset + 4 // skip QTYPE(2) + QCLASS(2)
+	}
+
+	return queries
+}
+
+func parseDNSName(data []byte, offset int) (string, int) {
+	if offset >= len(data) {
+		return "", offset
+	}
+
+	parts := make([]string, 0)
+	pos := offset
+
+	for pos < len(data) {
+		length := int(data[pos])
+		if length == 0 {
+			pos++
+			break
+		}
+		// Handle pointer compression (top 2 bits = 11)
+		if length&0xC0 == 0xC0 {
+			if pos+1 >= len(data) {
+				break
+			}
+			ptr := int(binary.BigEndian.Uint16(data[pos:pos+2]) & 0x3FFF)
+			name, _ := parseDNSName(data, ptr)
+			parts = append(parts, name)
+			pos += 2
+			break
+		}
+		if length > 63 || pos+1+length > len(data) {
+			break
+		}
+		parts = append(parts, string(data[pos+1:pos+1+length]))
+		pos += 1 + length
+	}
+
+	return strings.Join(parts, "."), pos
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+

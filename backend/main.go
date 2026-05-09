@@ -212,6 +212,7 @@ func main() {
 	r.GET("/network/tcp-state", authMiddleware(), handleTCPState)
 	r.GET("/network/analyze", authMiddleware(), handleNetworkAnalyze)
 	r.GET("/network/dns-lookup", authMiddleware(), handleDNSLookup)
+	r.POST("/network/export-pcap", authMiddleware(), handlePCAPExport)
 	r.GET("/network/geoip", authMiddleware(), handleGeoIPLookup)
 	r.GET("/sandbox/cgroup/status", authMiddleware(), handleCgroupSandboxStatus)
 	r.POST("/sandbox/cgroup/block-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockCgroup)
