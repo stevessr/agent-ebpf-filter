@@ -21,7 +21,7 @@ const routes = [
     component: () => import('../views/Network.vue'),
   },
   {
-    path: '/network-flow',
+    path: '/network-flow/:tab?',
     name: 'NetworkFlow',
     component: () => import('../views/NetworkFlow.vue'),
   },

@@ -163,10 +163,11 @@ export function useSensors() {
   };
 
   const connectMicWS = () => {
-    if (micWs) micWs.close();
+    if (micWs) { micWs.onclose = null; micWs.onerror = null; micWs.close(); }
     const wsUrl = buildWebSocketUrl(`/ws/microphone?device=${encodeURIComponent(selectedMic.value)}`);
     micWs = new WebSocket(wsUrl);
     micWs.binaryType = 'arraybuffer';
+    micWs.onopen = () => { micVolume.value = 0; };
     micWs.onmessage = async (e) => {
       const samples = new Int16Array(e.data);
       let sum = 0;
@@ -175,6 +176,13 @@ export function useSensors() {
         if (i < micDataBuffer.value.length) micDataBuffer.value[i] = samples[i];
       }
       micVolume.value = Math.min(100, (sum / samples.length) / 327.68 * 2.5);
+    };
+    micWs.onerror = () => { /* auto-retry via onclose */ };
+    micWs.onclose = () => {
+      micVolume.value = 0;
+      if (micLiveMode.value) {
+        setTimeout(() => { if (micLiveMode.value) connectMicWS(); }, 2000);
+      }
     };
     return micWs;
   };

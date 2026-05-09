@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import {
   GlobalOutlined, ArrowDownOutlined, ArrowUpOutlined,
   DashboardOutlined, NodeIndexOutlined, WifiOutlined, AlertOutlined,
@@ -49,7 +50,24 @@ const {
 } = useNetworkInterfaces(5000);
 
 // ── Tab state ──────────────────────────────────────────────────────
-const activeTab = ref('overview');
+const route = useRoute();
+const router = useRouter();
+
+const activeTab = ref((route.params.tab as string) || 'overview');
+
+watch(activeTab, (tab) => {
+  const current = route.params.tab as string;
+  if (tab !== current) {
+    void router.replace({ name: 'NetworkFlow', params: { tab } });
+  }
+});
+
+watch(() => route.params.tab, (param) => {
+  const tab = (param as string) || 'overview';
+  if (tab !== activeTab.value) {
+    activeTab.value = tab;
+  }
+});
 const selectedFlow = ref<NetworkFlow | null>(null);
 const showFlowDetail = ref(false);
 

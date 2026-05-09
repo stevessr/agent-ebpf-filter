@@ -64,13 +64,17 @@ const drawMicWaveform = () => {
   micAnimationId = requestAnimationFrame(drawMicWaveform);
 };
 
-watch(() => props.micLiveMode, (val) => {
-  if (val) {
-    drawMicWaveform();
-  } else {
-    if (micAnimationId) { cancelAnimationFrame(micAnimationId); micAnimationId = null; }
-  }
-});
+watch(
+  [micCanvasRef, () => props.micLiveMode, () => props.sensorSubTab],
+  ([canvas, live, subTab]) => {
+    if (canvas && live && subTab === 'mic') {
+      if (micAnimationId === null) drawMicWaveform();
+    } else {
+      if (micAnimationId !== null) { cancelAnimationFrame(micAnimationId); micAnimationId = null; }
+    }
+  },
+  { flush: 'post' }
+);
 
 onUnmounted(() => {
   if (micAnimationId) cancelAnimationFrame(micAnimationId);
