@@ -6,7 +6,7 @@ import {
 import type { useConfigML } from '../../../composables/useConfigML';
 import { mlModelCategoryColor } from '../../../data/mlModelCatalog';
 
-const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+const VueApexCharts = defineAsyncComponent(async () => (await import('vue3-apexcharts')).default as any) as any;
 
 const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 

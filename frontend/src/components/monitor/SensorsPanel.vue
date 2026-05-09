@@ -2,7 +2,7 @@
 import { ref, watch, onUnmounted, defineAsyncComponent } from 'vue';
 import { AudioMutedOutlined, SoundOutlined } from '@ant-design/icons-vue';
 
-const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+const VueApexCharts = defineAsyncComponent(async () => (await import('vue3-apexcharts')).default as any) as any;
 
 const props = defineProps<{
   sensorSubTab: string;

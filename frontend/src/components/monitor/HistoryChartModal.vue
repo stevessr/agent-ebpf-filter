@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue';
 
-const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+const VueApexCharts = defineAsyncComponent(async () => (await import('vue3-apexcharts')).default as any) as any;
 
 defineProps<{
   show: boolean;

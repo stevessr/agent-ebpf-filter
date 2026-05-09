@@ -7,6 +7,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"agent-ebpf-filter/pb"
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 // ── IP Address Classification (from rustnet bogon.rs) ─────────────────
@@ -231,16 +234,24 @@ func ipScopeRiskScore(scope IPScope) float64 {
 // ── DNS → IP Correlation Cache (rustnet reverse-DNS concept) ─────────
 
 type dnsEntry struct {
-	Domain    string
-	IP        string
+	Domain     string
+	IP         string
 	ResolvedAt time.Time
-	TTL       time.Duration
+	TTL        time.Duration
 }
 
 type dnsCache struct {
 	mu       sync.RWMutex
 	entries  map[string]*dnsEntry // IP -> domain mapping
 	byDomain map[string]string    // domain -> IP reverse mapping
+}
+
+type dnsCacheSnapshotEntry struct {
+	Domain     string `json:"domain"`
+	IP         string `json:"ip"`
+	ResolvedAt int64  `json:"resolvedAt"`
+	ExpiresAt  int64  `json:"expiresAt"`
+	TTLSeconds int64  `json:"ttlSeconds"`
 }
 
 func newDNSCache() *dnsCache {
@@ -251,6 +262,10 @@ func newDNSCache() *dnsCache {
 }
 
 func (c *dnsCache) Record(domain, ip string) {
+	c.RecordWithTTL(domain, ip, 5*time.Minute)
+}
+
+func (c *dnsCache) RecordWithTTL(domain, ip string, ttl time.Duration) {
 	if c == nil || domain == "" || ip == "" {
 		return
 	}
@@ -266,7 +281,7 @@ func (c *dnsCache) Record(domain, ip string) {
 		Domain:     domain,
 		IP:         ip,
 		ResolvedAt: time.Now().UTC(),
-		TTL:        5 * time.Minute,
+		TTL:        ttl,
 	}
 	c.entries[ip] = entry
 	c.byDomain[domain] = ip
@@ -339,6 +354,33 @@ func (c *dnsCache) EvictExpired() {
 	}
 }
 
+func (c *dnsCache) Snapshot() []dnsCacheSnapshotEntry {
+	if c == nil {
+		return nil
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	now := time.Now()
+	entries := make([]dnsCacheSnapshotEntry, 0, len(c.entries))
+	for _, entry := range c.entries {
+		if entry == nil || entry.IP == "" || entry.Domain == "" {
+			continue
+		}
+		expiresAt := entry.ResolvedAt.Add(entry.TTL)
+		if now.After(expiresAt) {
+			continue
+		}
+		entries = append(entries, dnsCacheSnapshotEntry{
+			Domain:     entry.Domain,
+			IP:         entry.IP,
+			ResolvedAt: entry.ResolvedAt.UnixMilli(),
+			ExpiresAt:  expiresAt.UnixMilli(),
+			TTLSeconds: int64(time.Until(expiresAt).Seconds()),
+		})
+	}
+	return entries
+}
+
 var dnsCorrelation = newDNSCache()
 
 func startDNSCacheGC() {
@@ -365,21 +407,45 @@ func recordDNSQueryFromEvent(domain string) {
 
 // Correlate a DNS response with the query
 func correlateDNSResponse(srcIP string, rawData []byte) {
-	// For simplicity, we parse basic A-record responses
-	if len(rawData) < 20 {
+	var parser dnsmessage.Parser
+	header, err := parser.Start(rawData)
+	if err != nil || !header.Response {
 		return
 	}
-	// DNS response: flags at offset 2-3, answer count at offset 6-7
-	flags := uint16(rawData[2])<<8 | uint16(rawData[3])
-	if flags&0x8000 == 0 {
-		return // Not a response
+	questions := make([]string, 0, 2)
+	for {
+		question, err := parser.Question()
+		if err == dnsmessage.ErrSectionDone {
+			break
+		}
+		if err != nil {
+			return
+		}
+		questions = append(questions, strings.TrimSuffix(question.Name.String(), "."))
 	}
-	ancount := int(rawData[6])<<8 | int(rawData[7])
-	if ancount == 0 {
-		return
+	for {
+		answer, err := parser.Answer()
+		if err == dnsmessage.ErrSectionDone {
+			break
+		}
+		if err != nil {
+			return
+		}
+		domain := strings.TrimSuffix(answer.Header.Name.String(), ".")
+		if domain == "" && len(questions) > 0 {
+			domain = questions[0]
+		}
+		ttl := time.Duration(answer.Header.TTL) * time.Second
+		if ttl <= 0 {
+			ttl = 5 * time.Minute
+		}
+		switch body := answer.Body.(type) {
+		case *dnsmessage.AResource:
+			dnsCorrelation.RecordWithTTL(domain, net.IP(body.A[:]).String(), ttl)
+		case *dnsmessage.AAAAResource:
+			dnsCorrelation.RecordWithTTL(domain, net.IP(body.AAAA[:]).String(), ttl)
+		}
 	}
-	// Skip header (12) + question section to get to answer
-	// For now: simple placeholder - in production, use net/dnsmessage
 }
 
 // ── Service Name Resolution (rustnet services.rs) ────────────────────
@@ -437,42 +503,71 @@ func isSuspiciousPortService(serviceName string) bool {
 // ── Network Flow Summary ─────────────────────────────────────────────
 
 type NetworkFlowSummary struct {
-	Protocol     string  `json:"protocol"`
-	SrcIP        string  `json:"srcIp"`
-	SrcPort      uint32  `json:"srcPort"`
-	DstIP        string  `json:"dstIp"`
-	DstPort      uint32  `json:"dstPort"`
-	DstService   string  `json:"dstService,omitempty"`
-	DstDomain    string  `json:"dstDomain,omitempty"`
-	IPScope      string  `json:"ipScope"`
-	Direction    string  `json:"direction"`
-	State        string  `json:"state,omitempty"`
-	BytesIn      uint64  `json:"bytesIn"`
-	BytesOut     uint64  `json:"bytesOut"`
-	PacketsIn    uint64  `json:"packetsIn"`
-	PacketsOut   uint64  `json:"packetsOut"`
-	ProcessPIDs  []uint32 `json:"processPids"`
-	ProcessComms []string `json:"processComms"`
-	FirstSeen    int64   `json:"firstSeen"`
-	LastSeen     int64   `json:"lastSeen"`
-	RiskScore    float64 `json:"riskScore"`
-	AppProtocol  string  `json:"appProtocol,omitempty"`
+	FlowID        string   `json:"flowId"`
+	Protocol      string   `json:"protocol"`
+	Transport     string   `json:"transport"`
+	SrcIP         string   `json:"srcIp"`
+	SrcPort       uint32   `json:"srcPort"`
+	DstIP         string   `json:"dstIp"`
+	DstPort       uint32   `json:"dstPort"`
+	DstService    string   `json:"dstService,omitempty"`
+	DstDomain     string   `json:"dstDomain,omitempty"`
+	DNSName       string   `json:"dnsName,omitempty"`
+	SNI           string   `json:"sni,omitempty"`
+	HTTPHost      string   `json:"httpHost,omitempty"`
+	HTTPMethod    string   `json:"httpMethod,omitempty"`
+	TLSALPN       string   `json:"tlsAlpn,omitempty"`
+	IPScope       string   `json:"ipScope"`
+	Direction     string   `json:"direction"`
+	State         string   `json:"state,omitempty"`
+	BytesIn       uint64   `json:"bytesIn"`
+	BytesOut      uint64   `json:"bytesOut"`
+	PacketsIn     uint64   `json:"packetsIn"`
+	PacketsOut    uint64   `json:"packetsOut"`
+	CurrentBpsIn  float64  `json:"currentBpsIn"`
+	CurrentBpsOut float64  `json:"currentBpsOut"`
+	PeakBpsIn     float64  `json:"peakBpsIn"`
+	PeakBpsOut    float64  `json:"peakBpsOut"`
+	ProcessPIDs   []uint32 `json:"processPids"`
+	ProcessComms  []string `json:"processComms"`
+	AgentRunIDs   []string `json:"agentRunIds,omitempty"`
+	TaskIDs       []string `json:"taskIds,omitempty"`
+	ToolCallIDs   []string `json:"toolCallIds,omitempty"`
+	TraceIDs      []string `json:"traceIds,omitempty"`
+	SpanIDs       []string `json:"spanIds,omitempty"`
+	ContainerIDs  []string `json:"containerIds,omitempty"`
+	Decisions     []string `json:"decisions,omitempty"`
+	FirstSeen     int64    `json:"firstSeen"`
+	LastSeen      int64    `json:"lastSeen"`
+	DurationMs    int64    `json:"durationMs"`
+	StaleLevel    string   `json:"staleLevel"`
+	Historic      bool     `json:"historic"`
+	RiskScore     float64  `json:"riskScore"`
+	RiskLevel     string   `json:"riskLevel"`
+	RiskReasons   []string `json:"riskReasons,omitempty"`
+	AppProtocol   string   `json:"appProtocol,omitempty"`
 }
 
 type flowKey struct {
 	Protocol string
 	SrcIP    string
+	SrcPort  uint32
 	DstIP    string
 	DstPort  uint32
 }
 
-func makeFlowKey(srcIP, dstIP string, dstPort uint32, protocol string) flowKey {
+func makeFlowKey(srcIP, dstIP string, srcPort, dstPort uint32, protocol string) flowKey {
 	return flowKey{
 		Protocol: protocol,
 		SrcIP:    srcIP,
+		SrcPort:  srcPort,
 		DstIP:    dstIP,
 		DstPort:  dstPort,
 	}
+}
+
+func (k flowKey) ID() string {
+	return fmt.Sprintf("%s:%s:%d->%s:%d", strings.ToUpper(k.Protocol), k.SrcIP, k.SrcPort, k.DstIP, k.DstPort)
 }
 
 type flowAggregator struct {
@@ -487,10 +582,14 @@ func newFlowAggregator() *flowAggregator {
 }
 
 func (f *flowAggregator) RecordConnection(srcIP, dstIP string, srcPort, dstPort uint32, protocol, comm string, pid uint32, direction string, state string) {
+	f.RecordConnectionContext(srcIP, dstIP, srcPort, dstPort, protocol, comm, pid, direction, state, nil)
+}
+
+func (f *flowAggregator) RecordConnectionContext(srcIP, dstIP string, srcPort, dstPort uint32, protocol, comm string, pid uint32, direction string, state string, event *pb.Event) {
 	if f == nil {
 		return
 	}
-	key := makeFlowKey(srcIP, dstIP, dstPort, protocol)
+	key := makeFlowKey(srcIP, dstIP, srcPort, dstPort, protocol)
 	now := time.Now().UTC().UnixMilli()
 
 	f.mu.Lock()
@@ -501,33 +600,73 @@ func (f *flowAggregator) RecordConnection(srcIP, dstIP string, srcPort, dstPort 
 		scope := classifyIPScope(net.ParseIP(dstIP))
 		service := lookupService(uint16(dstPort))
 		domain, _ := dnsCorrelation.LookupIP(dstIP)
-		risk := ipScopeRiskScore(scope)
-		if isSuspiciousPortService(service) {
-			risk = maxFloat64(risk, 0.80)
-		}
+			risk := ipScopeRiskScore(scope)
+			riskReasons := make([]string, 0, 3)
+			if risk >= 0.70 {
+				riskReasons = append(riskReasons, "suspicious IP scope: "+string(scope))
+			}
+			if isSuspiciousPortService(service) {
+				risk = maxFloat64(risk, 0.80)
+				riskReasons = append(riskReasons, "suspicious service/port: "+service)
+			}
 
 		flow = &NetworkFlowSummary{
-			Protocol:    protocol,
-			SrcIP:       srcIP,
-			SrcPort:     srcPort,
-			DstIP:       dstIP,
-			DstPort:     dstPort,
-			DstService:  service,
-			DstDomain:   domain,
-			IPScope:     string(scope),
-			Direction:   direction,
-			State:       state,
-			ProcessPIDs: make([]uint32, 0),
+			FlowID:       key.ID(),
+			Protocol:     protocol,
+			Transport:    protocol,
+			SrcIP:        srcIP,
+			SrcPort:      srcPort,
+			DstIP:        dstIP,
+			DstPort:      dstPort,
+			DstService:   service,
+			DstDomain:    domain,
+			IPScope:      string(scope),
+			Direction:    direction,
+			State:        state,
+			ProcessPIDs:  make([]uint32, 0),
 			ProcessComms: make([]string, 0),
-			FirstSeen:   now,
-			RiskScore:   risk,
+			FirstSeen:    now,
+				LastSeen:     now,
+				RiskScore:    risk,
+				RiskReasons:  riskReasons,
+				AppProtocol:  detectAppProtocol(dstPort, domain),
+			}
+		if domain != "" {
+			flow.DNSName = domain
 		}
 		f.flows[key] = flow
 	}
 
+	previousBytesIn := flow.BytesIn
+	previousBytesOut := flow.BytesOut
+	previousLastSeen := flow.LastSeen
 	flow.LastSeen = now
 	if state != "" {
 		flow.State = state
+	}
+	if flow.State == "CLOSED" || flow.State == "CLOSE" || strings.EqualFold(state, "closed") {
+		flow.Historic = true
+	}
+	if event != nil {
+		switch direction {
+		case "incoming":
+			flow.BytesIn += uint64(event.GetNetBytes())
+			flow.PacketsIn++
+		case "outgoing":
+			flow.BytesOut += uint64(event.GetNetBytes())
+			flow.PacketsOut++
+		}
+	}
+	elapsedSinceUpdate := float64(now-previousLastSeen) / 1000
+	if previousLastSeen > 0 && elapsedSinceUpdate > 0 {
+		flow.CurrentBpsIn = float64(flow.BytesIn-previousBytesIn) / elapsedSinceUpdate
+		flow.CurrentBpsOut = float64(flow.BytesOut-previousBytesOut) / elapsedSinceUpdate
+		if flow.CurrentBpsIn > flow.PeakBpsIn {
+			flow.PeakBpsIn = flow.CurrentBpsIn
+		}
+		if flow.CurrentBpsOut > flow.PeakBpsOut {
+			flow.PeakBpsOut = flow.CurrentBpsOut
+		}
 	}
 
 	// Deduplicate processes
@@ -542,6 +681,55 @@ func (f *flowAggregator) RecordConnection(srcIP, dstIP string, srcPort, dstPort 
 		flow.ProcessPIDs = append(flow.ProcessPIDs, pid)
 		flow.ProcessComms = append(flow.ProcessComms, comm)
 	}
+	if event != nil {
+		addUniqueString(&flow.AgentRunIDs, event.GetAgentRunId())
+		addUniqueString(&flow.TaskIDs, event.GetTaskId())
+		addUniqueString(&flow.ToolCallIDs, event.GetToolCallId())
+		addUniqueString(&flow.TraceIDs, event.GetTraceId())
+		addUniqueString(&flow.SpanIDs, event.GetSpanId())
+		addUniqueString(&flow.ContainerIDs, event.GetContainerId())
+		addUniqueString(&flow.Decisions, event.GetDecision())
+		if event.GetRiskScore() > flow.RiskScore {
+			flow.RiskScore = event.GetRiskScore()
+		}
+	}
+	updateFlowRisk(flow)
+}
+
+func (f *flowAggregator) ApplyProtocolMetadata(srcIP, dstIP string, srcPort, dstPort uint32, protocol string, entry *protoDetectionEntry) {
+	if f == nil || entry == nil {
+		return
+	}
+	key := makeFlowKey(srcIP, dstIP, srcPort, dstPort, protocol)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	flow, ok := f.flows[key]
+	if !ok {
+		return
+	}
+	flow.AppProtocol = string(entry.AppProtocol)
+	if entry.SNI != "" {
+		flow.SNI = entry.SNI
+		if flow.DstDomain == "" {
+			flow.DstDomain = entry.SNI
+		}
+	}
+	if entry.ALPN != "" {
+		flow.TLSALPN = entry.ALPN
+	}
+	if entry.HTTPHost != "" {
+		flow.HTTPHost = entry.HTTPHost
+		if flow.DstDomain == "" || flow.DstDomain == flow.SNI {
+			flow.DstDomain = entry.HTTPHost
+		}
+		if entry.AppProtocol == AppProtoDNS || entry.AppProtocol == AppProtomDNS {
+			flow.DNSName = entry.HTTPHost
+		}
+	}
+	if entry.HTTPMethod != "" {
+		flow.HTTPMethod = entry.HTTPMethod
+	}
+	updateFlowRisk(flow)
 }
 
 func (f *flowAggregator) Snapshot() []NetworkFlowSummary {
@@ -549,8 +737,9 @@ func (f *flowAggregator) Snapshot() []NetworkFlowSummary {
 	defer f.mu.RUnlock()
 
 	flows := make([]NetworkFlowSummary, 0, len(f.flows))
+	now := time.Now().UTC().UnixMilli()
 	for _, flow := range f.flows {
-		flows = append(flows, *flow)
+		flows = append(flows, finalizeNetworkFlowSummary(*flow, now))
 	}
 	return flows
 }
@@ -663,14 +852,14 @@ func (s TCPState) IsEstablished() bool {
 }
 
 type tcpConnectionState struct {
-	SrcIP       string
-	DstIP       string
-	SrcPort     uint32
-	DstPort     uint32
-	State       TCPState
-	LastUpdate  time.Time
-	PID         uint32
-	Comm        string
+	SrcIP      string
+	DstIP      string
+	SrcPort    uint32
+	DstPort    uint32
+	State      TCPState
+	LastUpdate time.Time
+	PID        uint32
+	Comm       string
 }
 
 type tcpStateTracker struct {
@@ -831,6 +1020,17 @@ func detectAppProtocol(port uint32, domain string) string {
 func recordNetworkFlowFromEvent(srcIP, dstIP string, srcPort, dstPort uint32, comm string, pid uint32, direction, state string) {
 	protocol := "TCP"
 	networkFlowAggregator.RecordConnection(srcIP, dstIP, srcPort, dstPort, protocol, comm, pid, direction, state)
+}
+
+func recordNetworkFlowContextFromEvent(srcIP, dstIP string, srcPort, dstPort uint32, event *pb.Event, state string) {
+	if event == nil {
+		return
+	}
+	protocol := "TCP"
+	if event.GetType() == "network_sendto" || event.GetType() == "network_recvfrom" {
+		protocol = "UDP"
+	}
+	networkFlowAggregator.RecordConnectionContext(srcIP, dstIP, srcPort, dstPort, protocol, event.GetComm(), event.GetPid(), event.GetNetDirection(), state, event)
 }
 
 func enrichEndpointWithContext(endpoint string) string {

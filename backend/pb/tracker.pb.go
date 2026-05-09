@@ -782,6 +782,32 @@ type Event struct {
 	TaskId         string                  `protobuf:"bytes,40,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	Cwd            string                  `protobuf:"bytes,41,opt,name=cwd,proto3" json:"cwd,omitempty"`
 	Tgid           uint32                  `protobuf:"varint,42,opt,name=tgid,proto3" json:"tgid,omitempty"`
+	FlowId         string                  `protobuf:"bytes,43,opt,name=flow_id,json=flowId,proto3" json:"flow_id,omitempty"`
+	SrcIp          string                  `protobuf:"bytes,44,opt,name=src_ip,json=srcIp,proto3" json:"src_ip,omitempty"`
+	SrcPort        uint32                  `protobuf:"varint,45,opt,name=src_port,json=srcPort,proto3" json:"src_port,omitempty"`
+	DstIp          string                  `protobuf:"bytes,46,opt,name=dst_ip,json=dstIp,proto3" json:"dst_ip,omitempty"`
+	DstPort        uint32                  `protobuf:"varint,47,opt,name=dst_port,json=dstPort,proto3" json:"dst_port,omitempty"`
+	Transport      string                  `protobuf:"bytes,48,opt,name=transport,proto3" json:"transport,omitempty"`
+	AppProtocol    string                  `protobuf:"bytes,49,opt,name=app_protocol,json=appProtocol,proto3" json:"app_protocol,omitempty"`
+	ServiceName    string                  `protobuf:"bytes,50,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
+	DnsName        string                  `protobuf:"bytes,51,opt,name=dns_name,json=dnsName,proto3" json:"dns_name,omitempty"`
+	Sni            string                  `protobuf:"bytes,52,opt,name=sni,proto3" json:"sni,omitempty"`
+	HttpHost       string                  `protobuf:"bytes,53,opt,name=http_host,json=httpHost,proto3" json:"http_host,omitempty"`
+	TlsAlpn        string                  `protobuf:"bytes,54,opt,name=tls_alpn,json=tlsAlpn,proto3" json:"tls_alpn,omitempty"`
+	QuicState      string                  `protobuf:"bytes,55,opt,name=quic_state,json=quicState,proto3" json:"quic_state,omitempty"`
+	InterfaceName  string                  `protobuf:"bytes,56,opt,name=interface_name,json=interfaceName,proto3" json:"interface_name,omitempty"`
+	BytesIn        uint64                  `protobuf:"varint,57,opt,name=bytes_in,json=bytesIn,proto3" json:"bytes_in,omitempty"`
+	BytesOut       uint64                  `protobuf:"varint,58,opt,name=bytes_out,json=bytesOut,proto3" json:"bytes_out,omitempty"`
+	PacketsIn      uint64                  `protobuf:"varint,59,opt,name=packets_in,json=packetsIn,proto3" json:"packets_in,omitempty"`
+	PacketsOut     uint64                  `protobuf:"varint,60,opt,name=packets_out,json=packetsOut,proto3" json:"packets_out,omitempty"`
+	FirstSeenMs    uint64                  `protobuf:"varint,61,opt,name=first_seen_ms,json=firstSeenMs,proto3" json:"first_seen_ms,omitempty"`
+	LastSeenMs     uint64                  `protobuf:"varint,62,opt,name=last_seen_ms,json=lastSeenMs,proto3" json:"last_seen_ms,omitempty"`
+	StaleLevel     string                  `protobuf:"bytes,63,opt,name=stale_level,json=staleLevel,proto3" json:"stale_level,omitempty"`
+	Historic       bool                    `protobuf:"varint,64,opt,name=historic,proto3" json:"historic,omitempty"`
+	GeoCountry     string                  `protobuf:"bytes,65,opt,name=geo_country,json=geoCountry,proto3" json:"geo_country,omitempty"`
+	GeoCountryCode string                  `protobuf:"bytes,66,opt,name=geo_country_code,json=geoCountryCode,proto3" json:"geo_country_code,omitempty"`
+	GeoAsn         uint32                  `protobuf:"varint,67,opt,name=geo_asn,json=geoAsn,proto3" json:"geo_asn,omitempty"`
+	IpScope        string                  `protobuf:"bytes,68,opt,name=ip_scope,json=ipScope,proto3" json:"ip_scope,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1110,6 +1136,188 @@ func (x *Event) GetTgid() uint32 {
 	return 0
 }
 
+func (x *Event) GetFlowId() string {
+	if x != nil {
+		return x.FlowId
+	}
+	return ""
+}
+
+func (x *Event) GetSrcIp() string {
+	if x != nil {
+		return x.SrcIp
+	}
+	return ""
+}
+
+func (x *Event) GetSrcPort() uint32 {
+	if x != nil {
+		return x.SrcPort
+	}
+	return 0
+}
+
+func (x *Event) GetDstIp() string {
+	if x != nil {
+		return x.DstIp
+	}
+	return ""
+}
+
+func (x *Event) GetDstPort() uint32 {
+	if x != nil {
+		return x.DstPort
+	}
+	return 0
+}
+
+func (x *Event) GetTransport() string {
+	if x != nil {
+		return x.Transport
+	}
+	return ""
+}
+
+func (x *Event) GetAppProtocol() string {
+	if x != nil {
+		return x.AppProtocol
+	}
+	return ""
+}
+
+func (x *Event) GetServiceName() string {
+	if x != nil {
+		return x.ServiceName
+	}
+	return ""
+}
+
+func (x *Event) GetDnsName() string {
+	if x != nil {
+		return x.DnsName
+	}
+	return ""
+}
+
+func (x *Event) GetSni() string {
+	if x != nil {
+		return x.Sni
+	}
+	return ""
+}
+
+func (x *Event) GetHttpHost() string {
+	if x != nil {
+		return x.HttpHost
+	}
+	return ""
+}
+
+func (x *Event) GetTlsAlpn() string {
+	if x != nil {
+		return x.TlsAlpn
+	}
+	return ""
+}
+
+func (x *Event) GetQuicState() string {
+	if x != nil {
+		return x.QuicState
+	}
+	return ""
+}
+
+func (x *Event) GetInterfaceName() string {
+	if x != nil {
+		return x.InterfaceName
+	}
+	return ""
+}
+
+func (x *Event) GetBytesIn() uint64 {
+	if x != nil {
+		return x.BytesIn
+	}
+	return 0
+}
+
+func (x *Event) GetBytesOut() uint64 {
+	if x != nil {
+		return x.BytesOut
+	}
+	return 0
+}
+
+func (x *Event) GetPacketsIn() uint64 {
+	if x != nil {
+		return x.PacketsIn
+	}
+	return 0
+}
+
+func (x *Event) GetPacketsOut() uint64 {
+	if x != nil {
+		return x.PacketsOut
+	}
+	return 0
+}
+
+func (x *Event) GetFirstSeenMs() uint64 {
+	if x != nil {
+		return x.FirstSeenMs
+	}
+	return 0
+}
+
+func (x *Event) GetLastSeenMs() uint64 {
+	if x != nil {
+		return x.LastSeenMs
+	}
+	return 0
+}
+
+func (x *Event) GetStaleLevel() string {
+	if x != nil {
+		return x.StaleLevel
+	}
+	return ""
+}
+
+func (x *Event) GetHistoric() bool {
+	if x != nil {
+		return x.Historic
+	}
+	return false
+}
+
+func (x *Event) GetGeoCountry() string {
+	if x != nil {
+		return x.GeoCountry
+	}
+	return ""
+}
+
+func (x *Event) GetGeoCountryCode() string {
+	if x != nil {
+		return x.GeoCountryCode
+	}
+	return ""
+}
+
+func (x *Event) GetGeoAsn() uint32 {
+	if x != nil {
+		return x.GeoAsn
+	}
+	return 0
+}
+
+func (x *Event) GetIpScope() string {
+	if x != nil {
+		return x.IpScope
+	}
+	return ""
+}
+
 type ExecEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
@@ -1303,18 +1511,44 @@ func (x *FileEvent) GetExtraInfo() string {
 }
 
 type NetworkEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Endpoint      string                 `protobuf:"bytes,1,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
-	Direction     string                 `protobuf:"bytes,2,opt,name=direction,proto3" json:"direction,omitempty"`
-	Bytes         uint32                 `protobuf:"varint,3,opt,name=bytes,proto3" json:"bytes,omitempty"`
-	Family        string                 `protobuf:"bytes,4,opt,name=family,proto3" json:"family,omitempty"`
-	Domain        string                 `protobuf:"bytes,5,opt,name=domain,proto3" json:"domain,omitempty"`
-	SockType      string                 `protobuf:"bytes,6,opt,name=sock_type,json=sockType,proto3" json:"sock_type,omitempty"`
-	Protocol      uint32                 `protobuf:"varint,7,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	Retval        int64                  `protobuf:"varint,8,opt,name=retval,proto3" json:"retval,omitempty"`
-	ExtraInfo     string                 `protobuf:"bytes,9,opt,name=extra_info,json=extraInfo,proto3" json:"extra_info,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Endpoint       string                 `protobuf:"bytes,1,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	Direction      string                 `protobuf:"bytes,2,opt,name=direction,proto3" json:"direction,omitempty"`
+	Bytes          uint32                 `protobuf:"varint,3,opt,name=bytes,proto3" json:"bytes,omitempty"`
+	Family         string                 `protobuf:"bytes,4,opt,name=family,proto3" json:"family,omitempty"`
+	Domain         string                 `protobuf:"bytes,5,opt,name=domain,proto3" json:"domain,omitempty"`
+	SockType       string                 `protobuf:"bytes,6,opt,name=sock_type,json=sockType,proto3" json:"sock_type,omitempty"`
+	Protocol       uint32                 `protobuf:"varint,7,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	Retval         int64                  `protobuf:"varint,8,opt,name=retval,proto3" json:"retval,omitempty"`
+	ExtraInfo      string                 `protobuf:"bytes,9,opt,name=extra_info,json=extraInfo,proto3" json:"extra_info,omitempty"`
+	FlowId         string                 `protobuf:"bytes,10,opt,name=flow_id,json=flowId,proto3" json:"flow_id,omitempty"`
+	SrcIp          string                 `protobuf:"bytes,11,opt,name=src_ip,json=srcIp,proto3" json:"src_ip,omitempty"`
+	SrcPort        uint32                 `protobuf:"varint,12,opt,name=src_port,json=srcPort,proto3" json:"src_port,omitempty"`
+	DstIp          string                 `protobuf:"bytes,13,opt,name=dst_ip,json=dstIp,proto3" json:"dst_ip,omitempty"`
+	DstPort        uint32                 `protobuf:"varint,14,opt,name=dst_port,json=dstPort,proto3" json:"dst_port,omitempty"`
+	Transport      string                 `protobuf:"bytes,15,opt,name=transport,proto3" json:"transport,omitempty"`
+	AppProtocol    string                 `protobuf:"bytes,16,opt,name=app_protocol,json=appProtocol,proto3" json:"app_protocol,omitempty"`
+	ServiceName    string                 `protobuf:"bytes,17,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
+	DnsName        string                 `protobuf:"bytes,18,opt,name=dns_name,json=dnsName,proto3" json:"dns_name,omitempty"`
+	Sni            string                 `protobuf:"bytes,19,opt,name=sni,proto3" json:"sni,omitempty"`
+	HttpHost       string                 `protobuf:"bytes,20,opt,name=http_host,json=httpHost,proto3" json:"http_host,omitempty"`
+	TlsAlpn        string                 `protobuf:"bytes,21,opt,name=tls_alpn,json=tlsAlpn,proto3" json:"tls_alpn,omitempty"`
+	QuicState      string                 `protobuf:"bytes,22,opt,name=quic_state,json=quicState,proto3" json:"quic_state,omitempty"`
+	InterfaceName  string                 `protobuf:"bytes,23,opt,name=interface_name,json=interfaceName,proto3" json:"interface_name,omitempty"`
+	BytesIn        uint64                 `protobuf:"varint,24,opt,name=bytes_in,json=bytesIn,proto3" json:"bytes_in,omitempty"`
+	BytesOut       uint64                 `protobuf:"varint,25,opt,name=bytes_out,json=bytesOut,proto3" json:"bytes_out,omitempty"`
+	PacketsIn      uint64                 `protobuf:"varint,26,opt,name=packets_in,json=packetsIn,proto3" json:"packets_in,omitempty"`
+	PacketsOut     uint64                 `protobuf:"varint,27,opt,name=packets_out,json=packetsOut,proto3" json:"packets_out,omitempty"`
+	FirstSeenMs    uint64                 `protobuf:"varint,28,opt,name=first_seen_ms,json=firstSeenMs,proto3" json:"first_seen_ms,omitempty"`
+	LastSeenMs     uint64                 `protobuf:"varint,29,opt,name=last_seen_ms,json=lastSeenMs,proto3" json:"last_seen_ms,omitempty"`
+	StaleLevel     string                 `protobuf:"bytes,30,opt,name=stale_level,json=staleLevel,proto3" json:"stale_level,omitempty"`
+	Historic       bool                   `protobuf:"varint,31,opt,name=historic,proto3" json:"historic,omitempty"`
+	GeoCountry     string                 `protobuf:"bytes,32,opt,name=geo_country,json=geoCountry,proto3" json:"geo_country,omitempty"`
+	GeoCountryCode string                 `protobuf:"bytes,33,opt,name=geo_country_code,json=geoCountryCode,proto3" json:"geo_country_code,omitempty"`
+	GeoAsn         uint32                 `protobuf:"varint,34,opt,name=geo_asn,json=geoAsn,proto3" json:"geo_asn,omitempty"`
+	IpScope        string                 `protobuf:"bytes,35,opt,name=ip_scope,json=ipScope,proto3" json:"ip_scope,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *NetworkEvent) Reset() {
@@ -1406,6 +1640,188 @@ func (x *NetworkEvent) GetRetval() int64 {
 func (x *NetworkEvent) GetExtraInfo() string {
 	if x != nil {
 		return x.ExtraInfo
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetFlowId() string {
+	if x != nil {
+		return x.FlowId
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetSrcIp() string {
+	if x != nil {
+		return x.SrcIp
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetSrcPort() uint32 {
+	if x != nil {
+		return x.SrcPort
+	}
+	return 0
+}
+
+func (x *NetworkEvent) GetDstIp() string {
+	if x != nil {
+		return x.DstIp
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetDstPort() uint32 {
+	if x != nil {
+		return x.DstPort
+	}
+	return 0
+}
+
+func (x *NetworkEvent) GetTransport() string {
+	if x != nil {
+		return x.Transport
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetAppProtocol() string {
+	if x != nil {
+		return x.AppProtocol
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetServiceName() string {
+	if x != nil {
+		return x.ServiceName
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetDnsName() string {
+	if x != nil {
+		return x.DnsName
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetSni() string {
+	if x != nil {
+		return x.Sni
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetHttpHost() string {
+	if x != nil {
+		return x.HttpHost
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetTlsAlpn() string {
+	if x != nil {
+		return x.TlsAlpn
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetQuicState() string {
+	if x != nil {
+		return x.QuicState
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetInterfaceName() string {
+	if x != nil {
+		return x.InterfaceName
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetBytesIn() uint64 {
+	if x != nil {
+		return x.BytesIn
+	}
+	return 0
+}
+
+func (x *NetworkEvent) GetBytesOut() uint64 {
+	if x != nil {
+		return x.BytesOut
+	}
+	return 0
+}
+
+func (x *NetworkEvent) GetPacketsIn() uint64 {
+	if x != nil {
+		return x.PacketsIn
+	}
+	return 0
+}
+
+func (x *NetworkEvent) GetPacketsOut() uint64 {
+	if x != nil {
+		return x.PacketsOut
+	}
+	return 0
+}
+
+func (x *NetworkEvent) GetFirstSeenMs() uint64 {
+	if x != nil {
+		return x.FirstSeenMs
+	}
+	return 0
+}
+
+func (x *NetworkEvent) GetLastSeenMs() uint64 {
+	if x != nil {
+		return x.LastSeenMs
+	}
+	return 0
+}
+
+func (x *NetworkEvent) GetStaleLevel() string {
+	if x != nil {
+		return x.StaleLevel
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetHistoric() bool {
+	if x != nil {
+		return x.Historic
+	}
+	return false
+}
+
+func (x *NetworkEvent) GetGeoCountry() string {
+	if x != nil {
+		return x.GeoCountry
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetGeoCountryCode() string {
+	if x != nil {
+		return x.GeoCountryCode
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetGeoAsn() uint32 {
+	if x != nil {
+		return x.GeoAsn
+	}
+	return 0
+}
+
+func (x *NetworkEvent) GetIpScope() string {
+	if x != nil {
+		return x.IpScope
 	}
 	return ""
 }
@@ -5642,7 +6058,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\"H\n" +
 	"\x12UnregisterResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\xac\t\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xb2\x0f\n" +
 	"\x05Event\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
 	"\x04ppid\x18\x02 \x01(\rR\x04ppid\x12\x10\n" +
@@ -5695,7 +6111,39 @@ const file_tracker_proto_rawDesc = "" +
 	"argvDigest\x12\x17\n" +
 	"\atask_id\x18( \x01(\tR\x06taskId\x12\x10\n" +
 	"\x03cwd\x18) \x01(\tR\x03cwd\x12\x12\n" +
-	"\x04tgid\x18* \x01(\rR\x04tgid\"\xaa\x01\n" +
+	"\x04tgid\x18* \x01(\rR\x04tgid\x12\x17\n" +
+	"\aflow_id\x18+ \x01(\tR\x06flowId\x12\x15\n" +
+	"\x06src_ip\x18, \x01(\tR\x05srcIp\x12\x19\n" +
+	"\bsrc_port\x18- \x01(\rR\asrcPort\x12\x15\n" +
+	"\x06dst_ip\x18. \x01(\tR\x05dstIp\x12\x19\n" +
+	"\bdst_port\x18/ \x01(\rR\adstPort\x12\x1c\n" +
+	"\ttransport\x180 \x01(\tR\ttransport\x12!\n" +
+	"\fapp_protocol\x181 \x01(\tR\vappProtocol\x12!\n" +
+	"\fservice_name\x182 \x01(\tR\vserviceName\x12\x19\n" +
+	"\bdns_name\x183 \x01(\tR\adnsName\x12\x10\n" +
+	"\x03sni\x184 \x01(\tR\x03sni\x12\x1b\n" +
+	"\thttp_host\x185 \x01(\tR\bhttpHost\x12\x19\n" +
+	"\btls_alpn\x186 \x01(\tR\atlsAlpn\x12\x1d\n" +
+	"\n" +
+	"quic_state\x187 \x01(\tR\tquicState\x12%\n" +
+	"\x0einterface_name\x188 \x01(\tR\rinterfaceName\x12\x19\n" +
+	"\bbytes_in\x189 \x01(\x04R\abytesIn\x12\x1b\n" +
+	"\tbytes_out\x18: \x01(\x04R\bbytesOut\x12\x1d\n" +
+	"\n" +
+	"packets_in\x18; \x01(\x04R\tpacketsIn\x12\x1f\n" +
+	"\vpackets_out\x18< \x01(\x04R\n" +
+	"packetsOut\x12\"\n" +
+	"\rfirst_seen_ms\x18= \x01(\x04R\vfirstSeenMs\x12 \n" +
+	"\flast_seen_ms\x18> \x01(\x04R\n" +
+	"lastSeenMs\x12\x1f\n" +
+	"\vstale_level\x18? \x01(\tR\n" +
+	"staleLevel\x12\x1a\n" +
+	"\bhistoric\x18@ \x01(\bR\bhistoric\x12\x1f\n" +
+	"\vgeo_country\x18A \x01(\tR\n" +
+	"geoCountry\x12(\n" +
+	"\x10geo_country_code\x18B \x01(\tR\x0egeoCountryCode\x12\x17\n" +
+	"\ageo_asn\x18C \x01(\rR\x06geoAsn\x12\x19\n" +
+	"\bip_scope\x18D \x01(\tR\aipScope\"\xaa\x01\n" +
 	"\tExecEvent\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x16\n" +
 	"\x06retval\x18\x02 \x01(\x03R\x06retval\x12\x1f\n" +
@@ -5717,7 +6165,7 @@ const file_tracker_proto_rawDesc = "" +
 	"\agid_arg\x18\a \x01(\rR\x06gidArg\x12\x16\n" +
 	"\x06retval\x18\b \x01(\x03R\x06retval\x12\x1d\n" +
 	"\n" +
-	"extra_info\x18\t \x01(\tR\textraInfo\"\xfe\x01\n" +
+	"extra_info\x18\t \x01(\tR\textraInfo\"\x84\b\n" +
 	"\fNetworkEvent\x12\x1a\n" +
 	"\bendpoint\x18\x01 \x01(\tR\bendpoint\x12\x1c\n" +
 	"\tdirection\x18\x02 \x01(\tR\tdirection\x12\x14\n" +
@@ -5728,7 +6176,40 @@ const file_tracker_proto_rawDesc = "" +
 	"\bprotocol\x18\a \x01(\rR\bprotocol\x12\x16\n" +
 	"\x06retval\x18\b \x01(\x03R\x06retval\x12\x1d\n" +
 	"\n" +
-	"extra_info\x18\t \x01(\tR\textraInfo\"\xd8\x01\n" +
+	"extra_info\x18\t \x01(\tR\textraInfo\x12\x17\n" +
+	"\aflow_id\x18\n" +
+	" \x01(\tR\x06flowId\x12\x15\n" +
+	"\x06src_ip\x18\v \x01(\tR\x05srcIp\x12\x19\n" +
+	"\bsrc_port\x18\f \x01(\rR\asrcPort\x12\x15\n" +
+	"\x06dst_ip\x18\r \x01(\tR\x05dstIp\x12\x19\n" +
+	"\bdst_port\x18\x0e \x01(\rR\adstPort\x12\x1c\n" +
+	"\ttransport\x18\x0f \x01(\tR\ttransport\x12!\n" +
+	"\fapp_protocol\x18\x10 \x01(\tR\vappProtocol\x12!\n" +
+	"\fservice_name\x18\x11 \x01(\tR\vserviceName\x12\x19\n" +
+	"\bdns_name\x18\x12 \x01(\tR\adnsName\x12\x10\n" +
+	"\x03sni\x18\x13 \x01(\tR\x03sni\x12\x1b\n" +
+	"\thttp_host\x18\x14 \x01(\tR\bhttpHost\x12\x19\n" +
+	"\btls_alpn\x18\x15 \x01(\tR\atlsAlpn\x12\x1d\n" +
+	"\n" +
+	"quic_state\x18\x16 \x01(\tR\tquicState\x12%\n" +
+	"\x0einterface_name\x18\x17 \x01(\tR\rinterfaceName\x12\x19\n" +
+	"\bbytes_in\x18\x18 \x01(\x04R\abytesIn\x12\x1b\n" +
+	"\tbytes_out\x18\x19 \x01(\x04R\bbytesOut\x12\x1d\n" +
+	"\n" +
+	"packets_in\x18\x1a \x01(\x04R\tpacketsIn\x12\x1f\n" +
+	"\vpackets_out\x18\x1b \x01(\x04R\n" +
+	"packetsOut\x12\"\n" +
+	"\rfirst_seen_ms\x18\x1c \x01(\x04R\vfirstSeenMs\x12 \n" +
+	"\flast_seen_ms\x18\x1d \x01(\x04R\n" +
+	"lastSeenMs\x12\x1f\n" +
+	"\vstale_level\x18\x1e \x01(\tR\n" +
+	"staleLevel\x12\x1a\n" +
+	"\bhistoric\x18\x1f \x01(\bR\bhistoric\x12\x1f\n" +
+	"\vgeo_country\x18  \x01(\tR\n" +
+	"geoCountry\x12(\n" +
+	"\x10geo_country_code\x18! \x01(\tR\x0egeoCountryCode\x12\x17\n" +
+	"\ageo_asn\x18\" \x01(\rR\x06geoAsn\x12\x19\n" +
+	"\bip_scope\x18# \x01(\tR\aipScope\"\xd8\x01\n" +
 	"\fProcessEvent\x12\x14\n" +
 	"\x05phase\x18\x01 \x01(\tR\x05phase\x12\x1d\n" +
 	"\n" +

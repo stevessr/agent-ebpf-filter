@@ -1,57 +1,46 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	gnet "github.com/shirou/gopsutil/v3/net"
 )
 
 // GET /network/flows - return aggregated network flow view
 func handleNetworkFlows(c *gin.Context) {
-	flows := networkFlowAggregator.Snapshot()
-
-	// Apply optional filters
-	filterPID := strings.TrimSpace(c.Query("pid"))
-	filterDomain := strings.TrimSpace(c.Query("domain"))
-	filterService := strings.TrimSpace(c.Query("service"))
-	filterScope := strings.TrimSpace(c.Query("scope"))
-
-	filtered := make([]NetworkFlowSummary, 0, len(flows))
-	for _, flow := range flows {
-		if filterPID != "" {
-			pid, err := strconv.Atoi(filterPID)
-			if err != nil {
-				continue
-			}
-			found := false
-			for _, p := range flow.ProcessPIDs {
-				if p == uint32(pid) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-		if filterDomain != "" && !strings.Contains(strings.ToLower(flow.DstDomain), strings.ToLower(filterDomain)) {
-			continue
-		}
-		if filterService != "" && !strings.EqualFold(flow.DstService, filterService) {
-			continue
-		}
-		if filterScope != "" && !strings.EqualFold(flow.IPScope, filterScope) {
-			continue
-		}
-		filtered = append(filtered, flow)
+	query := networkFlowQuery{
+		Filter:       strings.TrimSpace(c.Query("filter")),
+		Sort:         strings.TrimSpace(c.Query("sort")),
+		ShowHistoric: parseBoolQuery(c.Query("showHistoric")),
+		Cursor:       strings.TrimSpace(c.Query("cursor")),
+		Domain:       strings.TrimSpace(c.Query("domain")),
+		Service:      strings.TrimSpace(c.Query("service")),
+		Scope:        strings.TrimSpace(c.Query("scope")),
 	}
+	if limit, err := strconv.Atoi(strings.TrimSpace(c.Query("limit"))); err == nil {
+		query.Limit = limit
+	}
+	if pid, err := strconv.ParseUint(strings.TrimSpace(c.Query("pid")), 10, 32); err == nil {
+		query.PID = uint32(pid)
+	}
+	result := networkFlowAggregator.Query(query)
+	c.JSON(http.StatusOK, result)
+}
 
-	c.JSON(http.StatusOK, gin.H{
-		"flows": filtered,
-		"total": len(filtered),
-	})
+// GET /network/flows/:flowID - return one flow by stable flow ID
+func handleNetworkFlowByID(c *gin.Context) {
+	flowID := strings.TrimSpace(c.Param("flowID"))
+	flow, ok := networkFlowAggregator.Get(flowID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "flow not found"})
+		return
+	}
+	c.JSON(http.StatusOK, flow)
 }
 
 // GET /network/tcp-state - return TCP connection state tracking
@@ -102,11 +91,11 @@ func handleNetworkAnalyze(c *gin.Context) {
 	scope, service, domain, risk := analyzeEndpoint(endpoint)
 
 	c.JSON(http.StatusOK, gin.H{
-		"endpoint":    endpoint,
-		"ipScope":     string(scope),
-		"service":     service,
-		"domain":      domain,
-		"riskScore":   risk,
+		"endpoint":     endpoint,
+		"ipScope":      string(scope),
+		"service":      service,
+		"domain":       domain,
+		"riskScore":    risk,
 		"isSuspicious": ipScopeIsSuspicious(scope) || isSuspiciousPortService(service),
 	})
 }
@@ -162,4 +151,67 @@ func handleDNSLookup(c *gin.Context) {
 		"found":   found,
 		"reverse": reverse,
 	})
+}
+
+// GET /network/dns-cache - dump active DNS cache entries
+func handleDNSCache(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"entries": dnsCorrelation.Snapshot(),
+	})
+}
+
+// GET /network/interfaces - return interface counters for flow workspace
+func handleNetworkInterfaces(c *gin.Context) {
+	counters, err := gnet.IOCounters(true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	now := time.Now().UTC().UnixMilli()
+	items := make([]gin.H, 0, len(counters))
+	for _, counter := range counters {
+		items = append(items, gin.H{
+			"name":        counter.Name,
+			"bytesRecv":   counter.BytesRecv,
+			"bytesSent":   counter.BytesSent,
+			"packetsRecv": counter.PacketsRecv,
+			"packetsSent": counter.PacketsSent,
+			"errin":       counter.Errin,
+			"errout":      counter.Errout,
+			"dropin":      counter.Dropin,
+			"dropout":     counter.Dropout,
+			"fifoin":      counter.Fifoin,
+			"fifoout":     counter.Fifoout,
+			"timestamp":   now,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"interfaces": items, "total": len(items)})
+}
+
+// GET /network/export/jsonl - export current flow snapshot as metadata-only JSONL
+func handleNetworkFlowJSONLExport(c *gin.Context) {
+	query := networkFlowQuery{
+		Filter:       strings.TrimSpace(c.Query("filter")),
+		Sort:         strings.TrimSpace(c.Query("sort")),
+		ShowHistoric: parseBoolQuery(c.Query("showHistoric")),
+		Limit:        500,
+	}
+	result := networkFlowAggregator.Query(query)
+	c.Header("Content-Type", "application/x-ndjson")
+	c.Header("Content-Disposition", `attachment; filename="network-flows.jsonl"`)
+	enc := json.NewEncoder(c.Writer)
+	for _, flow := range result.Flows {
+		if err := enc.Encode(flow); err != nil {
+			return
+		}
+	}
+}
+
+func parseBoolQuery(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
 }

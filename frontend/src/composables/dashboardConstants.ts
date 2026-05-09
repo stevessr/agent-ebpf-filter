@@ -181,6 +181,10 @@ export const networkEventTypes = new Set<number>([
   pb.EventType.ACCEPT,
   pb.EventType.ACCEPT4,
   pb.EventType.SOCKET,
+  pb.EventType.TCP_CONNECT,
+  pb.EventType.TCP_CLOSE,
+  pb.EventType.TCP_STATE_CHANGE,
+  pb.EventType.DNS_QUERY,
 ]);
 
 export const eventCategories: Record<string, Set<number>> = {

@@ -148,6 +148,32 @@ message Event {
   string task_id = 40;
   string cwd = 41;
   uint32 tgid = 42;
+  string flow_id = 43;
+  string src_ip = 44;
+  uint32 src_port = 45;
+  string dst_ip = 46;
+  uint32 dst_port = 47;
+  string transport = 48;
+  string app_protocol = 49;
+  string service_name = 50;
+  string dns_name = 51;
+  string sni = 52;
+  string http_host = 53;
+  string tls_alpn = 54;
+  string quic_state = 55;
+  string interface_name = 56;
+  uint64 bytes_in = 57;
+  uint64 bytes_out = 58;
+  uint64 packets_in = 59;
+  uint64 packets_out = 60;
+  uint64 first_seen_ms = 61;
+  uint64 last_seen_ms = 62;
+  string stale_level = 63;
+  bool historic = 64;
+  string geo_country = 65;
+  string geo_country_code = 66;
+  uint32 geo_asn = 67;
+  string ip_scope = 68;
 }
 
 message ExecEvent {
@@ -181,6 +207,32 @@ message NetworkEvent {
   uint32 protocol = 7;
   int64 retval = 8;
   string extra_info = 9;
+  string flow_id = 10;
+  string src_ip = 11;
+  uint32 src_port = 12;
+  string dst_ip = 13;
+  uint32 dst_port = 14;
+  string transport = 15;
+  string app_protocol = 16;
+  string service_name = 17;
+  string dns_name = 18;
+  string sni = 19;
+  string http_host = 20;
+  string tls_alpn = 21;
+  string quic_state = 22;
+  string interface_name = 23;
+  uint64 bytes_in = 24;
+  uint64 bytes_out = 25;
+  uint64 packets_in = 26;
+  uint64 packets_out = 27;
+  uint64 first_seen_ms = 28;
+  uint64 last_seen_ms = 29;
+  string stale_level = 30;
+  bool historic = 31;
+  string geo_country = 32;
+  string geo_country_code = 33;
+  uint32 geo_asn = 34;
+  string ip_scope = 35;
 }
 
 message ProcessEvent {

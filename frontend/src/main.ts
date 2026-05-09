@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import type { Plugin } from 'vue'
 import App from './App.vue'
 import Antd from 'ant-design-vue'
 import router from './router'
@@ -28,6 +29,6 @@ axios.interceptors.request.use((config) => {
 applyStoredRequestContext()
 
 const app = createApp(App)
-app.use(Antd)
-app.use(router)
+app.use(Antd as unknown as Plugin)
+app.use(router as unknown as Plugin)
 app.mount('#app')

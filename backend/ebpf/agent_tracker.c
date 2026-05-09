@@ -58,10 +58,11 @@ struct task_struct {
 #define TYPE_PROCESS_EXEC 27
 #define TYPE_PROCESS_EXIT 28
 #define TYPE_WAIT4 29
-#define TYPE_TCP_CONNECT 30
-#define TYPE_TCP_CLOSE 31
-#define TYPE_TCP_STATE_CHANGE 32
-#define TYPE_DNS_QUERY 33
+#define TYPE_SEMANTIC_ALERT 30
+#define TYPE_TCP_CONNECT 31
+#define TYPE_TCP_CLOSE 32
+#define TYPE_TCP_STATE_CHANGE 33
+#define TYPE_DNS_QUERY 34
 
 struct trace_entry {
     short unsigned int type;

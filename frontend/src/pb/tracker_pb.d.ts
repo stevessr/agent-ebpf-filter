@@ -794,6 +794,84 @@ export namespace pb {
 
         /** Event tgid */
         tgid?: (number|null);
+
+        /** Event flowId */
+        flowId?: (string|null);
+
+        /** Event srcIp */
+        srcIp?: (string|null);
+
+        /** Event srcPort */
+        srcPort?: (number|null);
+
+        /** Event dstIp */
+        dstIp?: (string|null);
+
+        /** Event dstPort */
+        dstPort?: (number|null);
+
+        /** Event transport */
+        transport?: (string|null);
+
+        /** Event appProtocol */
+        appProtocol?: (string|null);
+
+        /** Event serviceName */
+        serviceName?: (string|null);
+
+        /** Event dnsName */
+        dnsName?: (string|null);
+
+        /** Event sni */
+        sni?: (string|null);
+
+        /** Event httpHost */
+        httpHost?: (string|null);
+
+        /** Event tlsAlpn */
+        tlsAlpn?: (string|null);
+
+        /** Event quicState */
+        quicState?: (string|null);
+
+        /** Event interfaceName */
+        interfaceName?: (string|null);
+
+        /** Event bytesIn */
+        bytesIn?: (number|Long|null);
+
+        /** Event bytesOut */
+        bytesOut?: (number|Long|null);
+
+        /** Event packetsIn */
+        packetsIn?: (number|Long|null);
+
+        /** Event packetsOut */
+        packetsOut?: (number|Long|null);
+
+        /** Event firstSeenMs */
+        firstSeenMs?: (number|Long|null);
+
+        /** Event lastSeenMs */
+        lastSeenMs?: (number|Long|null);
+
+        /** Event staleLevel */
+        staleLevel?: (string|null);
+
+        /** Event historic */
+        historic?: (boolean|null);
+
+        /** Event geoCountry */
+        geoCountry?: (string|null);
+
+        /** Event geoCountryCode */
+        geoCountryCode?: (string|null);
+
+        /** Event geoAsn */
+        geoAsn?: (number|null);
+
+        /** Event ipScope */
+        ipScope?: (string|null);
     }
 
     /** Represents an Event. */
@@ -930,6 +1008,84 @@ export namespace pb {
 
         /** Event tgid. */
         public tgid: number;
+
+        /** Event flowId. */
+        public flowId: string;
+
+        /** Event srcIp. */
+        public srcIp: string;
+
+        /** Event srcPort. */
+        public srcPort: number;
+
+        /** Event dstIp. */
+        public dstIp: string;
+
+        /** Event dstPort. */
+        public dstPort: number;
+
+        /** Event transport. */
+        public transport: string;
+
+        /** Event appProtocol. */
+        public appProtocol: string;
+
+        /** Event serviceName. */
+        public serviceName: string;
+
+        /** Event dnsName. */
+        public dnsName: string;
+
+        /** Event sni. */
+        public sni: string;
+
+        /** Event httpHost. */
+        public httpHost: string;
+
+        /** Event tlsAlpn. */
+        public tlsAlpn: string;
+
+        /** Event quicState. */
+        public quicState: string;
+
+        /** Event interfaceName. */
+        public interfaceName: string;
+
+        /** Event bytesIn. */
+        public bytesIn: (number|Long);
+
+        /** Event bytesOut. */
+        public bytesOut: (number|Long);
+
+        /** Event packetsIn. */
+        public packetsIn: (number|Long);
+
+        /** Event packetsOut. */
+        public packetsOut: (number|Long);
+
+        /** Event firstSeenMs. */
+        public firstSeenMs: (number|Long);
+
+        /** Event lastSeenMs. */
+        public lastSeenMs: (number|Long);
+
+        /** Event staleLevel. */
+        public staleLevel: string;
+
+        /** Event historic. */
+        public historic: boolean;
+
+        /** Event geoCountry. */
+        public geoCountry: string;
+
+        /** Event geoCountryCode. */
+        public geoCountryCode: string;
+
+        /** Event geoAsn. */
+        public geoAsn: number;
+
+        /** Event ipScope. */
+        public ipScope: string;
 
         /**
          * Creates a new Event instance using the specified properties.
@@ -1310,6 +1466,84 @@ export namespace pb {
 
         /** NetworkEvent extraInfo */
         extraInfo?: (string|null);
+
+        /** NetworkEvent flowId */
+        flowId?: (string|null);
+
+        /** NetworkEvent srcIp */
+        srcIp?: (string|null);
+
+        /** NetworkEvent srcPort */
+        srcPort?: (number|null);
+
+        /** NetworkEvent dstIp */
+        dstIp?: (string|null);
+
+        /** NetworkEvent dstPort */
+        dstPort?: (number|null);
+
+        /** NetworkEvent transport */
+        transport?: (string|null);
+
+        /** NetworkEvent appProtocol */
+        appProtocol?: (string|null);
+
+        /** NetworkEvent serviceName */
+        serviceName?: (string|null);
+
+        /** NetworkEvent dnsName */
+        dnsName?: (string|null);
+
+        /** NetworkEvent sni */
+        sni?: (string|null);
+
+        /** NetworkEvent httpHost */
+        httpHost?: (string|null);
+
+        /** NetworkEvent tlsAlpn */
+        tlsAlpn?: (string|null);
+
+        /** NetworkEvent quicState */
+        quicState?: (string|null);
+
+        /** NetworkEvent interfaceName */
+        interfaceName?: (string|null);
+
+        /** NetworkEvent bytesIn */
+        bytesIn?: (number|Long|null);
+
+        /** NetworkEvent bytesOut */
+        bytesOut?: (number|Long|null);
+
+        /** NetworkEvent packetsIn */
+        packetsIn?: (number|Long|null);
+
+        /** NetworkEvent packetsOut */
+        packetsOut?: (number|Long|null);
+
+        /** NetworkEvent firstSeenMs */
+        firstSeenMs?: (number|Long|null);
+
+        /** NetworkEvent lastSeenMs */
+        lastSeenMs?: (number|Long|null);
+
+        /** NetworkEvent staleLevel */
+        staleLevel?: (string|null);
+
+        /** NetworkEvent historic */
+        historic?: (boolean|null);
+
+        /** NetworkEvent geoCountry */
+        geoCountry?: (string|null);
+
+        /** NetworkEvent geoCountryCode */
+        geoCountryCode?: (string|null);
+
+        /** NetworkEvent geoAsn */
+        geoAsn?: (number|null);
+
+        /** NetworkEvent ipScope */
+        ipScope?: (string|null);
     }
 
     /** Represents a NetworkEvent. */
@@ -1347,6 +1581,84 @@ export namespace pb {
 
         /** NetworkEvent extraInfo. */
         public extraInfo: string;
+
+        /** NetworkEvent flowId. */
+        public flowId: string;
+
+        /** NetworkEvent srcIp. */
+        public srcIp: string;
+
+        /** NetworkEvent srcPort. */
+        public srcPort: number;
+
+        /** NetworkEvent dstIp. */
+        public dstIp: string;
+
+        /** NetworkEvent dstPort. */
+        public dstPort: number;
+
+        /** NetworkEvent transport. */
+        public transport: string;
+
+        /** NetworkEvent appProtocol. */
+        public appProtocol: string;
+
+        /** NetworkEvent serviceName. */
+        public serviceName: string;
+
+        /** NetworkEvent dnsName. */
+        public dnsName: string;
+
+        /** NetworkEvent sni. */
+        public sni: string;
+
+        /** NetworkEvent httpHost. */
+        public httpHost: string;
+
+        /** NetworkEvent tlsAlpn. */
+        public tlsAlpn: string;
+
+        /** NetworkEvent quicState. */
+        public quicState: string;
+
+        /** NetworkEvent interfaceName. */
+        public interfaceName: string;
+
+        /** NetworkEvent bytesIn. */
+        public bytesIn: (number|Long);
+
+        /** NetworkEvent bytesOut. */
+        public bytesOut: (number|Long);
+
+        /** NetworkEvent packetsIn. */
+        public packetsIn: (number|Long);
+
+        /** NetworkEvent packetsOut. */
+        public packetsOut: (number|Long);
+
+        /** NetworkEvent firstSeenMs. */
+        public firstSeenMs: (number|Long);
+
+        /** NetworkEvent lastSeenMs. */
+        public lastSeenMs: (number|Long);
+
+        /** NetworkEvent staleLevel. */
+        public staleLevel: string;
+
+        /** NetworkEvent historic. */
+        public historic: boolean;
+
+        /** NetworkEvent geoCountry. */
+        public geoCountry: string;
+
+        /** NetworkEvent geoCountryCode. */
+        public geoCountryCode: string;
+
+        /** NetworkEvent geoAsn. */
+        public geoAsn: number;
+
+        /** NetworkEvent ipScope. */
+        public ipScope: string;
 
         /**
          * Creates a new NetworkEvent instance using the specified properties.

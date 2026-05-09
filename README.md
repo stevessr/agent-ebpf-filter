@@ -50,7 +50,7 @@ Events are written to a ring buffer and consumed by the Go backend.
 
 - **Dashboard**: live event stream with tag / type / PID / command / path filters, strace-style trace summaries with syscall timing, log-flow ordering, and an optional no-pagination mode
 - **Monitor**: process / CPU / memory / GPU / IO / page-fault telemetry
-- **Network**: syscall-derived network flow table with direction / endpoint filters
+- **Network**: RustNet-style flow workspace with per-process TCP / UDP flow attribution, DNS / SNI / HTTP Host / ALPN enrichment, interface traffic charts, staleness / historic flow indicators, and `process:` / `dport:` / `sni:` / `state:` style filters
 - **Execution Graph**: a first-pass agent execution graph with filters for run / tool / trace / pid / path / domain / risk / time, force-layout topology, node details, and one-click rule / training-sample actions
 - **Explorer**: browse the host filesystem and add tracked paths
 - **Executor**: open a temporary wrapper-backed PTY tab for ad-hoc commands, keep shell PTY sessions separate from tmux, and let the Remote tab self-destruct when you leave it
@@ -289,6 +289,11 @@ The wrapper sends the command to the backend over `/tmp/agent-ebpf.sock`, receiv
 - `GET /ws/shell-sessions` — live shell session list (WebSocket JSON push, pub/sub)
 - `GET /events/recent?type=&limit=` — historical events for initial load (REST fallback), now including a normalized `Envelope` per record
 - `GET /events/graph?...` — aggregated execution graph nodes / edges for the current retained event window
+- `GET /network/flows?filter=&sort=&showHistoric=&limit=&cursor=` — attributed TCP / UDP flow summaries with DPI fields (`dnsName`, `sni`, `httpHost`, `tlsAlpn`), process / agent context, rate counters, staleness, and risk
+- `GET /network/flows/:flowID` — one enriched flow by stable 5-tuple flow ID
+- `GET /network/dns-cache` — active DNS correlation cache
+- `GET /network/interfaces` — per-interface RX / TX counters, packets, errors, drops, and timestamp
+- `GET /network/export/jsonl` — metadata-only flow JSONL export with process / agent attribution
 - `GET /metrics` — Prometheus exposition for ringbuf / queue / WS / per-type / per-pid counters
 - `GET /system/otel-health` — OTLP exporter readiness / queue / active-span counters
 - `POST /register` — register a PID

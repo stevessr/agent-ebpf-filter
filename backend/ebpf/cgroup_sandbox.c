@@ -61,14 +61,26 @@ int cgroup_sandbox_connect4(struct bpf_sock_addr *ctx) {
     // Check cgroup blocklist
     u32 *blocked = bpf_map_lookup_elem(&cgroup_blocklist, &cgroup_id);
     if (blocked && *blocked) {
-        goto block;
+        u32 key = 0;
+        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
+        if (s) {
+            s->connect_checked++;
+            s->connect_blocked++;
+        }
+        return 0; // block
     }
 
     // Check IP blocklist (destination IP in network byte order)
     u32 dst_ip = ctx->user_ip4;
     u32 *ip_blocked = bpf_map_lookup_elem(&ip_blocklist, &dst_ip);
     if (ip_blocked && *ip_blocked) {
-        goto block;
+        u32 key = 0;
+        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
+        if (s) {
+            s->connect_checked++;
+            s->connect_blocked++;
+        }
+        return 0; // block
     }
 
     // Check port blocklist (destination port in network byte order)
@@ -76,7 +88,13 @@ int cgroup_sandbox_connect4(struct bpf_sock_addr *ctx) {
     u32 dst_port = ((dst_port_be & 0xFF) << 8) | ((dst_port_be >> 8) & 0xFF);
     u32 *port_blocked = bpf_map_lookup_elem(&port_blocklist, &dst_port);
     if (port_blocked && *port_blocked) {
-        goto block;
+        u32 key = 0;
+        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
+        if (s) {
+            s->connect_checked++;
+            s->connect_blocked++;
+        }
+        return 0; // block
     }
 
     // Update allow stats
@@ -88,17 +106,6 @@ int cgroup_sandbox_connect4(struct bpf_sock_addr *ctx) {
     }
 
     return 1; // allow
-
-block:
-    // Update block stats
-    u32 key = 0;
-    struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-    if (s) {
-        s->connect_checked++;
-        s->connect_blocked++;
-    }
-
-    return 0; // block
 }
 
 // IPv6 connect handler — attached to cgroup/connect6
@@ -131,17 +138,6 @@ int cgroup_sandbox_connect6(struct bpf_sock_addr *ctx) {
     }
 
     return 1; // allow
-}
-
-// Optional: file_open LSM hook for filesystem sandboxing
-// This is experimental and requires CONFIG_BPF_LSM=y in the kernel
-SEC("lsm/file_open")
-int BPF_PROG(lsm_file_open, struct file *file, int ret) {
-    // Allow by default (this is a LSM hook — return 0 to allow, negative to deny)
-    // In production, check file path against a blocklist map
-
-    // For now, just pass through (audit-only mode)
-    return 0;
 }
 
 char _license[] SEC("license") = "Dual MIT/GPL";

@@ -29,12 +29,20 @@ const eventTypeLabelMap: Record<number, string> = {
   [pb.EventType.ACCEPT]: 'accept',
   [pb.EventType.ACCEPT4]: 'accept4',
   [pb.EventType.SOCKET]: 'socket',
+  [pb.EventType.TCP_CONNECT]: 'tcp_connect',
+  [pb.EventType.TCP_CLOSE]: 'tcp_close',
+  [pb.EventType.TCP_STATE_CHANGE]: 'tcp_state_change',
+  [pb.EventType.DNS_QUERY]: 'dns_query',
 };
 const eventTypeColorMap: Record<number, string> = {
   [pb.EventType.NETWORK_CONNECT]: 'orange', [pb.EventType.NETWORK_BIND]: 'volcano',
   [pb.EventType.NETWORK_SENDTO]: 'cyan', [pb.EventType.NETWORK_RECVFROM]: 'geekblue',
   [pb.EventType.ACCEPT]: 'volcano', [pb.EventType.ACCEPT4]: 'volcano',
   [pb.EventType.SOCKET]: 'default',
+  [pb.EventType.TCP_CONNECT]: 'orange',
+  [pb.EventType.TCP_CLOSE]: 'volcano',
+  [pb.EventType.TCP_STATE_CHANGE]: 'gold',
+  [pb.EventType.DNS_QUERY]: 'purple',
 };
 const networkTypeTabs: [number | string, string][] = [
   [pb.EventType.NETWORK_CONNECT, 'Connect'],
@@ -43,6 +51,10 @@ const networkTypeTabs: [number | string, string][] = [
   [pb.EventType.NETWORK_BIND, 'Bind'],
   [pb.EventType.ACCEPT, 'Accept'],
   [pb.EventType.ACCEPT4, 'Accept4'],
+  [pb.EventType.TCP_CONNECT, 'TCP Connect'],
+  [pb.EventType.TCP_CLOSE, 'TCP Close'],
+  [pb.EventType.TCP_STATE_CHANGE, 'TCP State'],
+  [pb.EventType.DNS_QUERY, 'DNS'],
   ['unknown', 'Unknown'],
 ];
 

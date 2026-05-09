@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 // ── TLS SNI extraction (from rustnet dpi/https.rs) ────────────────────
@@ -378,6 +380,10 @@ func detectAndRecordProtocol(dstIP string, dstPort uint32, data []byte) *protoDe
 			entry.HTTPHost = hostname
 			entry.SNI = msgType
 		}
+	case AppProtoDNS:
+		if queries := extractDNSQueries(data); len(queries) > 0 {
+			entry.HTTPHost = strings.Join(queries, ", ")
+		}
 	case AppProtomDNS:
 		if queries := extractMDNSQueries(data); len(queries) > 0 {
 			entry.HTTPHost = strings.Join(queries, ", ")
@@ -507,6 +513,29 @@ func extractDHCPInfo(data []byte) (string, string, error) {
 
 // ── mDNS query extraction ─────────────────────────────────────────────
 
+func extractDNSQueries(data []byte) []string {
+	var parser dnsmessage.Parser
+	header, err := parser.Start(data)
+	if err != nil || header.Response {
+		return nil
+	}
+	queries := make([]string, 0, 4)
+	for {
+		question, err := parser.Question()
+		if err == dnsmessage.ErrSectionDone {
+			break
+		}
+		if err != nil {
+			return nil
+		}
+		name := strings.TrimSuffix(question.Name.String(), ".")
+		if name != "" {
+			queries = append(queries, name)
+		}
+	}
+	return queries
+}
+
 func extractMDNSQueries(data []byte) []string {
 	if len(data) < 12 {
 		return nil
@@ -573,4 +602,3 @@ func min(a, b int) int {
 	}
 	return b
 }
-

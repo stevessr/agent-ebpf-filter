@@ -92,6 +92,7 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSchedSchedProcessExec           *ebpf.ProgramSpec `ebpf:"tracepoint__sched__sched_process_exec"`
 	TracepointSchedSchedProcessExit           *ebpf.ProgramSpec `ebpf:"tracepoint__sched__sched_process_exit"`
 	TracepointSchedSchedProcessFork           *ebpf.ProgramSpec `ebpf:"tracepoint__sched__sched_process_fork"`
+	TracepointSockInetSockSetState            *ebpf.ProgramSpec `ebpf:"tracepoint__sock__inet_sock_set_state"`
 	TracepointSyscallsSysEnterAccept          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_accept"`
 	TracepointSyscallsSysEnterAccept4         *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_accept4"`
 	TracepointSyscallsSysEnterAccess          *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_access"`
@@ -280,6 +281,8 @@ type AgentTrackerProgramSpecs struct {
 	TracepointSyscallsSysExitUtimensat        *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_utimensat"`
 	TracepointSyscallsSysExitWait4            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_wait4"`
 	TracepointSyscallsSysExitWrite            *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_write"`
+	TracepointTcpTcpClose                     *ebpf.ProgramSpec `ebpf:"tracepoint__tcp__tcp_close"`
+	TracepointTcpTcpConnect                   *ebpf.ProgramSpec `ebpf:"tracepoint__tcp__tcp_connect"`
 }
 
 // AgentTrackerMapSpecs contains maps before they are loaded into the kernel.
@@ -361,6 +364,7 @@ type AgentTrackerPrograms struct {
 	TracepointSchedSchedProcessExec           *ebpf.Program `ebpf:"tracepoint__sched__sched_process_exec"`
 	TracepointSchedSchedProcessExit           *ebpf.Program `ebpf:"tracepoint__sched__sched_process_exit"`
 	TracepointSchedSchedProcessFork           *ebpf.Program `ebpf:"tracepoint__sched__sched_process_fork"`
+	TracepointSockInetSockSetState            *ebpf.Program `ebpf:"tracepoint__sock__inet_sock_set_state"`
 	TracepointSyscallsSysEnterAccept          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_accept"`
 	TracepointSyscallsSysEnterAccept4         *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_accept4"`
 	TracepointSyscallsSysEnterAccess          *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_access"`
@@ -549,6 +553,8 @@ type AgentTrackerPrograms struct {
 	TracepointSyscallsSysExitUtimensat        *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_utimensat"`
 	TracepointSyscallsSysExitWait4            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_wait4"`
 	TracepointSyscallsSysExitWrite            *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_write"`
+	TracepointTcpTcpClose                     *ebpf.Program `ebpf:"tracepoint__tcp__tcp_close"`
+	TracepointTcpTcpConnect                   *ebpf.Program `ebpf:"tracepoint__tcp__tcp_connect"`
 }
 
 func (p *AgentTrackerPrograms) Close() error {
@@ -556,6 +562,7 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSchedSchedProcessExec,
 		p.TracepointSchedSchedProcessExit,
 		p.TracepointSchedSchedProcessFork,
+		p.TracepointSockInetSockSetState,
 		p.TracepointSyscallsSysEnterAccept,
 		p.TracepointSyscallsSysEnterAccept4,
 		p.TracepointSyscallsSysEnterAccess,
@@ -744,6 +751,8 @@ func (p *AgentTrackerPrograms) Close() error {
 		p.TracepointSyscallsSysExitUtimensat,
 		p.TracepointSyscallsSysExitWait4,
 		p.TracepointSyscallsSysExitWrite,
+		p.TracepointTcpTcpClose,
+		p.TracepointTcpTcpConnect,
 	)
 }
 

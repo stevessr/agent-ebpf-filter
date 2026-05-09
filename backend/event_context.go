@@ -257,6 +257,32 @@ func enrichEventContext(event *pb.Event) *pb.Event {
 	return event
 }
 
+func applyBestEffortProcessContextToEvent(event *pb.Event) {
+	if event == nil || event.Pid == 0 {
+		return
+	}
+	ctx, ok := trackedProcessContexts.Get(event.Pid)
+	if !ok && event.Ppid != 0 {
+		if parentCtx, parentOK := trackedProcessContexts.Get(event.Ppid); parentOK {
+			ctx = parentCtx
+			ok = true
+		}
+	}
+	if !ok && event.CgroupId != 0 {
+		if agentRunID, taskID, toolCallID := enrichEventWithCgroupContext(event.CgroupId); agentRunID != "" {
+			ctx = processContext{
+				AgentRunID: agentRunID,
+				TaskID:     taskID,
+				ToolCallID: toolCallID,
+			}
+			ok = true
+		}
+	}
+	if ok {
+		applyProcessContextToEvent(event, ctx)
+	}
+}
+
 func applyProcessContextToEvent(event *pb.Event, ctx processContext) {
 	if event.RootAgentPid == 0 {
 		event.RootAgentPid = ctx.RootAgentPid

@@ -615,6 +615,9 @@ func detectPRReviewAnomaly(event *pb.Event) (string, bool) {
 	}
 	switch event.GetType() {
 	case "execve", "process_exec":
+		if isPRReviewReadOnlyExec(event.GetComm(), event.GetPath()) {
+			return "", false
+		}
 		return fmt.Sprintf("PR review tool %q spawned a process (%s)", event.GetToolName(), event.GetComm()), true
 	case "network_connect", "network_sendto":
 		endpoint := strings.TrimSpace(event.GetNetEndpoint())
@@ -625,6 +628,17 @@ func detectPRReviewAnomaly(event *pb.Event) (string, bool) {
 		return fmt.Sprintf("PR review tool %q modified filesystem (%s %s)", event.GetToolName(), event.GetType(), event.GetPath()), true
 	}
 	return "", false
+}
+
+func isPRReviewReadOnlyExec(comm, path string) bool {
+	lowerComm := strings.ToLower(strings.TrimSpace(comm))
+	lowerPath := strings.ToLower(strings.TrimSpace(filepath.Base(path)))
+	for _, allowed := range []string{"rg", "grep", "git", "diff", "cat", "sed", "awk", "find", "ls"} {
+		if lowerComm == allowed || lowerPath == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 func detectBrowserTaskAnomaly(event *pb.Event) (string, bool) {

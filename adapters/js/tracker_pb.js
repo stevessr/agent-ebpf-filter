@@ -162,7 +162,7 @@ $root.pb = (function() {
             this.categories = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -261,13 +261,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        BehaviorClassification.decode = function decode(reader, length, error, long) {
+        BehaviorClassification.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.BehaviorClassification();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -298,7 +294,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -329,13 +325,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        BehaviorClassification.verify = function verify(message, long) {
+        BehaviorClassification.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.categories != null && message.hasOwnProperty("categories")) {
                 if (!Array.isArray(message.categories))
                     return "categories: array expected";
@@ -381,13 +373,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.BehaviorClassification} BehaviorClassification
          */
-        BehaviorClassification.fromObject = function fromObject(object, long) {
+        BehaviorClassification.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.BehaviorClassification)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.BehaviorClassification();
             if (object.categories) {
                 if (!Array.isArray(object.categories))
@@ -569,7 +557,7 @@ $root.pb = (function() {
         function RegisterRequest(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -784,13 +772,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        RegisterRequest.decode = function decode(reader, length, error, long) {
+        RegisterRequest.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RegisterRequest();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -862,7 +846,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -893,13 +877,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        RegisterRequest.verify = function verify(message, long) {
+        RegisterRequest.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.pid != null && message.hasOwnProperty("pid"))
                 if (!$util.isInteger(message.pid))
                     return "pid: integer expected";
@@ -959,13 +939,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.RegisterRequest} RegisterRequest
          */
-        RegisterRequest.fromObject = function fromObject(object, long) {
+        RegisterRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.RegisterRequest)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.RegisterRequest();
             if (object.pid != null)
                 message.pid = object.pid >>> 0;
@@ -1118,7 +1094,7 @@ $root.pb = (function() {
         function RegisterResponse(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1193,13 +1169,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        RegisterResponse.decode = function decode(reader, length, error, long) {
+        RegisterResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RegisterResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -1215,7 +1187,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -1246,13 +1218,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        RegisterResponse.verify = function verify(message, long) {
+        RegisterResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.success != null && message.hasOwnProperty("success"))
                 if (typeof message.success !== "boolean")
                     return "success: boolean expected";
@@ -1270,13 +1238,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.RegisterResponse} RegisterResponse
          */
-        RegisterResponse.fromObject = function fromObject(object, long) {
+        RegisterResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.RegisterResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.RegisterResponse();
             if (object.success != null)
                 message.success = Boolean(object.success);
@@ -1358,7 +1322,7 @@ $root.pb = (function() {
         function UnregisterRequest(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1423,13 +1387,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        UnregisterRequest.decode = function decode(reader, length, error, long) {
+        UnregisterRequest.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.UnregisterRequest();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -1441,7 +1401,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -1472,13 +1432,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        UnregisterRequest.verify = function verify(message, long) {
+        UnregisterRequest.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.pid != null && message.hasOwnProperty("pid"))
                 if (!$util.isInteger(message.pid))
                     return "pid: integer expected";
@@ -1493,13 +1449,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.UnregisterRequest} UnregisterRequest
          */
-        UnregisterRequest.fromObject = function fromObject(object, long) {
+        UnregisterRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.UnregisterRequest)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.UnregisterRequest();
             if (object.pid != null)
                 message.pid = object.pid >>> 0;
@@ -1576,7 +1528,7 @@ $root.pb = (function() {
         function UnregisterResponse(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1651,13 +1603,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        UnregisterResponse.decode = function decode(reader, length, error, long) {
+        UnregisterResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.UnregisterResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -1673,7 +1621,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -1704,13 +1652,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        UnregisterResponse.verify = function verify(message, long) {
+        UnregisterResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.success != null && message.hasOwnProperty("success"))
                 if (typeof message.success !== "boolean")
                     return "success: boolean expected";
@@ -1728,13 +1672,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.UnregisterResponse} UnregisterResponse
          */
-        UnregisterResponse.fromObject = function fromObject(object, long) {
+        UnregisterResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.UnregisterResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.UnregisterResponse();
             if (object.success != null)
                 message.success = Boolean(object.success);
@@ -1844,6 +1784,32 @@ $root.pb = (function() {
          * @property {string|null} [taskId] Event taskId
          * @property {string|null} [cwd] Event cwd
          * @property {number|null} [tgid] Event tgid
+         * @property {string|null} [flowId] Event flowId
+         * @property {string|null} [srcIp] Event srcIp
+         * @property {number|null} [srcPort] Event srcPort
+         * @property {string|null} [dstIp] Event dstIp
+         * @property {number|null} [dstPort] Event dstPort
+         * @property {string|null} [transport] Event transport
+         * @property {string|null} [appProtocol] Event appProtocol
+         * @property {string|null} [serviceName] Event serviceName
+         * @property {string|null} [dnsName] Event dnsName
+         * @property {string|null} [sni] Event sni
+         * @property {string|null} [httpHost] Event httpHost
+         * @property {string|null} [tlsAlpn] Event tlsAlpn
+         * @property {string|null} [quicState] Event quicState
+         * @property {string|null} [interfaceName] Event interfaceName
+         * @property {number|Long|null} [bytesIn] Event bytesIn
+         * @property {number|Long|null} [bytesOut] Event bytesOut
+         * @property {number|Long|null} [packetsIn] Event packetsIn
+         * @property {number|Long|null} [packetsOut] Event packetsOut
+         * @property {number|Long|null} [firstSeenMs] Event firstSeenMs
+         * @property {number|Long|null} [lastSeenMs] Event lastSeenMs
+         * @property {string|null} [staleLevel] Event staleLevel
+         * @property {boolean|null} [historic] Event historic
+         * @property {string|null} [geoCountry] Event geoCountry
+         * @property {string|null} [geoCountryCode] Event geoCountryCode
+         * @property {number|null} [geoAsn] Event geoAsn
+         * @property {string|null} [ipScope] Event ipScope
          */
 
         /**
@@ -1857,7 +1823,7 @@ $root.pb = (function() {
         function Event(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -2198,6 +2164,214 @@ $root.pb = (function() {
         Event.prototype.tgid = 0;
 
         /**
+         * Event flowId.
+         * @member {string} flowId
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.flowId = "";
+
+        /**
+         * Event srcIp.
+         * @member {string} srcIp
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.srcIp = "";
+
+        /**
+         * Event srcPort.
+         * @member {number} srcPort
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.srcPort = 0;
+
+        /**
+         * Event dstIp.
+         * @member {string} dstIp
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.dstIp = "";
+
+        /**
+         * Event dstPort.
+         * @member {number} dstPort
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.dstPort = 0;
+
+        /**
+         * Event transport.
+         * @member {string} transport
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.transport = "";
+
+        /**
+         * Event appProtocol.
+         * @member {string} appProtocol
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.appProtocol = "";
+
+        /**
+         * Event serviceName.
+         * @member {string} serviceName
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.serviceName = "";
+
+        /**
+         * Event dnsName.
+         * @member {string} dnsName
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.dnsName = "";
+
+        /**
+         * Event sni.
+         * @member {string} sni
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.sni = "";
+
+        /**
+         * Event httpHost.
+         * @member {string} httpHost
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.httpHost = "";
+
+        /**
+         * Event tlsAlpn.
+         * @member {string} tlsAlpn
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.tlsAlpn = "";
+
+        /**
+         * Event quicState.
+         * @member {string} quicState
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.quicState = "";
+
+        /**
+         * Event interfaceName.
+         * @member {string} interfaceName
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.interfaceName = "";
+
+        /**
+         * Event bytesIn.
+         * @member {number|Long} bytesIn
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.bytesIn = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event bytesOut.
+         * @member {number|Long} bytesOut
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.bytesOut = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event packetsIn.
+         * @member {number|Long} packetsIn
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.packetsIn = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event packetsOut.
+         * @member {number|Long} packetsOut
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.packetsOut = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event firstSeenMs.
+         * @member {number|Long} firstSeenMs
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.firstSeenMs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event lastSeenMs.
+         * @member {number|Long} lastSeenMs
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.lastSeenMs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Event staleLevel.
+         * @member {string} staleLevel
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.staleLevel = "";
+
+        /**
+         * Event historic.
+         * @member {boolean} historic
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.historic = false;
+
+        /**
+         * Event geoCountry.
+         * @member {string} geoCountry
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.geoCountry = "";
+
+        /**
+         * Event geoCountryCode.
+         * @member {string} geoCountryCode
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.geoCountryCode = "";
+
+        /**
+         * Event geoAsn.
+         * @member {number} geoAsn
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.geoAsn = 0;
+
+        /**
+         * Event ipScope.
+         * @member {string} ipScope
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.ipScope = "";
+
+        /**
          * Creates a new Event instance using the specified properties.
          * @function create
          * @memberof pb.Event
@@ -2305,6 +2479,58 @@ $root.pb = (function() {
                 writer.uint32(/* id 41, wireType 2 =*/330).string(message.cwd);
             if (message.tgid != null && Object.hasOwnProperty.call(message, "tgid"))
                 writer.uint32(/* id 42, wireType 0 =*/336).uint32(message.tgid);
+            if (message.flowId != null && Object.hasOwnProperty.call(message, "flowId"))
+                writer.uint32(/* id 43, wireType 2 =*/346).string(message.flowId);
+            if (message.srcIp != null && Object.hasOwnProperty.call(message, "srcIp"))
+                writer.uint32(/* id 44, wireType 2 =*/354).string(message.srcIp);
+            if (message.srcPort != null && Object.hasOwnProperty.call(message, "srcPort"))
+                writer.uint32(/* id 45, wireType 0 =*/360).uint32(message.srcPort);
+            if (message.dstIp != null && Object.hasOwnProperty.call(message, "dstIp"))
+                writer.uint32(/* id 46, wireType 2 =*/370).string(message.dstIp);
+            if (message.dstPort != null && Object.hasOwnProperty.call(message, "dstPort"))
+                writer.uint32(/* id 47, wireType 0 =*/376).uint32(message.dstPort);
+            if (message.transport != null && Object.hasOwnProperty.call(message, "transport"))
+                writer.uint32(/* id 48, wireType 2 =*/386).string(message.transport);
+            if (message.appProtocol != null && Object.hasOwnProperty.call(message, "appProtocol"))
+                writer.uint32(/* id 49, wireType 2 =*/394).string(message.appProtocol);
+            if (message.serviceName != null && Object.hasOwnProperty.call(message, "serviceName"))
+                writer.uint32(/* id 50, wireType 2 =*/402).string(message.serviceName);
+            if (message.dnsName != null && Object.hasOwnProperty.call(message, "dnsName"))
+                writer.uint32(/* id 51, wireType 2 =*/410).string(message.dnsName);
+            if (message.sni != null && Object.hasOwnProperty.call(message, "sni"))
+                writer.uint32(/* id 52, wireType 2 =*/418).string(message.sni);
+            if (message.httpHost != null && Object.hasOwnProperty.call(message, "httpHost"))
+                writer.uint32(/* id 53, wireType 2 =*/426).string(message.httpHost);
+            if (message.tlsAlpn != null && Object.hasOwnProperty.call(message, "tlsAlpn"))
+                writer.uint32(/* id 54, wireType 2 =*/434).string(message.tlsAlpn);
+            if (message.quicState != null && Object.hasOwnProperty.call(message, "quicState"))
+                writer.uint32(/* id 55, wireType 2 =*/442).string(message.quicState);
+            if (message.interfaceName != null && Object.hasOwnProperty.call(message, "interfaceName"))
+                writer.uint32(/* id 56, wireType 2 =*/450).string(message.interfaceName);
+            if (message.bytesIn != null && Object.hasOwnProperty.call(message, "bytesIn"))
+                writer.uint32(/* id 57, wireType 0 =*/456).uint64(message.bytesIn);
+            if (message.bytesOut != null && Object.hasOwnProperty.call(message, "bytesOut"))
+                writer.uint32(/* id 58, wireType 0 =*/464).uint64(message.bytesOut);
+            if (message.packetsIn != null && Object.hasOwnProperty.call(message, "packetsIn"))
+                writer.uint32(/* id 59, wireType 0 =*/472).uint64(message.packetsIn);
+            if (message.packetsOut != null && Object.hasOwnProperty.call(message, "packetsOut"))
+                writer.uint32(/* id 60, wireType 0 =*/480).uint64(message.packetsOut);
+            if (message.firstSeenMs != null && Object.hasOwnProperty.call(message, "firstSeenMs"))
+                writer.uint32(/* id 61, wireType 0 =*/488).uint64(message.firstSeenMs);
+            if (message.lastSeenMs != null && Object.hasOwnProperty.call(message, "lastSeenMs"))
+                writer.uint32(/* id 62, wireType 0 =*/496).uint64(message.lastSeenMs);
+            if (message.staleLevel != null && Object.hasOwnProperty.call(message, "staleLevel"))
+                writer.uint32(/* id 63, wireType 2 =*/506).string(message.staleLevel);
+            if (message.historic != null && Object.hasOwnProperty.call(message, "historic"))
+                writer.uint32(/* id 64, wireType 0 =*/512).bool(message.historic);
+            if (message.geoCountry != null && Object.hasOwnProperty.call(message, "geoCountry"))
+                writer.uint32(/* id 65, wireType 2 =*/522).string(message.geoCountry);
+            if (message.geoCountryCode != null && Object.hasOwnProperty.call(message, "geoCountryCode"))
+                writer.uint32(/* id 66, wireType 2 =*/530).string(message.geoCountryCode);
+            if (message.geoAsn != null && Object.hasOwnProperty.call(message, "geoAsn"))
+                writer.uint32(/* id 67, wireType 0 =*/536).uint32(message.geoAsn);
+            if (message.ipScope != null && Object.hasOwnProperty.call(message, "ipScope"))
+                writer.uint32(/* id 68, wireType 2 =*/546).string(message.ipScope);
             return writer;
         };
 
@@ -2332,13 +2558,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Event.decode = function decode(reader, length, error, long) {
+        Event.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.Event();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -2434,7 +2656,7 @@ $root.pb = (function() {
                         break;
                     }
                 case 23: {
-                        message.behavior = $root.pb.BehaviorClassification.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.behavior = $root.pb.BehaviorClassification.decode(reader, reader.uint32());
                         break;
                     }
                 case 24: {
@@ -2513,8 +2735,112 @@ $root.pb = (function() {
                         message.tgid = reader.uint32();
                         break;
                     }
+                case 43: {
+                        message.flowId = reader.string();
+                        break;
+                    }
+                case 44: {
+                        message.srcIp = reader.string();
+                        break;
+                    }
+                case 45: {
+                        message.srcPort = reader.uint32();
+                        break;
+                    }
+                case 46: {
+                        message.dstIp = reader.string();
+                        break;
+                    }
+                case 47: {
+                        message.dstPort = reader.uint32();
+                        break;
+                    }
+                case 48: {
+                        message.transport = reader.string();
+                        break;
+                    }
+                case 49: {
+                        message.appProtocol = reader.string();
+                        break;
+                    }
+                case 50: {
+                        message.serviceName = reader.string();
+                        break;
+                    }
+                case 51: {
+                        message.dnsName = reader.string();
+                        break;
+                    }
+                case 52: {
+                        message.sni = reader.string();
+                        break;
+                    }
+                case 53: {
+                        message.httpHost = reader.string();
+                        break;
+                    }
+                case 54: {
+                        message.tlsAlpn = reader.string();
+                        break;
+                    }
+                case 55: {
+                        message.quicState = reader.string();
+                        break;
+                    }
+                case 56: {
+                        message.interfaceName = reader.string();
+                        break;
+                    }
+                case 57: {
+                        message.bytesIn = reader.uint64();
+                        break;
+                    }
+                case 58: {
+                        message.bytesOut = reader.uint64();
+                        break;
+                    }
+                case 59: {
+                        message.packetsIn = reader.uint64();
+                        break;
+                    }
+                case 60: {
+                        message.packetsOut = reader.uint64();
+                        break;
+                    }
+                case 61: {
+                        message.firstSeenMs = reader.uint64();
+                        break;
+                    }
+                case 62: {
+                        message.lastSeenMs = reader.uint64();
+                        break;
+                    }
+                case 63: {
+                        message.staleLevel = reader.string();
+                        break;
+                    }
+                case 64: {
+                        message.historic = reader.bool();
+                        break;
+                    }
+                case 65: {
+                        message.geoCountry = reader.string();
+                        break;
+                    }
+                case 66: {
+                        message.geoCountryCode = reader.string();
+                        break;
+                    }
+                case 67: {
+                        message.geoAsn = reader.uint32();
+                        break;
+                    }
+                case 68: {
+                        message.ipScope = reader.string();
+                        break;
+                    }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -2545,13 +2871,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Event.verify = function verify(message, long) {
+        Event.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.pid != null && message.hasOwnProperty("pid"))
                 if (!$util.isInteger(message.pid))
                     return "pid: integer expected";
@@ -2657,7 +2979,7 @@ $root.pb = (function() {
                     break;
                 }
             if (message.behavior != null && message.hasOwnProperty("behavior")) {
-                var error = $root.pb.BehaviorClassification.verify(message.behavior, long + 1);
+                var error = $root.pb.BehaviorClassification.verify(message.behavior);
                 if (error)
                     return "behavior." + error;
             }
@@ -2718,6 +3040,84 @@ $root.pb = (function() {
             if (message.tgid != null && message.hasOwnProperty("tgid"))
                 if (!$util.isInteger(message.tgid))
                     return "tgid: integer expected";
+            if (message.flowId != null && message.hasOwnProperty("flowId"))
+                if (!$util.isString(message.flowId))
+                    return "flowId: string expected";
+            if (message.srcIp != null && message.hasOwnProperty("srcIp"))
+                if (!$util.isString(message.srcIp))
+                    return "srcIp: string expected";
+            if (message.srcPort != null && message.hasOwnProperty("srcPort"))
+                if (!$util.isInteger(message.srcPort))
+                    return "srcPort: integer expected";
+            if (message.dstIp != null && message.hasOwnProperty("dstIp"))
+                if (!$util.isString(message.dstIp))
+                    return "dstIp: string expected";
+            if (message.dstPort != null && message.hasOwnProperty("dstPort"))
+                if (!$util.isInteger(message.dstPort))
+                    return "dstPort: integer expected";
+            if (message.transport != null && message.hasOwnProperty("transport"))
+                if (!$util.isString(message.transport))
+                    return "transport: string expected";
+            if (message.appProtocol != null && message.hasOwnProperty("appProtocol"))
+                if (!$util.isString(message.appProtocol))
+                    return "appProtocol: string expected";
+            if (message.serviceName != null && message.hasOwnProperty("serviceName"))
+                if (!$util.isString(message.serviceName))
+                    return "serviceName: string expected";
+            if (message.dnsName != null && message.hasOwnProperty("dnsName"))
+                if (!$util.isString(message.dnsName))
+                    return "dnsName: string expected";
+            if (message.sni != null && message.hasOwnProperty("sni"))
+                if (!$util.isString(message.sni))
+                    return "sni: string expected";
+            if (message.httpHost != null && message.hasOwnProperty("httpHost"))
+                if (!$util.isString(message.httpHost))
+                    return "httpHost: string expected";
+            if (message.tlsAlpn != null && message.hasOwnProperty("tlsAlpn"))
+                if (!$util.isString(message.tlsAlpn))
+                    return "tlsAlpn: string expected";
+            if (message.quicState != null && message.hasOwnProperty("quicState"))
+                if (!$util.isString(message.quicState))
+                    return "quicState: string expected";
+            if (message.interfaceName != null && message.hasOwnProperty("interfaceName"))
+                if (!$util.isString(message.interfaceName))
+                    return "interfaceName: string expected";
+            if (message.bytesIn != null && message.hasOwnProperty("bytesIn"))
+                if (!$util.isInteger(message.bytesIn) && !(message.bytesIn && $util.isInteger(message.bytesIn.low) && $util.isInteger(message.bytesIn.high)))
+                    return "bytesIn: integer|Long expected";
+            if (message.bytesOut != null && message.hasOwnProperty("bytesOut"))
+                if (!$util.isInteger(message.bytesOut) && !(message.bytesOut && $util.isInteger(message.bytesOut.low) && $util.isInteger(message.bytesOut.high)))
+                    return "bytesOut: integer|Long expected";
+            if (message.packetsIn != null && message.hasOwnProperty("packetsIn"))
+                if (!$util.isInteger(message.packetsIn) && !(message.packetsIn && $util.isInteger(message.packetsIn.low) && $util.isInteger(message.packetsIn.high)))
+                    return "packetsIn: integer|Long expected";
+            if (message.packetsOut != null && message.hasOwnProperty("packetsOut"))
+                if (!$util.isInteger(message.packetsOut) && !(message.packetsOut && $util.isInteger(message.packetsOut.low) && $util.isInteger(message.packetsOut.high)))
+                    return "packetsOut: integer|Long expected";
+            if (message.firstSeenMs != null && message.hasOwnProperty("firstSeenMs"))
+                if (!$util.isInteger(message.firstSeenMs) && !(message.firstSeenMs && $util.isInteger(message.firstSeenMs.low) && $util.isInteger(message.firstSeenMs.high)))
+                    return "firstSeenMs: integer|Long expected";
+            if (message.lastSeenMs != null && message.hasOwnProperty("lastSeenMs"))
+                if (!$util.isInteger(message.lastSeenMs) && !(message.lastSeenMs && $util.isInteger(message.lastSeenMs.low) && $util.isInteger(message.lastSeenMs.high)))
+                    return "lastSeenMs: integer|Long expected";
+            if (message.staleLevel != null && message.hasOwnProperty("staleLevel"))
+                if (!$util.isString(message.staleLevel))
+                    return "staleLevel: string expected";
+            if (message.historic != null && message.hasOwnProperty("historic"))
+                if (typeof message.historic !== "boolean")
+                    return "historic: boolean expected";
+            if (message.geoCountry != null && message.hasOwnProperty("geoCountry"))
+                if (!$util.isString(message.geoCountry))
+                    return "geoCountry: string expected";
+            if (message.geoCountryCode != null && message.hasOwnProperty("geoCountryCode"))
+                if (!$util.isString(message.geoCountryCode))
+                    return "geoCountryCode: string expected";
+            if (message.geoAsn != null && message.hasOwnProperty("geoAsn"))
+                if (!$util.isInteger(message.geoAsn))
+                    return "geoAsn: integer expected";
+            if (message.ipScope != null && message.hasOwnProperty("ipScope"))
+                if (!$util.isString(message.ipScope))
+                    return "ipScope: string expected";
             return null;
         };
 
@@ -2729,13 +3129,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.Event} Event
          */
-        Event.fromObject = function fromObject(object, long) {
+        Event.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.Event)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.Event();
             if (object.pid != null)
                 message.pid = object.pid >>> 0;
@@ -2944,7 +3340,7 @@ $root.pb = (function() {
             if (object.behavior != null) {
                 if (typeof object.behavior !== "object")
                     throw TypeError(".pb.Event.behavior: object expected");
-                message.behavior = $root.pb.BehaviorClassification.fromObject(object.behavior, long + 1);
+                message.behavior = $root.pb.BehaviorClassification.fromObject(object.behavior);
             }
             if (object.durationNs != null)
                 if ($util.Long)
@@ -2998,6 +3394,100 @@ $root.pb = (function() {
                 message.cwd = String(object.cwd);
             if (object.tgid != null)
                 message.tgid = object.tgid >>> 0;
+            if (object.flowId != null)
+                message.flowId = String(object.flowId);
+            if (object.srcIp != null)
+                message.srcIp = String(object.srcIp);
+            if (object.srcPort != null)
+                message.srcPort = object.srcPort >>> 0;
+            if (object.dstIp != null)
+                message.dstIp = String(object.dstIp);
+            if (object.dstPort != null)
+                message.dstPort = object.dstPort >>> 0;
+            if (object.transport != null)
+                message.transport = String(object.transport);
+            if (object.appProtocol != null)
+                message.appProtocol = String(object.appProtocol);
+            if (object.serviceName != null)
+                message.serviceName = String(object.serviceName);
+            if (object.dnsName != null)
+                message.dnsName = String(object.dnsName);
+            if (object.sni != null)
+                message.sni = String(object.sni);
+            if (object.httpHost != null)
+                message.httpHost = String(object.httpHost);
+            if (object.tlsAlpn != null)
+                message.tlsAlpn = String(object.tlsAlpn);
+            if (object.quicState != null)
+                message.quicState = String(object.quicState);
+            if (object.interfaceName != null)
+                message.interfaceName = String(object.interfaceName);
+            if (object.bytesIn != null)
+                if ($util.Long)
+                    (message.bytesIn = $util.Long.fromValue(object.bytesIn)).unsigned = true;
+                else if (typeof object.bytesIn === "string")
+                    message.bytesIn = parseInt(object.bytesIn, 10);
+                else if (typeof object.bytesIn === "number")
+                    message.bytesIn = object.bytesIn;
+                else if (typeof object.bytesIn === "object")
+                    message.bytesIn = new $util.LongBits(object.bytesIn.low >>> 0, object.bytesIn.high >>> 0).toNumber(true);
+            if (object.bytesOut != null)
+                if ($util.Long)
+                    (message.bytesOut = $util.Long.fromValue(object.bytesOut)).unsigned = true;
+                else if (typeof object.bytesOut === "string")
+                    message.bytesOut = parseInt(object.bytesOut, 10);
+                else if (typeof object.bytesOut === "number")
+                    message.bytesOut = object.bytesOut;
+                else if (typeof object.bytesOut === "object")
+                    message.bytesOut = new $util.LongBits(object.bytesOut.low >>> 0, object.bytesOut.high >>> 0).toNumber(true);
+            if (object.packetsIn != null)
+                if ($util.Long)
+                    (message.packetsIn = $util.Long.fromValue(object.packetsIn)).unsigned = true;
+                else if (typeof object.packetsIn === "string")
+                    message.packetsIn = parseInt(object.packetsIn, 10);
+                else if (typeof object.packetsIn === "number")
+                    message.packetsIn = object.packetsIn;
+                else if (typeof object.packetsIn === "object")
+                    message.packetsIn = new $util.LongBits(object.packetsIn.low >>> 0, object.packetsIn.high >>> 0).toNumber(true);
+            if (object.packetsOut != null)
+                if ($util.Long)
+                    (message.packetsOut = $util.Long.fromValue(object.packetsOut)).unsigned = true;
+                else if (typeof object.packetsOut === "string")
+                    message.packetsOut = parseInt(object.packetsOut, 10);
+                else if (typeof object.packetsOut === "number")
+                    message.packetsOut = object.packetsOut;
+                else if (typeof object.packetsOut === "object")
+                    message.packetsOut = new $util.LongBits(object.packetsOut.low >>> 0, object.packetsOut.high >>> 0).toNumber(true);
+            if (object.firstSeenMs != null)
+                if ($util.Long)
+                    (message.firstSeenMs = $util.Long.fromValue(object.firstSeenMs)).unsigned = true;
+                else if (typeof object.firstSeenMs === "string")
+                    message.firstSeenMs = parseInt(object.firstSeenMs, 10);
+                else if (typeof object.firstSeenMs === "number")
+                    message.firstSeenMs = object.firstSeenMs;
+                else if (typeof object.firstSeenMs === "object")
+                    message.firstSeenMs = new $util.LongBits(object.firstSeenMs.low >>> 0, object.firstSeenMs.high >>> 0).toNumber(true);
+            if (object.lastSeenMs != null)
+                if ($util.Long)
+                    (message.lastSeenMs = $util.Long.fromValue(object.lastSeenMs)).unsigned = true;
+                else if (typeof object.lastSeenMs === "string")
+                    message.lastSeenMs = parseInt(object.lastSeenMs, 10);
+                else if (typeof object.lastSeenMs === "number")
+                    message.lastSeenMs = object.lastSeenMs;
+                else if (typeof object.lastSeenMs === "object")
+                    message.lastSeenMs = new $util.LongBits(object.lastSeenMs.low >>> 0, object.lastSeenMs.high >>> 0).toNumber(true);
+            if (object.staleLevel != null)
+                message.staleLevel = String(object.staleLevel);
+            if (object.historic != null)
+                message.historic = Boolean(object.historic);
+            if (object.geoCountry != null)
+                message.geoCountry = String(object.geoCountry);
+            if (object.geoCountryCode != null)
+                message.geoCountryCode = String(object.geoCountryCode);
+            if (object.geoAsn != null)
+                message.geoAsn = object.geoAsn >>> 0;
+            if (object.ipScope != null)
+                message.ipScope = String(object.ipScope);
             return message;
         };
 
@@ -3073,6 +3563,56 @@ $root.pb = (function() {
                 object.taskId = "";
                 object.cwd = "";
                 object.tgid = 0;
+                object.flowId = "";
+                object.srcIp = "";
+                object.srcPort = 0;
+                object.dstIp = "";
+                object.dstPort = 0;
+                object.transport = "";
+                object.appProtocol = "";
+                object.serviceName = "";
+                object.dnsName = "";
+                object.sni = "";
+                object.httpHost = "";
+                object.tlsAlpn = "";
+                object.quicState = "";
+                object.interfaceName = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.bytesIn = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.bytesIn = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.bytesOut = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.bytesOut = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.packetsIn = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.packetsIn = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.packetsOut = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.packetsOut = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.firstSeenMs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.firstSeenMs = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.lastSeenMs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.lastSeenMs = options.longs === String ? "0" : 0;
+                object.staleLevel = "";
+                object.historic = false;
+                object.geoCountry = "";
+                object.geoCountryCode = "";
+                object.geoAsn = 0;
+                object.ipScope = "";
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -3170,6 +3710,76 @@ $root.pb = (function() {
                 object.cwd = message.cwd;
             if (message.tgid != null && message.hasOwnProperty("tgid"))
                 object.tgid = message.tgid;
+            if (message.flowId != null && message.hasOwnProperty("flowId"))
+                object.flowId = message.flowId;
+            if (message.srcIp != null && message.hasOwnProperty("srcIp"))
+                object.srcIp = message.srcIp;
+            if (message.srcPort != null && message.hasOwnProperty("srcPort"))
+                object.srcPort = message.srcPort;
+            if (message.dstIp != null && message.hasOwnProperty("dstIp"))
+                object.dstIp = message.dstIp;
+            if (message.dstPort != null && message.hasOwnProperty("dstPort"))
+                object.dstPort = message.dstPort;
+            if (message.transport != null && message.hasOwnProperty("transport"))
+                object.transport = message.transport;
+            if (message.appProtocol != null && message.hasOwnProperty("appProtocol"))
+                object.appProtocol = message.appProtocol;
+            if (message.serviceName != null && message.hasOwnProperty("serviceName"))
+                object.serviceName = message.serviceName;
+            if (message.dnsName != null && message.hasOwnProperty("dnsName"))
+                object.dnsName = message.dnsName;
+            if (message.sni != null && message.hasOwnProperty("sni"))
+                object.sni = message.sni;
+            if (message.httpHost != null && message.hasOwnProperty("httpHost"))
+                object.httpHost = message.httpHost;
+            if (message.tlsAlpn != null && message.hasOwnProperty("tlsAlpn"))
+                object.tlsAlpn = message.tlsAlpn;
+            if (message.quicState != null && message.hasOwnProperty("quicState"))
+                object.quicState = message.quicState;
+            if (message.interfaceName != null && message.hasOwnProperty("interfaceName"))
+                object.interfaceName = message.interfaceName;
+            if (message.bytesIn != null && message.hasOwnProperty("bytesIn"))
+                if (typeof message.bytesIn === "number")
+                    object.bytesIn = options.longs === String ? String(message.bytesIn) : message.bytesIn;
+                else
+                    object.bytesIn = options.longs === String ? $util.Long.prototype.toString.call(message.bytesIn) : options.longs === Number ? new $util.LongBits(message.bytesIn.low >>> 0, message.bytesIn.high >>> 0).toNumber(true) : message.bytesIn;
+            if (message.bytesOut != null && message.hasOwnProperty("bytesOut"))
+                if (typeof message.bytesOut === "number")
+                    object.bytesOut = options.longs === String ? String(message.bytesOut) : message.bytesOut;
+                else
+                    object.bytesOut = options.longs === String ? $util.Long.prototype.toString.call(message.bytesOut) : options.longs === Number ? new $util.LongBits(message.bytesOut.low >>> 0, message.bytesOut.high >>> 0).toNumber(true) : message.bytesOut;
+            if (message.packetsIn != null && message.hasOwnProperty("packetsIn"))
+                if (typeof message.packetsIn === "number")
+                    object.packetsIn = options.longs === String ? String(message.packetsIn) : message.packetsIn;
+                else
+                    object.packetsIn = options.longs === String ? $util.Long.prototype.toString.call(message.packetsIn) : options.longs === Number ? new $util.LongBits(message.packetsIn.low >>> 0, message.packetsIn.high >>> 0).toNumber(true) : message.packetsIn;
+            if (message.packetsOut != null && message.hasOwnProperty("packetsOut"))
+                if (typeof message.packetsOut === "number")
+                    object.packetsOut = options.longs === String ? String(message.packetsOut) : message.packetsOut;
+                else
+                    object.packetsOut = options.longs === String ? $util.Long.prototype.toString.call(message.packetsOut) : options.longs === Number ? new $util.LongBits(message.packetsOut.low >>> 0, message.packetsOut.high >>> 0).toNumber(true) : message.packetsOut;
+            if (message.firstSeenMs != null && message.hasOwnProperty("firstSeenMs"))
+                if (typeof message.firstSeenMs === "number")
+                    object.firstSeenMs = options.longs === String ? String(message.firstSeenMs) : message.firstSeenMs;
+                else
+                    object.firstSeenMs = options.longs === String ? $util.Long.prototype.toString.call(message.firstSeenMs) : options.longs === Number ? new $util.LongBits(message.firstSeenMs.low >>> 0, message.firstSeenMs.high >>> 0).toNumber(true) : message.firstSeenMs;
+            if (message.lastSeenMs != null && message.hasOwnProperty("lastSeenMs"))
+                if (typeof message.lastSeenMs === "number")
+                    object.lastSeenMs = options.longs === String ? String(message.lastSeenMs) : message.lastSeenMs;
+                else
+                    object.lastSeenMs = options.longs === String ? $util.Long.prototype.toString.call(message.lastSeenMs) : options.longs === Number ? new $util.LongBits(message.lastSeenMs.low >>> 0, message.lastSeenMs.high >>> 0).toNumber(true) : message.lastSeenMs;
+            if (message.staleLevel != null && message.hasOwnProperty("staleLevel"))
+                object.staleLevel = message.staleLevel;
+            if (message.historic != null && message.hasOwnProperty("historic"))
+                object.historic = message.historic;
+            if (message.geoCountry != null && message.hasOwnProperty("geoCountry"))
+                object.geoCountry = message.geoCountry;
+            if (message.geoCountryCode != null && message.hasOwnProperty("geoCountryCode"))
+                object.geoCountryCode = message.geoCountryCode;
+            if (message.geoAsn != null && message.hasOwnProperty("geoAsn"))
+                object.geoAsn = message.geoAsn;
+            if (message.ipScope != null && message.hasOwnProperty("ipScope"))
+                object.ipScope = message.ipScope;
             return object;
         };
 
@@ -3227,7 +3837,7 @@ $root.pb = (function() {
         function ExecEvent(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -3342,13 +3952,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ExecEvent.decode = function decode(reader, length, error, long) {
+        ExecEvent.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ExecEvent();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -3380,7 +3986,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -3411,13 +4017,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ExecEvent.verify = function verify(message, long) {
+        ExecEvent.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.path != null && message.hasOwnProperty("path"))
                 if (!$util.isString(message.path))
                     return "path: string expected";
@@ -3447,13 +4049,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.ExecEvent} ExecEvent
          */
-        ExecEvent.fromObject = function fromObject(object, long) {
+        ExecEvent.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.ExecEvent)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.ExecEvent();
             if (object.path != null)
                 message.path = String(object.path);
@@ -3591,7 +4189,7 @@ $root.pb = (function() {
         function FileEvent(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -3736,13 +4334,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        FileEvent.decode = function decode(reader, length, error, long) {
+        FileEvent.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.FileEvent();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -3786,7 +4380,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -3817,13 +4411,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        FileEvent.verify = function verify(message, long) {
+        FileEvent.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.operation != null && message.hasOwnProperty("operation"))
                 if (!$util.isString(message.operation))
                     return "operation: string expected";
@@ -3862,13 +4452,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.FileEvent} FileEvent
          */
-        FileEvent.fromObject = function fromObject(object, long) {
+        FileEvent.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.FileEvent)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.FileEvent();
             if (object.operation != null)
                 message.operation = String(object.operation);
@@ -4008,6 +4594,32 @@ $root.pb = (function() {
          * @property {number|null} [protocol] NetworkEvent protocol
          * @property {number|Long|null} [retval] NetworkEvent retval
          * @property {string|null} [extraInfo] NetworkEvent extraInfo
+         * @property {string|null} [flowId] NetworkEvent flowId
+         * @property {string|null} [srcIp] NetworkEvent srcIp
+         * @property {number|null} [srcPort] NetworkEvent srcPort
+         * @property {string|null} [dstIp] NetworkEvent dstIp
+         * @property {number|null} [dstPort] NetworkEvent dstPort
+         * @property {string|null} [transport] NetworkEvent transport
+         * @property {string|null} [appProtocol] NetworkEvent appProtocol
+         * @property {string|null} [serviceName] NetworkEvent serviceName
+         * @property {string|null} [dnsName] NetworkEvent dnsName
+         * @property {string|null} [sni] NetworkEvent sni
+         * @property {string|null} [httpHost] NetworkEvent httpHost
+         * @property {string|null} [tlsAlpn] NetworkEvent tlsAlpn
+         * @property {string|null} [quicState] NetworkEvent quicState
+         * @property {string|null} [interfaceName] NetworkEvent interfaceName
+         * @property {number|Long|null} [bytesIn] NetworkEvent bytesIn
+         * @property {number|Long|null} [bytesOut] NetworkEvent bytesOut
+         * @property {number|Long|null} [packetsIn] NetworkEvent packetsIn
+         * @property {number|Long|null} [packetsOut] NetworkEvent packetsOut
+         * @property {number|Long|null} [firstSeenMs] NetworkEvent firstSeenMs
+         * @property {number|Long|null} [lastSeenMs] NetworkEvent lastSeenMs
+         * @property {string|null} [staleLevel] NetworkEvent staleLevel
+         * @property {boolean|null} [historic] NetworkEvent historic
+         * @property {string|null} [geoCountry] NetworkEvent geoCountry
+         * @property {string|null} [geoCountryCode] NetworkEvent geoCountryCode
+         * @property {number|null} [geoAsn] NetworkEvent geoAsn
+         * @property {string|null} [ipScope] NetworkEvent ipScope
          */
 
         /**
@@ -4021,7 +4633,7 @@ $root.pb = (function() {
         function NetworkEvent(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -4098,6 +4710,214 @@ $root.pb = (function() {
         NetworkEvent.prototype.extraInfo = "";
 
         /**
+         * NetworkEvent flowId.
+         * @member {string} flowId
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.flowId = "";
+
+        /**
+         * NetworkEvent srcIp.
+         * @member {string} srcIp
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.srcIp = "";
+
+        /**
+         * NetworkEvent srcPort.
+         * @member {number} srcPort
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.srcPort = 0;
+
+        /**
+         * NetworkEvent dstIp.
+         * @member {string} dstIp
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.dstIp = "";
+
+        /**
+         * NetworkEvent dstPort.
+         * @member {number} dstPort
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.dstPort = 0;
+
+        /**
+         * NetworkEvent transport.
+         * @member {string} transport
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.transport = "";
+
+        /**
+         * NetworkEvent appProtocol.
+         * @member {string} appProtocol
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.appProtocol = "";
+
+        /**
+         * NetworkEvent serviceName.
+         * @member {string} serviceName
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.serviceName = "";
+
+        /**
+         * NetworkEvent dnsName.
+         * @member {string} dnsName
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.dnsName = "";
+
+        /**
+         * NetworkEvent sni.
+         * @member {string} sni
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.sni = "";
+
+        /**
+         * NetworkEvent httpHost.
+         * @member {string} httpHost
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.httpHost = "";
+
+        /**
+         * NetworkEvent tlsAlpn.
+         * @member {string} tlsAlpn
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.tlsAlpn = "";
+
+        /**
+         * NetworkEvent quicState.
+         * @member {string} quicState
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.quicState = "";
+
+        /**
+         * NetworkEvent interfaceName.
+         * @member {string} interfaceName
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.interfaceName = "";
+
+        /**
+         * NetworkEvent bytesIn.
+         * @member {number|Long} bytesIn
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.bytesIn = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * NetworkEvent bytesOut.
+         * @member {number|Long} bytesOut
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.bytesOut = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * NetworkEvent packetsIn.
+         * @member {number|Long} packetsIn
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.packetsIn = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * NetworkEvent packetsOut.
+         * @member {number|Long} packetsOut
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.packetsOut = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * NetworkEvent firstSeenMs.
+         * @member {number|Long} firstSeenMs
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.firstSeenMs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * NetworkEvent lastSeenMs.
+         * @member {number|Long} lastSeenMs
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.lastSeenMs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * NetworkEvent staleLevel.
+         * @member {string} staleLevel
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.staleLevel = "";
+
+        /**
+         * NetworkEvent historic.
+         * @member {boolean} historic
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.historic = false;
+
+        /**
+         * NetworkEvent geoCountry.
+         * @member {string} geoCountry
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.geoCountry = "";
+
+        /**
+         * NetworkEvent geoCountryCode.
+         * @member {string} geoCountryCode
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.geoCountryCode = "";
+
+        /**
+         * NetworkEvent geoAsn.
+         * @member {number} geoAsn
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.geoAsn = 0;
+
+        /**
+         * NetworkEvent ipScope.
+         * @member {string} ipScope
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.ipScope = "";
+
+        /**
          * Creates a new NetworkEvent instance using the specified properties.
          * @function create
          * @memberof pb.NetworkEvent
@@ -4139,6 +4959,58 @@ $root.pb = (function() {
                 writer.uint32(/* id 8, wireType 0 =*/64).int64(message.retval);
             if (message.extraInfo != null && Object.hasOwnProperty.call(message, "extraInfo"))
                 writer.uint32(/* id 9, wireType 2 =*/74).string(message.extraInfo);
+            if (message.flowId != null && Object.hasOwnProperty.call(message, "flowId"))
+                writer.uint32(/* id 10, wireType 2 =*/82).string(message.flowId);
+            if (message.srcIp != null && Object.hasOwnProperty.call(message, "srcIp"))
+                writer.uint32(/* id 11, wireType 2 =*/90).string(message.srcIp);
+            if (message.srcPort != null && Object.hasOwnProperty.call(message, "srcPort"))
+                writer.uint32(/* id 12, wireType 0 =*/96).uint32(message.srcPort);
+            if (message.dstIp != null && Object.hasOwnProperty.call(message, "dstIp"))
+                writer.uint32(/* id 13, wireType 2 =*/106).string(message.dstIp);
+            if (message.dstPort != null && Object.hasOwnProperty.call(message, "dstPort"))
+                writer.uint32(/* id 14, wireType 0 =*/112).uint32(message.dstPort);
+            if (message.transport != null && Object.hasOwnProperty.call(message, "transport"))
+                writer.uint32(/* id 15, wireType 2 =*/122).string(message.transport);
+            if (message.appProtocol != null && Object.hasOwnProperty.call(message, "appProtocol"))
+                writer.uint32(/* id 16, wireType 2 =*/130).string(message.appProtocol);
+            if (message.serviceName != null && Object.hasOwnProperty.call(message, "serviceName"))
+                writer.uint32(/* id 17, wireType 2 =*/138).string(message.serviceName);
+            if (message.dnsName != null && Object.hasOwnProperty.call(message, "dnsName"))
+                writer.uint32(/* id 18, wireType 2 =*/146).string(message.dnsName);
+            if (message.sni != null && Object.hasOwnProperty.call(message, "sni"))
+                writer.uint32(/* id 19, wireType 2 =*/154).string(message.sni);
+            if (message.httpHost != null && Object.hasOwnProperty.call(message, "httpHost"))
+                writer.uint32(/* id 20, wireType 2 =*/162).string(message.httpHost);
+            if (message.tlsAlpn != null && Object.hasOwnProperty.call(message, "tlsAlpn"))
+                writer.uint32(/* id 21, wireType 2 =*/170).string(message.tlsAlpn);
+            if (message.quicState != null && Object.hasOwnProperty.call(message, "quicState"))
+                writer.uint32(/* id 22, wireType 2 =*/178).string(message.quicState);
+            if (message.interfaceName != null && Object.hasOwnProperty.call(message, "interfaceName"))
+                writer.uint32(/* id 23, wireType 2 =*/186).string(message.interfaceName);
+            if (message.bytesIn != null && Object.hasOwnProperty.call(message, "bytesIn"))
+                writer.uint32(/* id 24, wireType 0 =*/192).uint64(message.bytesIn);
+            if (message.bytesOut != null && Object.hasOwnProperty.call(message, "bytesOut"))
+                writer.uint32(/* id 25, wireType 0 =*/200).uint64(message.bytesOut);
+            if (message.packetsIn != null && Object.hasOwnProperty.call(message, "packetsIn"))
+                writer.uint32(/* id 26, wireType 0 =*/208).uint64(message.packetsIn);
+            if (message.packetsOut != null && Object.hasOwnProperty.call(message, "packetsOut"))
+                writer.uint32(/* id 27, wireType 0 =*/216).uint64(message.packetsOut);
+            if (message.firstSeenMs != null && Object.hasOwnProperty.call(message, "firstSeenMs"))
+                writer.uint32(/* id 28, wireType 0 =*/224).uint64(message.firstSeenMs);
+            if (message.lastSeenMs != null && Object.hasOwnProperty.call(message, "lastSeenMs"))
+                writer.uint32(/* id 29, wireType 0 =*/232).uint64(message.lastSeenMs);
+            if (message.staleLevel != null && Object.hasOwnProperty.call(message, "staleLevel"))
+                writer.uint32(/* id 30, wireType 2 =*/242).string(message.staleLevel);
+            if (message.historic != null && Object.hasOwnProperty.call(message, "historic"))
+                writer.uint32(/* id 31, wireType 0 =*/248).bool(message.historic);
+            if (message.geoCountry != null && Object.hasOwnProperty.call(message, "geoCountry"))
+                writer.uint32(/* id 32, wireType 2 =*/258).string(message.geoCountry);
+            if (message.geoCountryCode != null && Object.hasOwnProperty.call(message, "geoCountryCode"))
+                writer.uint32(/* id 33, wireType 2 =*/266).string(message.geoCountryCode);
+            if (message.geoAsn != null && Object.hasOwnProperty.call(message, "geoAsn"))
+                writer.uint32(/* id 34, wireType 0 =*/272).uint32(message.geoAsn);
+            if (message.ipScope != null && Object.hasOwnProperty.call(message, "ipScope"))
+                writer.uint32(/* id 35, wireType 2 =*/282).string(message.ipScope);
             return writer;
         };
 
@@ -4166,13 +5038,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        NetworkEvent.decode = function decode(reader, length, error, long) {
+        NetworkEvent.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.NetworkEvent();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -4215,8 +5083,112 @@ $root.pb = (function() {
                         message.extraInfo = reader.string();
                         break;
                     }
+                case 10: {
+                        message.flowId = reader.string();
+                        break;
+                    }
+                case 11: {
+                        message.srcIp = reader.string();
+                        break;
+                    }
+                case 12: {
+                        message.srcPort = reader.uint32();
+                        break;
+                    }
+                case 13: {
+                        message.dstIp = reader.string();
+                        break;
+                    }
+                case 14: {
+                        message.dstPort = reader.uint32();
+                        break;
+                    }
+                case 15: {
+                        message.transport = reader.string();
+                        break;
+                    }
+                case 16: {
+                        message.appProtocol = reader.string();
+                        break;
+                    }
+                case 17: {
+                        message.serviceName = reader.string();
+                        break;
+                    }
+                case 18: {
+                        message.dnsName = reader.string();
+                        break;
+                    }
+                case 19: {
+                        message.sni = reader.string();
+                        break;
+                    }
+                case 20: {
+                        message.httpHost = reader.string();
+                        break;
+                    }
+                case 21: {
+                        message.tlsAlpn = reader.string();
+                        break;
+                    }
+                case 22: {
+                        message.quicState = reader.string();
+                        break;
+                    }
+                case 23: {
+                        message.interfaceName = reader.string();
+                        break;
+                    }
+                case 24: {
+                        message.bytesIn = reader.uint64();
+                        break;
+                    }
+                case 25: {
+                        message.bytesOut = reader.uint64();
+                        break;
+                    }
+                case 26: {
+                        message.packetsIn = reader.uint64();
+                        break;
+                    }
+                case 27: {
+                        message.packetsOut = reader.uint64();
+                        break;
+                    }
+                case 28: {
+                        message.firstSeenMs = reader.uint64();
+                        break;
+                    }
+                case 29: {
+                        message.lastSeenMs = reader.uint64();
+                        break;
+                    }
+                case 30: {
+                        message.staleLevel = reader.string();
+                        break;
+                    }
+                case 31: {
+                        message.historic = reader.bool();
+                        break;
+                    }
+                case 32: {
+                        message.geoCountry = reader.string();
+                        break;
+                    }
+                case 33: {
+                        message.geoCountryCode = reader.string();
+                        break;
+                    }
+                case 34: {
+                        message.geoAsn = reader.uint32();
+                        break;
+                    }
+                case 35: {
+                        message.ipScope = reader.string();
+                        break;
+                    }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -4247,13 +5219,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        NetworkEvent.verify = function verify(message, long) {
+        NetworkEvent.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.endpoint != null && message.hasOwnProperty("endpoint"))
                 if (!$util.isString(message.endpoint))
                     return "endpoint: string expected";
@@ -4281,6 +5249,84 @@ $root.pb = (function() {
             if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
                 if (!$util.isString(message.extraInfo))
                     return "extraInfo: string expected";
+            if (message.flowId != null && message.hasOwnProperty("flowId"))
+                if (!$util.isString(message.flowId))
+                    return "flowId: string expected";
+            if (message.srcIp != null && message.hasOwnProperty("srcIp"))
+                if (!$util.isString(message.srcIp))
+                    return "srcIp: string expected";
+            if (message.srcPort != null && message.hasOwnProperty("srcPort"))
+                if (!$util.isInteger(message.srcPort))
+                    return "srcPort: integer expected";
+            if (message.dstIp != null && message.hasOwnProperty("dstIp"))
+                if (!$util.isString(message.dstIp))
+                    return "dstIp: string expected";
+            if (message.dstPort != null && message.hasOwnProperty("dstPort"))
+                if (!$util.isInteger(message.dstPort))
+                    return "dstPort: integer expected";
+            if (message.transport != null && message.hasOwnProperty("transport"))
+                if (!$util.isString(message.transport))
+                    return "transport: string expected";
+            if (message.appProtocol != null && message.hasOwnProperty("appProtocol"))
+                if (!$util.isString(message.appProtocol))
+                    return "appProtocol: string expected";
+            if (message.serviceName != null && message.hasOwnProperty("serviceName"))
+                if (!$util.isString(message.serviceName))
+                    return "serviceName: string expected";
+            if (message.dnsName != null && message.hasOwnProperty("dnsName"))
+                if (!$util.isString(message.dnsName))
+                    return "dnsName: string expected";
+            if (message.sni != null && message.hasOwnProperty("sni"))
+                if (!$util.isString(message.sni))
+                    return "sni: string expected";
+            if (message.httpHost != null && message.hasOwnProperty("httpHost"))
+                if (!$util.isString(message.httpHost))
+                    return "httpHost: string expected";
+            if (message.tlsAlpn != null && message.hasOwnProperty("tlsAlpn"))
+                if (!$util.isString(message.tlsAlpn))
+                    return "tlsAlpn: string expected";
+            if (message.quicState != null && message.hasOwnProperty("quicState"))
+                if (!$util.isString(message.quicState))
+                    return "quicState: string expected";
+            if (message.interfaceName != null && message.hasOwnProperty("interfaceName"))
+                if (!$util.isString(message.interfaceName))
+                    return "interfaceName: string expected";
+            if (message.bytesIn != null && message.hasOwnProperty("bytesIn"))
+                if (!$util.isInteger(message.bytesIn) && !(message.bytesIn && $util.isInteger(message.bytesIn.low) && $util.isInteger(message.bytesIn.high)))
+                    return "bytesIn: integer|Long expected";
+            if (message.bytesOut != null && message.hasOwnProperty("bytesOut"))
+                if (!$util.isInteger(message.bytesOut) && !(message.bytesOut && $util.isInteger(message.bytesOut.low) && $util.isInteger(message.bytesOut.high)))
+                    return "bytesOut: integer|Long expected";
+            if (message.packetsIn != null && message.hasOwnProperty("packetsIn"))
+                if (!$util.isInteger(message.packetsIn) && !(message.packetsIn && $util.isInteger(message.packetsIn.low) && $util.isInteger(message.packetsIn.high)))
+                    return "packetsIn: integer|Long expected";
+            if (message.packetsOut != null && message.hasOwnProperty("packetsOut"))
+                if (!$util.isInteger(message.packetsOut) && !(message.packetsOut && $util.isInteger(message.packetsOut.low) && $util.isInteger(message.packetsOut.high)))
+                    return "packetsOut: integer|Long expected";
+            if (message.firstSeenMs != null && message.hasOwnProperty("firstSeenMs"))
+                if (!$util.isInteger(message.firstSeenMs) && !(message.firstSeenMs && $util.isInteger(message.firstSeenMs.low) && $util.isInteger(message.firstSeenMs.high)))
+                    return "firstSeenMs: integer|Long expected";
+            if (message.lastSeenMs != null && message.hasOwnProperty("lastSeenMs"))
+                if (!$util.isInteger(message.lastSeenMs) && !(message.lastSeenMs && $util.isInteger(message.lastSeenMs.low) && $util.isInteger(message.lastSeenMs.high)))
+                    return "lastSeenMs: integer|Long expected";
+            if (message.staleLevel != null && message.hasOwnProperty("staleLevel"))
+                if (!$util.isString(message.staleLevel))
+                    return "staleLevel: string expected";
+            if (message.historic != null && message.hasOwnProperty("historic"))
+                if (typeof message.historic !== "boolean")
+                    return "historic: boolean expected";
+            if (message.geoCountry != null && message.hasOwnProperty("geoCountry"))
+                if (!$util.isString(message.geoCountry))
+                    return "geoCountry: string expected";
+            if (message.geoCountryCode != null && message.hasOwnProperty("geoCountryCode"))
+                if (!$util.isString(message.geoCountryCode))
+                    return "geoCountryCode: string expected";
+            if (message.geoAsn != null && message.hasOwnProperty("geoAsn"))
+                if (!$util.isInteger(message.geoAsn))
+                    return "geoAsn: integer expected";
+            if (message.ipScope != null && message.hasOwnProperty("ipScope"))
+                if (!$util.isString(message.ipScope))
+                    return "ipScope: string expected";
             return null;
         };
 
@@ -4292,13 +5338,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.NetworkEvent} NetworkEvent
          */
-        NetworkEvent.fromObject = function fromObject(object, long) {
+        NetworkEvent.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.NetworkEvent)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.NetworkEvent();
             if (object.endpoint != null)
                 message.endpoint = String(object.endpoint);
@@ -4325,6 +5367,100 @@ $root.pb = (function() {
                     message.retval = new $util.LongBits(object.retval.low >>> 0, object.retval.high >>> 0).toNumber();
             if (object.extraInfo != null)
                 message.extraInfo = String(object.extraInfo);
+            if (object.flowId != null)
+                message.flowId = String(object.flowId);
+            if (object.srcIp != null)
+                message.srcIp = String(object.srcIp);
+            if (object.srcPort != null)
+                message.srcPort = object.srcPort >>> 0;
+            if (object.dstIp != null)
+                message.dstIp = String(object.dstIp);
+            if (object.dstPort != null)
+                message.dstPort = object.dstPort >>> 0;
+            if (object.transport != null)
+                message.transport = String(object.transport);
+            if (object.appProtocol != null)
+                message.appProtocol = String(object.appProtocol);
+            if (object.serviceName != null)
+                message.serviceName = String(object.serviceName);
+            if (object.dnsName != null)
+                message.dnsName = String(object.dnsName);
+            if (object.sni != null)
+                message.sni = String(object.sni);
+            if (object.httpHost != null)
+                message.httpHost = String(object.httpHost);
+            if (object.tlsAlpn != null)
+                message.tlsAlpn = String(object.tlsAlpn);
+            if (object.quicState != null)
+                message.quicState = String(object.quicState);
+            if (object.interfaceName != null)
+                message.interfaceName = String(object.interfaceName);
+            if (object.bytesIn != null)
+                if ($util.Long)
+                    (message.bytesIn = $util.Long.fromValue(object.bytesIn)).unsigned = true;
+                else if (typeof object.bytesIn === "string")
+                    message.bytesIn = parseInt(object.bytesIn, 10);
+                else if (typeof object.bytesIn === "number")
+                    message.bytesIn = object.bytesIn;
+                else if (typeof object.bytesIn === "object")
+                    message.bytesIn = new $util.LongBits(object.bytesIn.low >>> 0, object.bytesIn.high >>> 0).toNumber(true);
+            if (object.bytesOut != null)
+                if ($util.Long)
+                    (message.bytesOut = $util.Long.fromValue(object.bytesOut)).unsigned = true;
+                else if (typeof object.bytesOut === "string")
+                    message.bytesOut = parseInt(object.bytesOut, 10);
+                else if (typeof object.bytesOut === "number")
+                    message.bytesOut = object.bytesOut;
+                else if (typeof object.bytesOut === "object")
+                    message.bytesOut = new $util.LongBits(object.bytesOut.low >>> 0, object.bytesOut.high >>> 0).toNumber(true);
+            if (object.packetsIn != null)
+                if ($util.Long)
+                    (message.packetsIn = $util.Long.fromValue(object.packetsIn)).unsigned = true;
+                else if (typeof object.packetsIn === "string")
+                    message.packetsIn = parseInt(object.packetsIn, 10);
+                else if (typeof object.packetsIn === "number")
+                    message.packetsIn = object.packetsIn;
+                else if (typeof object.packetsIn === "object")
+                    message.packetsIn = new $util.LongBits(object.packetsIn.low >>> 0, object.packetsIn.high >>> 0).toNumber(true);
+            if (object.packetsOut != null)
+                if ($util.Long)
+                    (message.packetsOut = $util.Long.fromValue(object.packetsOut)).unsigned = true;
+                else if (typeof object.packetsOut === "string")
+                    message.packetsOut = parseInt(object.packetsOut, 10);
+                else if (typeof object.packetsOut === "number")
+                    message.packetsOut = object.packetsOut;
+                else if (typeof object.packetsOut === "object")
+                    message.packetsOut = new $util.LongBits(object.packetsOut.low >>> 0, object.packetsOut.high >>> 0).toNumber(true);
+            if (object.firstSeenMs != null)
+                if ($util.Long)
+                    (message.firstSeenMs = $util.Long.fromValue(object.firstSeenMs)).unsigned = true;
+                else if (typeof object.firstSeenMs === "string")
+                    message.firstSeenMs = parseInt(object.firstSeenMs, 10);
+                else if (typeof object.firstSeenMs === "number")
+                    message.firstSeenMs = object.firstSeenMs;
+                else if (typeof object.firstSeenMs === "object")
+                    message.firstSeenMs = new $util.LongBits(object.firstSeenMs.low >>> 0, object.firstSeenMs.high >>> 0).toNumber(true);
+            if (object.lastSeenMs != null)
+                if ($util.Long)
+                    (message.lastSeenMs = $util.Long.fromValue(object.lastSeenMs)).unsigned = true;
+                else if (typeof object.lastSeenMs === "string")
+                    message.lastSeenMs = parseInt(object.lastSeenMs, 10);
+                else if (typeof object.lastSeenMs === "number")
+                    message.lastSeenMs = object.lastSeenMs;
+                else if (typeof object.lastSeenMs === "object")
+                    message.lastSeenMs = new $util.LongBits(object.lastSeenMs.low >>> 0, object.lastSeenMs.high >>> 0).toNumber(true);
+            if (object.staleLevel != null)
+                message.staleLevel = String(object.staleLevel);
+            if (object.historic != null)
+                message.historic = Boolean(object.historic);
+            if (object.geoCountry != null)
+                message.geoCountry = String(object.geoCountry);
+            if (object.geoCountryCode != null)
+                message.geoCountryCode = String(object.geoCountryCode);
+            if (object.geoAsn != null)
+                message.geoAsn = object.geoAsn >>> 0;
+            if (object.ipScope != null)
+                message.ipScope = String(object.ipScope);
             return message;
         };
 
@@ -4355,6 +5491,56 @@ $root.pb = (function() {
                 } else
                     object.retval = options.longs === String ? "0" : 0;
                 object.extraInfo = "";
+                object.flowId = "";
+                object.srcIp = "";
+                object.srcPort = 0;
+                object.dstIp = "";
+                object.dstPort = 0;
+                object.transport = "";
+                object.appProtocol = "";
+                object.serviceName = "";
+                object.dnsName = "";
+                object.sni = "";
+                object.httpHost = "";
+                object.tlsAlpn = "";
+                object.quicState = "";
+                object.interfaceName = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.bytesIn = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.bytesIn = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.bytesOut = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.bytesOut = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.packetsIn = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.packetsIn = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.packetsOut = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.packetsOut = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.firstSeenMs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.firstSeenMs = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.lastSeenMs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.lastSeenMs = options.longs === String ? "0" : 0;
+                object.staleLevel = "";
+                object.historic = false;
+                object.geoCountry = "";
+                object.geoCountryCode = "";
+                object.geoAsn = 0;
+                object.ipScope = "";
             }
             if (message.endpoint != null && message.hasOwnProperty("endpoint"))
                 object.endpoint = message.endpoint;
@@ -4377,6 +5563,76 @@ $root.pb = (function() {
                     object.retval = options.longs === String ? $util.Long.prototype.toString.call(message.retval) : options.longs === Number ? new $util.LongBits(message.retval.low >>> 0, message.retval.high >>> 0).toNumber() : message.retval;
             if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
                 object.extraInfo = message.extraInfo;
+            if (message.flowId != null && message.hasOwnProperty("flowId"))
+                object.flowId = message.flowId;
+            if (message.srcIp != null && message.hasOwnProperty("srcIp"))
+                object.srcIp = message.srcIp;
+            if (message.srcPort != null && message.hasOwnProperty("srcPort"))
+                object.srcPort = message.srcPort;
+            if (message.dstIp != null && message.hasOwnProperty("dstIp"))
+                object.dstIp = message.dstIp;
+            if (message.dstPort != null && message.hasOwnProperty("dstPort"))
+                object.dstPort = message.dstPort;
+            if (message.transport != null && message.hasOwnProperty("transport"))
+                object.transport = message.transport;
+            if (message.appProtocol != null && message.hasOwnProperty("appProtocol"))
+                object.appProtocol = message.appProtocol;
+            if (message.serviceName != null && message.hasOwnProperty("serviceName"))
+                object.serviceName = message.serviceName;
+            if (message.dnsName != null && message.hasOwnProperty("dnsName"))
+                object.dnsName = message.dnsName;
+            if (message.sni != null && message.hasOwnProperty("sni"))
+                object.sni = message.sni;
+            if (message.httpHost != null && message.hasOwnProperty("httpHost"))
+                object.httpHost = message.httpHost;
+            if (message.tlsAlpn != null && message.hasOwnProperty("tlsAlpn"))
+                object.tlsAlpn = message.tlsAlpn;
+            if (message.quicState != null && message.hasOwnProperty("quicState"))
+                object.quicState = message.quicState;
+            if (message.interfaceName != null && message.hasOwnProperty("interfaceName"))
+                object.interfaceName = message.interfaceName;
+            if (message.bytesIn != null && message.hasOwnProperty("bytesIn"))
+                if (typeof message.bytesIn === "number")
+                    object.bytesIn = options.longs === String ? String(message.bytesIn) : message.bytesIn;
+                else
+                    object.bytesIn = options.longs === String ? $util.Long.prototype.toString.call(message.bytesIn) : options.longs === Number ? new $util.LongBits(message.bytesIn.low >>> 0, message.bytesIn.high >>> 0).toNumber(true) : message.bytesIn;
+            if (message.bytesOut != null && message.hasOwnProperty("bytesOut"))
+                if (typeof message.bytesOut === "number")
+                    object.bytesOut = options.longs === String ? String(message.bytesOut) : message.bytesOut;
+                else
+                    object.bytesOut = options.longs === String ? $util.Long.prototype.toString.call(message.bytesOut) : options.longs === Number ? new $util.LongBits(message.bytesOut.low >>> 0, message.bytesOut.high >>> 0).toNumber(true) : message.bytesOut;
+            if (message.packetsIn != null && message.hasOwnProperty("packetsIn"))
+                if (typeof message.packetsIn === "number")
+                    object.packetsIn = options.longs === String ? String(message.packetsIn) : message.packetsIn;
+                else
+                    object.packetsIn = options.longs === String ? $util.Long.prototype.toString.call(message.packetsIn) : options.longs === Number ? new $util.LongBits(message.packetsIn.low >>> 0, message.packetsIn.high >>> 0).toNumber(true) : message.packetsIn;
+            if (message.packetsOut != null && message.hasOwnProperty("packetsOut"))
+                if (typeof message.packetsOut === "number")
+                    object.packetsOut = options.longs === String ? String(message.packetsOut) : message.packetsOut;
+                else
+                    object.packetsOut = options.longs === String ? $util.Long.prototype.toString.call(message.packetsOut) : options.longs === Number ? new $util.LongBits(message.packetsOut.low >>> 0, message.packetsOut.high >>> 0).toNumber(true) : message.packetsOut;
+            if (message.firstSeenMs != null && message.hasOwnProperty("firstSeenMs"))
+                if (typeof message.firstSeenMs === "number")
+                    object.firstSeenMs = options.longs === String ? String(message.firstSeenMs) : message.firstSeenMs;
+                else
+                    object.firstSeenMs = options.longs === String ? $util.Long.prototype.toString.call(message.firstSeenMs) : options.longs === Number ? new $util.LongBits(message.firstSeenMs.low >>> 0, message.firstSeenMs.high >>> 0).toNumber(true) : message.firstSeenMs;
+            if (message.lastSeenMs != null && message.hasOwnProperty("lastSeenMs"))
+                if (typeof message.lastSeenMs === "number")
+                    object.lastSeenMs = options.longs === String ? String(message.lastSeenMs) : message.lastSeenMs;
+                else
+                    object.lastSeenMs = options.longs === String ? $util.Long.prototype.toString.call(message.lastSeenMs) : options.longs === Number ? new $util.LongBits(message.lastSeenMs.low >>> 0, message.lastSeenMs.high >>> 0).toNumber(true) : message.lastSeenMs;
+            if (message.staleLevel != null && message.hasOwnProperty("staleLevel"))
+                object.staleLevel = message.staleLevel;
+            if (message.historic != null && message.hasOwnProperty("historic"))
+                object.historic = message.historic;
+            if (message.geoCountry != null && message.hasOwnProperty("geoCountry"))
+                object.geoCountry = message.geoCountry;
+            if (message.geoCountryCode != null && message.hasOwnProperty("geoCountryCode"))
+                object.geoCountryCode = message.geoCountryCode;
+            if (message.geoAsn != null && message.hasOwnProperty("geoAsn"))
+                object.geoAsn = message.geoAsn;
+            if (message.ipScope != null && message.hasOwnProperty("ipScope"))
+                object.ipScope = message.ipScope;
             return object;
         };
 
@@ -4435,7 +5691,7 @@ $root.pb = (function() {
         function ProcessEvent(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -4560,13 +5816,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ProcessEvent.decode = function decode(reader, length, error, long) {
+        ProcessEvent.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ProcessEvent();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -4602,7 +5854,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -4633,13 +5885,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ProcessEvent.verify = function verify(message, long) {
+        ProcessEvent.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.phase != null && message.hasOwnProperty("phase"))
                 if (!$util.isString(message.phase))
                     return "phase: string expected";
@@ -4672,13 +5920,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.ProcessEvent} ProcessEvent
          */
-        ProcessEvent.fromObject = function fromObject(object, long) {
+        ProcessEvent.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.ProcessEvent)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.ProcessEvent();
             if (object.phase != null)
                 message.phase = String(object.phase);
@@ -4789,7 +6033,7 @@ $root.pb = (function() {
         function PolicyEvent(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -4894,13 +6138,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        PolicyEvent.decode = function decode(reader, length, error, long) {
+        PolicyEvent.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.PolicyEvent();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -4928,7 +6168,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -4959,13 +6199,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        PolicyEvent.verify = function verify(message, long) {
+        PolicyEvent.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.decision != null && message.hasOwnProperty("decision"))
                 if (!$util.isString(message.decision))
                     return "decision: string expected";
@@ -4992,13 +6228,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.PolicyEvent} PolicyEvent
          */
-        PolicyEvent.fromObject = function fromObject(object, long) {
+        PolicyEvent.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.PolicyEvent)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.PolicyEvent();
             if (object.decision != null)
                 message.decision = String(object.decision);
@@ -5100,7 +6332,7 @@ $root.pb = (function() {
             this.args = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -5206,13 +6438,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        WrapperEvent.decode = function decode(reader, length, error, long) {
+        WrapperEvent.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperEvent();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -5230,7 +6458,7 @@ $root.pb = (function() {
                         break;
                     }
                 case 3: {
-                        message.behavior = $root.pb.BehaviorClassification.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.behavior = $root.pb.BehaviorClassification.decode(reader, reader.uint32());
                         break;
                     }
                 case 4: {
@@ -5242,7 +6470,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -5273,13 +6501,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        WrapperEvent.verify = function verify(message, long) {
+        WrapperEvent.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.commandLine != null && message.hasOwnProperty("commandLine"))
                 if (!$util.isString(message.commandLine))
                     return "commandLine: string expected";
@@ -5291,7 +6515,7 @@ $root.pb = (function() {
                         return "args: string[] expected";
             }
             if (message.behavior != null && message.hasOwnProperty("behavior")) {
-                var error = $root.pb.BehaviorClassification.verify(message.behavior, long + 1);
+                var error = $root.pb.BehaviorClassification.verify(message.behavior);
                 if (error)
                     return "behavior." + error;
             }
@@ -5312,13 +6536,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.WrapperEvent} WrapperEvent
          */
-        WrapperEvent.fromObject = function fromObject(object, long) {
+        WrapperEvent.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.WrapperEvent)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.WrapperEvent();
             if (object.commandLine != null)
                 message.commandLine = String(object.commandLine);
@@ -5332,7 +6552,7 @@ $root.pb = (function() {
             if (object.behavior != null) {
                 if (typeof object.behavior !== "object")
                     throw TypeError(".pb.WrapperEvent.behavior: object expected");
-                message.behavior = $root.pb.BehaviorClassification.fromObject(object.behavior, long + 1);
+                message.behavior = $root.pb.BehaviorClassification.fromObject(object.behavior);
             }
             if (object.extraInfo != null)
                 message.extraInfo = String(object.extraInfo);
@@ -5430,7 +6650,7 @@ $root.pb = (function() {
         function HookEvent(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -5525,13 +6745,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        HookEvent.decode = function decode(reader, length, error, long) {
+        HookEvent.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.HookEvent();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -5555,7 +6771,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -5586,13 +6802,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        HookEvent.verify = function verify(message, long) {
+        HookEvent.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.hookName != null && message.hasOwnProperty("hookName"))
                 if (!$util.isString(message.hookName))
                     return "hookName: string expected";
@@ -5616,13 +6828,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.HookEvent} HookEvent
          */
-        HookEvent.fromObject = function fromObject(object, long) {
+        HookEvent.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.HookEvent)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.HookEvent();
             if (object.hookName != null)
                 message.hookName = String(object.hookName);
@@ -5718,7 +6926,7 @@ $root.pb = (function() {
         function McpEvent(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -5823,13 +7031,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        McpEvent.decode = function decode(reader, length, error, long) {
+        McpEvent.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.McpEvent();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -5857,7 +7061,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -5888,13 +7092,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        McpEvent.verify = function verify(message, long) {
+        McpEvent.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.toolName != null && message.hasOwnProperty("toolName"))
                 if (!$util.isString(message.toolName))
                     return "toolName: string expected";
@@ -5921,13 +7121,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.McpEvent} McpEvent
          */
-        McpEvent.fromObject = function fromObject(object, long) {
+        McpEvent.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.McpEvent)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.McpEvent();
             if (object.toolName != null)
                 message.toolName = String(object.toolName);
@@ -6057,7 +7253,7 @@ $root.pb = (function() {
         function EventEnvelope(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -6466,13 +7662,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        EventEnvelope.decode = function decode(reader, length, error, long) {
+        EventEnvelope.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.EventEnvelope();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -6580,43 +7772,43 @@ $root.pb = (function() {
                         break;
                     }
                 case 26: {
-                        message.legacyEvent = $root.pb.Event.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.legacyEvent = $root.pb.Event.decode(reader, reader.uint32());
                         break;
                     }
                 case 27: {
-                        message.execEvent = $root.pb.ExecEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.execEvent = $root.pb.ExecEvent.decode(reader, reader.uint32());
                         break;
                     }
                 case 28: {
-                        message.fileEvent = $root.pb.FileEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.fileEvent = $root.pb.FileEvent.decode(reader, reader.uint32());
                         break;
                     }
                 case 29: {
-                        message.networkEvent = $root.pb.NetworkEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.networkEvent = $root.pb.NetworkEvent.decode(reader, reader.uint32());
                         break;
                     }
                 case 30: {
-                        message.processEvent = $root.pb.ProcessEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.processEvent = $root.pb.ProcessEvent.decode(reader, reader.uint32());
                         break;
                     }
                 case 31: {
-                        message.policyEvent = $root.pb.PolicyEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.policyEvent = $root.pb.PolicyEvent.decode(reader, reader.uint32());
                         break;
                     }
                 case 32: {
-                        message.wrapperEvent = $root.pb.WrapperEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.wrapperEvent = $root.pb.WrapperEvent.decode(reader, reader.uint32());
                         break;
                     }
                 case 33: {
-                        message.hookEvent = $root.pb.HookEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.hookEvent = $root.pb.HookEvent.decode(reader, reader.uint32());
                         break;
                     }
                 case 34: {
-                        message.mcpEvent = $root.pb.McpEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.mcpEvent = $root.pb.McpEvent.decode(reader, reader.uint32());
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -6647,13 +7839,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        EventEnvelope.verify = function verify(message, long) {
+        EventEnvelope.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             var properties = {};
             if (message.schemaVersion != null && message.hasOwnProperty("schemaVersion"))
                 if (!$util.isString(message.schemaVersion))
@@ -6769,14 +7957,14 @@ $root.pb = (function() {
                     break;
                 }
             if (message.legacyEvent != null && message.hasOwnProperty("legacyEvent")) {
-                var error = $root.pb.Event.verify(message.legacyEvent, long + 1);
+                var error = $root.pb.Event.verify(message.legacyEvent);
                 if (error)
                     return "legacyEvent." + error;
             }
             if (message.execEvent != null && message.hasOwnProperty("execEvent")) {
                 properties.payload = 1;
                 {
-                    var error = $root.pb.ExecEvent.verify(message.execEvent, long + 1);
+                    var error = $root.pb.ExecEvent.verify(message.execEvent);
                     if (error)
                         return "execEvent." + error;
                 }
@@ -6786,7 +7974,7 @@ $root.pb = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.pb.FileEvent.verify(message.fileEvent, long + 1);
+                    var error = $root.pb.FileEvent.verify(message.fileEvent);
                     if (error)
                         return "fileEvent." + error;
                 }
@@ -6796,7 +7984,7 @@ $root.pb = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.pb.NetworkEvent.verify(message.networkEvent, long + 1);
+                    var error = $root.pb.NetworkEvent.verify(message.networkEvent);
                     if (error)
                         return "networkEvent." + error;
                 }
@@ -6806,7 +7994,7 @@ $root.pb = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.pb.ProcessEvent.verify(message.processEvent, long + 1);
+                    var error = $root.pb.ProcessEvent.verify(message.processEvent);
                     if (error)
                         return "processEvent." + error;
                 }
@@ -6816,7 +8004,7 @@ $root.pb = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.pb.PolicyEvent.verify(message.policyEvent, long + 1);
+                    var error = $root.pb.PolicyEvent.verify(message.policyEvent);
                     if (error)
                         return "policyEvent." + error;
                 }
@@ -6826,7 +8014,7 @@ $root.pb = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.pb.WrapperEvent.verify(message.wrapperEvent, long + 1);
+                    var error = $root.pb.WrapperEvent.verify(message.wrapperEvent);
                     if (error)
                         return "wrapperEvent." + error;
                 }
@@ -6836,7 +8024,7 @@ $root.pb = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.pb.HookEvent.verify(message.hookEvent, long + 1);
+                    var error = $root.pb.HookEvent.verify(message.hookEvent);
                     if (error)
                         return "hookEvent." + error;
                 }
@@ -6846,7 +8034,7 @@ $root.pb = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.pb.McpEvent.verify(message.mcpEvent, long + 1);
+                    var error = $root.pb.McpEvent.verify(message.mcpEvent);
                     if (error)
                         return "mcpEvent." + error;
                 }
@@ -6862,13 +8050,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.EventEnvelope} EventEnvelope
          */
-        EventEnvelope.fromObject = function fromObject(object, long) {
+        EventEnvelope.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.EventEnvelope)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.EventEnvelope();
             if (object.schemaVersion != null)
                 message.schemaVersion = String(object.schemaVersion);
@@ -7083,47 +8267,47 @@ $root.pb = (function() {
             if (object.legacyEvent != null) {
                 if (typeof object.legacyEvent !== "object")
                     throw TypeError(".pb.EventEnvelope.legacyEvent: object expected");
-                message.legacyEvent = $root.pb.Event.fromObject(object.legacyEvent, long + 1);
+                message.legacyEvent = $root.pb.Event.fromObject(object.legacyEvent);
             }
             if (object.execEvent != null) {
                 if (typeof object.execEvent !== "object")
                     throw TypeError(".pb.EventEnvelope.execEvent: object expected");
-                message.execEvent = $root.pb.ExecEvent.fromObject(object.execEvent, long + 1);
+                message.execEvent = $root.pb.ExecEvent.fromObject(object.execEvent);
             }
             if (object.fileEvent != null) {
                 if (typeof object.fileEvent !== "object")
                     throw TypeError(".pb.EventEnvelope.fileEvent: object expected");
-                message.fileEvent = $root.pb.FileEvent.fromObject(object.fileEvent, long + 1);
+                message.fileEvent = $root.pb.FileEvent.fromObject(object.fileEvent);
             }
             if (object.networkEvent != null) {
                 if (typeof object.networkEvent !== "object")
                     throw TypeError(".pb.EventEnvelope.networkEvent: object expected");
-                message.networkEvent = $root.pb.NetworkEvent.fromObject(object.networkEvent, long + 1);
+                message.networkEvent = $root.pb.NetworkEvent.fromObject(object.networkEvent);
             }
             if (object.processEvent != null) {
                 if (typeof object.processEvent !== "object")
                     throw TypeError(".pb.EventEnvelope.processEvent: object expected");
-                message.processEvent = $root.pb.ProcessEvent.fromObject(object.processEvent, long + 1);
+                message.processEvent = $root.pb.ProcessEvent.fromObject(object.processEvent);
             }
             if (object.policyEvent != null) {
                 if (typeof object.policyEvent !== "object")
                     throw TypeError(".pb.EventEnvelope.policyEvent: object expected");
-                message.policyEvent = $root.pb.PolicyEvent.fromObject(object.policyEvent, long + 1);
+                message.policyEvent = $root.pb.PolicyEvent.fromObject(object.policyEvent);
             }
             if (object.wrapperEvent != null) {
                 if (typeof object.wrapperEvent !== "object")
                     throw TypeError(".pb.EventEnvelope.wrapperEvent: object expected");
-                message.wrapperEvent = $root.pb.WrapperEvent.fromObject(object.wrapperEvent, long + 1);
+                message.wrapperEvent = $root.pb.WrapperEvent.fromObject(object.wrapperEvent);
             }
             if (object.hookEvent != null) {
                 if (typeof object.hookEvent !== "object")
                     throw TypeError(".pb.EventEnvelope.hookEvent: object expected");
-                message.hookEvent = $root.pb.HookEvent.fromObject(object.hookEvent, long + 1);
+                message.hookEvent = $root.pb.HookEvent.fromObject(object.hookEvent);
             }
             if (object.mcpEvent != null) {
                 if (typeof object.mcpEvent !== "object")
                     throw TypeError(".pb.EventEnvelope.mcpEvent: object expected");
-                message.mcpEvent = $root.pb.McpEvent.fromObject(object.mcpEvent, long + 1);
+                message.mcpEvent = $root.pb.McpEvent.fromObject(object.mcpEvent);
             }
             return message;
         };
@@ -7328,7 +8512,7 @@ $root.pb = (function() {
             this.envelopes = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -7394,13 +8578,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        EventEnvelopeBatch.decode = function decode(reader, length, error, long) {
+        EventEnvelopeBatch.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.EventEnvelopeBatch();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -7410,11 +8590,11 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.envelopes && message.envelopes.length))
                             message.envelopes = [];
-                        message.envelopes.push($root.pb.EventEnvelope.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.envelopes.push($root.pb.EventEnvelope.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -7445,18 +8625,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        EventEnvelopeBatch.verify = function verify(message, long) {
+        EventEnvelopeBatch.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.envelopes != null && message.hasOwnProperty("envelopes")) {
                 if (!Array.isArray(message.envelopes))
                     return "envelopes: array expected";
                 for (var i = 0; i < message.envelopes.length; ++i) {
-                    var error = $root.pb.EventEnvelope.verify(message.envelopes[i], long + 1);
+                    var error = $root.pb.EventEnvelope.verify(message.envelopes[i]);
                     if (error)
                         return "envelopes." + error;
                 }
@@ -7472,13 +8648,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.EventEnvelopeBatch} EventEnvelopeBatch
          */
-        EventEnvelopeBatch.fromObject = function fromObject(object, long) {
+        EventEnvelopeBatch.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.EventEnvelopeBatch)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.EventEnvelopeBatch();
             if (object.envelopes) {
                 if (!Array.isArray(object.envelopes))
@@ -7487,7 +8659,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.envelopes.length; ++i) {
                     if (typeof object.envelopes[i] !== "object")
                         throw TypeError(".pb.EventEnvelopeBatch.envelopes: object expected");
-                    message.envelopes[i] = $root.pb.EventEnvelope.fromObject(object.envelopes[i], long + 1);
+                    message.envelopes[i] = $root.pb.EventEnvelope.fromObject(object.envelopes[i]);
                 }
             }
             return message;
@@ -7566,7 +8738,7 @@ $root.pb = (function() {
             this.events = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -7632,13 +8804,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        EventBatch.decode = function decode(reader, length, error, long) {
+        EventBatch.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.EventBatch();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -7648,11 +8816,11 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.events && message.events.length))
                             message.events = [];
-                        message.events.push($root.pb.Event.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.events.push($root.pb.Event.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -7683,18 +8851,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        EventBatch.verify = function verify(message, long) {
+        EventBatch.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.events != null && message.hasOwnProperty("events")) {
                 if (!Array.isArray(message.events))
                     return "events: array expected";
                 for (var i = 0; i < message.events.length; ++i) {
-                    var error = $root.pb.Event.verify(message.events[i], long + 1);
+                    var error = $root.pb.Event.verify(message.events[i]);
                     if (error)
                         return "events." + error;
                 }
@@ -7710,13 +8874,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.EventBatch} EventBatch
          */
-        EventBatch.fromObject = function fromObject(object, long) {
+        EventBatch.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.EventBatch)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.EventBatch();
             if (object.events) {
                 if (!Array.isArray(object.events))
@@ -7725,7 +8885,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.events.length; ++i) {
                     if (typeof object.events[i] !== "object")
                         throw TypeError(".pb.EventBatch.events: object expected");
-                    message.events[i] = $root.pb.Event.fromObject(object.events[i], long + 1);
+                    message.events[i] = $root.pb.Event.fromObject(object.events[i]);
                 }
             }
             return message;
@@ -7815,7 +8975,7 @@ $root.pb = (function() {
         function Process(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -8000,13 +9160,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Process.decode = function decode(reader, length, error, long) {
+        Process.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.Process();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -8066,7 +9222,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -8097,13 +9253,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Process.verify = function verify(message, long) {
+        Process.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.pid != null && message.hasOwnProperty("pid"))
                 if (!$util.isInteger(message.pid))
                     return "pid: integer expected";
@@ -8154,13 +9306,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.Process} Process
          */
-        Process.fromObject = function fromObject(object, long) {
+        Process.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.Process)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.Process();
             if (object.pid != null)
                 message.pid = object.pid | 0;
@@ -8355,7 +9503,7 @@ $root.pb = (function() {
         function GPUStatus(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -8580,13 +9728,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        GPUStatus.decode = function decode(reader, length, error, long) {
+        GPUStatus.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.GPUStatus();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -8662,7 +9806,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -8693,13 +9837,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        GPUStatus.verify = function verify(message, long) {
+        GPUStatus.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.index != null && message.hasOwnProperty("index"))
                 if (!$util.isInteger(message.index))
                     return "index: integer expected";
@@ -8762,13 +9902,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.GPUStatus} GPUStatus
          */
-        GPUStatus.fromObject = function fromObject(object, long) {
+        GPUStatus.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.GPUStatus)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.GPUStatus();
             if (object.index != null)
                 message.index = object.index >>> 0;
@@ -8929,7 +10065,7 @@ $root.pb = (function() {
             this.coreDetails = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -9019,13 +10155,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        CPUInfo.decode = function decode(reader, length, error, long) {
+        CPUInfo.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.CPUInfo();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -9050,11 +10182,11 @@ $root.pb = (function() {
                 case 3: {
                         if (!(message.coreDetails && message.coreDetails.length))
                             message.coreDetails = [];
-                        message.coreDetails.push($root.pb.CPUInfo.Core.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.coreDetails.push($root.pb.CPUInfo.Core.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -9085,13 +10217,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        CPUInfo.verify = function verify(message, long) {
+        CPUInfo.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.total != null && message.hasOwnProperty("total"))
                 if (typeof message.total !== "number")
                     return "total: number expected";
@@ -9106,7 +10234,7 @@ $root.pb = (function() {
                 if (!Array.isArray(message.coreDetails))
                     return "coreDetails: array expected";
                 for (var i = 0; i < message.coreDetails.length; ++i) {
-                    var error = $root.pb.CPUInfo.Core.verify(message.coreDetails[i], long + 1);
+                    var error = $root.pb.CPUInfo.Core.verify(message.coreDetails[i]);
                     if (error)
                         return "coreDetails." + error;
                 }
@@ -9122,13 +10250,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.CPUInfo} CPUInfo
          */
-        CPUInfo.fromObject = function fromObject(object, long) {
+        CPUInfo.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.CPUInfo)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.CPUInfo();
             if (object.total != null)
                 message.total = Number(object.total);
@@ -9146,7 +10270,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.coreDetails.length; ++i) {
                     if (typeof object.coreDetails[i] !== "object")
                         throw TypeError(".pb.CPUInfo.coreDetails: object expected");
-                    message.coreDetails[i] = $root.pb.CPUInfo.Core.fromObject(object.coreDetails[i], long + 1);
+                    message.coreDetails[i] = $root.pb.CPUInfo.Core.fromObject(object.coreDetails[i]);
                 }
             }
             return message;
@@ -9234,7 +10358,7 @@ $root.pb = (function() {
             function Core(properties) {
                 if (properties)
                     for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        if (properties[keys[i]] != null)
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -9319,13 +10443,9 @@ $root.pb = (function() {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            Core.decode = function decode(reader, length, error, long) {
+            Core.decode = function decode(reader, length, error) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                if (long === undefined)
-                    long = 0;
-                if (long > $Reader.recursionLimit)
-                    throw Error("maximum nesting depth exceeded");
                 var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.CPUInfo.Core();
                 while (reader.pos < end) {
                     var tag = reader.uint32();
@@ -9345,7 +10465,7 @@ $root.pb = (function() {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7, long);
+                        reader.skipType(tag & 7);
                         break;
                     }
                 }
@@ -9376,13 +10496,9 @@ $root.pb = (function() {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            Core.verify = function verify(message, long) {
+            Core.verify = function verify(message) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (long === undefined)
-                    long = 0;
-                if (long > $util.recursionLimit)
-                    return "maximum nesting depth exceeded";
                 if (message.index != null && message.hasOwnProperty("index"))
                     if (!$util.isInteger(message.index))
                         return "index: integer expected";
@@ -9409,13 +10525,9 @@ $root.pb = (function() {
              * @param {Object.<string,*>} object Plain object
              * @returns {pb.CPUInfo.Core} Core
              */
-            Core.fromObject = function fromObject(object, long) {
+            Core.fromObject = function fromObject(object) {
                 if (object instanceof $root.pb.CPUInfo.Core)
                     return object;
-                if (long === undefined)
-                    long = 0;
-                if (long > $util.recursionLimit)
-                    throw Error("maximum nesting depth exceeded");
                 var message = new $root.pb.CPUInfo.Core();
                 if (object.index != null)
                     message.index = object.index >>> 0;
@@ -9548,7 +10660,7 @@ $root.pb = (function() {
         function MemoryInfo(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -9703,13 +10815,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        MemoryInfo.decode = function decode(reader, length, error, long) {
+        MemoryInfo.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.MemoryInfo();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -9757,7 +10865,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -9788,13 +10896,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        MemoryInfo.verify = function verify(message, long) {
+        MemoryInfo.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.total != null && message.hasOwnProperty("total"))
                 if (!$util.isInteger(message.total) && !(message.total && $util.isInteger(message.total.low) && $util.isInteger(message.total.high)))
                     return "total: integer|Long expected";
@@ -9836,13 +10940,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.MemoryInfo} MemoryInfo
          */
-        MemoryInfo.fromObject = function fromObject(object, long) {
+        MemoryInfo.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.MemoryInfo)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.MemoryInfo();
             if (object.total != null)
                 if ($util.Long)
@@ -10094,7 +11194,7 @@ $root.pb = (function() {
         function Hook(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -10199,13 +11299,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Hook.decode = function decode(reader, length, error, long) {
+        Hook.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.Hook();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -10233,7 +11329,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -10264,13 +11360,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Hook.verify = function verify(message, long) {
+        Hook.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.id != null && message.hasOwnProperty("id"))
                 if (!$util.isString(message.id))
                     return "id: string expected";
@@ -10297,13 +11389,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.Hook} Hook
          */
-        Hook.fromObject = function fromObject(object, long) {
+        Hook.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.Hook)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.Hook();
             if (object.id != null)
                 message.id = String(object.id);
@@ -10401,7 +11489,7 @@ $root.pb = (function() {
         function HookRequest(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -10476,13 +11564,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        HookRequest.decode = function decode(reader, length, error, long) {
+        HookRequest.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.HookRequest();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -10498,7 +11582,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -10529,13 +11613,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        HookRequest.verify = function verify(message, long) {
+        HookRequest.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.id != null && message.hasOwnProperty("id"))
                 if (!$util.isString(message.id))
                     return "id: string expected";
@@ -10553,13 +11633,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.HookRequest} HookRequest
          */
-        HookRequest.fromObject = function fromObject(object, long) {
+        HookRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.HookRequest)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.HookRequest();
             if (object.id != null)
                 message.id = String(object.id);
@@ -10642,7 +11718,7 @@ $root.pb = (function() {
         function HookResponse(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -10717,13 +11793,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        HookResponse.decode = function decode(reader, length, error, long) {
+        HookResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.HookResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -10739,7 +11811,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -10770,13 +11842,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        HookResponse.verify = function verify(message, long) {
+        HookResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.success != null && message.hasOwnProperty("success"))
                 if (typeof message.success !== "boolean")
                     return "success: boolean expected";
@@ -10794,13 +11862,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.HookResponse} HookResponse
          */
-        HookResponse.fromObject = function fromObject(object, long) {
+        HookResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.HookResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.HookResponse();
             if (object.success != null)
                 message.success = Boolean(object.success);
@@ -10884,7 +11948,7 @@ $root.pb = (function() {
         function NetworkInterface(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -10969,13 +12033,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        NetworkInterface.decode = function decode(reader, length, error, long) {
+        NetworkInterface.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.NetworkInterface();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -10995,7 +12055,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -11026,13 +12086,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        NetworkInterface.verify = function verify(message, long) {
+        NetworkInterface.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.name != null && message.hasOwnProperty("name"))
                 if (!$util.isString(message.name))
                     return "name: string expected";
@@ -11053,13 +12109,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.NetworkInterface} NetworkInterface
          */
-        NetworkInterface.fromObject = function fromObject(object, long) {
+        NetworkInterface.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.NetworkInterface)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.NetworkInterface();
             if (object.name != null)
                 message.name = String(object.name);
@@ -11176,7 +12228,7 @@ $root.pb = (function() {
         function DiskDevice(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -11261,13 +12313,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        DiskDevice.decode = function decode(reader, length, error, long) {
+        DiskDevice.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.DiskDevice();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -11287,7 +12335,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -11318,13 +12366,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        DiskDevice.verify = function verify(message, long) {
+        DiskDevice.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.name != null && message.hasOwnProperty("name"))
                 if (!$util.isString(message.name))
                     return "name: string expected";
@@ -11345,13 +12389,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.DiskDevice} DiskDevice
          */
-        DiskDevice.fromObject = function fromObject(object, long) {
+        DiskDevice.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.DiskDevice)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.DiskDevice();
             if (object.name != null)
                 message.name = String(object.name);
@@ -11473,7 +12513,7 @@ $root.pb = (function() {
             this.disks = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -11590,13 +12630,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        IOInfo.decode = function decode(reader, length, error, long) {
+        IOInfo.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.IOInfo();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -11622,17 +12658,17 @@ $root.pb = (function() {
                 case 5: {
                         if (!(message.networks && message.networks.length))
                             message.networks = [];
-                        message.networks.push($root.pb.NetworkInterface.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.networks.push($root.pb.NetworkInterface.decode(reader, reader.uint32()));
                         break;
                     }
                 case 6: {
                         if (!(message.disks && message.disks.length))
                             message.disks = [];
-                        message.disks.push($root.pb.DiskDevice.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.disks.push($root.pb.DiskDevice.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -11663,13 +12699,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        IOInfo.verify = function verify(message, long) {
+        IOInfo.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.totalReadBytes != null && message.hasOwnProperty("totalReadBytes"))
                 if (!$util.isInteger(message.totalReadBytes) && !(message.totalReadBytes && $util.isInteger(message.totalReadBytes.low) && $util.isInteger(message.totalReadBytes.high)))
                     return "totalReadBytes: integer|Long expected";
@@ -11686,7 +12718,7 @@ $root.pb = (function() {
                 if (!Array.isArray(message.networks))
                     return "networks: array expected";
                 for (var i = 0; i < message.networks.length; ++i) {
-                    var error = $root.pb.NetworkInterface.verify(message.networks[i], long + 1);
+                    var error = $root.pb.NetworkInterface.verify(message.networks[i]);
                     if (error)
                         return "networks." + error;
                 }
@@ -11695,7 +12727,7 @@ $root.pb = (function() {
                 if (!Array.isArray(message.disks))
                     return "disks: array expected";
                 for (var i = 0; i < message.disks.length; ++i) {
-                    var error = $root.pb.DiskDevice.verify(message.disks[i], long + 1);
+                    var error = $root.pb.DiskDevice.verify(message.disks[i]);
                     if (error)
                         return "disks." + error;
                 }
@@ -11711,13 +12743,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.IOInfo} IOInfo
          */
-        IOInfo.fromObject = function fromObject(object, long) {
+        IOInfo.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.IOInfo)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.IOInfo();
             if (object.totalReadBytes != null)
                 if ($util.Long)
@@ -11762,7 +12790,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.networks.length; ++i) {
                     if (typeof object.networks[i] !== "object")
                         throw TypeError(".pb.IOInfo.networks: object expected");
-                    message.networks[i] = $root.pb.NetworkInterface.fromObject(object.networks[i], long + 1);
+                    message.networks[i] = $root.pb.NetworkInterface.fromObject(object.networks[i]);
                 }
             }
             if (object.disks) {
@@ -11772,7 +12800,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.disks.length; ++i) {
                     if (typeof object.disks[i] !== "object")
                         throw TypeError(".pb.IOInfo.disks: object expected");
-                    message.disks[i] = $root.pb.DiskDevice.fromObject(object.disks[i], long + 1);
+                    message.disks[i] = $root.pb.DiskDevice.fromObject(object.disks[i]);
                 }
             }
             return message;
@@ -11908,7 +12936,7 @@ $root.pb = (function() {
         function FaultInfo(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -12063,13 +13091,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        FaultInfo.decode = function decode(reader, length, error, long) {
+        FaultInfo.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.FaultInfo();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -12117,7 +13141,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -12148,13 +13172,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        FaultInfo.verify = function verify(message, long) {
+        FaultInfo.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.pageFaults != null && message.hasOwnProperty("pageFaults"))
                 if (!$util.isInteger(message.pageFaults) && !(message.pageFaults && $util.isInteger(message.pageFaults.low) && $util.isInteger(message.pageFaults.high)))
                     return "pageFaults: integer|Long expected";
@@ -12196,13 +13216,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.FaultInfo} FaultInfo
          */
-        FaultInfo.fromObject = function fromObject(object, long) {
+        FaultInfo.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.FaultInfo)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.FaultInfo();
             if (object.pageFaults != null)
                 if ($util.Long)
@@ -12401,7 +13417,7 @@ $root.pb = (function() {
             this.gpus = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -12518,13 +13534,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        SystemStats.decode = function decode(reader, length, error, long) {
+        SystemStats.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SystemStats();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -12534,33 +13546,33 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.processes && message.processes.length))
                             message.processes = [];
-                        message.processes.push($root.pb.Process.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.processes.push($root.pb.Process.decode(reader, reader.uint32()));
                         break;
                     }
                 case 2: {
                         if (!(message.gpus && message.gpus.length))
                             message.gpus = [];
-                        message.gpus.push($root.pb.GPUStatus.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.gpus.push($root.pb.GPUStatus.decode(reader, reader.uint32()));
                         break;
                     }
                 case 3: {
-                        message.cpu = $root.pb.CPUInfo.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.cpu = $root.pb.CPUInfo.decode(reader, reader.uint32());
                         break;
                     }
                 case 4: {
-                        message.memory = $root.pb.MemoryInfo.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.memory = $root.pb.MemoryInfo.decode(reader, reader.uint32());
                         break;
                     }
                 case 5: {
-                        message.io = $root.pb.IOInfo.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.io = $root.pb.IOInfo.decode(reader, reader.uint32());
                         break;
                     }
                 case 6: {
-                        message.faults = $root.pb.FaultInfo.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.faults = $root.pb.FaultInfo.decode(reader, reader.uint32());
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -12591,18 +13603,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        SystemStats.verify = function verify(message, long) {
+        SystemStats.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.processes != null && message.hasOwnProperty("processes")) {
                 if (!Array.isArray(message.processes))
                     return "processes: array expected";
                 for (var i = 0; i < message.processes.length; ++i) {
-                    var error = $root.pb.Process.verify(message.processes[i], long + 1);
+                    var error = $root.pb.Process.verify(message.processes[i]);
                     if (error)
                         return "processes." + error;
                 }
@@ -12611,28 +13619,28 @@ $root.pb = (function() {
                 if (!Array.isArray(message.gpus))
                     return "gpus: array expected";
                 for (var i = 0; i < message.gpus.length; ++i) {
-                    var error = $root.pb.GPUStatus.verify(message.gpus[i], long + 1);
+                    var error = $root.pb.GPUStatus.verify(message.gpus[i]);
                     if (error)
                         return "gpus." + error;
                 }
             }
             if (message.cpu != null && message.hasOwnProperty("cpu")) {
-                var error = $root.pb.CPUInfo.verify(message.cpu, long + 1);
+                var error = $root.pb.CPUInfo.verify(message.cpu);
                 if (error)
                     return "cpu." + error;
             }
             if (message.memory != null && message.hasOwnProperty("memory")) {
-                var error = $root.pb.MemoryInfo.verify(message.memory, long + 1);
+                var error = $root.pb.MemoryInfo.verify(message.memory);
                 if (error)
                     return "memory." + error;
             }
             if (message.io != null && message.hasOwnProperty("io")) {
-                var error = $root.pb.IOInfo.verify(message.io, long + 1);
+                var error = $root.pb.IOInfo.verify(message.io);
                 if (error)
                     return "io." + error;
             }
             if (message.faults != null && message.hasOwnProperty("faults")) {
-                var error = $root.pb.FaultInfo.verify(message.faults, long + 1);
+                var error = $root.pb.FaultInfo.verify(message.faults);
                 if (error)
                     return "faults." + error;
             }
@@ -12647,13 +13655,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.SystemStats} SystemStats
          */
-        SystemStats.fromObject = function fromObject(object, long) {
+        SystemStats.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.SystemStats)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.SystemStats();
             if (object.processes) {
                 if (!Array.isArray(object.processes))
@@ -12662,7 +13666,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.processes.length; ++i) {
                     if (typeof object.processes[i] !== "object")
                         throw TypeError(".pb.SystemStats.processes: object expected");
-                    message.processes[i] = $root.pb.Process.fromObject(object.processes[i], long + 1);
+                    message.processes[i] = $root.pb.Process.fromObject(object.processes[i]);
                 }
             }
             if (object.gpus) {
@@ -12672,28 +13676,28 @@ $root.pb = (function() {
                 for (var i = 0; i < object.gpus.length; ++i) {
                     if (typeof object.gpus[i] !== "object")
                         throw TypeError(".pb.SystemStats.gpus: object expected");
-                    message.gpus[i] = $root.pb.GPUStatus.fromObject(object.gpus[i], long + 1);
+                    message.gpus[i] = $root.pb.GPUStatus.fromObject(object.gpus[i]);
                 }
             }
             if (object.cpu != null) {
                 if (typeof object.cpu !== "object")
                     throw TypeError(".pb.SystemStats.cpu: object expected");
-                message.cpu = $root.pb.CPUInfo.fromObject(object.cpu, long + 1);
+                message.cpu = $root.pb.CPUInfo.fromObject(object.cpu);
             }
             if (object.memory != null) {
                 if (typeof object.memory !== "object")
                     throw TypeError(".pb.SystemStats.memory: object expected");
-                message.memory = $root.pb.MemoryInfo.fromObject(object.memory, long + 1);
+                message.memory = $root.pb.MemoryInfo.fromObject(object.memory);
             }
             if (object.io != null) {
                 if (typeof object.io !== "object")
                     throw TypeError(".pb.SystemStats.io: object expected");
-                message.io = $root.pb.IOInfo.fromObject(object.io, long + 1);
+                message.io = $root.pb.IOInfo.fromObject(object.io);
             }
             if (object.faults != null) {
                 if (typeof object.faults !== "object")
                     throw TypeError(".pb.SystemStats.faults: object expected");
-                message.faults = $root.pb.FaultInfo.fromObject(object.faults, long + 1);
+                message.faults = $root.pb.FaultInfo.fromObject(object.faults);
             }
             return message;
         };
@@ -12809,7 +13813,7 @@ $root.pb = (function() {
             this.args = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -13045,13 +14049,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        WrapperRequest.decode = function decode(reader, length, error, long) {
+        WrapperRequest.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperRequest();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -13133,7 +14133,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -13164,13 +14164,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        WrapperRequest.verify = function verify(message, long) {
+        WrapperRequest.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.pid != null && message.hasOwnProperty("pid"))
                 if (!$util.isInteger(message.pid))
                     return "pid: integer expected";
@@ -13240,13 +14236,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.WrapperRequest} WrapperRequest
          */
-        WrapperRequest.fromObject = function fromObject(object, long) {
+        WrapperRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.WrapperRequest)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.WrapperRequest();
             if (object.pid != null)
                 message.pid = object.pid >>> 0;
@@ -13425,7 +14417,7 @@ $root.pb = (function() {
             this.rewrittenArgs = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -13561,13 +14553,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        WrapperResponse.decode = function decode(reader, length, error, long) {
+        WrapperResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -13589,7 +14577,7 @@ $root.pb = (function() {
                         break;
                     }
                 case 4: {
-                        message.classification = $root.pb.BehaviorClassification.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.classification = $root.pb.BehaviorClassification.decode(reader, reader.uint32());
                         break;
                     }
                 case 5: {
@@ -13609,7 +14597,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -13640,13 +14628,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        WrapperResponse.verify = function verify(message, long) {
+        WrapperResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.action != null && message.hasOwnProperty("action"))
                 switch (message.action) {
                 default:
@@ -13668,7 +14652,7 @@ $root.pb = (function() {
                         return "rewrittenArgs: string[] expected";
             }
             if (message.classification != null && message.hasOwnProperty("classification")) {
-                var error = $root.pb.BehaviorClassification.verify(message.classification, long + 1);
+                var error = $root.pb.BehaviorClassification.verify(message.classification);
                 if (error)
                     return "classification." + error;
             }
@@ -13695,13 +14679,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.WrapperResponse} WrapperResponse
          */
-        WrapperResponse.fromObject = function fromObject(object, long) {
+        WrapperResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.WrapperResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.WrapperResponse();
             switch (object.action) {
             default:
@@ -13739,7 +14719,7 @@ $root.pb = (function() {
             if (object.classification != null) {
                 if (typeof object.classification !== "object")
                     throw TypeError(".pb.WrapperResponse.classification: object expected");
-                message.classification = $root.pb.BehaviorClassification.fromObject(object.classification, long + 1);
+                message.classification = $root.pb.BehaviorClassification.fromObject(object.classification);
             }
             if (object.mlScore != null)
                 message.mlScore = Number(object.mlScore);
@@ -13873,7 +14853,7 @@ $root.pb = (function() {
         function MLStatus(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -14018,13 +14998,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        MLStatus.decode = function decode(reader, length, error, long) {
+        MLStatus.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.MLStatus();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -14068,7 +15044,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -14099,13 +15075,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        MLStatus.verify = function verify(message, long) {
+        MLStatus.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.modelLoaded != null && message.hasOwnProperty("modelLoaded"))
                 if (typeof message.modelLoaded !== "boolean")
                     return "modelLoaded: boolean expected";
@@ -14144,13 +15116,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.MLStatus} MLStatus
          */
-        MLStatus.fromObject = function fromObject(object, long) {
+        MLStatus.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.MLStatus)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.MLStatus();
             if (object.modelLoaded != null)
                 message.modelLoaded = Boolean(object.modelLoaded);
@@ -14268,7 +15236,7 @@ $root.pb = (function() {
             this.processes = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -14334,13 +15302,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ProcessList.decode = function decode(reader, length, error, long) {
+        ProcessList.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ProcessList();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -14350,11 +15314,11 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.processes && message.processes.length))
                             message.processes = [];
-                        message.processes.push($root.pb.Process.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.processes.push($root.pb.Process.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -14385,18 +15349,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ProcessList.verify = function verify(message, long) {
+        ProcessList.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.processes != null && message.hasOwnProperty("processes")) {
                 if (!Array.isArray(message.processes))
                     return "processes: array expected";
                 for (var i = 0; i < message.processes.length; ++i) {
-                    var error = $root.pb.Process.verify(message.processes[i], long + 1);
+                    var error = $root.pb.Process.verify(message.processes[i]);
                     if (error)
                         return "processes." + error;
                 }
@@ -14412,13 +15372,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.ProcessList} ProcessList
          */
-        ProcessList.fromObject = function fromObject(object, long) {
+        ProcessList.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.ProcessList)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.ProcessList();
             if (object.processes) {
                 if (!Array.isArray(object.processes))
@@ -14427,7 +15383,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.processes.length; ++i) {
                     if (typeof object.processes[i] !== "object")
                         throw TypeError(".pb.ProcessList.processes: object expected");
-                    message.processes[i] = $root.pb.Process.fromObject(object.processes[i], long + 1);
+                    message.processes[i] = $root.pb.Process.fromObject(object.processes[i]);
                 }
             }
             return message;
@@ -14505,7 +15461,7 @@ $root.pb = (function() {
         function ConfigTag(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -14570,13 +15526,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ConfigTag.decode = function decode(reader, length, error, long) {
+        ConfigTag.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ConfigTag();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -14588,7 +15540,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -14619,13 +15571,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ConfigTag.verify = function verify(message, long) {
+        ConfigTag.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.name != null && message.hasOwnProperty("name"))
                 if (!$util.isString(message.name))
                     return "name: string expected";
@@ -14640,13 +15588,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.ConfigTag} ConfigTag
          */
-        ConfigTag.fromObject = function fromObject(object, long) {
+        ConfigTag.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.ConfigTag)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.ConfigTag();
             if (object.name != null)
                 message.name = String(object.name);
@@ -14723,7 +15667,7 @@ $root.pb = (function() {
             this.names = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -14789,13 +15733,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ConfigTagList.decode = function decode(reader, length, error, long) {
+        ConfigTagList.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ConfigTagList();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -14809,7 +15749,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -14840,13 +15780,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ConfigTagList.verify = function verify(message, long) {
+        ConfigTagList.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.names != null && message.hasOwnProperty("names")) {
                 if (!Array.isArray(message.names))
                     return "names: array expected";
@@ -14865,13 +15801,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.ConfigTagList} ConfigTagList
          */
-        ConfigTagList.fromObject = function fromObject(object, long) {
+        ConfigTagList.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.ConfigTagList)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.ConfigTagList();
             if (object.names) {
                 if (!Array.isArray(object.names))
@@ -14957,7 +15889,7 @@ $root.pb = (function() {
         function TrackedComm(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -15042,13 +15974,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        TrackedComm.decode = function decode(reader, length, error, long) {
+        TrackedComm.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.TrackedComm();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -15068,7 +15996,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -15099,13 +16027,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        TrackedComm.verify = function verify(message, long) {
+        TrackedComm.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.comm != null && message.hasOwnProperty("comm"))
                 if (!$util.isString(message.comm))
                     return "comm: string expected";
@@ -15126,13 +16050,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.TrackedComm} TrackedComm
          */
-        TrackedComm.fromObject = function fromObject(object, long) {
+        TrackedComm.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.TrackedComm)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.TrackedComm();
             if (object.comm != null)
                 message.comm = String(object.comm);
@@ -15220,7 +16140,7 @@ $root.pb = (function() {
             this.items = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -15286,13 +16206,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        TrackedCommList.decode = function decode(reader, length, error, long) {
+        TrackedCommList.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.TrackedCommList();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -15302,11 +16218,11 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.items && message.items.length))
                             message.items = [];
-                        message.items.push($root.pb.TrackedComm.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.items.push($root.pb.TrackedComm.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -15337,18 +16253,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        TrackedCommList.verify = function verify(message, long) {
+        TrackedCommList.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.items != null && message.hasOwnProperty("items")) {
                 if (!Array.isArray(message.items))
                     return "items: array expected";
                 for (var i = 0; i < message.items.length; ++i) {
-                    var error = $root.pb.TrackedComm.verify(message.items[i], long + 1);
+                    var error = $root.pb.TrackedComm.verify(message.items[i]);
                     if (error)
                         return "items." + error;
                 }
@@ -15364,13 +16276,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.TrackedCommList} TrackedCommList
          */
-        TrackedCommList.fromObject = function fromObject(object, long) {
+        TrackedCommList.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.TrackedCommList)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.TrackedCommList();
             if (object.items) {
                 if (!Array.isArray(object.items))
@@ -15379,7 +16287,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.items.length; ++i) {
                     if (typeof object.items[i] !== "object")
                         throw TypeError(".pb.TrackedCommList.items: object expected");
-                    message.items[i] = $root.pb.TrackedComm.fromObject(object.items[i], long + 1);
+                    message.items[i] = $root.pb.TrackedComm.fromObject(object.items[i]);
                 }
             }
             return message;
@@ -15458,7 +16366,7 @@ $root.pb = (function() {
         function TrackedPath(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -15533,13 +16441,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        TrackedPath.decode = function decode(reader, length, error, long) {
+        TrackedPath.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.TrackedPath();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -15555,7 +16459,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -15586,13 +16490,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        TrackedPath.verify = function verify(message, long) {
+        TrackedPath.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.path != null && message.hasOwnProperty("path"))
                 if (!$util.isString(message.path))
                     return "path: string expected";
@@ -15610,13 +16510,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.TrackedPath} TrackedPath
          */
-        TrackedPath.fromObject = function fromObject(object, long) {
+        TrackedPath.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.TrackedPath)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.TrackedPath();
             if (object.path != null)
                 message.path = String(object.path);
@@ -15699,7 +16595,7 @@ $root.pb = (function() {
             this.items = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -15765,13 +16661,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        TrackedPathList.decode = function decode(reader, length, error, long) {
+        TrackedPathList.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.TrackedPathList();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -15781,11 +16673,11 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.items && message.items.length))
                             message.items = [];
-                        message.items.push($root.pb.TrackedPath.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.items.push($root.pb.TrackedPath.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -15816,18 +16708,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        TrackedPathList.verify = function verify(message, long) {
+        TrackedPathList.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.items != null && message.hasOwnProperty("items")) {
                 if (!Array.isArray(message.items))
                     return "items: array expected";
                 for (var i = 0; i < message.items.length; ++i) {
-                    var error = $root.pb.TrackedPath.verify(message.items[i], long + 1);
+                    var error = $root.pb.TrackedPath.verify(message.items[i]);
                     if (error)
                         return "items." + error;
                 }
@@ -15843,13 +16731,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.TrackedPathList} TrackedPathList
          */
-        TrackedPathList.fromObject = function fromObject(object, long) {
+        TrackedPathList.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.TrackedPathList)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.TrackedPathList();
             if (object.items) {
                 if (!Array.isArray(object.items))
@@ -15858,7 +16742,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.items.length; ++i) {
                     if (typeof object.items[i] !== "object")
                         throw TypeError(".pb.TrackedPathList.items: object expected");
-                    message.items[i] = $root.pb.TrackedPath.fromObject(object.items[i], long + 1);
+                    message.items[i] = $root.pb.TrackedPath.fromObject(object.items[i]);
                 }
             }
             return message;
@@ -15937,7 +16821,7 @@ $root.pb = (function() {
         function TrackedPrefix(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -16012,13 +16896,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        TrackedPrefix.decode = function decode(reader, length, error, long) {
+        TrackedPrefix.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.TrackedPrefix();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -16034,7 +16914,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -16065,13 +16945,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        TrackedPrefix.verify = function verify(message, long) {
+        TrackedPrefix.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.prefix != null && message.hasOwnProperty("prefix"))
                 if (!$util.isString(message.prefix))
                     return "prefix: string expected";
@@ -16089,13 +16965,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.TrackedPrefix} TrackedPrefix
          */
-        TrackedPrefix.fromObject = function fromObject(object, long) {
+        TrackedPrefix.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.TrackedPrefix)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.TrackedPrefix();
             if (object.prefix != null)
                 message.prefix = String(object.prefix);
@@ -16178,7 +17050,7 @@ $root.pb = (function() {
             this.items = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -16244,13 +17116,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        TrackedPrefixList.decode = function decode(reader, length, error, long) {
+        TrackedPrefixList.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.TrackedPrefixList();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -16260,11 +17128,11 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.items && message.items.length))
                             message.items = [];
-                        message.items.push($root.pb.TrackedPrefix.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.items.push($root.pb.TrackedPrefix.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -16295,18 +17163,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        TrackedPrefixList.verify = function verify(message, long) {
+        TrackedPrefixList.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.items != null && message.hasOwnProperty("items")) {
                 if (!Array.isArray(message.items))
                     return "items: array expected";
                 for (var i = 0; i < message.items.length; ++i) {
-                    var error = $root.pb.TrackedPrefix.verify(message.items[i], long + 1);
+                    var error = $root.pb.TrackedPrefix.verify(message.items[i]);
                     if (error)
                         return "items." + error;
                 }
@@ -16322,13 +17186,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.TrackedPrefixList} TrackedPrefixList
          */
-        TrackedPrefixList.fromObject = function fromObject(object, long) {
+        TrackedPrefixList.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.TrackedPrefixList)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.TrackedPrefixList();
             if (object.items) {
                 if (!Array.isArray(object.items))
@@ -16337,7 +17197,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.items.length; ++i) {
                     if (typeof object.items[i] !== "object")
                         throw TypeError(".pb.TrackedPrefixList.items: object expected");
-                    message.items[i] = $root.pb.TrackedPrefix.fromObject(object.items[i], long + 1);
+                    message.items[i] = $root.pb.TrackedPrefix.fromObject(object.items[i]);
                 }
             }
             return message;
@@ -16421,7 +17281,7 @@ $root.pb = (function() {
             this.rewrittenCmd = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -16537,13 +17397,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        WrapperRule.decode = function decode(reader, length, error, long) {
+        WrapperRule.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperRule();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -16577,7 +17433,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -16608,13 +17464,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        WrapperRule.verify = function verify(message, long) {
+        WrapperRule.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.comm != null && message.hasOwnProperty("comm"))
                 if (!$util.isString(message.comm))
                     return "comm: string expected";
@@ -16648,13 +17500,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.WrapperRule} WrapperRule
          */
-        WrapperRule.fromObject = function fromObject(object, long) {
+        WrapperRule.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.WrapperRule)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.WrapperRule();
             if (object.comm != null)
                 message.comm = String(object.comm);
@@ -16766,7 +17614,7 @@ $root.pb = (function() {
             this.items = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -16832,13 +17680,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        WrapperRuleList.decode = function decode(reader, length, error, long) {
+        WrapperRuleList.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperRuleList();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -16848,11 +17692,11 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.items && message.items.length))
                             message.items = [];
-                        message.items.push($root.pb.WrapperRule.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.items.push($root.pb.WrapperRule.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -16883,18 +17727,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        WrapperRuleList.verify = function verify(message, long) {
+        WrapperRuleList.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.items != null && message.hasOwnProperty("items")) {
                 if (!Array.isArray(message.items))
                     return "items: array expected";
                 for (var i = 0; i < message.items.length; ++i) {
-                    var error = $root.pb.WrapperRule.verify(message.items[i], long + 1);
+                    var error = $root.pb.WrapperRule.verify(message.items[i]);
                     if (error)
                         return "items." + error;
                 }
@@ -16910,13 +17750,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.WrapperRuleList} WrapperRuleList
          */
-        WrapperRuleList.fromObject = function fromObject(object, long) {
+        WrapperRuleList.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.WrapperRuleList)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.WrapperRuleList();
             if (object.items) {
                 if (!Array.isArray(object.items))
@@ -16925,7 +17761,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.items.length; ++i) {
                     if (typeof object.items[i] !== "object")
                         throw TypeError(".pb.WrapperRuleList.items: object expected");
-                    message.items[i] = $root.pb.WrapperRule.fromObject(object.items[i], long + 1);
+                    message.items[i] = $root.pb.WrapperRule.fromObject(object.items[i]);
                 }
             }
             return message;
@@ -17016,7 +17852,7 @@ $root.pb = (function() {
             this.otlpHeaders = {};
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -17202,13 +18038,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        RuntimeSettings.decode = function decode(reader, length, error, long) {
+        RuntimeSettings.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RuntimeSettings(), key, value;
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -17279,17 +18111,15 @@ $root.pb = (function() {
                                 value = reader.string();
                                 break;
                             default:
-                                reader.skipType(tag2 & 7, long);
+                                reader.skipType(tag2 & 7);
                                 break;
                             }
                         }
-                        if (key === "__proto__")
-                            $util.makeProp(message.otlpHeaders, key);
                         message.otlpHeaders[key] = value;
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -17320,13 +18150,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        RuntimeSettings.verify = function verify(message, long) {
+        RuntimeSettings.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.logPersistenceEnabled != null && message.hasOwnProperty("logPersistenceEnabled"))
                 if (typeof message.logPersistenceEnabled !== "boolean")
                     return "logPersistenceEnabled: boolean expected";
@@ -17382,13 +18208,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.RuntimeSettings} RuntimeSettings
          */
-        RuntimeSettings.fromObject = function fromObject(object, long) {
+        RuntimeSettings.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.RuntimeSettings)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.RuntimeSettings();
             if (object.logPersistenceEnabled != null)
                 message.logPersistenceEnabled = Boolean(object.logPersistenceEnabled);
@@ -17418,11 +18240,8 @@ $root.pb = (function() {
                 if (typeof object.otlpHeaders !== "object")
                     throw TypeError(".pb.RuntimeSettings.otlpHeaders: object expected");
                 message.otlpHeaders = {};
-                for (var keys = Object.keys(object.otlpHeaders), i = 0; i < keys.length; ++i) {
-                    if (keys[i] === "__proto__")
-                        $util.makeProp(message.otlpHeaders, keys[i]);
+                for (var keys = Object.keys(object.otlpHeaders), i = 0; i < keys.length; ++i)
                     message.otlpHeaders[keys[i]] = String(object.otlpHeaders[keys[i]]);
-                }
             }
             return message;
         };
@@ -17483,11 +18302,8 @@ $root.pb = (function() {
             var keys2;
             if (message.otlpHeaders && (keys2 = Object.keys(message.otlpHeaders)).length) {
                 object.otlpHeaders = {};
-                for (var j = 0; j < keys2.length; ++j) {
-                    if (keys2[j] === "__proto__")
-                        $util.makeProp(object.otlpHeaders, keys2[j]);
+                for (var j = 0; j < keys2.length; ++j)
                     object.otlpHeaders[keys2[j]] = message.otlpHeaders[keys2[j]];
-                }
             }
             return object;
         };
@@ -17546,7 +18362,7 @@ $root.pb = (function() {
         function RuntimeConfigResponse(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -17661,13 +18477,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        RuntimeConfigResponse.decode = function decode(reader, length, error, long) {
+        RuntimeConfigResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RuntimeConfigResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -17675,7 +18487,7 @@ $root.pb = (function() {
                     break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.runtime = $root.pb.RuntimeSettings.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.runtime = $root.pb.RuntimeSettings.decode(reader, reader.uint32());
                         break;
                     }
                 case 2: {
@@ -17699,7 +18511,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -17730,15 +18542,11 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        RuntimeConfigResponse.verify = function verify(message, long) {
+        RuntimeConfigResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.runtime != null && message.hasOwnProperty("runtime")) {
-                var error = $root.pb.RuntimeSettings.verify(message.runtime, long + 1);
+                var error = $root.pb.RuntimeSettings.verify(message.runtime);
                 if (error)
                     return "runtime." + error;
             }
@@ -17768,18 +18576,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.RuntimeConfigResponse} RuntimeConfigResponse
          */
-        RuntimeConfigResponse.fromObject = function fromObject(object, long) {
+        RuntimeConfigResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.RuntimeConfigResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.RuntimeConfigResponse();
             if (object.runtime != null) {
                 if (typeof object.runtime !== "object")
                     throw TypeError(".pb.RuntimeConfigResponse.runtime: object expected");
-                message.runtime = $root.pb.RuntimeSettings.fromObject(object.runtime, long + 1);
+                message.runtime = $root.pb.RuntimeSettings.fromObject(object.runtime);
             }
             if (object.mcpEndpoint != null)
                 message.mcpEndpoint = String(object.mcpEndpoint);
@@ -17889,7 +18693,7 @@ $root.pb = (function() {
             this.rules = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -18009,13 +18813,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ExportConfigData.decode = function decode(reader, length, error, long) {
+        ExportConfigData.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ExportConfigData();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -18031,33 +18831,33 @@ $root.pb = (function() {
                 case 2: {
                         if (!(message.comms && message.comms.length))
                             message.comms = [];
-                        message.comms.push($root.pb.TrackedComm.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.comms.push($root.pb.TrackedComm.decode(reader, reader.uint32()));
                         break;
                     }
                 case 3: {
                         if (!(message.paths && message.paths.length))
                             message.paths = [];
-                        message.paths.push($root.pb.TrackedPath.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.paths.push($root.pb.TrackedPath.decode(reader, reader.uint32()));
                         break;
                     }
                 case 4: {
                         if (!(message.prefixes && message.prefixes.length))
                             message.prefixes = [];
-                        message.prefixes.push($root.pb.TrackedPrefix.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.prefixes.push($root.pb.TrackedPrefix.decode(reader, reader.uint32()));
                         break;
                     }
                 case 5: {
                         if (!(message.rules && message.rules.length))
                             message.rules = [];
-                        message.rules.push($root.pb.WrapperRule.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.rules.push($root.pb.WrapperRule.decode(reader, reader.uint32()));
                         break;
                     }
                 case 6: {
-                        message.runtime = $root.pb.RuntimeSettings.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.runtime = $root.pb.RuntimeSettings.decode(reader, reader.uint32());
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -18088,13 +18888,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ExportConfigData.verify = function verify(message, long) {
+        ExportConfigData.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.tags != null && message.hasOwnProperty("tags")) {
                 if (!Array.isArray(message.tags))
                     return "tags: array expected";
@@ -18106,7 +18902,7 @@ $root.pb = (function() {
                 if (!Array.isArray(message.comms))
                     return "comms: array expected";
                 for (var i = 0; i < message.comms.length; ++i) {
-                    var error = $root.pb.TrackedComm.verify(message.comms[i], long + 1);
+                    var error = $root.pb.TrackedComm.verify(message.comms[i]);
                     if (error)
                         return "comms." + error;
                 }
@@ -18115,7 +18911,7 @@ $root.pb = (function() {
                 if (!Array.isArray(message.paths))
                     return "paths: array expected";
                 for (var i = 0; i < message.paths.length; ++i) {
-                    var error = $root.pb.TrackedPath.verify(message.paths[i], long + 1);
+                    var error = $root.pb.TrackedPath.verify(message.paths[i]);
                     if (error)
                         return "paths." + error;
                 }
@@ -18124,7 +18920,7 @@ $root.pb = (function() {
                 if (!Array.isArray(message.prefixes))
                     return "prefixes: array expected";
                 for (var i = 0; i < message.prefixes.length; ++i) {
-                    var error = $root.pb.TrackedPrefix.verify(message.prefixes[i], long + 1);
+                    var error = $root.pb.TrackedPrefix.verify(message.prefixes[i]);
                     if (error)
                         return "prefixes." + error;
                 }
@@ -18133,13 +18929,13 @@ $root.pb = (function() {
                 if (!Array.isArray(message.rules))
                     return "rules: array expected";
                 for (var i = 0; i < message.rules.length; ++i) {
-                    var error = $root.pb.WrapperRule.verify(message.rules[i], long + 1);
+                    var error = $root.pb.WrapperRule.verify(message.rules[i]);
                     if (error)
                         return "rules." + error;
                 }
             }
             if (message.runtime != null && message.hasOwnProperty("runtime")) {
-                var error = $root.pb.RuntimeSettings.verify(message.runtime, long + 1);
+                var error = $root.pb.RuntimeSettings.verify(message.runtime);
                 if (error)
                     return "runtime." + error;
             }
@@ -18154,13 +18950,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.ExportConfigData} ExportConfigData
          */
-        ExportConfigData.fromObject = function fromObject(object, long) {
+        ExportConfigData.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.ExportConfigData)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.ExportConfigData();
             if (object.tags) {
                 if (!Array.isArray(object.tags))
@@ -18176,7 +18968,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.comms.length; ++i) {
                     if (typeof object.comms[i] !== "object")
                         throw TypeError(".pb.ExportConfigData.comms: object expected");
-                    message.comms[i] = $root.pb.TrackedComm.fromObject(object.comms[i], long + 1);
+                    message.comms[i] = $root.pb.TrackedComm.fromObject(object.comms[i]);
                 }
             }
             if (object.paths) {
@@ -18186,7 +18978,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.paths.length; ++i) {
                     if (typeof object.paths[i] !== "object")
                         throw TypeError(".pb.ExportConfigData.paths: object expected");
-                    message.paths[i] = $root.pb.TrackedPath.fromObject(object.paths[i], long + 1);
+                    message.paths[i] = $root.pb.TrackedPath.fromObject(object.paths[i]);
                 }
             }
             if (object.prefixes) {
@@ -18196,7 +18988,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.prefixes.length; ++i) {
                     if (typeof object.prefixes[i] !== "object")
                         throw TypeError(".pb.ExportConfigData.prefixes: object expected");
-                    message.prefixes[i] = $root.pb.TrackedPrefix.fromObject(object.prefixes[i], long + 1);
+                    message.prefixes[i] = $root.pb.TrackedPrefix.fromObject(object.prefixes[i]);
                 }
             }
             if (object.rules) {
@@ -18206,13 +18998,13 @@ $root.pb = (function() {
                 for (var i = 0; i < object.rules.length; ++i) {
                     if (typeof object.rules[i] !== "object")
                         throw TypeError(".pb.ExportConfigData.rules: object expected");
-                    message.rules[i] = $root.pb.WrapperRule.fromObject(object.rules[i], long + 1);
+                    message.rules[i] = $root.pb.WrapperRule.fromObject(object.rules[i]);
                 }
             }
             if (object.runtime != null) {
                 if (typeof object.runtime !== "object")
                     throw TypeError(".pb.ExportConfigData.runtime: object expected");
-                message.runtime = $root.pb.RuntimeSettings.fromObject(object.runtime, long + 1);
+                message.runtime = $root.pb.RuntimeSettings.fromObject(object.runtime);
             }
             return message;
         };
@@ -18319,7 +19111,7 @@ $root.pb = (function() {
         function StatusResponse(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -18394,13 +19186,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        StatusResponse.decode = function decode(reader, length, error, long) {
+        StatusResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.StatusResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -18416,7 +19204,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -18447,13 +19235,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        StatusResponse.verify = function verify(message, long) {
+        StatusResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.status != null && message.hasOwnProperty("status"))
                 if (!$util.isString(message.status))
                     return "status: string expected";
@@ -18471,13 +19255,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.StatusResponse} StatusResponse
          */
-        StatusResponse.fromObject = function fromObject(object, long) {
+        StatusResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.StatusResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.StatusResponse();
             if (object.status != null)
                 message.status = String(object.status);
@@ -18564,7 +19344,7 @@ $root.pb = (function() {
         function FileEntry(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -18679,13 +19459,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        FileEntry.decode = function decode(reader, length, error, long) {
+        FileEntry.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.FileEntry();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -18717,7 +19493,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -18748,13 +19524,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        FileEntry.verify = function verify(message, long) {
+        FileEntry.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.name != null && message.hasOwnProperty("name"))
                 if (!$util.isString(message.name))
                     return "name: string expected";
@@ -18784,13 +19556,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.FileEntry} FileEntry
          */
-        FileEntry.fromObject = function fromObject(object, long) {
+        FileEntry.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.FileEntry)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.FileEntry();
             if (object.name != null)
                 message.name = String(object.name);
@@ -18910,7 +19678,7 @@ $root.pb = (function() {
             this.items = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -19006,13 +19774,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        FileListResponse.decode = function decode(reader, length, error, long) {
+        FileListResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.FileListResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -19022,7 +19786,7 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.items && message.items.length))
                             message.items = [];
-                        message.items.push($root.pb.FileEntry.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.items.push($root.pb.FileEntry.decode(reader, reader.uint32()));
                         break;
                     }
                 case 2: {
@@ -19038,7 +19802,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -19069,18 +19833,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        FileListResponse.verify = function verify(message, long) {
+        FileListResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.items != null && message.hasOwnProperty("items")) {
                 if (!Array.isArray(message.items))
                     return "items: array expected";
                 for (var i = 0; i < message.items.length; ++i) {
-                    var error = $root.pb.FileEntry.verify(message.items[i], long + 1);
+                    var error = $root.pb.FileEntry.verify(message.items[i]);
                     if (error)
                         return "items." + error;
                 }
@@ -19105,13 +19865,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.FileListResponse} FileListResponse
          */
-        FileListResponse.fromObject = function fromObject(object, long) {
+        FileListResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.FileListResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.FileListResponse();
             if (object.items) {
                 if (!Array.isArray(object.items))
@@ -19120,7 +19876,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.items.length; ++i) {
                     if (typeof object.items[i] !== "object")
                         throw TypeError(".pb.FileListResponse.items: object expected");
-                    message.items[i] = $root.pb.FileEntry.fromObject(object.items[i], long + 1);
+                    message.items[i] = $root.pb.FileEntry.fromObject(object.items[i]);
                 }
             }
             if (object.total != null)
@@ -19220,7 +19976,7 @@ $root.pb = (function() {
         function FilePreviewResponse(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -19335,13 +20091,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        FilePreviewResponse.decode = function decode(reader, length, error, long) {
+        FilePreviewResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.FilePreviewResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -19373,7 +20125,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -19404,13 +20156,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        FilePreviewResponse.verify = function verify(message, long) {
+        FilePreviewResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.content != null && message.hasOwnProperty("content"))
                 if (!$util.isString(message.content))
                     return "content: string expected";
@@ -19440,13 +20188,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.FilePreviewResponse} FilePreviewResponse
          */
-        FilePreviewResponse.fromObject = function fromObject(object, long) {
+        FilePreviewResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.FilePreviewResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.FilePreviewResponse();
             if (object.content != null)
                 message.content = String(object.content);
@@ -19566,7 +20310,7 @@ $root.pb = (function() {
         function SystemdUnit(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -19671,13 +20415,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        SystemdUnit.decode = function decode(reader, length, error, long) {
+        SystemdUnit.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SystemdUnit();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -19705,7 +20445,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -19736,13 +20476,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        SystemdUnit.verify = function verify(message, long) {
+        SystemdUnit.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.unit != null && message.hasOwnProperty("unit"))
                 if (!$util.isString(message.unit))
                     return "unit: string expected";
@@ -19769,13 +20505,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.SystemdUnit} SystemdUnit
          */
-        SystemdUnit.fromObject = function fromObject(object, long) {
+        SystemdUnit.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.SystemdUnit)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.SystemdUnit();
             if (object.unit != null)
                 message.unit = String(object.unit);
@@ -19873,7 +20605,7 @@ $root.pb = (function() {
             this.services = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -19939,13 +20671,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        SystemdUnitList.decode = function decode(reader, length, error, long) {
+        SystemdUnitList.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SystemdUnitList();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -19955,11 +20683,11 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.services && message.services.length))
                             message.services = [];
-                        message.services.push($root.pb.SystemdUnit.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.services.push($root.pb.SystemdUnit.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -19990,18 +20718,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        SystemdUnitList.verify = function verify(message, long) {
+        SystemdUnitList.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.services != null && message.hasOwnProperty("services")) {
                 if (!Array.isArray(message.services))
                     return "services: array expected";
                 for (var i = 0; i < message.services.length; ++i) {
-                    var error = $root.pb.SystemdUnit.verify(message.services[i], long + 1);
+                    var error = $root.pb.SystemdUnit.verify(message.services[i]);
                     if (error)
                         return "services." + error;
                 }
@@ -20017,13 +20741,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.SystemdUnitList} SystemdUnitList
          */
-        SystemdUnitList.fromObject = function fromObject(object, long) {
+        SystemdUnitList.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.SystemdUnitList)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.SystemdUnitList();
             if (object.services) {
                 if (!Array.isArray(object.services))
@@ -20032,7 +20752,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.services.length; ++i) {
                     if (typeof object.services[i] !== "object")
                         throw TypeError(".pb.SystemdUnitList.services: object expected");
-                    message.services[i] = $root.pb.SystemdUnit.fromObject(object.services[i], long + 1);
+                    message.services[i] = $root.pb.SystemdUnit.fromObject(object.services[i]);
                 }
             }
             return message;
@@ -20112,7 +20832,7 @@ $root.pb = (function() {
         function SensorReading(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -20197,13 +20917,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        SensorReading.decode = function decode(reader, length, error, long) {
+        SensorReading.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SensorReading();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -20223,7 +20939,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -20254,13 +20970,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        SensorReading.verify = function verify(message, long) {
+        SensorReading.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.key != null && message.hasOwnProperty("key"))
                 if (!$util.isString(message.key))
                     return "key: string expected";
@@ -20281,13 +20993,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.SensorReading} SensorReading
          */
-        SensorReading.fromObject = function fromObject(object, long) {
+        SensorReading.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.SensorReading)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.SensorReading();
             if (object.key != null)
                 message.key = String(object.key);
@@ -20377,7 +21085,7 @@ $root.pb = (function() {
             this.fans = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -20454,13 +21162,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        SensorsSnapshot.decode = function decode(reader, length, error, long) {
+        SensorsSnapshot.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SensorsSnapshot();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -20470,7 +21174,7 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.temperatures && message.temperatures.length))
                             message.temperatures = [];
-                        message.temperatures.push($root.pb.SensorReading.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.temperatures.push($root.pb.SensorReading.decode(reader, reader.uint32()));
                         break;
                     }
                 case 2: {
@@ -20480,7 +21184,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -20511,18 +21215,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        SensorsSnapshot.verify = function verify(message, long) {
+        SensorsSnapshot.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.temperatures != null && message.hasOwnProperty("temperatures")) {
                 if (!Array.isArray(message.temperatures))
                     return "temperatures: array expected";
                 for (var i = 0; i < message.temperatures.length; ++i) {
-                    var error = $root.pb.SensorReading.verify(message.temperatures[i], long + 1);
+                    var error = $root.pb.SensorReading.verify(message.temperatures[i]);
                     if (error)
                         return "temperatures." + error;
                 }
@@ -20545,13 +21245,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.SensorsSnapshot} SensorsSnapshot
          */
-        SensorsSnapshot.fromObject = function fromObject(object, long) {
+        SensorsSnapshot.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.SensorsSnapshot)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.SensorsSnapshot();
             if (object.temperatures) {
                 if (!Array.isArray(object.temperatures))
@@ -20560,7 +21256,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.temperatures.length; ++i) {
                     if (typeof object.temperatures[i] !== "object")
                         throw TypeError(".pb.SensorsSnapshot.temperatures: object expected");
-                    message.temperatures[i] = $root.pb.SensorReading.fromObject(object.temperatures[i], long + 1);
+                    message.temperatures[i] = $root.pb.SensorReading.fromObject(object.temperatures[i]);
                 }
             }
             if (object.fans) {
@@ -20659,7 +21355,7 @@ $root.pb = (function() {
         function ShellSession(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -20794,13 +21490,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ShellSession.decode = function decode(reader, length, error, long) {
+        ShellSession.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ShellSession();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -20840,7 +21532,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -20871,13 +21563,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ShellSession.verify = function verify(message, long) {
+        ShellSession.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.id != null && message.hasOwnProperty("id"))
                 if (!$util.isString(message.id))
                     return "id: string expected";
@@ -20913,13 +21601,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.ShellSession} ShellSession
          */
-        ShellSession.fromObject = function fromObject(object, long) {
+        ShellSession.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.ShellSession)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.ShellSession();
             if (object.id != null)
                 message.id = String(object.id);
@@ -21046,7 +21730,7 @@ $root.pb = (function() {
             this.sessions = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -21112,13 +21796,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ShellSessionList.decode = function decode(reader, length, error, long) {
+        ShellSessionList.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ShellSessionList();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -21128,11 +21808,11 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.sessions && message.sessions.length))
                             message.sessions = [];
-                        message.sessions.push($root.pb.ShellSession.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.sessions.push($root.pb.ShellSession.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -21163,18 +21843,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ShellSessionList.verify = function verify(message, long) {
+        ShellSessionList.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.sessions != null && message.hasOwnProperty("sessions")) {
                 if (!Array.isArray(message.sessions))
                     return "sessions: array expected";
                 for (var i = 0; i < message.sessions.length; ++i) {
-                    var error = $root.pb.ShellSession.verify(message.sessions[i], long + 1);
+                    var error = $root.pb.ShellSession.verify(message.sessions[i]);
                     if (error)
                         return "sessions." + error;
                 }
@@ -21190,13 +21866,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.ShellSessionList} ShellSessionList
          */
-        ShellSessionList.fromObject = function fromObject(object, long) {
+        ShellSessionList.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.ShellSessionList)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.ShellSessionList();
             if (object.sessions) {
                 if (!Array.isArray(object.sessions))
@@ -21205,7 +21877,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.sessions.length; ++i) {
                     if (typeof object.sessions[i] !== "object")
                         throw TypeError(".pb.ShellSessionList.sessions: object expected");
-                    message.sessions[i] = $root.pb.ShellSession.fromObject(object.sessions[i], long + 1);
+                    message.sessions[i] = $root.pb.ShellSession.fromObject(object.sessions[i]);
                 }
             }
             return message;
@@ -21286,7 +21958,7 @@ $root.pb = (function() {
             this.args = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -21372,13 +22044,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ShellSessionCreateRequest.decode = function decode(reader, length, error, long) {
+        ShellSessionCreateRequest.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ShellSessionCreateRequest();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -21400,7 +22068,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -21431,13 +22099,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ShellSessionCreateRequest.verify = function verify(message, long) {
+        ShellSessionCreateRequest.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.workdir != null && message.hasOwnProperty("workdir"))
                 if (!$util.isString(message.workdir))
                     return "workdir: string expected";
@@ -21462,13 +22126,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.ShellSessionCreateRequest} ShellSessionCreateRequest
          */
-        ShellSessionCreateRequest.fromObject = function fromObject(object, long) {
+        ShellSessionCreateRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.ShellSessionCreateRequest)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.ShellSessionCreateRequest();
             if (object.workdir != null)
                 message.workdir = String(object.workdir);
@@ -21566,7 +22226,7 @@ $root.pb = (function() {
         function CapturedEventRecord(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -21651,13 +22311,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        CapturedEventRecord.decode = function decode(reader, length, error, long) {
+        CapturedEventRecord.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.CapturedEventRecord();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -21665,7 +22321,7 @@ $root.pb = (function() {
                     break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.event = $root.pb.Event.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.event = $root.pb.Event.decode(reader, reader.uint32());
                         break;
                     }
                 case 2: {
@@ -21673,11 +22329,11 @@ $root.pb = (function() {
                         break;
                     }
                 case 3: {
-                        message.envelope = $root.pb.EventEnvelope.decode(reader, reader.uint32(), undefined, long + 1);
+                        message.envelope = $root.pb.EventEnvelope.decode(reader, reader.uint32());
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -21708,15 +22364,11 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        CapturedEventRecord.verify = function verify(message, long) {
+        CapturedEventRecord.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.event != null && message.hasOwnProperty("event")) {
-                var error = $root.pb.Event.verify(message.event, long + 1);
+                var error = $root.pb.Event.verify(message.event);
                 if (error)
                     return "event." + error;
             }
@@ -21724,7 +22376,7 @@ $root.pb = (function() {
                 if (!$util.isInteger(message.timestamp) && !(message.timestamp && $util.isInteger(message.timestamp.low) && $util.isInteger(message.timestamp.high)))
                     return "timestamp: integer|Long expected";
             if (message.envelope != null && message.hasOwnProperty("envelope")) {
-                var error = $root.pb.EventEnvelope.verify(message.envelope, long + 1);
+                var error = $root.pb.EventEnvelope.verify(message.envelope);
                 if (error)
                     return "envelope." + error;
             }
@@ -21739,18 +22391,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.CapturedEventRecord} CapturedEventRecord
          */
-        CapturedEventRecord.fromObject = function fromObject(object, long) {
+        CapturedEventRecord.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.CapturedEventRecord)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.CapturedEventRecord();
             if (object.event != null) {
                 if (typeof object.event !== "object")
                     throw TypeError(".pb.CapturedEventRecord.event: object expected");
-                message.event = $root.pb.Event.fromObject(object.event, long + 1);
+                message.event = $root.pb.Event.fromObject(object.event);
             }
             if (object.timestamp != null)
                 if ($util.Long)
@@ -21764,7 +22412,7 @@ $root.pb = (function() {
             if (object.envelope != null) {
                 if (typeof object.envelope !== "object")
                     throw TypeError(".pb.CapturedEventRecord.envelope: object expected");
-                message.envelope = $root.pb.EventEnvelope.fromObject(object.envelope, long + 1);
+                message.envelope = $root.pb.EventEnvelope.fromObject(object.envelope);
             }
             return message;
         };
@@ -21854,7 +22502,7 @@ $root.pb = (function() {
             this.events = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -21930,13 +22578,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        EventHistoryResponse.decode = function decode(reader, length, error, long) {
+        EventHistoryResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.EventHistoryResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -21946,7 +22590,7 @@ $root.pb = (function() {
                 case 1: {
                         if (!(message.events && message.events.length))
                             message.events = [];
-                        message.events.push($root.pb.CapturedEventRecord.decode(reader, reader.uint32(), undefined, long + 1));
+                        message.events.push($root.pb.CapturedEventRecord.decode(reader, reader.uint32()));
                         break;
                     }
                 case 2: {
@@ -21954,7 +22598,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -21985,18 +22629,14 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        EventHistoryResponse.verify = function verify(message, long) {
+        EventHistoryResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.events != null && message.hasOwnProperty("events")) {
                 if (!Array.isArray(message.events))
                     return "events: array expected";
                 for (var i = 0; i < message.events.length; ++i) {
-                    var error = $root.pb.CapturedEventRecord.verify(message.events[i], long + 1);
+                    var error = $root.pb.CapturedEventRecord.verify(message.events[i]);
                     if (error)
                         return "events." + error;
                 }
@@ -22015,13 +22655,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.EventHistoryResponse} EventHistoryResponse
          */
-        EventHistoryResponse.fromObject = function fromObject(object, long) {
+        EventHistoryResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.EventHistoryResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.EventHistoryResponse();
             if (object.events) {
                 if (!Array.isArray(object.events))
@@ -22030,7 +22666,7 @@ $root.pb = (function() {
                 for (var i = 0; i < object.events.length; ++i) {
                     if (typeof object.events[i] !== "object")
                         throw TypeError(".pb.EventHistoryResponse.events: object expected");
-                    message.events[i] = $root.pb.CapturedEventRecord.fromObject(object.events[i], long + 1);
+                    message.events[i] = $root.pb.CapturedEventRecord.fromObject(object.events[i]);
                 }
             }
             if (object.source != null)
@@ -22115,7 +22751,7 @@ $root.pb = (function() {
         function ConfigKeyRequest(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -22190,13 +22826,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ConfigKeyRequest.decode = function decode(reader, length, error, long) {
+        ConfigKeyRequest.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ConfigKeyRequest();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -22212,7 +22844,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -22243,13 +22875,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ConfigKeyRequest.verify = function verify(message, long) {
+        ConfigKeyRequest.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.key != null && message.hasOwnProperty("key"))
                 if (!$util.isString(message.key))
                     return "key: string expected";
@@ -22267,13 +22895,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.ConfigKeyRequest} ConfigKeyRequest
          */
-        ConfigKeyRequest.fromObject = function fromObject(object, long) {
+        ConfigKeyRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.ConfigKeyRequest)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.ConfigKeyRequest();
             if (object.key != null)
                 message.key = String(object.key);
@@ -22356,7 +22980,7 @@ $root.pb = (function() {
         function ConfigBoolResponse(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                    if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -22431,13 +23055,9 @@ $root.pb = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ConfigBoolResponse.decode = function decode(reader, length, error, long) {
+        ConfigBoolResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ConfigBoolResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -22453,7 +23073,7 @@ $root.pb = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7, long);
+                    reader.skipType(tag & 7);
                     break;
                 }
             }
@@ -22484,13 +23104,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ConfigBoolResponse.verify = function verify(message, long) {
+        ConfigBoolResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
             if (message.value != null && message.hasOwnProperty("value"))
                 if (typeof message.value !== "boolean")
                     return "value: boolean expected";
@@ -22508,13 +23124,9 @@ $root.pb = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {pb.ConfigBoolResponse} ConfigBoolResponse
          */
-        ConfigBoolResponse.fromObject = function fromObject(object, long) {
+        ConfigBoolResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pb.ConfigBoolResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
             var message = new $root.pb.ConfigBoolResponse();
             if (object.value != null)
                 message.value = Boolean(object.value);

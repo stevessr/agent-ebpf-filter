@@ -58,12 +58,20 @@ Required maps:
 
 Broadcasts `pb.Event` messages sourced from:
 
-- kernel eBPF ring-buffer events, including syscall-derived network flow records,
+- kernel eBPF ring-buffer events, including syscall-derived TCP / UDP flow records with protobuf flow fields (`flow_id`, 5-tuple, transport, DNS / SNI / HTTP Host / ALPN metadata, bytes / packets, stale / historic status, and IP scope),
 - wrapper interceptions,
 - native AI CLI hook callbacks.
 
 Kernel event payloads include syscall exit duration so the dashboard can render strace-style summaries without requiring a separate tracer.
 They also carry `schema_version`, `gid`, `cgroup_id`, and inherited agent-run context when available. The backend now also normalizes them into versioned `EventEnvelope` records with `task_id` / `cwd` support for downstream consumers and can translate those envelopes into OTLP spans (`agent.run`, `codex.task`, `tool.call`, `mcp.call`, plus child process / file / network / policy spans).
+
+Network enrichment APIs:
+
+- `GET /network/flows?filter=&sort=&showHistoric=&limit=&cursor=` returns process / agent attributed flows and accepts RustNet-like filters such as `process:curl dport:443 sni:github.com state:ESTABLISHED`.
+- `GET /network/flows/:flowID` returns one 5-tuple flow.
+- `GET /network/dns-cache` returns the local DNS correlation cache.
+- `GET /network/interfaces` returns per-interface counters including packets, errors, and drops.
+- `GET /network/export/jsonl` exports flow metadata as JSONL. It does not export packet payload bytes.
 
 ### `/ws/system`
 

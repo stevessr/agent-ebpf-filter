@@ -227,17 +227,43 @@ func buildNetworkEnvelopePayload(event *pb.Event) *pb.NetworkEvent {
 		return nil
 	}
 	switch event.GetType() {
-	case "network_connect", "network_bind", "network_sendto", "network_recvfrom", "socket", "accept", "accept4":
+	case "network_connect", "network_bind", "network_sendto", "network_recvfrom", "socket", "accept", "accept4", "tcp_connect", "tcp_close", "tcp_state_change", "dns_query":
 		return &pb.NetworkEvent{
-			Endpoint:  event.GetNetEndpoint(),
-			Direction: event.GetNetDirection(),
-			Bytes:     event.GetNetBytes(),
-			Family:    event.GetNetFamily(),
-			Domain:    event.GetDomain(),
-			SockType:  event.GetSockType(),
-			Protocol:  event.GetProtocol(),
-			Retval:    event.GetRetval(),
-			ExtraInfo: event.GetExtraInfo(),
+			Endpoint:       event.GetNetEndpoint(),
+			Direction:      event.GetNetDirection(),
+			Bytes:          event.GetNetBytes(),
+			Family:         event.GetNetFamily(),
+			Domain:         event.GetDomain(),
+			SockType:       event.GetSockType(),
+			Protocol:       event.GetProtocol(),
+			Retval:         event.GetRetval(),
+			ExtraInfo:      event.GetExtraInfo(),
+			FlowId:         event.GetFlowId(),
+			SrcIp:          event.GetSrcIp(),
+			SrcPort:        event.GetSrcPort(),
+			DstIp:          event.GetDstIp(),
+			DstPort:        event.GetDstPort(),
+			Transport:      event.GetTransport(),
+			AppProtocol:    event.GetAppProtocol(),
+			ServiceName:    event.GetServiceName(),
+			DnsName:        event.GetDnsName(),
+			Sni:            event.GetSni(),
+			HttpHost:       event.GetHttpHost(),
+			TlsAlpn:        event.GetTlsAlpn(),
+			QuicState:      event.GetQuicState(),
+			InterfaceName:  event.GetInterfaceName(),
+			BytesIn:        event.GetBytesIn(),
+			BytesOut:       event.GetBytesOut(),
+			PacketsIn:      event.GetPacketsIn(),
+			PacketsOut:     event.GetPacketsOut(),
+			FirstSeenMs:    event.GetFirstSeenMs(),
+			LastSeenMs:     event.GetLastSeenMs(),
+			StaleLevel:     event.GetStaleLevel(),
+			Historic:       event.GetHistoric(),
+			GeoCountry:     event.GetGeoCountry(),
+			GeoCountryCode: event.GetGeoCountryCode(),
+			GeoAsn:         event.GetGeoAsn(),
+			IpScope:        event.GetIpScope(),
 		}
 	default:
 		return nil

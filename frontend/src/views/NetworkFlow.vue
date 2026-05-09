@@ -38,7 +38,7 @@ let shouldReconnect = true;
 
 const maxHistorySeconds = 300;
 const megabyte = 1024 * 1024;
-const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+const VueApexCharts = defineAsyncComponent(async () => (await import('vue3-apexcharts')).default as any) as any;
 
 const formatBytes = (value: number | string, decimals = 2) => {
   const bytes = Number(value);

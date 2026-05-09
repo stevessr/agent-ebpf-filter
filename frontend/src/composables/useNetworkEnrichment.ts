@@ -2,13 +2,20 @@ import { ref } from 'vue';
 import axios from 'axios';
 
 export interface NetworkFlow {
+  flowId?: string;
   protocol: string;
+  transport?: string;
   srcIp: string;
   srcPort: number;
   dstIp: string;
   dstPort: number;
   dstService?: string;
   dstDomain?: string;
+  dnsName?: string;
+  sni?: string;
+  httpHost?: string;
+  httpMethod?: string;
+  tlsAlpn?: string;
   ipScope: string;
   direction: string;
   state?: string;
@@ -16,11 +23,27 @@ export interface NetworkFlow {
   bytesOut: number;
   packetsIn: number;
   packetsOut: number;
+  currentBpsIn?: number;
+  currentBpsOut?: number;
+  peakBpsIn?: number;
+  peakBpsOut?: number;
   processPids: number[];
   processComms: string[];
+  agentRunIds?: string[];
+  taskIds?: string[];
+  toolCallIds?: string[];
+  traceIds?: string[];
+  spanIds?: string[];
+  containerIds?: string[];
+  decisions?: string[];
   firstSeen: number;
   lastSeen: number;
+  durationMs?: number;
+  staleLevel?: string;
+  historic?: boolean;
   riskScore: number;
+  riskLevel?: string;
+  riskReasons?: string[];
   appProtocol?: string;
 }
 
