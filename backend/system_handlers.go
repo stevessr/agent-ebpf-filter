@@ -168,9 +168,14 @@ func handleSystemdServices(c *gin.Context) {
 	}
 	cmd := exec.Command("systemctl", args...)
 	if scope == "user" {
-		if uid := os.Getenv("AGENT_REAL_UID"); uid != "" {
-			cmd.Env = append(os.Environ(), "XDG_RUNTIME_DIR=/run/user/"+uid)
+		if uid, _, ok := originalInvokerIDs(); ok {
+			uidStr := strconv.FormatUint(uint64(uid), 10)
+			cmd.Env = append(os.Environ(),
+				"XDG_RUNTIME_DIR=/run/user/"+uidStr,
+				"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"+uidStr+"/bus",
+			)
 		}
+		configureCommandForRealUser(cmd)
 	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -210,6 +215,14 @@ func handleSystemdControl(c *gin.Context) {
 	if req.Scope == "user" {
 		args = append([]string{"--user"}, args...)
 		cmd := exec.Command("systemctl", args...)
+		if uid, _, ok := originalInvokerIDs(); ok {
+			uidStr := strconv.FormatUint(uint64(uid), 10)
+			cmd.Env = append(os.Environ(),
+				"XDG_RUNTIME_DIR=/run/user/"+uidStr,
+				"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"+uidStr+"/bus",
+			)
+		}
+		configureCommandForRealUser(cmd)
 		if err := cmd.Run(); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
@@ -241,6 +254,16 @@ func handleSystemdLogs(c *gin.Context) {
 		args = append([]string{"--user"}, args...)
 	}
 	cmd := exec.Command("journalctl", args...)
+	if scope == "user" {
+		if uid, _, ok := originalInvokerIDs(); ok {
+			uidStr := strconv.FormatUint(uint64(uid), 10)
+			cmd.Env = append(os.Environ(),
+				"XDG_RUNTIME_DIR=/run/user/"+uidStr,
+				"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"+uidStr+"/bus",
+			)
+		}
+		configureCommandForRealUser(cmd)
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})

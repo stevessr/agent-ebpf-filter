@@ -107,6 +107,10 @@ const onSendProcessSignal = async (pid: number, signal: string) => {
 };
 
 // ── Tab activation effects ──
+watch(systemdScope, () => {
+  if (activeTab.value === 'systemd') void fetchSystemdServices();
+});
+
 watch(activeTab, (newTab) => {
   if (newTab === 'systemd' && systemdServices.value.length === 0) void fetchSystemdServices();
   else if (newTab === 'sensors') {
