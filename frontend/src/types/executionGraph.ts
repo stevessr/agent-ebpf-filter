@@ -31,6 +31,7 @@ export interface ExecutionGraphFilterState {
   toolCallId: string;
   traceId: string;
   pid: string;
+  processTree: boolean;
   comm: string;
   toolName: string;
   path: string;

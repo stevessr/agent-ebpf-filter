@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
@@ -12,9 +12,11 @@ import {
   SafetyCertificateOutlined,
   StopOutlined,
   AlertOutlined,
+  RadarChartOutlined,
 } from '@ant-design/icons-vue';
 
 import ExecutionGraphCanvas from '../components/execution-graph/ExecutionGraphCanvas.vue';
+import { useMonitorData } from '../composables/useMonitorData';
 import type {
   ExecutionGraphEdge,
   ExecutionGraphFilterState,
@@ -24,6 +26,8 @@ import type {
 
 const route = useRoute();
 const router = useRouter();
+const monitorData = useMonitorData();
+const { processes, loading: processLoading, setup: setupMonitorData, teardown: teardownMonitorData } = monitorData;
 
 const timePresetOptions: ExecutionGraphFilterState['timePreset'][] = ['all', '15m', '1h', '6h', '24h', '7d', 'custom'];
 const detailTabs = ['processes', 'files', 'network', 'policy', 'edges', 'metadata'] as const;
@@ -37,6 +41,7 @@ const defaultFilters = (): ExecutionGraphFilterState => ({
   toolCallId: '',
   traceId: '',
   pid: '',
+  processTree: true,
   comm: '',
   toolName: '',
   path: '',
@@ -56,6 +61,7 @@ const filtersFromRoute = (): ExecutionGraphFilterState => {
   const parsedLimit = Number(singleQuery(query.limit));
   const parsedRisk = Number(singleQuery(query.risk_min));
   const timePreset = String(singleQuery(query.timePreset || query.time_preset || defaults.timePreset)).trim() as ExecutionGraphFilterState['timePreset'];
+  const processTreeRaw = String(singleQuery(query.process_tree)).trim().toLowerCase();
   return {
     ...defaults,
     limit: Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : defaults.limit,
@@ -63,6 +69,7 @@ const filtersFromRoute = (): ExecutionGraphFilterState => {
     toolCallId: String(singleQuery(query.tool_call_id)).trim(),
     traceId: String(singleQuery(query.trace_id)).trim(),
     pid: String(singleQuery(query.pid)).trim(),
+    processTree: processTreeRaw === '' ? defaults.processTree : ['1', 'true', 'yes', 'on'].includes(processTreeRaw),
     comm: String(singleQuery(query.comm)).trim(),
     toolName: String(singleQuery(query.tool_name)).trim(),
     path: String(singleQuery(query.path)).trim(),
@@ -81,6 +88,10 @@ const graph = ref<GraphState>({ eventCount: 0, source: 'memory', nodeCounts: {},
 const selectedNodeId = ref('');
 const activeDetailTab = ref<DetailTab>('processes');
 const lastLoadedAt = ref('');
+const processSearch = ref('');
+const selectedProcessPid = ref<number | null>(filters.pid ? Number(filters.pid) || null : null);
+const liveListen = ref(true);
+let liveRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
 const kindTagColorMap: Record<string, string> = {
   agent_run: 'purple',
@@ -156,6 +167,37 @@ const relatedPolicies = computed(() => relatedNodes.value.filter((node) => node.
 const sortedNodeCounts = computed(() => Object.entries(graph.value.nodeCounts ?? {}).sort((a, b) => b[1] - a[1]));
 const sortedEdgeCounts = computed(() => Object.entries(graph.value.edgeCounts ?? {}).sort((a, b) => b[1] - a[1]));
 const metadataEntries = computed(() => Object.entries(selectedNode.value?.metadata ?? {}).filter(([, value]) => value !== ''));
+const processList = computed(() => [...processes.value].sort((a, b) => (b.cpu ?? 0) - (a.cpu ?? 0) || a.pid - b.pid));
+const selectedProcess = computed(() => {
+  if (!selectedProcessPid.value) return null;
+  return processList.value.find((process) => process.pid === selectedProcessPid.value) ?? null;
+});
+const filteredProcessList = computed(() => {
+  const query = processSearch.value.trim().toLowerCase();
+  const list = query
+    ? processList.value.filter((process) => (
+      process.name.toLowerCase().includes(query) ||
+      String(process.pid).includes(query) ||
+      String(process.ppid).includes(query) ||
+      (process.cmdline ?? '').toLowerCase().includes(query) ||
+      (process.user ?? '').toLowerCase().includes(query)
+    ))
+    : processList.value;
+  return list.slice(0, 200);
+});
+const processSelectOptions = computed(() => filteredProcessList.value.map((process) => ({
+  value: process.pid,
+  label: `${process.name || 'process'} · pid ${process.pid} · ppid ${process.ppid}`,
+  process,
+})));
+const selectedProcessSummary = computed(() => {
+  const process = selectedProcess.value;
+  if (!process) {
+    return filters.pid ? `Listening to pid ${filters.pid}; it may have exited from the live process list.` : 'Pick a live process to focus its current and descendant execution graph.';
+  }
+  const cmdline = process.cmdline?.trim();
+  return `${process.name} pid=${process.pid} ppid=${process.ppid} cpu=${(process.cpu ?? 0).toFixed(1)}% mem=${(process.mem ?? 0).toFixed(1)}%${cmdline ? ` · ${cmdline}` : ''}`;
+});
 
 const buildPresetSince = (preset: ExecutionGraphFilterState['timePreset']) => {
   const now = Date.now();
@@ -194,6 +236,9 @@ const buildParams = () => {
   if (filters.riskMin > 0) {
     params.risk_min = filters.riskMin;
   }
+  if (filters.pid.trim() && filters.processTree) {
+    params.process_tree = 'true';
+  }
   if (filters.timePreset === 'custom') {
     if (filters.since.trim()) params.since = filters.since.trim();
     if (filters.until.trim()) params.until = filters.until.trim();
@@ -211,6 +256,9 @@ const syncRouteQuery = async () => {
     query[key] = String(value);
   });
   query.timePreset = filters.timePreset;
+  if (filters.pid.trim() && filters.processTree) {
+    query.process_tree = 'true';
+  }
   if (filters.timePreset === 'custom') {
     if (filters.since.trim()) query.since = filters.since.trim();
     if (filters.until.trim()) query.until = filters.until.trim();
@@ -254,11 +302,37 @@ const applyFilters = async () => {
 
 const resetFilters = async () => {
   Object.assign(filters, defaultFilters());
+  selectedProcessPid.value = null;
   await applyFilters();
 };
 
 const handleSelectNode = (nodeId: string) => {
   selectedNodeId.value = nodeId;
+};
+
+const focusProcess = async (pid: number | null) => {
+  selectedProcessPid.value = pid;
+  filters.pid = pid ? String(pid) : '';
+  filters.processTree = Boolean(pid);
+  if (pid && filters.timePreset === 'all') {
+    filters.timePreset = '24h';
+  }
+  await applyFilters();
+};
+
+const handleProcessSelectChange = (value: number | string | null | undefined) => {
+  void focusProcess(value ? Number(value) : null);
+};
+
+const focusProcessFromNode = async () => {
+  const processNode = nearestProcessNode.value;
+  const pid = Number(processNode?.metadata?.pid ?? processNode?.pid ?? 0);
+  if (!pid) {
+    message.warning('Select a process-related node first');
+    return;
+  }
+  await focusProcess(pid);
+  message.success(`Listening to process tree for pid ${pid}`);
 };
 
 const nearestProcessNode = computed(() => {
@@ -337,8 +411,28 @@ const focusRelatedTab = (tab: DetailTab) => {
 
 const renderNodeSubtitle = (node: ExecutionGraphNode) => node.subtitle?.trim() || node.metadata?.path || node.metadata?.endpoint || '—';
 
+watch(liveListen, (enabled) => {
+  if (enabled && filters.pid.trim()) {
+    void loadGraph();
+  }
+});
+
 onMounted(async () => {
+  setupMonitorData();
+  liveRefreshTimer = setInterval(() => {
+    if (liveListen.value && filters.pid.trim() && !loading.value) {
+      void loadGraph();
+    }
+  }, 3000);
   await loadGraph();
+});
+
+onUnmounted(() => {
+  teardownMonitorData();
+  if (liveRefreshTimer) {
+    clearInterval(liveRefreshTimer);
+    liveRefreshTimer = null;
+  }
 });
 </script>
 
@@ -394,6 +488,43 @@ onMounted(async () => {
         </a-card>
       </a-col>
     </a-row>
+
+    <a-card :bordered="false" class="process-listener-card">
+      <template #title><span><RadarChartOutlined /> Process Tree Listener</span></template>
+      <a-row :gutter="12" align="middle">
+        <a-col :xs="24" :lg="10">
+          <a-select
+            v-model:value="selectedProcessPid"
+            show-search
+            allow-clear
+            placeholder="从实时进程列表中选择 PID"
+            style="width: 100%;"
+            :filter-option="false"
+            :options="processSelectOptions"
+            :loading="processLoading"
+            @search="processSearch = $event"
+            @change="handleProcessSelectChange"
+          >
+            <template #option="{ label, process }">
+              <div class="process-option">
+                <span>{{ label }}</span>
+                <span class="muted-line">{{ process.user || 'unknown user' }} · {{ process.cmdline || 'no cmdline' }}</span>
+              </div>
+            </template>
+          </a-select>
+        </a-col>
+        <a-col :xs="24" :lg="8">
+          <a-typography-text type="secondary">{{ selectedProcessSummary }}</a-typography-text>
+        </a-col>
+        <a-col :xs="24" :lg="6">
+          <a-space wrap>
+            <a-switch v-model:checked="liveListen" checked-children="监听" un-checked-children="暂停" />
+            <a-checkbox v-model:checked="filters.processTree" :disabled="!filters.pid" @change="applyFilters">显示子进程调用树</a-checkbox>
+            <a-button size="small" :disabled="!nearestProcessNode" @click="focusProcessFromNode">监听当前节点 PID</a-button>
+          </a-space>
+        </a-col>
+      </a-row>
+    </a-card>
 
     <a-card :bordered="false" class="filter-card">
       <template #title><span><FilterOutlined /> Graph Filters</span></template>
@@ -577,6 +708,7 @@ onMounted(async () => {
 }
 
 .hero-card,
+.process-listener-card,
 .filter-card,
 .graph-card,
 .detail-card {
@@ -604,6 +736,12 @@ onMounted(async () => {
 .filter-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.process-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .graph-layout {

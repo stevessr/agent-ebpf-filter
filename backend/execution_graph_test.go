@@ -134,6 +134,30 @@ func TestBuildExecutionGraphFilters(t *testing.T) {
 	}
 }
 
+func TestBuildExecutionGraphProcessTreeFilterIncludesDescendants(t *testing.T) {
+	base := time.Unix(1710000000, 0).UTC()
+	pid := uint32(100)
+	records := []CapturedEventRecord{
+		{ReceivedAt: base, Event: &pb.Event{Pid: 100, Ppid: 1, Comm: "agent", Type: "process_fork", ExtraInfo: "child_pid=101"}},
+		{ReceivedAt: base.Add(time.Second), Event: &pb.Event{Pid: 101, Ppid: 100, Comm: "bash", Type: "process_fork", ExtraInfo: "child_pid=102"}},
+		{ReceivedAt: base.Add(2 * time.Second), Event: &pb.Event{Pid: 102, Ppid: 101, Comm: "curl", Type: "network_connect", NetEndpoint: "api.example:443"}},
+		{ReceivedAt: base.Add(3 * time.Second), Event: &pb.Event{Pid: 200, Ppid: 1, Comm: "unrelated", Type: "openat", Path: "/tmp/other"}},
+	}
+
+	graph := buildExecutionGraph(records, executionGraphFilters{PID: &pid, ProcessTree: true})
+	if graph.EventCount != 3 {
+		t.Fatalf("EventCount = %d, want descendant tree events only", graph.EventCount)
+	}
+	assertGraphNodeLabelContains(t, graph.Nodes, "curl")
+	assertGraphNodeLabelContains(t, graph.Nodes, "api.example:443")
+	assertGraphEdgeKind(t, graph.Edges, "child_process")
+	for _, node := range graph.Nodes {
+		if node.Label == "unrelated" || node.Label == "/tmp/other" {
+			t.Fatalf("unexpected unrelated node %#v", node)
+		}
+	}
+}
+
 func assertGraphNodeKind(t *testing.T, nodes []ExecutionGraphNode, kind string) {
 	t.Helper()
 	for _, node := range nodes {

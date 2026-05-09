@@ -40,18 +40,19 @@ type ExecutionGraphResponse struct {
 }
 
 type executionGraphFilters struct {
-	AgentRunID string
-	ToolCallID string
-	TraceID    string
-	Path       string
-	Domain     string
-	Comm       string
-	ToolName   string
-	Decision   string
-	PID        *uint32
-	RiskMin    float64
-	Since      *time.Time
-	Until      *time.Time
+	AgentRunID  string
+	ToolCallID  string
+	TraceID     string
+	Path        string
+	Domain      string
+	Comm        string
+	ToolName    string
+	Decision    string
+	PID         *uint32
+	ProcessTree bool
+	RiskMin     float64
+	Since       *time.Time
+	Until       *time.Time
 }
 
 type graphRelation struct {
@@ -74,14 +75,15 @@ func handleExecutionGraph(c *gin.Context) {
 	}
 
 	filters := executionGraphFilters{
-		AgentRunID: strings.TrimSpace(c.Query("agent_run_id")),
-		ToolCallID: strings.TrimSpace(c.Query("tool_call_id")),
-		TraceID:    strings.TrimSpace(c.Query("trace_id")),
-		Path:       strings.TrimSpace(c.Query("path")),
-		Domain:     strings.TrimSpace(c.Query("domain")),
-		Comm:       strings.TrimSpace(c.Query("comm")),
-		ToolName:   strings.TrimSpace(c.Query("tool_name")),
-		Decision:   strings.TrimSpace(c.Query("decision")),
+		AgentRunID:  strings.TrimSpace(c.Query("agent_run_id")),
+		ToolCallID:  strings.TrimSpace(c.Query("tool_call_id")),
+		TraceID:     strings.TrimSpace(c.Query("trace_id")),
+		Path:        strings.TrimSpace(c.Query("path")),
+		Domain:      strings.TrimSpace(c.Query("domain")),
+		Comm:        strings.TrimSpace(c.Query("comm")),
+		ToolName:    strings.TrimSpace(c.Query("tool_name")),
+		Decision:    strings.TrimSpace(c.Query("decision")),
+		ProcessTree: parseExecutionGraphBool(c.Query("process_tree")),
 	}
 	if rawPID := strings.TrimSpace(c.Query("pid")); rawPID != "" {
 		if parsed, err := strconv.ParseUint(rawPID, 10, 32); err == nil {
@@ -110,6 +112,7 @@ func buildExecutionGraph(records []CapturedEventRecord, filters executionGraphFi
 	nodes := make(map[string]ExecutionGraphNode)
 	edges := make(map[string]ExecutionGraphEdge)
 	matchedEvents := 0
+	pidTree := buildExecutionGraphPIDTree(records, filters)
 
 	addNode := func(node ExecutionGraphNode) {
 		if node.ID == "" {
@@ -122,7 +125,7 @@ func buildExecutionGraph(records []CapturedEventRecord, filters executionGraphFi
 			if existing.Subtitle == "" && node.Subtitle != "" {
 				existing.Subtitle = node.Subtitle
 			}
-			if existing.Label == "" && node.Label != "" {
+			if (existing.Label == "" || isGenericProcessLabel(existing)) && node.Label != "" && !isGenericProcessLabel(node) {
 				existing.Label = node.Label
 			}
 			if existing.PID == 0 && node.PID != 0 {
@@ -155,7 +158,7 @@ func buildExecutionGraph(records []CapturedEventRecord, filters executionGraphFi
 
 	for index, record := range records {
 		event := record.Event
-		if !matchesExecutionGraphFilters(record, event, filters) {
+		if !matchesExecutionGraphFilters(record, event, filters, pidTree) {
 			continue
 		}
 		matchedEvents++
@@ -234,6 +237,7 @@ func buildExecutionGraph(records []CapturedEventRecord, filters executionGraphFi
 					Metadata: map[string]string{"pid": strconv.Itoa(childPID)},
 				}
 				addNode(childNode)
+				addEdge(ExecutionGraphEdge{ID: processNode.ID + "->" + childNode.ID + ":child_process", Source: processNode.ID, Target: childNode.ID, Kind: "child_process", Label: "child process"})
 				addEdge(ExecutionGraphEdge{ID: activityNode.ID + "->" + childNode.ID + ":spawned", Source: activityNode.ID, Target: childNode.ID, Kind: "spawned", Label: "spawned"})
 			}
 		case "wait4":
@@ -318,7 +322,7 @@ func buildExecutionGraph(records []CapturedEventRecord, filters executionGraphFi
 	}
 }
 
-func matchesExecutionGraphFilters(record CapturedEventRecord, event *pb.Event, filters executionGraphFilters) bool {
+func matchesExecutionGraphFilters(record CapturedEventRecord, event *pb.Event, filters executionGraphFilters, pidTree map[uint32]struct{}) bool {
 	if event == nil {
 		return false
 	}
@@ -340,8 +344,14 @@ func matchesExecutionGraphFilters(record CapturedEventRecord, event *pb.Event, f
 	if filters.Comm != "" && !strings.Contains(strings.ToLower(event.GetComm()), strings.ToLower(filters.Comm)) {
 		return false
 	}
-	if filters.PID != nil && event.GetPid() != *filters.PID && event.GetPpid() != *filters.PID {
-		return false
+	if filters.PID != nil {
+		if filters.ProcessTree {
+			if !eventMatchesExecutionGraphPIDTree(event, pidTree) {
+				return false
+			}
+		} else if event.GetPid() != *filters.PID && event.GetPpid() != *filters.PID {
+			return false
+		}
 	}
 	if filters.RiskMin > 0 && event.GetRiskScore() < filters.RiskMin {
 		return false
@@ -365,6 +375,74 @@ func matchesExecutionGraphFilters(record CapturedEventRecord, event *pb.Event, f
 		}
 	}
 	return true
+}
+
+func buildExecutionGraphPIDTree(records []CapturedEventRecord, filters executionGraphFilters) map[uint32]struct{} {
+	if filters.PID == nil || !filters.ProcessTree {
+		return nil
+	}
+	seed := *filters.PID
+	tree := map[uint32]struct{}{seed: {}}
+	changed := true
+	for changed {
+		changed = false
+		for _, record := range records {
+			event := record.Event
+			if event == nil || !matchesExecutionGraphNonPIDFilters(record, event, filters) {
+				continue
+			}
+			pid := event.GetPid()
+			ppid := event.GetPpid()
+			if _, ok := tree[ppid]; ok && pid != 0 {
+				if _, exists := tree[pid]; !exists {
+					tree[pid] = struct{}{}
+					changed = true
+				}
+			}
+			if childPID, ok := extractGraphInt(event.GetExtraInfo(), "child_pid"); ok && childPID > 0 {
+				if _, ok := tree[pid]; ok {
+					child := uint32(childPID)
+					if _, exists := tree[child]; !exists {
+						tree[child] = struct{}{}
+						changed = true
+					}
+				}
+			}
+		}
+	}
+	return tree
+}
+
+func matchesExecutionGraphNonPIDFilters(record CapturedEventRecord, event *pb.Event, filters executionGraphFilters) bool {
+	filters.PID = nil
+	filters.ProcessTree = false
+	return matchesExecutionGraphFilters(record, event, filters, nil)
+}
+
+func eventMatchesExecutionGraphPIDTree(event *pb.Event, pidTree map[uint32]struct{}) bool {
+	if len(pidTree) == 0 {
+		return false
+	}
+	if _, ok := pidTree[event.GetPid()]; ok {
+		return true
+	}
+	if _, ok := pidTree[event.GetPpid()]; ok {
+		return true
+	}
+	if childPID, ok := extractGraphInt(event.GetExtraInfo(), "child_pid"); ok && childPID > 0 {
+		_, ok := pidTree[uint32(childPID)]
+		return ok
+	}
+	return false
+}
+
+func parseExecutionGraphBool(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "t", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseExecutionGraphTime(raw string) (time.Time, bool) {
@@ -557,6 +635,10 @@ func graphDecisionEdgeKind(decision string) string {
 
 func processNodeID(pid uint32) string {
 	return "proc:" + strconv.FormatUint(uint64(pid), 10)
+}
+
+func isGenericProcessLabel(node ExecutionGraphNode) bool {
+	return node.Kind == "process" && strings.HasPrefix(strings.TrimSpace(node.Label), "pid ")
 }
 
 func graphFileRelations(event *pb.Event) []graphRelation {
