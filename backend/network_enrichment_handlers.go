@@ -111,6 +111,35 @@ func handleNetworkAnalyze(c *gin.Context) {
 	})
 }
 
+// GET /network/geoip - lookup GeoIP for an IP
+func handleGeoIPLookup(c *gin.Context) {
+	ip := strings.TrimSpace(c.Query("ip"))
+	if ip == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ip query parameter required"})
+		return
+	}
+
+	record, ok := geoipDB.Lookup(ip)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+
+	scope, service, domain, risk := analyzeEndpoint(ip)
+
+	c.JSON(http.StatusOK, gin.H{
+		"ip":          ip,
+		"country":     record.Country,
+		"countryCode": record.CountryCode,
+		"asnOrg":      record.ASNOrg,
+		"ipScope":     string(scope),
+		"service":     service,
+		"domain":      domain,
+		"riskScore":   risk,
+		"isHighRisk":  isHighRiskCountry(record.CountryCode),
+	})
+}
+
 // GET /network/dns-lookup - check DNS cache for an IP
 func handleDNSLookup(c *gin.Context) {
 	ip := strings.TrimSpace(c.Query("ip"))

@@ -859,7 +859,7 @@ func classifyEndpointScope(endpoint string) IPScope {
 	return classifyIPScope(ip)
 }
 
-// Parse a network endpoint string into IP scope, service, domain, and risk info
+// Parse a network endpoint string into IP scope, service, domain, GeoIP, and risk info
 func analyzeEndpoint(endpoint string) (scope IPScope, service string, domain string, risk float64) {
 	host, portStr, err := net.SplitHostPort(endpoint)
 	if err != nil {
@@ -874,6 +874,15 @@ func analyzeEndpoint(endpoint string) (scope IPScope, service string, domain str
 	// DNS enrichment
 	if d, ok := dnsCorrelation.LookupIP(host); ok {
 		domain = d
+	}
+
+	// GeoIP enrichment for public IPs
+	if scope == ScopePublic {
+		if record, ok := geoipDB.Lookup(host); ok && record.CountryCode != "XX" {
+			if isHighRiskCountry(record.CountryCode) {
+				risk = maxFloat64(risk, 0.85)
+			}
+		}
 	}
 
 	// Service name

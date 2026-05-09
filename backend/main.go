@@ -195,6 +195,7 @@ func main() {
 	r.GET("/network/tcp-state", authMiddleware(), handleTCPState)
 	r.GET("/network/analyze", authMiddleware(), handleNetworkAnalyze)
 	r.GET("/network/dns-lookup", authMiddleware(), handleDNSLookup)
+	r.GET("/network/geoip", authMiddleware(), handleGeoIPLookup)
 	r.GET("/metrics", authMiddleware(), handlePrometheusMetrics)
 	r.GET("/ws/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), serveShellSessionsWS)
 
