@@ -1077,6 +1077,22 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
     if (pd) {
         __builtin_memcpy(pd->path, "socket sendto", 14);
+
+        // Capture initial payload bytes for protocol detection (TLS SNI, HTTP, DNS)
+        // Only for tracked processes with reasonable payload size
+        u32 data_len = (u32)ctx->args[2];
+        if (tag_id != 0 && data_len > 0) {
+            u32 capture_len = data_len;
+            if (capture_len > (MAX_PATH_LEN - 1)) {
+                capture_len = MAX_PATH_LEN - 1;
+            }
+            const void *user_buf = (const void *)ctx->args[1];
+            bpf_probe_read_user(pd->extra4, capture_len, user_buf);
+            pd->extra4[capture_len] = '\0';
+        } else {
+            __builtin_memset(pd->extra4, 0, MAX_PATH_LEN);
+        }
+
         bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
     }
     return 0;
@@ -1226,6 +1242,26 @@ int tracepoint__syscalls__sys_enter_write(struct trace_event_raw_sys_enter *ctx)
     meta.extra3 = (u32)ctx->args[2]; // count
 
     store_exit_meta(pid_tgid, &meta);
+
+    // Capture initial payload bytes for protocol detection
+    u32 data_len = (u32)ctx->args[2];
+    if (data_len > 0) {
+        u32 zero = 0;
+        struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
+        if (pd) {
+            u32 capture_len = data_len;
+            if (capture_len > (MAX_PATH_LEN - 1)) {
+                capture_len = MAX_PATH_LEN - 1;
+            }
+            const void *user_buf = (const void *)ctx->args[1];
+            bpf_probe_read_user(pd->extra4, capture_len, user_buf);
+            pd->extra4[capture_len] = '\0';
+            pd->path[0] = 'w'; pd->path[1] = 'r'; pd->path[2] = 'i'; pd->path[3] = 't';
+            pd->path[4] = 'e'; pd->path[5] = '\0';
+            bpf_map_update_elem(&exit_path_ctx, &pid_tgid, pd, BPF_ANY);
+        }
+    }
+
     return 0;
 }
 

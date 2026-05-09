@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue';
 import { LoadingOutlined, GlobalOutlined, ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons-vue';
 import TrafficGraph from '../components/TrafficGraph.vue';
+import NetworkFlowPanel from '../components/NetworkFlowPanel.vue';
 import { pb } from '../pb/tracker_pb.js';
 import { buildWebSocketUrl } from '../utils/requestContext';
 
@@ -547,6 +548,8 @@ onUnmounted(() => {
         <VueApexCharts type="line" height="360" :options="interfaceChartOptions" :series="interfaceChartSeries" />
       </div>
     </a-modal>
+
+    <NetworkFlowPanel />
   </div>
 </template>
 

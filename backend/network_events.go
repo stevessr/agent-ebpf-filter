@@ -1026,6 +1026,18 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 		if srcIP != "0.0.0.0" && dstIP != "0.0.0.0" && dstPort > 0 {
 			recordNetworkFlowFromEvent(srcIP, dstIP, srcPort, dstPort, out.Comm, out.Pid, out.NetDirection, "")
 			globalBandwidthTracker.RecordBytes(srcIP, dstIP, dstPort, "TCP", out.NetDirection, uint64(out.NetBytes), out.Comm, out.Pid)
+			// Protocol detection from captured payload
+			if extraPath := sanitizeUTF8(event.Extra4[:]); len(extraPath) > 4 {
+				entry := detectAndRecordProtocol(dstIP, dstPort, []byte(extraPath))
+				if entry != nil && entry.SNI != "" {
+					out.Domain = entry.SNI
+					out.NetEndpoint = fmt.Sprintf("%s:%d [SNI: %s]", dstIP, dstPort, entry.SNI)
+				}
+				if entry != nil && entry.HTTPHost != "" {
+					out.Domain = entry.HTTPHost
+					out.NetEndpoint = fmt.Sprintf("%s:%d [Host: %s]", dstIP, dstPort, entry.HTTPHost)
+				}
+			}
 		}
 		// TCP state tracking
 		switch typeName {

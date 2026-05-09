@@ -152,6 +152,23 @@ func main() {
 	startTCPStateTrackerGC()
 	startFlowAggregatorGC()
 	startExfilDetectionLoop()
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		initGeoIPDatabase()
+	}()
+	go func() {
+		ticker := time.NewTicker(3 * time.Minute)
+		for range ticker.C {
+			globalBandwidthTracker.EvictOlderThan(15 * time.Minute)
+		}
+	}()
+	go func() {
+		if err := ensureCgroupSandboxLoaded(); err != nil {
+			log.Printf("[CGROUP-SANDBOX] not available: %v", err)
+		} else {
+			autoBlockHighRiskEndpoints()
+		}
+	}()
 
 	ApplySandbox()
 
@@ -196,6 +213,11 @@ func main() {
 	r.GET("/network/analyze", authMiddleware(), handleNetworkAnalyze)
 	r.GET("/network/dns-lookup", authMiddleware(), handleDNSLookup)
 	r.GET("/network/geoip", authMiddleware(), handleGeoIPLookup)
+	r.GET("/sandbox/cgroup/status", authMiddleware(), handleCgroupSandboxStatus)
+	r.POST("/sandbox/cgroup/block-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockCgroup)
+	r.POST("/sandbox/cgroup/unblock-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockCgroup)
+	r.POST("/sandbox/cgroup/block-ip", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockIP)
+	r.POST("/sandbox/cgroup/block-port", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockPort)
 	r.GET("/metrics", authMiddleware(), handlePrometheusMetrics)
 	r.GET("/ws/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), serveShellSessionsWS)
 
