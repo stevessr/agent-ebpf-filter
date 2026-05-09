@@ -83,7 +83,7 @@ const handleMenuClick = ({ key }: { key: string }) => {
       <router-view></router-view>
     </a-layout-content>
     <a-layout-footer style="text-align: center">
-      Agent eBPF Tracker ©2026 Created by Gemini CLI
+      Agent eBPF Tracker ©2026 Created by Stevessr
     </a-layout-footer>
   </a-layout>
 </template>
