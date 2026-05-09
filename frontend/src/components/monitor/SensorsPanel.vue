@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted, defineAsyncComponent } from 'vue';
+import { ref, watch, onUnmounted, computed, defineAsyncComponent } from 'vue';
 import { AudioMutedOutlined, SoundOutlined } from '@ant-design/icons-vue';
 
 const VueApexCharts = defineAsyncComponent(async () => (await import('vue3-apexcharts')).default as any) as any;
@@ -41,43 +41,58 @@ const emit = defineEmits<{
   refreshCamera: [];
 }>();
 
-// Microphone canvas logic
-const micCanvasRef = ref<HTMLCanvasElement | null>(null);
-let micCanvasCtx: CanvasRenderingContext2D | null = null;
-let micAnimationId: number | null = null;
-
-const drawMicWaveform = () => {
-  if (!micCanvasRef.value) return;
-  const canvas = micCanvasRef.value;
-  if (!micCanvasCtx) micCanvasCtx = canvas.getContext('2d');
-  const ctx = micCanvasCtx!;
-  const w = canvas.width; const h = canvas.height;
-  ctx.clearRect(0, 0, w, h); ctx.beginPath(); ctx.strokeStyle = '#1890ff'; ctx.lineWidth = 2;
-  const buf = props.micDataBuffer;
-  const step = w / buf.length;
-  ctx.moveTo(0, h / 2);
-  for (let i = 0; i < buf.length; i++) {
-    const val = (buf[i] / 32768) * (h / 2) * 2;
-    ctx.lineTo(i * step, h / 2 + val);
-  }
-  ctx.stroke();
-  micAnimationId = requestAnimationFrame(drawMicWaveform);
-};
-
-watch(
-  [micCanvasRef, () => props.micLiveMode, () => props.sensorSubTab],
-  ([canvas, live, subTab]) => {
-    if (canvas && live && subTab === 'mic') {
-      if (micAnimationId === null) drawMicWaveform();
-    } else {
-      if (micAnimationId !== null) { cancelAnimationFrame(micAnimationId); micAnimationId = null; }
-    }
+// Microphone waveform via ApexCharts
+const micChartOptions = computed(() => ({
+  chart: {
+    animations: { enabled: false },
+    toolbar: { show: false },
+    background: '#1a1a1a',
+    foreColor: '#00ff88',
+    zoom: { enabled: false },
   },
-  { flush: 'post' }
-);
+  xaxis: {
+    labels: { show: false },
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+  },
+  yaxis: {
+    min: -32768,
+    max: 32767,
+    labels: { show: false },
+    axisBorder: { show: false },
+  },
+  grid: { show: true, borderColor: '#333', strokeDashArray: 3 },
+  stroke: { width: 1.5, curve: 'smooth' as const },
+  legend: { show: false },
+  tooltip: { enabled: false },
+  dataLabels: { enabled: false },
+  markers: { size: 0 },
+}));
+
+const micWaveformSeries = ref<{ name: string; data: number[][] }[]>([
+  { name: 'Mic', data: [] },
+]);
+
+let micChartTimer: ReturnType<typeof setInterval> | null = null;
+
+watch(() => props.micLiveMode, (val) => {
+  if (val) {
+    micChartTimer = setInterval(() => {
+      const buf = props.micDataBuffer;
+      const data: number[][] = [];
+      for (let i = 0; i < buf.length; i += 2) {
+        data.push([i, buf[i]]);
+      }
+      micWaveformSeries.value = [{ name: 'Mic', data }];
+    }, 80);
+  } else {
+    if (micChartTimer) { clearInterval(micChartTimer); micChartTimer = null; }
+    micWaveformSeries.value = [{ name: 'Mic', data: [] }];
+  }
+});
 
 onUnmounted(() => {
-  if (micAnimationId) cancelAnimationFrame(micAnimationId);
+  if (micChartTimer) clearInterval(micChartTimer);
 });
 </script>
 
@@ -145,7 +160,7 @@ onUnmounted(() => {
         <a-card title="Input Monitor" size="small">
           <template #extra><a-space><a-tag v-if="micLiveMode" color="green">ON</a-tag><a-switch :checked="micLiveMode" @change="(checked: boolean) => emit('update:micLiveMode', checked)" size="small" /></a-space></template>
           <div style="display:flex;gap:24px;align-items:center;">
-            <div style="flex:1;"><div style="margin-bottom:8px;font-size:12px;color:#888;">Waveform</div><canvas ref="micCanvasRef" width="600" height="120" style="width:100%;height:120px;background:#fafafa;border-radius:4px;border:1px solid #f0f0f0;"></canvas></div>
+            <div style="flex:1;"><div style="margin-bottom:8px;font-size:12px;color:#888;">Waveform</div><VueApexCharts type="line" height="120" :options="micChartOptions" :series="micWaveformSeries" /></div>
             <div style="width:280px;">
               <div style="margin-bottom:16px;">
                 <div style="margin-bottom:8px;font-size:12px;color:#888;display:flex;justify-content:space-between;">
