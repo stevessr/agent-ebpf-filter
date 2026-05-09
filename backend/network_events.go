@@ -1017,6 +1017,29 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 		out.NetFamily = family
 	}
 
+	// Record TCP state and flow for network events
+	if isNetworkEventType(typeName) {
+		srcIP := formatIPv4Addr(event.Extra2)
+		dstIP := formatIPv4Addr(uint32(event.Extra3))
+		srcPort := event.NetBytes // stored as source port in eBPF
+		dstPort := event.NetPort
+		if srcIP != "0.0.0.0" && dstIP != "0.0.0.0" && dstPort > 0 {
+			recordNetworkFlowFromEvent(srcIP, dstIP, srcPort, dstPort, out.Comm, out.Pid, out.NetDirection, "")
+			globalBandwidthTracker.RecordBytes(srcIP, dstIP, dstPort, "TCP", out.NetDirection, uint64(out.NetBytes), out.Comm, out.Pid)
+		}
+		// TCP state tracking
+		switch typeName {
+		case "tcp_connect":
+			tcpTracker.RecordConnect(srcIP, dstIP, srcPort, dstPort, out.Pid, out.Comm)
+		case "tcp_close":
+			tcpTracker.RecordClose(srcIP, dstIP, srcPort, dstPort)
+		case "tcp_state_change":
+			oldState := uint8(event.DurationNs >> 32)
+			newState := uint8(event.DurationNs & 0xFFFFFFFF)
+			tcpTracker.RecordStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, out.Pid, out.Comm)
+		}
+	}
+
 	return out
 }
 

@@ -148,6 +148,12 @@ func main() {
 	startEventBroadcaster()
 	go startUDSServer(broadcast)
 	startCgroupAttributionGC()
+	startDNSCacheGC()
+	startTCPStateTrackerGC()
+	startFlowAggregatorGC()
+	startExfilDetectionLoop()
+
+	ApplySandbox()
 
 	r := gin.Default()
 	r.Use(clusterGatewayMiddleware())
@@ -185,6 +191,10 @@ func main() {
 	r.GET("/ws/shell", authMiddleware(), shellSessionsEnabledMiddleware(), serveShellWS)
 	r.GET("/events/recent", authMiddleware(), handleRecentEvents)
 	r.GET("/events/graph", authMiddleware(), handleExecutionGraph)
+	r.GET("/network/flows", authMiddleware(), handleNetworkFlows)
+	r.GET("/network/tcp-state", authMiddleware(), handleTCPState)
+	r.GET("/network/analyze", authMiddleware(), handleNetworkAnalyze)
+	r.GET("/network/dns-lookup", authMiddleware(), handleDNSLookup)
 	r.GET("/metrics", authMiddleware(), handlePrometheusMetrics)
 	r.GET("/ws/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), serveShellSessionsWS)
 
