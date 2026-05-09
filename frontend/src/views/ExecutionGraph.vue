@@ -178,6 +178,10 @@ const selectedProcess = computed(() => {
   if (!selectedProcessPid.value) return null;
   return processList.value.find((process) => process.pid === selectedProcessPid.value) ?? null;
 });
+const focusedProcessNodeId = computed(() => {
+  const pid = Number(filters.pid);
+  return Number.isFinite(pid) && pid > 0 ? `proc:${pid}` : '';
+});
 const selectedProcessSummary = computed(() => {
   const process = selectedProcess.value;
   if (!process) {
@@ -188,6 +192,9 @@ const selectedProcessSummary = computed(() => {
 });
 const processTreeNodeIds = computed(() => {
   const ids = new Set<string>();
+  if (focusedProcessNodeId.value) {
+    ids.add(focusedProcessNodeId.value);
+  }
   graph.value.edges.forEach((edge) => {
     const source = nodeMap.value.get(edge.source);
     const target = nodeMap.value.get(edge.target);
@@ -283,11 +290,12 @@ const normalizeGraphResponse = (payload: Partial<ExecutionGraphResponse> | undef
 
 const applyGraphPayload = (payload: Partial<ExecutionGraphResponse> | undefined) => {
   graph.value = normalizeGraphResponse(payload);
+  const focusedId = focusedProcessNodeId.value;
   if (selectedNodeId.value && !nodeMap.value.has(selectedNodeId.value)) {
-    selectedNodeId.value = graph.value.nodes[0]?.id ?? '';
+    selectedNodeId.value = focusedId && nodeMap.value.has(focusedId) ? focusedId : graph.value.nodes[0]?.id ?? '';
   }
   if (!selectedNodeId.value && graph.value.nodes.length) {
-    selectedNodeId.value = graph.value.nodes[0].id;
+    selectedNodeId.value = focusedId && nodeMap.value.has(focusedId) ? focusedId : graph.value.nodes[0].id;
   }
   lastLoadedAt.value = new Date().toLocaleString();
 };
@@ -384,6 +392,7 @@ const focusProcess = async (pid: number | null) => {
   selectedProcessPid.value = pid;
   filters.pid = pid ? String(pid) : '';
   filters.processTree = Boolean(pid);
+  selectedNodeId.value = pid ? `proc:${pid}` : '';
   if (pid && filters.timePreset === 'all') {
     filters.timePreset = '24h';
   }
@@ -639,7 +648,7 @@ onUnmounted(() => {
           type="info"
           show-icon
           class="graph-hint"
-          :message="`正在通过 WebSocket 监听 PID ${filters.pid}${filters.processTree ? ' 的进程树和调用链' : ''}`"
+          :message="`正在实时监听 PID ${filters.pid}${filters.processTree ? ' 的进程树和调用链' : ''}`"
         />
         <a-spin :spinning="loading">
           <ExecutionGraphCanvas

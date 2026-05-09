@@ -173,6 +173,24 @@ func TestBuildExecutionGraphProcessTreeFilterIncludesDescendants(t *testing.T) {
 	}
 }
 
+func TestBuildExecutionGraphProcessTreeIncludesMonitoredProcessItself(t *testing.T) {
+	pid := uint32(12345)
+	graph := buildExecutionGraph(nil, executionGraphFilters{PID: &pid, ProcessTree: true})
+	if graph.EventCount != 0 {
+		t.Fatalf("EventCount = %d, want no matched events", graph.EventCount)
+	}
+	assertGraphNodeLabelContains(t, graph.Nodes, "pid 12345")
+	for _, node := range graph.Nodes {
+		if node.ID == "proc:12345" {
+			if node.Metadata["monitored"] != "true" {
+				t.Fatalf("monitored metadata = %q, want true", node.Metadata["monitored"])
+			}
+			return
+		}
+	}
+	t.Fatalf("missing monitored process node")
+}
+
 func assertGraphNodeKind(t *testing.T, nodes []ExecutionGraphNode, kind string) {
 	t.Helper()
 	for _, node := range nodes {

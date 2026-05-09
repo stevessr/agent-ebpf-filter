@@ -379,6 +379,20 @@ func buildExecutionGraph(records []CapturedEventRecord, filters executionGraphFi
 		}
 	}
 
+	if filters.PID != nil && filters.ProcessTree {
+		addNode(ExecutionGraphNode{
+			ID:       processNodeID(*filters.PID),
+			Kind:     "process",
+			Label:    fmt.Sprintf("pid %d", *filters.PID),
+			Subtitle: "monitored process",
+			PID:      *filters.PID,
+			Metadata: map[string]string{
+				"pid":       strconv.FormatUint(uint64(*filters.PID), 10),
+				"monitored": "true",
+			},
+		})
+	}
+
 	nodeList := make([]ExecutionGraphNode, 0, len(nodes))
 	nodeCounts := make(map[string]int)
 	for _, node := range nodes {

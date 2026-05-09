@@ -1023,8 +1023,35 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 	if isNetworkEventType(typeName) {
 		srcIP := formatIPv4Addr(event.Extra2)
 		dstIP := formatIPv4Addr(uint32(event.Extra3))
-		srcPort := event.NetBytes // stored as source port in eBPF
+		srcPort := event.NetBytes
 		dstPort := event.NetPort
+
+		// Generic syscall tracepoints (network_connect, network_sendto,
+		// network_recvfrom, etc.) store addresses in NetAddr, not
+		// Extra2/Extra3. Extra3 contains byte counts for sendto/recvfrom
+		// which would produce bogus flow keys.
+		//
+		// TCP flow tracepoints (tcp_connect, tcp_close, tcp_state_change)
+		// pack addresses into Extra2/Extra3 via emit_tcp_flow_event.
+		switch typeName {
+		case "network_sendto", "network_recvfrom":
+			// Handled by recordUDPFlowFromEvent below — skip the TCP path.
+			srcIP, dstIP = "0.0.0.0", "0.0.0.0"
+		case "network_connect":
+			// Tagged processes get a full tcp_connect event with both
+			// srcIP and dstIP from Extra2/Extra3.  Untagged processes
+			// only see this generic event — extract dstIP from NetAddr.
+			if event.TagID == 0 {
+				if addr := networkIP(event.NetFamily, event.NetAddr); addr != nil {
+					if s := addr.String(); s != "" && s != "<nil>" {
+						dstIP = s
+					}
+				}
+			} else {
+				srcIP, dstIP = "0.0.0.0", "0.0.0.0"
+			}
+		}
+
 		if srcIP != "0.0.0.0" && dstIP != "0.0.0.0" && dstPort > 0 {
 			applyBestEffortProcessContextToEvent(out)
 			flowState := ""
