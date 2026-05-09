@@ -124,9 +124,15 @@ const protocolColor = (protocol?: string) => {
     case 'TLS':
     case 'HTTPS/TLS': return 'geekblue';
     case 'DNS':
-    case 'MDNS': return 'purple';
+    case 'MDNS':
+    case 'LLMNR': return 'purple';
     case 'SSH': return 'volcano';
     case 'QUIC': return 'cyan';
+    case 'SSDP': return 'orange';
+    case 'NTP': return 'gold';
+    case 'SNMP': return 'green';
+    case 'NETBIOS': return 'red';
+    case 'DHCP': return 'lime';
     default: return 'default';
   }
 };
