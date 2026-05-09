@@ -5,7 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build commands
 
 ```bash
-make dev          # Dev mode: parallel backend (hot-reload via scripts/dev-backend.sh) + Vite frontend via Nx
+make predev       # Install dev dependencies in parallel
+make dev          # Dev mode: backend + frontend in a Zellij session
 make backend      # Build Go backend + compile eBPF (requires clang, BTF)
 make wrapper      # Build agent-wrapper CLI binary
 make frontend     # Build Vue 3 frontend (requires bun)
@@ -22,7 +23,7 @@ make clean        # Remove all build artifacts
 make help         # List all Make targets
 ```
 
-`make dev` uses Nx to run backend and frontend in parallel. Nx is installed via `bun install` at the repo root (not inside `frontend/`). The backend hot-reload is handled by `scripts/dev-backend.sh`.
+`make predev` installs the helper dependencies that `make dev` assumes are already present. `make dev` launches the backend hot-reload script and the frontend dev server in a Zellij session. The backend hot-reload is handled by `scripts/dev-backend.sh`; the frontend helper lives in `scripts/dev-frontend.sh`.
 
 After changing `backend/ebpf/agent_tracker.c`:
 ```bash

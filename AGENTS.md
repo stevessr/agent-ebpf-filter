@@ -27,6 +27,7 @@ Typical commands:
 
 ```bash
 rtk make help
+rtk make predev
 rtk make proto
 rtk make backend
 rtk make wrapper
@@ -34,6 +35,8 @@ rtk make frontend
 rtk make runtime-benchmark
 rtk make dev
 ```
+
+`make predev` installs the helper dependencies in parallel. `make dev` assumes those dependencies are already present and opens the backend/frontend dev session in Zellij instead of tmux.
 
 If you change `proto/tracker.proto`, regenerate:
 

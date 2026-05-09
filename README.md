@@ -178,18 +178,19 @@ When a master is selected in the web UI, it can forward supported requests to a 
 ### Development mode
 
 ```bash
+make predev
 make dev
 ```
+
+`make predev` installs the development dependencies and helper tools. `make dev` assumes those are already present and opens a Zellij session with backend and frontend in separate panes.
 
 What it does:
 
 - generates protobuf bindings,
 - builds `agent-wrapper`,
-- regenerates eBPF bindings,
-- builds the backend binary,
-- starts the backend, which then self-elevates when needed,
+- starts the backend hot-reload script, which self-elevates when needed and rebuilds the backend and eBPF program as needed,
 - writes the chosen backend port to `backend/.port`,
-- starts Vite for the frontend.
+- starts Vite for the frontend inside a Zellij session with a separate backend pane.
 
 The frontend reads `backend/.port` and proxies API / WebSocket traffic automatically.
 In desktop sessions, the backend prefers the system's graphical elevation flow (for example `pkexec`) before falling back to `sudo`.

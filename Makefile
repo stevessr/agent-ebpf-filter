@@ -2,7 +2,7 @@
 GOPATH ?= $(shell go env GOPATH)
 export PATH := $(PATH):$(GOPATH)/bin
 
-.PHONY: all backend frontend wrapper clean proto help dev run deps ebpf-bootstrap cuda ml-sweep ml-presentation runtime-benchmark test
+.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap cuda ml-sweep ml-presentation runtime-benchmark test
 
 all: proto backend frontend wrapper ## Build all components
 
@@ -16,38 +16,56 @@ cuda: ## Build CUDA acceleration library
 	fi
 
 
-deps: ## Ensure Go and Python build dependencies are installed
-	@echo "Checking dependencies..."
+predev: ## Install development dependencies in parallel
+	@$(MAKE) --no-print-directory -j3 predev-go predev-python predev-frontend
+	@echo "Development dependencies are ready."
+
+predev-go:
 	@which protoc-gen-go > /dev/null || (echo "Installing protoc-gen-go..." && go install google.golang.org/protobuf/cmd/protoc-gen-go@latest)
+
+predev-python:
 	@if [ ! -d "adapters/python/.venv" ]; then \
 		echo "Initializing python env..."; \
 		cd adapters/python && uv sync; \
 	fi
+
+predev-frontend:
 	@if [ ! -d "frontend/node_modules" ]; then \
 		echo "Installing frontend deps..."; \
 		cd frontend && bun install; \
 	fi
 
-proto: deps ## Generate Protocol Buffers code
+deps: predev
+
+ifneq ($(SKIP_PREDEV),1)
+proto: predev
+endif
+proto: ## Generate Protocol Buffers code
+	@if [ -n "$(SKIP_PREDEV)" ]; then $(MAKE) --no-print-directory proto-check; fi
 	@echo "Generating Protocol Buffers code..."
 	mkdir -p backend/pb
-	protoc --go_out=backend/pb --go_opt=paths=source_relative \
-		-I proto proto/tracker.proto
-	mkdir -p adapters/python
-	cd adapters/python && uv run python -m grpc_tools.protoc -I ../../proto --python_out=. ../../proto/tracker.proto
-	mkdir -p adapters/js
-	cd frontend && bunx pbjs -t static-module -w commonjs -o ../adapters/js/tracker_pb.js ../proto/tracker.proto
-	mkdir -p frontend/src/pb
-	cd frontend && bunx pbjs -t static-module -w es6 -o src/pb/tracker_pb.js ../proto/tracker.proto
-	cd frontend && bunx pbts -o src/pb/tracker_pb.d.ts src/pb/tracker_pb.js
+	mkdir -p adapters/python adapters/js frontend/src/pb
+	@set -e; \
+		protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto proto/tracker.proto & pid_go=$$!; \
+		(cd adapters/python && uv run python -m grpc_tools.protoc -I ../../proto --python_out=. ../../proto/tracker.proto) & pid_py=$$!; \
+		(cd frontend && bunx pbjs -t static-module -w commonjs -o ../adapters/js/tracker_pb.js ../proto/tracker.proto && bunx pbjs -t static-module -w es6 -o src/pb/tracker_pb.js ../proto/tracker.proto && bunx pbts -o src/pb/tracker_pb.d.ts src/pb/tracker_pb.js) & pid_js=$$!; \
+		for pid in $$pid_go $$pid_py $$pid_js; do wait $$pid; done
 	@echo "Proto generation complete."
+
+proto-check:
+	@command -v protoc-gen-go >/dev/null || (echo "Missing protoc-gen-go. Run 'make predev' first." && exit 1)
+	@test -d adapters/python/.venv || (echo "Missing adapters/python/.venv. Run 'make predev' first." && exit 1)
+	@test -d frontend/node_modules || (echo "Missing frontend/node_modules. Run 'make predev' first." && exit 1)
 
 backend: cuda proto ## Build Go backend and compile eBPF
 	@echo "Building backend..."
 	cd backend/ebpf && go generate
 	cd backend && go build -o agent-ebpf-filter
 
-wrapper: proto ## Build CLI wrapper
+ifneq ($(SKIP_PROTO_DEP),1)
+wrapper: proto
+endif
+wrapper: ## Build CLI wrapper
 	@echo "Building wrapper..."
 	cd wrapper && go build -o ../agent-wrapper
 
@@ -59,9 +77,10 @@ ebpf-bootstrap: ## Pre-build the backend binary (bootstrap happens automatically
 	@(cd backend/ebpf && go generate)
 	@(cd backend && go build -o agent-ebpf-filter)
 
-dev: proto wrapper ## Run both backend and frontend development server (nx TUI separated)
-	@if [ ! -d "node_modules" ]; then bun install; fi
-	@./node_modules/.bin/nx run-many --targets=dev-backend,dev-frontend --parallel=2
+dev: ## Run backend and frontend development server in Zellij (run make predev first)
+	@$(MAKE) --no-print-directory SKIP_PREDEV=1 SKIP_PROTO_DEP=1 proto
+	@$(MAKE) --no-print-directory SKIP_PREDEV=1 SKIP_PROTO_DEP=1 wrapper
+	@./scripts/dev-zellij.sh
 
 dev-backend: ## Run only the backend with self-implemented hot-reload
 	@echo "Starting backend dev environment..."
@@ -82,7 +101,7 @@ test: ## Run all tests (Go backend)
 
 dev-frontend: ## Run only the frontend development server
 	@echo "Starting frontend dev environment..."
-	@cd frontend && bun run dev
+	@./scripts/dev-frontend.sh
 
 
 run: all ebpf-bootstrap ## Build and run in production mode
