@@ -26,6 +26,11 @@ const routes = [
     component: () => import('../views/NetworkFlow.vue'),
   },
   {
+    path: '/execution-graph',
+    name: 'ExecutionGraph',
+    component: () => import('../views/ExecutionGraph.vue'),
+  },
+  {
     path: '/explorer',
     name: 'Explorer',
     component: () => import('../views/Explorer.vue'),

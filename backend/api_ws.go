@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"agent-ebpf-filter/pb"
@@ -13,20 +14,28 @@ import (
 )
 
 func serveEventsWS(c *gin.Context) {
+	servePassiveProtoWS(c, clients, &clientsMu)
+}
+
+func serveEventEnvelopesWS(c *gin.Context) {
+	servePassiveProtoWS(c, envelopeClients, &envelopeClientsMu)
+}
+
+func servePassiveProtoWS(c *gin.Context, target map[*websocket.Conn]bool, mu *sync.Mutex) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		c.Status(http.StatusBadRequest)
 		return
 	}
-	clientsMu.Lock()
-	clients[conn] = true
-	clientsMu.Unlock()
+	mu.Lock()
+	target[conn] = true
+	mu.Unlock()
 
 	go func(conn *websocket.Conn) {
 		defer func() {
-			clientsMu.Lock()
-			delete(clients, conn)
-			clientsMu.Unlock()
+			mu.Lock()
+			delete(target, conn)
+			mu.Unlock()
 			_ = conn.Close()
 		}()
 
@@ -38,44 +47,74 @@ func serveEventsWS(c *gin.Context) {
 	}(conn)
 }
 
+func broadcastProtoMessage(target map[*websocket.Conn]bool, mu *sync.Mutex, data []byte) {
+	mu.Lock()
+	for conn := range target {
+		if conn == nil {
+			delete(target, conn)
+			continue
+		}
+		if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+			conn.Close()
+			delete(target, conn)
+		}
+	}
+	mu.Unlock()
+}
+
 func startEventBroadcaster() {
 	go func() {
-		batch := make([]*pb.Event, 0, 50)
+		eventBatch := make([]*pb.Event, 0, 50)
+		envelopeBatch := make([]*pb.EventEnvelope, 0, 50)
 		batchTicker := time.NewTicker(50 * time.Millisecond)
 		defer batchTicker.Stop()
+
 		flushBatch := func() {
-			if len(batch) == 0 {
-				return
-			}
-			events := make([]*pb.Event, len(batch))
-			copy(events, batch)
-			batch = batch[:0]
-			msg := &pb.EventBatch{Events: events}
-			data, err := proto.Marshal(msg)
-			if err != nil {
-				log.Printf("[ERROR] failed to marshal EventBatch: %v", err)
-				return
-			}
-			clientsMu.Lock()
-			for c := range clients {
-				if c == nil {
-					delete(clients, c)
-					continue
-				}
-				if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil {
-					c.Close()
-					delete(clients, c)
+			if len(eventBatch) > 0 {
+				events := make([]*pb.Event, len(eventBatch))
+				copy(events, eventBatch)
+				eventBatch = eventBatch[:0]
+				msg := &pb.EventBatch{Events: events}
+				data, err := proto.Marshal(msg)
+				if err != nil {
+					log.Printf("[ERROR] failed to marshal EventBatch: %v", err)
+				} else {
+					broadcastProtoMessage(clients, &clientsMu, data)
 				}
 			}
-			clientsMu.Unlock()
+			if len(envelopeBatch) > 0 {
+				envelopes := make([]*pb.EventEnvelope, len(envelopeBatch))
+				copy(envelopes, envelopeBatch)
+				envelopeBatch = envelopeBatch[:0]
+				msg := &pb.EventEnvelopeBatch{Envelopes: envelopes}
+				data, err := proto.Marshal(msg)
+				if err != nil {
+					log.Printf("[ERROR] failed to marshal EventEnvelopeBatch: %v", err)
+				} else {
+					broadcastProtoMessage(envelopeClients, &envelopeClientsMu, data)
+				}
+			}
 		}
+
+		appendRecord := func(record CapturedEventRecord) {
+			if record.Event != nil {
+				eventBatch = append(eventBatch, record.Event)
+			}
+			if record.Envelope != nil {
+				envelopeBatch = append(envelopeBatch, record.Envelope)
+			}
+		}
+
 		for {
 			select {
 			case event := <-broadcast:
 				event = enrichEventContext(event)
-				recordCapturedEvent(event)
-				batch = append(batch, event)
-				if len(batch) >= 50 {
+				appendRecord(recordCapturedEvent(event))
+				for _, alert := range buildSemanticAlerts(event) {
+					alert = enrichEventContext(alert)
+					appendRecord(recordCapturedEvent(alert))
+				}
+				if len(eventBatch) >= 50 || len(envelopeBatch) >= 50 {
 					flushBatch()
 				}
 			case <-batchTicker.C:
@@ -100,20 +139,23 @@ func handleRecentEvents(c *gin.Context) {
 	}
 	if typeFilter != "" {
 		filtered := make([]CapturedEventRecord, 0, len(records))
-		for _, r := range records {
-			if r.Event != nil && r.Event.Type == typeFilter {
-				filtered = append(filtered, r)
+		for _, record := range records {
+			record = normalizeCapturedEventRecord(record)
+			if record.Event != nil && record.Event.Type == typeFilter {
+				filtered = append(filtered, record)
 			}
 		}
 		records = filtered
 	}
 
 	resp := &pb.EventHistoryResponse{Source: source}
-	for _, r := range records {
+	for _, record := range records {
+		record = normalizeCapturedEventRecord(record)
 		resp.Events = append(resp.Events, &pb.CapturedEventRecord{
-			Event:     r.Event,
-			Timestamp: r.ReceivedAt.UnixMilli(),
+			Event:     record.Event,
+			Timestamp: record.ReceivedAt.UnixMilli(),
+			Envelope:  record.Envelope,
 		})
 	}
-	writeProtoOrJSON(c, http.StatusOK, resp, gin.H{"source": source, "events": records})
+	writeProtoOrJSON(c, http.StatusOK, resp, gin.H{"source": source, "events": buildCapturedEventJSONRecords(records)})
 }

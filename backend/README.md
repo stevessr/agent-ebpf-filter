@@ -63,7 +63,7 @@ Broadcasts `pb.Event` messages sourced from:
 - native AI CLI hook callbacks.
 
 Kernel event payloads include syscall exit duration so the dashboard can render strace-style summaries without requiring a separate tracer.
-They also carry `schema_version`, `gid`, `cgroup_id`, and inherited agent-run context when available.
+They also carry `schema_version`, `gid`, `cgroup_id`, and inherited agent-run context when available. The backend now also normalizes them into versioned `EventEnvelope` records with `task_id` / `cwd` support for downstream consumers and can translate those envelopes into OTLP spans (`agent.run`, `codex.task`, `tool.call`, `mcp.call`, plus child process / file / network / policy spans).
 
 ### `/ws/system`
 
@@ -101,13 +101,18 @@ Current behavior:
 
 ## HTTP endpoints
 
-### Public / currently unauthenticated routes
+### Release-mode authenticated routes
 
-- `GET /events/recent?type=&limit=` — historical events (used for initial WS load)
+The runtime access token protects:
+
+- `GET /events/recent?type=&limit=` — historical events (used for initial WS load); each record now also includes a normalized `Envelope`
+- `GET /events/graph?...` — aggregated execution graph API for the current event retention window
+- `GET /ws/envelopes` — live `pb.EventEnvelopeBatch` stream for normalized event consumers
+- `GET /metrics` — Prometheus exposition for collector / queue / WS / per-type / per-pid counters
+- `GET /system/otel-health` — OTLP exporter readiness / queue / active span counts
 - `GET /ws/shell-sessions` — live shell session list (WebSocket JSON push)
 - `POST /register`
 - `POST /unregister`
-- `POST /hooks/event`
 - `POST /shell-sessions`
 - `GET /shell-sessions`
 - `DELETE /shell-sessions/:id`
@@ -115,6 +120,12 @@ Current behavior:
 - `GET /ws/shell`
 - `GET /ws`
 - `GET /ws/system`
+- `GET /ws/camera`
+- `GET /ws/sensors`
+- `GET /ws/microphone`
+- `GET /ws/ml-status`
+
+`POST /hooks/event` accepts either the normal token or a per-hook secret via `X-Agent-Hook-Secret` + `X-Agent-CLI`.
 
 ### Routes behind `authMiddleware()` in release mode
 
@@ -141,6 +152,15 @@ Config routes:
 The token is generated and stored by the runtime settings file at:
 
 - `~/.config/agent-ebpf-filter/runtime.json`
+
+Runtime feature flags in `/config/runtime` default dangerous capabilities to off:
+
+- `shellSessionsEnabled`
+- `systemRunEnabled`
+- `hookManagementEnabled`
+- `policyManagementEnabled`
+
+That means shell sessions, `/system/run`, hook installation / raw hook writes, and policy mutations must be explicitly enabled before their mutating routes succeed.
 
 ### Cluster control
 
@@ -176,6 +196,8 @@ Export / import currently covers:
 System routes:
 
 - `/system/ls`
+- `/system/collector-health`
+- `/system/otel-health`
 - `/system/run`
 
 MCP:
@@ -188,13 +210,23 @@ Persistent event logs, when enabled from the Configuration page, are appended as
 
 - `~/.config/agent-ebpf-filter/events.jsonl`
 
+The collector health endpoint reports ringbuf event totals, reserve-fail / drop counts, backend queue length, event-stream WS client count, recent persisted-log append latency, and simple per-event-type counters so the frontend can warn when capture may be incomplete.
+The OTLP health endpoint reports whether export is enabled / ready, the configured endpoint + service name, exporter queue length, active synthetic run / task / tool spans, total exported spans, dropped exporter events, and the last export error / timestamp.
+
+Offline replay coverage now lives in the repo-level runtime benchmark suite:
+
+- `benchmarks/runtime-replay/scenarios.json`
+- `make runtime-benchmark`
+- `reports/runtime-replay-*/summary.json`
+
 ## Wrapper integration
 
 The backend exposes a Unix-domain socket at:
 
 - `/tmp/agent-ebpf.sock`
 
-`agent-wrapper` sends `pb.WrapperRequest`, the backend applies wrapper rules, then returns `pb.WrapperResponse`. The request can include optional run / trace metadata (`agent_run_id`, `tool_call_id`, `trace_id`, `span_id`, `root_agent_pid`, `argv_digest`, etc.) so descendant kernel events inherit the same execution context.
+`agent-wrapper` sends `pb.WrapperRequest`, the backend applies wrapper rules, then returns `pb.WrapperResponse`. The request can include optional run / trace metadata (`agent_run_id`, `task_id`, `tool_call_id`, `trace_id`, `span_id`, `root_agent_pid`, `argv_digest`, `cwd`, etc.) so descendant kernel events inherit the same execution context.
+The socket is created with `0600` permissions and peer credentials are checked so only root or the original invoking user may connect.
 
 Supported actions:
 
@@ -242,6 +274,8 @@ When native hooks are installed, the callback URL resolves from:
 3. fallback `http://127.0.0.1:8080/hooks/event`
 
 Native hook entries call a generated relay script under the target CLI config directory's `hooks/` subdirectory instead of embedding a long inline `curl` command directly in the hook config.
+Those relay scripts now send both `X-Agent-CLI` and a per-hook `X-Agent-Hook-Secret` header.
+During event broadcast, the backend may also synthesize `semantic_alert` events (for example `SECRET_ACCESS`, `UNEXPECTED_NETWORK_EGRESS`, `UNEXPECTED_CHILD_PROCESS`, or `SEMANTIC_MISMATCH`) when child behavior conflicts with read-only style tool intent.
 
 ## Build notes
 

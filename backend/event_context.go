@@ -10,11 +10,12 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-const eventSchemaVersion = "event.v2"
+const eventSchemaVersion = "event.v3"
 
 type processContext struct {
 	RootAgentPid   uint32
 	AgentRunID     string
+	TaskID         string
 	ConversationID string
 	TurnID         string
 	ToolCallID     string
@@ -24,6 +25,7 @@ type processContext struct {
 	Decision       string
 	ContainerID    string
 	ArgvDigest     string
+	Cwd            string
 	RiskScore      float64
 }
 
@@ -81,6 +83,7 @@ func (s *processContextStore) Move(oldPID, newPID uint32) bool {
 
 func normalizeProcessContext(ctx processContext, pid uint32) processContext {
 	ctx.AgentRunID = strings.TrimSpace(ctx.AgentRunID)
+	ctx.TaskID = strings.TrimSpace(ctx.TaskID)
 	ctx.ConversationID = strings.TrimSpace(ctx.ConversationID)
 	ctx.TurnID = strings.TrimSpace(ctx.TurnID)
 	ctx.ToolCallID = strings.TrimSpace(ctx.ToolCallID)
@@ -90,6 +93,7 @@ func normalizeProcessContext(ctx processContext, pid uint32) processContext {
 	ctx.Decision = strings.TrimSpace(strings.ToUpper(ctx.Decision))
 	ctx.ContainerID = strings.TrimSpace(ctx.ContainerID)
 	ctx.ArgvDigest = strings.TrimSpace(ctx.ArgvDigest)
+	ctx.Cwd = strings.TrimSpace(ctx.Cwd)
 	if ctx.RootAgentPid == 0 {
 		ctx.RootAgentPid = pid
 	}
@@ -125,6 +129,7 @@ func buildProcessContextFromRegister(req registerPayload) processContext {
 	ctx := processContext{
 		RootAgentPid:   req.RootAgentPID,
 		AgentRunID:     req.AgentRunID,
+		TaskID:         req.TaskID,
 		ConversationID: req.ConversationID,
 		TurnID:         req.TurnID,
 		ToolCallID:     req.ToolCallID,
@@ -134,10 +139,11 @@ func buildProcessContextFromRegister(req registerPayload) processContext {
 		Decision:       req.Decision,
 		ContainerID:    req.ContainerID,
 		ArgvDigest:     req.ArgvDigest,
+		Cwd:            req.Cwd,
 		RiskScore:      req.RiskScore,
 	}
 	if ctx.ArgvDigest == "" {
-		ctx.ArgvDigest = buildArgvDigest(req.ToolName, req.ToolCallID, req.AgentRunID)
+		ctx.ArgvDigest = buildArgvDigest(req.ToolName, req.ToolCallID, req.AgentRunID, req.TaskID)
 	}
 	return normalizeProcessContext(ctx, req.PID)
 }
@@ -149,6 +155,7 @@ func buildProcessContextFromWrapperRequest(req *pb.WrapperRequest, decision stri
 	ctx := processContext{
 		RootAgentPid:   req.RootAgentPid,
 		AgentRunID:     req.AgentRunId,
+		TaskID:         req.TaskId,
 		ConversationID: req.ConversationId,
 		TurnID:         req.TurnId,
 		ToolCallID:     req.ToolCallId,
@@ -158,6 +165,7 @@ func buildProcessContextFromWrapperRequest(req *pb.WrapperRequest, decision stri
 		Decision:       decision,
 		ContainerID:    req.ContainerId,
 		ArgvDigest:     req.ArgvDigest,
+		Cwd:            req.Cwd,
 		RiskScore:      riskScore,
 	}
 	if ctx.ArgvDigest == "" {
@@ -171,6 +179,7 @@ func buildProcessContextFromHookPayload(payload map[string]interface{}, toolName
 	ctx := processContext{
 		RootAgentPid:   payloadUint32(payload, "root_agent_pid", "rootAgentPid"),
 		AgentRunID:     payloadString(payload, "agent_run_id", "agentRunId"),
+		TaskID:         payloadString(payload, "task_id", "taskId"),
 		ConversationID: payloadString(payload, "conversation_id", "conversationId"),
 		TurnID:         payloadString(payload, "turn_id", "turnId"),
 		ToolCallID:     payloadString(payload, "tool_call_id", "toolCallId"),
@@ -180,10 +189,11 @@ func buildProcessContextFromHookPayload(payload map[string]interface{}, toolName
 		Decision:       payloadString(payload, "decision"),
 		ContainerID:    payloadString(payload, "container_id", "containerId"),
 		ArgvDigest:     payloadString(payload, "argv_digest", "argvDigest"),
+		Cwd:            payloadString(payload, "cwd", "working_directory", "workingDirectory"),
 		RiskScore:      payloadFloat64(payload, "risk_score", "riskScore"),
 	}
 	if ctx.ArgvDigest == "" {
-		ctx.ArgvDigest = buildArgvDigest(ctx.ToolName, path)
+		ctx.ArgvDigest = buildArgvDigest(ctx.ToolName, path, ctx.TaskID)
 	}
 	return pid, normalizeProcessContext(ctx, pid)
 }
@@ -229,6 +239,9 @@ func applyProcessContextToEvent(event *pb.Event, ctx processContext) {
 	if strings.TrimSpace(event.AgentRunId) == "" {
 		event.AgentRunId = ctx.AgentRunID
 	}
+	if strings.TrimSpace(event.TaskId) == "" {
+		event.TaskId = ctx.TaskID
+	}
 	if strings.TrimSpace(event.ConversationId) == "" {
 		event.ConversationId = ctx.ConversationID
 	}
@@ -258,6 +271,9 @@ func applyProcessContextToEvent(event *pb.Event, ctx processContext) {
 	}
 	if strings.TrimSpace(event.ArgvDigest) == "" {
 		event.ArgvDigest = ctx.ArgvDigest
+	}
+	if strings.TrimSpace(event.Cwd) == "" {
+		event.Cwd = ctx.Cwd
 	}
 }
 
@@ -377,6 +393,7 @@ type registerPayload struct {
 	PID            uint32  `json:"pid"`
 	Tag            string  `json:"tag,omitempty"`
 	AgentRunID     string  `json:"agent_run_id,omitempty"`
+	TaskID         string  `json:"task_id,omitempty"`
 	ConversationID string  `json:"conversation_id,omitempty"`
 	TurnID         string  `json:"turn_id,omitempty"`
 	ToolCallID     string  `json:"tool_call_id,omitempty"`
@@ -388,4 +405,5 @@ type registerPayload struct {
 	RiskScore      float64 `json:"risk_score,omitempty"`
 	ContainerID    string  `json:"container_id,omitempty"`
 	ArgvDigest     string  `json:"argv_digest,omitempty"`
+	Cwd            string  `json:"cwd,omitempty"`
 }

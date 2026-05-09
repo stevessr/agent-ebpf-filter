@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"agent-ebpf-filter/pb"
+	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -18,7 +20,10 @@ func startUDSServer(broadcast chan *pb.Event) {
 	if err != nil {
 		return
 	}
-	_ = os.Chmod(udsPath, 0666)
+	_ = os.Chmod(udsPath, 0600)
+	if uid, gid, ok := originalInvokerIDs(); ok {
+		_ = os.Chown(udsPath, int(uid), int(gid))
+	}
 	defer l.Close()
 	for {
 		conn, err := l.Accept()
@@ -27,6 +32,9 @@ func startUDSServer(broadcast chan *pb.Event) {
 		}
 		go func(c net.Conn) {
 			defer c.Close()
+			if err := verifyUDSPeerCredentials(c); err != nil {
+				return
+			}
 			buf := make([]byte, 4096)
 			for {
 				n, err := c.Read(buf)
@@ -156,6 +164,7 @@ func startUDSServer(broadcast chan *pb.Event) {
 					SchemaVersion:  eventSchemaVersion,
 					RootAgentPid:   ctx.RootAgentPid,
 					AgentRunId:     ctx.AgentRunID,
+					TaskId:         ctx.TaskID,
 					ConversationId: ctx.ConversationID,
 					TurnId:         ctx.TurnID,
 					ToolCallId:     ctx.ToolCallID,
@@ -166,6 +175,7 @@ func startUDSServer(broadcast chan *pb.Event) {
 					RiskScore:      ctx.RiskScore,
 					ContainerId:    ctx.ContainerID,
 					ArgvDigest:     ctx.ArgvDigest,
+					Cwd:            ctx.Cwd,
 				}:
 				default:
 				}
@@ -174,4 +184,35 @@ func startUDSServer(broadcast chan *pb.Event) {
 			}
 		}(conn)
 	}
+}
+
+func verifyUDSPeerCredentials(conn net.Conn) error {
+	unixConn, ok := conn.(*net.UnixConn)
+	if !ok {
+		return errors.New("unexpected UDS connection type")
+	}
+
+	rawConn, err := unixConn.SyscallConn()
+	if err != nil {
+		return err
+	}
+
+	var cred *unix.Ucred
+	var credErr error
+	if err := rawConn.Control(func(fd uintptr) {
+		cred, credErr = unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
+	}); err != nil {
+		return err
+	}
+	if credErr != nil {
+		return credErr
+	}
+	if cred == nil {
+		return errors.New("missing peer credentials")
+	}
+
+	if _, ok := allowedControlPlaneUIDs()[cred.Uid]; !ok {
+		return fmt.Errorf("unauthorized UDS peer uid %d", cred.Uid)
+	}
+	return nil
 }

@@ -99,6 +99,7 @@ func main() {
 	if _, err := runtimeSettingsStore.LoadOrCreate(); err != nil {
 		log.Printf("[WARN] failed to load runtime settings: %v", err)
 	}
+	defer otelExporterStore.Close()
 
 	procsList, _ := ps.Processes()
 	curr := int32(os.Getpid())
@@ -169,23 +170,26 @@ func main() {
 		}
 	}()
 
-	r.GET("/ws", serveEventsWS)
-	r.GET("/ws/system", serveSystemStatsWS)
-	r.GET("/ws/camera", serveCameraWS)
-	r.GET("/ws/sensors", serveSensorsWS)
-	r.GET("/ws/microphone", serveMicrophoneWS)
-	r.GET("/ws/ml-status", serveMLStatusWS)
-	r.POST("/shell-sessions", handleCreateShellSession)
-	r.GET("/shell-sessions", handleListShellSessions)
-	r.DELETE("/shell-sessions/:id", handleDeleteShellSession)
-	r.POST("/shell-sessions/:id/input", handleSendShellSessionInput)
-	r.GET("/ws/shell", serveShellWS)
-	r.GET("/events/recent", handleRecentEvents)
-	r.GET("/ws/shell-sessions", serveShellSessionsWS)
+	r.GET("/ws", authMiddleware(), serveEventsWS)
+	r.GET("/ws/system", authMiddleware(), serveSystemStatsWS)
+	r.GET("/ws/camera", authMiddleware(), serveCameraWS)
+	r.GET("/ws/sensors", authMiddleware(), serveSensorsWS)
+	r.GET("/ws/microphone", authMiddleware(), serveMicrophoneWS)
+	r.GET("/ws/ml-status", authMiddleware(), serveMLStatusWS)
+	r.GET("/ws/envelopes", authMiddleware(), serveEventEnvelopesWS)
+	r.POST("/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), handleCreateShellSession)
+	r.GET("/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), handleListShellSessions)
+	r.DELETE("/shell-sessions/:id", authMiddleware(), shellSessionsEnabledMiddleware(), handleDeleteShellSession)
+	r.POST("/shell-sessions/:id/input", authMiddleware(), shellSessionsEnabledMiddleware(), handleSendShellSessionInput)
+	r.GET("/ws/shell", authMiddleware(), shellSessionsEnabledMiddleware(), serveShellWS)
+	r.GET("/events/recent", authMiddleware(), handleRecentEvents)
+	r.GET("/events/graph", authMiddleware(), handleExecutionGraph)
+	r.GET("/metrics", authMiddleware(), handlePrometheusMetrics)
+	r.GET("/ws/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), serveShellSessionsWS)
 
-	r.POST("/hooks/event", handleNativeHookEvent)
-	r.POST("/register", handleRegister)
-	r.POST("/unregister", handleUnregister)
+	r.POST("/hooks/event", hookIngressAuthMiddleware(), handleNativeHookEvent)
+	r.POST("/register", authMiddleware(), handleRegister)
+	r.POST("/unregister", authMiddleware(), handleUnregister)
 	r.POST("/cluster/heartbeat", clusterHeartbeatHandler)
 	r.POST("/cluster/register", clusterHeartbeatHandler)
 
@@ -200,7 +204,7 @@ func main() {
 			data.POST("/clear-events-memory", handleClearEventsMemory)
 			data.POST("/clear-events-persisted", handleClearEventsPersisted)
 		}
-		api.POST("/shell-sessions/cleanup", handleShellSessionsCleanup)
+		api.POST("/shell-sessions/cleanup", shellSessionsEnabledMiddleware(), handleShellSessionsCleanup)
 		api.Any("/mcp", gin.WrapH(buildMCPHandler()))
 		cluster := api.Group("/cluster")
 		{

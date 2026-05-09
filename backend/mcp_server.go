@@ -32,8 +32,9 @@ type MCPConfigSnapshotOutput struct {
 }
 
 type MCPEventRecord struct {
-	ReceivedAt time.Time `json:"receivedAt"`
-	Event      *pb.Event `json:"event"`
+	ReceivedAt time.Time      `json:"receivedAt"`
+	Event      *pb.Event      `json:"event"`
+	Envelope   map[string]any `json:"envelope,omitempty"`
 }
 
 type MCPTailEventsOutput struct {
@@ -136,12 +137,14 @@ func buildMCPServer() *mcp.Server {
 			}
 			events := make([]MCPEventRecord, 0, len(records))
 			for _, record := range records {
+				record = normalizeCapturedEventRecord(record)
 				if record.Event == nil {
 					continue
 				}
 				events = append(events, MCPEventRecord{
 					ReceivedAt: record.ReceivedAt,
 					Event:      record.Event,
+					Envelope:   eventEnvelopeToJSONValue(record.Envelope),
 				})
 			}
 			return nil, MCPTailEventsOutput{

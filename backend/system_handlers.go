@@ -595,8 +595,8 @@ func serveSystemStatsWS(c *gin.Context) {
 					}
 				}
 				pbIO.Networks = append(pbIO.Networks, &pb.NetworkInterface{
-					Name: n.Name, 
-					RecvBytes: uint64(float64(rb) / dtIO), 
+					Name:      n.Name,
+					RecvBytes: uint64(float64(rb) / dtIO),
 					SentBytes: uint64(float64(sb) / dtIO),
 				})
 				pbIO.TotalNetRecvBytes += uint64(float64(rb) / dtIO)
@@ -609,8 +609,8 @@ func serveSystemStatsWS(c *gin.Context) {
 					wb = deltaUint64(d.WriteBytes, prev.WriteBytes)
 				}
 				pbIO.Disks = append(pbIO.Disks, &pb.DiskDevice{
-					Name: name, 
-					ReadBytes: uint64(float64(rb) / dtIO), 
+					Name:       name,
+					ReadBytes:  uint64(float64(rb) / dtIO),
 					WriteBytes: uint64(float64(wb) / dtIO),
 				})
 				pbIO.TotalReadBytes += uint64(float64(rb) / dtIO)
@@ -710,7 +710,9 @@ func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/download", handleDownload)
 	rg.POST("/upload", handleUpload)
 	rg.GET("/env", handleListLaunchEnvEntries)
-	rg.POST("/run", handleRun)
+	rg.GET("/collector-health", handleCollectorHealth)
+	rg.GET("/otel-health", handleOTelHealth)
+	rg.POST("/run", systemRunEnabledMiddleware(), handleRun)
 	rg.GET("/systemd", handleSystemdServices)
 	rg.POST("/systemd/control", handleSystemdControl)
 	rg.GET("/systemd/logs", handleSystemdLogs)

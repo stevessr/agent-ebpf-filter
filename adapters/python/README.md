@@ -50,7 +50,8 @@ When the process exits normally, the adapter attempts to unregister through `ate
   - `AGENT_BACKEND_URL`
   - repo-local `backend/.port`
   - fallback `http://127.0.0.1:8080`
-- the helper can also forward optional run / trace metadata from the constructor `context` dict or env vars such as `AGENT_EBPF_AGENT_RUN_ID`, `AGENT_EBPF_TOOL_CALL_ID`, and `AGENT_EBPF_TRACE_ID`
+- in release mode, set `AGENT_API_KEY` or `AGENT_EBPF_ACCESS_TOKEN` so `/register` and `/unregister` can authenticate
+- the helper can also forward optional run / trace metadata from the constructor `context` dict or env vars such as `AGENT_EBPF_AGENT_RUN_ID`, `AGENT_EBPF_TASK_ID`, `AGENT_EBPF_TOOL_CALL_ID`, `AGENT_EBPF_TRACE_ID`, and `AGENT_EBPF_CWD`
 
 ## Limitations
 

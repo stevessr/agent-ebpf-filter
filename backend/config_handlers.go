@@ -284,11 +284,19 @@ func handleConfigRuntimeGet(c *gin.Context) {
 	rc := buildRuntimeConfigResponse()
 	protoResp := &pb.RuntimeConfigResponse{
 		Runtime: &pb.RuntimeSettings{
-			LogPersistenceEnabled: rc.Runtime.LogPersistenceEnabled,
-			LogFilePath:           rc.Runtime.LogFilePath,
-			AccessToken:           rc.Runtime.AccessToken,
-			MaxEventCount:         int32(rc.Runtime.MaxEventCount),
-			MaxEventAge:           rc.Runtime.MaxEventAge,
+			LogPersistenceEnabled:   rc.Runtime.LogPersistenceEnabled,
+			LogFilePath:             rc.Runtime.LogFilePath,
+			AccessToken:             rc.Runtime.AccessToken,
+			MaxEventCount:           int32(rc.Runtime.MaxEventCount),
+			MaxEventAge:             rc.Runtime.MaxEventAge,
+			ShellSessionsEnabled:    rc.Runtime.ShellSessionsEnabled,
+			SystemRunEnabled:        rc.Runtime.SystemRunEnabled,
+			HookManagementEnabled:   rc.Runtime.HookManagementEnabled,
+			PolicyManagementEnabled: rc.Runtime.PolicyManagementEnabled,
+			OtlpEnabled:             rc.Runtime.OtlpEnabled,
+			OtlpEndpoint:            rc.Runtime.OtlpEndpoint,
+			OtlpServiceName:         rc.Runtime.OtlpServiceName,
+			OtlpHeaders:             rc.Runtime.OtlpHeaders,
 		},
 		McpEndpoint:            rc.MCPEndpoint,
 		AuthHeaderName:         rc.AuthHeaderName,
@@ -322,6 +330,37 @@ func handleConfigRuntimePut(c *gin.Context) {
 	if req.MaxEventAge != nil {
 		settings.MaxEventAge = strings.TrimSpace(*req.MaxEventAge)
 	}
+	if req.ShellSessionsEnabled != nil {
+		settings.ShellSessionsEnabled = *req.ShellSessionsEnabled
+	}
+	if req.SystemRunEnabled != nil {
+		settings.SystemRunEnabled = *req.SystemRunEnabled
+	}
+	if req.HookManagementEnabled != nil {
+		settings.HookManagementEnabled = *req.HookManagementEnabled
+	}
+	if req.PolicyManagementEnabled != nil {
+		settings.PolicyManagementEnabled = *req.PolicyManagementEnabled
+	}
+	if req.OtlpEnabled != nil {
+		settings.OtlpEnabled = *req.OtlpEnabled
+	}
+	if req.OtlpEndpoint != nil {
+		settings.OtlpEndpoint = strings.TrimSpace(*req.OtlpEndpoint)
+	}
+	if req.OtlpServiceName != nil {
+		settings.OtlpServiceName = strings.TrimSpace(*req.OtlpServiceName)
+	}
+	if req.OtlpHeaders != nil {
+		settings.OtlpHeaders = make(map[string]string, len(req.OtlpHeaders))
+		for key, value := range req.OtlpHeaders {
+			trimmedKey := strings.TrimSpace(key)
+			if trimmedKey == "" {
+				continue
+			}
+			settings.OtlpHeaders[trimmedKey] = strings.TrimSpace(value)
+		}
+	}
 	applyMLConfigPatch(&settings.MLConfig, req.MLConfigPatch)
 
 	settings, err := runtimeSettingsStore.Replace(settings)
@@ -334,11 +373,19 @@ func handleConfigRuntimePut(c *gin.Context) {
 }
 
 type runtimeSettingsPatch struct {
-	LogPersistenceEnabled *bool   `json:"logPersistenceEnabled,omitempty"`
-	LogFilePath           *string `json:"logFilePath,omitempty"`
-	AccessToken           *string `json:"accessToken,omitempty"`
-	MaxEventCount         *int    `json:"maxEventCount,omitempty"`
-	MaxEventAge           *string `json:"maxEventAge,omitempty"`
+	LogPersistenceEnabled   *bool             `json:"logPersistenceEnabled,omitempty"`
+	LogFilePath             *string           `json:"logFilePath,omitempty"`
+	AccessToken             *string           `json:"accessToken,omitempty"`
+	MaxEventCount           *int              `json:"maxEventCount,omitempty"`
+	MaxEventAge             *string           `json:"maxEventAge,omitempty"`
+	ShellSessionsEnabled    *bool             `json:"shellSessionsEnabled,omitempty"`
+	SystemRunEnabled        *bool             `json:"systemRunEnabled,omitempty"`
+	HookManagementEnabled   *bool             `json:"hookManagementEnabled,omitempty"`
+	PolicyManagementEnabled *bool             `json:"policyManagementEnabled,omitempty"`
+	OtlpEnabled             *bool             `json:"otlpEnabled,omitempty"`
+	OtlpEndpoint            *string           `json:"otlpEndpoint,omitempty"`
+	OtlpServiceName         *string           `json:"otlpServiceName,omitempty"`
+	OtlpHeaders             map[string]string `json:"otlpHeaders,omitempty"`
 	MLConfigPatch
 }
 
@@ -720,29 +767,29 @@ func handleConfigHooksRawPost(c *gin.Context) {
 
 func registerConfigRoutes(rg *gin.RouterGroup) {
 	rg.GET("/tags", handleConfigTagsGet)
-	rg.POST("/tags", handleConfigTagsPost)
+	rg.POST("/tags", policyManagementEnabledMiddleware(), handleConfigTagsPost)
 	rg.GET("/comms", handleConfigCommsGet)
-	rg.POST("/comms", handleConfigCommsPost)
-	rg.DELETE("/comms/:comm", handleConfigCommsDelete)
-	rg.POST("/comms/:comm/disable", handleConfigCommsDisable)
-	rg.DELETE("/comms/:comm/disable", handleConfigCommsEnable)
+	rg.POST("/comms", policyManagementEnabledMiddleware(), handleConfigCommsPost)
+	rg.DELETE("/comms/:comm", policyManagementEnabledMiddleware(), handleConfigCommsDelete)
+	rg.POST("/comms/:comm/disable", policyManagementEnabledMiddleware(), handleConfigCommsDisable)
+	rg.DELETE("/comms/:comm/disable", policyManagementEnabledMiddleware(), handleConfigCommsEnable)
 	rg.GET("/event-types", handleConfigEventTypesGet)
-	rg.POST("/event-types/:type/disable", handleConfigEventTypeDisable)
-	rg.DELETE("/event-types/:type/disable", handleConfigEventTypeEnable)
+	rg.POST("/event-types/:type/disable", policyManagementEnabledMiddleware(), handleConfigEventTypeDisable)
+	rg.DELETE("/event-types/:type/disable", policyManagementEnabledMiddleware(), handleConfigEventTypeEnable)
 	rg.GET("/paths", handleConfigPathsGet)
-	rg.POST("/paths", handleConfigPathsPost)
-	rg.DELETE("/paths/*path", handleConfigPathsDelete)
+	rg.POST("/paths", policyManagementEnabledMiddleware(), handleConfigPathsPost)
+	rg.DELETE("/paths/*path", policyManagementEnabledMiddleware(), handleConfigPathsDelete)
 	rg.GET("/prefixes", handleConfigPrefixesGet)
-	rg.POST("/prefixes", handleConfigPrefixesPost)
-	rg.DELETE("/prefixes", handleConfigPrefixesDelete)
+	rg.POST("/prefixes", policyManagementEnabledMiddleware(), handleConfigPrefixesPost)
+	rg.DELETE("/prefixes", policyManagementEnabledMiddleware(), handleConfigPrefixesDelete)
 	rg.GET("/rules", handleConfigRulesGet)
-	rg.POST("/rules", handleConfigRulesPost)
-	rg.DELETE("/rules/:comm", handleConfigRulesDelete)
+	rg.POST("/rules", policyManagementEnabledMiddleware(), handleConfigRulesPost)
+	rg.DELETE("/rules/:comm", policyManagementEnabledMiddleware(), handleConfigRulesDelete)
 	rg.GET("/runtime", handleConfigRuntimeGet)
 	rg.PUT("/runtime", handleConfigRuntimePut)
 	rg.POST("/access-token", handleConfigAccessTokenPost)
 	rg.GET("/export", handleConfigExportGet)
-	rg.POST("/import", handleConfigImportPost)
+	rg.POST("/import", policyManagementEnabledMiddleware(), handleConfigImportPost)
 
 	// ML classification endpoints
 	ml := rg.Group("/ml")
@@ -775,8 +822,8 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 	hooks := rg.Group("/hooks")
 	{
 		hooks.GET("", handleConfigHooksList)
-		hooks.POST("", handleConfigHooksInstall)
+		hooks.POST("", hookManagementEnabledMiddleware(), handleConfigHooksInstall)
 		hooks.GET("/:id/raw", handleConfigHooksRawGet)
-		hooks.POST("/:id/raw", handleConfigHooksRawPost)
+		hooks.POST("/:id/raw", hookManagementEnabledMiddleware(), handleConfigHooksRawPost)
 	}
 }

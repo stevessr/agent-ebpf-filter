@@ -8,6 +8,46 @@ import (
 	"syscall"
 )
 
+func originalInvokerIDs() (uid, gid uint32, ok bool) {
+	if uidStr := os.Getenv("SUDO_UID"); uidStr != "" {
+		gidStr := os.Getenv("SUDO_GID")
+		if gidStr == "" {
+			return 0, 0, false
+		}
+		parsedUID, err1 := strconv.ParseUint(uidStr, 10, 32)
+		parsedGID, err2 := strconv.ParseUint(gidStr, 10, 32)
+		if err1 != nil || err2 != nil {
+			return 0, 0, false
+		}
+		return uint32(parsedUID), uint32(parsedGID), true
+	}
+
+	if uidStr := os.Getenv("PKEXEC_UID"); uidStr != "" {
+		u, err := user.LookupId(uidStr)
+		if err != nil {
+			return 0, 0, false
+		}
+		parsedUID, err1 := strconv.ParseUint(uidStr, 10, 32)
+		parsedGID, err2 := strconv.ParseUint(u.Gid, 10, 32)
+		if err1 != nil || err2 != nil {
+			return 0, 0, false
+		}
+		return uint32(parsedUID), uint32(parsedGID), true
+	}
+
+	return 0, 0, false
+}
+
+func allowedControlPlaneUIDs() map[uint32]struct{} {
+	allowed := map[uint32]struct{}{
+		uint32(os.Getuid()): {},
+	}
+	if uid, _, ok := originalInvokerIDs(); ok {
+		allowed[uid] = struct{}{}
+	}
+	return allowed
+}
+
 func applyCredentialToCommand(cmd *exec.Cmd, uid, gid uint32, uidStr string) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
@@ -29,31 +69,8 @@ func configureCommandForRealUser(cmd *exec.Cmd) {
 		return
 	}
 
-	if uidStr := os.Getenv("SUDO_UID"); uidStr != "" {
-		gidStr := os.Getenv("SUDO_GID")
-		if gidStr == "" {
-			return
-		}
-		uid, err1 := strconv.ParseUint(uidStr, 10, 32)
-		gid, err2 := strconv.ParseUint(gidStr, 10, 32)
-		if err1 != nil || err2 != nil {
-			return
-		}
-		applyCredentialToCommand(cmd, uint32(uid), uint32(gid), uidStr)
-		return
-	}
-
-	if uidStr := os.Getenv("PKEXEC_UID"); uidStr != "" {
-		u, err := user.LookupId(uidStr)
-		if err != nil {
-			return
-		}
-		uid, err1 := strconv.ParseUint(uidStr, 10, 32)
-		gid, err2 := strconv.ParseUint(u.Gid, 10, 32)
-		if err1 != nil || err2 != nil {
-			return
-		}
-		applyCredentialToCommand(cmd, uint32(uid), uint32(gid), uidStr)
+	if uid, gid, ok := originalInvokerIDs(); ok {
+		applyCredentialToCommand(cmd, uid, gid, strconv.FormatUint(uint64(uid), 10))
 	}
 }
 

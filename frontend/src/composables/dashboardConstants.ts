@@ -94,6 +94,7 @@ export const eventTypes = [
   'syscall',
   'wrapper_intercept',
   'native_hook',
+  'semantic_alert',
 ];
 
 export const pageSizeOptions = ['20', '50', '100', '200'];
@@ -129,6 +130,7 @@ export const eventTypeLabelMap: Record<number, string> = {
   [pb.EventType.GENERIC_SYSCALL]: 'syscall',
   [pb.EventType.WRAPPER_INTERCEPT]: 'wrapper_intercept',
   [pb.EventType.NATIVE_HOOK]: 'native_hook',
+  [pb.EventType.SEMANTIC_ALERT]: 'semantic_alert',
 };
 
 export const eventTypeColorMap: Record<number, string> = {
@@ -160,6 +162,7 @@ export const eventTypeColorMap: Record<number, string> = {
   [pb.EventType.ACCEPT]: 'volcano',
   [pb.EventType.ACCEPT4]: 'volcano',
   [pb.EventType.GENERIC_SYSCALL]: 'geekblue',
+  [pb.EventType.SEMANTIC_ALERT]: 'red',
 };
 
 export const networkEventTypes = new Set<number>([
@@ -210,6 +213,9 @@ export const eventCategories: Record<string, Set<number>> = {
     pb.EventType.WRAPPER_INTERCEPT,
     pb.EventType.NATIVE_HOOK,
   ]),
+  alert: new Set([
+    pb.EventType.SEMANTIC_ALERT,
+  ]),
 };
 
 export const categoryTabs = [
@@ -218,6 +224,7 @@ export const categoryTabs = [
   { key: 'file', label: '文件' },
   { key: 'process', label: '进程' },
   { key: 'hook', label: '钩子' },
+  { key: 'alert', label: '警报' },
   { key: 'syscall', label: '系统调用' },
 ] as const;
 

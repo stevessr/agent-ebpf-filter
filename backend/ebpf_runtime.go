@@ -20,7 +20,7 @@ import (
 const bootstrapFlag = "--ebpf-bootstrap"
 
 // mapNames defines the required pinned eBPF maps.
-var mapNames = []string{"agent_pids", "events", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_path_buf", "exit_path_ctx"}
+var mapNames = []string{"agent_pids", "events", "collector_stats", "tracked_comms", "tracked_paths", "tracked_prefixes", "exit_ctx", "exit_path_buf", "exit_path_ctx"}
 
 type tracepointAttachSpec struct {
 	category string
@@ -277,6 +277,7 @@ func toTrackerMapSet(maps map[string]*ebpf.Map) (trackerMapSet, error) {
 	return trackerMapSet{
 		AgentPids:       maps["agent_pids"],
 		Events:          maps["events"],
+		CollectorStats:  maps["collector_stats"],
 		TrackedComms:    maps["tracked_comms"],
 		TrackedPaths:    maps["tracked_paths"],
 		TrackedPrefixes: maps["tracked_prefixes"],
@@ -471,7 +472,7 @@ func closeTrackerMapSet(set *trackerMapSet) {
 	if set == nil {
 		return
 	}
-	for _, mp := range []*(*ebpf.Map){&set.AgentPids, &set.Events, &set.TrackedComms, &set.TrackedPaths, &set.TrackedPrefixes} {
+	for _, mp := range []*(*ebpf.Map){&set.AgentPids, &set.Events, &set.CollectorStats, &set.TrackedComms, &set.TrackedPaths, &set.TrackedPrefixes} {
 		if *mp != nil {
 			_ = (*mp).Close()
 			*mp = nil

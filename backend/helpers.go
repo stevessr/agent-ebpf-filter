@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -311,23 +312,86 @@ func buildFilePreview(path string) (*FilePreviewResponse, error) {
 
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Bypass auth in debug/test modes or if explicitly disabled
-		if gin.Mode() != gin.ReleaseMode || os.Getenv("DISABLE_AUTH") == "true" {
-			c.Next()
-			return
-		}
-		if clusterRequestAuthAllowed(c) {
+		if !releaseAuthEnforced() || clusterRequestAuthAllowed(c) {
 			c.Next()
 			return
 		}
 		token := requestAuthToken(c)
 		expectedKey := runtimeSettingsStore.ExpectedToken()
-		if token == "" || token != expectedKey {
+		if token == "" || expectedKey == "" || subtle.ConstantTimeCompare([]byte(token), []byte(expectedKey)) != 1 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			return
 		}
 		c.Next()
 	}
+}
+
+func releaseAuthEnforced() bool {
+	return gin.Mode() == gin.ReleaseMode && os.Getenv("DISABLE_AUTH") != "true"
+}
+
+func hookIngressAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !releaseAuthEnforced() || clusterRequestAuthAllowed(c) {
+			c.Next()
+			return
+		}
+
+		if token := requestAuthToken(c); token != "" {
+			expectedKey := runtimeSettingsStore.ExpectedToken()
+			if subtle.ConstantTimeCompare([]byte(token), []byte(expectedKey)) == 1 {
+				c.Next()
+				return
+			}
+		}
+
+		hookID := strings.ToLower(strings.TrimSpace(c.GetHeader("X-Agent-CLI")))
+		secret := strings.TrimSpace(c.GetHeader("X-Agent-Hook-Secret"))
+		expectedSecret := runtimeSettingsStore.HookSecret(hookID)
+		if hookID == "" || secret == "" || subtle.ConstantTimeCompare([]byte(secret), []byte(expectedSecret)) != 1 {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func runtimeToggleMiddleware(featureName string, enabled func(RuntimeSettings) bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if enabled(runtimeSettingsStore.Snapshot()) {
+			c.Next()
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error":   featureName + " is disabled",
+			"feature": featureName,
+		})
+	}
+}
+
+func shellSessionsEnabledMiddleware() gin.HandlerFunc {
+	return runtimeToggleMiddleware("shell_sessions", func(settings RuntimeSettings) bool {
+		return settings.ShellSessionsEnabled
+	})
+}
+
+func systemRunEnabledMiddleware() gin.HandlerFunc {
+	return runtimeToggleMiddleware("system_run", func(settings RuntimeSettings) bool {
+		return settings.SystemRunEnabled
+	})
+}
+
+func hookManagementEnabledMiddleware() gin.HandlerFunc {
+	return runtimeToggleMiddleware("hook_management", func(settings RuntimeSettings) bool {
+		return settings.HookManagementEnabled
+	})
+}
+
+func policyManagementEnabledMiddleware() gin.HandlerFunc {
+	return runtimeToggleMiddleware("policy_management", func(settings RuntimeSettings) bool {
+		return settings.PolicyManagementEnabled
+	})
 }
 
 func requestAuthToken(c *gin.Context) string {
@@ -355,6 +419,17 @@ func buildRuntimeConfigResponseFromSettings(settings RuntimeSettings) RuntimeCon
 		}
 	}
 	settings.MLConfig.LlmAPIKey = ""
+	if settings.OtlpHeaders == nil {
+		settings.OtlpHeaders = map[string]string{}
+	} else {
+		cloned := make(map[string]string, len(settings.OtlpHeaders))
+		for key, value := range settings.OtlpHeaders {
+			if trimmedKey := strings.TrimSpace(key); trimmedKey != "" {
+				cloned[trimmedKey] = strings.TrimSpace(value)
+			}
+		}
+		settings.OtlpHeaders = cloned
+	}
 	return RuntimeConfigResponse{
 		Runtime:                settings,
 		MCPEndpoint:            fmt.Sprintf("http://127.0.0.1:%d/mcp", resolveBackendPort()),

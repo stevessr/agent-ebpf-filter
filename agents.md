@@ -75,6 +75,7 @@ Additional user-space event types:
 
 - `wrapper_intercept`
 - `native_hook`
+- `semantic_alert`
 
 ---
 
@@ -179,12 +180,15 @@ Commands run through the wrapper always produce a `wrapper_intercept` event and 
 ### Use native hooks
 
 For supported AI CLIs, hook callbacks produce `native_hook` events even when there is no matching kernel event.
+In release mode, installed relay scripts authenticate with a per-hook secret header instead of anonymous localhost POSTs.
 
 ---
 
 ## 7. Register / unregister API
 
 ### `POST /register`
+
+In release mode, this endpoint requires the runtime access token (`X-API-KEY`, `Authorization: Bearer`, or `?key=...`).
 
 Payload:
 
@@ -193,8 +197,10 @@ Payload:
   "pid": 12345,
   "tag": "AI Agent",
   "agent_run_id": "run-123",
+  "task_id": "task-222",
   "tool_call_id": "tool-456",
   "trace_id": "trace-789",
+  "cwd": "/workspace/demo",
   "root_agent_pid": 12345
 }
 ```
@@ -203,6 +209,7 @@ Payload:
 
 Additional optional context fields include:
 
+- `task_id`
 - `conversation_id`
 - `turn_id`
 - `tool_name`
@@ -211,8 +218,11 @@ Additional optional context fields include:
 - `risk_score`
 - `container_id`
 - `argv_digest`
+- `cwd`
 
 ### `POST /unregister`
+
+In release mode, this endpoint requires the same runtime access token.
 
 Payload:
 
@@ -229,6 +239,7 @@ Payload:
 ### Best for real agents
 
 Use the adapter and register the long-lived process that actually performs the work.
+If the backend runs in release mode, provide `AGENT_API_KEY` (or `AGENT_EBPF_ACCESS_TOKEN`) so the adapter can authenticate registration.
 
 ### Best for shell-heavy workflows
 

@@ -17,17 +17,27 @@ import (
 )
 
 type RuntimeSettings struct {
-	LogPersistenceEnabled bool     `json:"logPersistenceEnabled"`
-	LogFilePath           string   `json:"logFilePath"`
-	AccessToken           string   `json:"accessToken"`
-	MaxEventCount         int      `json:"maxEventCount"`
-	MaxEventAge           string   `json:"maxEventAge"`
-	MLConfig              MLConfig `json:"mlConfig,omitempty"`
+	LogPersistenceEnabled   bool              `json:"logPersistenceEnabled"`
+	LogFilePath             string            `json:"logFilePath"`
+	AccessToken             string            `json:"accessToken"`
+	MaxEventCount           int               `json:"maxEventCount"`
+	MaxEventAge             string            `json:"maxEventAge"`
+	ShellSessionsEnabled    bool              `json:"shellSessionsEnabled"`
+	SystemRunEnabled        bool              `json:"systemRunEnabled"`
+	HookManagementEnabled   bool              `json:"hookManagementEnabled"`
+	PolicyManagementEnabled bool              `json:"policyManagementEnabled"`
+	OtlpEnabled             bool              `json:"otlpEnabled"`
+	OtlpEndpoint            string            `json:"otlpEndpoint"`
+	OtlpServiceName         string            `json:"otlpServiceName"`
+	OtlpHeaders             map[string]string `json:"otlpHeaders,omitempty"`
+	HookSecrets             map[string]string `json:"hookSecrets,omitempty"`
+	MLConfig                MLConfig          `json:"mlConfig,omitempty"`
 }
 
 type CapturedEventRecord struct {
-	ReceivedAt time.Time `json:"receivedAt"`
-	Event      *pb.Event `json:"event"`
+	ReceivedAt time.Time         `json:"receivedAt"`
+	Event      *pb.Event         `json:"event"`
+	Envelope   *pb.EventEnvelope `json:"-"`
 }
 
 type eventArchive struct {
@@ -163,6 +173,25 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	}
 	if strings.TrimSpace(settings.MaxEventAge) == "" {
 		settings.MaxEventAge = "0"
+	}
+	if settings.HookSecrets == nil {
+		settings.HookSecrets = make(map[string]string)
+	}
+	if settings.OtlpHeaders == nil {
+		settings.OtlpHeaders = make(map[string]string)
+	}
+	settings.OtlpEndpoint = strings.TrimSpace(settings.OtlpEndpoint)
+	if strings.TrimSpace(settings.OtlpServiceName) == "" {
+		settings.OtlpServiceName = "agent-ebpf-filter"
+	}
+	for _, hook := range availableHooks {
+		if strings.TrimSpace(settings.HookSecrets[hook.ID]) == "" {
+			token, err := generateAccessToken()
+			if err != nil {
+				return err
+			}
+			settings.HookSecrets[hook.ID] = token
+		}
 	}
 	// ML config defaults
 	if settings.MLConfig.BlockConfidenceThreshold == 0 {
@@ -309,6 +338,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 	if err := s.applyLoggingLocked(); err != nil {
 		return RuntimeSettings{}, err
 	}
+	otelExporterStore.ApplySettings(s.settings)
 	return s.settings, nil
 }
 
@@ -328,7 +358,16 @@ func (s *runtimeState) ExpectedToken() string {
 	if envToken := strings.TrimSpace(os.Getenv("AGENT_API_KEY")); envToken != "" {
 		return envToken
 	}
-	return "agent-secret-123"
+	return ""
+}
+
+func (s *runtimeState) HookSecret(id string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.settings.HookSecrets == nil {
+		return ""
+	}
+	return strings.TrimSpace(s.settings.HookSecrets[id])
 }
 
 func (s *runtimeState) UpdateLogging(enabled bool, path string) (RuntimeSettings, error) {
@@ -391,6 +430,7 @@ func (s *runtimeState) Replace(settings RuntimeSettings) (RuntimeSettings, error
 	}
 	mlConfig = s.settings.MLConfig
 	mlEnabled = s.settings.MLConfig.Enabled && clusterManagerStore.IsMaster()
+	otelExporterStore.ApplySettings(s.settings)
 	return s.settings, nil
 }
 
@@ -437,7 +477,11 @@ func (s *runtimeState) RecentEvents(limit int) ([]CapturedEventRecord, string, e
 		}
 	}
 
-	return capturedEventArchive.Snapshot(limit), "memory", nil
+	records := capturedEventArchive.Snapshot(limit)
+	for index := range records {
+		records[index] = normalizeCapturedEventRecord(records[index])
+	}
+	return records, "memory", nil
 }
 
 func (s *runtimeState) AppendEvent(record CapturedEventRecord) error {
@@ -480,6 +524,7 @@ func tailCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, erro
 		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
 			continue
 		}
+		record = normalizeCapturedEventRecord(record)
 		if record.Event == nil {
 			continue
 		}
@@ -497,18 +542,24 @@ func tailCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, erro
 	return buffer, nil
 }
 
-func recordCapturedEvent(event *pb.Event) {
+func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	if event == nil {
-		return
+		return CapturedEventRecord{}
 	}
 
+	collectorMetricsStore.RecordEvent(event)
+
 	eventCopy := *event
-	record := CapturedEventRecord{
+	record := normalizeCapturedEventRecord(CapturedEventRecord{
 		ReceivedAt: time.Now().UTC(),
 		Event:      &eventCopy,
-	}
+	})
 	capturedEventArchive.Add(record)
+	appendStart := time.Now()
 	if err := runtimeSettingsStore.AppendEvent(record); err != nil {
 		log.Printf("[WARN] failed to append captured event: %v", err)
 	}
+	collectorMetricsStore.SetPersistAppendLatency(time.Since(appendStart))
+	otelExporterStore.Record(record)
+	return record
 }

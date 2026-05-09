@@ -31,6 +31,7 @@ rtk make proto
 rtk make backend
 rtk make wrapper
 rtk make frontend
+rtk make runtime-benchmark
 rtk make dev
 ```
 
@@ -92,9 +93,19 @@ Avoid describing path tracking as recursive or policy-tree based unless you also
 
 ### Auth model
 
-- `authMiddleware()` protects `/config/**` and `/system/**` in release mode.
+- In release mode, the backend now requires the runtime access token for:
+  - `/config/**`
+  - `/system/**`
+  - `/ws*`
+  - `/metrics`
+  - `/register`
+  - `/unregister`
+  - `/shell-sessions*`
+  - `/events/recent`
+  - `/events/graph`
 - Dev mode disables auth by default.
-- Several endpoints are currently outside that middleware (`/ws`, `/ws/system`, `/register`, `/unregister`, `/shell-sessions`, `/ws/shell`, `/hooks/event`).
+- `/hooks/event` accepts either the normal access token or a per-hook secret via `X-Agent-Hook-Secret`.
+- Shell sessions, `/system/run`, hook installation / raw hook writes, and policy mutations are runtime-gated and default to disabled until explicitly enabled in `/config/runtime`.
 
 If you change auth or deployment docs, keep this nuance accurate.
 
@@ -112,6 +123,7 @@ Important pages:
 
 - `Dashboard.vue` — live event stream
 - `Monitor.vue` — system/process metrics
+- `ExecutionGraph.vue` — agent run / tool / process / syscall / file / network / policy graph
 - `Explorer.vue` — filesystem browser and path tagging
 - `Executor.vue` — wrapper execution + PTY shell manager
 - `Hooks.vue` — AI CLI hook management
@@ -148,4 +160,5 @@ Especially keep these accurate:
 
 - Native hook installation injects a `curl` command into CLI config files, so docs should mention `curl` as a runtime dependency.
 - Hook callbacks resolve to the current backend port via `.port` unless `AGENT_HOOK_ENDPOINT` overrides it.
-- The current frontend has no API-key UX; if release-mode auth matters, you may need proxy/header work as part of the change.
+- The frontend runtime page now stores the access token locally and appends it to WebSocket URLs as `?key=...`.
+- The wrapper UDS socket is expected to stay restrictive (`0600`) and validate peer credentials against root / the original invoking user.

@@ -86,6 +86,7 @@ func handleNativeHookEvent(c *gin.Context) {
 		SchemaVersion:  eventSchemaVersion,
 		RootAgentPid:   ctx.RootAgentPid,
 		AgentRunId:     ctx.AgentRunID,
+		TaskId:         ctx.TaskID,
 		ConversationId: ctx.ConversationID,
 		TurnId:         ctx.TurnID,
 		ToolCallId:     ctx.ToolCallID,
@@ -96,6 +97,7 @@ func handleNativeHookEvent(c *gin.Context) {
 		RiskScore:      ctx.RiskScore,
 		ContainerId:    ctx.ContainerID,
 		ArgvDigest:     ctx.ArgvDigest,
+		Cwd:            ctx.Cwd,
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
@@ -300,6 +302,7 @@ func ensureHookRelayScript(h HookDef) (string, error) {
 	}
 
 	scriptPath := hookRelayScriptPath(h)
+	hookSecret := runtimeSettingsStore.HookSecret(h.ID)
 	scriptContent := fmt.Sprintf(`#!/usr/bin/env bash
 tmp_file="$(mktemp "${TMPDIR:-/tmp}/agent-ebpf-hook.XXXXXX")" || exit 0
 trap 'rm -f "$tmp_file"' EXIT
@@ -307,9 +310,10 @@ cat >"$tmp_file"
 curl -fsS -X POST '%s' \
   -H 'Content-Type: application/json' \
   -H 'X-Agent-CLI: %s' \
+  -H 'X-Agent-Hook-Secret: %s' \
   --data-binary "@$tmp_file" \
   >/dev/null 2>&1 || true
-`, resolveHookCallbackURL(), h.ID)
+`, resolveHookCallbackURL(), h.ID, hookSecret)
 
 	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
 		return "", err

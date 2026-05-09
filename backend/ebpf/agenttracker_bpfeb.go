@@ -13,6 +13,12 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+type AgentTrackerCollectorStats struct {
+	_                         structs.HostLayout
+	RingbufEventsTotal        uint64
+	RingbufReserveFailedTotal uint64
+}
+
 type AgentTrackerExitMeta struct {
 	_            structs.HostLayout
 	Type         uint32
@@ -281,6 +287,7 @@ type AgentTrackerProgramSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type AgentTrackerMapSpecs struct {
 	AgentPids       *ebpf.MapSpec `ebpf:"agent_pids"`
+	CollectorStats  *ebpf.MapSpec `ebpf:"collector_stats"`
 	Events          *ebpf.MapSpec `ebpf:"events"`
 	ExitCtx         *ebpf.MapSpec `ebpf:"exit_ctx"`
 	ExitPathBuf     *ebpf.MapSpec `ebpf:"exit_path_buf"`
@@ -317,6 +324,7 @@ func (o *AgentTrackerObjects) Close() error {
 // It can be passed to LoadAgentTrackerObjects or ebpf.CollectionSpec.LoadAndAssign.
 type AgentTrackerMaps struct {
 	AgentPids       *ebpf.Map `ebpf:"agent_pids"`
+	CollectorStats  *ebpf.Map `ebpf:"collector_stats"`
 	Events          *ebpf.Map `ebpf:"events"`
 	ExitCtx         *ebpf.Map `ebpf:"exit_ctx"`
 	ExitPathBuf     *ebpf.Map `ebpf:"exit_path_buf"`
@@ -329,6 +337,7 @@ type AgentTrackerMaps struct {
 func (m *AgentTrackerMaps) Close() error {
 	return _AgentTrackerClose(
 		m.AgentPids,
+		m.CollectorStats,
 		m.Events,
 		m.ExitCtx,
 		m.ExitPathBuf,

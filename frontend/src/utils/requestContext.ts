@@ -76,6 +76,10 @@ export const buildWebSocketUrl = (path: string, params: Record<string, string | 
   }
   const url = new URL(path, window.location.origin);
   url.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const token = getStoredApiToken();
+  if (token) {
+    url.searchParams.set('key', token);
+  }
   const clusterTarget = getStoredClusterTarget();
   if (clusterTarget && !isLocalClusterTarget(clusterTarget)) {
     url.searchParams.set('cluster', clusterTarget);

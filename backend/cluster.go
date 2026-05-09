@@ -357,7 +357,9 @@ func clusterTargetFromContext(c *gin.Context) string {
 
 func shouldProxyPath(path string) bool {
 	switch {
-	case path == "/ws", path == "/ws/system", path == "/ws/shell":
+	case path == "/ws", path == "/ws/system", path == "/ws/shell", path == "/ws/shell-sessions", path == "/ws/ml-status", path == "/ws/envelopes":
+		return true
+	case path == "/events/recent", path == "/events/graph", path == "/metrics":
 		return true
 	case strings.HasPrefix(path, "/config/"):
 		return true
@@ -374,9 +376,17 @@ func shouldProxyPath(path string) bool {
 
 func isProtectedClusterProxyPath(path string) bool {
 	switch {
+	case path == "/ws", path == "/ws/system", path == "/ws/shell", path == "/ws/shell-sessions", path == "/ws/ml-status", path == "/ws/envelopes":
+		return true
+	case path == "/events/recent", path == "/events/graph", path == "/metrics":
+		return true
 	case strings.HasPrefix(path, "/config/"):
 		return true
 	case strings.HasPrefix(path, "/system/"):
+		return true
+	case strings.HasPrefix(path, "/shell-sessions"):
+		return true
+	case path == "/register", path == "/unregister", path == "/hooks/event":
 		return true
 	case path == "/mcp":
 		return true

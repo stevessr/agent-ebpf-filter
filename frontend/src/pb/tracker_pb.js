@@ -50,6 +50,7 @@ export const pb = $root.pb = (() => {
      * @property {number} SCHED_PROCESS_EXEC=27 SCHED_PROCESS_EXEC value
      * @property {number} SCHED_PROCESS_EXIT=28 SCHED_PROCESS_EXIT value
      * @property {number} WAIT4=29 WAIT4 value
+     * @property {number} SEMANTIC_ALERT=30 SEMANTIC_ALERT value
      */
     pb.EventType = (function() {
         const valuesById = {}, values = Object.create(valuesById);
@@ -83,6 +84,7 @@ export const pb = $root.pb = (() => {
         values[valuesById[27] = "SCHED_PROCESS_EXEC"] = 27;
         values[valuesById[28] = "SCHED_PROCESS_EXIT"] = 28;
         values[valuesById[29] = "WAIT4"] = 29;
+        values[valuesById[30] = "SEMANTIC_ALERT"] = 30;
         return values;
     })();
 
@@ -542,6 +544,8 @@ export const pb = $root.pb = (() => {
          * @property {number|null} [riskScore] RegisterRequest riskScore
          * @property {string|null} [containerId] RegisterRequest containerId
          * @property {string|null} [argvDigest] RegisterRequest argvDigest
+         * @property {string|null} [taskId] RegisterRequest taskId
+         * @property {string|null} [cwd] RegisterRequest cwd
          */
 
         /**
@@ -672,6 +676,22 @@ export const pb = $root.pb = (() => {
         RegisterRequest.prototype.argvDigest = "";
 
         /**
+         * RegisterRequest taskId.
+         * @member {string} taskId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.taskId = "";
+
+        /**
+         * RegisterRequest cwd.
+         * @member {string} cwd
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.cwd = "";
+
+        /**
          * Creates a new RegisterRequest instance using the specified properties.
          * @function create
          * @memberof pb.RegisterRequest
@@ -723,6 +743,10 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 13, wireType 2 =*/106).string(message.containerId);
             if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
                 writer.uint32(/* id 14, wireType 2 =*/114).string(message.argvDigest);
+            if (message.taskId != null && Object.hasOwnProperty.call(message, "taskId"))
+                writer.uint32(/* id 15, wireType 2 =*/122).string(message.taskId);
+            if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
+                writer.uint32(/* id 16, wireType 2 =*/130).string(message.cwd);
             return writer;
         };
 
@@ -819,6 +843,14 @@ export const pb = $root.pb = (() => {
                         message.argvDigest = reader.string();
                         break;
                     }
+                case 15: {
+                        message.taskId = reader.string();
+                        break;
+                    }
+                case 16: {
+                        message.cwd = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7, long);
                     break;
@@ -900,6 +932,12 @@ export const pb = $root.pb = (() => {
             if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
                 if (!$util.isString(message.argvDigest))
                     return "argvDigest: string expected";
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                if (!$util.isString(message.taskId))
+                    return "taskId: string expected";
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                if (!$util.isString(message.cwd))
+                    return "cwd: string expected";
             return null;
         };
 
@@ -947,6 +985,10 @@ export const pb = $root.pb = (() => {
                 message.containerId = String(object.containerId);
             if (object.argvDigest != null)
                 message.argvDigest = String(object.argvDigest);
+            if (object.taskId != null)
+                message.taskId = String(object.taskId);
+            if (object.cwd != null)
+                message.cwd = String(object.cwd);
             return message;
         };
 
@@ -978,6 +1020,8 @@ export const pb = $root.pb = (() => {
                 object.riskScore = 0;
                 object.containerId = "";
                 object.argvDigest = "";
+                object.taskId = "";
+                object.cwd = "";
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -1007,6 +1051,10 @@ export const pb = $root.pb = (() => {
                 object.containerId = message.containerId;
             if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
                 object.argvDigest = message.argvDigest;
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                object.taskId = message.taskId;
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                object.cwd = message.cwd;
             return object;
         };
 
@@ -1783,6 +1831,8 @@ export const pb = $root.pb = (() => {
          * @property {number|null} [riskScore] Event riskScore
          * @property {string|null} [containerId] Event containerId
          * @property {string|null} [argvDigest] Event argvDigest
+         * @property {string|null} [taskId] Event taskId
+         * @property {string|null} [cwd] Event cwd
          */
 
         /**
@@ -2113,6 +2163,22 @@ export const pb = $root.pb = (() => {
         Event.prototype.argvDigest = "";
 
         /**
+         * Event taskId.
+         * @member {string} taskId
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.taskId = "";
+
+        /**
+         * Event cwd.
+         * @member {string} cwd
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.cwd = "";
+
+        /**
          * Creates a new Event instance using the specified properties.
          * @function create
          * @memberof pb.Event
@@ -2214,6 +2280,10 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 38, wireType 2 =*/306).string(message.containerId);
             if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
                 writer.uint32(/* id 39, wireType 2 =*/314).string(message.argvDigest);
+            if (message.taskId != null && Object.hasOwnProperty.call(message, "taskId"))
+                writer.uint32(/* id 40, wireType 2 =*/322).string(message.taskId);
+            if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
+                writer.uint32(/* id 41, wireType 2 =*/330).string(message.cwd);
             return writer;
         };
 
@@ -2410,6 +2480,14 @@ export const pb = $root.pb = (() => {
                         message.argvDigest = reader.string();
                         break;
                     }
+                case 40: {
+                        message.taskId = reader.string();
+                        break;
+                    }
+                case 41: {
+                        message.cwd = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7, long);
                     break;
@@ -2546,6 +2624,7 @@ export const pb = $root.pb = (() => {
                 case 27:
                 case 28:
                 case 29:
+                case 30:
                     break;
                 }
             if (message.behavior != null && message.hasOwnProperty("behavior")) {
@@ -2601,6 +2680,12 @@ export const pb = $root.pb = (() => {
             if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
                 if (!$util.isString(message.argvDigest))
                     return "argvDigest: string expected";
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                if (!$util.isString(message.taskId))
+                    return "taskId: string expected";
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                if (!$util.isString(message.cwd))
+                    return "cwd: string expected";
             return null;
         };
 
@@ -2803,6 +2888,10 @@ export const pb = $root.pb = (() => {
             case 29:
                 message.eventType = 29;
                 break;
+            case "SEMANTIC_ALERT":
+            case 30:
+                message.eventType = 30;
+                break;
             }
             if (object.behavior != null) {
                 if (typeof object.behavior !== "object")
@@ -2855,6 +2944,10 @@ export const pb = $root.pb = (() => {
                 message.containerId = String(object.containerId);
             if (object.argvDigest != null)
                 message.argvDigest = String(object.argvDigest);
+            if (object.taskId != null)
+                message.taskId = String(object.taskId);
+            if (object.cwd != null)
+                message.cwd = String(object.cwd);
             return message;
         };
 
@@ -2927,6 +3020,8 @@ export const pb = $root.pb = (() => {
                 object.riskScore = 0;
                 object.containerId = "";
                 object.argvDigest = "";
+                object.taskId = "";
+                object.cwd = "";
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -3018,6 +3113,10 @@ export const pb = $root.pb = (() => {
                 object.containerId = message.containerId;
             if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
                 object.argvDigest = message.argvDigest;
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                object.taskId = message.taskId;
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                object.cwd = message.cwd;
             return object;
         };
 
@@ -3048,6 +3147,4329 @@ export const pb = $root.pb = (() => {
         };
 
         return Event;
+    })();
+
+    pb.ExecEvent = (function() {
+
+        /**
+         * Properties of an ExecEvent.
+         * @memberof pb
+         * @interface IExecEvent
+         * @property {string|null} [path] ExecEvent path
+         * @property {number|Long|null} [retval] ExecEvent retval
+         * @property {number|Long|null} [durationNs] ExecEvent durationNs
+         * @property {string|null} [extraInfo] ExecEvent extraInfo
+         * @property {string|null} [argvDigest] ExecEvent argvDigest
+         * @property {string|null} [cwd] ExecEvent cwd
+         */
+
+        /**
+         * Constructs a new ExecEvent.
+         * @memberof pb
+         * @classdesc Represents an ExecEvent.
+         * @implements IExecEvent
+         * @constructor
+         * @param {pb.IExecEvent=} [properties] Properties to set
+         */
+        function ExecEvent(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ExecEvent path.
+         * @member {string} path
+         * @memberof pb.ExecEvent
+         * @instance
+         */
+        ExecEvent.prototype.path = "";
+
+        /**
+         * ExecEvent retval.
+         * @member {number|Long} retval
+         * @memberof pb.ExecEvent
+         * @instance
+         */
+        ExecEvent.prototype.retval = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
+
+        /**
+         * ExecEvent durationNs.
+         * @member {number|Long} durationNs
+         * @memberof pb.ExecEvent
+         * @instance
+         */
+        ExecEvent.prototype.durationNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * ExecEvent extraInfo.
+         * @member {string} extraInfo
+         * @memberof pb.ExecEvent
+         * @instance
+         */
+        ExecEvent.prototype.extraInfo = "";
+
+        /**
+         * ExecEvent argvDigest.
+         * @member {string} argvDigest
+         * @memberof pb.ExecEvent
+         * @instance
+         */
+        ExecEvent.prototype.argvDigest = "";
+
+        /**
+         * ExecEvent cwd.
+         * @member {string} cwd
+         * @memberof pb.ExecEvent
+         * @instance
+         */
+        ExecEvent.prototype.cwd = "";
+
+        /**
+         * Creates a new ExecEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.ExecEvent
+         * @static
+         * @param {pb.IExecEvent=} [properties] Properties to set
+         * @returns {pb.ExecEvent} ExecEvent instance
+         */
+        ExecEvent.create = function create(properties) {
+            return new ExecEvent(properties);
+        };
+
+        /**
+         * Encodes the specified ExecEvent message. Does not implicitly {@link pb.ExecEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.ExecEvent
+         * @static
+         * @param {pb.IExecEvent} message ExecEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ExecEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.path != null && Object.hasOwnProperty.call(message, "path"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.path);
+            if (message.retval != null && Object.hasOwnProperty.call(message, "retval"))
+                writer.uint32(/* id 2, wireType 0 =*/16).int64(message.retval);
+            if (message.durationNs != null && Object.hasOwnProperty.call(message, "durationNs"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.durationNs);
+            if (message.extraInfo != null && Object.hasOwnProperty.call(message, "extraInfo"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.extraInfo);
+            if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.argvDigest);
+            if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.cwd);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ExecEvent message, length delimited. Does not implicitly {@link pb.ExecEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.ExecEvent
+         * @static
+         * @param {pb.IExecEvent} message ExecEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ExecEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an ExecEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.ExecEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.ExecEvent} ExecEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ExecEvent.decode = function decode(reader, length, error, long) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ExecEvent();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.path = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.retval = reader.int64();
+                        break;
+                    }
+                case 3: {
+                        message.durationNs = reader.uint64();
+                        break;
+                    }
+                case 4: {
+                        message.extraInfo = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.argvDigest = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.cwd = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7, long);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an ExecEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.ExecEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.ExecEvent} ExecEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ExecEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an ExecEvent message.
+         * @function verify
+         * @memberof pb.ExecEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ExecEvent.verify = function verify(message, long) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.path != null && message.hasOwnProperty("path"))
+                if (!$util.isString(message.path))
+                    return "path: string expected";
+            if (message.retval != null && message.hasOwnProperty("retval"))
+                if (!$util.isInteger(message.retval) && !(message.retval && $util.isInteger(message.retval.low) && $util.isInteger(message.retval.high)))
+                    return "retval: integer|Long expected";
+            if (message.durationNs != null && message.hasOwnProperty("durationNs"))
+                if (!$util.isInteger(message.durationNs) && !(message.durationNs && $util.isInteger(message.durationNs.low) && $util.isInteger(message.durationNs.high)))
+                    return "durationNs: integer|Long expected";
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                if (!$util.isString(message.extraInfo))
+                    return "extraInfo: string expected";
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                if (!$util.isString(message.argvDigest))
+                    return "argvDigest: string expected";
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                if (!$util.isString(message.cwd))
+                    return "cwd: string expected";
+            return null;
+        };
+
+        /**
+         * Creates an ExecEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.ExecEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.ExecEvent} ExecEvent
+         */
+        ExecEvent.fromObject = function fromObject(object, long) {
+            if (object instanceof $root.pb.ExecEvent)
+                return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let message = new $root.pb.ExecEvent();
+            if (object.path != null)
+                message.path = String(object.path);
+            if (object.retval != null)
+                if ($util.Long)
+                    (message.retval = $util.Long.fromValue(object.retval)).unsigned = false;
+                else if (typeof object.retval === "string")
+                    message.retval = parseInt(object.retval, 10);
+                else if (typeof object.retval === "number")
+                    message.retval = object.retval;
+                else if (typeof object.retval === "object")
+                    message.retval = new $util.LongBits(object.retval.low >>> 0, object.retval.high >>> 0).toNumber();
+            if (object.durationNs != null)
+                if ($util.Long)
+                    (message.durationNs = $util.Long.fromValue(object.durationNs)).unsigned = true;
+                else if (typeof object.durationNs === "string")
+                    message.durationNs = parseInt(object.durationNs, 10);
+                else if (typeof object.durationNs === "number")
+                    message.durationNs = object.durationNs;
+                else if (typeof object.durationNs === "object")
+                    message.durationNs = new $util.LongBits(object.durationNs.low >>> 0, object.durationNs.high >>> 0).toNumber(true);
+            if (object.extraInfo != null)
+                message.extraInfo = String(object.extraInfo);
+            if (object.argvDigest != null)
+                message.argvDigest = String(object.argvDigest);
+            if (object.cwd != null)
+                message.cwd = String(object.cwd);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an ExecEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.ExecEvent
+         * @static
+         * @param {pb.ExecEvent} message ExecEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ExecEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.path = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, false);
+                    object.retval = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.retval = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.durationNs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.durationNs = options.longs === String ? "0" : 0;
+                object.extraInfo = "";
+                object.argvDigest = "";
+                object.cwd = "";
+            }
+            if (message.path != null && message.hasOwnProperty("path"))
+                object.path = message.path;
+            if (message.retval != null && message.hasOwnProperty("retval"))
+                if (typeof message.retval === "number")
+                    object.retval = options.longs === String ? String(message.retval) : message.retval;
+                else
+                    object.retval = options.longs === String ? $util.Long.prototype.toString.call(message.retval) : options.longs === Number ? new $util.LongBits(message.retval.low >>> 0, message.retval.high >>> 0).toNumber() : message.retval;
+            if (message.durationNs != null && message.hasOwnProperty("durationNs"))
+                if (typeof message.durationNs === "number")
+                    object.durationNs = options.longs === String ? String(message.durationNs) : message.durationNs;
+                else
+                    object.durationNs = options.longs === String ? $util.Long.prototype.toString.call(message.durationNs) : options.longs === Number ? new $util.LongBits(message.durationNs.low >>> 0, message.durationNs.high >>> 0).toNumber(true) : message.durationNs;
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                object.extraInfo = message.extraInfo;
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                object.argvDigest = message.argvDigest;
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                object.cwd = message.cwd;
+            return object;
+        };
+
+        /**
+         * Converts this ExecEvent to JSON.
+         * @function toJSON
+         * @memberof pb.ExecEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ExecEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ExecEvent
+         * @function getTypeUrl
+         * @memberof pb.ExecEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ExecEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.ExecEvent";
+        };
+
+        return ExecEvent;
+    })();
+
+    pb.FileEvent = (function() {
+
+        /**
+         * Properties of a FileEvent.
+         * @memberof pb
+         * @interface IFileEvent
+         * @property {string|null} [operation] FileEvent operation
+         * @property {string|null} [path] FileEvent path
+         * @property {string|null} [extraPath] FileEvent extraPath
+         * @property {string|null} [mode] FileEvent mode
+         * @property {number|Long|null} [bytes] FileEvent bytes
+         * @property {number|null} [uidArg] FileEvent uidArg
+         * @property {number|null} [gidArg] FileEvent gidArg
+         * @property {number|Long|null} [retval] FileEvent retval
+         * @property {string|null} [extraInfo] FileEvent extraInfo
+         */
+
+        /**
+         * Constructs a new FileEvent.
+         * @memberof pb
+         * @classdesc Represents a FileEvent.
+         * @implements IFileEvent
+         * @constructor
+         * @param {pb.IFileEvent=} [properties] Properties to set
+         */
+        function FileEvent(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * FileEvent operation.
+         * @member {string} operation
+         * @memberof pb.FileEvent
+         * @instance
+         */
+        FileEvent.prototype.operation = "";
+
+        /**
+         * FileEvent path.
+         * @member {string} path
+         * @memberof pb.FileEvent
+         * @instance
+         */
+        FileEvent.prototype.path = "";
+
+        /**
+         * FileEvent extraPath.
+         * @member {string} extraPath
+         * @memberof pb.FileEvent
+         * @instance
+         */
+        FileEvent.prototype.extraPath = "";
+
+        /**
+         * FileEvent mode.
+         * @member {string} mode
+         * @memberof pb.FileEvent
+         * @instance
+         */
+        FileEvent.prototype.mode = "";
+
+        /**
+         * FileEvent bytes.
+         * @member {number|Long} bytes
+         * @memberof pb.FileEvent
+         * @instance
+         */
+        FileEvent.prototype.bytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * FileEvent uidArg.
+         * @member {number} uidArg
+         * @memberof pb.FileEvent
+         * @instance
+         */
+        FileEvent.prototype.uidArg = 0;
+
+        /**
+         * FileEvent gidArg.
+         * @member {number} gidArg
+         * @memberof pb.FileEvent
+         * @instance
+         */
+        FileEvent.prototype.gidArg = 0;
+
+        /**
+         * FileEvent retval.
+         * @member {number|Long} retval
+         * @memberof pb.FileEvent
+         * @instance
+         */
+        FileEvent.prototype.retval = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
+
+        /**
+         * FileEvent extraInfo.
+         * @member {string} extraInfo
+         * @memberof pb.FileEvent
+         * @instance
+         */
+        FileEvent.prototype.extraInfo = "";
+
+        /**
+         * Creates a new FileEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.FileEvent
+         * @static
+         * @param {pb.IFileEvent=} [properties] Properties to set
+         * @returns {pb.FileEvent} FileEvent instance
+         */
+        FileEvent.create = function create(properties) {
+            return new FileEvent(properties);
+        };
+
+        /**
+         * Encodes the specified FileEvent message. Does not implicitly {@link pb.FileEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.FileEvent
+         * @static
+         * @param {pb.IFileEvent} message FileEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        FileEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.operation != null && Object.hasOwnProperty.call(message, "operation"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.operation);
+            if (message.path != null && Object.hasOwnProperty.call(message, "path"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.path);
+            if (message.extraPath != null && Object.hasOwnProperty.call(message, "extraPath"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.extraPath);
+            if (message.mode != null && Object.hasOwnProperty.call(message, "mode"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.mode);
+            if (message.bytes != null && Object.hasOwnProperty.call(message, "bytes"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint64(message.bytes);
+            if (message.uidArg != null && Object.hasOwnProperty.call(message, "uidArg"))
+                writer.uint32(/* id 6, wireType 0 =*/48).uint32(message.uidArg);
+            if (message.gidArg != null && Object.hasOwnProperty.call(message, "gidArg"))
+                writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.gidArg);
+            if (message.retval != null && Object.hasOwnProperty.call(message, "retval"))
+                writer.uint32(/* id 8, wireType 0 =*/64).int64(message.retval);
+            if (message.extraInfo != null && Object.hasOwnProperty.call(message, "extraInfo"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.extraInfo);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified FileEvent message, length delimited. Does not implicitly {@link pb.FileEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.FileEvent
+         * @static
+         * @param {pb.IFileEvent} message FileEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        FileEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a FileEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.FileEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.FileEvent} FileEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        FileEvent.decode = function decode(reader, length, error, long) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.FileEvent();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.operation = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.path = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.extraPath = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.mode = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.bytes = reader.uint64();
+                        break;
+                    }
+                case 6: {
+                        message.uidArg = reader.uint32();
+                        break;
+                    }
+                case 7: {
+                        message.gidArg = reader.uint32();
+                        break;
+                    }
+                case 8: {
+                        message.retval = reader.int64();
+                        break;
+                    }
+                case 9: {
+                        message.extraInfo = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7, long);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a FileEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.FileEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.FileEvent} FileEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        FileEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a FileEvent message.
+         * @function verify
+         * @memberof pb.FileEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        FileEvent.verify = function verify(message, long) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.operation != null && message.hasOwnProperty("operation"))
+                if (!$util.isString(message.operation))
+                    return "operation: string expected";
+            if (message.path != null && message.hasOwnProperty("path"))
+                if (!$util.isString(message.path))
+                    return "path: string expected";
+            if (message.extraPath != null && message.hasOwnProperty("extraPath"))
+                if (!$util.isString(message.extraPath))
+                    return "extraPath: string expected";
+            if (message.mode != null && message.hasOwnProperty("mode"))
+                if (!$util.isString(message.mode))
+                    return "mode: string expected";
+            if (message.bytes != null && message.hasOwnProperty("bytes"))
+                if (!$util.isInteger(message.bytes) && !(message.bytes && $util.isInteger(message.bytes.low) && $util.isInteger(message.bytes.high)))
+                    return "bytes: integer|Long expected";
+            if (message.uidArg != null && message.hasOwnProperty("uidArg"))
+                if (!$util.isInteger(message.uidArg))
+                    return "uidArg: integer expected";
+            if (message.gidArg != null && message.hasOwnProperty("gidArg"))
+                if (!$util.isInteger(message.gidArg))
+                    return "gidArg: integer expected";
+            if (message.retval != null && message.hasOwnProperty("retval"))
+                if (!$util.isInteger(message.retval) && !(message.retval && $util.isInteger(message.retval.low) && $util.isInteger(message.retval.high)))
+                    return "retval: integer|Long expected";
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                if (!$util.isString(message.extraInfo))
+                    return "extraInfo: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a FileEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.FileEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.FileEvent} FileEvent
+         */
+        FileEvent.fromObject = function fromObject(object, long) {
+            if (object instanceof $root.pb.FileEvent)
+                return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let message = new $root.pb.FileEvent();
+            if (object.operation != null)
+                message.operation = String(object.operation);
+            if (object.path != null)
+                message.path = String(object.path);
+            if (object.extraPath != null)
+                message.extraPath = String(object.extraPath);
+            if (object.mode != null)
+                message.mode = String(object.mode);
+            if (object.bytes != null)
+                if ($util.Long)
+                    (message.bytes = $util.Long.fromValue(object.bytes)).unsigned = true;
+                else if (typeof object.bytes === "string")
+                    message.bytes = parseInt(object.bytes, 10);
+                else if (typeof object.bytes === "number")
+                    message.bytes = object.bytes;
+                else if (typeof object.bytes === "object")
+                    message.bytes = new $util.LongBits(object.bytes.low >>> 0, object.bytes.high >>> 0).toNumber(true);
+            if (object.uidArg != null)
+                message.uidArg = object.uidArg >>> 0;
+            if (object.gidArg != null)
+                message.gidArg = object.gidArg >>> 0;
+            if (object.retval != null)
+                if ($util.Long)
+                    (message.retval = $util.Long.fromValue(object.retval)).unsigned = false;
+                else if (typeof object.retval === "string")
+                    message.retval = parseInt(object.retval, 10);
+                else if (typeof object.retval === "number")
+                    message.retval = object.retval;
+                else if (typeof object.retval === "object")
+                    message.retval = new $util.LongBits(object.retval.low >>> 0, object.retval.high >>> 0).toNumber();
+            if (object.extraInfo != null)
+                message.extraInfo = String(object.extraInfo);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a FileEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.FileEvent
+         * @static
+         * @param {pb.FileEvent} message FileEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        FileEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.operation = "";
+                object.path = "";
+                object.extraPath = "";
+                object.mode = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.bytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.bytes = options.longs === String ? "0" : 0;
+                object.uidArg = 0;
+                object.gidArg = 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, false);
+                    object.retval = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.retval = options.longs === String ? "0" : 0;
+                object.extraInfo = "";
+            }
+            if (message.operation != null && message.hasOwnProperty("operation"))
+                object.operation = message.operation;
+            if (message.path != null && message.hasOwnProperty("path"))
+                object.path = message.path;
+            if (message.extraPath != null && message.hasOwnProperty("extraPath"))
+                object.extraPath = message.extraPath;
+            if (message.mode != null && message.hasOwnProperty("mode"))
+                object.mode = message.mode;
+            if (message.bytes != null && message.hasOwnProperty("bytes"))
+                if (typeof message.bytes === "number")
+                    object.bytes = options.longs === String ? String(message.bytes) : message.bytes;
+                else
+                    object.bytes = options.longs === String ? $util.Long.prototype.toString.call(message.bytes) : options.longs === Number ? new $util.LongBits(message.bytes.low >>> 0, message.bytes.high >>> 0).toNumber(true) : message.bytes;
+            if (message.uidArg != null && message.hasOwnProperty("uidArg"))
+                object.uidArg = message.uidArg;
+            if (message.gidArg != null && message.hasOwnProperty("gidArg"))
+                object.gidArg = message.gidArg;
+            if (message.retval != null && message.hasOwnProperty("retval"))
+                if (typeof message.retval === "number")
+                    object.retval = options.longs === String ? String(message.retval) : message.retval;
+                else
+                    object.retval = options.longs === String ? $util.Long.prototype.toString.call(message.retval) : options.longs === Number ? new $util.LongBits(message.retval.low >>> 0, message.retval.high >>> 0).toNumber() : message.retval;
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                object.extraInfo = message.extraInfo;
+            return object;
+        };
+
+        /**
+         * Converts this FileEvent to JSON.
+         * @function toJSON
+         * @memberof pb.FileEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        FileEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for FileEvent
+         * @function getTypeUrl
+         * @memberof pb.FileEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        FileEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.FileEvent";
+        };
+
+        return FileEvent;
+    })();
+
+    pb.NetworkEvent = (function() {
+
+        /**
+         * Properties of a NetworkEvent.
+         * @memberof pb
+         * @interface INetworkEvent
+         * @property {string|null} [endpoint] NetworkEvent endpoint
+         * @property {string|null} [direction] NetworkEvent direction
+         * @property {number|null} [bytes] NetworkEvent bytes
+         * @property {string|null} [family] NetworkEvent family
+         * @property {string|null} [domain] NetworkEvent domain
+         * @property {string|null} [sockType] NetworkEvent sockType
+         * @property {number|null} [protocol] NetworkEvent protocol
+         * @property {number|Long|null} [retval] NetworkEvent retval
+         * @property {string|null} [extraInfo] NetworkEvent extraInfo
+         */
+
+        /**
+         * Constructs a new NetworkEvent.
+         * @memberof pb
+         * @classdesc Represents a NetworkEvent.
+         * @implements INetworkEvent
+         * @constructor
+         * @param {pb.INetworkEvent=} [properties] Properties to set
+         */
+        function NetworkEvent(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * NetworkEvent endpoint.
+         * @member {string} endpoint
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.endpoint = "";
+
+        /**
+         * NetworkEvent direction.
+         * @member {string} direction
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.direction = "";
+
+        /**
+         * NetworkEvent bytes.
+         * @member {number} bytes
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.bytes = 0;
+
+        /**
+         * NetworkEvent family.
+         * @member {string} family
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.family = "";
+
+        /**
+         * NetworkEvent domain.
+         * @member {string} domain
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.domain = "";
+
+        /**
+         * NetworkEvent sockType.
+         * @member {string} sockType
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.sockType = "";
+
+        /**
+         * NetworkEvent protocol.
+         * @member {number} protocol
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.protocol = 0;
+
+        /**
+         * NetworkEvent retval.
+         * @member {number|Long} retval
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.retval = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
+
+        /**
+         * NetworkEvent extraInfo.
+         * @member {string} extraInfo
+         * @memberof pb.NetworkEvent
+         * @instance
+         */
+        NetworkEvent.prototype.extraInfo = "";
+
+        /**
+         * Creates a new NetworkEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.NetworkEvent
+         * @static
+         * @param {pb.INetworkEvent=} [properties] Properties to set
+         * @returns {pb.NetworkEvent} NetworkEvent instance
+         */
+        NetworkEvent.create = function create(properties) {
+            return new NetworkEvent(properties);
+        };
+
+        /**
+         * Encodes the specified NetworkEvent message. Does not implicitly {@link pb.NetworkEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.NetworkEvent
+         * @static
+         * @param {pb.INetworkEvent} message NetworkEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        NetworkEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.endpoint != null && Object.hasOwnProperty.call(message, "endpoint"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.endpoint);
+            if (message.direction != null && Object.hasOwnProperty.call(message, "direction"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.direction);
+            if (message.bytes != null && Object.hasOwnProperty.call(message, "bytes"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint32(message.bytes);
+            if (message.family != null && Object.hasOwnProperty.call(message, "family"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.family);
+            if (message.domain != null && Object.hasOwnProperty.call(message, "domain"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.domain);
+            if (message.sockType != null && Object.hasOwnProperty.call(message, "sockType"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.sockType);
+            if (message.protocol != null && Object.hasOwnProperty.call(message, "protocol"))
+                writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.protocol);
+            if (message.retval != null && Object.hasOwnProperty.call(message, "retval"))
+                writer.uint32(/* id 8, wireType 0 =*/64).int64(message.retval);
+            if (message.extraInfo != null && Object.hasOwnProperty.call(message, "extraInfo"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.extraInfo);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified NetworkEvent message, length delimited. Does not implicitly {@link pb.NetworkEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.NetworkEvent
+         * @static
+         * @param {pb.INetworkEvent} message NetworkEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        NetworkEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a NetworkEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.NetworkEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.NetworkEvent} NetworkEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        NetworkEvent.decode = function decode(reader, length, error, long) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.NetworkEvent();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.endpoint = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.direction = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.bytes = reader.uint32();
+                        break;
+                    }
+                case 4: {
+                        message.family = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.domain = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.sockType = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.protocol = reader.uint32();
+                        break;
+                    }
+                case 8: {
+                        message.retval = reader.int64();
+                        break;
+                    }
+                case 9: {
+                        message.extraInfo = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7, long);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a NetworkEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.NetworkEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.NetworkEvent} NetworkEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        NetworkEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a NetworkEvent message.
+         * @function verify
+         * @memberof pb.NetworkEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        NetworkEvent.verify = function verify(message, long) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.endpoint != null && message.hasOwnProperty("endpoint"))
+                if (!$util.isString(message.endpoint))
+                    return "endpoint: string expected";
+            if (message.direction != null && message.hasOwnProperty("direction"))
+                if (!$util.isString(message.direction))
+                    return "direction: string expected";
+            if (message.bytes != null && message.hasOwnProperty("bytes"))
+                if (!$util.isInteger(message.bytes))
+                    return "bytes: integer expected";
+            if (message.family != null && message.hasOwnProperty("family"))
+                if (!$util.isString(message.family))
+                    return "family: string expected";
+            if (message.domain != null && message.hasOwnProperty("domain"))
+                if (!$util.isString(message.domain))
+                    return "domain: string expected";
+            if (message.sockType != null && message.hasOwnProperty("sockType"))
+                if (!$util.isString(message.sockType))
+                    return "sockType: string expected";
+            if (message.protocol != null && message.hasOwnProperty("protocol"))
+                if (!$util.isInteger(message.protocol))
+                    return "protocol: integer expected";
+            if (message.retval != null && message.hasOwnProperty("retval"))
+                if (!$util.isInteger(message.retval) && !(message.retval && $util.isInteger(message.retval.low) && $util.isInteger(message.retval.high)))
+                    return "retval: integer|Long expected";
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                if (!$util.isString(message.extraInfo))
+                    return "extraInfo: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a NetworkEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.NetworkEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.NetworkEvent} NetworkEvent
+         */
+        NetworkEvent.fromObject = function fromObject(object, long) {
+            if (object instanceof $root.pb.NetworkEvent)
+                return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let message = new $root.pb.NetworkEvent();
+            if (object.endpoint != null)
+                message.endpoint = String(object.endpoint);
+            if (object.direction != null)
+                message.direction = String(object.direction);
+            if (object.bytes != null)
+                message.bytes = object.bytes >>> 0;
+            if (object.family != null)
+                message.family = String(object.family);
+            if (object.domain != null)
+                message.domain = String(object.domain);
+            if (object.sockType != null)
+                message.sockType = String(object.sockType);
+            if (object.protocol != null)
+                message.protocol = object.protocol >>> 0;
+            if (object.retval != null)
+                if ($util.Long)
+                    (message.retval = $util.Long.fromValue(object.retval)).unsigned = false;
+                else if (typeof object.retval === "string")
+                    message.retval = parseInt(object.retval, 10);
+                else if (typeof object.retval === "number")
+                    message.retval = object.retval;
+                else if (typeof object.retval === "object")
+                    message.retval = new $util.LongBits(object.retval.low >>> 0, object.retval.high >>> 0).toNumber();
+            if (object.extraInfo != null)
+                message.extraInfo = String(object.extraInfo);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a NetworkEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.NetworkEvent
+         * @static
+         * @param {pb.NetworkEvent} message NetworkEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        NetworkEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.endpoint = "";
+                object.direction = "";
+                object.bytes = 0;
+                object.family = "";
+                object.domain = "";
+                object.sockType = "";
+                object.protocol = 0;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, false);
+                    object.retval = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.retval = options.longs === String ? "0" : 0;
+                object.extraInfo = "";
+            }
+            if (message.endpoint != null && message.hasOwnProperty("endpoint"))
+                object.endpoint = message.endpoint;
+            if (message.direction != null && message.hasOwnProperty("direction"))
+                object.direction = message.direction;
+            if (message.bytes != null && message.hasOwnProperty("bytes"))
+                object.bytes = message.bytes;
+            if (message.family != null && message.hasOwnProperty("family"))
+                object.family = message.family;
+            if (message.domain != null && message.hasOwnProperty("domain"))
+                object.domain = message.domain;
+            if (message.sockType != null && message.hasOwnProperty("sockType"))
+                object.sockType = message.sockType;
+            if (message.protocol != null && message.hasOwnProperty("protocol"))
+                object.protocol = message.protocol;
+            if (message.retval != null && message.hasOwnProperty("retval"))
+                if (typeof message.retval === "number")
+                    object.retval = options.longs === String ? String(message.retval) : message.retval;
+                else
+                    object.retval = options.longs === String ? $util.Long.prototype.toString.call(message.retval) : options.longs === Number ? new $util.LongBits(message.retval.low >>> 0, message.retval.high >>> 0).toNumber() : message.retval;
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                object.extraInfo = message.extraInfo;
+            return object;
+        };
+
+        /**
+         * Converts this NetworkEvent to JSON.
+         * @function toJSON
+         * @memberof pb.NetworkEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        NetworkEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for NetworkEvent
+         * @function getTypeUrl
+         * @memberof pb.NetworkEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        NetworkEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.NetworkEvent";
+        };
+
+        return NetworkEvent;
+    })();
+
+    pb.ProcessEvent = (function() {
+
+        /**
+         * Properties of a ProcessEvent.
+         * @memberof pb
+         * @interface IProcessEvent
+         * @property {string|null} [phase] ProcessEvent phase
+         * @property {number|null} [parentPid] ProcessEvent parentPid
+         * @property {number|null} [childPid] ProcessEvent childPid
+         * @property {number|null} [oldPid] ProcessEvent oldPid
+         * @property {number|null} [targetPid] ProcessEvent targetPid
+         * @property {number|null} [exitStatus] ProcessEvent exitStatus
+         * @property {string|null} [extraInfo] ProcessEvent extraInfo
+         */
+
+        /**
+         * Constructs a new ProcessEvent.
+         * @memberof pb
+         * @classdesc Represents a ProcessEvent.
+         * @implements IProcessEvent
+         * @constructor
+         * @param {pb.IProcessEvent=} [properties] Properties to set
+         */
+        function ProcessEvent(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ProcessEvent phase.
+         * @member {string} phase
+         * @memberof pb.ProcessEvent
+         * @instance
+         */
+        ProcessEvent.prototype.phase = "";
+
+        /**
+         * ProcessEvent parentPid.
+         * @member {number} parentPid
+         * @memberof pb.ProcessEvent
+         * @instance
+         */
+        ProcessEvent.prototype.parentPid = 0;
+
+        /**
+         * ProcessEvent childPid.
+         * @member {number} childPid
+         * @memberof pb.ProcessEvent
+         * @instance
+         */
+        ProcessEvent.prototype.childPid = 0;
+
+        /**
+         * ProcessEvent oldPid.
+         * @member {number} oldPid
+         * @memberof pb.ProcessEvent
+         * @instance
+         */
+        ProcessEvent.prototype.oldPid = 0;
+
+        /**
+         * ProcessEvent targetPid.
+         * @member {number} targetPid
+         * @memberof pb.ProcessEvent
+         * @instance
+         */
+        ProcessEvent.prototype.targetPid = 0;
+
+        /**
+         * ProcessEvent exitStatus.
+         * @member {number} exitStatus
+         * @memberof pb.ProcessEvent
+         * @instance
+         */
+        ProcessEvent.prototype.exitStatus = 0;
+
+        /**
+         * ProcessEvent extraInfo.
+         * @member {string} extraInfo
+         * @memberof pb.ProcessEvent
+         * @instance
+         */
+        ProcessEvent.prototype.extraInfo = "";
+
+        /**
+         * Creates a new ProcessEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.ProcessEvent
+         * @static
+         * @param {pb.IProcessEvent=} [properties] Properties to set
+         * @returns {pb.ProcessEvent} ProcessEvent instance
+         */
+        ProcessEvent.create = function create(properties) {
+            return new ProcessEvent(properties);
+        };
+
+        /**
+         * Encodes the specified ProcessEvent message. Does not implicitly {@link pb.ProcessEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.ProcessEvent
+         * @static
+         * @param {pb.IProcessEvent} message ProcessEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ProcessEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.phase != null && Object.hasOwnProperty.call(message, "phase"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.phase);
+            if (message.parentPid != null && Object.hasOwnProperty.call(message, "parentPid"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint32(message.parentPid);
+            if (message.childPid != null && Object.hasOwnProperty.call(message, "childPid"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint32(message.childPid);
+            if (message.oldPid != null && Object.hasOwnProperty.call(message, "oldPid"))
+                writer.uint32(/* id 4, wireType 0 =*/32).uint32(message.oldPid);
+            if (message.targetPid != null && Object.hasOwnProperty.call(message, "targetPid"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint32(message.targetPid);
+            if (message.exitStatus != null && Object.hasOwnProperty.call(message, "exitStatus"))
+                writer.uint32(/* id 6, wireType 0 =*/48).int32(message.exitStatus);
+            if (message.extraInfo != null && Object.hasOwnProperty.call(message, "extraInfo"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.extraInfo);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ProcessEvent message, length delimited. Does not implicitly {@link pb.ProcessEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.ProcessEvent
+         * @static
+         * @param {pb.IProcessEvent} message ProcessEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ProcessEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ProcessEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.ProcessEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.ProcessEvent} ProcessEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ProcessEvent.decode = function decode(reader, length, error, long) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ProcessEvent();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.phase = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.parentPid = reader.uint32();
+                        break;
+                    }
+                case 3: {
+                        message.childPid = reader.uint32();
+                        break;
+                    }
+                case 4: {
+                        message.oldPid = reader.uint32();
+                        break;
+                    }
+                case 5: {
+                        message.targetPid = reader.uint32();
+                        break;
+                    }
+                case 6: {
+                        message.exitStatus = reader.int32();
+                        break;
+                    }
+                case 7: {
+                        message.extraInfo = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7, long);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ProcessEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.ProcessEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.ProcessEvent} ProcessEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ProcessEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ProcessEvent message.
+         * @function verify
+         * @memberof pb.ProcessEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ProcessEvent.verify = function verify(message, long) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.phase != null && message.hasOwnProperty("phase"))
+                if (!$util.isString(message.phase))
+                    return "phase: string expected";
+            if (message.parentPid != null && message.hasOwnProperty("parentPid"))
+                if (!$util.isInteger(message.parentPid))
+                    return "parentPid: integer expected";
+            if (message.childPid != null && message.hasOwnProperty("childPid"))
+                if (!$util.isInteger(message.childPid))
+                    return "childPid: integer expected";
+            if (message.oldPid != null && message.hasOwnProperty("oldPid"))
+                if (!$util.isInteger(message.oldPid))
+                    return "oldPid: integer expected";
+            if (message.targetPid != null && message.hasOwnProperty("targetPid"))
+                if (!$util.isInteger(message.targetPid))
+                    return "targetPid: integer expected";
+            if (message.exitStatus != null && message.hasOwnProperty("exitStatus"))
+                if (!$util.isInteger(message.exitStatus))
+                    return "exitStatus: integer expected";
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                if (!$util.isString(message.extraInfo))
+                    return "extraInfo: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a ProcessEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.ProcessEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.ProcessEvent} ProcessEvent
+         */
+        ProcessEvent.fromObject = function fromObject(object, long) {
+            if (object instanceof $root.pb.ProcessEvent)
+                return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let message = new $root.pb.ProcessEvent();
+            if (object.phase != null)
+                message.phase = String(object.phase);
+            if (object.parentPid != null)
+                message.parentPid = object.parentPid >>> 0;
+            if (object.childPid != null)
+                message.childPid = object.childPid >>> 0;
+            if (object.oldPid != null)
+                message.oldPid = object.oldPid >>> 0;
+            if (object.targetPid != null)
+                message.targetPid = object.targetPid >>> 0;
+            if (object.exitStatus != null)
+                message.exitStatus = object.exitStatus | 0;
+            if (object.extraInfo != null)
+                message.extraInfo = String(object.extraInfo);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ProcessEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.ProcessEvent
+         * @static
+         * @param {pb.ProcessEvent} message ProcessEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ProcessEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.phase = "";
+                object.parentPid = 0;
+                object.childPid = 0;
+                object.oldPid = 0;
+                object.targetPid = 0;
+                object.exitStatus = 0;
+                object.extraInfo = "";
+            }
+            if (message.phase != null && message.hasOwnProperty("phase"))
+                object.phase = message.phase;
+            if (message.parentPid != null && message.hasOwnProperty("parentPid"))
+                object.parentPid = message.parentPid;
+            if (message.childPid != null && message.hasOwnProperty("childPid"))
+                object.childPid = message.childPid;
+            if (message.oldPid != null && message.hasOwnProperty("oldPid"))
+                object.oldPid = message.oldPid;
+            if (message.targetPid != null && message.hasOwnProperty("targetPid"))
+                object.targetPid = message.targetPid;
+            if (message.exitStatus != null && message.hasOwnProperty("exitStatus"))
+                object.exitStatus = message.exitStatus;
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                object.extraInfo = message.extraInfo;
+            return object;
+        };
+
+        /**
+         * Converts this ProcessEvent to JSON.
+         * @function toJSON
+         * @memberof pb.ProcessEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ProcessEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ProcessEvent
+         * @function getTypeUrl
+         * @memberof pb.ProcessEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ProcessEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.ProcessEvent";
+        };
+
+        return ProcessEvent;
+    })();
+
+    pb.PolicyEvent = (function() {
+
+        /**
+         * Properties of a PolicyEvent.
+         * @memberof pb
+         * @interface IPolicyEvent
+         * @property {string|null} [decision] PolicyEvent decision
+         * @property {number|null} [riskScore] PolicyEvent riskScore
+         * @property {string|null} [reason] PolicyEvent reason
+         * @property {string|null} [relatedPath] PolicyEvent relatedPath
+         * @property {string|null} [relatedEndpoint] PolicyEvent relatedEndpoint
+         */
+
+        /**
+         * Constructs a new PolicyEvent.
+         * @memberof pb
+         * @classdesc Represents a PolicyEvent.
+         * @implements IPolicyEvent
+         * @constructor
+         * @param {pb.IPolicyEvent=} [properties] Properties to set
+         */
+        function PolicyEvent(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * PolicyEvent decision.
+         * @member {string} decision
+         * @memberof pb.PolicyEvent
+         * @instance
+         */
+        PolicyEvent.prototype.decision = "";
+
+        /**
+         * PolicyEvent riskScore.
+         * @member {number} riskScore
+         * @memberof pb.PolicyEvent
+         * @instance
+         */
+        PolicyEvent.prototype.riskScore = 0;
+
+        /**
+         * PolicyEvent reason.
+         * @member {string} reason
+         * @memberof pb.PolicyEvent
+         * @instance
+         */
+        PolicyEvent.prototype.reason = "";
+
+        /**
+         * PolicyEvent relatedPath.
+         * @member {string} relatedPath
+         * @memberof pb.PolicyEvent
+         * @instance
+         */
+        PolicyEvent.prototype.relatedPath = "";
+
+        /**
+         * PolicyEvent relatedEndpoint.
+         * @member {string} relatedEndpoint
+         * @memberof pb.PolicyEvent
+         * @instance
+         */
+        PolicyEvent.prototype.relatedEndpoint = "";
+
+        /**
+         * Creates a new PolicyEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.PolicyEvent
+         * @static
+         * @param {pb.IPolicyEvent=} [properties] Properties to set
+         * @returns {pb.PolicyEvent} PolicyEvent instance
+         */
+        PolicyEvent.create = function create(properties) {
+            return new PolicyEvent(properties);
+        };
+
+        /**
+         * Encodes the specified PolicyEvent message. Does not implicitly {@link pb.PolicyEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.PolicyEvent
+         * @static
+         * @param {pb.IPolicyEvent} message PolicyEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        PolicyEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.decision != null && Object.hasOwnProperty.call(message, "decision"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.decision);
+            if (message.riskScore != null && Object.hasOwnProperty.call(message, "riskScore"))
+                writer.uint32(/* id 2, wireType 1 =*/17).double(message.riskScore);
+            if (message.reason != null && Object.hasOwnProperty.call(message, "reason"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.reason);
+            if (message.relatedPath != null && Object.hasOwnProperty.call(message, "relatedPath"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.relatedPath);
+            if (message.relatedEndpoint != null && Object.hasOwnProperty.call(message, "relatedEndpoint"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.relatedEndpoint);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified PolicyEvent message, length delimited. Does not implicitly {@link pb.PolicyEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.PolicyEvent
+         * @static
+         * @param {pb.IPolicyEvent} message PolicyEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        PolicyEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a PolicyEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.PolicyEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.PolicyEvent} PolicyEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        PolicyEvent.decode = function decode(reader, length, error, long) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.PolicyEvent();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.decision = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.riskScore = reader.double();
+                        break;
+                    }
+                case 3: {
+                        message.reason = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.relatedPath = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.relatedEndpoint = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7, long);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a PolicyEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.PolicyEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.PolicyEvent} PolicyEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        PolicyEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a PolicyEvent message.
+         * @function verify
+         * @memberof pb.PolicyEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        PolicyEvent.verify = function verify(message, long) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                if (!$util.isString(message.decision))
+                    return "decision: string expected";
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                if (typeof message.riskScore !== "number")
+                    return "riskScore: number expected";
+            if (message.reason != null && message.hasOwnProperty("reason"))
+                if (!$util.isString(message.reason))
+                    return "reason: string expected";
+            if (message.relatedPath != null && message.hasOwnProperty("relatedPath"))
+                if (!$util.isString(message.relatedPath))
+                    return "relatedPath: string expected";
+            if (message.relatedEndpoint != null && message.hasOwnProperty("relatedEndpoint"))
+                if (!$util.isString(message.relatedEndpoint))
+                    return "relatedEndpoint: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a PolicyEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.PolicyEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.PolicyEvent} PolicyEvent
+         */
+        PolicyEvent.fromObject = function fromObject(object, long) {
+            if (object instanceof $root.pb.PolicyEvent)
+                return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let message = new $root.pb.PolicyEvent();
+            if (object.decision != null)
+                message.decision = String(object.decision);
+            if (object.riskScore != null)
+                message.riskScore = Number(object.riskScore);
+            if (object.reason != null)
+                message.reason = String(object.reason);
+            if (object.relatedPath != null)
+                message.relatedPath = String(object.relatedPath);
+            if (object.relatedEndpoint != null)
+                message.relatedEndpoint = String(object.relatedEndpoint);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a PolicyEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.PolicyEvent
+         * @static
+         * @param {pb.PolicyEvent} message PolicyEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        PolicyEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.decision = "";
+                object.riskScore = 0;
+                object.reason = "";
+                object.relatedPath = "";
+                object.relatedEndpoint = "";
+            }
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                object.decision = message.decision;
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                object.riskScore = options.json && !isFinite(message.riskScore) ? String(message.riskScore) : message.riskScore;
+            if (message.reason != null && message.hasOwnProperty("reason"))
+                object.reason = message.reason;
+            if (message.relatedPath != null && message.hasOwnProperty("relatedPath"))
+                object.relatedPath = message.relatedPath;
+            if (message.relatedEndpoint != null && message.hasOwnProperty("relatedEndpoint"))
+                object.relatedEndpoint = message.relatedEndpoint;
+            return object;
+        };
+
+        /**
+         * Converts this PolicyEvent to JSON.
+         * @function toJSON
+         * @memberof pb.PolicyEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        PolicyEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for PolicyEvent
+         * @function getTypeUrl
+         * @memberof pb.PolicyEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        PolicyEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.PolicyEvent";
+        };
+
+        return PolicyEvent;
+    })();
+
+    pb.WrapperEvent = (function() {
+
+        /**
+         * Properties of a WrapperEvent.
+         * @memberof pb
+         * @interface IWrapperEvent
+         * @property {string|null} [commandLine] WrapperEvent commandLine
+         * @property {Array.<string>|null} [args] WrapperEvent args
+         * @property {pb.IBehaviorClassification|null} [behavior] WrapperEvent behavior
+         * @property {string|null} [extraInfo] WrapperEvent extraInfo
+         * @property {string|null} [toolName] WrapperEvent toolName
+         */
+
+        /**
+         * Constructs a new WrapperEvent.
+         * @memberof pb
+         * @classdesc Represents a WrapperEvent.
+         * @implements IWrapperEvent
+         * @constructor
+         * @param {pb.IWrapperEvent=} [properties] Properties to set
+         */
+        function WrapperEvent(properties) {
+            this.args = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * WrapperEvent commandLine.
+         * @member {string} commandLine
+         * @memberof pb.WrapperEvent
+         * @instance
+         */
+        WrapperEvent.prototype.commandLine = "";
+
+        /**
+         * WrapperEvent args.
+         * @member {Array.<string>} args
+         * @memberof pb.WrapperEvent
+         * @instance
+         */
+        WrapperEvent.prototype.args = $util.emptyArray;
+
+        /**
+         * WrapperEvent behavior.
+         * @member {pb.IBehaviorClassification|null|undefined} behavior
+         * @memberof pb.WrapperEvent
+         * @instance
+         */
+        WrapperEvent.prototype.behavior = null;
+
+        /**
+         * WrapperEvent extraInfo.
+         * @member {string} extraInfo
+         * @memberof pb.WrapperEvent
+         * @instance
+         */
+        WrapperEvent.prototype.extraInfo = "";
+
+        /**
+         * WrapperEvent toolName.
+         * @member {string} toolName
+         * @memberof pb.WrapperEvent
+         * @instance
+         */
+        WrapperEvent.prototype.toolName = "";
+
+        /**
+         * Creates a new WrapperEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.WrapperEvent
+         * @static
+         * @param {pb.IWrapperEvent=} [properties] Properties to set
+         * @returns {pb.WrapperEvent} WrapperEvent instance
+         */
+        WrapperEvent.create = function create(properties) {
+            return new WrapperEvent(properties);
+        };
+
+        /**
+         * Encodes the specified WrapperEvent message. Does not implicitly {@link pb.WrapperEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.WrapperEvent
+         * @static
+         * @param {pb.IWrapperEvent} message WrapperEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WrapperEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.commandLine != null && Object.hasOwnProperty.call(message, "commandLine"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.commandLine);
+            if (message.args != null && message.args.length)
+                for (let i = 0; i < message.args.length; ++i)
+                    writer.uint32(/* id 2, wireType 2 =*/18).string(message.args[i]);
+            if (message.behavior != null && Object.hasOwnProperty.call(message, "behavior"))
+                $root.pb.BehaviorClassification.encode(message.behavior, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            if (message.extraInfo != null && Object.hasOwnProperty.call(message, "extraInfo"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.extraInfo);
+            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.toolName);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified WrapperEvent message, length delimited. Does not implicitly {@link pb.WrapperEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.WrapperEvent
+         * @static
+         * @param {pb.IWrapperEvent} message WrapperEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WrapperEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a WrapperEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.WrapperEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.WrapperEvent} WrapperEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WrapperEvent.decode = function decode(reader, length, error, long) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperEvent();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.commandLine = reader.string();
+                        break;
+                    }
+                case 2: {
+                        if (!(message.args && message.args.length))
+                            message.args = [];
+                        message.args.push(reader.string());
+                        break;
+                    }
+                case 3: {
+                        message.behavior = $root.pb.BehaviorClassification.decode(reader, reader.uint32(), undefined, long + 1);
+                        break;
+                    }
+                case 4: {
+                        message.extraInfo = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.toolName = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7, long);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a WrapperEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.WrapperEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.WrapperEvent} WrapperEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WrapperEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a WrapperEvent message.
+         * @function verify
+         * @memberof pb.WrapperEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        WrapperEvent.verify = function verify(message, long) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.commandLine != null && message.hasOwnProperty("commandLine"))
+                if (!$util.isString(message.commandLine))
+                    return "commandLine: string expected";
+            if (message.args != null && message.hasOwnProperty("args")) {
+                if (!Array.isArray(message.args))
+                    return "args: array expected";
+                for (let i = 0; i < message.args.length; ++i)
+                    if (!$util.isString(message.args[i]))
+                        return "args: string[] expected";
+            }
+            if (message.behavior != null && message.hasOwnProperty("behavior")) {
+                let error = $root.pb.BehaviorClassification.verify(message.behavior, long + 1);
+                if (error)
+                    return "behavior." + error;
+            }
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                if (!$util.isString(message.extraInfo))
+                    return "extraInfo: string expected";
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                if (!$util.isString(message.toolName))
+                    return "toolName: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a WrapperEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.WrapperEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.WrapperEvent} WrapperEvent
+         */
+        WrapperEvent.fromObject = function fromObject(object, long) {
+            if (object instanceof $root.pb.WrapperEvent)
+                return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let message = new $root.pb.WrapperEvent();
+            if (object.commandLine != null)
+                message.commandLine = String(object.commandLine);
+            if (object.args) {
+                if (!Array.isArray(object.args))
+                    throw TypeError(".pb.WrapperEvent.args: array expected");
+                message.args = [];
+                for (let i = 0; i < object.args.length; ++i)
+                    message.args[i] = String(object.args[i]);
+            }
+            if (object.behavior != null) {
+                if (typeof object.behavior !== "object")
+                    throw TypeError(".pb.WrapperEvent.behavior: object expected");
+                message.behavior = $root.pb.BehaviorClassification.fromObject(object.behavior, long + 1);
+            }
+            if (object.extraInfo != null)
+                message.extraInfo = String(object.extraInfo);
+            if (object.toolName != null)
+                message.toolName = String(object.toolName);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a WrapperEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.WrapperEvent
+         * @static
+         * @param {pb.WrapperEvent} message WrapperEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        WrapperEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults)
+                object.args = [];
+            if (options.defaults) {
+                object.commandLine = "";
+                object.behavior = null;
+                object.extraInfo = "";
+                object.toolName = "";
+            }
+            if (message.commandLine != null && message.hasOwnProperty("commandLine"))
+                object.commandLine = message.commandLine;
+            if (message.args && message.args.length) {
+                object.args = [];
+                for (let j = 0; j < message.args.length; ++j)
+                    object.args[j] = message.args[j];
+            }
+            if (message.behavior != null && message.hasOwnProperty("behavior"))
+                object.behavior = $root.pb.BehaviorClassification.toObject(message.behavior, options);
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                object.extraInfo = message.extraInfo;
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                object.toolName = message.toolName;
+            return object;
+        };
+
+        /**
+         * Converts this WrapperEvent to JSON.
+         * @function toJSON
+         * @memberof pb.WrapperEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        WrapperEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for WrapperEvent
+         * @function getTypeUrl
+         * @memberof pb.WrapperEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        WrapperEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.WrapperEvent";
+        };
+
+        return WrapperEvent;
+    })();
+
+    pb.HookEvent = (function() {
+
+        /**
+         * Properties of a HookEvent.
+         * @memberof pb
+         * @interface IHookEvent
+         * @property {string|null} [hookName] HookEvent hookName
+         * @property {string|null} [toolName] HookEvent toolName
+         * @property {string|null} [targetPath] HookEvent targetPath
+         * @property {string|null} [extraInfo] HookEvent extraInfo
+         */
+
+        /**
+         * Constructs a new HookEvent.
+         * @memberof pb
+         * @classdesc Represents a HookEvent.
+         * @implements IHookEvent
+         * @constructor
+         * @param {pb.IHookEvent=} [properties] Properties to set
+         */
+        function HookEvent(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HookEvent hookName.
+         * @member {string} hookName
+         * @memberof pb.HookEvent
+         * @instance
+         */
+        HookEvent.prototype.hookName = "";
+
+        /**
+         * HookEvent toolName.
+         * @member {string} toolName
+         * @memberof pb.HookEvent
+         * @instance
+         */
+        HookEvent.prototype.toolName = "";
+
+        /**
+         * HookEvent targetPath.
+         * @member {string} targetPath
+         * @memberof pb.HookEvent
+         * @instance
+         */
+        HookEvent.prototype.targetPath = "";
+
+        /**
+         * HookEvent extraInfo.
+         * @member {string} extraInfo
+         * @memberof pb.HookEvent
+         * @instance
+         */
+        HookEvent.prototype.extraInfo = "";
+
+        /**
+         * Creates a new HookEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.HookEvent
+         * @static
+         * @param {pb.IHookEvent=} [properties] Properties to set
+         * @returns {pb.HookEvent} HookEvent instance
+         */
+        HookEvent.create = function create(properties) {
+            return new HookEvent(properties);
+        };
+
+        /**
+         * Encodes the specified HookEvent message. Does not implicitly {@link pb.HookEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.HookEvent
+         * @static
+         * @param {pb.IHookEvent} message HookEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HookEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.hookName != null && Object.hasOwnProperty.call(message, "hookName"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.hookName);
+            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.toolName);
+            if (message.targetPath != null && Object.hasOwnProperty.call(message, "targetPath"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.targetPath);
+            if (message.extraInfo != null && Object.hasOwnProperty.call(message, "extraInfo"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.extraInfo);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HookEvent message, length delimited. Does not implicitly {@link pb.HookEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.HookEvent
+         * @static
+         * @param {pb.IHookEvent} message HookEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HookEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HookEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.HookEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.HookEvent} HookEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HookEvent.decode = function decode(reader, length, error, long) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.HookEvent();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.hookName = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.toolName = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.targetPath = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.extraInfo = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7, long);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a HookEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.HookEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.HookEvent} HookEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HookEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a HookEvent message.
+         * @function verify
+         * @memberof pb.HookEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        HookEvent.verify = function verify(message, long) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.hookName != null && message.hasOwnProperty("hookName"))
+                if (!$util.isString(message.hookName))
+                    return "hookName: string expected";
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                if (!$util.isString(message.toolName))
+                    return "toolName: string expected";
+            if (message.targetPath != null && message.hasOwnProperty("targetPath"))
+                if (!$util.isString(message.targetPath))
+                    return "targetPath: string expected";
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                if (!$util.isString(message.extraInfo))
+                    return "extraInfo: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a HookEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.HookEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.HookEvent} HookEvent
+         */
+        HookEvent.fromObject = function fromObject(object, long) {
+            if (object instanceof $root.pb.HookEvent)
+                return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let message = new $root.pb.HookEvent();
+            if (object.hookName != null)
+                message.hookName = String(object.hookName);
+            if (object.toolName != null)
+                message.toolName = String(object.toolName);
+            if (object.targetPath != null)
+                message.targetPath = String(object.targetPath);
+            if (object.extraInfo != null)
+                message.extraInfo = String(object.extraInfo);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a HookEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.HookEvent
+         * @static
+         * @param {pb.HookEvent} message HookEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        HookEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.hookName = "";
+                object.toolName = "";
+                object.targetPath = "";
+                object.extraInfo = "";
+            }
+            if (message.hookName != null && message.hasOwnProperty("hookName"))
+                object.hookName = message.hookName;
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                object.toolName = message.toolName;
+            if (message.targetPath != null && message.hasOwnProperty("targetPath"))
+                object.targetPath = message.targetPath;
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                object.extraInfo = message.extraInfo;
+            return object;
+        };
+
+        /**
+         * Converts this HookEvent to JSON.
+         * @function toJSON
+         * @memberof pb.HookEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        HookEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for HookEvent
+         * @function getTypeUrl
+         * @memberof pb.HookEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HookEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.HookEvent";
+        };
+
+        return HookEvent;
+    })();
+
+    pb.McpEvent = (function() {
+
+        /**
+         * Properties of a McpEvent.
+         * @memberof pb
+         * @interface IMcpEvent
+         * @property {string|null} [toolName] McpEvent toolName
+         * @property {string|null} [serverName] McpEvent serverName
+         * @property {string|null} [endpoint] McpEvent endpoint
+         * @property {string|null} [requestId] McpEvent requestId
+         * @property {string|null} [extraInfo] McpEvent extraInfo
+         */
+
+        /**
+         * Constructs a new McpEvent.
+         * @memberof pb
+         * @classdesc Represents a McpEvent.
+         * @implements IMcpEvent
+         * @constructor
+         * @param {pb.IMcpEvent=} [properties] Properties to set
+         */
+        function McpEvent(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * McpEvent toolName.
+         * @member {string} toolName
+         * @memberof pb.McpEvent
+         * @instance
+         */
+        McpEvent.prototype.toolName = "";
+
+        /**
+         * McpEvent serverName.
+         * @member {string} serverName
+         * @memberof pb.McpEvent
+         * @instance
+         */
+        McpEvent.prototype.serverName = "";
+
+        /**
+         * McpEvent endpoint.
+         * @member {string} endpoint
+         * @memberof pb.McpEvent
+         * @instance
+         */
+        McpEvent.prototype.endpoint = "";
+
+        /**
+         * McpEvent requestId.
+         * @member {string} requestId
+         * @memberof pb.McpEvent
+         * @instance
+         */
+        McpEvent.prototype.requestId = "";
+
+        /**
+         * McpEvent extraInfo.
+         * @member {string} extraInfo
+         * @memberof pb.McpEvent
+         * @instance
+         */
+        McpEvent.prototype.extraInfo = "";
+
+        /**
+         * Creates a new McpEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.McpEvent
+         * @static
+         * @param {pb.IMcpEvent=} [properties] Properties to set
+         * @returns {pb.McpEvent} McpEvent instance
+         */
+        McpEvent.create = function create(properties) {
+            return new McpEvent(properties);
+        };
+
+        /**
+         * Encodes the specified McpEvent message. Does not implicitly {@link pb.McpEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.McpEvent
+         * @static
+         * @param {pb.IMcpEvent} message McpEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        McpEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.toolName);
+            if (message.serverName != null && Object.hasOwnProperty.call(message, "serverName"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.serverName);
+            if (message.endpoint != null && Object.hasOwnProperty.call(message, "endpoint"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.endpoint);
+            if (message.requestId != null && Object.hasOwnProperty.call(message, "requestId"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.requestId);
+            if (message.extraInfo != null && Object.hasOwnProperty.call(message, "extraInfo"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.extraInfo);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified McpEvent message, length delimited. Does not implicitly {@link pb.McpEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.McpEvent
+         * @static
+         * @param {pb.IMcpEvent} message McpEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        McpEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a McpEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.McpEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.McpEvent} McpEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        McpEvent.decode = function decode(reader, length, error, long) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.McpEvent();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.toolName = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.serverName = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.endpoint = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.requestId = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.extraInfo = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7, long);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a McpEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.McpEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.McpEvent} McpEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        McpEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a McpEvent message.
+         * @function verify
+         * @memberof pb.McpEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        McpEvent.verify = function verify(message, long) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                if (!$util.isString(message.toolName))
+                    return "toolName: string expected";
+            if (message.serverName != null && message.hasOwnProperty("serverName"))
+                if (!$util.isString(message.serverName))
+                    return "serverName: string expected";
+            if (message.endpoint != null && message.hasOwnProperty("endpoint"))
+                if (!$util.isString(message.endpoint))
+                    return "endpoint: string expected";
+            if (message.requestId != null && message.hasOwnProperty("requestId"))
+                if (!$util.isString(message.requestId))
+                    return "requestId: string expected";
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                if (!$util.isString(message.extraInfo))
+                    return "extraInfo: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a McpEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.McpEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.McpEvent} McpEvent
+         */
+        McpEvent.fromObject = function fromObject(object, long) {
+            if (object instanceof $root.pb.McpEvent)
+                return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let message = new $root.pb.McpEvent();
+            if (object.toolName != null)
+                message.toolName = String(object.toolName);
+            if (object.serverName != null)
+                message.serverName = String(object.serverName);
+            if (object.endpoint != null)
+                message.endpoint = String(object.endpoint);
+            if (object.requestId != null)
+                message.requestId = String(object.requestId);
+            if (object.extraInfo != null)
+                message.extraInfo = String(object.extraInfo);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a McpEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.McpEvent
+         * @static
+         * @param {pb.McpEvent} message McpEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        McpEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.toolName = "";
+                object.serverName = "";
+                object.endpoint = "";
+                object.requestId = "";
+                object.extraInfo = "";
+            }
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                object.toolName = message.toolName;
+            if (message.serverName != null && message.hasOwnProperty("serverName"))
+                object.serverName = message.serverName;
+            if (message.endpoint != null && message.hasOwnProperty("endpoint"))
+                object.endpoint = message.endpoint;
+            if (message.requestId != null && message.hasOwnProperty("requestId"))
+                object.requestId = message.requestId;
+            if (message.extraInfo != null && message.hasOwnProperty("extraInfo"))
+                object.extraInfo = message.extraInfo;
+            return object;
+        };
+
+        /**
+         * Converts this McpEvent to JSON.
+         * @function toJSON
+         * @memberof pb.McpEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        McpEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for McpEvent
+         * @function getTypeUrl
+         * @memberof pb.McpEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        McpEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.McpEvent";
+        };
+
+        return McpEvent;
+    })();
+
+    pb.EventEnvelope = (function() {
+
+        /**
+         * Properties of an EventEnvelope.
+         * @memberof pb
+         * @interface IEventEnvelope
+         * @property {string|null} [schemaVersion] EventEnvelope schemaVersion
+         * @property {string|null} [eventId] EventEnvelope eventId
+         * @property {number|Long|null} [timestampNs] EventEnvelope timestampNs
+         * @property {string|null} [source] EventEnvelope source
+         * @property {string|null} [agentRunId] EventEnvelope agentRunId
+         * @property {string|null} [taskId] EventEnvelope taskId
+         * @property {string|null} [conversationId] EventEnvelope conversationId
+         * @property {string|null} [turnId] EventEnvelope turnId
+         * @property {string|null} [toolCallId] EventEnvelope toolCallId
+         * @property {string|null} [toolName] EventEnvelope toolName
+         * @property {string|null} [traceId] EventEnvelope traceId
+         * @property {string|null} [spanId] EventEnvelope spanId
+         * @property {number|null} [pid] EventEnvelope pid
+         * @property {number|null} [tgid] EventEnvelope tgid
+         * @property {number|null} [ppid] EventEnvelope ppid
+         * @property {number|null} [uid] EventEnvelope uid
+         * @property {number|null} [gid] EventEnvelope gid
+         * @property {string|null} [comm] EventEnvelope comm
+         * @property {string|null} [argvDigest] EventEnvelope argvDigest
+         * @property {string|null} [cwd] EventEnvelope cwd
+         * @property {number|Long|null} [cgroupId] EventEnvelope cgroupId
+         * @property {string|null} [containerId] EventEnvelope containerId
+         * @property {string|null} [policyDecision] EventEnvelope policyDecision
+         * @property {number|null} [riskScore] EventEnvelope riskScore
+         * @property {pb.EventType|null} [eventType] EventEnvelope eventType
+         * @property {pb.IEvent|null} [legacyEvent] EventEnvelope legacyEvent
+         * @property {pb.IExecEvent|null} [execEvent] EventEnvelope execEvent
+         * @property {pb.IFileEvent|null} [fileEvent] EventEnvelope fileEvent
+         * @property {pb.INetworkEvent|null} [networkEvent] EventEnvelope networkEvent
+         * @property {pb.IProcessEvent|null} [processEvent] EventEnvelope processEvent
+         * @property {pb.IPolicyEvent|null} [policyEvent] EventEnvelope policyEvent
+         * @property {pb.IWrapperEvent|null} [wrapperEvent] EventEnvelope wrapperEvent
+         * @property {pb.IHookEvent|null} [hookEvent] EventEnvelope hookEvent
+         * @property {pb.IMcpEvent|null} [mcpEvent] EventEnvelope mcpEvent
+         */
+
+        /**
+         * Constructs a new EventEnvelope.
+         * @memberof pb
+         * @classdesc Represents an EventEnvelope.
+         * @implements IEventEnvelope
+         * @constructor
+         * @param {pb.IEventEnvelope=} [properties] Properties to set
+         */
+        function EventEnvelope(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * EventEnvelope schemaVersion.
+         * @member {string} schemaVersion
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.schemaVersion = "";
+
+        /**
+         * EventEnvelope eventId.
+         * @member {string} eventId
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.eventId = "";
+
+        /**
+         * EventEnvelope timestampNs.
+         * @member {number|Long} timestampNs
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.timestampNs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * EventEnvelope source.
+         * @member {string} source
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.source = "";
+
+        /**
+         * EventEnvelope agentRunId.
+         * @member {string} agentRunId
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.agentRunId = "";
+
+        /**
+         * EventEnvelope taskId.
+         * @member {string} taskId
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.taskId = "";
+
+        /**
+         * EventEnvelope conversationId.
+         * @member {string} conversationId
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.conversationId = "";
+
+        /**
+         * EventEnvelope turnId.
+         * @member {string} turnId
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.turnId = "";
+
+        /**
+         * EventEnvelope toolCallId.
+         * @member {string} toolCallId
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.toolCallId = "";
+
+        /**
+         * EventEnvelope toolName.
+         * @member {string} toolName
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.toolName = "";
+
+        /**
+         * EventEnvelope traceId.
+         * @member {string} traceId
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.traceId = "";
+
+        /**
+         * EventEnvelope spanId.
+         * @member {string} spanId
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.spanId = "";
+
+        /**
+         * EventEnvelope pid.
+         * @member {number} pid
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.pid = 0;
+
+        /**
+         * EventEnvelope tgid.
+         * @member {number} tgid
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.tgid = 0;
+
+        /**
+         * EventEnvelope ppid.
+         * @member {number} ppid
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.ppid = 0;
+
+        /**
+         * EventEnvelope uid.
+         * @member {number} uid
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.uid = 0;
+
+        /**
+         * EventEnvelope gid.
+         * @member {number} gid
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.gid = 0;
+
+        /**
+         * EventEnvelope comm.
+         * @member {string} comm
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.comm = "";
+
+        /**
+         * EventEnvelope argvDigest.
+         * @member {string} argvDigest
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.argvDigest = "";
+
+        /**
+         * EventEnvelope cwd.
+         * @member {string} cwd
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.cwd = "";
+
+        /**
+         * EventEnvelope cgroupId.
+         * @member {number|Long} cgroupId
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.cgroupId = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * EventEnvelope containerId.
+         * @member {string} containerId
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.containerId = "";
+
+        /**
+         * EventEnvelope policyDecision.
+         * @member {string} policyDecision
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.policyDecision = "";
+
+        /**
+         * EventEnvelope riskScore.
+         * @member {number} riskScore
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.riskScore = 0;
+
+        /**
+         * EventEnvelope eventType.
+         * @member {pb.EventType} eventType
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.eventType = 0;
+
+        /**
+         * EventEnvelope legacyEvent.
+         * @member {pb.IEvent|null|undefined} legacyEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.legacyEvent = null;
+
+        /**
+         * EventEnvelope execEvent.
+         * @member {pb.IExecEvent|null|undefined} execEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.execEvent = null;
+
+        /**
+         * EventEnvelope fileEvent.
+         * @member {pb.IFileEvent|null|undefined} fileEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.fileEvent = null;
+
+        /**
+         * EventEnvelope networkEvent.
+         * @member {pb.INetworkEvent|null|undefined} networkEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.networkEvent = null;
+
+        /**
+         * EventEnvelope processEvent.
+         * @member {pb.IProcessEvent|null|undefined} processEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.processEvent = null;
+
+        /**
+         * EventEnvelope policyEvent.
+         * @member {pb.IPolicyEvent|null|undefined} policyEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.policyEvent = null;
+
+        /**
+         * EventEnvelope wrapperEvent.
+         * @member {pb.IWrapperEvent|null|undefined} wrapperEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.wrapperEvent = null;
+
+        /**
+         * EventEnvelope hookEvent.
+         * @member {pb.IHookEvent|null|undefined} hookEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.hookEvent = null;
+
+        /**
+         * EventEnvelope mcpEvent.
+         * @member {pb.IMcpEvent|null|undefined} mcpEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.mcpEvent = null;
+
+        // OneOf field names bound to virtual getters and setters
+        let $oneOfFields;
+
+        /**
+         * EventEnvelope payload.
+         * @member {"execEvent"|"fileEvent"|"networkEvent"|"processEvent"|"policyEvent"|"wrapperEvent"|"hookEvent"|"mcpEvent"|undefined} payload
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        Object.defineProperty(EventEnvelope.prototype, "payload", {
+            get: $util.oneOfGetter($oneOfFields = ["execEvent", "fileEvent", "networkEvent", "processEvent", "policyEvent", "wrapperEvent", "hookEvent", "mcpEvent"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
+
+        /**
+         * Creates a new EventEnvelope instance using the specified properties.
+         * @function create
+         * @memberof pb.EventEnvelope
+         * @static
+         * @param {pb.IEventEnvelope=} [properties] Properties to set
+         * @returns {pb.EventEnvelope} EventEnvelope instance
+         */
+        EventEnvelope.create = function create(properties) {
+            return new EventEnvelope(properties);
+        };
+
+        /**
+         * Encodes the specified EventEnvelope message. Does not implicitly {@link pb.EventEnvelope.verify|verify} messages.
+         * @function encode
+         * @memberof pb.EventEnvelope
+         * @static
+         * @param {pb.IEventEnvelope} message EventEnvelope message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EventEnvelope.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.schemaVersion != null && Object.hasOwnProperty.call(message, "schemaVersion"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.schemaVersion);
+            if (message.eventId != null && Object.hasOwnProperty.call(message, "eventId"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.eventId);
+            if (message.timestampNs != null && Object.hasOwnProperty.call(message, "timestampNs"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.timestampNs);
+            if (message.source != null && Object.hasOwnProperty.call(message, "source"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.source);
+            if (message.agentRunId != null && Object.hasOwnProperty.call(message, "agentRunId"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.agentRunId);
+            if (message.taskId != null && Object.hasOwnProperty.call(message, "taskId"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.taskId);
+            if (message.conversationId != null && Object.hasOwnProperty.call(message, "conversationId"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.conversationId);
+            if (message.turnId != null && Object.hasOwnProperty.call(message, "turnId"))
+                writer.uint32(/* id 8, wireType 2 =*/66).string(message.turnId);
+            if (message.toolCallId != null && Object.hasOwnProperty.call(message, "toolCallId"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.toolCallId);
+            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
+                writer.uint32(/* id 10, wireType 2 =*/82).string(message.toolName);
+            if (message.traceId != null && Object.hasOwnProperty.call(message, "traceId"))
+                writer.uint32(/* id 11, wireType 2 =*/90).string(message.traceId);
+            if (message.spanId != null && Object.hasOwnProperty.call(message, "spanId"))
+                writer.uint32(/* id 12, wireType 2 =*/98).string(message.spanId);
+            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
+                writer.uint32(/* id 13, wireType 0 =*/104).uint32(message.pid);
+            if (message.tgid != null && Object.hasOwnProperty.call(message, "tgid"))
+                writer.uint32(/* id 14, wireType 0 =*/112).uint32(message.tgid);
+            if (message.ppid != null && Object.hasOwnProperty.call(message, "ppid"))
+                writer.uint32(/* id 15, wireType 0 =*/120).uint32(message.ppid);
+            if (message.uid != null && Object.hasOwnProperty.call(message, "uid"))
+                writer.uint32(/* id 16, wireType 0 =*/128).uint32(message.uid);
+            if (message.gid != null && Object.hasOwnProperty.call(message, "gid"))
+                writer.uint32(/* id 17, wireType 0 =*/136).uint32(message.gid);
+            if (message.comm != null && Object.hasOwnProperty.call(message, "comm"))
+                writer.uint32(/* id 18, wireType 2 =*/146).string(message.comm);
+            if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
+                writer.uint32(/* id 19, wireType 2 =*/154).string(message.argvDigest);
+            if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
+                writer.uint32(/* id 20, wireType 2 =*/162).string(message.cwd);
+            if (message.cgroupId != null && Object.hasOwnProperty.call(message, "cgroupId"))
+                writer.uint32(/* id 21, wireType 0 =*/168).uint64(message.cgroupId);
+            if (message.containerId != null && Object.hasOwnProperty.call(message, "containerId"))
+                writer.uint32(/* id 22, wireType 2 =*/178).string(message.containerId);
+            if (message.policyDecision != null && Object.hasOwnProperty.call(message, "policyDecision"))
+                writer.uint32(/* id 23, wireType 2 =*/186).string(message.policyDecision);
+            if (message.riskScore != null && Object.hasOwnProperty.call(message, "riskScore"))
+                writer.uint32(/* id 24, wireType 1 =*/193).double(message.riskScore);
+            if (message.eventType != null && Object.hasOwnProperty.call(message, "eventType"))
+                writer.uint32(/* id 25, wireType 0 =*/200).int32(message.eventType);
+            if (message.legacyEvent != null && Object.hasOwnProperty.call(message, "legacyEvent"))
+                $root.pb.Event.encode(message.legacyEvent, writer.uint32(/* id 26, wireType 2 =*/210).fork()).ldelim();
+            if (message.execEvent != null && Object.hasOwnProperty.call(message, "execEvent"))
+                $root.pb.ExecEvent.encode(message.execEvent, writer.uint32(/* id 27, wireType 2 =*/218).fork()).ldelim();
+            if (message.fileEvent != null && Object.hasOwnProperty.call(message, "fileEvent"))
+                $root.pb.FileEvent.encode(message.fileEvent, writer.uint32(/* id 28, wireType 2 =*/226).fork()).ldelim();
+            if (message.networkEvent != null && Object.hasOwnProperty.call(message, "networkEvent"))
+                $root.pb.NetworkEvent.encode(message.networkEvent, writer.uint32(/* id 29, wireType 2 =*/234).fork()).ldelim();
+            if (message.processEvent != null && Object.hasOwnProperty.call(message, "processEvent"))
+                $root.pb.ProcessEvent.encode(message.processEvent, writer.uint32(/* id 30, wireType 2 =*/242).fork()).ldelim();
+            if (message.policyEvent != null && Object.hasOwnProperty.call(message, "policyEvent"))
+                $root.pb.PolicyEvent.encode(message.policyEvent, writer.uint32(/* id 31, wireType 2 =*/250).fork()).ldelim();
+            if (message.wrapperEvent != null && Object.hasOwnProperty.call(message, "wrapperEvent"))
+                $root.pb.WrapperEvent.encode(message.wrapperEvent, writer.uint32(/* id 32, wireType 2 =*/258).fork()).ldelim();
+            if (message.hookEvent != null && Object.hasOwnProperty.call(message, "hookEvent"))
+                $root.pb.HookEvent.encode(message.hookEvent, writer.uint32(/* id 33, wireType 2 =*/266).fork()).ldelim();
+            if (message.mcpEvent != null && Object.hasOwnProperty.call(message, "mcpEvent"))
+                $root.pb.McpEvent.encode(message.mcpEvent, writer.uint32(/* id 34, wireType 2 =*/274).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified EventEnvelope message, length delimited. Does not implicitly {@link pb.EventEnvelope.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.EventEnvelope
+         * @static
+         * @param {pb.IEventEnvelope} message EventEnvelope message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EventEnvelope.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an EventEnvelope message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.EventEnvelope
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.EventEnvelope} EventEnvelope
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EventEnvelope.decode = function decode(reader, length, error, long) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.EventEnvelope();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.schemaVersion = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.eventId = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.timestampNs = reader.uint64();
+                        break;
+                    }
+                case 4: {
+                        message.source = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.agentRunId = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.taskId = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.conversationId = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.turnId = reader.string();
+                        break;
+                    }
+                case 9: {
+                        message.toolCallId = reader.string();
+                        break;
+                    }
+                case 10: {
+                        message.toolName = reader.string();
+                        break;
+                    }
+                case 11: {
+                        message.traceId = reader.string();
+                        break;
+                    }
+                case 12: {
+                        message.spanId = reader.string();
+                        break;
+                    }
+                case 13: {
+                        message.pid = reader.uint32();
+                        break;
+                    }
+                case 14: {
+                        message.tgid = reader.uint32();
+                        break;
+                    }
+                case 15: {
+                        message.ppid = reader.uint32();
+                        break;
+                    }
+                case 16: {
+                        message.uid = reader.uint32();
+                        break;
+                    }
+                case 17: {
+                        message.gid = reader.uint32();
+                        break;
+                    }
+                case 18: {
+                        message.comm = reader.string();
+                        break;
+                    }
+                case 19: {
+                        message.argvDigest = reader.string();
+                        break;
+                    }
+                case 20: {
+                        message.cwd = reader.string();
+                        break;
+                    }
+                case 21: {
+                        message.cgroupId = reader.uint64();
+                        break;
+                    }
+                case 22: {
+                        message.containerId = reader.string();
+                        break;
+                    }
+                case 23: {
+                        message.policyDecision = reader.string();
+                        break;
+                    }
+                case 24: {
+                        message.riskScore = reader.double();
+                        break;
+                    }
+                case 25: {
+                        message.eventType = reader.int32();
+                        break;
+                    }
+                case 26: {
+                        message.legacyEvent = $root.pb.Event.decode(reader, reader.uint32(), undefined, long + 1);
+                        break;
+                    }
+                case 27: {
+                        message.execEvent = $root.pb.ExecEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        break;
+                    }
+                case 28: {
+                        message.fileEvent = $root.pb.FileEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        break;
+                    }
+                case 29: {
+                        message.networkEvent = $root.pb.NetworkEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        break;
+                    }
+                case 30: {
+                        message.processEvent = $root.pb.ProcessEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        break;
+                    }
+                case 31: {
+                        message.policyEvent = $root.pb.PolicyEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        break;
+                    }
+                case 32: {
+                        message.wrapperEvent = $root.pb.WrapperEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        break;
+                    }
+                case 33: {
+                        message.hookEvent = $root.pb.HookEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        break;
+                    }
+                case 34: {
+                        message.mcpEvent = $root.pb.McpEvent.decode(reader, reader.uint32(), undefined, long + 1);
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7, long);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an EventEnvelope message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.EventEnvelope
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.EventEnvelope} EventEnvelope
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EventEnvelope.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an EventEnvelope message.
+         * @function verify
+         * @memberof pb.EventEnvelope
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        EventEnvelope.verify = function verify(message, long) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            let properties = {};
+            if (message.schemaVersion != null && message.hasOwnProperty("schemaVersion"))
+                if (!$util.isString(message.schemaVersion))
+                    return "schemaVersion: string expected";
+            if (message.eventId != null && message.hasOwnProperty("eventId"))
+                if (!$util.isString(message.eventId))
+                    return "eventId: string expected";
+            if (message.timestampNs != null && message.hasOwnProperty("timestampNs"))
+                if (!$util.isInteger(message.timestampNs) && !(message.timestampNs && $util.isInteger(message.timestampNs.low) && $util.isInteger(message.timestampNs.high)))
+                    return "timestampNs: integer|Long expected";
+            if (message.source != null && message.hasOwnProperty("source"))
+                if (!$util.isString(message.source))
+                    return "source: string expected";
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                if (!$util.isString(message.agentRunId))
+                    return "agentRunId: string expected";
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                if (!$util.isString(message.taskId))
+                    return "taskId: string expected";
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                if (!$util.isString(message.conversationId))
+                    return "conversationId: string expected";
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                if (!$util.isString(message.turnId))
+                    return "turnId: string expected";
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                if (!$util.isString(message.toolCallId))
+                    return "toolCallId: string expected";
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                if (!$util.isString(message.toolName))
+                    return "toolName: string expected";
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                if (!$util.isString(message.traceId))
+                    return "traceId: string expected";
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                if (!$util.isString(message.spanId))
+                    return "spanId: string expected";
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                if (!$util.isInteger(message.pid))
+                    return "pid: integer expected";
+            if (message.tgid != null && message.hasOwnProperty("tgid"))
+                if (!$util.isInteger(message.tgid))
+                    return "tgid: integer expected";
+            if (message.ppid != null && message.hasOwnProperty("ppid"))
+                if (!$util.isInteger(message.ppid))
+                    return "ppid: integer expected";
+            if (message.uid != null && message.hasOwnProperty("uid"))
+                if (!$util.isInteger(message.uid))
+                    return "uid: integer expected";
+            if (message.gid != null && message.hasOwnProperty("gid"))
+                if (!$util.isInteger(message.gid))
+                    return "gid: integer expected";
+            if (message.comm != null && message.hasOwnProperty("comm"))
+                if (!$util.isString(message.comm))
+                    return "comm: string expected";
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                if (!$util.isString(message.argvDigest))
+                    return "argvDigest: string expected";
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                if (!$util.isString(message.cwd))
+                    return "cwd: string expected";
+            if (message.cgroupId != null && message.hasOwnProperty("cgroupId"))
+                if (!$util.isInteger(message.cgroupId) && !(message.cgroupId && $util.isInteger(message.cgroupId.low) && $util.isInteger(message.cgroupId.high)))
+                    return "cgroupId: integer|Long expected";
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                if (!$util.isString(message.containerId))
+                    return "containerId: string expected";
+            if (message.policyDecision != null && message.hasOwnProperty("policyDecision"))
+                if (!$util.isString(message.policyDecision))
+                    return "policyDecision: string expected";
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                if (typeof message.riskScore !== "number")
+                    return "riskScore: number expected";
+            if (message.eventType != null && message.hasOwnProperty("eventType"))
+                switch (message.eventType) {
+                default:
+                    return "eventType: enum value expected";
+                case 0:
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                case 5:
+                case 6:
+                case 7:
+                case 8:
+                case 9:
+                case 10:
+                case 11:
+                case 12:
+                case 13:
+                case 14:
+                case 15:
+                case 16:
+                case 17:
+                case 18:
+                case 19:
+                case 20:
+                case 21:
+                case 22:
+                case 23:
+                case 24:
+                case 25:
+                case 26:
+                case 27:
+                case 28:
+                case 29:
+                case 30:
+                    break;
+                }
+            if (message.legacyEvent != null && message.hasOwnProperty("legacyEvent")) {
+                let error = $root.pb.Event.verify(message.legacyEvent, long + 1);
+                if (error)
+                    return "legacyEvent." + error;
+            }
+            if (message.execEvent != null && message.hasOwnProperty("execEvent")) {
+                properties.payload = 1;
+                {
+                    let error = $root.pb.ExecEvent.verify(message.execEvent, long + 1);
+                    if (error)
+                        return "execEvent." + error;
+                }
+            }
+            if (message.fileEvent != null && message.hasOwnProperty("fileEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    let error = $root.pb.FileEvent.verify(message.fileEvent, long + 1);
+                    if (error)
+                        return "fileEvent." + error;
+                }
+            }
+            if (message.networkEvent != null && message.hasOwnProperty("networkEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    let error = $root.pb.NetworkEvent.verify(message.networkEvent, long + 1);
+                    if (error)
+                        return "networkEvent." + error;
+                }
+            }
+            if (message.processEvent != null && message.hasOwnProperty("processEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    let error = $root.pb.ProcessEvent.verify(message.processEvent, long + 1);
+                    if (error)
+                        return "processEvent." + error;
+                }
+            }
+            if (message.policyEvent != null && message.hasOwnProperty("policyEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    let error = $root.pb.PolicyEvent.verify(message.policyEvent, long + 1);
+                    if (error)
+                        return "policyEvent." + error;
+                }
+            }
+            if (message.wrapperEvent != null && message.hasOwnProperty("wrapperEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    let error = $root.pb.WrapperEvent.verify(message.wrapperEvent, long + 1);
+                    if (error)
+                        return "wrapperEvent." + error;
+                }
+            }
+            if (message.hookEvent != null && message.hasOwnProperty("hookEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    let error = $root.pb.HookEvent.verify(message.hookEvent, long + 1);
+                    if (error)
+                        return "hookEvent." + error;
+                }
+            }
+            if (message.mcpEvent != null && message.hasOwnProperty("mcpEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    let error = $root.pb.McpEvent.verify(message.mcpEvent, long + 1);
+                    if (error)
+                        return "mcpEvent." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates an EventEnvelope message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.EventEnvelope
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.EventEnvelope} EventEnvelope
+         */
+        EventEnvelope.fromObject = function fromObject(object, long) {
+            if (object instanceof $root.pb.EventEnvelope)
+                return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let message = new $root.pb.EventEnvelope();
+            if (object.schemaVersion != null)
+                message.schemaVersion = String(object.schemaVersion);
+            if (object.eventId != null)
+                message.eventId = String(object.eventId);
+            if (object.timestampNs != null)
+                if ($util.Long)
+                    (message.timestampNs = $util.Long.fromValue(object.timestampNs)).unsigned = true;
+                else if (typeof object.timestampNs === "string")
+                    message.timestampNs = parseInt(object.timestampNs, 10);
+                else if (typeof object.timestampNs === "number")
+                    message.timestampNs = object.timestampNs;
+                else if (typeof object.timestampNs === "object")
+                    message.timestampNs = new $util.LongBits(object.timestampNs.low >>> 0, object.timestampNs.high >>> 0).toNumber(true);
+            if (object.source != null)
+                message.source = String(object.source);
+            if (object.agentRunId != null)
+                message.agentRunId = String(object.agentRunId);
+            if (object.taskId != null)
+                message.taskId = String(object.taskId);
+            if (object.conversationId != null)
+                message.conversationId = String(object.conversationId);
+            if (object.turnId != null)
+                message.turnId = String(object.turnId);
+            if (object.toolCallId != null)
+                message.toolCallId = String(object.toolCallId);
+            if (object.toolName != null)
+                message.toolName = String(object.toolName);
+            if (object.traceId != null)
+                message.traceId = String(object.traceId);
+            if (object.spanId != null)
+                message.spanId = String(object.spanId);
+            if (object.pid != null)
+                message.pid = object.pid >>> 0;
+            if (object.tgid != null)
+                message.tgid = object.tgid >>> 0;
+            if (object.ppid != null)
+                message.ppid = object.ppid >>> 0;
+            if (object.uid != null)
+                message.uid = object.uid >>> 0;
+            if (object.gid != null)
+                message.gid = object.gid >>> 0;
+            if (object.comm != null)
+                message.comm = String(object.comm);
+            if (object.argvDigest != null)
+                message.argvDigest = String(object.argvDigest);
+            if (object.cwd != null)
+                message.cwd = String(object.cwd);
+            if (object.cgroupId != null)
+                if ($util.Long)
+                    (message.cgroupId = $util.Long.fromValue(object.cgroupId)).unsigned = true;
+                else if (typeof object.cgroupId === "string")
+                    message.cgroupId = parseInt(object.cgroupId, 10);
+                else if (typeof object.cgroupId === "number")
+                    message.cgroupId = object.cgroupId;
+                else if (typeof object.cgroupId === "object")
+                    message.cgroupId = new $util.LongBits(object.cgroupId.low >>> 0, object.cgroupId.high >>> 0).toNumber(true);
+            if (object.containerId != null)
+                message.containerId = String(object.containerId);
+            if (object.policyDecision != null)
+                message.policyDecision = String(object.policyDecision);
+            if (object.riskScore != null)
+                message.riskScore = Number(object.riskScore);
+            switch (object.eventType) {
+            default:
+                if (typeof object.eventType === "number") {
+                    message.eventType = object.eventType;
+                    break;
+                }
+                break;
+            case "EXECVE":
+            case 0:
+                message.eventType = 0;
+                break;
+            case "OPENAT":
+            case 1:
+                message.eventType = 1;
+                break;
+            case "NETWORK_CONNECT":
+            case 2:
+                message.eventType = 2;
+                break;
+            case "MKDIR":
+            case 3:
+                message.eventType = 3;
+                break;
+            case "UNLINK":
+            case 4:
+                message.eventType = 4;
+                break;
+            case "IOCTL":
+            case 5:
+                message.eventType = 5;
+                break;
+            case "NETWORK_BIND":
+            case 6:
+                message.eventType = 6;
+                break;
+            case "NETWORK_SENDTO":
+            case 7:
+                message.eventType = 7;
+                break;
+            case "NETWORK_RECVFROM":
+            case 8:
+                message.eventType = 8;
+                break;
+            case "READ":
+            case 9:
+                message.eventType = 9;
+                break;
+            case "WRITE":
+            case 10:
+                message.eventType = 10;
+                break;
+            case "OPEN":
+            case 11:
+                message.eventType = 11;
+                break;
+            case "CHMOD":
+            case 12:
+                message.eventType = 12;
+                break;
+            case "CHOWN":
+            case 13:
+                message.eventType = 13;
+                break;
+            case "RENAME":
+            case 14:
+                message.eventType = 14;
+                break;
+            case "LINK":
+            case 15:
+                message.eventType = 15;
+                break;
+            case "SYMLINK":
+            case 16:
+                message.eventType = 16;
+                break;
+            case "MKNOD":
+            case 17:
+                message.eventType = 17;
+                break;
+            case "CLONE":
+            case 18:
+                message.eventType = 18;
+                break;
+            case "EXIT":
+            case 19:
+                message.eventType = 19;
+                break;
+            case "SOCKET":
+            case 20:
+                message.eventType = 20;
+                break;
+            case "ACCEPT":
+            case 21:
+                message.eventType = 21;
+                break;
+            case "ACCEPT4":
+            case 22:
+                message.eventType = 22;
+                break;
+            case "WRAPPER_INTERCEPT":
+            case 23:
+                message.eventType = 23;
+                break;
+            case "NATIVE_HOOK":
+            case 24:
+                message.eventType = 24;
+                break;
+            case "GENERIC_SYSCALL":
+            case 25:
+                message.eventType = 25;
+                break;
+            case "SCHED_PROCESS_FORK":
+            case 26:
+                message.eventType = 26;
+                break;
+            case "SCHED_PROCESS_EXEC":
+            case 27:
+                message.eventType = 27;
+                break;
+            case "SCHED_PROCESS_EXIT":
+            case 28:
+                message.eventType = 28;
+                break;
+            case "WAIT4":
+            case 29:
+                message.eventType = 29;
+                break;
+            case "SEMANTIC_ALERT":
+            case 30:
+                message.eventType = 30;
+                break;
+            }
+            if (object.legacyEvent != null) {
+                if (typeof object.legacyEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.legacyEvent: object expected");
+                message.legacyEvent = $root.pb.Event.fromObject(object.legacyEvent, long + 1);
+            }
+            if (object.execEvent != null) {
+                if (typeof object.execEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.execEvent: object expected");
+                message.execEvent = $root.pb.ExecEvent.fromObject(object.execEvent, long + 1);
+            }
+            if (object.fileEvent != null) {
+                if (typeof object.fileEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.fileEvent: object expected");
+                message.fileEvent = $root.pb.FileEvent.fromObject(object.fileEvent, long + 1);
+            }
+            if (object.networkEvent != null) {
+                if (typeof object.networkEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.networkEvent: object expected");
+                message.networkEvent = $root.pb.NetworkEvent.fromObject(object.networkEvent, long + 1);
+            }
+            if (object.processEvent != null) {
+                if (typeof object.processEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.processEvent: object expected");
+                message.processEvent = $root.pb.ProcessEvent.fromObject(object.processEvent, long + 1);
+            }
+            if (object.policyEvent != null) {
+                if (typeof object.policyEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.policyEvent: object expected");
+                message.policyEvent = $root.pb.PolicyEvent.fromObject(object.policyEvent, long + 1);
+            }
+            if (object.wrapperEvent != null) {
+                if (typeof object.wrapperEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.wrapperEvent: object expected");
+                message.wrapperEvent = $root.pb.WrapperEvent.fromObject(object.wrapperEvent, long + 1);
+            }
+            if (object.hookEvent != null) {
+                if (typeof object.hookEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.hookEvent: object expected");
+                message.hookEvent = $root.pb.HookEvent.fromObject(object.hookEvent, long + 1);
+            }
+            if (object.mcpEvent != null) {
+                if (typeof object.mcpEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.mcpEvent: object expected");
+                message.mcpEvent = $root.pb.McpEvent.fromObject(object.mcpEvent, long + 1);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an EventEnvelope message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.EventEnvelope
+         * @static
+         * @param {pb.EventEnvelope} message EventEnvelope
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        EventEnvelope.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.schemaVersion = "";
+                object.eventId = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.timestampNs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.timestampNs = options.longs === String ? "0" : 0;
+                object.source = "";
+                object.agentRunId = "";
+                object.taskId = "";
+                object.conversationId = "";
+                object.turnId = "";
+                object.toolCallId = "";
+                object.toolName = "";
+                object.traceId = "";
+                object.spanId = "";
+                object.pid = 0;
+                object.tgid = 0;
+                object.ppid = 0;
+                object.uid = 0;
+                object.gid = 0;
+                object.comm = "";
+                object.argvDigest = "";
+                object.cwd = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, true);
+                    object.cgroupId = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.cgroupId = options.longs === String ? "0" : 0;
+                object.containerId = "";
+                object.policyDecision = "";
+                object.riskScore = 0;
+                object.eventType = options.enums === String ? "EXECVE" : 0;
+                object.legacyEvent = null;
+            }
+            if (message.schemaVersion != null && message.hasOwnProperty("schemaVersion"))
+                object.schemaVersion = message.schemaVersion;
+            if (message.eventId != null && message.hasOwnProperty("eventId"))
+                object.eventId = message.eventId;
+            if (message.timestampNs != null && message.hasOwnProperty("timestampNs"))
+                if (typeof message.timestampNs === "number")
+                    object.timestampNs = options.longs === String ? String(message.timestampNs) : message.timestampNs;
+                else
+                    object.timestampNs = options.longs === String ? $util.Long.prototype.toString.call(message.timestampNs) : options.longs === Number ? new $util.LongBits(message.timestampNs.low >>> 0, message.timestampNs.high >>> 0).toNumber(true) : message.timestampNs;
+            if (message.source != null && message.hasOwnProperty("source"))
+                object.source = message.source;
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                object.agentRunId = message.agentRunId;
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                object.taskId = message.taskId;
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                object.conversationId = message.conversationId;
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                object.turnId = message.turnId;
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                object.toolCallId = message.toolCallId;
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                object.toolName = message.toolName;
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                object.traceId = message.traceId;
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                object.spanId = message.spanId;
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                object.pid = message.pid;
+            if (message.tgid != null && message.hasOwnProperty("tgid"))
+                object.tgid = message.tgid;
+            if (message.ppid != null && message.hasOwnProperty("ppid"))
+                object.ppid = message.ppid;
+            if (message.uid != null && message.hasOwnProperty("uid"))
+                object.uid = message.uid;
+            if (message.gid != null && message.hasOwnProperty("gid"))
+                object.gid = message.gid;
+            if (message.comm != null && message.hasOwnProperty("comm"))
+                object.comm = message.comm;
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                object.argvDigest = message.argvDigest;
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                object.cwd = message.cwd;
+            if (message.cgroupId != null && message.hasOwnProperty("cgroupId"))
+                if (typeof message.cgroupId === "number")
+                    object.cgroupId = options.longs === String ? String(message.cgroupId) : message.cgroupId;
+                else
+                    object.cgroupId = options.longs === String ? $util.Long.prototype.toString.call(message.cgroupId) : options.longs === Number ? new $util.LongBits(message.cgroupId.low >>> 0, message.cgroupId.high >>> 0).toNumber(true) : message.cgroupId;
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                object.containerId = message.containerId;
+            if (message.policyDecision != null && message.hasOwnProperty("policyDecision"))
+                object.policyDecision = message.policyDecision;
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                object.riskScore = options.json && !isFinite(message.riskScore) ? String(message.riskScore) : message.riskScore;
+            if (message.eventType != null && message.hasOwnProperty("eventType"))
+                object.eventType = options.enums === String ? $root.pb.EventType[message.eventType] === undefined ? message.eventType : $root.pb.EventType[message.eventType] : message.eventType;
+            if (message.legacyEvent != null && message.hasOwnProperty("legacyEvent"))
+                object.legacyEvent = $root.pb.Event.toObject(message.legacyEvent, options);
+            if (message.execEvent != null && message.hasOwnProperty("execEvent")) {
+                object.execEvent = $root.pb.ExecEvent.toObject(message.execEvent, options);
+                if (options.oneofs)
+                    object.payload = "execEvent";
+            }
+            if (message.fileEvent != null && message.hasOwnProperty("fileEvent")) {
+                object.fileEvent = $root.pb.FileEvent.toObject(message.fileEvent, options);
+                if (options.oneofs)
+                    object.payload = "fileEvent";
+            }
+            if (message.networkEvent != null && message.hasOwnProperty("networkEvent")) {
+                object.networkEvent = $root.pb.NetworkEvent.toObject(message.networkEvent, options);
+                if (options.oneofs)
+                    object.payload = "networkEvent";
+            }
+            if (message.processEvent != null && message.hasOwnProperty("processEvent")) {
+                object.processEvent = $root.pb.ProcessEvent.toObject(message.processEvent, options);
+                if (options.oneofs)
+                    object.payload = "processEvent";
+            }
+            if (message.policyEvent != null && message.hasOwnProperty("policyEvent")) {
+                object.policyEvent = $root.pb.PolicyEvent.toObject(message.policyEvent, options);
+                if (options.oneofs)
+                    object.payload = "policyEvent";
+            }
+            if (message.wrapperEvent != null && message.hasOwnProperty("wrapperEvent")) {
+                object.wrapperEvent = $root.pb.WrapperEvent.toObject(message.wrapperEvent, options);
+                if (options.oneofs)
+                    object.payload = "wrapperEvent";
+            }
+            if (message.hookEvent != null && message.hasOwnProperty("hookEvent")) {
+                object.hookEvent = $root.pb.HookEvent.toObject(message.hookEvent, options);
+                if (options.oneofs)
+                    object.payload = "hookEvent";
+            }
+            if (message.mcpEvent != null && message.hasOwnProperty("mcpEvent")) {
+                object.mcpEvent = $root.pb.McpEvent.toObject(message.mcpEvent, options);
+                if (options.oneofs)
+                    object.payload = "mcpEvent";
+            }
+            return object;
+        };
+
+        /**
+         * Converts this EventEnvelope to JSON.
+         * @function toJSON
+         * @memberof pb.EventEnvelope
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        EventEnvelope.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for EventEnvelope
+         * @function getTypeUrl
+         * @memberof pb.EventEnvelope
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        EventEnvelope.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.EventEnvelope";
+        };
+
+        return EventEnvelope;
+    })();
+
+    pb.EventEnvelopeBatch = (function() {
+
+        /**
+         * Properties of an EventEnvelopeBatch.
+         * @memberof pb
+         * @interface IEventEnvelopeBatch
+         * @property {Array.<pb.IEventEnvelope>|null} [envelopes] EventEnvelopeBatch envelopes
+         */
+
+        /**
+         * Constructs a new EventEnvelopeBatch.
+         * @memberof pb
+         * @classdesc Represents an EventEnvelopeBatch.
+         * @implements IEventEnvelopeBatch
+         * @constructor
+         * @param {pb.IEventEnvelopeBatch=} [properties] Properties to set
+         */
+        function EventEnvelopeBatch(properties) {
+            this.envelopes = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * EventEnvelopeBatch envelopes.
+         * @member {Array.<pb.IEventEnvelope>} envelopes
+         * @memberof pb.EventEnvelopeBatch
+         * @instance
+         */
+        EventEnvelopeBatch.prototype.envelopes = $util.emptyArray;
+
+        /**
+         * Creates a new EventEnvelopeBatch instance using the specified properties.
+         * @function create
+         * @memberof pb.EventEnvelopeBatch
+         * @static
+         * @param {pb.IEventEnvelopeBatch=} [properties] Properties to set
+         * @returns {pb.EventEnvelopeBatch} EventEnvelopeBatch instance
+         */
+        EventEnvelopeBatch.create = function create(properties) {
+            return new EventEnvelopeBatch(properties);
+        };
+
+        /**
+         * Encodes the specified EventEnvelopeBatch message. Does not implicitly {@link pb.EventEnvelopeBatch.verify|verify} messages.
+         * @function encode
+         * @memberof pb.EventEnvelopeBatch
+         * @static
+         * @param {pb.IEventEnvelopeBatch} message EventEnvelopeBatch message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EventEnvelopeBatch.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.envelopes != null && message.envelopes.length)
+                for (let i = 0; i < message.envelopes.length; ++i)
+                    $root.pb.EventEnvelope.encode(message.envelopes[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified EventEnvelopeBatch message, length delimited. Does not implicitly {@link pb.EventEnvelopeBatch.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.EventEnvelopeBatch
+         * @static
+         * @param {pb.IEventEnvelopeBatch} message EventEnvelopeBatch message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EventEnvelopeBatch.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an EventEnvelopeBatch message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.EventEnvelopeBatch
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.EventEnvelopeBatch} EventEnvelopeBatch
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EventEnvelopeBatch.decode = function decode(reader, length, error, long) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.EventEnvelopeBatch();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        if (!(message.envelopes && message.envelopes.length))
+                            message.envelopes = [];
+                        message.envelopes.push($root.pb.EventEnvelope.decode(reader, reader.uint32(), undefined, long + 1));
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7, long);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an EventEnvelopeBatch message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.EventEnvelopeBatch
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.EventEnvelopeBatch} EventEnvelopeBatch
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EventEnvelopeBatch.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an EventEnvelopeBatch message.
+         * @function verify
+         * @memberof pb.EventEnvelopeBatch
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        EventEnvelopeBatch.verify = function verify(message, long) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.envelopes != null && message.hasOwnProperty("envelopes")) {
+                if (!Array.isArray(message.envelopes))
+                    return "envelopes: array expected";
+                for (let i = 0; i < message.envelopes.length; ++i) {
+                    let error = $root.pb.EventEnvelope.verify(message.envelopes[i], long + 1);
+                    if (error)
+                        return "envelopes." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates an EventEnvelopeBatch message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.EventEnvelopeBatch
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.EventEnvelopeBatch} EventEnvelopeBatch
+         */
+        EventEnvelopeBatch.fromObject = function fromObject(object, long) {
+            if (object instanceof $root.pb.EventEnvelopeBatch)
+                return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let message = new $root.pb.EventEnvelopeBatch();
+            if (object.envelopes) {
+                if (!Array.isArray(object.envelopes))
+                    throw TypeError(".pb.EventEnvelopeBatch.envelopes: array expected");
+                message.envelopes = [];
+                for (let i = 0; i < object.envelopes.length; ++i) {
+                    if (typeof object.envelopes[i] !== "object")
+                        throw TypeError(".pb.EventEnvelopeBatch.envelopes: object expected");
+                    message.envelopes[i] = $root.pb.EventEnvelope.fromObject(object.envelopes[i], long + 1);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an EventEnvelopeBatch message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.EventEnvelopeBatch
+         * @static
+         * @param {pb.EventEnvelopeBatch} message EventEnvelopeBatch
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        EventEnvelopeBatch.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults)
+                object.envelopes = [];
+            if (message.envelopes && message.envelopes.length) {
+                object.envelopes = [];
+                for (let j = 0; j < message.envelopes.length; ++j)
+                    object.envelopes[j] = $root.pb.EventEnvelope.toObject(message.envelopes[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this EventEnvelopeBatch to JSON.
+         * @function toJSON
+         * @memberof pb.EventEnvelopeBatch
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        EventEnvelopeBatch.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for EventEnvelopeBatch
+         * @function getTypeUrl
+         * @memberof pb.EventEnvelopeBatch
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        EventEnvelopeBatch.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.EventEnvelopeBatch";
+        };
+
+        return EventEnvelopeBatch;
     })();
 
     pb.EventBatch = (function() {
@@ -8298,6 +12720,8 @@ export const pb = $root.pb = (() => {
          * @property {number|null} [riskScore] WrapperRequest riskScore
          * @property {string|null} [containerId] WrapperRequest containerId
          * @property {string|null} [argvDigest] WrapperRequest argvDigest
+         * @property {string|null} [taskId] WrapperRequest taskId
+         * @property {string|null} [cwd] WrapperRequest cwd
          */
 
         /**
@@ -8445,6 +12869,22 @@ export const pb = $root.pb = (() => {
         WrapperRequest.prototype.argvDigest = "";
 
         /**
+         * WrapperRequest taskId.
+         * @member {string} taskId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.taskId = "";
+
+        /**
+         * WrapperRequest cwd.
+         * @member {string} cwd
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.cwd = "";
+
+        /**
          * Creates a new WrapperRequest instance using the specified properties.
          * @function create
          * @memberof pb.WrapperRequest
@@ -8501,6 +12941,10 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 15, wireType 2 =*/122).string(message.containerId);
             if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
                 writer.uint32(/* id 16, wireType 2 =*/130).string(message.argvDigest);
+            if (message.taskId != null && Object.hasOwnProperty.call(message, "taskId"))
+                writer.uint32(/* id 17, wireType 2 =*/138).string(message.taskId);
+            if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
+                writer.uint32(/* id 18, wireType 2 =*/146).string(message.cwd);
             return writer;
         };
 
@@ -8607,6 +13051,14 @@ export const pb = $root.pb = (() => {
                         message.argvDigest = reader.string();
                         break;
                     }
+                case 17: {
+                        message.taskId = reader.string();
+                        break;
+                    }
+                case 18: {
+                        message.cwd = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7, long);
                     break;
@@ -8698,6 +13150,12 @@ export const pb = $root.pb = (() => {
             if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
                 if (!$util.isString(message.argvDigest))
                     return "argvDigest: string expected";
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                if (!$util.isString(message.taskId))
+                    return "taskId: string expected";
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                if (!$util.isString(message.cwd))
+                    return "cwd: string expected";
             return null;
         };
 
@@ -8754,6 +13212,10 @@ export const pb = $root.pb = (() => {
                 message.containerId = String(object.containerId);
             if (object.argvDigest != null)
                 message.argvDigest = String(object.argvDigest);
+            if (object.taskId != null)
+                message.taskId = String(object.taskId);
+            if (object.cwd != null)
+                message.cwd = String(object.cwd);
             return message;
         };
 
@@ -8788,6 +13250,8 @@ export const pb = $root.pb = (() => {
                 object.riskScore = 0;
                 object.containerId = "";
                 object.argvDigest = "";
+                object.taskId = "";
+                object.cwd = "";
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -8824,6 +13288,10 @@ export const pb = $root.pb = (() => {
                 object.containerId = message.containerId;
             if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
                 object.argvDigest = message.argvDigest;
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                object.taskId = message.taskId;
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                object.cwd = message.cwd;
             return object;
         };
 
@@ -12453,6 +16921,14 @@ export const pb = $root.pb = (() => {
          * @property {string|null} [accessToken] RuntimeSettings accessToken
          * @property {number|null} [maxEventCount] RuntimeSettings maxEventCount
          * @property {string|null} [maxEventAge] RuntimeSettings maxEventAge
+         * @property {boolean|null} [shellSessionsEnabled] RuntimeSettings shellSessionsEnabled
+         * @property {boolean|null} [systemRunEnabled] RuntimeSettings systemRunEnabled
+         * @property {boolean|null} [hookManagementEnabled] RuntimeSettings hookManagementEnabled
+         * @property {boolean|null} [policyManagementEnabled] RuntimeSettings policyManagementEnabled
+         * @property {boolean|null} [otlpEnabled] RuntimeSettings otlpEnabled
+         * @property {string|null} [otlpEndpoint] RuntimeSettings otlpEndpoint
+         * @property {string|null} [otlpServiceName] RuntimeSettings otlpServiceName
+         * @property {Object.<string,string>|null} [otlpHeaders] RuntimeSettings otlpHeaders
          */
 
         /**
@@ -12464,6 +16940,7 @@ export const pb = $root.pb = (() => {
          * @param {pb.IRuntimeSettings=} [properties] Properties to set
          */
         function RuntimeSettings(properties) {
+            this.otlpHeaders = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null && keys[i] !== "__proto__")
@@ -12511,6 +16988,70 @@ export const pb = $root.pb = (() => {
         RuntimeSettings.prototype.maxEventAge = "";
 
         /**
+         * RuntimeSettings shellSessionsEnabled.
+         * @member {boolean} shellSessionsEnabled
+         * @memberof pb.RuntimeSettings
+         * @instance
+         */
+        RuntimeSettings.prototype.shellSessionsEnabled = false;
+
+        /**
+         * RuntimeSettings systemRunEnabled.
+         * @member {boolean} systemRunEnabled
+         * @memberof pb.RuntimeSettings
+         * @instance
+         */
+        RuntimeSettings.prototype.systemRunEnabled = false;
+
+        /**
+         * RuntimeSettings hookManagementEnabled.
+         * @member {boolean} hookManagementEnabled
+         * @memberof pb.RuntimeSettings
+         * @instance
+         */
+        RuntimeSettings.prototype.hookManagementEnabled = false;
+
+        /**
+         * RuntimeSettings policyManagementEnabled.
+         * @member {boolean} policyManagementEnabled
+         * @memberof pb.RuntimeSettings
+         * @instance
+         */
+        RuntimeSettings.prototype.policyManagementEnabled = false;
+
+        /**
+         * RuntimeSettings otlpEnabled.
+         * @member {boolean} otlpEnabled
+         * @memberof pb.RuntimeSettings
+         * @instance
+         */
+        RuntimeSettings.prototype.otlpEnabled = false;
+
+        /**
+         * RuntimeSettings otlpEndpoint.
+         * @member {string} otlpEndpoint
+         * @memberof pb.RuntimeSettings
+         * @instance
+         */
+        RuntimeSettings.prototype.otlpEndpoint = "";
+
+        /**
+         * RuntimeSettings otlpServiceName.
+         * @member {string} otlpServiceName
+         * @memberof pb.RuntimeSettings
+         * @instance
+         */
+        RuntimeSettings.prototype.otlpServiceName = "";
+
+        /**
+         * RuntimeSettings otlpHeaders.
+         * @member {Object.<string,string>} otlpHeaders
+         * @memberof pb.RuntimeSettings
+         * @instance
+         */
+        RuntimeSettings.prototype.otlpHeaders = $util.emptyObject;
+
+        /**
          * Creates a new RuntimeSettings instance using the specified properties.
          * @function create
          * @memberof pb.RuntimeSettings
@@ -12544,6 +17085,23 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 4, wireType 0 =*/32).int32(message.maxEventCount);
             if (message.maxEventAge != null && Object.hasOwnProperty.call(message, "maxEventAge"))
                 writer.uint32(/* id 5, wireType 2 =*/42).string(message.maxEventAge);
+            if (message.shellSessionsEnabled != null && Object.hasOwnProperty.call(message, "shellSessionsEnabled"))
+                writer.uint32(/* id 6, wireType 0 =*/48).bool(message.shellSessionsEnabled);
+            if (message.systemRunEnabled != null && Object.hasOwnProperty.call(message, "systemRunEnabled"))
+                writer.uint32(/* id 7, wireType 0 =*/56).bool(message.systemRunEnabled);
+            if (message.hookManagementEnabled != null && Object.hasOwnProperty.call(message, "hookManagementEnabled"))
+                writer.uint32(/* id 8, wireType 0 =*/64).bool(message.hookManagementEnabled);
+            if (message.policyManagementEnabled != null && Object.hasOwnProperty.call(message, "policyManagementEnabled"))
+                writer.uint32(/* id 9, wireType 0 =*/72).bool(message.policyManagementEnabled);
+            if (message.otlpEnabled != null && Object.hasOwnProperty.call(message, "otlpEnabled"))
+                writer.uint32(/* id 10, wireType 0 =*/80).bool(message.otlpEnabled);
+            if (message.otlpEndpoint != null && Object.hasOwnProperty.call(message, "otlpEndpoint"))
+                writer.uint32(/* id 11, wireType 2 =*/90).string(message.otlpEndpoint);
+            if (message.otlpServiceName != null && Object.hasOwnProperty.call(message, "otlpServiceName"))
+                writer.uint32(/* id 12, wireType 2 =*/98).string(message.otlpServiceName);
+            if (message.otlpHeaders != null && Object.hasOwnProperty.call(message, "otlpHeaders"))
+                for (let keys = Object.keys(message.otlpHeaders), i = 0; i < keys.length; ++i)
+                    writer.uint32(/* id 13, wireType 2 =*/106).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]).uint32(/* id 2, wireType 2 =*/18).string(message.otlpHeaders[keys[i]]).ldelim();
             return writer;
         };
 
@@ -12578,7 +17136,7 @@ export const pb = $root.pb = (() => {
                 long = 0;
             if (long > $Reader.recursionLimit)
                 throw Error("maximum nesting depth exceeded");
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RuntimeSettings();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RuntimeSettings(), key, value;
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 if (tag === error)
@@ -12602,6 +17160,59 @@ export const pb = $root.pb = (() => {
                     }
                 case 5: {
                         message.maxEventAge = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.shellSessionsEnabled = reader.bool();
+                        break;
+                    }
+                case 7: {
+                        message.systemRunEnabled = reader.bool();
+                        break;
+                    }
+                case 8: {
+                        message.hookManagementEnabled = reader.bool();
+                        break;
+                    }
+                case 9: {
+                        message.policyManagementEnabled = reader.bool();
+                        break;
+                    }
+                case 10: {
+                        message.otlpEnabled = reader.bool();
+                        break;
+                    }
+                case 11: {
+                        message.otlpEndpoint = reader.string();
+                        break;
+                    }
+                case 12: {
+                        message.otlpServiceName = reader.string();
+                        break;
+                    }
+                case 13: {
+                        if (message.otlpHeaders === $util.emptyObject)
+                            message.otlpHeaders = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = "";
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = reader.string();
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7, long);
+                                break;
+                            }
+                        }
+                        if (key === "__proto__")
+                            $util.makeProp(message.otlpHeaders, key);
+                        message.otlpHeaders[key] = value;
                         break;
                     }
                 default:
@@ -12658,6 +17269,35 @@ export const pb = $root.pb = (() => {
             if (message.maxEventAge != null && message.hasOwnProperty("maxEventAge"))
                 if (!$util.isString(message.maxEventAge))
                     return "maxEventAge: string expected";
+            if (message.shellSessionsEnabled != null && message.hasOwnProperty("shellSessionsEnabled"))
+                if (typeof message.shellSessionsEnabled !== "boolean")
+                    return "shellSessionsEnabled: boolean expected";
+            if (message.systemRunEnabled != null && message.hasOwnProperty("systemRunEnabled"))
+                if (typeof message.systemRunEnabled !== "boolean")
+                    return "systemRunEnabled: boolean expected";
+            if (message.hookManagementEnabled != null && message.hasOwnProperty("hookManagementEnabled"))
+                if (typeof message.hookManagementEnabled !== "boolean")
+                    return "hookManagementEnabled: boolean expected";
+            if (message.policyManagementEnabled != null && message.hasOwnProperty("policyManagementEnabled"))
+                if (typeof message.policyManagementEnabled !== "boolean")
+                    return "policyManagementEnabled: boolean expected";
+            if (message.otlpEnabled != null && message.hasOwnProperty("otlpEnabled"))
+                if (typeof message.otlpEnabled !== "boolean")
+                    return "otlpEnabled: boolean expected";
+            if (message.otlpEndpoint != null && message.hasOwnProperty("otlpEndpoint"))
+                if (!$util.isString(message.otlpEndpoint))
+                    return "otlpEndpoint: string expected";
+            if (message.otlpServiceName != null && message.hasOwnProperty("otlpServiceName"))
+                if (!$util.isString(message.otlpServiceName))
+                    return "otlpServiceName: string expected";
+            if (message.otlpHeaders != null && message.hasOwnProperty("otlpHeaders")) {
+                if (!$util.isObject(message.otlpHeaders))
+                    return "otlpHeaders: object expected";
+                let key = Object.keys(message.otlpHeaders);
+                for (let i = 0; i < key.length; ++i)
+                    if (!$util.isString(message.otlpHeaders[key[i]]))
+                        return "otlpHeaders: string{k:string} expected";
+            }
             return null;
         };
 
@@ -12687,6 +17327,30 @@ export const pb = $root.pb = (() => {
                 message.maxEventCount = object.maxEventCount | 0;
             if (object.maxEventAge != null)
                 message.maxEventAge = String(object.maxEventAge);
+            if (object.shellSessionsEnabled != null)
+                message.shellSessionsEnabled = Boolean(object.shellSessionsEnabled);
+            if (object.systemRunEnabled != null)
+                message.systemRunEnabled = Boolean(object.systemRunEnabled);
+            if (object.hookManagementEnabled != null)
+                message.hookManagementEnabled = Boolean(object.hookManagementEnabled);
+            if (object.policyManagementEnabled != null)
+                message.policyManagementEnabled = Boolean(object.policyManagementEnabled);
+            if (object.otlpEnabled != null)
+                message.otlpEnabled = Boolean(object.otlpEnabled);
+            if (object.otlpEndpoint != null)
+                message.otlpEndpoint = String(object.otlpEndpoint);
+            if (object.otlpServiceName != null)
+                message.otlpServiceName = String(object.otlpServiceName);
+            if (object.otlpHeaders) {
+                if (typeof object.otlpHeaders !== "object")
+                    throw TypeError(".pb.RuntimeSettings.otlpHeaders: object expected");
+                message.otlpHeaders = {};
+                for (let keys = Object.keys(object.otlpHeaders), i = 0; i < keys.length; ++i) {
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.otlpHeaders, keys[i]);
+                    message.otlpHeaders[keys[i]] = String(object.otlpHeaders[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -12703,12 +17367,21 @@ export const pb = $root.pb = (() => {
             if (!options)
                 options = {};
             let object = {};
+            if (options.objects || options.defaults)
+                object.otlpHeaders = {};
             if (options.defaults) {
                 object.logPersistenceEnabled = false;
                 object.logFilePath = "";
                 object.accessToken = "";
                 object.maxEventCount = 0;
                 object.maxEventAge = "";
+                object.shellSessionsEnabled = false;
+                object.systemRunEnabled = false;
+                object.hookManagementEnabled = false;
+                object.policyManagementEnabled = false;
+                object.otlpEnabled = false;
+                object.otlpEndpoint = "";
+                object.otlpServiceName = "";
             }
             if (message.logPersistenceEnabled != null && message.hasOwnProperty("logPersistenceEnabled"))
                 object.logPersistenceEnabled = message.logPersistenceEnabled;
@@ -12720,6 +17393,29 @@ export const pb = $root.pb = (() => {
                 object.maxEventCount = message.maxEventCount;
             if (message.maxEventAge != null && message.hasOwnProperty("maxEventAge"))
                 object.maxEventAge = message.maxEventAge;
+            if (message.shellSessionsEnabled != null && message.hasOwnProperty("shellSessionsEnabled"))
+                object.shellSessionsEnabled = message.shellSessionsEnabled;
+            if (message.systemRunEnabled != null && message.hasOwnProperty("systemRunEnabled"))
+                object.systemRunEnabled = message.systemRunEnabled;
+            if (message.hookManagementEnabled != null && message.hasOwnProperty("hookManagementEnabled"))
+                object.hookManagementEnabled = message.hookManagementEnabled;
+            if (message.policyManagementEnabled != null && message.hasOwnProperty("policyManagementEnabled"))
+                object.policyManagementEnabled = message.policyManagementEnabled;
+            if (message.otlpEnabled != null && message.hasOwnProperty("otlpEnabled"))
+                object.otlpEnabled = message.otlpEnabled;
+            if (message.otlpEndpoint != null && message.hasOwnProperty("otlpEndpoint"))
+                object.otlpEndpoint = message.otlpEndpoint;
+            if (message.otlpServiceName != null && message.hasOwnProperty("otlpServiceName"))
+                object.otlpServiceName = message.otlpServiceName;
+            let keys2;
+            if (message.otlpHeaders && (keys2 = Object.keys(message.otlpHeaders)).length) {
+                object.otlpHeaders = {};
+                for (let j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.otlpHeaders, keys2[j]);
+                    object.otlpHeaders[keys2[j]] = message.otlpHeaders[keys2[j]];
+                }
+            }
             return object;
         };
 
@@ -16783,6 +21479,7 @@ export const pb = $root.pb = (() => {
          * @interface ICapturedEventRecord
          * @property {pb.IEvent|null} [event] CapturedEventRecord event
          * @property {number|Long|null} [timestamp] CapturedEventRecord timestamp
+         * @property {pb.IEventEnvelope|null} [envelope] CapturedEventRecord envelope
          */
 
         /**
@@ -16817,6 +21514,14 @@ export const pb = $root.pb = (() => {
         CapturedEventRecord.prototype.timestamp = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
 
         /**
+         * CapturedEventRecord envelope.
+         * @member {pb.IEventEnvelope|null|undefined} envelope
+         * @memberof pb.CapturedEventRecord
+         * @instance
+         */
+        CapturedEventRecord.prototype.envelope = null;
+
+        /**
          * Creates a new CapturedEventRecord instance using the specified properties.
          * @function create
          * @memberof pb.CapturedEventRecord
@@ -16844,6 +21549,8 @@ export const pb = $root.pb = (() => {
                 $root.pb.Event.encode(message.event, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
             if (message.timestamp != null && Object.hasOwnProperty.call(message, "timestamp"))
                 writer.uint32(/* id 2, wireType 0 =*/16).int64(message.timestamp);
+            if (message.envelope != null && Object.hasOwnProperty.call(message, "envelope"))
+                $root.pb.EventEnvelope.encode(message.envelope, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
             return writer;
         };
 
@@ -16890,6 +21597,10 @@ export const pb = $root.pb = (() => {
                     }
                 case 2: {
                         message.timestamp = reader.int64();
+                        break;
+                    }
+                case 3: {
+                        message.envelope = $root.pb.EventEnvelope.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
@@ -16939,6 +21650,11 @@ export const pb = $root.pb = (() => {
             if (message.timestamp != null && message.hasOwnProperty("timestamp"))
                 if (!$util.isInteger(message.timestamp) && !(message.timestamp && $util.isInteger(message.timestamp.low) && $util.isInteger(message.timestamp.high)))
                     return "timestamp: integer|Long expected";
+            if (message.envelope != null && message.hasOwnProperty("envelope")) {
+                let error = $root.pb.EventEnvelope.verify(message.envelope, long + 1);
+                if (error)
+                    return "envelope." + error;
+            }
             return null;
         };
 
@@ -16972,6 +21688,11 @@ export const pb = $root.pb = (() => {
                     message.timestamp = object.timestamp;
                 else if (typeof object.timestamp === "object")
                     message.timestamp = new $util.LongBits(object.timestamp.low >>> 0, object.timestamp.high >>> 0).toNumber();
+            if (object.envelope != null) {
+                if (typeof object.envelope !== "object")
+                    throw TypeError(".pb.CapturedEventRecord.envelope: object expected");
+                message.envelope = $root.pb.EventEnvelope.fromObject(object.envelope, long + 1);
+            }
             return message;
         };
 
@@ -16995,6 +21716,7 @@ export const pb = $root.pb = (() => {
                     object.timestamp = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.timestamp = options.longs === String ? "0" : 0;
+                object.envelope = null;
             }
             if (message.event != null && message.hasOwnProperty("event"))
                 object.event = $root.pb.Event.toObject(message.event, options);
@@ -17003,6 +21725,8 @@ export const pb = $root.pb = (() => {
                     object.timestamp = options.longs === String ? String(message.timestamp) : message.timestamp;
                 else
                     object.timestamp = options.longs === String ? $util.Long.prototype.toString.call(message.timestamp) : options.longs === Number ? new $util.LongBits(message.timestamp.low >>> 0, message.timestamp.high >>> 0).toNumber() : message.timestamp;
+            if (message.envelope != null && message.hasOwnProperty("envelope"))
+                object.envelope = $root.pb.EventEnvelope.toObject(message.envelope, options);
             return object;
         };
 

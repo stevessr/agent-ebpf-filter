@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined, GlobalOutlined, DeploymentUnitOutlined } from '@ant-design/icons-vue';
+import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined, GlobalOutlined, DeploymentUnitOutlined, ClusterOutlined } from '@ant-design/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
 const selectedKeys = ref<string[]>(['/dashboard']);
 
 watch(() => route.path, (path) => {
-  if (path.startsWith('/executor')) {
+  if (path.startsWith('/execution-graph')) {
+    selectedKeys.value = ['/execution-graph'];
+  } else if (path.startsWith('/executor')) {
     selectedKeys.value = ['/executor'];
   } else if (path.startsWith('/config')) {
     selectedKeys.value = ['/config'];
@@ -54,6 +56,10 @@ const handleMenuClick = ({ key }: { key: string }) => {
         <a-menu-item key="/network-flow">
           <template #icon><DeploymentUnitOutlined /></template>
           Traffic
+        </a-menu-item>
+        <a-menu-item key="/execution-graph">
+          <template #icon><ClusterOutlined /></template>
+          Execution Graph
         </a-menu-item>
         <a-menu-item key="/explorer">
           <template #icon><FolderOpenOutlined /></template>

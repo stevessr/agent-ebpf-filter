@@ -37,6 +37,7 @@ func main() {
 	}
 
 	fmt.Printf("[DEBUG] Dialing %s...\n", udsPath)
+	cwd, _ := os.Getwd()
 	conn, err := net.DialTimeout("unix", udsPath, 500*time.Millisecond)
 	if err == nil {
 		defer conn.Close()
@@ -50,6 +51,7 @@ func main() {
 			Args:           cmdArgs,
 			User:           os.Getenv("USER"),
 			AgentRunId:     firstEnv("AGENT_EBPF_AGENT_RUN_ID", "AGENT_RUN_ID"),
+			TaskId:         firstEnv("AGENT_EBPF_TASK_ID", "AGENT_TASK_ID"),
 			ConversationId: firstEnv("AGENT_EBPF_CONVERSATION_ID", "AGENT_CONVERSATION_ID"),
 			TurnId:         firstEnv("AGENT_EBPF_TURN_ID", "AGENT_TURN_ID"),
 			ToolCallId:     firstEnv("AGENT_EBPF_TOOL_CALL_ID", "AGENT_TOOL_CALL_ID"),
@@ -60,6 +62,7 @@ func main() {
 			Decision:       strings.ToUpper(firstEnv("AGENT_EBPF_DECISION", "AGENT_DECISION")),
 			RiskScore:      parseEnvFloat64("AGENT_EBPF_RISK_SCORE", "AGENT_RISK_SCORE"),
 			ContainerId:    firstEnv("AGENT_EBPF_CONTAINER_ID", "CONTAINER_ID"),
+			Cwd:            firstNonEmpty(firstEnv("AGENT_EBPF_CWD", "PWD"), cwd),
 		}
 		req.ArgvDigest = buildArgvDigest(req.Comm, req.Args)
 
@@ -171,4 +174,13 @@ func buildArgvDigest(comm string, args []string) string {
 	}
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return hex.EncodeToString(sum[:])
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }

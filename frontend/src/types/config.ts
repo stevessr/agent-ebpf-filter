@@ -4,6 +4,14 @@ export interface RuntimeSettings {
   accessToken: string;
   maxEventCount: number;
   maxEventAge: string;
+  shellSessionsEnabled: boolean;
+  systemRunEnabled: boolean;
+  hookManagementEnabled: boolean;
+  policyManagementEnabled: boolean;
+  otlpEnabled: boolean;
+  otlpEndpoint: string;
+  otlpServiceName: string;
+  otlpHeaders: Record<string, string>;
   mlConfig?: {
     enabled?: boolean;
     blockConfidenceThreshold?: number;
@@ -80,6 +88,33 @@ export interface RuntimeConfigResponse {
   bearerAuthHeaderName: string;
   persistedEventLogPath: string;
   persistedEventLogAlive: boolean;
+}
+
+export interface CollectorHealthResponse {
+  collectorMapAvailable: boolean;
+  ringbufEventsTotal: number;
+  ringbufDroppedTotal: number;
+  ringbufReserveFailedTotal: number;
+  eventsByTypeTotal: Record<string, number>;
+  backendQueueLen: number;
+  wsClients: number;
+  persistAppendLatencyNs: number;
+  captureHealthy: boolean;
+}
+
+export interface OTelHealthResponse {
+  enabled: boolean;
+  ready: boolean;
+  endpoint: string;
+  serviceName: string;
+  queueLen: number;
+  activeRunSpans: number;
+  activeTaskSpans: number;
+  activeToolSpans: number;
+  exportedSpans: number;
+  droppedEvents: number;
+  lastExportedAt?: string;
+  lastError?: string;
 }
 
 export interface MLReviewSummary {

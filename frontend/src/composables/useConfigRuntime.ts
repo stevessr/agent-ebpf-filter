@@ -4,7 +4,7 @@ import { message } from 'ant-design-vue';
 import {
   setStoredApiToken,
 } from '../utils/requestContext';
-import type { RuntimeSettings, RuntimeConfigResponse } from '../types/config';
+import type { RuntimeSettings, RuntimeConfigResponse, CollectorHealthResponse, OTelHealthResponse } from '../types/config';
 
 export function useConfigRuntime() {
   const runtimeSettings = ref<RuntimeSettings>({
@@ -13,12 +13,44 @@ export function useConfigRuntime() {
     accessToken: '',
     maxEventCount: 1500,
     maxEventAge: '0',
+    shellSessionsEnabled: false,
+    systemRunEnabled: false,
+    hookManagementEnabled: false,
+    policyManagementEnabled: false,
+    otlpEnabled: false,
+    otlpEndpoint: '',
+    otlpServiceName: 'agent-ebpf-filter',
+    otlpHeaders: {},
   });
   const mcpEndpoint = ref('');
   const authHeaderName = ref('X-API-KEY');
   const bearerAuthHeaderName = ref('Authorization: Bearer');
   const persistedEventLogPath = ref('');
   const persistedEventLogAlive = ref(false);
+  const otlpHeadersText = ref('{}');
+  const collectorHealth = ref<CollectorHealthResponse>({
+    collectorMapAvailable: false,
+    ringbufEventsTotal: 0,
+    ringbufDroppedTotal: 0,
+    ringbufReserveFailedTotal: 0,
+    eventsByTypeTotal: {},
+    backendQueueLen: 0,
+    wsClients: 0,
+    persistAppendLatencyNs: 0,
+    captureHealthy: true,
+  });
+  const otelHealth = ref<OTelHealthResponse>({
+    enabled: false,
+    ready: false,
+    endpoint: '',
+    serviceName: '',
+    queueLen: 0,
+    activeRunSpans: 0,
+    activeTaskSpans: 0,
+    activeToolSpans: 0,
+    exportedSpans: 0,
+    droppedEvents: 0,
+  });
 
   const syncApiToken = (token: string) => {
     const normalized = token.trim();
@@ -39,7 +71,16 @@ export function useConfigRuntime() {
       accessToken: data.runtime.accessToken,
       maxEventCount: data.runtime.maxEventCount ?? 1500,
       maxEventAge: data.runtime.maxEventAge ?? '0',
+      shellSessionsEnabled: Boolean(data.runtime.shellSessionsEnabled),
+      systemRunEnabled: Boolean(data.runtime.systemRunEnabled),
+      hookManagementEnabled: Boolean(data.runtime.hookManagementEnabled),
+      policyManagementEnabled: Boolean(data.runtime.policyManagementEnabled),
+      otlpEnabled: Boolean(data.runtime.otlpEnabled),
+      otlpEndpoint: data.runtime.otlpEndpoint || '',
+      otlpServiceName: data.runtime.otlpServiceName || 'agent-ebpf-filter',
+      otlpHeaders: { ...(data.runtime.otlpHeaders || {}) },
     };
+    otlpHeadersText.value = JSON.stringify(runtimeSettings.value.otlpHeaders || {}, null, 2);
     mcpEndpoint.value = data.mcpEndpoint;
     authHeaderName.value = data.authHeaderName;
     bearerAuthHeaderName.value = data.bearerAuthHeaderName;
@@ -50,25 +91,73 @@ export function useConfigRuntime() {
 
   const fetchRuntime = async () => {
     try {
-      const res = await axios.get('/config/runtime');
-      applyRuntimeResponse(res.data as RuntimeConfigResponse);
+      const [runtimeRes, collectorRes, otelRes] = await Promise.all([
+        axios.get('/config/runtime'),
+        axios.get('/system/collector-health'),
+        axios.get('/system/otel-health'),
+      ]);
+      collectorHealth.value = collectorRes.data as CollectorHealthResponse;
+      otelHealth.value = otelRes.data as OTelHealthResponse;
+      applyRuntimeResponse(runtimeRes.data as RuntimeConfigResponse);
     } catch (_) {
       console.error('Failed to fetch runtime config');
     }
   };
 
+  const fetchCollectorHealth = async () => {
+    try {
+      const [collectorRes, otelRes] = await Promise.all([
+        axios.get('/system/collector-health'),
+        axios.get('/system/otel-health'),
+      ]);
+      collectorHealth.value = collectorRes.data as CollectorHealthResponse;
+      otelHealth.value = otelRes.data as OTelHealthResponse;
+    } catch (_) {
+      console.error('Failed to fetch collector health');
+    }
+  };
+
+  const parseOTLPHeaders = () => {
+    const raw = otlpHeadersText.value.trim();
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('OTLP headers must be a JSON object');
+      }
+      return Object.entries(parsed).reduce<Record<string, string>>((acc, [key, value]) => {
+        const normalizedKey = String(key || '').trim();
+        if (!normalizedKey) return acc;
+        acc[normalizedKey] = String(value ?? '').trim();
+        return acc;
+      }, {});
+    } catch (error: any) {
+      throw new Error(error?.message || 'Invalid OTLP headers JSON');
+    }
+  };
+
   const saveRuntime = async () => {
     try {
+      const otlpHeaders = parseOTLPHeaders();
       const res = await axios.put('/config/runtime', {
         logPersistenceEnabled: runtimeSettings.value.logPersistenceEnabled,
         logFilePath: runtimeSettings.value.logFilePath,
         maxEventCount: runtimeSettings.value.maxEventCount,
         maxEventAge: runtimeSettings.value.maxEventAge,
+        shellSessionsEnabled: runtimeSettings.value.shellSessionsEnabled,
+        systemRunEnabled: runtimeSettings.value.systemRunEnabled,
+        hookManagementEnabled: runtimeSettings.value.hookManagementEnabled,
+        policyManagementEnabled: runtimeSettings.value.policyManagementEnabled,
+        otlpEnabled: runtimeSettings.value.otlpEnabled,
+        otlpEndpoint: runtimeSettings.value.otlpEndpoint,
+        otlpServiceName: runtimeSettings.value.otlpServiceName,
+        otlpHeaders,
       });
       applyRuntimeResponse(res.data as RuntimeConfigResponse);
+      await fetchCollectorHealth();
       message.success('Runtime settings saved');
-    } catch (_) {
-      message.error('Failed to save runtime settings');
+    } catch (error: any) {
+      message.error(error?.message || 'Failed to save runtime settings');
     }
   };
 
@@ -76,6 +165,7 @@ export function useConfigRuntime() {
     try {
       const res = await axios.post('/config/access-token');
       applyRuntimeResponse(res.data as RuntimeConfigResponse);
+      await fetchCollectorHealth();
       message.success('Access token regenerated');
     } catch (_) {
       message.error('Failed to regenerate access token');
@@ -138,9 +228,10 @@ export function useConfigRuntime() {
 
   return {
     runtimeSettings,
+    otlpHeadersText, otelHealth,
     mcpEndpoint, authHeaderName, bearerAuthHeaderName,
-    persistedEventLogPath, persistedEventLogAlive,
-    syncApiToken, applyRuntimeResponse, fetchRuntime, saveRuntime,
+    persistedEventLogPath, persistedEventLogAlive, collectorHealth,
+    syncApiToken, applyRuntimeResponse, fetchRuntime, fetchCollectorHealth, saveRuntime,
     rotateAccessToken, clearInMemoryEvents, clearPersistedLog, clearAllEvents,
     copyText, mcpQueryEndpoint, mcpQueryEndpointTemplate,
   };

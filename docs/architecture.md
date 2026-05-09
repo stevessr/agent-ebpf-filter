@@ -267,9 +267,42 @@ Child shells / commands then attempt to drop back to the invoking user.
 
 ## Auth model
 
-Current auth behavior is intentionally light and local-first:
+In release mode, the runtime access token now protects:
 
-- `/config/**` and `/system/**` go through `authMiddleware()` in release mode
-- several operational routes remain outside that middleware today
+- `/config/**`
+- `/system/**`
+- `/ws*`
+- `/metrics`
+- `/events/recent`
+- `/events/graph`
+- `/register`
+- `/unregister`
+- `/shell-sessions*`
+
+`/hooks/event` accepts either that token or a per-hook `X-Agent-Hook-Secret`.
+Dangerous features such as PTY sessions, `/system/run`, hook installation, and policy mutation are also runtime-gated and default to disabled until enabled in `/config/runtime`.
 
 Treat the app as a local workstation tool unless you also harden auth and deployment boundaries.
+
+## Export model
+
+- `GET /ws/envelopes` exposes the normalized `EventEnvelope` stream for downstream consumers.
+- `GET /metrics` exposes local Prometheus counters and gauges for ringbuf health, queue depth, WS clients, persist latency, and per-type / per-pid event totals.
+- OTLP HTTP export is configured from `/config/runtime` and currently derives:
+  - `agent.run` spans from `agent_run_id` / `root_agent_pid`
+  - `codex.task` spans from `task_id` or conversation+turn fallback
+  - `tool.call`, `llm.call`, `pr.review`, or `mcp.call` spans from the normalized tool context
+  - child spans / span events for process, file, network, wrapper, hook, and policy events
+- `GET /system/otel-health` reports exporter readiness, queue depth, active synthetic span counts, dropped exporter events, and the last export timestamp / error.
+
+## Benchmark model
+
+- `benchmarks/runtime-replay/scenarios.json` is the offline replay scenario catalog.
+- `make runtime-benchmark` runs `TestRuntimeReplaySuite` and writes a JSON summary under `reports/runtime-replay-*`.
+- The replay suite checks:
+  - semantic alert coverage
+  - benign false positives
+  - wrapper decision latency
+  - first-alert / block latency
+  - child-context correlation accuracy
+- Live collector metrics such as ringbuf drops still come from `/system/collector-health` and `/metrics`, not from the offline replay harness.

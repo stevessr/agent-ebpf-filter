@@ -34,7 +34,8 @@ export namespace pb {
         SCHED_PROCESS_FORK = 26,
         SCHED_PROCESS_EXEC = 27,
         SCHED_PROCESS_EXIT = 28,
-        WAIT4 = 29
+        WAIT4 = 29,
+        SEMANTIC_ALERT = 30
     }
 
     /** BehaviorCategory enum. */
@@ -215,6 +216,12 @@ export namespace pb {
 
         /** RegisterRequest argvDigest */
         argvDigest?: (string|null);
+
+        /** RegisterRequest taskId */
+        taskId?: (string|null);
+
+        /** RegisterRequest cwd */
+        cwd?: (string|null);
     }
 
     /** Represents a RegisterRequest. */
@@ -267,6 +274,12 @@ export namespace pb {
 
         /** RegisterRequest argvDigest. */
         public argvDigest: string;
+
+        /** RegisterRequest taskId. */
+        public taskId: string;
+
+        /** RegisterRequest cwd. */
+        public cwd: string;
 
         /**
          * Creates a new RegisterRequest instance using the specified properties.
@@ -768,6 +781,12 @@ export namespace pb {
 
         /** Event argvDigest */
         argvDigest?: (string|null);
+
+        /** Event taskId */
+        taskId?: (string|null);
+
+        /** Event cwd */
+        cwd?: (string|null);
     }
 
     /** Represents an Event. */
@@ -896,6 +915,12 @@ export namespace pb {
         /** Event argvDigest. */
         public argvDigest: string;
 
+        /** Event taskId. */
+        public taskId: string;
+
+        /** Event cwd. */
+        public cwd: string;
+
         /**
          * Creates a new Event instance using the specified properties.
          * @param [properties] Properties to set
@@ -968,6 +993,1429 @@ export namespace pb {
 
         /**
          * Gets the default type url for Event
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an ExecEvent. */
+    interface IExecEvent {
+
+        /** ExecEvent path */
+        path?: (string|null);
+
+        /** ExecEvent retval */
+        retval?: (number|Long|null);
+
+        /** ExecEvent durationNs */
+        durationNs?: (number|Long|null);
+
+        /** ExecEvent extraInfo */
+        extraInfo?: (string|null);
+
+        /** ExecEvent argvDigest */
+        argvDigest?: (string|null);
+
+        /** ExecEvent cwd */
+        cwd?: (string|null);
+    }
+
+    /** Represents an ExecEvent. */
+    class ExecEvent implements IExecEvent {
+
+        /**
+         * Constructs a new ExecEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IExecEvent);
+
+        /** ExecEvent path. */
+        public path: string;
+
+        /** ExecEvent retval. */
+        public retval: (number|Long);
+
+        /** ExecEvent durationNs. */
+        public durationNs: (number|Long);
+
+        /** ExecEvent extraInfo. */
+        public extraInfo: string;
+
+        /** ExecEvent argvDigest. */
+        public argvDigest: string;
+
+        /** ExecEvent cwd. */
+        public cwd: string;
+
+        /**
+         * Creates a new ExecEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ExecEvent instance
+         */
+        public static create(properties?: pb.IExecEvent): pb.ExecEvent;
+
+        /**
+         * Encodes the specified ExecEvent message. Does not implicitly {@link pb.ExecEvent.verify|verify} messages.
+         * @param message ExecEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IExecEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ExecEvent message, length delimited. Does not implicitly {@link pb.ExecEvent.verify|verify} messages.
+         * @param message ExecEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IExecEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an ExecEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ExecEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.ExecEvent;
+
+        /**
+         * Decodes an ExecEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ExecEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.ExecEvent;
+
+        /**
+         * Verifies an ExecEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an ExecEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ExecEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.ExecEvent;
+
+        /**
+         * Creates a plain object from an ExecEvent message. Also converts values to other types if specified.
+         * @param message ExecEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.ExecEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ExecEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ExecEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a FileEvent. */
+    interface IFileEvent {
+
+        /** FileEvent operation */
+        operation?: (string|null);
+
+        /** FileEvent path */
+        path?: (string|null);
+
+        /** FileEvent extraPath */
+        extraPath?: (string|null);
+
+        /** FileEvent mode */
+        mode?: (string|null);
+
+        /** FileEvent bytes */
+        bytes?: (number|Long|null);
+
+        /** FileEvent uidArg */
+        uidArg?: (number|null);
+
+        /** FileEvent gidArg */
+        gidArg?: (number|null);
+
+        /** FileEvent retval */
+        retval?: (number|Long|null);
+
+        /** FileEvent extraInfo */
+        extraInfo?: (string|null);
+    }
+
+    /** Represents a FileEvent. */
+    class FileEvent implements IFileEvent {
+
+        /**
+         * Constructs a new FileEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IFileEvent);
+
+        /** FileEvent operation. */
+        public operation: string;
+
+        /** FileEvent path. */
+        public path: string;
+
+        /** FileEvent extraPath. */
+        public extraPath: string;
+
+        /** FileEvent mode. */
+        public mode: string;
+
+        /** FileEvent bytes. */
+        public bytes: (number|Long);
+
+        /** FileEvent uidArg. */
+        public uidArg: number;
+
+        /** FileEvent gidArg. */
+        public gidArg: number;
+
+        /** FileEvent retval. */
+        public retval: (number|Long);
+
+        /** FileEvent extraInfo. */
+        public extraInfo: string;
+
+        /**
+         * Creates a new FileEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns FileEvent instance
+         */
+        public static create(properties?: pb.IFileEvent): pb.FileEvent;
+
+        /**
+         * Encodes the specified FileEvent message. Does not implicitly {@link pb.FileEvent.verify|verify} messages.
+         * @param message FileEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IFileEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified FileEvent message, length delimited. Does not implicitly {@link pb.FileEvent.verify|verify} messages.
+         * @param message FileEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IFileEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a FileEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns FileEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.FileEvent;
+
+        /**
+         * Decodes a FileEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns FileEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.FileEvent;
+
+        /**
+         * Verifies a FileEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a FileEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns FileEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.FileEvent;
+
+        /**
+         * Creates a plain object from a FileEvent message. Also converts values to other types if specified.
+         * @param message FileEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.FileEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this FileEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for FileEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a NetworkEvent. */
+    interface INetworkEvent {
+
+        /** NetworkEvent endpoint */
+        endpoint?: (string|null);
+
+        /** NetworkEvent direction */
+        direction?: (string|null);
+
+        /** NetworkEvent bytes */
+        bytes?: (number|null);
+
+        /** NetworkEvent family */
+        family?: (string|null);
+
+        /** NetworkEvent domain */
+        domain?: (string|null);
+
+        /** NetworkEvent sockType */
+        sockType?: (string|null);
+
+        /** NetworkEvent protocol */
+        protocol?: (number|null);
+
+        /** NetworkEvent retval */
+        retval?: (number|Long|null);
+
+        /** NetworkEvent extraInfo */
+        extraInfo?: (string|null);
+    }
+
+    /** Represents a NetworkEvent. */
+    class NetworkEvent implements INetworkEvent {
+
+        /**
+         * Constructs a new NetworkEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.INetworkEvent);
+
+        /** NetworkEvent endpoint. */
+        public endpoint: string;
+
+        /** NetworkEvent direction. */
+        public direction: string;
+
+        /** NetworkEvent bytes. */
+        public bytes: number;
+
+        /** NetworkEvent family. */
+        public family: string;
+
+        /** NetworkEvent domain. */
+        public domain: string;
+
+        /** NetworkEvent sockType. */
+        public sockType: string;
+
+        /** NetworkEvent protocol. */
+        public protocol: number;
+
+        /** NetworkEvent retval. */
+        public retval: (number|Long);
+
+        /** NetworkEvent extraInfo. */
+        public extraInfo: string;
+
+        /**
+         * Creates a new NetworkEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns NetworkEvent instance
+         */
+        public static create(properties?: pb.INetworkEvent): pb.NetworkEvent;
+
+        /**
+         * Encodes the specified NetworkEvent message. Does not implicitly {@link pb.NetworkEvent.verify|verify} messages.
+         * @param message NetworkEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.INetworkEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified NetworkEvent message, length delimited. Does not implicitly {@link pb.NetworkEvent.verify|verify} messages.
+         * @param message NetworkEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.INetworkEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a NetworkEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns NetworkEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.NetworkEvent;
+
+        /**
+         * Decodes a NetworkEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns NetworkEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.NetworkEvent;
+
+        /**
+         * Verifies a NetworkEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a NetworkEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns NetworkEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.NetworkEvent;
+
+        /**
+         * Creates a plain object from a NetworkEvent message. Also converts values to other types if specified.
+         * @param message NetworkEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.NetworkEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this NetworkEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for NetworkEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a ProcessEvent. */
+    interface IProcessEvent {
+
+        /** ProcessEvent phase */
+        phase?: (string|null);
+
+        /** ProcessEvent parentPid */
+        parentPid?: (number|null);
+
+        /** ProcessEvent childPid */
+        childPid?: (number|null);
+
+        /** ProcessEvent oldPid */
+        oldPid?: (number|null);
+
+        /** ProcessEvent targetPid */
+        targetPid?: (number|null);
+
+        /** ProcessEvent exitStatus */
+        exitStatus?: (number|null);
+
+        /** ProcessEvent extraInfo */
+        extraInfo?: (string|null);
+    }
+
+    /** Represents a ProcessEvent. */
+    class ProcessEvent implements IProcessEvent {
+
+        /**
+         * Constructs a new ProcessEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IProcessEvent);
+
+        /** ProcessEvent phase. */
+        public phase: string;
+
+        /** ProcessEvent parentPid. */
+        public parentPid: number;
+
+        /** ProcessEvent childPid. */
+        public childPid: number;
+
+        /** ProcessEvent oldPid. */
+        public oldPid: number;
+
+        /** ProcessEvent targetPid. */
+        public targetPid: number;
+
+        /** ProcessEvent exitStatus. */
+        public exitStatus: number;
+
+        /** ProcessEvent extraInfo. */
+        public extraInfo: string;
+
+        /**
+         * Creates a new ProcessEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ProcessEvent instance
+         */
+        public static create(properties?: pb.IProcessEvent): pb.ProcessEvent;
+
+        /**
+         * Encodes the specified ProcessEvent message. Does not implicitly {@link pb.ProcessEvent.verify|verify} messages.
+         * @param message ProcessEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IProcessEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ProcessEvent message, length delimited. Does not implicitly {@link pb.ProcessEvent.verify|verify} messages.
+         * @param message ProcessEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IProcessEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ProcessEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ProcessEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.ProcessEvent;
+
+        /**
+         * Decodes a ProcessEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ProcessEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.ProcessEvent;
+
+        /**
+         * Verifies a ProcessEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ProcessEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ProcessEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.ProcessEvent;
+
+        /**
+         * Creates a plain object from a ProcessEvent message. Also converts values to other types if specified.
+         * @param message ProcessEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.ProcessEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ProcessEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ProcessEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a PolicyEvent. */
+    interface IPolicyEvent {
+
+        /** PolicyEvent decision */
+        decision?: (string|null);
+
+        /** PolicyEvent riskScore */
+        riskScore?: (number|null);
+
+        /** PolicyEvent reason */
+        reason?: (string|null);
+
+        /** PolicyEvent relatedPath */
+        relatedPath?: (string|null);
+
+        /** PolicyEvent relatedEndpoint */
+        relatedEndpoint?: (string|null);
+    }
+
+    /** Represents a PolicyEvent. */
+    class PolicyEvent implements IPolicyEvent {
+
+        /**
+         * Constructs a new PolicyEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IPolicyEvent);
+
+        /** PolicyEvent decision. */
+        public decision: string;
+
+        /** PolicyEvent riskScore. */
+        public riskScore: number;
+
+        /** PolicyEvent reason. */
+        public reason: string;
+
+        /** PolicyEvent relatedPath. */
+        public relatedPath: string;
+
+        /** PolicyEvent relatedEndpoint. */
+        public relatedEndpoint: string;
+
+        /**
+         * Creates a new PolicyEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns PolicyEvent instance
+         */
+        public static create(properties?: pb.IPolicyEvent): pb.PolicyEvent;
+
+        /**
+         * Encodes the specified PolicyEvent message. Does not implicitly {@link pb.PolicyEvent.verify|verify} messages.
+         * @param message PolicyEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IPolicyEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified PolicyEvent message, length delimited. Does not implicitly {@link pb.PolicyEvent.verify|verify} messages.
+         * @param message PolicyEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IPolicyEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a PolicyEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns PolicyEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.PolicyEvent;
+
+        /**
+         * Decodes a PolicyEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns PolicyEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.PolicyEvent;
+
+        /**
+         * Verifies a PolicyEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a PolicyEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns PolicyEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.PolicyEvent;
+
+        /**
+         * Creates a plain object from a PolicyEvent message. Also converts values to other types if specified.
+         * @param message PolicyEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.PolicyEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this PolicyEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for PolicyEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a WrapperEvent. */
+    interface IWrapperEvent {
+
+        /** WrapperEvent commandLine */
+        commandLine?: (string|null);
+
+        /** WrapperEvent args */
+        args?: (string[]|null);
+
+        /** WrapperEvent behavior */
+        behavior?: (pb.IBehaviorClassification|null);
+
+        /** WrapperEvent extraInfo */
+        extraInfo?: (string|null);
+
+        /** WrapperEvent toolName */
+        toolName?: (string|null);
+    }
+
+    /** Represents a WrapperEvent. */
+    class WrapperEvent implements IWrapperEvent {
+
+        /**
+         * Constructs a new WrapperEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IWrapperEvent);
+
+        /** WrapperEvent commandLine. */
+        public commandLine: string;
+
+        /** WrapperEvent args. */
+        public args: string[];
+
+        /** WrapperEvent behavior. */
+        public behavior?: (pb.IBehaviorClassification|null);
+
+        /** WrapperEvent extraInfo. */
+        public extraInfo: string;
+
+        /** WrapperEvent toolName. */
+        public toolName: string;
+
+        /**
+         * Creates a new WrapperEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns WrapperEvent instance
+         */
+        public static create(properties?: pb.IWrapperEvent): pb.WrapperEvent;
+
+        /**
+         * Encodes the specified WrapperEvent message. Does not implicitly {@link pb.WrapperEvent.verify|verify} messages.
+         * @param message WrapperEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IWrapperEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified WrapperEvent message, length delimited. Does not implicitly {@link pb.WrapperEvent.verify|verify} messages.
+         * @param message WrapperEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IWrapperEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a WrapperEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns WrapperEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.WrapperEvent;
+
+        /**
+         * Decodes a WrapperEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns WrapperEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.WrapperEvent;
+
+        /**
+         * Verifies a WrapperEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a WrapperEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns WrapperEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.WrapperEvent;
+
+        /**
+         * Creates a plain object from a WrapperEvent message. Also converts values to other types if specified.
+         * @param message WrapperEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.WrapperEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this WrapperEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for WrapperEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a HookEvent. */
+    interface IHookEvent {
+
+        /** HookEvent hookName */
+        hookName?: (string|null);
+
+        /** HookEvent toolName */
+        toolName?: (string|null);
+
+        /** HookEvent targetPath */
+        targetPath?: (string|null);
+
+        /** HookEvent extraInfo */
+        extraInfo?: (string|null);
+    }
+
+    /** Represents a HookEvent. */
+    class HookEvent implements IHookEvent {
+
+        /**
+         * Constructs a new HookEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IHookEvent);
+
+        /** HookEvent hookName. */
+        public hookName: string;
+
+        /** HookEvent toolName. */
+        public toolName: string;
+
+        /** HookEvent targetPath. */
+        public targetPath: string;
+
+        /** HookEvent extraInfo. */
+        public extraInfo: string;
+
+        /**
+         * Creates a new HookEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns HookEvent instance
+         */
+        public static create(properties?: pb.IHookEvent): pb.HookEvent;
+
+        /**
+         * Encodes the specified HookEvent message. Does not implicitly {@link pb.HookEvent.verify|verify} messages.
+         * @param message HookEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IHookEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified HookEvent message, length delimited. Does not implicitly {@link pb.HookEvent.verify|verify} messages.
+         * @param message HookEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IHookEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a HookEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns HookEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.HookEvent;
+
+        /**
+         * Decodes a HookEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns HookEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.HookEvent;
+
+        /**
+         * Verifies a HookEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a HookEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns HookEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.HookEvent;
+
+        /**
+         * Creates a plain object from a HookEvent message. Also converts values to other types if specified.
+         * @param message HookEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.HookEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this HookEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HookEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a McpEvent. */
+    interface IMcpEvent {
+
+        /** McpEvent toolName */
+        toolName?: (string|null);
+
+        /** McpEvent serverName */
+        serverName?: (string|null);
+
+        /** McpEvent endpoint */
+        endpoint?: (string|null);
+
+        /** McpEvent requestId */
+        requestId?: (string|null);
+
+        /** McpEvent extraInfo */
+        extraInfo?: (string|null);
+    }
+
+    /** Represents a McpEvent. */
+    class McpEvent implements IMcpEvent {
+
+        /**
+         * Constructs a new McpEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IMcpEvent);
+
+        /** McpEvent toolName. */
+        public toolName: string;
+
+        /** McpEvent serverName. */
+        public serverName: string;
+
+        /** McpEvent endpoint. */
+        public endpoint: string;
+
+        /** McpEvent requestId. */
+        public requestId: string;
+
+        /** McpEvent extraInfo. */
+        public extraInfo: string;
+
+        /**
+         * Creates a new McpEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns McpEvent instance
+         */
+        public static create(properties?: pb.IMcpEvent): pb.McpEvent;
+
+        /**
+         * Encodes the specified McpEvent message. Does not implicitly {@link pb.McpEvent.verify|verify} messages.
+         * @param message McpEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IMcpEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified McpEvent message, length delimited. Does not implicitly {@link pb.McpEvent.verify|verify} messages.
+         * @param message McpEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IMcpEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a McpEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns McpEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.McpEvent;
+
+        /**
+         * Decodes a McpEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns McpEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.McpEvent;
+
+        /**
+         * Verifies a McpEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a McpEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns McpEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.McpEvent;
+
+        /**
+         * Creates a plain object from a McpEvent message. Also converts values to other types if specified.
+         * @param message McpEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.McpEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this McpEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for McpEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an EventEnvelope. */
+    interface IEventEnvelope {
+
+        /** EventEnvelope schemaVersion */
+        schemaVersion?: (string|null);
+
+        /** EventEnvelope eventId */
+        eventId?: (string|null);
+
+        /** EventEnvelope timestampNs */
+        timestampNs?: (number|Long|null);
+
+        /** EventEnvelope source */
+        source?: (string|null);
+
+        /** EventEnvelope agentRunId */
+        agentRunId?: (string|null);
+
+        /** EventEnvelope taskId */
+        taskId?: (string|null);
+
+        /** EventEnvelope conversationId */
+        conversationId?: (string|null);
+
+        /** EventEnvelope turnId */
+        turnId?: (string|null);
+
+        /** EventEnvelope toolCallId */
+        toolCallId?: (string|null);
+
+        /** EventEnvelope toolName */
+        toolName?: (string|null);
+
+        /** EventEnvelope traceId */
+        traceId?: (string|null);
+
+        /** EventEnvelope spanId */
+        spanId?: (string|null);
+
+        /** EventEnvelope pid */
+        pid?: (number|null);
+
+        /** EventEnvelope tgid */
+        tgid?: (number|null);
+
+        /** EventEnvelope ppid */
+        ppid?: (number|null);
+
+        /** EventEnvelope uid */
+        uid?: (number|null);
+
+        /** EventEnvelope gid */
+        gid?: (number|null);
+
+        /** EventEnvelope comm */
+        comm?: (string|null);
+
+        /** EventEnvelope argvDigest */
+        argvDigest?: (string|null);
+
+        /** EventEnvelope cwd */
+        cwd?: (string|null);
+
+        /** EventEnvelope cgroupId */
+        cgroupId?: (number|Long|null);
+
+        /** EventEnvelope containerId */
+        containerId?: (string|null);
+
+        /** EventEnvelope policyDecision */
+        policyDecision?: (string|null);
+
+        /** EventEnvelope riskScore */
+        riskScore?: (number|null);
+
+        /** EventEnvelope eventType */
+        eventType?: (pb.EventType|null);
+
+        /** EventEnvelope legacyEvent */
+        legacyEvent?: (pb.IEvent|null);
+
+        /** EventEnvelope execEvent */
+        execEvent?: (pb.IExecEvent|null);
+
+        /** EventEnvelope fileEvent */
+        fileEvent?: (pb.IFileEvent|null);
+
+        /** EventEnvelope networkEvent */
+        networkEvent?: (pb.INetworkEvent|null);
+
+        /** EventEnvelope processEvent */
+        processEvent?: (pb.IProcessEvent|null);
+
+        /** EventEnvelope policyEvent */
+        policyEvent?: (pb.IPolicyEvent|null);
+
+        /** EventEnvelope wrapperEvent */
+        wrapperEvent?: (pb.IWrapperEvent|null);
+
+        /** EventEnvelope hookEvent */
+        hookEvent?: (pb.IHookEvent|null);
+
+        /** EventEnvelope mcpEvent */
+        mcpEvent?: (pb.IMcpEvent|null);
+    }
+
+    /** Represents an EventEnvelope. */
+    class EventEnvelope implements IEventEnvelope {
+
+        /**
+         * Constructs a new EventEnvelope.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IEventEnvelope);
+
+        /** EventEnvelope schemaVersion. */
+        public schemaVersion: string;
+
+        /** EventEnvelope eventId. */
+        public eventId: string;
+
+        /** EventEnvelope timestampNs. */
+        public timestampNs: (number|Long);
+
+        /** EventEnvelope source. */
+        public source: string;
+
+        /** EventEnvelope agentRunId. */
+        public agentRunId: string;
+
+        /** EventEnvelope taskId. */
+        public taskId: string;
+
+        /** EventEnvelope conversationId. */
+        public conversationId: string;
+
+        /** EventEnvelope turnId. */
+        public turnId: string;
+
+        /** EventEnvelope toolCallId. */
+        public toolCallId: string;
+
+        /** EventEnvelope toolName. */
+        public toolName: string;
+
+        /** EventEnvelope traceId. */
+        public traceId: string;
+
+        /** EventEnvelope spanId. */
+        public spanId: string;
+
+        /** EventEnvelope pid. */
+        public pid: number;
+
+        /** EventEnvelope tgid. */
+        public tgid: number;
+
+        /** EventEnvelope ppid. */
+        public ppid: number;
+
+        /** EventEnvelope uid. */
+        public uid: number;
+
+        /** EventEnvelope gid. */
+        public gid: number;
+
+        /** EventEnvelope comm. */
+        public comm: string;
+
+        /** EventEnvelope argvDigest. */
+        public argvDigest: string;
+
+        /** EventEnvelope cwd. */
+        public cwd: string;
+
+        /** EventEnvelope cgroupId. */
+        public cgroupId: (number|Long);
+
+        /** EventEnvelope containerId. */
+        public containerId: string;
+
+        /** EventEnvelope policyDecision. */
+        public policyDecision: string;
+
+        /** EventEnvelope riskScore. */
+        public riskScore: number;
+
+        /** EventEnvelope eventType. */
+        public eventType: pb.EventType;
+
+        /** EventEnvelope legacyEvent. */
+        public legacyEvent?: (pb.IEvent|null);
+
+        /** EventEnvelope execEvent. */
+        public execEvent?: (pb.IExecEvent|null);
+
+        /** EventEnvelope fileEvent. */
+        public fileEvent?: (pb.IFileEvent|null);
+
+        /** EventEnvelope networkEvent. */
+        public networkEvent?: (pb.INetworkEvent|null);
+
+        /** EventEnvelope processEvent. */
+        public processEvent?: (pb.IProcessEvent|null);
+
+        /** EventEnvelope policyEvent. */
+        public policyEvent?: (pb.IPolicyEvent|null);
+
+        /** EventEnvelope wrapperEvent. */
+        public wrapperEvent?: (pb.IWrapperEvent|null);
+
+        /** EventEnvelope hookEvent. */
+        public hookEvent?: (pb.IHookEvent|null);
+
+        /** EventEnvelope mcpEvent. */
+        public mcpEvent?: (pb.IMcpEvent|null);
+
+        /** EventEnvelope payload. */
+        public payload?: ("execEvent"|"fileEvent"|"networkEvent"|"processEvent"|"policyEvent"|"wrapperEvent"|"hookEvent"|"mcpEvent");
+
+        /**
+         * Creates a new EventEnvelope instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns EventEnvelope instance
+         */
+        public static create(properties?: pb.IEventEnvelope): pb.EventEnvelope;
+
+        /**
+         * Encodes the specified EventEnvelope message. Does not implicitly {@link pb.EventEnvelope.verify|verify} messages.
+         * @param message EventEnvelope message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IEventEnvelope, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified EventEnvelope message, length delimited. Does not implicitly {@link pb.EventEnvelope.verify|verify} messages.
+         * @param message EventEnvelope message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IEventEnvelope, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an EventEnvelope message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns EventEnvelope
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.EventEnvelope;
+
+        /**
+         * Decodes an EventEnvelope message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns EventEnvelope
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.EventEnvelope;
+
+        /**
+         * Verifies an EventEnvelope message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an EventEnvelope message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns EventEnvelope
+         */
+        public static fromObject(object: { [k: string]: any }): pb.EventEnvelope;
+
+        /**
+         * Creates a plain object from an EventEnvelope message. Also converts values to other types if specified.
+         * @param message EventEnvelope
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.EventEnvelope, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this EventEnvelope to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for EventEnvelope
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an EventEnvelopeBatch. */
+    interface IEventEnvelopeBatch {
+
+        /** EventEnvelopeBatch envelopes */
+        envelopes?: (pb.IEventEnvelope[]|null);
+    }
+
+    /** Represents an EventEnvelopeBatch. */
+    class EventEnvelopeBatch implements IEventEnvelopeBatch {
+
+        /**
+         * Constructs a new EventEnvelopeBatch.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IEventEnvelopeBatch);
+
+        /** EventEnvelopeBatch envelopes. */
+        public envelopes: pb.IEventEnvelope[];
+
+        /**
+         * Creates a new EventEnvelopeBatch instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns EventEnvelopeBatch instance
+         */
+        public static create(properties?: pb.IEventEnvelopeBatch): pb.EventEnvelopeBatch;
+
+        /**
+         * Encodes the specified EventEnvelopeBatch message. Does not implicitly {@link pb.EventEnvelopeBatch.verify|verify} messages.
+         * @param message EventEnvelopeBatch message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IEventEnvelopeBatch, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified EventEnvelopeBatch message, length delimited. Does not implicitly {@link pb.EventEnvelopeBatch.verify|verify} messages.
+         * @param message EventEnvelopeBatch message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IEventEnvelopeBatch, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an EventEnvelopeBatch message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns EventEnvelopeBatch
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.EventEnvelopeBatch;
+
+        /**
+         * Decodes an EventEnvelopeBatch message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns EventEnvelopeBatch
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.EventEnvelopeBatch;
+
+        /**
+         * Verifies an EventEnvelopeBatch message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an EventEnvelopeBatch message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns EventEnvelopeBatch
+         */
+        public static fromObject(object: { [k: string]: any }): pb.EventEnvelopeBatch;
+
+        /**
+         * Creates a plain object from an EventEnvelopeBatch message. Also converts values to other types if specified.
+         * @param message EventEnvelopeBatch
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.EventEnvelopeBatch, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this EventEnvelopeBatch to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for EventEnvelopeBatch
          * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns The default type url
          */
@@ -2815,6 +4263,12 @@ export namespace pb {
 
         /** WrapperRequest argvDigest */
         argvDigest?: (string|null);
+
+        /** WrapperRequest taskId */
+        taskId?: (string|null);
+
+        /** WrapperRequest cwd */
+        cwd?: (string|null);
     }
 
     /** Represents a WrapperRequest. */
@@ -2873,6 +4327,12 @@ export namespace pb {
 
         /** WrapperRequest argvDigest. */
         public argvDigest: string;
+
+        /** WrapperRequest taskId. */
+        public taskId: string;
+
+        /** WrapperRequest cwd. */
+        public cwd: string;
 
         /**
          * Creates a new WrapperRequest instance using the specified properties.
@@ -4385,6 +5845,30 @@ export namespace pb {
 
         /** RuntimeSettings maxEventAge */
         maxEventAge?: (string|null);
+
+        /** RuntimeSettings shellSessionsEnabled */
+        shellSessionsEnabled?: (boolean|null);
+
+        /** RuntimeSettings systemRunEnabled */
+        systemRunEnabled?: (boolean|null);
+
+        /** RuntimeSettings hookManagementEnabled */
+        hookManagementEnabled?: (boolean|null);
+
+        /** RuntimeSettings policyManagementEnabled */
+        policyManagementEnabled?: (boolean|null);
+
+        /** RuntimeSettings otlpEnabled */
+        otlpEnabled?: (boolean|null);
+
+        /** RuntimeSettings otlpEndpoint */
+        otlpEndpoint?: (string|null);
+
+        /** RuntimeSettings otlpServiceName */
+        otlpServiceName?: (string|null);
+
+        /** RuntimeSettings otlpHeaders */
+        otlpHeaders?: ({ [k: string]: string }|null);
     }
 
     /** Represents a RuntimeSettings. */
@@ -4410,6 +5894,30 @@ export namespace pb {
 
         /** RuntimeSettings maxEventAge. */
         public maxEventAge: string;
+
+        /** RuntimeSettings shellSessionsEnabled. */
+        public shellSessionsEnabled: boolean;
+
+        /** RuntimeSettings systemRunEnabled. */
+        public systemRunEnabled: boolean;
+
+        /** RuntimeSettings hookManagementEnabled. */
+        public hookManagementEnabled: boolean;
+
+        /** RuntimeSettings policyManagementEnabled. */
+        public policyManagementEnabled: boolean;
+
+        /** RuntimeSettings otlpEnabled. */
+        public otlpEnabled: boolean;
+
+        /** RuntimeSettings otlpEndpoint. */
+        public otlpEndpoint: string;
+
+        /** RuntimeSettings otlpServiceName. */
+        public otlpServiceName: string;
+
+        /** RuntimeSettings otlpHeaders. */
+        public otlpHeaders: { [k: string]: string };
 
         /**
          * Creates a new RuntimeSettings instance using the specified properties.
@@ -5998,6 +7506,9 @@ export namespace pb {
 
         /** CapturedEventRecord timestamp */
         timestamp?: (number|Long|null);
+
+        /** CapturedEventRecord envelope */
+        envelope?: (pb.IEventEnvelope|null);
     }
 
     /** Represents a CapturedEventRecord. */
@@ -6014,6 +7525,9 @@ export namespace pb {
 
         /** CapturedEventRecord timestamp. */
         public timestamp: (number|Long);
+
+        /** CapturedEventRecord envelope. */
+        public envelope?: (pb.IEventEnvelope|null);
 
         /**
          * Creates a new CapturedEventRecord instance using the specified properties.

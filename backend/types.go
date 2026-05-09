@@ -56,6 +56,7 @@ type trackerMapSet struct {
 	TrackedPaths    *ebpf.Map
 	TrackedPrefixes *ebpf.Map
 	Events          *ebpf.Map
+	CollectorStats  *ebpf.Map
 }
 
 type ExportConfig struct {

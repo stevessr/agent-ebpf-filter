@@ -35,6 +35,7 @@ enum EventType {
   SCHED_PROCESS_EXEC = 27;
   SCHED_PROCESS_EXIT = 28;
   WAIT4 = 29;
+  SEMANTIC_ALERT = 30;
 }
 
 enum BehaviorCategory {
@@ -78,6 +79,8 @@ message RegisterRequest {
   double risk_score = 12;
   string container_id = 13;
   string argv_digest = 14;
+  string task_id = 15;
+  string cwd = 16;
 }
 
 // Represents a process registration response
@@ -138,6 +141,125 @@ message Event {
   double risk_score = 37;
   string container_id = 38;
   string argv_digest = 39;
+  string task_id = 40;
+  string cwd = 41;
+}
+
+message ExecEvent {
+  string path = 1;
+  int64 retval = 2;
+  uint64 duration_ns = 3;
+  string extra_info = 4;
+  string argv_digest = 5;
+  string cwd = 6;
+}
+
+message FileEvent {
+  string operation = 1;
+  string path = 2;
+  string extra_path = 3;
+  string mode = 4;
+  uint64 bytes = 5;
+  uint32 uid_arg = 6;
+  uint32 gid_arg = 7;
+  int64 retval = 8;
+  string extra_info = 9;
+}
+
+message NetworkEvent {
+  string endpoint = 1;
+  string direction = 2;
+  uint32 bytes = 3;
+  string family = 4;
+  string domain = 5;
+  string sock_type = 6;
+  uint32 protocol = 7;
+  int64 retval = 8;
+  string extra_info = 9;
+}
+
+message ProcessEvent {
+  string phase = 1;
+  uint32 parent_pid = 2;
+  uint32 child_pid = 3;
+  uint32 old_pid = 4;
+  uint32 target_pid = 5;
+  int32 exit_status = 6;
+  string extra_info = 7;
+}
+
+message PolicyEvent {
+  string decision = 1;
+  double risk_score = 2;
+  string reason = 3;
+  string related_path = 4;
+  string related_endpoint = 5;
+}
+
+message WrapperEvent {
+  string command_line = 1;
+  repeated string args = 2;
+  BehaviorClassification behavior = 3;
+  string extra_info = 4;
+  string tool_name = 5;
+}
+
+message HookEvent {
+  string hook_name = 1;
+  string tool_name = 2;
+  string target_path = 3;
+  string extra_info = 4;
+}
+
+message McpEvent {
+  string tool_name = 1;
+  string server_name = 2;
+  string endpoint = 3;
+  string request_id = 4;
+  string extra_info = 5;
+}
+
+message EventEnvelope {
+  string schema_version = 1;
+  string event_id = 2;
+  uint64 timestamp_ns = 3;
+  string source = 4;
+  string agent_run_id = 5;
+  string task_id = 6;
+  string conversation_id = 7;
+  string turn_id = 8;
+  string tool_call_id = 9;
+  string tool_name = 10;
+  string trace_id = 11;
+  string span_id = 12;
+  uint32 pid = 13;
+  uint32 tgid = 14;
+  uint32 ppid = 15;
+  uint32 uid = 16;
+  uint32 gid = 17;
+  string comm = 18;
+  string argv_digest = 19;
+  string cwd = 20;
+  uint64 cgroup_id = 21;
+  string container_id = 22;
+  string policy_decision = 23;
+  double risk_score = 24;
+  EventType event_type = 25;
+  Event legacy_event = 26;
+  oneof payload {
+    ExecEvent exec_event = 27;
+    FileEvent file_event = 28;
+    NetworkEvent network_event = 29;
+    ProcessEvent process_event = 30;
+    PolicyEvent policy_event = 31;
+    WrapperEvent wrapper_event = 32;
+    HookEvent hook_event = 33;
+    McpEvent mcp_event = 34;
+  }
+}
+
+message EventEnvelopeBatch {
+  repeated EventEnvelope envelopes = 1;
 }
 
 // Batch of events for WebSocket delivery efficiency
@@ -290,6 +412,8 @@ message WrapperRequest {
   double risk_score = 14;
   string container_id = 15;
   string argv_digest = 16;
+  string task_id = 17;
+  string cwd = 18;
 }
 
 message WrapperResponse {
@@ -382,6 +506,14 @@ message RuntimeSettings {
   string access_token = 3;
   int32 max_event_count = 4;
   string max_event_age = 5;
+  bool shell_sessions_enabled = 6;
+  bool system_run_enabled = 7;
+  bool hook_management_enabled = 8;
+  bool policy_management_enabled = 9;
+  bool otlp_enabled = 10;
+  string otlp_endpoint = 11;
+  string otlp_service_name = 12;
+  map<string, string> otlp_headers = 13;
 }
 
 message RuntimeConfigResponse {
@@ -487,6 +619,7 @@ message ShellSessionCreateRequest {
 message CapturedEventRecord {
   Event event = 1;
   int64 timestamp = 2;
+  EventEnvelope envelope = 3;
 }
 
 message EventHistoryResponse {

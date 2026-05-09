@@ -1,18 +1,21 @@
 package main
 
 import (
+	"net/http"
 	"sync"
 	"time"
-	"github.com/gorilla/websocket"
+
 	"agent-ebpf-filter/pb"
-	"net/http"
+	"github.com/gorilla/websocket"
 )
 
 var (
-	clients   = make(map[*websocket.Conn]bool)
-	clientsMu sync.Mutex
-	broadcast = make(chan *pb.Event, 1000)
-	
+	clients           = make(map[*websocket.Conn]bool)
+	clientsMu         sync.Mutex
+	envelopeClients   = make(map[*websocket.Conn]bool)
+	envelopeClientsMu sync.Mutex
+	broadcast         = make(chan *pb.Event, 1000)
+
 	upgrader = websocket.Upgrader{
 		CheckOrigin:      func(r *http.Request) bool { return true },
 		ReadBufferSize:   1024 * 32,

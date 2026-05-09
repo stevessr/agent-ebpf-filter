@@ -159,6 +159,18 @@ struct {
     __uint(max_entries, 256 * 1024);
 } events SEC(".maps");
 
+struct collector_stats {
+    u64 ringbuf_events_total;
+    u64 ringbuf_reserve_failed_total;
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, u32);
+    __type(value, struct collector_stats);
+} collector_stats SEC(".maps");
+
 // Map to store registered agent PIDs
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -218,6 +230,31 @@ struct {
     __type(key, u64);
     __type(value, struct exit_path_data);
 } exit_path_ctx SEC(".maps");
+
+static __always_inline void account_ringbuf_reserve_failed(void) {
+    u32 key = 0;
+    struct collector_stats *stats = bpf_map_lookup_elem(&collector_stats, &key);
+    if (stats) {
+        stats->ringbuf_reserve_failed_total++;
+    }
+}
+
+static __always_inline struct event *reserve_event(void) {
+    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    if (!e) {
+        account_ringbuf_reserve_failed();
+    }
+    return e;
+}
+
+static __always_inline void submit_event(struct event *e) {
+    u32 key = 0;
+    struct collector_stats *stats = bpf_map_lookup_elem(&collector_stats, &key);
+    if (stats) {
+        stats->ringbuf_events_total++;
+    }
+    bpf_ringbuf_submit(e, 0);
+}
 
 // Per-CPU buffer for exit_path_data (avoids 512-byte stack allocation)
 struct {
@@ -415,7 +452,7 @@ int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_f
 
     bpf_map_update_elem(&agent_pids, &child_pid, tag, BPF_ANY);
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
 
     char parent_comm[TASK_COMM_LEN] = {};
@@ -425,7 +462,7 @@ int tracepoint__sched__sched_process_fork(struct trace_event_raw_sched_process_f
     e->retval = child_pid;
     e->extra1 = child_pid;
     read_tracepoint_data_loc_str(e->path, MAX_PATH_LEN, ctx, ctx->child_comm_loc);
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -446,7 +483,7 @@ int tracepoint__sched__sched_process_exec(struct trace_event_raw_sched_process_e
         bpf_map_delete_elem(&agent_pids, &old_pid);
     }
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
 
     char comm[TASK_COMM_LEN];
@@ -455,7 +492,7 @@ int tracepoint__sched__sched_process_exec(struct trace_event_raw_sched_process_e
     e->type = TYPE_PROCESS_EXEC;
     e->extra1 = old_pid;
     read_tracepoint_data_loc_str(e->path, MAX_PATH_LEN, ctx, ctx->filename_loc);
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -471,12 +508,12 @@ int tracepoint__sched__sched_process_exit(struct trace_event_raw_sched_process_e
     }
     if (!tag) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (e) {
         fill_base_info(e, tgid, *tag, ctx->comm);
         e->type = TYPE_PROCESS_EXIT;
         e->extra1 = ctx->group_dead ? 1 : 0;
-        bpf_ringbuf_submit(e, 0);
+        submit_event(e);
     }
 
     bpf_map_delete_elem(&agent_pids, &tid);
@@ -520,7 +557,7 @@ int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit *ctx) 
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -532,7 +569,7 @@ int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit *ctx) 
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -571,7 +608,7 @@ int tracepoint__syscalls__sys_exit_openat(struct trace_event_raw_sys_exit *ctx) 
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -583,7 +620,7 @@ int tracepoint__syscalls__sys_exit_openat(struct trace_event_raw_sys_exit *ctx) 
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -621,7 +658,7 @@ int tracepoint__syscalls__sys_exit_connect(struct trace_event_raw_sys_exit *ctx)
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -633,7 +670,7 @@ int tracepoint__syscalls__sys_exit_connect(struct trace_event_raw_sys_exit *ctx)
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -672,7 +709,7 @@ int tracepoint__syscalls__sys_exit_mkdirat(struct trace_event_raw_sys_exit *ctx)
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -684,7 +721,7 @@ int tracepoint__syscalls__sys_exit_mkdirat(struct trace_event_raw_sys_exit *ctx)
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -723,7 +760,7 @@ int tracepoint__syscalls__sys_exit_unlinkat(struct trace_event_raw_sys_exit *ctx
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -735,7 +772,7 @@ int tracepoint__syscalls__sys_exit_unlinkat(struct trace_event_raw_sys_exit *ctx
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -774,7 +811,7 @@ int tracepoint__syscalls__sys_exit_ioctl(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -786,7 +823,7 @@ int tracepoint__syscalls__sys_exit_ioctl(struct trace_event_raw_sys_exit *ctx) {
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -824,7 +861,7 @@ int tracepoint__syscalls__sys_exit_bind(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -836,7 +873,7 @@ int tracepoint__syscalls__sys_exit_bind(struct trace_event_raw_sys_exit *ctx) {
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -875,7 +912,7 @@ int tracepoint__syscalls__sys_exit_sendto(struct trace_event_raw_sys_exit *ctx) 
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -887,7 +924,7 @@ int tracepoint__syscalls__sys_exit_sendto(struct trace_event_raw_sys_exit *ctx) 
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -926,7 +963,7 @@ int tracepoint__syscalls__sys_exit_recvfrom(struct trace_event_raw_sys_exit *ctx
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
 
     fill_from_exit_meta(e, pid_tgid, &meta);
@@ -944,7 +981,7 @@ int tracepoint__syscalls__sys_exit_recvfrom(struct trace_event_raw_sys_exit *ctx
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -977,7 +1014,7 @@ int tracepoint__syscalls__sys_exit_read(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -989,7 +1026,7 @@ int tracepoint__syscalls__sys_exit_read(struct trace_event_raw_sys_exit *ctx) {
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1022,7 +1059,7 @@ int tracepoint__syscalls__sys_exit_write(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1034,7 +1071,7 @@ int tracepoint__syscalls__sys_exit_write(struct trace_event_raw_sys_exit *ctx) {
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1074,7 +1111,7 @@ int tracepoint__syscalls__sys_exit_open(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1086,7 +1123,7 @@ int tracepoint__syscalls__sys_exit_open(struct trace_event_raw_sys_exit *ctx) {
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1125,7 +1162,7 @@ int tracepoint__syscalls__sys_exit_chmod(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1137,7 +1174,7 @@ int tracepoint__syscalls__sys_exit_chmod(struct trace_event_raw_sys_exit *ctx) {
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1177,7 +1214,7 @@ int tracepoint__syscalls__sys_exit_chown(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1189,7 +1226,7 @@ int tracepoint__syscalls__sys_exit_chown(struct trace_event_raw_sys_exit *ctx) {
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1229,7 +1266,7 @@ int tracepoint__syscalls__sys_exit_rename(struct trace_event_raw_sys_exit *ctx) 
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1241,7 +1278,7 @@ int tracepoint__syscalls__sys_exit_rename(struct trace_event_raw_sys_exit *ctx) 
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1281,7 +1318,7 @@ int tracepoint__syscalls__sys_exit_link(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1293,7 +1330,7 @@ int tracepoint__syscalls__sys_exit_link(struct trace_event_raw_sys_exit *ctx) {
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1333,7 +1370,7 @@ int tracepoint__syscalls__sys_exit_symlink(struct trace_event_raw_sys_exit *ctx)
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1345,7 +1382,7 @@ int tracepoint__syscalls__sys_exit_symlink(struct trace_event_raw_sys_exit *ctx)
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1385,7 +1422,7 @@ int tracepoint__syscalls__sys_exit_mknod(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1397,7 +1434,7 @@ int tracepoint__syscalls__sys_exit_mknod(struct trace_event_raw_sys_exit *ctx) {
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1429,7 +1466,7 @@ int tracepoint__syscalls__sys_exit_clone(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1452,7 +1489,7 @@ int tracepoint__syscalls__sys_exit_clone(struct trace_event_raw_sys_exit *ctx) {
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1484,7 +1521,7 @@ int tracepoint__syscalls__sys_exit_exit_group(struct trace_event_raw_sys_exit *c
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1496,7 +1533,7 @@ int tracepoint__syscalls__sys_exit_exit_group(struct trace_event_raw_sys_exit *c
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1530,7 +1567,7 @@ int tracepoint__syscalls__sys_exit_wait4(struct trace_event_raw_sys_exit *ctx) {
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1540,7 +1577,7 @@ int tracepoint__syscalls__sys_exit_wait4(struct trace_event_raw_sys_exit *ctx) {
             e->duration_ns = now - meta.start_ns;
         }
     }
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1574,7 +1611,7 @@ int tracepoint__syscalls__sys_exit_socket(struct trace_event_raw_sys_exit *ctx) 
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1586,7 +1623,7 @@ int tracepoint__syscalls__sys_exit_socket(struct trace_event_raw_sys_exit *ctx) 
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1625,7 +1662,7 @@ int tracepoint__syscalls__sys_exit_accept(struct trace_event_raw_sys_exit *ctx) 
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
 
     fill_from_exit_meta(e, pid_tgid, &meta);
@@ -1642,7 +1679,7 @@ int tracepoint__syscalls__sys_exit_accept(struct trace_event_raw_sys_exit *ctx) 
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1681,7 +1718,7 @@ int tracepoint__syscalls__sys_exit_accept4(struct trace_event_raw_sys_exit *ctx)
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return 0;
 
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return 0;
 
     fill_from_exit_meta(e, pid_tgid, &meta);
@@ -1698,7 +1735,7 @@ int tracepoint__syscalls__sys_exit_accept4(struct trace_event_raw_sys_exit *ctx)
         bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
     }
 
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
     return 0;
 }
 
@@ -1743,7 +1780,7 @@ static __always_inline void sys_exit_common(struct trace_event_raw_sys_exit *ctx
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct exit_meta meta = {};
     if (!consume_exit_meta(pid_tgid, &meta)) return;
-    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    struct event *e = reserve_event();
     if (!e) return;
     fill_from_exit_meta(e, pid_tgid, &meta);
     e->retval = ctx->ret;
@@ -1761,7 +1798,7 @@ static __always_inline void sys_exit_common(struct trace_event_raw_sys_exit *ctx
             bpf_map_delete_elem(&exit_path_ctx, &pid_tgid);
         }
     }
-    bpf_ringbuf_submit(e, 0);
+    submit_event(e);
 }
 
 // ── Helper: store pid_tgid as lvalue ──

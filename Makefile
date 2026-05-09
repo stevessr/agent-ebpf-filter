@@ -2,7 +2,7 @@
 GOPATH ?= $(shell go env GOPATH)
 export PATH := $(PATH):$(GOPATH)/bin
 
-.PHONY: all backend frontend wrapper clean proto help dev run deps ebpf-bootstrap cuda ml-sweep ml-presentation
+.PHONY: all backend frontend wrapper clean proto help dev run deps ebpf-bootstrap cuda ml-sweep ml-presentation runtime-benchmark
 
 all: proto backend frontend wrapper ## Build all components
 
@@ -72,6 +72,9 @@ ml-sweep: ## Run the offline ML benchmark sweep and emit SVG/HTML charts
 
 ml-presentation: ## Render the PPTX-style HTML presentation from the latest ML sweep report
 	@python scripts/render_ml_presentation.py
+
+runtime-benchmark: ## Replay benign/malicious/agentic runtime scenarios and emit a JSON summary
+	@./scripts/runtime-replay-benchmark.sh
 
 dev-frontend: ## Run only the frontend development server
 	@echo "Starting frontend dev environment..."

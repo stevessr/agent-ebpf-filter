@@ -21,6 +21,10 @@ function parseEnvNumber(...keys) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+function resolveApiToken(context = {}) {
+  return (context.access_token || context.api_token || firstEnv('AGENT_API_KEY', 'AGENT_EBPF_ACCESS_TOKEN')).trim();
+}
+
 function buildArgvDigest(parts) {
   const normalized = parts.map((part) => String(part || '').trim()).filter(Boolean);
   if (normalized.length === 0) {
@@ -84,6 +88,7 @@ class AgentTracker {
     
     // Use synchronous request on exit to ensure it sends
     const data = JSON.stringify({ pid: this.pid });
+    const apiToken = resolveApiToken(this.context);
     const options = {
       hostname: this.backendUrl.hostname,
       port: this.backendUrl.port,
@@ -91,7 +96,11 @@ class AgentTracker {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': data.length
+        'Content-Length': data.length,
+        ...(apiToken ? {
+          'X-API-KEY': apiToken,
+          Authorization: `Bearer ${apiToken}`,
+        } : {}),
       }
     };
 
@@ -109,6 +118,7 @@ class AgentTracker {
       pid: this.pid,
       root_agent_pid: this.context.root_agent_pid || parseEnvNumber('AGENT_EBPF_ROOT_AGENT_PID', 'ROOT_AGENT_PID'),
       agent_run_id: this.context.agent_run_id || firstEnv('AGENT_EBPF_AGENT_RUN_ID', 'AGENT_RUN_ID'),
+      task_id: this.context.task_id || firstEnv('AGENT_EBPF_TASK_ID', 'AGENT_TASK_ID'),
       conversation_id: this.context.conversation_id || firstEnv('AGENT_EBPF_CONVERSATION_ID', 'AGENT_CONVERSATION_ID'),
       turn_id: this.context.turn_id || firstEnv('AGENT_EBPF_TURN_ID', 'AGENT_TURN_ID'),
       tool_call_id: this.context.tool_call_id || firstEnv('AGENT_EBPF_TOOL_CALL_ID', 'AGENT_TOOL_CALL_ID'),
@@ -118,6 +128,7 @@ class AgentTracker {
       decision: this.context.decision || firstEnv('AGENT_EBPF_DECISION', 'AGENT_DECISION'),
       risk_score: this.context.risk_score || parseEnvNumber('AGENT_EBPF_RISK_SCORE', 'AGENT_RISK_SCORE'),
       container_id: this.context.container_id || firstEnv('AGENT_EBPF_CONTAINER_ID', 'CONTAINER_ID'),
+      cwd: this.context.cwd || firstEnv('AGENT_EBPF_CWD', 'PWD') || process.cwd(),
       argv_digest: this.context.argv_digest || buildArgvDigest([
         this.context.tool_name || firstEnv('AGENT_EBPF_TOOL_NAME', 'AGENT_TOOL_NAME'),
         this.context.tool_call_id || firstEnv('AGENT_EBPF_TOOL_CALL_ID', 'AGENT_TOOL_CALL_ID'),
@@ -125,6 +136,7 @@ class AgentTracker {
       ]),
     };
     const data = JSON.stringify(payload);
+    const apiToken = resolveApiToken(this.context);
     const options = {
       hostname: this.backendUrl.hostname,
       port: this.backendUrl.port,
@@ -132,7 +144,11 @@ class AgentTracker {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': data.length
+        'Content-Length': data.length,
+        ...(apiToken ? {
+          'X-API-KEY': apiToken,
+          Authorization: `Bearer ${apiToken}`,
+        } : {}),
       }
     };
 
