@@ -19,6 +19,7 @@ import ExecutionGraphCanvas from '../components/execution-graph/ExecutionGraphCa
 import ProcessPickerModal from '../components/ProcessPickerModal.vue';
 import { useMonitorData } from '../composables/useMonitorData';
 import type { ProcessInfo } from '../composables/useMonitorData';
+import { buildWebSocketUrl } from '../utils/requestContext';
 import type {
   ExecutionGraphEdge,
   ExecutionGraphFilterState,
@@ -93,7 +94,9 @@ const lastLoadedAt = ref('');
 const selectedProcessPid = ref<number | null>(filters.pid ? Number(filters.pid) || null : null);
 const processPickerOpen = ref(false);
 const liveListen = ref(true);
-let liveRefreshTimer: ReturnType<typeof setInterval> | null = null;
+const graphSocketStatus = ref<'connecting' | 'connected' | 'paused' | 'closed' | 'error'>('closed');
+let graphWs: WebSocket | null = null;
+let graphReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 const kindTagColorMap: Record<string, string> = {
   agent_run: 'purple',
@@ -170,6 +173,7 @@ const sortedNodeCounts = computed(() => Object.entries(graph.value.nodeCounts ??
 const sortedEdgeCounts = computed(() => Object.entries(graph.value.edgeCounts ?? {}).sort((a, b) => b[1] - a[1]));
 const metadataEntries = computed(() => Object.entries(selectedNode.value?.metadata ?? {}).filter(([, value]) => value !== ''));
 const processList = computed(() => [...processes.value].sort((a, b) => (b.cpu ?? 0) - (a.cpu ?? 0) || a.pid - b.pid));
+const processTreeEdgeKinds = new Set(['child_process', 'parent_process', 'exec_chain', 'spawned']);
 const selectedProcess = computed(() => {
   if (!selectedProcessPid.value) return null;
   return processList.value.find((process) => process.pid === selectedProcessPid.value) ?? null;
@@ -182,6 +186,24 @@ const selectedProcessSummary = computed(() => {
   const cmdline = process.cmdline?.trim();
   return `${process.name} pid=${process.pid} ppid=${process.ppid} cpu=${(process.cpu ?? 0).toFixed(1)}% mem=${(process.mem ?? 0).toFixed(1)}%${cmdline ? ` · ${cmdline}` : ''}`;
 });
+const processTreeNodeIds = computed(() => {
+  const ids = new Set<string>();
+  graph.value.edges.forEach((edge) => {
+    const source = nodeMap.value.get(edge.source);
+    const target = nodeMap.value.get(edge.target);
+    if (processTreeEdgeKinds.has(edge.kind) && source?.kind === 'process' && target?.kind === 'process') {
+      ids.add(edge.source);
+      ids.add(edge.target);
+    }
+  });
+  return ids;
+});
+const processTreeNodes = computed(() => graph.value.nodes.filter((node) => node.kind === 'process' && processTreeNodeIds.value.has(node.id)));
+const processTreeEdges = computed(() => graph.value.edges.filter((edge) => {
+  const source = nodeMap.value.get(edge.source);
+  const target = nodeMap.value.get(edge.target);
+  return processTreeEdgeKinds.has(edge.kind) && source?.kind === 'process' && target?.kind === 'process';
+}));
 
 const buildPresetSince = (preset: ExecutionGraphFilterState['timePreset']) => {
   const now = Date.now();
@@ -259,29 +281,93 @@ const normalizeGraphResponse = (payload: Partial<ExecutionGraphResponse> | undef
   edges: Array.isArray(payload?.edges) ? payload!.edges as ExecutionGraphEdge[] : [],
 });
 
-const loadGraph = async () => {
-  loading.value = true;
-  try {
-    const res = await axios.get('/events/graph', { params: buildParams() });
-    graph.value = normalizeGraphResponse(res.data);
-    if (selectedNodeId.value && !nodeMap.value.has(selectedNodeId.value)) {
-      selectedNodeId.value = graph.value.nodes[0]?.id ?? '';
-    }
-    if (!selectedNodeId.value && graph.value.nodes.length) {
-      selectedNodeId.value = graph.value.nodes[0].id;
-    }
-    lastLoadedAt.value = new Date().toLocaleString();
-  } catch (error) {
-    console.error('Failed to load execution graph', error);
-    message.error('Failed to load execution graph');
-  } finally {
-    loading.value = false;
+const applyGraphPayload = (payload: Partial<ExecutionGraphResponse> | undefined) => {
+  graph.value = normalizeGraphResponse(payload);
+  if (selectedNodeId.value && !nodeMap.value.has(selectedNodeId.value)) {
+    selectedNodeId.value = graph.value.nodes[0]?.id ?? '';
   }
+  if (!selectedNodeId.value && graph.value.nodes.length) {
+    selectedNodeId.value = graph.value.nodes[0].id;
+  }
+  lastLoadedAt.value = new Date().toLocaleString();
+};
+
+const closeGraphSocket = (status: typeof graphSocketStatus.value = 'closed') => {
+  if (graphReconnectTimer) {
+    clearTimeout(graphReconnectTimer);
+    graphReconnectTimer = null;
+  }
+  if (graphWs) {
+    const socket = graphWs;
+    graphWs = null;
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onerror = null;
+    socket.onclose = null;
+    socket.close();
+  }
+  loading.value = false;
+  graphSocketStatus.value = status;
+};
+
+const connectGraphSocket = () => {
+  if (!liveListen.value) {
+    closeGraphSocket('paused');
+    return;
+  }
+  if (graphReconnectTimer) {
+    clearTimeout(graphReconnectTimer);
+    graphReconnectTimer = null;
+  }
+  if (graphWs) {
+    graphWs.onclose = null;
+    graphWs.close();
+    graphWs = null;
+  }
+
+  loading.value = true;
+  graphSocketStatus.value = 'connecting';
+  const socket = new WebSocket(buildWebSocketUrl('/ws/events/graph', { ...buildParams(), interval: 1500 }));
+  graphWs = socket;
+
+  socket.onopen = () => {
+    graphSocketStatus.value = 'connected';
+  };
+  socket.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(String(event.data));
+      if (payload?.error) {
+        throw new Error(String(payload.error));
+      }
+      applyGraphPayload(payload);
+      loading.value = false;
+    } catch (error) {
+      console.error('Failed to parse execution graph websocket payload', error);
+      graphSocketStatus.value = 'error';
+      loading.value = false;
+    }
+  };
+  socket.onerror = () => {
+    graphSocketStatus.value = 'error';
+    loading.value = false;
+  };
+  socket.onclose = () => {
+    if (graphWs !== socket) return;
+    graphWs = null;
+    if (!liveListen.value) {
+      graphSocketStatus.value = 'paused';
+      loading.value = false;
+      return;
+    }
+    graphSocketStatus.value = 'closed';
+    loading.value = false;
+    graphReconnectTimer = setTimeout(() => connectGraphSocket(), 2000);
+  };
 };
 
 const applyFilters = async () => {
   await syncRouteQuery();
-  await loadGraph();
+  connectGraphSocket();
 };
 
 const resetFilters = async () => {
@@ -396,27 +482,21 @@ const focusRelatedTab = (tab: DetailTab) => {
 const renderNodeSubtitle = (node: ExecutionGraphNode) => node.subtitle?.trim() || node.metadata?.path || node.metadata?.endpoint || '—';
 
 watch(liveListen, (enabled) => {
-  if (enabled && filters.pid.trim()) {
-    void loadGraph();
+  if (enabled) {
+    connectGraphSocket();
+  } else {
+    closeGraphSocket('paused');
   }
 });
 
 onMounted(async () => {
   setupMonitorData();
-  liveRefreshTimer = setInterval(() => {
-    if (liveListen.value && filters.pid.trim() && !loading.value) {
-      void loadGraph();
-    }
-  }, 3000);
-  await loadGraph();
+  connectGraphSocket();
 });
 
 onUnmounted(() => {
   teardownMonitorData();
-  if (liveRefreshTimer) {
-    clearInterval(liveRefreshTimer);
-    liveRefreshTimer = null;
-  }
+  closeGraphSocket('closed');
 });
 </script>
 
@@ -538,12 +618,29 @@ onUnmounted(() => {
 
     <div class="graph-layout">
       <a-card :bordered="false" class="graph-card">
-        <template #title>Execution Topology</template>
-        <template #extra>
+        <template #title>
           <a-space wrap>
-            <a-tag v-for="(color, kind) in kindTagColorMap" :key="kind" :color="color">{{ kind }}</a-tag>
+            <span>Execution Topology</span>
+            <a-tag color="green">process tree {{ processTreeNodes.length }}</a-tag>
+            <a-tag color="cyan">chain edges {{ processTreeEdges.length }}</a-tag>
           </a-space>
         </template>
+        <template #extra>
+          <a-space wrap>
+            <a-tag color="green">process</a-tag>
+            <a-tag color="orange">syscall</a-tag>
+            <a-tag color="blue">tool</a-tag>
+            <a-tag color="red">network</a-tag>
+            <a-tag color="default">file</a-tag>
+          </a-space>
+        </template>
+        <a-alert
+          v-if="filters.pid"
+          type="info"
+          show-icon
+          class="graph-hint"
+          :message="`正在通过 WebSocket 监听 PID ${filters.pid}${filters.processTree ? ' 的进程树和调用链' : ''}`"
+        />
         <a-spin :spinning="loading">
           <ExecutionGraphCanvas
             :nodes="graph.nodes"
@@ -599,7 +696,7 @@ onUnmounted(() => {
 
             <a-tabs v-model:activeKey="activeDetailTab" size="small">
               <a-tab-pane key="processes" :tab="`Processes (${relatedProcesses.length})`">
-                <a-list size="small" :data-source="relatedProcesses" bordered>
+                <a-list size="small" :data-source="selectedNode?.kind === 'process' ? processTreeNodes : relatedProcesses" bordered>
                   <template #renderItem="{ item }">
                     <a-list-item @click="selectedNodeId = item.id" class="clickable-list-item">
                       <a-space direction="vertical" size="small">
@@ -717,6 +814,10 @@ onUnmounted(() => {
 .filter-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.graph-hint {
+  margin-bottom: 12px;
 }
 
 .graph-layout {

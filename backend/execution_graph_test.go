@@ -108,10 +108,25 @@ func TestBuildExecutionGraphIncludesProcessTreeResourcesAndPolicy(t *testing.T) 
 	assertGraphNodeKind(t, graph.Nodes, "policy_decision")
 	assertGraphNodeKind(t, graph.Nodes, "syscall")
 	assertGraphEdgeKind(t, graph.Edges, "spawned")
+	assertGraphEdgeKind(t, graph.Edges, "parent_process")
 	assertGraphEdgeKind(t, graph.Edges, "execed")
 	assertGraphEdgeKind(t, graph.Edges, "opened")
 	assertGraphEdgeKind(t, graph.Edges, "connected")
 	assertGraphEdgeKind(t, graph.Edges, "alerted")
+}
+
+func TestBuildExecutionGraphAddsProcessCallChainFallbackEdges(t *testing.T) {
+	base := time.Unix(1710000000, 0).UTC()
+	records := []CapturedEventRecord{
+		{ReceivedAt: base, Event: &pb.Event{Pid: 301, Ppid: 300, Comm: "python", Type: "openat", Path: "/tmp/a"}},
+		{ReceivedAt: base.Add(time.Second), Event: &pb.Event{Pid: 302, Ppid: 301, Comm: "bash", Type: "process_exec", ExtraInfo: "old_pid=201"}},
+	}
+
+	graph := buildExecutionGraph(records, executionGraphFilters{})
+	assertGraphEdgeKind(t, graph.Edges, "parent_process")
+	assertGraphEdgeKind(t, graph.Edges, "exec_chain")
+	assertGraphNodeLabelContains(t, graph.Nodes, "pid 300")
+	assertGraphNodeLabelContains(t, graph.Nodes, "pid 201")
 }
 
 func TestBuildExecutionGraphFilters(t *testing.T) {

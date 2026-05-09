@@ -61,6 +61,63 @@ type graphRelation struct {
 }
 
 func handleExecutionGraph(c *gin.Context) {
+	graph, err := buildExecutionGraphFromRequest(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, graph)
+}
+
+func serveExecutionGraphWS(c *gin.Context) {
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	defer conn.Close()
+
+	interval := parseExecutionGraphInterval(c.Query("interval"))
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	writeGraph := func() bool {
+		graph, err := buildExecutionGraphFromRequest(c)
+		if err != nil {
+			_ = conn.WriteJSON(gin.H{"error": err.Error()})
+			return false
+		}
+		if err := conn.WriteJSON(graph); err != nil {
+			return false
+		}
+		return true
+	}
+
+	if !writeGraph() {
+		return
+	}
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			if !writeGraph() {
+				return
+			}
+		}
+	}
+}
+
+func buildExecutionGraphFromRequest(c *gin.Context) (ExecutionGraphResponse, error) {
 	limit := 200
 	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 2000 {
@@ -70,10 +127,16 @@ func handleExecutionGraph(c *gin.Context) {
 
 	records, source, err := runtimeSettingsStore.RecentEvents(limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		return ExecutionGraphResponse{}, err
 	}
 
+	filters := executionGraphFiltersFromRequest(c)
+	graph := buildExecutionGraph(records, filters)
+	graph.Source = source
+	return graph, nil
+}
+
+func executionGraphFiltersFromRequest(c *gin.Context) executionGraphFilters {
 	filters := executionGraphFilters{
 		AgentRunID:  strings.TrimSpace(c.Query("agent_run_id")),
 		ToolCallID:  strings.TrimSpace(c.Query("tool_call_id")),
@@ -102,10 +165,7 @@ func handleExecutionGraph(c *gin.Context) {
 	if parsed, ok := parseExecutionGraphTime(c.Query("until")); ok {
 		filters.Until = &parsed
 	}
-
-	graph := buildExecutionGraph(records, filters)
-	graph.Source = source
-	c.JSON(http.StatusOK, graph)
+	return filters
 }
 
 func buildExecutionGraph(records []CapturedEventRecord, filters executionGraphFilters) ExecutionGraphResponse {
@@ -165,6 +225,20 @@ func buildExecutionGraph(records []CapturedEventRecord, filters executionGraphFi
 
 		processNode := buildProcessGraphNode(event)
 		addNode(processNode)
+		if event.GetPpid() > 0 && event.GetPpid() != event.GetPid() {
+			parentID := processNodeID(event.GetPpid())
+			addNode(ExecutionGraphNode{
+				ID:       parentID,
+				Kind:     "process",
+				Label:    fmt.Sprintf("pid %d", event.GetPpid()),
+				Subtitle: "parent process",
+				PID:      event.GetPpid(),
+				Metadata: map[string]string{
+					"pid": strconv.FormatUint(uint64(event.GetPpid()), 10),
+				},
+			})
+			addEdge(ExecutionGraphEdge{ID: parentID + "->" + processNode.ID + ":parent_process", Source: parentID, Target: processNode.ID, Kind: "parent_process", Label: "parent process"})
+		}
 
 		activityNode := buildExecutionGraphActivityNode(record, event, index)
 		addNode(activityNode)
@@ -226,6 +300,19 @@ func buildExecutionGraph(records []CapturedEventRecord, filters executionGraphFi
 		}
 
 		switch event.GetType() {
+		case "process_exec":
+			if oldPID, ok := extractGraphInt(event.GetExtraInfo(), "old_pid"); ok && oldPID > 0 && uint32(oldPID) != event.GetPid() {
+				oldNode := ExecutionGraphNode{
+					ID:       processNodeID(uint32(oldPID)),
+					Kind:     "process",
+					Label:    fmt.Sprintf("pid %d", oldPID),
+					Subtitle: "pre-exec pid",
+					PID:      uint32(oldPID),
+					Metadata: map[string]string{"pid": strconv.Itoa(oldPID)},
+				}
+				addNode(oldNode)
+				addEdge(ExecutionGraphEdge{ID: oldNode.ID + "->" + processNode.ID + ":exec_chain", Source: oldNode.ID, Target: processNode.ID, Kind: "exec_chain", Label: "exec"})
+			}
 		case "process_fork", "clone":
 			if childPID, ok := extractGraphInt(event.GetExtraInfo(), "child_pid"); ok && childPID > 0 {
 				childNode := ExecutionGraphNode{
@@ -443,6 +530,33 @@ func parseExecutionGraphBool(raw string) bool {
 	default:
 		return false
 	}
+}
+
+func parseExecutionGraphInterval(raw string) time.Duration {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return 1500 * time.Millisecond
+	}
+	if millis, err := strconv.Atoi(value); err == nil {
+		d := time.Duration(millis) * time.Millisecond
+		if d < 500*time.Millisecond {
+			return 500 * time.Millisecond
+		}
+		if d > 30*time.Second {
+			return 30 * time.Second
+		}
+		return d
+	}
+	if d, err := time.ParseDuration(value); err == nil {
+		if d < 500*time.Millisecond {
+			return 500 * time.Millisecond
+		}
+		if d > 30*time.Second {
+			return 30 * time.Second
+		}
+		return d
+	}
+	return 1500 * time.Millisecond
 }
 
 func parseExecutionGraphTime(raw string) (time.Time, bool) {

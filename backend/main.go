@@ -201,6 +201,7 @@ func main() {
 	r.GET("/ws/microphone", authMiddleware(), serveMicrophoneWS)
 	r.GET("/ws/ml-status", authMiddleware(), serveMLStatusWS)
 	r.GET("/ws/envelopes", authMiddleware(), serveEventEnvelopesWS)
+	r.GET("/ws/events/graph", authMiddleware(), serveExecutionGraphWS)
 	r.POST("/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), handleCreateShellSession)
 	r.GET("/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), handleListShellSessions)
 	r.DELETE("/shell-sessions/:id", authMiddleware(), shellSessionsEnabledMiddleware(), handleDeleteShellSession)

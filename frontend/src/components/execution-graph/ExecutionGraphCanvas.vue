@@ -104,6 +104,58 @@ const renderGraph = () => {
     return;
   }
 
+  const processTreeEdgeKinds = new Set(['child_process', 'parent_process', 'exec_chain', 'spawned']);
+  const processLinks = links.filter((link) => processTreeEdgeKinds.has(link.kind));
+  if (processLinks.length) {
+    const processNodeIds = new Set(nodes.filter((node) => node.kind === 'process').map((node) => node.id));
+    const children = new Map<string, string[]>();
+    const incoming = new Set<string>();
+    processLinks.forEach((link) => {
+      const source = String(link.source);
+      const target = String(link.target);
+      if (!processNodeIds.has(source) || !processNodeIds.has(target) || source === target) return;
+      const list = children.get(source) ?? [];
+      if (!list.includes(target)) list.push(target);
+      children.set(source, list);
+      incoming.add(target);
+    });
+    const roots = [...processNodeIds].filter((id) => !incoming.has(id));
+    if (!roots.length && processNodeIds.size) roots.push([...processNodeIds][0]);
+    const levels = new Map<string, number>();
+    const queue = roots.map((id) => ({ id, level: 0 }));
+    roots.forEach((id) => levels.set(id, 0));
+    while (queue.length) {
+      const current = queue.shift()!;
+      for (const child of children.get(current.id) ?? []) {
+        if (levels.has(child)) continue;
+        levels.set(child, current.level + 1);
+        queue.push({ id: child, level: current.level + 1 });
+      }
+    }
+    for (const id of processNodeIds) {
+      if (!levels.has(id)) levels.set(id, 0);
+    }
+    const byLevel = new Map<number, string[]>();
+    levels.forEach((level, id) => {
+      const list = byLevel.get(level) ?? [];
+      list.push(id);
+      byLevel.set(level, list);
+    });
+    const leftPadding = 90;
+    const topPadding = 80;
+    const levelGap = Math.max(150, Math.min(240, (width - leftPadding * 2) / Math.max(1, byLevel.size)));
+    byLevel.forEach((ids, level) => {
+      ids.sort();
+      const rowGap = Math.max(70, Math.min(130, (height - topPadding * 2) / Math.max(1, ids.length)));
+      ids.forEach((id, index) => {
+        const node = nodes.find((item) => item.id === id);
+        if (!node) return;
+        node.fx = leftPadding + level * levelGap;
+        node.fy = topPadding + index * rowGap;
+      });
+    });
+  }
+
   const simulationLinks = d3
     .forceLink<ForceNode, ForceLink>(links)
     .id((node) => node.id)
@@ -112,6 +164,10 @@ const renderGraph = () => {
         case 'contains':
         case 'owns':
           return 95;
+        case 'child_process':
+        case 'parent_process':
+        case 'exec_chain':
+          return 80;
         case 'spawned':
         case 'waited':
           return 88;
@@ -125,7 +181,7 @@ const renderGraph = () => {
           return 120;
       }
     })
-    .strength((link) => (link.kind === 'contains' ? 0.55 : 0.35));
+    .strength((link) => (processTreeEdgeKinds.has(link.kind) ? 0.85 : link.kind === 'contains' ? 0.55 : 0.35));
 
   simulation = d3
     .forceSimulation<ForceNode>(nodes)
@@ -145,6 +201,8 @@ const renderGraph = () => {
     .attr('stroke', (item) => {
       if (item.kind === 'alerted' || item.kind === 'blocked') return '#dc2626';
       if (item.kind === 'rewritten') return '#7c3aed';
+      if (item.kind === 'child_process' || item.kind === 'parent_process') return '#059669';
+      if (item.kind === 'exec_chain') return '#2563eb';
       return '#cbd5e1';
     });
 
