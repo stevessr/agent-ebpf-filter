@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
 	"testing"
 	"time"
 
@@ -38,5 +40,27 @@ func TestEventRecordingWritesAndReadsJSONL(t *testing.T) {
 	}
 	if records[0].Event.GetPid() != 42 || records[0].Envelope == nil {
 		t.Fatalf("unexpected replay record %#v", records[0])
+	}
+}
+
+func TestSaveBrowserRecordingExport(t *testing.T) {
+	path := t.TempDir() + "/browser-memory.json"
+	payload := json.RawMessage(`{"version":1,"snapshots":[{"recordedAt":"now","graph":{"eventCount":1,"source":"browser_memory","nodes":[],"edges":[]}}]}`)
+	gotPath, snapshots, err := saveBrowserRecordingExport(path, payload)
+	if err != nil {
+		t.Fatalf("saveBrowserRecordingExport() error = %v", err)
+	}
+	if gotPath != path {
+		t.Fatalf("path = %q, want %q", gotPath, path)
+	}
+	if snapshots != 1 {
+		t.Fatalf("snapshots = %d, want 1", snapshots)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !json.Valid(data) {
+		t.Fatalf("saved payload is not valid JSON: %s", string(data))
 	}
 }

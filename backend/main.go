@@ -213,6 +213,7 @@ func main() {
 	r.POST("/events/recording/start", authMiddleware(), handleStartEventRecording)
 	r.POST("/events/recording/stop", authMiddleware(), handleStopEventRecording)
 	r.POST("/events/recording/replay", authMiddleware(), handleReplayEventRecording)
+	r.POST("/events/recording/browser/save", authMiddleware(), handleSaveBrowserRecording)
 	r.GET("/network/flows", authMiddleware(), handleNetworkFlows)
 	r.GET("/network/flows/:flowID", authMiddleware(), handleNetworkFlowByID)
 	r.GET("/network/tcp-state", authMiddleware(), handleTCPState)

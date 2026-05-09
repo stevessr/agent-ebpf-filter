@@ -18,9 +18,11 @@ const props = withDefaults(defineProps<{
   edges: ExecutionGraphEdge[];
   selectedNodeId?: string;
   height?: number;
+  zoomStorageKey?: string;
 }>(), {
   selectedNodeId: '',
   height: 620,
+  zoomStorageKey: 'agent-ebpf.execution-graph.zoom',
 });
 
 const emit = defineEmits<{
@@ -68,6 +70,33 @@ const truncate = (value: string, max = 28) => {
   return `${value.slice(0, max - 1)}…`;
 };
 
+const loadPersistedZoom = () => {
+  if (!props.zoomStorageKey) return d3.zoomIdentity;
+  try {
+    const raw = localStorage.getItem(props.zoomStorageKey);
+    if (!raw) return d3.zoomIdentity;
+    const parsed = JSON.parse(raw) as { x?: unknown; y?: unknown; k?: unknown };
+    const x = Number(parsed.x);
+    const y = Number(parsed.y);
+    const k = Number(parsed.k);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(k) || k <= 0) {
+      return d3.zoomIdentity;
+    }
+    return d3.zoomIdentity.translate(x, y).scale(k);
+  } catch {
+    return d3.zoomIdentity;
+  }
+};
+
+const persistZoom = (transform: d3.ZoomTransform) => {
+  if (!props.zoomStorageKey) return;
+  try {
+    localStorage.setItem(props.zoomStorageKey, JSON.stringify({ x: transform.x, y: transform.y, k: transform.k }));
+  } catch {
+    // Ignore storage quota / privacy mode failures. The graph remains usable.
+  }
+};
+
 const renderGraph = () => {
   const svgElement = svgRef.value;
   if (!svgElement) return;
@@ -81,13 +110,14 @@ const renderGraph = () => {
   svg.attr('viewBox', `0 0 ${width} ${height}`);
 
   const root = svg.append('g');
-  svg.call(
-    d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.35, 2.5])
-      .on('zoom', (event) => {
-        root.attr('transform', event.transform.toString());
-      }),
-  );
+  const zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
+    .scaleExtent([0.35, 2.5])
+    .on('zoom', (event) => {
+      root.attr('transform', event.transform.toString());
+      persistZoom(event.transform);
+    });
+  svg.call(zoomBehavior);
+  svg.call(zoomBehavior.transform, loadPersistedZoom());
 
   const nodes = props.nodes.map((node) => ({ ...node })) as ForceNode[];
   const links = props.edges.map((edge) => ({ ...edge })) as ForceLink[];

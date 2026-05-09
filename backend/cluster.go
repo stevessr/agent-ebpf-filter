@@ -359,7 +359,7 @@ func shouldProxyPath(path string) bool {
 	switch {
 	case path == "/ws", path == "/ws/system", path == "/ws/shell", path == "/ws/shell-sessions", path == "/ws/ml-status", path == "/ws/envelopes", path == "/ws/events/graph":
 		return true
-	case path == "/events/recent", path == "/events/graph", path == "/events/recording", path == "/events/recording/start", path == "/events/recording/stop", path == "/events/recording/replay", path == "/metrics":
+	case path == "/events/recent", path == "/events/graph", path == "/events/recording", path == "/events/recording/start", path == "/events/recording/stop", path == "/events/recording/replay", path == "/events/recording/browser/save", path == "/metrics":
 		return true
 	case strings.HasPrefix(path, "/config/"):
 		return true
@@ -378,7 +378,7 @@ func isProtectedClusterProxyPath(path string) bool {
 	switch {
 	case path == "/ws", path == "/ws/system", path == "/ws/shell", path == "/ws/shell-sessions", path == "/ws/ml-status", path == "/ws/envelopes", path == "/ws/events/graph":
 		return true
-	case path == "/events/recent", path == "/events/graph", path == "/events/recording", path == "/events/recording/start", path == "/events/recording/stop", path == "/events/recording/replay", path == "/metrics":
+	case path == "/events/recent", path == "/events/graph", path == "/events/recording", path == "/events/recording/start", path == "/events/recording/stop", path == "/events/recording/replay", path == "/events/recording/browser/save", path == "/metrics":
 		return true
 	case strings.HasPrefix(path, "/config/"):
 		return true

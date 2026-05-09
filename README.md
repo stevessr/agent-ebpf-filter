@@ -51,7 +51,7 @@ Events are written to a ring buffer and consumed by the Go backend.
 - **Dashboard**: live event stream with tag / type / PID / command / path filters, strace-style trace summaries with syscall timing, log-flow ordering, and an optional no-pagination mode
 - **Monitor**: process / CPU / memory / GPU / IO / page-fault telemetry
 - **Network**: RustNet-style flow workspace with per-process TCP / UDP flow attribution, DNS / SNI / HTTP Host / ALPN enrichment, interface traffic charts, staleness / historic flow indicators, and `process:` / `dport:` / `sni:` / `state:` style filters
-- **Execution Graph**: a first-pass agent execution graph with filters for run / tool / trace / pid / path / domain / risk / time, force-layout topology, file-backed event recording / replay, node details, and one-click rule / training-sample actions
+- **Execution Graph**: a first-pass agent execution graph with filters for run / tool / trace / pid / path / domain / risk / time, force-layout topology, file-backed and browser-memory recording / replay / export, node details, and one-click rule / training-sample actions
 - **Explorer**: browse the host filesystem and add tracked paths
 - **Executor**: open a temporary wrapper-backed PTY tab for ad-hoc commands, keep shell PTY sessions separate from tmux, and let the Remote tab self-destruct when you leave it
 - **Executor**: launch coding CLIs in tmux, start Python/Node/Ruby/sh/pwsh/Deno/Bun scripts with optional virtualenv selection, and manage shared launch environment variables in a dedicated config tab with backend-detected env suggestions
@@ -290,6 +290,7 @@ The wrapper sends the command to the backend over `/tmp/agent-ebpf.sock`, receiv
 - `GET /events/recent?type=&limit=` — historical events for initial load (REST fallback), now including a normalized `Envelope` per record
 - `GET /events/graph?...` — aggregated execution graph nodes / edges for the current retained event window; pass `replay_path=/path/to/events.jsonl` to render a recording file
 - `GET /events/recording` / `POST /events/recording/start|stop|replay` — record live captured events to JSONL files and replay them into the execution graph
+- `POST /events/recording/browser/save` — persist browser-memory execution-graph snapshots to a backend JSON file
 - `GET /network/flows?filter=&sort=&showHistoric=&limit=&cursor=` — attributed TCP / UDP flow summaries with DPI fields (`dnsName`, `sni`, `httpHost`, `tlsAlpn`), process / agent context, rate counters, staleness, and risk
 - `GET /network/flows/:flowID` — one enriched flow by stable 5-tuple flow ID
 - `GET /network/dns-cache` — active DNS correlation cache

@@ -37,6 +37,7 @@ const detailTabs = ['processes', 'files', 'network', 'policy', 'edges', 'metadat
 type DetailTab = typeof detailTabs[number];
 
 type GraphState = ExecutionGraphResponse & { nodes: ExecutionGraphNode[]; edges: ExecutionGraphEdge[] };
+type BrowserGraphSnapshot = { recordedAt: string; graph: GraphState };
 
 const defaultFilters = (): ExecutionGraphFilterState => ({
   limit: 600,
@@ -102,9 +103,16 @@ const recordingCount = ref(0);
 const recordingStartedAt = ref('');
 const recordingBusy = ref(false);
 const replayBusy = ref(false);
+const browserRecordingActive = ref(false);
+const browserReplayActive = ref(false);
+const browserReplayIndex = ref(0);
+const browserSnapshots = ref<BrowserGraphSnapshot[]>([]);
+const browserSavePath = ref('');
+const browserSaveBusy = ref(false);
 let graphWs: WebSocket | null = null;
 let graphReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let recordingStatusTimer: ReturnType<typeof setInterval> | null = null;
+let browserReplayTimer: ReturnType<typeof setInterval> | null = null;
 
 const kindTagColorMap: Record<string, string> = {
   agent_run: 'purple',
@@ -199,6 +207,13 @@ const selectedProcessSummary = computed(() => {
   return `${process.name} pid=${process.pid} ppid=${process.ppid} cpu=${(process.cpu ?? 0).toFixed(1)}% mem=${(process.mem ?? 0).toFixed(1)}%${cmdline ? ` · ${cmdline}` : ''}`;
 });
 const replayEnabled = computed(() => replayPath.value.trim().length > 0);
+const browserSnapshotCount = computed(() => browserSnapshots.value.length);
+const browserRecordingSummary = computed(() => {
+  if (!browserSnapshotCount.value) return '浏览器内存尚无录制快照，刷新页面后会丢失。';
+  const first = browserSnapshots.value[0]?.recordedAt ?? '';
+  const last = browserSnapshots.value[browserSnapshots.value.length - 1]?.recordedAt ?? '';
+  return `${browserSnapshotCount.value} snapshots${first && last ? ` · ${first} → ${last}` : ''}`;
+});
 const processTreeNodeIds = computed(() => {
   const ids = new Set<string>();
   if (focusedProcessNodeId.value) {
@@ -303,8 +318,28 @@ const normalizeGraphResponse = (payload: Partial<ExecutionGraphResponse> | undef
   edges: Array.isArray(payload?.edges) ? payload!.edges as ExecutionGraphEdge[] : [],
 });
 
+const cloneGraphState = (state: GraphState): GraphState => ({
+  eventCount: state.eventCount,
+  source: state.source,
+  nodeCounts: { ...(state.nodeCounts ?? {}) },
+  edgeCounts: { ...(state.edgeCounts ?? {}) },
+  nodes: state.nodes.map((node) => ({ ...node, metadata: node.metadata ? { ...node.metadata } : undefined })),
+  edges: state.edges.map((edge) => ({ ...edge })),
+});
+
+const appendBrowserSnapshot = (state: GraphState) => {
+  if (!browserRecordingActive.value || browserReplayActive.value) return;
+  const snapshots = browserSnapshots.value;
+  const recordedAt = new Date().toLocaleString();
+  snapshots.push({ recordedAt, graph: cloneGraphState(state) });
+  if (snapshots.length > 1000) {
+    snapshots.splice(0, snapshots.length - 1000);
+  }
+};
+
 const applyGraphPayload = (payload: Partial<ExecutionGraphResponse> | undefined) => {
   graph.value = normalizeGraphResponse(payload);
+  appendBrowserSnapshot(graph.value);
   const focusedId = focusedProcessNodeId.value;
   if (selectedNodeId.value && !nodeMap.value.has(selectedNodeId.value)) {
     selectedNodeId.value = focusedId && nodeMap.value.has(focusedId) ? focusedId : graph.value.nodes[0]?.id ?? '';
@@ -466,6 +501,124 @@ const stopReplay = async () => {
   await applyFilters();
 };
 
+const stopBrowserReplay = () => {
+  if (browserReplayTimer) {
+    clearInterval(browserReplayTimer);
+    browserReplayTimer = null;
+  }
+  browserReplayActive.value = false;
+  browserReplayIndex.value = 0;
+};
+
+const startBrowserRecording = () => {
+  stopBrowserReplay();
+  browserSnapshots.value = [];
+  browserRecordingActive.value = true;
+  appendBrowserSnapshot(graph.value);
+  message.success('已开始录制到浏览器内存');
+};
+
+const stopBrowserRecording = () => {
+  browserRecordingActive.value = false;
+  message.success(`已停止内存录制，共 ${browserSnapshotCount.value} 个快照`);
+};
+
+const playBrowserRecording = () => {
+  if (!browserSnapshots.value.length) {
+    message.warning('浏览器内存中没有可回放的快照');
+    return;
+  }
+  closeGraphSocket('paused');
+  browserRecordingActive.value = false;
+  browserReplayActive.value = true;
+  browserReplayIndex.value = 0;
+  const snapshots = browserSnapshots.value;
+  const playNext = () => {
+    const snapshot = snapshots[browserReplayIndex.value];
+    if (!snapshot) {
+      stopBrowserReplay();
+      return;
+    }
+    applyGraphPayload({ ...cloneGraphState(snapshot.graph), source: 'browser_memory' });
+    lastLoadedAt.value = snapshot.recordedAt;
+    browserReplayIndex.value += 1;
+    if (browserReplayIndex.value >= snapshots.length) {
+      stopBrowserReplay();
+    }
+  };
+  playNext();
+  browserReplayTimer = setInterval(playNext, 900);
+};
+
+const clearBrowserRecording = () => {
+  stopBrowserReplay();
+  browserRecordingActive.value = false;
+  browserSnapshots.value = [];
+  message.success('已清空浏览器内存录制');
+};
+
+const exitBrowserReplay = () => {
+  stopBrowserReplay();
+  if (liveListen.value) {
+    connectGraphSocket();
+  }
+};
+
+const buildBrowserRecordingExport = () => ({
+  version: 1,
+  kind: 'agent-ebpf-filter.execution-graph.browser-memory',
+  exportedAt: new Date().toISOString(),
+  snapshotCount: browserSnapshots.value.length,
+  snapshots: browserSnapshots.value.map((snapshot) => ({
+    recordedAt: snapshot.recordedAt,
+    graph: cloneGraphState(snapshot.graph),
+  })),
+});
+
+const browserRecordingFilename = () => {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  return `execution-graph-browser-memory-${stamp}.json`;
+};
+
+const exportBrowserRecording = () => {
+  if (!browserSnapshots.value.length) {
+    message.warning('浏览器内存中没有可导出的快照');
+    return;
+  }
+  const payload = JSON.stringify(buildBrowserRecordingExport(), null, 2);
+  const blob = new Blob([payload, '\n'], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = browserRecordingFilename();
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  message.success('已导出浏览器内存录制');
+};
+
+const saveBrowserRecordingToBackend = async () => {
+  if (!browserSnapshots.value.length) {
+    message.warning('浏览器内存中没有可保存的快照');
+    return;
+  }
+  browserSaveBusy.value = true;
+  try {
+    const { data } = await axios.post('/events/recording/browser/save', {
+      path: browserSavePath.value.trim(),
+      export: buildBrowserRecordingExport(),
+    });
+    browserSavePath.value = String(data?.path || browserSavePath.value);
+    message.success(`已保存到后端：${browserSavePath.value}`);
+  } catch (error) {
+    console.error('Failed to save browser recording to backend', error);
+    message.error('保存浏览器内存录制到后端失败');
+  } finally {
+    browserSaveBusy.value = false;
+  }
+};
+
 const resetFilters = async () => {
   Object.assign(filters, defaultFilters());
   selectedProcessPid.value = null;
@@ -602,6 +755,7 @@ onUnmounted(() => {
     clearInterval(recordingStatusTimer);
     recordingStatusTimer = null;
   }
+  stopBrowserReplay();
   closeGraphSocket('closed');
 });
 </script>
@@ -704,6 +858,28 @@ onUnmounted(() => {
       <a-typography-text v-if="recordingStartedAt" type="secondary" class="recording-meta">
         started {{ recordingStartedAt }}
       </a-typography-text>
+      <div class="browser-recording-row">
+        <a-space wrap>
+          <a-button type="primary" ghost :disabled="browserRecordingActive" @click="startBrowserRecording">开始录制到浏览器内存</a-button>
+          <a-button :disabled="!browserRecordingActive" @click="stopBrowserRecording">停止内存录制</a-button>
+          <a-button :disabled="!browserSnapshotCount" @click="playBrowserRecording">回放内存</a-button>
+          <a-button v-if="browserReplayActive" @click="exitBrowserReplay">退出内存回放</a-button>
+          <a-button :disabled="!browserSnapshotCount" danger ghost @click="clearBrowserRecording">清空内存</a-button>
+          <a-button :disabled="!browserSnapshotCount" @click="exportBrowserRecording">导出内存 JSON</a-button>
+          <a-button type="primary" :loading="browserSaveBusy" :disabled="!browserSnapshotCount" @click="saveBrowserRecordingToBackend">保存到后端</a-button>
+          <a-tag v-if="browserRecordingActive" color="blue">内存录制中 · {{ browserSnapshotCount }}</a-tag>
+          <a-tag v-if="browserReplayActive" color="purple">内存回放 {{ browserReplayIndex }}/{{ browserSnapshotCount }}</a-tag>
+        </a-space>
+        <a-input
+          v-model:value="browserSavePath"
+          allow-clear
+          class="browser-save-path"
+          placeholder="后端保存路径，可空；默认保存到 ~/.config/agent-ebpf-filter/recordings/browser-memory-*.json"
+        />
+        <a-typography-text type="secondary" class="recording-meta">
+          {{ browserRecordingSummary }}
+        </a-typography-text>
+      </div>
     </a-card>
 
     <ProcessPickerModal
@@ -781,6 +957,7 @@ onUnmounted(() => {
             :nodes="graph.nodes"
             :edges="graph.edges"
             :selected-node-id="selectedNodeId"
+            zoom-storage-key="agent-ebpf.execution-graph.execution-topology.zoom"
             @select-node="handleSelectNode"
           />
         </a-spin>
@@ -959,6 +1136,17 @@ onUnmounted(() => {
 .recording-meta {
   display: block;
   margin-top: 8px;
+}
+
+.browser-recording-row {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.browser-save-path {
+  margin-top: 10px;
+  max-width: 780px;
 }
 
 .graph-layout {

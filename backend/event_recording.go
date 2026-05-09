@@ -24,6 +24,11 @@ type eventReplayRequest struct {
 	Limit int    `json:"limit"`
 }
 
+type browserRecordingSaveRequest struct {
+	Path   string          `json:"path"`
+	Export json.RawMessage `json:"export"`
+}
+
 type eventRecordingStatus struct {
 	Active      bool   `json:"active"`
 	Path        string `json:"path,omitempty"`
@@ -45,6 +50,10 @@ var eventRecordingStore = &eventRecordingState{}
 
 func defaultEventRecordingPath() string {
 	return filepath.Join(runtimeSettingsDir(), "recordings", "events-"+time.Now().UTC().Format("20060102-150405")+".jsonl")
+}
+
+func defaultBrowserRecordingPath() string {
+	return filepath.Join(runtimeSettingsDir(), "recordings", "browser-memory-"+time.Now().UTC().Format("20060102-150405")+".json")
 }
 
 func expandEventRecordingPath(raw string) string {
@@ -205,6 +214,37 @@ func readCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, erro
 	return records, nil
 }
 
+func saveBrowserRecordingExport(path string, payload json.RawMessage) (string, int, error) {
+	path = expandEventRecordingPath(path)
+	if strings.TrimSpace(path) == "" {
+		path = defaultBrowserRecordingPath()
+	}
+	if len(payload) == 0 || string(payload) == "null" {
+		return "", 0, errors.New("browser recording export is empty")
+	}
+	var normalized any
+	if err := json.Unmarshal(payload, &normalized); err != nil {
+		return "", 0, err
+	}
+	pretty, err := json.MarshalIndent(normalized, "", "  ")
+	if err != nil {
+		return "", 0, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", 0, err
+	}
+	if err := os.WriteFile(path, append(pretty, '\n'), 0o600); err != nil {
+		return "", 0, err
+	}
+	count := 0
+	if object, ok := normalized.(map[string]any); ok {
+		if snapshots, ok := object["snapshots"].([]any); ok {
+			count = len(snapshots)
+		}
+	}
+	return path, count, nil
+}
+
 func handleEventRecordingStatus(c *gin.Context) {
 	c.JSON(200, eventRecordingStore.Status())
 }
@@ -248,6 +288,20 @@ func handleReplayEventRecording(c *gin.Context) {
 	graph := buildExecutionGraph(records, executionGraphFiltersFromRequest(c))
 	graph.Source = "replay_file"
 	c.JSON(200, gin.H{"path": expandEventRecordingPath(req.Path), "events": len(records), "graph": graph})
+}
+
+func handleSaveBrowserRecording(c *gin.Context) {
+	var req browserRecordingSaveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
+	path, snapshots, err := saveBrowserRecordingExport(req.Path, req.Export)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"path": path, "snapshots": snapshots})
 }
 
 func parsePositiveIntQuery(raw string, fallback int) (int, bool) {
