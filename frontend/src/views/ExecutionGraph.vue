@@ -16,7 +16,9 @@ import {
 } from '@ant-design/icons-vue';
 
 import ExecutionGraphCanvas from '../components/execution-graph/ExecutionGraphCanvas.vue';
+import ProcessPickerModal from '../components/ProcessPickerModal.vue';
 import { useMonitorData } from '../composables/useMonitorData';
+import type { ProcessInfo } from '../composables/useMonitorData';
 import type {
   ExecutionGraphEdge,
   ExecutionGraphFilterState,
@@ -88,8 +90,8 @@ const graph = ref<GraphState>({ eventCount: 0, source: 'memory', nodeCounts: {},
 const selectedNodeId = ref('');
 const activeDetailTab = ref<DetailTab>('processes');
 const lastLoadedAt = ref('');
-const processSearch = ref('');
 const selectedProcessPid = ref<number | null>(filters.pid ? Number(filters.pid) || null : null);
+const processPickerOpen = ref(false);
 const liveListen = ref(true);
 let liveRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -172,24 +174,6 @@ const selectedProcess = computed(() => {
   if (!selectedProcessPid.value) return null;
   return processList.value.find((process) => process.pid === selectedProcessPid.value) ?? null;
 });
-const filteredProcessList = computed(() => {
-  const query = processSearch.value.trim().toLowerCase();
-  const list = query
-    ? processList.value.filter((process) => (
-      process.name.toLowerCase().includes(query) ||
-      String(process.pid).includes(query) ||
-      String(process.ppid).includes(query) ||
-      (process.cmdline ?? '').toLowerCase().includes(query) ||
-      (process.user ?? '').toLowerCase().includes(query)
-    ))
-    : processList.value;
-  return list.slice(0, 200);
-});
-const processSelectOptions = computed(() => filteredProcessList.value.map((process) => ({
-  value: process.pid,
-  label: `${process.name || 'process'} · pid ${process.pid} · ppid ${process.ppid}`,
-  process,
-})));
 const selectedProcessSummary = computed(() => {
   const process = selectedProcess.value;
   if (!process) {
@@ -320,8 +304,8 @@ const focusProcess = async (pid: number | null) => {
   await applyFilters();
 };
 
-const handleProcessSelectChange = (value: number | string | null | undefined) => {
-  void focusProcess(value ? Number(value) : null);
+const handleProcessPicked = (process: ProcessInfo) => {
+  void focusProcess(process.pid);
 };
 
 const focusProcessFromNode = async () => {
@@ -493,25 +477,13 @@ onUnmounted(() => {
       <template #title><span><RadarChartOutlined /> Process Tree Listener</span></template>
       <a-row :gutter="12" align="middle">
         <a-col :xs="24" :lg="10">
-          <a-select
-            v-model:value="selectedProcessPid"
-            show-search
-            allow-clear
-            placeholder="从实时进程列表中选择 PID"
-            style="width: 100%;"
-            :filter-option="false"
-            :options="processSelectOptions"
-            :loading="processLoading"
-            @search="processSearch = $event"
-            @change="handleProcessSelectChange"
-          >
-            <template #option="{ label, process }">
-              <div class="process-option">
-                <span>{{ label }}</span>
-                <span class="muted-line">{{ process.user || 'unknown user' }} · {{ process.cmdline || 'no cmdline' }}</span>
-              </div>
-            </template>
-          </a-select>
+          <a-space wrap>
+            <a-button type="primary" @click="processPickerOpen = true">
+              从进程列表选择
+            </a-button>
+            <a-button v-if="filters.pid" @click="focusProcess(null)">清除 PID</a-button>
+            <a-tag v-if="filters.pid" color="processing">PID {{ filters.pid }}</a-tag>
+          </a-space>
         </a-col>
         <a-col :xs="24" :lg="8">
           <a-typography-text type="secondary">{{ selectedProcessSummary }}</a-typography-text>
@@ -525,6 +497,15 @@ onUnmounted(() => {
         </a-col>
       </a-row>
     </a-card>
+
+    <ProcessPickerModal
+      v-model:open="processPickerOpen"
+      :processes="processList"
+      :selected-pid="selectedProcessPid"
+      :loading="processLoading"
+      title="选择要监听的进程"
+      @select="handleProcessPicked"
+    />
 
     <a-card :bordered="false" class="filter-card">
       <template #title><span><FilterOutlined /> Graph Filters</span></template>
@@ -736,12 +717,6 @@ onUnmounted(() => {
 .filter-actions {
   display: flex;
   justify-content: flex-end;
-}
-
-.process-option {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 .graph-layout {
