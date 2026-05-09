@@ -390,6 +390,9 @@ func handleMicrophones(c *gin.Context) {
 
 func serveMicrophoneWS(c *gin.Context) {
 	device := c.DefaultQuery("device", "default")
+	if strings.HasPrefix(device, "hw:") {
+		device = "plughw:" + device[3:]
+	}
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
