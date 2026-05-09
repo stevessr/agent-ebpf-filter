@@ -14,31 +14,27 @@ import {
   AlertOutlined,
   RadarChartOutlined,
 } from '@ant-design/icons-vue';
-
 import ExecutionGraphCanvas from '../components/execution-graph/ExecutionGraphCanvas.vue';
 import ProcessPickerModal from '../components/ProcessPickerModal.vue';
 import { useMonitorData } from '../composables/useMonitorData';
 import type { ProcessInfo } from '../composables/useMonitorData';
 import { buildWebSocketUrl } from '../utils/requestContext';
+import { useExecutionGraph } from '../composables/useExecutionGraph';
 import type {
   ExecutionGraphEdge,
   ExecutionGraphFilterState,
   ExecutionGraphNode,
   ExecutionGraphResponse,
 } from '../types/executionGraph';
-
 const route = useRoute();
 const router = useRouter();
 const monitorData = useMonitorData();
 const { processes, loading: processLoading, setup: setupMonitorData, teardown: teardownMonitorData } = monitorData;
-
 const timePresetOptions: ExecutionGraphFilterState['timePreset'][] = ['all', '15m', '1h', '6h', '24h', '7d', 'custom'];
 const detailTabs = ['processes', 'files', 'network', 'policy', 'edges', 'metadata'] as const;
 type DetailTab = typeof detailTabs[number];
-
 type GraphState = ExecutionGraphResponse & { nodes: ExecutionGraphNode[]; edges: ExecutionGraphEdge[] };
 type BrowserGraphSnapshot = { recordedAt: string; graph: GraphState };
-
 const defaultFilters = (): ExecutionGraphFilterState => ({
   limit: 600,
   agentRunId: '',
@@ -56,9 +52,7 @@ const defaultFilters = (): ExecutionGraphFilterState => ({
   since: '',
   until: '',
 });
-
 const singleQuery = (value: unknown) => Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
-
 const filtersFromRoute = (): ExecutionGraphFilterState => {
   const defaults = defaultFilters();
   const query = route.query;
@@ -85,7 +79,6 @@ const filtersFromRoute = (): ExecutionGraphFilterState => {
     until: String(singleQuery(query.until)).trim(),
   };
 };
-
 const filters = reactive<ExecutionGraphFilterState>(filtersFromRoute());
 const loading = ref(false);
 const graph = ref<GraphState>({ eventCount: 0, source: 'memory', nodeCounts: {}, edgeCounts: {}, nodes: [], edges: [] });
@@ -113,230 +106,48 @@ let graphWs: WebSocket | null = null;
 let graphReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let recordingStatusTimer: ReturnType<typeof setInterval> | null = null;
 let browserReplayTimer: ReturnType<typeof setInterval> | null = null;
-
-const kindTagColorMap: Record<string, string> = {
-  agent_run: 'purple',
-  tool_call: 'blue',
-  process: 'green',
-  syscall: 'orange',
-  wrapper_event: 'cyan',
-  hook_event: 'geekblue',
-  file: 'default',
-  network: 'red',
-  policy_decision: 'black',
-  policy_alert: 'error',
-  exit_status: 'default',
-};
-
-const decisionOptions = [
-  { label: 'Any decision', value: '' },
-  { label: 'ALLOW', value: 'ALLOW' },
-  { label: 'ALERT', value: 'ALERT' },
-  { label: 'BLOCK', value: 'BLOCK' },
-  { label: 'REWRITE', value: 'REWRITE' },
-];
-
-const timePresetLabels: Record<ExecutionGraphFilterState['timePreset'], string> = {
-  all: 'All retained events',
-  '15m': 'Last 15 minutes',
-  '1h': 'Last 1 hour',
-  '6h': 'Last 6 hours',
-  '24h': 'Last 24 hours',
-  '7d': 'Last 7 days',
-  custom: 'Custom since / until',
-};
-
-const nodeMap = computed(() => new Map(graph.value.nodes.map((node) => [node.id, node])));
-const selectedNode = computed(() => nodeMap.value.get(selectedNodeId.value) ?? null);
-const selectedNodeKindColor = computed(() => kindTagColorMap[selectedNode.value?.kind ?? ''] ?? 'default');
-
-const incidentEdges = computed(() => {
-  if (!selectedNodeId.value) return [] as ExecutionGraphEdge[];
-  return graph.value.edges.filter((edge) => edge.source === selectedNodeId.value || edge.target === selectedNodeId.value);
+const {
+  kindTagColorMap,
+  decisionOptions,
+  timePresetLabels,
+  nodeMap,
+  selectedNode,
+  selectedNodeKindColor,
+  incidentEdges,
+  collectReachableIds,
+  relatedProcesses,
+  relatedFiles,
+  relatedNetwork,
+  relatedPolicies,
+  sortedNodeCounts,
+  sortedEdgeCounts,
+  metadataEntries,
+  processList,
+  focusedProcessNodeId,
+  selectedProcessSummary,
+  replayEnabled,
+  browserSnapshotCount,
+  browserRecordingSummary,
+  processTreeNodes,
+  processTreeEdges,
+  buildPresetSince,
+  buildParams,
+  syncRouteQuery,
+  normalizeGraphResponse,
+  cloneGraphState,
+  appendBrowserSnapshot,
+} = useExecutionGraph({
+  router,
+  graph,
+  selectedNodeId,
+  filters,
+  replayPath,
+  browserSnapshots,
+  browserRecordingActive,
+  browserReplayActive,
+  processes,
+  selectedProcessPid,
 });
-
-const collectReachableIds = (startId: string, maxDepth: number) => {
-  const visited = new Set<string>([startId]);
-  const queue: Array<{ id: string; depth: number }> = [{ id: startId, depth: 0 }];
-  while (queue.length) {
-    const current = queue.shift()!;
-    if (current.depth >= maxDepth) continue;
-    for (const edge of graph.value.edges) {
-      if (edge.source !== current.id && edge.target !== current.id) continue;
-      const nextId = edge.source === current.id ? edge.target : edge.source;
-      if (!visited.has(nextId)) {
-        visited.add(nextId);
-        queue.push({ id: nextId, depth: current.depth + 1 });
-      }
-    }
-  }
-  return visited;
-};
-
-const relatedNodes = computed(() => {
-  if (!selectedNode.value) return [] as ExecutionGraphNode[];
-  const maxDepth = selectedNode.value.kind === 'agent_run' || selectedNode.value.kind === 'tool_call' ? 3 : 2;
-  const relatedIds = collectReachableIds(selectedNode.value.id, maxDepth);
-  return graph.value.nodes.filter((node) => relatedIds.has(node.id) && node.id !== selectedNode.value?.id);
-});
-
-const relatedProcesses = computed(() => relatedNodes.value.filter((node) => node.kind === 'process'));
-const relatedFiles = computed(() => relatedNodes.value.filter((node) => node.kind === 'file'));
-const relatedNetwork = computed(() => relatedNodes.value.filter((node) => node.kind === 'network'));
-const relatedPolicies = computed(() => relatedNodes.value.filter((node) => node.kind === 'policy_alert' || node.kind === 'policy_decision'));
-
-const sortedNodeCounts = computed(() => Object.entries(graph.value.nodeCounts ?? {}).sort((a, b) => b[1] - a[1]));
-const sortedEdgeCounts = computed(() => Object.entries(graph.value.edgeCounts ?? {}).sort((a, b) => b[1] - a[1]));
-const metadataEntries = computed(() => Object.entries(selectedNode.value?.metadata ?? {}).filter(([, value]) => value !== ''));
-const processList = computed(() => [...processes.value].sort((a, b) => (b.cpu ?? 0) - (a.cpu ?? 0) || a.pid - b.pid));
-const processTreeEdgeKinds = new Set(['child_process', 'parent_process', 'exec_chain', 'spawned']);
-const selectedProcess = computed(() => {
-  if (!selectedProcessPid.value) return null;
-  return processList.value.find((process) => process.pid === selectedProcessPid.value) ?? null;
-});
-const focusedProcessNodeId = computed(() => {
-  const pid = Number(filters.pid);
-  return Number.isFinite(pid) && pid > 0 ? `proc:${pid}` : '';
-});
-const selectedProcessSummary = computed(() => {
-  const process = selectedProcess.value;
-  if (!process) {
-    return filters.pid ? `Listening to pid ${filters.pid}; it may have exited from the live process list.` : 'Pick a live process to focus its current and descendant execution graph.';
-  }
-  const cmdline = process.cmdline?.trim();
-  return `${process.name} pid=${process.pid} ppid=${process.ppid} cpu=${(process.cpu ?? 0).toFixed(1)}% mem=${(process.mem ?? 0).toFixed(1)}%${cmdline ? ` · ${cmdline}` : ''}`;
-});
-const replayEnabled = computed(() => replayPath.value.trim().length > 0);
-const browserSnapshotCount = computed(() => browserSnapshots.value.length);
-const browserRecordingSummary = computed(() => {
-  if (!browserSnapshotCount.value) return '浏览器内存尚无录制快照，刷新页面后会丢失。';
-  const first = browserSnapshots.value[0]?.recordedAt ?? '';
-  const last = browserSnapshots.value[browserSnapshots.value.length - 1]?.recordedAt ?? '';
-  return `${browserSnapshotCount.value} snapshots${first && last ? ` · ${first} → ${last}` : ''}`;
-});
-const processTreeNodeIds = computed(() => {
-  const ids = new Set<string>();
-  if (focusedProcessNodeId.value) {
-    ids.add(focusedProcessNodeId.value);
-  }
-  graph.value.edges.forEach((edge) => {
-    const source = nodeMap.value.get(edge.source);
-    const target = nodeMap.value.get(edge.target);
-    if (processTreeEdgeKinds.has(edge.kind) && source?.kind === 'process' && target?.kind === 'process') {
-      ids.add(edge.source);
-      ids.add(edge.target);
-    }
-  });
-  return ids;
-});
-const processTreeNodes = computed(() => graph.value.nodes.filter((node) => node.kind === 'process' && processTreeNodeIds.value.has(node.id)));
-const processTreeEdges = computed(() => graph.value.edges.filter((edge) => {
-  const source = nodeMap.value.get(edge.source);
-  const target = nodeMap.value.get(edge.target);
-  return processTreeEdgeKinds.has(edge.kind) && source?.kind === 'process' && target?.kind === 'process';
-}));
-
-const buildPresetSince = (preset: ExecutionGraphFilterState['timePreset']) => {
-  const now = Date.now();
-  switch (preset) {
-    case '15m':
-      return new Date(now - 15 * 60 * 1000).toISOString();
-    case '1h':
-      return new Date(now - 60 * 60 * 1000).toISOString();
-    case '6h':
-      return new Date(now - 6 * 60 * 60 * 1000).toISOString();
-    case '24h':
-      return new Date(now - 24 * 60 * 60 * 1000).toISOString();
-    case '7d':
-      return new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
-    default:
-      return '';
-  }
-};
-
-const buildParams = () => {
-  const params: Record<string, string | number> = { limit: filters.limit };
-  const textMappings: Array<[string, string]> = [
-    ['agent_run_id', filters.agentRunId],
-    ['tool_call_id', filters.toolCallId],
-    ['trace_id', filters.traceId],
-    ['pid', filters.pid],
-    ['comm', filters.comm],
-    ['tool_name', filters.toolName],
-    ['path', filters.path],
-    ['domain', filters.domain],
-    ['decision', filters.decision],
-  ];
-  textMappings.forEach(([key, value]) => {
-    if (value.trim()) params[key] = value.trim();
-  });
-  if (filters.riskMin > 0) {
-    params.risk_min = filters.riskMin;
-  }
-  if (replayEnabled.value) {
-    params.replay_path = replayPath.value.trim();
-  }
-  if (filters.pid.trim() && filters.processTree) {
-    params.process_tree = 'true';
-  }
-  if (filters.timePreset === 'custom') {
-    if (filters.since.trim()) params.since = filters.since.trim();
-    if (filters.until.trim()) params.until = filters.until.trim();
-  } else if (filters.timePreset !== 'all') {
-    const since = buildPresetSince(filters.timePreset);
-    if (since) params.since = since;
-  }
-  return params;
-};
-
-const syncRouteQuery = async () => {
-  const params = buildParams();
-  const query: Record<string, string> = {};
-  Object.entries(params).forEach(([key, value]) => {
-    query[key] = String(value);
-  });
-  query.timePreset = filters.timePreset;
-  if (filters.pid.trim() && filters.processTree) {
-    query.process_tree = 'true';
-  }
-  if (filters.timePreset === 'custom') {
-    if (filters.since.trim()) query.since = filters.since.trim();
-    if (filters.until.trim()) query.until = filters.until.trim();
-  }
-  if (replayEnabled.value) {
-    query.replay_path = replayPath.value.trim();
-  }
-  await router.replace({ query });
-};
-
-const normalizeGraphResponse = (payload: Partial<ExecutionGraphResponse> | undefined): GraphState => ({
-  eventCount: Number(payload?.eventCount ?? 0),
-  source: String(payload?.source ?? 'memory'),
-  nodeCounts: payload?.nodeCounts ?? {},
-  edgeCounts: payload?.edgeCounts ?? {},
-  nodes: Array.isArray(payload?.nodes) ? payload!.nodes as ExecutionGraphNode[] : [],
-  edges: Array.isArray(payload?.edges) ? payload!.edges as ExecutionGraphEdge[] : [],
-});
-
-const cloneGraphState = (state: GraphState): GraphState => ({
-  eventCount: state.eventCount,
-  source: state.source,
-  nodeCounts: { ...(state.nodeCounts ?? {}) },
-  edgeCounts: { ...(state.edgeCounts ?? {}) },
-  nodes: state.nodes.map((node) => ({ ...node, metadata: node.metadata ? { ...node.metadata } : undefined })),
-  edges: state.edges.map((edge) => ({ ...edge })),
-});
-
-const appendBrowserSnapshot = (state: GraphState) => {
-  if (!browserRecordingActive.value || browserReplayActive.value) return;
-  const snapshots = browserSnapshots.value;
-  const recordedAt = new Date().toLocaleString();
-  snapshots.push({ recordedAt, graph: cloneGraphState(state) });
-  if (snapshots.length > 1000) {
-    snapshots.splice(0, snapshots.length - 1000);
-  }
-};
-
 const applyGraphPayload = (payload: Partial<ExecutionGraphResponse> | undefined) => {
   graph.value = normalizeGraphResponse(payload);
   appendBrowserSnapshot(graph.value);
@@ -349,7 +160,6 @@ const applyGraphPayload = (payload: Partial<ExecutionGraphResponse> | undefined)
   }
   lastLoadedAt.value = new Date().toLocaleString();
 };
-
 const closeGraphSocket = (status: typeof graphSocketStatus.value = 'closed') => {
   if (graphReconnectTimer) {
     clearTimeout(graphReconnectTimer);
@@ -367,7 +177,6 @@ const closeGraphSocket = (status: typeof graphSocketStatus.value = 'closed') => 
   loading.value = false;
   graphSocketStatus.value = status;
 };
-
 const connectGraphSocket = () => {
   if (!liveListen.value) {
     closeGraphSocket('paused');
@@ -382,12 +191,10 @@ const connectGraphSocket = () => {
     graphWs.close();
     graphWs = null;
   }
-
   loading.value = true;
   graphSocketStatus.value = 'connecting';
   const socket = new WebSocket(buildWebSocketUrl('/ws/events/graph', { ...buildParams(), interval: 1500 }));
   graphWs = socket;
-
   socket.onopen = () => {
     graphSocketStatus.value = 'connected';
   };
@@ -422,12 +229,10 @@ const connectGraphSocket = () => {
     graphReconnectTimer = setTimeout(() => connectGraphSocket(), 2000);
   };
 };
-
 const applyFilters = async () => {
   await syncRouteQuery();
   connectGraphSocket();
 };
-
 const loadRecordingStatus = async () => {
   try {
     const { data } = await axios.get('/events/recording');
@@ -441,7 +246,6 @@ const loadRecordingStatus = async () => {
     console.error('Failed to load event recording status', error);
   }
 };
-
 const startRecording = async () => {
   recordingBusy.value = true;
   try {
@@ -458,7 +262,6 @@ const startRecording = async () => {
     recordingBusy.value = false;
   }
 };
-
 const stopRecording = async () => {
   recordingBusy.value = true;
   try {
@@ -473,7 +276,6 @@ const stopRecording = async () => {
     recordingBusy.value = false;
   }
 };
-
 const playRecording = async () => {
   const path = recordingPath.value.trim();
   if (!path) {
@@ -495,12 +297,10 @@ const playRecording = async () => {
     replayBusy.value = false;
   }
 };
-
 const stopReplay = async () => {
   replayPath.value = '';
   await applyFilters();
 };
-
 const stopBrowserReplay = () => {
   if (browserReplayTimer) {
     clearInterval(browserReplayTimer);
@@ -509,7 +309,6 @@ const stopBrowserReplay = () => {
   browserReplayActive.value = false;
   browserReplayIndex.value = 0;
 };
-
 const startBrowserRecording = () => {
   stopBrowserReplay();
   browserSnapshots.value = [];
@@ -517,12 +316,10 @@ const startBrowserRecording = () => {
   appendBrowserSnapshot(graph.value);
   message.success('已开始录制到浏览器内存');
 };
-
 const stopBrowserRecording = () => {
   browserRecordingActive.value = false;
   message.success(`已停止内存录制，共 ${browserSnapshotCount.value} 个快照`);
 };
-
 const playBrowserRecording = () => {
   if (!browserSnapshots.value.length) {
     message.warning('浏览器内存中没有可回放的快照');
@@ -549,21 +346,18 @@ const playBrowserRecording = () => {
   playNext();
   browserReplayTimer = setInterval(playNext, 900);
 };
-
 const clearBrowserRecording = () => {
   stopBrowserReplay();
   browserRecordingActive.value = false;
   browserSnapshots.value = [];
   message.success('已清空浏览器内存录制');
 };
-
 const exitBrowserReplay = () => {
   stopBrowserReplay();
   if (liveListen.value) {
     connectGraphSocket();
   }
 };
-
 const buildBrowserRecordingExport = () => ({
   version: 1,
   kind: 'agent-ebpf-filter.execution-graph.browser-memory',
@@ -574,12 +368,10 @@ const buildBrowserRecordingExport = () => ({
     graph: cloneGraphState(snapshot.graph),
   })),
 });
-
 const browserRecordingFilename = () => {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   return `execution-graph-browser-memory-${stamp}.json`;
 };
-
 const exportBrowserRecording = () => {
   if (!browserSnapshots.value.length) {
     message.warning('浏览器内存中没有可导出的快照');
@@ -597,7 +389,6 @@ const exportBrowserRecording = () => {
   URL.revokeObjectURL(url);
   message.success('已导出浏览器内存录制');
 };
-
 const saveBrowserRecordingToBackend = async () => {
   if (!browserSnapshots.value.length) {
     message.warning('浏览器内存中没有可保存的快照');
@@ -618,18 +409,15 @@ const saveBrowserRecordingToBackend = async () => {
     browserSaveBusy.value = false;
   }
 };
-
 const resetFilters = async () => {
   Object.assign(filters, defaultFilters());
   selectedProcessPid.value = null;
   replayPath.value = '';
   await applyFilters();
 };
-
 const handleSelectNode = (nodeId: string) => {
   selectedNodeId.value = nodeId;
 };
-
 const focusProcess = async (pid: number | null) => {
   selectedProcessPid.value = pid;
   filters.pid = pid ? String(pid) : '';
@@ -640,11 +428,9 @@ const focusProcess = async (pid: number | null) => {
   }
   await applyFilters();
 };
-
 const handleProcessPicked = (process: ProcessInfo) => {
   void focusProcess(process.pid);
 };
-
 const focusProcessFromNode = async () => {
   const processNode = nearestProcessNode.value;
   const pid = Number(processNode?.metadata?.pid ?? processNode?.pid ?? 0);
@@ -655,7 +441,6 @@ const focusProcessFromNode = async () => {
   await focusProcess(pid);
   message.success(`Listening to process tree for pid ${pid}`);
 };
-
 const nearestProcessNode = computed(() => {
   const node = selectedNode.value;
   if (!node) return null;
@@ -667,19 +452,16 @@ const nearestProcessNode = computed(() => {
   }
   return null;
 });
-
 const actionableComm = computed(() => {
   const processNode = nearestProcessNode.value;
   if (!processNode) return '';
   return processNode.metadata?.comm?.trim() || processNode.label.trim();
 });
-
 const replayAvailable = computed(() => Boolean(
   selectedNode.value?.metadata?.agentRunId ||
   selectedNode.value?.metadata?.toolCallId ||
   selectedNode.value?.metadata?.traceId,
 ));
-
 const addRule = async (action: 'ALLOW' | 'BLOCK') => {
   const comm = actionableComm.value;
   if (!comm) {
@@ -694,7 +476,6 @@ const addRule = async (action: 'ALLOW' | 'BLOCK') => {
     message.error(`Failed to add ${action} rule`);
   }
 };
-
 const exportTrainingSample = async (label: 'ALLOW' | 'ALERT' | 'BLOCK') => {
   const comm = actionableComm.value;
   if (!comm) {
@@ -714,7 +495,6 @@ const exportTrainingSample = async (label: 'ALLOW' | 'ALERT' | 'BLOCK') => {
     message.error('Failed to export training sample');
   }
 };
-
 const replaySelectedContext = async () => {
   if (!selectedNode.value) return;
   const metadata = selectedNode.value.metadata ?? {};
@@ -725,13 +505,10 @@ const replaySelectedContext = async () => {
   await applyFilters();
   message.success('Replayed current graph context filters');
 };
-
 const focusRelatedTab = (tab: DetailTab) => {
   activeDetailTab.value = tab;
 };
-
 const renderNodeSubtitle = (node: ExecutionGraphNode) => node.subtitle?.trim() || node.metadata?.path || node.metadata?.endpoint || '—';
-
 watch(liveListen, (enabled) => {
   if (enabled) {
     connectGraphSocket();
@@ -739,7 +516,6 @@ watch(liveListen, (enabled) => {
     closeGraphSocket('paused');
   }
 });
-
 onMounted(async () => {
   setupMonitorData();
   void loadRecordingStatus();
@@ -748,7 +524,30 @@ onMounted(async () => {
   }, 2500);
   connectGraphSocket();
 });
-
+onUnmounted(() => {
+  teardownMonitorData();
+  if (recordingStatusTimer) {
+    clearInterval(recordingStatusTimer);
+    recordingStatusTimer = null;
+  }
+  stopBrowserReplay();
+  closeGraphSocket('closed');
+});
+watch(liveListen, (enabled) => {
+  if (enabled) {
+    connectGraphSocket();
+  } else {
+    closeGraphSocket('paused');
+  }
+});
+onMounted(async () => {
+  setupMonitorData();
+  void loadRecordingStatus();
+  recordingStatusTimer = setInterval(() => {
+    void loadRecordingStatus();
+  }, 2500);
+  connectGraphSocket();
+});
 onUnmounted(() => {
   teardownMonitorData();
   if (recordingStatusTimer) {
@@ -759,7 +558,6 @@ onUnmounted(() => {
   closeGraphSocket('closed');
 });
 </script>
-
 <template>
   <div class="execution-graph-page">
     <a-card :bordered="false" class="hero-card">
@@ -781,7 +579,6 @@ onUnmounted(() => {
         </a-space>
       </div>
     </a-card>
-
     <a-row :gutter="16" class="summary-row">
       <a-col :xs="24" :lg="8">
         <a-card size="small" title="Top Node Kinds">
@@ -812,7 +609,6 @@ onUnmounted(() => {
         </a-card>
       </a-col>
     </a-row>
-
     <a-card :bordered="false" class="process-listener-card">
       <template #title><span><RadarChartOutlined /> Process Tree Listener</span></template>
       <a-row :gutter="12" align="middle">
@@ -837,7 +633,6 @@ onUnmounted(() => {
         </a-col>
       </a-row>
     </a-card>
-
     <a-card :bordered="false" class="recording-card">
       <template #title><span><PlayCircleOutlined /> 录制 / 回放</span></template>
       <a-row :gutter="12" align="middle">
@@ -881,7 +676,6 @@ onUnmounted(() => {
         </a-typography-text>
       </div>
     </a-card>
-
     <ProcessPickerModal
       v-model:open="processPickerOpen"
       :processes="processList"
@@ -890,7 +684,6 @@ onUnmounted(() => {
       title="选择要监听的进程"
       @select="handleProcessPicked"
     />
-
     <a-card :bordered="false" class="filter-card">
       <template #title><span><FilterOutlined /> Graph Filters</span></template>
       <a-form layout="vertical">
@@ -919,7 +712,6 @@ onUnmounted(() => {
         </a-space>
       </div>
     </a-card>
-
     <div class="graph-layout">
       <a-card :bordered="false" class="graph-card">
         <template #title>
@@ -962,7 +754,6 @@ onUnmounted(() => {
           />
         </a-spin>
       </a-card>
-
       <a-card :bordered="false" class="detail-card">
         <template #title><span><InfoCircleOutlined /> Node Details</span></template>
         <template #extra>
@@ -971,7 +762,6 @@ onUnmounted(() => {
             <a-tag v-if="selectedNode.riskScore !== undefined" color="volcano">risk {{ Number(selectedNode.riskScore).toFixed(0) }}</a-tag>
           </a-space>
         </template>
-
         <a-empty v-if="!selectedNode" description="Select a node from the graph to inspect context, resources, and actions." />
         <template v-else>
           <a-space direction="vertical" size="middle" style="width: 100%;">
@@ -981,14 +771,12 @@ onUnmounted(() => {
                 {{ renderNodeSubtitle(selectedNode) }}
               </a-typography-paragraph>
             </div>
-
             <a-descriptions :column="1" size="small" bordered>
               <a-descriptions-item label="Node ID">{{ selectedNode.id }}</a-descriptions-item>
               <a-descriptions-item label="Kind">{{ selectedNode.kind }}</a-descriptions-item>
               <a-descriptions-item v-if="selectedNode.pid" label="PID">{{ selectedNode.pid }}</a-descriptions-item>
               <a-descriptions-item v-if="actionableComm" label="Actionable Command">{{ actionableComm }}</a-descriptions-item>
             </a-descriptions>
-
             <div class="node-actions">
               <a-space wrap>
                 <a-button size="small" @click="addRule('ALLOW')"><SafetyCertificateOutlined /> Add allow rule</a-button>
@@ -998,14 +786,12 @@ onUnmounted(() => {
                 <a-button size="small" type="dashed" @click="exportTrainingSample('BLOCK')">Export BLOCK sample</a-button>
               </a-space>
             </div>
-
             <a-space wrap>
               <a-button size="small" @click="focusRelatedTab('processes')">Show related process tree</a-button>
               <a-button size="small" @click="focusRelatedTab('files')">Show related files</a-button>
               <a-button size="small" @click="focusRelatedTab('network')">Show related network flows</a-button>
               <a-button size="small" @click="focusRelatedTab('policy')">Show related policy events</a-button>
             </a-space>
-
             <a-tabs v-model:activeKey="activeDetailTab" size="small">
               <a-tab-pane key="processes" :tab="`Processes (${relatedProcesses.length})`">
                 <a-list size="small" :data-source="selectedNode?.kind === 'process' ? processTreeNodes : relatedProcesses" bordered>
@@ -1089,14 +875,12 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
-
 <style scoped>
 .execution-graph-page {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-
 .hero-card,
 .process-listener-card,
 .recording-card,
@@ -1105,7 +889,6 @@ onUnmounted(() => {
 .detail-card {
   border-radius: 14px;
 }
-
 .hero-header {
   display: flex;
   justify-content: space-between;
@@ -1113,91 +896,74 @@ onUnmounted(() => {
   flex-wrap: wrap;
   align-items: flex-start;
 }
-
 .summary-row {
   margin-top: -4px;
 }
-
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 0 12px;
 }
-
 .filter-actions {
   display: flex;
   justify-content: flex-end;
 }
-
 .graph-hint {
   margin-bottom: 12px;
 }
-
 .recording-meta {
   display: block;
   margin-top: 8px;
 }
-
 .browser-recording-row {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid #f1f5f9;
 }
-
 .browser-save-path {
   margin-top: 10px;
   max-width: 780px;
 }
-
 .graph-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(320px, 420px);
   gap: 16px;
   align-items: start;
 }
-
 .graph-card :deep(.ant-card-body),
 .detail-card :deep(.ant-card-body) {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-
 .node-actions {
   padding: 8px 0;
   border-top: 1px solid #f1f5f9;
   border-bottom: 1px solid #f1f5f9;
 }
-
 .clickable-list-item {
   cursor: pointer;
 }
-
 .clickable-list-item:hover {
   background: rgba(59, 130, 246, 0.06);
 }
-
 .muted-line {
   color: #64748b;
   font-size: 12px;
 }
-
 .metadata-row {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-
 .metadata-key {
   font-weight: 600;
   color: #111827;
 }
-
 .metadata-value {
   color: #475569;
   word-break: break-all;
 }
-
 @media (max-width: 1200px) {
   .graph-layout {
     grid-template-columns: 1fr;
