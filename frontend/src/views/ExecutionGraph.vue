@@ -95,8 +95,16 @@ const selectedProcessPid = ref<number | null>(filters.pid ? Number(filters.pid) 
 const processPickerOpen = ref(false);
 const liveListen = ref(true);
 const graphSocketStatus = ref<'connecting' | 'connected' | 'paused' | 'closed' | 'error'>('closed');
+const recordingPath = ref('');
+const replayPath = ref(String(singleQuery(route.query.replay_path)).trim());
+const recordingActive = ref(false);
+const recordingCount = ref(0);
+const recordingStartedAt = ref('');
+const recordingBusy = ref(false);
+const replayBusy = ref(false);
 let graphWs: WebSocket | null = null;
 let graphReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let recordingStatusTimer: ReturnType<typeof setInterval> | null = null;
 
 const kindTagColorMap: Record<string, string> = {
   agent_run: 'purple',
@@ -190,6 +198,7 @@ const selectedProcessSummary = computed(() => {
   const cmdline = process.cmdline?.trim();
   return `${process.name} pid=${process.pid} ppid=${process.ppid} cpu=${(process.cpu ?? 0).toFixed(1)}% mem=${(process.mem ?? 0).toFixed(1)}%${cmdline ? ` · ${cmdline}` : ''}`;
 });
+const replayEnabled = computed(() => replayPath.value.trim().length > 0);
 const processTreeNodeIds = computed(() => {
   const ids = new Set<string>();
   if (focusedProcessNodeId.value) {
@@ -249,6 +258,9 @@ const buildParams = () => {
   if (filters.riskMin > 0) {
     params.risk_min = filters.riskMin;
   }
+  if (replayEnabled.value) {
+    params.replay_path = replayPath.value.trim();
+  }
   if (filters.pid.trim() && filters.processTree) {
     params.process_tree = 'true';
   }
@@ -275,6 +287,9 @@ const syncRouteQuery = async () => {
   if (filters.timePreset === 'custom') {
     if (filters.since.trim()) query.since = filters.since.trim();
     if (filters.until.trim()) query.until = filters.until.trim();
+  }
+  if (replayEnabled.value) {
+    query.replay_path = replayPath.value.trim();
   }
   await router.replace({ query });
 };
@@ -378,9 +393,83 @@ const applyFilters = async () => {
   connectGraphSocket();
 };
 
+const loadRecordingStatus = async () => {
+  try {
+    const { data } = await axios.get('/events/recording');
+    recordingActive.value = Boolean(data?.active);
+    recordingCount.value = Number(data?.count ?? 0);
+    recordingStartedAt.value = String(data?.startedAt ?? '');
+    if (!recordingPath.value) {
+      recordingPath.value = String(data?.path || data?.defaultPath || '');
+    }
+  } catch (error) {
+    console.error('Failed to load event recording status', error);
+  }
+};
+
+const startRecording = async () => {
+  recordingBusy.value = true;
+  try {
+    const { data } = await axios.post('/events/recording/start', { path: recordingPath.value, truncate: false });
+    recordingActive.value = Boolean(data?.active);
+    recordingCount.value = Number(data?.count ?? 0);
+    recordingStartedAt.value = String(data?.startedAt ?? '');
+    recordingPath.value = String(data?.path || recordingPath.value);
+    message.success('已开始录制事件到文件');
+  } catch (error) {
+    console.error('Failed to start event recording', error);
+    message.error('开始录制失败');
+  } finally {
+    recordingBusy.value = false;
+  }
+};
+
+const stopRecording = async () => {
+  recordingBusy.value = true;
+  try {
+    const { data } = await axios.post('/events/recording/stop');
+    recordingActive.value = Boolean(data?.active);
+    recordingCount.value = Number(data?.count ?? recordingCount.value);
+    message.success('已停止录制');
+  } catch (error) {
+    console.error('Failed to stop event recording', error);
+    message.error('停止录制失败');
+  } finally {
+    recordingBusy.value = false;
+  }
+};
+
+const playRecording = async () => {
+  const path = recordingPath.value.trim();
+  if (!path) {
+    message.warning('请先填写录制文件路径');
+    return;
+  }
+  replayBusy.value = true;
+  try {
+    const { data } = await axios.post('/events/recording/replay', { path, limit: filters.limit });
+    replayPath.value = String(data?.path || path);
+    applyGraphPayload(data?.graph);
+    await syncRouteQuery();
+    connectGraphSocket();
+    message.success(`已回放 ${Number(data?.events ?? 0)} 条事件`);
+  } catch (error) {
+    console.error('Failed to replay event recording', error);
+    message.error('回放录制文件失败');
+  } finally {
+    replayBusy.value = false;
+  }
+};
+
+const stopReplay = async () => {
+  replayPath.value = '';
+  await applyFilters();
+};
+
 const resetFilters = async () => {
   Object.assign(filters, defaultFilters());
   selectedProcessPid.value = null;
+  replayPath.value = '';
   await applyFilters();
 };
 
@@ -500,11 +589,19 @@ watch(liveListen, (enabled) => {
 
 onMounted(async () => {
   setupMonitorData();
+  void loadRecordingStatus();
+  recordingStatusTimer = setInterval(() => {
+    void loadRecordingStatus();
+  }, 2500);
   connectGraphSocket();
 });
 
 onUnmounted(() => {
   teardownMonitorData();
+  if (recordingStatusTimer) {
+    clearInterval(recordingStatusTimer);
+    recordingStatusTimer = null;
+  }
   closeGraphSocket('closed');
 });
 </script>
@@ -587,6 +684,28 @@ onUnmounted(() => {
       </a-row>
     </a-card>
 
+    <a-card :bordered="false" class="recording-card">
+      <template #title><span><PlayCircleOutlined /> 录制 / 回放</span></template>
+      <a-row :gutter="12" align="middle">
+        <a-col :xs="24" :lg="12">
+          <a-input v-model:value="recordingPath" allow-clear placeholder="~/.config/agent-ebpf-filter/recordings/events.jsonl" />
+        </a-col>
+        <a-col :xs="24" :lg="12">
+          <a-space wrap>
+            <a-button type="primary" :loading="recordingBusy" :disabled="recordingActive" @click="startRecording">开始录制到文件</a-button>
+            <a-button danger :loading="recordingBusy" :disabled="!recordingActive" @click="stopRecording">停止录制</a-button>
+            <a-button :loading="replayBusy" @click="playRecording">回放文件</a-button>
+            <a-button v-if="replayEnabled" @click="stopReplay">退出回放</a-button>
+            <a-tag v-if="recordingActive" color="red">录制中 · {{ recordingCount }}</a-tag>
+            <a-tag v-if="replayEnabled" color="purple">回放中</a-tag>
+          </a-space>
+        </a-col>
+      </a-row>
+      <a-typography-text v-if="recordingStartedAt" type="secondary" class="recording-meta">
+        started {{ recordingStartedAt }}
+      </a-typography-text>
+    </a-card>
+
     <ProcessPickerModal
       v-model:open="processPickerOpen"
       :processes="processList"
@@ -643,6 +762,13 @@ onUnmounted(() => {
             <a-tag color="default">file</a-tag>
           </a-space>
         </template>
+        <a-alert
+          v-if="replayEnabled"
+          type="warning"
+          show-icon
+          class="graph-hint"
+          :message="`正在回放文件：${replayPath}`"
+        />
         <a-alert
           v-if="filters.pid"
           type="info"
@@ -796,6 +922,7 @@ onUnmounted(() => {
 
 .hero-card,
 .process-listener-card,
+.recording-card,
 .filter-card,
 .graph-card,
 .detail-card {
@@ -827,6 +954,11 @@ onUnmounted(() => {
 
 .graph-hint {
   margin-bottom: 12px;
+}
+
+.recording-meta {
+  display: block;
+  margin-top: 8px;
 }
 
 .graph-layout {

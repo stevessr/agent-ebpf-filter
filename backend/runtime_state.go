@@ -559,6 +559,7 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	if err := runtimeSettingsStore.AppendEvent(record); err != nil {
 		log.Printf("[WARN] failed to append captured event: %v", err)
 	}
+	eventRecordingStore.Record(record)
 	collectorMetricsStore.SetPersistAppendLatency(time.Since(appendStart))
 	otelExporterStore.Record(record)
 	return record

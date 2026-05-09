@@ -125,7 +125,15 @@ func buildExecutionGraphFromRequest(c *gin.Context) (ExecutionGraphResponse, err
 		}
 	}
 
-	records, source, err := runtimeSettingsStore.RecentEvents(limit)
+	source := "memory"
+	var records []CapturedEventRecord
+	var err error
+	if replayPath := strings.TrimSpace(c.Query("replay_path")); replayPath != "" {
+		records, err = readCapturedEventsFile(replayPath, limit)
+		source = "replay_file"
+	} else {
+		records, source, err = runtimeSettingsStore.RecentEvents(limit)
+	}
 	if err != nil {
 		return ExecutionGraphResponse{}, err
 	}
