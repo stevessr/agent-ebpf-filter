@@ -1082,11 +1082,8 @@ int tracepoint__syscalls__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx
         // Capture initial payload bytes for protocol detection (TLS SNI, HTTP, DNS)
         // Only for tracked processes with reasonable payload size
         u32 data_len = (u32)ctx->args[2];
-        if (tag_id != 0 && data_len > 0) {
-            u32 capture_len = data_len;
-            if (capture_len > (MAX_PATH_LEN - 1)) {
-                capture_len = MAX_PATH_LEN - 1;
-            }
+        if (tag_id != 0 && data_len > 0 && data_len <= (MAX_PATH_LEN - 1)) {
+            u32 capture_len = data_len & (MAX_PATH_LEN - 1);
             const void *user_buf = (const void *)ctx->args[1];
             bpf_probe_read_user(pd->extra4, capture_len, user_buf);
             pd->extra4[capture_len] = '\0';
@@ -1246,14 +1243,11 @@ int tracepoint__syscalls__sys_enter_write(struct trace_event_raw_sys_enter *ctx)
 
     // Capture initial payload bytes for protocol detection
     u32 data_len = (u32)ctx->args[2];
-    if (data_len > 0) {
+    if (data_len > 0 && data_len <= (MAX_PATH_LEN - 1)) {
         u32 zero = 0;
         struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero);
         if (pd) {
-            u32 capture_len = data_len;
-            if (capture_len > (MAX_PATH_LEN - 1)) {
-                capture_len = MAX_PATH_LEN - 1;
-            }
+            u32 capture_len = data_len & (MAX_PATH_LEN - 1);
             const void *user_buf = (const void *)ctx->args[1];
             bpf_probe_read_user(pd->extra4, capture_len, user_buf);
             pd->extra4[capture_len] = '\0';

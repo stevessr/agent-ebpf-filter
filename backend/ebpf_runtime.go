@@ -151,6 +151,7 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 func pinMaps(objs *bpf.AgentTrackerObjects) error {
 	for name, m := range map[string]*ebpf.Map{
 		"agent_pids": objs.AgentPids, "events": objs.Events,
+		"collector_stats": objs.CollectorStats,
 		"tracked_comms": objs.TrackedComms, "tracked_paths": objs.TrackedPaths,
 		"tracked_prefixes": objs.TrackedPrefixes, "exit_ctx": objs.ExitCtx,
 		"exit_path_buf": objs.ExitPathBuf, "exit_path_ctx": objs.ExitPathCtx,
