@@ -2,9 +2,26 @@
 GOPATH ?= $(shell go env GOPATH)
 export PATH := $(PATH):$(GOPATH)/bin
 
-.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap cuda ml-sweep ml-presentation runtime-benchmark test
+.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap cuda ml-sweep ml-presentation runtime-benchmark test build
 
 all: proto backend frontend wrapper ## Build all components
+
+build: proto ## Parallel build of all components
+	@echo "Building all components in parallel..."
+	@$(MAKE) --no-print-directory -j3 SKIP_PROTO_DEP=1 backend-bare frontend-bare wrapper-bare
+
+backend-bare:
+	@echo "Building backend..."
+	cd backend/ebpf && go generate
+	cd backend && go build -o agent-ebpf-filter
+
+frontend-bare:
+	@echo "Building frontend..."
+	cd frontend && bun install && bun run build
+
+wrapper-bare:
+	@echo "Building wrapper..."
+	cd wrapper && go build -o ../agent-wrapper
 
 cuda: ## Build CUDA acceleration library
 	@if [ -x /opt/cuda/bin/nvcc ]; then \
