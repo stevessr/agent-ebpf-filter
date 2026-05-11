@@ -2,7 +2,66 @@
 GOPATH ?= $(shell go env GOPATH)
 export PATH := $(PATH):$(GOPATH)/bin
 
-.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap ebpf-tls cuda ml-sweep ml-presentation runtime-benchmark test build
+CONTAINER_CLI ?= $(shell command -v docker 2>/dev/null || command -v podman 2>/dev/null)
+DEV_IMAGE ?= agent-ebpf-filiter-dev
+DEV_CONTAINER ?= agent-ebpf-filiter-dev
+DEV_WORKSPACE ?= /workspaces/agent-ebpf-filiter
+DEVCONTAINER_GO_VERSION ?= 1.26.2
+DEVCONTAINER_USER_UID ?= 1001
+DEVCONTAINER_USER_GID ?= 1001
+
+.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap ebpf-tls cuda ml-sweep ml-presentation runtime-benchmark test build docker exec
+
+
+docker: ## Build the privileged devcontainer image; use 'make docker clean' to prune build cache
+	@test -n "$(CONTAINER_CLI)" || (echo "Missing docker or podman CLI." && exit 1)
+	@if printf '%s\n' "$(MAKECMDGOALS)" | grep -qw clean; then \
+		echo "Removing $(CONTAINER_CLI) build cache..."; \
+		$(CONTAINER_CLI) builder prune -f || $(CONTAINER_CLI) system prune -f; \
+	else \
+		$(CONTAINER_CLI) build \
+			-f .devcontainer/Dockerfile \
+			--build-arg GO_VERSION=$(DEVCONTAINER_GO_VERSION) \
+			--build-arg USER_UID=$(DEVCONTAINER_USER_UID) \
+			--build-arg USER_GID=$(DEVCONTAINER_USER_GID) \
+			-t $(DEV_IMAGE) \
+			.devcontainer; \
+	fi
+
+exec: ## Start or attach to the mounted devcontainer shell
+	@test -n "$(CONTAINER_CLI)" || (echo "Missing docker or podman CLI." && exit 1)
+	@$(CONTAINER_CLI) image inspect $(DEV_IMAGE) >/dev/null 2>&1 || $(MAKE) --no-print-directory docker
+	@if $(CONTAINER_CLI) container inspect $(DEV_CONTAINER) >/dev/null 2>&1; then \
+		if [ "$$($(CONTAINER_CLI) inspect -f '{{.State.Running}}' $(DEV_CONTAINER))" != "true" ]; then \
+			echo "Starting existing container $(DEV_CONTAINER)..."; \
+			$(CONTAINER_CLI) start $(DEV_CONTAINER) >/dev/null; \
+		fi; \
+	else \
+		echo "Creating container $(DEV_CONTAINER) from $(DEV_IMAGE)..."; \
+		$(CONTAINER_CLI) run -dit \
+			--name $(DEV_CONTAINER) \
+			--privileged \
+			--cap-add SYS_ADMIN \
+			--cap-add SYS_RESOURCE \
+			--cap-add SYS_PTRACE \
+			--cap-add NET_ADMIN \
+			--cap-add BPF \
+			--cap-add PERFMON \
+			--security-opt apparmor=unconfined \
+			--security-opt seccomp=unconfined \
+			--pid=host \
+			--network=host \
+			-e GIN_MODE=debug \
+			-e DISABLE_AUTH=true \
+			-e BUN_INSTALL=/usr/local/bun \
+			-v "$(CURDIR):$(DEV_WORKSPACE)" \
+			-v /sys/kernel/debug:/sys/kernel/debug \
+			-v /sys/fs/bpf:/sys/fs/bpf \
+			-v /lib/modules:/lib/modules:ro \
+			-w $(DEV_WORKSPACE) \
+			$(DEV_IMAGE) fish >/dev/null; \
+	fi
+	$(CONTAINER_CLI) exec -it -w $(DEV_WORKSPACE) $(DEV_CONTAINER) fish
 
 all: proto backend frontend wrapper ## Build all components
 
@@ -135,17 +194,21 @@ run-frontend: ## Run only the frontend development server
 	cd frontend && bun run dev
 
 clean: ## Clean build artifacts
-	rm -f backend/agent-ebpf-filter
-	rm -f agent-wrapper
-	rm -f backend/.port
-	rm -rf frontend/dist
-	rm -rf adapters/python/.venv
-	rm -f backend/ebpf/agenttracker_bpfel.go backend/ebpf/agenttracker_bpfeb.go
-	rm -f backend/ebpf/agenttracker_bpfel.o backend/ebpf/agenttracker_bpfeb.o
-	rm -f backend/ebpf/agenttlscapture_x86_bpfel.go backend/ebpf/agenttlscapture_x86_bpfeb.go
-	rm -f backend/ebpf/agenttlscapture_x86_bpfel.o backend/ebpf/agenttlscapture_x86_bpfeb.o
-	rm -rf backend/pb
-	rm -rf frontend/src/pb
+	@if printf '%s\n' "$(MAKECMDGOALS)" | grep -qw docker; then \
+		echo "Docker build cache cleaned by docker target."; \
+	else \
+		rm -f backend/agent-ebpf-filter; \
+		rm -f agent-wrapper; \
+		rm -f backend/.port; \
+		rm -rf frontend/dist; \
+		rm -rf adapters/python/.venv; \
+		rm -f backend/ebpf/agenttracker_bpfel.go backend/ebpf/agenttracker_bpfeb.go; \
+		rm -f backend/ebpf/agenttracker_bpfel.o backend/ebpf/agenttracker_bpfeb.o; \
+		rm -f backend/ebpf/agenttlscapture_x86_bpfel.go backend/ebpf/agenttlscapture_x86_bpfeb.go; \
+		rm -f backend/ebpf/agenttlscapture_x86_bpfel.o backend/ebpf/agenttlscapture_x86_bpfeb.o; \
+		rm -rf backend/pb; \
+		rm -rf frontend/src/pb; \
+	fi
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | sed -e 's/:.*## /: /'
