@@ -2,7 +2,7 @@
 GOPATH ?= $(shell go env GOPATH)
 export PATH := $(PATH):$(GOPATH)/bin
 
-.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap cuda ml-sweep ml-presentation runtime-benchmark test build
+.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap ebpf-tls cuda ml-sweep ml-presentation runtime-benchmark test build
 
 all: proto backend frontend wrapper ## Build all components
 
@@ -12,7 +12,7 @@ build: proto ## Parallel build of all components
 
 backend-bare:
 	@echo "Building backend..."
-	cd backend/ebpf && go generate
+	cd backend/ebpf && go generate && go generate gen_tls.go
 	cd backend && go build -o agent-ebpf-filter
 
 frontend-bare:
@@ -76,7 +76,7 @@ proto-check:
 
 backend: cuda proto ## Build Go backend and compile eBPF
 	@echo "Building backend..."
-	cd backend/ebpf && go generate
+	cd backend/ebpf && go generate && go generate gen_tls.go
 	cd backend && go build -o agent-ebpf-filter
 
 ifneq ($(SKIP_PROTO_DEP),1)
@@ -91,8 +91,11 @@ frontend: ## Build Vue3 frontend
 	cd frontend && bun install && bun run build
 
 ebpf-bootstrap: ## Pre-build the backend binary (bootstrap happens automatically on first run)
-	@(cd backend/ebpf && go generate)
+	@(cd backend/ebpf && go generate && go generate gen_tls.go)
 	@(cd backend && go build -o agent-ebpf-filter)
+
+ebpf-tls: ## Generate TLS capture eBPF bindings
+	@(cd backend/ebpf && go generate gen_tls.go)
 
 dev: ## Run backend and frontend development server in Zellij (run make predev first)
 	@$(MAKE) --no-print-directory SKIP_PREDEV=1 SKIP_PROTO_DEP=1 proto
@@ -139,6 +142,8 @@ clean: ## Clean build artifacts
 	rm -rf adapters/python/.venv
 	rm -f backend/ebpf/agenttracker_bpfel.go backend/ebpf/agenttracker_bpfeb.go
 	rm -f backend/ebpf/agenttracker_bpfel.o backend/ebpf/agenttracker_bpfeb.o
+	rm -f backend/ebpf/agenttlscapture_x86_bpfel.go backend/ebpf/agenttlscapture_x86_bpfeb.go
+	rm -f backend/ebpf/agenttlscapture_x86_bpfel.o backend/ebpf/agenttlscapture_x86_bpfeb.o
 	rm -rf backend/pb
 	rm -rf frontend/src/pb
 

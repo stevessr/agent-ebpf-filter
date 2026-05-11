@@ -282,6 +282,13 @@ When native hooks are installed, the callback URL resolves from:
 3. fallback `http://127.0.0.1:8080/hooks/event`
 
 Native hook entries call a generated relay script under the target CLI config directory's `hooks/` subdirectory instead of embedding a long inline `curl` command directly in the hook config.
+
+### TLS 明文捕获
+
+- `GET /ws/tls-capture` — JSON WebSocket stream of `tls_plaintext` events。
+- `GET /tls-capture/recent?limit=100` — recent in-memory TLS plaintext events。
+- `GET /tls-capture/libraries` — current library attach status (OpenSSL, GnuTLS, NSS, Go)。
+- `POST /tls-capture/go-binary` — manually attach Go TLS uprobes for `{ "path": "/path/to/bin", "pid": 123 }`。
 Those relay scripts now send both `X-Agent-CLI` and a per-hook `X-Agent-Hook-Secret` header.
 During event broadcast, the backend may also synthesize `semantic_alert` events (for example `SECRET_ACCESS`, `UNEXPECTED_NETWORK_EGRESS`, `UNEXPECTED_CHILD_PROCESS`, or `SEMANTIC_MISMATCH`) when child behavior conflicts with read-only style tool intent.
 

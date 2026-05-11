@@ -32,6 +32,7 @@ type RuntimeSettings struct {
 	OtlpHeaders             map[string]string `json:"otlpHeaders,omitempty"`
 	HookSecrets             map[string]string `json:"hookSecrets,omitempty"`
 	MLConfig                MLConfig          `json:"mlConfig,omitempty"`
+	TlsCaptureEnabled       bool              `json:"tlsCaptureEnabled"`
 }
 
 type CapturedEventRecord struct {

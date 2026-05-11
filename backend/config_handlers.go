@@ -361,6 +361,9 @@ func handleConfigRuntimePut(c *gin.Context) {
 			settings.OtlpHeaders[trimmedKey] = strings.TrimSpace(value)
 		}
 	}
+	if req.TlsCaptureEnabled != nil {
+		settings.TlsCaptureEnabled = *req.TlsCaptureEnabled
+	}
 	applyMLConfigPatch(&settings.MLConfig, req.MLConfigPatch)
 
 	settings, err := runtimeSettingsStore.Replace(settings)
@@ -386,6 +389,7 @@ type runtimeSettingsPatch struct {
 	OtlpEndpoint            *string           `json:"otlpEndpoint,omitempty"`
 	OtlpServiceName         *string           `json:"otlpServiceName,omitempty"`
 	OtlpHeaders             map[string]string `json:"otlpHeaders,omitempty"`
+	TlsCaptureEnabled       *bool             `json:"tlsCaptureEnabled,omitempty"`
 	MLConfigPatch
 }
 

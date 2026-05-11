@@ -12,6 +12,7 @@ export interface RuntimeSettings {
   otlpEndpoint: string;
   otlpServiceName: string;
   otlpHeaders: Record<string, string>;
+  tlsCaptureEnabled: boolean;
   mlConfig?: {
     enabled?: boolean;
     blockConfidenceThreshold?: number;

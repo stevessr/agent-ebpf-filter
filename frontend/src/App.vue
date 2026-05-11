@@ -1,17 +1,23 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined, GlobalOutlined, DeploymentUnitOutlined, ClusterOutlined } from '@ant-design/icons-vue';
+import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined, GlobalOutlined, DeploymentUnitOutlined, ClusterOutlined, SafetyCertificateOutlined } from '@ant-design/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
 const selectedKeys = ref<string[]>(['/dashboard']);
 
 watch(() => route.path, (path) => {
-  if (path.startsWith('/execution-graph')) {
+  if (path.startsWith('/tls-capture')) {
+    selectedKeys.value = ['/tls-capture'];
+  } else if (path.startsWith('/execution-graph')) {
     selectedKeys.value = ['/execution-graph'];
   } else if (path.startsWith('/executor')) {
     selectedKeys.value = ['/executor'];
+  } else if (path.startsWith('/network-flow')) {
+    selectedKeys.value = ['/network-flow'];
+  } else if (path.startsWith('/network')) {
+    selectedKeys.value = ['/network'];
   } else if (path.startsWith('/config')) {
     selectedKeys.value = ['/config'];
   } else if (path.startsWith('/dashboard')) {
@@ -56,6 +62,10 @@ const handleMenuClick = ({ key }: { key: string }) => {
         <a-menu-item key="/network-flow">
           <template #icon><DeploymentUnitOutlined /></template>
           Traffic
+        </a-menu-item>
+        <a-menu-item key="/tls-capture">
+          <template #icon><SafetyCertificateOutlined /></template>
+          TLS 捕获
         </a-menu-item>
         <a-menu-item key="/execution-graph">
           <template #icon><ClusterOutlined /></template>

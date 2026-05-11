@@ -116,6 +116,28 @@ func main() {
 	}
 	objs := &trackerMaps
 
+	settings := runtimeSettingsStore.Snapshot()
+	tlsStore := NewTLSCaptureStore(2000)
+	tlsBroadcaster := newTLSCaptureBroadcaster()
+	var tlsManager *TLSProbeManager
+	if settings.TlsCaptureEnabled {
+		if manager, err := NewTLSProbeManager(tlsStore, tlsBroadcaster); err != nil {
+			log.Printf("[TLS] capture disabled: %v", err)
+		} else {
+			tlsManager = manager
+			defer tlsManager.Close()
+			if err := tlsManager.AttachStaticLibs(); err != nil {
+				log.Printf("[TLS] static library attach completed with warnings: %v", err)
+			}
+			tlsManager.StartGoDiscoveryLoop(time.Minute)
+			go func() {
+				if err := tlsManager.ReadLoop(); err != nil {
+					log.Printf("[TLS] read loop stopped: %v", err)
+				}
+			}()
+		}
+	}
+
 	rd, _ := ringbuf.NewReader(objs.Events)
 	defer rd.Close()
 
@@ -202,6 +224,7 @@ func main() {
 	r.GET("/ws/ml-status", authMiddleware(), serveMLStatusWS)
 	r.GET("/ws/envelopes", authMiddleware(), serveEventEnvelopesWS)
 	r.GET("/ws/events/graph", authMiddleware(), serveExecutionGraphWS)
+	r.GET("/ws/tls-capture", authMiddleware(), func(c *gin.Context) { tlsBroadcaster.Serve(c) })
 	r.POST("/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), handleCreateShellSession)
 	r.GET("/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), handleListShellSessions)
 	r.DELETE("/shell-sessions/:id", authMiddleware(), shellSessionsEnabledMiddleware(), handleDeleteShellSession)
@@ -242,6 +265,7 @@ func main() {
 	{
 		registerConfigRoutes(api.Group("/config"))
 		registerSystemRoutes(api.Group("/system"))
+		registerTLSCaptureRoutes(api, tlsManager, tlsStore)
 
 		data := api.Group("/data")
 		{

@@ -36,6 +36,14 @@ The runtime now auto-attaches the extended tracepoints compiled from `backend/eb
 
 Events are written to a ring buffer and consumed by the Go backend.
 
+### TLS 明文捕获
+
+后端可以通过 eBPF uprobes 挂载 OpenSSL、GnuTLS、NSS 和手动注册的 Go TLS 二进制，在加密发送前或解密接收后捕获 HTTPS 明文片段。片段在 Go 后端拼装后解析 HTTP request/response，并通过 `GET /ws/tls-capture`、`GET /tls-capture/recent`、`GET /tls-capture/libraries` 暴露给前端。
+
+Go 进程可通过 `POST /tls-capture/go-binary` 手动注册，或由后端每 60 秒自动扫描 `/proc` 发现的 Go TLS 进程。
+
+安全边界：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization 在后端脱敏；body 截断至 16 KiB。
+
 ### User-space telemetry and control
 
 - **PID registration**: Python / Node adapters call `/register` and `/unregister`, optionally attaching `agent_run_id` / `task_id` / `tool_call_id` / `trace_id` / `cwd` style metadata.
@@ -55,6 +63,7 @@ Events are written to a ring buffer and consumed by the Go backend.
 - **Explorer**: browse the host filesystem and add tracked paths
 - **Executor**: open a temporary wrapper-backed PTY tab for ad-hoc commands, keep shell PTY sessions separate from tmux, and let the Remote tab self-destruct when you leave it
 - **Executor**: launch coding CLIs in tmux, start Python/Node/Ruby/sh/pwsh/Deno/Bun scripts with optional virtualenv selection, and manage shared launch environment variables in a dedicated config tab with backend-detected env suggestions
+- **TLS 捕获**: TLS 明文日志，支持实时 WebSocket、进程/库/方向/域名过滤、body 搜索、body 和 curl 一键复制、库挂载状态查看
 - **Hooks**: install or edit native hook configs / wrapper aliases
 - **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, runtime log persistence, the backend access token, OTLP trace export settings / health, a quick Linux 6.18 LTS syscall / eBPF docs popup preview backed by local snapshots, and ML subtabs for status / parameters / model management / training-set management, including a 42-profile local built-in model catalog, native C runtime inference timing with CUDA / Intel iGPU capability detection, OpenAI-compatible LLM scoring that auto-saves to browser storage and syncs to the backend before scoring, validation split controls, square-grid auto parameter tuning with selectable granularity, live progress, and a heatmap preview
 - **Configuration**: the ML training-set manager now includes synthetic expansion presets, batch import of downloadable internet datasets, and the LLM subtab can still pull a cleaned production training set directly from the current training store and export it as OpenAI chat JSONL
