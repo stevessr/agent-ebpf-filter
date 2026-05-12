@@ -89,7 +89,7 @@ onMounted(async () => {
 
       <a-tab-pane key="ml">
         <template #tab><span><ThunderboltOutlined /> ML Classification</span></template>
-        <ConfigMLTab :ml="ml" />
+        <ConfigMLTab :ml="ml" :active="activeTabKey === 'ml'" />
       </a-tab-pane>
 
       <a-tab-pane key="docs">

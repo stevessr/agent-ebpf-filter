@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useMLStatusStream } from '../../composables/useMLStatusStream';
 import type { useConfigML } from '../../composables/useConfigML';
 import ConfigMLStatusTab from './ml/ConfigMLStatusTab.vue';
@@ -8,17 +9,32 @@ import ConfigMLModelTab from './ml/ConfigMLModelTab.vue';
 import ConfigMLLLMTab from './ml/ConfigMLLLMTab.vue';
 import ConfigMLTrainingTab from './ml/ConfigMLTrainingTab.vue';
 
-const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
+const props = defineProps<{ ml: ReturnType<typeof useConfigML>; active?: boolean }>();
 
+const route = useRoute();
+const router = useRouter();
 const { wsActive, applyMLStatusResponse } = props.ml;
 
 // WebSocket status stream
 const { connect: wsConnect } = useMLStatusStream(applyMLStatusResponse);
 
-const mlSubTabKey = ref(localStorage.getItem('config_ml_subtab') || 'status');
+const validMLSubTabs = new Set(['status', 'params', 'model', 'llm', 'training']);
+const initialSubTab = typeof route.params.subtab === 'string' && validMLSubTabs.has(route.params.subtab)
+  ? route.params.subtab
+  : localStorage.getItem('config_ml_subtab') || 'status';
+const mlSubTabKey = ref(initialSubTab);
+
+watch(() => route.params.subtab, (subtab) => {
+  if (props.active && typeof subtab === 'string' && validMLSubTabs.has(subtab)) {
+    mlSubTabKey.value = subtab;
+  }
+});
 
 watch(mlSubTabKey, (val) => {
   localStorage.setItem('config_ml_subtab', val);
+  if (props.active && (route.params.tab !== 'ml' || route.params.subtab !== val)) {
+    router.replace({ name: 'Config', params: { tab: 'ml', subtab: val } });
+  }
 });
 
 wsActive.value = true;
