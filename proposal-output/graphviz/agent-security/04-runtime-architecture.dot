@@ -1,0 +1,25 @@
+digraph G {
+    graph [bgcolor="transparent", pad="0.16", nodesep="0.50", ranksep="0.55", splines=ortho, ];
+    node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=13, penwidth=2, margin="0.18,0.10", width=1.85, height=0.72, color="#CBD5E1", fillcolor="#FFFFFF", fontcolor="#0B1220"];
+    edge [fontname="Noto Sans CJK SC", fontsize=9, color="#64748B", fontcolor="#475569", arrowsize=0.8, penwidth=2];
+    
+    rankdir=TB;
+    agent [label="Agent / CLI
+Claude、Codex、Gemini
+脚本与子进程", color="#2563EB", fillcolor="#EFF6FF", fontcolor="#2563EB", width=2.35];
+    sem [label="语义声明层
+hooks / wrapper / metadata
+run、task、tool_call、intent", color="#7C3AED", fillcolor="#F5F3FF", fontcolor="#7C3AED", width=2.55];
+    fact [label="内核事实层
+eBPF tracepoints / uprobes
+file、net、process、TLS", color="#2563EB", fillcolor="#DBEAFE", fontcolor="#2563EB", width=2.55];
+    policy [label="关联与策略引擎
+semantic mismatch
+ALLOW / ALERT / BLOCK / REWRITE", color="#F59E0B", fillcolor="#FFFBEB", fontcolor="#B45309", width=2.75];
+    view [label="展示与复盘
+Dashboard / Execution Graph
+JSONL / OTLP / MCP", color="#16A34A", fillcolor="#ECFDF5", fontcolor="#16A34A", width=2.65];
+    {rank=same; sem; fact;}
+    agent -> sem; agent -> fact; sem -> policy; fact -> policy; policy -> view;
+  
+  }

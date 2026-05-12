@@ -1,0 +1,24 @@
+digraph G {
+    graph [bgcolor="transparent", pad="0.16", nodesep="0.50", ranksep="0.55", splines=ortho, ];
+    node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=13, penwidth=2, margin="0.18,0.10", width=1.85, height=0.72, color="#CBD5E1", fillcolor="#FFFFFF", fontcolor="#0B1220"];
+    edge [fontname="Noto Sans CJK SC", fontsize=9, color="#64748B", fontcolor="#475569", arrowsize=0.8, penwidth=2];
+    
+    rankdir=TB;
+    p [label="Prompt 注入
+网页 / Issue / README", color="#DC2626", fillcolor="#FEF2F2", fontcolor="#DC2626"];
+    t [label="工具误用
+shell / MCP / 浏览器", color="#F59E0B", fillcolor="#FFFBEB", fontcolor="#B45309"];
+    pr [label="进程漂移
+子进程 / 依赖脚本", color="#7C3AED", fillcolor="#F5F3FF", fontcolor="#7C3AED"];
+    d [label="数据外泄
+密钥 / 网络 / TLS", color="#2563EB", fillcolor="#EFF6FF", fontcolor="#2563EB"];
+    c [label="运行时安全平面
+eBPF 事实 + hooks 语义 + wrapper 控制
+告警 / 阻断 / 回放 / 训练样本", color="#16A34A", fillcolor="#ECFDF5", fontcolor="#16A34A", width=2.9];
+    {rank=same; p; t; pr;}
+    {rank=same; d; c;}
+    p -> t -> pr;
+    pr -> d;
+    d -> c [label="回落到控制闭环", color="#F59E0B", style=dashed];
+  
+  }

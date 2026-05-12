@@ -1,0 +1,21 @@
+digraph G {
+    graph [bgcolor="transparent", pad="0.16", nodesep="0.50", ranksep="0.55", splines=ortho, ];
+    node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=13, penwidth=2, margin="0.18,0.10", width=1.85, height=0.72, color="#CBD5E1", fillcolor="#FFFFFF", fontcolor="#0B1220"];
+    edge [fontname="Noto Sans CJK SC", fontsize=9, color="#64748B", fontcolor="#475569", arrowsize=0.8, penwidth=2];
+    
+    rankdir=TB;
+    id [label="强身份
+非人身份 / 短期凭证", color="#2563EB", fillcolor="#EFF6FF", fontcolor="#2563EB"];
+    perm [label="最小权限
+按任务授权 / 可撤销", color="#0EA5E9", fillcolor="#F0F9FF", fontcolor="#0369A1"];
+    run [label="运行时治理
+观测 / 告警 / 阻断", color="#F59E0B", fillcolor="#FFFBEB", fontcolor="#B45309"];
+    audit [label="审计复盘
+回放 / 证据 / 责任链", color="#7C3AED", fillcolor="#F5F3FF", fontcolor="#7C3AED"];
+    eval [label="持续评估
+红队 / 基准 / 合规", color="#16A34A", fillcolor="#ECFDF5", fontcolor="#16A34A"];
+    {rank=same; id; perm; run;}
+    {rank=same; eval; audit;}
+    id -> perm -> run -> audit -> eval -> id [label="反馈改进", color="#64748B"];
+  
+  }
