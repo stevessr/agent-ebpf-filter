@@ -5,6 +5,8 @@ The backend is the privileged runtime of the project.
 It is responsible for:
 
 - loading / pinning eBPF maps and links,
+- loading / attaching cgroup/connect and cgroup/sendmsg eBPF programs for kernel-side network blocking,
+- loading / attaching BPF LSM programs for kernel-side file/exec blocking,
 - consuming ring-buffer events from the kernel,
 - serving HTTP and WebSocket APIs,
 - aggregating process / system telemetry,
@@ -17,9 +19,13 @@ It is responsible for:
 
 - `main.go` — routes, event broadcasting, system metrics, hook management, wrapper UDS
 - `ebpf_runtime.go` — bootstrap / pin / privilege escalation flow; auto-attaches every tracepoint program compiled from `ebpf/agent_tracker.c` and skips tracepoints the running kernel does not expose
+- `cgroup_sandbox_control.go` — cgroup/connect + sendmsg map loading, attach lifecycle, status, and block/unblock API handlers
+- `lsm_enforcer_control.go` — BPF LSM map loading, attach lifecycle, status, and exec/open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename block/unblock API handlers
 - `shell_sessions.go` — persistent PTY session manager
 - `privileges.go` — drop spawned commands back to the invoking user
 - `ebpf/agent_tracker.c` — eBPF source
+- `ebpf/cgroup_sandbox.c` — cgroup/connect4 + connect6 and cgroup/sendmsg4 + sendmsg6 eBPF blocking source
+- `ebpf/lsm_enforcer.c` — BPF LSM `bprm_check_security`, `file_open`, `file_permission`, `mmap_file`, `file_mprotect`, `inode_setattr`, `inode_create`, `inode_link`, `inode_symlink`, `inode_unlink`, `inode_mkdir`, `inode_rmdir`, `inode_mknod`, and `inode_rename` blocking source
 - `ebpf/gen.go` — `bpf2go` generation entrypoint
 
 ## Privilege model
@@ -44,6 +50,27 @@ Pinned map directory:
 Pinned link directory:
 
 - `/sys/fs/bpf/agent-ebpf/links`
+
+cgroup sandbox pinned directories:
+
+- `/sys/fs/bpf/agent-ebpf/cgroup_sandbox/maps`
+- `/sys/fs/bpf/agent-ebpf/cgroup_sandbox/links`
+
+BPF LSM enforcer pinned directories:
+
+- `/sys/fs/bpf/agent-ebpf/lsm_enforcer/maps`
+- `/sys/fs/bpf/agent-ebpf/lsm_enforcer/links`
+
+The OS-level cgroup sandbox and BPF LSM policy maps are intentionally kept at
+`0600` and should be mutated through the authenticated backend policy APIs.
+Fresh boots start with empty OS-enforcement policy maps; the backend does not
+install default block entries unless a privileged previous run left entries in
+pinned maps.
+When pinned maps already exist, startup preserves them if link/program reuse
+fails instead of deleting the policy pins during an automatic fresh bootstrap.
+Remove `/sys/fs/bpf/agent-ebpf/cgroup_sandbox` or
+`/sys/fs/bpf/agent-ebpf/lsm_enforcer` manually only when you intentionally want
+to reset stale kernel policy state.
 
 Required maps:
 
@@ -72,6 +99,35 @@ Network enrichment APIs:
 - `GET /network/dns-cache` returns the local DNS correlation cache.
 - `GET /network/interfaces` returns per-interface counters including packets, errors, and drops.
 - `GET /network/export/jsonl` exports flow metadata as JSONL. It does not export packet payload bytes.
+
+Kernel-side network blocking APIs:
+
+- `GET /sandbox/cgroup/status` returns cgroup/connect + sendmsg attach state, map availability, link pins, active block entries, and decision counters as `checked` / `blocked` / `allowed` plus legacy `connect*` aliases.
+- `POST /sandbox/cgroup/block-cgroup` / `unblock-cgroup` writes the cgroup blocklist map.
+- `POST /sandbox/cgroup/block-pid` / `unblock-pid` resolves a PID's cgroup v2 inode id and writes the cgroup blocklist map.
+- `POST /sandbox/cgroup/block-ip` / `unblock-ip` writes the IPv4 or IPv6 blocklist map.
+- `POST /sandbox/cgroup/block-port` / `unblock-port` writes the TCP/UDP destination-port blocklist map.
+
+The mutating routes use `policyManagementEnabledMiddleware()`. The eBPF program rejects matching connects in the kernel; wrapper/hook policy is not involved in that decision path. IPv4 block entries are also applied to IPv4-mapped IPv6 destinations such as `::ffff:127.0.0.1`; mapped inputs normalize to the equivalent IPv4 key. Fresh map loads do not auto-block high-risk ports; add explicit entries through the API/UI when that behavior is desired.
+
+BPF LSM enforcement APIs:
+
+- `GET /sandbox/lsm/status` returns BPF LSM attach state, map availability, active block entries, and exec and file-operation counters.
+- `POST /sandbox/lsm/block-exec-path` / `unblock-exec-path` writes the executable-path blocklist used by `bprm_check_security`.
+- `POST /sandbox/lsm/block-exec-name` / `unblock-exec-name` writes the executable-basename blocklist used by `bprm_check_security`.
+- `POST /sandbox/lsm/block-file-name` / `unblock-file-name` writes the basename blocklist used by `file_open`, `file_permission`, `mmap_file`, `file_mprotect`, `inode_setattr`, `inode_create`, `inode_link`, `inode_symlink`, `inode_unlink`, `inode_mkdir`, `inode_rmdir`, `inode_mknod`, and `inode_rename`.
+
+The mutating routes also use `policyManagementEnabledMiddleware()`. The LSM program returns `-EACCES` for matches before the target exec/open/read-write/mmap/mprotect/ftruncate/fchmod/setattr/create/link/symlink/unlink/mkdir/rmdir/mknod/rename completes.
+
+Use `rtk make os-enforcement-preflight` to check host prerequisites such as
+bpffs write access directly or through passwordless sudo / `OS_SMOKE_PRIVILEGE_CMD`,
+root/passwordless sudo or a custom privilege command, cgroup v2, the selected cgroup attach path (including temporary cgroup creation when a privilege runner is available), BPF LSM visibility, compiled
+cgroup/LSM object sections, and smoke-test tools (`curl` / `python3`).
+Use `rtk make os-enforcement-check` for rootless static coverage. Use `rtk make
+os-enforcement-smoke` against an already privileged backend, or `rtk make
+os-enforcement-smoke-start` to build/start that backend automatically when the
+host has root/passwordless sudo or an explicit `OS_SMOKE_PRIVILEGE_CMD` command
+prefix and writable bpffs.
 
 ### `/ws/system`
 
@@ -282,6 +338,13 @@ When native hooks are installed, the callback URL resolves from:
 3. fallback `http://127.0.0.1:8080/hooks/event`
 
 Native hook entries call a generated relay script under the target CLI config directory's `hooks/` subdirectory instead of embedding a long inline `curl` command directly in the hook config.
+
+### TLS 明文捕获
+
+- `GET /ws/tls-capture` — JSON WebSocket stream of `tls_plaintext` events。
+- `GET /tls-capture/recent?limit=100` — recent in-memory TLS plaintext events。
+- `GET /tls-capture/libraries` — current library attach status (OpenSSL, GnuTLS, NSS, Go)。
+- `POST /tls-capture/go-binary` — manually attach Go TLS uprobes for `{ "path": "/path/to/bin", "pid": 123 }`。
 Those relay scripts now send both `X-Agent-CLI` and a per-hook `X-Agent-Hook-Secret` header.
 During event broadcast, the backend may also synthesize `semantic_alert` events (for example `SECRET_ACCESS`, `UNEXPECTED_NETWORK_EGRESS`, `UNEXPECTED_CHILD_PROCESS`, or `SEMANTIC_MISMATCH`) when child behavior conflicts with read-only style tool intent.
 
@@ -291,6 +354,18 @@ Regenerate eBPF bindings:
 
 ```bash
 cd ebpf && go generate
+```
+
+Regenerate only the cgroup sandbox bindings after editing `ebpf/cgroup_sandbox.c`:
+
+```bash
+cd ebpf && go generate gen_cgroup.go
+```
+
+Regenerate only the BPF LSM bindings after editing `ebpf/lsm_enforcer.c`:
+
+```bash
+cd ebpf && go generate gen_lsm.go
 ```
 
 Build backend:
@@ -304,3 +379,32 @@ Or from the repo root:
 ```bash
 make backend
 ```
+
+With a privileged backend already running, the live OS-enforcement smoke gate is:
+
+```bash
+rtk make os-enforcement-smoke
+```
+
+It verifies BPF LSM exec-path, exec-name, file-open, existing-fd read/write, mmap, mprotect, ftruncate/fchmod/setattr, create, link, symlink, unlink, mkdir, rmdir, mknod, and rename denial plus
+cgroup/connect PID-cgroup, TCP destination-port, UDP connected-socket destination/port, existing connected UDP sends, UDP sendto/sendmsg destination/port, IPv4-destination, IPv4-mapped IPv6-destination, and
+IPv6-destination denial through the HTTP API when IPv6 loopback is available.
+
+Without root, use the static object/script gate:
+
+```bash
+rtk make os-enforcement-check
+```
+
+It regenerates the cgroup/LSM bindings, checks the expected ELF sections, and
+runs the targeted non-root Go tests.
+
+To see why live smoke cannot run on a host yet:
+
+```bash
+rtk make os-enforcement-preflight
+```
+
+It checks bpffs/cgroup/BPF-LSM readiness, root/passwordless sudo or `OS_SMOKE_PRIVILEGE_CMD`, the
+configured cgroup attach path, compiled cgroup/LSM object sections, and
+smoke-script tools before you try the live kernel-deny gate.

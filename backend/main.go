@@ -116,6 +116,28 @@ func main() {
 	}
 	objs := &trackerMaps
 
+	settings := runtimeSettingsStore.Snapshot()
+	tlsStore := NewTLSCaptureStore(2000)
+	tlsBroadcaster := newTLSCaptureBroadcaster()
+	var tlsManager *TLSProbeManager
+	if settings.TlsCaptureEnabled {
+		if manager, err := NewTLSProbeManager(tlsStore, tlsBroadcaster); err != nil {
+			log.Printf("[TLS] capture disabled: %v", err)
+		} else {
+			tlsManager = manager
+			defer tlsManager.Close()
+			if err := tlsManager.AttachStaticLibs(); err != nil {
+				log.Printf("[TLS] static library attach completed with warnings: %v", err)
+			}
+			tlsManager.StartGoDiscoveryLoop(time.Minute)
+			go func() {
+				if err := tlsManager.ReadLoop(); err != nil {
+					log.Printf("[TLS] read loop stopped: %v", err)
+				}
+			}()
+		}
+	}
+
 	rd, _ := ringbuf.NewReader(objs.Events)
 	defer rd.Close()
 
@@ -165,8 +187,11 @@ func main() {
 	go func() {
 		if err := ensureCgroupSandboxLoaded(); err != nil {
 			log.Printf("[CGROUP-SANDBOX] not available: %v", err)
-		} else {
-			autoBlockHighRiskEndpoints()
+		}
+	}()
+	go func() {
+		if err := ensureLsmEnforcerLoaded(); err != nil {
+			log.Printf("[LSM-ENFORCER] not available: %v", err)
 		}
 	}()
 
@@ -202,6 +227,7 @@ func main() {
 	r.GET("/ws/ml-status", authMiddleware(), serveMLStatusWS)
 	r.GET("/ws/envelopes", authMiddleware(), serveEventEnvelopesWS)
 	r.GET("/ws/events/graph", authMiddleware(), serveExecutionGraphWS)
+	r.GET("/ws/tls-capture", authMiddleware(), func(c *gin.Context) { tlsBroadcaster.Serve(c) })
 	r.POST("/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), handleCreateShellSession)
 	r.GET("/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), handleListShellSessions)
 	r.DELETE("/shell-sessions/:id", authMiddleware(), shellSessionsEnabledMiddleware(), handleDeleteShellSession)
@@ -227,8 +253,19 @@ func main() {
 	r.GET("/sandbox/cgroup/status", authMiddleware(), handleCgroupSandboxStatus)
 	r.POST("/sandbox/cgroup/block-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockCgroup)
 	r.POST("/sandbox/cgroup/unblock-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockCgroup)
+	r.POST("/sandbox/cgroup/block-pid", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockPID)
+	r.POST("/sandbox/cgroup/unblock-pid", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockPID)
 	r.POST("/sandbox/cgroup/block-ip", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockIP)
+	r.POST("/sandbox/cgroup/unblock-ip", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockIP)
 	r.POST("/sandbox/cgroup/block-port", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockPort)
+	r.POST("/sandbox/cgroup/unblock-port", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockPort)
+	r.GET("/sandbox/lsm/status", authMiddleware(), handleLsmEnforcerStatus)
+	r.POST("/sandbox/lsm/block-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockExecPath)
+	r.POST("/sandbox/lsm/unblock-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockExecPath)
+	r.POST("/sandbox/lsm/block-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockExecName)
+	r.POST("/sandbox/lsm/unblock-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockExecName)
+	r.POST("/sandbox/lsm/block-file-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockFileName)
+	r.POST("/sandbox/lsm/unblock-file-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockFileName)
 	r.GET("/metrics", authMiddleware(), handlePrometheusMetrics)
 	r.GET("/ws/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), serveShellSessionsWS)
 
@@ -242,6 +279,7 @@ func main() {
 	{
 		registerConfigRoutes(api.Group("/config"))
 		registerSystemRoutes(api.Group("/system"))
+		registerTLSCaptureRoutes(api, tlsManager, tlsStore)
 
 		data := api.Group("/data")
 		{

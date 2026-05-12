@@ -1,0 +1,24 @@
+digraph G {
+    graph [bgcolor="transparent", pad="0.16", nodesep="0.50", ranksep="0.55", splines=ortho, ];
+    node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=13, penwidth=2, margin="0.18,0.10", width=1.85, height=0.72, color="#CBD5E1", fillcolor="#FFFFFF", fontcolor="#0B1220"];
+    edge [fontname="Noto Sans CJK SC", fontsize=9, color="#64748B", fontcolor="#475569", arrowsize=0.8, penwidth=2];
+    
+    rankdir=TB;
+    subgraph cluster_high { label="高执行控制"; color="#CBD5E1"; style="rounded";
+      log [label="普通日志 / 审计
+事后可看，难以及时干预", color="#94A3B8", fillcolor="#F8FAFC", fontcolor="#64748B"];
+      ours [label="本项目定位
+OS 事实 + Agent 语义 + 策略控制
+黑匣子 + 刹车系统", color="#2563EB", fillcolor="#DBEAFE", fontcolor="#2563EB", width=2.65];
+      {rank=same; log; ours;}
+    }
+    subgraph cluster_low { label="低执行控制"; color="#CBD5E1"; style="rounded";
+      prompt [label="单纯 Prompt 防护
+依赖模型遵循，缺少运行时事实", color="#DC2626", fillcolor="#FEF2F2", fontcolor="#DC2626"];
+      edr [label="传统 EDR / 沙箱
+强控制但不理解 Agent 任务语义", color="#F59E0B", fillcolor="#FFFBEB", fontcolor="#B45309"];
+      {rank=same; prompt; edr;}
+    }
+    log -> prompt [style=invis]; ours -> edr [style=invis]; prompt -> edr [label="OS 事实更强", color="#CBD5E1"]; log -> ours [label="OS 事实更强", color="#CBD5E1"];
+  
+  }

@@ -230,6 +230,17 @@ backend creates PTY-backed shell
 interactive WebSocket terminal
 ```
 
+## TLS 明文捕获
+
+```
+eBPF uprobes -> tls_events ringbuf -> TLSProbeManager -> FragmentAssembler -> HTTP parser -> TLSCaptureStore -> /ws/tls-capture -> Vue TLSCapture
+```
+
+- OpenSSL/GnuTLS/NSS 静态库通过 `link.OpenExecutable` 挂载 uprobe/uretprobe
+- Go `crypto/tls` 二进制通过 ELF 符号解析和自动 /proc 扫描挂载
+- 分片在 `FragmentAssembler` 中按 TGID+TimestampNS+Direction 拼装
+- HTTP 解析器检测 request/response，敏感 header 脱敏，非 HTTP 负载 hex dump 回退
+
 ## Matching model
 
 The kernel filter currently uses **exact-match** maps:

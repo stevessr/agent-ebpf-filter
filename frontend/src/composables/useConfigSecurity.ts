@@ -4,6 +4,12 @@ import { message } from 'ant-design-vue';
 import { pb } from '../pb/tracker_pb.js';
 import type { WrapperRule, SecurityRulePreset, SyscallGroup, ExternalRuleSource } from '../types/config';
 
+type CgroupSandboxActionResponse = Record<string, unknown> & {
+  ip?: string;
+};
+
+type CgroupSandboxSuccessText = string | ((data: CgroupSandboxActionResponse) => string);
+
 // ── Expanded Security Rule Presets (~38 rules from 7+ agent sources) ──
 export const quickRulePresets: SecurityRulePreset[] = [
   // ── Cross-agent baseline (highest priority destructive) ──
@@ -196,6 +202,67 @@ export function useConfigSecurity() {
   // ── Syscall Interception State ──
   const disabledEventTypes = ref<Set<number>>(new Set());
 
+  // ── Kernel / cgroup enforcement state ──
+  const cgroupSandboxStatus = ref({
+    available: false,
+    attached: false,
+    cgroupPath: '',
+    linkPins: [] as string[],
+    blockedCgroups: [] as string[],
+    blockedIPs: [] as string[],
+    blockedPorts: [] as number[],
+    maps: {
+      cgroupBlocklist: false,
+      ipBlocklist: false,
+      ip6Blocklist: false,
+      portBlocklist: false,
+      stats: false,
+    },
+    stats: {
+      connectChecked: 0,
+      connectBlocked: 0,
+      connectAllowed: 0,
+      checked: 0,
+      blocked: 0,
+      allowed: 0,
+    },
+    statsError: '',
+    error: '',
+  });
+  const cgroupSandboxLoading = ref(false);
+  const cgroupTargetID = ref('');
+  const cgroupTargetPID = ref<number | null>(null);
+  const cgroupTargetIP = ref('');
+  const cgroupTargetPort = ref<number | null>(4444);
+
+  // ── Kernel / BPF LSM enforcement state ──
+  const lsmEnforcerStatus = ref({
+    available: false,
+    attached: false,
+    linkPins: [] as string[],
+    maps: {
+      execPathBlocklist: false,
+      execNameBlocklist: false,
+      fileNameBlocklist: false,
+      stats: false,
+    },
+    blockedExecPaths: [] as string[],
+    blockedExecNames: [] as string[],
+    blockedFileNames: [] as string[],
+    stats: {
+      execChecked: 0,
+      execBlocked: 0,
+      fileChecked: 0,
+      fileBlocked: 0,
+    },
+    statsError: '',
+    error: '',
+  });
+  const lsmEnforcerLoading = ref(false);
+  const lsmExecPath = ref('/usr/bin/nc');
+  const lsmExecName = ref('nc');
+  const lsmFileName = ref('id_rsa');
+
   // ── External Rule Import State ──
   const fetchedExternalRules = ref<WrapperRule[]>([]);
   const fetchSourceLoading = ref<string | null>(null);
@@ -383,6 +450,206 @@ export function useConfigSecurity() {
     } catch (_) {}
   };
 
+  // ── Kernel / cgroup enforcement ──
+  const fetchCgroupSandboxStatus = async () => {
+    cgroupSandboxLoading.value = true;
+    try {
+      const res = await axios.get('/sandbox/cgroup/status');
+      cgroupSandboxStatus.value = {
+        ...cgroupSandboxStatus.value,
+        ...res.data,
+        maps: {
+          ...cgroupSandboxStatus.value.maps,
+          ...(res.data?.maps || {}),
+        },
+        stats: {
+          ...cgroupSandboxStatus.value.stats,
+          ...(res.data?.stats || {}),
+        },
+        blockedCgroups: res.data?.blockedCgroups || [],
+        blockedIPs: res.data?.blockedIPs || [],
+        blockedPorts: res.data?.blockedPorts || [],
+      };
+    } catch (e: any) {
+      message.error(`加载 cgroup sandbox 状态失败：${e.response?.data?.error || e.message || 'unknown error'}`);
+    } finally {
+      cgroupSandboxLoading.value = false;
+    }
+  };
+
+  const postCgroupSandboxAction = async (path: string, payload: Record<string, unknown>, successText: CgroupSandboxSuccessText) => {
+    cgroupSandboxLoading.value = true;
+    try {
+      const res = await axios.post<CgroupSandboxActionResponse>(path, payload);
+      const successMessage = typeof successText === 'function' ? successText(res.data || {}) : successText;
+      message.success(successMessage);
+      await fetchCgroupSandboxStatus();
+    } catch (e: any) {
+      message.error(e.response?.data?.error || 'cgroup sandbox 操作失败；请确认 /config/runtime 已启用 policy management');
+    } finally {
+      cgroupSandboxLoading.value = false;
+    }
+  };
+
+  const blockCgroupID = async () => {
+    const cgroupId = cgroupTargetID.value.trim();
+    if (!/^[1-9]\d*$/.test(cgroupId)) {
+      message.warning('请输入有效的 cgroup id');
+      return;
+    }
+    await postCgroupSandboxAction('/sandbox/cgroup/block-cgroup', { cgroupId }, `已阻断 cgroup ${cgroupId} 的出站连接`);
+  };
+
+  const unblockCgroupID = async () => {
+    const cgroupId = cgroupTargetID.value.trim();
+    if (!/^[1-9]\d*$/.test(cgroupId)) {
+      message.warning('请输入有效的 cgroup id');
+      return;
+    }
+    await postCgroupSandboxAction('/sandbox/cgroup/unblock-cgroup', { cgroupId }, `已解除 cgroup ${cgroupId} 的出站阻断`);
+  };
+
+  const blockCgroupPID = async () => {
+    if (!cgroupTargetPID.value || cgroupTargetPID.value <= 0) {
+      message.warning('请输入有效的 PID');
+      return;
+    }
+    await postCgroupSandboxAction('/sandbox/cgroup/block-pid', { pid: cgroupTargetPID.value }, `已阻断 PID ${cgroupTargetPID.value} 所在 cgroup 的出站连接`);
+  };
+
+  const unblockCgroupPID = async () => {
+    if (!cgroupTargetPID.value || cgroupTargetPID.value <= 0) {
+      message.warning('请输入有效的 PID');
+      return;
+    }
+    await postCgroupSandboxAction('/sandbox/cgroup/unblock-pid', { pid: cgroupTargetPID.value }, `已解除 PID ${cgroupTargetPID.value} 所在 cgroup 的出站阻断`);
+  };
+
+  const blockCgroupIP = async () => {
+    const ip = cgroupTargetIP.value.trim();
+    if (!ip) {
+      message.warning('请输入 IPv4、IPv6 或 IPv4-mapped IPv6 地址');
+      return;
+    }
+    await postCgroupSandboxAction('/sandbox/cgroup/block-ip', { ip }, (data) => `已在内核层阻断 ${data.ip || ip}`);
+  };
+
+  const unblockCgroupIP = async () => {
+    const ip = cgroupTargetIP.value.trim();
+    if (!ip) {
+      message.warning('请输入 IPv4、IPv6 或 IPv4-mapped IPv6 地址');
+      return;
+    }
+    await postCgroupSandboxAction('/sandbox/cgroup/unblock-ip', { ip }, (data) => `已解除 ${data.ip || ip} 的内核层阻断`);
+  };
+
+  const blockCgroupPort = async () => {
+    if (!cgroupTargetPort.value) {
+      message.warning('请输入端口');
+      return;
+    }
+    await postCgroupSandboxAction('/sandbox/cgroup/block-port', { port: cgroupTargetPort.value }, `已在内核层阻断端口 ${cgroupTargetPort.value}`);
+  };
+
+  const unblockCgroupPort = async () => {
+    if (!cgroupTargetPort.value) {
+      message.warning('请输入端口');
+      return;
+    }
+    await postCgroupSandboxAction('/sandbox/cgroup/unblock-port', { port: cgroupTargetPort.value }, `已解除端口 ${cgroupTargetPort.value} 的内核层阻断`);
+  };
+
+  // ── Kernel / BPF LSM enforcement ──
+  const fetchLsmEnforcerStatus = async () => {
+    lsmEnforcerLoading.value = true;
+    try {
+      const res = await axios.get('/sandbox/lsm/status');
+      lsmEnforcerStatus.value = {
+        ...lsmEnforcerStatus.value,
+        ...res.data,
+        maps: {
+          ...lsmEnforcerStatus.value.maps,
+          ...(res.data?.maps || {}),
+        },
+        stats: {
+          ...lsmEnforcerStatus.value.stats,
+          ...(res.data?.stats || {}),
+        },
+        blockedExecPaths: res.data?.blockedExecPaths || [],
+        blockedExecNames: res.data?.blockedExecNames || [],
+        blockedFileNames: res.data?.blockedFileNames || [],
+      };
+    } catch (e: any) {
+      message.error(`加载 BPF LSM 状态失败：${e.response?.data?.error || e.message || 'unknown error'}`);
+    } finally {
+      lsmEnforcerLoading.value = false;
+    }
+  };
+
+  const postLsmEnforcerAction = async (path: string, payload: Record<string, unknown>, successText: string) => {
+    lsmEnforcerLoading.value = true;
+    try {
+      await axios.post(path, payload);
+      message.success(successText);
+      await fetchLsmEnforcerStatus();
+    } catch (e: any) {
+      message.error(e.response?.data?.error || 'BPF LSM 操作失败；请确认内核启用了 BPF LSM 且 /config/runtime 已启用 policy management');
+    } finally {
+      lsmEnforcerLoading.value = false;
+    }
+  };
+
+  const blockLsmExecPath = async () => {
+    const path = lsmExecPath.value.trim();
+    if (!path) {
+      message.warning('请输入要拦截的执行路径');
+      return;
+    }
+    await postLsmEnforcerAction('/sandbox/lsm/block-exec-path', { path }, `已在 BPF LSM 阻断执行：${path}`);
+  };
+
+  const unblockLsmExecPath = async (path = lsmExecPath.value.trim()) => {
+    if (!path) {
+      message.warning('请输入要解除的执行路径');
+      return;
+    }
+    await postLsmEnforcerAction('/sandbox/lsm/unblock-exec-path', { path }, `已解除 BPF LSM 执行阻断：${path}`);
+  };
+
+  const blockLsmExecName = async () => {
+    const name = lsmExecName.value.trim();
+    if (!name) {
+      message.warning('请输入要拦截的可执行文件名');
+      return;
+    }
+    await postLsmEnforcerAction('/sandbox/lsm/block-exec-name', { name }, `已在 BPF LSM 阻断可执行文件名：${name}`);
+  };
+
+  const unblockLsmExecName = async (name = lsmExecName.value.trim()) => {
+    if (!name) {
+      message.warning('请输入要解除的可执行文件名');
+      return;
+    }
+    await postLsmEnforcerAction('/sandbox/lsm/unblock-exec-name', { name }, `已解除 BPF LSM 可执行文件名阻断：${name}`);
+  };
+
+  const blockLsmFileName = async () => {
+    const name = lsmFileName.value.trim();
+    if (!name) {
+      message.warning('请输入要拦截的文件或目录 basename');
+      return;
+    }
+    await postLsmEnforcerAction('/sandbox/lsm/block-file-name', { name }, `已在 BPF LSM 阻断打开/读写/mmap/mprotect/setattr/创建/link/symlink/删除/mkdir/rmdir/mknod/rename basename：${name}`);
+  };
+
+  const unblockLsmFileName = async (name = lsmFileName.value.trim()) => {
+    if (!name) {
+      message.warning('请输入要解除的文件或目录 basename');
+      return;
+    }
+    await postLsmEnforcerAction('/sandbox/lsm/unblock-file-name', { name }, `已解除 BPF LSM 打开/读写/mmap/mprotect/setattr/创建/link/symlink/删除/mkdir/rmdir/mknod/rename basename 阻断：${name}`);
+  };
+
   // ── Regex Preview ──
   const regexPreviewResult = computed(() => {
     if (!newRuleRegex.value || !previewTestInput.value) return '';
@@ -399,12 +666,25 @@ export function useConfigSecurity() {
     newRuleComm, newRuleAction, newRuleRewritten,
     newRuleRegex, newRuleReplacement, newRulePriority, previewTestInput,
     disabledEventTypes,
+    cgroupSandboxStatus, cgroupSandboxLoading,
+    cgroupTargetID, cgroupTargetPID, cgroupTargetIP, cgroupTargetPort,
+    lsmEnforcerStatus, lsmEnforcerLoading,
+    lsmExecPath, lsmExecName, lsmFileName,
     fetchedExternalRules, fetchSourceLoading, importingExternalRules,
     fetchRules, postRule, saveRule, deleteRule,
     buildManualRulePayload, resetRuleForm,
     addQuickRulePreset, addAllQuickRulePresets,
     fetchExternalRules, importAllFetchedRules,
     fetchDisabledEventTypes, toggleEventType,
+    fetchCgroupSandboxStatus,
+    blockCgroupID, unblockCgroupID,
+    blockCgroupPID, unblockCgroupPID,
+    blockCgroupIP, unblockCgroupIP,
+    blockCgroupPort, unblockCgroupPort,
+    fetchLsmEnforcerStatus,
+    blockLsmExecPath, unblockLsmExecPath,
+    blockLsmExecName, unblockLsmExecName,
+    blockLsmFileName, unblockLsmFileName,
     regexPreviewResult,
   };
 }

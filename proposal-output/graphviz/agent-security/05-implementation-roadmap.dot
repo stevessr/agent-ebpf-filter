@@ -1,0 +1,24 @@
+digraph G {
+    graph [bgcolor="transparent", pad="0.16", nodesep="0.50", ranksep="0.55", splines=ortho, ];
+    node [shape=box, style="rounded,filled", fontname="Noto Sans CJK SC", fontsize=13, penwidth=2, margin="0.18,0.10", width=1.85, height=0.72, color="#CBD5E1", fillcolor="#FFFFFF", fontcolor="#0B1220"];
+    edge [fontname="Noto Sans CJK SC", fontsize=9, color="#64748B", fontcolor="#475569", arrowsize=0.8, penwidth=2];
+    
+    rankdir=TB;
+    a [label="阶段一：基础观测
+eBPF 事件模型
+PID 继承 / Dashboard", color="#2563EB", fillcolor="#EFF6FF", fontcolor="#2563EB", width=2.25];
+    b [label="阶段二：控制闭环
+wrapper / hooks
+runtime gate / 告警解释", color="#F59E0B", fillcolor="#FFFBEB", fontcolor="#B45309", width=2.25];
+    c [label="阶段三：图谱复盘
+Execution Graph
+JSONL 回放 / 导出", color="#7C3AED", fillcolor="#F5F3FF", fontcolor="#7C3AED", width=2.25];
+    d [label="阶段四：评估优化
+良性/恶意工作流
+误报漏报与开销统计", color="#16A34A", fillcolor="#ECFDF5", fontcolor="#16A34A", width=2.25];
+    {rank=same; a; b;}
+    {rank=same; c; d;}
+    a -> b -> c -> d;
+    d -> a [label="数据回流", color="#F59E0B", style=dashed, constraint=false];
+  
+  }

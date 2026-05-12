@@ -74,6 +74,13 @@ const formatMaybeDate = (value?: string) => {
                 :rows="4"
                 placeholder='OTLP headers JSON, e.g. { "Authorization": "Bearer ..." }'
               />
+              <div style="display: flex; align-items: center; gap: 12px">
+                <a-switch v-model:checked="runtimeSettings.tlsCaptureEnabled" />
+                <span>Enable TLS plaintext capture (eBPF uprobes on OpenSSL/GnuTLS/NSS/Go)</span>
+              </div>
+              <a-typography-text type="secondary">
+                Requires backend restart to take effect. Captures HTTPS plaintext before encryption / after decryption via eBPF uprobes.
+              </a-typography-text>
               <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
                 <a-button type="primary" @click="saveRuntime">
                   <ReloadOutlined /> Save Runtime

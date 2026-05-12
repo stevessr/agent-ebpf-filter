@@ -26,6 +26,11 @@ const routes = [
     component: () => import('../views/NetworkFlow.vue'),
   },
   {
+    path: '/tls-capture',
+    name: 'TLSCapture',
+    component: () => import('../views/TLSCapture.vue'),
+  },
+  {
     path: '/execution-graph',
     name: 'ExecutionGraph',
     component: () => import('../views/ExecutionGraph.vue'),

@@ -21,6 +21,7 @@ export function useConfigRuntime() {
     otlpEndpoint: '',
     otlpServiceName: 'agent-ebpf-filter',
     otlpHeaders: {},
+    tlsCaptureEnabled: false,
   });
   const mcpEndpoint = ref('');
   const authHeaderName = ref('X-API-KEY');
@@ -79,6 +80,7 @@ export function useConfigRuntime() {
       otlpEndpoint: data.runtime.otlpEndpoint || '',
       otlpServiceName: data.runtime.otlpServiceName || 'agent-ebpf-filter',
       otlpHeaders: { ...(data.runtime.otlpHeaders || {}) },
+      tlsCaptureEnabled: Boolean(data.runtime.tlsCaptureEnabled),
     };
     otlpHeadersText.value = JSON.stringify(runtimeSettings.value.otlpHeaders || {}, null, 2);
     mcpEndpoint.value = data.mcpEndpoint;
@@ -152,6 +154,7 @@ export function useConfigRuntime() {
         otlpEndpoint: runtimeSettings.value.otlpEndpoint,
         otlpServiceName: runtimeSettings.value.otlpServiceName,
         otlpHeaders,
+        tlsCaptureEnabled: runtimeSettings.value.tlsCaptureEnabled,
       });
       applyRuntimeResponse(res.data as RuntimeConfigResponse);
       await fetchCollectorHealth();
