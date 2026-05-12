@@ -13,6 +13,11 @@ interface ForceLink extends d3.SimulationLinkDatum<ForceNode> {
   target: string | ForceNode;
 }
 
+interface DisplayGraph {
+  nodes: ExecutionGraphNode[];
+  edges: ExecutionGraphEdge[];
+}
+
 const props = withDefaults(defineProps<{
   nodes: ExecutionGraphNode[];
   edges: ExecutionGraphEdge[];
@@ -37,6 +42,7 @@ let nodeGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
 let emptyGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
 let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
 let lastTopologyKey = '';
+let currentDisplayGraph: DisplayGraph = { nodes: [], edges: [] };
 
 const kindColor = (kind: string) => {
   const colorMap: Record<string, string> = {
@@ -56,18 +62,20 @@ const kindColor = (kind: string) => {
 };
 
 const nodeRadius = (node: ExecutionGraphNode) => {
+  const eventCount = Number(node.metadata?.eventCount ?? 1);
+  const aggregateBoost = Number.isFinite(eventCount) && eventCount > 1 ? Math.min(8, Math.log2(eventCount) * 2) : 0;
   switch (node.kind) {
     case 'agent_run':
-      return 18;
+      return 18 + aggregateBoost;
     case 'tool_call':
-      return 16;
+      return 16 + aggregateBoost;
     case 'process':
-      return 14;
+      return 14 + aggregateBoost;
     case 'policy_alert':
     case 'policy_decision':
-      return 12;
+      return 12 + aggregateBoost;
     default:
-      return 10;
+      return 10 + aggregateBoost;
   }
 };
 
@@ -104,6 +112,7 @@ const persistZoom = (transform: d3.ZoomTransform) => {
 };
 
 const processTreeEdgeKinds = new Set(['child_process', 'parent_process', 'exec_chain', 'spawned']);
+const activityEdgeKinds = new Set(['observed', 'execed', 'waited', 'exited', 'reviewed', 'alerted']);
 
 const linkStrokeWidth = (item: ForceLink) => (item.kind === 'alerted' || item.kind === 'blocked' ? 2.4 : 1.4);
 
@@ -142,9 +151,102 @@ const linkStrength = (link: ForceLink) => (processTreeEdgeKinds.has(link.kind) ?
 
 const createTopologyKey = () => [
   props.height,
-  props.nodes.map((node) => `${node.id}:${node.kind}:${node.label}:${node.subtitle ?? ''}`).join(''),
-  props.edges.map((edge) => `${edge.id}:${edge.source}:${edge.target}:${edge.kind}:${edge.label ?? ''}`).join(''),
+  currentDisplayGraph.nodes.map((node) => `${node.id}:${node.kind}:${node.label}:${node.subtitle ?? ''}`).join(''),
+  currentDisplayGraph.edges.map((edge) => `${edge.id}:${edge.source}:${edge.target}:${edge.kind}:${edge.label ?? ''}`).join(''),
 ].join('');
+
+const processDisplayLabel = (node: ExecutionGraphNode | undefined) => {
+  if (!node) return '';
+  const pid = String(node.metadata?.pid ?? node.pid ?? '').trim();
+  const label = /^pid \d+$/.test(node.label.trim()) ? 'process' : node.label;
+  return pid ? `${label} (${pid})` : label;
+};
+
+const buildDisplayGraph = (): DisplayGraph => {
+  const sourceNodes = new Map(props.nodes.map((node) => [node.id, node]));
+  const eventToProcess = new Map<string, string>();
+  props.edges.forEach((edge) => {
+    if (!activityEdgeKinds.has(edge.kind)) return;
+    const source = sourceNodes.get(edge.source);
+    const target = sourceNodes.get(edge.target);
+    if (source?.kind === 'process' && target && target.kind !== 'process') eventToProcess.set(target.id, source.id);
+  });
+
+  const aggregateByKey = new Map<string, { node: ExecutionGraphNode; eventIds: string[]; sourceIds: string[] }>();
+  const aggregateIdByEventId = new Map<string, string>();
+  const processToAggregateIds = new Map<string, string[]>();
+  props.nodes.forEach((node) => {
+    const processId = eventToProcess.get(node.id);
+    if (!processId) return;
+    const processNode = sourceNodes.get(processId);
+    const processLabel = processDisplayLabel(processNode);
+    const eventType = node.metadata?.type || node.label || node.kind;
+    const key = `${processId}${node.kind}${eventType}`;
+    const existing = aggregateByKey.get(key);
+    if (existing) {
+      existing.eventIds.push(node.id);
+      existing.sourceIds.push(node.id);
+      existing.node.riskScore = Math.max(existing.node.riskScore ?? 0, node.riskScore ?? 0);
+      return;
+    }
+    const aggregateId = `agg:${processId}:${node.kind}:${eventType}`;
+    const ids = processToAggregateIds.get(processId) ?? [];
+    ids.push(aggregateId);
+    processToAggregateIds.set(processId, ids);
+    aggregateByKey.set(key, {
+      eventIds: [node.id],
+      sourceIds: [node.id],
+      node: {
+        ...node,
+        id: aggregateId,
+        label: processLabel ? `${processLabel} · ${eventType}` : eventType,
+        subtitle: [processLabel, node.subtitle].filter(Boolean).join(' · '),
+        metadata: {
+          ...(node.metadata ?? {}),
+          sourceNodeId: node.id,
+          eventCount: '1',
+        },
+      },
+    });
+    aggregateIdByEventId.set(node.id, aggregateId);
+  });
+
+  aggregateByKey.forEach(({ node, eventIds, sourceIds }) => {
+    eventIds.forEach((id) => aggregateIdByEventId.set(id, node.id));
+    if (eventIds.length <= 1) return;
+    node.label = `${node.label} ×${eventIds.length}`;
+    node.subtitle = `${node.subtitle || 'events'} · ${eventIds.length} events`;
+    node.metadata = {
+      ...(node.metadata ?? {}),
+      sourceNodeId: sourceIds[0],
+      eventCount: String(eventIds.length),
+    };
+  });
+
+  const displayNodes = props.nodes
+    .filter((node) => node.kind !== 'process')
+    .filter((node) => !aggregateIdByEventId.has(node.id))
+    .concat([...aggregateByKey.values()].map((item) => item.node));
+  const displayNodeIds = new Set(displayNodes.map((node) => node.id));
+  const edgeById = new Map<string, ExecutionGraphEdge>();
+
+  const representativeForProcess = (processId: string) => processToAggregateIds.get(processId)?.[0] ?? '';
+
+  props.edges.forEach((edge) => {
+    const rawSource = aggregateIdByEventId.get(edge.source) ?? (sourceNodes.get(edge.source)?.kind === 'process' ? representativeForProcess(edge.source) : edge.source);
+    const rawTarget = aggregateIdByEventId.get(edge.target) ?? (sourceNodes.get(edge.target)?.kind === 'process' ? representativeForProcess(edge.target) : edge.target);
+    const source = rawSource;
+    const target = rawTarget;
+    if (!source || !target || source === target) return;
+    if (!displayNodeIds.has(source) || !displayNodeIds.has(target)) return;
+    const id = `${source}->${target}:${edge.kind}`;
+    if (!edgeById.has(id)) {
+      edgeById.set(id, { ...edge, id, source, target });
+    }
+  });
+
+  return { nodes: displayNodes, edges: [...edgeById.values()] };
+};
 
 const initializeCanvas = (svgElement: SVGSVGElement, width: number, height: number) => {
   const svg = d3.select(svgElement);
@@ -174,7 +276,7 @@ const initializeCanvas = (svgElement: SVGSVGElement, width: number, height: numb
 };
 
 const getNodePosition = (node: ExecutionGraphNode, existingById: Map<string, ForceNode>, width: number, height: number) => {
-  const relatedEdge = props.edges.find((edge) => edge.source === node.id || edge.target === node.id);
+  const relatedEdge = currentDisplayGraph.edges.find((edge) => edge.source === node.id || edge.target === node.id);
   const relatedId = relatedEdge?.source === node.id ? relatedEdge.target : relatedEdge?.source;
   const relatedNode = relatedId ? existingById.get(relatedId) : undefined;
   return {
@@ -185,7 +287,7 @@ const getNodePosition = (node: ExecutionGraphNode, existingById: Map<string, For
 
 const buildForceNodes = (width: number, height: number) => {
   const existingById = new Map((simulation?.nodes() ?? []).map((node) => [node.id, node]));
-  return props.nodes.map((node) => {
+  return currentDisplayGraph.nodes.map((node) => {
     const existing = existingById.get(node.id);
     if (existing) {
       Object.assign(existing, node);
@@ -193,6 +295,12 @@ const buildForceNodes = (width: number, height: number) => {
     }
     return { ...node, ...getNodePosition(node, existingById, width, height) } as ForceNode;
   });
+};
+
+const processSortValue = (node: ForceNode | undefined) => {
+  const pid = Number(node?.metadata?.pid ?? node?.pid);
+  if (Number.isFinite(pid)) return pid;
+  return Number.MAX_SAFE_INTEGER;
 };
 
 const applyProcessTreeLayout = (nodes: ForceNode[], links: ForceLink[], width: number, height: number) => {
@@ -204,6 +312,7 @@ const applyProcessTreeLayout = (nodes: ForceNode[], links: ForceLink[], width: n
   const processLinks = links.filter((link) => processTreeEdgeKinds.has(link.kind));
   if (!processLinks.length) return;
 
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const processNodeIds = new Set(nodes.filter((node) => node.kind === 'process').map((node) => node.id));
   const children = new Map<string, string[]>();
   const incoming = new Set<string>();
@@ -217,41 +326,65 @@ const applyProcessTreeLayout = (nodes: ForceNode[], links: ForceLink[], width: n
     incoming.add(target);
   });
 
-  const roots = [...processNodeIds].filter((id) => !incoming.has(id));
-  if (!roots.length && processNodeIds.size) roots.push([...processNodeIds][0]);
-  const levels = new Map<string, number>();
-  const queue = roots.map((id) => ({ id, level: 0 }));
-  roots.forEach((id) => levels.set(id, 0));
-  while (queue.length) {
-    const current = queue.shift()!;
-    for (const child of children.get(current.id) ?? []) {
-      if (levels.has(child)) continue;
-      levels.set(child, current.level + 1);
-      queue.push({ id: child, level: current.level + 1 });
-    }
-  }
-  for (const id of processNodeIds) {
-    if (!levels.has(id)) levels.set(id, 0);
-  }
-
-  const byLevel = new Map<number, string[]>();
-  levels.forEach((level, id) => {
-    const list = byLevel.get(level) ?? [];
-    list.push(id);
-    byLevel.set(level, list);
+  children.forEach((ids) => {
+    ids.sort((left, right) => processSortValue(nodeById.get(left)) - processSortValue(nodeById.get(right)) || left.localeCompare(right));
   });
-  const leftPadding = 90;
-  const topPadding = 80;
-  const levelGap = Math.max(150, Math.min(240, (width - leftPadding * 2) / Math.max(1, byLevel.size)));
-  byLevel.forEach((ids, level) => {
-    ids.sort();
-    const rowGap = Math.max(70, Math.min(130, (height - topPadding * 2) / Math.max(1, ids.length)));
-    ids.forEach((id, index) => {
-      const node = nodes.find((item) => item.id === id);
-      if (!node) return;
-      node.fx = leftPadding + level * levelGap;
-      node.fy = topPadding + index * rowGap;
-    });
+
+  const roots = [...processNodeIds]
+    .filter((id) => !incoming.has(id))
+    .sort((left, right) => processSortValue(nodeById.get(left)) - processSortValue(nodeById.get(right)) || left.localeCompare(right));
+  if (!roots.length && processNodeIds.size) roots.push([...processNodeIds][0]);
+
+  const levels = new Map<string, number>();
+  const ySlots = new Map<string, number>();
+  const visited = new Set<string>();
+  let nextSlot = 0;
+
+  const assignSubtree = (id: string, level: number): number => {
+    if (visited.has(id)) return ySlots.get(id) ?? nextSlot;
+    visited.add(id);
+    levels.set(id, level);
+
+    const childSlots = (children.get(id) ?? [])
+      .filter((child) => processNodeIds.has(child))
+      .map((child) => assignSubtree(child, level + 1));
+
+    if (!childSlots.length) {
+      const slot = nextSlot;
+      nextSlot += 1;
+      ySlots.set(id, slot);
+      return slot;
+    }
+
+    const slot = (Math.min(...childSlots) + Math.max(...childSlots)) / 2;
+    ySlots.set(id, slot);
+    return slot;
+  };
+
+  roots.forEach((root) => assignSubtree(root, 0));
+  [...processNodeIds]
+    .filter((id) => !visited.has(id))
+    .sort((left, right) => processSortValue(nodeById.get(left)) - processSortValue(nodeById.get(right)) || left.localeCompare(right))
+    .forEach((id) => assignSubtree(id, 0));
+
+  const maxLevel = Math.max(0, ...levels.values());
+  const leftPadding = 96;
+  const rightPadding = 180;
+  const topPadding = 72;
+  const bottomPadding = 72;
+  const levelGap = Math.max(150, Math.min(260, (width - leftPadding - rightPadding) / Math.max(1, maxLevel)));
+  const slotCount = Math.max(1, nextSlot);
+  const rowGap = Math.max(64, Math.min(128, (height - topPadding - bottomPadding) / Math.max(1, slotCount - 1)));
+  const totalTreeHeight = (slotCount - 1) * rowGap;
+  const verticalOffset = Math.max(topPadding, (height - totalTreeHeight) / 2);
+
+  processNodeIds.forEach((id) => {
+    const node = nodeById.get(id);
+    const level = levels.get(id);
+    const slot = ySlots.get(id);
+    if (!node || level === undefined || slot === undefined) return;
+    node.fx = leftPadding + level * levelGap;
+    node.fy = verticalOffset + slot * rowGap;
   });
 };
 
@@ -301,11 +434,12 @@ const updateGraph = () => {
   initializeCanvas(svgElement, width, height);
   if (!linkGroup || !nodeGroup) return;
 
+  currentDisplayGraph = buildDisplayGraph();
   const topologyKey = createTopologyKey();
   const topologyChanged = topologyKey !== lastTopologyKey;
   lastTopologyKey = topologyKey;
   const nodes = buildForceNodes(width, height);
-  const links = props.edges.map((edge) => ({ ...edge })) as ForceLink[];
+  const links = currentDisplayGraph.edges.map((edge) => ({ ...edge })) as ForceLink[];
   applyProcessTreeLayout(nodes, links, width, height);
   updateEmptyState(width, height, Boolean(nodes.length));
 
@@ -354,14 +488,14 @@ const updateGraph = () => {
     .merge(nodeSelection)
     .style('cursor', 'pointer')
     .call(drag)
-    .on('click', (_event, item) => emit('select-node', item.id));
+    .on('click', (_event, item) => emit('select-node', item.metadata?.sourceNodeId || item.id));
 
   node
     .select<SVGCircleElement>('circle')
     .attr('r', (item) => nodeRadius(item))
     .attr('fill', (item) => kindColor(item.kind))
-    .attr('stroke', (item) => (item.id === props.selectedNodeId ? '#111827' : '#ffffff'))
-    .attr('stroke-width', (item) => (item.id === props.selectedNodeId ? 3 : 1.5));
+    .attr('stroke', (item) => (item.id === props.selectedNodeId || item.metadata?.sourceNodeId === props.selectedNodeId ? '#111827' : '#ffffff'))
+    .attr('stroke-width', (item) => (item.id === props.selectedNodeId || item.metadata?.sourceNodeId === props.selectedNodeId ? 3 : 1.5));
 
   node
     .select<SVGTextElement>('text')
