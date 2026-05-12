@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := build
+
 # Get Go binaries path
 GOPATH ?= $(shell go env GOPATH)
 export PATH := $(PATH):$(GOPATH)/bin
