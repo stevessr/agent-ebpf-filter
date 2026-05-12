@@ -31,6 +31,12 @@ const emit = defineEmits<{
 
 const svgRef = ref<SVGSVGElement | null>(null);
 let simulation: d3.Simulation<ForceNode, ForceLink> | null = null;
+let rootGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
+let linkGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
+let nodeGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
+let emptyGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
+let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
+let lastTopologyKey = '';
 
 const kindColor = (kind: string) => {
   const colorMap: Record<string, string> = {
@@ -97,144 +103,222 @@ const persistZoom = (transform: d3.ZoomTransform) => {
   }
 };
 
-const renderGraph = () => {
-  const svgElement = svgRef.value;
-  if (!svgElement) return;
+const processTreeEdgeKinds = new Set(['child_process', 'parent_process', 'exec_chain', 'spawned']);
 
-  simulation?.stop();
+const linkStrokeWidth = (item: ForceLink) => (item.kind === 'alerted' || item.kind === 'blocked' ? 2.4 : 1.4);
 
-  const width = Math.max(svgElement.clientWidth || 960, 640);
-  const height = props.height;
+const linkStrokeColor = (item: ForceLink) => {
+  if (item.kind === 'alerted' || item.kind === 'blocked') return '#dc2626';
+  if (item.kind === 'rewritten') return '#7c3aed';
+  if (item.kind === 'child_process' || item.kind === 'parent_process') return '#059669';
+  if (item.kind === 'exec_chain') return '#2563eb';
+  return '#cbd5e1';
+};
+
+const linkDistance = (link: ForceLink) => {
+  switch (link.kind) {
+    case 'contains':
+    case 'owns':
+      return 95;
+    case 'child_process':
+    case 'parent_process':
+    case 'exec_chain':
+      return 80;
+    case 'spawned':
+    case 'waited':
+      return 88;
+    case 'connected':
+    case 'opened':
+    case 'read':
+    case 'wrote':
+    case 'deleted':
+      return 110;
+    default:
+      return 120;
+  }
+};
+
+const linkStrength = (link: ForceLink) => (processTreeEdgeKinds.has(link.kind) ? 0.85 : link.kind === 'contains' ? 0.55 : 0.35);
+
+const createTopologyKey = () => [
+  props.height,
+  props.nodes.map((node) => `${node.id}:${node.kind}:${node.label}:${node.subtitle ?? ''}`).join(''),
+  props.edges.map((edge) => `${edge.id}:${edge.source}:${edge.target}:${edge.kind}:${edge.label ?? ''}`).join(''),
+].join('');
+
+const initializeCanvas = (svgElement: SVGSVGElement, width: number, height: number) => {
   const svg = d3.select(svgElement);
-  svg.selectAll('*').remove();
   svg.attr('viewBox', `0 0 ${width} ${height}`);
+  if (rootGroup && linkGroup && nodeGroup && emptyGroup && zoomBehavior) return;
 
-  const root = svg.append('g');
-  const zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
+  rootGroup = svg.append('g');
+  linkGroup = rootGroup.append('g').attr('stroke', '#cbd5e1').attr('stroke-opacity', 0.75);
+  nodeGroup = rootGroup.append('g');
+  emptyGroup = rootGroup.append('g');
+
+  emptyGroup
+    .append('text')
+    .attr('text-anchor', 'middle')
+    .attr('fill', '#64748b')
+    .attr('font-size', 14)
+    .text('No graph data');
+
+  zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
     .scaleExtent([0.35, 2.5])
     .on('zoom', (event) => {
-      root.attr('transform', event.transform.toString());
+      rootGroup?.attr('transform', event.transform.toString());
       persistZoom(event.transform);
     });
   svg.call(zoomBehavior);
   svg.call(zoomBehavior.transform, loadPersistedZoom());
+};
 
-  const nodes = props.nodes.map((node) => ({ ...node })) as ForceNode[];
-  const links = props.edges.map((edge) => ({ ...edge })) as ForceLink[];
+const getNodePosition = (node: ExecutionGraphNode, existingById: Map<string, ForceNode>, width: number, height: number) => {
+  const relatedEdge = props.edges.find((edge) => edge.source === node.id || edge.target === node.id);
+  const relatedId = relatedEdge?.source === node.id ? relatedEdge.target : relatedEdge?.source;
+  const relatedNode = relatedId ? existingById.get(relatedId) : undefined;
+  return {
+    x: relatedNode?.x ?? width / 2 + (Math.random() - 0.5) * 80,
+    y: relatedNode?.y ?? height / 2 + (Math.random() - 0.5) * 80,
+  };
+};
 
-  if (!nodes.length) {
-    root
-      .append('text')
-      .attr('x', width / 2)
-      .attr('y', height / 2)
-      .attr('text-anchor', 'middle')
-      .attr('fill', '#64748b')
-      .attr('font-size', 14)
-      .text('No graph data');
-    return;
-  }
+const buildForceNodes = (width: number, height: number) => {
+  const existingById = new Map((simulation?.nodes() ?? []).map((node) => [node.id, node]));
+  return props.nodes.map((node) => {
+    const existing = existingById.get(node.id);
+    if (existing) {
+      Object.assign(existing, node);
+      return existing;
+    }
+    return { ...node, ...getNodePosition(node, existingById, width, height) } as ForceNode;
+  });
+};
 
-  const processTreeEdgeKinds = new Set(['child_process', 'parent_process', 'exec_chain', 'spawned']);
+const applyProcessTreeLayout = (nodes: ForceNode[], links: ForceLink[], width: number, height: number) => {
+  nodes.forEach((node) => {
+    node.fx = null;
+    node.fy = null;
+  });
+
   const processLinks = links.filter((link) => processTreeEdgeKinds.has(link.kind));
-  if (processLinks.length) {
-    const processNodeIds = new Set(nodes.filter((node) => node.kind === 'process').map((node) => node.id));
-    const children = new Map<string, string[]>();
-    const incoming = new Set<string>();
-    processLinks.forEach((link) => {
-      const source = String(link.source);
-      const target = String(link.target);
-      if (!processNodeIds.has(source) || !processNodeIds.has(target) || source === target) return;
-      const list = children.get(source) ?? [];
-      if (!list.includes(target)) list.push(target);
-      children.set(source, list);
-      incoming.add(target);
-    });
-    const roots = [...processNodeIds].filter((id) => !incoming.has(id));
-    if (!roots.length && processNodeIds.size) roots.push([...processNodeIds][0]);
-    const levels = new Map<string, number>();
-    const queue = roots.map((id) => ({ id, level: 0 }));
-    roots.forEach((id) => levels.set(id, 0));
-    while (queue.length) {
-      const current = queue.shift()!;
-      for (const child of children.get(current.id) ?? []) {
-        if (levels.has(child)) continue;
-        levels.set(child, current.level + 1);
-        queue.push({ id: child, level: current.level + 1 });
-      }
+  if (!processLinks.length) return;
+
+  const processNodeIds = new Set(nodes.filter((node) => node.kind === 'process').map((node) => node.id));
+  const children = new Map<string, string[]>();
+  const incoming = new Set<string>();
+  processLinks.forEach((link) => {
+    const source = String(link.source);
+    const target = String(link.target);
+    if (!processNodeIds.has(source) || !processNodeIds.has(target) || source === target) return;
+    const list = children.get(source) ?? [];
+    if (!list.includes(target)) list.push(target);
+    children.set(source, list);
+    incoming.add(target);
+  });
+
+  const roots = [...processNodeIds].filter((id) => !incoming.has(id));
+  if (!roots.length && processNodeIds.size) roots.push([...processNodeIds][0]);
+  const levels = new Map<string, number>();
+  const queue = roots.map((id) => ({ id, level: 0 }));
+  roots.forEach((id) => levels.set(id, 0));
+  while (queue.length) {
+    const current = queue.shift()!;
+    for (const child of children.get(current.id) ?? []) {
+      if (levels.has(child)) continue;
+      levels.set(child, current.level + 1);
+      queue.push({ id: child, level: current.level + 1 });
     }
-    for (const id of processNodeIds) {
-      if (!levels.has(id)) levels.set(id, 0);
-    }
-    const byLevel = new Map<number, string[]>();
-    levels.forEach((level, id) => {
-      const list = byLevel.get(level) ?? [];
-      list.push(id);
-      byLevel.set(level, list);
-    });
-    const leftPadding = 90;
-    const topPadding = 80;
-    const levelGap = Math.max(150, Math.min(240, (width - leftPadding * 2) / Math.max(1, byLevel.size)));
-    byLevel.forEach((ids, level) => {
-      ids.sort();
-      const rowGap = Math.max(70, Math.min(130, (height - topPadding * 2) / Math.max(1, ids.length)));
-      ids.forEach((id, index) => {
-        const node = nodes.find((item) => item.id === id);
-        if (!node) return;
-        node.fx = leftPadding + level * levelGap;
-        node.fy = topPadding + index * rowGap;
-      });
-    });
+  }
+  for (const id of processNodeIds) {
+    if (!levels.has(id)) levels.set(id, 0);
   }
 
+  const byLevel = new Map<number, string[]>();
+  levels.forEach((level, id) => {
+    const list = byLevel.get(level) ?? [];
+    list.push(id);
+    byLevel.set(level, list);
+  });
+  const leftPadding = 90;
+  const topPadding = 80;
+  const levelGap = Math.max(150, Math.min(240, (width - leftPadding * 2) / Math.max(1, byLevel.size)));
+  byLevel.forEach((ids, level) => {
+    ids.sort();
+    const rowGap = Math.max(70, Math.min(130, (height - topPadding * 2) / Math.max(1, ids.length)));
+    ids.forEach((id, index) => {
+      const node = nodes.find((item) => item.id === id);
+      if (!node) return;
+      node.fx = leftPadding + level * levelGap;
+      node.fy = topPadding + index * rowGap;
+    });
+  });
+};
+
+const updateEmptyState = (width: number, height: number, hasNodes: boolean) => {
+  if (!emptyGroup) return;
+  emptyGroup.style('display', hasNodes ? 'none' : '');
+  emptyGroup
+    .select('text')
+    .attr('x', width / 2)
+    .attr('y', height / 2);
+};
+
+const updateSimulation = (nodes: ForceNode[], links: ForceLink[], width: number, height: number, topologyChanged: boolean) => {
   const simulationLinks = d3
     .forceLink<ForceNode, ForceLink>(links)
     .id((node) => node.id)
-    .distance((link) => {
-      switch (link.kind) {
-        case 'contains':
-        case 'owns':
-          return 95;
-        case 'child_process':
-        case 'parent_process':
-        case 'exec_chain':
-          return 80;
-        case 'spawned':
-        case 'waited':
-          return 88;
-        case 'connected':
-        case 'opened':
-        case 'read':
-        case 'wrote':
-        case 'deleted':
-          return 110;
-        default:
-          return 120;
-      }
-    })
-    .strength((link) => (processTreeEdgeKinds.has(link.kind) ? 0.85 : link.kind === 'contains' ? 0.55 : 0.35));
+    .distance(linkDistance)
+    .strength(linkStrength);
 
-  simulation = d3
-    .forceSimulation<ForceNode>(nodes)
+  if (!simulation) {
+    simulation = d3
+      .forceSimulation<ForceNode>(nodes)
+      .force('link', simulationLinks)
+      .force('charge', d3.forceManyBody<ForceNode>().strength(-340))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide<ForceNode>().radius((node) => nodeRadius(node) + 14));
+    return;
+  }
+
+  simulation
+    .nodes(nodes)
     .force('link', simulationLinks)
-    .force('charge', d3.forceManyBody<ForceNode>().strength(-340))
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collision', d3.forceCollide<ForceNode>().radius((node) => nodeRadius(node) + 14));
 
-  const link = root
-    .append('g')
-    .attr('stroke', '#cbd5e1')
-    .attr('stroke-opacity', 0.75)
+  if (topologyChanged) {
+    simulation.alpha(0.35).restart();
+  }
+};
+
+const updateGraph = () => {
+  const svgElement = svgRef.value;
+  if (!svgElement) return;
+
+  const width = Math.max(svgElement.clientWidth || 960, 640);
+  const height = props.height;
+  initializeCanvas(svgElement, width, height);
+  if (!linkGroup || !nodeGroup) return;
+
+  const topologyKey = createTopologyKey();
+  const topologyChanged = topologyKey !== lastTopologyKey;
+  lastTopologyKey = topologyKey;
+  const nodes = buildForceNodes(width, height);
+  const links = props.edges.map((edge) => ({ ...edge })) as ForceLink[];
+  applyProcessTreeLayout(nodes, links, width, height);
+  updateEmptyState(width, height, Boolean(nodes.length));
+
+  const linkSelection = linkGroup
     .selectAll<SVGLineElement, ForceLink>('line')
-    .data(links)
-    .join('line')
-    .attr('stroke-width', (item) => (item.kind === 'alerted' || item.kind === 'blocked' ? 2.4 : 1.4))
-    .attr('stroke', (item) => {
-      if (item.kind === 'alerted' || item.kind === 'blocked') return '#dc2626';
-      if (item.kind === 'rewritten') return '#7c3aed';
-      if (item.kind === 'child_process' || item.kind === 'parent_process') return '#059669';
-      if (item.kind === 'exec_chain') return '#2563eb';
-      return '#cbd5e1';
-    });
+    .data(links, (item) => item.id);
+  linkSelection.exit().transition().duration(180).attr('opacity', 0).remove();
+  const linkEnter = linkSelection.enter().append('line').attr('opacity', 0);
+  linkEnter.transition().duration(180).attr('opacity', 1);
+  const link = linkEnter
+    .merge(linkSelection)
+    .attr('stroke-width', linkStrokeWidth)
+    .attr('stroke', linkStrokeColor);
 
   const drag = d3.drag<SVGGElement, ForceNode>()
     .on('start', (event, node) => {
@@ -252,36 +336,52 @@ const renderGraph = () => {
       node.fy = null;
     });
 
-  const node = root
+  const nodeSelection = nodeGroup
+    .selectAll<SVGGElement, ForceNode>('g.execution-node')
+    .data(nodes, (item) => item.id);
+  nodeSelection.exit().transition().duration(180).style('opacity', 0).remove();
+  const nodeEnter = nodeSelection
+    .enter()
     .append('g')
-    .selectAll<SVGGElement, ForceNode>('g')
-    .data(nodes)
-    .join('g')
+    .attr('class', 'execution-node')
+    .style('opacity', 0);
+  nodeEnter.append('circle');
+  nodeEnter.append('text').style('pointer-events', 'none');
+  nodeEnter.append('title');
+  nodeEnter.transition().duration(180).style('opacity', 1);
+
+  const node = nodeEnter
+    .merge(nodeSelection)
     .style('cursor', 'pointer')
     .call(drag)
     .on('click', (_event, item) => emit('select-node', item.id));
 
   node
-    .append('circle')
+    .select<SVGCircleElement>('circle')
     .attr('r', (item) => nodeRadius(item))
     .attr('fill', (item) => kindColor(item.kind))
     .attr('stroke', (item) => (item.id === props.selectedNodeId ? '#111827' : '#ffffff'))
     .attr('stroke-width', (item) => (item.id === props.selectedNodeId ? 3 : 1.5));
 
   node
-    .append('text')
+    .select<SVGTextElement>('text')
     .text((item) => truncate(item.label))
     .attr('x', (item) => nodeRadius(item) + 6)
     .attr('y', 4)
     .attr('font-size', 11)
-    .attr('fill', '#111827')
-    .style('pointer-events', 'none');
+    .attr('fill', '#111827');
 
   node
-    .append('title')
+    .select<SVGTitleElement>('title')
     .text((item) => `${item.kind}: ${item.label}${item.subtitle ? `\n${item.subtitle}` : ''}`);
 
-  simulation.on('tick', () => {
+  updateSimulation(nodes, links, width, height, topologyChanged);
+
+  if (!nodes.length) {
+    simulation?.stop();
+  }
+
+  simulation?.on('tick', () => {
     link
       .attr('x1', (item) => (item.source as ForceNode).x ?? 0)
       .attr('y1', (item) => (item.source as ForceNode).y ?? 0)
@@ -294,11 +394,11 @@ const renderGraph = () => {
 
 watch(
   () => [props.nodes, props.edges, props.selectedNodeId, props.height],
-  () => renderGraph(),
+  () => updateGraph(),
   { deep: true },
 );
 
-onMounted(() => renderGraph());
+onMounted(() => updateGraph());
 
 onBeforeUnmount(() => {
   simulation?.stop();

@@ -42,6 +42,10 @@ export default defineConfig({
         },
       },
       '/system': backendUrl,
+      '^/events(/|$)': backendUrl,
+      '^/network(/|$)': backendUrl,
+      '^/tls-capture(/|$)': backendUrl,
+      '^/sandbox(/|$)': backendUrl,
     },
   },
 })
