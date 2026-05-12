@@ -292,6 +292,37 @@ export interface MLAutoTuneResponse {
   best: MLAutoTuneCell | null;
 }
 
+export type MLAutoTuneMode = 'params' | 'models';
+
+export interface MLModelTuneCandidate {
+  modelType: string;
+  label: string;
+  base: string;
+  recommended?: boolean;
+  hyperParams: { numTrees?: number; maxDepth?: number; minSamplesLeaf?: number };
+  trainAccuracy: number;
+  validationAccuracy: number;
+  inferenceThroughput: number;
+  inferenceMsPerSample: number;
+  trainDuration: number;
+  evalDuration: number;
+  score: number;
+  sampleCount: number;
+  validationCount: number;
+  paramTune?: MLAutoTuneResponse | null;
+  applied?: boolean;
+  error?: string;
+}
+
+export interface MLModelTuneResponse {
+  metric: MLAutoTuneMetric;
+  sampleCount: number;
+  validationCount: number;
+  totalDuration: number;
+  candidates: MLModelTuneCandidate[];
+  best: MLModelTuneCandidate | null;
+}
+
 export interface SampleEntry {
   index: number;
   commandLine?: string;

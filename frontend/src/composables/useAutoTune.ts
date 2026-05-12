@@ -3,11 +3,14 @@ import axios from 'axios';
 import { message } from 'ant-design-vue';
 import type { ApexChartEventOpts, ApexOptions } from 'apexcharts';
 import type {
-  MLAutoTuneAxis, MLAutoTuneCell, MLAutoTuneGranularity, MLAutoTuneMetric, MLAutoTuneResponse,
+  MLBuiltinModelCatalogItem,
+  MLAutoTuneAxis, MLAutoTuneCell, MLAutoTuneGranularity, MLAutoTuneMetric, MLAutoTuneMode, MLAutoTuneResponse,
+  MLModelTuneCandidate, MLModelTuneResponse,
 } from '../types/config';
 
 export interface AutoTuneDeps {
   modelType: Ref<string>;
+  builtinModelCatalog: Ref<MLBuiltinModelCatalogItem[]>;
   modelBaseType?: Ref<string>;
   mlTrainingConfig: Ref<{ validationSplitRatio: number }>;
   hyperParams: Ref<{ numTrees: number; maxDepth: number; minSamplesLeaf: number }>;
@@ -17,8 +20,22 @@ export interface AutoTuneDeps {
 }
 
 export function useAutoTune(deps: AutoTuneDeps) {
-  const { modelType, modelBaseType, mlTrainingConfig, hyperParams, wsActive, fetchMLStatus, applyMLStatusResponse } = deps;
+  const { modelType, builtinModelCatalog, modelBaseType, mlTrainingConfig, hyperParams, wsActive, fetchMLStatus, applyMLStatusResponse } = deps;
   const activeModelType = computed(() => modelBaseType?.value || modelType.value);
+
+  const autoTuneMode = ref<MLAutoTuneMode>('params');
+  const modelTuneSelectedTypes = ref<string[]>([]);
+  const modelTuneParamSearch = ref(false);
+  const modelTuneApplyBest = ref(false);
+  const modelTuneResponse = ref<MLModelTuneResponse | null>(null);
+  const modelTuneBest = computed<MLModelTuneCandidate | null>(() => modelTuneResponse.value?.best || null);
+  const modelTuneRecommendedTypes = computed(() => builtinModelCatalog.value.filter((item) => item.recommended).map((item) => item.value));
+
+  watch(modelTuneRecommendedTypes, (recommended) => {
+    if (modelTuneSelectedTypes.value.length === 0) {
+      modelTuneSelectedTypes.value = recommended.slice();
+    }
+  }, { immediate: true });
 
   const autoTuneXAxis = ref<MLAutoTuneAxis>('numTrees');
   const autoTuneYAxis = ref<MLAutoTuneAxis>('maxDepth');
@@ -55,6 +72,11 @@ export function useAutoTune(deps: AutoTuneDeps) {
     autoTuneMessage.value = data.autoTuneMessage ?? data.auto_tune_message ?? autoTuneMessage.value ?? '';
     autoTuneError.value = data.autoTuneError ?? data.auto_tune_error ?? '';
 
+    const mode = data.autoTuneMode ?? data.auto_tune_mode ?? autoTuneMode.value;
+    if (mode === 'params' || mode === 'models') {
+      autoTuneMode.value = mode;
+    }
+
     const autoTuneResult = data.autoTuneResult ?? data.auto_tune_result ?? null;
     if (autoTuneResult) {
       autoTuneResponse.value = autoTuneResult;
@@ -63,6 +85,17 @@ export function useAutoTune(deps: AutoTuneDeps) {
         hyperParams.value.numTrees = autoTuneSelectedCell.value.numTrees;
         hyperParams.value.maxDepth = autoTuneSelectedCell.value.maxDepth;
         hyperParams.value.minSamplesLeaf = autoTuneSelectedCell.value.minSamplesLeaf;
+      }
+    }
+
+    const modelTuneResult = data.modelTuneResult ?? data.model_tune_result ?? null;
+    if (modelTuneResult) {
+      modelTuneResponse.value = modelTuneResult;
+      if (modelTuneResult.best?.applied) {
+        modelType.value = modelTuneResult.best.modelType;
+        hyperParams.value.numTrees = modelTuneResult.best.hyperParams?.numTrees ?? hyperParams.value.numTrees;
+        hyperParams.value.maxDepth = modelTuneResult.best.hyperParams?.maxDepth ?? hyperParams.value.maxDepth;
+        hyperParams.value.minSamplesLeaf = modelTuneResult.best.hyperParams?.minSamplesLeaf ?? hyperParams.value.minSamplesLeaf;
       }
     }
   }
@@ -297,8 +330,16 @@ export function useAutoTune(deps: AutoTuneDeps) {
           return;
         }
         const result = res.data.autoTuneResult ?? res.data.auto_tune_result ?? null;
+        const modelResult = res.data.modelTuneResult ?? res.data.model_tune_result ?? null;
         const error = res.data.autoTuneError ?? res.data.auto_tune_error ?? '';
         const inProgress = res.data.autoTuneInProgress ?? res.data.auto_tune_in_progress ?? false;
+        if (modelResult) {
+          modelTuneResponse.value = modelResult;
+          autoTuneLoading.value = false;
+          stopAutoTunePolling();
+          message.success(`模型调优完成：${modelResult.candidates?.length ?? 0} 个候选，最佳 ${modelResult.best?.label || modelResult.best?.modelType || '—'}`);
+          return;
+        }
         if (result) {
           autoTuneResponse.value = result;
           autoTuneSelectedCell.value = result.best || result.cells?.[0] || null;
@@ -330,12 +371,98 @@ export function useAutoTune(deps: AutoTuneDeps) {
     }, 900);
   };
 
+  const runModelTune = async () => {
+    const selected = modelTuneSelectedTypes.value.length > 0 ? modelTuneSelectedTypes.value : modelTuneRecommendedTypes.value;
+    if (selected.length === 0) {
+      message.warning('请至少选择一个候选模型');
+      return;
+    }
+    autoTuneLoading.value = true;
+    autoTuneMode.value = 'models';
+    modelTuneResponse.value = null;
+    autoTuneError.value = '';
+    autoTuneProgress.value = 0;
+    autoTuneCompleted.value = 0;
+    autoTuneTotal.value = selected.length;
+    autoTuneMessage.value = '正在启动跨模型调优...';
+    try {
+      const payload: Record<string, any> = {
+        modelTypes: selected,
+        metric: autoTuneMetric.value,
+        validationSplitRatio: mlTrainingConfig.value.validationSplitRatio,
+        tuneParams: modelTuneParamSearch.value,
+        applyBest: modelTuneApplyBest.value,
+        xAxis: autoTuneXAxis.value,
+        yAxis: autoTuneYAxis.value,
+        gridSize: autoTuneGridSize.value,
+        granularity: autoTuneGranularity.value,
+      };
+      if (autoTuneMinX.value != null) payload.minX = autoTuneMinX.value;
+      if (autoTuneMaxX.value != null) payload.maxX = autoTuneMaxX.value;
+      if (autoTuneMinY.value != null) payload.minY = autoTuneMinY.value;
+      if (autoTuneMaxY.value != null) payload.maxY = autoTuneMaxY.value;
+      const res = await axios.post('/config/ml/tune-models', payload);
+      autoTuneJobId.value = res.data.jobId || '';
+      if (res.data.started) {
+        autoTuneInProgress.value = true;
+        autoTuneMessage.value = res.data.message || '跨模型调优已启动';
+        startAutoTunePolling(autoTuneJobId.value);
+        message.success(`已启动 ${selected.length} 个候选模型调优`);
+      } else {
+        autoTuneLoading.value = false;
+        autoTuneMessage.value = '';
+        message.warning('跨模型调优没有启动');
+      }
+    } catch (e: any) {
+      message.error(e.response?.data?.error || '跨模型调优失败');
+      autoTuneLoading.value = false;
+      autoTuneInProgress.value = false;
+      autoTuneMessage.value = '';
+      stopAutoTunePolling();
+    } finally {
+      void fetchMLStatus();
+    }
+  };
+
+  const applyModelTuneBest = async () => {
+    const best = modelTuneBest.value;
+    if (!best) {
+      message.warning('请先运行跨模型调优');
+      return;
+    }
+    try {
+      await axios.put('/config/runtime', {
+        mlConfig: {
+          enabled: true,
+          modelType: best.modelType,
+          numTrees: best.hyperParams?.numTrees,
+          maxDepth: best.hyperParams?.maxDepth,
+          minSamplesLeaf: best.hyperParams?.minSamplesLeaf,
+          validationSplitRatio: mlTrainingConfig.value.validationSplitRatio,
+        },
+      });
+      modelType.value = best.modelType;
+      hyperParams.value.numTrees = best.hyperParams?.numTrees ?? hyperParams.value.numTrees;
+      hyperParams.value.maxDepth = best.hyperParams?.maxDepth ?? hyperParams.value.maxDepth;
+      hyperParams.value.minSamplesLeaf = best.hyperParams?.minSamplesLeaf ?? hyperParams.value.minSamplesLeaf;
+      message.success('已应用最佳模型配置');
+      await fetchMLStatus();
+    } catch (e: any) {
+      message.error(e.response?.data?.error || '应用最佳模型失败');
+    }
+  };
+
   const runAutoTune = async () => {
+    if (autoTuneMode.value === 'models') {
+      await runModelTune();
+      return;
+    }
     if (autoTuneXAxis.value === autoTuneYAxis.value) {
       message.warning('X 轴和 Y 轴不能相同');
       return;
     }
     autoTuneLoading.value = true;
+    autoTuneMode.value = 'params';
     autoTuneResponse.value = null;
     autoTuneSelectedCell.value = null;
     autoTuneError.value = '';
@@ -393,6 +520,8 @@ export function useAutoTune(deps: AutoTuneDeps) {
   };
 
   return {
+    autoTuneMode,
+    modelTuneSelectedTypes, modelTuneParamSearch, modelTuneApplyBest, modelTuneResponse, modelTuneBest, modelTuneRecommendedTypes,
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
     autoTuneMinX, autoTuneMaxX, autoTuneMinY, autoTuneMaxY,
     autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal,
@@ -401,6 +530,6 @@ export function useAutoTune(deps: AutoTuneDeps) {
     autoTuneAxisOptions, autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat,
     autoTuneGranularityLabel, autoTuneScore, autoTuneHeatmapOptions, autoTuneHeatmapSeries,
     autoTuneBestCell,
-    runAutoTune, applyAutoTuneCell, applyAutoTuneStatus, stopAutoTunePolling,
+    runAutoTune, runModelTune, applyModelTuneBest, applyAutoTuneCell, applyAutoTuneStatus, stopAutoTunePolling,
   };
 }

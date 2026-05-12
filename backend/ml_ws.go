@@ -56,6 +56,7 @@ func buildMLStatusJSON() []byte {
 		"validationSplitRatio": validationRatio,
 		"llmReview":            globalTrainer.LastLLMReview(),
 		"autoTuneJobId":        autoTuneState.JobID,
+		"autoTuneMode":         autoTuneState.Mode,
 		"autoTuneInProgress":   autoTuneState.Running,
 		"autoTuneProgress":     autoTuneState.Progress,
 		"autoTuneCompleted":    autoTuneState.Completed,
@@ -63,6 +64,7 @@ func buildMLStatusJSON() []byte {
 		"autoTuneMessage":      autoTuneState.Message,
 		"autoTuneError":        autoTuneState.Error,
 		"autoTuneResult":       autoTuneState.Result,
+		"modelTuneResult":      autoTuneState.ModelResult,
 		"mlConfig": map[string]interface{}{
 			"modelType":            string(cfg.ModelType),
 			"validationSplitRatio": cfg.ValidationSplitRatio,

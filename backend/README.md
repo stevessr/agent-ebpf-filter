@@ -205,6 +205,7 @@ Config routes:
 - `/config/access-token`
 - `/config/hooks`
 - `/config/hooks/:id/raw`
+- `/config/ml/tune` and `/config/ml/tune-models` — run parameter-grid tuning for the current model or cross-model tuning over selected built-in profiles, with progress surfaced through `/config/ml/status`
 - `/config/ml/existing-commands`, `/config/ml/import-existing`, `/config/ml/assess`
 - `/config/ml/llm/production-dataset/pull` — pull a cleaned OpenAI chat-style JSONL preview from the current training store for LLM fine-tuning
 - `/config/ml/datasets/pull`, `/config/ml/datasets/import`, `/config/ml/datasets/export`, `DELETE /config/ml/datasets`

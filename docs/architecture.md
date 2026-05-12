@@ -97,6 +97,7 @@ Responsibilities:
 - host HTTP + WebSocket API
 - manage tags, tracked commands, tracked paths, wrapper rules
 - receive native AI CLI hook callbacks
+- train and tune local ML policy models, including parameter-grid tuning and cross-model selection over built-in profiles
 - expose PTY shell sessions
 - enforce wrapper policy over Unix socket
 

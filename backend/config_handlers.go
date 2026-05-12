@@ -802,6 +802,7 @@ func registerConfigRoutes(rg *gin.RouterGroup) {
 		ml.POST("/train", handleMLTrainPost)
 		ml.POST("/train/cancel", handleMLTrainCancelPost)
 		ml.POST("/tune", handleMLTunePost)
+		ml.POST("/tune-models", handleMLTuneModelsPost)
 		ml.POST("/feedback", handleMLFeedbackPost)
 		ml.GET("/samples", handleMLSamplesGet)
 		ml.POST("/samples", handleMLSamplesPost)

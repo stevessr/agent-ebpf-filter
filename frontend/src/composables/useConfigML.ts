@@ -230,15 +230,17 @@ export function useConfigML() {
   };
 
   // ── Auto-Tune ──
-  const _atDeps: AutoTuneDeps = { modelType, modelBaseType, mlTrainingConfig, hyperParams, wsActive, fetchMLStatus, applyMLStatusResponse };
+  const _atDeps: AutoTuneDeps = { modelType, builtinModelCatalog, modelBaseType, mlTrainingConfig, hyperParams, wsActive, fetchMLStatus, applyMLStatusResponse };
   const {
+    autoTuneMode,
+    modelTuneSelectedTypes, modelTuneParamSearch, modelTuneApplyBest, modelTuneResponse, modelTuneBest, modelTuneRecommendedTypes,
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
     autoTuneMinX, autoTuneMaxX, autoTuneMinY, autoTuneMaxY,
     autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError, autoTuneJobId,
     autoTuneResponse, autoTuneSelectedCell,
     autoTuneAxisOptions, autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat,
     autoTuneGranularityLabel, autoTuneScore, autoTuneHeatmapOptions, autoTuneHeatmapSeries, autoTuneBestCell,
-    runAutoTune, applyAutoTuneCell, applyAutoTuneStatus, stopAutoTunePolling,
+    runAutoTune, runModelTune, applyModelTuneBest, applyAutoTuneCell, applyAutoTuneStatus, stopAutoTunePolling,
   } = useAutoTune(_atDeps);
 
   const fetchTrainingHistory = async () => {
@@ -930,6 +932,8 @@ export function useConfigML() {
     llmSaveStatus, saveLLMConfigNow,
     modelType, builtinModelCatalog, selectedBuiltinModel, modelBaseType, autoTuneAxisOptions, cudaAvailable, cudaInfo, cudaMemUsedMB, cudaMemTotalMB, mlCRuntime, cancelTraining, cancellingTraining,
     trainingHistory, hyperParams,
+    autoTuneMode,
+    modelTuneSelectedTypes, modelTuneParamSearch, modelTuneApplyBest, modelTuneResponse, modelTuneBest, modelTuneRecommendedTypes,
     autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
     autoTuneMinX, autoTuneMaxX, autoTuneMinY, autoTuneMaxY,
     autoTuneLoading, autoTuneInProgress, autoTuneProgress, autoTuneCompleted, autoTuneTotal, autoTuneMessage, autoTuneError, autoTuneJobId,
@@ -937,7 +941,7 @@ export function useConfigML() {
     autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat,
     autoTuneGranularityLabel,
     autoTuneScore, autoTuneHeatmapOptions, autoTuneHeatmapSeries, autoTuneBestCell,
-    runAutoTune, applyAutoTuneCell,
+    runAutoTune, runModelTune, applyModelTuneBest, applyAutoTuneCell,
     allSamples, loadingSamples, sampleTablePageSize, sampleSearchText,
     existingDataLimit, existingLabelMode, existingCommandCandidates,
     loadingExistingData, importingExistingData, existingDataSource,

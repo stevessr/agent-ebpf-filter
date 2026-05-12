@@ -378,6 +378,7 @@ Protected by the same release-mode access token:
 - `/config/hooks`
 - `/config/hooks/:id/raw`
 - `/config/ml/tune` — start square-grid auto parameter tuning over the current ML hyperparameters and stream progress/state via `/config/ml/status`; the result payload includes heatmap-ready scores for validation accuracy or inference throughput
+- `/config/ml/tune-models` — start cross-model auto tuning over selected built-in model profiles, compare validation accuracy or inference throughput, and optionally apply/save the best model configuration
 - `/config/ml/existing-commands`, `/config/ml/import-existing`, `/config/ml/assess` — pull historical wrapper/hook command data into ML samples and run command safety assessment
 - `/config/ml/datasets/pull`, `/config/ml/datasets/import`, `/config/ml/datasets/export`, `DELETE /config/ml/datasets` — fetch remote HTTP/HTTPS raw datasets or local file content, preview them, import them into the ML training store, export the current training set, or clear it in one step; archives are auto-expanded recursively for common zip / tar / gzip / bzip2 / xz payloads
 - the Configuration UI also includes a curated classic OS-security dataset catalog for GTFOBins, LOLBAS, Claude Code Safety Net, ADFA, CERT Insider Threat, LANL host/network, and DARPA IDS references; it also exposes synthetic expansion presets and batch import of downloadable internet datasets, while archival pages still need you to download or extract the actual data files first

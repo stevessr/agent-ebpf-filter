@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,32 +60,85 @@ type MLAutoTuneResponse struct {
 	Best            *MLAutoTuneCell  `json:"best,omitempty"`
 }
 
+type MLModelTuneRequest struct {
+	ModelTypes           []string `json:"modelTypes"`
+	Metric               string   `json:"metric"`
+	ValidationSplitRatio float64  `json:"validationSplitRatio"`
+	TuneParams           bool     `json:"tuneParams"`
+	ApplyBest            bool     `json:"applyBest"`
+	XAxis                string   `json:"xAxis"`
+	YAxis                string   `json:"yAxis"`
+	GridSize             int      `json:"gridSize"`
+	Granularity          float64  `json:"granularity"`
+	MinX                 *int     `json:"minX,omitempty"`
+	MaxX                 *int     `json:"maxX,omitempty"`
+	MinY                 *int     `json:"minY,omitempty"`
+	MaxY                 *int     `json:"maxY,omitempty"`
+}
+
+type MLModelTuneCandidate struct {
+	ModelType            string              `json:"modelType"`
+	Label                string              `json:"label"`
+	Base                 string              `json:"base"`
+	Recommended          bool                `json:"recommended,omitempty"`
+	HyperParams          map[string]int      `json:"hyperParams"`
+	TrainAccuracy        float64             `json:"trainAccuracy"`
+	ValidationAccuracy   float64             `json:"validationAccuracy"`
+	InferenceThroughput  float64             `json:"inferenceThroughput"`
+	InferenceMsPerSample float64             `json:"inferenceMsPerSample"`
+	TrainDuration        float64             `json:"trainDuration"`
+	EvalDuration         float64             `json:"evalDuration"`
+	Score                float64             `json:"score"`
+	SampleCount          int                 `json:"sampleCount"`
+	ValidationCount      int                 `json:"validationCount"`
+	ParamTune            *MLAutoTuneResponse `json:"paramTune,omitempty"`
+	Applied              bool                `json:"applied,omitempty"`
+	Error                string              `json:"error,omitempty"`
+}
+
+type MLModelTuneResponse struct {
+	Metric          string                 `json:"metric"`
+	SampleCount     int                    `json:"sampleCount"`
+	ValidationCount int                    `json:"validationCount"`
+	TotalDuration   float64                `json:"totalDuration"`
+	Candidates      []MLModelTuneCandidate `json:"candidates"`
+	Best            *MLModelTuneCandidate  `json:"best,omitempty"`
+}
+
 type MLAutoTuneState struct {
-	JobID      string              `json:"jobId"`
-	Running    bool                `json:"running"`
-	Progress   float64             `json:"progress"`
-	Completed  int                 `json:"completed"`
-	Total      int                 `json:"total"`
-	Message    string              `json:"message,omitempty"`
-	Error      string              `json:"error,omitempty"`
-	StartedAt  string              `json:"startedAt,omitempty"`
-	FinishedAt string              `json:"finishedAt,omitempty"`
-	Result     *MLAutoTuneResponse `json:"result,omitempty"`
+	JobID       string               `json:"jobId"`
+	Mode        string               `json:"mode,omitempty"`
+	Running     bool                 `json:"running"`
+	Progress    float64              `json:"progress"`
+	Completed   int                  `json:"completed"`
+	Total       int                  `json:"total"`
+	Message     string               `json:"message,omitempty"`
+	Error       string               `json:"error,omitempty"`
+	StartedAt   string               `json:"startedAt,omitempty"`
+	FinishedAt  string               `json:"finishedAt,omitempty"`
+	Result      *MLAutoTuneResponse  `json:"result,omitempty"`
+	ModelResult *MLModelTuneResponse `json:"modelResult,omitempty"`
 }
 
 type autoTuneRuntime struct {
-	mu     sync.RWMutex
-	state  MLAutoTuneState
-	result *MLAutoTuneResponse
+	mu          sync.RWMutex
+	state       MLAutoTuneState
+	result      *MLAutoTuneResponse
+	modelResult *MLModelTuneResponse
 }
 
 var globalAutoTuneState = &autoTuneRuntime{}
 
 func (s *autoTuneRuntime) begin(jobID string, total int, message string) {
+	s.beginMode(jobID, "params", total, message)
+}
+
+func (s *autoTuneRuntime) beginMode(jobID, mode string, total int, message string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state = MLAutoTuneState{
 		JobID:     jobID,
+		Mode:      mode,
 		Running:   true,
 		Progress:  0,
 		Completed: 0,
@@ -93,9 +147,14 @@ func (s *autoTuneRuntime) begin(jobID string, total int, message string) {
 		StartedAt: time.Now().Format(time.RFC3339),
 	}
 	s.result = nil
+	s.modelResult = nil
 }
 
 func (s *autoTuneRuntime) tryBegin(jobID string, total int, message string) bool {
+	return s.tryBeginMode(jobID, "params", total, message)
+}
+
+func (s *autoTuneRuntime) tryBeginMode(jobID, mode string, total int, message string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.state.Running {
@@ -103,6 +162,7 @@ func (s *autoTuneRuntime) tryBegin(jobID string, total int, message string) bool
 	}
 	s.state = MLAutoTuneState{
 		JobID:     jobID,
+		Mode:      mode,
 		Running:   true,
 		Progress:  0,
 		Completed: 0,
@@ -111,6 +171,7 @@ func (s *autoTuneRuntime) tryBegin(jobID string, total int, message string) bool
 		StartedAt: time.Now().Format(time.RFC3339),
 	}
 	s.result = nil
+	s.modelResult = nil
 	return true
 }
 
@@ -138,7 +199,11 @@ func (s *autoTuneRuntime) setError(jobID string, errMsg string) {
 	defer s.mu.Unlock()
 	s.state.Running = false
 	s.state.Error = errMsg
-	s.state.Message = "调优失败"
+	if s.state.Mode == "models" {
+		s.state.Message = "模型调优失败"
+	} else {
+		s.state.Message = "调优失败"
+	}
 }
 
 func autoTuneBestScore(resp *MLAutoTuneResponse) float64 {
@@ -163,6 +228,7 @@ func (s *autoTuneRuntime) finish(jobID string, result *MLAutoTuneResponse, err e
 		s.state.Result = nil
 		return
 	}
+	s.state.Mode = "params"
 	s.state.Progress = 1
 	if result != nil {
 		s.result = result
@@ -174,12 +240,42 @@ func (s *autoTuneRuntime) finish(jobID string, result *MLAutoTuneResponse, err e
 	}
 }
 
+func (s *autoTuneRuntime) finishModelTune(jobID string, result *MLModelTuneResponse, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if jobID != "" && s.state.JobID != "" && s.state.JobID != jobID {
+		return
+	}
+	s.state.Mode = "models"
+	s.state.Running = false
+	s.state.FinishedAt = time.Now().Format(time.RFC3339)
+	if err != nil {
+		s.state.Error = err.Error()
+		s.state.Message = "模型调优失败"
+		s.modelResult = nil
+		s.state.ModelResult = nil
+		return
+	}
+	s.state.Progress = 1
+	if result != nil {
+		s.modelResult = result
+		s.state.ModelResult = result
+	}
+	s.state.Error = ""
+	if s.state.Message == "" {
+		s.state.Message = "模型调优完成"
+	}
+}
+
 func (s *autoTuneRuntime) snapshot() MLAutoTuneState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	state := s.state
 	if s.result != nil {
 		state.Result = s.result
+	}
+	if s.modelResult != nil {
+		state.ModelResult = s.modelResult
 	}
 	return state
 }
@@ -243,6 +339,301 @@ func handleMLTunePost(c *gin.Context) {
 		"started": true,
 		"message": "自动调参已开始",
 	})
+}
+
+func handleMLTuneModelsPost(c *gin.Context) {
+	if !mlEnabled {
+		c.JSON(400, gin.H{"error": "ML engine is not enabled on this node"})
+		return
+	}
+	if globalTrainingStore == nil {
+		c.JSON(400, gin.H{"error": "ML training store not initialized"})
+		return
+	}
+
+	var req MLModelTuneRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "invalid request"})
+		return
+	}
+
+	if globalAutoTuneState.snapshot().Running {
+		c.JSON(409, gin.H{"error": "auto tuning already in progress"})
+		return
+	}
+	if globalTrainer.isRunning {
+		c.JSON(409, gin.H{"error": "training already in progress"})
+		return
+	}
+
+	modelTypes := normalizeModelTuneTypes(req.ModelTypes)
+	if len(modelTypes) == 0 {
+		c.JSON(400, gin.H{"error": "no valid model types selected"})
+		return
+	}
+
+	jobID := fmt.Sprintf("tune-models-%d", time.Now().UnixNano())
+	if !globalAutoTuneState.tryBeginMode(jobID, "models", len(modelTypes), "模型调优任务已接收") {
+		c.JSON(409, gin.H{"error": "auto tuning already in progress"})
+		return
+	}
+
+	go func(jobID string, req MLModelTuneRequest, modelTypes []ModelType) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[ML] Model auto-tune panic: %v", r)
+				globalAutoTuneState.setError(jobID, fmt.Sprintf("panic: %v", r))
+			}
+		}()
+		resp, err := runModelAutoTune(globalTrainingStore, req, modelTypes, func(completed, total int, message string) {
+			globalAutoTuneState.update(jobID, completed, total, message)
+		})
+		if err != nil {
+			log.Printf("[ML] Model auto-tune error: %v", err)
+		} else {
+			best := ""
+			if resp.Best != nil {
+				best = resp.Best.ModelType
+			}
+			log.Printf("[ML] Model auto-tune done: %d candidates, best=%s", len(resp.Candidates), best)
+		}
+		globalAutoTuneState.finishModelTune(jobID, resp, err)
+	}(jobID, req, modelTypes)
+
+	c.JSON(202, gin.H{
+		"jobId":   jobID,
+		"started": true,
+		"mode":    "models",
+		"message": "模型调优已开始",
+	})
+}
+
+func normalizeModelTuneTypes(raw []string) []ModelType {
+	seen := make(map[ModelType]bool)
+	out := make([]ModelType, 0, len(raw))
+	add := func(t ModelType) {
+		if t == "" || seen[t] {
+			return
+		}
+		if _, ok := modelRegistry[t]; !ok {
+			return
+		}
+		seen[t] = true
+		out = append(out, t)
+	}
+	for _, value := range raw {
+		add(ModelType(strings.TrimSpace(value)))
+	}
+	if len(out) == 0 {
+		for _, item := range BuiltinModelCatalog() {
+			if item.Recommended {
+				add(ModelType(item.Value))
+			}
+		}
+	}
+	if len(out) == 0 {
+		add(ModelRandomForest)
+	}
+	return out
+}
+
+func modelTuneCatalogInfo(t ModelType) (label, base string, recommended bool) {
+	for _, item := range BuiltinModelCatalog() {
+		if item.Value == string(t) {
+			return item.Label, item.Base, item.Recommended
+		}
+	}
+	return modelName(t), string(baseModelType(t)), false
+}
+
+func runModelAutoTune(store *TrainingDataStore, req MLModelTuneRequest, modelTypes []ModelType, progressCb func(completed, total int, message string)) (*MLModelTuneResponse, error) {
+	labeled := store.LabeledSamples()
+	if len(labeled) < 2 {
+		return nil, errors.New("need at least 2 labeled samples for model tuning")
+	}
+	metric := normalizeAutoTuneMetric(req.Metric)
+	if metric == "" {
+		metric = "validationAccuracy"
+	}
+	validationRatio := req.ValidationSplitRatio
+	if validationRatio <= 0 || validationRatio >= 0.5 {
+		validationRatio = currentMLConfig().ValidationSplitRatio
+	}
+	if validationRatio <= 0 || validationRatio >= 0.5 {
+		validationRatio = 0.20
+	}
+
+	start := time.Now()
+	candidates := make([]MLModelTuneCandidate, 0, len(modelTypes))
+	var best *MLModelTuneCandidate
+	var bestModel Model
+	bestScore := math.Inf(-1)
+	benchmarkSamples := selectBenchmarkSamples(labeled, 64)
+	baseCfg := currentMLConfig()
+
+	if progressCb != nil {
+		progressCb(0, len(modelTypes), "开始跨模型自动调优")
+	}
+
+	for i, modelType := range modelTypes {
+		if globalTrainer.IsCancelled() {
+			return nil, errors.New("cancelled")
+		}
+		label, base, recommended := modelTuneCatalogInfo(modelType)
+		cfg := baseCfg
+		cfg.ModelType = modelType
+		cfg.ValidationSplitRatio = validationRatio
+		effectiveCfg := applyBuiltinModelPreset(cfg)
+		candidate := MLModelTuneCandidate{
+			ModelType:   string(modelType),
+			Label:       label,
+			Base:        base,
+			Recommended: recommended,
+			HyperParams: map[string]int{
+				"numTrees":       effectiveCfg.NumTrees,
+				"maxDepth":       effectiveCfg.MaxDepth,
+				"minSamplesLeaf": effectiveCfg.MinSamplesLeaf,
+			},
+			SampleCount: len(labeled),
+		}
+		if progressCb != nil {
+			progressCb(i, len(modelTypes), fmt.Sprintf("训练 %s", label))
+		}
+
+		trainStart := time.Now()
+		model, result := globalTrainer.TrainWithConfig(store, cfg)
+		candidate.TrainDuration = time.Since(trainStart).Seconds()
+		if result.Error != "" {
+			candidate.Error = result.Error
+			candidates = append(candidates, candidate)
+			if progressCb != nil {
+				progressCb(i+1, len(modelTypes), fmt.Sprintf("跳过 %s: %s", label, result.Error))
+			}
+			continue
+		}
+
+		candidate.TrainAccuracy = result.TrainAccuracy
+		candidate.ValidationAccuracy = result.ValidationAccuracy
+		candidate.ValidationCount = result.ValidationSamples
+		if candidate.ValidationCount == 0 {
+			candidate.ValidationCount = len(globalTrainer.LastValidationSamples())
+		}
+
+		if req.TuneParams {
+			paramReq := MLAutoTuneRequest{
+				XAxis:                req.XAxis,
+				YAxis:                req.YAxis,
+				GridSize:             req.GridSize,
+				Granularity:          req.Granularity,
+				Metric:               metric,
+				ValidationSplitRatio: validationRatio,
+				MinX:                 req.MinX,
+				MaxX:                 req.MaxX,
+				MinY:                 req.MinY,
+				MaxY:                 req.MaxY,
+			}
+			origConfig, origType := mlConfig, currentModelType
+			mlConfig = cfg
+			currentModelType = modelType
+			paramResp, err := globalTrainer.AutoTune(store, paramReq, nil)
+			mlConfig, currentModelType = origConfig, origType
+			if err == nil && paramResp != nil && paramResp.Best != nil {
+				candidate.ParamTune = paramResp
+				cfg.NumTrees = paramResp.Best.NumTrees
+				cfg.MaxDepth = paramResp.Best.MaxDepth
+				cfg.MinSamplesLeaf = paramResp.Best.MinSamplesLeaf
+				candidate.HyperParams["numTrees"] = cfg.NumTrees
+				candidate.HyperParams["maxDepth"] = cfg.MaxDepth
+				candidate.HyperParams["minSamplesLeaf"] = cfg.MinSamplesLeaf
+				trainStart = time.Now()
+				model, result = globalTrainer.TrainWithConfig(store, cfg)
+				candidate.TrainDuration += time.Since(trainStart).Seconds()
+				if result.Error == "" {
+					candidate.TrainAccuracy = result.TrainAccuracy
+					candidate.ValidationAccuracy = result.ValidationAccuracy
+					candidate.ValidationCount = result.ValidationSamples
+				} else {
+					candidate.Error = result.Error
+				}
+			}
+		}
+
+		evalDuration, throughput, latencyMs, _ := benchmarkModelInference(model, benchmarkSamples)
+		candidate.EvalDuration = evalDuration
+		candidate.InferenceThroughput = throughput
+		candidate.InferenceMsPerSample = latencyMs
+		candidate.Score = candidate.ValidationAccuracy
+		if metric == "inferenceThroughput" {
+			candidate.Score = candidate.InferenceThroughput
+		}
+		candidates = append(candidates, candidate)
+		if candidate.Error == "" && candidate.Score > bestScore {
+			copyCandidate := candidate
+			best = &copyCandidate
+			bestModel = model
+			bestScore = candidate.Score
+		}
+		globalTrainer.logf("模型调优: %s 验证准确率 %.1f%% 推理 %.0f/s", label, candidate.ValidationAccuracy*100, candidate.InferenceThroughput)
+		if progressCb != nil {
+			progressCb(i+1, len(modelTypes), fmt.Sprintf("完成 %s (%d/%d)", label, i+1, len(modelTypes)))
+		}
+	}
+
+	if best == nil {
+		return &MLModelTuneResponse{Metric: metric, SampleCount: len(labeled), TotalDuration: time.Since(start).Seconds(), Candidates: candidates}, errors.New("no model candidate trained successfully")
+	}
+	if req.ApplyBest {
+		if err := applyModelTuneBest(*best, bestModel, validationRatio); err != nil {
+			return nil, err
+		}
+		best.Applied = true
+		for i := range candidates {
+			if candidates[i].ModelType == best.ModelType {
+				candidates[i].Applied = true
+			}
+		}
+	}
+
+	return &MLModelTuneResponse{
+		Metric:          metric,
+		SampleCount:     len(labeled),
+		ValidationCount: best.ValidationCount,
+		TotalDuration:   time.Since(start).Seconds(),
+		Candidates:      candidates,
+		Best:            best,
+	}, nil
+}
+
+func applyModelTuneBest(best MLModelTuneCandidate, model Model, validationRatio float64) error {
+	if model == nil {
+		return errors.New("best model is not available")
+	}
+	settings := runtimeSettingsStore.Snapshot()
+	settings.MLConfig.ModelType = ModelType(best.ModelType)
+	settings.MLConfig.ValidationSplitRatio = validationRatio
+	if v, ok := best.HyperParams["numTrees"]; ok && v > 0 {
+		settings.MLConfig.NumTrees = v
+	}
+	if v, ok := best.HyperParams["maxDepth"]; ok && v > 0 {
+		settings.MLConfig.MaxDepth = v
+	}
+	if v, ok := best.HyperParams["minSamplesLeaf"]; ok && v > 0 {
+		settings.MLConfig.MinSamplesLeaf = v
+	}
+	if _, err := runtimeSettingsStore.Replace(settings); err != nil {
+		return err
+	}
+	currentModelType = settings.MLConfig.ModelType
+	mlEngine = model
+	mlModelLoaded = true
+	modelPath := settings.MLConfig.ModelPath
+	if modelPath == "" {
+		modelPath = defaultMLModelPath()
+	}
+	if err := model.Serialize(modelPath); err != nil {
+		return fmt.Errorf("model selected but failed to save: %w", err)
+	}
+	return nil
 }
 
 func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest, progressCb func(completed, total int, message string)) (*MLAutoTuneResponse, error) {
