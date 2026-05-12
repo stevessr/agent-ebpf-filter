@@ -19,11 +19,36 @@ That means the current security posture depends heavily on:
 
 ## Control-plane protections already present
 
-- release-mode token auth for `/config/**`, `/system/**`, `/ws*`, `/metrics`, `/events/*`, `/register`, `/unregister`, and shell-session APIs
+- release-mode token auth for `/config/**`, `/system/**`, `/ws*`, `/metrics`, `/events/*`, `/sandbox/**`, `/register`, `/unregister`, and shell-session APIs
 - per-hook secret support for `/hooks/event`
 - PTY, `/system/run`, hook installation, and policy mutation disabled by default until explicitly enabled
 - `/tmp/agent-ebpf.sock` created with `0600`
 - peer credential verification on the UDS wrapper socket
+- OS-level cgroup/LSM policy maps pinned with restrictive `0600` permissions
+  and mutated through authenticated policy APIs rather than direct
+  unprivileged map writes
+
+## Kernel-enforced policy paths
+
+The backend currently owns two explicit OS-level enforcement paths:
+
+- cgroup/connect and cgroup/sendmsg blocking for exact cgroup ids, IPv4/IPv6 destinations, and
+  TCP/UDP destination ports. The decision happens in cgroup/connect4,
+  cgroup/connect6, cgroup/sendmsg4, and cgroup/sendmsg6 hooks before the
+  TCP/UDP connect, existing connected UDP send, or unconnected UDP sendmsg
+  completes. IPv4 block entries are also honored for IPv4-mapped IPv6 socket
+  destinations.
+- BPF LSM blocking for executable paths, executable basenames, and file or
+  directory basenames. The decision happens in `bprm_check_security`,
+  `file_open`, `file_permission`, `mmap_file`, `file_mprotect`, `inode_setattr`, `inode_create`, `inode_link`, `inode_symlink`, `inode_unlink`,
+  `inode_mkdir`, `inode_rmdir`, `inode_mknod`, and `inode_rename`, returning
+  `EACCES` for matches, including existing-fd `ftruncate` / `fchmod`
+  operations that flow through `inode_setattr`.
+
+Fresh boots start with empty OS-enforcement maps unless an earlier privileged
+run left pinned policy entries. These kernel decisions are deterministic map
+lookups; wrapper, hook, ML, or LLM policy can suggest entries but is not in the
+synchronous cgroup/LSM decision loop.
 
 ## Data-plane trust assumptions
 
@@ -39,7 +64,7 @@ The roadmap target is to split into:
   - load / attach eBPF
   - manage pinned maps and links
   - read ringbuf
-  - apply future cgroup / LSM policy
+  - own cgroup / LSM policy-map mutation and attach lifecycle
 - `agent-ebpf-server`
   - HTTP / WS / UI
   - storage / replay

@@ -33,6 +33,12 @@ rtk make backend
 rtk make wrapper
 rtk make frontend
 rtk make runtime-benchmark
+rtk make ebpf-cgroup
+rtk make ebpf-lsm
+rtk make os-enforcement-preflight
+rtk make os-enforcement-check
+rtk make os-enforcement-smoke
+rtk env OS_SMOKE_PRIVILEGE_CMD='sudo -E' make os-enforcement-smoke-start
 rtk make dev
 ```
 
@@ -51,6 +57,20 @@ rtk bash -lc 'cd backend/ebpf && go generate'
 rtk bash -lc 'cd backend && go build ./...'
 ```
 
+If you change `backend/ebpf/cgroup_sandbox.c`, regenerate/build:
+
+```bash
+rtk make ebpf-cgroup
+rtk bash -lc 'cd backend && go build ./...'
+```
+
+If you change `backend/ebpf/lsm_enforcer.c`, regenerate/build:
+
+```bash
+rtk make ebpf-lsm
+rtk bash -lc 'cd backend && go build ./...'
+```
+
 ## 4. Generated files
 
 Do not hand-edit generated artifacts unless the task explicitly requires it.
@@ -61,6 +81,14 @@ Generated / derived files include:
 - `backend/ebpf/agenttracker_bpfeb.go`
 - `backend/ebpf/agenttracker_bpfel.o`
 - `backend/ebpf/agenttracker_bpfeb.o`
+- `backend/ebpf/agentcgroupsandbox_bpfel.go`
+- `backend/ebpf/agentcgroupsandbox_bpfeb.go`
+- `backend/ebpf/agentcgroupsandbox_bpfel.o`
+- `backend/ebpf/agentcgroupsandbox_bpfeb.o`
+- `backend/ebpf/agentlsmenforcer_bpfel.go`
+- `backend/ebpf/agentlsmenforcer_bpfeb.go`
+- `backend/ebpf/agentlsmenforcer_bpfel.o`
+- `backend/ebpf/agentlsmenforcer_bpfeb.o`
 - `backend/pb/tracker.pb.go`
 - `adapters/python/tracker_pb2.py`
 - `adapters/js/tracker_pb.js`
@@ -77,6 +105,21 @@ Repo-root binaries such as `agent-wrapper` and `backend/agent-ebpf-filter` are b
 - eBPF maps and links are pinned under:
   - `/sys/fs/bpf/agent-ebpf/maps`
   - `/sys/fs/bpf/agent-ebpf/links`
+- cgroup/connect + UDP sendmsg OS-level network blocking pins under:
+  - `/sys/fs/bpf/agent-ebpf/cgroup_sandbox/maps`
+  - `/sys/fs/bpf/agent-ebpf/cgroup_sandbox/links`
+- PID-based cgroup sandbox actions resolve the PID's cgroup v2 inode id and
+  then write the same `cgroup_blocklist` map.
+- Destination blocking uses exact `ip_blocklist` (IPv4), `ip6_blocklist`
+  (IPv6), and TCP/UDP `port_blocklist` maps; do not describe it as CIDR/range based.
+- BPF LSM exec/open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename blocking pins under:
+  - `/sys/fs/bpf/agent-ebpf/lsm_enforcer/maps`
+  - `/sys/fs/bpf/agent-ebpf/lsm_enforcer/links`
+- BPF LSM file-name policy is basename-based and applies to `file_open`, `file_permission`, `mmap_file`, `file_mprotect`, `inode_setattr`,
+  `inode_create`, `inode_link`, `inode_symlink`, `inode_unlink`, `inode_mkdir`, `inode_rmdir`, `inode_mknod`, and `inode_rename`; executable policy applies to
+  `bprm_check_security` by exact path or executable basename.
+- OS-level cgroup/LSM policy maps should remain restrictive (`0600`) and be
+  mutated through authenticated backend APIs, not direct unprivileged map writes.
 - Wrapper control uses the Unix socket:
   - `/tmp/agent-ebpf.sock`
 
@@ -106,6 +149,7 @@ Avoid describing path tracking as recursive or policy-tree based unless you also
   - `/shell-sessions*`
   - `/events/recent`
   - `/events/graph`
+  - `/sandbox/**`
 - Dev mode disables auth by default.
 - `/hooks/event` accepts either the normal access token or a per-hook secret via `X-Agent-Hook-Secret`.
 - Shell sessions, `/system/run`, hook installation / raw hook writes, and policy mutations are runtime-gated and default to disabled until explicitly enabled in `/config/runtime`.

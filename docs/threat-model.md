@@ -39,11 +39,34 @@ The security plane should answer four questions for each run:
 - semantic mismatch between declared tool intent and observed OS behavior
 - wrapper / hook / eBPF fact correlation
 
+## Current OS-level enforcement focus
+
+The repo now has two deterministic kernel-enforced deny paths in addition to
+wrapper and hook decisions:
+
+- cgroup/connect and cgroup/sendmsg programs can reject matching outbound TCP
+  connects, UDP connected-socket connects, existing connected UDP sends, and
+  unconnected UDP sendto/sendmsg for explicit cgroup ids, IPv4/IPv6
+  destinations, IPv4-mapped IPv6 destinations, or destination ports before the
+  kernel operation completes.
+- BPF LSM programs can reject explicit executable paths / executable basenames
+  and file or directory basenames at `exec`, `open`, existing-fd read/write,
+  `mmap`, `mprotect`, existing-fd `ftruncate` / `fchmod` via `setattr`,
+  `create`, `link`, `symlink`, `unlink`, `mkdir`, `rmdir`, `mknod`, and
+  `rename` decision points.
+
+These maps start empty and are mutated through authenticated policy APIs. They
+are not recursive workspace sandboxes, CIDR/domain policy engines, or container
+escape defenses.
+
 ## Non-goals
 
 - defending against a root attacker
 - defending against a malicious kernel
 - full container-escape prevention
 - complete prevention of every local persistence or post-exploitation technique
+- broad filesystem/network sandbox policy beyond the explicit cgroup/LSM map
+  entries described above
 
-Those require stronger sandboxing, kernel hardening, or external isolation layers beyond the current scope.
+Those require broader sandboxing, kernel hardening, or external isolation layers
+beyond the current explicit OS-enforcement maps.

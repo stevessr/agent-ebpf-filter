@@ -27,7 +27,7 @@ const cluster = useConfigCluster();
 const {
   fetchTags, fetchTrackedComms, fetchTrackedPaths, fetchTrackedPrefixes,
 } = registry;
-const { fetchRules, fetchDisabledEventTypes } = security;
+const { fetchRules, fetchDisabledEventTypes, fetchCgroupSandboxStatus, fetchLsmEnforcerStatus } = security;
 const { fetchRuntime } = runtime;
 const { fetchMLStatus, fetchAllSamples, fetchExistingCommandData } = ml;
 const {
@@ -61,6 +61,8 @@ onMounted(async () => {
   fetchTrackedPrefixes();
   fetchRules();
   fetchDisabledEventTypes();
+  fetchCgroupSandboxStatus();
+  fetchLsmEnforcerStatus();
   await fetchMLStatus();
   fetchAllSamples();
   fetchExistingCommandData(true);

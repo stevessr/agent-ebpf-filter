@@ -10,7 +10,7 @@ DEVCONTAINER_GO_VERSION ?= 1.26.2
 DEVCONTAINER_USER_UID ?= 1001
 DEVCONTAINER_USER_GID ?= 1001
 
-.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap ebpf-tls cuda ml-sweep ml-presentation runtime-benchmark test build docker exec
+.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test build docker exec
 
 
 docker: ## Build the privileged devcontainer image; use 'make docker clean' to prune build cache
@@ -71,7 +71,7 @@ build: proto ## Parallel build of all components
 
 backend-bare:
 	@echo "Building backend..."
-	cd backend/ebpf && go generate && go generate gen_tls.go
+	cd backend/ebpf && go generate && go generate gen_tls.go && go generate gen_cgroup.go && go generate gen_lsm.go
 	cd backend && go build -o agent-ebpf-filter
 
 frontend-bare:
@@ -135,7 +135,7 @@ proto-check:
 
 backend: cuda proto ## Build Go backend and compile eBPF
 	@echo "Building backend..."
-	cd backend/ebpf && go generate && go generate gen_tls.go
+	cd backend/ebpf && go generate && go generate gen_tls.go && go generate gen_cgroup.go && go generate gen_lsm.go
 	cd backend && go build -o agent-ebpf-filter
 
 ifneq ($(SKIP_PROTO_DEP),1)
@@ -150,11 +150,17 @@ frontend: ## Build Vue3 frontend
 	cd frontend && bun install && bun run build
 
 ebpf-bootstrap: ## Pre-build the backend binary (bootstrap happens automatically on first run)
-	@(cd backend/ebpf && go generate && go generate gen_tls.go)
+	@(cd backend/ebpf && go generate && go generate gen_tls.go && go generate gen_cgroup.go && go generate gen_lsm.go)
 	@(cd backend && go build -o agent-ebpf-filter)
 
 ebpf-tls: ## Generate TLS capture eBPF bindings
 	@(cd backend/ebpf && go generate gen_tls.go)
+
+ebpf-cgroup: ## Generate cgroup sandbox eBPF bindings
+	@(cd backend/ebpf && go generate gen_cgroup.go)
+
+ebpf-lsm: ## Generate BPF LSM enforcement bindings
+	@(cd backend/ebpf && go generate gen_lsm.go)
 
 dev: ## Run backend and frontend development server in Zellij (run make predev first)
 	@$(MAKE) --no-print-directory SKIP_PREDEV=1 SKIP_PROTO_DEP=1 proto
@@ -173,6 +179,38 @@ ml-presentation: ## Render the PPTX-style HTML presentation from the latest ML s
 
 runtime-benchmark: ## Replay benign/malicious/agentic runtime scenarios and emit a JSON summary
 	@./scripts/runtime-replay-benchmark.sh
+
+os-enforcement-smoke: ## Verify live cgroup/connect and BPF LSM blocking against a privileged running backend
+	@./scripts/os-enforcement-smoke.sh
+
+os-enforcement-smoke-start: ## Build/start a privileged backend, then run the live OS-level enforcement smoke test
+	@OS_SMOKE_START_BACKEND=1 OS_SMOKE_BUILD_BACKEND=1 ./scripts/os-enforcement-smoke.sh
+
+os-enforcement-preflight: ## Check host prerequisites for live OS-level enforcement smoke
+	@./scripts/os-enforcement-preflight.sh
+
+os-enforcement-check: ebpf-cgroup ebpf-lsm ## Run rootless static checks for OS-level enforcement objects and smoke script
+	@bash -n scripts/os-enforcement-smoke.sh
+	@bash -n scripts/os-enforcement-preflight.sh
+	@llvm-objdump -h backend/ebpf/agentcgroupsandbox_bpfel.o | rg -q 'cgroup/connect4'
+	@llvm-objdump -h backend/ebpf/agentcgroupsandbox_bpfel.o | rg -q 'cgroup/connect6'
+	@llvm-objdump -h backend/ebpf/agentcgroupsandbox_bpfel.o | rg -q 'cgroup/sendmsg4'
+	@llvm-objdump -h backend/ebpf/agentcgroupsandbox_bpfel.o | rg -q 'cgroup/sendmsg6'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/bprm_check_security'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/file_open'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/file_permission'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/mmap_file'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/file_mprotect'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/inode_setattr'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/inode_create'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/inode_link'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/inode_unlink'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/inode_symlink'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/inode_mkdir'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/inode_rmdir'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/inode_mknod'
+	@llvm-objdump -h backend/ebpf/agentlsmenforcer_bpfel.o | rg -q 'lsm/inode_rename'
+	@cd backend && go test ./... -run 'Test(CgroupSandboxObjectSections|CgroupSandboxPolicySourceUsesHostOrderKeys|CgroupSandboxAttachPathValidation|CgroupSandboxPortValidation|CgroupSandboxIPValidation|OSEnforcementMutationHandlersRejectInvalidInputBeforeLoad|LsmEnforcerObjectSections|LsmPolicyKeys|LsmPolicySourceUsesCurrentHookArguments|OSSmokeScriptExists|OSPreflightScriptExists|OSPolicyMapPinsAreRestrictive|OSEnforcementStartsWithoutDefaultBlockEntries|OSEnforcementMutationRoutesArePolicyGated|OSEnforcementStatusRoutesRequireAuth|OSSecurityDocsDescribeCurrentKernelEnforcement|OSFrontendSecuritySurfaceWiresSandboxEndpoints|PinnedOSEnforcementPolicyIsPreservedOnReuseFailure|OSEnforcementAttachFailureCleansPartialPins|OSEnforcementUnblockIgnoresMissingMapKeys|OSEnforcementStatusUsesRuntimeSnapshots|CgroupPIDResolutionHelpers)' -count=1
 
 test: ## Run all tests (Go backend)
 	@echo "Running Go tests..."
@@ -206,6 +244,10 @@ clean: ## Clean build artifacts
 		rm -f backend/ebpf/agenttracker_bpfel.o backend/ebpf/agenttracker_bpfeb.o; \
 		rm -f backend/ebpf/agenttlscapture_x86_bpfel.go backend/ebpf/agenttlscapture_x86_bpfeb.go; \
 		rm -f backend/ebpf/agenttlscapture_x86_bpfel.o backend/ebpf/agenttlscapture_x86_bpfeb.o; \
+		rm -f backend/ebpf/agentcgroupsandbox_bpfel.go backend/ebpf/agentcgroupsandbox_bpfeb.go; \
+		rm -f backend/ebpf/agentcgroupsandbox_bpfel.o backend/ebpf/agentcgroupsandbox_bpfeb.o; \
+		rm -f backend/ebpf/agentlsmenforcer_bpfel.go backend/ebpf/agentlsmenforcer_bpfeb.go; \
+		rm -f backend/ebpf/agentlsmenforcer_bpfel.o backend/ebpf/agentlsmenforcer_bpfeb.o; \
 		rm -rf backend/pb; \
 		rm -rf frontend/src/pb; \
 	fi
