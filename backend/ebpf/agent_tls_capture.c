@@ -63,11 +63,7 @@ static __always_inline int emit_tls_fragment(const void *buf, __u32 total_len, _
 		return 0;
 	}
 
-#pragma unroll
-	for (__u32 i = 0; i < TLS_MAX_FRAGS; i++) {
-		if (i >= frag_count32) {
-			break;
-		}
+	for (__u32 i = 0; i < frag_count32; i++) {
 
 		struct tls_fragment *f = bpf_ringbuf_reserve(&tls_events, sizeof(*f), 0);
 		if (!f) {
