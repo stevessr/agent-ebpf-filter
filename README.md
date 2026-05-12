@@ -248,6 +248,8 @@ make backend
 make wrapper
 make frontend
 make runtime-benchmark
+make docker      # Pull the GitHub-built devcontainer image for this branch
+make exec        # Start or attach to the privileged devcontainer shell
 make run-backend
 make run-frontend
 make clean

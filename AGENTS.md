@@ -28,6 +28,8 @@ Typical commands:
 ```bash
 rtk make help
 rtk make predev
+rtk make docker       # Pull GHCR devcontainer image for the current branch; no local image build
+rtk make exec         # Start/attach to the privileged devcontainer shell
 rtk make proto
 rtk make backend
 rtk make wrapper
@@ -43,6 +45,8 @@ rtk make dev
 ```
 
 `make predev` installs the helper dependencies in parallel. `make dev` assumes those dependencies are already present and opens the backend/frontend dev session in Zellij instead of tmux.
+
+`make docker` is pull-only: it derives `ghcr.io/<owner>/<repo>/devcontainer:<branch-slug>-<branch-hash>` from the GitHub origin remote and the current branch, where the branch hash is the first 12 hex characters of the branch name's SHA-256 digest. If the branch cannot be inferred on a detached HEAD, set `DEV_BRANCH=<branch>` or pass a full `DEV_IMAGE=...`. If the image is not available yet, wait for it to publish or run the GitHub Actions devcontainer image workflow; do not add a local build fallback.
 
 If you change `proto/tracker.proto`, regenerate:
 

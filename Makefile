@@ -1,11 +1,13 @@
-.DEFAULT_GOAL := build
-
 # Get Go binaries path
 GOPATH ?= $(shell go env GOPATH)
 export PATH := $(PATH):$(GOPATH)/bin
 
 CONTAINER_CLI ?= $(shell command -v docker 2>/dev/null || command -v podman 2>/dev/null)
-DEV_IMAGE ?= agent-ebpf-filiter-dev
+DEV_BRANCH ?= $(strip $(shell git branch --show-current 2>/dev/null))
+DEV_IMAGE_TAG ?= $(shell branch="$(DEV_BRANCH)"; base=$$(printf '%s' "$$branch" | sed -E 's#[^A-Za-z0-9_.-]+#-#g; s#^-+##; s#-+$$##'); [ -n "$$base" ] || base=local; suffix=$$(printf '%s' "$$branch" | sha256sum | cut -c1-12); prefix=$$(printf '%s' "$$base" | cut -c1-115 | sed -E 's#-+$$##'); [ -n "$$prefix" ] || prefix=local; printf '%s-%s' "$$prefix" "$$suffix")
+DEV_IMAGE_OWNER_REPO ?= $(shell git remote get-url origin 2>/dev/null | sed -E 's#^(git@github.com:|https://github.com/|ssh://git@github.com/)##; s#\.git$$##' | tr '[:upper:]' '[:lower:]')
+DEV_IMAGE_REPOSITORY ?= ghcr.io/$(DEV_IMAGE_OWNER_REPO)/devcontainer
+DEV_IMAGE ?= $(DEV_IMAGE_REPOSITORY):$(DEV_IMAGE_TAG)
 DEV_CONTAINER ?= agent-ebpf-filiter-dev
 DEV_WORKSPACE ?= /workspaces/agent-ebpf-filiter
 DEVCONTAINER_GO_VERSION ?= 1.26.2
@@ -15,20 +17,29 @@ DEVCONTAINER_USER_GID ?= 1001
 .PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test build docker exec
 
 
-docker: ## Build the privileged devcontainer image; use 'make docker clean' to prune build cache
+docker: ## Pull the privileged devcontainer image from GHCR
 	@test -n "$(CONTAINER_CLI)" || (echo "Missing docker or podman CLI." && exit 1)
-	@if printf '%s\n' "$(MAKECMDGOALS)" | grep -qw clean; then \
-		echo "Removing $(CONTAINER_CLI) build cache..."; \
-		$(CONTAINER_CLI) builder prune -f || $(CONTAINER_CLI) system prune -f; \
-	else \
-		$(CONTAINER_CLI) build \
-			-f .devcontainer/Dockerfile \
-			--build-arg GO_VERSION=$(DEVCONTAINER_GO_VERSION) \
-			--build-arg USER_UID=$(DEVCONTAINER_USER_UID) \
-			--build-arg USER_GID=$(DEVCONTAINER_USER_GID) \
-			-t $(DEV_IMAGE) \
-			.devcontainer; \
+	@if [ -z "$(DEV_BRANCH)" ] && [ "$(origin DEV_IMAGE)" = "file" ]; then \
+		echo "Cannot infer current git branch."; \
+		echo "Set DEV_BRANCH=<branch> or DEV_IMAGE=ghcr.io/<owner>/<repo>/devcontainer:<tag> and retry."; \
+		exit 1; \
 	fi
+	@if [ "$(DEV_IMAGE)" = "ghcr.io//devcontainer:$(DEV_IMAGE_TAG)" ]; then \
+		echo "Cannot derive owner/repo from origin remote."; \
+		echo "Set DEV_IMAGE=ghcr.io/<owner>/<repo>/devcontainer:$(DEV_IMAGE_TAG)"; \
+		exit 1; \
+	fi
+	@echo "Pulling $(DEV_IMAGE)..."
+	@$(CONTAINER_CLI) pull $(DEV_IMAGE) || { \
+		echo "Failed to pull $(DEV_IMAGE)."; \
+		if [ "$(origin DEV_IMAGE)" = "file" ]; then \
+			echo "Wait for or run the GitHub Actions devcontainer image workflow for branch '$(DEV_BRANCH)' and retry."; \
+		else \
+			echo "Verify that the supplied DEV_IMAGE exists and that your container CLI can access it."; \
+		fi; \
+		echo "Local builds are disabled."; \
+		exit 1; \
+	}
 
 exec: ## Start or attach to the mounted devcontainer shell
 	@test -n "$(CONTAINER_CLI)" || (echo "Missing docker or podman CLI." && exit 1)
@@ -234,25 +245,21 @@ run-frontend: ## Run only the frontend development server
 	cd frontend && bun run dev
 
 clean: ## Clean build artifacts
-	@if printf '%s\n' "$(MAKECMDGOALS)" | grep -qw docker; then \
-		echo "Docker build cache cleaned by docker target."; \
-	else \
-		rm -f backend/agent-ebpf-filter; \
-		rm -f agent-wrapper; \
-		rm -f backend/.port; \
-		rm -rf frontend/dist; \
-		rm -rf adapters/python/.venv; \
-		rm -f backend/ebpf/agenttracker_bpfel.go backend/ebpf/agenttracker_bpfeb.go; \
-		rm -f backend/ebpf/agenttracker_bpfel.o backend/ebpf/agenttracker_bpfeb.o; \
-		rm -f backend/ebpf/agenttlscapture_x86_bpfel.go backend/ebpf/agenttlscapture_x86_bpfeb.go; \
-		rm -f backend/ebpf/agenttlscapture_x86_bpfel.o backend/ebpf/agenttlscapture_x86_bpfeb.o; \
-		rm -f backend/ebpf/agentcgroupsandbox_bpfel.go backend/ebpf/agentcgroupsandbox_bpfeb.go; \
-		rm -f backend/ebpf/agentcgroupsandbox_bpfel.o backend/ebpf/agentcgroupsandbox_bpfeb.o; \
-		rm -f backend/ebpf/agentlsmenforcer_bpfel.go backend/ebpf/agentlsmenforcer_bpfeb.go; \
-		rm -f backend/ebpf/agentlsmenforcer_bpfel.o backend/ebpf/agentlsmenforcer_bpfeb.o; \
-		rm -rf backend/pb; \
-		rm -rf frontend/src/pb; \
-	fi
+	@rm -f backend/agent-ebpf-filter; \
+	 rm -f agent-wrapper; \
+	 rm -f backend/.port; \
+	 rm -rf frontend/dist; \
+	 rm -rf adapters/python/.venv; \
+	 rm -f backend/ebpf/agenttracker_bpfel.go backend/ebpf/agenttracker_bpfeb.go; \
+	 rm -f backend/ebpf/agenttracker_bpfel.o backend/ebpf/agenttracker_bpfeb.o; \
+	 rm -f backend/ebpf/agenttlscapture_x86_bpfel.go backend/ebpf/agenttlscapture_x86_bpfeb.go; \
+	 rm -f backend/ebpf/agenttlscapture_x86_bpfel.o backend/ebpf/agenttlscapture_x86_bpfeb.o; \
+	 rm -f backend/ebpf/agentcgroupsandbox_bpfel.go backend/ebpf/agentcgroupsandbox_bpfeb.go; \
+	 rm -f backend/ebpf/agentcgroupsandbox_bpfel.o backend/ebpf/agentcgroupsandbox_bpfeb.o; \
+	 rm -f backend/ebpf/agentlsmenforcer_bpfel.go backend/ebpf/agentlsmenforcer_bpfeb.go; \
+	 rm -f backend/ebpf/agentlsmenforcer_bpfel.o backend/ebpf/agentlsmenforcer_bpfeb.o; \
+	 rm -rf backend/pb; \
+	 rm -rf frontend/src/pb;
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | sed -e 's/:.*## /: /'
