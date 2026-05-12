@@ -180,6 +180,10 @@ int BPF_PROG(lsm_enforce_mmap_file, struct file *file, unsigned long reqprot,
 		return ret;
 	}
 
+	if (!file) {
+		return 0;
+	}
+
 	struct lsm_enforcer_stats *stats = get_lsm_stats();
 	if (stats) {
 		stats->file_checked++;

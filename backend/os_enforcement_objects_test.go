@@ -191,6 +191,15 @@ func TestLsmPolicySourceUsesCurrentHookArguments(t *testing.T) {
 			t.Fatalf("BPF LSM source missing hook contract %q", want)
 		}
 	}
+	mmapHookStart := strings.Index(source, "SEC(\"lsm/mmap_file\")")
+	if mmapHookStart < 0 {
+		t.Fatal("BPF LSM source missing mmap_file hook")
+	}
+	mmapFileRead := strings.Index(source[mmapHookStart:], "BPF_CORE_READ(file, f_path.dentry, d_name.name)")
+	mmapFileNilCheck := strings.Index(source[mmapHookStart:], "if (!file)")
+	if mmapFileNilCheck < 0 || mmapFileRead < 0 || mmapFileNilCheck > mmapFileRead {
+		t.Fatal("BPF LSM mmap_file must null-check file before reading through it")
+	}
 	if strings.Contains(source, "struct inode *new_dir, struct dentry *new_dentry, unsigned int flags, int ret") {
 		t.Fatal("BPF LSM inode_rename signature must match the current vmlinux hook and not read ret from the wrong ctx slot")
 	}
