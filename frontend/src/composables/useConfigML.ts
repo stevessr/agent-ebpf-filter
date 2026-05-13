@@ -67,6 +67,9 @@ export function useConfigML() {
   });
   const llmBatchResponse = ref<MLLlmBatchResponse | null>(null);
   const llmBatchLoading = ref(false);
+  const llmBatchStartedAt = ref(0);
+  const llmBatchElapsed = ref('0s');
+  const llmBatchProgressTimer = ref<ReturnType<typeof setInterval> | null>(null);
   const trainingLogs = ref<{ time: string; message: string }[]>([]);
   const wsActive = ref(false);
   const logPollTimer = ref<ReturnType<typeof setInterval> | null>(null);
@@ -468,8 +471,42 @@ export function useConfigML() {
 
   const llmBatchCanApplyLabels = computed(() => llmBatchConfig.value.source === 'training');
 
+  const llmBatchPreviewSubjects = computed(() => {
+    const limit = Math.max(1, llmBatchConfig.value.limit || 20);
+    const candidates = allSamples.value.filter((sample) => {
+      if (!llmBatchConfig.value.onlyUnlabeled) return true;
+      return !sample.label || sample.label === '-';
+    });
+    return candidates.slice(0, limit);
+  });
+
+  const llmBatchProgress = computed(() => {
+    const total = llmBatchResponse.value?.total || llmBatchPreviewSubjects.value.length || llmBatchConfig.value.limit || 0;
+    const scored = llmBatchResponse.value?.scored || 0;
+    return { total, scored, percent: total > 0 ? Math.round((scored / total) * 100) : 0 };
+  });
+
+  const stopLLMBatchProgressTimer = () => {
+    if (llmBatchProgressTimer.value) {
+      clearInterval(llmBatchProgressTimer.value);
+      llmBatchProgressTimer.value = null;
+    }
+  };
+
+  const startLLMBatchProgressTimer = () => {
+    stopLLMBatchProgressTimer();
+    llmBatchStartedAt.value = Date.now();
+    llmBatchElapsed.value = '0s';
+    llmBatchProgressTimer.value = setInterval(() => {
+      const sec = Math.floor((Date.now() - llmBatchStartedAt.value) / 1000);
+      llmBatchElapsed.value = sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m${sec % 60}s`;
+    }, 1000);
+  };
+
   const runLLMBatchScore = async () => {
     llmBatchLoading.value = true;
+    llmBatchResponse.value = null;
+    startLLMBatchProgressTimer();
     try {
       try {
         await flushLLMScoringConfigAutosave();
@@ -488,7 +525,10 @@ export function useConfigML() {
       message.success(`LLM 打分完成：${res.data.scored}/${res.data.total}，平均风险 ${(res.data.averageRiskScore ?? 0).toFixed(1)}`);
     } catch (e: any) {
       message.error(e.response?.data?.error || 'LLM 批量打分失败');
-    } finally { llmBatchLoading.value = false; }
+    } finally {
+      llmBatchLoading.value = false;
+      stopLLMBatchProgressTimer();
+    }
   };
 
   const llmBatchRowKey = (record: MLLlmBatchEntry, index: number) =>
@@ -918,6 +958,7 @@ export function useConfigML() {
   onUnmounted(() => {
     stopLogPolling();
     stopAutoTunePolling();
+    stopLLMBatchProgressTimer();
     if (llmStorageTimer.value) { clearTimeout(llmStorageTimer.value); llmStorageTimer.value = null; }
     if (llmConfigSyncTimer.value) {
       clearTimeout(llmConfigSyncTimer.value);
@@ -928,7 +969,7 @@ export function useConfigML() {
   return {
     mlEnabled, mlStatus, trainingModel, feedbackComm, feedbackAction,
     mlThresholds, mlTrainingConfig, llmScoringConfig, llmBatchConfig,
-    llmBatchResponse, llmBatchLoading, trainingLogs, wsActive, logPollTimer,
+    llmBatchResponse, llmBatchLoading, llmBatchElapsed, llmBatchPreviewSubjects, llmBatchProgress, trainingLogs, wsActive, logPollTimer,
     llmSaveStatus, saveLLMConfigNow,
     modelType, builtinModelCatalog, selectedBuiltinModel, modelBaseType, autoTuneAxisOptions, cudaAvailable, cudaInfo, cudaMemUsedMB, cudaMemTotalMB, mlCRuntime, cancelTraining, cancellingTraining,
     trainingHistory, hyperParams,
