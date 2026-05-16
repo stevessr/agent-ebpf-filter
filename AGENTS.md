@@ -140,6 +140,11 @@ Repo-root binaries such as `agent-wrapper` and `backend/agent-ebpf-filter` are b
 - The backend chooses the first free port in `8080..8089`.
 - It writes the result into `backend/.port`.
 - `frontend/vite.config.ts` reads that file to build dev proxies.
+- This is separate from the optional domain forwarder. When
+  `runtime.domainForwardProxy.enabled` is true, the backend also binds the
+  configured public HTTP/HTTPS ports (default `80` / `443`) and routes traffic
+  by request `Host` / TLS SNI. HTTPS needs a default cert/key or route-level
+  cert/key paths.
 
 ### Matching model
 
@@ -165,6 +170,9 @@ Avoid describing path tracking as recursive or policy-tree based unless you also
 - Dev mode disables auth by default.
 - `/hooks/event` accepts either the normal access token or a per-hook secret via `X-Agent-Hook-Secret`.
 - Shell sessions, `/system/run`, hook installation / raw hook writes, and policy mutations are runtime-gated and default to disabled until explicitly enabled in `/config/runtime`.
+- The domain forwarder is disabled by default and configured through
+  `/config/runtime`; proxied data-plane traffic on 80/443 is not API-token
+  protected, but its config and `/system/domain-forward/status` are.
 
 If you change auth or deployment docs, keep this nuance accurate.
 
@@ -213,6 +221,7 @@ Especially keep these accurate:
 - supported AI CLI hooks
 - auth scope
 - `/api/v1` external API aliases and Kubernetes manifests
+- 80/443 domain-forwarding behavior and certificate requirements
 - generated-file workflow
 - Make targets
 

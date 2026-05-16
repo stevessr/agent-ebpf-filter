@@ -68,6 +68,12 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            - name: forward-http
+              containerPort: 80
+              protocol: TCP
+            - name: forward-https
+              containerPort: 443
+              protocol: TCP
           volumeMounts:
             - name: bpffs
               mountPath: /sys/fs/bpf
@@ -112,4 +118,12 @@ spec:
     - name: http
       port: 8080
       targetPort: http
+      protocol: TCP
+    - name: forward-http
+      port: 80
+      targetPort: forward-http
+      protocol: TCP
+    - name: forward-https
+      port: 443
+      targetPort: forward-https
       protocol: TCP

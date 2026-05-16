@@ -17,22 +17,23 @@ import (
 )
 
 type RuntimeSettings struct {
-	LogPersistenceEnabled   bool              `json:"logPersistenceEnabled"`
-	LogFilePath             string            `json:"logFilePath"`
-	AccessToken             string            `json:"accessToken"`
-	MaxEventCount           int               `json:"maxEventCount"`
-	MaxEventAge             string            `json:"maxEventAge"`
-	ShellSessionsEnabled    bool              `json:"shellSessionsEnabled"`
-	SystemRunEnabled        bool              `json:"systemRunEnabled"`
-	HookManagementEnabled   bool              `json:"hookManagementEnabled"`
-	PolicyManagementEnabled bool              `json:"policyManagementEnabled"`
-	OtlpEnabled             bool              `json:"otlpEnabled"`
-	OtlpEndpoint            string            `json:"otlpEndpoint"`
-	OtlpServiceName         string            `json:"otlpServiceName"`
-	OtlpHeaders             map[string]string `json:"otlpHeaders,omitempty"`
-	HookSecrets             map[string]string `json:"hookSecrets,omitempty"`
-	MLConfig                MLConfig          `json:"mlConfig,omitempty"`
-	TlsCaptureEnabled       bool              `json:"tlsCaptureEnabled"`
+	LogPersistenceEnabled   bool                       `json:"logPersistenceEnabled"`
+	LogFilePath             string                     `json:"logFilePath"`
+	AccessToken             string                     `json:"accessToken"`
+	MaxEventCount           int                        `json:"maxEventCount"`
+	MaxEventAge             string                     `json:"maxEventAge"`
+	ShellSessionsEnabled    bool                       `json:"shellSessionsEnabled"`
+	SystemRunEnabled        bool                       `json:"systemRunEnabled"`
+	HookManagementEnabled   bool                       `json:"hookManagementEnabled"`
+	PolicyManagementEnabled bool                       `json:"policyManagementEnabled"`
+	OtlpEnabled             bool                       `json:"otlpEnabled"`
+	OtlpEndpoint            string                     `json:"otlpEndpoint"`
+	OtlpServiceName         string                     `json:"otlpServiceName"`
+	OtlpHeaders             map[string]string          `json:"otlpHeaders,omitempty"`
+	HookSecrets             map[string]string          `json:"hookSecrets,omitempty"`
+	MLConfig                MLConfig                   `json:"mlConfig,omitempty"`
+	TlsCaptureEnabled       bool                       `json:"tlsCaptureEnabled"`
+	DomainForwardProxy      DomainForwardProxySettings `json:"domainForwardProxy"`
 }
 
 type CapturedEventRecord struct {
@@ -185,6 +186,7 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if strings.TrimSpace(settings.OtlpServiceName) == "" {
 		settings.OtlpServiceName = "agent-ebpf-filter"
 	}
+	normalizeDomainForwardProxySettings(&settings.DomainForwardProxy)
 	for _, hook := range availableHooks {
 		if strings.TrimSpace(settings.HookSecrets[hook.ID]) == "" {
 			token, err := generateAccessToken()

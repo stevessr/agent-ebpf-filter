@@ -30,6 +30,11 @@ headers. Prefer headers for normal HTTP clients.
 | `GET` | `/api/v1/health` | Service health, runtime gates, eBPF bootstrap status, and collector counters. |
 | `GET` | `/api/v1/openapi.json` | Machine-readable OpenAPI 3.0 summary for the stable external aliases. |
 
+`/api/v1/health.features.domainForwardProxyEnabled` reports whether the
+optional 80/443 Host/SNI data-plane forwarder is enabled. Manage that forwarder
+through the authenticated root `/config/runtime` and inspect listener status at
+`/system/domain-forward/status`.
+
 ## Event and graph APIs
 
 | Method | Path | Purpose |

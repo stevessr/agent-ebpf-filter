@@ -9,8 +9,39 @@ import type {
   RuntimeConfigResponse,
   CollectorHealthResponse,
   OTelHealthResponse,
+  DomainForwardProxySettings,
+  DomainForwardProxyStatus,
   TracepointBootstrapStatus,
 } from '../types/config';
+
+const defaultDomainForwardProxy = (): DomainForwardProxySettings => ({
+  enabled: false,
+  httpPort: 80,
+  httpsPort: 443,
+  defaultScheme: 'https',
+  allowAnyHost: false,
+  dnsResolver: '',
+  dialTimeoutSeconds: 10,
+  certFile: '',
+  keyFile: '',
+  routes: [],
+});
+
+const normalizeDomainForwardProxy = (
+  value?: Partial<DomainForwardProxySettings>,
+): DomainForwardProxySettings => {
+  const defaults = defaultDomainForwardProxy();
+  const scheme = value?.defaultScheme === 'http' ? 'http' : 'https';
+  return {
+    ...defaults,
+    ...value,
+    defaultScheme: scheme,
+    httpPort: Number(value?.httpPort || defaults.httpPort),
+    httpsPort: Number(value?.httpsPort || defaults.httpsPort),
+    dialTimeoutSeconds: Number(value?.dialTimeoutSeconds || defaults.dialTimeoutSeconds),
+    routes: Array.isArray(value?.routes) ? value.routes : [],
+  };
+};
 
 export function useConfigRuntime() {
   const runtimeSettings = ref<RuntimeSettings>({
@@ -28,6 +59,7 @@ export function useConfigRuntime() {
     otlpServiceName: 'agent-ebpf-filter',
     otlpHeaders: {},
     tlsCaptureEnabled: false,
+    domainForwardProxy: defaultDomainForwardProxy(),
   });
   const mcpEndpoint = ref('');
   const authHeaderName = ref('X-API-KEY');
@@ -35,6 +67,7 @@ export function useConfigRuntime() {
   const persistedEventLogPath = ref('');
   const persistedEventLogAlive = ref(false);
   const otlpHeadersText = ref('{}');
+  const domainForwardRoutesText = ref('[]');
   const collectorHealth = ref<CollectorHealthResponse>({
     collectorMapAvailable: false,
     ringbufEventsTotal: 0,
@@ -67,6 +100,16 @@ export function useConfigRuntime() {
     exportedSpans: 0,
     droppedEvents: 0,
   });
+  const domainForwardStatus = ref<DomainForwardProxyStatus>({
+    enabled: false,
+    httpRunning: false,
+    httpsRunning: false,
+    httpPort: 80,
+    httpsPort: 443,
+    routeCount: 0,
+    allowAnyHost: false,
+    updatedAt: '',
+  });
 
   const syncApiToken = (token: string) => {
     const normalized = token.trim();
@@ -96,8 +139,10 @@ export function useConfigRuntime() {
       otlpServiceName: data.runtime.otlpServiceName || 'agent-ebpf-filter',
       otlpHeaders: { ...(data.runtime.otlpHeaders || {}) },
       tlsCaptureEnabled: Boolean(data.runtime.tlsCaptureEnabled),
+      domainForwardProxy: normalizeDomainForwardProxy(data.runtime.domainForwardProxy),
     };
     otlpHeadersText.value = JSON.stringify(runtimeSettings.value.otlpHeaders || {}, null, 2);
+    domainForwardRoutesText.value = JSON.stringify(runtimeSettings.value.domainForwardProxy.routes || [], null, 2);
     mcpEndpoint.value = data.mcpEndpoint;
     authHeaderName.value = data.authHeaderName;
     bearerAuthHeaderName.value = data.bearerAuthHeaderName;
@@ -107,11 +152,12 @@ export function useConfigRuntime() {
   };
 
   const fetchRuntime = async () => {
-    const [runtimeRes, bootstrapRes, collectorRes, otelRes] = await Promise.allSettled([
+    const [runtimeRes, bootstrapRes, collectorRes, otelRes, domainForwardRes] = await Promise.allSettled([
       axios.get('/config/runtime'),
       axios.get('/system/bootstrap-health'),
       axios.get('/system/collector-health'),
       axios.get('/system/otel-health'),
+      axios.get('/system/domain-forward/status'),
     ]);
     if (runtimeRes.status === 'fulfilled') {
       applyRuntimeResponse(runtimeRes.value.data as RuntimeConfigResponse);
@@ -133,13 +179,19 @@ export function useConfigRuntime() {
     } else {
       console.error('Failed to fetch OTLP health');
     }
+    if (domainForwardRes.status === 'fulfilled') {
+      domainForwardStatus.value = domainForwardRes.value.data as DomainForwardProxyStatus;
+    } else {
+      console.error('Failed to fetch domain forward proxy status');
+    }
   };
 
   const fetchCollectorHealth = async () => {
-    const [bootstrapRes, collectorRes, otelRes] = await Promise.allSettled([
+    const [bootstrapRes, collectorRes, otelRes, domainForwardRes] = await Promise.allSettled([
       axios.get('/system/bootstrap-health'),
       axios.get('/system/collector-health'),
       axios.get('/system/otel-health'),
+      axios.get('/system/domain-forward/status'),
     ]);
     if (bootstrapRes.status === 'fulfilled') {
       bootstrapHealth.value = bootstrapRes.value.data as TracepointBootstrapStatus;
@@ -155,6 +207,11 @@ export function useConfigRuntime() {
       otelHealth.value = otelRes.value.data as OTelHealthResponse;
     } else {
       console.error('Failed to fetch OTLP health');
+    }
+    if (domainForwardRes.status === 'fulfilled') {
+      domainForwardStatus.value = domainForwardRes.value.data as DomainForwardProxyStatus;
+    } else {
+      console.error('Failed to fetch domain forward proxy status');
     }
   };
 
@@ -177,9 +234,38 @@ export function useConfigRuntime() {
     }
   };
 
+  const parseDomainForwardRoutes = () => {
+    const raw = domainForwardRoutesText.value.trim();
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        throw new Error('Domain forward routes must be a JSON array');
+      }
+      return parsed.map((route, index) => {
+        if (!route || typeof route !== 'object' || Array.isArray(route)) {
+          throw new Error(`Route #${index + 1} must be an object`);
+        }
+        const host = String(route.host || '').trim();
+        if (!host) {
+          throw new Error(`Route #${index + 1} requires a host`);
+        }
+        return {
+          host,
+          upstream: String(route.upstream || '').trim(),
+          certFile: String(route.certFile || '').trim(),
+          keyFile: String(route.keyFile || '').trim(),
+        };
+      });
+    } catch (error: any) {
+      throw new Error(error?.message || 'Invalid domain forward routes JSON');
+    }
+  };
+
   const saveRuntime = async () => {
     try {
       const otlpHeaders = parseOTLPHeaders();
+      const domainForwardRoutes = parseDomainForwardRoutes();
       const res = await axios.put('/config/runtime', {
         logPersistenceEnabled: runtimeSettings.value.logPersistenceEnabled,
         logFilePath: runtimeSettings.value.logFilePath,
@@ -194,6 +280,10 @@ export function useConfigRuntime() {
         otlpServiceName: runtimeSettings.value.otlpServiceName,
         otlpHeaders,
         tlsCaptureEnabled: runtimeSettings.value.tlsCaptureEnabled,
+        domainForwardProxy: {
+          ...runtimeSettings.value.domainForwardProxy,
+          routes: domainForwardRoutes,
+        },
       });
       applyRuntimeResponse(res.data as RuntimeConfigResponse);
       await fetchCollectorHealth();
@@ -270,7 +360,7 @@ export function useConfigRuntime() {
 
   return {
     runtimeSettings,
-    otlpHeadersText, otelHealth,
+    otlpHeadersText, otelHealth, domainForwardRoutesText, domainForwardStatus,
     mcpEndpoint, authHeaderName, bearerAuthHeaderName,
     persistedEventLogPath, persistedEventLogAlive, bootstrapHealth, collectorHealth,
     syncApiToken, applyRuntimeResponse, fetchRuntime, fetchCollectorHealth, saveRuntime,

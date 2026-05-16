@@ -365,6 +365,9 @@ func handleConfigRuntimePut(c *gin.Context) {
 		settings.TlsCaptureEnabled = *req.TlsCaptureEnabled
 	}
 	applyMLConfigPatch(&settings.MLConfig, req.MLConfigPatch)
+	if req.DomainForwardProxy != nil {
+		settings.DomainForwardProxy = *req.DomainForwardProxy
+	}
 
 	settings, err := runtimeSettingsStore.Replace(settings)
 	if err != nil {
@@ -372,24 +375,26 @@ func handleConfigRuntimePut(c *gin.Context) {
 		return
 	}
 	applyRetentionConfig(settings)
+	applyRuntimeDomainForwardProxy(settings)
 	c.JSON(http.StatusOK, buildRuntimeConfigResponseFromSettings(settings))
 }
 
 type runtimeSettingsPatch struct {
-	LogPersistenceEnabled   *bool             `json:"logPersistenceEnabled,omitempty"`
-	LogFilePath             *string           `json:"logFilePath,omitempty"`
-	AccessToken             *string           `json:"accessToken,omitempty"`
-	MaxEventCount           *int              `json:"maxEventCount,omitempty"`
-	MaxEventAge             *string           `json:"maxEventAge,omitempty"`
-	ShellSessionsEnabled    *bool             `json:"shellSessionsEnabled,omitempty"`
-	SystemRunEnabled        *bool             `json:"systemRunEnabled,omitempty"`
-	HookManagementEnabled   *bool             `json:"hookManagementEnabled,omitempty"`
-	PolicyManagementEnabled *bool             `json:"policyManagementEnabled,omitempty"`
-	OtlpEnabled             *bool             `json:"otlpEnabled,omitempty"`
-	OtlpEndpoint            *string           `json:"otlpEndpoint,omitempty"`
-	OtlpServiceName         *string           `json:"otlpServiceName,omitempty"`
-	OtlpHeaders             map[string]string `json:"otlpHeaders,omitempty"`
-	TlsCaptureEnabled       *bool             `json:"tlsCaptureEnabled,omitempty"`
+	LogPersistenceEnabled   *bool                       `json:"logPersistenceEnabled,omitempty"`
+	LogFilePath             *string                     `json:"logFilePath,omitempty"`
+	AccessToken             *string                     `json:"accessToken,omitempty"`
+	MaxEventCount           *int                        `json:"maxEventCount,omitempty"`
+	MaxEventAge             *string                     `json:"maxEventAge,omitempty"`
+	ShellSessionsEnabled    *bool                       `json:"shellSessionsEnabled,omitempty"`
+	SystemRunEnabled        *bool                       `json:"systemRunEnabled,omitempty"`
+	HookManagementEnabled   *bool                       `json:"hookManagementEnabled,omitempty"`
+	PolicyManagementEnabled *bool                       `json:"policyManagementEnabled,omitempty"`
+	OtlpEnabled             *bool                       `json:"otlpEnabled,omitempty"`
+	OtlpEndpoint            *string                     `json:"otlpEndpoint,omitempty"`
+	OtlpServiceName         *string                     `json:"otlpServiceName,omitempty"`
+	OtlpHeaders             map[string]string           `json:"otlpHeaders,omitempty"`
+	TlsCaptureEnabled       *bool                       `json:"tlsCaptureEnabled,omitempty"`
+	DomainForwardProxy      *DomainForwardProxySettings `json:"domainForwardProxy,omitempty"`
 	MLConfigPatch
 }
 
@@ -590,10 +595,13 @@ func handleConfigImportPost(c *gin.Context) {
 		return
 	}
 	if cfg.Runtime != nil {
-		if _, err := runtimeSettingsStore.Replace(*cfg.Runtime); err != nil {
+		settings, err := runtimeSettingsStore.Replace(*cfg.Runtime)
+		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+		applyRetentionConfig(settings)
+		applyRuntimeDomainForwardProxy(settings)
 	}
 	for _, t := range cfg.Tags {
 		getTagID(t)

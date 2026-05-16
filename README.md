@@ -10,6 +10,7 @@ This project combines:
 - **user-space PID registration** for agent opt-in,
 - **command/path tagging** through pinned BPF maps,
 - **wrapper- and hook-based interception** for AI CLIs,
+- **optional Host/SNI-based HTTP/HTTPS forwarding** on ports 80 and 443,
 - **a Go + Vue dashboard** for live inspection and control.
 
 It is designed for local development workstations and lab environments where you want to see what an agent is opening, executing, connecting to, or attempting to modify.
@@ -67,6 +68,31 @@ Go 进程可通过 `POST /tls-capture/go-binary` 手动注册，或由后端每 
 
 安全边界：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization 在后端脱敏；body 截断至 16 KiB。
 
+### 80/443 域名流量转发
+
+后端可在运行时开启一个 Host/SNI 感知的反向转发器，默认监听
+`80` 和 `443`。HTTP 请求按 `Host` 转发；HTTPS 先用配置的默认证书或
+路由级证书终止 TLS，再按解密后的 `Host` 转发。每条路由可写成：
+
+```json
+{
+  "host": "example.com",
+  "upstream": "https://example.com",
+  "certFile": "/etc/agent-certs/example.pem",
+  "keyFile": "/etc/agent-certs/example.key"
+}
+```
+
+`host` 支持精确域名和 `*.example.com` 通配；`upstream` 为空时会转发到
+`<defaultScheme>://<request-host>`，也可用 `{host}` 占位符。开启
+`allowAnyHost` 后，未显式配置的域名也会自动转发到同名 upstream。
+转发器使用直接 outbound dial，不继承 `HTTP_PROXY` / `HTTPS_PROXY`。如果测试
+环境把所有域名解析回本机，可配置 `dnsResolver`（如 `1.1.1.1:53`）或显式
+upstream，避免代理再次打回自身。
+监听 80/443 需要 root 或 `CAP_NET_BIND_SERVICE`；HTTPS 至少需要一个默认
+证书/私钥或路由级证书/私钥。状态通过 `GET /system/domain-forward/status`
+查看，配置从 Configuration → Runtime 页面写入 `/config/runtime` 并即时应用。
+
 ### User-space telemetry and control
 
 - **PID registration**: Python / Node adapters call `/register` and `/unregister`, optionally attaching `agent_run_id` / `task_id` / `tool_call_id` / `trace_id` / `cwd` style metadata.
@@ -88,7 +114,7 @@ Go 进程可通过 `POST /tls-capture/go-binary` 手动注册，或由后端每 
 - **Executor**: launch coding CLIs in tmux, start Python/Node/Ruby/sh/pwsh/Deno/Bun scripts with optional virtualenv selection, and manage shared launch environment variables in a dedicated config tab with backend-detected env suggestions
 - **TLS 捕获**: TLS 明文日志，支持实时 WebSocket、进程/库/方向/域名过滤、body 搜索、body 和 curl 一键复制、库挂载状态查看
 - **Hooks**: install or edit native hook configs / wrapper aliases
-- **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, OS-level cgroup network blocking, BPF LSM exec/open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename blocking, runtime log persistence, the backend access token, OTLP trace export settings / health, a quick Linux 6.18 LTS syscall / eBPF docs popup preview backed by local snapshots, an eBPF bootstrap health card that lists skipped tracepoints when the current kernel does not expose them, and ML subtabs for status / parameters / model management / training-set management, including a 42-profile local built-in model catalog, native C runtime inference timing with CUDA / Intel iGPU capability detection, OpenAI-compatible LLM scoring that auto-saves to browser storage and syncs to the backend before scoring, validation split controls, square-grid auto parameter tuning with selectable granularity, live progress, and a heatmap preview
+- **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, OS-level cgroup network blocking, BPF LSM exec/open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename blocking, runtime log persistence, the backend access token, OTLP trace export settings / health, optional 80/443 domain forwarding with certificate paths and route overrides, a quick Linux 6.18 LTS syscall / eBPF docs popup preview backed by local snapshots, an eBPF bootstrap health card that lists skipped tracepoints when the current kernel does not expose them, and ML subtabs for status / parameters / model management / training-set management, including a 42-profile local built-in model catalog, native C runtime inference timing with CUDA / Intel iGPU capability detection, OpenAI-compatible LLM scoring that auto-saves to browser storage and syncs to the backend before scoring, validation split controls, square-grid auto parameter tuning with selectable granularity, live progress, and a heatmap preview
 - **Configuration**: the ML training-set manager now includes synthetic expansion presets, batch import of downloadable internet datasets, and the LLM subtab can still pull a cleaned production training set directly from the current training store and export it as OpenAI chat JSONL
 - **Cluster control**: master/slave routing, node switching, and forwarded inspection requests through the master backend
 
@@ -355,6 +381,7 @@ See `docs/external-api.md` for curl examples and `docs/kubernetes.md` plus
 - `GET /network/dns-cache` — active DNS correlation cache
 - `GET /network/interfaces` — per-interface RX / TX counters, packets, errors, drops, and timestamp
 - `GET /network/export/jsonl` — metadata-only flow JSONL export with process / agent attribution
+- `GET /system/domain-forward/status` — optional 80/443 Host/SNI forwarding listener status, bound addresses, route count, resolver override, and startup errors
 - `GET /sandbox/cgroup/status` — cgroup/connect + sendmsg OS-level blocking availability, pinned-map state, active block entries, and cgroup sock-address decision counters (`checked` / `blocked` / `allowed`, with legacy `connect*` aliases)
 - `POST /sandbox/cgroup/block-cgroup` / `unblock-cgroup` — block or release outbound connects for a cgroup id
 - `POST /sandbox/cgroup/block-pid` / `unblock-pid` — resolve a PID's cgroup v2 inode id and block or release that cgroup
@@ -405,6 +432,7 @@ Protected by the same release-mode access token:
 - `/system/ls`
 - `/system/collector-health`
 - `/system/otel-health`
+- `/system/domain-forward/status`
 - `/system/run`
 - `/system/env`
 - `/mcp` — MCP SSE endpoint (same auth as config routes)
@@ -416,6 +444,11 @@ Dangerous capabilities are also runtime-gated and default to **disabled** until 
 - hook installation / raw hook writes
 - policy mutations (tags / comms / paths / prefixes / wrapper rules / cgroup sandbox maps / BPF LSM path/name maps for exec/open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename / config import)
 
+The domain forwarder itself accepts public HTTP/HTTPS traffic without the
+backend runtime token because it is a data-plane reverse proxy. Its
+configuration and status routes remain protected by the release-mode access
+token.
+
 ### Cluster endpoints
 
 - `GET /cluster/state` — current node role and cluster mode
@@ -425,6 +458,15 @@ Dangerous capabilities are also runtime-gated and default to **disabled** until 
 ---
 
 ## Important behavior and limitations
+
+### Domain forwarding is a reverse proxy, not eBPF policy
+
+The optional 80/443 forwarder is implemented in the Go backend with
+`httputil.ReverseProxy`. It does not change cgroup/LSM policy maps and does not
+perform transparent packet NAT. HTTP uses the request `Host`; HTTPS requires TLS
+termination with configured PEM cert/key files before the backend can inspect
+the HTTP host. Route changes restart the forwarding listeners live, so active
+proxied connections can be interrupted during a save.
 
 ### PID registration seeds process lineage
 

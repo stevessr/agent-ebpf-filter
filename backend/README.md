@@ -13,6 +13,7 @@ It is responsible for:
 - managing wrapper rules,
 - receiving native AI CLI hook callbacks,
 - hosting PTY shell sessions,
+- optionally forwarding Host/SNI-based HTTP/HTTPS traffic on ports 80 and 443,
 - routing cluster traffic through a master backend when cluster targets are selected.
 
 ## Key files
@@ -22,6 +23,7 @@ It is responsible for:
 - `cgroup_sandbox_control.go` — cgroup/connect + sendmsg map loading, attach lifecycle, status, and block/unblock API handlers
 - `lsm_enforcer_control.go` — BPF LSM map loading, attach lifecycle, status, and exec/open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename block/unblock API handlers
 - `shell_sessions.go` — persistent PTY session manager
+- `domain_forward_proxy.go` — runtime-configurable HTTP/HTTPS reverse proxy for Host/SNI-based 80/443 forwarding
 - `privileges.go` — drop spawned commands back to the invoking user
 - `ebpf/agent_tracker.c` — eBPF source
 - `ebpf/cgroup_sandbox.c` — cgroup/connect4 + connect6 and cgroup/sendmsg4 + sendmsg6 eBPF blocking source
@@ -168,6 +170,7 @@ Current behavior:
 `POST /shell-sessions` accepts either a normal shell launch, a wrapper-backed temporary terminal, or a custom command + args payload, which is what the Executor page uses for the Remote tab, tmux-backed coding CLIs, script runners, and shared launch environment overrides.
 `GET /system/env` returns a filtered list of the backend process environment so the Executor launch-env tab can suggest already-present variables without leaking backend-only config such as `AGENT_*`, `GIN_MODE`, or `DISABLE_AUTH`.
 `GET /system/bootstrap-health` reports the current kernel release, how many compiled tracepoint programs attached successfully, and which tracepoints were skipped because the running kernel does not expose them.
+`GET /system/domain-forward/status` reports the optional 80/443 forwarding listener state, bound addresses, route count, DNS resolver override, and startup errors.
 `POST /shell-sessions/:id/input` can inject raw bytes into an existing PTY session, which the tmux quick manager uses to send `Ctrl-b` shortcuts.
 
 ## HTTP endpoints
@@ -184,6 +187,7 @@ The runtime access token protects:
 - `GET /metrics` — Prometheus exposition for collector / queue / WS / per-type / per-pid counters
 - `GET /system/bootstrap-health` — current kernel release plus tracepoint attach/skipped summary for the backend bootstrap
 - `GET /system/otel-health` — OTLP exporter readiness / queue / active span counts
+- `GET /system/domain-forward/status` — optional Host/SNI-based HTTP/HTTPS forwarding status
 - `GET /ws/shell-sessions` — live shell session list (WebSocket JSON push)
 - `POST /register`
 - `POST /unregister`
@@ -235,7 +239,27 @@ Runtime feature flags in `/config/runtime` default dangerous capabilities to off
 - `hookManagementEnabled`
 - `policyManagementEnabled`
 
+`/config/runtime` also stores `domainForwardProxy`, which controls the optional
+data-plane reverse proxy. It is disabled by default and can bind HTTP/HTTPS
+listeners (default 80/443), preserve request hosts, route by exact or wildcard
+domain, use `{host}` in upstream URLs, optionally bypass local DNS with
+`dnsResolver`, and load a default cert/key plus route-level cert/key files.
+The proxy traffic itself is not protected by the backend API token; only the
+configuration and status endpoints are.
+
 That means shell sessions, `/system/run`, hook installation / raw hook writes, and policy mutations must be explicitly enabled before their mutating routes succeed.
+
+### Domain forward data plane
+
+When `domainForwardProxy.enabled` is true, the backend starts/restarts public
+listeners from the current runtime settings. HTTP requests are routed by
+`Host`. HTTPS listeners require a default PEM cert/key or per-route cert/key;
+SNI selects the certificate when possible, and the decrypted HTTP `Host` selects
+the upstream. Routes support exact hosts and `*.domain` wildcards. Empty
+upstreams forward to `<defaultScheme>://<request-host>`; configured upstreams
+may include `{host}`. Outbound dials are direct and do not inherit
+`HTTP_PROXY` / `HTTPS_PROXY`. If local DNS maps every domain back to the node,
+configure `dnsResolver` or explicit upstreams to avoid loops.
 
 ### Cluster control
 

@@ -119,6 +119,10 @@ func main() {
 	objs := &trackerMaps
 
 	settings := runtimeSettingsStore.Snapshot()
+	domainForwardProxyService.Activate()
+	applyRuntimeDomainForwardProxy(settings)
+	defer domainForwardProxyService.Close()
+
 	tlsStore := NewTLSCaptureStore(2000)
 	tlsBroadcaster := newTLSCaptureBroadcaster()
 	var tlsManager *TLSProbeManager

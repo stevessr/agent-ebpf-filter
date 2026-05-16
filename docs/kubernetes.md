@@ -62,6 +62,22 @@ Gateway, VPN, or a carefully restricted `NodePort` / `LoadBalancer`. Keep the
 backend token mandatory and avoid publishing the Service directly to the public
 internet.
 
+## Optional 80/443 domain forwarding
+
+The DaemonSet uses `hostNetwork: true`, so enabling
+`domainForwardProxy.enabled` in `/config/runtime` can bind the node's port `80`
+and `443` directly. The manifest declares `forward-http` and `forward-https`
+container/Service ports, but the listeners stay closed until the runtime setting
+is enabled.
+
+Mount certificate material with your normal Secret flow, for example under
+`/etc/agent-ebpf-filter/certs`, then set `domainForwardProxy.certFile` and
+`domainForwardProxy.keyFile` or per-route `certFile` / `keyFile`. If cluster or
+lab DNS redirects all domains back to the node, set
+`domainForwardProxy.dnsResolver` (for example `1.1.1.1:53`) or explicit
+per-host upstreams so proxied outbound requests do not loop back to the same
+listener.
+
 ## Node-specific behavior
 
 The DaemonSet runs one backend per node. A ClusterIP Service may route a request
@@ -88,6 +104,9 @@ when you want a dedicated master backend to forward requests to node agents.
   routes in release mode.
 - Keep policy mutations disabled until needed. Enable `policyManagementEnabled`
   only when an external controller should add/remove cgroup or BPF LSM blocks.
+- Keep the domain forwarder disabled unless the node is intended to terminate
+  HTTP/HTTPS for those domains. Proxied traffic itself is a public data plane;
+  only `/config/runtime` and `/system/domain-forward/status` are token-protected.
 - NetworkPolicy support depends on the CNI plugin. If your cluster supports it,
   restrict ingress to the namespaces/controllers that must call the API.
 

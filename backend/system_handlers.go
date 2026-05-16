@@ -741,6 +741,7 @@ func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.POST("/benchmark", handleRunBenchmark)
 	rg.GET("/benchmark", handleGetBenchmarkResults)
 	rg.GET("/otel-health", handleOTelHealth)
+	rg.GET("/domain-forward/status", handleDomainForwardProxyStatus)
 	rg.POST("/run", systemRunEnabledMiddleware(), handleRun)
 	rg.GET("/systemd", handleSystemdServices)
 	rg.POST("/systemd/control", handleSystemdControl)

@@ -22,6 +22,9 @@ That means the current security posture depends heavily on:
 - release-mode token auth for `/api/v1/**`, `/config/**`, `/system/**`, `/ws*`, `/metrics`, `/events/*`, `/sandbox/**`, `/register`, `/unregister`, and shell-session APIs
 - per-hook secret support for `/hooks/event`
 - PTY, `/system/run`, hook installation, and policy mutation disabled by default until explicitly enabled
+- optional 80/443 domain forwarding disabled by default; its configuration and
+  status routes require the runtime token, while proxied HTTP/HTTPS data-plane
+  traffic intentionally does not
 - `/tmp/agent-ebpf.sock` created with `0600`
 - peer credential verification on the UDS wrapper socket
 - OS-level cgroup/LSM policy maps pinned with restrictive `0600` permissions
@@ -76,6 +79,9 @@ That split is **not fully implemented yet**. This document should stay honest ab
 
 - treat the app as a local workstation tool unless reverse-proxy auth and host hardening are also in place
 - rotate runtime tokens if you enable release-mode remote access
+- only enable the domain forwarder on networks where public 80/443 traffic is
+  expected, and manage the configured TLS private-key files with host-level file
+  permissions
 - keep hook secrets per CLI rather than reusing one global secret everywhere
 - enable PTY or `/system/run` only when you explicitly need them
 - in Kubernetes, keep the DaemonSet Service internal by default and restrict
