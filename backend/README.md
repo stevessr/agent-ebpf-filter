@@ -161,6 +161,7 @@ Current behavior:
 
 `POST /shell-sessions` accepts either a normal shell launch, a wrapper-backed temporary terminal, or a custom command + args payload, which is what the Executor page uses for the Remote tab, tmux-backed coding CLIs, script runners, and shared launch environment overrides.
 `GET /system/env` returns a filtered list of the backend process environment so the Executor launch-env tab can suggest already-present variables without leaking backend-only config such as `AGENT_*`, `GIN_MODE`, or `DISABLE_AUTH`.
+`GET /system/bootstrap-health` reports the current kernel release, how many compiled tracepoint programs attached successfully, and which tracepoints were skipped because the running kernel does not expose them.
 `POST /shell-sessions/:id/input` can inject raw bytes into an existing PTY session, which the tmux quick manager uses to send `Ctrl-b` shortcuts.
 
 ## HTTP endpoints
@@ -173,6 +174,7 @@ The runtime access token protects:
 - `GET /events/graph?...` — aggregated execution graph API for the current event retention window
 - `GET /ws/envelopes` — live `pb.EventEnvelopeBatch` stream for normalized event consumers
 - `GET /metrics` — Prometheus exposition for collector / queue / WS / per-type / per-pid counters
+- `GET /system/bootstrap-health` — current kernel release plus tracepoint attach/skipped summary for the backend bootstrap
 - `GET /system/otel-health` — OTLP exporter readiness / queue / active span counts
 - `GET /ws/shell-sessions` — live shell session list (WebSocket JSON push)
 - `POST /register`

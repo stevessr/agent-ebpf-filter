@@ -152,7 +152,7 @@ func pinMaps(objs *bpf.AgentTrackerObjects) error {
 	for name, m := range map[string]*ebpf.Map{
 		"agent_pids": objs.AgentPids, "events": objs.Events,
 		"collector_stats": objs.CollectorStats,
-		"tracked_comms": objs.TrackedComms, "tracked_paths": objs.TrackedPaths,
+		"tracked_comms":   objs.TrackedComms, "tracked_paths": objs.TrackedPaths,
 		"tracked_prefixes": objs.TrackedPrefixes, "exit_ctx": objs.ExitCtx,
 		"exit_path_buf": objs.ExitPathBuf, "exit_path_ctx": objs.ExitPathCtx,
 	} {
@@ -164,8 +164,9 @@ func pinMaps(objs *bpf.AgentTrackerObjects) error {
 }
 
 func pinLinks(objs *bpf.AgentTrackerObjects) error {
+	specs := collectTracepointAttachSpecs(&objs.AgentTrackerPrograms)
 	skipped := make([]string, 0)
-	for _, s := range collectTracepointAttachSpecs(&objs.AgentTrackerPrograms) {
+	for _, s := range specs {
 		l, err := link.Tracepoint(s.category, s.name, s.program, nil)
 		if err != nil {
 			if isMissingTracepointError(err) {
@@ -180,6 +181,8 @@ func pinLinks(objs *bpf.AgentTrackerObjects) error {
 		}
 		_ = l.Close()
 	}
+
+	recordTracepointBootstrapStatus(len(specs), skipped)
 
 	if len(skipped) > 0 {
 		preview := skipped

@@ -103,6 +103,17 @@ export interface CollectorHealthResponse {
   captureHealthy: boolean;
 }
 
+export interface TracepointBootstrapStatus {
+  kernelRelease: string;
+  compiledCount: number;
+  attachedCount: number;
+  skippedCount: number;
+  skippedTracepoints: string[];
+  status: 'unknown' | 'ready' | 'partial' | 'error';
+  message: string;
+  observedAt?: string;
+}
+
 export interface OTelHealthResponse {
   enabled: boolean;
   ready: boolean;

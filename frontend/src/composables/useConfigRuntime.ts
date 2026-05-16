@@ -4,7 +4,13 @@ import { message } from 'ant-design-vue';
 import {
   setStoredApiToken,
 } from '../utils/requestContext';
-import type { RuntimeSettings, RuntimeConfigResponse, CollectorHealthResponse, OTelHealthResponse } from '../types/config';
+import type {
+  RuntimeSettings,
+  RuntimeConfigResponse,
+  CollectorHealthResponse,
+  OTelHealthResponse,
+  TracepointBootstrapStatus,
+} from '../types/config';
 
 export function useConfigRuntime() {
   const runtimeSettings = ref<RuntimeSettings>({
@@ -39,6 +45,15 @@ export function useConfigRuntime() {
     wsClients: 0,
     persistAppendLatencyNs: 0,
     captureHealthy: true,
+  });
+  const bootstrapHealth = ref<TracepointBootstrapStatus>({
+    kernelRelease: 'unknown',
+    compiledCount: 0,
+    attachedCount: 0,
+    skippedCount: 0,
+    skippedTracepoints: [],
+    status: 'unknown',
+    message: 'Tracepoint bootstrap has not been observed yet.',
   });
   const otelHealth = ref<OTelHealthResponse>({
     enabled: false,
@@ -92,30 +107,54 @@ export function useConfigRuntime() {
   };
 
   const fetchRuntime = async () => {
-    try {
-      const [runtimeRes, collectorRes, otelRes] = await Promise.all([
-        axios.get('/config/runtime'),
-        axios.get('/system/collector-health'),
-        axios.get('/system/otel-health'),
-      ]);
-      collectorHealth.value = collectorRes.data as CollectorHealthResponse;
-      otelHealth.value = otelRes.data as OTelHealthResponse;
-      applyRuntimeResponse(runtimeRes.data as RuntimeConfigResponse);
-    } catch (_) {
+    const [runtimeRes, bootstrapRes, collectorRes, otelRes] = await Promise.allSettled([
+      axios.get('/config/runtime'),
+      axios.get('/system/bootstrap-health'),
+      axios.get('/system/collector-health'),
+      axios.get('/system/otel-health'),
+    ]);
+    if (runtimeRes.status === 'fulfilled') {
+      applyRuntimeResponse(runtimeRes.value.data as RuntimeConfigResponse);
+    } else {
       console.error('Failed to fetch runtime config');
+    }
+    if (bootstrapRes.status === 'fulfilled') {
+      bootstrapHealth.value = bootstrapRes.value.data as TracepointBootstrapStatus;
+    } else {
+      console.error('Failed to fetch bootstrap health');
+    }
+    if (collectorRes.status === 'fulfilled') {
+      collectorHealth.value = collectorRes.value.data as CollectorHealthResponse;
+    } else {
+      console.error('Failed to fetch collector health');
+    }
+    if (otelRes.status === 'fulfilled') {
+      otelHealth.value = otelRes.value.data as OTelHealthResponse;
+    } else {
+      console.error('Failed to fetch OTLP health');
     }
   };
 
   const fetchCollectorHealth = async () => {
-    try {
-      const [collectorRes, otelRes] = await Promise.all([
-        axios.get('/system/collector-health'),
-        axios.get('/system/otel-health'),
-      ]);
-      collectorHealth.value = collectorRes.data as CollectorHealthResponse;
-      otelHealth.value = otelRes.data as OTelHealthResponse;
-    } catch (_) {
+    const [bootstrapRes, collectorRes, otelRes] = await Promise.allSettled([
+      axios.get('/system/bootstrap-health'),
+      axios.get('/system/collector-health'),
+      axios.get('/system/otel-health'),
+    ]);
+    if (bootstrapRes.status === 'fulfilled') {
+      bootstrapHealth.value = bootstrapRes.value.data as TracepointBootstrapStatus;
+    } else {
+      console.error('Failed to fetch bootstrap health');
+    }
+    if (collectorRes.status === 'fulfilled') {
+      collectorHealth.value = collectorRes.value.data as CollectorHealthResponse;
+    } else {
       console.error('Failed to fetch collector health');
+    }
+    if (otelRes.status === 'fulfilled') {
+      otelHealth.value = otelRes.value.data as OTelHealthResponse;
+    } else {
+      console.error('Failed to fetch OTLP health');
     }
   };
 
@@ -233,7 +272,7 @@ export function useConfigRuntime() {
     runtimeSettings,
     otlpHeadersText, otelHealth,
     mcpEndpoint, authHeaderName, bearerAuthHeaderName,
-    persistedEventLogPath, persistedEventLogAlive, collectorHealth,
+    persistedEventLogPath, persistedEventLogAlive, bootstrapHealth, collectorHealth,
     syncApiToken, applyRuntimeResponse, fetchRuntime, fetchCollectorHealth, saveRuntime,
     rotateAccessToken, clearInMemoryEvents, clearPersistedLog, clearAllEvents,
     copyText, mcpQueryEndpoint, mcpQueryEndpointTemplate,

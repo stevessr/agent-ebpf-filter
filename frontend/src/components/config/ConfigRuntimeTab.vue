@@ -8,8 +8,9 @@ const props = defineProps<{
 
 const {
   runtimeSettings, mcpEndpoint,
-  persistedEventLogPath, persistedEventLogAlive,
+  persistedEventLogPath, persistedEventLogAlive, bootstrapHealth,
   collectorHealth, otelHealth, otlpHeadersText,
+  fetchCollectorHealth,
   saveRuntime, rotateAccessToken, clearInMemoryEvents, clearPersistedLog, clearAllEvents,
   copyText, mcpQueryEndpoint, mcpQueryEndpointTemplate,
 } = props.runtime;
@@ -181,6 +182,49 @@ const formatMaybeDate = (value?: string) => {
                 show-icon
                 message="Sampling may be incomplete because the kernel ringbuf dropped events."
               />
+            </div>
+          </a-col>
+        </a-row>
+      </a-card>
+    </a-col>
+
+    <a-col :span="24">
+      <a-card title="eBPF Bootstrap Health" size="small">
+        <template #extra>
+          <a-button size="small" @click="fetchCollectorHealth">
+            <ReloadOutlined /> Refresh Health
+          </a-button>
+        </template>
+        <a-row :gutter="[24, 16]">
+          <a-col :xs="24" :md="12">
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap">
+                <a-tag :color="bootstrapHealth.status === 'ready' ? 'green' : bootstrapHealth.status === 'partial' ? 'orange' : bootstrapHealth.status === 'error' ? 'red' : 'blue'">
+                  {{ bootstrapHealth.status === 'ready' ? 'Tracepoints ready' : bootstrapHealth.status === 'partial' ? 'Tracepoints partially attached' : bootstrapHealth.status === 'error' ? 'Tracepoint bootstrap error' : 'Tracepoint status pending' }}
+                </a-tag>
+                <a-tag color="blue">{{ bootstrapHealth.kernelRelease || 'unknown kernel' }}</a-tag>
+              </div>
+              <div>compiled tracepoints: <strong>{{ bootstrapHealth.compiledCount }}</strong></div>
+              <div>attached tracepoints: <strong>{{ bootstrapHealth.attachedCount }}</strong></div>
+              <div>skipped tracepoints: <strong>{{ bootstrapHealth.skippedCount }}</strong></div>
+              <div>last observed: <strong>{{ formatMaybeDate(bootstrapHealth.observedAt) }}</strong></div>
+            </div>
+          </a-col>
+          <a-col :xs="24" :md="12">
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <a-alert
+                :type="bootstrapHealth.status === 'ready' ? 'success' : bootstrapHealth.status === 'partial' ? 'warning' : bootstrapHealth.status === 'error' ? 'error' : 'info'"
+                show-icon
+                :message="bootstrapHealth.message || 'No tracepoint bootstrap status available'"
+              />
+              <a-space wrap>
+                <a-tag v-for="tracepoint in bootstrapHealth.skippedTracepoints" :key="tracepoint" color="orange">
+                  {{ tracepoint }}
+                </a-tag>
+              </a-space>
+              <a-typography-text v-if="bootstrapHealth.status !== 'unknown' && bootstrapHealth.skippedTracepoints.length === 0" type="secondary">
+                When some tracepoints are missing on the current kernel, the backend skips only those hooks and keeps booting with the rest.
+              </a-typography-text>
             </div>
           </a-col>
         </a-row>
