@@ -9,6 +9,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cilium/ebpf/ringbuf"
@@ -295,6 +297,7 @@ func main() {
 			cluster.GET("/nodes", clusterNodesHandler)
 		}
 	}
+	registerExternalAPIRoutes(r.Group("/api/v1", authMiddleware()))
 
 	staticDir := "../frontend/dist"
 	if _, err := os.Stat(staticDir); err != nil {
@@ -354,7 +357,16 @@ func main() {
 		disabledComms[sh] = struct{}{}
 	}
 
-	startPort, maxTries, actualPort := 8080, 10, 8080
+	startPort, maxTries := 8080, 10
+	if rawPort := strings.TrimSpace(os.Getenv("AGENT_BACKEND_PORT")); rawPort != "" {
+		if configuredPort, err := strconv.Atoi(rawPort); err == nil && configuredPort > 0 {
+			startPort = configuredPort
+			maxTries = 1
+		} else {
+			log.Printf("[WARN] ignoring invalid AGENT_BACKEND_PORT=%q", rawPort)
+		}
+	}
+	actualPort := startPort
 	for i := 0; i < maxTries; i++ {
 		l, err := net.Listen("tcp", fmt.Sprintf(":%d", startPort+i))
 		if err == nil {

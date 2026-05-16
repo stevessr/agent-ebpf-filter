@@ -13,6 +13,7 @@ Main responsibilities:
 - `frontend/` — Vue 3 + TypeScript dashboard
 - `wrapper/` — `agent-wrapper` binary
 - `adapters/` — Python / Node PID registration helpers
+- `deploy/kubernetes/` — DaemonSet / Service manifests for Kubernetes node-agent deployment
 - `proto/tracker.proto` — protobuf source of truth
 
 ## 2. Shell / tooling rules
@@ -74,6 +75,13 @@ If you change `backend/ebpf/lsm_enforcer.c`, regenerate/build:
 rtk make ebpf-lsm
 rtk bash -lc 'cd backend && go build ./...'
 ```
+
+If you change external API or Kubernetes deployment behavior, update:
+
+- `docs/external-api.md`
+- `docs/kubernetes.md`
+- `deploy/kubernetes/agent-ebpf-filter.yaml`
+- root `README.md` / `backend/README.md` endpoint summaries
 
 ## 4. Generated files
 
@@ -204,6 +212,7 @@ Especially keep these accurate:
 - supported syscall types
 - supported AI CLI hooks
 - auth scope
+- `/api/v1` external API aliases and Kubernetes manifests
 - generated-file workflow
 - Make targets
 

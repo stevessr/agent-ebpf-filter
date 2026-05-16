@@ -19,7 +19,7 @@ That means the current security posture depends heavily on:
 
 ## Control-plane protections already present
 
-- release-mode token auth for `/config/**`, `/system/**`, `/ws*`, `/metrics`, `/events/*`, `/sandbox/**`, `/register`, `/unregister`, and shell-session APIs
+- release-mode token auth for `/api/v1/**`, `/config/**`, `/system/**`, `/ws*`, `/metrics`, `/events/*`, `/sandbox/**`, `/register`, `/unregister`, and shell-session APIs
 - per-hook secret support for `/hooks/event`
 - PTY, `/system/run`, hook installation, and policy mutation disabled by default until explicitly enabled
 - `/tmp/agent-ebpf.sock` created with `0600`
@@ -78,3 +78,6 @@ That split is **not fully implemented yet**. This document should stay honest ab
 - rotate runtime tokens if you enable release-mode remote access
 - keep hook secrets per CLI rather than reusing one global secret everywhere
 - enable PTY or `/system/run` only when you explicitly need them
+- in Kubernetes, keep the DaemonSet Service internal by default and restrict
+  callers to trusted namespaces/controllers because the node-agent Pod is
+  privileged and can mutate kernel enforcement policy when the runtime gate is enabled

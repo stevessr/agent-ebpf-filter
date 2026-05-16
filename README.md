@@ -104,6 +104,8 @@ For a rootless static check of the compiled enforcement objects and smoke script
 - `docs/otel-export.md`
 - `docs/benchmark.md`
 - `docs/codex-workflows.md`
+- `docs/external-api.md`
+- `docs/kubernetes.md`
 
 ## Cluster mode
 
@@ -318,6 +320,24 @@ The wrapper sends the command to the backend over `/tmp/agent-ebpf.sock`, receiv
 ---
 
 ## API overview
+
+### Stable external API
+
+External automation should prefer the versioned aliases under `/api/v1`.
+They use the same runtime access token as the root API and expose an OpenAPI
+summary at:
+
+- `GET /api/v1/health` — service health, runtime feature gates, eBPF bootstrap status, and collector counters
+- `GET /api/v1/openapi.json` — machine-readable OpenAPI 3.0 summary
+- `GET /api/v1/events/recent` / `GET /api/v1/events/graph`
+- `GET /api/v1/network/flows`, `/api/v1/network/dns-cache`, `/api/v1/network/interfaces`, `/api/v1/network/export/jsonl`
+- `GET /api/v1/sandbox/cgroup/status` / `GET /api/v1/sandbox/lsm/status`
+- `POST /api/v1/policies/network/*` and `POST /api/v1/policies/lsm/*` — policy mutations, additionally gated by `policyManagementEnabled`
+- `POST /api/v1/agents/register` / `POST /api/v1/agents/unregister`
+- `GET /api/v1/config/export`
+
+See `docs/external-api.md` for curl examples and `docs/kubernetes.md` plus
+`deploy/kubernetes/` for the DaemonSet + Service integration.
 
 ### Event / control endpoints
 

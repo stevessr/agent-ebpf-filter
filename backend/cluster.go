@@ -365,6 +365,8 @@ func shouldProxyPath(path string) bool {
 		return true
 	case strings.HasPrefix(path, "/system/"):
 		return true
+	case strings.HasPrefix(path, "/api/v1/"):
+		return true
 	case strings.HasPrefix(path, "/shell-sessions"):
 		return true
 	case path == "/register", path == "/unregister", path == "/hooks/event", path == "/mcp":
@@ -383,6 +385,8 @@ func isProtectedClusterProxyPath(path string) bool {
 	case strings.HasPrefix(path, "/config/"):
 		return true
 	case strings.HasPrefix(path, "/system/"):
+		return true
+	case strings.HasPrefix(path, "/api/v1/"):
 		return true
 	case strings.HasPrefix(path, "/shell-sessions"):
 		return true
