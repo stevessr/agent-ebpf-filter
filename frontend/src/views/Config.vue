@@ -4,10 +4,12 @@ import { useRoute, useRouter } from 'vue-router';
 import {
   TagOutlined, SafetyCertificateOutlined, ReloadOutlined,
   ThunderboltOutlined, BookOutlined, ClusterOutlined,
+  SettingOutlined,
 } from '@ant-design/icons-vue';
 import ConfigRegistryTab from '../components/config/ConfigRegistryTab.vue';
 import ConfigSecurityTab from '../components/config/ConfigSecurityTab.vue';
 import ConfigRuntimeTab from '../components/config/ConfigRuntimeTab.vue';
+import ConfigSystemHealthTab from '../components/config/ConfigSystemHealthTab.vue';
 import ConfigMLTab from '../components/config/ConfigMLTab.vue';
 import ConfigDocsTab from '../components/config/ConfigDocsTab.vue';
 import ConfigClusterTab from '../components/config/ConfigClusterTab.vue';
@@ -82,9 +84,14 @@ onMounted(async () => {
         <ConfigSecurityTab :security="security" />
       </a-tab-pane>
 
-      <a-tab-pane key="system">
-        <template #tab><span><ReloadOutlined /> System & Runtime</span></template>
+      <a-tab-pane key="runtime">
+        <template #tab><span><SettingOutlined /> Runtime Config</span></template>
         <ConfigRuntimeTab :runtime="runtime" />
+      </a-tab-pane>
+
+      <a-tab-pane key="system">
+        <template #tab><span><ReloadOutlined /> System Health</span></template>
+        <ConfigSystemHealthTab :runtime="runtime" />
       </a-tab-pane>
 
       <a-tab-pane key="ml">

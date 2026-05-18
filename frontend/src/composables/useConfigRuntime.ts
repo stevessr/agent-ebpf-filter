@@ -9,10 +9,24 @@ import type {
   RuntimeConfigResponse,
   CollectorHealthResponse,
   OTelHealthResponse,
+  DomainForwardRoute,
   DomainForwardProxySettings,
   DomainForwardProxyStatus,
   TracepointBootstrapStatus,
 } from '../types/config';
+
+interface EditableHeaderRow {
+  id: string;
+  key: string;
+  value: string;
+}
+
+interface EditableDomainForwardRoute extends DomainForwardRoute {
+  id: string;
+}
+
+let editableRowSequence = 0;
+const nextEditableRowId = (prefix: string) => `${prefix}-${Date.now()}-${editableRowSequence++}`;
 
 const defaultDomainForwardProxy = (): DomainForwardProxySettings => ({
   enabled: false,
@@ -66,8 +80,8 @@ export function useConfigRuntime() {
   const bearerAuthHeaderName = ref('Authorization: Bearer');
   const persistedEventLogPath = ref('');
   const persistedEventLogAlive = ref(false);
-  const otlpHeadersText = ref('{}');
-  const domainForwardRoutesText = ref('[]');
+  const otlpHeaderRows = ref<EditableHeaderRow[]>([]);
+  const domainForwardRoutes = ref<EditableDomainForwardRoute[]>([]);
   const collectorHealth = ref<CollectorHealthResponse>({
     collectorMapAvailable: false,
     ringbufEventsTotal: 0,
@@ -141,8 +155,18 @@ export function useConfigRuntime() {
       tlsCaptureEnabled: Boolean(data.runtime.tlsCaptureEnabled),
       domainForwardProxy: normalizeDomainForwardProxy(data.runtime.domainForwardProxy),
     };
-    otlpHeadersText.value = JSON.stringify(runtimeSettings.value.otlpHeaders || {}, null, 2);
-    domainForwardRoutesText.value = JSON.stringify(runtimeSettings.value.domainForwardProxy.routes || [], null, 2);
+    otlpHeaderRows.value = Object.entries(runtimeSettings.value.otlpHeaders || {}).map(([key, value]) => ({
+      id: nextEditableRowId('otlp-header'),
+      key,
+      value: String(value ?? ''),
+    }));
+    domainForwardRoutes.value = (runtimeSettings.value.domainForwardProxy.routes || []).map((route) => ({
+      id: nextEditableRowId('domain-route'),
+      host: route.host || '',
+      upstream: route.upstream || '',
+      certFile: route.certFile || '',
+      keyFile: route.keyFile || '',
+    }));
     mcpEndpoint.value = data.mcpEndpoint;
     authHeaderName.value = data.authHeaderName;
     bearerAuthHeaderName.value = data.bearerAuthHeaderName;
@@ -216,50 +240,53 @@ export function useConfigRuntime() {
   };
 
   const parseOTLPHeaders = () => {
-    const raw = otlpHeadersText.value.trim();
-    if (!raw) return {};
-    try {
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('OTLP headers must be a JSON object');
+    return otlpHeaderRows.value.reduce<Record<string, string>>((acc, row, index) => {
+      const key = row.key.trim();
+      const value = row.value.trim();
+      if (!key && !value) return acc;
+      if (!key) {
+        throw new Error(`OTLP header #${index + 1} requires a name`);
       }
-      return Object.entries(parsed).reduce<Record<string, string>>((acc, [key, value]) => {
-        const normalizedKey = String(key || '').trim();
-        if (!normalizedKey) return acc;
-        acc[normalizedKey] = String(value ?? '').trim();
-        return acc;
-      }, {});
-    } catch (error: any) {
-      throw new Error(error?.message || 'Invalid OTLP headers JSON');
-    }
+      acc[key] = value;
+      return acc;
+    }, {});
   };
 
   const parseDomainForwardRoutes = () => {
-    const raw = domainForwardRoutesText.value.trim();
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) {
-        throw new Error('Domain forward routes must be a JSON array');
+    return domainForwardRoutes.value.reduce<DomainForwardRoute[]>((acc, route, index) => {
+      const host = String(route.host || '').trim();
+      const upstream = String(route.upstream || '').trim();
+      const certFile = String(route.certFile || '').trim();
+      const keyFile = String(route.keyFile || '').trim();
+      if (!host && !upstream && !certFile && !keyFile) return acc;
+      if (!host) {
+        throw new Error(`Domain forward route #${index + 1} requires a host`);
       }
-      return parsed.map((route, index) => {
-        if (!route || typeof route !== 'object' || Array.isArray(route)) {
-          throw new Error(`Route #${index + 1} must be an object`);
-        }
-        const host = String(route.host || '').trim();
-        if (!host) {
-          throw new Error(`Route #${index + 1} requires a host`);
-        }
-        return {
-          host,
-          upstream: String(route.upstream || '').trim(),
-          certFile: String(route.certFile || '').trim(),
-          keyFile: String(route.keyFile || '').trim(),
-        };
-      });
-    } catch (error: any) {
-      throw new Error(error?.message || 'Invalid domain forward routes JSON');
-    }
+      acc.push({ host, upstream, certFile, keyFile });
+      return acc;
+    }, []);
+  };
+
+  const addOTLPHeaderRow = () => {
+    otlpHeaderRows.value.push({ id: nextEditableRowId('otlp-header'), key: '', value: '' });
+  };
+
+  const removeOTLPHeaderRow = (id: string) => {
+    otlpHeaderRows.value = otlpHeaderRows.value.filter((row) => row.id !== id);
+  };
+
+  const addDomainForwardRoute = () => {
+    domainForwardRoutes.value.push({
+      id: nextEditableRowId('domain-route'),
+      host: '',
+      upstream: '',
+      certFile: '',
+      keyFile: '',
+    });
+  };
+
+  const removeDomainForwardRoute = (id: string) => {
+    domainForwardRoutes.value = domainForwardRoutes.value.filter((route) => route.id !== id);
   };
 
   const saveRuntime = async () => {
@@ -360,10 +387,11 @@ export function useConfigRuntime() {
 
   return {
     runtimeSettings,
-    otlpHeadersText, otelHealth, domainForwardRoutesText, domainForwardStatus,
+    otlpHeaderRows, otelHealth, domainForwardRoutes, domainForwardStatus,
     mcpEndpoint, authHeaderName, bearerAuthHeaderName,
     persistedEventLogPath, persistedEventLogAlive, bootstrapHealth, collectorHealth,
     syncApiToken, applyRuntimeResponse, fetchRuntime, fetchCollectorHealth, saveRuntime,
+    addOTLPHeaderRow, removeOTLPHeaderRow, addDomainForwardRoute, removeDomainForwardRoute,
     rotateAccessToken, clearInMemoryEvents, clearPersistedLog, clearAllEvents,
     copyText, mcpQueryEndpoint, mcpQueryEndpointTemplate,
   };

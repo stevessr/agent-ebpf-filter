@@ -194,7 +194,7 @@ Important pages:
 - `Explorer.vue` — filesystem browser and path tagging
 - `Executor.vue` — wrapper execution + PTY shell manager
 - `Hooks.vue` — AI CLI hook management
-- `Config.vue` — tags, comms, paths, wrapper rules
+- `Config.vue` — tags, comms, paths, wrapper rules, Runtime Config, System Health
 
 ## 7. Backend conventions
 
@@ -229,5 +229,5 @@ Especially keep these accurate:
 
 - Native hook installation injects a `curl` command into CLI config files, so docs should mention `curl` as a runtime dependency.
 - Hook callbacks resolve to the current backend port via `.port` unless `AGENT_HOOK_ENDPOINT` overrides it.
-- The frontend runtime page now stores the access token locally and appends it to WebSocket URLs as `?key=...`.
+- The frontend Runtime Config tab stores the access token locally and appends it to WebSocket URLs as `?key=...`.
 - The wrapper UDS socket is expected to stay restrictive (`0600`) and validate peer credentials against root / the original invoking user.

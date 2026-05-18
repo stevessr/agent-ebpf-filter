@@ -30,7 +30,7 @@ It also emits child spans or span events for:
 
 ## Runtime settings
 
-Configure OTLP from **Configuration -> Runtime** or `PUT /config/runtime`:
+Configure OTLP from **Configuration -> Runtime Config** or `PUT /config/runtime`:
 
 ```json
 {

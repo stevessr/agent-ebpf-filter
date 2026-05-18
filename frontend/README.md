@@ -81,9 +81,10 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 - manages tracked paths
 - manages wrapper rules
 - manages master/slave cluster selection and node routing
-- manages runtime log persistence
+- exposes a dedicated Runtime Config tab for visual editing of runtime log persistence, feature gates, event retention, OTLP settings/headers, TLS capture, and 80/443 domain-forward routes/certificates
 - generates / rotates the backend access token for `/config` and `/mcp`
 - documents MCP query auth URLs such as `/mcp?key=<token>`
+- exposes a System Health tab for collector, eBPF bootstrap, OTLP exporter, and domain-forward listener status
 - imports / exports tag + command + path + wrapper-rule config
 - provides ML subtabs for status / parameters / model management / training-set management, plus parameter-grid tuning and cross-model auto selection on the parameters tab for comparing validation accuracy or inference throughput before applying the best model
 - pulls existing wrapper/native-hook command events into the ML sample browser, fetches remote HTTP/HTTPS raw datasets or local file content into the training store, recursively expands common archives / compressed payloads such as zip, tar, gzip, bzip2, and xz before parsing, and now exposes synthetic expansion presets plus batch import of downloadable internet datasets before re-training
