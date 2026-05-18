@@ -62,9 +62,11 @@ The maps/links are pinned under `/sys/fs/bpf/agent-ebpf/lsm_enforcer`; policy ma
 
 ### TLS 明文捕获
 
-后端可以通过 eBPF uprobes 挂载 OpenSSL、GnuTLS、NSS 和手动注册的 Go TLS 二进制，在加密发送前或解密接收后捕获 HTTPS 明文片段。片段在 Go 后端拼装后解析 HTTP request/response，并通过 `GET /ws/tls-capture`、`GET /tls-capture/recent`、`GET /tls-capture/libraries` 暴露给前端。
+TLS 明文捕获属于显式启用的高风险诊断能力，不是安全基线的一部分；本轮参赛实现只补齐安全的 hook 元数据、系统调用、网络元数据和用户态关联分析，不新增或强化加密库明文截获。
 
-Go 进程可通过 `POST /tls-capture/go-binary` 手动注册，或由后端每 60 秒自动扫描 `/proc` 发现的 Go TLS 进程。
+当 Runtime Config 中 `tlsCaptureEnabled` 显式开启时，后端可以通过 eBPF uprobes 挂载 OpenSSL、GnuTLS、NSS 和手动注册的 Go TLS 二进制，在加密发送前或解密接收后捕获 HTTPS 明文片段。片段在 Go 后端拼装后解析 HTTP request/response，并通过 `GET /ws/tls-capture`、`GET /tls-capture/recent`、`GET /tls-capture/libraries` 暴露给前端。
+
+Go 进程可通过 `POST /tls-capture/go-binary` 手动注册；只有在 `tlsCaptureEnabled=true` 时，后端才会每 60 秒自动扫描 `/proc` 发现的 Go TLS 进程。
 
 安全边界：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization 在后端脱敏；body 截断至 16 KiB。
 
@@ -99,8 +101,8 @@ upstream，避免代理再次打回自身。
 - **Tracked command names**: common CLIs plus user-defined commands are tagged through `tracked_comms`.
 - **Tracked paths**: exact path matches are tagged through `tracked_paths`.
 - **Wrapper interception**: `agent-wrapper` asks the backend for `ALLOW`, `BLOCK`, `ALERT`, or `REWRITE`.
-- **Native AI CLI hooks**: the backend can install hook config for Claude Code, Gemini CLI, Codex, and GitHub Copilot, or wrapper aliases for Cursor / any CLI routed through the wrapper.
-- **Derived semantic alerts**: the backend can emit `semantic_alert` records such as `SECRET_ACCESS`, `UNEXPECTED_NETWORK_EGRESS`, `UNEXPECTED_CHILD_PROCESS`, and `SEMANTIC_MISMATCH` when observed behavior drifts from read-only style tool intent.
+- **Native AI CLI hooks**: the backend can install hook config for Claude Code, Gemini CLI, Codex, and GitHub Copilot, or wrapper aliases for Cursor / any CLI routed through the wrapper. Hook events record safe prompt/response metadata (`sha256` digest + length) when supplied by the CLI, not raw prompt/response text.
+- **Derived semantic alerts**: the backend can emit `semantic_alert` records such as `SECRET_ACCESS`, `UNEXPECTED_NETWORK_EGRESS`, `UNEXPECTED_CHILD_PROCESS`, `SEMANTIC_MISMATCH`, `RESOURCE_WASTING_LOOP`, and `MULTI_AGENT_FILE_CONTENTION` when observed behavior drifts from declared tool intent or multiple agents contend on the same path.
   Hook callbacks resolve against the backend's current port instead of assuming `8080`.
 
 ### UI surfaces
@@ -112,7 +114,7 @@ upstream，避免代理再次打回自身。
 - **Explorer**: browse the host filesystem and add tracked paths
 - **Executor**: open a temporary wrapper-backed PTY tab for ad-hoc commands, keep shell PTY sessions separate from tmux, and let the Remote tab self-destruct when you leave it
 - **Executor**: launch coding CLIs in tmux, start Python/Node/Ruby/sh/pwsh/Deno/Bun scripts with optional virtualenv selection, and manage shared launch environment variables in a dedicated config tab with backend-detected env suggestions
-- **TLS 捕获**: TLS 明文日志，支持实时 WebSocket、进程/库/方向/域名过滤、body 搜索、body 和 curl 一键复制、库挂载状态查看
+- **TLS 捕获（可选，默认关闭）**: TLS 明文日志，支持实时 WebSocket、进程/库/方向/域名过滤、body 搜索、body 和 curl 一键复制、库挂载状态查看
 - **Hooks**: install or edit native hook configs / wrapper aliases
 - **ML**: first-level ML Classification page for status / parameters / model management / LLM scoring / training-set management, including a 42-profile local built-in model catalog, native C runtime inference timing with CUDA / Intel iGPU capability detection, OpenAI-compatible LLM scoring that auto-saves to browser storage and syncs to the backend before scoring, validation split controls, square-grid auto parameter tuning with selectable granularity, live progress, and a heatmap preview
 - **ML**: the training-set manager includes synthetic expansion presets, batch import of downloadable internet datasets, and the LLM subtab can pull a cleaned production training set directly from the current training store and export it as OpenAI chat JSONL

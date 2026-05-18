@@ -232,7 +232,11 @@ backend creates PTY-backed shell
 interactive WebSocket terminal
 ```
 
-## TLS 明文捕获
+## TLS 明文捕获（可选高风险诊断）
+
+该链路默认关闭，只在 Runtime Config 中显式开启 `tlsCaptureEnabled` 后运行。
+安全基线和 `.codex/plan/3.md` 的本轮实现不依赖新增 TLS 明文截获，而是使用
+native hook 的 digest/length 元数据、eBPF 系统调用事件和网络元数据做关联分析。
 
 ```
 eBPF uprobes -> tls_events ringbuf -> TLSProbeManager -> FragmentAssembler -> HTTP parser -> TLSCaptureStore -> /ws/tls-capture -> Vue TLSCapture

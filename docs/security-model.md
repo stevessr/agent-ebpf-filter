@@ -57,6 +57,8 @@ synchronous cgroup/LSM decision loop.
 
 - kernel/eBPF events are treated as the factual execution source
 - wrapper/native hook events are semantic declarations
+- prompt/response fields supplied by native hooks are reduced to digest/length
+  metadata by default; raw text capture is not required for the safe baseline
 - the system raises alerts when the semantic layer and factual layer diverge
 
 ## Planned hardening direction

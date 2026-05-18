@@ -94,9 +94,15 @@ The backend currently synthesizes alerts such as:
 - `WORKSPACE_ESCAPE`
 - `TOKEN_EXFIL_RISK`
 - `RESOURCE_WASTING_LOOP`
+- `MULTI_AGENT_FILE_CONTENTION`
 
 These alert classifications are **userspace interpretations** over normalized
 events, not direct kernel-enforced decisions by themselves.
+`RESOURCE_WASTING_LOOP` can be raised either by fork/clone storms or by a
+safe cross-layer correlation window where repeated prompt metadata digests,
+API-like egress, and low-level file I/O all repeat in the same agent context.
+`MULTI_AGENT_FILE_CONTENTION` is raised when different agent contexts mutate the
+same normalized path within a short window.
 They can be used to propose wrapper rules or OS-enforcement map entries, but the
 alerts themselves are not in the synchronous cgroup/LSM decision path.
 

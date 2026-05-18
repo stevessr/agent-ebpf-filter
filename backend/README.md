@@ -373,15 +373,18 @@ When native hooks are installed, the callback URL resolves from:
 3. fallback `http://127.0.0.1:8080/hooks/event`
 
 Native hook entries call a generated relay script under the target CLI config directory's `hooks/` subdirectory instead of embedding a long inline `curl` command directly in the hook config.
+Those relay scripts send both `X-Agent-CLI` and a per-hook `X-Agent-Hook-Secret` header.
+When a CLI supplies user prompt or response fields, the backend stores only safe metadata (`sha256` digest + character length) in `ExtraInfo`; it does not persist raw prompt or response text for semantic-loop analysis.
 
 ### TLS 明文捕获
+
+TLS capture is an explicit opt-in diagnostic path (`tlsCaptureEnabled=true`) and is not part of the safe baseline used to satisfy the contest plan. Do not add new plaintext-interception hooks unless a task explicitly requests that higher-risk mode.
 
 - `GET /ws/tls-capture` — JSON WebSocket stream of `tls_plaintext` events。
 - `GET /tls-capture/recent?limit=100` — recent in-memory TLS plaintext events。
 - `GET /tls-capture/libraries` — current library attach status (OpenSSL, GnuTLS, NSS, Go)。
 - `POST /tls-capture/go-binary` — manually attach Go TLS uprobes for `{ "path": "/path/to/bin", "pid": 123 }`。
-Those relay scripts now send both `X-Agent-CLI` and a per-hook `X-Agent-Hook-Secret` header.
-During event broadcast, the backend may also synthesize `semantic_alert` events (for example `SECRET_ACCESS`, `UNEXPECTED_NETWORK_EGRESS`, `UNEXPECTED_CHILD_PROCESS`, or `SEMANTIC_MISMATCH`) when child behavior conflicts with read-only style tool intent.
+During event broadcast, the backend may also synthesize `semantic_alert` events (for example `SECRET_ACCESS`, `UNEXPECTED_NETWORK_EGRESS`, `UNEXPECTED_CHILD_PROCESS`, `SEMANTIC_MISMATCH`, `RESOURCE_WASTING_LOOP`, or `MULTI_AGENT_FILE_CONTENTION`) when child behavior conflicts with read-only style tool intent, repeated prompt/API/file-I/O windows suggest a runaway loop, or multiple agent contexts touch the same path in a short window.
 
 ## Build notes
 

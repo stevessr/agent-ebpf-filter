@@ -117,6 +117,11 @@ const (
 	semanticExecCorrelationTTL   = 30 * time.Second
 	semanticForkWindow           = 2 * time.Second
 	semanticForkStormThreshold   = 8
+	semanticAgenticLoopWindow    = 10 * time.Second
+	semanticPromptLoopThreshold  = 3
+	semanticAPILoopThreshold     = 3
+	semanticFileIOLoopThreshold  = 3
+	semanticFileContentionTTL    = 15 * time.Second
 )
 
 type semanticSecretObservation struct {
@@ -135,18 +140,39 @@ type semanticForkObservation struct {
 	Count       int
 }
 
+type semanticAgenticLoopObservation struct {
+	WindowStart   time.Time
+	PromptDigest  string
+	PromptRepeats int
+	APICalls      int
+	FileOps       int
+	LastTarget    string
+	Alerted       bool
+}
+
+type semanticFileMutationObservation struct {
+	SeenAt time.Time
+	Actor  string
+	Op     string
+	Path   string
+}
+
 type semanticAlertState struct {
-	mu            sync.Mutex
-	recentSecrets map[string]semanticSecretObservation
-	recentExecs   map[string]semanticExecObservation
-	forkWindows   map[string]semanticForkObservation
+	mu                  sync.Mutex
+	recentSecrets       map[string]semanticSecretObservation
+	recentExecs         map[string]semanticExecObservation
+	forkWindows         map[string]semanticForkObservation
+	agenticLoopWindows  map[string]semanticAgenticLoopObservation
+	recentFileMutations map[string]semanticFileMutationObservation
 }
 
 func newSemanticAlertState() *semanticAlertState {
 	return &semanticAlertState{
-		recentSecrets: make(map[string]semanticSecretObservation),
-		recentExecs:   make(map[string]semanticExecObservation),
-		forkWindows:   make(map[string]semanticForkObservation),
+		recentSecrets:       make(map[string]semanticSecretObservation),
+		recentExecs:         make(map[string]semanticExecObservation),
+		forkWindows:         make(map[string]semanticForkObservation),
+		agenticLoopWindows:  make(map[string]semanticAgenticLoopObservation),
+		recentFileMutations: make(map[string]semanticFileMutationObservation),
 	}
 }
 
@@ -227,6 +253,14 @@ func buildSemanticAlerts(event *pb.Event) []*pb.Event {
 		addAlert("RESOURCE_WASTING_LOOP", target, "observed repeated fork/clone activity suggesting a lightweight fork storm or runaway loop", 0.94)
 	}
 
+	if target, reason, ok := observeAgenticResourceLoop(event, now); ok {
+		addAlert("RESOURCE_WASTING_LOOP", target, reason, 0.95)
+	}
+
+	if target, reason, ok := observeMultiAgentFileContention(event, now); ok {
+		addAlert("MULTI_AGENT_FILE_CONTENTION", target, reason, 0.96)
+	}
+
 	// Codex-specific workflow semantic checks
 	if reason, ok := detectPRReviewAnomaly(event); ok {
 		addAlert("SEMANTIC_MISMATCH", firstNonEmpty(event.GetToolCallId(), event.GetPath()), reason, 0.96)
@@ -258,6 +292,7 @@ func newSemanticAlertEvent(source *pb.Event, code, target, reason string, minimu
 	}
 	return &pb.Event{
 		Pid:            source.GetPid(),
+		Tgid:           source.GetTgid(),
 		Ppid:           source.GetPpid(),
 		Uid:            source.GetUid(),
 		Gid:            source.GetGid(),
@@ -435,6 +470,138 @@ func isFileLikeEvent(eventType string) bool {
 	}
 }
 
+func isLowValueFileIOEvent(event *pb.Event) bool {
+	if event == nil {
+		return false
+	}
+	switch event.GetType() {
+	case "read", "write":
+		return true
+	case "openat", "open":
+		path := strings.ToLower(strings.TrimSpace(event.GetPath()))
+		if path == "" || isSecretLikePath(path) {
+			return false
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func isAPILikeNetworkEvent(event *pb.Event) bool {
+	if event == nil {
+		return false
+	}
+	switch event.GetType() {
+	case "network_connect", "network_sendto", "tcp_connect", "dns_query":
+	default:
+		return false
+	}
+	target := strings.ToLower(strings.Join([]string{
+		event.GetNetEndpoint(),
+		event.GetSni(),
+		event.GetHttpHost(),
+		event.GetDnsName(),
+		event.GetServiceName(),
+		event.GetPath(),
+	}, " "))
+	if target == "" {
+		return false
+	}
+	for _, local := range []string{"127.0.0.1", "localhost", "::1"} {
+		if strings.Contains(target, local) {
+			return false
+		}
+	}
+	for _, hint := range []string{
+		"api",
+		"openai",
+		"anthropic",
+		"claude",
+		"gemini",
+		"generativelanguage",
+		"azure.com",
+		"bedrock",
+		"cohere",
+		"mistral",
+		"ollama",
+	} {
+		if strings.Contains(target, hint) {
+			return true
+		}
+	}
+	return event.GetDstPort() == 443 && firstNonEmpty(event.GetSni(), event.GetHttpHost(), event.GetDnsName()) != ""
+}
+
+func semanticFileMutationPath(event *pb.Event) (string, bool) {
+	if event == nil {
+		return "", false
+	}
+	switch event.GetType() {
+	case "write", "chmod", "chown", "rename", "link", "symlink", "mknod", "mkdir", "unlink", "unlinkat":
+	default:
+		return "", false
+	}
+	path := firstNonEmpty(event.GetPath(), event.GetExtraPath())
+	if path == "" {
+		return "", false
+	}
+	lower := strings.ToLower(strings.TrimSpace(path))
+	if lower == "write" || strings.HasPrefix(lower, "socket ") {
+		return "", false
+	}
+	return normalizeSemanticPath(path, event.GetCwd()), true
+}
+
+func normalizeSemanticPath(path, cwd string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	if !filepath.IsAbs(trimmed) {
+		base := strings.TrimSpace(cwd)
+		if filepath.IsAbs(base) {
+			trimmed = filepath.Join(base, trimmed)
+		}
+	}
+	return filepath.Clean(trimmed)
+}
+
+func semanticAgentIdentity(event *pb.Event) string {
+	if event == nil {
+		return ""
+	}
+	if value := strings.TrimSpace(event.GetAgentRunId()); value != "" {
+		return "agent_run:" + value
+	}
+	if value := strings.TrimSpace(event.GetTaskId()); value != "" {
+		return "task:" + value
+	}
+	if value := strings.TrimSpace(event.GetToolCallId()); value != "" {
+		return "tool_call:" + value
+	}
+	if value := strings.TrimSpace(event.GetTraceId()); value != "" {
+		return "trace:" + value
+	}
+	if event.GetRootAgentPid() > 0 {
+		return fmt.Sprintf("root_pid:%d", event.GetRootAgentPid())
+	}
+	if event.GetPid() > 0 {
+		return fmt.Sprintf("pid:%d", event.GetPid())
+	}
+	return ""
+}
+
+func extraInfoField(extraInfo, key string) string {
+	needle := key + "="
+	for _, part := range strings.Fields(strings.ReplaceAll(extraInfo, ",", " ")) {
+		if strings.HasPrefix(part, needle) {
+			return strings.TrimSpace(strings.TrimPrefix(part, needle))
+		}
+	}
+	return ""
+}
+
 func detectSuspiciousShellTransport(event *pb.Event) (string, string, bool) {
 	if event == nil {
 		return "", "", false
@@ -505,6 +672,110 @@ func observeForkStorm(event *pb.Event, now time.Time) (string, bool) {
 	return "", false
 }
 
+func observeAgenticResourceLoop(event *pb.Event, now time.Time) (string, string, bool) {
+	return semanticAlertsState.observeAgenticResourceLoop(event, now)
+}
+
+func (s *semanticAlertState) observeAgenticResourceLoop(event *pb.Event, now time.Time) (string, string, bool) {
+	if s == nil || event == nil {
+		return "", "", false
+	}
+	key := semanticAlertContextKey(event)
+	if key == "" {
+		return "", "", false
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	observation := s.agenticLoopWindows[key]
+	if observation.WindowStart.IsZero() || now.Sub(observation.WindowStart) > semanticAgenticLoopWindow {
+		observation = semanticAgenticLoopObservation{WindowStart: now}
+	}
+
+	changed := false
+	if digest := extraInfoField(event.GetExtraInfo(), "prompt_digest"); digest != "" {
+		if observation.PromptDigest == digest {
+			observation.PromptRepeats++
+		} else {
+			observation.PromptDigest = digest
+			observation.PromptRepeats = 1
+			observation.Alerted = false
+		}
+		observation.LastTarget = "prompt:" + digest
+		changed = true
+	}
+	if isAPILikeNetworkEvent(event) {
+		observation.APICalls++
+		observation.LastTarget = firstNonEmpty(event.GetNetEndpoint(), event.GetSni(), event.GetHttpHost(), event.GetDnsName(), event.GetPath())
+		changed = true
+	}
+	if isLowValueFileIOEvent(event) {
+		observation.FileOps++
+		if target := firstNonEmpty(event.GetPath(), event.GetExtraPath(), event.GetComm()); target != "" {
+			observation.LastTarget = target
+		}
+		changed = true
+	}
+
+	if !changed {
+		s.agenticLoopWindows[key] = observation
+		return "", "", false
+	}
+
+	if !observation.Alerted &&
+		observation.PromptRepeats >= semanticPromptLoopThreshold &&
+		observation.APICalls >= semanticAPILoopThreshold &&
+		observation.FileOps >= semanticFileIOLoopThreshold {
+		observation.Alerted = true
+		s.agenticLoopWindows[key] = observation
+		target := firstNonEmpty(observation.LastTarget, observation.PromptDigest, key)
+		reason := fmt.Sprintf("observed repeated prompt metadata (%d repeats) with %d API egress events and %d low-level file I/O events within %s",
+			observation.PromptRepeats, observation.APICalls, observation.FileOps, semanticAgenticLoopWindow)
+		return target, reason, true
+	}
+
+	s.agenticLoopWindows[key] = observation
+	return "", "", false
+}
+
+func observeMultiAgentFileContention(event *pb.Event, now time.Time) (string, string, bool) {
+	return semanticAlertsState.observeMultiAgentFileContention(event, now)
+}
+
+func (s *semanticAlertState) observeMultiAgentFileContention(event *pb.Event, now time.Time) (string, string, bool) {
+	if s == nil || event == nil {
+		return "", "", false
+	}
+	path, ok := semanticFileMutationPath(event)
+	if !ok {
+		return "", "", false
+	}
+	actor := semanticAgentIdentity(event)
+	if actor == "" {
+		return "", "", false
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	previous, seen := s.recentFileMutations[path]
+	current := semanticFileMutationObservation{
+		SeenAt: now,
+		Actor:  actor,
+		Op:     event.GetType(),
+		Path:   path,
+	}
+	s.recentFileMutations[path] = current
+	if !seen || previous.Actor == "" || previous.Actor == actor || now.Sub(previous.SeenAt) > semanticFileContentionTTL {
+		return "", "", false
+	}
+
+	reason := fmt.Sprintf("agent context %s performed %s on a path touched by %s via %s within %s",
+		actor, event.GetType(), previous.Actor, previous.Op, semanticFileContentionTTL)
+	return path, reason, true
+}
+
 func semanticAlertContextKey(event *pb.Event) string {
 	if event == nil {
 		return ""
@@ -513,13 +784,18 @@ func semanticAlertContextKey(event *pb.Event) string {
 	if taskID := strings.TrimSpace(event.GetTaskId()); taskID != "" || strings.TrimSpace(event.GetTraceId()) != "" {
 		taskTraceKey = taskID + "|" + strings.TrimSpace(event.GetTraceId())
 	}
-	return firstNonEmpty(
+	candidates := []string{
 		strings.TrimSpace(event.GetToolCallId()),
 		taskTraceKey,
 		strings.TrimSpace(event.GetAgentRunId()),
-		fmt.Sprintf("pid:%d", event.GetRootAgentPid()),
-		fmt.Sprintf("pid:%d", event.GetPid()),
-	)
+	}
+	if event.GetRootAgentPid() > 0 {
+		candidates = append(candidates, fmt.Sprintf("pid:%d", event.GetRootAgentPid()))
+	}
+	if event.GetPid() > 0 {
+		candidates = append(candidates, fmt.Sprintf("pid:%d", event.GetPid()))
+	}
+	return firstNonEmpty(candidates...)
 }
 
 func (s *semanticAlertState) rememberSecret(event *pb.Event, target string, now time.Time) {

@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -45,6 +47,7 @@ func handleNativeHookEvent(c *gin.Context) {
 			path = fmt.Sprintf("%v", args)
 		}
 	}
+	extraInfo := buildNativeHookExtraInfo(payload, hookEvent, toolName)
 
 	pid, ctx := buildProcessContextFromHookPayload(payload, toolName, path)
 	if pid != 0 {
@@ -83,6 +86,7 @@ func handleNativeHookEvent(c *gin.Context) {
 		Tag:            tag,
 		Comm:           fmt.Sprintf("%s:%s", hookEvent, toolName),
 		Path:           path,
+		ExtraInfo:      extraInfo,
 		SchemaVersion:  eventSchemaVersion,
 		RootAgentPid:   ctx.RootAgentPid,
 		AgentRunId:     ctx.AgentRunID,
@@ -100,6 +104,106 @@ func handleNativeHookEvent(c *gin.Context) {
 		Cwd:            ctx.Cwd,
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolName string) string {
+	parts := []string{}
+	if trimmed := strings.TrimSpace(hookEvent); trimmed != "" {
+		parts = append(parts, "hook_event="+sanitizeExtraInfoValue(trimmed))
+	}
+	if trimmed := strings.TrimSpace(toolName); trimmed != "" {
+		parts = append(parts, "tool_name="+sanitizeExtraInfoValue(trimmed))
+	}
+	if prompt := extractHookPromptText(payload, hookEvent); prompt != "" {
+		parts = append(parts,
+			"prompt_digest="+digestHookText(prompt),
+			fmt.Sprintf("prompt_len=%d", len([]rune(prompt))),
+		)
+	}
+	if response := extractHookResponseText(payload, hookEvent); response != "" {
+		parts = append(parts,
+			"response_digest="+digestHookText(response),
+			fmt.Sprintf("response_len=%d", len([]rune(response))),
+		)
+	}
+	if sessionID := payloadString(payload, "session_id", "sessionId"); sessionID != "" {
+		parts = append(parts, "session_id="+sanitizeExtraInfoValue(sessionID))
+	}
+	return strings.Join(parts, " ")
+}
+
+func extractHookPromptText(payload map[string]interface{}, hookEvent string) string {
+	if payload == nil {
+		return ""
+	}
+	if prompt := payloadNestedString(payload, "prompt", "initial_prompt", "initialPrompt", "user_prompt", "userPrompt", "input"); prompt != "" {
+		return prompt
+	}
+	lowerEvent := strings.ToLower(strings.TrimSpace(hookEvent))
+	if strings.Contains(lowerEvent, "prompt") {
+		return payloadNestedString(payload, "message", "text", "content")
+	}
+	return ""
+}
+
+func extractHookResponseText(payload map[string]interface{}, hookEvent string) string {
+	if payload == nil {
+		return ""
+	}
+	if response := payloadNestedString(payload, "response", "prompt_response", "promptResponse", "final_response", "finalResponse", "output"); response != "" {
+		return response
+	}
+	lowerEvent := strings.ToLower(strings.TrimSpace(hookEvent))
+	if strings.Contains(lowerEvent, "afteragent") || strings.Contains(lowerEvent, "stop") || strings.Contains(lowerEvent, "response") {
+		return payloadNestedString(payload, "message", "text", "content")
+	}
+	return ""
+}
+
+func payloadNestedString(payload map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if value, ok := payload[key]; ok {
+			if text := interfaceString(value); text != "" {
+				return text
+			}
+		}
+	}
+	for _, nestedKey := range []string{"tool_input", "toolInput", "tool_response", "toolResponse", "tool_output", "toolOutput", "tool_result", "toolResult"} {
+		nested, _ := payload[nestedKey].(map[string]interface{})
+		if nested == nil {
+			continue
+		}
+		if text := payloadNestedString(nested, keys...); text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
+func interfaceString(value interface{}) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case fmt.Stringer:
+		return strings.TrimSpace(typed.String())
+	default:
+		return ""
+	}
+}
+
+func digestHookText(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return "sha256:" + hex.EncodeToString(sum[:8])
+}
+
+func sanitizeExtraInfoValue(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.ReplaceAll(value, "\\", "\\\\")
+	value = strings.ReplaceAll(value, " ", "_")
+	value = strings.ReplaceAll(value, "\n", "_")
+	value = strings.ReplaceAll(value, "\r", "_")
+	value = strings.ReplaceAll(value, "\t", "_")
+	return value
 }
 
 func hasNativeHookMarker(cfgPath string) bool {
