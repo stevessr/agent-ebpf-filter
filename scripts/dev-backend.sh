@@ -1,16 +1,35 @@
 #!/bin/bash
+set -uo pipefail
 # Auto-reload script with eBPF-aware hot-reload and privilege handling
 # On startup: always clean old BPF pins to force a fresh bootstrap
 # On shutdown: clean BPF pins so no stale state lingers
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
 BACKEND_DIR="backend"
-WRAPPER_PATH="$(pwd)/agent-wrapper"
+WRAPPER_PATH="$ROOT/agent-wrapper"
+BACKEND_BIN="$ROOT/backend/agent-ebpf-filter"
 BPF_PIN_ROOT="/sys/fs/bpf/agent-ebpf"
+PID=""
+
+require_cmd() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        echo "--- [Dev] Missing required command: $1 ---" >&2
+        echo "--- [Dev] Run 'make predev' after installing the repo toolchain, then retry 'make dev'. ---" >&2
+        exit 127
+    fi
+}
+
+require_cmd go
+require_cmd sudo
+require_cmd find
+require_cmd md5sum
 
 cleanup() {
     echo "--- [Dev] Shutting down ---"
-    [ -n "$PID" ] && sudo kill $PID 2>/dev/null
-    wait $PID 2>/dev/null
+    [ -n "${PID:-}" ] && sudo kill "$PID" 2>/dev/null || true
+    [ -n "${PID:-}" ] && wait "$PID" 2>/dev/null || true
     echo "--- [Dev] Cleaning BPF pins ---"
     sudo rm -rf "$BPF_PIN_ROOT" 2>/dev/null
     exit
@@ -38,8 +57,17 @@ while true; do
 
     if [ $? -eq 0 ]; then
         echo "--- [Dev] Launching Backend ---"
-        # Use sudo -E to ensure eBPF loading privileges
-        sudo -E DISABLE_AUTH=true AGENT_WRAPPER_PATH="$WRAPPER_PATH" ./backend/agent-ebpf-filter &
+        # Export first, then preserve by name. This keeps paths containing spaces
+        # out of sudo's command/env assignment parser entirely.
+        export DISABLE_AUTH=true
+        export AGENT_WRAPPER_PATH="$WRAPPER_PATH"
+        sudo_backend_cmd=(
+            sudo
+            --preserve-env=DISABLE_AUTH,AGENT_WRAPPER_PATH
+            --
+            "$BACKEND_BIN"
+        )
+        "${sudo_backend_cmd[@]}" &
         PID=$!
 
         LAST_SUM=$(get_checksum)
@@ -48,8 +76,8 @@ while true; do
             CURRENT_SUM=$(get_checksum)
             if [ "$LAST_SUM" != "$CURRENT_SUM" ]; then
                 echo "--- [Dev] Source code changed, restarting ---"
-                sudo kill $PID 2>/dev/null
-                wait $PID 2>/dev/null
+                sudo kill "$PID" 2>/dev/null || true
+                wait "$PID" 2>/dev/null || true
                 break
             fi
         done

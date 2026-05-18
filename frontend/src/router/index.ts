@@ -51,6 +51,18 @@ const routes = [
     component: () => import('../views/Hooks.vue'),
   },
   {
+    path: '/ml/:subtab?',
+    name: 'ML',
+    component: () => import('../views/ML.vue'),
+  },
+  {
+    path: '/config/ml/:subtab?',
+    redirect: (to: { params: { subtab?: string | string[] } }) => {
+      const subtab = Array.isArray(to.params.subtab) ? to.params.subtab[0] : to.params.subtab;
+      return subtab ? { name: 'ML', params: { subtab } } : { name: 'ML' };
+    },
+  },
+  {
     path: '/config/:tab?/:subtab?/:subsubtab?',
     name: 'Config',
     component: () => import('../views/Config.vue'),

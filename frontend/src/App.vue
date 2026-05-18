@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined, GlobalOutlined, DeploymentUnitOutlined, ClusterOutlined, SafetyCertificateOutlined } from '@ant-design/icons-vue';
+import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined, GlobalOutlined, DeploymentUnitOutlined, ClusterOutlined, SafetyCertificateOutlined, ThunderboltOutlined } from '@ant-design/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -18,6 +18,8 @@ watch(() => route.path, (path) => {
     selectedKeys.value = ['/network-flow'];
   } else if (path.startsWith('/network')) {
     selectedKeys.value = ['/network'];
+  } else if (path.startsWith('/ml')) {
+    selectedKeys.value = ['/ml'];
   } else if (path.startsWith('/config')) {
     selectedKeys.value = ['/config'];
   } else if (path.startsWith('/dashboard')) {
@@ -82,6 +84,10 @@ const handleMenuClick = ({ key }: { key: string }) => {
         <a-menu-item key="/hooks">
           <template #icon><LinkOutlined /></template>
           Hooks
+        </a-menu-item>
+        <a-menu-item key="/ml">
+          <template #icon><ThunderboltOutlined /></template>
+          ML
         </a-menu-item>
         <a-menu-item key="/config">
           <template #icon><SettingOutlined /></template>

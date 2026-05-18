@@ -194,6 +194,7 @@ Important pages:
 - `Explorer.vue` — filesystem browser and path tagging
 - `Executor.vue` — wrapper execution + PTY shell manager
 - `Hooks.vue` — AI CLI hook management
+- `ML.vue` — ML status, parameters, model tuning, LLM scoring, and training-set management
 - `Config.vue` — tags, comms, paths, wrapper rules, Runtime Config, System Health
 
 ## 7. Backend conventions

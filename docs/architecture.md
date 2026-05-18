@@ -115,6 +115,7 @@ Responsibilities:
 - browse host filesystem
 - edit tracking config
 - manage AI CLI hooks
+- manage the first-level ML Classification workflow for model status, tuning, LLM scoring, and training datasets
 - attach to backend PTY sessions
 
 ### 5. Adapters

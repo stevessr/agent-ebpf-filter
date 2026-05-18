@@ -3,27 +3,24 @@ import { ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   TagOutlined, SafetyCertificateOutlined, ReloadOutlined,
-  ThunderboltOutlined, BookOutlined, ClusterOutlined,
+  BookOutlined, ClusterOutlined,
   SettingOutlined,
 } from '@ant-design/icons-vue';
 import ConfigRegistryTab from '../components/config/ConfigRegistryTab.vue';
 import ConfigSecurityTab from '../components/config/ConfigSecurityTab.vue';
 import ConfigRuntimeTab from '../components/config/ConfigRuntimeTab.vue';
 import ConfigSystemHealthTab from '../components/config/ConfigSystemHealthTab.vue';
-import ConfigMLTab from '../components/config/ConfigMLTab.vue';
 import ConfigDocsTab from '../components/config/ConfigDocsTab.vue';
 import ConfigClusterTab from '../components/config/ConfigClusterTab.vue';
 import { useConfigRegistry } from '../composables/useConfigRegistry';
 import { useConfigSecurity } from '../composables/useConfigSecurity';
 import { useConfigRuntime } from '../composables/useConfigRuntime';
-import { useConfigML } from '../composables/useConfigML';
 import { useConfigCluster } from '../composables/useConfigCluster';
 
 // ── Composable Instantiations ──
 const registry = useConfigRegistry();
 const security = useConfigSecurity();
 const runtime = useConfigRuntime();
-const ml = useConfigML();
 const cluster = useConfigCluster();
 
 const {
@@ -31,7 +28,6 @@ const {
 } = registry;
 const { fetchRules, fetchDisabledEventTypes, fetchCgroupSandboxStatus, fetchLsmEnforcerStatus } = security;
 const { fetchRuntime } = runtime;
-const { fetchMLStatus, fetchAllSamples, fetchExistingCommandData } = ml;
 const {
   updateClusterTargetFromStorage, fetchClusterState, fetchClusterNodes,
 } = cluster;
@@ -39,14 +35,21 @@ const {
 // ── Routing ──
 const route = useRoute();
 const router = useRouter();
-const activeTabKey = ref((route.params.tab as string) || 'registry');
+const configTabKeys = new Set(['registry', 'security', 'runtime', 'system', 'docs', 'cluster']);
+const normalizeConfigTab = (tab: unknown) => (typeof tab === 'string' && configTabKeys.has(tab) ? tab : 'registry');
+const activeTabKey = ref(normalizeConfigTab(route.params.tab));
 
 watch(() => route.params.tab, (tab) => {
-  if (tab) activeTabKey.value = tab as string;
-});
+  if (tab === 'ml') {
+    const subtab = Array.isArray(route.params.subtab) ? route.params.subtab[0] : route.params.subtab;
+    router.replace(subtab ? { name: 'ML', params: { subtab } } : { name: 'ML' });
+    return;
+  }
+  activeTabKey.value = normalizeConfigTab(tab);
+}, { immediate: true });
 
 watch(activeTabKey, (val) => {
-  if (val !== route.params.tab) {
+  if (route.params.tab !== 'ml' && val !== route.params.tab) {
     router.replace({ name: 'Config', params: { tab: val } });
   }
 });
@@ -65,9 +68,6 @@ onMounted(async () => {
   fetchDisabledEventTypes();
   fetchCgroupSandboxStatus();
   fetchLsmEnforcerStatus();
-  await fetchMLStatus();
-  fetchAllSamples();
-  fetchExistingCommandData(true);
 });
 </script>
 
@@ -92,11 +92,6 @@ onMounted(async () => {
       <a-tab-pane key="system">
         <template #tab><span><ReloadOutlined /> System Health</span></template>
         <ConfigSystemHealthTab :runtime="runtime" />
-      </a-tab-pane>
-
-      <a-tab-pane key="ml">
-        <template #tab><span><ThunderboltOutlined /> ML Classification</span></template>
-        <ConfigMLTab :ml="ml" :active="activeTabKey === 'ml'" />
       </a-tab-pane>
 
       <a-tab-pane key="docs">

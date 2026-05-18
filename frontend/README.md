@@ -86,7 +86,11 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 - documents MCP query auth URLs such as `/mcp?key=<token>`
 - exposes a System Health tab for collector, eBPF bootstrap, OTLP exporter, and domain-forward listener status
 - imports / exports tag + command + path + wrapper-rule config
-- provides ML subtabs for status / parameters / model management / training-set management, plus parameter-grid tuning and cross-model auto selection on the parameters tab for comparing validation accuracy or inference throughput before applying the best model
+
+### ML Classification
+
+- exposed as the first-level `/ml` page instead of a nested Configuration tab
+- provides subtabs for status / parameters / model management / LLM scoring / training-set management, plus parameter-grid tuning and cross-model auto selection on the parameters tab for comparing validation accuracy or inference throughput before applying the best model
 - pulls existing wrapper/native-hook command events into the ML sample browser, fetches remote HTTP/HTTPS raw datasets or local file content into the training store, recursively expands common archives / compressed payloads such as zip, tar, gzip, bzip2, and xz before parsing, and now exposes synthetic expansion presets plus batch import of downloadable internet datasets before re-training
 - provides export / clear actions for the current dataset plus a full-command safety assessment panel that uses exact labeled samples as evidence
 - includes a curated catalog of classic OS-security datasets such as ADFA, CERT Insider Threat, LANL host/network, and DARPA IDS corpora for quick reference; those catalog entries point to reference/archival pages and must be downloaded or extracted before import

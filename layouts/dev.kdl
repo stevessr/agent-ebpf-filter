@@ -1,12 +1,8 @@
 layout {
-    tab name="agent-ebpf-dev" cwd="__ROOT__" {
+    tab name="agent-ebpf-dev" {
         pane split_direction="horizontal" {
-            pane command="bash" {
-                args "-lc" "./scripts/dev-backend.sh"
-            }
-            pane command="bash" {
-                args "-lc" "./scripts/dev-frontend.sh"
-            }
+            pane command="__BACKEND_LAUNCHER__"
+            pane command="__FRONTEND_LAUNCHER__"
         }
     }
 }

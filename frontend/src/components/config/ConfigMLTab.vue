@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useMLStatusStream } from '../../composables/useMLStatusStream';
 import type { useConfigML } from '../../composables/useConfigML';
@@ -9,7 +9,7 @@ import ConfigMLModelTab from './ml/ConfigMLModelTab.vue';
 import ConfigMLLLMTab from './ml/ConfigMLLLMTab.vue';
 import ConfigMLTrainingTab from './ml/ConfigMLTrainingTab.vue';
 
-const props = defineProps<{ ml: ReturnType<typeof useConfigML>; active?: boolean }>();
+const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 
 const route = useRoute();
 const router = useRouter();
@@ -19,26 +19,36 @@ const { wsActive, applyMLStatusResponse } = props.ml;
 const { connect: wsConnect } = useMLStatusStream(applyMLStatusResponse);
 
 const validMLSubTabs = new Set(['status', 'params', 'model', 'llm', 'training']);
+const storedSubTab = localStorage.getItem('ml_subtab') || localStorage.getItem('config_ml_subtab') || '';
 const initialSubTab = typeof route.params.subtab === 'string' && validMLSubTabs.has(route.params.subtab)
   ? route.params.subtab
-  : localStorage.getItem('config_ml_subtab') || 'status';
+  : validMLSubTabs.has(storedSubTab) ? storedSubTab : 'status';
 const mlSubTabKey = ref(initialSubTab);
 
 watch(() => route.params.subtab, (subtab) => {
-  if (props.active && typeof subtab === 'string' && validMLSubTabs.has(subtab)) {
+  if (route.name === 'ML' && typeof subtab === 'string' && validMLSubTabs.has(subtab)) {
     mlSubTabKey.value = subtab;
   }
 });
 
 watch(mlSubTabKey, (val) => {
-  localStorage.setItem('config_ml_subtab', val);
-  if (props.active && (route.params.tab !== 'ml' || route.params.subtab !== val)) {
-    router.replace({ name: 'Config', params: { tab: 'ml', subtab: val } });
+  localStorage.setItem('ml_subtab', val);
+  if (route.name === 'ML' && route.params.subtab !== val) {
+    router.replace({ name: 'ML', params: { subtab: val } });
   }
 });
 
-wsActive.value = true;
-wsConnect();
+onMounted(() => {
+  wsActive.value = true;
+  wsConnect();
+  if (route.name === 'ML' && route.params.subtab !== mlSubTabKey.value) {
+    router.replace({ name: 'ML', params: { subtab: mlSubTabKey.value } });
+  }
+});
+
+onUnmounted(() => {
+  wsActive.value = false;
+});
 </script>
 
 <template>
