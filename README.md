@@ -253,6 +253,9 @@ make dev
 The GHCR devcontainer image built by GitHub Actions also runs `make predev`
 during the image build. Its post-create hook and `make exec` seed missing
 workspace-local dependencies from the image before verifying `make predev`.
+Devcontainers pass through the host user's Git config read-only
+(`~/.gitconfig` and `~/.config/git`) without mounting credentials, SSH keys, or
+Git credential stores.
 
 What it does:
 

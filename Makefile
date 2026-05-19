@@ -55,12 +55,34 @@ dev-image-tag: ## Print the GHCR devcontainer image tag for the current branch
 exec: ## Start or attach to the mounted devcontainer shell
 	@test -n "$(CONTAINER_CLI)" || (echo "Missing docker or podman CLI." && exit 1)
 	@$(CONTAINER_CLI) image inspect $(DEV_IMAGE) >/dev/null 2>&1 || $(MAKE) --no-print-directory docker
-	@if $(CONTAINER_CLI) container inspect $(DEV_CONTAINER) >/dev/null 2>&1; then \
+	@recreate=false; \
+	if $(CONTAINER_CLI) container inspect $(DEV_CONTAINER) >/dev/null 2>&1; then \
+		if [ -f "$$HOME/.gitconfig" ] && ! $(CONTAINER_CLI) inspect -f '{{range .Mounts}}{{if eq .Destination "/home/vscode/.gitconfig"}}{{if not .RW}}readonly{{end}}{{end}}{{end}}' $(DEV_CONTAINER) | grep -qx readonly; then \
+			recreate=true; \
+		fi; \
+		if [ -d "$$HOME/.config/git" ] && ! $(CONTAINER_CLI) inspect -f '{{range .Mounts}}{{if eq .Destination "/home/vscode/.config/git"}}{{if not .RW}}readonly{{end}}{{end}}{{end}}' $(DEV_CONTAINER) | grep -qx readonly; then \
+			recreate=true; \
+		fi; \
+		if [ "$$recreate" = "true" ]; then \
+			echo "Recreating existing container $(DEV_CONTAINER) to add read-only host Git config mounts..."; \
+			$(CONTAINER_CLI) rm -f $(DEV_CONTAINER) >/dev/null; \
+		fi; \
+	fi; \
+	if $(CONTAINER_CLI) container inspect $(DEV_CONTAINER) >/dev/null 2>&1; then \
 		if [ "$$($(CONTAINER_CLI) inspect -f '{{.State.Running}}' $(DEV_CONTAINER))" != "true" ]; then \
 			echo "Starting existing container $(DEV_CONTAINER)..."; \
 			$(CONTAINER_CLI) start $(DEV_CONTAINER) >/dev/null; \
 		fi; \
 	else \
+		git_mount_args=""; \
+		if [ -f "$$HOME/.gitconfig" ]; then \
+			git_mount_args="$$git_mount_args --mount type=bind,source=$$HOME/.gitconfig,target=/home/vscode/.gitconfig,readonly"; \
+		else \
+			echo "Host $$HOME/.gitconfig not found; skipping Git config file mount."; \
+		fi; \
+		if [ -d "$$HOME/.config/git" ]; then \
+			git_mount_args="$$git_mount_args --mount type=bind,source=$$HOME/.config/git,target=/home/vscode/.config/git,readonly"; \
+		fi; \
 		echo "Creating container $(DEV_CONTAINER) from $(DEV_IMAGE)..."; \
 		$(CONTAINER_CLI) run -dit \
 			--name $(DEV_CONTAINER) \
@@ -82,6 +104,7 @@ exec: ## Start or attach to the mounted devcontainer shell
 			-v /sys/kernel/debug:/sys/kernel/debug \
 			-v /sys/fs/bpf:/sys/fs/bpf \
 			-v /lib/modules:/lib/modules:ro \
+			$$git_mount_args \
 			-w $(DEV_WORKSPACE) \
 			$(DEV_IMAGE) fish >/dev/null; \
 	fi
