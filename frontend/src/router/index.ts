@@ -56,6 +56,11 @@ const routes = [
     component: () => import('../views/ML.vue'),
   },
   {
+    path: '/plugins/:tab?',
+    name: 'Plugins',
+    component: () => import('../views/Plugins.vue'),
+  },
+  {
     path: '/config/ml/:subtab?',
     redirect: (to: { params: { subtab?: string | string[] } }) => {
       const subtab = Array.isArray(to.params.subtab) ? to.params.subtab[0] : to.params.subtab;

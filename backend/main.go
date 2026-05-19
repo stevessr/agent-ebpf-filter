@@ -286,6 +286,7 @@ func main() {
 		registerConfigRoutes(api.Group("/config"))
 		registerSystemRoutes(api.Group("/system"))
 		registerTLSCaptureRoutes(api, tlsManager, tlsStore)
+		registerPluginRoutes(api.Group("/plugins"))
 
 		data := api.Group("/data")
 		{
@@ -389,6 +390,12 @@ func main() {
 		settings := runtimeSettingsStore.Snapshot()
 		InitMLEngine(settings.MLConfig)
 		StartMLEngine()
+	}()
+
+	// Reapply user eBPF plugins that were enabled in a prior run.
+	go func() {
+		time.Sleep(2 * time.Second)
+		ReapplyEBPFPluginsOnBoot()
 	}()
 
 	_ = r.Run(fmt.Sprintf(":%d", actualPort))
