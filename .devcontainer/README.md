@@ -45,7 +45,14 @@ DEV_IMAGE_TAG="$(make --no-print-directory dev-image-tag)" \
 code .
 ```
 
-The `postCreateCommand` runs:
+The GitHub Actions image build runs `make predev` before publishing the GHCR
+image, so the published image already contains `protoc-gen-go`, the Python
+virtualenv, and frontend `node_modules`. Because the live workspace is
+bind-mounted over `/workspaces/agent-ebpf-filiter`, the image also keeps a copy
+of those workspace-local dependencies under `/opt/agent-ebpf-predev`.
+
+The `postCreateCommand` seeds missing workspace-local dependencies from that
+image copy and then verifies the normal setup command:
 
 ```bash
 make predev
@@ -83,10 +90,11 @@ make docker
 ```
 
 `make exec` creates and starts the privileged container with this repo mounted
-at `/workspaces/agent-ebpf-filiter`, then enters it automatically with fish. It
-does not build the image locally. If the image is missing locally, it pulls it;
-if the GHCR branch image is missing, the command fails and tells you to wait for
-the GitHub Actions devcontainer image workflow to finish or run that workflow.
+at `/workspaces/agent-ebpf-filiter`, seeds/verifies the prebuilt dependencies,
+then enters it automatically with fish. It does not build the image locally. If
+the image is missing locally, it pulls it; if the GHCR branch image is missing,
+the command fails and tells you to wait for the GitHub Actions devcontainer
+image workflow to finish or run that workflow.
 
 ```bash
 make exec

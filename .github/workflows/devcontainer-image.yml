@@ -7,6 +7,11 @@ on:
     paths:
       - ".devcontainer/**"
       - ".github/workflows/devcontainer-image.yml"
+      - ".dockerignore"
+      - "Makefile"
+      - "adapters/python/**"
+      - "frontend/package.json"
+      - "frontend/bun.lock"
   workflow_dispatch:
 
 permissions:
@@ -57,7 +62,7 @@ jobs:
       - name: Build and push devcontainer image
         uses: docker/build-push-action@v6
         with:
-          context: .devcontainer
+          context: .
           file: .devcontainer/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
