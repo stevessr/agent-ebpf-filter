@@ -279,6 +279,8 @@ make backend
 make wrapper
 make frontend
 make runtime-benchmark
+make dev-image   # Print the GHCR devcontainer image for this branch
+make dev-image-tag
 make docker      # Pull the GitHub-built devcontainer image for this branch
 make exec        # Start or attach to the privileged devcontainer shell
 make run-backend
