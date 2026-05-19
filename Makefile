@@ -14,6 +14,8 @@ DEVCONTAINER_GO_VERSION ?= 1.26.2
 DEVCONTAINER_USER_UID ?= 1001
 DEVCONTAINER_USER_GID ?= 1001
 
+.DEFAULT_GOAL := all
+
 .PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test build docker dev-image dev-image-repository dev-image-tag exec
 
 

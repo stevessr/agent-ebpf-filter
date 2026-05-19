@@ -1,0 +1,19 @@
+{
+  "recommendations": [
+    "golang.Go",
+    "Vue.volar",
+    "ms-vscode.cpptools",
+    "llvm-vs-code-extensions.vscode-clangd",
+    "vadimcn.vscode-lldb",
+    "zxh404.vscode-proto3",
+    "ms-vscode.makefile-tools",
+    "timonwong.shellcheck",
+    "redhat.vscode-yaml",
+    "ms-azuretools.vscode-docker",
+    "ms-vscode-remote.remote-containers",
+    "github.vscode-github-actions"
+  ],
+  "unwantedRecommendations": [
+    "octref.vetur"
+  ]
+}
