@@ -1,14 +1,8 @@
 {
   "name": "agent-ebpf-filiter dev",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "args": {
-      "GO_VERSION": "1.26.2",
-      "USER_UID": "1001",
-      "USER_GID": "1001"
-    }
-  },
+  "image": "${localEnv:DEV_IMAGE_REPOSITORY:ghcr.io/stevessr/agent-ebpf-filter/devcontainer}:${localEnv:DEV_IMAGE_TAG:master-fc613b4dfd67}",
   "remoteUser": "vscode",
+  "updateRemoteUserUID": false,
   "workspaceFolder": "/workspaces/agent-ebpf-filiter",
   "privileged": true,
   "capAdd": [
@@ -24,7 +18,7 @@
     "seccomp=unconfined"
   ],
   "runArgs": [
-    "--init",
+    "--userns=keep-id:uid=1001,gid=1001",
     "--pid=host",
     "--network=host"
   ],

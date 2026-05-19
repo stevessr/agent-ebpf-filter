@@ -14,8 +14,38 @@ The container runs privileged with BPF/PERFMON/SYS_ADMIN capabilities because
 
 ## Startup
 
-Open the folder in VS Code Dev Containers or compatible tooling. The
-`postCreateCommand` runs:
+Open the folder in VS Code Dev Containers or compatible tooling. The checked-in
+`devcontainer.json` uses the GitHub-built GHCR image directly, not a local
+`build` block. If VS Code logs show it inspecting `debian:trixie`, the editor is
+using an older config or stale cache.
+
+The config also disables VS Code's remote-user UID rewrite. Otherwise Dev
+Containers creates a temporary `updateUID.Dockerfile` and performs a local build
+on top of the pulled image. Do not re-enable `updateRemoteUserUID` for this
+pull-only workflow. The published image uses `vscode` UID/GID `1001:1001`; the
+Podman-backed `docker` CLI maps the host user to that container UID/GID with
+`--userns=keep-id:uid=1001,gid=1001` so bind-mounted workspace files remain
+writable without creating a derived local image.
+
+`--init` is intentionally omitted because Podman rejects `--init` together with
+`--pid=host` (`cannot add init binary as PID 1`). The eBPF workflow keeps
+`--pid=host` and relies on the container command itself instead.
+
+By default VS Code pulls:
+
+```bash
+ghcr.io/stevessr/agent-ebpf-filter/devcontainer:master-fc613b4dfd67
+```
+
+For a branch/fork image, start VS Code with the repository/tag variables set:
+
+```bash
+DEV_IMAGE_REPOSITORY="$(make --no-print-directory dev-image-repository)" \
+DEV_IMAGE_TAG="$(make --no-print-directory dev-image-tag)" \
+code .
+```
+
+The `postCreateCommand` runs:
 
 ```bash
 make predev
@@ -32,6 +62,14 @@ backend/frontend panes in Zellij. Dev auth is disabled through `DISABLE_AUTH=tru
 
 
 ## Make targets
+
+Print the branch image that local Make targets use:
+
+```bash
+make dev-image
+make dev-image-repository
+make dev-image-tag
+```
 
 `make docker` will pull the GitHub-built branch image from GHCR. The default
 image ref is `ghcr.io/<owner>/<repo>/devcontainer:<branch-slug>-<branch-hash>`,
