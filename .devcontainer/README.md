@@ -26,6 +26,8 @@ Open the folder in VS Code Dev Containers or compatible tooling. The checked-in
 `devcontainer.json` uses the GitHub-built GHCR image directly, not a local
 `build` block. If VS Code logs show it inspecting `debian:trixie`, the editor is
 using an older config or stale cache.
+The container run args include `--pull=always` so recreating the Dev Container
+fetches the newest workflow-published image for the current tag.
 
 The config also disables VS Code's remote-user UID rewrite. Otherwise Dev
 Containers creates a temporary `updateUID.Dockerfile` and performs a local build
@@ -60,11 +62,17 @@ bind-mounted over `/workspaces/agent-ebpf-filiter`, the image also keeps a copy
 of those workspace-local dependencies under `/opt/agent-ebpf-predev`.
 
 The `postCreateCommand` seeds missing workspace-local dependencies from that
-image copy and then verifies the normal setup command:
+image copy and then verifies the setup without installing anything from the
+network:
 
 ```bash
-make predev
+make predev-check
 ```
+
+If that check fails, you are probably using a stale GHCR image. Wait for or
+rerun the **Devcontainer Image** workflow, pull the updated branch image, and
+rebuild/reopen the Dev Container. To opt into an online fallback explicitly,
+open the container with `DEVCONTAINER_POSTCREATE_INSTALL=1`.
 
 Then start the normal development session:
 

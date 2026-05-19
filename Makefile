@@ -16,7 +16,7 @@ DEVCONTAINER_USER_GID ?= 1001
 
 .DEFAULT_GOAL := all
 
-.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-go predev-python predev-frontend dev run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test build docker dev-image dev-image-repository dev-image-tag exec
+.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-check predev-go predev-python predev-frontend dev run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test build docker dev-image dev-image-repository dev-image-tag exec
 
 
 docker: ## Pull the privileged devcontainer image from GHCR
@@ -144,6 +144,11 @@ predev: ## Install development dependencies in parallel
 	@$(MAKE) --no-print-directory -j3 predev-go predev-python predev-frontend
 	@echo "Development dependencies are ready."
 
+predev-check: ## Verify development dependencies without installing anything
+	@command -v protoc-gen-go >/dev/null || (echo "Missing protoc-gen-go. Run 'make predev' first." && exit 1)
+	@test -x adapters/python/.venv/bin/python || (echo "Missing adapters/python/.venv. Run 'make predev' first." && exit 1)
+	@test -x frontend/node_modules/.bin/pbjs || (echo "Missing frontend/node_modules. Run 'make predev' first." && exit 1)
+
 predev-go:
 	@which protoc-gen-go > /dev/null || (echo "Installing protoc-gen-go..." && go install google.golang.org/protobuf/cmd/protoc-gen-go@latest)
 
@@ -177,9 +182,7 @@ proto: ## Generate Protocol Buffers code
 	@echo "Proto generation complete."
 
 proto-check:
-	@command -v protoc-gen-go >/dev/null || (echo "Missing protoc-gen-go. Run 'make predev' first." && exit 1)
-	@test -d adapters/python/.venv || (echo "Missing adapters/python/.venv. Run 'make predev' first." && exit 1)
-	@test -d frontend/node_modules || (echo "Missing frontend/node_modules. Run 'make predev' first." && exit 1)
+	@$(MAKE) --no-print-directory predev-check
 
 backend: cuda proto ## Build Go backend and compile eBPF
 	@echo "Building backend..."
