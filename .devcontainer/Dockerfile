@@ -94,6 +94,7 @@ COPY --chown=${USERNAME}:${USERNAME} adapters/python/ ./adapters/python/
 
 RUN mkdir -p ~/.config/bun ~/.cache/go-build ~/.cache/uv \
  && make predev \
+ && make predev-check \
  && mkdir -p /opt/agent-ebpf-predev/frontend /opt/agent-ebpf-predev/adapters/python \
  && cp -a frontend/node_modules /opt/agent-ebpf-predev/frontend/node_modules \
  && cp -a adapters/python/.venv /opt/agent-ebpf-predev/adapters/python/.venv

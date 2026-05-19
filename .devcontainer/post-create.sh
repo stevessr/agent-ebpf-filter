@@ -37,6 +37,26 @@ seed_predev_dir() {
 seed_predev_dir /opt/agent-ebpf-predev/frontend/node_modules frontend/node_modules "frontend node_modules"
 seed_predev_dir /opt/agent-ebpf-predev/adapters/python/.venv adapters/python/.venv "Python virtualenv"
 
-make predev
+if ! make --no-print-directory predev-check; then
+  cat >&2 <<'EOF'
+[devcontainer] Required development dependencies are missing from this container.
+[devcontainer] postCreate does not install them from the network by default.
+[devcontainer]
+[devcontainer] This usually means VS Code opened a stale GHCR devcontainer image
+[devcontainer] that was built before the workflow started running `make predev`.
+[devcontainer] Re-run/wait for the "Devcontainer Image" workflow, pull the new
+[devcontainer] branch image, and rebuild/reopen the Dev Container.
+[devcontainer]
+[devcontainer] If you intentionally want postCreate to install online anyway,
+[devcontainer] reopen with DEVCONTAINER_POSTCREATE_INSTALL=1.
+EOF
+
+  if [ "${DEVCONTAINER_POSTCREATE_INSTALL:-}" = "1" ]; then
+    echo "[devcontainer] DEVCONTAINER_POSTCREATE_INSTALL=1 set; running make predev online."
+    make predev
+  else
+    exit 1
+  fi
+fi
 
 echo "[devcontainer] Ready. Use: make dev"

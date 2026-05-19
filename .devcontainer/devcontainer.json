@@ -18,6 +18,7 @@
     "seccomp=unconfined"
   ],
   "runArgs": [
+    "--pull=always",
     "--userns=keep-id:uid=1001,gid=1001",
     "--pid=host",
     "--network=host"
