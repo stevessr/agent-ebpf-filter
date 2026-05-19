@@ -59,6 +59,22 @@ type TLSPlaintextEvent struct {
 	RawHexDump   string            `json:"raw_hex_dump,omitempty"`
 	RawAvailable bool              `json:"raw_available"`
 	Truncated    bool              `json:"truncated"`
+
+	RootAgentPID   uint32 `json:"root_agent_pid,omitempty"`
+	AgentRunID     string `json:"agent_run_id,omitempty"`
+	TaskID         string `json:"task_id,omitempty"`
+	ConversationID string `json:"conversation_id,omitempty"`
+	TurnID         string `json:"turn_id,omitempty"`
+	ToolCallID     string `json:"tool_call_id,omitempty"`
+	ToolName       string `json:"tool_name,omitempty"`
+	TraceID        string `json:"trace_id,omitempty"`
+	SpanID         string `json:"span_id,omitempty"`
+
+	MessageRole  string `json:"message_role,omitempty"`
+	PromptDigest string `json:"prompt_digest,omitempty"`
+	PromptLen    int    `json:"prompt_len,omitempty"`
+	Vendor       string `json:"vendor,omitempty"`
+	LoopAlert    bool   `json:"loop_alert,omitempty"`
 }
 
 type TLSLibraryStatus struct {
