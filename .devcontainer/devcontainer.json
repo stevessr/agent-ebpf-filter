@@ -25,7 +25,9 @@
   "mounts": [
     "source=/sys/kernel/debug,target=/sys/kernel/debug,type=bind,consistency=cached",
     "source=/sys/fs/bpf,target=/sys/fs/bpf,type=bind,consistency=cached",
-    "source=/lib/modules,target=/lib/modules,type=bind,readonly,consistency=cached"
+    "source=/lib/modules,target=/lib/modules,type=bind,readonly,consistency=cached",
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,readonly,consistency=cached",
+    "source=${localEnv:HOME}/.config/git,target=/home/vscode/.config/git,type=bind,readonly,consistency=cached"
   ],
   "containerEnv": {
     "GIN_MODE": "debug",

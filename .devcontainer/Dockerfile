@@ -81,8 +81,9 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
  && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} -s /usr/bin/fish \
  && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
  && chmod 0440 /etc/sudoers.d/${USERNAME} \
- && mkdir -p /opt/agent-ebpf-predev \
- && chown -R ${USERNAME}:${USERNAME} /go /usr/local/bun /opt/agent-ebpf-predev
+ && mkdir -p /home/${USERNAME}/.config/git /opt/agent-ebpf-predev \
+ && touch /home/${USERNAME}/.gitconfig \
+ && chown -R ${USERNAME}:${USERNAME} /go /usr/local/bun /home/${USERNAME}/.gitconfig /home/${USERNAME}/.config /opt/agent-ebpf-predev
 
 USER ${USERNAME}
 WORKDIR /workspaces/agent-ebpf-filiter
