@@ -85,6 +85,7 @@ exec: ## Start or attach to the mounted devcontainer shell
 			-w $(DEV_WORKSPACE) \
 			$(DEV_IMAGE) fish >/dev/null; \
 	fi
+	@$(CONTAINER_CLI) exec -w $(DEV_WORKSPACE) $(DEV_CONTAINER) bash .devcontainer/post-create.sh
 	$(CONTAINER_CLI) exec -it -w $(DEV_WORKSPACE) $(DEV_CONTAINER) fish
 
 all: proto backend frontend wrapper ## Build all components

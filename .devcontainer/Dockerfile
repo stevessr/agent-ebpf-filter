@@ -81,11 +81,20 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
  && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} -s /usr/bin/fish \
  && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
  && chmod 0440 /etc/sudoers.d/${USERNAME} \
- && chown -R ${USERNAME}:${USERNAME} /go /usr/local/bun
+ && mkdir -p /opt/agent-ebpf-predev \
+ && chown -R ${USERNAME}:${USERNAME} /go /usr/local/bun /opt/agent-ebpf-predev
 
 USER ${USERNAME}
 WORKDIR /workspaces/agent-ebpf-filiter
 
-RUN mkdir -p ~/.config/bun ~/.cache/go-build ~/.cache/uv
+COPY --chown=${USERNAME}:${USERNAME} Makefile ./Makefile
+COPY --chown=${USERNAME}:${USERNAME} frontend/package.json frontend/bun.lock ./frontend/
+COPY --chown=${USERNAME}:${USERNAME} adapters/python/ ./adapters/python/
+
+RUN mkdir -p ~/.config/bun ~/.cache/go-build ~/.cache/uv \
+ && make predev \
+ && mkdir -p /opt/agent-ebpf-predev/frontend /opt/agent-ebpf-predev/adapters/python \
+ && cp -a frontend/node_modules /opt/agent-ebpf-predev/frontend/node_modules \
+ && cp -a adapters/python/.venv /opt/agent-ebpf-predev/adapters/python/.venv
 
 CMD ["fish"]

@@ -1,0 +1,18 @@
+# Keep the devcontainer workflow build context small. The Dockerfile only needs
+# dependency manifests/source used by make predev; the live workspace is bind-
+# mounted when the container starts.
+*
+
+!.devcontainer/
+!.devcontainer/Dockerfile
+!Makefile
+!frontend/
+!frontend/package.json
+!frontend/bun.lock
+!adapters/
+!adapters/python/
+!adapters/python/**
+
+adapters/python/.venv
+adapters/python/__pycache__
+adapters/python/**/*.pyc

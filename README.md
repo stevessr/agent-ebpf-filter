@@ -250,6 +250,9 @@ make dev
 ```
 
 `make predev` installs the development dependencies and helper tools. `make dev` assumes those are already present and opens a Zellij session with backend and frontend in separate panes.
+The GHCR devcontainer image built by GitHub Actions also runs `make predev`
+during the image build. Its post-create hook and `make exec` seed missing
+workspace-local dependencies from the image before verifying `make predev`.
 
 What it does:
 
