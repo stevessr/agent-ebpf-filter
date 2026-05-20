@@ -27,6 +27,8 @@
     "source=/sys/kernel/debug,target=/sys/kernel/debug,type=bind,consistency=cached",
     "source=/sys/fs/bpf,target=/sys/fs/bpf,type=bind,consistency=cached",
     "source=/lib/modules,target=/lib/modules,type=bind,readonly,consistency=cached",
+    "source=agent-ebpf-filiter-frontend-node-modules,target=/workspaces/agent-ebpf-filiter/frontend/node_modules,type=volume",
+    "source=agent-ebpf-filiter-python-venv,target=/workspaces/agent-ebpf-filiter/adapters/python/.venv,type=volume",
     "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,readonly,consistency=cached",
     "source=${localEnv:HOME}/.config/git,target=/home/vscode/.config/git,type=bind,readonly,consistency=cached"
   ],
