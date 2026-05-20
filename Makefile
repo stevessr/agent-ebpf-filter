@@ -1,6 +1,8 @@
 # Get a writable Go workspace for helper binaries and the module cache.
+GO ?= $(shell command -v go 2>/dev/null || command -v /usr/local/go/bin/go 2>/dev/null || printf go)
+GO_PATH_DIR := $(if $(filter /%,$(GO)),$(patsubst %/,%,$(dir $(GO))),)
 GO_SAFE_GOPATH := $(shell \
-	p="$$(go env GOPATH 2>/dev/null || true)"; \
+	p="$$($(GO) env GOPATH 2>/dev/null || true)"; \
 	[ -n "$$p" ] || p="$$HOME/go"; \
 	if mkdir -p "$$p/bin" "$$p/pkg/mod" 2>/dev/null \
 		&& [ -w "$$p/bin" ] \
@@ -13,7 +15,7 @@ ifneq ($(origin GOPATH), command line)
 GOPATH := $(GO_SAFE_GOPATH)
 endif
 export GOPATH
-export PATH := $(PATH):$(GOPATH)/bin
+export PATH := $(PATH)$(if $(GO_PATH_DIR),:$(GO_PATH_DIR)):$(GOPATH)/bin
 
 CONTAINER_CLI ?= $(shell command -v docker 2>/dev/null || command -v podman 2>/dev/null)
 DEV_BRANCH ?= $(strip $(shell git branch --show-current 2>/dev/null))
@@ -69,15 +71,23 @@ exec: ## Start or attach to the mounted devcontainer shell
 	@test -n "$(CONTAINER_CLI)" || (echo "Missing docker or podman CLI." && exit 1)
 	@$(CONTAINER_CLI) image inspect $(DEV_IMAGE) >/dev/null 2>&1 || $(MAKE) --no-print-directory docker
 	@recreate=false; \
+	recreate_reason=""; \
+	uv_python_dir="$$HOME/.local/share/uv/python"; \
 	if $(CONTAINER_CLI) container inspect $(DEV_CONTAINER) >/dev/null 2>&1; then \
 		if [ -f "$$HOME/.gitconfig" ] && ! $(CONTAINER_CLI) inspect -f '{{range .Mounts}}{{if eq .Destination "/home/vscode/.gitconfig"}}{{if not .RW}}readonly{{end}}{{end}}{{end}}' $(DEV_CONTAINER) | grep -qx readonly; then \
 			recreate=true; \
+			recreate_reason="$$recreate_reason read-only ~/.gitconfig"; \
 		fi; \
 		if [ -d "$$HOME/.config/git" ] && ! $(CONTAINER_CLI) inspect -f '{{range .Mounts}}{{if eq .Destination "/home/vscode/.config/git"}}{{if not .RW}}readonly{{end}}{{end}}{{end}}' $(DEV_CONTAINER) | grep -qx readonly; then \
 			recreate=true; \
+			recreate_reason="$$recreate_reason read-only ~/.config/git"; \
+		fi; \
+		if [ -d "$$uv_python_dir" ] && ! $(CONTAINER_CLI) inspect -f '{{range .Mounts}}{{println .Destination}}{{end}}' $(DEV_CONTAINER) | grep -Fx "$$uv_python_dir" >/dev/null; then \
+			recreate=true; \
+			recreate_reason="$$recreate_reason host uv Python runtime"; \
 		fi; \
 		if [ "$$recreate" = "true" ]; then \
-			echo "Recreating existing container $(DEV_CONTAINER) to add read-only host Git config mounts..."; \
+			echo "Recreating existing container $(DEV_CONTAINER) to update mounts:$$recreate_reason"; \
 			$(CONTAINER_CLI) rm -f $(DEV_CONTAINER) >/dev/null; \
 		fi; \
 	fi; \
@@ -88,6 +98,7 @@ exec: ## Start or attach to the mounted devcontainer shell
 		fi; \
 	else \
 		git_mount_args=""; \
+		uv_python_mount_args=""; \
 		if [ -f "$$HOME/.gitconfig" ]; then \
 			git_mount_args="$$git_mount_args --mount type=bind,source=$$HOME/.gitconfig,target=/home/vscode/.gitconfig,readonly"; \
 		else \
@@ -95,6 +106,9 @@ exec: ## Start or attach to the mounted devcontainer shell
 		fi; \
 		if [ -d "$$HOME/.config/git" ]; then \
 			git_mount_args="$$git_mount_args --mount type=bind,source=$$HOME/.config/git,target=/home/vscode/.config/git,readonly"; \
+		fi; \
+		if [ -d "$$HOME/.local/share/uv/python" ]; then \
+			uv_python_mount_args="$$uv_python_mount_args --mount type=bind,source=$$HOME/.local/share/uv/python,target=$$HOME/.local/share/uv/python,readonly"; \
 		fi; \
 		echo "Creating container $(DEV_CONTAINER) from $(DEV_IMAGE)..."; \
 		$(CONTAINER_CLI) run -dit \
@@ -118,6 +132,7 @@ exec: ## Start or attach to the mounted devcontainer shell
 			-v /sys/fs/bpf:/sys/fs/bpf \
 			-v /lib/modules:/lib/modules:ro \
 			$$git_mount_args \
+			$$uv_python_mount_args \
 			-w $(DEV_WORKSPACE) \
 			$(DEV_IMAGE) fish >/dev/null; \
 	fi
@@ -166,11 +181,11 @@ predev-go:
 	@which protoc-gen-go > /dev/null || ( \
 		echo "Installing protoc-gen-go into $(GOPATH)/bin..."; \
 		mkdir -p "$(GOPATH)/bin" "$(GOPATH)/pkg/mod"; \
-		go install google.golang.org/protobuf/cmd/protoc-gen-go@latest; \
+		$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@latest; \
 	)
 
 predev-python:
-	@if [ ! -d "adapters/python/.venv" ]; then \
+	@if [ ! -x "adapters/python/.venv/bin/python" ]; then \
 		echo "Initializing python env..."; \
 		cd adapters/python && uv sync; \
 	fi

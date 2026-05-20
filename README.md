@@ -260,6 +260,9 @@ workspace-local dependencies from the image before verifying `make predev-check`
 without network installs. If post-create reports missing dependencies, rebuild
 or pull the updated workflow image; set `DEVCONTAINER_POSTCREATE_INSTALL=1`
 only when you explicitly want post-create to run `make predev` online.
+`make exec` also bind-mounts the host uv-managed Python runtime cache when it
+exists, so a host-created `adapters/python/.venv` whose interpreter symlink
+points under `~/.local/share/uv/python` remains usable inside the container.
 Devcontainers pass through the host user's Git config read-only
 (`~/.gitconfig` and `~/.config/git`) without mounting credentials, SSH keys, or
 Git credential stores.
