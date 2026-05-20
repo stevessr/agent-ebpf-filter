@@ -1,5 +1,18 @@
-# Get Go binaries path
-GOPATH ?= $(shell go env GOPATH)
+# Get a writable Go workspace for helper binaries and the module cache.
+GO_SAFE_GOPATH := $(shell \
+	p="$$(go env GOPATH 2>/dev/null || true)"; \
+	[ -n "$$p" ] || p="$$HOME/go"; \
+	if mkdir -p "$$p/bin" "$$p/pkg/mod" 2>/dev/null \
+		&& [ -w "$$p/bin" ] \
+		&& [ -w "$$p/pkg/mod" ]; then \
+		printf '%s' "$$p"; \
+	else \
+		printf '%s' "$$HOME/go"; \
+	fi)
+ifneq ($(origin GOPATH), command line)
+GOPATH := $(GO_SAFE_GOPATH)
+endif
+export GOPATH
 export PATH := $(PATH):$(GOPATH)/bin
 
 CONTAINER_CLI ?= $(shell command -v docker 2>/dev/null || command -v podman 2>/dev/null)
@@ -150,7 +163,11 @@ predev-check: ## Verify development dependencies without installing anything
 	@test -x frontend/node_modules/.bin/pbjs || (echo "Missing frontend/node_modules. Run 'make predev' first." && exit 1)
 
 predev-go:
-	@which protoc-gen-go > /dev/null || (echo "Installing protoc-gen-go..." && go install google.golang.org/protobuf/cmd/protoc-gen-go@latest)
+	@which protoc-gen-go > /dev/null || ( \
+		echo "Installing protoc-gen-go into $(GOPATH)/bin..."; \
+		mkdir -p "$(GOPATH)/bin" "$(GOPATH)/pkg/mod"; \
+		go install google.golang.org/protobuf/cmd/protoc-gen-go@latest; \
+	)
 
 predev-python:
 	@if [ ! -d "adapters/python/.venv" ]; then \

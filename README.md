@@ -249,7 +249,11 @@ make predev
 make dev
 ```
 
-`make predev` installs the development dependencies and helper tools. `make dev` assumes those are already present and opens a Zellij session with backend and frontend in separate panes.
+`make predev` installs the development dependencies and helper tools. It uses a
+writable Go workspace for Go-installed helper binaries, so a stale local
+`GOPATH=/go` setting falls back to `$HOME/go` instead of failing on hosts where
+`/go` is not writable. `make dev` assumes those are already present and opens a
+Zellij session with backend and frontend in separate panes.
 The GHCR devcontainer image built by GitHub Actions also runs `make predev`
 during the image build. Its post-create hook and `make exec` seed missing
 workspace-local dependencies from the image before verifying `make predev-check`
