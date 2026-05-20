@@ -57,9 +57,12 @@ code .
 
 The GitHub Actions image build runs `make predev` before publishing the GHCR
 image, so the published image already contains `protoc-gen-go`, the Python
-virtualenv, Node.js for `protobufjs-cli`, and frontend `node_modules`. Because the live workspace is
-bind-mounted over `/workspaces/agent-ebpf-filiter`, the image also keeps a copy
-of those workspace-local dependencies under `/opt/agent-ebpf-predev`.
+virtualenv, the official Node.js binary for `protobufjs-cli`, and frontend
+`node_modules`. It does not install npm; frontend dependency installation stays
+on Bun. The workflow publishes one manifest for both `linux/amd64` and
+`linux/arm64` (aarch64). Because the live workspace is bind-mounted over
+`/workspaces/agent-ebpf-filiter`, the image also keeps a copy of those
+workspace-local dependencies under `/opt/agent-ebpf-predev`.
 
 The `postCreateCommand` seeds missing or container-unusable workspace-local
 dependencies from that image copy and then verifies the setup without installing

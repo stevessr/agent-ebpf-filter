@@ -255,17 +255,20 @@ writable Go workspace for Go-installed helper binaries, so a stale local
 `/go` is not writable. `make dev` assumes those are already present and opens a
 Zellij session with backend and frontend in separate panes.
 Protocol Buffer JS/TS generation runs `protobufjs-cli` with Node.js; the
-devcontainer image includes Node so it does not rely on Bun's Node compatibility
-for `pbjs` / `pbts`.
+devcontainer image installs the official Node.js binary directly from
+`nodejs.org` and does not install npm. Package installation still goes through
+Bun; Node is only the runtime for `pbjs` / `pbts`.
 CUDA acceleration is optional: when `/opt/cuda/bin/nvcc` and CUDA runtime libs
 are absent, backend builds use the CPU-only CUDA stub instead of linking
 `libcudart` / `libcuda`.
 The GHCR devcontainer image built by GitHub Actions also runs `make predev`
-during the image build. Its post-create hook and `make exec` seed missing
-workspace-local dependencies from the image before verifying `make predev-check`
-without network installs. If post-create reports missing dependencies, rebuild
-or pull the updated workflow image; set `DEVCONTAINER_POSTCREATE_INSTALL=1`
-only when you explicitly want post-create to run `make predev` online.
+during the image build and publishes a multi-arch manifest for `linux/amd64`
+and `linux/arm64` (aarch64). Its post-create hook and `make exec` seed missing
+workspace-local dependencies from the image before verifying
+`make predev-check` without network installs. If post-create reports missing
+dependencies, rebuild or pull the updated workflow image; set
+`DEVCONTAINER_POSTCREATE_INSTALL=1` only when you explicitly want post-create to
+run `make predev` online.
 `make exec` and VS Code Dev Containers mount container-local volumes over
 `frontend/node_modules` and `adapters/python/.venv`, so dependency installs from
 the workflow image stay writable and do not fight host-created dependency trees.
