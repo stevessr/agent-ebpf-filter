@@ -52,6 +52,11 @@ unwritable Go workspace such as a host-side stale `GOPATH=/go` to `$HOME/go`
 before installing Go helper binaries. `make dev` assumes those dependencies are
 already present and opens the backend/frontend dev session in Zellij instead of
 tmux.
+JS/TS protobuf generation should run `protobufjs-cli` through Node.js, not
+`bunx`, because `pbts` depends on Node module loader behavior.
+CUDA acceleration is build-tagged: only build with the `cuda` tag when
+`/opt/cuda/bin/nvcc` and CUDA runtime libraries are present; otherwise keep the
+CPU-only stub as the default so devcontainers without CUDA still compile.
 `make exec` and VS Code Dev Containers must mount container-local volumes over
 `frontend/node_modules` and `adapters/python/.venv` so the bind-mounted
 workspace stays writable without reusing host-only dependency trees.

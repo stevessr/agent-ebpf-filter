@@ -32,6 +32,8 @@ DEV_CONTAINER_USERNS ?= $(shell $(CONTAINER_CLI) --version 2>/dev/null | grep -q
 DEV_CONTAINER_USERNS_ARG = $(if $(DEV_CONTAINER_USERNS),--userns=$(DEV_CONTAINER_USERNS),)
 DEV_FRONTEND_NODE_MODULES_VOLUME ?= $(DEV_CONTAINER)-frontend-node-modules
 DEV_PYTHON_VENV_VOLUME ?= $(DEV_CONTAINER)-python-venv
+CUDA_GO_TAGS ?= $(shell [ -x /opt/cuda/bin/nvcc ] && [ -r /opt/cuda/lib64/libcudart.so ] && printf cuda)
+GO_BUILD_TAGS_ARG = $(if $(strip $(CUDA_GO_TAGS)),-tags "$(CUDA_GO_TAGS)",)
 
 .DEFAULT_GOAL := all
 
@@ -77,9 +79,9 @@ exec: ## Start or attach to the mounted devcontainer shell
 	@recreate=false; \
 	recreate_reason=""; \
 	if $(CONTAINER_CLI) container inspect $(DEV_CONTAINER) >/dev/null 2>&1; then \
-		if [ -n "$(DEV_CONTAINER_USERNS)" ] && ! $(CONTAINER_CLI) inspect -f '{{.HostConfig.UsernsMode}}' $(DEV_CONTAINER) | grep -Fx "$(DEV_CONTAINER_USERNS)" >/dev/null; then \
+		if [ -n "$(DEV_CONTAINER_USERNS)" ] && ! $(CONTAINER_CLI) inspect -f '{{json .HostConfig.IDMappings.UIDMap}}' $(DEV_CONTAINER) | grep -F '"$(DEVCONTAINER_USER_UID):' >/dev/null; then \
 			recreate=true; \
-			recreate_reason="$$recreate_reason userns $(DEV_CONTAINER_USERNS)"; \
+			recreate_reason="$$recreate_reason user namespace mapping for uid $(DEVCONTAINER_USER_UID)"; \
 		fi; \
 		if [ -f "$$HOME/.gitconfig" ] && ! $(CONTAINER_CLI) inspect -f '{{range .Mounts}}{{if eq .Destination "/home/vscode/.gitconfig"}}{{if not .RW}}readonly{{end}}{{end}}{{end}}' $(DEV_CONTAINER) | grep -qx readonly; then \
 			recreate=true; \
@@ -157,7 +159,7 @@ build: proto ## Parallel build of all components
 backend-bare:
 	@echo "Building backend..."
 	cd backend/ebpf && go generate && go generate gen_tls.go && go generate gen_cgroup.go && go generate gen_lsm.go
-	cd backend && go build -o agent-ebpf-filter
+	cd backend && go build $(GO_BUILD_TAGS_ARG) -o agent-ebpf-filter
 
 frontend-bare:
 	@echo "Building frontend..."
@@ -179,10 +181,12 @@ cuda: ## Build CUDA acceleration library
 
 predev: ## Install development dependencies in parallel
 	@$(MAKE) --no-print-directory -j3 predev-go predev-python predev-frontend
+	@$(MAKE) --no-print-directory predev-check
 	@echo "Development dependencies are ready."
 
 predev-check: ## Verify development dependencies without installing anything
 	@command -v protoc-gen-go >/dev/null || (echo "Missing protoc-gen-go. Run 'make predev' first." && exit 1)
+	@command -v node >/dev/null || (echo "Missing node. Install the official Node.js runtime or rebuild/pull the devcontainer image." && exit 1)
 	@test -x adapters/python/.venv/bin/python || (echo "Missing adapters/python/.venv. Run 'make predev' first." && exit 1)
 	@test -x frontend/node_modules/.bin/pbjs || (echo "Missing frontend/node_modules. Run 'make predev' first." && exit 1)
 
@@ -218,7 +222,7 @@ proto: ## Generate Protocol Buffers code
 	@set -e; \
 		protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto proto/tracker.proto & pid_go=$$!; \
 		(cd adapters/python && uv run python -m grpc_tools.protoc -I ../../proto --python_out=. ../../proto/tracker.proto) & pid_py=$$!; \
-		(cd frontend && bunx pbjs -t static-module -w commonjs -o ../adapters/js/tracker_pb.js ../proto/tracker.proto && bunx pbjs -t static-module -w es6 -o src/pb/tracker_pb.js ../proto/tracker.proto && bunx pbts -o src/pb/tracker_pb.d.ts src/pb/tracker_pb.js) & pid_js=$$!; \
+		(cd frontend && node node_modules/protobufjs-cli/bin/pbjs -t static-module -w commonjs -o ../adapters/js/tracker_pb.js ../proto/tracker.proto && node node_modules/protobufjs-cli/bin/pbjs -t static-module -w es6 -o src/pb/tracker_pb.js ../proto/tracker.proto && node node_modules/protobufjs-cli/bin/pbts -o src/pb/tracker_pb.d.ts src/pb/tracker_pb.js) & pid_js=$$!; \
 		for pid in $$pid_go $$pid_py $$pid_js; do wait $$pid; done
 	@echo "Proto generation complete."
 
@@ -228,7 +232,7 @@ proto-check:
 backend: cuda proto ## Build Go backend and compile eBPF
 	@echo "Building backend..."
 	cd backend/ebpf && go generate && go generate gen_tls.go && go generate gen_cgroup.go && go generate gen_lsm.go
-	cd backend && go build -o agent-ebpf-filter
+	cd backend && go build $(GO_BUILD_TAGS_ARG) -o agent-ebpf-filter
 
 ifneq ($(SKIP_PROTO_DEP),1)
 wrapper: proto
@@ -243,7 +247,7 @@ frontend: ## Build Vue3 frontend
 
 ebpf-bootstrap: ## Pre-build the backend binary (bootstrap happens automatically on first run)
 	@(cd backend/ebpf && go generate && go generate gen_tls.go && go generate gen_cgroup.go && go generate gen_lsm.go)
-	@(cd backend && go build -o agent-ebpf-filter)
+	@(cd backend && go build $(GO_BUILD_TAGS_ARG) -o agent-ebpf-filter)
 
 ebpf-tls: ## Generate TLS capture eBPF bindings
 	@(cd backend/ebpf && go generate gen_tls.go)
@@ -306,7 +310,7 @@ os-enforcement-check: ebpf-cgroup ebpf-lsm ## Run rootless static checks for OS-
 
 test: ## Run all tests (Go backend)
 	@echo "Running Go tests..."
-	cd backend && go test -race -count=1 -timeout 120s ./...
+	cd backend && go test $(GO_BUILD_TAGS_ARG) -race -count=1 -timeout 120s ./...
 
 dev-frontend: ## Run only the frontend development server
 	@echo "Starting frontend dev environment..."
