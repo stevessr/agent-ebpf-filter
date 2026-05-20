@@ -24,12 +24,17 @@ concurrency:
 
 jobs:
   build:
-    name: Build and publish devcontainer
+    name: Build and publish devcontainer (amd64/aarch64)
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -65,9 +70,11 @@ jobs:
           context: .
           file: .devcontainer/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
           build-args: |
             GO_VERSION=1.26.2
+            NODE_VERSION=24.11.1
             USER_UID=1001
             USER_GID=1001
           cache-from: type=gha
