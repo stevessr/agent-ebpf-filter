@@ -33,19 +33,36 @@ func handleNativeHookEvent(c *gin.Context) {
 	if toolName == "" {
 		toolName, _ = payload["tool"].(string)
 	}
+	if toolName == "" {
+		toolName, _ = payload["toolName"].(string)
+	}
+	if toolInput == nil {
+		toolInput, _ = payload["toolInput"].(map[string]interface{})
+	}
+	if toolInput == nil {
+		toolInput, _ = payload["toolArgs"].(map[string]interface{})
+	}
+	if toolCall, _ := payload["toolCall"].(map[string]interface{}); toolCall != nil {
+		if toolName == "" {
+			toolName, _ = toolCall["name"].(string)
+		}
+		if toolInput == nil {
+			toolInput, _ = toolCall["args"].(map[string]interface{})
+		}
+	}
 	if hookEvent == "" {
 		hookEvent, _ = payload["event"].(string)
+	}
+	if hookEvent == "" {
+		hookEvent, _ = payload["hookEventName"].(string)
+	}
+	if hookEvent == "" {
+		hookEvent = strings.TrimSpace(c.GetHeader("X-Agent-Hook-Event"))
 	}
 
 	path := ""
 	if toolInput != nil {
-		if cmd, ok := toolInput["command"].(string); ok {
-			path = cmd
-		} else if fp, ok := toolInput["file_path"].(string); ok {
-			path = fp
-		} else if args, ok := toolInput["arguments"].([]interface{}); ok && len(args) > 0 {
-			path = fmt.Sprintf("%v", args)
-		}
+		path = extractNativeHookPath(toolInput)
 	}
 	extraInfo := buildNativeHookExtraInfo(payload, hookEvent, toolName)
 
@@ -69,6 +86,8 @@ func handleNativeHookEvent(c *gin.Context) {
 		tag = "Kiro CLI"
 	} else if sourceCLI == "augment" || strings.Contains(ua, "augment") || strings.Contains(ua, "auggie") {
 		tag = "Augment"
+	} else if sourceCLI == "antigravity" || sourceCLI == "agy" || strings.Contains(ua, "antigravity") || strings.Contains(ua, "agy") {
+		tag = "Antigravity CLI"
 	} else {
 		if hookEvent == "BeforeTool" {
 			tag = "Gemini CLI"
@@ -104,6 +123,25 @@ func handleNativeHookEvent(c *gin.Context) {
 		Cwd:            ctx.Cwd,
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func extractNativeHookPath(toolInput map[string]interface{}) string {
+	for _, key := range []string{
+		"command", "Command", "CommandLine", "commandLine",
+		"file_path", "filePath", "AbsolutePath", "absolutePath",
+		"TargetFile", "targetFile", "DirectoryPath", "directoryPath",
+		"SearchPath", "searchPath", "Cwd", "cwd",
+	} {
+		if value, ok := toolInput[key]; ok {
+			if text := interfaceString(value); text != "" {
+				return text
+			}
+		}
+	}
+	if args, ok := toolInput["arguments"].([]interface{}); ok && len(args) > 0 {
+		return fmt.Sprintf("%v", args)
+	}
+	return ""
 }
 
 func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolName string) string {
@@ -296,6 +334,18 @@ func hookRelayScriptPath(h HookDef) string {
 	return filepath.Join(filepath.Dir(h.NativeConfigPath), "hooks", hookMarker+"-"+h.ID+".sh")
 }
 
+func hookCommand(h HookDef, hookEvent string) string {
+	scriptPath := hookRelayScriptPath(h)
+	if strings.TrimSpace(hookEvent) == "" {
+		return shellQuote(scriptPath)
+	}
+	return shellQuote(scriptPath) + " " + shellQuote(hookEvent)
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
 func readJSONObjectFile(path string) (map[string]interface{}, error) {
 	var cfg map[string]interface{}
 	b, err := os.ReadFile(path)
@@ -406,23 +456,84 @@ func ensureHookRelayScript(h HookDef) (string, error) {
 	}
 
 	scriptPath := hookRelayScriptPath(h)
-	hookSecret := runtimeSettingsStore.HookSecret(h.ID)
-	scriptContent := fmt.Sprintf(`#!/usr/bin/env bash
-tmp_file="$(mktemp "${TMPDIR:-/tmp}/agent-ebpf-hook.XXXXXX")" || exit 0
-trap 'rm -f "$tmp_file"' EXIT
-cat >"$tmp_file"
-curl -fsS -X POST '%s' \
-  -H 'Content-Type: application/json' \
-  -H 'X-Agent-CLI: %s' \
-  -H 'X-Agent-Hook-Secret: %s' \
-  --data-binary "@$tmp_file" \
-  >/dev/null 2>&1 || true
-`, resolveHookCallbackURL(), h.ID, hookSecret)
+	scriptContent := buildHookRelayScript(h)
 
 	if err := writeFileAsRealUser(scriptPath, []byte(scriptContent), 0755); err != nil {
 		return "", err
 	}
 	return scriptPath, nil
+}
+
+func buildHookRelayScript(h HookDef) string {
+	if h.ID == "antigravity" {
+		return buildAntigravityHookRelayScript(h)
+	}
+	return buildGenericHookRelayScript(h)
+}
+
+func buildGenericHookRelayScript(h HookDef) string {
+	hookSecret := runtimeSettingsStore.HookSecret(h.ID)
+	return fmt.Sprintf(`#!/usr/bin/env bash
+hook_event="${1:-${AGENT_EBPF_HOOK_EVENT:-}}"
+tmp_file="$(mktemp "${TMPDIR:-/tmp}/agent-ebpf-hook.XXXXXX")" || exit 0
+trap 'rm -f "$tmp_file"' EXIT
+cat >"$tmp_file"
+event_header=()
+if [ -n "$hook_event" ]; then
+  event_header=(-H "X-Agent-Hook-Event: $hook_event")
+fi
+curl -fsS -X POST '%s' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Agent-CLI: %s' \
+  -H 'X-Agent-Hook-Secret: %s' \
+  "${event_header[@]}" \
+  --data-binary "@$tmp_file" \
+  >/dev/null 2>&1 || true
+`, resolveHookCallbackURL(), h.ID, hookSecret)
+}
+
+func buildAntigravityHookRelayScript(h HookDef) string {
+	hookSecret := runtimeSettingsStore.HookSecret(h.ID)
+	return fmt.Sprintf(`#!/usr/bin/env bash
+hook_event="${1:-${AGENT_EBPF_HOOK_EVENT:-}}"
+tmp_file="$(mktemp "${TMPDIR:-/tmp}/agent-ebpf-hook.XXXXXX")" || {
+  case "$hook_event" in
+    PreToolUse) printf '{"decision":"allow","reason":"agent-ebpf relay unavailable"}\n' ;;
+    Stop) printf '{"decision":"allow","reason":""}\n' ;;
+    PreInvocation) printf '{"injectSteps":[]}\n' ;;
+    PostInvocation) printf '{"injectSteps":[],"terminationBehavior":""}\n' ;;
+    *) printf '{}\n' ;;
+  esac
+  exit 0
+}
+trap 'rm -f "$tmp_file"' EXIT
+cat >"$tmp_file"
+curl -fsS -X POST '%s' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Agent-CLI: antigravity' \
+  -H "X-Agent-Hook-Event: $hook_event" \
+  -H 'X-Agent-Hook-Secret: %s' \
+  --data-binary "@$tmp_file" \
+  >/dev/null 2>&1 || true
+
+case "$hook_event" in
+  PreToolUse)
+    printf '{"decision":"allow","reason":"agent-ebpf telemetry recorded"}\n'
+    ;;
+  Stop)
+    printf '{"decision":"allow","reason":""}\n'
+    ;;
+  PreInvocation)
+    printf '{"injectSteps":[]}\n'
+    ;;
+  PostInvocation)
+    printf '{"injectSteps":[],"terminationBehavior":""}\n'
+    ;;
+  *)
+    printf '{}\n'
+    ;;
+esac
+`, resolveHookCallbackURL(), hookSecret)
 }
 
 func installKiroDefaultAgentSelection() error {
@@ -479,11 +590,10 @@ func installKiroNativeHook(h HookDef) error {
 		return err
 	}
 
-	scriptPath, err := ensureHookRelayScript(h)
-	if err != nil {
+	if _, err := ensureHookRelayScript(h); err != nil {
 		return err
 	}
-	hookCommand := fmt.Sprintf(`'%s'`, scriptPath)
+	hookCmd := hookCommand(h, h.NativeHookEvent)
 
 	hooks, _ := cfg["hooks"].(map[string]interface{})
 	if hooks == nil {
@@ -506,7 +616,7 @@ func installKiroNativeHook(h HookDef) error {
 	}
 
 	hookEntry := map[string]interface{}{
-		"command": hookCommand,
+		"command": hookCmd,
 	}
 	if h.NativeMatcher != "" {
 		hookEntry["matcher"] = h.NativeMatcher
@@ -562,6 +672,148 @@ func uninstallKiroNativeHook(h HookDef) error {
 	return restoreKiroDefaultAgentSelection()
 }
 
+func antigravityPluginManifestPath(h HookDef) string {
+	return filepath.Join(filepath.Dir(h.NativeConfigPath), "plugin.json")
+}
+
+func ensureAntigravityPluginManifest(h HookDef) error {
+	manifestPath := antigravityPluginManifestPath(h)
+	if err := mkdirAllAsRealUser(filepath.Dir(manifestPath), 0755); err != nil {
+		return err
+	}
+	if _, err := os.Stat(manifestPath); err == nil {
+		return nil
+	}
+	manifest := map[string]interface{}{
+		"name":        hookMarker,
+		"displayName": "agent-ebpf hook relay",
+		"version":     "1.0.0",
+		"description": "Forwards Antigravity CLI hook telemetry to agent-ebpf-filter.",
+	}
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeFileAsRealUser(manifestPath, data, 0644)
+}
+
+func isAntigravityMatcherEvent(event string) bool {
+	switch event {
+	case "PreToolUse", "PostToolUse":
+		return true
+	default:
+		return false
+	}
+}
+
+func filterAntigravityHookEntries(entries []interface{}) []interface{} {
+	filtered := make([]interface{}, 0, len(entries))
+	for _, entry := range entries {
+		em, ok := entry.(map[string]interface{})
+		if !ok {
+			filtered = append(filtered, entry)
+			continue
+		}
+		if cmd, _ := em["command"].(string); strings.Contains(cmd, hookMarker) {
+			continue
+		}
+		if hs, _ := em["hooks"].([]interface{}); len(hs) > 0 {
+			isOurs := false
+			for _, hookEntry := range hs {
+				hm, ok := hookEntry.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if cmd, _ := hm["command"].(string); strings.Contains(cmd, hookMarker) {
+					isOurs = true
+					break
+				}
+			}
+			if isOurs {
+				continue
+			}
+		}
+		filtered = append(filtered, entry)
+	}
+	return filtered
+}
+
+func installAntigravityNativeHook(h HookDef) error {
+	if err := ensureAntigravityPluginManifest(h); err != nil {
+		return err
+	}
+	cfg, err := readJSONObjectFile(h.NativeConfigPath)
+	if err != nil {
+		return err
+	}
+	if _, err := ensureHookRelayScript(h); err != nil {
+		return err
+	}
+
+	hookDef, _ := cfg[hookMarker].(map[string]interface{})
+	if hookDef == nil {
+		hookDef = make(map[string]interface{})
+	}
+	hookDef["enabled"] = true
+
+	eventName := h.NativeHookEvent
+	eventEntries, _ := hookDef[eventName].([]interface{})
+	filtered := filterAntigravityHookEntries(eventEntries)
+	commandEntry := map[string]interface{}{
+		"type":    "command",
+		"command": hookCommand(h, eventName),
+		"timeout": 5,
+	}
+	if isAntigravityMatcherEvent(eventName) {
+		matcher := strings.TrimSpace(h.NativeMatcher)
+		if matcher == "" {
+			matcher = "*"
+		}
+		hookDef[eventName] = append(filtered, map[string]interface{}{
+			"matcher": matcher,
+			"hooks":   []interface{}{commandEntry},
+		})
+	} else {
+		hookDef[eventName] = append(filtered, commandEntry)
+	}
+
+	cfg[hookMarker] = hookDef
+	return writeJSONObjectFile(h.NativeConfigPath, cfg)
+}
+
+func uninstallAntigravityNativeHook(h HookDef) error {
+	cfg, err := readJSONObjectFile(h.NativeConfigPath)
+	if err != nil {
+		_ = os.Remove(hookRelayScriptPath(h))
+		return nil
+	}
+	hookDef, _ := cfg[hookMarker].(map[string]interface{})
+	if hookDef != nil {
+		for _, eventName := range []string{"PreToolUse", "PostToolUse", "PreInvocation", "PostInvocation", "Stop"} {
+			eventEntries, _ := hookDef[eventName].([]interface{})
+			if len(eventEntries) == 0 {
+				continue
+			}
+			filtered := filterAntigravityHookEntries(eventEntries)
+			if len(filtered) == 0 {
+				delete(hookDef, eventName)
+			} else {
+				hookDef[eventName] = filtered
+			}
+		}
+		if len(hookDef) == 0 || (len(hookDef) == 1 && hookDef["enabled"] != nil) {
+			delete(cfg, hookMarker)
+		} else {
+			cfg[hookMarker] = hookDef
+		}
+	}
+	if err := writeJSONObjectFile(h.NativeConfigPath, cfg); err != nil {
+		return err
+	}
+	_ = os.Remove(hookRelayScriptPath(h))
+	return nil
+}
+
 func cleanupLegacyCodexHookConfig(h HookDef) {
 	if h.ID != "codex" || h.NativeFeatureConfigPath == "" {
 		return
@@ -582,6 +834,9 @@ func cleanupLegacyCodexHookConfig(h HookDef) {
 func installNativeHook(h HookDef) error {
 	if h.ID == "kiro" {
 		return installKiroNativeHook(h)
+	}
+	if h.ID == "antigravity" {
+		return installAntigravityNativeHook(h)
 	}
 
 	cleanupLegacyCodexHookConfig(h)
@@ -611,15 +866,14 @@ func installNativeHook(h HookDef) error {
 	}
 
 	// Build the hook entry.
-	scriptPath, err := ensureHookRelayScript(h)
-	if err != nil {
+	if _, err := ensureHookRelayScript(h); err != nil {
 		return err
 	}
-	hookCommand := fmt.Sprintf(`'%s'`, scriptPath)
+	hookCmd := hookCommand(h, h.NativeHookEvent)
 
 	hookEntry := map[string]interface{}{
 		"type":          "command",
-		"command":       hookCommand,
+		"command":       hookCmd,
 		"statusMessage": "agent-ebpf-hook-active: inspecting...",
 	}
 	switch h.ID {
@@ -666,7 +920,10 @@ func installNativeHook(h HookDef) error {
 	hooks[h.NativeHookEvent] = append(filtered, matcher)
 	cfg["hooks"] = hooks
 
-	var b []byte
+	var (
+		b   []byte
+		err error
+	)
 	if h.ConfigFormat == ConfigFormatTOML {
 		b, err = toml.Marshal(cfg)
 	} else {
@@ -683,6 +940,9 @@ func installNativeHook(h HookDef) error {
 func uninstallNativeHook(h HookDef) error {
 	if h.ID == "kiro" {
 		return uninstallKiroNativeHook(h)
+	}
+	if h.ID == "antigravity" {
+		return uninstallAntigravityNativeHook(h)
 	}
 
 	b, err := os.ReadFile(h.NativeConfigPath)

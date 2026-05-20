@@ -203,7 +203,9 @@ command exec or block
 AI CLI hook payload on stdin
         │
         ▼
-curl POST /hooks/event
+CLI-aware relay script
+  (curl POST /hooks/event;
+   JSON stdout when required)
         │
         ▼
 backend normalizes payload

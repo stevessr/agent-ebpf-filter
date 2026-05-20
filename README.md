@@ -101,7 +101,7 @@ upstream，避免代理再次打回自身。
 - **Tracked command names**: common CLIs plus user-defined commands are tagged through `tracked_comms`.
 - **Tracked paths**: exact path matches are tagged through `tracked_paths`.
 - **Wrapper interception**: `agent-wrapper` asks the backend for `ALLOW`, `BLOCK`, `ALERT`, or `REWRITE`.
-- **Native AI CLI hooks**: the backend can install hook config for Claude Code, Gemini CLI, Codex, and GitHub Copilot, or wrapper aliases for Cursor / any CLI routed through the wrapper. Hook events record safe prompt/response metadata (`sha256` digest + length) when supplied by the CLI, not raw prompt/response text.
+- **Native AI CLI hooks**: the backend can install CLI-aware hook config for Claude Code, Gemini CLI, Codex, GitHub Copilot, Kiro CLI, Augment, and Antigravity CLI, or wrapper aliases for Cursor / any CLI routed through the wrapper. Generated relay scripts are customized for each CLI's hook contract; hook events record safe prompt/response metadata (`sha256` digest + length) when supplied by the CLI, not raw prompt/response text.
 - **Derived semantic alerts**: the backend can emit `semantic_alert` records such as `SECRET_ACCESS`, `UNEXPECTED_NETWORK_EGRESS`, `UNEXPECTED_CHILD_PROCESS`, `SEMANTIC_MISMATCH`, `RESOURCE_WASTING_LOOP`, and `MULTI_AGENT_FILE_CONTENTION` when observed behavior drifts from declared tool intent or multiple agents contend on the same path.
   Hook callbacks resolve against the backend's current port instead of assuming `8080`.
 
@@ -341,11 +341,14 @@ From the **Hooks** page you can manage:
 - **Codex** native hook
 - **GitHub Copilot CLI** native hook
 - **Kiro CLI** native hook
+- **Augment / Auggie CLI** native hook
+- **Antigravity CLI (`agy`)** native hook
 - **Cursor** wrapper alias
 
 Native hook installation edits the target CLI config file in the user home directory and injects a generated relay script that forwards hook JSON to `POST /hooks/event`.
 For Codex, the backend writes `~/.codex/hooks.json` and also enables `[features].codex_hooks = true` in `~/.codex/config.toml` to match the current official hooks setup.
 For Kiro CLI, the backend creates a managed agent at `~/.kiro/agents/agent-ebpf-hook.json` from `kiro_default`, injects the native hook there, and points `chat.defaultAgent` in `~/.kiro/settings/cli.json` to that managed agent while the hook is installed.
+For Antigravity CLI, the backend creates a native plugin under `~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/`, writes `plugin.json` plus `hooks.json`, and uses an Antigravity-specific relay script that returns the required JSON stdout (`decision: allow`, `{}`, or empty injected-step responses) after forwarding telemetry.
 
 ### 5) Run commands through the wrapper
 

@@ -57,7 +57,7 @@ const supportsAsyncCommandHooks = computed(
   () => props.hook?.id !== 'codex' && props.hook?.id !== 'augment',
 );
 const supportsTimeoutCommandHooks = computed(() => props.hook?.id === 'augment');
-const supportsVisualEditor = computed(() => props.hook?.id !== 'kiro');
+const supportsVisualEditor = computed(() => !['kiro', 'antigravity'].includes(props.hook?.id || ''));
 
 const stripUnsupportedFields = (cfg: any): any => {
   const normalized = JSON.parse(JSON.stringify(cfg || {}));
@@ -354,6 +354,14 @@ const formatFieldLabel = (field: HookFieldDoc) =>
         message="Kiro uses agent-scoped native hook JSON"
         description="This managed Kiro agent is edited in raw mode because Kiro's hook schema differs from the generic visual editor used for Claude / Gemini / Codex / Copilot / Augment."
       />
+      <a-alert
+        v-else-if="hook?.id === 'antigravity'"
+        type="info"
+        show-icon
+        style="margin-bottom: 12px;"
+        message="Antigravity CLI uses plugin-scoped hooks.json"
+        description="The backend installs ~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/hooks.json plus plugin.json. It is edited in raw mode because Antigravity maps hook names to event definitions rather than using the shared top-level hooks object."
+      />
       <a-textarea
         v-model:value="rawConfig"
         :rows="20"
@@ -363,4 +371,3 @@ const formatFieldLabel = (field: HookFieldDoc) =>
     </div>
   </a-modal>
 </template>
-

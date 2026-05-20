@@ -230,7 +230,7 @@ Especially keep these accurate:
 
 ## 9. Nice-to-know gotchas
 
-- Native hook installation injects a `curl` command into CLI config files, so docs should mention `curl` as a runtime dependency.
+- Native hook installation injects generated relay scripts (the scripts call `curl`), so docs should mention `curl` as a runtime dependency.
 - Hook callbacks resolve to the current backend port via `.port` unless `AGENT_HOOK_ENDPOINT` overrides it.
 - The frontend Runtime Config tab stores the access token locally and appends it to WebSocket URLs as `?key=...`.
 - The wrapper UDS socket is expected to stay restrictive (`0600`) and validate peer credentials against root / the original invoking user.

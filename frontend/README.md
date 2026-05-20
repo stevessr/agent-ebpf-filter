@@ -72,6 +72,7 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 - lists supported AI CLI hook targets
 - installs / uninstalls hook config or wrapper aliases
 - edits raw JSON / TOML hook config for native-hook targets
+- shows CLI-specific hook docs, including Antigravity CLI's plugin-scoped `hooks.json`
 - uses `/config/hooks/:id/raw` for direct config editing
 
 ### Configuration
