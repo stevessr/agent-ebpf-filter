@@ -181,6 +181,10 @@ Commands run through the wrapper always produce a `wrapper_intercept` event and 
 
 For supported AI CLIs, hook callbacks produce `native_hook` events even when there is no matching kernel event.
 In release mode, installed relay scripts authenticate with a per-hook secret header instead of anonymous localhost POSTs.
+Relay scripts are CLI-aware: Antigravity CLI is installed as a native `agy`
+plugin under `~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/` and
+returns Antigravity's required JSON stdout while preserving telemetry-only
+`allow` behavior.
 
 ---
 

@@ -89,8 +89,10 @@ onMounted(() => {
               <b>Native Hook</b> (recommended): Injects directly into the agent
               CLI's own config (e.g. Claude Code's
               <code>~/.claude/settings.json</code> or Augment's
-              <code>~/.augment/settings.json</code>). Intercepts every tool call
-              with zero shell overhead.<br />
+              <code>~/.augment/settings.json</code>) or Antigravity CLI's plugin
+              directory
+              <code>~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active</code>.
+              Intercepts every tool call with zero shell overhead.<br />
               <b>Wrapper Hook</b>: Adds a shell alias so the CLI is
               transparently routed through <code>agent-wrapper</code>. Works for
               any CLI but requires a shell reload.

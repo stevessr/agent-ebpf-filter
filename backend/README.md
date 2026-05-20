@@ -343,6 +343,8 @@ Supported hook targets:
 - Codex
 - GitHub Copilot CLI
 - Kiro CLI
+- Augment / Auggie CLI
+- Antigravity CLI (`agy`)
 - Cursor (wrapper alias mode)
 
 Native hook configs are resolved relative to the real user home directory:
@@ -352,6 +354,8 @@ Native hook configs are resolved relative to the real user home directory:
 - `~/.codex/hooks.json`
 - `~/.kiro/agents/agent-ebpf-hook.json`
 - `~/.copilot/config.json`
+- `~/.augment/settings.json`
+- `~/.gemini/antigravity-cli/plugins/agent-ebpf-hook-active/hooks.json`
 
 Codex also requires the experimental feature flag below in `~/.codex/config.toml`, which the backend now enables automatically during native-hook install:
 
@@ -361,6 +365,7 @@ codex_hooks = true
 ```
 
 Kiro native-hook install creates a managed agent cloned from `kiro_default` and temporarily points `chat.defaultAgent` in `~/.kiro/settings/cli.json` to that managed agent. On uninstall, the previous default agent is restored.
+Antigravity CLI native-hook install creates an `agent-ebpf-hook-active` plugin directory with `plugin.json` and `hooks.json`; its relay script returns Antigravity-compatible JSON stdout while forwarding telemetry to the backend.
 
 Wrapper aliases are written to:
 
@@ -373,7 +378,7 @@ When native hooks are installed, the callback URL resolves from:
 3. fallback `http://127.0.0.1:8080/hooks/event`
 
 Native hook entries call a generated relay script under the target CLI config directory's `hooks/` subdirectory instead of embedding a long inline `curl` command directly in the hook config.
-Those relay scripts send both `X-Agent-CLI` and a per-hook `X-Agent-Hook-Secret` header.
+Those relay scripts are CLI-aware, pass the event name when the CLI payload omits it, and send both `X-Agent-CLI` and a per-hook `X-Agent-Hook-Secret` header.
 When a CLI supplies user prompt or response fields, the backend stores only safe metadata (`sha256` digest + character length) in `ExtraInfo`; it does not persist raw prompt or response text for semantic-loop analysis.
 
 ### TLS 明文捕获

@@ -175,6 +175,25 @@ func buildProcessContextFromWrapperRequest(req *pb.WrapperRequest, decision stri
 }
 
 func buildProcessContextFromHookPayload(payload map[string]interface{}, toolName, path string) (uint32, processContext) {
+	if toolName == "" {
+		if toolCall, _ := payload["toolCall"].(map[string]interface{}); toolCall != nil {
+			toolName, _ = toolCall["name"].(string)
+		}
+	}
+	toolCallID := payloadString(payload, "tool_call_id", "toolCallId")
+	if toolCallID == "" {
+		if toolCall, _ := payload["toolCall"].(map[string]interface{}); toolCall != nil {
+			toolCallID = payloadString(toolCall, "id", "callId", "toolCallId")
+		}
+	}
+	cwd := payloadString(payload, "cwd", "working_directory", "workingDirectory")
+	if cwd == "" {
+		if toolCall, _ := payload["toolCall"].(map[string]interface{}); toolCall != nil {
+			if args, _ := toolCall["args"].(map[string]interface{}); args != nil {
+				cwd = payloadString(args, "cwd", "Cwd", "working_directory", "workingDirectory")
+			}
+		}
+	}
 	pid := payloadUint32(payload, "pid", "process_id", "processId", "agent_pid", "agentPid")
 	ctx := processContext{
 		RootAgentPid:   payloadUint32(payload, "root_agent_pid", "rootAgentPid"),
@@ -182,14 +201,14 @@ func buildProcessContextFromHookPayload(payload map[string]interface{}, toolName
 		TaskID:         payloadString(payload, "task_id", "taskId"),
 		ConversationID: payloadString(payload, "conversation_id", "conversationId"),
 		TurnID:         payloadString(payload, "turn_id", "turnId"),
-		ToolCallID:     payloadString(payload, "tool_call_id", "toolCallId"),
+		ToolCallID:     toolCallID,
 		ToolName:       firstNonEmpty(payloadString(payload, "tool_name", "toolName"), toolName),
 		TraceID:        payloadString(payload, "trace_id", "traceId"),
 		SpanID:         payloadString(payload, "span_id", "spanId"),
 		Decision:       payloadString(payload, "decision"),
 		ContainerID:    payloadString(payload, "container_id", "containerId"),
 		ArgvDigest:     payloadString(payload, "argv_digest", "argvDigest"),
-		Cwd:            payloadString(payload, "cwd", "working_directory", "workingDirectory"),
+		Cwd:            cwd,
 		RiskScore:      payloadFloat64(payload, "risk_score", "riskScore"),
 	}
 	if ctx.ArgvDigest == "" {

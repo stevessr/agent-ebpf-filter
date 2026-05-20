@@ -177,6 +177,14 @@ var availableHooks = []HookDef{
 		ConfigFormat:    ConfigFormatJSON,
 	},
 	{
+		ID: "antigravity", Name: "Antigravity CLI", HookType: HookTypeNative,
+		Description:     "Installs an Antigravity CLI plugin with hooks.json and a JSON-stdout aware relay for all tool calls",
+		TargetCmd:       "agy",
+		NativeHookEvent: "PreToolUse",
+		NativeMatcher:   "*",
+		ConfigFormat:    ConfigFormatJSON,
+	},
+	{
 		ID: "cursor", Name: "Cursor", HookType: HookTypeWrapper,
 		Description: "Intercepts cursor execution via shell alias wrapper",
 		TargetCmd:   "cursor",
