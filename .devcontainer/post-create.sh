@@ -21,8 +21,9 @@ seed_predev_dir() {
   local source_dir="$1"
   local target_dir="$2"
   local label="$3"
+  local check_path="$4"
 
-  if [ -d "$target_dir" ]; then
+  if [ -x "$target_dir/$check_path" ]; then
     return
   fi
   if [ ! -d "$source_dir" ]; then
@@ -30,12 +31,16 @@ seed_predev_dir() {
   fi
 
   echo "[devcontainer] Seeding ${label} from the workflow-built image."
+  if [ -e "$target_dir" ]; then
+    echo "[devcontainer] Existing ${label} is not usable in this container; replacing it."
+    rm -rf "$target_dir"
+  fi
   mkdir -p "$(dirname "$target_dir")"
   cp -a "$source_dir" "$target_dir"
 }
 
-seed_predev_dir /opt/agent-ebpf-predev/frontend/node_modules frontend/node_modules "frontend node_modules"
-seed_predev_dir /opt/agent-ebpf-predev/adapters/python/.venv adapters/python/.venv "Python virtualenv"
+seed_predev_dir /opt/agent-ebpf-predev/frontend/node_modules frontend/node_modules "frontend node_modules" ".bin/pbjs"
+seed_predev_dir /opt/agent-ebpf-predev/adapters/python/.venv adapters/python/.venv "Python virtualenv" "bin/python"
 
 if ! make --no-print-directory predev-check; then
   cat >&2 <<'EOF'

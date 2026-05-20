@@ -61,9 +61,9 @@ virtualenv, and frontend `node_modules`. Because the live workspace is
 bind-mounted over `/workspaces/agent-ebpf-filiter`, the image also keeps a copy
 of those workspace-local dependencies under `/opt/agent-ebpf-predev`.
 
-The `postCreateCommand` seeds missing workspace-local dependencies from that
-image copy and then verifies the setup without installing anything from the
-network:
+The `postCreateCommand` seeds missing or container-unusable workspace-local
+dependencies from that image copy and then verifies the setup without installing
+anything from the network:
 
 ```bash
 make predev-check
@@ -73,6 +73,11 @@ If that check fails, you are probably using a stale GHCR image. Wait for or
 rerun the **Devcontainer Image** workflow, pull the updated branch image, and
 rebuild/reopen the Dev Container. To opt into an online fallback explicitly,
 open the container with `DEVCONTAINER_POSTCREATE_INSTALL=1`.
+
+`make exec` mounts the host uv Python runtime cache read-only when it exists.
+That keeps a host-created `adapters/python/.venv/bin/python` symlink under
+`~/.local/share/uv/python` valid inside the container, instead of mistaking the
+virtualenv for a missing dependency.
 
 Then start the normal development session:
 
