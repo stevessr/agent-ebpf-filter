@@ -3,6 +3,7 @@ FROM debian:trixie
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG GO_VERSION=1.26.2
+ARG NODE_VERSION=24.11.1
 ARG USERNAME=vscode
 ARG USER_UID=1001
 ARG USER_GID=${USER_UID}
@@ -61,6 +62,17 @@ RUN arch="$(dpkg --print-architecture)" \
  && tar -C /usr/local -xzf /tmp/go.tgz \
  && rm /tmp/go.tgz \
  && mkdir -p /go/bin /go/pkg /go/src
+
+RUN arch="$(dpkg --print-architecture)" \
+ && case "$arch" in \
+      amd64) node_arch=x64 ;; \
+      arm64) node_arch=arm64 ;; \
+      *) echo "Unsupported architecture for Node.js: $arch" >&2; exit 1 ;; \
+    esac \
+ && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" -o /tmp/node.tar.xz \
+ && tar -C /tmp -xf /tmp/node.tar.xz \
+ && cp "/tmp/node-v${NODE_VERSION}-linux-${node_arch}/bin/node" /usr/local/bin/node \
+ && rm -rf /tmp/node.tar.xz "/tmp/node-v${NODE_VERSION}-linux-${node_arch}"
 
 RUN curl -fsSL https://bun.sh/install | bash -s bun-v1.3.3 \
  && ln -sf /usr/local/bun/bin/bun /usr/local/bin/bun \

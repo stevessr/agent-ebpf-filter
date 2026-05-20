@@ -57,7 +57,7 @@ code .
 
 The GitHub Actions image build runs `make predev` before publishing the GHCR
 image, so the published image already contains `protoc-gen-go`, the Python
-virtualenv, and frontend `node_modules`. Because the live workspace is
+virtualenv, Node.js for `protobufjs-cli`, and frontend `node_modules`. Because the live workspace is
 bind-mounted over `/workspaces/agent-ebpf-filiter`, the image also keeps a copy
 of those workspace-local dependencies under `/opt/agent-ebpf-predev`.
 
@@ -78,6 +78,9 @@ open the container with `DEVCONTAINER_POSTCREATE_INSTALL=1`.
 `frontend/node_modules` and `adapters/python/.venv`. That keeps dependency
 trees writable inside the container and avoids reusing host-only symlinks from a
 host-created Python virtualenv.
+
+CUDA is optional in this image. If the host does not expose `/opt/cuda`, backend
+builds compile the CPU-only CUDA stub instead of linking CUDA runtime libraries.
 
 Then start the normal development session:
 

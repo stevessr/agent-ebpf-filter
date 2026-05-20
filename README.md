@@ -254,6 +254,12 @@ writable Go workspace for Go-installed helper binaries, so a stale local
 `GOPATH=/go` setting falls back to `$HOME/go` instead of failing on hosts where
 `/go` is not writable. `make dev` assumes those are already present and opens a
 Zellij session with backend and frontend in separate panes.
+Protocol Buffer JS/TS generation runs `protobufjs-cli` with Node.js; the
+devcontainer image includes Node so it does not rely on Bun's Node compatibility
+for `pbjs` / `pbts`.
+CUDA acceleration is optional: when `/opt/cuda/bin/nvcc` and CUDA runtime libs
+are absent, backend builds use the CPU-only CUDA stub instead of linking
+`libcudart` / `libcuda`.
 The GHCR devcontainer image built by GitHub Actions also runs `make predev`
 during the image build. Its post-create hook and `make exec` seed missing
 workspace-local dependencies from the image before verifying `make predev-check`
