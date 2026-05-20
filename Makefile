@@ -28,6 +28,10 @@ DEV_WORKSPACE ?= /workspaces/agent-ebpf-filiter
 DEVCONTAINER_GO_VERSION ?= 1.26.2
 DEVCONTAINER_USER_UID ?= 1001
 DEVCONTAINER_USER_GID ?= 1001
+DEV_CONTAINER_USERNS ?= $(shell $(CONTAINER_CLI) --version 2>/dev/null | grep -qi podman && printf 'keep-id:uid=$(DEVCONTAINER_USER_UID),gid=$(DEVCONTAINER_USER_GID)')
+DEV_CONTAINER_USERNS_ARG = $(if $(DEV_CONTAINER_USERNS),--userns=$(DEV_CONTAINER_USERNS),)
+DEV_FRONTEND_NODE_MODULES_VOLUME ?= $(DEV_CONTAINER)-frontend-node-modules
+DEV_PYTHON_VENV_VOLUME ?= $(DEV_CONTAINER)-python-venv
 
 .DEFAULT_GOAL := all
 
@@ -72,8 +76,11 @@ exec: ## Start or attach to the mounted devcontainer shell
 	@$(CONTAINER_CLI) image inspect $(DEV_IMAGE) >/dev/null 2>&1 || $(MAKE) --no-print-directory docker
 	@recreate=false; \
 	recreate_reason=""; \
-	uv_python_dir="$$HOME/.local/share/uv/python"; \
 	if $(CONTAINER_CLI) container inspect $(DEV_CONTAINER) >/dev/null 2>&1; then \
+		if [ -n "$(DEV_CONTAINER_USERNS)" ] && ! $(CONTAINER_CLI) inspect -f '{{.HostConfig.UsernsMode}}' $(DEV_CONTAINER) | grep -Fx "$(DEV_CONTAINER_USERNS)" >/dev/null; then \
+			recreate=true; \
+			recreate_reason="$$recreate_reason userns $(DEV_CONTAINER_USERNS)"; \
+		fi; \
 		if [ -f "$$HOME/.gitconfig" ] && ! $(CONTAINER_CLI) inspect -f '{{range .Mounts}}{{if eq .Destination "/home/vscode/.gitconfig"}}{{if not .RW}}readonly{{end}}{{end}}{{end}}' $(DEV_CONTAINER) | grep -qx readonly; then \
 			recreate=true; \
 			recreate_reason="$$recreate_reason read-only ~/.gitconfig"; \
@@ -82,9 +89,13 @@ exec: ## Start or attach to the mounted devcontainer shell
 			recreate=true; \
 			recreate_reason="$$recreate_reason read-only ~/.config/git"; \
 		fi; \
-		if [ -d "$$uv_python_dir" ] && ! $(CONTAINER_CLI) inspect -f '{{range .Mounts}}{{println .Destination}}{{end}}' $(DEV_CONTAINER) | grep -Fx "$$uv_python_dir" >/dev/null; then \
+		if ! $(CONTAINER_CLI) inspect -f '{{range .Mounts}}{{println .Destination}}{{end}}' $(DEV_CONTAINER) | grep -Fx "$(DEV_WORKSPACE)/frontend/node_modules" >/dev/null; then \
 			recreate=true; \
-			recreate_reason="$$recreate_reason host uv Python runtime"; \
+			recreate_reason="$$recreate_reason frontend node_modules volume"; \
+		fi; \
+		if ! $(CONTAINER_CLI) inspect -f '{{range .Mounts}}{{println .Destination}}{{end}}' $(DEV_CONTAINER) | grep -Fx "$(DEV_WORKSPACE)/adapters/python/.venv" >/dev/null; then \
+			recreate=true; \
+			recreate_reason="$$recreate_reason Python virtualenv volume"; \
 		fi; \
 		if [ "$$recreate" = "true" ]; then \
 			echo "Recreating existing container $(DEV_CONTAINER) to update mounts:$$recreate_reason"; \
@@ -98,7 +109,6 @@ exec: ## Start or attach to the mounted devcontainer shell
 		fi; \
 	else \
 		git_mount_args=""; \
-		uv_python_mount_args=""; \
 		if [ -f "$$HOME/.gitconfig" ]; then \
 			git_mount_args="$$git_mount_args --mount type=bind,source=$$HOME/.gitconfig,target=/home/vscode/.gitconfig,readonly"; \
 		else \
@@ -107,12 +117,10 @@ exec: ## Start or attach to the mounted devcontainer shell
 		if [ -d "$$HOME/.config/git" ]; then \
 			git_mount_args="$$git_mount_args --mount type=bind,source=$$HOME/.config/git,target=/home/vscode/.config/git,readonly"; \
 		fi; \
-		if [ -d "$$HOME/.local/share/uv/python" ]; then \
-			uv_python_mount_args="$$uv_python_mount_args --mount type=bind,source=$$HOME/.local/share/uv/python,target=$$HOME/.local/share/uv/python,readonly"; \
-		fi; \
 		echo "Creating container $(DEV_CONTAINER) from $(DEV_IMAGE)..."; \
 		$(CONTAINER_CLI) run -dit \
 			--name $(DEV_CONTAINER) \
+			$(DEV_CONTAINER_USERNS_ARG) \
 			--privileged \
 			--cap-add SYS_ADMIN \
 			--cap-add SYS_RESOURCE \
@@ -128,11 +136,12 @@ exec: ## Start or attach to the mounted devcontainer shell
 			-e DISABLE_AUTH=true \
 			-e BUN_INSTALL=/usr/local/bun \
 			-v "$(CURDIR):$(DEV_WORKSPACE)" \
+			--mount type=volume,source=$(DEV_FRONTEND_NODE_MODULES_VOLUME),target=$(DEV_WORKSPACE)/frontend/node_modules \
+			--mount type=volume,source=$(DEV_PYTHON_VENV_VOLUME),target=$(DEV_WORKSPACE)/adapters/python/.venv \
 			-v /sys/kernel/debug:/sys/kernel/debug \
 			-v /sys/fs/bpf:/sys/fs/bpf \
 			-v /lib/modules:/lib/modules:ro \
 			$$git_mount_args \
-			$$uv_python_mount_args \
 			-w $(DEV_WORKSPACE) \
 			$(DEV_IMAGE) fish >/dev/null; \
 	fi

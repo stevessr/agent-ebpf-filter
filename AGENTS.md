@@ -52,9 +52,9 @@ unwritable Go workspace such as a host-side stale `GOPATH=/go` to `$HOME/go`
 before installing Go helper binaries. `make dev` assumes those dependencies are
 already present and opens the backend/frontend dev session in Zellij instead of
 tmux.
-`make exec` must also mount the host uv Python runtime cache
-(`~/.local/share/uv/python`) read-only when it exists, because a host-created
-`adapters/python/.venv/bin/python` may be an absolute symlink into that cache.
+`make exec` and VS Code Dev Containers must mount container-local volumes over
+`frontend/node_modules` and `adapters/python/.venv` so the bind-mounted
+workspace stays writable without reusing host-only dependency trees.
 
 `make dev-image` prints the image ref. `make docker` is pull-only: it derives `ghcr.io/<owner>/<repo>/devcontainer:<branch-slug>-<branch-hash>` from the GitHub origin remote and the current branch, where the branch hash is the first 12 hex characters of the branch name's SHA-256 digest. If the branch cannot be inferred on a detached HEAD, set `DEV_BRANCH=<branch>` or pass a full `DEV_IMAGE=...`. If the image is not available yet, wait for it to publish or run the GitHub Actions devcontainer image workflow; do not add a local build fallback. The workflow-built image must run `make predev` during the Docker build and keep a copy of workspace-local dependencies under `/opt/agent-ebpf-predev` so VS Code post-create and `make exec` can seed bind-mounted workspaces without reinstalling from the network. Post-create should run `make predev-check` only; if an old image is missing dependencies, tell the user to rebuild/pull the workflow image instead of silently running online installs, unless `DEVCONTAINER_POSTCREATE_INSTALL=1` is explicitly set. VS Code Dev Containers and `make exec` must pass through the host Git config (`~/.gitconfig` and `~/.config/git`) read-only, but must not mount credentials, SSH keys, or Git credential stores. VS Code Dev Containers must use the `image` field in `.devcontainer/devcontainer.json`; keep `.devcontainer/Dockerfile` only as the GitHub Actions build input. Keep `updateRemoteUserUID` disabled so VS Code does not generate a local `updateUID.Dockerfile`; keep the Podman user namespace mapping aligned with the image's `vscode` UID/GID `1001:1001`; and do not combine `--init` with `--pid=host` because Podman rejects that startup shape. For branch/fork Dev Containers, launch VS Code with `DEV_IMAGE_REPOSITORY` and `DEV_IMAGE_TAG` from the matching Make targets.
 

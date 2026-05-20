@@ -74,10 +74,10 @@ rerun the **Devcontainer Image** workflow, pull the updated branch image, and
 rebuild/reopen the Dev Container. To opt into an online fallback explicitly,
 open the container with `DEVCONTAINER_POSTCREATE_INSTALL=1`.
 
-`make exec` mounts the host uv Python runtime cache read-only when it exists.
-That keeps a host-created `adapters/python/.venv/bin/python` symlink under
-`~/.local/share/uv/python` valid inside the container, instead of mistaking the
-virtualenv for a missing dependency.
+`make exec` and VS Code Dev Containers mount container-local volumes over
+`frontend/node_modules` and `adapters/python/.venv`. That keeps dependency
+trees writable inside the container and avoids reusing host-only symlinks from a
+host-created Python virtualenv.
 
 Then start the normal development session:
 
