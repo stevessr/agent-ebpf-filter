@@ -40,8 +40,7 @@ func cloneProtoEvent(event *pb.Event) *pb.Event {
 	if ok {
 		return cloned
 	}
-	copy := *event
-	return &copy
+	return event
 }
 
 func normalizeEventEnvelope(envelope *pb.EventEnvelope, record CapturedEventRecord) *pb.EventEnvelope {

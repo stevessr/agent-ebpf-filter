@@ -552,10 +552,10 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 
 	collectorMetricsStore.RecordEvent(event)
 
-	eventCopy := *event
+	eventCopy := cloneProtoEvent(event)
 	record := normalizeCapturedEventRecord(CapturedEventRecord{
 		ReceivedAt: time.Now().UTC(),
-		Event:      &eventCopy,
+		Event:      eventCopy,
 	})
 	capturedEventArchive.Add(record)
 	appendStart := time.Now()
