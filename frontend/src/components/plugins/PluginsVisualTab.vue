@@ -267,7 +267,9 @@ const nodeLayout = ref<VisualNodeLayout>(createDefaultNodeLayout());
 const wireStates = ref<VisualWireStates>(createDefaultWireStates());
 const hiddenFlowNodes = ref<VisualHiddenNodeStates>(createDefaultHiddenNodes());
 const activeFlowNode = ref<VisualFlowNodeId>("trigger");
-const designerSubtab = ref<"dify" | "map" | "source">("dify");
+const designerSubtab = ref<"dify" | "map" | "nlp" | "source">("dify");
+const recipePanelVisible = ref(true);
+const recipePanelDock = ref<"left" | "right">("left");
 const triggerBlockRef = useTemplateRef<HTMLElement>("triggerBlock");
 const conditionBlockRef = useTemplateRef<HTMLElement>("conditionBlock");
 const mapBlockRef = useTemplateRef<HTMLElement>("mapBlock");
@@ -305,6 +307,14 @@ const flowNodeDetails: Record<VisualFlowNodeId, { label: string; focus: string }
 const selectedFlowNodeDetail = computed(
   () => flowNodeDetails[activeFlowNode.value]
 );
+
+const recipePanelDockLabel = computed(() =>
+  recipePanelDock.value === "left" ? "吸附右侧" : "吸附左侧"
+);
+
+const toggleRecipePanelDock = () => {
+  recipePanelDock.value = recipePanelDock.value === "left" ? "right" : "left";
+};
 
 const resetNodeLayout = () => {
   nodeLayout.value = createDefaultNodeLayout();
@@ -1766,45 +1776,20 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 <template>
   <div class="plugins-visual-tab">
     <a-row :gutter="16">
-      <!-- Column 1: UE Blueprint Palette (Drag Source) -->
+      <!-- Column 1: Dify node type palette -->
       <a-col :span="5">
-        <PluginsVisualRecipePanel
-          :recipes="visualRecipes"
-          :trigger="trigger"
-          :action="action"
-          :map-mode="mapMode"
-          :condition-count="conditionCount"
-          :tree-depth="treeDepth"
-          :plugin-id="pluginId"
-          :code-lines="generatedLineCount"
-          :validation-issues="validationIssues"
-          :compile-ready="isWorkspaceValid"
-          :autosave-label="autosaveLabel"
-          :undo-count="undoStack.length"
-          :redo-count="redoStack.length"
-          @apply-recipe="applyRecipe"
-          @reset-workspace="resetWorkspace"
-          @export-workspace="exportWorkspace"
-          @import-workspace="importWorkspace"
-          @save-draft="() => saveWorkspaceDraft(false)"
-          @clear-draft="clearWorkspaceDraft"
-          @undo-workspace="undoWorkspace"
-          @redo-workspace="redoWorkspace"
+        <PluginsVisualNodeTypeLibrary
+          @select-trigger="selectTriggerNodeType"
+          @add-condition="addConditionNodeType"
+          @add-group="addLogicNodeType"
+          @set-map="setMapNodeType"
+          @set-action="setActionNodeType"
+          @focus-node="focusFlowNode"
         />
-        <div class="palette-stack">
-          <PluginsVisualNodeTypeLibrary
-            @select-trigger="selectTriggerNodeType"
-            @add-condition="addConditionNodeType"
-            @add-group="addLogicNodeType"
-            @set-map="setMapNodeType"
-            @set-action="setActionNodeType"
-            @focus-node="focusFlowNode"
-          />
-        </div>
       </a-col>
 
       <!-- Column 2: Workspace (Designer Canvas) -->
-      <a-col :span="11">
+      <a-col :span="19">
         <div class="graphical-workspace" @dragover.prevent @drop="handleWorkspaceDrop">
           <div class="workspace-title">
             <h3>流程图高级规则拼接控制台 (Advanced Flow Designer)</h3>
@@ -2096,6 +2081,15 @@ const handleWorkspaceDrop = (event: DragEvent) => {
           </div>
               </div>
             </a-tab-pane>
+            <a-tab-pane key="nlp" tab="NLP Blocks Compiler">
+              <div class="nlp-workspace-shell">
+                <div class="nlp-workspace-notice">
+                  <a-tag color="purple">NLP Blocks Compiler</a-tag>
+                  <span>用自然语言描述内核防御意图，自动编译成 Trigger / Condition / Map / Action 积木流；生成后可回到 Dify Workflow 继续拖线、删节点、调 Inspector。</span>
+                </div>
+                <PluginsVisualAiPanel v-model="aiPrompt" @translate="handleAiTranslate" />
+              </div>
+            </a-tab-pane>
             <a-tab-pane key="source" tab="Generated eBPF C">
               <div ref="codeBlock" class="source-workspace-shell" :class="flowSectionClass('code')">
                 <div class="source-workspace-notice">
@@ -2116,12 +2110,60 @@ const handleWorkspaceDrop = (event: DragEvent) => {
         </div>
       </a-col>
 
-      <!-- Column 3: AI Copilot helper -->
-      <a-col :span="8">
-        <!-- AI COPILOT HELPER PANEL (BLOCK 0) -->
-        <PluginsVisualAiPanel v-model="aiPrompt" @translate="handleAiTranslate" />
-      </a-col>
     </a-row>
+
+    <div
+      v-if="recipePanelVisible"
+      class="recipe-floating-window"
+      :class="`dock-${recipePanelDock}`"
+    >
+      <div class="recipe-floating-toolbar">
+        <div>
+          <a-tag color="green">场景积木</a-tag>
+          <span>可吸附 / 可隐藏</span>
+        </div>
+        <a-space size="small">
+          <a-button size="small" @click="toggleRecipePanelDock">
+            {{ recipePanelDockLabel }}
+          </a-button>
+          <a-button size="small" @click="recipePanelVisible = false">
+            隐藏
+          </a-button>
+        </a-space>
+      </div>
+      <PluginsVisualRecipePanel
+        :recipes="visualRecipes"
+        :trigger="trigger"
+        :action="action"
+        :map-mode="mapMode"
+        :condition-count="conditionCount"
+        :tree-depth="treeDepth"
+        :plugin-id="pluginId"
+        :code-lines="generatedLineCount"
+        :validation-issues="validationIssues"
+        :compile-ready="isWorkspaceValid"
+        :autosave-label="autosaveLabel"
+        :undo-count="undoStack.length"
+        :redo-count="redoStack.length"
+        @apply-recipe="applyRecipe"
+        @reset-workspace="resetWorkspace"
+        @export-workspace="exportWorkspace"
+        @import-workspace="importWorkspace"
+        @save-draft="() => saveWorkspaceDraft(false)"
+        @clear-draft="clearWorkspaceDraft"
+        @undo-workspace="undoWorkspace"
+        @redo-workspace="redoWorkspace"
+      />
+    </div>
+    <button
+      v-else
+      type="button"
+      class="recipe-floating-trigger"
+      :class="`dock-${recipePanelDock}`"
+      @click="recipePanelVisible = true"
+    >
+      场景积木
+    </button>
   </div>
 </template>
 
@@ -2138,12 +2180,14 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
 .dify-workflow-shell,
 .map-workspace-shell,
+.nlp-workspace-shell,
 .source-workspace-shell {
   padding-top: 8px;
 }
 
 .dify-workflow-hero,
 .map-workspace-notice,
+.nlp-workspace-notice,
 .source-workspace-notice {
   display: flex;
   align-items: flex-start;
@@ -2165,6 +2209,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
 .dify-workflow-hero p,
 .map-workspace-notice span,
+.nlp-workspace-notice span,
 .source-workspace-notice span {
   margin: 0;
   color: #94a3b8;
@@ -2182,6 +2227,79 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   align-items: center;
   justify-content: flex-start;
   border-color: rgba(19, 194, 194, 0.32);
+}
+
+.nlp-workspace-notice {
+  align-items: center;
+  justify-content: flex-start;
+  border-color: rgba(114, 46, 209, 0.36);
+}
+
+.recipe-floating-window {
+  position: fixed;
+  top: 92px;
+  z-index: 30;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - 128px);
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.82);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px);
+}
+
+.recipe-floating-window.dock-left {
+  left: 18px;
+}
+
+.recipe-floating-window.dock-right {
+  right: 18px;
+}
+
+.recipe-floating-toolbar {
+  position: sticky;
+  top: -10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -10px -10px 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.94);
+}
+
+.recipe-floating-toolbar > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.recipe-floating-trigger {
+  position: fixed;
+  top: 108px;
+  z-index: 31;
+  padding: 8px 10px;
+  border: 1px solid rgba(34, 197, 94, 0.38);
+  border-radius: 999px;
+  color: #dcfce7;
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.36);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.recipe-floating-trigger.dock-left {
+  left: 18px;
+}
+
+.recipe-floating-trigger.dock-right {
+  right: 18px;
 }
 
 :deep(.dify-workspace-tabs .ant-tabs-nav) {
