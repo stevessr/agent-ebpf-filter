@@ -62,6 +62,7 @@ export interface VisualWorkspaceSnapshot {
   description?: string;
   nodeLayout?: VisualNodeLayout;
   wireStates?: VisualWireStates;
+  hiddenNodes?: VisualHiddenNodeStates;
 }
 
 export interface VisualRecipe extends VisualWorkspaceSnapshot {
@@ -105,3 +106,5 @@ export type VisualWireId =
 export type VisualNodeLayout = Record<string, VisualNodePosition>;
 
 export type VisualWireStates = Partial<Record<VisualWireId, boolean>>;
+
+export type VisualHiddenNodeStates = Partial<Record<VisualFlowNodeId, boolean>>;

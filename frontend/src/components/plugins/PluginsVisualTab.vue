@@ -37,6 +37,7 @@ import type {
   VisualCondition,
   VisualMapKey,
   VisualMapMode,
+  VisualHiddenNodeStates,
   VisualNodeLayout,
   VisualRecipe,
   VisualTrigger,
@@ -217,6 +218,28 @@ const visualWireLabels: Record<VisualWireId, string> = {
   "code-compile": "Code → Compile",
 };
 
+const visualWireEndpoints: Record<
+  VisualWireId,
+  { from: VisualFlowNodeId; to: VisualFlowNodeId }
+> = {
+  "trigger-condition": { from: "trigger", to: "condition" },
+  "condition-map": { from: "condition", to: "map" },
+  "map-action": { from: "map", to: "action" },
+  "condition-code": { from: "condition", to: "code" },
+  "map-code": { from: "map", to: "code" },
+  "action-compile": { from: "action", to: "compile" },
+  "code-compile": { from: "code", to: "compile" },
+};
+
+const visualFlowNodeIds: VisualFlowNodeId[] = [
+  "trigger",
+  "condition",
+  "map",
+  "action",
+  "code",
+  "compile",
+];
+
 const createDefaultWireStates = (): Record<VisualWireId, boolean> => ({
   "trigger-condition": true,
   "condition-map": true,
@@ -226,6 +249,8 @@ const createDefaultWireStates = (): Record<VisualWireId, boolean> => ({
   "action-compile": true,
   "code-compile": true,
 });
+
+const createDefaultHiddenNodes = (): VisualHiddenNodeStates => ({});
 
 const mergeWireStates = (states?: VisualWireStates): Record<VisualWireId, boolean> => {
   const merged = createDefaultWireStates();
@@ -240,8 +265,9 @@ const mergeWireStates = (states?: VisualWireStates): Record<VisualWireId, boolea
 
 const nodeLayout = ref<VisualNodeLayout>(createDefaultNodeLayout());
 const wireStates = ref<VisualWireStates>(createDefaultWireStates());
+const hiddenFlowNodes = ref<VisualHiddenNodeStates>(createDefaultHiddenNodes());
 const activeFlowNode = ref<VisualFlowNodeId>("trigger");
-const designerSubtab = ref<"dify" | "map">("dify");
+const designerSubtab = ref<"dify" | "map" | "source">("dify");
 const triggerBlockRef = useTemplateRef<HTMLElement>("triggerBlock");
 const conditionBlockRef = useTemplateRef<HTMLElement>("conditionBlock");
 const mapBlockRef = useTemplateRef<HTMLElement>("mapBlock");
@@ -285,13 +311,68 @@ const resetNodeLayout = () => {
   message.success("已恢复低代码节点画布自动布局");
 };
 
+const nodeWireIds = (node: VisualFlowNodeId) =>
+  visualWireIds.filter((id) => {
+    const endpoint = visualWireEndpoints[id];
+    return endpoint.from === node || endpoint.to === node;
+  });
+
 const resetWireStates = () => {
   wireStates.value = createDefaultWireStates();
   message.success("已重新连接全部低代码流程线缆");
 };
 
-const focusFlowNode = async (node: VisualFlowNodeId) => {
+const restoreFlowNode = (node: VisualFlowNodeId, reconnect = true) => {
+  if (!hiddenFlowNodes.value[node]) return;
+  const nextHidden = { ...hiddenFlowNodes.value };
+  delete nextHidden[node];
+  hiddenFlowNodes.value = nextHidden;
+  if (reconnect) {
+    const nextWires = { ...mergeWireStates(wireStates.value) };
+    nodeWireIds(node).forEach((wireId) => {
+      const endpoint = visualWireEndpoints[wireId];
+      if (!nextHidden[endpoint.from] && !nextHidden[endpoint.to]) {
+        nextWires[wireId] = true;
+      }
+    });
+    wireStates.value = nextWires;
+  }
+};
+
+const handleDeleteFlowNode = (node: VisualFlowNodeId) => {
+  if (node === "trigger" || node === "compile") {
+    message.warning("Trigger 入口和 Compile 出口是流程骨架，不能删除");
+    return;
+  }
+  hiddenFlowNodes.value = {
+    ...hiddenFlowNodes.value,
+    [node]: true,
+  };
+  const nextWires = { ...mergeWireStates(wireStates.value) };
+  nodeWireIds(node).forEach((wireId) => {
+    nextWires[wireId] = false;
+  });
+  wireStates.value = nextWires;
+  if (activeFlowNode.value === node) {
+    activeFlowNode.value = "trigger";
+  }
+  message.warning(`已从画布删除 ${flowNodeDetails[node].label}，可从左侧节点类型库重新添加`);
+};
+
+const selectFlowNode = (node: VisualFlowNodeId) => {
   activeFlowNode.value = node;
+};
+
+const focusFlowNode = async (node: VisualFlowNodeId) => {
+  restoreFlowNode(node);
+  activeFlowNode.value = node;
+  if (node === "code") {
+    designerSubtab.value = "source";
+  } else if (node === "map" || node === "condition" || node === "action") {
+    designerSubtab.value = "map";
+  } else {
+    designerSubtab.value = "dify";
+  }
   await nextTick();
   const targetMap: Record<VisualFlowNodeId, HTMLElement | null> = {
     trigger: triggerBlockRef.value,
@@ -558,6 +639,7 @@ const createWorkspaceSnapshot = (): VisualWorkspaceSnapshot => ({
   mapLimit: mapLimit.value,
   nodeLayout: { ...nodeLayout.value },
   wireStates: { ...mergeWireStates(wireStates.value) },
+  hiddenNodes: { ...hiddenFlowNodes.value },
   pluginId: pluginId.value,
   pluginName: pluginName.value,
   description: description.value,
@@ -605,6 +687,9 @@ const applyWorkspaceSnapshot = (snapshot: VisualWorkspaceSnapshot) => {
     ? { ...createDefaultNodeLayout(), ...snapshot.nodeLayout }
     : createDefaultNodeLayout();
   wireStates.value = mergeWireStates(snapshot.wireStates);
+  hiddenFlowNodes.value = snapshot.hiddenNodes
+    ? { ...createDefaultHiddenNodes(), ...snapshot.hiddenNodes }
+    : createDefaultHiddenNodes();
 };
 
 const syncHistoryBaseline = () => {
@@ -808,7 +893,25 @@ const validationIssues = computed<VisualValidationIssue[]>(() => {
   }
 
   const currentWireStates = mergeWireStates(wireStates.value);
-  const disconnectedWires = visualWireIds.filter((id) => !currentWireStates[id]);
+  const deletedNodes = visualFlowNodeIds.filter((id) => hiddenFlowNodes.value[id]);
+  if (deletedNodes.length > 0) {
+    issues.push({
+      id: "flow-node-deleted",
+      severity: "error",
+      title: "低代码流程节点已删除",
+      detail: `请从左侧节点类型库恢复: ${deletedNodes
+        .map((id) => flowNodeDetails[id].label)
+        .join("、")}。`,
+    });
+  }
+
+  const disconnectedWires = visualWireIds.filter((id) => {
+    const endpoint = visualWireEndpoints[id];
+    if (hiddenFlowNodes.value[endpoint.from] || hiddenFlowNodes.value[endpoint.to]) {
+      return false;
+    }
+    return !currentWireStates[id];
+  });
   if (disconnectedWires.length > 0) {
     issues.push({
       id: "wire-flow-disconnected",
@@ -1518,6 +1621,8 @@ const handleAiTranslate = (payload: {
   mapMode.value = payload.mapMode;
   mapKey.value = payload.mapKey;
   mapLimit.value = payload.mapLimit;
+  hiddenFlowNodes.value = createDefaultHiddenNodes();
+  wireStates.value = createDefaultWireStates();
 };
 
 const isTextEditingTarget = (target: EventTarget | null) => {
@@ -1626,15 +1731,19 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
     if (category === "trigger") {
       if (!triggerOptions.some((item) => item.value === value)) return;
+      restoreFlowNode("trigger");
       trigger.value = value as VisualTrigger;
       message.success(`已切换事件挂载点为: ${value}`);
     } else if (category === "condition") {
+      restoreFlowNode("condition");
       onAddRule("root", value);
       message.success(`已拖动添加匹配过滤: ${value}`);
     } else if (category === "logic_group") {
+      restoreFlowNode("condition");
       onAddGroup("root", value as "AND" | "OR");
       message.success(`已拖动添加逻辑运算组: ${value}`);
     } else if (category === "map") {
+      restoreFlowNode("map");
       mapMode.value = value as VisualMapMode;
       message.success(`已配置 Map 状态存储为: ${value}`);
     } else if (category === "action") {
@@ -1642,6 +1751,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
         message.error("unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL");
         return;
       }
+      restoreFlowNode("action");
       action.value = value as VisualAction;
       message.success(`已更新拦截响应动作为: ${value}`);
     }
@@ -1731,9 +1841,11 @@ const handleWorkspaceDrop = (event: DragEvent) => {
             :tree-depth="treeDepth"
             :code-lines="generatedLineCount"
             :compile-ready="isWorkspaceValid"
-            @update:selected-node-id="focusFlowNode"
+            :hidden-nodes="hiddenFlowNodes"
+            @update:selected-node-id="selectFlowNode"
             @reset-layout="resetNodeLayout"
             @reset-wires="resetWireStates"
+            @delete-node="handleDeleteFlowNode"
           />
 
           <div class="selected-flow-panel">
@@ -1984,29 +2096,30 @@ const handleWorkspaceDrop = (event: DragEvent) => {
           </div>
               </div>
             </a-tab-pane>
+            <a-tab-pane key="source" tab="Generated eBPF C">
+              <div ref="codeBlock" class="source-workspace-shell" :class="flowSectionClass('code')">
+                <div class="source-workspace-notice">
+                  <a-tag color="cyan">独立源码 Tab</a-tag>
+                  <span>动态生成的 eBPF C 语言高阶过滤器源码、Clang 编译日志和加载入口集中在这里，主画布只负责 Dify 风格节点编排。</span>
+                </div>
+                <PluginsVisualCodePanel
+                  :code="generatedBpfCode"
+                  :compiling="compiling"
+                  :compiled="isCompiled"
+                  :loading="loadingAction"
+                  :log="compileLogLocal"
+                  @load="handleLoad"
+                />
+              </div>
+            </a-tab-pane>
           </a-tabs>
         </div>
       </a-col>
 
-      <!-- Column 3: AI Copilot & Code Preview (Stacked on the right) -->
+      <!-- Column 3: AI Copilot helper -->
       <a-col :span="8">
         <!-- AI COPILOT HELPER PANEL (BLOCK 0) -->
         <PluginsVisualAiPanel v-model="aiPrompt" @translate="handleAiTranslate" />
-
-        <div
-          ref="codeBlock"
-          style="margin-top: 16px"
-          :class="flowSectionClass('code')"
-        >
-          <PluginsVisualCodePanel
-            :code="generatedBpfCode"
-            :compiling="compiling"
-            :compiled="isCompiled"
-            :loading="loadingAction"
-            :log="compileLogLocal"
-            @load="handleLoad"
-          />
-        </div>
       </a-col>
     </a-row>
   </div>
@@ -2024,12 +2137,14 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 
 .dify-workflow-shell,
-.map-workspace-shell {
+.map-workspace-shell,
+.source-workspace-shell {
   padding-top: 8px;
 }
 
 .dify-workflow-hero,
-.map-workspace-notice {
+.map-workspace-notice,
+.source-workspace-notice {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -2049,7 +2164,8 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 
 .dify-workflow-hero p,
-.map-workspace-notice span {
+.map-workspace-notice span,
+.source-workspace-notice span {
   margin: 0;
   color: #94a3b8;
   font-size: 12px;
@@ -2060,6 +2176,12 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   align-items: center;
   justify-content: flex-start;
   border-color: rgba(114, 46, 209, 0.28);
+}
+
+.source-workspace-notice {
+  align-items: center;
+  justify-content: flex-start;
+  border-color: rgba(19, 194, 194, 0.32);
 }
 
 :deep(.dify-workspace-tabs .ant-tabs-nav) {
