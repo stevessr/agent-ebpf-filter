@@ -12,6 +12,7 @@ import {
   FileAddOutlined,
   LinkOutlined,
   CloseCircleOutlined,
+  DragOutlined,
 } from "@ant-design/icons-vue";
 import { usePlugins } from "../../composables/usePlugins";
 
@@ -714,23 +715,170 @@ const getGateWirePath = (idx: number, total: number) => {
   const endY = 90;
   return `M ${startX} ${startY} C ${startX + 20} ${startY}, ${endX - 20} ${endY}, ${endX} ${endY}`;
 };
+
+const handleDragStart = (event: DragEvent, category: string, value: string) => {
+  if (event.dataTransfer) {
+    event.dataTransfer.setData("text/plain", JSON.stringify({ category, value }));
+    event.dataTransfer.effectAllowed = "move";
+  }
+};
+
+const handleWorkspaceDrop = (event: DragEvent) => {
+  event.preventDefault();
+  if (!event.dataTransfer) return;
+  try {
+    const rawData = event.dataTransfer.getData("text/plain");
+    if (!rawData) return;
+    const { category, value } = JSON.parse(rawData);
+
+    if (category === "trigger") {
+      trigger.value = value;
+      message.success(`已切换事件挂载点为: ${value}`);
+    } else if (category === "condition") {
+      if (conditions.value.length >= 5) {
+        message.warning("为了防止 eBPF Verifier 复杂度限制，图形化条件最多限制为 5 个");
+        return;
+      }
+      conditions.value.push({ field: value as any, operator: "==", value: "" });
+      message.success(`已拖动添加匹配过滤: ${value}`);
+    } else if (category === "map") {
+      mapMode.value = value as any;
+      message.success(`已配置 Map 状态存储为: ${value}`);
+    } else if (category === "action") {
+      if (trigger.value === "unlink" && value === "BLOCK") {
+        message.error("unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL");
+        return;
+      }
+      action.value = value as any;
+      message.success(`已更新拦截响应动作为: ${value}`);
+    }
+  } catch (e) {
+    console.error("Drop parsing failed:", e);
+  }
+};
 </script>
 
 <template>
   <div class="plugins-visual-tab">
-    <a-row :gutter="20">
-      <!-- Graphical programming layout -->
-      <a-col :span="13">
-        <div class="graphical-workspace">
+    <a-row :gutter="16">
+      <!-- Column 1: UE Blueprint Palette (Drag Source) -->
+      <a-col :span="5">
+        <div class="blueprint-palette">
+          <div class="palette-header">
+            <DragOutlined class="palette-icon" />
+            <h4>蓝图组件库 (Palette)</h4>
+          </div>
+          <div class="palette-desc">
+            拖拽下列组件到右侧画布即可快速拼接 eBPF 过滤流。
+          </div>
+          
+          <!-- Category 1: Trigger Hooks -->
+          <div class="palette-category">
+            <div class="category-title">事件触发器 (Triggers)</div>
+            <div class="palette-items">
+              <div
+                v-for="opt in triggerOptions"
+                :key="opt.value"
+                class="palette-item item-trigger"
+                draggable="true"
+                @dragstart="handleDragStart($event, 'trigger', opt.value)"
+              >
+                <component :is="opt.icon" :style="{ color: '#1890ff', marginRight: '6px' }" />
+                <span class="item-text" :title="opt.label">{{ opt.value }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Category 2: Conditions -->
+          <div class="palette-category">
+            <div class="category-title">过滤条件 (Conditions)</div>
+            <div class="palette-items">
+              <div
+                v-for="opt in fieldOptions"
+                :key="opt.value"
+                class="palette-item item-condition"
+                draggable="true"
+                @dragstart="handleDragStart($event, 'condition', opt.value)"
+              >
+                <span class="item-dot condition-dot"></span>
+                <span class="item-text" :title="opt.label">{{ opt.value }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Category 3: Map Operations -->
+          <div class="palette-category">
+            <div class="category-title">状态机制 (State Maps)</div>
+            <div class="palette-items">
+              <div
+                class="palette-item item-map"
+                draggable="true"
+                @dragstart="handleDragStart($event, 'map', 'COUNTER')"
+              >
+                <span class="item-dot map-dot"></span>
+                <span class="item-text" title="计数器限频 (COUNTER)">COUNTER</span>
+              </div>
+              <div
+                class="palette-item item-map"
+                draggable="true"
+                @dragstart="handleDragStart($event, 'map', 'BLOCKLIST')"
+              >
+                <span class="item-dot map-dot"></span>
+                <span class="item-text" title="黑名单判定 (BLOCKLIST)">BLOCKLIST</span>
+              </div>
+              <div
+                class="palette-item item-map"
+                draggable="true"
+                @dragstart="handleDragStart($event, 'map', 'NONE')"
+              >
+                <span class="item-dot map-dot-none"></span>
+                <span class="item-text" title="无状态 (NONE)">NONE</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Category 4: Response Actions -->
+          <div class="palette-category">
+            <div class="category-title">响应动作 (Actions)</div>
+            <div class="palette-items">
+              <div
+                class="palette-item item-action"
+                draggable="true"
+                @dragstart="handleDragStart($event, 'action', 'BLOCK')"
+              >
+                <span class="item-dot action-dot"></span>
+                <span class="item-text" title="硬拦截 (BLOCK)">BLOCK</span>
+              </div>
+              <div
+                class="palette-item item-action"
+                draggable="true"
+                @dragstart="handleDragStart($event, 'action', 'ALERT')"
+              >
+                <span class="item-dot action-dot"></span>
+                <span class="item-text" title="告警审计 (ALERT)">ALERT</span>
+              </div>
+              <div
+                class="palette-item item-action"
+                draggable="true"
+                @dragstart="handleDragStart($event, 'action', 'KILL')"
+              >
+                <span class="item-dot action-dot"></span>
+                <span class="item-text" title="强制杀死 (KILL)">KILL</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a-col>
+
+      <!-- Column 2: Workspace (Designer Canvas) -->
+      <a-col :span="11">
+        <div class="graphical-workspace" @dragover.prevent @drop="handleWorkspaceDrop">
           <div class="workspace-title">
             <h3>流程图高级规则拼接控制台 (Advanced Flow Designer)</h3>
             <span class="sub"
               >通过拼接多重高级匹配字段与触发点，在系统内核深层执行精密入侵侦测。</span
             >
           </div>
-
-          <!-- AI COPILOT HELPER PANEL (BLOCK 0) -->
-          <PluginsVisualAiPanel v-model="aiPrompt" @translate="handleAiTranslate" />
 
           <!-- BLOCK 1: EVENT TRIGGER -->
           <div class="block-card block-trigger">
@@ -1066,16 +1214,21 @@ const getGateWirePath = (idx: number, total: number) => {
         </div>
       </a-col>
 
-      <!-- Code Preview Column -->
-      <a-col :span="11">
-        <PluginsVisualCodePanel
-          :code="generatedBpfCode"
-          :compiling="compiling"
-          :compiled="isCompiled"
-          :loading="loadingAction"
-          :log="compileLogLocal"
-          @load="handleLoad"
-        />
+      <!-- Column 3: AI Copilot & Code Preview (Stacked on the right) -->
+      <a-col :span="8">
+        <!-- AI COPILOT HELPER PANEL (BLOCK 0) -->
+        <PluginsVisualAiPanel v-model="aiPrompt" @translate="handleAiTranslate" />
+
+        <div style="margin-top: 16px;">
+          <PluginsVisualCodePanel
+            :code="generatedBpfCode"
+            :compiling="compiling"
+            :compiled="isCompiled"
+            :loading="loadingAction"
+            :log="compileLogLocal"
+            @load="handleLoad"
+          />
+        </div>
       </a-col>
     </a-row>
   </div>
@@ -1449,5 +1602,143 @@ const getGateWirePath = (idx: number, total: number) => {
   color: rgba(255, 255, 255, 0.7);
   margin-top: 2px;
   font-weight: bold;
+}
+
+/* UE Blueprint Palette Styling */
+.blueprint-palette {
+  background-color: #121620;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 16px;
+  min-height: 550px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  font-family: monospace;
+}
+
+.palette-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 8px;
+}
+
+.palette-icon {
+  font-size: 14px;
+  margin-right: 6px;
+  color: #fa8c16;
+}
+
+.palette-header h4 {
+  margin: 0;
+  color: #f1f5f9;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.palette-desc {
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.4;
+  margin-bottom: 16px;
+}
+
+.palette-category {
+  margin-bottom: 16px;
+}
+
+.category-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: #94a3b8;
+  margin-bottom: 8px;
+  padding-bottom: 2px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+  text-transform: uppercase;
+}
+
+.palette-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.palette-item {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #cbd5e1;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.palette-item:active {
+  cursor: grabbing;
+}
+
+.palette-item:hover {
+  background: rgba(30, 41, 59, 0.95);
+  transform: translateX(2px);
+  color: #ffffff;
+}
+
+/* Color Coding for Palette Items (matching blueprint color accents) */
+.item-trigger:hover {
+  border-color: #1890ff;
+  box-shadow: 0 0 8px rgba(24, 144, 255, 0.25);
+}
+
+.item-condition:hover {
+  border-color: #fa8c16;
+  box-shadow: 0 0 8px rgba(250, 140, 22, 0.25);
+}
+
+.item-map:hover {
+  border-color: #722ed1;
+  box-shadow: 0 0 8px rgba(114, 46, 209, 0.25);
+}
+
+.item-action:hover {
+  border-color: #52c41a;
+  box-shadow: 0 0 8px rgba(82, 196, 26, 0.25);
+}
+
+.item-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dots and accents */
+.item-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.condition-dot {
+  background: #fa8c16;
+  box-shadow: 0 0 6px #fa8c16;
+}
+
+.map-dot {
+  background: #722ed1;
+  box-shadow: 0 0 6px #722ed1;
+}
+
+.map-dot-none {
+  background: #94a3b8;
+}
+
+.action-dot {
+  background: #52c41a;
+  box-shadow: 0 0 6px #52c41a;
 }
 </style>
