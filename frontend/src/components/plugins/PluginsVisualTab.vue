@@ -2,7 +2,6 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { message } from "ant-design-vue";
 import {
-  PlusOutlined,
   DeleteOutlined,
   ThunderboltOutlined,
   FileTextOutlined,
@@ -19,15 +18,10 @@ import { usePlugins } from "../../composables/usePlugins";
 import PluginsVisualAiPanel from "./PluginsVisualAiPanel.vue";
 import PluginsVisualMapPanel from "./PluginsVisualMapPanel.vue";
 import PluginsVisualCodePanel from "./PluginsVisualCodePanel.vue";
+import PluginsVisualConditionTree from "./PluginsVisualConditionTree.vue";
+import type { VisualLogicNode, VisualLogicGroup, VisualCondition } from "./types";
 
 const { compileBpf, loadBpf, upsertPlugin, fetchPlugins } = usePlugins();
-
-// Visual advanced blocks configurations
-export interface VisualCondition {
-  field: "comm" | "pid" | "uid" | "basename" | "port" | "ipv4" | "gid";
-  operator: "==" | "!=" | "starts_with" | "ends_with";
-  value: string;
-}
 
 const trigger = ref<
   | "process"
@@ -42,11 +36,120 @@ const trigger = ref<
   | "file_mprotect"
   | "inode_rename"
 >("process");
-const logicRelation = ref<"AND" | "OR">("AND");
-const conditions = ref<VisualCondition[]>([
-  { field: "comm", operator: "==", value: "nc" },
-]);
+
+const logicRoot = ref<VisualLogicGroup>({
+  id: "root",
+  type: "AND",
+  children: [
+    {
+      id: "cond-init",
+      type: "CONDITION",
+      field: "comm",
+      operator: "==",
+      value: "nc",
+    },
+  ],
+});
+
 const action = ref<"BLOCK" | "ALERT" | "KILL">("BLOCK");
+
+// Recursive logic tree helpers
+const countConditions = (node: VisualLogicNode): number => {
+  if (node.type === "CONDITION") return 1;
+  if (!node.children) return 0;
+  return node.children.reduce((sum, child) => sum + countConditions(child), 0);
+};
+
+const getTreeDepth = (node: VisualLogicNode): number => {
+  if (node.type === "CONDITION") return 1;
+  if (!node.children || node.children.length === 0) return 1;
+  return 1 + Math.max(...node.children.map(getTreeDepth));
+};
+
+const findNodeAndMutate = (
+  root: VisualLogicGroup,
+  targetId: string,
+  mutateFn: (parent: VisualLogicGroup, index: number) => void
+): boolean => {
+  if (root.id === targetId) return false;
+  for (let i = 0; i < root.children.length; i++) {
+    const child = root.children[i];
+    if (child.id === targetId) {
+      mutateFn(root, i);
+      return true;
+    }
+    if (child.type === "AND" || child.type === "OR") {
+      const found = findNodeAndMutate(child, targetId, mutateFn);
+      if (found) return true;
+    }
+  }
+  return false;
+};
+
+const findNodeById = (root: VisualLogicNode, targetId: string): VisualLogicNode | null => {
+  if (root.id === targetId) return root;
+  if (root.type === "AND" || root.type === "OR") {
+    if (root.children) {
+      for (const child of root.children) {
+        const found = findNodeById(child, targetId);
+        if (found) return found;
+      }
+    }
+  }
+  return null;
+};
+
+const onDeleteNode = (id: string) => {
+  if (id === "root") return;
+  findNodeAndMutate(logicRoot.value, id, (parent, idx) => {
+    parent.children.splice(idx, 1);
+  });
+};
+
+const onAddRule = (groupId: string, field?: string) => {
+  const currentCount = countConditions(logicRoot.value);
+  if (currentCount >= 8) {
+    message.warning("为了防止 eBPF Verifier 复杂度过高而加载失败，图形化条件最多限制为 8 个");
+    return;
+  }
+  const targetGroup = findNodeById(logicRoot.value, groupId);
+  if (targetGroup && (targetGroup.type === "AND" || targetGroup.type === "OR")) {
+    const id = `cond-${Math.random().toString(36).substr(2, 9)}`;
+    targetGroup.children.push({
+      id,
+      type: "CONDITION",
+      field: (field || "comm") as any,
+      operator: "==",
+      value: "",
+    });
+  }
+};
+
+const onAddGroup = (groupId: string, type: "AND" | "OR") => {
+  const targetGroup = findNodeById(logicRoot.value, groupId);
+  if (targetGroup && (targetGroup.type === "AND" || targetGroup.type === "OR")) {
+    const id = `group-${Math.random().toString(36).substr(2, 9)}`;
+    targetGroup.children.push({
+      id,
+      type,
+      children: [],
+    });
+  }
+};
+
+const onUpdateRule = (ruleId: string, updated: Partial<VisualCondition>) => {
+  const targetNode = findNodeById(logicRoot.value, ruleId);
+  if (targetNode && targetNode.type === "CONDITION") {
+    Object.assign(targetNode, updated);
+  }
+};
+
+const onUpdateGroupType = (groupId: string, type: "AND" | "OR") => {
+  const targetNode = findNodeById(logicRoot.value, groupId);
+  if (targetNode && (targetNode.type === "AND" || targetNode.type === "OR")) {
+    targetNode.type = type;
+  }
+};
 
 // Low-Code Stateful Map configurations
 const mapMode = ref<"NONE" | "COUNTER" | "BLOCKLIST">("NONE");
@@ -144,27 +247,6 @@ const fieldOptions = [
   { value: "gid", label: "当前进程组 GID" },
 ];
 
-const operatorOptions = [
-  { value: "==", label: "等于 (==)" },
-  { value: "!=", label: "不等于 (!=)" },
-  { value: "starts_with", label: "前缀匹配 (starts_with)" },
-  { value: "ends_with", label: "后缀匹配 (ends_with)" },
-];
-
-// Add/Remove condition blocks
-const addCondition = () => {
-  if (conditions.value.length >= 5) {
-    message.warning(
-      "为了防止 eBPF Verifier 复杂度限制，图形化条件最多限制为 5 个"
-    );
-    return;
-  }
-  conditions.value.push({ field: "comm", operator: "==", value: "" });
-};
-
-const removeCondition = (index: number) => {
-  conditions.value.splice(index, 1);
-};
 
 const ipToHex = (ip: string): string => {
   const parts = ip.split(".").map((p) => parseInt(p, 10));
@@ -403,73 +485,84 @@ int BPF_PROG(visual_custom_plugin, struct pt_regs *ctx) {
 `;
   }
 
-  // Initialise matching logic based on logical OR or AND
-  if (logicRelation.value === "AND") {
-    body += `\n    u32 matched = 1;\n`;
-  } else {
-    body += `\n    u32 matched = 0;\n`;
-  }
-
-  // Iterate conditions
-  conditions.value.forEach((cond) => {
-    const val = cond.value.trim();
-    if (!val) return;
-
-    let expr = "";
-    if (cond.field === "comm") {
-      if (cond.operator === "==") {
-        expr = `strcmp_const(comm, "${val}", sizeof(comm)) == 0`;
-      } else if (cond.operator === "!=") {
-        expr = `strcmp_const(comm, "${val}", sizeof(comm)) != 0`;
-      } else if (cond.operator === "starts_with") {
-        expr = `str_starts_with(comm, "${val}", sizeof(comm)) != 0`;
-      } else if (cond.operator === "ends_with") {
-        expr = `str_ends_with(comm, get_str_len(comm, sizeof(comm)), "${val}", ${val.length}) != 0`;
+  const lines: string[] = [];
+  const generateNodeCExpression = (node: VisualLogicNode): string => {
+    if (node.type === "CONDITION") {
+      const val = (node.value || "").trim();
+      if (!val) {
+        return "1"; // safe default
       }
-    } else if (cond.field === "pid") {
-      const pidNum = parseInt(val, 10) || 0;
-      if (cond.operator === "==") expr = `pid == ${pidNum}`;
-      else expr = `pid != ${pidNum}`;
-    } else if (cond.field === "uid") {
-      const uidNum = parseInt(val, 10) || 0;
-      if (cond.operator === "==") expr = `uid == ${uidNum}`;
-      else expr = `uid != ${uidNum}`;
-    } else if (cond.field === "gid") {
-      const gidNum = parseInt(val, 10) || 0;
-      if (cond.operator === "==") expr = `gid == ${gidNum}`;
-      else expr = `gid != ${gidNum}`;
-    } else if (cond.field === "port") {
-      const portNum = parseInt(val, 10) || 0;
-      if (cond.operator === "==") expr = `dst_port == ${portNum}`;
-      else expr = `dst_port != ${portNum}`;
-    } else if (cond.field === "ipv4") {
-      const hexIp = ipToHex(val);
-      if (cond.operator === "==") expr = `dst_ipv4 == ${hexIp}`;
-      else expr = `dst_ipv4 != ${hexIp}`;
-    } else if (cond.field === "basename") {
-      if (isKprobeUnlink) {
-        expr = "0"; // unlink lacks dentry basename
-      } else {
-        if (cond.operator === "==") {
-          expr = `strcmp_const(name_buf, "${val}", sizeof(name_buf)) == 0`;
-        } else if (cond.operator === "!=") {
-          expr = `strcmp_const(name_buf, "${val}", sizeof(name_buf)) != 0`;
-        } else if (cond.operator === "starts_with") {
-          expr = `str_starts_with(name_buf, "${val}", sizeof(name_buf)) != 0`;
-        } else if (cond.operator === "ends_with") {
-          expr = `str_ends_with(name_buf, get_str_len(name_buf, sizeof(name_buf)), "${val}", ${val.length}) != 0`;
+      let expr = "0";
+      if (node.field === "comm") {
+        if (node.operator === "==") {
+          expr = `strcmp_const(comm, "${val}", sizeof(comm)) == 0`;
+        } else if (node.operator === "!=") {
+          expr = `strcmp_const(comm, "${val}", sizeof(comm)) != 0`;
+        } else if (node.operator === "starts_with") {
+          expr = `str_starts_with(comm, "${val}", sizeof(comm)) != 0`;
+        } else if (node.operator === "ends_with") {
+          expr = `str_ends_with(comm, get_str_len(comm, sizeof(comm)), "${val}", ${val.length}) != 0`;
+        }
+      } else if (node.field === "pid") {
+        const pidNum = parseInt(val, 10) || 0;
+        if (node.operator === "==") expr = `pid == ${pidNum}`;
+        else expr = `pid != ${pidNum}`;
+      } else if (node.field === "uid") {
+        const uidNum = parseInt(val, 10) || 0;
+        if (node.operator === "==") expr = `uid == ${uidNum}`;
+        else expr = `uid != ${uidNum}`;
+      } else if (node.field === "gid") {
+        const gidNum = parseInt(val, 10) || 0;
+        if (node.operator === "==") expr = `gid == ${gidNum}`;
+        else expr = `gid != ${gidNum}`;
+      } else if (node.field === "port") {
+        const portNum = parseInt(val, 10) || 0;
+        if (node.operator === "==") expr = `dst_port == ${portNum}`;
+        else expr = `dst_port != ${portNum}`;
+      } else if (node.field === "ipv4") {
+        const hexIp = ipToHex(val);
+        if (node.operator === "==") expr = `dst_ipv4 == ${hexIp}`;
+        else expr = `dst_ipv4 != ${hexIp}`;
+      } else if (node.field === "basename") {
+        if (isKprobeUnlink) {
+          expr = "0";
+        } else {
+          if (node.operator === "==") {
+            expr = `strcmp_const(name_buf, "${val}", sizeof(name_buf)) == 0`;
+          } else if (node.operator === "!=") {
+            expr = `strcmp_const(name_buf, "${val}", sizeof(name_buf)) != 0`;
+          } else if (node.operator === "starts_with") {
+            expr = `str_starts_with(name_buf, "${val}", sizeof(name_buf)) != 0`;
+          } else if (node.operator === "ends_with") {
+            expr = `str_ends_with(name_buf, get_str_len(name_buf, sizeof(name_buf)), "${val}", ${val.length}) != 0`;
+          }
         }
       }
-    }
-
-    if (expr) {
-      if (logicRelation.value === "AND") {
-        body += `    if (!(${expr})) matched = 0;\n`;
-      } else {
-        body += `    if (${expr}) matched = 1;\n`;
+      const varId = node.id.replace(/[^a-zA-Z0-9]/g, "_");
+      const varName = `cond_${varId}`;
+      lines.push(`    u32 ${varName} = ${expr};`);
+      return varName;
+    } else {
+      const childVarNames: string[] = [];
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(child => {
+          childVarNames.push(generateNodeCExpression(child));
+        });
       }
+      const varId = node.id.replace(/[^a-zA-Z0-9]/g, "_");
+      const varName = `group_${varId}`;
+      if (childVarNames.length === 0) {
+        lines.push(`    u32 ${varName} = 1;`);
+      } else {
+        const op = node.type === "AND" ? "&&" : "||";
+        lines.push(`    u32 ${varName} = ${childVarNames.map(name => `(${name})`).join(` ${op} `)};`);
+      }
+      return varName;
     }
-  });
+  };
+
+  const rootVarName = generateNodeCExpression(logicRoot.value);
+  body += `\n${lines.join("\n")}\n    u32 matched = ${rootVarName};\n`;
 
   // Finish function body
   let mapDefinitions = "";
@@ -609,32 +702,43 @@ struct {
 
 // Watch inputs to auto-sync Manifest fields
 watch(
-  [trigger, conditions, action, logicRelation, mapMode, mapKey, mapLimit],
+  [trigger, logicRoot, action, mapMode, mapKey, mapLimit],
   () => {
-    // Sanitize conditions depending on trigger
-    if (trigger.value !== "socket_connect") {
-      conditions.value.forEach((cond) => {
-        if (cond.field === "port" || cond.field === "ipv4") {
-          cond.field = "comm";
+    // Sanitize conditions recursively
+    const sanitizeNode = (node: VisualLogicNode) => {
+      if (node.type === "CONDITION") {
+        if (trigger.value !== "socket_connect") {
+          if (node.field === "port" || node.field === "ipv4") {
+            node.field = "comm";
+          }
         }
-      });
-    }
-    if (trigger.value === "unlink") {
-      conditions.value.forEach((cond) => {
-        if (cond.field === "basename") {
-          cond.field = "comm";
+        if (trigger.value === "unlink") {
+          if (node.field === "basename") {
+            node.field = "comm";
+          }
         }
-      });
-    }
+      } else if (node.children) {
+        node.children.forEach(sanitizeNode);
+      }
+    };
+    sanitizeNode(logicRoot.value);
 
-    const firstVal = conditions.value[0]?.value || "custom";
+    // Extract first condition value to make descriptive id
+    const leaves: VisualCondition[] = [];
+    const findLeaves = (n: VisualLogicNode) => {
+      if (n.type === "CONDITION") leaves.push(n);
+      else if (n.children) n.children.forEach(findLeaves);
+    };
+    findLeaves(logicRoot.value);
+
+    const firstVal = leaves[0]?.value || "custom";
     const prefix = `visual-block-${trigger.value}-${firstVal.replace(
       /[^a-z0-9]/g,
       "-"
     )}`.toLowerCase();
     pluginId.value = prefix;
     pluginName.value = `积木插件(${trigger.value}-${firstVal})`;
-    description.value = `由图形化积木拼装而成的内核 eBPF 过滤审计插件。入口: ${trigger.value}，Map状态: ${mapMode.value}，关系: ${logicRelation.value}，动作: ${action.value}。`;
+    description.value = `由图形化积木拼装而成的内核 eBPF 过滤审计插件。入口: ${trigger.value}，Map状态: ${mapMode.value}，嵌套层数: ${getTreeDepth(logicRoot.value)}，动作: ${action.value}。`;
     isCompiled.value = false;
     compileLogLocal.value = "";
   },
@@ -645,14 +749,14 @@ watch(
 const handleAiTranslate = (payload: {
   trigger: any;
   action: "BLOCK" | "ALERT" | "KILL";
-  conditions: any[];
+  conditions: VisualLogicGroup;
   mapMode: "NONE" | "COUNTER" | "BLOCKLIST";
   mapKey: "uid" | "pid" | "comm";
   mapLimit: number;
 }) => {
   trigger.value = payload.trigger;
   action.value = payload.action;
-  conditions.value = payload.conditions;
+  logicRoot.value = payload.conditions;
   mapMode.value = payload.mapMode;
   mapKey.value = payload.mapKey;
   mapLimit.value = payload.mapLimit;
@@ -708,14 +812,6 @@ const handleLoad = async () => {
   }
 };
 
-const getGateWirePath = (idx: number, total: number) => {
-  const startX = 110;
-  const startY = 18 + idx * (180 - 36) / (total - 1 || 1);
-  const endX = 160;
-  const endY = 90;
-  return `M ${startX} ${startY} C ${startX + 20} ${startY}, ${endX - 20} ${endY}, ${endX} ${endY}`;
-};
-
 const handleDragStart = (event: DragEvent, category: string, value: string) => {
   if (event.dataTransfer) {
     event.dataTransfer.setData("text/plain", JSON.stringify({ category, value }));
@@ -735,12 +831,11 @@ const handleWorkspaceDrop = (event: DragEvent) => {
       trigger.value = value;
       message.success(`已切换事件挂载点为: ${value}`);
     } else if (category === "condition") {
-      if (conditions.value.length >= 5) {
-        message.warning("为了防止 eBPF Verifier 复杂度限制，图形化条件最多限制为 5 个");
-        return;
-      }
-      conditions.value.push({ field: value as any, operator: "==", value: "" });
+      onAddRule("root", value);
       message.success(`已拖动添加匹配过滤: ${value}`);
+    } else if (category === "logic_group") {
+      onAddGroup("root", value as "AND" | "OR");
+      message.success(`已拖动添加逻辑运算组: ${value}`);
     } else if (category === "map") {
       mapMode.value = value as any;
       message.success(`已配置 Map 状态存储为: ${value}`);
@@ -756,6 +851,111 @@ const handleWorkspaceDrop = (event: DragEvent) => {
     console.error("Drop parsing failed:", e);
   }
 };
+
+// Dynamic tree layout algorithm for the logic gate schematic
+const logicGateLayout = computed(() => {
+  const elements: Array<{
+    id: string;
+    type: "condition" | "gate";
+    label: string;
+    x: number;
+    y: number;
+    field?: string;
+    op?: string;
+    value?: string;
+  }> = [];
+
+  const wires: Array<{
+    d: string;
+    color: string;
+  }> = [];
+
+  const leaves: VisualCondition[] = [];
+  const findLeaves = (node: VisualLogicNode) => {
+    if (node.type === "CONDITION") {
+      leaves.push(node as VisualCondition);
+    } else if (node.children) {
+      node.children.forEach(findLeaves);
+    }
+  };
+  findLeaves(logicRoot.value);
+
+  const numLeaves = leaves.length;
+  const leafMap = new Map<string, { x: number; y: number }>();
+
+  leaves.forEach((leaf, idx) => {
+    const x = 8;
+    const y = numLeaves <= 1 ? 90 : 18 + (idx * (180 - 36)) / (numLeaves - 1);
+    leafMap.set(leaf.id, { x, y });
+
+    const opLabel = leaf.operator === '==' ? '=' : leaf.operator === '!=' ? '≠' : leaf.operator === 'starts_with' ? 'pref' : 'suff';
+    elements.push({
+      id: leaf.id,
+      type: "condition",
+      label: leaf.field,
+      x,
+      y,
+      field: leaf.field,
+      op: opLabel,
+      value: leaf.value || '?',
+    });
+  });
+
+  const nodePositionMap = new Map<string, { x: number; y: number }>();
+
+  const positionNode = (node: VisualLogicNode, depth: number): { x: number; y: number } => {
+    if (node.type === "CONDITION") {
+      return leafMap.get(node.id) || { x: 8, y: 90 };
+    }
+
+    const childPosList: { x: number; y: number }[] = [];
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(child => {
+        childPosList.push(positionNode(child, depth + 1));
+      });
+    }
+
+    let y = 90;
+    if (childPosList.length > 0) {
+      y = childPosList.reduce((sum, p) => sum + p.y, 0) / childPosList.length;
+    }
+
+    let x = 180;
+    if (node.id !== "root") {
+      x = Math.max(50, 180 - (depth) * 35);
+    }
+
+    nodePositionMap.set(node.id, { x, y });
+
+    elements.push({
+      id: node.id,
+      type: "gate",
+      label: node.type,
+      x,
+      y,
+    });
+
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(child => {
+        const childPos = nodePositionMap.get(child.id) || leafMap.get(child.id) || { x: 8, y: 90 };
+        const startX = childPos.x + (child.type === "CONDITION" ? 85 : 14);
+        const startY = childPos.y;
+        const endX = x - 14;
+        const endY = y;
+
+        const path = `M ${startX} ${startY} C ${startX + 15} ${startY}, ${endX - 15} ${endY}, ${endX} ${endY}`;
+        const color = node.type === "AND" ? "url(#wire-gradient-and)" : "url(#wire-gradient-or)";
+        wires.push({ d: path, color });
+      });
+    }
+
+    return { x, y };
+  };
+
+  positionNode(logicRoot.value, 0);
+
+  return { elements, wires };
+});
 </script>
 
 <template>
@@ -802,6 +1002,31 @@ const handleWorkspaceDrop = (event: DragEvent) => {
               >
                 <span class="item-dot condition-dot"></span>
                 <span class="item-text" :title="opt.label">{{ opt.value }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Category 2.5: Logic Groups -->
+          <div class="palette-category">
+            <div class="category-title">逻辑分组 (Logic Groups)</div>
+            <div class="palette-items">
+              <div
+                class="palette-item item-group-and"
+                style="border-left: 3px solid #1890ff;"
+                draggable="true"
+                @dragstart="handleDragStart($event, 'logic_group', 'AND')"
+              >
+                <span class="item-dot" style="background: #1890ff; box-shadow: 0 0 6px #1890ff;"></span>
+                <span class="item-text" title="且运算组 (AND Group)">AND Group</span>
+              </div>
+              <div
+                class="palette-item item-group-or"
+                style="border-left: 3px solid #eb2f96;"
+                draggable="true"
+                @dragstart="handleDragStart($event, 'logic_group', 'OR')"
+              >
+                <span class="item-dot" style="background: #eb2f96; box-shadow: 0 0 6px #eb2f96;"></span>
+                <span class="item-text" title="或运算组 (OR Group)">OR Group</span>
               </div>
             </div>
           </div>
@@ -918,180 +1143,117 @@ const handleWorkspaceDrop = (event: DragEvent) => {
             <div class="node-port port-input condition-port-in"></div>
             <div class="node-port port-output condition-port-out"></div>
 
-            <div
-              class="block-header"
-              style="
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-              "
-            >
+            <div class="block-header">
               <div>
-                <span class="block-badge" style="background: #fa8c16"
-                  >Block 2</span
-                >
-                <strong style="color: #fff"
-                  >高级逻辑过滤条件 (Condition Block)</strong
-                >
-              </div>
-              <!-- LOGICAL RELATION RELATION -->
-              <div
-                style="
-                  background: rgba(255, 255, 255, 0.2);
-                  border-radius: 4px;
-                  padding: 2px 8px;
-                "
-              >
-                <span
-                  style="
-                    color: white;
-                    font-size: 11px;
-                    font-weight: bold;
-                    margin-right: 8px;
-                  "
-                  >条件关系:</span
-                >
-                <a-radio-group
-                  v-model:value="logicRelation"
-                  size="small"
-                  button-style="solid"
-                >
-                  <a-radio-button value="AND">且 (AND)</a-radio-button>
-                  <a-radio-button value="OR">或 (OR)</a-radio-button>
-                </a-radio-group>
+                <span class="block-badge" style="background: #fa8c16">Block 2</span>
+                <strong style="color: #fff">高级嵌套逻辑过滤条件 (Nested Condition Block)</strong>
               </div>
             </div>
             <div class="block-body">
               <a-row :gutter="16">
-                <!-- Condition inputs list -->
+                <!-- Condition Tree -->
                 <a-col :span="15">
-                  <div class="desc-line">
-                    配置复杂的过滤多维属性判定（支持字符串前缀/后缀/PID/UID）：
+                  <div class="desc-line" style="margin-bottom: 16px;">
+                    支持无限嵌套的逻辑运算组，可从左侧拖拽条件或逻辑组至目标块内：
                   </div>
-
-                  <div class="conditions-list">
-                    <div
-                      v-for="(cond, index) in conditions"
-                      :key="index"
-                      class="condition-row"
-                    >
-                      <a-select v-model:value="cond.field" style="width: 32%">
-                        <a-select-option
-                          v-for="f in fieldOptions"
-                          :key="f.value"
-                          :value="f.value"
-                          :disabled="
-                            (trigger === 'unlink' && f.value === 'basename') ||
-                            (trigger !== 'socket_connect' && (f.value === 'port' || f.value === 'ipv4'))
-                          "
-                        >
-                          {{ f.label }}
-                        </a-select-option>
-                      </a-select>
-
-                      <a-select v-model:value="cond.operator" style="width: 28%">
-                        <a-select-option
-                          v-for="o in operatorOptions"
-                          :key="o.value"
-                          :value="o.value"
-                          :disabled="
-                            (cond.field === 'pid' || cond.field === 'uid' || cond.field === 'port' || cond.field === 'ipv4' || cond.field === 'gid') &&
-                            (o.value === 'starts_with' || o.value === 'ends_with')
-                          "
-                        >
-                          {{ o.label }}
-                        </a-select-option>
-                      </a-select>
-
-                      <a-input
-                        v-model:value="cond.value"
-                        placeholder="目标匹配值"
-                        style="width: 32%"
-                      />
-
-                      <a-button
-                        danger
-                        type="text"
-                        @click="removeCondition(index)"
-                        :disabled="conditions.length === 1"
-                        style="width: 8%"
-                      >
-                        <template #icon><DeleteOutlined /></template>
-                      </a-button>
-                    </div>
-                  </div>
-
-                  <div
-                    style="
-                      margin-top: 12px;
-                      display: flex;
-                      justify-content: flex-end;
-                    "
-                  >
-                    <a-button type="dashed" @click="addCondition" size="small">
-                      <template #icon><PlusOutlined /></template>
-                      添加高级判定分支
-                    </a-button>
+                  
+                  <div class="conditions-list-tree" style="max-height: 380px; overflow-y: auto; padding-right: 4px;">
+                    <PluginsVisualConditionTree
+                      :node="logicRoot"
+                      :trigger="trigger"
+                      :on-delete-node="onDeleteNode"
+                      :on-add-rule="onAddRule"
+                      :on-add-group="onAddGroup"
+                      :on-update-rule="onUpdateRule"
+                      :on-update-group-type="onUpdateGroupType"
+                    />
                   </div>
                 </a-col>
 
-                <!-- Blueprint Logic Gate Visualizer -->
+                <!-- Blueprint Logic Gate Visualizer (Fully integrated SVG tree) -->
                 <a-col :span="9" style="border-left: 1px dashed rgba(255, 255, 255, 0.1); padding-left: 16px;">
                   <div style="font-size: 12px; font-weight: 600; color: #fa8c16; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
-                    <span>逻辑运算门 (Logic Gate)</span>
-                    <a-tag size="small" color="orange" style="font-size: 10px; margin: 0; transform: scale(0.9);">Blueprint Gate</a-tag>
+                    <span>逻辑拓扑树 (Logic Tree Gate)</span>
+                    <a-tag size="small" color="orange" style="font-size: 10px; margin: 0; transform: scale(0.9);">Schematic</a-tag>
                   </div>
                   
                   <div class="logic-gate-canvas">
-                    <!-- Background Grid -->
                     <div class="logic-gate-grid"></div>
 
-                    <!-- SVG Connection Wires -->
-                    <svg class="logic-gate-wires" viewBox="0 0 200 180" width="100%" height="100%" preserveAspectRatio="none">
+                    <!-- SVG containing both dynamic bezier wires and gate/node elements -->
+                    <svg class="logic-gate-wires" viewBox="0 0 200 180" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
                       <defs>
-                        <linearGradient id="wire-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <linearGradient id="wire-gradient-and" x1="0%" y1="0%" x2="100%" y2="0%">
                           <stop offset="0%" stop-color="#1890ff" />
-                          <stop offset="100%" stop-color="#fa8c16" />
+                          <stop offset="100%" stop-color="#0050b3" />
                         </linearGradient>
+                        <linearGradient id="wire-gradient-or" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stop-color="#eb2f96" />
+                          <stop offset="100%" stop-color="#722ed1" />
+                        </linearGradient>
+                        <radialGradient id="gate-grad-and" cx="50%" cy="50%" r="50%">
+                          <stop offset="0%" stop-color="#0077b6" />
+                          <stop offset="100%" stop-color="#03045e" />
+                        </radialGradient>
+                        <radialGradient id="gate-grad-or" cx="50%" cy="50%" r="50%">
+                          <stop offset="0%" stop-color="#d946ef" />
+                          <stop offset="100%" stop-color="#701a75" />
+                        </radialGradient>
                         <filter id="wire-glow">
-                          <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+                          <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
                           <feMerge>
                             <feMergeNode in="coloredBlur"/>
                             <feMergeNode in="SourceGraphic"/>
                           </feMerge>
                         </filter>
                       </defs>
+                      
+                      <!-- Connections / Bezier wires -->
                       <path
-                        v-for="(_, idx) in conditions"
-                        :key="idx"
-                        :d="getGateWirePath(idx, conditions.length)"
-                        stroke="url(#wire-gradient)"
+                        v-for="(wire, idx) in logicGateLayout.wires"
+                        :key="'wire-' + idx"
+                        :d="wire.d"
+                        :stroke="wire.color"
                         stroke-width="1.5"
                         fill="none"
                         filter="url(#wire-glow)"
-                        opacity="0.85"
+                        opacity="0.8"
                       />
+
+                      <!-- Logic Gates and Condition Badges -->
+                      <g v-for="elem in logicGateLayout.elements" :key="elem.id">
+                        <!-- Condition Nodes -->
+                        <g v-if="elem.type === 'condition'">
+                          <rect
+                            :x="elem.x"
+                            :y="elem.y - 10"
+                            width="85"
+                            height="20"
+                            rx="3"
+                            fill="#1e293b"
+                            stroke="#334155"
+                            stroke-width="1"
+                          />
+                          <text :x="elem.x + 4" :y="elem.y + 3" fill="#00b4d8" font-size="7" font-family="monospace" font-weight="bold">{{ elem.field }}</text>
+                          <text :x="elem.x + 45" :y="elem.y + 3" fill="#fa8c16" font-size="7" font-family="monospace">{{ elem.op }}</text>
+                          <text :x="elem.x + 58" :y="elem.y + 3" fill="#a78bfa" font-size="7" font-family="monospace">{{ elem.value }}</text>
+                        </g>
+
+                        <!-- Gate Nodes -->
+                        <g v-else>
+                          <circle
+                            :cx="elem.x"
+                            :cy="elem.y"
+                            r="13"
+                            :fill="elem.label === 'AND' ? 'url(#gate-grad-and)' : 'url(#gate-grad-or)'"
+                            :stroke="elem.label === 'AND' ? '#00b4d8' : '#f472b6'"
+                            stroke-width="1.5"
+                          />
+                          <text :x="elem.x" :y="elem.y - 1" text-anchor="middle" fill="#fff" font-size="8" font-family="monospace" font-weight="bold">{{ elem.label }}</text>
+                          <text :x="elem.x" :y="elem.y + 7" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="5" font-family="monospace">GATE</text>
+                        </g>
+                      </g>
                     </svg>
-
-                    <!-- Input Node Badges -->
-                    <div
-                      v-for="(cond, idx) in conditions"
-                      :key="idx"
-                      class="logic-input-node"
-                      :style="{
-                        top: `calc(18px + ${idx} * (180px - 36px) / (${conditions.length - 1 || 1}) - 14px)`
-                      }"
-                    >
-                      <span class="node-field">{{ cond.field }}</span>
-                      <span class="node-op">{{ cond.operator === '==' ? '=' : cond.operator === '!=' ? '≠' : cond.operator === 'starts_with' ? 'pref' : 'suff' }}</span>
-                      <span class="node-val" :title="cond.value">{{ cond.value || '?' }}</span>
-                    </div>
-
-                    <!-- Central Gate Node -->
-                    <div class="logic-gate-node" :class="logicRelation.toLowerCase()">
-                      <div class="gate-icon">{{ logicRelation }}</div>
-                      <div class="gate-label">GATE</div>
-                    </div>
                   </div>
                 </a-col>
               </a-row>
