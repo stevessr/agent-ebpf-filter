@@ -13,3 +13,17 @@
 
   该项目适用于 AI Agent 安全研究、开发者工具行为审计、本地沙箱实验、企业内网工具治理、CTF/攻防演练环境以及需要对自动化编码代理进行细粒度监控与约束的场景。它的目标不是简单
   记录日志，而是构建一个可观测、可解释、可回放、可策略化控制的 AI Agent 运行时安全平面。
+
+## 系统服务安装
+
+```bash
+make install
+```
+
+`make install` 会先构建后端、前端和 `agent-wrapper`，再把服务文件安装到
+`/opt/agent-ebpf-filter`，把公开二进制安装到 `/usr/local/bin`，并写入
+`/etc/agent-ebpf-filter/agent-ebpf-filter.env`。安装器优先注册 systemd
+服务；如果当前系统没有运行 systemd，则回落到 `/etc/rc.local` 托管块和
+`/usr/local/sbin/agent-ebpf-filter-service`。可用
+`INSTALL_METHOD=systemd|rc.local`、`INSTALL_START=0`、`INSTALL_ENABLE=0`
+调整行为；卸载用 `make uninstall`。

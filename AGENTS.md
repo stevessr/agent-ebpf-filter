@@ -45,6 +45,8 @@ rtk make os-enforcement-check
 rtk make os-enforcement-smoke
 rtk env OS_SMOKE_PRIVILEGE_CMD='sudo -E' make os-enforcement-smoke-start
 rtk make dev
+rtk make install       # Install as a system service: systemd first, rc.local fallback
+rtk make uninstall
 ```
 
 `make predev` installs the helper dependencies in parallel. It normalizes an
@@ -62,6 +64,20 @@ CPU-only stub as the default so devcontainers without CUDA still compile.
 `make exec` and VS Code Dev Containers must mount container-local volumes over
 `frontend/node_modules` and `adapters/python/.venv` so the bind-mounted
 workspace stays writable without reusing host-only dependency trees.
+
+`make install` runs a production build and installs the backend, compiled
+frontend, and wrapper under `/opt/agent-ebpf-filter` plus public binaries under
+`/usr/local/bin`. The installer writes
+`/etc/agent-ebpf-filter/agent-ebpf-filter.env`, sets `GIN_MODE=release` and
+`AGENT_WRAPPER_PATH=/usr/local/bin/agent-wrapper`, and records the invoking
+user's home in `AGENT_REAL_HOME` so runtime config stays in
+`~/.config/agent-ebpf-filter`. Service registration is systemd-first when a
+running systemd manager exists, otherwise it writes an `rc.local` managed block
+and `/usr/local/sbin/agent-ebpf-filter-service`. Use
+`INSTALL_METHOD=systemd|rc.local`, `INSTALL_START=0`, `INSTALL_ENABLE=0`, or
+`INSTALL_PREFIX=...` to override defaults; keep the service privileged/root
+because the backend loads eBPF, cgroup, and BPF LSM programs and may bind
+80/443 when domain forwarding is enabled.
 
 `make dev-image` prints the image ref. `make docker` is pull-only: it derives `ghcr.io/<owner>/<repo>/devcontainer:<branch-slug>-<branch-hash>` from the GitHub origin remote and the current branch, where the branch hash is the first 12 hex characters of the branch name's SHA-256 digest. If the branch cannot be inferred on a detached HEAD, set `DEV_BRANCH=<branch>` or pass a full `DEV_IMAGE=...`. If the image is not available yet, wait for it to publish or run the GitHub Actions devcontainer image workflow; do not add a local build fallback. The workflow-built image must run `make predev` during the Docker build, publish a multi-arch manifest for `linux/amd64` and `linux/arm64` (aarch64), and keep a copy of workspace-local dependencies under `/opt/agent-ebpf-predev` so VS Code post-create and `make exec` can seed bind-mounted workspaces without reinstalling from the network. Post-create should run `make predev-check` only; if an old image is missing dependencies, tell the user to rebuild/pull the workflow image instead of silently running online installs, unless `DEVCONTAINER_POSTCREATE_INSTALL=1` is explicitly set. VS Code Dev Containers and `make exec` must pass through the host Git config (`~/.gitconfig` and `~/.config/git`) read-only, but must not mount credentials, SSH keys, or Git credential stores. VS Code Dev Containers must use the `image` field in `.devcontainer/devcontainer.json`; keep `.devcontainer/Dockerfile` only as the GitHub Actions build input. Keep `updateRemoteUserUID` disabled so VS Code does not generate a local `updateUID.Dockerfile`; keep the Podman user namespace mapping aligned with the image's `vscode` UID/GID `1001:1001`; and do not combine `--init` with `--pid=host` because Podman rejects that startup shape. For branch/fork Dev Containers, launch VS Code with `DEV_IMAGE_REPOSITORY` and `DEV_IMAGE_TAG` from the matching Make targets.
 

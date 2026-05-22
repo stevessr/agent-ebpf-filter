@@ -34,10 +34,17 @@ DEV_FRONTEND_NODE_MODULES_VOLUME ?= $(DEV_CONTAINER)-frontend-node-modules
 DEV_PYTHON_VENV_VOLUME ?= $(DEV_CONTAINER)-python-venv
 CUDA_GO_TAGS ?= $(shell [ -x /opt/cuda/bin/nvcc ] && [ -r /opt/cuda/lib64/libcudart.so ] && printf cuda)
 GO_BUILD_TAGS_ARG = $(if $(strip $(CUDA_GO_TAGS)),-tags "$(CUDA_GO_TAGS)",)
+INSTALL_PREFIX ?= /opt/agent-ebpf-filter
+INSTALL_BINDIR ?= /usr/local/bin
+INSTALL_SYSCONFDIR ?= /etc/agent-ebpf-filter
+INSTALL_SERVICE_NAME ?= agent-ebpf-filter
+INSTALL_METHOD ?= auto
+INSTALL_ENABLE ?= 1
+INSTALL_START ?= 1
 
 .DEFAULT_GOAL := all
 
-.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-check predev-go predev-python predev-frontend dev run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test build docker dev-image dev-image-repository dev-image-tag exec
+.PHONY: all backend frontend wrapper clean proto proto-check help predev predev-check predev-go predev-python predev-frontend dev run deps ebpf-bootstrap ebpf-tls ebpf-cgroup ebpf-lsm os-enforcement-preflight os-enforcement-check os-enforcement-smoke os-enforcement-smoke-start cuda ml-sweep ml-presentation runtime-benchmark test build install uninstall docker dev-image dev-image-repository dev-image-tag exec
 
 
 docker: ## Pull the privileged devcontainer image from GHCR
@@ -155,6 +162,24 @@ all: proto backend frontend wrapper ## Build all components
 build: proto ## Parallel build of all components
 	@echo "Building all components in parallel..."
 	@$(MAKE) --no-print-directory -j3 SKIP_PROTO_DEP=1 backend-bare frontend-bare wrapper-bare
+
+install: build ## Install as a system service (systemd first, rc.local fallback)
+	@INSTALL_PREFIX="$(INSTALL_PREFIX)" \
+	 INSTALL_BINDIR="$(INSTALL_BINDIR)" \
+	 INSTALL_SYSCONFDIR="$(INSTALL_SYSCONFDIR)" \
+	 INSTALL_SERVICE_NAME="$(INSTALL_SERVICE_NAME)" \
+	 INSTALL_METHOD="$(INSTALL_METHOD)" \
+	 INSTALL_ENABLE="$(INSTALL_ENABLE)" \
+	 INSTALL_START="$(INSTALL_START)" \
+	 ./scripts/install-service.sh install
+
+uninstall: ## Remove the installed system service and installed files
+	@INSTALL_PREFIX="$(INSTALL_PREFIX)" \
+	 INSTALL_BINDIR="$(INSTALL_BINDIR)" \
+	 INSTALL_SYSCONFDIR="$(INSTALL_SYSCONFDIR)" \
+	 INSTALL_SERVICE_NAME="$(INSTALL_SERVICE_NAME)" \
+	 INSTALL_METHOD="$(INSTALL_METHOD)" \
+	 ./scripts/install-service.sh uninstall
 
 backend-bare:
 	@echo "Building backend..."

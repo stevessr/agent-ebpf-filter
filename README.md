@@ -295,6 +295,34 @@ make run
 
 This builds everything and runs the backend, which serves the compiled frontend from the same process.
 
+### System service install
+
+```bash
+make install
+```
+
+`make install` builds the backend, frontend, and wrapper, then installs them
+for boot-time operation. By default it copies the service payload to
+`/opt/agent-ebpf-filter`, installs `agent-ebpf-filter` and `agent-wrapper` into
+`/usr/local/bin`, writes `/etc/agent-ebpf-filter/agent-ebpf-filter.env`, and
+registers a service. The installer prefers systemd when a running systemd
+manager is present; otherwise it falls back to an `rc.local` entry plus
+`/usr/local/sbin/agent-ebpf-filter-service`.
+
+Useful overrides:
+
+```bash
+make install INSTALL_METHOD=systemd      # force systemd
+make install INSTALL_METHOD=rc.local     # force rc.local fallback
+make install INSTALL_START=0             # install/enable but do not start now
+make uninstall
+```
+
+The installed service runs as root for eBPF/cgroup/LSM and low-port access,
+sets `GIN_MODE=release`, and sets `AGENT_REAL_HOME` to the invoking user's home
+so runtime state remains under `~/.config/agent-ebpf-filter`. In release mode,
+the generated runtime access token is still required for protected APIs.
+
 ### Useful targets
 
 ```bash
@@ -308,6 +336,8 @@ make dev-image   # Print the GHCR devcontainer image for this branch
 make dev-image-tag
 make docker      # Pull the GitHub-built devcontainer image for this branch
 make exec        # Start or attach to the privileged devcontainer shell
+make install     # Install as systemd service, or rc.local fallback
+make uninstall
 make run-backend
 make run-frontend
 make clean
