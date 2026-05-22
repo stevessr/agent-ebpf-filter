@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, useTemplateRef } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from "vue";
 import { ReloadOutlined } from "@ant-design/icons-vue";
 import type {
   VisualAction,
@@ -34,7 +34,11 @@ const emit = defineEmits<{
 
 const nodeWidth = 160;
 const nodeHeight = 72;
+const canvasHeight = 340;
+const canvasPadding = 12;
 const canvasRef = useTemplateRef<HTMLElement>("canvas");
+const canvasSize = ref({ width: 760, height: canvasHeight });
+let canvasResizeObserver: ResizeObserver | null = null;
 const dragging = ref<{
   id: VisualFlowNodeId;
   offsetX: number;
@@ -55,12 +59,24 @@ const connectionDrag = ref<{
 
 const defaultLayout: VisualNodeLayout = {
   trigger: { x: 24, y: 38 },
-  condition: { x: 224, y: 38 },
-  map: { x: 424, y: 38 },
-  action: { x: 624, y: 38 },
-  code: { x: 424, y: 176 },
-  compile: { x: 624, y: 176 },
+  condition: { x: 196, y: 38 },
+  map: { x: 368, y: 38 },
+  action: { x: 540, y: 38 },
+  code: { x: 368, y: 176 },
+  compile: { x: 540, y: 176 },
 };
+
+const flowNodeIds: VisualFlowNodeId[] = [
+  "trigger",
+  "condition",
+  "map",
+  "action",
+  "code",
+  "compile",
+];
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 const wireDefinitions: Array<{
   id: VisualWireId;
@@ -140,6 +156,30 @@ const mergedWireStates = computed<Record<VisualWireId, boolean>>(() => ({
   ...props.wireStates,
 }));
 
+const maxNodeX = computed(() =>
+  Math.max(canvasPadding, canvasSize.value.width - nodeWidth - canvasPadding)
+);
+
+const maxNodeY = computed(() =>
+  Math.max(canvasPadding, canvasSize.value.height - nodeHeight - canvasPadding)
+);
+
+const boundedLayout = computed<VisualNodeLayout>(() => {
+  const next: VisualNodeLayout = {};
+  flowNodeIds.forEach((id) => {
+    const position = mergedLayout.value[id] || defaultLayout[id];
+    next[id] = {
+      x: clamp(Math.round(position.x), canvasPadding, maxNodeX.value),
+      y: clamp(Math.round(position.y), canvasPadding, maxNodeY.value),
+    };
+  });
+  return next;
+});
+
+const canvasViewBox = computed(
+  () => `0 0 ${Math.max(1, Math.round(canvasSize.value.width))} ${canvasHeight}`
+);
+
 const flowNodes = computed(() => [
   {
     id: "trigger" as const,
@@ -204,8 +244,8 @@ const selectedNode = computed(
 
 const wires = computed(() => {
   return wireDefinitions.map((wire) => {
-    const start = mergedLayout.value[wire.from] || defaultLayout[wire.from];
-    const end = mergedLayout.value[wire.to] || defaultLayout[wire.to];
+    const start = boundedLayout.value[wire.from] || defaultLayout[wire.from];
+    const end = boundedLayout.value[wire.to] || defaultLayout[wire.to];
     const x1 = start.x + nodeWidth;
     const y1 = start.y + nodeHeight / 2;
     const x2 = end.x;
@@ -215,8 +255,16 @@ const wires = computed(() => {
       ...wire,
       enabled: mergedWireStates.value[wire.id],
       d: `M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`,
-      labelX: Math.min(840, Math.max(6, (x1 + x2) / 2 - 52)),
-      labelY: Math.min(306, Math.max(6, (y1 + y2) / 2 - 13)),
+      labelX: clamp(
+        (x1 + x2) / 2 - 52,
+        6,
+        Math.max(6, canvasSize.value.width - 116)
+      ),
+      labelY: clamp(
+        (y1 + y2) / 2 - 13,
+        6,
+        Math.max(6, canvasSize.value.height - 34)
+      ),
     };
   });
 });
@@ -234,11 +282,8 @@ const connectionPreviewPath = computed(() => {
   } ${currentY}, ${currentX} ${currentY}`;
 });
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value));
-
 const getNodePosition = (id: VisualFlowNodeId) =>
-  mergedLayout.value[id] || defaultLayout[id];
+  boundedLayout.value[id] || defaultLayout[id];
 
 const getNodePortPoint = (id: VisualFlowNodeId, side: "in" | "out") => {
   const position = getNodePosition(id);
@@ -289,8 +334,8 @@ const updateNodePosition = (id: VisualFlowNodeId, x: number, y: number) => {
   const next = {
     ...mergedLayout.value,
     [id]: {
-      x: clamp(Math.round(x), 8, 760),
-      y: clamp(Math.round(y), 8, 252),
+      x: clamp(Math.round(x), canvasPadding, maxNodeX.value),
+      y: clamp(Math.round(y), canvasPadding, maxNodeY.value),
     },
   };
   emit("update:nodeLayout", next);
@@ -339,7 +384,7 @@ const handlePointerMove = (event: PointerEvent) => {
 };
 
 const handlePointerDown = (event: PointerEvent, id: VisualFlowNodeId) => {
-  const current = mergedLayout.value[id] || defaultLayout[id];
+  const current = getNodePosition(id);
   const target = event.currentTarget as HTMLElement;
   const rect = target.getBoundingClientRect();
   dragging.value = {
@@ -403,9 +448,29 @@ const handleConnectionPointerDown = (event: PointerEvent, id: VisualFlowNodeId) 
   window.addEventListener("pointerup", stopConnectionDragging);
 };
 
+const updateCanvasSize = () => {
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  canvasSize.value = {
+    width: Math.max(360, Math.round(rect.width)),
+    height: canvasHeight,
+  };
+};
+
+onMounted(() => {
+  updateCanvasSize();
+  if (typeof ResizeObserver !== "undefined" && canvasRef.value) {
+    canvasResizeObserver = new ResizeObserver(updateCanvasSize);
+    canvasResizeObserver.observe(canvasRef.value);
+  }
+});
+
 onBeforeUnmount(() => {
   stopDragging();
   connectionDrag.value = null;
+  canvasResizeObserver?.disconnect();
+  canvasResizeObserver = null;
   window.removeEventListener("pointermove", handleConnectionPointerMove);
   window.removeEventListener("pointerup", stopConnectionDragging);
 });
@@ -441,7 +506,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div ref="canvas" class="flow-canvas">
-      <svg class="flow-wires" viewBox="0 0 960 340" preserveAspectRatio="none">
+      <svg class="flow-wires" :viewBox="canvasViewBox" preserveAspectRatio="none">
         <defs>
           <linearGradient id="flow-wire-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stop-color="#1890ff" />
@@ -511,8 +576,8 @@ onBeforeUnmount(() => {
         class="flow-node"
         :class="{ selected: selectedNodeId === node.id }"
         :style="{
-          left: `${mergedLayout[node.id].x}px`,
-          top: `${mergedLayout[node.id].y}px`,
+          left: `${boundedLayout[node.id].x}px`,
+          top: `${boundedLayout[node.id].y}px`,
           borderColor: node.color,
           '--node-color': node.color,
         }"

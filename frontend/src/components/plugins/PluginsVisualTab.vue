@@ -190,11 +190,11 @@ const maxHistoryDepth = 40;
 
 const createDefaultNodeLayout = (): VisualNodeLayout => ({
   trigger: { x: 24, y: 38 },
-  condition: { x: 224, y: 38 },
-  map: { x: 424, y: 38 },
-  action: { x: 624, y: 38 },
-  code: { x: 424, y: 176 },
-  compile: { x: 624, y: 176 },
+  condition: { x: 196, y: 38 },
+  map: { x: 368, y: 38 },
+  action: { x: 540, y: 38 },
+  code: { x: 368, y: 176 },
+  compile: { x: 540, y: 176 },
 });
 
 const visualWireIds: VisualWireId[] = [
