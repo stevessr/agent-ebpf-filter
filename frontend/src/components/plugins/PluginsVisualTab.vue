@@ -241,6 +241,7 @@ const mergeWireStates = (states?: VisualWireStates): Record<VisualWireId, boolea
 const nodeLayout = ref<VisualNodeLayout>(createDefaultNodeLayout());
 const wireStates = ref<VisualWireStates>(createDefaultWireStates());
 const activeFlowNode = ref<VisualFlowNodeId>("trigger");
+const designerSubtab = ref<"dify" | "map">("dify");
 const triggerBlockRef = useTemplateRef<HTMLElement>("triggerBlock");
 const conditionBlockRef = useTemplateRef<HTMLElement>("conditionBlock");
 const mapBlockRef = useTemplateRef<HTMLElement>("mapBlock");
@@ -1702,6 +1703,23 @@ const handleWorkspaceDrop = (event: DragEvent) => {
             >
           </div>
 
+          <a-tabs v-model:active-key="designerSubtab" class="dify-workspace-tabs">
+            <a-tab-pane key="dify" tab="Dify Workflow">
+              <div class="dify-workflow-shell">
+                <div class="dify-workflow-hero">
+                  <div>
+                    <a-tag color="blue">Dify Style</a-tag>
+                    <h4>节点工作流编排</h4>
+                    <p>主视图只保留节点类型、拖线画布和节点 Inspector；Map/Blueprint 细节已移动到独立二级选项卡。</p>
+                  </div>
+                  <a-space size="small" wrap>
+                    <a-tag :color="isWorkspaceValid ? 'green' : 'red'">
+                      {{ isWorkspaceValid ? 'READY' : 'FIX REQUIRED' }}
+                    </a-tag>
+                    <a-tag color="purple">{{ conditionCount }} filters</a-tag>
+                    <a-tag color="cyan">{{ generatedLineCount }} C lines</a-tag>
+                  </a-space>
+                </div>
           <PluginsVisualFlowCanvas
             v-model:node-layout="nodeLayout"
             v-model:wire-states="wireStates"
@@ -1753,7 +1771,14 @@ const handleWorkspaceDrop = (event: DragEvent) => {
             @add-group="onAddGroup('root', $event)"
             @compile="handleCompileAndRegister"
           />
-
+              </div>
+            </a-tab-pane>
+            <a-tab-pane key="map" tab="Map / Blueprint Details">
+              <div class="map-workspace-shell">
+                <div class="map-workspace-notice">
+                  <a-tag color="purple">二级选项卡</a-tag>
+                  <span>原先偏 map / blueprint 的块状配置、条件树和状态 Map 面板集中在这里，主编辑体验保持 Dify 工作流风格。</span>
+                </div>
           <!-- BLOCK 1: EVENT TRIGGER -->
           <div
             ref="triggerBlock"
@@ -1957,6 +1982,9 @@ const handleWorkspaceDrop = (event: DragEvent) => {
               </div>
             </a-card>
           </div>
+              </div>
+            </a-tab-pane>
+          </a-tabs>
         </div>
       </a-col>
 
@@ -1990,6 +2018,71 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 .palette-stack {
   margin-top: 16px;
+}
+.dify-workspace-tabs {
+  margin-top: 8px;
+}
+
+.dify-workflow-shell,
+.map-workspace-shell {
+  padding-top: 8px;
+}
+
+.dify-workflow-hero,
+.map-workspace-notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.26);
+  background: rgba(15, 23, 42, 0.78);
+  color: #cbd5e1;
+}
+
+.dify-workflow-hero h4 {
+  margin: 8px 0 4px;
+  color: #f8fafc;
+  font-size: 15px;
+}
+
+.dify-workflow-hero p,
+.map-workspace-notice span {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.map-workspace-notice {
+  align-items: center;
+  justify-content: flex-start;
+  border-color: rgba(114, 46, 209, 0.28);
+}
+
+:deep(.dify-workspace-tabs .ant-tabs-nav) {
+  margin-bottom: 12px;
+}
+
+:deep(.dify-workspace-tabs .ant-tabs-tab) {
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.62);
+}
+
+:deep(.dify-workspace-tabs .ant-tabs-tab-active) {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+:deep(.dify-workspace-tabs .ant-tabs-tab-active .ant-tabs-tab-btn) {
+  color: #dbeafe;
+}
+
+:deep(.dify-workspace-tabs .ant-tabs-ink-bar) {
+  background: #38bdf8;
 }
 .selected-flow-panel {
   display: flex;
