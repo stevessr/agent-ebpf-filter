@@ -1,0 +1,4 @@
+name: projects/crafty-ring-497123-j4/policies/iam.managed.disableServiceAccountApiKeyCreation
+spec:
+  rules:
+  - enforce: false

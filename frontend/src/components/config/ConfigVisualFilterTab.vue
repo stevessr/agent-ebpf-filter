@@ -12,6 +12,9 @@ import {
   InfoCircleOutlined,
   LoadingOutlined,
   FireOutlined,
+  FolderAddOutlined,
+  FileAddOutlined,
+  LinkOutlined,
 } from "@ant-design/icons-vue";
 import { useConfigVisualFilter } from "../../composables/useConfigVisualFilter";
 import { usePlugins } from "../../composables/usePlugins";
@@ -30,11 +33,54 @@ const loadingAction = ref(false);
 const compileLogLocal = ref("");
 const isCompiled = ref(false);
 
-// Auto update plugin metadata when type/value/action changes
+const typeOptions = [
+  {
+    value: "process",
+    label: "进程运行拦截 (LSM bprm)",
+    icon: ThunderboltOutlined,
+  },
+  {
+    value: "file",
+    label: "文件读取打开 (LSM file_open)",
+    icon: SafetyCertificateOutlined,
+  },
+  {
+    value: "file_create",
+    label: "新建物理文件 (LSM inode_create)",
+    icon: FileAddOutlined,
+  },
+  {
+    value: "mkdir",
+    label: "创建新文件夹 (LSM inode_mkdir)",
+    icon: FolderAddOutlined,
+  },
+  {
+    value: "rmdir",
+    label: "删除现有文件夹 (LSM inode_rmdir)",
+    icon: DeleteOutlined,
+  },
+  {
+    value: "symlink",
+    label: "创建软链接 (LSM inode_symlink)",
+    icon: LinkOutlined,
+  },
+  { value: "ip", label: "网络 IP/CIDR (cgroup connect)", icon: GlobalOutlined },
+  { value: "port", label: "网络出站端口 (cgroup connect)", icon: CodeOutlined },
+];
+
+const operatorOptions = [
+  { value: "==", label: "等于 (==)" },
+  { value: "!=", label: "不等于 (!=)" },
+  { value: "starts_with", label: "前缀匹配 (starts_with)" },
+  { value: "ends_with", label: "后缀匹配 (ends_with)" },
+];
+
+// Auto update metadata on state changes
 watch(
   [
     () => currentConfig.value.type,
     () => currentConfig.value.value,
+    () => currentConfig.value.operator,
     () => currentConfig.value.action,
   ],
   () => {
@@ -49,7 +95,7 @@ onMounted(async () => {
   await fetchPlugins();
 });
 
-// Directly Apply as a core kernel blocking rule
+// Apply directly to core BPF enforcers
 const handleApplyCoreRule = async () => {
   const { type, value, action } = currentConfig.value;
   if (!value.trim()) {
@@ -61,7 +107,7 @@ const handleApplyCoreRule = async () => {
     Modal.confirm({
       title: "仅告警模式限制",
       content:
-        "内置高性能拦截引擎（LSM & cgroup）默认执行硬阻断（BLOCK）。如需实现定制化的“仅告警并打印内核日志”逻辑，请在右侧点击“编译并作为自定义 eBPF 插件装载”运行。",
+        "内核内置防御引擎在执行核心规则时默认执行硬阻断（BLOCK）。如果您需要为该条件配置纯告警（ALERT）逻辑而不执行阻断拦截，请在右侧点击“生成并编译为 BPF 插件”并载入运行。",
       okText: "直接应用为阻断",
       cancelText: "取消",
       onOk: () => {
@@ -82,7 +128,14 @@ const handleApplyCoreRule = async () => {
         props.security.lsmExecName.value = value;
         await props.security.blockLsmExecName();
       }
-    } else if (type === "file") {
+    } else if (
+      type === "file" ||
+      type === "file_create" ||
+      type === "mkdir" ||
+      type === "rmdir" ||
+      type === "symlink"
+    ) {
+      // In core LSM enforcer, all file/directory attributes use lsm_blocked_file_names map!
       props.security.lsmFileName.value = value;
       await props.security.blockLsmFileName();
     } else if (type === "ip") {
@@ -99,35 +152,29 @@ const handleApplyCoreRule = async () => {
   }
 };
 
-// Compile and Load as a custom eBPF plugin
+// Compile and Register Custom Visual BPF Plugin
 const handleCompilePlugin = async () => {
   compiling.value = true;
-  compileLogLocal.value = "正在将生成的 C 代码写入系统临时文件...\n";
+  compileLogLocal.value = "正在将高级匹配参数转译为 eBPF C 语言逻辑代码...\n";
   try {
-    // 1. Save or Update the plugin in the registry
-    compileLogLocal.value += `正在将插件 [${currentConfig.value.pluginId}] 注册至项目 Manifest...\n`;
+    compileLogLocal.value += `正在注册自定义插件 [${currentConfig.value.pluginId}] 至本地 Manifest 仓库...\n`;
     await upsertPlugin({
       id: currentConfig.value.pluginId,
       name: currentConfig.value.pluginName,
       description: currentConfig.value.description,
       kind: "ebpf",
       enabled: false,
-      attachKind:
-        currentConfig.value.type === "process" ? "tracepoint" : "kprobe", // dummy values, compiling uses user SEC hooks directly
-      attachTarget:
-        currentConfig.value.type === "process"
-          ? "syscalls/sys_enter_execve"
-          : "do_unlinkat",
+      attachKind: currentConfig.value.type === "process" ? "none" : "none", // LSM hooks load dynamically
+      attachTarget: "",
       programName:
         currentConfig.value.type === "process"
           ? "visual_process_filter"
-          : "visual_file_filter",
+          : `visual_lsm_${currentConfig.value.type}`,
       source: generatedCode.value,
     });
 
-    // 2. Call backend compilation
     compileLogLocal.value +=
-      "正在调用 Clang (target bpf) 编译为 ELF 字节码...\n";
+      "正在调用 Clang 18 (bpf-target) 将 C 源码编译为 ELF 内核字节码...\n";
     const success = await compileBpf(
       currentConfig.value.pluginId,
       generatedCode.value
@@ -135,12 +182,13 @@ const handleCompilePlugin = async () => {
     if (success) {
       isCompiled.value = true;
       compileLogLocal.value +=
-        "编译成功！已生成 program.o。支持点击“装载过滤器”载入内核。";
+        "\n[SUCCESS] 编译成功！已生成 program.o。点击下方按钮即可载入内核运行。";
     } else {
-      compileLogLocal.value += "编译失败。详情请查看控制台报错。";
+      compileLogLocal.value +=
+        "\n[ERROR] 编译失败，请排查过滤参数是否包含不合法字符。";
     }
   } catch (err: any) {
-    compileLogLocal.value += "\n[ERROR] 发生错误: " + err.message;
+    compileLogLocal.value += "\n[ERROR] 错误：" + err.message;
   } finally {
     compiling.value = false;
   }
@@ -149,7 +197,6 @@ const handleCompilePlugin = async () => {
 const handleLoadPlugin = async () => {
   loadingAction.value = true;
   try {
-    // Enable and Load BPF plugin
     await loadBpf(currentConfig.value.pluginId);
     await fetchPlugins();
   } finally {
@@ -167,7 +214,7 @@ const handleUnloadPlugin = async (id: string) => {
   }
 };
 
-// Core rule unblocking helper
+// Direct rule unblocking helpers
 const handleRemoveLsmPath = async (path: string) => {
   props.security.lsmExecPath.value = path;
   await props.security.unblockLsmExecPath();
@@ -197,83 +244,82 @@ const handleRemoveCgroupPort = async (port: number) => {
 <template>
   <div class="visual-filter-tab">
     <a-row :gutter="24">
-      <!-- Left side: Interactive Form Designer -->
+      <!-- Left: Interactive Form Designer -->
       <a-col :span="12">
         <a-card
-          title="可视化 eBPF 规则生成器 (Visual Rule Designer)"
+          title="可视化主动防御拦截器 (Visual Rule Designer)"
           size="small"
         >
           <template #extra>
-            <span style="color: #1677ff; font-weight: 500">
-              <FireOutlined /> 内核层高级防护
+            <span style="color: #52c41a; font-weight: 500">
+              <FireOutlined /> 内核 IPS 主动防御
             </span>
           </template>
 
           <a-form layout="vertical">
             <a-form-item
-              label="1. 选择过滤防御对象 (Target object to intercept)"
+              label="1. 选择防御拦截入口 (Select Intercept Event Trigger)"
             >
-              <a-radio-group
-                v-model:value="currentConfig.type"
-                button-style="solid"
-                style="width: 100%"
-              >
-                <a-radio-button
-                  value="process"
-                  style="width: 25%; text-align: center"
+              <a-select v-model:value="currentConfig.type" style="width: 100%">
+                <a-select-option
+                  v-for="opt in typeOptions"
+                  :key="opt.value"
+                  :value="opt.value"
                 >
-                  <ThunderboltOutlined /> 进程运行
-                </a-radio-button>
-                <a-radio-button
-                  value="file"
-                  style="width: 25%; text-align: center"
-                >
-                  <SafetyCertificateOutlined /> 文件打开
-                </a-radio-button>
-                <a-radio-button
-                  value="ip"
-                  style="width: 25%; text-align: center"
-                >
-                  <GlobalOutlined /> 网络IP
-                </a-radio-button>
-                <a-radio-button
-                  value="port"
-                  style="width: 25%; text-align: center"
-                >
-                  <CodeOutlined /> 网络端口
-                </a-radio-button>
-              </a-radio-group>
+                  <component :is="opt.icon" style="color: #1677ff" />
+                  <span style="margin-left: 8px">{{ opt.label }}</span>
+                </a-select-option>
+              </a-select>
             </a-form-item>
 
-            <a-form-item label="2. 配置过滤目标参数 (Parameters)">
+            <a-form-item
+              v-if="
+                currentConfig.type !== 'ip' && currentConfig.type !== 'port'
+              "
+              label="2. 选择过滤匹配算子 (Select Match Operator)"
+            >
+              <a-select
+                v-model:value="currentConfig.operator"
+                :options="operatorOptions"
+                style="width: 100%"
+              />
+            </a-form-item>
+
+            <a-form-item label="3. 配置过滤匹配值 (Parameters)">
               <div v-if="currentConfig.type === 'process'">
                 <a-input
                   v-model:value="currentConfig.value"
-                  placeholder="例如: nc 或 /usr/bin/nc (支持 basename 或完整路径)"
+                  placeholder="例如: nc 或 /usr/bin/nc (支持 basename 模糊或完整路径)"
                 />
                 <span class="helper-text"
-                  >当内核检测到该名称或完整路径可执行文件试图运行时，硬阻断返回
-                  EACCES (拒绝访问)。</span
+                  >前缀/后缀匹配可对可执行程序的特定存放路径或类型实施集中安全加固。</span
                 >
               </div>
-              <div v-else-if="currentConfig.type === 'file'">
+              <div
+                v-else-if="
+                  currentConfig.type === 'file' ||
+                  currentConfig.type === 'file_create' ||
+                  currentConfig.type === 'mkdir' ||
+                  currentConfig.type === 'rmdir' ||
+                  currentConfig.type === 'symlink'
+                "
+              >
                 <a-input
                   v-model:value="currentConfig.value"
-                  placeholder="例如: id_rsa 或 shadow (文件名，不支持带/的路径)"
+                  placeholder="例如: id_rsa 或 shadow"
                 />
-                <span class="helper-text"
-                  >当检测到任何进程视图读取、打开此 basename
-                  匹配的文件时，直接在内核层阻断打开 fd。</span
-                >
+                <span class="helper-text">
+                  此处的过滤条件将精准注入内核
+                  LSM，当触发相匹配的文件打开、文件创建、软链接指引、目录删除等事件时，触发强阻断决策。
+                </span>
               </div>
               <div v-else-if="currentConfig.type === 'ip'">
                 <a-input
                   v-model:value="currentConfig.value"
-                  placeholder="例如: 8.8.8.8 或 127.0.0.1"
+                  placeholder="例如: 8.8.8.8 或 10.0.0.0/8 (支持 IP 网段掩码匹配)"
                 />
                 <span class="helper-text"
-                  >在 cgroup/connect 阶段，直接拦截目的端 IP
-                  出站网络包，拒绝建立 Socket。</span
+                  >在连接建立之初，拦截出站。支持子网掩码校验拦截。</span
                 >
               </div>
               <div v-else-if="currentConfig.type === 'port'">
@@ -285,42 +331,37 @@ const handleRemoveCgroupPort = async (port: number) => {
                   placeholder="例如: 4444"
                 />
                 <span class="helper-text"
-                  >拦截发往外部目标主机的特定 TCP/UDP 端口。连接失败。</span
+                  >直接丢弃发往特定非法端口的数据流量。</span
                 >
               </div>
             </a-form-item>
 
-            <a-form-item label="3. 选择动作级别 (Filter Action)">
+            <a-form-item label="4. 响应执行级别 (Interception Severity)">
               <a-radio-group
                 v-model:value="currentConfig.action"
                 button-style="solid"
               >
                 <a-radio-button value="BLOCK" class="action-block-btn">
-                  BLOCK (阻断拦截)
+                  BLOCK (硬阻断拦截)
                 </a-radio-button>
                 <a-radio-button value="ALERT">
                   ALERT (仅告警不拦截)
                 </a-radio-button>
               </a-radio-group>
-              <span class="helper-text" style="display: block; margin-top: 4px">
-                BLOCK：在内核触发点阻断并向容器/进程抛出错误；
-                ALERT：允许操作但通过 eBPF `bpf_printk`
-                在内核级记录安全审计事件。
-              </span>
             </a-form-item>
 
-            <a-form-item label="插件元数据预览 (Automatic Metadata)">
+            <a-form-item label="自动生成的规则插件元数据">
               <div class="metadata-preview">
                 <div>
-                  <strong>插件标识 ID:</strong>
+                  <strong>规则 ID:</strong>
                   <code>{{ currentConfig.pluginId }}</code>
                 </div>
                 <div>
-                  <strong>展示名称 Name:</strong>
+                  <strong>规则名:</strong>
                   <span>{{ currentConfig.pluginName }}</span>
                 </div>
                 <div>
-                  <strong>描述 Description:</strong>
+                  <strong>简介:</strong>
                   <span style="font-size: 12px; color: #666">{{
                     currentConfig.description
                   }}</span>
@@ -330,7 +371,6 @@ const handleRemoveCgroupPort = async (port: number) => {
 
             <div style="margin-top: 24px">
               <a-space style="width: 100%; justify-content: flex-end">
-                <!-- Deploy Direct Core rule -->
                 <a-button
                   type="primary"
                   danger
@@ -338,10 +378,9 @@ const handleRemoveCgroupPort = async (port: number) => {
                   @click="handleApplyCoreRule"
                 >
                   <template #icon><SafetyCertificateOutlined /></template>
-                  直接应用为内核阻断规则
+                  应用到内核沙箱规则 (Core Sandbox)
                 </a-button>
 
-                <!-- Compile as Custom plugin -->
                 <a-button
                   type="default"
                   :loading="compiling"
@@ -355,42 +394,42 @@ const handleRemoveCgroupPort = async (port: number) => {
           </a-form>
         </a-card>
 
-        <!-- Rule enforcement engine status -->
+        <!-- Readiness Descriptions -->
         <a-card
-          title="内核防御引擎就绪状态 (Enforcement Engine Status)"
+          title="内核防御引擎就绪状态"
           size="small"
           style="margin-top: 20px"
         >
           <a-descriptions bordered :column="1" size="small">
-            <a-descriptions-item label="LSM 文件/进程拦截器 (LSM Enforcer)">
+            <a-descriptions-item label="LSM 主动防御拦截器">
               <a-tag
                 :color="
-                  security.lsmEnforcerStatus.value.available &&
-                  security.lsmEnforcerStatus.value.attached
+                  props.security.lsmEnforcerStatus.value.available &&
+                  props.security.lsmEnforcerStatus.value.attached
                     ? 'green'
                     : 'red'
                 "
               >
                 {{
-                  security.lsmEnforcerStatus.value.available &&
-                  security.lsmEnforcerStatus.value.attached
+                  props.security.lsmEnforcerStatus.value.available &&
+                  props.security.lsmEnforcerStatus.value.attached
                     ? "LSM 拦截已启用 (Active)"
                     : "未挂载"
                 }}
               </a-tag>
             </a-descriptions-item>
-            <a-descriptions-item label="cgroup 网络拦截器 (cgroup Sandbox)">
+            <a-descriptions-item label="cgroup2 网络拦截器">
               <a-tag
                 :color="
-                  security.cgroupSandboxStatus.value.available &&
-                  security.cgroupSandboxStatus.value.attached
+                  props.security.cgroupSandboxStatus.value.available &&
+                  props.security.cgroupSandboxStatus.value.attached
                     ? 'green'
                     : 'red'
                 "
               >
                 {{
-                  security.cgroupSandboxStatus.value.available &&
-                  security.cgroupSandboxStatus.value.attached
+                  props.security.cgroupSandboxStatus.value.available &&
+                  props.security.cgroupSandboxStatus.value.attached
                     ? "cgroup 网络拦截已启用 (Active)"
                     : "未挂载"
                 }}
@@ -400,12 +439,9 @@ const handleRemoveCgroupPort = async (port: number) => {
         </a-card>
       </a-col>
 
-      <!-- Right side: Code Generator & Compilation Logger -->
+      <!-- Right: Generated Code Preview -->
       <a-col :span="12">
-        <a-card
-          title="动态生成的 eBPF C 语言过滤器源码 (Generated C Code Preview)"
-          size="small"
-        >
+        <a-card title="动态生成的 eBPF C 语言高阶过滤器源码" size="small">
           <template #extra>
             <a-tag color="purple">eBPF Bytecode</a-tag>
           </template>
@@ -419,7 +455,7 @@ const handleRemoveCgroupPort = async (port: number) => {
             style="margin-top: 16px"
           >
             <div class="logger-header">
-              <span>Clang / LLVM 编译输出控制台</span>
+              <span>Clang LLVM 编译输出控制台</span>
               <a-tag v-if="compiling" color="blue"
                 ><LoadingOutlined /> Compiling...</a-tag
               >
@@ -446,48 +482,54 @@ const handleRemoveCgroupPort = async (port: number) => {
       </a-col>
     </a-row>
 
-    <!-- Block List Management Board -->
+    <!-- Monitoring Board -->
     <a-card
-      title="活跃内核阻断规则与插件监控面板 (Active Kernel Blocks & Visual eBPF Monitor)"
+      title="活跃内核拦截状态与自定义插件监控"
       size="small"
       style="margin-top: 24px"
     >
       <a-tabs default-active-key="core-rules" size="small">
-        <a-tab-pane
-          key="core-rules"
-          tab="活跃核心阻断规则 (Core Interceptor Lists)"
-        >
+        <a-tab-pane key="core-rules" tab="内核核心阻断列表 (Core Lists)">
           <div class="monitor-stats">
             <a-row :gutter="16" style="margin-bottom: 16px">
               <a-col :span="6">
                 <a-card size="small" class="stat-card">
                   <a-statistic
-                    title="LSM 已拦截进程 (Execs Blocked)"
-                    :value="security.lsmEnforcerStatus.value.stats.execBlocked"
+                    title="LSM 检查总数"
+                    :value="
+                      props.security.lsmEnforcerStatus.value.stats.execChecked +
+                      props.security.lsmEnforcerStatus.value.stats.fileChecked
+                    "
                   />
                 </a-card>
               </a-col>
               <a-col :span="6">
                 <a-card size="small" class="stat-card">
                   <a-statistic
-                    title="LSM 已拦截文件 (Files Blocked)"
-                    :value="security.lsmEnforcerStatus.value.stats.fileBlocked"
+                    title="LSM 执行阻断数"
+                    :value="
+                      props.security.lsmEnforcerStatus.value.stats.execBlocked
+                    "
                   />
                 </a-card>
               </a-col>
               <a-col :span="6">
                 <a-card size="small" class="stat-card">
                   <a-statistic
-                    title="cgroup 拦截出站 (Net Blocked)"
-                    :value="security.cgroupSandboxStatus.value.stats.blocked"
+                    title="LSM 文件阻断数"
+                    :value="
+                      props.security.lsmEnforcerStatus.value.stats.fileBlocked
+                    "
                   />
                 </a-card>
               </a-col>
               <a-col :span="6">
                 <a-card size="small" class="stat-card">
                   <a-statistic
-                    title="cgroup 放行出站 (Net Allowed)"
-                    :value="security.cgroupSandboxStatus.value.stats.allowed"
+                    title="cgroup2 出站拦截"
+                    :value="
+                      props.security.cgroupSandboxStatus.value.stats.blocked
+                    "
                   />
                 </a-card>
               </a-col>
@@ -495,15 +537,15 @@ const handleRemoveCgroupPort = async (port: number) => {
           </div>
 
           <div style="margin-top: 12px">
-            <a-list bordered size="small" header="当前拦截列表">
-              <!-- LSM Exec Paths -->
+            <a-list bordered size="small" header="当前激活的拦截项">
+              <!-- LSM Paths -->
               <a-list-item
-                v-for="path in security.lsmEnforcerStatus.value
+                v-for="path in props.security.lsmEnforcerStatus.value
                   .blockedExecPaths"
                 :key="`path-${path}`"
               >
                 <div class="rule-item">
-                  <a-tag color="red">LSM 路径拦截</a-tag>
+                  <a-tag color="red">LSM 路径执行拦截</a-tag>
                   <code>{{ path }}</code>
                 </div>
                 <template #actions>
@@ -518,14 +560,14 @@ const handleRemoveCgroupPort = async (port: number) => {
                 </template>
               </a-list-item>
 
-              <!-- LSM Exec Names -->
+              <!-- LSM Names -->
               <a-list-item
-                v-for="name in security.lsmEnforcerStatus.value
+                v-for="name in props.security.lsmEnforcerStatus.value
                   .blockedExecNames"
                 :key="`name-${name}`"
               >
                 <div class="rule-item">
-                  <a-tag color="volcano">LSM 进程拦截</a-tag>
+                  <a-tag color="volcano">LSM Basename 执行拦截</a-tag>
                   <code>{{ name }}</code>
                 </div>
                 <template #actions>
@@ -540,14 +582,16 @@ const handleRemoveCgroupPort = async (port: number) => {
                 </template>
               </a-list-item>
 
-              <!-- LSM File Names -->
+              <!-- LSM Files/Dirs -->
               <a-list-item
-                v-for="file in security.lsmEnforcerStatus.value
+                v-for="file in props.security.lsmEnforcerStatus.value
                   .blockedFileNames"
                 :key="`file-${file}`"
               >
                 <div class="rule-item">
-                  <a-tag color="orange">LSM 文件拦截</a-tag>
+                  <a-tag color="orange"
+                    >LSM 属性阻断 (创建/打开/软链/删除)</a-tag
+                  >
                   <code>{{ file }}</code>
                 </div>
                 <template #actions>
@@ -564,11 +608,12 @@ const handleRemoveCgroupPort = async (port: number) => {
 
               <!-- cgroup IPs -->
               <a-list-item
-                v-for="ip in security.cgroupSandboxStatus.value.blockedIPs"
+                v-for="ip in props.security.cgroupSandboxStatus.value
+                  .blockedIPs"
                 :key="`ip-${ip}`"
               >
                 <div class="rule-item">
-                  <a-tag color="blue">网络 IP 拦截</a-tag>
+                  <a-tag color="blue">网络 IP/网段 拦截</a-tag>
                   <code>{{ ip }}</code>
                 </div>
                 <template #actions>
@@ -585,11 +630,12 @@ const handleRemoveCgroupPort = async (port: number) => {
 
               <!-- cgroup Ports -->
               <a-list-item
-                v-for="port in security.cgroupSandboxStatus.value.blockedPorts"
+                v-for="port in props.security.cgroupSandboxStatus.value
+                  .blockedPorts"
                 :key="`port-${port}`"
               >
                 <div class="rule-item">
-                  <a-tag color="purple">网络端口拦截</a-tag>
+                  <a-tag color="purple">目的端口拦截</a-tag>
                   <code>dst_port == {{ port }}</code>
                 </div>
                 <template #actions>
@@ -604,19 +650,22 @@ const handleRemoveCgroupPort = async (port: number) => {
                 </template>
               </a-list-item>
 
-              <!-- Empty state -->
+              <!-- Empty -->
               <div
                 v-if="
-                  !security.lsmEnforcerStatus.value.blockedExecPaths?.length &&
-                  !security.lsmEnforcerStatus.value.blockedExecNames?.length &&
-                  !security.lsmEnforcerStatus.value.blockedFileNames?.length &&
-                  !security.cgroupSandboxStatus.value.blockedIPs?.length &&
-                  !security.cgroupSandboxStatus.value.blockedPorts?.length
+                  !props.security.lsmEnforcerStatus.value.blockedExecPaths
+                    ?.length &&
+                  !props.security.lsmEnforcerStatus.value.blockedExecNames
+                    ?.length &&
+                  !props.security.lsmEnforcerStatus.value.blockedFileNames
+                    ?.length &&
+                  !props.security.cgroupSandboxStatus.value.blockedIPs
+                    ?.length &&
+                  !props.security.cgroupSandboxStatus.value.blockedPorts?.length
                 "
                 style="padding: 32px; text-align: center; color: #999"
               >
-                <InfoCircleOutlined />
-                暂无活跃内核阻断规则。在上方配置一个规则并点击“直接应用为内核阻断规则”即可部署在内核中。
+                <InfoCircleOutlined /> 暂无活跃内核阻断规则。
               </div>
             </a-list>
           </div>
@@ -624,7 +673,7 @@ const handleRemoveCgroupPort = async (port: number) => {
 
         <a-tab-pane
           key="plugins"
-          tab="已部署可视化 eBPF 插件 (Custom Filter Plugins)"
+          tab="自生成的自定义 eBPF 过滤插件 (Block Plugins)"
         >
           <a-list
             bordered
@@ -640,7 +689,7 @@ const handleRemoveCgroupPort = async (port: number) => {
                     item.id
                   }}</code>
                   <a-tag :color="item.loaded ? 'green' : 'orange'">
-                    {{ item.loaded ? "拦截加载中 (Active)" : "已卸载" }}
+                    {{ item.loaded ? "挂载拦截中" : "未装载" }}
                   </a-tag>
                 </div>
                 <template #actions>
@@ -668,9 +717,7 @@ const handleRemoveCgroupPort = async (port: number) => {
               v-if="!plugins.filter((p) => p.id.startsWith('visual-')).length"
               style="padding: 32px; text-align: center; color: #999"
             >
-              <InfoCircleOutlined />
-              暂无已编译的可视化自定义插件。在上方配置并在右侧点击“生成并编译为
-              BPF 插件”即可编译。
+              <InfoCircleOutlined /> 暂无自编译的高级过滤器插件。
             </div>
           </a-list>
         </a-tab-pane>
@@ -687,6 +734,7 @@ const handleRemoveCgroupPort = async (port: number) => {
   font-size: 12px;
   color: #8c8c8c;
   margin-top: 4px;
+  display: block;
 }
 .metadata-preview {
   background: #f5f5f5;

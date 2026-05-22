@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { message } from "ant-design-vue";
 import {
   PlayCircleOutlined,
@@ -11,27 +11,44 @@ import {
   AlertOutlined,
   SafetyCertificateOutlined,
   LoadingOutlined,
+  FolderAddOutlined,
+  FileAddOutlined,
+  LinkOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons-vue";
 import { usePlugins } from "../../composables/usePlugins";
 
 const { compileBpf, loadBpf, upsertPlugin, fetchPlugins } = usePlugins();
 
-// Visual block configurations
+// Visual advanced blocks configurations
 export interface VisualCondition {
-  field: "comm" | "pid" | "basename";
-  operator: "==" | "!=";
+  field: "comm" | "pid" | "uid" | "basename" | "port" | "ipv4" | "gid";
+  operator: "==" | "!=" | "starts_with" | "ends_with";
   value: string;
 }
 
-const trigger = ref<"process" | "file_open" | "unlink">("process");
+const trigger = ref<
+  | "process"
+  | "file_open"
+  | "mkdir"
+  | "file_create"
+  | "rmdir"
+  | "symlink"
+  | "unlink"
+  | "socket_connect"
+  | "inode_mknod"
+  | "file_mprotect"
+  | "inode_rename"
+>("process");
+const logicRelation = ref<"AND" | "OR">("AND");
 const conditions = ref<VisualCondition[]>([
   { field: "comm", operator: "==", value: "nc" },
 ]);
-const action = ref<"BLOCK" | "ALERT">("BLOCK");
+const action = ref<"BLOCK" | "ALERT" | "KILL">("BLOCK");
 
-const pluginId = ref("visual-plugin-nc-block");
-const pluginName = ref("可视化积木插件(nc-block)");
-const description = ref("利用图形化积木拼装自动生成的 eBPF 过滤保护插件。");
+const pluginId = ref("visual-plugin-custom-block");
+const pluginName = ref("可视化流插件(custom-block)");
+const description = ref("利用图形化流式积木拼装自动生成的内核级 eBPF 拦截器。");
 
 const compiling = ref(false);
 const loadingAction = ref(false);
@@ -41,40 +58,94 @@ const isCompiled = ref(false);
 const triggerOptions = [
   {
     value: "process",
-    label: "进程运行事件 (LSM bprm_check_security)",
+    label: "进程创建与加载 (LSM bprm_check)",
     icon: ThunderboltOutlined,
     color: "#1890ff",
   },
   {
     value: "file_open",
-    label: "文件打开事件 (LSM file_open)",
+    label: "文件或目录被打开 (LSM file_open)",
     icon: FileTextOutlined,
     color: "#fa8c16",
   },
   {
+    value: "file_create",
+    label: "创建物理新文件 (LSM inode_create)",
+    icon: FileAddOutlined,
+    color: "#722ed1",
+  },
+  {
+    value: "mkdir",
+    label: "创建新目录文件夹 (LSM inode_mkdir)",
+    icon: FolderAddOutlined,
+    color: "#13c2c2",
+  },
+  {
+    value: "rmdir",
+    label: "删除已有文件夹 (LSM inode_rmdir)",
+    icon: DeleteOutlined,
+    color: "#eb2f96",
+  },
+  {
+    value: "symlink",
+    label: "创建软链接指引 (LSM inode_symlink)",
+    icon: LinkOutlined,
+    color: "#2f54eb",
+  },
+  {
     value: "unlink",
-    label: "文件删除事件 (Kprobe do_unlinkat)",
+    label: "删除物理文件对象 (Kprobe unlink)",
     icon: AlertOutlined,
     color: "#f5222d",
+  },
+  {
+    value: "socket_connect",
+    label: "外发 socket 连接拦截 (LSM socket_connect)",
+    icon: LinkOutlined,
+    color: "#13c2c2",
+  },
+  {
+    value: "inode_mknod",
+    label: "物理特权设备节点创建 (LSM inode_mknod)",
+    icon: FileAddOutlined,
+    color: "#722ed1",
+  },
+  {
+    value: "file_mprotect",
+    label: "高危内存执行权限修改 (LSM file_mprotect)",
+    icon: SafetyCertificateOutlined,
+    color: "#eb2f96",
+  },
+  {
+    value: "inode_rename",
+    label: "关键文件路径重命名 (LSM inode_rename)",
+    icon: FileTextOutlined,
+    color: "#fa8c16",
   },
 ];
 
 const fieldOptions = [
   { value: "comm", label: "当前进程名称 (Comm)" },
   { value: "pid", label: "当前进程 PID" },
+  { value: "uid", label: "当前进程用户 UID" },
   { value: "basename", label: "操作目标文件名 (Basename)" },
+  { value: "port", label: "目标网络端口 (Port)" },
+  { value: "ipv4", label: "目标 IPv4 地址 (IPv4)" },
+  { value: "gid", label: "当前进程组 GID" },
 ];
 
 const operatorOptions = [
   { value: "==", label: "等于 (==)" },
   { value: "!=", label: "不等于 (!=)" },
+  { value: "starts_with", label: "前缀匹配 (starts_with)" },
+  { value: "ends_with", label: "后缀匹配 (ends_with)" },
 ];
 
 // Add/Remove condition blocks
 const addCondition = () => {
   if (conditions.value.length >= 5) {
     message.warning(
-      "为了防止 eBPF Verifier 越界校验失败，图形化条件最多限制为 5 个"
+      "为了防止 eBPF Verifier 复杂度限制，图形化条件最多限制为 5 个"
     );
     return;
   }
@@ -85,14 +156,29 @@ const removeCondition = (index: number) => {
   conditions.value.splice(index, 1);
 };
 
-// Generate BPF Code dynamically based on custom blocks
+const ipToHex = (ip: string): string => {
+  const parts = ip.split(".").map((p) => parseInt(p, 10));
+  if (parts.length !== 4 || parts.some(isNaN)) return "0x00000000";
+  return (
+    "0x" +
+    parts
+      .map((p) => Math.min(255, Math.max(0, p)).toString(16).padStart(2, "0"))
+      .join("")
+  );
+};
+
+// Dynamic eBPF C Code Compiler Transpiler
 const generatedBpfCode = computed(() => {
-  const isLsmBprm = trigger.value === "process";
-  const isLsmFile = trigger.value === "file_open";
   const isKprobeUnlink = trigger.value === "unlink";
 
-  const returnValLsm = action.value === "BLOCK" ? "-EACCES" : "0";
-  const logPrefix = action.value === "BLOCK" ? "Blocked" : "Alert";
+  const isKill = action.value === "KILL";
+  const returnValLsm =
+    action.value === "BLOCK" || action.value === "KILL" ? "-EACCES" : "0";
+  const logPrefix = isKill
+    ? "Killed"
+    : action.value === "BLOCK"
+    ? "Blocked"
+    : "Alert";
 
   let headers = `#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -102,6 +188,13 @@ const generatedBpfCode = computed(() => {
 char LICENSE[] SEC("license") = "GPL";
 #define EACCES 13
 
+#ifndef bpf_ntohs
+#define bpf_ntohs(x) __builtin_bswap16(x)
+#endif
+#ifndef bpf_ntohl
+#define bpf_ntohl(x) __builtin_bswap32(x)
+#endif
+
 static __always_inline int strcmp_const(const char *s1, const char *s2, int max_len) {
     for (int i = 0; i < max_len; i++) {
         if (s1[i] != s2[i]) return 1;
@@ -109,11 +202,37 @@ static __always_inline int strcmp_const(const char *s1, const char *s2, int max_
     }
     return 0;
 }
+
+static __always_inline int str_starts_with(const char *s1, const char *s2, int max_len) {
+    for (int i = 0; i < max_len; i++) {
+        if (s2[i] == '\\0') return 1;
+        if (s1[i] != s2[i]) return 0;
+    }
+    return 0;
+}
+
+static __always_inline int get_str_len(const char *s, int max_len) {
+    for (int i = 0; i < max_len; i++) {
+        if (s[i] == '\\0') return i;
+    }
+    return max_len;
+}
+
+static __always_inline int str_ends_with(const char *s1, int s1_len, const char *s2, int s2_len) {
+    if (s1_len < s2_len) return 0;
+    int offset = s1_len - s2_len;
+    for (int i = 0; i < 64; i++) {
+        if (i >= s2_len) break;
+        if (s1[offset + i] != s2[i]) return 0;
+    }
+    return 1;
+}
 `;
 
   let body = "";
 
-  if (isLsmBprm) {
+  // 1. Hook function header
+  if (trigger.value === "process") {
     body = `
 SEC("lsm/bprm_check_security")
 int BPF_PROG(visual_custom_plugin, struct linux_binprm *bprm, int ret) {
@@ -122,17 +241,16 @@ int BPF_PROG(visual_custom_plugin, struct linux_binprm *bprm, int ret) {
     char comm[16] = {};
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
+    u32 gid = bpf_get_current_uid_gid() >> 32;
 
-    // Check process executable name
     const unsigned char *exec_name = BPF_CORE_READ(bprm, file, f_path.dentry, d_name.name);
-    char exec_buf[64] = {};
+    char name_buf[64] = {};
     if (exec_name) {
-        bpf_probe_read_kernel_str(exec_buf, sizeof(exec_buf), exec_name);
+        bpf_probe_read_kernel_str(name_buf, sizeof(name_buf), exec_name);
     }
-
-    u32 matched = 1;
 `;
-  } else if (isLsmFile) {
+  } else if (trigger.value === "file_open") {
     body = `
 SEC("lsm/file_open")
 int BPF_PROG(visual_custom_plugin, struct file *file, int ret) {
@@ -141,14 +259,131 @@ int BPF_PROG(visual_custom_plugin, struct file *file, int ret) {
     char comm[16] = {};
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
+    u32 gid = bpf_get_current_uid_gid() >> 32;
 
     const unsigned char *file_name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-    char file_buf[64] = {};
+    char name_buf[64] = {};
     if (file_name) {
-        bpf_probe_read_kernel_str(file_buf, sizeof(file_buf), file_name);
+        bpf_probe_read_kernel_str(name_buf, sizeof(name_buf), file_name);
+    }
+`;
+  } else if (
+    trigger.value === "mkdir" ||
+    trigger.value === "file_create" ||
+    trigger.value === "rmdir" ||
+    trigger.value === "symlink"
+  ) {
+    const secName =
+      trigger.value === "mkdir"
+        ? "lsm/inode_mkdir"
+        : trigger.value === "file_create"
+        ? "lsm/inode_create"
+        : trigger.value === "rmdir"
+        ? "lsm/inode_rmdir"
+        : "lsm/inode_symlink";
+
+    const funcArgs =
+      trigger.value === "mkdir"
+        ? "struct inode *dir, struct dentry *dentry, umode_t mode"
+        : trigger.value === "file_create"
+        ? "struct inode *dir, struct dentry *dentry, umode_t mode"
+        : trigger.value === "rmdir"
+        ? "struct inode *dir, struct dentry *dentry"
+        : "struct inode *dir, struct dentry *dentry, const char *old_name";
+
+    body = `
+SEC("${secName}")
+int BPF_PROG(visual_custom_plugin, ${funcArgs}) {
+    char comm[16] = {};
+    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
+    u32 gid = bpf_get_current_uid_gid() >> 32;
+
+    const unsigned char *file_name = BPF_CORE_READ(dentry, d_name.name);
+    char name_buf[64] = {};
+    if (file_name) {
+        bpf_probe_read_kernel_str(name_buf, sizeof(name_buf), file_name);
+    }
+`;
+  } else if (trigger.value === "socket_connect") {
+    body = `
+SEC("lsm/socket_connect")
+int BPF_PROG(visual_custom_plugin, struct socket *sock, struct sockaddr *address, int addrlen) {
+    char comm[16] = {};
+    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
+    u32 gid = bpf_get_current_uid_gid() >> 32;
+
+    short family = 0;
+    if (address) {
+        bpf_probe_read_kernel(&family, sizeof(family), &address->sa_family);
     }
 
-    u32 matched = 1;
+    u16 dst_port = 0;
+    u32 dst_ipv4 = 0;
+    if (family == 2) { // AF_INET
+        struct sockaddr_in addr_in = {};
+        bpf_probe_read_kernel(&addr_in, sizeof(addr_in), address);
+        dst_port = bpf_ntohs(addr_in.sin_port);
+        dst_ipv4 = bpf_ntohl(addr_in.sin_addr.s_addr);
+    }
+`;
+  } else if (trigger.value === "inode_mknod") {
+    body = `
+SEC("lsm/inode_mknod")
+int BPF_PROG(visual_custom_plugin, struct inode *dir, struct dentry *dentry, umode_t mode, dev_t dev) {
+    char comm[16] = {};
+    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
+    u32 gid = bpf_get_current_uid_gid() >> 32;
+
+    const unsigned char *file_name = BPF_CORE_READ(dentry, d_name.name);
+    char name_buf[64] = {};
+    if (file_name) {
+        bpf_probe_read_kernel_str(name_buf, sizeof(name_buf), file_name);
+    }
+`;
+  } else if (trigger.value === "file_mprotect") {
+    body = `
+SEC("lsm/file_mprotect")
+int BPF_PROG(visual_custom_plugin, struct vm_area_struct *vma, unsigned long reqprot, unsigned long prot, int ret) {
+    if (ret != 0) return ret;
+    if (!vma) return 0;
+
+    char comm[16] = {};
+    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
+    u32 gid = bpf_get_current_uid_gid() >> 32;
+
+    struct file *file = BPF_CORE_READ(vma, vm_file);
+    char name_buf[64] = {};
+    if (file) {
+        const unsigned char *file_name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
+        if (file_name) {
+            bpf_probe_read_kernel_str(name_buf, sizeof(name_buf), file_name);
+        }
+    }
+`;
+  } else if (trigger.value === "inode_rename") {
+    body = `
+SEC("lsm/inode_rename")
+int BPF_PROG(visual_custom_plugin, struct inode *old_dir, struct dentry *old_dentry, struct inode *new_dir, struct dentry *new_dentry) {
+    char comm[16] = {};
+    bpf_get_current_comm(&comm, sizeof(comm));
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
+    u32 gid = bpf_get_current_uid_gid() >> 32;
+
+    const unsigned char *file_name = BPF_CORE_READ(old_dentry, d_name.name);
+    char name_buf[64] = {};
+    if (file_name) {
+        bpf_probe_read_kernel_str(name_buf, sizeof(name_buf), file_name);
+    }
 `;
   } else if (isKprobeUnlink) {
     body = `
@@ -157,52 +392,86 @@ int BPF_PROG(visual_custom_plugin, struct pt_regs *ctx) {
     char comm[16] = {};
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 pid = bpf_get_current_pid_tgid() >> 32;
-
-    u32 matched = 1;
+    u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
+    u32 gid = bpf_get_current_uid_gid() >> 32;
+    char name_buf[64] = {}; // kprobe lacks dentry
 `;
   }
 
-  // Generate dynamic condition check statements
-  let conditionsStatements = "";
+  // Initialise matching logic based on logical OR or AND
+  if (logicRelation.value === "AND") {
+    body += `\n    u32 matched = 1;\n`;
+  } else {
+    body += `\n    u32 matched = 0;\n`;
+  }
+
+  // Iterate conditions
   conditions.value.forEach((cond) => {
     const val = cond.value.trim();
     if (!val) return;
 
+    let expr = "";
     if (cond.field === "comm") {
       if (cond.operator === "==") {
-        conditionsStatements += `    if (strcmp_const(comm, "${val}", sizeof(comm)) != 0) matched = 0;\n`;
-      } else {
-        conditionsStatements += `    if (strcmp_const(comm, "${val}", sizeof(comm)) == 0) matched = 0;\n`;
+        expr = `strcmp_const(comm, "${val}", sizeof(comm)) == 0`;
+      } else if (cond.operator === "!=") {
+        expr = `strcmp_const(comm, "${val}", sizeof(comm)) != 0`;
+      } else if (cond.operator === "starts_with") {
+        expr = `str_starts_with(comm, "${val}", sizeof(comm)) != 0`;
+      } else if (cond.operator === "ends_with") {
+        expr = `str_ends_with(comm, get_str_len(comm, sizeof(comm)), "${val}", ${val.length}) != 0`;
       }
     } else if (cond.field === "pid") {
       const pidNum = parseInt(val, 10) || 0;
-      if (cond.operator === "==") {
-        conditionsStatements += `    if (pid != ${pidNum}) matched = 0;\n`;
-      } else {
-        conditionsStatements += `    if (pid == ${pidNum}) matched = 0;\n`;
-      }
+      if (cond.operator === "==") expr = `pid == ${pidNum}`;
+      else expr = `pid != ${pidNum}`;
+    } else if (cond.field === "uid") {
+      const uidNum = parseInt(val, 10) || 0;
+      if (cond.operator === "==") expr = `uid == ${uidNum}`;
+      else expr = `uid != ${uidNum}`;
+    } else if (cond.field === "gid") {
+      const gidNum = parseInt(val, 10) || 0;
+      if (cond.operator === "==") expr = `gid == ${gidNum}`;
+      else expr = `gid != ${gidNum}`;
+    } else if (cond.field === "port") {
+      const portNum = parseInt(val, 10) || 0;
+      if (cond.operator === "==") expr = `dst_port == ${portNum}`;
+      else expr = `dst_port != ${portNum}`;
+    } else if (cond.field === "ipv4") {
+      const hexIp = ipToHex(val);
+      if (cond.operator === "==") expr = `dst_ipv4 == ${hexIp}`;
+      else expr = `dst_ipv4 != ${hexIp}`;
     } else if (cond.field === "basename") {
-      const targetVar = isLsmFile ? "file_buf" : "exec_buf";
       if (isKprobeUnlink) {
-        // Warning kprobes do unlink basename
-        conditionsStatements += `    // kprobe trigger has limited filename support; skipping path\n`;
+        expr = "0"; // unlink lacks dentry basename
       } else {
         if (cond.operator === "==") {
-          conditionsStatements += `    if (strcmp_const(${targetVar}, "${val}", sizeof(${targetVar})) != 0) matched = 0;\n`;
-        } else {
-          conditionsStatements += `    if (strcmp_const(${targetVar}, "${val}", sizeof(${targetVar})) == 0) matched = 0;\n`;
+          expr = `strcmp_const(name_buf, "${val}", sizeof(name_buf)) == 0`;
+        } else if (cond.operator === "!=") {
+          expr = `strcmp_const(name_buf, "${val}", sizeof(name_buf)) != 0`;
+        } else if (cond.operator === "starts_with") {
+          expr = `str_starts_with(name_buf, "${val}", sizeof(name_buf)) != 0`;
+        } else if (cond.operator === "ends_with") {
+          expr = `str_ends_with(name_buf, get_str_len(name_buf, sizeof(name_buf)), "${val}", ${val.length}) != 0`;
         }
+      }
+    }
+
+    if (expr) {
+      if (logicRelation.value === "AND") {
+        body += `    if (!(${expr})) matched = 0;\n`;
+      } else {
+        body += `    if (${expr}) matched = 1;\n`;
       }
     }
   });
 
-  body += conditionsStatements;
-
-  // Append outcome block
+  // Finish function body
   if (isKprobeUnlink) {
     body += `
     if (matched) {
-        bpf_printk("[Visual Plugin] alert delete event: process %s (pid %d) unlink\\n", comm, pid);
+        bpf_printk("[Visual Plugin] matched unlink event: process %s (pid %d, uid %d, gid %d) deleted file\\n", comm, pid, uid, gid);
+        ${isKill ? "bpf_send_signal(9);\n" : ""}
     }
     return 0;
 }
@@ -210,7 +479,8 @@ int BPF_PROG(visual_custom_plugin, struct pt_regs *ctx) {
   } else {
     body += `
     if (matched) {
-        bpf_printk("[Visual Plugin] ${logPrefix} match rule: process %s (pid %d) matched!\\n", comm, pid);
+        bpf_printk("[Visual Plugin] ${logPrefix} matched rule! process %s (pid %d, uid %d, gid %d)\\n", comm, pid, uid, gid);
+        ${isKill ? "bpf_send_signal(9);\n" : ""}
         return ${returnValLsm};
     }
     return 0;
@@ -221,56 +491,75 @@ int BPF_PROG(visual_custom_plugin, struct pt_regs *ctx) {
   return headers + body;
 });
 
-// Auto-sync IDs and names
+// Watch inputs to auto-sync Manifest fields
 watch(
-  [trigger, conditions, action],
+  [trigger, conditions, action, logicRelation],
   () => {
+    // Sanitize conditions depending on trigger
+    if (trigger.value !== "socket_connect") {
+      conditions.value.forEach((cond) => {
+        if (cond.field === "port" || cond.field === "ipv4") {
+          cond.field = "comm";
+        }
+      });
+    }
+    if (trigger.value === "unlink") {
+      conditions.value.forEach((cond) => {
+        if (cond.field === "basename") {
+          cond.field = "comm";
+        }
+      });
+    }
+
     const firstVal = conditions.value[0]?.value || "custom";
     const prefix = `visual-block-${trigger.value}-${firstVal.replace(
       /[^a-z0-9]/g,
       "-"
     )}`.toLowerCase();
     pluginId.value = prefix;
-    pluginName.value = `图形化插件(${trigger.value}-${firstVal})`;
-    description.value = `由类似 Scratch/图形化编程方块自动转译生成的 eBPF 过滤审计插件。触发挂载: ${trigger.value}，动作: ${action.value}。`;
+    pluginName.value = `积木插件(${trigger.value}-${firstVal})`;
+    description.value = `由图形化积木拼装而成的内核 eBPF 过滤审计插件。入口: ${trigger.value}，关系: ${logicRelation.value}，动作: ${action.value}。`;
     isCompiled.value = false;
     compileLogLocal.value = "";
   },
   { deep: true, immediate: true }
 );
 
-// Compile & load custom block plugin
+onMounted(async () => {
+  await fetchPlugins();
+});
+
+// Compile and upsert
 const handleCompileAndRegister = async () => {
   compiling.value = true;
-  compileLogLocal.value = "正在将您的流程图积木块转译为 C 源码...\n";
+  compileLogLocal.value = "正在将高阶规则积木块转译为标准的 BPF C 源码...\n";
   try {
-    // 1. Create/Upsert Manifest
-    compileLogLocal.value += `正在将插件 [${pluginId.value}] 保存并注册至本地清单...\n`;
+    compileLogLocal.value += `正在注册插件 Manifest [${pluginId.value}] 至本地仓库...\n`;
     await upsertPlugin({
       id: pluginId.value,
       name: pluginName.value,
       description: description.value,
       kind: "ebpf",
       enabled: false,
-      attachKind: trigger.value === "unlink" ? "kprobe" : "none", // LSM is load-time SEC bound, trigger unlink uses kprobe
+      attachKind: trigger.value === "unlink" ? "kprobe" : "none",
       attachTarget: trigger.value === "unlink" ? "do_unlinkat" : "",
       programName: "visual_custom_plugin",
       source: generatedBpfCode.value,
     });
 
-    // 2. Compile BPF
     compileLogLocal.value +=
-      "正在调用 Clang BPF 编译器生成 eBPF 字节码 (ELF 格式)...\n";
+      "正在调用 LLVM/Clang 将源码编译为 ELF 内核字节码...\n";
     const success = await compileBpf(pluginId.value, generatedBpfCode.value);
     if (success) {
       isCompiled.value = true;
       compileLogLocal.value +=
-        "\n[SUCCESS] 编译成功！您可以直接点击下方的“载入内核并生效”！";
+        "\n[SUCCESS] 编译成功！点击下方按钮即可一键挂载至内核运行生效。";
     } else {
-      compileLogLocal.value += "\n[ERROR] 编译失败，请在控制台排查逻辑块。";
+      compileLogLocal.value +=
+        "\n[ERROR] 编译失败，请排查过滤表达式是否在内核 Verifier 安全范围内。";
     }
   } catch (err: any) {
-    compileLogLocal.value += `\n[ERROR] 发生不可期错误: ${err.message}`;
+    compileLogLocal.value += `\n[ERROR] 错误: ${err.message}`;
   } finally {
     compiling.value = false;
   }
@@ -290,28 +579,26 @@ const handleLoad = async () => {
 <template>
   <div class="plugins-visual-tab">
     <a-row :gutter="20">
-      <!-- Graphical Coding Column -->
+      <!-- Graphical programming layout -->
       <a-col :span="13">
         <div class="graphical-workspace">
           <div class="workspace-title">
-            <h3>积木块工作流面板 (Graphical Blocks Builder)</h3>
+            <h3>流程图高级规则拼接控制台 (Advanced Flow Designer)</h3>
             <span class="sub"
-              >通过流程方块的组合与拼装，在内核级实现极其定制的事件审计过滤。</span
+              >通过拼接多重高级匹配字段与触发点，在系统内核深层执行精密入侵侦测。</span
             >
           </div>
 
-          <!-- BLOCK 1: TRIGGER -->
+          <!-- BLOCK 1: EVENT TRIGGER -->
           <div class="block-card block-trigger">
             <div class="block-header">
               <span class="block-badge">Block 1</span>
               <strong style="color: #fff"
-                >事件触发积木 (Event Trigger Block)</strong
+                >防御拦截挂载点积木 (Trigger Block)</strong
               >
             </div>
             <div class="block-body">
-              <div class="desc-line">
-                选择您要拦截或审计的内核系统调用入口：
-              </div>
+              <div class="desc-line">选择安全管控的内核底层事件拦截入口：</div>
               <a-select v-model:value="trigger" style="width: 100%">
                 <a-select-option
                   v-for="opt in triggerOptions"
@@ -325,25 +612,59 @@ const handleLoad = async () => {
             </div>
           </div>
 
-          <!-- CONNECTING ARROW -->
+          <!-- CONNECTION ARROW -->
           <div class="arrow-down">
             <DownOutlined />
           </div>
 
-          <!-- BLOCK 2: CONDITIONS -->
+          <!-- BLOCK 2: DYNAMIC CONDITIONS & AND/OR RELATION -->
           <div class="block-card block-condition">
-            <div class="block-header">
-              <span class="block-badge" style="background: #fa8c16"
-                >Block 2</span
+            <div
+              class="block-header"
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <div>
+                <span class="block-badge" style="background: #fa8c16"
+                  >Block 2</span
+                >
+                <strong style="color: #fff"
+                  >高级逻辑过滤条件 (Condition Block)</strong
+                >
+              </div>
+              <!-- LOGICAL RELATION RELATION -->
+              <div
+                style="
+                  background: rgba(255, 255, 255, 0.2);
+                  border-radius: 4px;
+                  padding: 2px 8px;
+                "
               >
-              <strong style="color: #fff"
-                >组合过滤条件组 (Condition Block)</strong
-              >
+                <span
+                  style="
+                    color: white;
+                    font-size: 11px;
+                    font-weight: bold;
+                    margin-right: 8px;
+                  "
+                  >条件关系:</span
+                >
+                <a-radio-group
+                  v-model:value="logicRelation"
+                  size="small"
+                  button-style="solid"
+                >
+                  <a-radio-button value="AND">且 (AND)</a-radio-button>
+                  <a-radio-button value="OR">或 (OR)</a-radio-button>
+                </a-radio-group>
+              </div>
             </div>
             <div class="block-body">
               <div class="desc-line">
-                当以下<strong>所有条件同时满足</strong>时，触发响应动作 (逻辑
-                AND)：
+                配置复杂的过滤多维属性判定（支持字符串前缀/后缀/PID/UID）：
               </div>
 
               <div class="conditions-list">
@@ -352,22 +673,34 @@ const handleLoad = async () => {
                   :key="index"
                   class="condition-row"
                 >
-                  <a-select v-model:value="cond.field" style="width: 35%">
+                  <a-select v-model:value="cond.field" style="width: 32%">
                     <a-select-option
                       v-for="f in fieldOptions"
                       :key="f.value"
                       :value="f.value"
-                      :disabled="trigger === 'unlink' && f.value === 'basename'"
+                      :disabled="
+                        (trigger === 'unlink' && f.value === 'basename') ||
+                        (trigger !== 'socket_connect' &&
+                          (f.value === 'port' || f.value === 'ipv4'))
+                      "
                     >
                       {{ f.label }}
                     </a-select-option>
                   </a-select>
 
-                  <a-select v-model:value="cond.operator" style="width: 20%">
+                  <a-select v-model:value="cond.operator" style="width: 28%">
                     <a-select-option
                       v-for="o in operatorOptions"
                       :key="o.value"
                       :value="o.value"
+                      :disabled="
+                        (cond.field === 'pid' ||
+                          cond.field === 'uid' ||
+                          cond.field === 'port' ||
+                          cond.field === 'ipv4' ||
+                          cond.field === 'gid') &&
+                        (o.value === 'starts_with' || o.value === 'ends_with')
+                      "
                     >
                       {{ o.label }}
                     </a-select-option>
@@ -375,8 +708,8 @@ const handleLoad = async () => {
 
                   <a-input
                     v-model:value="cond.value"
-                    placeholder="过滤目标值"
-                    style="width: 35%"
+                    placeholder="目标匹配值"
+                    style="width: 32%"
                   />
 
                   <a-button
@@ -400,49 +733,56 @@ const handleLoad = async () => {
               >
                 <a-button type="dashed" @click="addCondition" size="small">
                   <template #icon><PlusOutlined /></template>
-                  添加过滤分支
+                  添加高级判定分支
                 </a-button>
               </div>
             </div>
           </div>
 
-          <!-- CONNECTING ARROW -->
+          <!-- CONNECTION ARROW -->
           <div class="arrow-down">
             <DownOutlined />
           </div>
 
-          <!-- BLOCK 3: ACTION -->
+          <!-- BLOCK 3: TARGET ACTION -->
           <div class="block-card block-action">
             <div class="block-header">
               <span class="block-badge" style="background: #52c41a"
                 >Block 3</span
               >
               <strong style="color: #fff"
-                >安全防护响应积木 (Action Block)</strong
+                >安全管控响应积木 (Action Block)</strong
               >
             </div>
             <div class="block-body">
               <div class="desc-line">
-                一旦过滤积木完全匹配，内核应执行的操作等级：
+                当上述过滤组合触发成功时，内核要执行的安全响应动作：
               </div>
               <a-radio-group
                 v-model:value="action"
                 button-style="solid"
-                :disabled="trigger === 'unlink'"
                 style="width: 100%"
               >
                 <a-radio-button
                   value="BLOCK"
                   class="block-red"
-                  style="width: 50%; text-align: center"
+                  :disabled="trigger === 'unlink'"
+                  style="width: 33.3%; text-align: center"
                 >
-                  <SafetyCertificateOutlined /> BLOCK (硬拦截并向应用报错)
+                  <SafetyCertificateOutlined /> BLOCK (硬拦截)
                 </a-radio-button>
                 <a-radio-button
                   value="ALERT"
-                  style="width: 50%; text-align: center"
+                  style="width: 33.3%; text-align: center"
                 >
-                  <AlertOutlined /> ALERT (放行并打印内核审计日志)
+                  <AlertOutlined /> ALERT (告警)
+                </a-radio-button>
+                <a-radio-button
+                  value="KILL"
+                  class="block-red"
+                  style="width: 33.3%; text-align: center"
+                >
+                  <CloseCircleOutlined /> KILL (强制处死)
                 </a-radio-button>
               </a-radio-group>
               <div
@@ -450,22 +790,23 @@ const handleLoad = async () => {
                 class="helper-text"
                 style="color: #fa8c16; margin-top: 8px"
               >
-                * 文件删除挂载于 Kprobe 探针上，默认执行安全审计 ALERT
-                告警动作。
+                * 物理文件 unlink 挂载于 Kprobe 上，不改变内核决策链，仅支持
+                ALERT 或 KILL 动作。其他 LSM 挂载点支持完整的 BLOCK、ALERT 与
+                KILL 动作。
               </div>
             </div>
           </div>
 
-          <!-- Persistence config panel -->
+          <!-- Plugin Details Panel -->
           <a-card
-            title="规则插件命名与保存 (Plugin Config)"
+            title="规则插件注册配置 (Plugin Metadata)"
             size="small"
             style="margin-top: 24px"
           >
             <a-form layout="vertical">
               <a-row :gutter="12">
                 <a-col :span="12">
-                  <a-form-item label="自定义插件 ID">
+                  <a-form-item label="自定义规则插件 ID">
                     <a-input
                       v-model:value="pluginId"
                       placeholder="例如 custom-visual-lsm"
@@ -473,12 +814,12 @@ const handleLoad = async () => {
                   </a-form-item>
                 </a-col>
                 <a-col :span="12">
-                  <a-form-item label="插件展示名称">
+                  <a-form-item label="规则插件显示名">
                     <a-input v-model:value="pluginName" />
                   </a-form-item>
                 </a-col>
               </a-row>
-              <a-form-item label="插件简介描述" style="margin-bottom: 0">
+              <a-form-item label="详细说明描述" style="margin-bottom: 0">
                 <a-textarea v-model:value="description" :rows="2" />
               </a-form-item>
             </a-form>
@@ -499,12 +840,9 @@ const handleLoad = async () => {
         </div>
       </a-col>
 
-      <!-- Preview Code Column -->
+      <!-- Code Preview Column -->
       <a-col :span="11">
-        <a-card
-          title="转译后的高性能内核 eBPF 源码 (Transpiled BPF C Code)"
-          size="small"
-        >
+        <a-card title="动态生成的 eBPF C 语言高阶过滤器源码" size="small">
           <template #extra>
             <a-tag color="purple">Pure C / Libbpf</a-tag>
           </template>
@@ -520,9 +858,9 @@ const handleLoad = async () => {
             style="margin-top: 16px"
           >
             <div class="logger-header">
-              <span>Clang (target bpf) 内置日志台</span>
+              <span>Clang LLVM 编译与内核校验审计台</span>
               <a-tag v-if="compiling" color="blue"
-                ><LoadingOutlined /> 正在构建...</a-tag
+                ><LoadingOutlined /> 正在编译中...</a-tag
               >
               <a-tag v-else-if="isCompiled" color="green">SUCCESS</a-tag>
             </div>
@@ -539,7 +877,7 @@ const handleLoad = async () => {
                 :loading="loadingAction"
               >
                 <template #icon><PlayCircleOutlined /></template>
-                载入内核并立即生效规则
+                载入内核并立即生效插件
               </a-button>
             </div>
           </div>
