@@ -23,8 +23,8 @@ import PluginsVisualMapPanel from "./PluginsVisualMapPanel.vue";
 import PluginsVisualCodePanel from "./PluginsVisualCodePanel.vue";
 import PluginsVisualConditionTree from "./PluginsVisualConditionTree.vue";
 import PluginsVisualFlowCanvas from "./PluginsVisualFlowCanvas.vue";
-import PluginsVisualPalette from "./PluginsVisualPalette.vue";
 import PluginsVisualNodeInspector from "./PluginsVisualNodeInspector.vue";
+import PluginsVisualNodeTypeLibrary from "./PluginsVisualNodeTypeLibrary.vue";
 import PluginsVisualRecipePanel from "./PluginsVisualRecipePanel.vue";
 import PluginsVisualSchematic from "./PluginsVisualSchematic.vue";
 import { triggerOptions } from "./constants";
@@ -656,6 +656,40 @@ const redoWorkspace = async () => {
   undoStack.value.push(cloneWorkspaceSnapshot(createWorkspaceSnapshot()));
   await applyHistorySnapshot(next);
   message.success("已重做积木编辑");
+};
+
+const selectTriggerNodeType = (value: VisualTrigger) => {
+  trigger.value = value;
+  void focusFlowNode("trigger");
+  message.success(`已从节点类型库选择入口: ${value}`);
+};
+
+const addConditionNodeType = (value: VisualConditionField) => {
+  onAddRule("root", value);
+  void focusFlowNode("condition");
+  message.success(`已从节点类型库添加条件: ${value}`);
+};
+
+const addLogicNodeType = (value: "AND" | "OR") => {
+  onAddGroup("root", value);
+  void focusFlowNode("condition");
+  message.success(`已从节点类型库添加逻辑组: ${value}`);
+};
+
+const setMapNodeType = (value: VisualMapMode) => {
+  mapMode.value = value;
+  void focusFlowNode("map");
+  message.success(`已从节点类型库设置状态节点: ${value}`);
+};
+
+const setActionNodeType = (value: VisualAction) => {
+  if (trigger.value === "unlink" && value === "BLOCK") {
+    message.error("unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL");
+    return;
+  }
+  action.value = value;
+  void focusFlowNode("action");
+  message.success(`已从节点类型库设置动作: ${value}`);
 };
 
 const applyRecipe = (recipeId: string) => {
@@ -1647,7 +1681,14 @@ const handleWorkspaceDrop = (event: DragEvent) => {
           @redo-workspace="redoWorkspace"
         />
         <div class="palette-stack">
-          <PluginsVisualPalette />
+          <PluginsVisualNodeTypeLibrary
+            @select-trigger="selectTriggerNodeType"
+            @add-condition="addConditionNodeType"
+            @add-group="addLogicNodeType"
+            @set-map="setMapNodeType"
+            @set-action="setActionNodeType"
+            @focus-node="focusFlowNode"
+          />
         </div>
       </a-col>
 
