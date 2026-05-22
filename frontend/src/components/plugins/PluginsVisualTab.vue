@@ -2,7 +2,6 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { message } from "ant-design-vue";
 import {
-  PlayCircleOutlined,
   PlusOutlined,
   DeleteOutlined,
   ThunderboltOutlined,
@@ -10,13 +9,16 @@ import {
   DownOutlined,
   AlertOutlined,
   SafetyCertificateOutlined,
-  LoadingOutlined,
   FolderAddOutlined,
   FileAddOutlined,
   LinkOutlined,
   CloseCircleOutlined,
 } from "@ant-design/icons-vue";
 import { usePlugins } from "../../composables/usePlugins";
+
+import PluginsVisualAiPanel from "./PluginsVisualAiPanel.vue";
+import PluginsVisualMapPanel from "./PluginsVisualMapPanel.vue";
+import PluginsVisualCodePanel from "./PluginsVisualCodePanel.vue";
 
 const { compileBpf, loadBpf, upsertPlugin, fetchPlugins } = usePlugins();
 
@@ -52,11 +54,10 @@ const mapKey = ref<"uid" | "pid" | "comm">("pid");
 const mapLimit = ref<number>(10);
 
 // AI Copilot Helper configurations
-const aiPrompt = ref<string>("");
-const aiGenerating = ref<boolean>(false);
+const aiPrompt = ref("");
 
 const pluginId = ref("visual-plugin-custom-block");
-const pluginName = ref("可视化流插件 (custom-block)");
+const pluginName = ref("可视化流插件(custom-block)");
 const description = ref("利用图形化流式积木拼装自动生成的内核级 eBPF 拦截器。");
 
 const compiling = ref(false);
@@ -154,7 +155,7 @@ const operatorOptions = [
 const addCondition = () => {
   if (conditions.value.length >= 5) {
     message.warning(
-      "为了防止 eBPF Verifier 复杂度限制，图形化条件最多限制为 5 个",
+      "为了防止 eBPF Verifier 复杂度限制，图形化条件最多限制为 5 个"
     );
     return;
   }
@@ -181,13 +182,8 @@ const generatedBpfCode = computed(() => {
   const isKprobeUnlink = trigger.value === "unlink";
 
   const isKill = action.value === "KILL";
-  const returnValLsm =
-    action.value === "BLOCK" || action.value === "KILL" ? "-EACCES" : "0";
-  const logPrefix = isKill
-    ? "Killed"
-    : action.value === "BLOCK"
-      ? "Blocked"
-      : "Alert";
+  const returnValLsm = (action.value === "BLOCK" || action.value === "KILL") ? "-EACCES" : "0";
+  const logPrefix = isKill ? "Killed" : (action.value === "BLOCK" ? "Blocked" : "Alert");
 
   let headers = `#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -287,19 +283,19 @@ int BPF_PROG(visual_custom_plugin, struct file *file, int ret) {
       trigger.value === "mkdir"
         ? "lsm/inode_mkdir"
         : trigger.value === "file_create"
-          ? "lsm/inode_create"
-          : trigger.value === "rmdir"
-            ? "lsm/inode_rmdir"
-            : "lsm/inode_symlink";
+        ? "lsm/inode_create"
+        : trigger.value === "rmdir"
+        ? "lsm/inode_rmdir"
+        : "lsm/inode_symlink";
 
     const funcArgs =
       trigger.value === "mkdir"
         ? "struct inode *dir, struct dentry *dentry, umode_t mode"
         : trigger.value === "file_create"
-          ? "struct inode *dir, struct dentry *dentry, umode_t mode"
-          : trigger.value === "rmdir"
-            ? "struct inode *dir, struct dentry *dentry"
-            : "struct inode *dir, struct dentry *dentry, const char *old_name";
+        ? "struct inode *dir, struct dentry *dentry, umode_t mode"
+        : trigger.value === "rmdir"
+        ? "struct inode *dir, struct dentry *dentry"
+        : "struct inode *dir, struct dentry *dentry, const char *old_name";
 
     body = `
 SEC("${secName}")
@@ -586,13 +582,7 @@ struct {
   if (isKprobeUnlink) {
     body += `
     if (matched) {
-        ${
-          mapMode.value !== "NONE"
-            ? `// Run stateful Map operation checks\n` +
-              mapLookupBody.trim() +
-              `\n\n        if (matched) {`
-            : ""
-        }
+        ${mapMode.value !== "NONE" ? `// Run stateful Map operation checks\n` + mapLookupBody.trim() + `\n\n        if (matched) {` : ""}
         bpf_printk("[Visual Plugin] matched unlink event: process %s (pid %d, uid %d, gid %d) deleted file\\n", comm, pid, uid, gid);
         ${isKill ? "bpf_send_signal(9);\n" : ""}
         ${mapMode.value !== "NONE" ? "}" : ""}
@@ -603,13 +593,7 @@ struct {
   } else {
     body += `
     if (matched) {
-        ${
-          mapMode.value !== "NONE"
-            ? `// Run stateful Map operation checks\n` +
-              mapLookupBody.trim() +
-              `\n\n        if (matched) {`
-            : ""
-        }
+        ${mapMode.value !== "NONE" ? `// Run stateful Map operation checks\n` + mapLookupBody.trim() + `\n\n        if (matched) {` : ""}
         bpf_printk("[Visual Plugin] ${logPrefix} matched rule! process %s (pid %d, uid %d, gid %d)\\n", comm, pid, uid, gid);
         ${isKill ? "bpf_send_signal(9);\n" : ""}
         return ${returnValLsm};
@@ -646,7 +630,7 @@ watch(
     const firstVal = conditions.value[0]?.value || "custom";
     const prefix = `visual-block-${trigger.value}-${firstVal.replace(
       /[^a-z0-9]/g,
-      "-",
+      "-"
     )}`.toLowerCase();
     pluginId.value = prefix;
     pluginName.value = `积木插件(${trigger.value}-${firstVal})`;
@@ -654,249 +638,24 @@ watch(
     isCompiled.value = false;
     compileLogLocal.value = "";
   },
-  { deep: true, immediate: true },
+  { deep: true, immediate: true }
 );
 
-// AI NLP Heuristic natural language compile translator
-const handleAiGenerate = () => {
-  const p = aiPrompt.value.toLowerCase().trim();
-  if (!p) {
-    message.warning("请输入您的安全防御指令描述！");
-    return;
-  }
-
-  aiGenerating.value = true;
-  try {
-    conditions.value = [];
-
-    // 1. Detect Trigger Hook
-    if (
-      p.includes("socket") ||
-      p.includes("网络") ||
-      p.includes("连接") ||
-      p.includes("外连") ||
-      p.includes("port") ||
-      p.includes("端口") ||
-      p.includes("ip") ||
-      p.includes("外发")
-    ) {
-      trigger.value = "socket_connect";
-    } else if (
-      p.includes("设备") ||
-      p.includes("mknod") ||
-      p.includes("分区") ||
-      p.includes("节点")
-    ) {
-      trigger.value = "inode_mknod";
-    } else if (
-      p.includes("内存") ||
-      p.includes("mprotect") ||
-      p.includes("执行权限") ||
-      p.includes("rwx") ||
-      p.includes("shellcode")
-    ) {
-      trigger.value = "file_mprotect";
-    } else if (
-      p.includes("rename") ||
-      p.includes("重命名") ||
-      p.includes("改名") ||
-      p.includes("移动")
-    ) {
-      trigger.value = "inode_rename";
-    } else if (
-      p.includes("unlink") ||
-      p.includes("删除") ||
-      p.includes("销毁") ||
-      p.includes("rm ")
-    ) {
-      trigger.value = "unlink";
-    } else if (
-      p.includes("mkdir") ||
-      p.includes("创建文件夹") ||
-      p.includes("目录")
-    ) {
-      trigger.value = "mkdir";
-    } else if (p.includes("open") || p.includes("打开") || p.includes("读取")) {
-      trigger.value = "file_open";
-    } else {
-      trigger.value = "process";
-    }
-
-    // 2. Detect Action Hook
-    if (
-      p.includes("kill") ||
-      p.includes("杀死") ||
-      p.includes("终结") ||
-      p.includes("处死") ||
-      p.includes("强杀")
-    ) {
-      action.value = "KILL";
-    } else if (
-      p.includes("alert") ||
-      p.includes("告警") ||
-      p.includes("仅日志") ||
-      p.includes("审计") ||
-      p.includes("静默")
-    ) {
-      action.value = "ALERT";
-    } else {
-      action.value = "BLOCK";
-    }
-
-    // 3. Extract Block 2 matchers
-    const comms = [
-      "nc",
-      "curl",
-      "python",
-      "bash",
-      "wget",
-      "ssh",
-      "ping",
-      "python3",
-      "perl",
-      "ruby",
-      "gcc",
-      "sh",
-      "busybox",
-      "telnet",
-    ];
-    let foundComm = "";
-    for (const c of comms) {
-      if (p.includes(c)) {
-        foundComm = c;
-        break;
-      }
-    }
-    const commRegex =
-      /(?:进程|comm|程序 | 命令)\s*['"“]?([a-zA-Z0-9_\-]+)['"”]?/;
-    const commMatch = p.match(commRegex);
-    if (commMatch && commMatch[1]) {
-      foundComm = commMatch[1];
-    }
-
-    if (foundComm) {
-      conditions.value.push({
-        field: "comm",
-        operator: "==",
-        value: foundComm,
-      });
-    }
-
-    const portMatch = p.match(/(?:端口|port)\s*([0-9]+)/);
-    if (portMatch && portMatch[1]) {
-      conditions.value.push({
-        field: "port",
-        operator: "==",
-        value: portMatch[1],
-      });
-    }
-
-    const ipMatch = p.match(
-      /(?:ip|ip 地址 | 地址)\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/,
-    );
-    if (ipMatch && ipMatch[1]) {
-      conditions.value.push({
-        field: "ipv4",
-        operator: "==",
-        value: ipMatch[1],
-      });
-    }
-
-    const pidMatch = p.match(/(?:pid|进程号)\s*([0-9]+)/);
-    if (pidMatch && pidMatch[1]) {
-      conditions.value.push({
-        field: "pid",
-        operator: "==",
-        value: pidMatch[1],
-      });
-    }
-
-    const uidMatch = p.match(/(?:uid|用户 id)\s*([0-9]+)/);
-    if (uidMatch && uidMatch[1]) {
-      conditions.value.push({
-        field: "uid",
-        operator: "==",
-        value: uidMatch[1],
-      });
-    }
-
-    const gidMatch = p.match(/(?:gid|组 id)\s*([0-9]+)/);
-    if (gidMatch && gidMatch[1]) {
-      conditions.value.push({
-        field: "gid",
-        operator: "==",
-        value: gidMatch[1],
-      });
-    }
-
-    const baseRegex =
-      /(?:文件名 | 文件 | 目录名)\s*['"“]?([a-zA-Z0-9_\-\.]+)['"”]?/;
-    const baseMatch = p.match(baseRegex);
-    if (baseMatch && baseMatch[1]) {
-      conditions.value.push({
-        field: "basename",
-        operator: "==",
-        value: baseMatch[1],
-      });
-    }
-
-    // 4. Map stateful operation parsing
-    if (
-      p.includes("限频") ||
-      p.includes("计数") ||
-      p.includes("频率") ||
-      p.includes("次数") ||
-      p.includes("counter") ||
-      p.includes("rate limit") ||
-      p.includes("累计")
-    ) {
-      mapMode.value = "COUNTER";
-      const limitMatch = p.match(
-        /(?:限制 | 最大 | 超过 | 阈值|threshold|次数)\s*([0-9]+)\s*(?:次)?/,
-      );
-      if (limitMatch && limitMatch[1]) {
-        mapLimit.value = parseInt(limitMatch[1], 10);
-      } else {
-        mapLimit.value = 5;
-      }
-
-      if (p.includes("uid") || p.includes("用户")) {
-        mapKey.value = "uid";
-      } else if (p.includes("comm") || p.includes("进程名")) {
-        mapKey.value = "comm";
-      } else {
-        mapKey.value = "pid";
-      }
-    } else if (
-      p.includes("黑名单") ||
-      p.includes("黑表") ||
-      p.includes("查表") ||
-      p.includes("blocklist") ||
-      p.includes("map 查询") ||
-      p.includes("检索")
-    ) {
-      mapMode.value = "BLOCKLIST";
-      if (p.includes("uid") || p.includes("用户")) {
-        mapKey.value = "uid";
-      } else if (p.includes("comm") || p.includes("进程名")) {
-        mapKey.value = "comm";
-      } else {
-        mapKey.value = "pid";
-      }
-    } else {
-      mapMode.value = "NONE";
-    }
-
-    if (conditions.value.length === 0) {
-      conditions.value.push({ field: "comm", operator: "==", value: "nc" });
-    }
-
-    message.success("AI 内核专家智能规则拼装成功！积木块参数已自动配齐。");
-  } catch (err: any) {
-    message.error("智能转译失败：" + err.message);
-  } finally {
-    aiGenerating.value = false;
-  }
+// AI Translator callback
+const handleAiTranslate = (payload: {
+  trigger: any;
+  action: "BLOCK" | "ALERT" | "KILL";
+  conditions: any[];
+  mapMode: "NONE" | "COUNTER" | "BLOCKLIST";
+  mapKey: "uid" | "pid" | "comm";
+  mapLimit: number;
+}) => {
+  trigger.value = payload.trigger;
+  action.value = payload.action;
+  conditions.value = payload.conditions;
+  mapMode.value = payload.mapMode;
+  mapKey.value = payload.mapKey;
+  mapLimit.value = payload.mapLimit;
 };
 
 onMounted(async () => {
@@ -963,91 +722,8 @@ const handleLoad = async () => {
             >
           </div>
 
-          <!-- AI COPILOT HELPER BLOCK -->
-          <div
-            class="block-card ai-copilot-card"
-            style="
-              margin-bottom: 20px;
-              border: 1px solid #722ed1;
-              background: #f9f0ff;
-              box-shadow: 0 4px 12px rgba(114, 46, 209, 0.08);
-            "
-          >
-            <div
-              class="block-header"
-              style="background: linear-gradient(135deg, #722ed1, #9254de)"
-            >
-              <span
-                class="block-badge"
-                style="background: rgba(255, 255, 255, 0.25)"
-                >AI Copilot</span
-              >
-              <strong style="color: #fff"
-                >AI 智能内核防御助手 (NLP Blocks Compiler)</strong
-              >
-            </div>
-            <div class="block-body" style="background: #faf5ff">
-              <div class="desc-line" style="color: #531dab; font-weight: 500">
-                用自然语言描述您的主动防御拦截意图，AI
-                助手将自动帮您拼装整条积木流：
-              </div>
-              <a-textarea
-                v-model:value="aiPrompt"
-                placeholder="例如：当有人使用 python 运行网络连接，且外连端口为 4444 时，直接强杀该进程，并启用计数器限制其最大触发频率为 3 次。"
-                :rows="3"
-                style="border-radius: 6px; border-color: #d3adf7"
-              />
-              <div
-                style="
-                  margin-top: 12px;
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-                  flex-wrap: wrap;
-                  gap: 8px;
-                "
-              >
-                <div
-                  class="ai-prompts-examples"
-                  style="font-size: 11px; color: #8c8c8c"
-                >
-                  快捷指令示例：
-                  <a-tag
-                    @click="aiPrompt = '阻止 nc 进程运行，并且直接杀死进程'"
-                    color="purple"
-                    style="cursor: pointer; margin-right: 4px"
-                    >阻断并杀死 nc</a-tag
-                  >
-                  <a-tag
-                    @click="
-                      aiPrompt =
-                        '当外连端口为 4444 时强杀进程，并限频计数最多 5 次'
-                    "
-                    color="purple"
-                    style="cursor: pointer; margin-right: 4px"
-                    >外连 4444 强杀限频 5 次</a-tag
-                  >
-                  <a-tag
-                    @click="
-                      aiPrompt = '拦截对 shadow 文件的重命名操作并发出警告'
-                    "
-                    color="purple"
-                    style="cursor: pointer"
-                    >勒索 shadow 重命名保护</a-tag
-                  >
-                </div>
-                <a-button
-                  type="primary"
-                  :loading="aiGenerating"
-                  @click="handleAiGenerate"
-                  style="background: #722ed1; border-color: #722ed1"
-                >
-                  <template #icon><ThunderboltOutlined /></template>
-                  AI 智能积木生成
-                </a-button>
-              </div>
-            </div>
-          </div>
+          <!-- AI COPILOT HELPER PANEL (BLOCK 0) -->
+          <PluginsVisualAiPanel v-model="aiPrompt" @translate="handleAiTranslate" />
 
           <!-- BLOCK 1: EVENT TRIGGER -->
           <div class="block-card block-trigger">
@@ -1110,7 +786,7 @@ const handleLoad = async () => {
                     font-weight: bold;
                     margin-right: 8px;
                   "
-                  >条件关系：</span
+                  >条件关系:</span
                 >
                 <a-radio-group
                   v-model:value="logicRelation"
@@ -1140,8 +816,7 @@ const handleLoad = async () => {
                       :value="f.value"
                       :disabled="
                         (trigger === 'unlink' && f.value === 'basename') ||
-                        (trigger !== 'socket_connect' &&
-                          (f.value === 'port' || f.value === 'ipv4'))
+                        (trigger !== 'socket_connect' && (f.value === 'port' || f.value === 'ipv4'))
                       "
                     >
                       {{ f.label }}
@@ -1154,11 +829,7 @@ const handleLoad = async () => {
                       :key="o.value"
                       :value="o.value"
                       :disabled="
-                        (cond.field === 'pid' ||
-                          cond.field === 'uid' ||
-                          cond.field === 'port' ||
-                          cond.field === 'ipv4' ||
-                          cond.field === 'gid') &&
+                        (cond.field === 'pid' || cond.field === 'uid' || cond.field === 'port' || cond.field === 'ipv4' || cond.field === 'gid') &&
                         (o.value === 'starts_with' || o.value === 'ends_with')
                       "
                     >
@@ -1205,88 +876,11 @@ const handleLoad = async () => {
           </div>
 
           <!-- BLOCK 2.5: STATEFUL MAP OPERATIONS -->
-          <div
-            class="block-card block-map"
-            style="
-              border: 1px solid #2f54eb;
-              margin-bottom: 10px;
-              box-shadow: 0 4px 10px rgba(47, 84, 235, 0.05);
-            "
-          >
-            <div class="block-header" style="background: #2f54eb">
-              <span class="block-badge" style="background: rgba(0, 0, 0, 0.25)"
-                >Block 2.5</span
-              >
-              <strong style="color: #fff"
-                >低代码 Map 状态化存储积木 (Map Stateful Operations)</strong
-              >
-            </div>
-            <div class="block-body">
-              <div
-                class="desc-line"
-                style="font-size: 13px; color: #595959; margin-bottom: 12px"
-              >
-                选择是否启用 BPF 内核高性能 Map Stateful
-                数据流运算进行状态化追踪判定：
-              </div>
-              <a-row :gutter="12">
-                <a-col :span="8">
-                  <div
-                    style="font-size: 11px; color: #8c8c8c; margin-bottom: 4px"
-                  >
-                    Map 运行模式
-                  </div>
-                  <a-select v-model:value="mapMode" style="width: 100%">
-                    <a-select-option value="NONE"
-                      >无状态 (直接决策)</a-select-option
-                    >
-                    <a-select-option value="COUNTER"
-                      >计数器限频 (COUNTER)</a-select-option
-                    >
-                    <a-select-option value="BLOCKLIST"
-                      >外部 Hash 黑名单判定 (BLOCKLIST)</a-select-option
-                    >
-                  </a-select>
-                </a-col>
-                <a-col :span="8" v-if="mapMode !== 'NONE'">
-                  <div
-                    style="font-size: 11px; color: #8c8c8c; margin-bottom: 4px"
-                  >
-                    操作追踪主键 (Map Key)
-                  </div>
-                  <a-select v-model:value="mapKey" style="width: 100%">
-                    <a-select-option value="pid">当前进程 PID</a-select-option>
-                    <a-select-option value="uid">当前用户 UID</a-select-option>
-                    <a-select-option value="comm"
-                      >当前进程名 (Comm)</a-select-option
-                    >
-                  </a-select>
-                </a-col>
-                <a-col :span="8" v-if="mapMode === 'COUNTER'">
-                  <div
-                    style="font-size: 11px; color: #8c8c8c; margin-bottom: 4px"
-                  >
-                    阈值限制 (Max Threshold)
-                  </div>
-                  <a-input-number
-                    v-model:value="mapLimit"
-                    :min="1"
-                    :max="10000"
-                    style="width: 100%"
-                  />
-                </a-col>
-              </a-row>
-              <div
-                v-if="mapMode !== 'NONE'"
-                class="helper-text"
-                style="color: #2f54eb; margin-top: 10px; font-size: 11px"
-              >
-                * 状态机制将自动在内核声明 eBPF HASH
-                映射表。满足以上累计命中过滤规则的阈值条件后，才下发执行 Block 3
-                终极动作。
-              </div>
-            </div>
-          </div>
+          <PluginsVisualMapPanel
+            v-model:mode="mapMode"
+            v-model:key-field="mapKey"
+            v-model:limit="mapLimit"
+          />
 
           <!-- CONNECTION ARROW -->
           <div class="arrow-down">
@@ -1339,9 +933,7 @@ const handleLoad = async () => {
                 class="helper-text"
                 style="color: #fa8c16; margin-top: 8px"
               >
-                * 物理文件 unlink 挂载于 Kprobe 上，不改变内核决策链，仅支持
-                ALERT 或 KILL 动作。其他 LSM 挂载点支持完整的 BLOCK、ALERT 与
-                KILL 动作。
+                * 物理文件 unlink 挂载于 Kprobe 上，不改变内核决策链，仅支持 ALERT 或 KILL 动作。其他 LSM 挂载点支持完整的 BLOCK、ALERT 与 KILL 动作。
               </div>
             </div>
           </div>
@@ -1391,46 +983,14 @@ const handleLoad = async () => {
 
       <!-- Code Preview Column -->
       <a-col :span="11">
-        <a-card title="动态生成的 eBPF C 语言高阶过滤器源码" size="small">
-          <template #extra>
-            <a-tag color="purple">Pure C / Libbpf</a-tag>
-          </template>
-
-          <div class="generated-code-box">
-            <pre><code>{{ generatedBpfCode }}</code></pre>
-          </div>
-
-          <!-- Compilation Logger -->
-          <div
-            v-if="compiling || isCompiled || compileLogLocal"
-            class="compilation-logger"
-            style="margin-top: 16px"
-          >
-            <div class="logger-header">
-              <span>Clang LLVM 编译与内核校验审计台</span>
-              <a-tag v-if="compiling" color="blue"
-                ><LoadingOutlined /> 正在编译中...</a-tag
-              >
-              <a-tag v-else-if="isCompiled" color="green">SUCCESS</a-tag>
-            </div>
-            <pre class="logger-body"><code>{{ compileLogLocal }}</code></pre>
-
-            <div
-              v-if="isCompiled"
-              style="margin-top: 12px; display: flex; justify-content: flex-end"
-            >
-              <a-button
-                type="primary"
-                color="green"
-                @click="handleLoad"
-                :loading="loadingAction"
-              >
-                <template #icon><PlayCircleOutlined /></template>
-                载入内核并立即生效插件
-              </a-button>
-            </div>
-          </div>
-        </a-card>
+        <PluginsVisualCodePanel
+          :code="generatedBpfCode"
+          :compiling="compiling"
+          :compiled="isCompiled"
+          :loading="loadingAction"
+          :log="compileLogLocal"
+          @load="handleLoad"
+        />
       </a-col>
     </a-row>
   </div>
@@ -1509,50 +1069,8 @@ const handleLoad = async () => {
   align-items: center;
   margin-bottom: 8px;
 }
-.generated-code-box {
-  background: #1e1e1e;
-  border-radius: 6px;
-  padding: 12px;
-  overflow: auto;
-  max-height: 400px;
-  border: 1px solid #333;
-}
-.generated-code-box pre {
-  margin: 0;
-}
-.generated-code-box code {
-  font-family: "Consolas", monospace;
-  font-size: 12px;
-  color: #9cdcfe;
-}
 .helper-text {
   font-size: 11px;
-}
-.compilation-logger {
-  background: #141414;
-  border: 1px solid #d9d9d9;
-  border-radius: 6px;
-  overflow: hidden;
-}
-.logger-header {
-  background: #262626;
-  padding: 6px 12px;
-  color: #fafafa;
-  font-size: 13px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.logger-body {
-  margin: 0;
-  padding: 12px;
-  max-height: 180px;
-  overflow: auto;
-  color: #52c41a;
-  background: #000;
-  font-family: "Consolas", monospace;
-  font-size: 12px;
-  white-space: pre-wrap;
 }
 .block-red.ant-radio-button-wrapper-checked {
   background: #f5222d;
