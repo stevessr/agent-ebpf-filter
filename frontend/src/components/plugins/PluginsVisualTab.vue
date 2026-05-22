@@ -6,7 +6,6 @@ import {
   DeleteOutlined,
   ThunderboltOutlined,
   FileTextOutlined,
-  DownOutlined,
   AlertOutlined,
   SafetyCertificateOutlined,
   FolderAddOutlined,
@@ -707,6 +706,14 @@ const handleLoad = async () => {
     loadingAction.value = false;
   }
 };
+
+const getGateWirePath = (idx: number, total: number) => {
+  const startX = 110;
+  const startY = 18 + idx * (180 - 36) / (total - 1 || 1);
+  const endX = 160;
+  const endY = 90;
+  return `M ${startX} ${startY} C ${startX + 20} ${startY}, ${endX - 20} ${endY}, ${endX} ${endY}`;
+};
 </script>
 
 <template>
@@ -727,6 +734,9 @@ const handleLoad = async () => {
 
           <!-- BLOCK 1: EVENT TRIGGER -->
           <div class="block-card block-trigger">
+            <!-- Node port -->
+            <div class="node-port port-output trigger-port"></div>
+
             <div class="block-header">
               <span class="block-badge">Block 1</span>
               <strong style="color: #fff"
@@ -749,12 +759,17 @@ const handleLoad = async () => {
           </div>
 
           <!-- CONNECTION ARROW -->
-          <div class="arrow-down">
-            <DownOutlined />
+          <div class="blueprint-wire-container">
+            <div class="blueprint-wire-line wire-1-to-2"></div>
+            <div class="blueprint-wire-pulse pulse-1-to-2"></div>
           </div>
 
           <!-- BLOCK 2: DYNAMIC CONDITIONS & AND/OR RELATION -->
           <div class="block-card block-condition">
+            <!-- Node ports -->
+            <div class="node-port port-input condition-port-in"></div>
+            <div class="node-port port-output condition-port-out"></div>
+
             <div
               class="block-header"
               style="
@@ -799,80 +814,146 @@ const handleLoad = async () => {
               </div>
             </div>
             <div class="block-body">
-              <div class="desc-line">
-                配置复杂的过滤多维属性判定（支持字符串前缀/后缀/PID/UID）：
-              </div>
+              <a-row :gutter="16">
+                <!-- Condition inputs list -->
+                <a-col :span="15">
+                  <div class="desc-line">
+                    配置复杂的过滤多维属性判定（支持字符串前缀/后缀/PID/UID）：
+                  </div>
 
-              <div class="conditions-list">
-                <div
-                  v-for="(cond, index) in conditions"
-                  :key="index"
-                  class="condition-row"
-                >
-                  <a-select v-model:value="cond.field" style="width: 32%">
-                    <a-select-option
-                      v-for="f in fieldOptions"
-                      :key="f.value"
-                      :value="f.value"
-                      :disabled="
-                        (trigger === 'unlink' && f.value === 'basename') ||
-                        (trigger !== 'socket_connect' && (f.value === 'port' || f.value === 'ipv4'))
-                      "
+                  <div class="conditions-list">
+                    <div
+                      v-for="(cond, index) in conditions"
+                      :key="index"
+                      class="condition-row"
                     >
-                      {{ f.label }}
-                    </a-select-option>
-                  </a-select>
+                      <a-select v-model:value="cond.field" style="width: 32%">
+                        <a-select-option
+                          v-for="f in fieldOptions"
+                          :key="f.value"
+                          :value="f.value"
+                          :disabled="
+                            (trigger === 'unlink' && f.value === 'basename') ||
+                            (trigger !== 'socket_connect' && (f.value === 'port' || f.value === 'ipv4'))
+                          "
+                        >
+                          {{ f.label }}
+                        </a-select-option>
+                      </a-select>
 
-                  <a-select v-model:value="cond.operator" style="width: 28%">
-                    <a-select-option
-                      v-for="o in operatorOptions"
-                      :key="o.value"
-                      :value="o.value"
-                      :disabled="
-                        (cond.field === 'pid' || cond.field === 'uid' || cond.field === 'port' || cond.field === 'ipv4' || cond.field === 'gid') &&
-                        (o.value === 'starts_with' || o.value === 'ends_with')
-                      "
-                    >
-                      {{ o.label }}
-                    </a-select-option>
-                  </a-select>
+                      <a-select v-model:value="cond.operator" style="width: 28%">
+                        <a-select-option
+                          v-for="o in operatorOptions"
+                          :key="o.value"
+                          :value="o.value"
+                          :disabled="
+                            (cond.field === 'pid' || cond.field === 'uid' || cond.field === 'port' || cond.field === 'ipv4' || cond.field === 'gid') &&
+                            (o.value === 'starts_with' || o.value === 'ends_with')
+                          "
+                        >
+                          {{ o.label }}
+                        </a-select-option>
+                      </a-select>
 
-                  <a-input
-                    v-model:value="cond.value"
-                    placeholder="目标匹配值"
-                    style="width: 32%"
-                  />
+                      <a-input
+                        v-model:value="cond.value"
+                        placeholder="目标匹配值"
+                        style="width: 32%"
+                      />
 
-                  <a-button
-                    danger
-                    type="text"
-                    @click="removeCondition(index)"
-                    :disabled="conditions.length === 1"
-                    style="width: 8%"
+                      <a-button
+                        danger
+                        type="text"
+                        @click="removeCondition(index)"
+                        :disabled="conditions.length === 1"
+                        style="width: 8%"
+                      >
+                        <template #icon><DeleteOutlined /></template>
+                      </a-button>
+                    </div>
+                  </div>
+
+                  <div
+                    style="
+                      margin-top: 12px;
+                      display: flex;
+                      justify-content: flex-end;
+                    "
                   >
-                    <template #icon><DeleteOutlined /></template>
-                  </a-button>
-                </div>
-              </div>
+                    <a-button type="dashed" @click="addCondition" size="small">
+                      <template #icon><PlusOutlined /></template>
+                      添加高级判定分支
+                    </a-button>
+                  </div>
+                </a-col>
 
-              <div
-                style="
-                  margin-top: 12px;
-                  display: flex;
-                  justify-content: flex-end;
-                "
-              >
-                <a-button type="dashed" @click="addCondition" size="small">
-                  <template #icon><PlusOutlined /></template>
-                  添加高级判定分支
-                </a-button>
-              </div>
+                <!-- Blueprint Logic Gate Visualizer -->
+                <a-col :span="9" style="border-left: 1px dashed rgba(255, 255, 255, 0.1); padding-left: 16px;">
+                  <div style="font-size: 12px; font-weight: 600; color: #fa8c16; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
+                    <span>逻辑运算门 (Logic Gate)</span>
+                    <a-tag size="small" color="orange" style="font-size: 10px; margin: 0; transform: scale(0.9);">Blueprint Gate</a-tag>
+                  </div>
+                  
+                  <div class="logic-gate-canvas">
+                    <!-- Background Grid -->
+                    <div class="logic-gate-grid"></div>
+
+                    <!-- SVG Connection Wires -->
+                    <svg class="logic-gate-wires" viewBox="0 0 200 180" width="100%" height="100%" preserveAspectRatio="none">
+                      <defs>
+                        <linearGradient id="wire-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stop-color="#1890ff" />
+                          <stop offset="100%" stop-color="#fa8c16" />
+                        </linearGradient>
+                        <filter id="wire-glow">
+                          <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+                          <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                          </feMerge>
+                        </filter>
+                      </defs>
+                      <path
+                        v-for="(_, idx) in conditions"
+                        :key="idx"
+                        :d="getGateWirePath(idx, conditions.length)"
+                        stroke="url(#wire-gradient)"
+                        stroke-width="1.5"
+                        fill="none"
+                        filter="url(#wire-glow)"
+                        opacity="0.85"
+                      />
+                    </svg>
+
+                    <!-- Input Node Badges -->
+                    <div
+                      v-for="(cond, idx) in conditions"
+                      :key="idx"
+                      class="logic-input-node"
+                      :style="{
+                        top: `calc(18px + ${idx} * (180px - 36px) / (${conditions.length - 1 || 1}) - 14px)`
+                      }"
+                    >
+                      <span class="node-field">{{ cond.field }}</span>
+                      <span class="node-op">{{ cond.operator === '==' ? '=' : cond.operator === '!=' ? '≠' : cond.operator === 'starts_with' ? 'pref' : 'suff' }}</span>
+                      <span class="node-val" :title="cond.value">{{ cond.value || '?' }}</span>
+                    </div>
+
+                    <!-- Central Gate Node -->
+                    <div class="logic-gate-node" :class="logicRelation.toLowerCase()">
+                      <div class="gate-icon">{{ logicRelation }}</div>
+                      <div class="gate-label">GATE</div>
+                    </div>
+                  </div>
+                </a-col>
+              </a-row>
             </div>
           </div>
 
           <!-- CONNECTION ARROW -->
-          <div class="arrow-down">
-            <DownOutlined />
+          <div class="blueprint-wire-container">
+            <div class="blueprint-wire-line wire-2-to-2-5"></div>
+            <div class="blueprint-wire-pulse pulse-2-to-2-5"></div>
           </div>
 
           <!-- BLOCK 2.5: STATEFUL MAP OPERATIONS -->
@@ -883,12 +964,16 @@ const handleLoad = async () => {
           />
 
           <!-- CONNECTION ARROW -->
-          <div class="arrow-down">
-            <DownOutlined />
+          <div class="blueprint-wire-container">
+            <div class="blueprint-wire-line wire-2-5-to-3"></div>
+            <div class="blueprint-wire-pulse pulse-2-5-to-3"></div>
           </div>
 
           <!-- BLOCK 3: TARGET ACTION -->
           <div class="block-card block-action">
+            <!-- Node port -->
+            <div class="node-port port-input action-port-in"></div>
+
             <div class="block-header">
               <span class="block-badge" style="background: #52c41a"
                 >Block 3</span
@@ -1001,10 +1086,18 @@ const handleLoad = async () => {
   min-height: 600px;
 }
 .graphical-workspace {
-  background: #fafafa;
-  border: 1px dashed #d9d9d9;
-  border-radius: 8px;
-  padding: 16px;
+  background-color: #0b132b;
+  background-image: 
+    linear-gradient(to right, rgba(28, 37, 65, 0.4) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(28, 37, 65, 0.4) 1px, transparent 1px),
+    linear-gradient(to right, rgba(28, 37, 65, 0.15) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(28, 37, 65, 0.15) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px, 10px 10px, 10px 10px;
+  border: 1px solid #1c2541;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8);
+  position: relative;
 }
 .workspace-title {
   margin-bottom: 20px;
@@ -1014,33 +1107,69 @@ const handleLoad = async () => {
 .workspace-title h3 {
   margin: 0;
   font-weight: 600;
+  color: #ffffff;
 }
 .workspace-title .sub {
   font-size: 12px;
-  color: #8c8c8c;
+  color: #94a3b8;
 }
+
+/* Blueprint nodes styling */
 .block-card {
   border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-  border: 1px solid #f0f0f0;
+  overflow: visible; /* to show ports */
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  background: rgba(13, 19, 33, 0.85);
+  backdrop-filter: blur(8px);
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.block-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+}
+
+.block-trigger {
+  border-color: rgba(24, 144, 255, 0.35);
+}
+.block-trigger:hover {
+  border-color: rgba(24, 144, 255, 0.7);
+  box-shadow: 0 0 15px rgba(24, 144, 255, 0.2);
 }
 .block-trigger .block-header {
-  background: #1890ff;
+  background: linear-gradient(135deg, #1890ff, #0050b3);
+}
+
+.block-condition {
+  border-color: rgba(250, 140, 22, 0.35);
+}
+.block-condition:hover {
+  border-color: rgba(250, 140, 22, 0.7);
+  box-shadow: 0 0 15px rgba(250, 140, 22, 0.2);
 }
 .block-condition .block-header {
-  background: #fa8c16;
+  background: linear-gradient(135deg, #fa8c16, #ad4e00);
+}
+
+.block-action {
+  border-color: rgba(82, 196, 26, 0.35);
+}
+.block-action:hover {
+  border-color: rgba(82, 196, 26, 0.7);
+  box-shadow: 0 0 15px rgba(82, 196, 26, 0.2);
 }
 .block-action .block-header {
-  background: #52c41a;
+  background: linear-gradient(135deg, #52c41a, #237804);
 }
+
 .block-header {
-  padding: 8px 12px;
+  padding: 10px 14px;
   display: flex;
   align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 .block-badge {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.35);
   color: white;
   padding: 2px 8px;
   font-size: 11px;
@@ -1049,20 +1178,115 @@ const handleLoad = async () => {
   font-weight: bold;
 }
 .block-body {
-  background: white;
-  padding: 16px;
+  background: #0f172a;
+  padding: 18px;
+  color: #cbd5e1;
 }
 .desc-line {
   font-size: 13px;
-  color: #595959;
-  margin-bottom: 10px;
+  color: #94a3b8;
+  margin-bottom: 12px;
 }
-.arrow-down {
-  text-align: center;
-  font-size: 18px;
-  color: #bfbfbf;
-  margin: 10px 0;
+
+/* Blueprint wires */
+.blueprint-wire-container {
+  height: 36px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
+.blueprint-wire-line {
+  width: 2px;
+  height: 100%;
+}
+.wire-1-to-2 {
+  background: linear-gradient(180deg, #1890ff, #fa8c16);
+}
+.wire-2-to-2-5 {
+  background: linear-gradient(180deg, #fa8c16, #722ed1);
+}
+.wire-2-5-to-3 {
+  background: linear-gradient(180deg, #722ed1, #52c41a);
+}
+.blueprint-wire-pulse {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  top: 0;
+  animation: wire-pulse-run 1.5s infinite linear;
+}
+.pulse-1-to-2 {
+  background: #1890ff;
+  box-shadow: 0 0 8px #1890ff, 0 0 15px #1890ff;
+}
+.pulse-2-to-2-5 {
+  background: #fa8c16;
+  box-shadow: 0 0 8px #fa8c16, 0 0 15px #fa8c16;
+}
+.pulse-2-5-to-3 {
+  background: #722ed1;
+  box-shadow: 0 0 8px #722ed1, 0 0 15px #722ed1;
+}
+
+@keyframes wire-pulse-run {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* Node ports */
+.node-port {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+.port-input {
+  top: -5px;
+}
+.port-output {
+  bottom: -5px;
+}
+
+.trigger-port {
+  background: #1890ff;
+  border-color: #1890ff;
+  box-shadow: 0 0 8px #1890ff;
+}
+.condition-port-in {
+  background: #1890ff;
+  border-color: #1890ff;
+  box-shadow: 0 0 8px #1890ff;
+}
+.condition-port-out {
+  background: #fa8c16;
+  border-color: #fa8c16;
+  box-shadow: 0 0 8px #fa8c16;
+}
+.action-port-in {
+  background: #722ed1;
+  border-color: #722ed1;
+  box-shadow: 0 0 8px #722ed1;
+}
+
+/* Condition inputs and layout */
 .condition-row {
   display: flex;
   gap: 8px;
@@ -1076,5 +1300,154 @@ const handleLoad = async () => {
   background: #f5222d;
   border-color: #f5222d;
   color: white;
+}
+
+/* Deep input styling for dark mode */
+:deep(.graphical-workspace .ant-select-selector),
+:deep(.graphical-workspace .ant-input),
+:deep(.graphical-workspace .ant-input-number),
+:deep(.graphical-workspace .ant-radio-button-wrapper) {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+:deep(.graphical-workspace .ant-select-arrow) {
+  color: #94a3b8 !important;
+}
+:deep(.graphical-workspace .ant-radio-button-wrapper-checked) {
+  background-color: #1890ff !important;
+  color: #ffffff !important;
+  border-color: #1890ff !important;
+}
+:deep(.graphical-workspace .ant-radio-button-wrapper-checked.block-red) {
+  background-color: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+:deep(.graphical-workspace .ant-btn-dashed) {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: #475569 !important;
+  color: #94a3b8 !important;
+}
+:deep(.graphical-workspace .ant-btn-dashed:hover) {
+  border-color: #fa8c16 !important;
+  color: #fa8c16 !important;
+}
+:deep(.graphical-workspace .ant-card) {
+  background: #0f172a !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+:deep(.graphical-workspace .ant-card-head) {
+  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
+  color: #ffffff !important;
+  background: #1e293b !important;
+}
+
+/* Logic gate visualizer styles */
+.logic-gate-canvas {
+  height: 180px;
+  position: relative;
+  border: 1px solid rgba(250, 140, 22, 0.2);
+  background: rgba(13, 19, 33, 0.4);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.5);
+}
+.logic-gate-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(to right, rgba(250, 140, 22, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(250, 140, 22, 0.05) 1px, transparent 1px);
+  background-size: 15px 15px;
+  pointer-events: none;
+}
+.logic-gate-wires {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+.logic-input-node {
+  position: absolute;
+  left: 8px;
+  width: 95px;
+  height: 28px;
+  background: rgba(28, 37, 65, 0.85);
+  border: 1px solid rgba(24, 144, 255, 0.4);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px;
+  font-family: monospace;
+  font-size: 10px;
+  color: #e2e8f0;
+  z-index: 2;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+.logic-input-node:hover {
+  border-color: #1890ff;
+  box-shadow: 0 0 8px rgba(24, 144, 255, 0.4);
+}
+.node-field {
+  color: #00b4d8;
+  font-weight: bold;
+}
+.node-op {
+  color: #fa8c16;
+}
+.node-val {
+  color: #a78bfa;
+  max-width: 42px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.logic-gate-node {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  font-family: 'Consolas', monospace;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  transition: all 0.3s ease;
+}
+.logic-gate-node.and {
+  background: radial-gradient(circle, #0077b6 0%, #03045e 100%);
+  border-color: #00b4d8;
+  box-shadow: 0 0 12px rgba(0, 180, 216, 0.5);
+}
+.logic-gate-node.or {
+  background: radial-gradient(circle, #d946ef 0%, #701a75 100%);
+  border-color: #f472b6;
+  box-shadow: 0 0 12px rgba(244, 114, 182, 0.5);
+}
+.gate-icon {
+  font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+}
+.gate-label {
+  font-size: 7px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 2px;
+  font-weight: bold;
 }
 </style>
