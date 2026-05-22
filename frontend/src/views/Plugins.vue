@@ -11,6 +11,7 @@ import {
   PoweroffOutlined,
 } from "@ant-design/icons-vue";
 import { Modal, message } from "ant-design-vue";
+import { useRoute, useRouter } from "vue-router";
 import {
   usePlugins,
   type PluginManifest,
@@ -36,7 +37,18 @@ const {
   unloadBpf,
 } = usePlugins();
 
-const activeTab = ref<"list" | "builder" | "visual">("list");
+const route = useRoute();
+const router = useRouter();
+
+const pluginTabKeys = new Set(["list", "builder", "visual"]);
+const normalizePluginTab = (tab: unknown): "list" | "builder" | "visual" =>
+  typeof tab === "string" && pluginTabKeys.has(tab)
+    ? (tab as "list" | "builder" | "visual")
+    : "list";
+
+const activeTab = ref<"list" | "builder" | "visual">(
+  normalizePluginTab(route.params.tab)
+);
 
 // ─── Builder state ────────────────────────────────────────────────
 const builder = ref({
@@ -180,6 +192,20 @@ const statusTag = (plugin: PluginManifest) => {
 const sortedPlugins = computed(() =>
   [...plugins.value].sort((a, b) => a.id.localeCompare(b.id))
 );
+
+watch(
+  () => route.params.tab,
+  (tab) => {
+    activeTab.value = normalizePluginTab(tab);
+  },
+  { immediate: true }
+);
+
+watch(activeTab, (tab) => {
+  if (tab !== normalizePluginTab(route.params.tab)) {
+    router.replace({ name: "Plugins", params: { tab } });
+  }
+});
 
 onMounted(async () => {
   await fetchPlugins();

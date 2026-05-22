@@ -1,6 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue";
-import { message } from "ant-design-vue";
+import {
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+  h,
+  nextTick,
+  useTemplateRef,
+} from "vue";
+import { message, Modal } from "ant-design-vue";
 import {
   ThunderboltOutlined,
   AlertOutlined,
@@ -13,26 +22,33 @@ import PluginsVisualAiPanel from "./PluginsVisualAiPanel.vue";
 import PluginsVisualMapPanel from "./PluginsVisualMapPanel.vue";
 import PluginsVisualCodePanel from "./PluginsVisualCodePanel.vue";
 import PluginsVisualConditionTree from "./PluginsVisualConditionTree.vue";
+import PluginsVisualFlowCanvas from "./PluginsVisualFlowCanvas.vue";
 import PluginsVisualPalette from "./PluginsVisualPalette.vue";
+import PluginsVisualNodeInspector from "./PluginsVisualNodeInspector.vue";
+import PluginsVisualRecipePanel from "./PluginsVisualRecipePanel.vue";
 import PluginsVisualSchematic from "./PluginsVisualSchematic.vue";
 import { triggerOptions } from "./constants";
-import type { VisualLogicNode, VisualLogicGroup, VisualCondition } from "./types";
+import type {
+  VisualAction,
+  VisualConditionField,
+  VisualFlowNodeId,
+  VisualLogicNode,
+  VisualLogicGroup,
+  VisualCondition,
+  VisualMapKey,
+  VisualMapMode,
+  VisualNodeLayout,
+  VisualRecipe,
+  VisualTrigger,
+  VisualValidationIssue,
+  VisualWireId,
+  VisualWireStates,
+  VisualWorkspaceSnapshot,
+} from "./types";
 
 const { compileBpf, loadBpf, upsertPlugin, fetchPlugins } = usePlugins();
 
-const trigger = ref<
-  | "process"
-  | "file_open"
-  | "mkdir"
-  | "file_create"
-  | "rmdir"
-  | "symlink"
-  | "unlink"
-  | "socket_connect"
-  | "inode_mknod"
-  | "file_mprotect"
-  | "inode_rename"
->("process");
+const trigger = ref<VisualTrigger>("process");
 
 const logicRoot = ref<VisualLogicGroup>({
   id: "root",
@@ -48,7 +64,7 @@ const logicRoot = ref<VisualLogicGroup>({
   ],
 });
 
-const action = ref<"BLOCK" | "ALERT" | "KILL">("BLOCK");
+const action = ref<VisualAction>("BLOCK");
 
 // Recursive logic tree helpers
 const countConditions = (node: VisualLogicNode): number => {
@@ -112,10 +128,11 @@ const onAddRule = (groupId: string, field?: string) => {
   const targetGroup = findNodeById(logicRoot.value, groupId);
   if (targetGroup && (targetGroup.type === "AND" || targetGroup.type === "OR")) {
     const id = `cond-${Math.random().toString(36).substr(2, 9)}`;
+    const fieldValue = isVisualConditionField(field) ? field : "comm";
     targetGroup.children.push({
       id,
       type: "CONDITION",
-      field: (field || "comm") as any,
+      field: fieldValue,
       operator: "==",
       value: "",
     });
@@ -149,8 +166,8 @@ const onUpdateGroupType = (groupId: string, type: "AND" | "OR") => {
 };
 
 // Low-Code Stateful Map configurations
-const mapMode = ref<"NONE" | "COUNTER" | "BLOCKLIST">("NONE");
-const mapKey = ref<"uid" | "pid" | "comm">("pid");
+const mapMode = ref<VisualMapMode>("NONE");
+const mapKey = ref<VisualMapKey>("pid");
 const mapLimit = ref<number>(10);
 
 // AI Copilot Helper configurations
@@ -164,7 +181,754 @@ const compiling = ref(false);
 const loadingAction = ref(false);
 const compileLogLocal = ref("");
 const isCompiled = ref(false);
+const autosaveLabel = ref("本地草稿未加载");
+const undoStack = ref<VisualWorkspaceSnapshot[]>([]);
+const redoStack = ref<VisualWorkspaceSnapshot[]>([]);
+const lastHistoryJson = ref("");
+const isHistoryApplying = ref(false);
+const maxHistoryDepth = 40;
 
+const createDefaultNodeLayout = (): VisualNodeLayout => ({
+  trigger: { x: 24, y: 38 },
+  condition: { x: 224, y: 38 },
+  map: { x: 424, y: 38 },
+  action: { x: 624, y: 38 },
+  code: { x: 424, y: 176 },
+  compile: { x: 624, y: 176 },
+});
+
+const visualWireIds: VisualWireId[] = [
+  "trigger-condition",
+  "condition-map",
+  "map-action",
+  "condition-code",
+  "map-code",
+  "action-compile",
+  "code-compile",
+];
+
+const visualWireLabels: Record<VisualWireId, string> = {
+  "trigger-condition": "Trigger → Condition",
+  "condition-map": "Condition → Map",
+  "map-action": "Map → Action",
+  "condition-code": "Condition → Code",
+  "map-code": "Map → Code",
+  "action-compile": "Action → Compile",
+  "code-compile": "Code → Compile",
+};
+
+const createDefaultWireStates = (): Record<VisualWireId, boolean> => ({
+  "trigger-condition": true,
+  "condition-map": true,
+  "map-action": true,
+  "condition-code": true,
+  "map-code": true,
+  "action-compile": true,
+  "code-compile": true,
+});
+
+const mergeWireStates = (states?: VisualWireStates): Record<VisualWireId, boolean> => {
+  const merged = createDefaultWireStates();
+  if (!states) return merged;
+  visualWireIds.forEach((id) => {
+    if (typeof states[id] === "boolean") {
+      merged[id] = states[id] as boolean;
+    }
+  });
+  return merged;
+};
+
+const nodeLayout = ref<VisualNodeLayout>(createDefaultNodeLayout());
+const wireStates = ref<VisualWireStates>(createDefaultWireStates());
+const activeFlowNode = ref<VisualFlowNodeId>("trigger");
+const triggerBlockRef = useTemplateRef<HTMLElement>("triggerBlock");
+const conditionBlockRef = useTemplateRef<HTMLElement>("conditionBlock");
+const mapBlockRef = useTemplateRef<HTMLElement>("mapBlock");
+const actionBlockRef = useTemplateRef<HTMLElement>("actionBlock");
+const compileBlockRef = useTemplateRef<HTMLElement>("compileBlock");
+const codeBlockRef = useTemplateRef<HTMLElement>("codeBlock");
+
+const flowNodeDetails: Record<VisualFlowNodeId, { label: string; focus: string }> = {
+  trigger: {
+    label: "Trigger Block",
+    focus: "选择 LSM / kprobe / socket 等内核挂载点。",
+  },
+  condition: {
+    label: "Condition Tree",
+    focus: "编辑嵌套 AND/OR 条件树和字段匹配值。",
+  },
+  map: {
+    label: "State Map",
+    focus: "配置 COUNTER / BLOCKLIST 等 BPF Map 状态化逻辑。",
+  },
+  action: {
+    label: "Action Block",
+    focus: "设置 ALERT / BLOCK / KILL 命中动作。",
+  },
+  code: {
+    label: "Generated C",
+    focus: "查看由积木转译出的 eBPF C 源码和编译输出。",
+  },
+  compile: {
+    label: "Compile Gate",
+    focus: "确认插件元数据并执行注册、编译、加载。",
+  },
+};
+
+const selectedFlowNodeDetail = computed(
+  () => flowNodeDetails[activeFlowNode.value]
+);
+
+const resetNodeLayout = () => {
+  nodeLayout.value = createDefaultNodeLayout();
+  message.success("已恢复低代码节点画布自动布局");
+};
+
+const resetWireStates = () => {
+  wireStates.value = createDefaultWireStates();
+  message.success("已重新连接全部低代码流程线缆");
+};
+
+const focusFlowNode = async (node: VisualFlowNodeId) => {
+  activeFlowNode.value = node;
+  await nextTick();
+  const targetMap: Record<VisualFlowNodeId, HTMLElement | null> = {
+    trigger: triggerBlockRef.value,
+    condition: conditionBlockRef.value,
+    map: mapBlockRef.value,
+    action: actionBlockRef.value,
+    code: codeBlockRef.value,
+    compile: compileBlockRef.value,
+  };
+  targetMap[node]?.scrollIntoView({ behavior: "smooth", block: "center" });
+};
+
+const flowSectionClass = (node: VisualFlowNodeId) => ({
+  "flow-section-active": activeFlowNode.value === node,
+});
+
+const workspaceStorageKey = "agent-ebpf-filter.visual-ebpf.workspace.v1";
+const visualFieldSet = new Set<VisualConditionField>([
+  "comm",
+  "pid",
+  "uid",
+  "basename",
+  "port",
+  "ipv4",
+  "gid",
+]);
+const visualMapModeSet = new Set<VisualMapMode>([
+  "NONE",
+  "COUNTER",
+  "BLOCKLIST",
+]);
+const visualMapKeySet = new Set<VisualMapKey>(["uid", "pid", "comm"]);
+
+const isVisualConditionField = (value: unknown): value is VisualConditionField =>
+  typeof value === "string" && visualFieldSet.has(value as VisualConditionField);
+
+const canUseLocalStorage = () =>
+  typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+
+const getTimeLabel = () => new Date().toLocaleTimeString();
+
+const visualRecipes: VisualRecipe[] = [
+  {
+    id: "process-nc-block",
+    name: "阻断 nc 执行",
+    description: "最小闭环：bprm_check_security + comm/name 条件 + BLOCK。",
+    tags: ["process", "LSM", "BLOCK"],
+    version: 1,
+    trigger: "process",
+    action: "BLOCK",
+    mapMode: "NONE",
+    mapKey: "pid",
+    mapLimit: 10,
+    conditions: {
+      id: "root",
+      type: "AND",
+      children: [
+        {
+          id: "recipe-nc-comm",
+          type: "CONDITION",
+          field: "comm",
+          operator: "==",
+          value: "nc",
+        },
+      ],
+    },
+  },
+  {
+    id: "reverse-shell-ports",
+    name: "反连端口强杀",
+    description: "socket_connect 上组合 comm + 多端口 OR，并用 COUNTER 限频兜底。",
+    tags: ["socket", "OR", "KILL", "COUNTER"],
+    version: 1,
+    trigger: "socket_connect",
+    action: "KILL",
+    mapMode: "COUNTER",
+    mapKey: "pid",
+    mapLimit: 3,
+    conditions: {
+      id: "root",
+      type: "AND",
+      children: [
+        {
+          id: "recipe-rev-comm",
+          type: "CONDITION",
+          field: "comm",
+          operator: "==",
+          value: "nc",
+        },
+        {
+          id: "recipe-rev-ports",
+          type: "OR",
+          children: [
+            {
+              id: "recipe-rev-port-4444",
+              type: "CONDITION",
+              field: "port",
+              operator: "==",
+              value: "4444",
+            },
+            {
+              id: "recipe-rev-port-5555",
+              type: "CONDITION",
+              field: "port",
+              operator: "==",
+              value: "5555",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: "ssh-key-read-protect",
+    name: "SSH 私钥读取保护",
+    description: "file_open 上拦截非 root 对 id_rsa / id_ed25519 的读取打开。",
+    tags: ["file_open", "AND", "OR"],
+    version: 1,
+    trigger: "file_open",
+    action: "BLOCK",
+    mapMode: "NONE",
+    mapKey: "pid",
+    mapLimit: 10,
+    conditions: {
+      id: "root",
+      type: "AND",
+      children: [
+        {
+          id: "recipe-ssh-uid",
+          type: "CONDITION",
+          field: "uid",
+          operator: "!=",
+          value: "0",
+        },
+        {
+          id: "recipe-ssh-files",
+          type: "OR",
+          children: [
+            {
+              id: "recipe-ssh-rsa",
+              type: "CONDITION",
+              field: "basename",
+              operator: "==",
+              value: "id_rsa",
+            },
+            {
+              id: "recipe-ssh-ed25519",
+              type: "CONDITION",
+              field: "basename",
+              operator: "==",
+              value: "id_ed25519",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: "ransomware-rename-watch",
+    name: "勒索重命名审计",
+    description: "inode_rename 上关注 shadow / .env / .key 等敏感名称，先告警审计。",
+    tags: ["rename", "ALERT", "OR"],
+    version: 1,
+    trigger: "inode_rename",
+    action: "ALERT",
+    mapMode: "NONE",
+    mapKey: "pid",
+    mapLimit: 10,
+    conditions: {
+      id: "root",
+      type: "OR",
+      children: [
+        {
+          id: "recipe-ren-shadow",
+          type: "CONDITION",
+          field: "basename",
+          operator: "==",
+          value: "shadow",
+        },
+        {
+          id: "recipe-ren-env",
+          type: "CONDITION",
+          field: "basename",
+          operator: "ends_with",
+          value: ".env",
+        },
+        {
+          id: "recipe-ren-key",
+          type: "CONDITION",
+          field: "basename",
+          operator: "ends_with",
+          value: ".key",
+        },
+      ],
+    },
+  },
+  {
+    id: "mprotect-rwx-kill",
+    name: "RWX 内存强杀",
+    description: "file_mprotect 上对脚本/解释器进程启用 KILL 响应。",
+    tags: ["mprotect", "KILL", "OR"],
+    version: 1,
+    trigger: "file_mprotect",
+    action: "KILL",
+    mapMode: "COUNTER",
+    mapKey: "comm",
+    mapLimit: 2,
+    conditions: {
+      id: "root",
+      type: "OR",
+      children: [
+        {
+          id: "recipe-mprot-python",
+          type: "CONDITION",
+          field: "comm",
+          operator: "starts_with",
+          value: "python",
+        },
+        {
+          id: "recipe-mprot-node",
+          type: "CONDITION",
+          field: "comm",
+          operator: "==",
+          value: "node",
+        },
+        {
+          id: "recipe-mprot-perl",
+          type: "CONDITION",
+          field: "comm",
+          operator: "==",
+          value: "perl",
+        },
+      ],
+    },
+  },
+];
+
+const cloneLogicRoot = (root: VisualLogicGroup): VisualLogicGroup =>
+  JSON.parse(JSON.stringify(root)) as VisualLogicGroup;
+
+const assertValidConditionTree = (node: VisualLogicNode) => {
+  if (node.type === "CONDITION") {
+    if (!isVisualConditionField(node.field)) {
+      throw new Error(`不支持的条件字段: ${String(node.field)}`);
+    }
+    return;
+  }
+  if (node.type !== "AND" && node.type !== "OR") {
+    throw new Error("逻辑分组必须是 AND 或 OR");
+  }
+  if (!Array.isArray(node.children)) {
+    throw new Error("逻辑分组 children 必须是数组");
+  }
+  node.children.forEach(assertValidConditionTree);
+};
+
+const createWorkspaceSnapshot = (): VisualWorkspaceSnapshot => ({
+  version: 1,
+  trigger: trigger.value,
+  action: action.value,
+  conditions: cloneLogicRoot(logicRoot.value),
+  mapMode: mapMode.value,
+  mapKey: mapKey.value,
+  mapLimit: mapLimit.value,
+  nodeLayout: { ...nodeLayout.value },
+  wireStates: { ...mergeWireStates(wireStates.value) },
+  pluginId: pluginId.value,
+  pluginName: pluginName.value,
+  description: description.value,
+});
+
+const cloneWorkspaceSnapshot = (
+  snapshot: VisualWorkspaceSnapshot
+): VisualWorkspaceSnapshot =>
+  JSON.parse(JSON.stringify(snapshot)) as VisualWorkspaceSnapshot;
+
+const serializeWorkspaceSnapshot = (snapshot: VisualWorkspaceSnapshot) =>
+  JSON.stringify(snapshot);
+
+const applyWorkspaceSnapshot = (snapshot: VisualWorkspaceSnapshot) => {
+  const validTrigger = triggerOptions.some((item) => item.value === snapshot.trigger);
+  if (!validTrigger) throw new Error(`不支持的挂载点: ${snapshot.trigger}`);
+  if (!snapshot.conditions || !Array.isArray(snapshot.conditions.children)) {
+    throw new Error("conditions 必须是包含 children 的逻辑根节点");
+  }
+  assertValidConditionTree(snapshot.conditions);
+  const conditionTotal = countConditions(snapshot.conditions);
+  if (conditionTotal > 8) {
+    throw new Error(`条件数量 ${conditionTotal} 超过 eBPF Verifier 友好上限 8`);
+  }
+  if (!visualMapModeSet.has(snapshot.mapMode)) {
+    throw new Error(`不支持的 Map 模式: ${String(snapshot.mapMode)}`);
+  }
+  if (!visualMapKeySet.has(snapshot.mapKey)) {
+    throw new Error(`不支持的 Map Key: ${String(snapshot.mapKey)}`);
+  }
+
+  trigger.value = snapshot.trigger;
+  action.value =
+    snapshot.trigger === "unlink" && snapshot.action === "BLOCK"
+      ? "ALERT"
+      : snapshot.action;
+  logicRoot.value = cloneLogicRoot(snapshot.conditions);
+  mapMode.value = snapshot.mapMode || "NONE";
+  mapKey.value = snapshot.mapKey || "pid";
+  mapLimit.value = Number(snapshot.mapLimit) || 10;
+  if (snapshot.pluginId) pluginId.value = snapshot.pluginId;
+  if (snapshot.pluginName) pluginName.value = snapshot.pluginName;
+  if (snapshot.description) description.value = snapshot.description;
+  nodeLayout.value = snapshot.nodeLayout
+    ? { ...createDefaultNodeLayout(), ...snapshot.nodeLayout }
+    : createDefaultNodeLayout();
+  wireStates.value = mergeWireStates(snapshot.wireStates);
+};
+
+const syncHistoryBaseline = () => {
+  lastHistoryJson.value = serializeWorkspaceSnapshot(createWorkspaceSnapshot());
+};
+
+const recordWorkspaceHistory = () => {
+  if (isHistoryApplying.value) return;
+  const nextSnapshot = createWorkspaceSnapshot();
+  const nextJson = serializeWorkspaceSnapshot(nextSnapshot);
+  if (!lastHistoryJson.value) {
+    lastHistoryJson.value = nextJson;
+    return;
+  }
+  if (nextJson === lastHistoryJson.value) return;
+  undoStack.value.push(JSON.parse(lastHistoryJson.value) as VisualWorkspaceSnapshot);
+  if (undoStack.value.length > maxHistoryDepth) {
+    undoStack.value.shift();
+  }
+  redoStack.value = [];
+  lastHistoryJson.value = nextJson;
+};
+
+const applyHistorySnapshot = async (snapshot: VisualWorkspaceSnapshot) => {
+  isHistoryApplying.value = true;
+  applyWorkspaceSnapshot(cloneWorkspaceSnapshot(snapshot));
+  lastHistoryJson.value = serializeWorkspaceSnapshot(createWorkspaceSnapshot());
+  await nextTick();
+  isHistoryApplying.value = false;
+  saveWorkspaceDraft(true);
+};
+
+const undoWorkspace = async () => {
+  const previous = undoStack.value.pop();
+  if (!previous) {
+    message.info("当前没有可撤销的积木历史");
+    return;
+  }
+  redoStack.value.push(cloneWorkspaceSnapshot(createWorkspaceSnapshot()));
+  await applyHistorySnapshot(previous);
+  message.success("已撤销上一步积木编辑");
+};
+
+const redoWorkspace = async () => {
+  const next = redoStack.value.pop();
+  if (!next) {
+    message.info("当前没有可重做的积木历史");
+    return;
+  }
+  undoStack.value.push(cloneWorkspaceSnapshot(createWorkspaceSnapshot()));
+  await applyHistorySnapshot(next);
+  message.success("已重做积木编辑");
+};
+
+const applyRecipe = (recipeId: string) => {
+  const recipe = visualRecipes.find((item) => item.id === recipeId);
+  if (!recipe) return;
+  applyWorkspaceSnapshot(recipe);
+  message.success(`已套用积木模板：${recipe.name}`);
+};
+
+const resetWorkspace = () => {
+  applyRecipe("process-nc-block");
+};
+
+const exportWorkspace = async () => {
+  const json = JSON.stringify(createWorkspaceSnapshot(), null, 2);
+  try {
+    await navigator.clipboard.writeText(json);
+    message.success("当前积木工作台 JSON 已复制到剪贴板");
+  } catch {
+    Modal.info({
+      title: "当前积木工作台 JSON",
+      width: 720,
+      content: h("pre", { class: "workspace-json-preview" }, json),
+    });
+  }
+};
+
+const importWorkspace = () => {
+  const raw = window.prompt("粘贴由“导出 JSON”生成的积木工作台配置：");
+  if (!raw) return;
+  try {
+    const snapshot = JSON.parse(raw) as VisualWorkspaceSnapshot;
+    applyWorkspaceSnapshot(snapshot);
+    message.success("已导入积木工作台配置");
+  } catch (err: any) {
+    message.error(`导入失败: ${err?.message || "JSON 格式错误"}`);
+  }
+};
+
+const saveWorkspaceDraft = (silent = false) => {
+  if (!canUseLocalStorage()) {
+    autosaveLabel.value = "当前环境不支持 localStorage 草稿";
+    return;
+  }
+  window.localStorage.setItem(
+    workspaceStorageKey,
+    JSON.stringify(createWorkspaceSnapshot())
+  );
+  autosaveLabel.value = `草稿已保存 ${getTimeLabel()}`;
+  if (!silent) message.success("低代码积木草稿已保存到浏览器本地");
+};
+
+const clearWorkspaceDraft = () => {
+  if (!canUseLocalStorage()) return;
+  window.localStorage.removeItem(workspaceStorageKey);
+  autosaveLabel.value = "草稿已清除；继续编辑会自动重新保存";
+  message.success("已清除浏览器本地积木草稿");
+};
+
+const restoreWorkspaceDraft = () => {
+  if (!canUseLocalStorage()) return;
+  const raw = window.localStorage.getItem(workspaceStorageKey);
+  if (!raw) {
+    autosaveLabel.value = "尚无浏览器本地草稿";
+    return;
+  }
+  try {
+    applyWorkspaceSnapshot(JSON.parse(raw) as VisualWorkspaceSnapshot);
+    autosaveLabel.value = `已恢复本地草稿 ${getTimeLabel()}`;
+    message.info("已恢复上次未完成的低代码积木草稿");
+  } catch (err: any) {
+    autosaveLabel.value = "本地草稿损坏，已忽略";
+    console.warn("Failed to restore visual eBPF workspace draft:", err);
+  }
+};
+
+const conditionCount = computed(() => countConditions(logicRoot.value));
+const treeDepth = computed(() => getTreeDepth(logicRoot.value));
+
+const allConditions = computed(() => {
+  const result: VisualCondition[] = [];
+  const collect = (node: VisualLogicNode) => {
+    if (node.type === "CONDITION") {
+      result.push(node);
+      return;
+    }
+    node.children?.forEach(collect);
+  };
+  collect(logicRoot.value);
+  return result;
+});
+
+const isValidIPv4 = (value: string) => {
+  const parts = value.split(".");
+  return (
+    parts.length === 4 &&
+    parts.every((part) => {
+      if (!/^\d+$/.test(part)) return false;
+      const num = Number(part);
+      return num >= 0 && num <= 255;
+    })
+  );
+};
+
+const validationIssues = computed<VisualValidationIssue[]>(() => {
+  const issues: VisualValidationIssue[] = [];
+
+  if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(pluginId.value.trim())) {
+    issues.push({
+      id: "plugin-id",
+      severity: "error",
+      title: "插件 ID 不合法",
+      detail: "请使用 3-64 位小写字母、数字或中划线，且以字母/数字开头。",
+    });
+  }
+
+  const currentWireStates = mergeWireStates(wireStates.value);
+  const disconnectedWires = visualWireIds.filter((id) => !currentWireStates[id]);
+  if (disconnectedWires.length > 0) {
+    issues.push({
+      id: "wire-flow-disconnected",
+      severity: "error",
+      title: "低代码流程线缆未闭合",
+      detail: `请在画布中重新连接: ${disconnectedWires
+        .map((id) => visualWireLabels[id])
+        .join("、")}。`,
+    });
+  }
+
+  if (conditionCount.value === 0) {
+    issues.push({
+      id: "no-conditions",
+      severity: "error",
+      title: "条件积木为空",
+      detail: "至少需要一个 CONDITION 积木，否则生成的规则没有明确匹配边界。",
+    });
+  }
+
+  if (conditionCount.value > 8) {
+    issues.push({
+      id: "condition-limit",
+      severity: "error",
+      title: "条件积木过多",
+      detail: "当前限制为 8 个条件，避免 eBPF Verifier 复杂度过高。",
+    });
+  }
+
+  if (treeDepth.value > 5) {
+    issues.push({
+      id: "tree-depth",
+      severity: "warning",
+      title: "逻辑嵌套较深",
+      detail: "建议把深层 AND/OR 拆成多个插件，便于审计和 verifier 排错。",
+    });
+  }
+
+  if (trigger.value === "unlink" && action.value === "BLOCK") {
+    issues.push({
+      id: "unlink-block",
+      severity: "error",
+      title: "unlink Kprobe 不支持 BLOCK",
+      detail: "Kprobe 只做观测/信号动作，不能直接改变 LSM 返回值；请改用 ALERT 或 KILL。",
+    });
+  }
+
+  if (mapMode.value === "COUNTER" && (!Number.isFinite(mapLimit.value) || mapLimit.value < 1)) {
+    issues.push({
+      id: "map-limit",
+      severity: "error",
+      title: "COUNTER 阈值无效",
+      detail: "计数器模式需要大于 0 的最大命中次数。",
+    });
+  }
+
+  if (mapMode.value === "BLOCKLIST") {
+    issues.push({
+      id: "blocklist-runtime",
+      severity: "warning",
+      title: "BLOCKLIST 需要运行时填表",
+      detail: "当前 UI 只声明 map 和查表逻辑；后续还需要通过 bpftool/API 写入具体 key。",
+    });
+  }
+
+  allConditions.value.forEach((condition, index) => {
+    const label = `条件 #${index + 1}`;
+    const value = condition.value.trim();
+    if (!value) {
+      issues.push({
+        id: `${condition.id}-empty`,
+        severity: "error",
+        title: `${label} 缺少匹配值`,
+        detail: "空值会退化为无边界匹配，已阻止编译。",
+      });
+      return;
+    }
+
+    if (/"|\\|\r|\n/.test(value)) {
+      issues.push({
+        id: `${condition.id}-unsafe`,
+        severity: "error",
+        title: `${label} 包含不安全 C 字符`,
+        detail: "当前可视化生成器暂不接受引号、反斜杠或换行，请改用纯文本匹配值。",
+      });
+    }
+
+    if (trigger.value !== "socket_connect" && (condition.field === "port" || condition.field === "ipv4")) {
+      issues.push({
+        id: `${condition.id}-socket-field`,
+        severity: "error",
+        title: `${label} 字段不适用于当前 Hook`,
+        detail: "port / ipv4 仅在 socket_connect 挂载点中有可用上下文。",
+      });
+    }
+
+    if (trigger.value === "unlink" && condition.field === "basename") {
+      issues.push({
+        id: `${condition.id}-unlink-basename`,
+        severity: "error",
+        title: `${label} 无法读取 unlink basename`,
+        detail: "当前 unlink 走 kprobe/do_unlinkat，生成器没有安全读取 dentry 名称。",
+      });
+    }
+
+    if (condition.field === "pid" || condition.field === "uid" || condition.field === "gid") {
+      if (!/^\d+$/.test(value)) {
+        issues.push({
+          id: `${condition.id}-numeric`,
+          severity: "error",
+          title: `${label} 需要数字值`,
+          detail: `${condition.field} 条件只能填写非负整数。`,
+        });
+      }
+    }
+
+    if (condition.field === "port") {
+      const port = Number(value);
+      if (!/^\d+$/.test(value) || port < 1 || port > 65535) {
+        issues.push({
+          id: `${condition.id}-port`,
+          severity: "error",
+          title: `${label} 端口范围无效`,
+          detail: "目标端口必须位于 1..65535。",
+        });
+      }
+    }
+
+    if (condition.field === "ipv4" && !isValidIPv4(value)) {
+      issues.push({
+        id: `${condition.id}-ipv4`,
+        severity: "error",
+        title: `${label} IPv4 格式无效`,
+        detail: "请使用类似 203.0.113.10 的点分十进制地址。",
+      });
+    }
+  });
+
+  if (action.value === "KILL") {
+    issues.push({
+      id: "kill-action",
+      severity: "info",
+      title: "KILL 会发送 SIGKILL",
+      detail: "生成的程序会调用 bpf_send_signal(9)，建议先用 ALERT 模式演练命中范围。",
+    });
+  }
+
+  return issues;
+});
+
+const validationErrors = computed(() =>
+  validationIssues.value.filter((issue) => issue.severity === "error")
+);
+
+const isWorkspaceValid = computed(() => validationErrors.value.length === 0);
 
 
 
@@ -620,10 +1384,19 @@ struct {
   return headers + mapDefinitions + body;
 });
 
+const generatedLineCount = computed(
+  () => generatedBpfCode.value.split(/\r?\n/).length
+);
+
 // Watch inputs to auto-sync Manifest fields
 watch(
   [trigger, logicRoot, action, mapMode, mapKey, mapLimit],
   () => {
+    if (isHistoryApplying.value) {
+      isCompiled.value = false;
+      compileLogLocal.value = "";
+      return;
+    }
     // Sanitize conditions recursively
     const sanitizeNode = (node: VisualLogicNode) => {
       if (node.type === "CONDITION") {
@@ -665,13 +1438,43 @@ watch(
   { deep: true, immediate: true }
 );
 
+watch(
+  [
+    trigger,
+    logicRoot,
+    action,
+    mapMode,
+    mapKey,
+    mapLimit,
+    nodeLayout,
+    wireStates,
+    pluginId,
+    pluginName,
+    description,
+  ],
+  () => {
+    saveWorkspaceDraft(true);
+    recordWorkspaceHistory();
+  },
+  { deep: true }
+);
+
+watch(
+  wireStates,
+  () => {
+    isCompiled.value = false;
+    compileLogLocal.value = "";
+  },
+  { deep: true }
+);
+
 // AI Translator callback
 const handleAiTranslate = (payload: {
-  trigger: any;
-  action: "BLOCK" | "ALERT" | "KILL";
+  trigger: VisualTrigger;
+  action: VisualAction;
   conditions: VisualLogicGroup;
-  mapMode: "NONE" | "COUNTER" | "BLOCKLIST";
-  mapKey: "uid" | "pid" | "comm";
+  mapMode: VisualMapMode;
+  mapKey: VisualMapKey;
   mapLimit: number;
 }) => {
   trigger.value = payload.trigger;
@@ -682,12 +1485,53 @@ const handleAiTranslate = (payload: {
   mapLimit.value = payload.mapLimit;
 };
 
+const isTextEditingTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  return (
+    tag === "input" ||
+    tag === "textarea" ||
+    target.isContentEditable ||
+    !!target.closest(".ant-select")
+  );
+};
+
+const handleHistoryShortcut = (event: KeyboardEvent) => {
+  const key = event.key.toLowerCase();
+  const isModifier = event.ctrlKey || event.metaKey;
+  if (!isModifier || isTextEditingTarget(event.target)) return;
+  if (key === "z" && !event.shiftKey) {
+    event.preventDefault();
+    void undoWorkspace();
+  } else if ((key === "z" && event.shiftKey) || key === "y") {
+    event.preventDefault();
+    void redoWorkspace();
+  }
+};
+
 onMounted(async () => {
+  restoreWorkspaceDraft();
+  syncHistoryBaseline();
+  window.addEventListener("keydown", handleHistoryShortcut);
   await fetchPlugins();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", handleHistoryShortcut);
 });
 
 // Compile and upsert
 const handleCompileAndRegister = async () => {
+  if (!isWorkspaceValid.value) {
+    compileLogLocal.value = [
+      "已阻止编译：当前积木工作台存在错误。",
+      ...validationErrors.value.map(
+        (issue) => `[${issue.severity.toUpperCase()}] ${issue.title}${issue.detail ? ` - ${issue.detail}` : ""}`
+      ),
+    ].join("\n");
+    message.error("请先修复左侧“编译前验证”中的错误");
+    return;
+  }
   compiling.value = true;
   compileLogLocal.value = "正在将高阶规则积木块转译为标准的 BPF C 源码...\n";
   try {
@@ -740,10 +1584,14 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   try {
     const rawData = event.dataTransfer.getData("text/plain");
     if (!rawData) return;
-    const { category, value } = JSON.parse(rawData);
+    const { category, value } = JSON.parse(rawData) as {
+      category: string;
+      value: string;
+    };
 
     if (category === "trigger") {
-      trigger.value = value;
+      if (!triggerOptions.some((item) => item.value === value)) return;
+      trigger.value = value as VisualTrigger;
       message.success(`已切换事件挂载点为: ${value}`);
     } else if (category === "condition") {
       onAddRule("root", value);
@@ -752,14 +1600,14 @@ const handleWorkspaceDrop = (event: DragEvent) => {
       onAddGroup("root", value as "AND" | "OR");
       message.success(`已拖动添加逻辑运算组: ${value}`);
     } else if (category === "map") {
-      mapMode.value = value as any;
+      mapMode.value = value as VisualMapMode;
       message.success(`已配置 Map 状态存储为: ${value}`);
     } else if (category === "action") {
       if (trigger.value === "unlink" && value === "BLOCK") {
         message.error("unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL");
         return;
       }
-      action.value = value as any;
+      action.value = value as VisualAction;
       message.success(`已更新拦截响应动作为: ${value}`);
     }
   } catch (e) {
@@ -775,7 +1623,32 @@ const handleWorkspaceDrop = (event: DragEvent) => {
     <a-row :gutter="16">
       <!-- Column 1: UE Blueprint Palette (Drag Source) -->
       <a-col :span="5">
-        <PluginsVisualPalette />
+        <PluginsVisualRecipePanel
+          :recipes="visualRecipes"
+          :trigger="trigger"
+          :action="action"
+          :map-mode="mapMode"
+          :condition-count="conditionCount"
+          :tree-depth="treeDepth"
+          :plugin-id="pluginId"
+          :code-lines="generatedLineCount"
+          :validation-issues="validationIssues"
+          :compile-ready="isWorkspaceValid"
+          :autosave-label="autosaveLabel"
+          :undo-count="undoStack.length"
+          :redo-count="redoStack.length"
+          @apply-recipe="applyRecipe"
+          @reset-workspace="resetWorkspace"
+          @export-workspace="exportWorkspace"
+          @import-workspace="importWorkspace"
+          @save-draft="() => saveWorkspaceDraft(false)"
+          @clear-draft="clearWorkspaceDraft"
+          @undo-workspace="undoWorkspace"
+          @redo-workspace="redoWorkspace"
+        />
+        <div class="palette-stack">
+          <PluginsVisualPalette />
+        </div>
       </a-col>
 
       <!-- Column 2: Workspace (Designer Canvas) -->
@@ -788,8 +1661,64 @@ const handleWorkspaceDrop = (event: DragEvent) => {
             >
           </div>
 
+          <PluginsVisualFlowCanvas
+            v-model:node-layout="nodeLayout"
+            v-model:wire-states="wireStates"
+            :selected-node-id="activeFlowNode"
+            :trigger="trigger"
+            :action="action"
+            :map-mode="mapMode"
+            :condition-count="conditionCount"
+            :tree-depth="treeDepth"
+            :code-lines="generatedLineCount"
+            :compile-ready="isWorkspaceValid"
+            @update:selected-node-id="focusFlowNode"
+            @reset-layout="resetNodeLayout"
+            @reset-wires="resetWireStates"
+          />
+
+          <div class="selected-flow-panel">
+            <a-tag color="blue" class="selected-flow-tag">
+              {{ selectedFlowNodeDetail.label }}
+            </a-tag>
+            <span>{{ selectedFlowNodeDetail.focus }}</span>
+            <a-space size="small" wrap>
+              <a-button size="small" @click="focusFlowNode('trigger')">Trigger</a-button>
+              <a-button size="small" @click="focusFlowNode('condition')">Condition</a-button>
+              <a-button size="small" @click="focusFlowNode('map')">Map</a-button>
+              <a-button size="small" @click="focusFlowNode('action')">Action</a-button>
+              <a-button size="small" @click="focusFlowNode('code')">Code</a-button>
+              <a-button size="small" @click="focusFlowNode('compile')">Compile</a-button>
+            </a-space>
+          </div>
+
+          <PluginsVisualNodeInspector
+            :selected-node-id="activeFlowNode"
+            v-model:trigger="trigger"
+            v-model:action="action"
+            v-model:map-mode="mapMode"
+            v-model:map-key="mapKey"
+            v-model:map-limit="mapLimit"
+            v-model:plugin-id="pluginId"
+            v-model:plugin-name="pluginName"
+            v-model:description="description"
+            :condition-count="conditionCount"
+            :tree-depth="treeDepth"
+            :code-lines="generatedLineCount"
+            :compile-ready="isWorkspaceValid"
+            :compiling="compiling"
+            :validation-issues="validationIssues"
+            @add-condition="onAddRule('root', $event)"
+            @add-group="onAddGroup('root', $event)"
+            @compile="handleCompileAndRegister"
+          />
+
           <!-- BLOCK 1: EVENT TRIGGER -->
-          <div class="block-card block-trigger">
+          <div
+            ref="triggerBlock"
+            class="block-card block-trigger"
+            :class="flowSectionClass('trigger')"
+          >
             <!-- Node port -->
             <div class="node-port port-output trigger-port"></div>
 
@@ -821,7 +1750,11 @@ const handleWorkspaceDrop = (event: DragEvent) => {
           </div>
 
           <!-- BLOCK 2: DYNAMIC CONDITIONS & AND/OR RELATION -->
-          <div class="block-card block-condition">
+          <div
+            ref="conditionBlock"
+            class="block-card block-condition"
+            :class="flowSectionClass('condition')"
+          >
             <!-- Node ports -->
             <div class="node-port port-input condition-port-in"></div>
             <div class="node-port port-output condition-port-out"></div>
@@ -868,11 +1801,13 @@ const handleWorkspaceDrop = (event: DragEvent) => {
           </div>
 
           <!-- BLOCK 2.5: STATEFUL MAP OPERATIONS -->
-          <PluginsVisualMapPanel
-            v-model:mode="mapMode"
-            v-model:key-field="mapKey"
-            v-model:limit="mapLimit"
-          />
+          <div ref="mapBlock" :class="flowSectionClass('map')">
+            <PluginsVisualMapPanel
+              v-model:mode="mapMode"
+              v-model:key-field="mapKey"
+              v-model:limit="mapLimit"
+            />
+          </div>
 
           <!-- CONNECTION ARROW -->
           <div class="blueprint-wire-container">
@@ -881,7 +1816,11 @@ const handleWorkspaceDrop = (event: DragEvent) => {
           </div>
 
           <!-- BLOCK 3: TARGET ACTION -->
-          <div class="block-card block-action">
+          <div
+            ref="actionBlock"
+            class="block-card block-action"
+            :class="flowSectionClass('action')"
+          >
             <!-- Node port -->
             <div class="node-port port-input action-port-in"></div>
 
@@ -935,45 +1874,48 @@ const handleWorkspaceDrop = (event: DragEvent) => {
           </div>
 
           <!-- Plugin Details Panel -->
-          <a-card
-            title="规则插件注册配置 (Plugin Metadata)"
-            size="small"
-            style="margin-top: 24px"
-          >
-            <a-form layout="vertical">
-              <a-row :gutter="12">
-                <a-col :span="12">
-                  <a-form-item label="自定义规则插件 ID">
-                    <a-input
-                      v-model:value="pluginId"
-                      placeholder="例如 custom-visual-lsm"
-                    />
-                  </a-form-item>
-                </a-col>
-                <a-col :span="12">
-                  <a-form-item label="规则插件显示名">
-                    <a-input v-model:value="pluginName" />
-                  </a-form-item>
-                </a-col>
-              </a-row>
-              <a-form-item label="详细说明描述" style="margin-bottom: 0">
-                <a-textarea v-model:value="description" :rows="2" />
-              </a-form-item>
-            </a-form>
-
-            <div
-              style="margin-top: 20px; display: flex; justify-content: flex-end"
+          <div ref="compileBlock" :class="flowSectionClass('compile')">
+            <a-card
+              title="规则插件注册配置 (Plugin Metadata)"
+              size="small"
+              style="margin-top: 24px"
             >
-              <a-button
-                type="primary"
-                :loading="compiling"
-                @click="handleCompileAndRegister"
+              <a-form layout="vertical">
+                <a-row :gutter="12">
+                  <a-col :span="12">
+                    <a-form-item label="自定义规则插件 ID">
+                      <a-input
+                        v-model:value="pluginId"
+                        placeholder="例如 custom-visual-lsm"
+                      />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="12">
+                    <a-form-item label="规则插件显示名">
+                      <a-input v-model:value="pluginName" />
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+                <a-form-item label="详细说明描述" style="margin-bottom: 0">
+                  <a-textarea v-model:value="description" :rows="2" />
+                </a-form-item>
+              </a-form>
+
+              <div
+                style="margin-top: 20px; display: flex; justify-content: flex-end"
               >
-                <template #icon><ThunderboltOutlined /></template>
-                一键编译并注册为 BPF 插件
-              </a-button>
-            </div>
-          </a-card>
+                <a-button
+                  type="primary"
+                  :loading="compiling"
+                  :disabled="!isWorkspaceValid"
+                  @click="handleCompileAndRegister"
+                >
+                  <template #icon><ThunderboltOutlined /></template>
+                  一键编译并注册为 BPF 插件
+                </a-button>
+              </div>
+            </a-card>
+          </div>
         </div>
       </a-col>
 
@@ -982,7 +1924,11 @@ const handleWorkspaceDrop = (event: DragEvent) => {
         <!-- AI COPILOT HELPER PANEL (BLOCK 0) -->
         <PluginsVisualAiPanel v-model="aiPrompt" @translate="handleAiTranslate" />
 
-        <div style="margin-top: 16px;">
+        <div
+          ref="codeBlock"
+          style="margin-top: 16px"
+          :class="flowSectionClass('code')"
+        >
           <PluginsVisualCodePanel
             :code="generatedBpfCode"
             :compiling="compiling"
@@ -1000,6 +1946,35 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 <style scoped>
 .plugins-visual-tab {
   min-height: 600px;
+}
+.palette-stack {
+  margin-top: 16px;
+}
+.selected-flow-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(24, 144, 255, 0.24);
+  background: rgba(15, 23, 42, 0.72);
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.selected-flow-tag {
+  margin: 0;
+}
+
+.flow-section-active {
+  outline: 2px solid rgba(56, 189, 248, 0.82);
+  outline-offset: 4px;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25), 0 0 24px rgba(56, 189, 248, 0.2);
+  border-radius: 10px;
+  transition: outline-color 0.2s ease, box-shadow 0.2s ease;
 }
 .graphical-workspace {
   background-color: #0b132b;

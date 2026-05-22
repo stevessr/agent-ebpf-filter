@@ -8,8 +8,9 @@ import {
   AlertOutlined,
   SafetyCertificateOutlined,
 } from "@ant-design/icons-vue";
+import type { TriggerOption } from "./types";
 
-export const triggerOptions = [
+export const triggerOptions: TriggerOption[] = [
   {
     value: "process",
     label: "进程创建与加载 (LSM bprm_check)",

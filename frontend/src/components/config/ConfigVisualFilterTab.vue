@@ -18,6 +18,7 @@ import {
 } from "@ant-design/icons-vue";
 import { useConfigVisualFilter } from "../../composables/useConfigVisualFilter";
 import { usePlugins } from "../../composables/usePlugins";
+import PluginsVisualTab from "../plugins/PluginsVisualTab.vue";
 
 const props = defineProps<{
   security: any; // Passed from Config.vue
@@ -32,6 +33,7 @@ const compiling = ref(false);
 const loadingAction = ref(false);
 const compileLogLocal = ref("");
 const isCompiled = ref(false);
+const visualEditorMode = ref<"blocks" | "quick">("blocks");
 
 const typeOptions = [
   {
@@ -64,7 +66,11 @@ const typeOptions = [
     label: "创建软链接 (LSM inode_symlink)",
     icon: LinkOutlined,
   },
-  { value: "ip", label: "网络 IP/CIDR (cgroup connect)", icon: GlobalOutlined },
+  {
+    value: "ip",
+    label: "网络 IPv4 目标 (核心精确 IP / 插件 CIDR)",
+    icon: GlobalOutlined,
+  },
   { value: "port", label: "网络出站端口 (cgroup connect)", icon: CodeOutlined },
 ];
 
@@ -243,6 +249,21 @@ const handleRemoveCgroupPort = async (port: number) => {
 
 <template>
   <div class="visual-filter-tab">
+    <a-tabs v-model:activeKey="visualEditorMode" type="card">
+      <a-tab-pane key="blocks">
+        <template #tab>低代码多积木工作台</template>
+        <a-alert
+          type="info"
+          show-icon
+          style="margin-bottom: 16px"
+          message="可视化 eBPF 编辑已升级为多积木画布"
+          description="通过 Trigger / Condition / Map / Action 积木组合生成 eBPF C 源码，可一键注册、编译并加载为插件；下方“快速核心规则”仍保留对内置 cgroup/LSM map 的直接写入。"
+        />
+        <PluginsVisualTab />
+      </a-tab-pane>
+
+      <a-tab-pane key="quick">
+        <template #tab>快速核心规则与监控</template>
     <a-row :gutter="24">
       <!-- Left: Interactive Form Designer -->
       <a-col :span="12">
@@ -316,10 +337,10 @@ const handleRemoveCgroupPort = async (port: number) => {
               <div v-else-if="currentConfig.type === 'ip'">
                 <a-input
                   v-model:value="currentConfig.value"
-                  placeholder="例如: 8.8.8.8 或 10.0.0.0/8 (支持 IP 网段掩码匹配)"
+                  placeholder="例如: 8.8.8.8；自定义插件可输入 10.0.0.0/8"
                 />
                 <span class="helper-text"
-                  >在连接建立之初，拦截出站。支持子网掩码校验拦截。</span
+                  >快速核心规则写入后端现有精确 IP map；CIDR/掩码逻辑只在“生成并编译为 BPF 插件”路径中生成独立过滤代码。</span
                 >
               </div>
               <div v-else-if="currentConfig.type === 'port'">
@@ -613,7 +634,7 @@ const handleRemoveCgroupPort = async (port: number) => {
                 :key="`ip-${ip}`"
               >
                 <div class="rule-item">
-                  <a-tag color="blue">网络 IP/网段 拦截</a-tag>
+                  <a-tag color="blue">网络精确 IP 拦截</a-tag>
                   <code>{{ ip }}</code>
                 </div>
                 <template #actions>
@@ -723,6 +744,8 @@ const handleRemoveCgroupPort = async (port: number) => {
         </a-tab-pane>
       </a-tabs>
     </a-card>
+      </a-tab-pane>
+    </a-tabs>
   </div>
 </template>
 
