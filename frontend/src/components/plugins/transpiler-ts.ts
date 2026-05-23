@@ -1,3 +1,4 @@
+import * as acorn from "acorn";
 import type {
   VisualTrigger,
   VisualAction,
@@ -11,14 +12,25 @@ import type {
 /**
  * 将 VisualWorkspaceSnapshot (积木状态) 反向生成 TS 风格的伪代码
  */
-export const snapshotToPseudoCode = (snapshot: VisualWorkspaceSnapshot): string => {
+export const snapshotToPseudoCode = (
+  snapshot: VisualWorkspaceSnapshot
+): string => {
   const { trigger, action, conditions, mapMode, mapKey, mapLimit } = snapshot;
 
   const renderConditions = (node: VisualLogicNode, indent = "  "): string => {
     if (node.type === "CONDITION") {
       const val = node.value.trim();
-      const quote = isNaN(Number(val)) && val !== "true" && val !== "false" ? `"${val}"` : val;
-      return `ctx.${node.field} ${node.operator === "==" ? "===" : node.operator === "!=" ? "!==" : node.operator} ${quote}`;
+      const quote =
+        isNaN(Number(val)) && val !== "true" && val !== "false"
+          ? `"${val}"`
+          : val;
+      return `ctx.${node.field} ${
+        node.operator === "=="
+          ? "==="
+          : node.operator === "!="
+          ? "!=="
+          : node.operator
+      } ${quote}`;
     } else {
       if (!node.children || node.children.length === 0) return "true";
       const op = node.type === "AND" ? " && " : " || ";
@@ -43,6 +55,8 @@ export default function filter(ctx: HookContext) {
   const port = ctx.port;
   const ipv4 = ctx.ipv4;
   const gid = ctx.gid;
+  const ppid = ctx.ppid;
+  const loginuid = ctx.loginuid;
 
   // 2. 嵌套逻辑匹配
   if (${conditionExpr}) {
@@ -90,8 +104,17 @@ export const pseudoCodeToSnapshot = (
   if (importMatch && importMatch[1]) {
     const parsedTrigger = importMatch[1].trim() as VisualTrigger;
     const allTriggers = [
-      "process", "file_open", "mkdir", "file_create", "rmdir", "symlink",
-      "unlink", "socket_connect", "inode_mknod", "file_mprotect", "inode_rename"
+      "process",
+      "file_open",
+      "mkdir",
+      "file_create",
+      "rmdir",
+      "symlink",
+      "unlink",
+      "socket_connect",
+      "inode_mknod",
+      "file_mprotect",
+      "inode_rename",
     ];
     if (allTriggers.includes(parsedTrigger)) {
       result.trigger = parsedTrigger;
@@ -113,7 +136,8 @@ export const pseudoCodeToSnapshot = (
     const keyMatch = code.match(/Maps\.createCounter\(\{\s*key:\s*"(\w+)"/);
     if (keyMatch && keyMatch[1]) result.mapKey = keyMatch[1] as VisualMapKey;
     const limitMatch = code.match(/limit:\s*(\d+)/);
-    if (limitMatch && limitMatch[1]) result.mapLimit = parseInt(limitMatch[1], 10);
+    if (limitMatch && limitMatch[1])
+      result.mapLimit = parseInt(limitMatch[1], 10);
   } else if (code.includes("Maps.createBlocklist")) {
     result.mapMode = "BLOCKLIST";
     const keyMatch = code.match(/Maps\.createBlocklist\(\{\s*key:\s*"(\w+)"/);
@@ -122,82 +146,164 @@ export const pseudoCodeToSnapshot = (
     result.mapMode = "NONE";
   }
 
-  // 4. 解析 if 条件部分 (简单 AST-like 词法还原条件树)
+  // 4. 解析 if 条件部分 (采用 Acorn 解析标准 JS/TS 表达式 AST，并递归转为工作台结构)
   const ifMatch = code.match(/if\s*\(([\s\S]*?)\)\s*\{/);
   if (ifMatch && ifMatch[1]) {
-    let condStr = ifMatch[1].trim();
-    // 移除多余换行、空格
-    condStr = condStr.replace(/\s+/g, " ");
+    const condStr = ifMatch[1].trim();
 
-    // 简单解析器，支持 `ctx.field === "val"` 组合
-    const parseSimpleExpression = (expr: string): VisualLogicGroup => {
-      // 简单起见，按 && / || 分割
-      // 这里支持最基础的一层 AND/OR，若需要深层嵌套则进行递归分词
-      const hasOr = expr.includes("||");
-      const delimiter = hasOr ? "||" : "&&";
-      const parts = expr.split(delimiter);
+    // 递归将 Acorn AST 转换为 VisualLogicNode
+    const walkAst = (node: any): VisualLogicGroup | VisualCondition => {
+      if (node.type === "LogicalExpression") {
+        const leftNode = walkAst(node.left);
+        const rightNode = walkAst(node.right);
+        const currentOp = node.operator === "&&" ? "AND" : "OR";
 
-      const children: Array<VisualLogicGroup | VisualCondition> = [];
+        const children: Array<VisualLogicGroup | VisualCondition> = [];
 
-      parts.forEach((part, idx) => {
-        const trimmed = part.trim().replace(/^\(|\)$/g, "").trim();
-        
-        // 1. 支持 ctx.field.includes("val") 的转译，将其优雅映射为 C 语言的 starts_with/ends_with/==
-        const includesMatch = trimmed.match(/ctx\.(\w+)\.includes\(\s*(["']?)(.*?)\2\s*\)/);
-        if (includesMatch) {
-          const field = includesMatch[1];
-          const val = includesMatch[3];
-          children.push({
-            id: `cond-ts-${idx}-${Math.random().toString(36).substr(2, 5)}`,
-            type: "CONDITION",
-            field: field as any,
-            operator: "starts_with", // 模糊匹配底层转译映射为 starts_with 拦截
-            value: val,
-          });
-          return;
+        // 合并左侧同类逻辑，保持扁平
+        if (leftNode.type === currentOp) {
+          children.push(...leftNode.children);
+        } else {
+          children.push(leftNode);
         }
 
-        // 2. 匹配 ctx.field === "val" 或 ctx.field !== 123
-        const condMatch = trimmed.match(/ctx\.(\w+)\s*(===|!==|==|!=|starts_with|ends_with)\s*(["']?)(.*?)\3/);
-        if (condMatch) {
-          const field = condMatch[1];
-          const opRaw = condMatch[2];
-          const val = condMatch[4];
-
-          const operator = opRaw === "===" || opRaw === "==" ? "==" : opRaw === "!==" || opRaw === "!=" ? "!=" : opRaw as any;
-          
-          children.push({
-            id: `cond-ts-${idx}-${Math.random().toString(36).substr(2, 5)}`,
-            type: "CONDITION",
-            field: field as any,
-            operator,
-            value: val,
-          });
+        // 合并右侧同类逻辑，保持扁平
+        if (rightNode.type === currentOp) {
+          children.push(...rightNode.children);
+        } else {
+          children.push(rightNode);
         }
-      });
 
-      // 如果条件全为空，为了防止积木报错“条件积木为空”，我们插入一个默认的空条件
-      if (children.length === 0) {
-        children.push({
-          id: `cond-ts-default-${Math.random().toString(36).substr(2, 5)}`,
-          type: "CONDITION",
-          field: "comm",
-          operator: "==",
-          value: "",
-        });
+        return {
+          id:
+            node.operator === "&&"
+              ? `and-${Math.random().toString(36).substr(2, 5)}`
+              : `or-${Math.random().toString(36).substr(2, 5)}`,
+          type: currentOp,
+          children,
+        };
       }
 
+      if (node.type === "BinaryExpression") {
+        // 解析例如：ctx.field === "val"
+        let field = "";
+        if (node.left.type === "MemberExpression") {
+          if (
+            node.left.object.type === "Identifier" &&
+            node.left.object.name === "ctx"
+          ) {
+            if (node.left.property.type === "Identifier") {
+              field = node.left.property.name;
+            }
+          }
+        }
+
+        let rawOp = node.operator;
+        let operator: "==" | "!=" | "starts_with" | "ends_with" = "==";
+        if (rawOp === "===" || rawOp === "==") {
+          operator = "==";
+        } else if (rawOp === "!==" || rawOp === "!=") {
+          operator = "!=";
+        }
+
+        let value = "";
+        if (node.right.type === "Literal") {
+          value = String(node.right.value);
+        }
+
+        return {
+          id: `cond-ts-${Math.random().toString(36).substr(2, 5)}`,
+          type: "CONDITION",
+          field: (field || "comm") as any,
+          operator,
+          value,
+        };
+      }
+
+      if (node.type === "CallExpression") {
+        // 解析例如：ctx.field.includes("val") 或 ctx.field.startsWith("val")
+        let field = "";
+        let methodName = "";
+        if (node.callee.type === "MemberExpression") {
+          methodName = node.callee.property.name;
+          const obj = node.callee.object;
+          if (obj.type === "MemberExpression") {
+            if (obj.object.type === "Identifier" && obj.object.name === "ctx") {
+              field = obj.property.name;
+            }
+          }
+        }
+
+        let operator: "starts_with" | "ends_with" | "==" = "starts_with";
+        if (methodName === "endsWith" || methodName === "ends_with") {
+          operator = "ends_with";
+        }
+
+        let value = "";
+        if (
+          node.arguments &&
+          node.arguments[0] &&
+          node.arguments[0].type === "Literal"
+        ) {
+          value = String(node.arguments[0].value);
+        }
+
+        return {
+          id: `cond-ts-${Math.random().toString(36).substr(2, 5)}`,
+          type: "CONDITION",
+          field: (field || "comm") as any,
+          operator,
+          value,
+        };
+      }
+
+      // 兜底返回默认空条件
       return {
-        id: "root",
-        type: hasOr ? "OR" : "AND",
-        children,
+        id: `cond-ts-default-${Math.random().toString(36).substr(2, 5)}`,
+        type: "CONDITION",
+        field: "comm",
+        operator: "==",
+        value: "",
       };
     };
 
     try {
-      result.conditions = parseSimpleExpression(condStr);
+      // 使用 acorn 解析单个表达式
+      const ast = acorn.parseExpressionAt(condStr, 0, {
+        ecmaVersion: 2020,
+      }) as any;
+      const visualNode = walkAst(ast);
+
+      if (visualNode.type === "CONDITION") {
+        result.conditions = {
+          id: "root",
+          type: "AND",
+          children: [visualNode],
+        };
+      } else {
+        result.conditions = {
+          ...visualNode,
+          id: "root",
+        } as VisualLogicGroup;
+      }
     } catch (e) {
-      console.warn("Failed to parse pseudo-code conditions tree:", e);
+      console.warn(
+        "Failed to parse pseudo-code conditions tree via Acorn AST, falling back to simple condition:",
+        e
+      );
+      result.conditions = {
+        id: "root",
+        type: "AND",
+        children: [
+          {
+            id: `cond-ts-default-${Math.random().toString(36).substr(2, 5)}`,
+            type: "CONDITION",
+            field: "comm",
+            operator: "==",
+            value: "",
+          },
+        ],
+      };
     }
   }
 
