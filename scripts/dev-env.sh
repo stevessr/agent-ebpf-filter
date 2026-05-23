@@ -5,11 +5,87 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHELL_ENV_FILE="${DEV_ENV_FILE:-$ROOT/.env.dev}"
 MAKE_ENV_FILE="${DEV_ENV_MAKEFILE:-$ROOT/.env.dev.mk}"
 
-CONFIG_KEYS=(
+CORE_KEYS=(
   DISABLE_AUTH
   GIN_MODE
-  AGENT_EBPF_DEV_SESSION
+  AGENT_API_KEY
+  AGENT_ACCESS_TOKEN
+  AGENT_BACKEND_PORT
+  AGENT_REAL_HOME
   AGENT_WRAPPER_PATH
+  AGENT_HOOK_ENDPOINT
+  AGENT_SHELL_DIR
+  AGENT_EBPF_DEV_SESSION
+)
+
+ML_LLM_KEYS=(
+  AGENT_ML_ENABLED
+  AGENT_ML_MODEL_TYPE
+  AGENT_ML_MODEL_PATH
+  AGENT_ML_AUTO_TRAIN
+  AGENT_ML_TRAIN_INTERVAL
+  AGENT_ML_MIN_SAMPLES_FOR_TRAINING
+  AGENT_ML_BLOCK_CONFIDENCE_THRESHOLD
+  AGENT_ML_MIN_CONFIDENCE
+  AGENT_ML_LOW_ANOMALY_THRESHOLD
+  AGENT_ML_HIGH_ANOMALY_THRESHOLD
+  AGENT_ML_ACTIVE_LEARNING_ENABLED
+  AGENT_ML_FEATURE_HISTORY_SIZE
+  AGENT_ML_NUM_TREES
+  AGENT_ML_MAX_DEPTH
+  AGENT_ML_MIN_SAMPLES_LEAF
+  AGENT_ML_VALIDATION_SPLIT_RATIO
+  AGENT_ML_BALANCE_CLASSES
+  AGENT_LLM_ENABLED
+  AGENT_LLM_BASE_URL
+  AGENT_LLM_API_KEY
+  AGENT_LLM_MODEL
+  AGENT_LLM_TIMEOUT_SECONDS
+  AGENT_LLM_TEMPERATURE
+  AGENT_LLM_MAX_TOKENS
+  AGENT_LLM_SYSTEM_PROMPT
+  OPENAI_BASE_URL
+  OPENAI_API_KEY
+  OPENAI_MODEL
+)
+
+APP_BEHAVIOR_KEYS=(
+  AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED
+  AGENT_RUNTIME_LOG_FILE_PATH
+  AGENT_RUNTIME_MAX_EVENT_COUNT
+  AGENT_RUNTIME_MAX_EVENT_AGE
+  AGENT_RUNTIME_SHELL_SESSIONS_ENABLED
+  AGENT_RUNTIME_SYSTEM_RUN_ENABLED
+  AGENT_RUNTIME_HOOK_MANAGEMENT_ENABLED
+  AGENT_RUNTIME_POLICY_MANAGEMENT_ENABLED
+  AGENT_RUNTIME_TLS_CAPTURE_ENABLED
+  AGENT_RUNTIME_OTLP_ENABLED
+  AGENT_RUNTIME_OTLP_ENDPOINT
+  AGENT_RUNTIME_OTLP_SERVICE_NAME
+  AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED
+  AGENT_RUNTIME_DOMAIN_HTTP_PORT
+  AGENT_RUNTIME_DOMAIN_HTTPS_PORT
+  AGENT_RUNTIME_DOMAIN_DEFAULT_SCHEME
+  AGENT_RUNTIME_DOMAIN_ALLOW_ANY_HOST
+  AGENT_RUNTIME_DOMAIN_DNS_RESOLVER
+  AGENT_RUNTIME_DOMAIN_DIAL_TIMEOUT_SECONDS
+  AGENT_RUNTIME_DOMAIN_CERT_FILE
+  AGENT_RUNTIME_DOMAIN_KEY_FILE
+  AGENT_CGROUP_SANDBOX_PATH
+  AGENT_EBPF_BOOTSTRAP
+  AGENT_EBPF_NO_SANDBOX
+  AGENT_EBPF_SANDBOX_STRICT
+  AGENT_EBPF_NO_CAP_DROP
+  AGENT_EBPF_NO_NO_NEW_PRIVS
+  AGENT_CLUSTER_MASTER_URL
+  AGENT_CLUSTER_NODE_URL
+  AGENT_CLUSTER_NODE_ID
+  AGENT_CLUSTER_NODE_NAME
+  AGENT_CLUSTER_ACCOUNT
+  AGENT_CLUSTER_PASSWORD
+)
+
+DEVCONTAINER_KEYS=(
   CONTAINER_CLI
   DEV_BRANCH
   DEV_IMAGE_REPOSITORY
@@ -18,20 +94,59 @@ CONFIG_KEYS=(
   DEV_CONTAINER
   DEV_WORKSPACE
   DEVCONTAINER_POSTCREATE_INSTALL
+)
+
+TOOLING_KEYS=(
   CUDA_GO_TAGS
   OS_SMOKE_PRIVILEGE_CMD
+  OS_SMOKE_BACKEND_CMD
+  OS_SMOKE_BACKEND_LOG
+  RUNTIME_REPLAY_OUT
+  RUNTIME_REPLAY_OUTDIR
+  ML_SWEEP
+  ML_SWEEP_MODE
+  ML_SWEEP_MODELS
+  ML_SWEEP_DATASETS
+  ML_SWEEP_WORKERS
+  ML_SWEEP_POINTS_PER_PARAM
+  ML_SWEEP_REPEATS
+  ML_SWEEP_STABILITY_TOP
+  ML_SWEEP_OUTDIR
+  ML_SWEEP_RESUME
+  ML_SWEEP_QUIET_LOGS
+)
+
+CONFIG_KEYS=(
+  "${CORE_KEYS[@]}"
+  "${ML_LLM_KEYS[@]}"
+  "${APP_BEHAVIOR_KEYS[@]}"
+  "${DEVCONTAINER_KEYS[@]}"
+  "${TOOLING_KEYS[@]}"
 )
 
 usage() {
   cat <<USAGE
-Usage: $0 [configure|print|doctor|reset|defaults|help]
+Usage: $0 [configure|edit|wizard|print|doctor|reset|defaults|set|unset|help] [group|KEY] [VALUE]
 
 Commands:
-  configure  Run the interactive development environment wizard (default)
-  print      Print shell exports for the current config
-  doctor     Show effective config and check common dev tools
-  reset      Remove generated development env files
-  defaults   Write recommended local defaults without prompting
+  configure [group]  Open the interactive grouped editor (default)
+  edit [group]       Alias for configure
+  wizard [group]     Alias for configure
+  print              Print shell exports for the current config
+  doctor             Show effective config, redacting secrets, and run checks
+  reset              Remove generated development env files
+  defaults           Write safe local-dev defaults without LLM/runtime overrides
+  set KEY VALUE      Set one supported key non-interactively
+  unset KEY          Remove one supported key non-interactively
+  help               Show this help
+
+Groups:
+  core          backend/dev basics, auth token, wrapper path, hooks, shell
+  ml-llm        ML parameters and OpenAI-compatible LLM scoring/compiler config
+  app           runtime behavior, OTLP/TLS/domain-forwarding, sandbox, cluster
+  devcontainer  GHCR image/container options
+  tooling       CUDA, smoke tests, runtime replay, ML sweep
+  all           edit every group in order
 USAGE
 }
 
@@ -58,6 +173,40 @@ load_existing() {
     . "$SHELL_ENV_FILE"
     set +a
   fi
+}
+
+is_supported_key() {
+  local wanted="$1" key
+  for key in "${CONFIG_KEYS[@]}"; do
+    [ "$key" = "$wanted" ] && return 0
+  done
+  return 1
+}
+
+keys_for_group() {
+  case "${1:-}" in
+    core) printf '%s\n' "${CORE_KEYS[@]}" ;;
+    ml|llm|ml-llm) printf '%s\n' "${ML_LLM_KEYS[@]}" ;;
+    app|behavior|runtime) printf '%s\n' "${APP_BEHAVIOR_KEYS[@]}" ;;
+    devcontainer|container) printf '%s\n' "${DEVCONTAINER_KEYS[@]}" ;;
+    tooling|tools) printf '%s\n' "${TOOLING_KEYS[@]}" ;;
+    all)
+      printf '%s\n' "${CORE_KEYS[@]}" "${ML_LLM_KEYS[@]}" "${APP_BEHAVIOR_KEYS[@]}" "${DEVCONTAINER_KEYS[@]}" "${TOOLING_KEYS[@]}"
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+canonical_group() {
+  case "${1:-}" in
+    core) printf core ;;
+    ml|llm|ml-llm) printf ml-llm ;;
+    app|behavior|runtime) printf app ;;
+    devcontainer|container) printf devcontainer ;;
+    tooling|tools) printf tooling ;;
+    all) printf all ;;
+    *) return 1 ;;
+  esac
 }
 
 detect_container_cli() {
@@ -103,30 +252,272 @@ get_var() {
 set_var() {
   local key="$1" value="$2"
   printf -v "$key" '%s' "$value"
+  export "$key"
+}
+
+unset_var() {
+  local key="$1"
+  unset "$key"
+}
+
+bool_hint() {
+  printf 'true/false, 1/0, yes/no; leave unset to keep runtime config/defaults.'
+}
+
+default_for() {
+  local key="$1"
+  case "$key" in
+    DISABLE_AUTH) printf '%s' "${DISABLE_AUTH:-true}" ;;
+    GIN_MODE) printf '%s' "${GIN_MODE:-debug}" ;;
+    AGENT_EBPF_DEV_SESSION) printf '%s' "${AGENT_EBPF_DEV_SESSION:-agent-ebpf-dev}" ;;
+    CONTAINER_CLI) printf '%s' "${CONTAINER_CLI:-$(detect_container_cli)}" ;;
+    DEV_BRANCH) printf '%s' "${DEV_BRANCH:-}" ;;
+    DEV_IMAGE_REPOSITORY) printf '%s' "${DEV_IMAGE_REPOSITORY:-}" ;;
+    DEV_IMAGE_TAG) printf '%s' "${DEV_IMAGE_TAG:-}" ;;
+    DEV_IMAGE) printf '%s' "${DEV_IMAGE:-}" ;;
+    DEV_CONTAINER) printf '%s' "${DEV_CONTAINER:-agent-ebpf-filiter-dev}" ;;
+    DEV_WORKSPACE) printf '%s' "${DEV_WORKSPACE:-/workspaces/agent-ebpf-filiter}" ;;
+    DEVCONTAINER_POSTCREATE_INSTALL) printf '%s' "${DEVCONTAINER_POSTCREATE_INSTALL:-0}" ;;
+    CUDA_GO_TAGS) printf '%s' "${CUDA_GO_TAGS:-$(cuda_default)}" ;;
+    AGENT_LLM_TIMEOUT_SECONDS) printf '%s' "${AGENT_LLM_TIMEOUT_SECONDS:-}" ;;
+    AGENT_LLM_TEMPERATURE) printf '%s' "${AGENT_LLM_TEMPERATURE:-}" ;;
+    AGENT_LLM_MAX_TOKENS) printf '%s' "${AGENT_LLM_MAX_TOKENS:-}" ;;
+    AGENT_RUNTIME_MAX_EVENT_COUNT) printf '%s' "${AGENT_RUNTIME_MAX_EVENT_COUNT:-}" ;;
+    AGENT_RUNTIME_MAX_EVENT_AGE) printf '%s' "${AGENT_RUNTIME_MAX_EVENT_AGE:-}" ;;
+    AGENT_RUNTIME_DOMAIN_HTTP_PORT) printf '%s' "${AGENT_RUNTIME_DOMAIN_HTTP_PORT:-}" ;;
+    AGENT_RUNTIME_DOMAIN_HTTPS_PORT) printf '%s' "${AGENT_RUNTIME_DOMAIN_HTTPS_PORT:-}" ;;
+    AGENT_RUNTIME_DOMAIN_DEFAULT_SCHEME) printf '%s' "${AGENT_RUNTIME_DOMAIN_DEFAULT_SCHEME:-}" ;;
+    AGENT_RUNTIME_DOMAIN_DIAL_TIMEOUT_SECONDS) printf '%s' "${AGENT_RUNTIME_DOMAIN_DIAL_TIMEOUT_SECONDS:-}" ;;
+    ML_SWEEP_MODE) printf '%s' "${ML_SWEEP_MODE:-}" ;;
+    ML_SWEEP_WORKERS) printf '%s' "${ML_SWEEP_WORKERS:-}" ;;
+    ML_SWEEP_POINTS_PER_PARAM) printf '%s' "${ML_SWEEP_POINTS_PER_PARAM:-}" ;;
+    ML_SWEEP_REPEATS) printf '%s' "${ML_SWEEP_REPEATS:-}" ;;
+    *) printf '%s' "${!key-}" ;;
+  esac
+}
+
+label_for() {
+  local key="$1"
+  case "$key" in
+    DISABLE_AUTH) printf 'Disable API auth for local dev backend' ;;
+    GIN_MODE) printf 'Gin mode' ;;
+    AGENT_API_KEY) printf 'Runtime API/access token seed' ;;
+    AGENT_ACCESS_TOKEN) printf 'Smoke-test/API access token alias' ;;
+    AGENT_BACKEND_PORT) printf 'Fixed backend port override' ;;
+    AGENT_REAL_HOME) printf 'Real user home override for privileged backend' ;;
+    AGENT_WRAPPER_PATH) printf 'Wrapper binary path override' ;;
+    AGENT_HOOK_ENDPOINT) printf 'Hook callback endpoint override' ;;
+    AGENT_SHELL_DIR) printf 'Shell-session working directory override' ;;
+    AGENT_EBPF_DEV_SESSION) printf 'Zellij dev session name' ;;
+    AGENT_ML_ENABLED) printf 'Enable ML behavior classifier' ;;
+    AGENT_ML_MODEL_TYPE) printf 'ML model type' ;;
+    AGENT_ML_MODEL_PATH) printf 'ML model path' ;;
+    AGENT_ML_AUTO_TRAIN) printf 'Enable automatic ML training' ;;
+    AGENT_ML_TRAIN_INTERVAL) printf 'ML training interval' ;;
+    AGENT_ML_MIN_SAMPLES_FOR_TRAINING) printf 'Minimum samples before training' ;;
+    AGENT_ML_BLOCK_CONFIDENCE_THRESHOLD) printf 'Block confidence threshold' ;;
+    AGENT_ML_MIN_CONFIDENCE) printf 'Minimum ML confidence' ;;
+    AGENT_ML_LOW_ANOMALY_THRESHOLD) printf 'Low anomaly threshold' ;;
+    AGENT_ML_HIGH_ANOMALY_THRESHOLD) printf 'High anomaly threshold' ;;
+    AGENT_ML_ACTIVE_LEARNING_ENABLED) printf 'Enable active learning' ;;
+    AGENT_ML_FEATURE_HISTORY_SIZE) printf 'Feature history size' ;;
+    AGENT_ML_NUM_TREES) printf 'Random forest tree count' ;;
+    AGENT_ML_MAX_DEPTH) printf 'Tree max depth' ;;
+    AGENT_ML_MIN_SAMPLES_LEAF) printf 'Minimum samples per leaf' ;;
+    AGENT_ML_VALIDATION_SPLIT_RATIO) printf 'Validation split ratio' ;;
+    AGENT_ML_BALANCE_CLASSES) printf 'Balance classes during training' ;;
+    AGENT_LLM_ENABLED) printf 'Enable OpenAI-compatible LLM scoring/compiler' ;;
+    AGENT_LLM_BASE_URL) printf 'LLM base URL' ;;
+    AGENT_LLM_API_KEY) printf 'LLM API key' ;;
+    AGENT_LLM_MODEL) printf 'LLM model name' ;;
+    AGENT_LLM_TIMEOUT_SECONDS) printf 'LLM timeout seconds' ;;
+    AGENT_LLM_TEMPERATURE) printf 'LLM temperature' ;;
+    AGENT_LLM_MAX_TOKENS) printf 'LLM max tokens' ;;
+    AGENT_LLM_SYSTEM_PROMPT) printf 'LLM scoring system prompt' ;;
+    OPENAI_BASE_URL) printf 'OpenAI-compatible base URL fallback' ;;
+    OPENAI_API_KEY) printf 'OpenAI-compatible API key fallback' ;;
+    OPENAI_MODEL) printf 'OpenAI-compatible model fallback' ;;
+    AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED) printf 'Persist event log' ;;
+    AGENT_RUNTIME_LOG_FILE_PATH) printf 'Event log path' ;;
+    AGENT_RUNTIME_MAX_EVENT_COUNT) printf 'Recent event retention count' ;;
+    AGENT_RUNTIME_MAX_EVENT_AGE) printf 'Recent event max age duration' ;;
+    AGENT_RUNTIME_SHELL_SESSIONS_ENABLED) printf 'Enable shell sessions' ;;
+    AGENT_RUNTIME_SYSTEM_RUN_ENABLED) printf 'Enable /system/run' ;;
+    AGENT_RUNTIME_HOOK_MANAGEMENT_ENABLED) printf 'Enable hook management/raw hook writes' ;;
+    AGENT_RUNTIME_POLICY_MANAGEMENT_ENABLED) printf 'Enable policy/plugin mutations' ;;
+    AGENT_RUNTIME_TLS_CAPTURE_ENABLED) printf 'Enable TLS plaintext capture' ;;
+    AGENT_RUNTIME_OTLP_ENABLED) printf 'Enable OTLP export' ;;
+    AGENT_RUNTIME_OTLP_ENDPOINT) printf 'OTLP endpoint' ;;
+    AGENT_RUNTIME_OTLP_SERVICE_NAME) printf 'OTLP service name' ;;
+    AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED) printf 'Enable public domain forwarder' ;;
+    AGENT_RUNTIME_DOMAIN_HTTP_PORT) printf 'Domain forwarder HTTP port' ;;
+    AGENT_RUNTIME_DOMAIN_HTTPS_PORT) printf 'Domain forwarder HTTPS port' ;;
+    AGENT_RUNTIME_DOMAIN_DEFAULT_SCHEME) printf 'Domain forwarder default upstream scheme' ;;
+    AGENT_RUNTIME_DOMAIN_ALLOW_ANY_HOST) printf 'Allow any Host/SNI in domain forwarder' ;;
+    AGENT_RUNTIME_DOMAIN_DNS_RESOLVER) printf 'Domain forwarder DNS resolver' ;;
+    AGENT_RUNTIME_DOMAIN_DIAL_TIMEOUT_SECONDS) printf 'Domain forwarder dial timeout seconds' ;;
+    AGENT_RUNTIME_DOMAIN_CERT_FILE) printf 'Default HTTPS certificate file' ;;
+    AGENT_RUNTIME_DOMAIN_KEY_FILE) printf 'Default HTTPS key file' ;;
+    AGENT_CGROUP_SANDBOX_PATH) printf 'cgroup v2 attach path' ;;
+    AGENT_EBPF_BOOTSTRAP) printf 'Force eBPF bootstrap mode' ;;
+    AGENT_EBPF_NO_SANDBOX) printf 'Disable child-command sandboxing' ;;
+    AGENT_EBPF_SANDBOX_STRICT) printf 'Enable strict sandbox mode' ;;
+    AGENT_EBPF_NO_CAP_DROP) printf 'Disable capability drop in sandbox' ;;
+    AGENT_EBPF_NO_NO_NEW_PRIVS) printf 'Disable no_new_privs in sandbox' ;;
+    AGENT_CLUSTER_MASTER_URL) printf 'Cluster master URL' ;;
+    AGENT_CLUSTER_NODE_URL) printf 'Cluster node callback URL' ;;
+    AGENT_CLUSTER_NODE_ID) printf 'Cluster node ID' ;;
+    AGENT_CLUSTER_NODE_NAME) printf 'Cluster node display name' ;;
+    AGENT_CLUSTER_ACCOUNT) printf 'Cluster account' ;;
+    AGENT_CLUSTER_PASSWORD) printf 'Cluster password' ;;
+    CONTAINER_CLI) printf 'Container CLI override' ;;
+    DEV_BRANCH) printf 'Devcontainer branch override' ;;
+    DEV_IMAGE_REPOSITORY) printf 'GHCR devcontainer repository override' ;;
+    DEV_IMAGE_TAG) printf 'GHCR devcontainer tag override' ;;
+    DEV_IMAGE) printf 'Full devcontainer image override' ;;
+    DEV_CONTAINER) printf 'Local devcontainer name' ;;
+    DEV_WORKSPACE) printf 'Path inside devcontainer' ;;
+    DEVCONTAINER_POSTCREATE_INSTALL) printf 'Allow online Dev Container post-create install' ;;
+    CUDA_GO_TAGS) printf 'Go build tags for CUDA' ;;
+    OS_SMOKE_PRIVILEGE_CMD) printf 'Privilege command for OS enforcement smoke tests' ;;
+    OS_SMOKE_BACKEND_CMD) printf 'OS smoke backend command' ;;
+    OS_SMOKE_BACKEND_LOG) printf 'OS smoke backend log path' ;;
+    RUNTIME_REPLAY_OUT) printf 'Runtime replay output JSON path' ;;
+    RUNTIME_REPLAY_OUTDIR) printf 'Runtime replay output directory' ;;
+    ML_SWEEP) printf 'Enable ML sweep test mode' ;;
+    ML_SWEEP_MODE) printf 'ML sweep mode' ;;
+    ML_SWEEP_MODELS) printf 'ML sweep model filter' ;;
+    ML_SWEEP_DATASETS) printf 'ML sweep dataset filter' ;;
+    ML_SWEEP_WORKERS) printf 'ML sweep worker count' ;;
+    ML_SWEEP_POINTS_PER_PARAM) printf 'ML sweep points per parameter' ;;
+    ML_SWEEP_REPEATS) printf 'ML sweep repeat count' ;;
+    ML_SWEEP_STABILITY_TOP) printf 'ML sweep stability top-N' ;;
+    ML_SWEEP_OUTDIR) printf 'ML sweep output directory' ;;
+    ML_SWEEP_RESUME) printf 'Resume ML sweep output' ;;
+    ML_SWEEP_QUIET_LOGS) printf 'Quiet ML sweep logs' ;;
+    *) printf '%s' "$key" ;;
+  esac
+}
+
+hint_for() {
+  local key="$1"
+  local branch owner repo tag
+  branch="$(detect_branch)"
+  owner="$(detect_owner_repo)"
+  repo=""
+  tag=""
+  [ -n "$owner" ] && repo="ghcr.io/${owner}/devcontainer"
+  [ -n "$branch" ] && tag="$(branch_tag "$branch")"
+  case "$key" in
+    DISABLE_AUTH) printf 'Use true for make dev. Release installs still use runtime auth.' ;;
+    GIN_MODE) printf 'debug or release. debug is recommended for make dev.' ;;
+    AGENT_API_KEY) printf 'Seeds backend runtime access token only when runtime.json has none; also used by adapters.' ;;
+    AGENT_ACCESS_TOKEN) printf 'Used by smoke scripts; AGENT_API_KEY is the backend token seed.' ;;
+    AGENT_BACKEND_PORT) printf 'Leave unset for auto-select 8080..8089.' ;;
+    AGENT_REAL_HOME) printf 'Use when sudo/pkexec would otherwise store config under /root.' ;;
+    AGENT_WRAPPER_PATH) printf 'Leave unset to use ./agent-wrapper built by make dev.' ;;
+    AGENT_HOOK_ENDPOINT) printf 'Example: http://127.0.0.1:8080/hooks/event. Leave unset to read backend/.port.' ;;
+    AGENT_SHELL_DIR) printf 'Directory used by backend shell sessions when set.' ;;
+    AGENT_EBPF_DEV_SESSION) printf 'Used by make dev / scripts/dev-zellij.sh.' ;;
+    AGENT_ML_ENABLED|AGENT_ML_AUTO_TRAIN|AGENT_ML_ACTIVE_LEARNING_ENABLED|AGENT_ML_BALANCE_CLASSES|AGENT_LLM_ENABLED|AGENT_RUNTIME_*_ENABLED|AGENT_RUNTIME_DOMAIN_ALLOW_ANY_HOST|AGENT_EBPF_BOOTSTRAP|AGENT_EBPF_NO_SANDBOX|AGENT_EBPF_SANDBOX_STRICT|AGENT_EBPF_NO_CAP_DROP|AGENT_EBPF_NO_NO_NEW_PRIVS|ML_SWEEP|ML_SWEEP_RESUME|ML_SWEEP_QUIET_LOGS) bool_hint ;;
+    AGENT_ML_MODEL_TYPE) printf 'random_forest, logistic_regression, svm, knn, naive_bayes, nearest_centroid, extra_trees, adaboost, ensemble, etc.' ;;
+    AGENT_ML_TRAIN_INTERVAL) printf 'Duration such as 24h. Leave unset to keep Runtime Config.' ;;
+    AGENT_ML_BLOCK_CONFIDENCE_THRESHOLD|AGENT_ML_MIN_CONFIDENCE|AGENT_ML_LOW_ANOMALY_THRESHOLD|AGENT_ML_HIGH_ANOMALY_THRESHOLD|AGENT_ML_VALIDATION_SPLIT_RATIO) printf 'Float value. Leave unset to keep Runtime Config/defaults.' ;;
+    AGENT_LLM_BASE_URL) printf 'OpenAI-compatible base URL, e.g. http://127.0.0.1:11434/v1 or https://api.openai.com/v1.' ;;
+    AGENT_LLM_API_KEY|OPENAI_API_KEY|AGENT_CLUSTER_PASSWORD) printf 'Stored only in local .env.dev; doctor redacts it.' ;;
+    AGENT_LLM_MODEL|OPENAI_MODEL) printf 'Example: gpt-4.1-mini, qwen2.5-coder, llama3.1, etc.' ;;
+    AGENT_LLM_TIMEOUT_SECONDS) printf 'Default runtime value is 45 when unset.' ;;
+    AGENT_LLM_TEMPERATURE) printf '0..2; use 0 for deterministic policy/compiler output.' ;;
+    AGENT_LLM_MAX_TOKENS) printf 'Backend clamps request sizes. Leave unset to keep Runtime Config.' ;;
+    OPENAI_BASE_URL) printf 'Fallback consumed when AGENT_LLM_BASE_URL is unset.' ;;
+    AGENT_RUNTIME_LOG_FILE_PATH) printf 'Default: ~/.config/agent-ebpf-filter/events.jsonl.' ;;
+    AGENT_RUNTIME_MAX_EVENT_AGE) printf 'Duration like 0, 5m, 24h. 0 disables age eviction.' ;;
+    AGENT_RUNTIME_OTLP_ENDPOINT) printf 'Example: http://127.0.0.1:4318/v1/traces.' ;;
+    AGENT_RUNTIME_DOMAIN_DEFAULT_SCHEME) printf 'http or https. Default runtime value is https.' ;;
+    AGENT_RUNTIME_DOMAIN_DNS_RESOLVER) printf 'Optional resolver host:port.' ;;
+    AGENT_CGROUP_SANDBOX_PATH) printf 'Default: /sys/fs/cgroup. Useful for test cgroups.' ;;
+    AGENT_CLUSTER_MASTER_URL) printf 'When set, backend registers as a cluster node.' ;;
+    CONTAINER_CLI) printf 'docker or podman; detected: ${CONTAINER_CLI:-$(detect_container_cli)}.' ;;
+    DEV_BRANCH) printf 'Detected branch: ${branch:-unknown}. Leave unset for Makefile auto-detect.' ;;
+    DEV_IMAGE_REPOSITORY) printf 'Detected repository: ${repo:-unknown}. Leave unset for Makefile auto-detect.' ;;
+    DEV_IMAGE_TAG) printf 'Detected tag: ${tag:-unknown}. Leave unset for Makefile auto-detect.' ;;
+    DEV_IMAGE) printf 'Usually unset so Makefile derives repository/tag.' ;;
+    DEVCONTAINER_POSTCREATE_INSTALL) printf '0 keeps offline fail-fast behavior; 1 explicitly allows make predev online.' ;;
+    CUDA_GO_TAGS) printf 'Use cuda only when /opt/cuda has nvcc and runtime libs; - unsets.' ;;
+    OS_SMOKE_PRIVILEGE_CMD) printf 'Example: sudo -E. Leave unset for normal root/passwordless-sudo detection.' ;;
+    ML_SWEEP_MODE) printf 'quick, full, or comprehensive.' ;;
+    ML_SWEEP_MODELS|ML_SWEEP_DATASETS) printf 'Comma-separated filter. Leave unset for all supported items.' ;;
+    *) printf 'Leave unset to keep repository/runtime defaults.' ;;
+  esac
+}
+
+redact_value() {
+  local key="$1" value="$2"
+  case "$key" in
+    *KEY*|*TOKEN*|*PASSWORD*|*SECRET*)
+      if [ -z "$value" ]; then
+        printf ''
+      elif [ ${#value} -le 8 ]; then
+        printf '[set]'
+      else
+        printf '%s…%s' "${value:0:4}" "${value: -4}"
+      fi
+      ;;
+    *) printf '%s' "$value" ;;
+  esac
 }
 
 prompt_value() {
-  local key="$1" label="$2" default_value="${3:-}" hint="${4:-}"
-  local current answer shown
+  local key="$1" current default_value shown answer label hint
   current="$(get_var "$key")"
+  default_value="$(default_for "$key")"
   if [ -n "$current" ]; then
     shown="$current"
   else
     shown="$default_value"
   fi
-  printf '\n%s\n' "$label"
+  label="$(label_for "$key")"
+  hint="$(hint_for "$key")"
+  printf '\n%s (%s)\n' "$label" "$key"
   [ -n "$hint" ] && printf '  %s\n' "$hint"
   if [ -n "$shown" ]; then
-    printf '  [%s] > ' "$shown"
+    printf '  [%s] > ' "$(redact_value "$key" "$shown")"
   else
-    printf '  [auto/unset] > '
+    printf '  [unset] > '
   fi
   IFS= read -r answer
   case "$answer" in
-    "") [ -n "$shown" ] && set_var "$key" "$shown" || set_var "$key" "" ;;
-    "-") set_var "$key" "" ;;
+    "")
+      if [ -n "$shown" ]; then
+        set_var "$key" "$shown"
+      else
+        unset_var "$key"
+      fi
+      ;;
+    "-") unset_var "$key" ;;
     *) set_var "$key" "$answer" ;;
   esac
+}
+
+write_group() {
+  local group="$1" title="$2" key value
+  printf '\n# %s\n' "$title"
+  while IFS= read -r key; do
+    value="$(get_var "$key")"
+    [ -n "$value" ] || continue
+    printf 'export %s=%s\n' "$key" "$(shell_quote "$value")"
+  done < <(keys_for_group "$group")
+}
+
+write_make_group() {
+  local group="$1" title="$2" key value
+  printf '\n# %s\n' "$title"
+  while IFS= read -r key; do
+    value="$(get_var "$key")"
+    [ -n "$value" ] || continue
+    printf '%s := %s\n' "$key" "$(make_escape "$value")"
+    printf 'export %s\n' "$key"
+  done < <(keys_for_group "$group")
 }
 
 write_files() {
@@ -135,25 +526,24 @@ write_files() {
   {
     printf '# Generated by scripts/dev-env.sh at %s\n' "$generated_at"
     printf '# Source this file for shell sessions: set -a; . ./.env.dev; set +a\n'
-    for key in "${CONFIG_KEYS[@]}"; do
-      local value
-      value="$(get_var "$key")"
-      [ -n "$value" ] || continue
-      printf 'export %s=%s\n' "$key" "$(shell_quote "$value")"
-    done
+    write_group core 'core backend/dev config'
+    write_group ml-llm 'ML and LLM config'
+    write_group app 'application runtime behavior, sandbox, cluster config'
+    write_group devcontainer 'devcontainer config'
+    write_group tooling 'tooling and benchmark config'
   } > "$SHELL_ENV_FILE"
 
   {
     printf '# Generated by scripts/dev-env.sh at %s\n' "$generated_at"
     printf '# Included automatically by Makefile when present.\n'
-    for key in "${CONFIG_KEYS[@]}"; do
-      local value
-      value="$(get_var "$key")"
-      [ -n "$value" ] || continue
-      printf '%s := %s\n' "$key" "$(make_escape "$value")"
-    done
+    write_make_group core 'core backend/dev config'
+    write_make_group ml-llm 'ML and LLM config'
+    write_make_group app 'application runtime behavior, sandbox, cluster config'
+    write_make_group devcontainer 'devcontainer config'
+    write_make_group tooling 'tooling and benchmark config'
   } > "$MAKE_ENV_FILE"
 
+  chmod 0600 "$SHELL_ENV_FILE" "$MAKE_ENV_FILE"
   printf '\nWrote:\n  %s\n  %s\n' "${SHELL_ENV_FILE#$ROOT/}" "${MAKE_ENV_FILE#$ROOT/}"
 }
 
@@ -164,55 +554,52 @@ apply_recommended_defaults() {
   : "${DEV_CONTAINER:=agent-ebpf-filiter-dev}"
   : "${DEV_WORKSPACE:=/workspaces/agent-ebpf-filiter}"
   : "${DEVCONTAINER_POSTCREATE_INSTALL:=0}"
+  export DISABLE_AUTH GIN_MODE AGENT_EBPF_DEV_SESSION DEV_CONTAINER DEV_WORKSPACE DEVCONTAINER_POSTCREATE_INSTALL
 }
 
-configure() {
-  if [ ! -t 0 ]; then
-    echo "Interactive configuration requires a TTY. Use '$0 defaults' for non-interactive defaults." >&2
+print_config_group() {
+  local group="$1" title="$2" redact="${3:-0}" key value display any=0
+  printf '\n[%s]\n' "$title"
+  while IFS= read -r key; do
+    value="$(get_var "$key")"
+    [ -n "$value" ] || continue
+    any=1
+    if [ "$redact" = "1" ]; then
+      display="$(redact_value "$key" "$value")"
+    else
+      display="$value"
+    fi
+    printf '  %-42s %s\n' "$key" "$display"
+  done < <(keys_for_group "$group")
+  [ "$any" = "1" ] || printf '  (no values set)\n'
+}
+
+preview_config() {
+  local redact="${1:-1}"
+  print_config_group core 'core backend/dev config' "$redact"
+  print_config_group ml-llm 'ML and LLM config' "$redact"
+  print_config_group app 'application runtime behavior, sandbox, cluster config' "$redact"
+  print_config_group devcontainer 'devcontainer config' "$redact"
+  print_config_group tooling 'tooling and benchmark config' "$redact"
+}
+
+edit_group() {
+  local group="$1" key
+  group="$(canonical_group "$group")" || {
+    echo "Unknown group: $group" >&2
     exit 2
+  }
+  if [ "$group" = "all" ]; then
+    for group in core ml-llm app devcontainer tooling; do
+      edit_group "$group"
+    done
+    return
   fi
-  load_existing
-  apply_recommended_defaults
-
-  local detected_container detected_branch detected_owner detected_repo detected_tag detected_cuda
-  detected_container="$(detect_container_cli)"
-  detected_branch="$(detect_branch)"
-  detected_owner="$(detect_owner_repo)"
-  detected_repo=""
-  [ -n "$detected_owner" ] && detected_repo="ghcr.io/${detected_owner}/devcontainer"
-  detected_tag=""
-  [ -n "$detected_branch" ] && detected_tag="$(branch_tag "$detected_branch")"
-  detected_cuda="$(cuda_default)"
-
-  cat <<INTRO
-Interactive dev env configuration
-
-Files generated:
-  .env.dev     - shell exports for direct script use
-  .env.dev.mk  - Makefile variables loaded by make targets
-
-Press Enter to accept the shown value. Enter '-' to unset a value.
-INTRO
-
-  prompt_value DISABLE_AUTH "Disable auth for local dev backend?" "${DISABLE_AUTH:-true}" "Use true for make dev; release installs still use runtime config."
-  prompt_value GIN_MODE "Gin mode for dev backend" "${GIN_MODE:-debug}" "debug or release; debug is recommended while developing."
-  prompt_value AGENT_EBPF_DEV_SESSION "Zellij session name" "${AGENT_EBPF_DEV_SESSION:-agent-ebpf-dev}" "Used by make dev / scripts/dev-zellij.sh."
-  prompt_value AGENT_WRAPPER_PATH "Wrapper path override" "${AGENT_WRAPPER_PATH:-}" "Leave unset to use ./agent-wrapper built by make dev."
-
-  prompt_value CONTAINER_CLI "Container CLI override" "${CONTAINER_CLI:-$detected_container}" "docker or podman; leave unset to let Makefile auto-detect."
-  prompt_value DEV_BRANCH "Devcontainer branch override" "${DEV_BRANCH:-}" "Detected branch: ${detected_branch:-unknown}. Leave unset for Makefile auto-detect."
-  prompt_value DEV_IMAGE_REPOSITORY "GHCR devcontainer repository override" "${DEV_IMAGE_REPOSITORY:-}" "Detected repository: ${detected_repo:-unknown}. Leave unset for Makefile auto-detect."
-  prompt_value DEV_IMAGE_TAG "GHCR devcontainer image tag override" "${DEV_IMAGE_TAG:-}" "Detected tag for current branch: ${detected_tag:-unknown}. Leave unset for Makefile auto-detect."
-  prompt_value DEV_IMAGE "Full devcontainer image override" "${DEV_IMAGE:-}" "Usually leave unset so repository/tag are derived."
-  prompt_value DEV_CONTAINER "Local devcontainer name" "${DEV_CONTAINER:-agent-ebpf-filiter-dev}" "Used by make exec."
-  prompt_value DEV_WORKSPACE "Path inside devcontainer" "${DEV_WORKSPACE:-/workspaces/agent-ebpf-filiter}" "Keep aligned with .devcontainer/devcontainer.json."
-  prompt_value DEVCONTAINER_POSTCREATE_INSTALL "Allow online post-create dependency install?" "${DEVCONTAINER_POSTCREATE_INSTALL:-0}" "0 keeps offline fail-fast behavior; 1 explicitly allows make predev online."
-
-  prompt_value CUDA_GO_TAGS "Go build tags for CUDA" "${CUDA_GO_TAGS:-$detected_cuda}" "Use cuda only when /opt/cuda has nvcc and runtime libs; '-' unsets."
-  prompt_value OS_SMOKE_PRIVILEGE_CMD "Privilege command for os-enforcement smoke start" "${OS_SMOKE_PRIVILEGE_CMD:-}" "Example: sudo -E. Leave unset for normal root/passwordless-sudo detection."
-
-  write_files
-  print_next_steps
+  printf '\n--- Editing group: %s ---\n' "$group"
+  printf "Press Enter to keep the shown value, '-' to unset.\n"
+  while IFS= read -r key; do
+    prompt_value "$key"
+  done < <(keys_for_group "$group")
 }
 
 print_next_steps() {
@@ -228,10 +615,74 @@ For a shell that should inherit the same values:
 NEXT
 }
 
+interactive_menu() {
+  local choice
+  while true; do
+    cat <<MENU
+
+Interactive dev env editor
+  1) core          backend/dev basics, auth, hooks, shell
+  2) ml-llm        ML parameters + OpenAI-compatible LLM config
+  3) app           runtime behavior, OTLP/TLS/domain, sandbox, cluster
+  4) devcontainer  GHCR image/container options
+  5) tooling       CUDA, smoke tests, replay, ML sweep
+  6) all           edit every group in order
+  p) preview current values (secrets redacted)
+  d) doctor checks
+  w) write files and continue editing
+  q) write files and quit
+  x) exit without writing
+MENU
+    printf '> '
+    IFS= read -r choice
+    case "$choice" in
+      1|core) edit_group core ;;
+      2|ml|llm|ml-llm) edit_group ml-llm ;;
+      3|app|runtime|behavior) edit_group app ;;
+      4|devcontainer|container) edit_group devcontainer ;;
+      5|tooling|tools) edit_group tooling ;;
+      6|all) edit_group all ;;
+      p|P) preview_config 1 ;;
+      d|D) doctor || true ;;
+      w|W) write_files ;;
+      q|Q) write_files; print_next_steps; return ;;
+      x|X) echo 'No files written.'; return ;;
+      *) echo "Unknown choice: $choice" ;;
+    esac
+  done
+}
+
+configure() {
+  if [ ! -t 0 ]; then
+    echo "Interactive configuration requires a TTY. Use '$0 defaults' or '$0 set KEY VALUE' for non-interactive use." >&2
+    exit 2
+  fi
+  load_existing
+  apply_recommended_defaults
+
+  cat <<INTRO
+Interactive dev env configuration
+
+Files generated:
+  .env.dev     - shell exports for direct script use
+  .env.dev.mk  - Makefile variables loaded by make targets
+
+Secrets are local only and the files are written with 0600 permissions.
+INTRO
+
+  if [ -n "${1:-}" ]; then
+    edit_group "$1"
+    write_files
+    print_next_steps
+  else
+    interactive_menu
+  fi
+}
+
 print_exports() {
   load_existing
+  local key value
   for key in "${CONFIG_KEYS[@]}"; do
-    local value
     value="$(get_var "$key")"
     [ -n "$value" ] || continue
     printf 'export %s=%s\n' "$key" "$(shell_quote "$value")"
@@ -240,44 +691,68 @@ print_exports() {
 
 doctor() {
   load_existing
+  local missing=0 cmd key value api_key access_token llm_enabled llm_base llm_model sandbox_off sandbox_strict cluster_master cluster_account cluster_password container_cli
   echo "Dev env files:"
   [ -f "$SHELL_ENV_FILE" ] && echo "  shell: ${SHELL_ENV_FILE#$ROOT/}" || echo "  shell: missing (.env.dev)"
   [ -f "$MAKE_ENV_FILE" ] && echo "  make : ${MAKE_ENV_FILE#$ROOT/}" || echo "  make : missing (.env.dev.mk)"
+
+  preview_config 1
+
   echo
-  echo "Configured values:"
-  for key in "${CONFIG_KEYS[@]}"; do
-    local value
-    value="$(get_var "$key")"
-    [ -n "$value" ] || continue
-    printf '  %-32s %s\n' "$key" "$value"
-  done
+  echo "Config checks:"
+  api_key="$(get_var AGENT_API_KEY)"
+  access_token="$(get_var AGENT_ACCESS_TOKEN)"
+  if [ -n "$api_key" ] && [ -n "$access_token" ] && [ "$api_key" != "$access_token" ]; then
+    echo "  warn: AGENT_API_KEY and AGENT_ACCESS_TOKEN differ; backend prefers AGENT_API_KEY."
+  fi
+  llm_enabled="$(get_var AGENT_LLM_ENABLED)"
+  llm_base="$(get_var AGENT_LLM_BASE_URL)"
+  [ -n "$llm_base" ] || llm_base="$(get_var OPENAI_BASE_URL)"
+  llm_model="$(get_var AGENT_LLM_MODEL)"
+  [ -n "$llm_model" ] || llm_model="$(get_var OPENAI_MODEL)"
+  if [[ "$llm_enabled" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+    if [ -z "$llm_base" ] || [ -z "$llm_model" ]; then
+      echo "  warn: AGENT_LLM_ENABLED is true but base URL or model is unset."
+    else
+      echo "  ok  : LLM override has base URL and model."
+    fi
+  elif [ -n "$llm_base" ] || [ -n "$llm_model" ] || [ -n "$(get_var AGENT_LLM_API_KEY)$(get_var OPENAI_API_KEY)" ]; then
+    echo "  note: LLM values are present; set AGENT_LLM_ENABLED=true to force-enable at backend startup."
+  else
+    echo "  ok  : no LLM env override; Runtime Config remains source of truth."
+  fi
+
+  sandbox_off="$(get_var AGENT_EBPF_NO_SANDBOX)"
+  sandbox_strict="$(get_var AGENT_EBPF_SANDBOX_STRICT)"
+  if [[ "$sandbox_off" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]] && [[ "$sandbox_strict" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+    echo "  warn: sandbox is disabled while strict mode is also requested."
+  fi
+
+  cluster_master="$(get_var AGENT_CLUSTER_MASTER_URL)"
+  cluster_account="$(get_var AGENT_CLUSTER_ACCOUNT)"
+  cluster_password="$(get_var AGENT_CLUSTER_PASSWORD)"
+  if [ -n "$cluster_master" ] && { [ -z "$cluster_account" ] || [ -z "$cluster_password" ]; }; then
+    echo "  warn: cluster master URL is set but account/password is incomplete."
+  fi
+
   echo
   echo "Tool checks:"
-  local missing=0
   for cmd in go make bun uv protoc zellij sudo; do
     if command -v "$cmd" >/dev/null 2>&1; then
       printf '  %-10s %s\n' "$cmd" "$(command -v "$cmd")"
     else
-      printf '  %-10s MISSING\n' "$cmd"
+      printf '  %-10s missing\n' "$cmd"
       missing=1
     fi
   done
-  local container_cli
-  container_cli="${CONTAINER_CLI:-$(detect_container_cli)}"
+  container_cli="$(get_var CONTAINER_CLI)"
+  [ -n "$container_cli" ] || container_cli="$(detect_container_cli)"
   if [ -n "$container_cli" ] && command -v "$container_cli" >/dev/null 2>&1; then
-    printf '  %-10s %s\n' "container" "$container_cli ($(command -v "$container_cli"))"
+    printf '  %-10s %s\n' "container" "$(command -v "$container_cli")"
   else
-    printf '  %-10s MISSING docker/podman\n' "container"
+    echo "  container  missing docker/podman"
   fi
-  echo
-  echo "Effective devcontainer image from Makefile:"
-  (cd "$ROOT" && make --no-print-directory dev-image) || missing=1
   return "$missing"
-}
-
-reset_config() {
-  rm -f "$SHELL_ENV_FILE" "$MAKE_ENV_FILE"
-  echo "Removed .env.dev and .env.dev.mk"
 }
 
 write_defaults() {
@@ -287,13 +762,43 @@ write_defaults() {
   print_next_steps
 }
 
+reset_files() {
+  rm -f "$SHELL_ENV_FILE" "$MAKE_ENV_FILE"
+  printf 'Removed:\n  %s\n  %s\n' "${SHELL_ENV_FILE#$ROOT/}" "${MAKE_ENV_FILE#$ROOT/}"
+}
+
+set_key_command() {
+  local key="${1:-}" value="${2-}"
+  if [ -z "$key" ] || ! is_supported_key "$key"; then
+    echo "Unsupported or missing key: ${key:-<empty>}" >&2
+    exit 2
+  fi
+  load_existing
+  set_var "$key" "$value"
+  write_files
+}
+
+unset_key_command() {
+  local key="${1:-}"
+  if [ -z "$key" ] || ! is_supported_key "$key"; then
+    echo "Unsupported or missing key: ${key:-<empty>}" >&2
+    exit 2
+  fi
+  load_existing
+  unset_var "$key"
+  write_files
+}
+
 cmd="${1:-configure}"
+shift || true
 case "$cmd" in
-  configure|config|wizard) configure ;;
-  print|export|exports) print_exports ;;
-  doctor|check) doctor ;;
-  reset|clean) reset_config ;;
-  defaults|default) write_defaults ;;
+  configure|edit|wizard) configure "${1:-}" ;;
+  print) print_exports ;;
+  doctor) doctor ;;
+  reset) reset_files ;;
+  defaults) write_defaults ;;
+  set) set_key_command "${1:-}" "${2-}" ;;
+  unset) unset_key_command "${1:-}" ;;
   help|-h|--help) usage ;;
-  *) usage >&2; exit 64 ;;
+  *) usage >&2; exit 2 ;;
 esac

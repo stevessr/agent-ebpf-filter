@@ -251,11 +251,14 @@ make predev
 make dev
 ```
 
-`make dev-env` launches `scripts/dev-env.sh`, an interactive CLI that writes
-local-only `.env.dev` shell exports plus `.env.dev.mk` Makefile variables for
-common development settings such as `DISABLE_AUTH`, `GIN_MODE`, Zellij session
-name, devcontainer image overrides, `CUDA_GO_TAGS`, and
-`OS_SMOKE_PRIVILEGE_CMD`. `make dev-env-doctor` prints the effective config and
+`make dev-env` launches `scripts/dev-env.sh`, an interactive grouped editor
+that writes local-only `.env.dev` shell exports plus `.env.dev.mk` Makefile
+variables. It covers core dev settings, ML/LLM behavior (`AGENT_LLM_*` and
+OpenAI-compatible fallbacks), runtime app behavior toggles, sandbox/cluster
+settings, devcontainer image overrides, CUDA, smoke tests, replay, and ML sweep
+settings. On backend startup the runtime env overrides seed Runtime Config for
+ML/LLM, OTLP/TLS/domain-forwarding, shell/system/policy toggles, and retention.
+`make dev-env-doctor` prints the effective config with secrets redacted and
 checks common tools; direct shell sessions can inherit it with
 `set -a; . ./.env.dev; set +a`.
 
