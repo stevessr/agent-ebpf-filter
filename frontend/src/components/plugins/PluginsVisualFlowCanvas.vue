@@ -33,10 +33,15 @@ const emit = defineEmits<{
   (e: "reset-layout"): void;
   (e: "reset-wires"): void;
   (e: "delete-node", value: VisualFlowNodeId): void;
+  (
+    e: "drop-node-type",
+    value: { category: string; value: string; x: number; y: number }
+  ): void;
 }>();
 
 const nodeWidth = 160;
 const nodeHeight = 72;
+const gridSize = 24;
 const defaultCanvasWidth = 920;
 const defaultCanvasHeight = 420;
 const minCanvasWidth = 720;
@@ -96,6 +101,14 @@ const flowNodeIds: VisualFlowNodeId[] = [
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+
+const snapToGrid = (value: number) => Math.round(value / gridSize) * gridSize;
+
+const snapNodeX = (value: number) =>
+  clamp(snapToGrid(Math.round(value)), canvasPadding, maxNodeX.value);
+
+const snapNodeY = (value: number) =>
+  clamp(snapToGrid(Math.round(value)), canvasPadding, maxNodeY.value);
 
 const wireDefinitions: Array<{
   id: VisualWireId;
@@ -354,6 +367,18 @@ const canvasPointFromEvent = (event: PointerEvent) => {
   };
 };
 
+const canvasPointFromDragEvent = (event: DragEvent) => {
+  const canvas = canvasRef.value;
+  if (!canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = rect.width > 0 ? canvasSize.value.width / rect.width : 1;
+  const scaleY = rect.height > 0 ? canvasSize.value.height / rect.height : 1;
+  return {
+    x: clamp((event.clientX - rect.left) * scaleX, 0, canvasSize.value.width),
+    y: clamp((event.clientY - rect.top) * scaleY, 0, canvasSize.value.height),
+  };
+};
+
 const getWireForEndpoints = (from: VisualFlowNodeId, to: VisualFlowNodeId) =>
   wireDefinitions.find((wire) => wire.from === from && wire.to === to) || null;
 
@@ -388,11 +413,44 @@ const updateNodePosition = (id: VisualFlowNodeId, x: number, y: number) => {
   const next = {
     ...mergedLayout.value,
     [id]: {
-      x: clamp(Math.round(x), canvasPadding, maxNodeX.value),
-      y: clamp(Math.round(y), canvasPadding, maxNodeY.value),
+      x: snapNodeX(x),
+      y: snapNodeY(y),
     },
   };
   emit("update:nodeLayout", next);
+};
+
+const handleCanvasDragOver = (event: DragEvent) => {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "move";
+  }
+};
+
+const handleCanvasDrop = (event: DragEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
+  const point = canvasPointFromDragEvent(event);
+  const rawData = event.dataTransfer?.getData("text/plain");
+  if (!point || !rawData) return;
+
+  try {
+    const parsed = JSON.parse(rawData) as {
+      category?: unknown;
+      value?: unknown;
+    };
+    if (typeof parsed.category !== "string" || typeof parsed.value !== "string") {
+      return;
+    }
+    emit("drop-node-type", {
+      category: parsed.category,
+      value: parsed.value,
+      x: snapNodeX(point.x - nodeWidth / 2),
+      y: snapNodeY(point.y - nodeHeight / 2),
+    });
+  } catch (err) {
+    console.error("Failed to parse node type drop payload:", err);
+  }
 };
 
 const toggleWire = (id: VisualWireId) => {
@@ -438,7 +496,6 @@ const handlePointerMove = (event: PointerEvent) => {
 };
 
 const handlePointerDown = (event: PointerEvent, id: VisualFlowNodeId) => {
-  const current = getNodePosition(id);
   const target = event.currentTarget as HTMLElement;
   const rect = target.getBoundingClientRect();
   dragging.value = {
@@ -449,7 +506,6 @@ const handlePointerDown = (event: PointerEvent, id: VisualFlowNodeId) => {
     startY: event.clientY,
     moved: false,
   };
-  updateNodePosition(id, current.x, current.y);
   window.addEventListener("pointermove", handlePointerMove);
   window.addEventListener("pointerup", stopDragging);
 };
@@ -577,10 +633,12 @@ onBeforeUnmount(() => {
     <div class="flow-header">
       <div>
         <h4>低代码节点拓扑画布 (Draggable Blueprint Canvas)</h4>
-        <span>拖拽节点重排视图；拖动画布下方手柄可把工作区横向/纵向拉开。</span>
+        <span>从左侧拖节点类型到画布会按 24px 网格吸附；拖节点端口可编辑路由，拖动底部手柄可拉开工作区。</span>
       </div>
       <a-space size="small" wrap>
         <a-tag color="blue">{{ canvasSize.width }}×{{ canvasSize.height }}</a-tag>
+        <a-tag color="geekblue">24px snap</a-tag>
+        <a-tag color="cyan">route edit</a-tag>
         <a-tag :color="connectedWireCount === visibleWireDefinitions.length ? 'green' : 'orange'">
           {{ connectedWireCount }}/{{ visibleWireDefinitions.length }} wires
         </a-tag>
@@ -610,7 +668,12 @@ onBeforeUnmount(() => {
         class="flow-canvas"
         :class="{ resizing: !!canvasResizeDrag }"
         :style="canvasStyle"
+        @dragover="handleCanvasDragOver"
+        @drop="handleCanvasDrop"
       >
+        <div class="drop-target-hint">
+          拖入节点类型创建/恢复节点 · 节点移动自动吸附网格
+        </div>
         <svg class="flow-wires" :viewBox="canvasViewBox" preserveAspectRatio="none">
         <defs>
           <linearGradient id="flow-wire-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -822,6 +885,22 @@ onBeforeUnmount(() => {
 .flow-canvas.resizing {
   cursor: nwse-resize;
   transition: none;
+}
+
+.drop-target-hint {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 5;
+  max-width: min(360px, calc(100% - 24px));
+  padding: 6px 10px;
+  border: 1px dashed rgba(56, 189, 248, 0.45);
+  border-radius: 999px;
+  color: #bae6fd;
+  background: rgba(15, 23, 42, 0.78);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  font-size: 10.5px;
+  pointer-events: none;
 }
 
 .flow-wires {
