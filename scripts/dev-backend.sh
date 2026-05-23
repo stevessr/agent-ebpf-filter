@@ -5,10 +5,17 @@ set -uo pipefail
 # On shutdown: clean BPF pins so no stale state lingers
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEV_ENV_FILE="${DEV_ENV_FILE:-$ROOT/.env.dev}"
+if [ -f "$DEV_ENV_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$DEV_ENV_FILE"
+    set +a
+fi
 cd "$ROOT"
 
 BACKEND_DIR="backend"
-WRAPPER_PATH="$ROOT/agent-wrapper"
+WRAPPER_PATH="${AGENT_WRAPPER_PATH:-$ROOT/agent-wrapper}"
 BACKEND_BIN="$ROOT/backend/agent-ebpf-filter"
 BPF_PIN_ROOT="/sys/fs/bpf/agent-ebpf"
 PID=""
@@ -59,11 +66,12 @@ while true; do
         echo "--- [Dev] Launching Backend ---"
         # Export first, then preserve by name. This keeps paths containing spaces
         # out of sudo's command/env assignment parser entirely.
-        export DISABLE_AUTH=true
+        export DISABLE_AUTH="${DISABLE_AUTH:-true}"
+        export GIN_MODE="${GIN_MODE:-debug}"
         export AGENT_WRAPPER_PATH="$WRAPPER_PATH"
         sudo_backend_cmd=(
             sudo
-            --preserve-env=DISABLE_AUTH,AGENT_WRAPPER_PATH
+            --preserve-env=DISABLE_AUTH,GIN_MODE,AGENT_WRAPPER_PATH
             --
             "$BACKEND_BIN"
         )

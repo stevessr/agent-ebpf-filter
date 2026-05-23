@@ -6,6 +6,13 @@ set -euo pipefail
 export PATH="/usr/local/go/bin:/go/bin:/usr/local/bun/bin:/usr/local/bin:$PATH"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEV_ENV_FILE="${DEV_ENV_FILE:-$ROOT/.env.dev}"
+if [ -f "$DEV_ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$DEV_ENV_FILE"
+  set +a
+fi
 cd "$ROOT"
 
 if ! mountpoint -q /sys/fs/bpf; then
