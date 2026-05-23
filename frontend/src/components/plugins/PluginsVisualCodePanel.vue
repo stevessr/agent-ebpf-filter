@@ -50,6 +50,16 @@ const initMonaco = () => {
     languagesAny.typescript.typescriptDefaults.addExtraLib(
       `
       declare module "ebpf" {
+        export interface HookContext {
+          comm: string;
+          pid: number;
+          uid: number;
+          basename: string;
+          port: number;
+          ipv4: string;
+          gid: number;
+        }
+
         export const process: any;
         export const file_open: any;
         export const mkdir: any;
