@@ -179,6 +179,16 @@ func LoadEBPFPlugin(m *PluginManifest) error {
 			coll.Close()
 			return fmt.Errorf("attach kretprobe: %w", err)
 		}
+	case PluginAttachLSM:
+		attached, err = link.AttachLSM(link.LSMOptions{Program: prog})
+		if err != nil {
+			coll.Close()
+			target := strings.TrimSpace(m.AttachTarget)
+			if target != "" {
+				return fmt.Errorf("attach lsm %s: %w", target, err)
+			}
+			return fmt.Errorf("attach lsm: %w", err)
+		}
 	default:
 		coll.Close()
 		return fmt.Errorf("unsupported attach kind %q", m.AttachKind)
@@ -253,13 +263,13 @@ func ReapplyEBPFPluginsOnBoot() {
 
 // BPFTemplates returns a fixed set of starter snippets for the online builder.
 type BPFTemplate struct {
-	ID          string           `json:"id"`
-	Name        string           `json:"name"`
-	Description string           `json:"description"`
-	AttachKind  PluginAttachKind `json:"attachKind"`
-	AttachTarget string          `json:"attachTarget"`
-	ProgramName string           `json:"programName"`
-	Source      string           `json:"source"`
+	ID           string           `json:"id"`
+	Name         string           `json:"name"`
+	Description  string           `json:"description"`
+	AttachKind   PluginAttachKind `json:"attachKind"`
+	AttachTarget string           `json:"attachTarget"`
+	ProgramName  string           `json:"programName"`
+	Source       string           `json:"source"`
 }
 
 func bpfTemplates() []BPFTemplate {

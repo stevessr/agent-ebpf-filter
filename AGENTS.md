@@ -166,6 +166,11 @@ Repo-root binaries such as `agent-wrapper` and `backend/agent-ebpf-filter` are b
   mutated through authenticated backend APIs, not direct unprivileged map writes.
 - Wrapper control uses the Unix socket:
   - `/tmp/agent-ebpf.sock`
+- User-authored visual eBPF plugins use `attachKind: "lsm"` for generated
+  `SEC("lsm/...")` programs and `attachKind: "kprobe"` only for the
+  `unlink` / `do_unlinkat` flow. Do not serialize non-`unlink` visual plugins
+  with `attachKind: "none"` because the backend loader requires a real attach
+  kind and `programName`.
 
 ### Port handoff
 
@@ -227,6 +232,7 @@ Important pages:
 - `Executor.vue` — wrapper execution + PTY shell manager
 - `Hooks.vue` — AI CLI hook management
 - `ML.vue` — ML status, parameters, model tuning, LLM scoring, and training-set management
+- `Plugins.vue` — plugin registry, online eBPF builder, and visual block editor; the NLP Blocks Compiler calls `/plugins/visual/llm-compile` and falls back to local parsing when LLM config is unavailable
 - `Config.vue` — tags, comms, paths, wrapper rules, Runtime Config, System Health
 
 ## 7. Backend conventions

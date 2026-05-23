@@ -108,3 +108,16 @@ export type VisualNodeLayout = Record<string, VisualNodePosition>;
 export type VisualWireStates = Partial<Record<VisualWireId, boolean>>;
 
 export type VisualHiddenNodeStates = Partial<Record<VisualFlowNodeId, boolean>>;
+
+export interface VisualLLMCompileResult {
+  trigger: VisualTrigger;
+  action: VisualAction;
+  conditions: VisualLogicGroup;
+  mapMode: VisualMapMode;
+  mapKey: VisualMapKey;
+  mapLimit: number;
+  reasoning?: string;
+  warnings?: string[];
+  model?: string;
+  rawContent?: string;
+}

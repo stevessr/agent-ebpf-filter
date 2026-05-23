@@ -19,9 +19,9 @@ import (
 type PluginKind string
 
 const (
-	PluginKindEBPF    PluginKind = "ebpf"     // user-authored eBPF program (built via online builder)
-	PluginKindWebhook PluginKind = "webhook"  // forwards selected events to an HTTP endpoint
-	PluginKindCommand PluginKind = "command"  // wrapper rewrite rule expressed as a plugin
+	PluginKindEBPF    PluginKind = "ebpf"    // user-authored eBPF program (built via online builder)
+	PluginKindWebhook PluginKind = "webhook" // forwards selected events to an HTTP endpoint
+	PluginKindCommand PluginKind = "command" // wrapper rewrite rule expressed as a plugin
 )
 
 // PluginAttachKind describes how an eBPF plugin attaches to the kernel.
@@ -31,26 +31,27 @@ const (
 	PluginAttachTracepoint PluginAttachKind = "tracepoint"
 	PluginAttachKprobe     PluginAttachKind = "kprobe"
 	PluginAttachKretprobe  PluginAttachKind = "kretprobe"
+	PluginAttachLSM        PluginAttachKind = "lsm"
 	PluginAttachNone       PluginAttachKind = "none"
 )
 
 // PluginManifest is the on-disk descriptor for a registered plugin.
 type PluginManifest struct {
-	ID          string           `json:"id"`
-	Name        string           `json:"name"`
-	Description string           `json:"description,omitempty"`
-	Author      string           `json:"author,omitempty"`
-	Version     string           `json:"version,omitempty"`
-	Kind        PluginKind       `json:"kind"`
-	Enabled     bool             `json:"enabled"`
-	CreatedAt   time.Time        `json:"createdAt"`
-	UpdatedAt   time.Time        `json:"updatedAt"`
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description,omitempty"`
+	Author      string     `json:"author,omitempty"`
+	Version     string     `json:"version,omitempty"`
+	Kind        PluginKind `json:"kind"`
+	Enabled     bool       `json:"enabled"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
 
 	// eBPF specific
 	SourceSHA256 string           `json:"sourceSha256,omitempty"`
 	ObjectSHA256 string           `json:"objectSha256,omitempty"`
 	AttachKind   PluginAttachKind `json:"attachKind,omitempty"`
-	AttachTarget string           `json:"attachTarget,omitempty"` // e.g. "syscalls/sys_enter_openat" or "do_unlinkat"
+	AttachTarget string           `json:"attachTarget,omitempty"` // e.g. "syscalls/sys_enter_openat", "do_unlinkat", or "lsm/file_open"
 	ProgramName  string           `json:"programName,omitempty"`  // BPF program (section) name to attach
 
 	// Webhook specific
@@ -58,14 +59,14 @@ type PluginManifest struct {
 	WebhookEvents []string `json:"webhookEvents,omitempty"`
 
 	// Command specific
-	CommandComm  string   `json:"commandComm,omitempty"`
-	CommandArgs  []string `json:"commandArgs,omitempty"`
-	CommandRule  string   `json:"commandRule,omitempty"` // ALLOW / BLOCK / ALERT / REWRITE
+	CommandComm    string   `json:"commandComm,omitempty"`
+	CommandArgs    []string `json:"commandArgs,omitempty"`
+	CommandRule    string   `json:"commandRule,omitempty"` // ALLOW / BLOCK / ALERT / REWRITE
 	CommandRewrite []string `json:"commandRewrite,omitempty"`
 
 	// Runtime state (not persisted, but populated when listing)
-	Loaded     bool   `json:"loaded,omitempty"`
-	LoadError  string `json:"loadError,omitempty"`
+	Loaded    bool   `json:"loaded,omitempty"`
+	LoadError string `json:"loadError,omitempty"`
 }
 
 var pluginIDRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}$`)
@@ -265,7 +266,7 @@ func pluginExportPayload() map[string]any {
 		stripped = append(stripped, p)
 	}
 	return map[string]any{
-		"plugins":   stripped,
+		"plugins":    stripped,
 		"exportedAt": time.Now().UTC(),
 	}
 }
