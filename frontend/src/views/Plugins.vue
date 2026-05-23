@@ -71,6 +71,7 @@ const attachKindOptions = [
   { value: "tracepoint", label: "Tracepoint" },
   { value: "kprobe", label: "Kprobe" },
   { value: "kretprobe", label: "Kretprobe" },
+  { value: "lsm", label: "BPF LSM" },
 ];
 
 const applyTemplate = (tpl: BPFTemplate) => {

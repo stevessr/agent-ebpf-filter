@@ -1839,6 +1839,39 @@ const generatedLineCount = computed(
   () => generatedBpfCode.value.split(/\r?\n/).length
 );
 
+const visualAttachKind = computed(() =>
+  trigger.value === "unlink" ? "kprobe" : "lsm"
+);
+
+const visualAttachTarget = computed(() => {
+  switch (trigger.value) {
+    case "process":
+      return "lsm/bprm_check_security";
+    case "file_open":
+      return "lsm/file_open";
+    case "mkdir":
+      return "lsm/inode_mkdir";
+    case "file_create":
+      return "lsm/inode_create";
+    case "rmdir":
+      return "lsm/inode_rmdir";
+    case "symlink":
+      return "lsm/inode_symlink";
+    case "socket_connect":
+      return "lsm/socket_connect";
+    case "inode_mknod":
+      return "lsm/inode_mknod";
+    case "file_mprotect":
+      return "lsm/file_mprotect";
+    case "inode_rename":
+      return "lsm/inode_rename";
+    case "unlink":
+      return "do_unlinkat";
+    default:
+      return "";
+  }
+});
+
 // Watch inputs to auto-sync Manifest fields
 watch(
   [trigger, logicRoot, action, mapMode, mapKey, mapLimit],
@@ -1937,6 +1970,8 @@ const handleAiTranslate = (payload: {
   mapLimit.value = payload.mapLimit;
   hiddenFlowNodes.value = createDefaultHiddenNodes();
   wireStates.value = createDefaultWireStates();
+  designerSubtab.value = "dify";
+  activeFlowNode.value = "condition";
 };
 
 const isTextEditingTarget = (target: EventTarget | null) => {
@@ -1994,14 +2029,15 @@ const handleCompileAndRegister = async () => {
   compileLogLocal.value = "正在将高阶规则积木块转译为标准的 BPF C 源码...\n";
   try {
     compileLogLocal.value += `正在注册插件 Manifest [${pluginId.value}] 至本地仓库...\n`;
+    compileLogLocal.value += `挂载方式: ${visualAttachKind.value} / ${visualAttachTarget.value} / program=visual_custom_plugin\n`;
     await upsertPlugin({
       id: pluginId.value,
       name: pluginName.value,
       description: description.value,
       kind: "ebpf",
       enabled: false,
-      attachKind: trigger.value === "unlink" ? "kprobe" : "none",
-      attachTarget: trigger.value === "unlink" ? "do_unlinkat" : "",
+      attachKind: visualAttachKind.value,
+      attachTarget: visualAttachTarget.value,
       programName: "visual_custom_plugin",
       source: generatedBpfCode.value,
     });
@@ -2429,8 +2465,8 @@ const handleWorkspaceDrop = (event: DragEvent) => {
             <a-tab-pane key="nlp" tab="NLP Blocks Compiler">
               <div class="nlp-workspace-shell">
                 <div class="nlp-workspace-notice">
-                  <a-tag color="purple">NLP Blocks Compiler</a-tag>
-                  <span>用自然语言描述内核防御意图，自动编译成 Trigger / Condition / Map / Action 积木流；生成后可回到 Dify Workflow 继续拖线、删节点、调 Inspector。</span>
+                  <a-tag color="purple">LLM Blocks Compiler</a-tag>
+                  <span>用后端 OpenAI 兼容 LLM 将自然语言内核防御意图编译成 Trigger / Condition / Map / Action 积木流；生成后会自动回到 Dify Workflow，继续拖线、删节点、调 Inspector。</span>
                 </div>
                 <PluginsVisualAiPanel v-model="aiPrompt" @translate="handleAiTranslate" />
               </div>

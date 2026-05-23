@@ -229,6 +229,7 @@ func registerPluginRoutes(rg *gin.RouterGroup) {
 	rg.PUT("/:id", policyManagementEnabledMiddleware(), handlePluginUpsert)
 	rg.DELETE("/:id", policyManagementEnabledMiddleware(), handlePluginDelete)
 	rg.POST("/:id/toggle", policyManagementEnabledMiddleware(), handlePluginToggle)
+	rg.POST("/visual/llm-compile", handlePluginVisualLLMCompile)
 
 	bpf := rg.Group("/bpf")
 	{

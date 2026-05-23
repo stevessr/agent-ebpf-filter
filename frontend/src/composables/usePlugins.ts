@@ -3,7 +3,7 @@ import axios from 'axios';
 import { message } from 'ant-design-vue';
 
 export type PluginKind = 'ebpf' | 'webhook' | 'command';
-export type PluginAttachKind = 'tracepoint' | 'kprobe' | 'kretprobe' | 'none' | '';
+export type PluginAttachKind = 'tracepoint' | 'kprobe' | 'kretprobe' | 'lsm' | 'none' | '';
 
 export interface PluginManifest {
   id: string;
