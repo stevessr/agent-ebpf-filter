@@ -51,12 +51,24 @@ const initMonaco = () => {
       `
       declare module "ebpf" {
         export interface HookContext {
-          comm: string;
+          comm: string & {
+            startsWith(val: string): boolean;
+            endsWith(val: string): boolean;
+            includes(val: string): boolean;
+          };
           pid: number;
           uid: number;
-          basename: string;
+          basename: string & {
+            startsWith(val: string): boolean;
+            endsWith(val: string): boolean;
+            includes(val: string): boolean;
+          };
           port: number;
-          ipv4: string;
+          ipv4: string & {
+            startsWith(val: string): boolean;
+            endsWith(val: string): boolean;
+            includes(val: string): boolean;
+          };
           gid: number;
           ppid: number;
           loginuid: number;
