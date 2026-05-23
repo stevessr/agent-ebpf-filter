@@ -1,6 +1,11 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { LoadingOutlined, PlayCircleOutlined, CodeOutlined, SettingOutlined } from "@ant-design/icons-vue";
+import * as monaco from "monaco-editor";
+
+// 配置 Monaco Web Workers
+import "monaco-editor/esm/vs/language/typescript/monaco.contribution";
+import "monaco-editor/esm/vs/editor/editor.all.js";
 
 const props = defineProps<{
   code: string;
@@ -20,15 +25,169 @@ const emit = defineEmits<{
 }>();
 
 const activeTab = ref<"pseudo" | "c">("pseudo");
+const editorContainer = ref<HTMLElement | null>(null);
+let editor: monaco.editor.IStandaloneCodeEditor | null = null;
 
-const localPseudoCode = ref(props.pseudoCode);
+// 初始化 Monaco Editor
+const initMonaco = () => {
+  if (!editorContainer.value) return;
+
+  // 注册自定义 eBPF 自动补全
+  monaco.languages.registerCompletionItemProvider("typescript", {
+    provideCompletionItems: (model, position) => {
+      const word = model.getWordUntilPosition(position);
+      const range = {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: word.startColumn,
+        endColumn: word.endColumn,
+      };
+
+      const suggestions = [
+        {
+          label: "ctx.comm",
+          kind: monaco.languages.CompletionItemKind.Field,
+          documentation: "当前触发事件的进程名称 (string)",
+          insertText: "ctx.comm",
+          range,
+        },
+        {
+          label: "ctx.pid",
+          kind: monaco.languages.CompletionItemKind.Field,
+          documentation: "当前触发事件的进程 PID (number)",
+          insertText: "ctx.pid",
+          range,
+        },
+        {
+          label: "ctx.uid",
+          kind: monaco.languages.CompletionItemKind.Field,
+          documentation: "当前触发事件的用户 UID (number, 0 代表 root)",
+          insertText: "ctx.uid",
+          range,
+        },
+        {
+          label: "ctx.gid",
+          kind: monaco.languages.CompletionItemKind.Field,
+          documentation: "当前触发事件的用户组 GID (number)",
+          insertText: "ctx.gid",
+          range,
+        },
+        {
+          label: "ctx.basename",
+          kind: monaco.languages.CompletionItemKind.Field,
+          documentation: "操作的目标文件名 (string)",
+          insertText: "ctx.basename",
+          range,
+        },
+        {
+          label: "ctx.port",
+          kind: monaco.languages.CompletionItemKind.Field,
+          documentation: "外发网络的目标端口 (number, 仅在 socket_connect 有效)",
+          insertText: "ctx.port",
+          range,
+        },
+        {
+          label: "ctx.ipv4",
+          kind: monaco.languages.CompletionItemKind.Field,
+          documentation: "外发网络的目标 IPv4 地址 (string, 仅在 socket_connect 有效)",
+          insertText: "ctx.ipv4",
+          range,
+        },
+        {
+          label: "Action.block()",
+          kind: monaco.languages.CompletionItemKind.Method,
+          documentation: "执行内核级硬拦截阻断行为",
+          insertText: "Action.block();",
+          range,
+        },
+        {
+          label: "Action.alert()",
+          kind: monaco.languages.CompletionItemKind.Method,
+          documentation: "仅触发 RingBuffer 告警审计，不阻断执行",
+          insertText: "Action.alert();",
+          range,
+        },
+        {
+          label: "Action.kill()",
+          kind: monaco.languages.CompletionItemKind.Method,
+          documentation: "发送 SIGKILL (9) 信号强制终止该进程",
+          insertText: "Action.kill();",
+          range,
+        },
+        {
+          label: "Maps.createCounter",
+          kind: monaco.languages.CompletionItemKind.Method,
+          documentation: "声明一个自动频控计数器 Map",
+          insertText: 'Maps.createCounter({ key: "pid", limit: 3 })',
+          range,
+        },
+        {
+          label: "Maps.createBlocklist",
+          kind: monaco.languages.CompletionItemKind.Method,
+          documentation: "声明一个运行时查表黑名单 Map",
+          insertText: 'Maps.createBlocklist({ key: "comm" })',
+          range,
+        },
+      ];
+
+      return { suggestions };
+    },
+  });
+
+  editor = monaco.editor.create(editorContainer.value, {
+    value: props.pseudoCode,
+    language: "typescript",
+    theme: "vs-dark",
+    automaticLayout: true,
+    minimap: { enabled: false },
+    fontSize: 12,
+    lineNumbers: "on",
+    roundedSelection: true,
+    scrollBeyondLastLine: false,
+    readOnly: !props.usePseudoCode,
+  });
+
+  editor.onDidChangeModelContent(() => {
+    const value = editor?.getValue() || "";
+    emit("update:pseudoCode", value);
+  });
+};
+
 watch(() => props.pseudoCode, (newVal) => {
-  localPseudoCode.value = newVal;
+  if (editor && editor.getValue() !== newVal) {
+    editor.setValue(newVal);
+  }
 });
 
-const onPseudoCodeChange = () => {
-  emit("update:pseudoCode", localPseudoCode.value);
-};
+watch(() => props.usePseudoCode, (newVal) => {
+  if (editor) {
+    editor.updateOptions({ readOnly: !newVal });
+  }
+});
+
+watch(activeTab, async (newVal) => {
+  if (newVal === "pseudo") {
+    await nextTick();
+    if (!editor) {
+      initMonaco();
+    } else {
+      editor.layout();
+    }
+  }
+});
+
+onMounted(() => {
+  if (activeTab.value === "pseudo") {
+    initMonaco();
+  }
+});
+
+onBeforeUnmount(() => {
+  if (editor) {
+    editor.dispose();
+    editor = null;
+  }
+});
 
 const toggleUsePseudoCode = (checked: boolean) => {
   emit("update:usePseudoCode", checked);
@@ -36,7 +195,7 @@ const toggleUsePseudoCode = (checked: boolean) => {
 </script>
 
 <template>
-  <a-card title="规则源码与伪代码编译器" size="small" class="blueprint-code-card">
+  <a-card title="规则源码与高级伪代码编辑器 (VSCode 同款)" size="small" class="blueprint-code-card">
     <template #extra>
       <a-space size="middle">
         <a-checkbox :checked="usePseudoCode" @update:checked="toggleUsePseudoCode">
@@ -55,20 +214,14 @@ const toggleUsePseudoCode = (checked: boolean) => {
 
     <div v-show="activeTab === 'pseudo'">
       <div style="margin-bottom: 8px; font-size: 12px; color: #94a3b8">
-        通过编写直观的 TS/JS 风格伪代码，一键编译为底层的 eBPF 过滤规则：
+        编写直观的 TS/JS 风格伪代码，支持 VSCode 同款 **智能自动补全**、**实时高亮**、与低代码积木面板**双向绑定同步**：
       </div>
-      <div class="generated-code-box">
-        <textarea
-          v-model="localPseudoCode"
-          @input="onPseudoCodeChange"
-          class="pseudo-code-editor"
-          placeholder="// 编写您的 TS 风格 eBPF 过滤规则"
-          rows="15"
-        ></textarea>
+      <div class="monaco-editor-wrapper">
+        <div ref="editorContainer" class="monaco-container"></div>
       </div>
       <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center">
         <span style="font-size: 11px; color: #64748b">
-          * 提示：支持 ctx.comm, ctx.port, ctx.pid, ctx.uid 等常见匹配，修改后将双向同步至积木面板。
+          * 提示：输入 <code>ctx.</code> 或 <code>Action.</code> 或 <code>Maps.</code> 即可唤起自动补全。
         </span>
         <a-button
           v-if="usePseudoCode"
@@ -77,7 +230,7 @@ const toggleUsePseudoCode = (checked: boolean) => {
           @click="emit('compile-pseudo-code')"
           :loading="compiling"
         >
-          立即编译伪代码
+          立即编译并生成 C 代码
         </a-button>
       </div>
     </div>
@@ -143,6 +296,18 @@ const toggleUsePseudoCode = (checked: boolean) => {
   letter-spacing: 0.5px;
 }
 
+.monaco-editor-wrapper {
+  background: #1e1e1e;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.monaco-container {
+  width: 100%;
+  height: 320px;
+}
+
 .generated-code-box {
   background: #070b11;
   border-radius: 6px;
@@ -162,18 +327,6 @@ const toggleUsePseudoCode = (checked: boolean) => {
   font-size: 11.5px;
   color: #9cdcfe;
   line-height: 1.5;
-}
-
-.pseudo-code-editor {
-  width: 100%;
-  background: transparent;
-  border: none;
-  color: #a8ffb2;
-  font-family: "Consolas", "Courier New", monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  resize: vertical;
-  outline: none;
 }
 
 .compilation-logger {

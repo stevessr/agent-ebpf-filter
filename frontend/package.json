@@ -16,6 +16,7 @@
     "axios": "^1.15.1",
     "d3": "^7.9.0",
     "markdown-it": "14.1.1",
+    "monaco-editor": "^0.55.1",
     "protobufjs": "^8.0.1",
     "shiki": "^4.0.2",
     "smol-toml": "^1.6.1",
