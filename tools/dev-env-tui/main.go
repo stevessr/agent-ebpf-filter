@@ -375,7 +375,7 @@ func (m *model) run() error {
 	m.pages = tview.NewPages()
 	m.list = tview.NewList().ShowSecondaryText(true)
 	m.list.SetBorder(true)
-	m.list.SetTitle(" Groups  Ctrl+G / click ")
+	m.list.SetTitle(" Groups  Ctrl+G / ↑/↓ / wheel / click ")
 	styleBox(m.list.Box)
 	m.list.SetMainTextColor(themeText).
 		SetSecondaryTextColor(themeMuted).
@@ -384,10 +384,12 @@ func (m *model) run() error {
 		SetSelectedTextColor(themeBg).
 		SetSelectedBackgroundColor(themeAccent).
 		SetHighlightFullLine(true)
+	m.installListNavigation()
 	m.form = tview.NewForm()
 	m.form.SetBorder(true)
 	styleBox(m.form.Box)
 	styleForm(m.form)
+	m.installFormNavigation()
 	m.status = tview.NewTextView().SetDynamicColors(true).SetWrap(true).SetTextColor(themeText)
 	m.status.SetBorder(true)
 	m.status.SetTitle(" Status / Help ")
@@ -400,13 +402,14 @@ func (m *model) run() error {
 			shortcut = rune('1' + i)
 		}
 		m.list.AddItem(group.Title, group.Desc, shortcut, func() {
-			m.selected = idx
-			m.rebuildForm()
-			m.app.SetFocus(m.form)
+			m.selectGroup(idx, true)
 		})
 	}
+	m.list.SetChangedFunc(func(index int, _ string, _ string, _ rune) {
+		m.selectGroup(index, false)
+	})
 	m.rebuildForm()
-	m.setStatus(successText("Ready.") + " Ctrl+S save, Ctrl+D doctor, Ctrl+P preview, Ctrl+G groups, Ctrl+F form, Ctrl+Q quit. Mouse: click groups/fields/buttons, wheel scroll. Empty field = unset.")
+	m.setStatus(successText("Ready.") + " ↑/↓ moves the focused panel; mouse wheel moves the panel under cursor; click groups/fields/buttons; Ctrl+G groups, Ctrl+F fields, Ctrl+S save, Ctrl+D doctor, Ctrl+P preview, Ctrl+Q quit.")
 
 	header := tview.NewTextView().SetDynamicColors(true).SetTextColor(themeText)
 	header.SetText(titleText("Agent eBPF Filter Dev Env TUI") + "\n" + mutedText("Edit .env.dev / .env.dev.mk for local development, LLM, and application behavior. Mouse enabled."))
@@ -426,6 +429,115 @@ func (m *model) run() error {
 	m.app.SetFocus(m.list)
 	m.app.SetInputCapture(m.captureKey)
 	return m.app.Run()
+}
+
+func (m *model) installListNavigation() {
+	m.list.SetMouseCapture(func(action tview.MouseAction, event *tcell.EventMouse) (tview.MouseAction, *tcell.EventMouse) {
+		if event == nil || !m.list.InRect(event.Position()) {
+			return action, event
+		}
+		switch action {
+		case tview.MouseScrollUp:
+			m.moveGroupSelection(-1)
+			return tview.MouseConsumed, nil
+		case tview.MouseScrollDown:
+			m.moveGroupSelection(1)
+			return tview.MouseConsumed, nil
+		}
+		return action, event
+	})
+}
+
+func (m *model) installFormNavigation() {
+	m.form.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyUp:
+			m.moveFormFocus(-1)
+			return nil
+		case tcell.KeyDown:
+			m.moveFormFocus(1)
+			return nil
+		}
+		return event
+	})
+	m.form.SetMouseCapture(func(action tview.MouseAction, event *tcell.EventMouse) (tview.MouseAction, *tcell.EventMouse) {
+		if event == nil || !m.form.InRect(event.Position()) {
+			return action, event
+		}
+		switch action {
+		case tview.MouseScrollUp:
+			m.moveFormFocus(-1)
+			return tview.MouseConsumed, nil
+		case tview.MouseScrollDown:
+			m.moveFormFocus(1)
+			return tview.MouseConsumed, nil
+		}
+		return action, event
+	})
+}
+
+func (m *model) selectGroup(index int, focusForm bool) {
+	if index < 0 || index >= len(groups) {
+		return
+	}
+	if m.selected != index || m.form.GetFormItemCount() == 0 {
+		m.selected = index
+		m.rebuildForm()
+	}
+	if focusForm && m.app != nil {
+		m.app.SetFocus(m.form)
+	}
+}
+
+func (m *model) moveGroupSelection(delta int) {
+	if m.list == nil || len(groups) == 0 {
+		return
+	}
+	index := m.list.GetCurrentItem()
+	if index < 0 || index >= len(groups) {
+		index = m.selected
+	}
+	index += delta
+	if index < 0 {
+		index = 0
+	} else if index >= len(groups) {
+		index = len(groups) - 1
+	}
+	m.list.SetCurrentItem(index)
+	if m.selected != index {
+		m.selected = index
+		m.rebuildForm()
+	}
+	if m.app != nil {
+		m.app.SetFocus(m.list)
+	}
+}
+
+func (m *model) moveFormFocus(delta int) {
+	if m.form == nil {
+		return
+	}
+	total := m.form.GetFormItemCount() + m.form.GetButtonCount()
+	if total == 0 {
+		return
+	}
+	item, button := m.form.GetFocusedItemIndex()
+	index := 0
+	if item >= 0 {
+		index = item
+	} else if button >= 0 {
+		index = m.form.GetFormItemCount() + button
+	}
+	index += delta
+	if index < 0 {
+		index = 0
+	} else if index >= total {
+		index = total - 1
+	}
+	m.form.SetFocus(index)
+	if m.app != nil {
+		m.app.SetFocus(m.form)
+	}
 }
 
 func (m *model) captureKey(event *tcell.EventKey) *tcell.EventKey {
@@ -460,7 +572,7 @@ func (m *model) rebuildForm() {
 	group := groups[m.selected]
 	m.form.Clear(true)
 	styleForm(m.form)
-	m.form.SetTitle(" " + group.Title + "  Ctrl+F / click fields ")
+	m.form.SetTitle(" " + group.Title + "  ↑/↓ / wheel / click fields ")
 	for _, item := range group.Vars {
 		item := item
 		label := fmt.Sprintf("%s (%s)", item.Label, item.Key)
@@ -480,7 +592,7 @@ func (m *model) rebuildForm() {
 	m.form.AddButton("Preview", func() { m.showModal("Preview", m.previewText(true)) })
 	m.form.AddButton("Quit", func() { m.app.Stop() })
 	m.form.SetButtonsAlign(tview.AlignRight)
-	m.setStatus(fmt.Sprintf("%s: %s\n%s", warnText(group.Title), group.Desc, mutedText("Tip: "+firstHint(group))))
+	m.setStatus(fmt.Sprintf("%s: %s\n%s", warnText(group.Title), group.Desc, mutedText("Tip: ↑/↓ or mouse wheel moves between fields. "+firstHint(group))))
 }
 
 func styleForm(form *tview.Form) {

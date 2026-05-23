@@ -16,7 +16,8 @@ make dev-env-build  # writes bin/dev-env-tui
 Keyboard and mouse controls:
 
 - Mouse click a group, field, or button to focus/activate it
-- Mouse wheel scrolls long forms and preview/doctor popups
+- Mouse wheel moves the group list or field form under the cursor; it also scrolls preview/doctor popups
+- Up/Down arrows move the focused group list or field form selection
 - `Ctrl+G` focus groups
 - `Ctrl+F` focus the current group form
 - `Ctrl+S` save `.env.dev` / `.env.dev.mk`
