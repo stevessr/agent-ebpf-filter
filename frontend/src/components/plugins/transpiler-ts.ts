@@ -11,25 +11,14 @@ import type {
 /**
  * 将 VisualWorkspaceSnapshot (积木状态) 反向生成 TS 风格的伪代码
  */
-export const snapshotToPseudoCode = (
-  snapshot: VisualWorkspaceSnapshot
-): string => {
+export const snapshotToPseudoCode = (snapshot: VisualWorkspaceSnapshot): string => {
   const { trigger, action, conditions, mapMode, mapKey, mapLimit } = snapshot;
 
   const renderConditions = (node: VisualLogicNode, indent = "  "): string => {
     if (node.type === "CONDITION") {
       const val = node.value.trim();
-      const quote =
-        isNaN(Number(val)) && val !== "true" && val !== "false"
-          ? `"${val}"`
-          : val;
-      return `ctx.${node.field} ${
-        node.operator === "=="
-          ? "==="
-          : node.operator === "!="
-          ? "!=="
-          : node.operator
-      } ${quote}`;
+      const quote = isNaN(Number(val)) && val !== "true" && val !== "false" ? `"${val}"` : val;
+      return `ctx.${node.field} ${node.operator === "==" ? "===" : node.operator === "!=" ? "!==" : node.operator} ${quote}`;
     } else {
       if (!node.children || node.children.length === 0) return "true";
       const op = node.type === "AND" ? " && " : " || ";
@@ -101,17 +90,8 @@ export const pseudoCodeToSnapshot = (
   if (importMatch && importMatch[1]) {
     const parsedTrigger = importMatch[1].trim() as VisualTrigger;
     const allTriggers = [
-      "process",
-      "file_open",
-      "mkdir",
-      "file_create",
-      "rmdir",
-      "symlink",
-      "unlink",
-      "socket_connect",
-      "inode_mknod",
-      "file_mprotect",
-      "inode_rename",
+      "process", "file_open", "mkdir", "file_create", "rmdir", "symlink",
+      "unlink", "socket_connect", "inode_mknod", "file_mprotect", "inode_rename"
     ];
     if (allTriggers.includes(parsedTrigger)) {
       result.trigger = parsedTrigger;
@@ -133,8 +113,7 @@ export const pseudoCodeToSnapshot = (
     const keyMatch = code.match(/Maps\.createCounter\(\{\s*key:\s*"(\w+)"/);
     if (keyMatch && keyMatch[1]) result.mapKey = keyMatch[1] as VisualMapKey;
     const limitMatch = code.match(/limit:\s*(\d+)/);
-    if (limitMatch && limitMatch[1])
-      result.mapLimit = parseInt(limitMatch[1], 10);
+    if (limitMatch && limitMatch[1]) result.mapLimit = parseInt(limitMatch[1], 10);
   } else if (code.includes("Maps.createBlocklist")) {
     result.mapMode = "BLOCKLIST";
     const keyMatch = code.match(/Maps\.createBlocklist\(\{\s*key:\s*"(\w+)"/);
@@ -161,26 +140,32 @@ export const pseudoCodeToSnapshot = (
       const children: Array<VisualLogicGroup | VisualCondition> = [];
 
       parts.forEach((part, idx) => {
-        const trimmed = part
-          .trim()
-          .replace(/^\(|\)$/g, "")
-          .trim();
-        // 匹配 ctx.field === "val" 或 ctx.field !== 123
-        const condMatch = trimmed.match(
-          /ctx\.(\w+)\s*(===|!==|==|!=|starts_with|ends_with)\s*(["']?)(.*?)\3/
-        );
+        const trimmed = part.trim().replace(/^\(|\)$/g, "").trim();
+        
+        // 1. 支持 ctx.field.includes("val") 的转译，将其优雅映射为 C 语言的 starts_with/ends_with/==
+        const includesMatch = trimmed.match(/ctx\.(\w+)\.includes\(\s*(["']?)(.*?)\2\s*\)/);
+        if (includesMatch) {
+          const field = includesMatch[1];
+          const val = includesMatch[3];
+          children.push({
+            id: `cond-ts-${idx}-${Math.random().toString(36).substr(2, 5)}`,
+            type: "CONDITION",
+            field: field as any,
+            operator: "starts_with", // 模糊匹配底层转译映射为 starts_with 拦截
+            value: val,
+          });
+          return;
+        }
+
+        // 2. 匹配 ctx.field === "val" 或 ctx.field !== 123
+        const condMatch = trimmed.match(/ctx\.(\w+)\s*(===|!==|==|!=|starts_with|ends_with)\s*(["']?)(.*?)\3/);
         if (condMatch) {
           const field = condMatch[1];
           const opRaw = condMatch[2];
           const val = condMatch[4];
 
-          const operator =
-            opRaw === "===" || opRaw === "=="
-              ? "=="
-              : opRaw === "!==" || opRaw === "!="
-              ? "!="
-              : (opRaw as any);
-
+          const operator = opRaw === "===" || opRaw === "==" ? "==" : opRaw === "!==" || opRaw === "!=" ? "!=" : opRaw as any;
+          
           children.push({
             id: `cond-ts-${idx}-${Math.random().toString(36).substr(2, 5)}`,
             type: "CONDITION",

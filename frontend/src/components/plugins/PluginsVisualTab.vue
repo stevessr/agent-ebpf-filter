@@ -1108,11 +1108,84 @@ const compilePseudoCode = async () => {
       pseudoCode.value,
       currentSnapshot
     );
-    applyWorkspaceSnapshot(updatedSnapshot);
-    message.success("TS 伪代码编译成功，已同步至 C 源码生成器");
-    await handleCompileAndRegister();
+
+    // 临时应用伪代码解构出的 Snapshot，执行快速 eBPF 源码转译
+    const { generateBpfCode } = await import("./transpiler");
+    const tsGeneratedBpfCode = generateBpfCode(updatedSnapshot);
+
+    compiling.value = true;
+    compileLogLocal.value = "正在使用伪代码编译器转译为标准的 BPF C 源码...\n";
+
+    // 自动清洗与提取伪代码中的 trigger 关联信息
+    const visualAttachKindTs =
+      updatedSnapshot.trigger === "unlink" ? "kprobe" : "lsm";
+    let visualAttachTargetTs = "";
+    switch (updatedSnapshot.trigger) {
+      case "process":
+        visualAttachTargetTs = "lsm/bprm_check_security";
+        break;
+      case "file_open":
+        visualAttachTargetTs = "lsm/file_open";
+        break;
+      case "mkdir":
+        visualAttachTargetTs = "lsm/inode_mkdir";
+        break;
+      case "file_create":
+        visualAttachTargetTs = "lsm/inode_create";
+        break;
+      case "rmdir":
+        visualAttachTargetTs = "lsm/inode_rmdir";
+        break;
+      case "symlink":
+        visualAttachTargetTs = "lsm/inode_symlink";
+        break;
+      case "socket_connect":
+        visualAttachTargetTs = "lsm/socket_connect";
+        break;
+      case "inode_mknod":
+        visualAttachTargetTs = "lsm/inode_mknod";
+        break;
+      case "file_mprotect":
+        visualAttachTargetTs = "lsm/file_mprotect";
+        break;
+      case "inode_rename":
+        visualAttachTargetTs = "lsm/inode_rename";
+        break;
+      case "unlink":
+        visualAttachTargetTs = "do_unlinkat";
+        break;
+    }
+
+    compileLogLocal.value += `正在注册伪代码编译 Manifest [${pluginId.value}] 至本地仓库...\n`;
+    await upsertPlugin({
+      id: pluginId.value,
+      name: pluginName.value,
+      description: description.value,
+      kind: "ebpf",
+      enabled: false,
+      attachKind: visualAttachKindTs,
+      attachTarget: visualAttachTargetTs,
+      programName: "visual_custom_plugin",
+      source: tsGeneratedBpfCode,
+    });
+
+    compileLogLocal.value +=
+      "正在调用 LLVM/Clang 将伪代码源码编译为 ELF 内核字节码...\n";
+    const success = await compileBpf(pluginId.value, tsGeneratedBpfCode);
+    if (success) {
+      isCompiled.value = true;
+      compileLogLocal.value +=
+        "\n[SUCCESS] 伪代码编译成功！点击下方按钮即可一键挂载至内核运行生效。";
+      message.success("TS 伪代码编译及内核规则生成成功！");
+    } else {
+      compileLogLocal.value +=
+        "\n[ERROR] 编译失败，请排查过滤表达式是否在内核 Verifier 安全范围内。";
+    }
   } catch (err: any) {
+    compileLogLocal.value += `\n[ERROR] 错误: ${err.message}`;
     message.error(`伪代码解析编译失败: ${err?.message || err}`);
+  } finally {
+    compiling.value = false;
   }
 };
 
