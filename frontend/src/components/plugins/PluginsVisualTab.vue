@@ -270,12 +270,20 @@ const activeFlowNode = ref<VisualFlowNodeId>("trigger");
 const designerSubtab = ref<"dify" | "map" | "nlp" | "source">("dify");
 const recipePanelVisible = ref(true);
 const recipePanelDock = ref<"left" | "right">("left");
+const recipePanelPosition = ref({ x: 18, y: 92 });
+const recipePanelDragging = ref<{
+  startX: number;
+  startY: number;
+  originX: number;
+  originY: number;
+} | null>(null);
 const triggerBlockRef = useTemplateRef<HTMLElement>("triggerBlock");
 const conditionBlockRef = useTemplateRef<HTMLElement>("conditionBlock");
 const mapBlockRef = useTemplateRef<HTMLElement>("mapBlock");
 const actionBlockRef = useTemplateRef<HTMLElement>("actionBlock");
 const compileBlockRef = useTemplateRef<HTMLElement>("compileBlock");
 const codeBlockRef = useTemplateRef<HTMLElement>("codeBlock");
+const recipeFloatingRef = useTemplateRef<HTMLElement>("recipeFloating");
 
 const flowNodeDetails: Record<VisualFlowNodeId, { label: string; focus: string }> = {
   trigger: {
@@ -312,8 +320,105 @@ const recipePanelDockLabel = computed(() =>
   recipePanelDock.value === "left" ? "吸附右侧" : "吸附左侧"
 );
 
+const recipeHideArrow = computed(() =>
+  recipePanelDock.value === "left" ? "‹" : "›"
+);
+
+const recipeRestoreArrow = computed(() =>
+  recipePanelDock.value === "left" ? "›" : "‹"
+);
+
+const recipePanelStyle = computed(() => ({
+  left: `${recipePanelPosition.value.x}px`,
+  top: `${recipePanelPosition.value.y}px`,
+}));
+
+const recipeTriggerStyle = computed(() => ({
+  top: `${Math.max(88, Math.min(recipePanelPosition.value.y + 14, window.innerHeight - 120))}px`,
+}));
+
+const clampNumber = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const getRecipePanelSize = () => {
+  const element = recipeFloatingRef.value;
+  return {
+    width: element?.offsetWidth || 360,
+    height: element?.offsetHeight || 520,
+  };
+};
+
+const snapRecipePanelTo = (dock: "left" | "right") => {
+  const margin = 18;
+  const { width, height } = getRecipePanelSize();
+  recipePanelDock.value = dock;
+  recipePanelPosition.value = {
+    x: dock === "left" ? margin : Math.max(margin, window.innerWidth - width - margin),
+    y: clampNumber(
+      recipePanelPosition.value.y,
+      margin,
+      Math.max(margin, window.innerHeight - Math.min(height, window.innerHeight - 128) - margin)
+    ),
+  };
+};
+
 const toggleRecipePanelDock = () => {
-  recipePanelDock.value = recipePanelDock.value === "left" ? "right" : "left";
+  snapRecipePanelTo(recipePanelDock.value === "left" ? "right" : "left");
+};
+
+const handleRecipePanelPointerMove = (event: PointerEvent) => {
+  if (!recipePanelDragging.value) return;
+  const margin = 12;
+  const { width, height } = getRecipePanelSize();
+  recipePanelPosition.value = {
+    x: clampNumber(
+      recipePanelDragging.value.originX + event.clientX - recipePanelDragging.value.startX,
+      margin,
+      Math.max(margin, window.innerWidth - width - margin)
+    ),
+    y: clampNumber(
+      recipePanelDragging.value.originY + event.clientY - recipePanelDragging.value.startY,
+      margin,
+      Math.max(margin, window.innerHeight - Math.min(height, window.innerHeight - 128) - margin)
+    ),
+  };
+};
+
+const stopRecipePanelDragging = () => {
+  if (recipePanelDragging.value) {
+    const snapThreshold = 96;
+    const { width } = getRecipePanelSize();
+    if (recipePanelPosition.value.x <= snapThreshold) {
+      snapRecipePanelTo("left");
+    } else if (recipePanelPosition.value.x + width >= window.innerWidth - snapThreshold) {
+      snapRecipePanelTo("right");
+    } else {
+      recipePanelDock.value =
+        recipePanelPosition.value.x + width / 2 < window.innerWidth / 2 ? "left" : "right";
+    }
+  }
+  recipePanelDragging.value = null;
+  window.removeEventListener("pointermove", handleRecipePanelPointerMove);
+  window.removeEventListener("pointerup", stopRecipePanelDragging);
+};
+
+const startRecipePanelDragging = (event: PointerEvent) => {
+  recipePanelDragging.value = {
+    startX: event.clientX,
+    startY: event.clientY,
+    originX: recipePanelPosition.value.x,
+    originY: recipePanelPosition.value.y,
+  };
+  window.addEventListener("pointermove", handleRecipePanelPointerMove);
+  window.addEventListener("pointerup", stopRecipePanelDragging);
+};
+
+const hideRecipePanel = () => {
+  const { width } = getRecipePanelSize();
+  const nearestDock =
+    recipePanelPosition.value.x + width / 2 < window.innerWidth / 2 ? "left" : "right";
+  snapRecipePanelTo(nearestDock);
+  recipePanelVisible.value = false;
 };
 
 const resetNodeLayout = () => {
@@ -415,6 +520,14 @@ const visualMapModeSet = new Set<VisualMapMode>([
   "BLOCKLIST",
 ]);
 const visualMapKeySet = new Set<VisualMapKey>(["uid", "pid", "comm"]);
+const visualActionSet = new Set<VisualAction>(["BLOCK", "ALERT", "KILL"]);
+
+interface CanvasNodeTypeDropPayload {
+  category: string;
+  value: string;
+  x: number;
+  y: number;
+}
 
 const isVisualConditionField = (value: unknown): value is VisualConditionField =>
   typeof value === "string" && visualFieldSet.has(value as VisualConditionField);
@@ -1596,6 +1709,7 @@ watch(
     mapLimit,
     nodeLayout,
     wireStates,
+    hiddenFlowNodes,
     pluginId,
     pluginName,
     description,
@@ -1667,6 +1781,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  stopRecipePanelDragging();
   window.removeEventListener("keydown", handleHistoryShortcut);
 });
 
@@ -1725,8 +1840,82 @@ const handleLoad = async () => {
     loadingAction.value = false;
   }
 };
+const moveFlowNodeTo = (node: VisualFlowNodeId, x: number, y: number) => {
+  nodeLayout.value = {
+    ...nodeLayout.value,
+    [node]: {
+      x: Math.round(x),
+      y: Math.round(y),
+    },
+  };
+};
 
+const applyNodeTypeDrop = (
+  category: string,
+  value: string,
+  position?: { x: number; y: number }
+) => {
+  let targetNode: VisualFlowNodeId | null = null;
+  let statusText = "";
 
+  if (category === "trigger") {
+    if (!triggerOptions.some((item) => item.value === value)) return;
+    targetNode = "trigger";
+    restoreFlowNode(targetNode);
+    trigger.value = value as VisualTrigger;
+    statusText = `已切换事件挂载点为: ${value}`;
+  } else if (category === "condition") {
+    if (!isVisualConditionField(value)) return;
+    targetNode = "condition";
+    restoreFlowNode(targetNode);
+    onAddRule("root", value);
+    statusText = `已拖动添加匹配过滤: ${value}`;
+  } else if (category === "logic_group") {
+    if (value !== "AND" && value !== "OR") return;
+    targetNode = "condition";
+    restoreFlowNode(targetNode);
+    onAddGroup("root", value);
+    statusText = `已拖动添加逻辑运算组: ${value}`;
+  } else if (category === "map") {
+    if (!visualMapModeSet.has(value as VisualMapMode)) return;
+    targetNode = "map";
+    restoreFlowNode(targetNode);
+    mapMode.value = value as VisualMapMode;
+    statusText = `已配置 Map 状态存储为: ${value}`;
+  } else if (category === "action") {
+    if (!visualActionSet.has(value as VisualAction)) return;
+    if (trigger.value === "unlink" && value === "BLOCK") {
+      message.error("unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL");
+      return;
+    }
+    targetNode = "action";
+    restoreFlowNode(targetNode);
+    action.value = value as VisualAction;
+    statusText = `已更新拦截响应动作为: ${value}`;
+  } else if (category === "focus") {
+    if (!visualFlowNodeIds.includes(value as VisualFlowNodeId)) return;
+    targetNode = value as VisualFlowNodeId;
+    restoreFlowNode(targetNode);
+    statusText = `已拖入并聚焦节点: ${flowNodeDetails[targetNode].label}`;
+  }
+
+  if (!targetNode) return;
+  if (position) {
+    moveFlowNodeTo(targetNode, position.x, position.y);
+  }
+  activeFlowNode.value = targetNode;
+  designerSubtab.value = "dify";
+  message.success(
+    position ? `${statusText}，已吸附到画布网格` : statusText
+  );
+};
+
+const handleCanvasNodeTypeDrop = (payload: CanvasNodeTypeDropPayload) => {
+  applyNodeTypeDrop(payload.category, payload.value, {
+    x: payload.x,
+    y: payload.y,
+  });
+};
 
 const handleWorkspaceDrop = (event: DragEvent) => {
   event.preventDefault();
@@ -1738,33 +1927,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
       category: string;
       value: string;
     };
-
-    if (category === "trigger") {
-      if (!triggerOptions.some((item) => item.value === value)) return;
-      restoreFlowNode("trigger");
-      trigger.value = value as VisualTrigger;
-      message.success(`已切换事件挂载点为: ${value}`);
-    } else if (category === "condition") {
-      restoreFlowNode("condition");
-      onAddRule("root", value);
-      message.success(`已拖动添加匹配过滤: ${value}`);
-    } else if (category === "logic_group") {
-      restoreFlowNode("condition");
-      onAddGroup("root", value as "AND" | "OR");
-      message.success(`已拖动添加逻辑运算组: ${value}`);
-    } else if (category === "map") {
-      restoreFlowNode("map");
-      mapMode.value = value as VisualMapMode;
-      message.success(`已配置 Map 状态存储为: ${value}`);
-    } else if (category === "action") {
-      if (trigger.value === "unlink" && value === "BLOCK") {
-        message.error("unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL");
-        return;
-      }
-      restoreFlowNode("action");
-      action.value = value as VisualAction;
-      message.success(`已更新拦截响应动作为: ${value}`);
-    }
+    applyNodeTypeDrop(category, value);
   } catch (e) {
     console.error("Drop parsing failed:", e);
   }
@@ -1805,7 +1968,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
                   <div>
                     <a-tag color="blue">Dify Style</a-tag>
                     <h4>节点工作流编排</h4>
-                    <p>主视图只保留节点类型、拖线画布和节点 Inspector；Map/Blueprint 细节已移动到独立二级选项卡。</p>
+                    <p>主视图只保留节点类型、拖线画布和节点 Inspector；可从左侧拖拽节点类型到画布，自动吸附到网格，并通过端口拖线/线缆开关编辑路由。</p>
                   </div>
                   <a-space size="small" wrap>
                     <a-tag :color="isWorkspaceValid ? 'green' : 'red'">
@@ -1831,6 +1994,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
             @reset-layout="resetNodeLayout"
             @reset-wires="resetWireStates"
             @delete-node="handleDeleteFlowNode"
+            @drop-node-type="handleCanvasNodeTypeDrop"
           />
 
           <div class="selected-flow-panel">
@@ -2112,58 +2276,75 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
     </a-row>
 
-    <div
-      v-if="recipePanelVisible"
-      class="recipe-floating-window"
-      :class="`dock-${recipePanelDock}`"
-    >
-      <div class="recipe-floating-toolbar">
-        <div>
-          <a-tag color="green">场景积木</a-tag>
-          <span>可吸附 / 可隐藏</span>
+    <transition name="recipe-float">
+      <div
+        v-if="recipePanelVisible"
+        ref="recipeFloating"
+        class="recipe-floating-window"
+        :class="[`dock-${recipePanelDock}`, { dragging: !!recipePanelDragging }]"
+        :style="recipePanelStyle"
+      >
+        <div class="recipe-floating-toolbar">
+          <div
+            class="recipe-floating-drag-handle"
+            title="拖拽移动；靠近左右边缘自动吸附"
+            @pointerdown.prevent="startRecipePanelDragging"
+          >
+            <a-tag color="green">场景积木</a-tag>
+            <span>拖拽移动，靠近边缘自动吸附</span>
+          </div>
+          <a-space size="small" @pointerdown.stop>
+            <a-button size="small" @click="toggleRecipePanelDock">
+              {{ recipePanelDockLabel }}
+            </a-button>
+            <button
+              type="button"
+              class="recipe-direction-button"
+              :title="recipePanelDock === 'left' ? '向左隐藏' : '向右隐藏'"
+              @click="hideRecipePanel"
+            >
+              {{ recipeHideArrow }}
+            </button>
+          </a-space>
         </div>
-        <a-space size="small">
-          <a-button size="small" @click="toggleRecipePanelDock">
-            {{ recipePanelDockLabel }}
-          </a-button>
-          <a-button size="small" @click="recipePanelVisible = false">
-            隐藏
-          </a-button>
-        </a-space>
+        <PluginsVisualRecipePanel
+          :recipes="visualRecipes"
+          :trigger="trigger"
+          :action="action"
+          :map-mode="mapMode"
+          :condition-count="conditionCount"
+          :tree-depth="treeDepth"
+          :plugin-id="pluginId"
+          :code-lines="generatedLineCount"
+          :validation-issues="validationIssues"
+          :compile-ready="isWorkspaceValid"
+          :autosave-label="autosaveLabel"
+          :undo-count="undoStack.length"
+          :redo-count="redoStack.length"
+          @apply-recipe="applyRecipe"
+          @reset-workspace="resetWorkspace"
+          @export-workspace="exportWorkspace"
+          @import-workspace="importWorkspace"
+          @save-draft="() => saveWorkspaceDraft(false)"
+          @clear-draft="clearWorkspaceDraft"
+          @undo-workspace="undoWorkspace"
+          @redo-workspace="redoWorkspace"
+        />
       </div>
-      <PluginsVisualRecipePanel
-        :recipes="visualRecipes"
-        :trigger="trigger"
-        :action="action"
-        :map-mode="mapMode"
-        :condition-count="conditionCount"
-        :tree-depth="treeDepth"
-        :plugin-id="pluginId"
-        :code-lines="generatedLineCount"
-        :validation-issues="validationIssues"
-        :compile-ready="isWorkspaceValid"
-        :autosave-label="autosaveLabel"
-        :undo-count="undoStack.length"
-        :redo-count="redoStack.length"
-        @apply-recipe="applyRecipe"
-        @reset-workspace="resetWorkspace"
-        @export-workspace="exportWorkspace"
-        @import-workspace="importWorkspace"
-        @save-draft="() => saveWorkspaceDraft(false)"
-        @clear-draft="clearWorkspaceDraft"
-        @undo-workspace="undoWorkspace"
-        @redo-workspace="redoWorkspace"
-      />
-    </div>
-    <button
-      v-else
-      type="button"
-      class="recipe-floating-trigger"
-      :class="`dock-${recipePanelDock}`"
-      @click="recipePanelVisible = true"
-    >
-      场景积木
-    </button>
+    </transition>
+    <transition name="recipe-trigger">
+      <button
+        v-if="!recipePanelVisible"
+        type="button"
+        class="recipe-floating-trigger"
+        :class="`dock-${recipePanelDock}`"
+        :style="recipeTriggerStyle"
+        @click="recipePanelVisible = true"
+      >
+        <span>{{ recipeRestoreArrow }}</span>
+        场景积木
+      </button>
+    </transition>
   </div>
 </template>
 
@@ -2237,7 +2418,6 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
 .recipe-floating-window {
   position: fixed;
-  top: 92px;
   z-index: 30;
   width: min(360px, calc(100vw - 32px));
   max-height: calc(100vh - 128px);
@@ -2248,14 +2428,23 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   background: rgba(2, 6, 23, 0.82);
   box-shadow: 0 20px 55px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(14px);
+  --recipe-hide-offset: -28px;
+  transition:
+    left 0.18s ease,
+    top 0.18s ease,
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.18s ease;
 }
 
-.recipe-floating-window.dock-left {
-  left: 18px;
+.recipe-floating-window.dragging {
+  cursor: grabbing;
+  transition: none;
+  box-shadow: 0 24px 68px rgba(0, 0, 0, 0.58), 0 0 0 1px rgba(34, 197, 94, 0.28);
 }
 
 .recipe-floating-window.dock-right {
-  right: 18px;
+  --recipe-hide-offset: 28px;
 }
 
 .recipe-floating-toolbar {
@@ -2272,18 +2461,49 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   background: rgba(15, 23, 42, 0.94);
 }
 
-.recipe-floating-toolbar > div:first-child {
+.recipe-floating-drag-handle {
   display: flex;
   align-items: center;
   gap: 6px;
   color: #94a3b8;
   font-size: 11px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.recipe-floating-window.dragging .recipe-floating-drag-handle {
+  cursor: grabbing;
+}
+
+.recipe-direction-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  border: 1px solid rgba(34, 197, 94, 0.32);
+  border-radius: 999px;
+  color: #dcfce7;
+  background: rgba(22, 101, 52, 0.32);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.recipe-direction-button:hover {
+  transform: translateX(var(--recipe-hide-offset));
+  border-color: rgba(134, 239, 172, 0.65);
+  background: rgba(22, 101, 52, 0.55);
 }
 
 .recipe-floating-trigger {
   position: fixed;
-  top: 108px;
   z-index: 31;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 10px;
   border: 1px solid rgba(34, 197, 94, 0.38);
   border-radius: 999px;
@@ -2292,14 +2512,46 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.36);
   cursor: pointer;
   font-size: 12px;
+  transition: transform 0.16s ease, opacity 0.18s ease, border-color 0.16s ease;
+}
+
+.recipe-floating-trigger:hover {
+  transform: translateX(var(--recipe-trigger-hover, 4px));
+  border-color: rgba(134, 239, 172, 0.65);
+}
+
+.recipe-floating-trigger span {
+  font-size: 18px;
+  line-height: 0.8;
 }
 
 .recipe-floating-trigger.dock-left {
   left: 18px;
+  --recipe-trigger-hover: 4px;
 }
 
 .recipe-floating-trigger.dock-right {
   right: 18px;
+  --recipe-trigger-hover: -4px;
+}
+
+.recipe-float-enter-active,
+.recipe-float-leave-active,
+.recipe-trigger-enter-active,
+.recipe-trigger-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.recipe-float-enter-from,
+.recipe-float-leave-to {
+  opacity: 0;
+  transform: translateX(var(--recipe-hide-offset)) scale(0.96);
+}
+
+.recipe-trigger-enter-from,
+.recipe-trigger-leave-to {
+  opacity: 0;
+  transform: translateX(var(--recipe-trigger-hover)) scale(0.92);
 }
 
 :deep(.dify-workspace-tabs .ant-tabs-nav) {
