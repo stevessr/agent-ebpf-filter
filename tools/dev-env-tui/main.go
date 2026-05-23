@@ -16,6 +16,49 @@ import (
 	"github.com/rivo/tview"
 )
 
+var (
+	themeBg        = tcell.NewRGBColor(0x07, 0x12, 0x1f)
+	themePanel     = tcell.NewRGBColor(0x0f, 0x1b, 0x2d)
+	themePanelAlt  = tcell.NewRGBColor(0x1e, 0x29, 0x3b)
+	themeBorder    = tcell.NewRGBColor(0x38, 0xbd, 0xf8)
+	themeTitle     = tcell.NewRGBColor(0x7d, 0xd3, 0xfc)
+	themeText      = tcell.NewRGBColor(0xe2, 0xe8, 0xf0)
+	themeMuted     = tcell.NewRGBColor(0x94, 0xa3, 0xb8)
+	themeAccent    = tcell.NewRGBColor(0x22, 0xd3, 0xee)
+	themeAccentDim = tcell.NewRGBColor(0x0e, 0x74, 0x9)
+	themeButton    = tcell.NewRGBColor(0x25, 0x63, 0xeb)
+	themeWarning   = tcell.NewRGBColor(0xfb, 0xbf, 0x24)
+	themeSuccess   = tcell.NewRGBColor(0x22, 0xc5, 0x5e)
+	themeError     = tcell.NewRGBColor(0xf8, 0x71, 0x71)
+)
+
+func applyTheme() {
+	tview.Styles.PrimitiveBackgroundColor = themeBg
+	tview.Styles.ContrastBackgroundColor = themePanelAlt
+	tview.Styles.MoreContrastBackgroundColor = themeAccentDim
+	tview.Styles.BorderColor = themeBorder
+	tview.Styles.TitleColor = themeTitle
+	tview.Styles.GraphicsColor = themeBorder
+	tview.Styles.PrimaryTextColor = themeText
+	tview.Styles.SecondaryTextColor = themeMuted
+	tview.Styles.TertiaryTextColor = themeAccent
+	tview.Styles.InverseTextColor = themeBg
+	tview.Styles.ContrastSecondaryTextColor = themeText
+}
+
+func styleBox(box *tview.Box) {
+	box.SetBackgroundColor(themePanel)
+	box.SetBorderColor(themeBorder)
+	box.SetTitleColor(themeTitle)
+}
+
+func colorTag(color tcell.Color) string {
+	r, g, b := color.RGB()
+	return fmt.Sprintf("[#%02x%02x%02x]", r, g, b)
+}
+
+func resetTag() string { return "[-]" }
+
 type envVar struct {
 	Key    string
 	Label  string
@@ -327,16 +370,28 @@ func (m *model) loadEnvFile() error {
 }
 
 func (m *model) run() error {
-	m.app = tview.NewApplication()
+	applyTheme()
+	m.app = tview.NewApplication().EnableMouse(true)
 	m.pages = tview.NewPages()
 	m.list = tview.NewList().ShowSecondaryText(true)
 	m.list.SetBorder(true)
-	m.list.SetTitle(" Groups  Ctrl+G ")
+	m.list.SetTitle(" Groups  Ctrl+G / click ")
+	styleBox(m.list.Box)
+	m.list.SetMainTextColor(themeText).
+		SetSecondaryTextColor(themeMuted).
+		SetShortcutColor(themeAccent).
+		SetSelectedStyle(tcell.StyleDefault.Foreground(themeBg).Background(themeAccent).Bold(true)).
+		SetSelectedTextColor(themeBg).
+		SetSelectedBackgroundColor(themeAccent).
+		SetHighlightFullLine(true)
 	m.form = tview.NewForm()
 	m.form.SetBorder(true)
-	m.status = tview.NewTextView().SetDynamicColors(true).SetWrap(true)
+	styleBox(m.form.Box)
+	styleForm(m.form)
+	m.status = tview.NewTextView().SetDynamicColors(true).SetWrap(true).SetTextColor(themeText)
 	m.status.SetBorder(true)
 	m.status.SetTitle(" Status / Help ")
+	styleBox(m.status.Box)
 
 	for i, group := range groups {
 		idx := i
@@ -351,11 +406,12 @@ func (m *model) run() error {
 		})
 	}
 	m.rebuildForm()
-	m.setStatus("[green]Ready.[white] Ctrl+S save, Ctrl+D doctor, Ctrl+P preview, Ctrl+G groups, Ctrl+F form, Ctrl+Q quit. Empty field = unset.")
+	m.setStatus(successText("Ready.") + " Ctrl+S save, Ctrl+D doctor, Ctrl+P preview, Ctrl+G groups, Ctrl+F form, Ctrl+Q quit. Mouse: click groups/fields/buttons, wheel scroll. Empty field = unset.")
 
-	header := tview.NewTextView().SetDynamicColors(true)
-	header.SetText("[::b]Agent eBPF Filter Dev Env TUI[::-]\n[gray]Edit .env.dev / .env.dev.mk for local development, LLM, and application behavior.[-]")
+	header := tview.NewTextView().SetDynamicColors(true).SetTextColor(themeText)
+	header.SetText(titleText("Agent eBPF Filter Dev Env TUI") + "\n" + mutedText("Edit .env.dev / .env.dev.mk for local development, LLM, and application behavior. Mouse enabled."))
 	header.SetBorder(true)
+	styleBox(header.Box)
 
 	mainFlex := tview.NewFlex().
 		AddItem(m.list, 32, 1, true).
@@ -403,7 +459,8 @@ func (m *model) captureKey(event *tcell.EventKey) *tcell.EventKey {
 func (m *model) rebuildForm() {
 	group := groups[m.selected]
 	m.form.Clear(true)
-	m.form.SetTitle(" " + group.Title + "  Ctrl+F ")
+	styleForm(m.form)
+	m.form.SetTitle(" " + group.Title + "  Ctrl+F / click fields ")
 	for _, item := range group.Vars {
 		item := item
 		label := fmt.Sprintf("%s (%s)", item.Label, item.Key)
@@ -423,7 +480,17 @@ func (m *model) rebuildForm() {
 	m.form.AddButton("Preview", func() { m.showModal("Preview", m.previewText(true)) })
 	m.form.AddButton("Quit", func() { m.app.Stop() })
 	m.form.SetButtonsAlign(tview.AlignRight)
-	m.setStatus(fmt.Sprintf("[yellow]%s[white]: %s\n[gray]Tip: %s[-]", group.Title, group.Desc, firstHint(group)))
+	m.setStatus(fmt.Sprintf("%s: %s\n%s", warnText(group.Title), group.Desc, mutedText("Tip: "+firstHint(group))))
+}
+
+func styleForm(form *tview.Form) {
+	form.SetLabelColor(themeText)
+	form.SetFieldStyle(tcell.StyleDefault.Foreground(themeText).Background(themePanelAlt))
+	form.SetFieldTextColor(themeText)
+	form.SetFieldBackgroundColor(themePanelAlt)
+	form.SetButtonStyle(tcell.StyleDefault.Foreground(themeText).Background(themeButton).Bold(true))
+	form.SetButtonActivatedStyle(tcell.StyleDefault.Foreground(themeBg).Background(themeAccent).Bold(true))
+	form.SetButtonDisabledStyle(tcell.StyleDefault.Foreground(themeMuted).Background(themePanelAlt))
 }
 
 func (m *model) setValue(key, value string) {
@@ -437,11 +504,11 @@ func (m *model) setValue(key, value string) {
 
 func (m *model) saveFromUI() {
 	if err := m.writeFiles(); err != nil {
-		m.setStatus("[red]Save failed:[white] " + err.Error())
+		m.setStatus(errorText("Save failed:") + " " + err.Error())
 		return
 	}
 	m.lastSavedAt = time.Now().Format("15:04:05")
-	m.setStatus(fmt.Sprintf("[green]Saved at %s.[white] %s and %s", m.lastSavedAt, rel(m.root, m.shellEnv), rel(m.root, m.makeEnv)))
+	m.setStatus(fmt.Sprintf("%s %s and %s", successText("Saved at "+m.lastSavedAt+"."), rel(m.root, m.shellEnv), rel(m.root, m.makeEnv)))
 }
 
 func (m *model) setStatus(text string) {
@@ -449,9 +516,10 @@ func (m *model) setStatus(text string) {
 }
 
 func (m *model) showModal(title, content string) {
-	view := tview.NewTextView().SetDynamicColors(true).SetScrollable(true).SetWrap(false)
+	view := tview.NewTextView().SetDynamicColors(true).SetScrollable(true).SetWrap(false).SetTextColor(themeText)
 	view.SetBorder(true)
-	view.SetTitle(" " + title + "  Esc closes ")
+	view.SetTitle(" " + title + "  Esc closes / mouse wheel scrolls ")
+	styleBox(view.Box)
 	view.SetText(content)
 	view.SetDoneFunc(func(key tcell.Key) {
 		m.closeModal()
@@ -610,6 +678,21 @@ func firstHint(group envGroup) string {
 	return "Empty fields are not written."
 }
 
+func titleText(text string) string { return boldColorTag(themeTitle) + text + "[::-]" }
+
+func boldColorTag(color tcell.Color) string {
+	r, g, b := color.RGB()
+	return fmt.Sprintf("[#%02x%02x%02x::b]", r, g, b)
+}
+
+func mutedText(text string) string { return colorTag(themeMuted) + text + resetTag() }
+
+func successText(text string) string { return colorTag(themeSuccess) + text + resetTag() }
+
+func warnText(text string) string { return colorTag(themeWarning) + text + resetTag() }
+
+func errorText(text string) string { return colorTag(themeError) + text + resetTag() }
+
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
@@ -755,7 +838,7 @@ func stripTviewTags(value string) string {
 		if value[i] == '[' {
 			if end := strings.IndexByte(value[i:], ']'); end >= 0 {
 				tag := value[i+1 : i+end]
-				if tag == "-" || strings.Contains(tag, ":") || tag == "green" || tag == "yellow" || tag == "blue" || tag == "red" || tag == "gray" || tag == "white" {
+				if tag == "-" || strings.HasPrefix(tag, "#") || strings.Contains(tag, ":") || tag == "green" || tag == "yellow" || tag == "blue" || tag == "red" || tag == "gray" || tag == "white" {
 					i += end
 					continue
 				}

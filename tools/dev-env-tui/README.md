@@ -13,8 +13,10 @@ make dev-env        # default TUI
 make dev-env-build  # writes bin/dev-env-tui
 ```
 
-Keyboard shortcuts:
+Keyboard and mouse controls:
 
+- Mouse click a group, field, or button to focus/activate it
+- Mouse wheel scrolls long forms and preview/doctor popups
 - `Ctrl+G` focus groups
 - `Ctrl+F` focus the current group form
 - `Ctrl+S` save `.env.dev` / `.env.dev.mk`

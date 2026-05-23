@@ -50,8 +50,8 @@ func TestWriteFilesQuotesSecretsAndExportsMakeVars(t *testing.T) {
 }
 
 func TestStripTviewTagsKeepsNormalBrackets(t *testing.T) {
-	got := stripTviewTags("[green]ok[-] keep [literal value]")
-	want := "ok keep [literal value]"
+	got := stripTviewTags("[green]ok[-] [#22c55e]good[-] [#7dd3fc::b]title[::-] keep [literal value]")
+	want := "ok good title keep [literal value]"
 	if got != want {
 		t.Fatalf("stripTviewTags() = %q, want %q", got, want)
 	}
