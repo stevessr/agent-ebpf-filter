@@ -3,6 +3,7 @@ backend/agent-ebpf-filter
 tmp/
 node_modules/
 dist/
+bin/
 .env
 .env.dev
 .env.dev.mk
