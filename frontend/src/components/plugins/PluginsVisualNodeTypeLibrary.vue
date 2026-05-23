@@ -316,19 +316,17 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
 
 <style scoped>
 .dify-node-library {
-  position: sticky;
-  top: 76px;
-  z-index: 6;
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 92px);
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
-  background: #0f172a;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 10px;
-  padding: 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
   color: #cbd5e1;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.42);
+  box-shadow: none;
   scrollbar-color: rgba(56, 189, 248, 0.45) rgba(15, 23, 42, 0.9);
 }
 
