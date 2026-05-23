@@ -277,6 +277,9 @@ const recipePanelDragging = ref<{
   originX: number;
   originY: number;
 } | null>(null);
+const recipePanelEdgeMargin = 18;
+const recipePanelSnapDelayMs = 180;
+let recipePanelHideTimer: number | null = null;
 const triggerBlockRef = useTemplateRef<HTMLElement>("triggerBlock");
 const conditionBlockRef = useTemplateRef<HTMLElement>("conditionBlock");
 const mapBlockRef = useTemplateRef<HTMLElement>("mapBlock");
@@ -348,16 +351,32 @@ const getRecipePanelSize = () => {
   };
 };
 
+const clearRecipePanelHideTimer = () => {
+  if (recipePanelHideTimer === null) return;
+  window.clearTimeout(recipePanelHideTimer);
+  recipePanelHideTimer = null;
+};
+
+const getRecipePanelDockX = (dock: "left" | "right", width: number) =>
+  dock === "left"
+    ? recipePanelEdgeMargin
+    : Math.max(recipePanelEdgeMargin, window.innerWidth - width - recipePanelEdgeMargin);
+
+const isRecipePanelAtDock = (dock: "left" | "right", width: number) =>
+  Math.abs(recipePanelPosition.value.x - getRecipePanelDockX(dock, width)) <= 2;
+
 const snapRecipePanelTo = (dock: "left" | "right") => {
-  const margin = 18;
   const { width, height } = getRecipePanelSize();
   recipePanelDock.value = dock;
   recipePanelPosition.value = {
-    x: dock === "left" ? margin : Math.max(margin, window.innerWidth - width - margin),
+    x: getRecipePanelDockX(dock, width),
     y: clampNumber(
       recipePanelPosition.value.y,
-      margin,
-      Math.max(margin, window.innerHeight - Math.min(height, window.innerHeight - 128) - margin)
+      recipePanelEdgeMargin,
+      Math.max(
+        recipePanelEdgeMargin,
+        window.innerHeight - Math.min(height, window.innerHeight - 128) - recipePanelEdgeMargin
+      )
     ),
   };
 };
@@ -403,6 +422,7 @@ const stopRecipePanelDragging = () => {
 };
 
 const startRecipePanelDragging = (event: PointerEvent) => {
+  clearRecipePanelHideTimer();
   recipePanelDragging.value = {
     startX: event.clientX,
     startY: event.clientY,
@@ -417,8 +437,16 @@ const hideRecipePanel = () => {
   const { width } = getRecipePanelSize();
   const nearestDock =
     recipePanelPosition.value.x + width / 2 < window.innerWidth / 2 ? "left" : "right";
+  const wasAlreadyAtDock = isRecipePanelAtDock(nearestDock, width);
+  clearRecipePanelHideTimer();
   snapRecipePanelTo(nearestDock);
-  recipePanelVisible.value = false;
+  recipePanelHideTimer = window.setTimeout(
+    () => {
+      recipePanelVisible.value = false;
+      recipePanelHideTimer = null;
+    },
+    wasAlreadyAtDock ? 0 : recipePanelSnapDelayMs
+  );
 };
 
 const resetNodeLayout = () => {
@@ -1782,6 +1810,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopRecipePanelDragging();
+  clearRecipePanelHideTimer();
   window.removeEventListener("keydown", handleHistoryShortcut);
 });
 
@@ -2285,6 +2314,15 @@ const handleWorkspaceDrop = (event: DragEvent) => {
         :style="recipePanelStyle"
       >
         <div class="recipe-floating-toolbar">
+          <button
+            type="button"
+            class="recipe-direction-button"
+            :title="recipePanelDock === 'left' ? '贴左边缘隐藏' : '贴右边缘隐藏'"
+            @pointerdown.stop
+            @click="hideRecipePanel"
+          >
+            {{ recipeHideArrow }}
+          </button>
           <div
             class="recipe-floating-drag-handle"
             title="拖拽移动；靠近左右边缘自动吸附"
@@ -2293,19 +2331,14 @@ const handleWorkspaceDrop = (event: DragEvent) => {
             <a-tag color="green">场景积木</a-tag>
             <span>拖拽移动，靠近边缘自动吸附</span>
           </div>
-          <a-space size="small" @pointerdown.stop>
-            <a-button size="small" @click="toggleRecipePanelDock">
-              {{ recipePanelDockLabel }}
-            </a-button>
-            <button
-              type="button"
-              class="recipe-direction-button"
-              :title="recipePanelDock === 'left' ? '向左隐藏' : '向右隐藏'"
-              @click="hideRecipePanel"
-            >
-              {{ recipeHideArrow }}
-            </button>
-          </a-space>
+          <a-button
+            size="small"
+            class="recipe-dock-toggle"
+            @pointerdown.stop
+            @click="toggleRecipePanelDock"
+          >
+            {{ recipePanelDockLabel }}
+          </a-button>
         </div>
         <PluginsVisualRecipePanel
           :recipes="visualRecipes"
@@ -2339,6 +2372,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
         class="recipe-floating-trigger"
         :class="`dock-${recipePanelDock}`"
         :style="recipeTriggerStyle"
+        :title="recipePanelDock === 'left' ? '从左边缘展开场景积木' : '从右边缘展开场景积木'"
         @click="recipePanelVisible = true"
       >
         <span>{{ recipeRestoreArrow }}</span>
@@ -2428,7 +2462,8 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   background: rgba(2, 6, 23, 0.82);
   box-shadow: 0 20px 55px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(14px);
-  --recipe-hide-offset: -28px;
+  --recipe-panel-exit-x: calc(-100% - 24px);
+  --recipe-edge-button-hover: -4px;
   transition:
     left 0.18s ease,
     top 0.18s ease,
@@ -2444,7 +2479,8 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 
 .recipe-floating-window.dock-right {
-  --recipe-hide-offset: 28px;
+  --recipe-panel-exit-x: calc(100% + 24px);
+  --recipe-edge-button-hover: 4px;
 }
 
 .recipe-floating-toolbar {
@@ -2461,10 +2497,36 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   background: rgba(15, 23, 42, 0.94);
 }
 
+.recipe-floating-window.dock-left .recipe-direction-button {
+  order: 0;
+}
+
+.recipe-floating-window.dock-left .recipe-floating-drag-handle {
+  order: 1;
+}
+
+.recipe-floating-window.dock-left .recipe-dock-toggle {
+  order: 2;
+}
+
+.recipe-floating-window.dock-right .recipe-dock-toggle {
+  order: 0;
+}
+
+.recipe-floating-window.dock-right .recipe-floating-drag-handle {
+  order: 1;
+}
+
+.recipe-floating-window.dock-right .recipe-direction-button {
+  order: 2;
+}
+
 .recipe-floating-drag-handle {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
   color: #94a3b8;
   font-size: 11px;
   cursor: grab;
@@ -2472,14 +2534,25 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   touch-action: none;
 }
 
+.recipe-floating-drag-handle span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .recipe-floating-window.dragging .recipe-floating-drag-handle {
   cursor: grabbing;
+}
+
+.recipe-dock-toggle {
+  flex: 0 0 auto;
 }
 
 .recipe-direction-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 28px;
   width: 28px;
   height: 24px;
   border: 1px solid rgba(34, 197, 94, 0.32);
@@ -2493,7 +2566,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 
 .recipe-direction-button:hover {
-  transform: translateX(var(--recipe-hide-offset));
+  transform: translateX(var(--recipe-edge-button-hover));
   border-color: rgba(134, 239, 172, 0.65);
   background: rgba(22, 101, 52, 0.55);
 }
@@ -2512,7 +2585,10 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.36);
   cursor: pointer;
   font-size: 12px;
-  transition: transform 0.16s ease, opacity 0.18s ease, border-color 0.16s ease;
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.18s ease,
+    border-color 0.16s ease;
 }
 
 .recipe-floating-trigger:hover {
@@ -2526,12 +2602,18 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 
 .recipe-floating-trigger.dock-left {
-  left: 18px;
+  left: 0;
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  --recipe-trigger-enter-x: -100%;
   --recipe-trigger-hover: 4px;
 }
 
 .recipe-floating-trigger.dock-right {
-  right: 18px;
+  right: 0;
+  border-right: 0;
+  border-radius: 999px 0 0 999px;
+  --recipe-trigger-enter-x: 100%;
   --recipe-trigger-hover: -4px;
 }
 
@@ -2545,13 +2627,13 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 .recipe-float-enter-from,
 .recipe-float-leave-to {
   opacity: 0;
-  transform: translateX(var(--recipe-hide-offset)) scale(0.96);
+  transform: translateX(var(--recipe-panel-exit-x)) scale(0.98);
 }
 
 .recipe-trigger-enter-from,
 .recipe-trigger-leave-to {
   opacity: 0;
-  transform: translateX(var(--recipe-trigger-hover)) scale(0.92);
+  transform: translateX(var(--recipe-trigger-enter-x)) scale(0.98);
 }
 
 :deep(.dify-workspace-tabs .ant-tabs-nav) {
