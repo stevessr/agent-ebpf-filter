@@ -175,7 +175,7 @@ const getInitialFloatingX = (dock: FloatingDock, width: number) => {
       );
 };
 
-const nodeLibraryVisible = ref(true);
+const nodeLibraryVisible = ref(false);
 const nodeLibraryDock = ref<FloatingDock>("left");
 const nodeLibraryPosition = ref({
   x: getInitialFloatingX("left", 320),
@@ -188,7 +188,7 @@ const nodeLibraryDragging = ref<{
   originY: number;
 } | null>(null);
 
-const recipePanelVisible = ref(true);
+const recipePanelVisible = ref(false);
 const recipePanelDock = ref<FloatingDock>("right");
 const recipePanelPosition = ref({
   x: getInitialFloatingX("right", 360),

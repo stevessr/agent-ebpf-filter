@@ -93,7 +93,7 @@ export const validateWorkspace = (
         severity: "error",
         title: "伪代码格式不正确",
         detail:
-          "TS 风格伪代码必须包含主入口函数: export default function filter(ctx: any) { ... }",
+          "TS 风格伪代码必须包含主入口函数: export default function filter(ctx: HookContext) { ... }",
       });
     }
   }
