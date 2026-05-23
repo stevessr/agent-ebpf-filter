@@ -63,10 +63,12 @@ make dev-env
 make dev-env-doctor
 ```
 
-It writes local-only `.env.dev` and `.env.dev.mk` files for Makefile overrides
-such as `DEV_IMAGE_REPOSITORY`, `DEV_IMAGE_TAG`, `DEV_CONTAINER`, and
-`DEVCONTAINER_POSTCREATE_INSTALL`. Source `.env.dev` in a shell before running
-`code .` when VS Code itself needs those variables.
+It writes local-only `.env.dev` and `.env.dev.mk` files through a grouped
+interactive editor. Besides Makefile overrides such as `DEV_IMAGE_REPOSITORY`,
+`DEV_IMAGE_TAG`, `DEV_CONTAINER`, and `DEVCONTAINER_POSTCREATE_INSTALL`, it can
+edit ML/LLM (`AGENT_LLM_*` / `OPENAI_*`) and runtime application behavior
+overrides. Source `.env.dev` in a shell before running `code .` when VS Code
+itself needs those variables.
 
 The GitHub Actions image build runs `make predev` before publishing the GHCR
 image, so the published image already contains `protoc-gen-go`, the Python

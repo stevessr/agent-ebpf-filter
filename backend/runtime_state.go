@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -251,8 +252,39 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if strings.TrimSpace(settings.MLConfig.LlmSystemPrompt) == "" {
 		settings.MLConfig.LlmSystemPrompt = defaultLLMScoringSystemPrompt
 	}
-	settings.MLConfig.Enabled = true
+	if _, ok := firstRuntimeEnv("AGENT_ML_ENABLED"); !ok {
+		settings.MLConfig.Enabled = true
+	}
 	return nil
+}
+
+func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
+	if settings == nil {
+		return
+	}
+	seedRuntimeAccessTokenFromEnv(settings)
+	applyRuntimeBoolEnv(&settings.LogPersistenceEnabled, "AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED")
+	applyRuntimeStringEnv(&settings.LogFilePath, "AGENT_RUNTIME_LOG_FILE_PATH")
+	applyRuntimeIntEnv(&settings.MaxEventCount, "AGENT_RUNTIME_MAX_EVENT_COUNT")
+	applyRuntimeStringEnv(&settings.MaxEventAge, "AGENT_RUNTIME_MAX_EVENT_AGE")
+	applyRuntimeBoolEnv(&settings.ShellSessionsEnabled, "AGENT_RUNTIME_SHELL_SESSIONS_ENABLED")
+	applyRuntimeBoolEnv(&settings.SystemRunEnabled, "AGENT_RUNTIME_SYSTEM_RUN_ENABLED")
+	applyRuntimeBoolEnv(&settings.HookManagementEnabled, "AGENT_RUNTIME_HOOK_MANAGEMENT_ENABLED")
+	applyRuntimeBoolEnv(&settings.PolicyManagementEnabled, "AGENT_RUNTIME_POLICY_MANAGEMENT_ENABLED")
+	applyRuntimeBoolEnv(&settings.OtlpEnabled, "AGENT_RUNTIME_OTLP_ENABLED")
+	applyRuntimeStringEnv(&settings.OtlpEndpoint, "AGENT_RUNTIME_OTLP_ENDPOINT")
+	applyRuntimeStringEnv(&settings.OtlpServiceName, "AGENT_RUNTIME_OTLP_SERVICE_NAME")
+	applyRuntimeBoolEnv(&settings.TlsCaptureEnabled, "AGENT_RUNTIME_TLS_CAPTURE_ENABLED")
+	applyRuntimeBoolEnv(&settings.DomainForwardProxy.Enabled, "AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED")
+	applyRuntimeIntEnv(&settings.DomainForwardProxy.HTTPPort, "AGENT_RUNTIME_DOMAIN_HTTP_PORT")
+	applyRuntimeIntEnv(&settings.DomainForwardProxy.HTTPSPort, "AGENT_RUNTIME_DOMAIN_HTTPS_PORT")
+	applyRuntimeStringEnv(&settings.DomainForwardProxy.DefaultScheme, "AGENT_RUNTIME_DOMAIN_DEFAULT_SCHEME")
+	applyRuntimeBoolEnv(&settings.DomainForwardProxy.AllowAnyHost, "AGENT_RUNTIME_DOMAIN_ALLOW_ANY_HOST")
+	applyRuntimeStringEnv(&settings.DomainForwardProxy.DNSResolver, "AGENT_RUNTIME_DOMAIN_DNS_RESOLVER")
+	applyRuntimeIntEnv(&settings.DomainForwardProxy.DialTimeoutSeconds, "AGENT_RUNTIME_DOMAIN_DIAL_TIMEOUT_SECONDS")
+	applyRuntimeStringEnv(&settings.DomainForwardProxy.CertFile, "AGENT_RUNTIME_DOMAIN_CERT_FILE")
+	applyRuntimeStringEnv(&settings.DomainForwardProxy.KeyFile, "AGENT_RUNTIME_DOMAIN_KEY_FILE")
+	seedRuntimeMLConfigFromEnv(&settings.MLConfig)
 }
 
 func seedRuntimeAccessTokenFromEnv(settings *RuntimeSettings) {
@@ -262,8 +294,82 @@ func seedRuntimeAccessTokenFromEnv(settings *RuntimeSettings) {
 	if strings.TrimSpace(settings.AccessToken) != "" {
 		return
 	}
-	if envToken := strings.TrimSpace(os.Getenv("AGENT_API_KEY")); envToken != "" {
+	if envToken, ok := firstRuntimeEnv("AGENT_API_KEY", "AGENT_ACCESS_TOKEN", "AGENT_EBPF_ACCESS_TOKEN"); ok {
 		settings.AccessToken = envToken
+	}
+}
+
+func seedRuntimeMLConfigFromEnv(cfg *MLConfig) {
+	if cfg == nil {
+		return
+	}
+	applyRuntimeBoolEnv(&cfg.Enabled, "AGENT_ML_ENABLED")
+	applyRuntimeModelTypeEnv(&cfg.ModelType, "AGENT_ML_MODEL_TYPE")
+	applyRuntimeStringEnv(&cfg.ModelPath, "AGENT_ML_MODEL_PATH")
+	applyRuntimeBoolEnv(&cfg.AutoTrain, "AGENT_ML_AUTO_TRAIN")
+	applyRuntimeStringEnv(&cfg.TrainInterval, "AGENT_ML_TRAIN_INTERVAL")
+	applyRuntimeIntEnv(&cfg.MinSamplesForTraining, "AGENT_ML_MIN_SAMPLES_FOR_TRAINING")
+	applyRuntimeFloatEnv(&cfg.BlockConfidenceThreshold, "AGENT_ML_BLOCK_CONFIDENCE_THRESHOLD")
+	applyRuntimeFloatEnv(&cfg.MlMinConfidence, "AGENT_ML_MIN_CONFIDENCE")
+	applyRuntimeFloatEnv(&cfg.LowAnomalyThreshold, "AGENT_ML_LOW_ANOMALY_THRESHOLD")
+	applyRuntimeFloatEnv(&cfg.HighAnomalyThreshold, "AGENT_ML_HIGH_ANOMALY_THRESHOLD")
+	applyRuntimeBoolEnv(&cfg.ActiveLearningEnabled, "AGENT_ML_ACTIVE_LEARNING_ENABLED")
+	applyRuntimeIntEnv(&cfg.FeatureHistorySize, "AGENT_ML_FEATURE_HISTORY_SIZE")
+	applyRuntimeIntEnv(&cfg.NumTrees, "AGENT_ML_NUM_TREES")
+	applyRuntimeIntEnv(&cfg.MaxDepth, "AGENT_ML_MAX_DEPTH")
+	applyRuntimeIntEnv(&cfg.MinSamplesLeaf, "AGENT_ML_MIN_SAMPLES_LEAF")
+	applyRuntimeFloatEnv(&cfg.ValidationSplitRatio, "AGENT_ML_VALIDATION_SPLIT_RATIO")
+	applyRuntimeBoolEnv(&cfg.BalanceClasses, "AGENT_ML_BALANCE_CLASSES")
+	applyRuntimeBoolEnv(&cfg.LlmEnabled, "AGENT_LLM_ENABLED", "LLM_ENABLED")
+	applyRuntimeStringEnv(&cfg.LlmBaseURL, "AGENT_LLM_BASE_URL", "LLM_BASE_URL", "OPENAI_BASE_URL")
+	applyRuntimeStringEnv(&cfg.LlmAPIKey, "AGENT_LLM_API_KEY", "LLM_API_KEY", "OPENAI_API_KEY")
+	applyRuntimeStringEnv(&cfg.LlmModel, "AGENT_LLM_MODEL", "LLM_MODEL", "OPENAI_MODEL")
+	applyRuntimeIntEnv(&cfg.LlmTimeoutSeconds, "AGENT_LLM_TIMEOUT_SECONDS", "LLM_TIMEOUT_SECONDS")
+	applyRuntimeFloatEnv(&cfg.LlmTemperature, "AGENT_LLM_TEMPERATURE", "LLM_TEMPERATURE")
+	applyRuntimeIntEnv(&cfg.LlmMaxTokens, "AGENT_LLM_MAX_TOKENS", "LLM_MAX_TOKENS")
+	applyRuntimeStringEnv(&cfg.LlmSystemPrompt, "AGENT_LLM_SYSTEM_PROMPT", "LLM_SYSTEM_PROMPT")
+}
+
+func firstRuntimeEnv(keys ...string) (string, bool) {
+	for _, key := range keys {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value, true
+		}
+	}
+	return "", false
+}
+
+func applyRuntimeStringEnv(dst *string, keys ...string) {
+	if value, ok := firstRuntimeEnv(keys...); ok {
+		*dst = value
+	}
+}
+
+func applyRuntimeBoolEnv(dst *bool, keys ...string) {
+	if value, ok := firstRuntimeEnv(keys...); ok {
+		*dst = parseBoolEnv(value)
+	}
+}
+
+func applyRuntimeIntEnv(dst *int, keys ...string) {
+	if value, ok := firstRuntimeEnv(keys...); ok {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			*dst = parsed
+		}
+	}
+}
+
+func applyRuntimeFloatEnv(dst *float64, keys ...string) {
+	if value, ok := firstRuntimeEnv(keys...); ok {
+		if parsed, err := strconv.ParseFloat(value, 64); err == nil {
+			*dst = parsed
+		}
+	}
+}
+
+func applyRuntimeModelTypeEnv(dst *ModelType, keys ...string) {
+	if value, ok := firstRuntimeEnv(keys...); ok {
+		*dst = ModelType(value)
 	}
 }
 
@@ -329,7 +435,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 		}
 	}
 
-	seedRuntimeAccessTokenFromEnv(&settings)
+	seedRuntimeSettingsFromEnv(&settings)
 	if err := normalizeRuntimeSettings(&settings); err != nil {
 		return RuntimeSettings{}, err
 	}
@@ -358,7 +464,7 @@ func (s *runtimeState) ExpectedToken() string {
 	if token != "" {
 		return token
 	}
-	if envToken := strings.TrimSpace(os.Getenv("AGENT_API_KEY")); envToken != "" {
+	if envToken, ok := firstRuntimeEnv("AGENT_API_KEY", "AGENT_ACCESS_TOKEN", "AGENT_EBPF_ACCESS_TOKEN"); ok {
 		return envToken
 	}
 	return ""

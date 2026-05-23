@@ -51,9 +51,12 @@ rtk make install       # Install as a system service: systemd first, rc.local fa
 rtk make uninstall
 ```
 
-`make dev-env` writes local-only `.env.dev` / `.env.dev.mk` files for common
-development variables and Makefile overrides; do not commit those generated
-files. `make dev-env-doctor` checks the effective values and local tooling.
+`make dev-env` writes local-only `.env.dev` / `.env.dev.mk` files through a
+grouped interactive editor for core dev settings, ML/LLM configuration,
+runtime app behavior, sandbox/cluster options, devcontainer overrides, and
+tooling/benchmark variables; do not commit those generated files.
+`make dev-env-doctor` checks the effective values and local tooling with secrets
+redacted.
 `make predev` installs the helper dependencies in parallel. It normalizes an
 unwritable Go workspace such as a host-side stale `GOPATH=/go` to `$HOME/go`
 before installing Go helper binaries. `make dev` assumes those dependencies are
