@@ -1109,7 +1109,7 @@ const compilePseudoCode = async () => {
       currentSnapshot
     );
     applyWorkspaceSnapshot(updatedSnapshot);
-    message.success("TS 伪代码编译成功，已同步至积木面板");
+    message.success("TS 伪代码编译成功，已同步至 C 源码生成器");
     await handleCompileAndRegister();
   } catch (err: any) {
     message.error(`伪代码解析编译失败: ${err?.message || err}`);
