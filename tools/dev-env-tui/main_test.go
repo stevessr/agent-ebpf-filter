@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rivo/tview"
 )
 
 func TestWriteFilesQuotesSecretsAndExportsMakeVars(t *testing.T) {
@@ -55,4 +57,67 @@ func TestStripTviewTagsKeepsNormalBrackets(t *testing.T) {
 	if got != want {
 		t.Fatalf("stripTviewTags() = %q, want %q", got, want)
 	}
+}
+
+func TestMoveFormFocusUsesArrowAndWheelSemantics(t *testing.T) {
+	m := &model{form: tview.NewForm()}
+	m.form.AddInputField("one", "", 20, nil, nil)
+	m.form.AddInputField("two", "", 20, nil, nil)
+	m.form.AddButton("save", nil)
+	focusFormFirstItem(m.form)
+
+	m.moveFormFocus(1)
+	item, button := m.form.GetFocusedItemIndex()
+	if item != 1 || button != -1 {
+		t.Fatalf("after moving down, focused item=%d button=%d, want item=1 button=-1", item, button)
+	}
+
+	m.moveFormFocus(1)
+	item, button = m.form.GetFocusedItemIndex()
+	if item != -1 || button != 0 {
+		t.Fatalf("after moving to button, focused item=%d button=%d, want item=-1 button=0", item, button)
+	}
+
+	m.moveFormFocus(1)
+	item, button = m.form.GetFocusedItemIndex()
+	if item != -1 || button != 0 {
+		t.Fatalf("focus should clamp at last button, got item=%d button=%d", item, button)
+	}
+}
+
+func TestMoveGroupSelectionUpdatesSelectedGroup(t *testing.T) {
+	m := &model{
+		values: make(map[string]string),
+		list:   tview.NewList(),
+		form:   tview.NewForm(),
+		status: tview.NewTextView(),
+	}
+	for _, group := range groups {
+		m.list.AddItem(group.Title, group.Desc, 0, nil)
+	}
+	m.list.SetChangedFunc(func(index int, _ string, _ string, _ rune) {
+		m.selectGroup(index, false)
+	})
+	m.rebuildForm()
+
+	m.moveGroupSelection(1)
+	if got := m.selected; got != 1 {
+		t.Fatalf("selected group = %d, want 1", got)
+	}
+	if got := m.list.GetCurrentItem(); got != 1 {
+		t.Fatalf("current list item = %d, want 1", got)
+	}
+
+	m.moveGroupSelection(-10)
+	if got := m.selected; got != 0 {
+		t.Fatalf("selected group after clamp = %d, want 0", got)
+	}
+}
+
+func focusFormFirstItem(form *tview.Form) {
+	var focus func(tview.Primitive)
+	focus = func(p tview.Primitive) {
+		p.Focus(focus)
+	}
+	form.Focus(focus)
 }
