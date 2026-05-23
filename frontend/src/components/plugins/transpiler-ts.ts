@@ -221,9 +221,11 @@ export const pseudoCodeToSnapshot = (
       }
 
       if (node.type === "CallExpression") {
-        // 解析例如：ctx.field.includes("val") 或 ctx.field.startsWith("val")
+        // 解析例如：ctx.field.includes("val") 或 ctx.field.startsWith("val") 或 ctx.field.endsWith("val")
         let field = "";
         let methodName = "";
+
+        // 1. 匹配标准链式调用：ctx.field.startsWith("val")
         if (node.callee.type === "MemberExpression") {
           methodName = node.callee.property.name;
           const obj = node.callee.object;
@@ -231,12 +233,24 @@ export const pseudoCodeToSnapshot = (
             if (obj.object.type === "Identifier" && obj.object.name === "ctx") {
               field = obj.property.name;
             }
+          } else if (obj.type === "Identifier" && obj.name !== "ctx") {
+            // 支持直接在解构后的局部变量上调用，例如 comm.startsWith("val")
+            field = obj.name;
           }
         }
 
-        let operator: "starts_with" | "ends_with" | "==" = "starts_with";
+        let operator: "starts_with" | "ends_with" | "== " | "==" =
+          "starts_with";
         if (methodName === "endsWith" || methodName === "ends_with") {
           operator = "ends_with";
+        } else if (methodName === "includes") {
+          // 模糊匹配底层转译映射为 starts_with 拦截
+          operator = "starts_with";
+        } else if (
+          methodName === "startsWith" ||
+          methodName === "starts_with"
+        ) {
+          operator = "starts_with";
         }
 
         let value = "";
