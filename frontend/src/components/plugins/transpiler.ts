@@ -29,6 +29,17 @@ export const generateBpfCode = (snapshot: VisualWorkspaceSnapshot): string => {
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
 
+// 声明内核中 task_struct 的部分结构体以通过 core 编译
+struct task_struct;
+struct linux_binprm;
+struct file;
+struct inode;
+struct dentry;
+struct socket;
+struct sockaddr;
+struct vm_area_struct;
+struct pt_regs;
+
 char LICENSE[] SEC("license") = "GPL";
 #define EACCES 13
 
@@ -75,6 +86,17 @@ static __always_inline int str_ends_with(const char *s1, int s1_len, const char 
 
   let body = "";
 
+  const readTaskFields = `
+    // 从 task_struct 读取 ppid 和 loginuid
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    u32 ppid = 0;
+    u32 loginuid = 0;
+    if (task) {
+        ppid = BPF_CORE_READ(task, real_parent, tgid);
+        loginuid = BPF_CORE_READ(task, loginuid.val);
+    }
+  `;
+
   // 1. Hook function header
   if (trigger === "process") {
     body = `
@@ -87,6 +109,7 @@ int BPF_PROG(visual_custom_plugin, struct linux_binprm *bprm, int ret) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
     u32 gid = bpf_get_current_uid_gid() >> 32;
+    ${readTaskFields.trim()}
 
     const unsigned char *exec_name = BPF_CORE_READ(bprm, file, f_path.dentry, d_name.name);
     char name_buf[64] = {};
@@ -105,6 +128,7 @@ int BPF_PROG(visual_custom_plugin, struct file *file, int ret) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
     u32 gid = bpf_get_current_uid_gid() >> 32;
+    ${readTaskFields.trim()}
 
     const unsigned char *file_name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
     char name_buf[64] = {};
@@ -144,6 +168,7 @@ int BPF_PROG(visual_custom_plugin, ${funcArgs}) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
     u32 gid = bpf_get_current_uid_gid() >> 32;
+    ${readTaskFields.trim()}
 
     const unsigned char *file_name = BPF_CORE_READ(dentry, d_name.name);
     char name_buf[64] = {};
@@ -160,6 +185,7 @@ int BPF_PROG(visual_custom_plugin, struct socket *sock, struct sockaddr *address
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
     u32 gid = bpf_get_current_uid_gid() >> 32;
+    ${readTaskFields.trim()}
 
     short family = 0;
     if (address) {
@@ -184,6 +210,7 @@ int BPF_PROG(visual_custom_plugin, struct inode *dir, struct dentry *dentry, umo
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
     u32 gid = bpf_get_current_uid_gid() >> 32;
+    ${readTaskFields.trim()}
 
     const unsigned char *file_name = BPF_CORE_READ(dentry, d_name.name);
     char name_buf[64] = {};
@@ -203,6 +230,7 @@ int BPF_PROG(visual_custom_plugin, struct vm_area_struct *vma, unsigned long req
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
     u32 gid = bpf_get_current_uid_gid() >> 32;
+    ${readTaskFields.trim()}
 
     struct file *file = BPF_CORE_READ(vma, vm_file);
     char name_buf[64] = {};
@@ -222,6 +250,7 @@ int BPF_PROG(visual_custom_plugin, struct inode *old_dir, struct dentry *old_den
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
     u32 gid = bpf_get_current_uid_gid() >> 32;
+    ${readTaskFields.trim()}
 
     const unsigned char *file_name = BPF_CORE_READ(old_dentry, d_name.name);
     char name_buf[64] = {};
@@ -238,6 +267,7 @@ int BPF_PROG(visual_custom_plugin, struct pt_regs *ctx) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u32 uid = bpf_get_current_uid_gid() & 0xffffffff;
     u32 gid = bpf_get_current_uid_gid() >> 32;
+    ${readTaskFields.trim()}
     char name_buf[64] = {}; // kprobe lacks dentry
 `;
   }
@@ -272,6 +302,14 @@ int BPF_PROG(visual_custom_plugin, struct pt_regs *ctx) {
         const gidNum = parseInt(val, 10) || 0;
         if (node.operator === "==") expr = `gid == ${gidNum}`;
         else expr = `gid != ${gidNum}`;
+      } else if (node.field === "ppid") {
+        const ppidNum = parseInt(val, 10) || 0;
+        if (node.operator === "==") expr = `ppid == ${ppidNum}`;
+        else expr = `ppid != ${ppidNum}`;
+      } else if (node.field === "loginuid") {
+        const loginuidNum = parseInt(val, 10) || 0;
+        if (node.operator === "==") expr = `loginuid == ${loginuidNum}`;
+        else expr = `loginuid != ${loginuidNum}`;
       } else if (node.field === "port") {
         const portNum = parseInt(val, 10) || 0;
         if (node.operator === "==") expr = `dst_port == ${portNum}`;

@@ -58,6 +58,8 @@ const initMonaco = () => {
           port: number;
           ipv4: string;
           gid: number;
+          ppid: number;
+          loginuid: number;
         }
 
         export const process: any;
@@ -118,10 +120,25 @@ const initMonaco = () => {
           range,
         },
         {
-          label: "ctx.pid",
+          label: "ctx.gid",
           kind: monaco.languages.CompletionItemKind.Field,
-          documentation: "当前触发事件的进程 PID (number)",
-          insertText: "ctx.pid",
+          documentation: "当前触发事件的用户组 GID (number)",
+          insertText: "ctx.gid",
+          range,
+        },
+        {
+          label: "ctx.ppid",
+          kind: monaco.languages.CompletionItemKind.Field,
+          documentation: "当前触发事件的父进程 PPID (number)",
+          insertText: "ctx.ppid",
+          range,
+        },
+        {
+          label: "ctx.loginuid",
+          kind: monaco.languages.CompletionItemKind.Field,
+          documentation:
+            "当前触发事件的登录用户 UID (number, 即使 sudo 切换也保持最初登录 UID)",
+          insertText: "ctx.loginuid",
           range,
         },
         {
@@ -129,6 +146,13 @@ const initMonaco = () => {
           kind: monaco.languages.CompletionItemKind.Field,
           documentation: "当前触发事件的用户 UID (number, 0 代表 root)",
           insertText: "ctx.uid",
+          range,
+        },
+        {
+          label: "ctx.pid",
+          kind: monaco.languages.CompletionItemKind.Field,
+          documentation: "当前触发事件的进程 PID (number)",
+          insertText: "ctx.pid",
           range,
         },
         {

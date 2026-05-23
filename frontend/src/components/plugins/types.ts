@@ -24,7 +24,9 @@ export type VisualConditionField =
   | "basename"
   | "port"
   | "ipv4"
-  | "gid";
+  | "gid"
+  | "ppid"
+  | "loginuid";
 
 export interface VisualCondition {
   id: string;

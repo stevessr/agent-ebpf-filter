@@ -26,6 +26,8 @@ const visualFieldSet = new Set<VisualConditionField>([
   "port",
   "ipv4",
   "gid",
+  "ppid",
+  "loginuid",
 ]);
 
 export const isVisualConditionField = (
