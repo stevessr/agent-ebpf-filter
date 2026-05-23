@@ -268,9 +268,33 @@ const wireStates = ref<VisualWireStates>(createDefaultWireStates());
 const hiddenFlowNodes = ref<VisualHiddenNodeStates>(createDefaultHiddenNodes());
 const activeFlowNode = ref<VisualFlowNodeId>("trigger");
 const designerSubtab = ref<"dify" | "map" | "nlp" | "source">("dify");
+type FloatingDock = "left" | "right";
+const floatingPanelEdgeMargin = 18;
+const getInitialFloatingX = (dock: FloatingDock, width: number) => {
+  const viewportWidth =
+    typeof window === "undefined" ? 1280 : Math.max(480, window.innerWidth);
+  return dock === "left"
+    ? floatingPanelEdgeMargin
+    : Math.max(floatingPanelEdgeMargin, viewportWidth - width - floatingPanelEdgeMargin);
+};
+const nodeLibraryVisible = ref(true);
+const nodeLibraryDock = ref<FloatingDock>("left");
+const nodeLibraryPosition = ref({
+  x: getInitialFloatingX("left", 320),
+  y: 92,
+});
+const nodeLibraryDragging = ref<{
+  startX: number;
+  startY: number;
+  originX: number;
+  originY: number;
+} | null>(null);
 const recipePanelVisible = ref(true);
-const recipePanelDock = ref<"left" | "right">("left");
-const recipePanelPosition = ref({ x: 18, y: 92 });
+const recipePanelDock = ref<FloatingDock>("right");
+const recipePanelPosition = ref({
+  x: getInitialFloatingX("right", 360),
+  y: 92,
+});
 const recipePanelDragging = ref<{
   startX: number;
   startY: number;
@@ -279,7 +303,9 @@ const recipePanelDragging = ref<{
 } | null>(null);
 const recipePanelEdgeMargin = 18;
 const recipePanelSnapDelayMs = 180;
+const nodeLibrarySnapDelayMs = 180;
 let recipePanelHideTimer: number | null = null;
+let nodeLibraryHideTimer: number | null = null;
 const triggerBlockRef = useTemplateRef<HTMLElement>("triggerBlock");
 const conditionBlockRef = useTemplateRef<HTMLElement>("conditionBlock");
 const mapBlockRef = useTemplateRef<HTMLElement>("mapBlock");
@@ -287,6 +313,7 @@ const actionBlockRef = useTemplateRef<HTMLElement>("actionBlock");
 const compileBlockRef = useTemplateRef<HTMLElement>("compileBlock");
 const codeBlockRef = useTemplateRef<HTMLElement>("codeBlock");
 const recipeFloatingRef = useTemplateRef<HTMLElement>("recipeFloating");
+const nodeLibraryFloatingRef = useTemplateRef<HTMLElement>("nodeLibraryFloating");
 
 const flowNodeDetails: Record<VisualFlowNodeId, { label: string; focus: string }> = {
   trigger: {
@@ -319,6 +346,18 @@ const selectedFlowNodeDetail = computed(
   () => flowNodeDetails[activeFlowNode.value]
 );
 
+const nodeLibraryDockLabel = computed(() =>
+  nodeLibraryDock.value === "left" ? "吸附右侧" : "吸附左侧"
+);
+
+const nodeLibraryHideArrow = computed(() =>
+  nodeLibraryDock.value === "left" ? "‹" : "›"
+);
+
+const nodeLibraryRestoreArrow = computed(() =>
+  nodeLibraryDock.value === "left" ? "›" : "‹"
+);
+
 const recipePanelDockLabel = computed(() =>
   recipePanelDock.value === "left" ? "吸附右侧" : "吸附左侧"
 );
@@ -340,6 +379,18 @@ const recipeTriggerStyle = computed(() => ({
   top: `${Math.max(88, Math.min(recipePanelPosition.value.y + 14, window.innerHeight - 120))}px`,
 }));
 
+const nodeLibraryStyle = computed(() => ({
+  left: `${nodeLibraryPosition.value.x}px`,
+  top: `${nodeLibraryPosition.value.y}px`,
+}));
+
+const nodeLibraryTriggerStyle = computed(() => ({
+  top: `${Math.max(
+    88,
+    Math.min(nodeLibraryPosition.value.y + 14, window.innerHeight - 120)
+  )}px`,
+}));
+
 const clampNumber = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
@@ -351,10 +402,24 @@ const getRecipePanelSize = () => {
   };
 };
 
+const getNodeLibrarySize = () => {
+  const element = nodeLibraryFloatingRef.value;
+  return {
+    width: element?.offsetWidth || 320,
+    height: element?.offsetHeight || 560,
+  };
+};
+
 const clearRecipePanelHideTimer = () => {
   if (recipePanelHideTimer === null) return;
   window.clearTimeout(recipePanelHideTimer);
   recipePanelHideTimer = null;
+};
+
+const clearNodeLibraryHideTimer = () => {
+  if (nodeLibraryHideTimer === null) return;
+  window.clearTimeout(nodeLibraryHideTimer);
+  nodeLibraryHideTimer = null;
 };
 
 const getRecipePanelDockX = (dock: "left" | "right", width: number) =>
@@ -364,6 +429,34 @@ const getRecipePanelDockX = (dock: "left" | "right", width: number) =>
 
 const isRecipePanelAtDock = (dock: "left" | "right", width: number) =>
   Math.abs(recipePanelPosition.value.x - getRecipePanelDockX(dock, width)) <= 2;
+
+const getNodeLibraryDockX = (dock: FloatingDock, width: number) =>
+  dock === "left"
+    ? floatingPanelEdgeMargin
+    : Math.max(floatingPanelEdgeMargin, window.innerWidth - width - floatingPanelEdgeMargin);
+
+const isNodeLibraryAtDock = (dock: FloatingDock, width: number) =>
+  Math.abs(nodeLibraryPosition.value.x - getNodeLibraryDockX(dock, width)) <= 2;
+
+const snapNodeLibraryTo = (dock: FloatingDock) => {
+  const { width, height } = getNodeLibrarySize();
+  nodeLibraryDock.value = dock;
+  nodeLibraryPosition.value = {
+    x: getNodeLibraryDockX(dock, width),
+    y: clampNumber(
+      nodeLibraryPosition.value.y,
+      floatingPanelEdgeMargin,
+      Math.max(
+        floatingPanelEdgeMargin,
+        window.innerHeight - Math.min(height, window.innerHeight - 128) - floatingPanelEdgeMargin
+      )
+    ),
+  };
+};
+
+const toggleNodeLibraryDock = () => {
+  snapNodeLibraryTo(nodeLibraryDock.value === "left" ? "right" : "left");
+};
 
 const snapRecipePanelTo = (dock: "left" | "right") => {
   const { width, height } = getRecipePanelSize();
@@ -447,6 +540,75 @@ const hideRecipePanel = () => {
     },
     wasAlreadyAtDock ? 0 : recipePanelSnapDelayMs
   );
+};
+
+const handleNodeLibraryPointerMove = (event: PointerEvent) => {
+  if (!nodeLibraryDragging.value) return;
+  const margin = 12;
+  const { width, height } = getNodeLibrarySize();
+  nodeLibraryPosition.value = {
+    x: clampNumber(
+      nodeLibraryDragging.value.originX + event.clientX - nodeLibraryDragging.value.startX,
+      margin,
+      Math.max(margin, window.innerWidth - width - margin)
+    ),
+    y: clampNumber(
+      nodeLibraryDragging.value.originY + event.clientY - nodeLibraryDragging.value.startY,
+      margin,
+      Math.max(margin, window.innerHeight - Math.min(height, window.innerHeight - 128) - margin)
+    ),
+  };
+};
+
+const stopNodeLibraryDragging = () => {
+  if (nodeLibraryDragging.value) {
+    const snapThreshold = 96;
+    const { width } = getNodeLibrarySize();
+    if (nodeLibraryPosition.value.x <= snapThreshold) {
+      snapNodeLibraryTo("left");
+    } else if (nodeLibraryPosition.value.x + width >= window.innerWidth - snapThreshold) {
+      snapNodeLibraryTo("right");
+    } else {
+      nodeLibraryDock.value =
+        nodeLibraryPosition.value.x + width / 2 < window.innerWidth / 2 ? "left" : "right";
+    }
+  }
+  nodeLibraryDragging.value = null;
+  window.removeEventListener("pointermove", handleNodeLibraryPointerMove);
+  window.removeEventListener("pointerup", stopNodeLibraryDragging);
+};
+
+const startNodeLibraryDragging = (event: PointerEvent) => {
+  clearNodeLibraryHideTimer();
+  nodeLibraryDragging.value = {
+    startX: event.clientX,
+    startY: event.clientY,
+    originX: nodeLibraryPosition.value.x,
+    originY: nodeLibraryPosition.value.y,
+  };
+  window.addEventListener("pointermove", handleNodeLibraryPointerMove);
+  window.addEventListener("pointerup", stopNodeLibraryDragging);
+};
+
+const hideNodeLibrary = () => {
+  const { width } = getNodeLibrarySize();
+  const nearestDock =
+    nodeLibraryPosition.value.x + width / 2 < window.innerWidth / 2 ? "left" : "right";
+  const wasAlreadyAtDock = isNodeLibraryAtDock(nearestDock, width);
+  clearNodeLibraryHideTimer();
+  snapNodeLibraryTo(nearestDock);
+  nodeLibraryHideTimer = window.setTimeout(
+    () => {
+      nodeLibraryVisible.value = false;
+      nodeLibraryHideTimer = null;
+    },
+    wasAlreadyAtDock ? 0 : nodeLibrarySnapDelayMs
+  );
+};
+
+const showNodeLibrary = () => {
+  clearNodeLibraryHideTimer();
+  nodeLibraryVisible.value = true;
 };
 
 const resetNodeLayout = () => {
@@ -1809,7 +1971,9 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  stopNodeLibraryDragging();
   stopRecipePanelDragging();
+  clearNodeLibraryHideTimer();
   clearRecipePanelHideTimer();
   window.removeEventListener("keydown", handleHistoryShortcut);
 });
@@ -1968,20 +2132,8 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 <template>
   <div class="plugins-visual-tab">
     <a-row :gutter="16">
-      <!-- Column 1: Dify node type palette -->
-      <a-col :span="5">
-        <PluginsVisualNodeTypeLibrary
-          @select-trigger="selectTriggerNodeType"
-          @add-condition="addConditionNodeType"
-          @add-group="addLogicNodeType"
-          @set-map="setMapNodeType"
-          @set-action="setActionNodeType"
-          @focus-node="focusFlowNode"
-        />
-      </a-col>
-
-      <!-- Column 2: Workspace (Designer Canvas) -->
-      <a-col :span="19">
+      <!-- Workspace (Designer Canvas) -->
+      <a-col :span="24">
         <div class="graphical-workspace" @dragover.prevent @drop="handleWorkspaceDrop">
           <div class="workspace-title">
             <h3>流程图高级规则拼接控制台 (Advanced Flow Designer)</h3>
@@ -1997,7 +2149,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
                   <div>
                     <a-tag color="blue">Dify Style</a-tag>
                     <h4>节点工作流编排</h4>
-                    <p>主视图只保留节点类型、拖线画布和节点 Inspector；可从左侧拖拽节点类型到画布，自动吸附到网格，并通过端口拖线/线缆开关编辑路由。</p>
+                    <p>主视图只保留悬浮节点类型库、拖线画布和节点 Inspector；可从悬浮窗拖拽节点类型到画布，自动吸附到网格，并通过端口拖线/线缆开关编辑路由。</p>
                   </div>
                   <a-space size="small" wrap>
                     <a-tag :color="isWorkspaceValid ? 'green' : 'red'">
@@ -2305,6 +2457,66 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
     </a-row>
 
+    <transition name="node-library-float">
+      <div
+        v-if="nodeLibraryVisible"
+        ref="nodeLibraryFloating"
+        class="node-library-floating-window"
+        :class="[`dock-${nodeLibraryDock}`, { dragging: !!nodeLibraryDragging }]"
+        :style="nodeLibraryStyle"
+      >
+        <div class="node-library-floating-toolbar">
+          <button
+            type="button"
+            class="node-library-direction-button"
+            :title="nodeLibraryDock === 'left' ? '贴左边缘隐藏节点类型' : '贴右边缘隐藏节点类型'"
+            @pointerdown.stop
+            @click="hideNodeLibrary"
+          >
+            {{ nodeLibraryHideArrow }}
+          </button>
+          <div
+            class="node-library-floating-drag-handle"
+            title="拖拽移动；靠近左右边缘自动吸附"
+            @pointerdown.prevent="startNodeLibraryDragging"
+          >
+            <a-tag color="blue">节点类型</a-tag>
+            <span>拖拽移动，靠近边缘自动吸附</span>
+          </div>
+          <a-button
+            size="small"
+            class="node-library-dock-toggle"
+            @pointerdown.stop
+            @click="toggleNodeLibraryDock"
+          >
+            {{ nodeLibraryDockLabel }}
+          </a-button>
+        </div>
+        <PluginsVisualNodeTypeLibrary
+          @select-trigger="selectTriggerNodeType"
+          @add-condition="addConditionNodeType"
+          @add-group="addLogicNodeType"
+          @set-map="setMapNodeType"
+          @set-action="setActionNodeType"
+          @focus-node="focusFlowNode"
+        />
+      </div>
+    </transition>
+    <transition name="node-library-trigger">
+      <button
+        v-if="!nodeLibraryVisible"
+        type="button"
+        class="node-library-floating-trigger"
+        :class="`dock-${nodeLibraryDock}`"
+        :style="nodeLibraryTriggerStyle"
+        :title="nodeLibraryDock === 'left' ? '从左边缘展开节点类型' : '从右边缘展开节点类型'"
+        @click="showNodeLibrary"
+      >
+        <span>{{ nodeLibraryRestoreArrow }}</span>
+        节点类型
+      </button>
+    </transition>
+
     <transition name="recipe-float">
       <div
         v-if="recipePanelVisible"
@@ -2448,6 +2660,200 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   align-items: center;
   justify-content: flex-start;
   border-color: rgba(114, 46, 209, 0.36);
+}
+
+.node-library-floating-window {
+  position: fixed;
+  z-index: 34;
+  display: flex;
+  flex-direction: column;
+  width: min(320px, calc(100vw - 32px));
+  max-height: calc(100vh - 128px);
+  min-height: 420px;
+  overflow: hidden;
+  padding: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.84);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(14px);
+  --node-library-panel-exit-x: calc(-100% - 24px);
+  --node-library-edge-button-hover: -4px;
+  transition:
+    left 0.18s ease,
+    top 0.18s ease,
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.18s ease;
+}
+
+.node-library-floating-window.dragging {
+  cursor: grabbing;
+  transition: none;
+  box-shadow: 0 24px 68px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(56, 189, 248, 0.3);
+}
+
+.node-library-floating-window.dock-right {
+  --node-library-panel-exit-x: calc(100% + 24px);
+  --node-library-edge-button-hover: 4px;
+}
+
+.node-library-floating-toolbar {
+  position: sticky;
+  top: -10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin: -10px -10px 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.94);
+}
+
+.node-library-floating-window.dock-left .node-library-direction-button {
+  order: 0;
+}
+
+.node-library-floating-window.dock-left .node-library-floating-drag-handle {
+  order: 1;
+}
+
+.node-library-floating-window.dock-left .node-library-dock-toggle {
+  order: 2;
+}
+
+.node-library-floating-window.dock-right .node-library-dock-toggle {
+  order: 0;
+}
+
+.node-library-floating-window.dock-right .node-library-floating-drag-handle {
+  order: 1;
+}
+
+.node-library-floating-window.dock-right .node-library-direction-button {
+  order: 2;
+}
+
+.node-library-floating-drag-handle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #94a3b8;
+  font-size: 11px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.node-library-floating-drag-handle span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-library-floating-window.dragging .node-library-floating-drag-handle {
+  cursor: grabbing;
+}
+
+.node-library-dock-toggle {
+  flex: 0 0 auto;
+}
+
+.node-library-direction-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 24px;
+  border: 1px solid rgba(56, 189, 248, 0.36);
+  border-radius: 999px;
+  color: #dbeafe;
+  background: rgba(30, 64, 175, 0.32);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.node-library-direction-button:hover {
+  transform: translateX(var(--node-library-edge-button-hover));
+  border-color: rgba(125, 211, 252, 0.7);
+  background: rgba(30, 64, 175, 0.56);
+}
+
+.node-library-floating-window :deep(.dify-node-library) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.node-library-floating-trigger {
+  position: fixed;
+  z-index: 35;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid rgba(56, 189, 248, 0.42);
+  color: #dbeafe;
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
+  cursor: pointer;
+  font-size: 12px;
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.18s ease,
+    border-color 0.16s ease;
+}
+
+.node-library-floating-trigger:hover {
+  transform: translateX(var(--node-library-trigger-hover, 4px));
+  border-color: rgba(125, 211, 252, 0.72);
+}
+
+.node-library-floating-trigger span {
+  font-size: 18px;
+  line-height: 0.8;
+}
+
+.node-library-floating-trigger.dock-left {
+  left: 0;
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  --node-library-trigger-enter-x: -100%;
+  --node-library-trigger-hover: 4px;
+}
+
+.node-library-floating-trigger.dock-right {
+  right: 0;
+  border-right: 0;
+  border-radius: 999px 0 0 999px;
+  --node-library-trigger-enter-x: 100%;
+  --node-library-trigger-hover: -4px;
+}
+
+.node-library-float-enter-active,
+.node-library-float-leave-active,
+.node-library-trigger-enter-active,
+.node-library-trigger-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.node-library-float-enter-from,
+.node-library-float-leave-to {
+  opacity: 0;
+  transform: translateX(var(--node-library-panel-exit-x)) scale(0.98);
+}
+
+.node-library-trigger-enter-from,
+.node-library-trigger-leave-to {
+  opacity: 0;
+  transform: translateX(var(--node-library-trigger-enter-x)) scale(0.98);
 }
 
 .recipe-floating-window {
