@@ -427,10 +427,20 @@ export function useVisualWorkspace() {
       findLeaves(logicRoot.value);
 
       const firstVal = leaves[0]?.value || "custom";
-      const prefix = `visual-block-${trigger.value}-${firstVal.replace(
+      let prefix = `visual-block-${trigger.value}-${firstVal.replace(
         /[^a-z0-9]/g,
         "-"
       )}`.toLowerCase();
+
+      // Ensure the generated plugin ID strictly complies with: 3-64 chars, lowercase, alphanumeric or hyphen, starts with alpha/num
+      prefix = prefix.replace(/^[^a-z0-9]+/g, ""); // Remove invalid leading characters
+      prefix = prefix.replace(/[^a-z0-9-]/g, "-"); // Replace other invalid characters with hyphens
+      prefix = prefix.replace(/-+/g, "-"); // Deduplicate hyphens
+      prefix = prefix.substring(0, 64); // Cap at 64 characters
+      if (prefix.length < 3) {
+        prefix = `visual-block-${prefix || "plugin"}`;
+      }
+
       pluginId.value = prefix;
       pluginName.value = `积木插件(${trigger.value}-${firstVal})`;
       description.value = `由图形化积木拼装而成的内核 eBPF 过滤审计插件。入口: ${

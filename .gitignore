@@ -22,3 +22,4 @@ backend/reports/
 __pycache__
 .codex/plan/*.md
 .snow
+frontend/package-lock.json
