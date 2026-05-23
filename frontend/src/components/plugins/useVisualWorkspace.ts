@@ -49,6 +49,10 @@ export function useVisualWorkspace() {
   // AI Copilot
   const aiPrompt = ref("");
 
+  // Pseudo-code Editor
+  const pseudoCode = ref("");
+  const usePseudoCode = ref(false);
+
   // Manifest metadata
   const pluginId = ref("visual-plugin-custom-block");
   const pluginName = ref("可视化流插件(custom-block)");
@@ -122,6 +126,8 @@ export function useVisualWorkspace() {
     pluginId: pluginId.value,
     pluginName: pluginName.value,
     description: description.value,
+    pseudoCode: pseudoCode.value,
+    usePseudoCode: usePseudoCode.value,
   });
 
   const cloneWorkspaceSnapshot = (
@@ -172,6 +178,10 @@ export function useVisualWorkspace() {
     if (snapshot.pluginId) pluginId.value = snapshot.pluginId;
     if (snapshot.pluginName) pluginName.value = snapshot.pluginName;
     if (snapshot.description) description.value = snapshot.description;
+    if (snapshot.pseudoCode !== undefined)
+      pseudoCode.value = snapshot.pseudoCode;
+    if (snapshot.usePseudoCode !== undefined)
+      usePseudoCode.value = snapshot.usePseudoCode;
     nodeLayout.value = snapshot.nodeLayout
       ? { ...createDefaultNodeLayout(), ...snapshot.nodeLayout }
       : createDefaultNodeLayout();
@@ -384,7 +394,7 @@ export function useVisualWorkspace() {
   // Sync state watch
   watch(
     [trigger, logicRoot, action, mapMode, mapKey, mapLimit],
-    () => {
+    async () => {
       if (isHistoryApplying.value) {
         isCompiled.value = false;
         return;
@@ -429,6 +439,12 @@ export function useVisualWorkspace() {
         logicRoot.value
       )}，动作: ${action.value}。`;
       isCompiled.value = false;
+
+      // Automatically generate pseudo-code if not using manual pseudo-code compilation mode
+      if (!usePseudoCode.value) {
+        const { snapshotToPseudoCode } = await import("./transpiler-ts");
+        pseudoCode.value = snapshotToPseudoCode(createWorkspaceSnapshot());
+      }
     },
     { deep: true, immediate: true }
   );
@@ -447,6 +463,8 @@ export function useVisualWorkspace() {
       pluginId,
       pluginName,
       description,
+      pseudoCode,
+      usePseudoCode,
     ],
     () => {
       saveWorkspaceDraft(true);
@@ -463,6 +481,8 @@ export function useVisualWorkspace() {
     mapKey,
     mapLimit,
     aiPrompt,
+    pseudoCode,
+    usePseudoCode,
     pluginId,
     pluginName,
     description,

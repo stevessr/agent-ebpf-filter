@@ -1,27 +1,91 @@
 <script setup lang="ts">
-import { LoadingOutlined, PlayCircleOutlined } from "@ant-design/icons-vue";
+import { ref, watch } from "vue";
+import { LoadingOutlined, PlayCircleOutlined, CodeOutlined, SettingOutlined } from "@ant-design/icons-vue";
 
-defineProps<{
+const props = defineProps<{
   code: string;
   compiling: boolean;
   compiled: boolean;
   loading: boolean;
   log: string;
+  pseudoCode: string;
+  usePseudoCode: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (e: "load"): void;
+  (e: "update:pseudoCode", val: string): void;
+  (e: "update:usePseudoCode", val: boolean): void;
+  (e: "compile-pseudo-code"): void;
 }>();
+
+const activeTab = ref<"pseudo" | "c">("pseudo");
+
+const localPseudoCode = ref(props.pseudoCode);
+watch(() => props.pseudoCode, (newVal) => {
+  localPseudoCode.value = newVal;
+});
+
+const onPseudoCodeChange = () => {
+  emit("update:pseudoCode", localPseudoCode.value);
+};
+
+const toggleUsePseudoCode = (checked: boolean) => {
+  emit("update:usePseudoCode", checked);
+};
 </script>
 
 <template>
-  <a-card title="动态生成的 eBPF C 语言高阶过滤器源码" size="small" class="blueprint-code-card">
+  <a-card title="规则源码与伪代码编译器" size="small" class="blueprint-code-card">
     <template #extra>
-      <a-tag color="purple" class="c-tag">Pure C / Libbpf</a-tag>
+      <a-space size="middle">
+        <a-checkbox :checked="usePseudoCode" @update:checked="toggleUsePseudoCode">
+          <span style="color: #cbd5e1; font-size: 12px">启用 TS 伪代码编译</span>
+        </a-checkbox>
+        <a-radio-group v-model:value="activeTab" size="small" button-style="solid">
+          <a-radio-button value="pseudo">
+            <CodeOutlined /> TS 伪代码
+          </a-radio-button>
+          <a-radio-button value="c">
+            <SettingOutlined /> 生成的 eBPF C 源码
+          </a-radio-button>
+        </a-radio-group>
+      </a-space>
     </template>
 
-    <div class="generated-code-box">
-      <pre><code>{{ code }}</code></pre>
+    <div v-show="activeTab === 'pseudo'">
+      <div style="margin-bottom: 8px; font-size: 12px; color: #94a3b8">
+        通过编写直观的 TS/JS 风格伪代码，一键编译为底层的 eBPF 过滤规则：
+      </div>
+      <div class="generated-code-box">
+        <textarea
+          v-model="localPseudoCode"
+          @input="onPseudoCodeChange"
+          class="pseudo-code-editor"
+          placeholder="// 编写您的 TS 风格 eBPF 过滤规则"
+          rows="15"
+        ></textarea>
+      </div>
+      <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center">
+        <span style="font-size: 11px; color: #64748b">
+          * 提示：支持 ctx.comm, ctx.port, ctx.pid, ctx.uid 等常见匹配，修改后将双向同步至积木面板。
+        </span>
+        <a-button
+          v-if="usePseudoCode"
+          type="primary"
+          size="small"
+          @click="emit('compile-pseudo-code')"
+          :loading="compiling"
+        >
+          立即编译伪代码
+        </a-button>
+      </div>
+    </div>
+
+    <div v-show="activeTab === 'c'">
+      <div class="generated-code-box">
+        <pre><code>{{ code }}</code></pre>
+      </div>
     </div>
 
     <!-- Compilation Logger -->
@@ -79,12 +143,6 @@ defineEmits<{
   letter-spacing: 0.5px;
 }
 
-.c-tag {
-  background-color: rgba(114, 46, 209, 0.15) !important;
-  border-color: rgba(114, 46, 209, 0.3) !important;
-  color: #d3adf7 !important;
-}
-
 .generated-code-box {
   background: #070b11;
   border-radius: 6px;
@@ -94,14 +152,28 @@ defineEmits<{
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
 }
+
 .generated-code-box pre {
   margin: 0;
 }
+
 .generated-code-box code {
   font-family: "Consolas", "Courier New", monospace;
   font-size: 11.5px;
   color: #9cdcfe;
   line-height: 1.5;
+}
+
+.pseudo-code-editor {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #a8ffb2;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
 }
 
 .compilation-logger {
@@ -163,6 +235,7 @@ defineEmits<{
   box-shadow: 0 2px 8px rgba(82, 196, 26, 0.3);
   transition: all 0.3s ease;
 }
+
 .load-btn:hover {
   background: #73d13d !important;
   border-color: #73d13d !important;
