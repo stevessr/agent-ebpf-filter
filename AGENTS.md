@@ -28,6 +28,8 @@ Typical commands:
 
 ```bash
 rtk make help
+rtk make dev-env     # Interactive local/devcontainer development env wizard
+rtk make dev-env-doctor
 rtk make predev
 rtk make dev-image    # Print the GHCR devcontainer image for the current branch
 rtk make dev-image-tag
@@ -49,6 +51,9 @@ rtk make install       # Install as a system service: systemd first, rc.local fa
 rtk make uninstall
 ```
 
+`make dev-env` writes local-only `.env.dev` / `.env.dev.mk` files for common
+development variables and Makefile overrides; do not commit those generated
+files. `make dev-env-doctor` checks the effective values and local tooling.
 `make predev` installs the helper dependencies in parallel. It normalizes an
 unwritable Go workspace such as a host-side stale `GOPATH=/go` to `$HOME/go`
 before installing Go helper binaries. `make dev` assumes those dependencies are

@@ -4,6 +4,8 @@ tmp/
 node_modules/
 dist/
 .env
+.env.dev
+.env.dev.mk
 .venv/
 *.o
 *.so

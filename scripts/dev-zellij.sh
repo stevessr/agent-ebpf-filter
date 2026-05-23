@@ -1,8 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
-SESSION_NAME="${AGENT_EBPF_DEV_SESSION:-agent-ebpf-dev}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEV_ENV_FILE="${DEV_ENV_FILE:-$ROOT/.env.dev}"
+if [ -f "$DEV_ENV_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$DEV_ENV_FILE"
+    set +a
+fi
+
+SESSION_NAME="${AGENT_EBPF_DEV_SESSION:-agent-ebpf-dev}"
 LAYOUT_TEMPLATE="$ROOT/layouts/dev.kdl"
 SESSION_STAMP_SAFE="${SESSION_NAME//[^A-Za-z0-9_.-]/_}"
 LAUNCHER_DIR="/tmp/agent-ebpf-dev-zellij-${SESSION_STAMP_SAFE}"

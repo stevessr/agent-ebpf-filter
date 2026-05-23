@@ -2,6 +2,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DEV_ENV_FILE="${DEV_ENV_FILE:-$ROOT/.env.dev}"
+if [ -f "$DEV_ENV_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$DEV_ENV_FILE"
+    set +a
+fi
 
 if ! command -v bun >/dev/null 2>&1; then
     echo "--- [Dev] Missing required command: bun ---" >&2

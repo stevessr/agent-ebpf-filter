@@ -246,9 +246,18 @@ When a master is selected in the web UI, it can forward supported requests to a 
 ### Development mode
 
 ```bash
+make dev-env     # optional: interactive local/devcontainer env wizard
 make predev
 make dev
 ```
+
+`make dev-env` launches `scripts/dev-env.sh`, an interactive CLI that writes
+local-only `.env.dev` shell exports plus `.env.dev.mk` Makefile variables for
+common development settings such as `DISABLE_AUTH`, `GIN_MODE`, Zellij session
+name, devcontainer image overrides, `CUDA_GO_TAGS`, and
+`OS_SMOKE_PRIVILEGE_CMD`. `make dev-env-doctor` prints the effective config and
+checks common tools; direct shell sessions can inherit it with
+`set -a; . ./.env.dev; set +a`.
 
 `make predev` installs the development dependencies and helper tools. It uses a
 writable Go workspace for Go-installed helper binaries, so a stale local
