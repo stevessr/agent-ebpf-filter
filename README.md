@@ -251,16 +251,17 @@ make predev
 make dev
 ```
 
-`make dev-env` launches `scripts/dev-env.sh`, an interactive grouped editor
-that writes local-only `.env.dev` shell exports plus `.env.dev.mk` Makefile
-variables. It covers core dev settings, ML/LLM behavior (`AGENT_LLM_*` and
-OpenAI-compatible fallbacks), runtime app behavior toggles, sandbox/cluster
-settings, devcontainer image overrides, CUDA, smoke tests, replay, and ML sweep
-settings. On backend startup the runtime env overrides seed Runtime Config for
-ML/LLM, OTLP/TLS/domain-forwarding, shell/system/policy toggles, and retention.
-`make dev-env-doctor` prints the effective config with secrets redacted and
-checks common tools; direct shell sessions can inherit it with
-`set -a; . ./.env.dev; set +a`.
+`make dev-env` launches the standalone Go TUI in `tools/dev-env-tui` (build it
+with `make dev-env-build`, or use `make dev-env-cli` for the legacy shell
+prompt). The TUI writes local-only `.env.dev` shell exports plus `.env.dev.mk`
+Makefile variables. It covers core dev settings, ML/LLM behavior
+(`AGENT_LLM_*` and OpenAI-compatible fallbacks), runtime app behavior toggles,
+sandbox/cluster settings, devcontainer image overrides, CUDA, smoke tests,
+replay, and ML sweep settings. On backend startup the runtime env overrides seed
+Runtime Config for ML/LLM, OTLP/TLS/domain-forwarding, shell/system/policy
+toggles, and retention. `make dev-env-doctor` prints the effective config with
+secrets redacted and checks common tools; direct shell sessions can inherit it
+with `set -a; . ./.env.dev; set +a`.
 
 `make predev` installs the development dependencies and helper tools. It uses a
 writable Go workspace for Go-installed helper binaries, so a stale local
