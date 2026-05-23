@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
-import { LoadingOutlined, PlayCircleOutlined, CodeOutlined, SettingOutlined } from "@ant-design/icons-vue";
+import {
+  LoadingOutlined,
+  PlayCircleOutlined,
+  CodeOutlined,
+  SettingOutlined,
+} from "@ant-design/icons-vue";
 import * as monaco from "monaco-editor";
 
 // 配置 Monaco Web Workers
@@ -31,6 +36,57 @@ let editor: monaco.editor.IStandaloneCodeEditor | null = null;
 // 初始化 Monaco Editor
 const initMonaco = () => {
   if (!editorContainer.value) return;
+
+  // 使用 as any 规避 monaco-editor 编译打包时在 vue-tsc 中的 TypeScript 类型报错
+  const languagesAny = monaco.languages as any;
+  if (languagesAny && languagesAny.typescript) {
+    languagesAny.typescript.typescriptDefaults.setCompilerOptions({
+      target: 99, // ESNext/ES2020
+      allowNonTsExtensions: true,
+      moduleResolution: 2, // Node
+      module: 1, // CommonJS
+    });
+
+    languagesAny.typescript.typescriptDefaults.addExtraLib(
+      `
+      declare module "ebpf" {
+        export const process: any;
+        export const file_open: any;
+        export const mkdir: any;
+        export const file_create: any;
+        export const rmdir: any;
+        export const symlink: any;
+        export const unlink: any;
+        export const socket_connect: any;
+        export const inode_mknod: any;
+        export const file_mprotect: any;
+        export const inode_rename: any;
+
+        export namespace Action {
+          export function block(): void;
+          export function alert(): void;
+          export function kill(): void;
+        }
+
+        export namespace Maps {
+          export interface MapConfig {
+            key: "uid" | "pid" | "comm";
+            limit?: number;
+          }
+          export interface CounterInstance {
+            exceeded(): boolean;
+          }
+          export interface BlocklistInstance {
+            matched(): boolean;
+          }
+          export function createCounter(config: MapConfig): CounterInstance;
+          export function createBlocklist(config: MapConfig): BlocklistInstance;
+        }
+      }
+    `,
+      "ts:ebpf.d.ts"
+    );
+  }
 
   // 注册自定义 eBPF 自动补全
   monaco.languages.registerCompletionItemProvider("typescript", {
@@ -82,14 +138,16 @@ const initMonaco = () => {
         {
           label: "ctx.port",
           kind: monaco.languages.CompletionItemKind.Field,
-          documentation: "外发网络的目标端口 (number, 仅在 socket_connect 有效)",
+          documentation:
+            "外发网络的目标端口 (number, 仅在 socket_connect 有效)",
           insertText: "ctx.port",
           range,
         },
         {
           label: "ctx.ipv4",
           kind: monaco.languages.CompletionItemKind.Field,
-          documentation: "外发网络的目标 IPv4 地址 (string, 仅在 socket_connect 有效)",
+          documentation:
+            "外发网络的目标 IPv4 地址 (string, 仅在 socket_connect 有效)",
           insertText: "ctx.ipv4",
           range,
         },
@@ -153,17 +211,23 @@ const initMonaco = () => {
   });
 };
 
-watch(() => props.pseudoCode, (newVal) => {
-  if (editor && editor.getValue() !== newVal) {
-    editor.setValue(newVal);
+watch(
+  () => props.pseudoCode,
+  (newVal) => {
+    if (editor && editor.getValue() !== newVal) {
+      editor.setValue(newVal);
+    }
   }
-});
+);
 
-watch(() => props.usePseudoCode, (newVal) => {
-  if (editor) {
-    editor.updateOptions({ readOnly: !newVal });
+watch(
+  () => props.usePseudoCode,
+  (newVal) => {
+    if (editor) {
+      editor.updateOptions({ readOnly: !newVal });
+    }
   }
-});
+);
 
 watch(activeTab, async (newVal) => {
   if (newVal === "pseudo") {
@@ -195,13 +259,26 @@ const toggleUsePseudoCode = (checked: boolean) => {
 </script>
 
 <template>
-  <a-card title="规则源码与高级伪代码编辑器 (VSCode 同款)" size="small" class="blueprint-code-card">
+  <a-card
+    title="规则源码与高级伪代码编辑器"
+    size="small"
+    class="blueprint-code-card"
+  >
     <template #extra>
       <a-space size="middle">
-        <a-checkbox :checked="usePseudoCode" @update:checked="toggleUsePseudoCode">
-          <span style="color: #cbd5e1; font-size: 12px">启用 TS 伪代码编译</span>
+        <a-checkbox
+          :checked="usePseudoCode"
+          @update:checked="toggleUsePseudoCode"
+        >
+          <span style="color: #cbd5e1; font-size: 12px"
+            >启用 TS 伪代码编译</span
+          >
         </a-checkbox>
-        <a-radio-group v-model:value="activeTab" size="small" button-style="solid">
+        <a-radio-group
+          v-model:value="activeTab"
+          size="small"
+          button-style="solid"
+        >
           <a-radio-button value="pseudo">
             <CodeOutlined /> TS 伪代码
           </a-radio-button>
@@ -214,14 +291,23 @@ const toggleUsePseudoCode = (checked: boolean) => {
 
     <div v-show="activeTab === 'pseudo'">
       <div style="margin-bottom: 8px; font-size: 12px; color: #94a3b8">
-        编写直观的 TS/JS 风格伪代码，支持 VSCode 同款 **智能自动补全**、**实时高亮**、与低代码积木面板**双向绑定同步**：
+        编写直观的 TS/JS 风格伪代码，支持
+        **智能自动补全**、**实时高亮**、与低代码积木面板**双向绑定同步**：
       </div>
       <div class="monaco-editor-wrapper">
         <div ref="editorContainer" class="monaco-container"></div>
       </div>
-      <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center">
+      <div
+        style="
+          margin-top: 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        "
+      >
         <span style="font-size: 11px; color: #64748b">
-          * 提示：输入 <code>ctx.</code> 或 <code>Action.</code> 或 <code>Maps.</code> 即可唤起自动补全。
+          * 提示：输入 <code>ctx.</code> 或 <code>Action.</code> 或
+          <code>Maps.</code> 即可唤起自动补全。
         </span>
         <a-button
           v-if="usePseudoCode"
@@ -242,23 +328,19 @@ const toggleUsePseudoCode = (checked: boolean) => {
     </div>
 
     <!-- Compilation Logger -->
-    <div
-      v-if="compiling || compiled || log"
-      class="compilation-logger"
-    >
+    <div v-if="compiling || compiled || log" class="compilation-logger">
       <div class="logger-header">
         <span>Clang LLVM 编译与内核校验审计台</span>
         <a-tag v-if="compiling" color="blue" class="compiling-tag">
           <LoadingOutlined /> 正在编译中...
         </a-tag>
-        <a-tag v-else-if="compiled" color="green" class="success-tag">SUCCESS</a-tag>
+        <a-tag v-else-if="compiled" color="green" class="success-tag"
+          >SUCCESS</a-tag
+        >
       </div>
       <pre class="logger-body"><code>{{ log }}</code></pre>
 
-      <div
-        v-if="compiled"
-        class="action-footer"
-      >
+      <div v-if="compiled" class="action-footer">
         <a-button
           type="primary"
           @click="$emit('load')"
@@ -335,7 +417,7 @@ const toggleUsePseudoCode = (checked: boolean) => {
   border-radius: 6px;
   overflow: hidden;
   margin-top: 16px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .logger-header {
@@ -347,7 +429,7 @@ const toggleUsePseudoCode = (checked: boolean) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .compiling-tag {
