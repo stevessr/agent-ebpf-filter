@@ -1238,11 +1238,11 @@ const handleWorkspaceDrop = (event: DragEvent) => {
             v-model:active-key="designerSubtab"
             class="dify-workspace-tabs"
           >
-            <a-tab-pane key="dify" tab="Dify Workflow">
+            <a-tab-pane key="dify" tab="Workflow">
               <div class="dify-workflow-shell">
                 <div class="dify-workflow-hero">
                   <div>
-                    <a-tag color="blue">Dify Style</a-tag>
+                    <a-tag color="blue">Style</a-tag>
                     <h4>节点工作流编排</h4>
                     <p>
                       主视图只保留悬浮节点类型库、拖线画布和节点
@@ -1663,7 +1663,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
     <transition name="node-library-float">
       <div
-        v-if="nodeLibraryVisible"
+        v-if="nodeLibraryVisible && designerSubtab === 'dify'"
         ref="nodeLibraryFloating"
         class="node-library-floating-window"
         :class="[
@@ -1715,7 +1715,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
     </transition>
     <transition name="node-library-trigger">
       <button
-        v-if="!nodeLibraryVisible"
+        v-if="!nodeLibraryVisible && designerSubtab === 'dify'"
         type="button"
         class="node-library-floating-trigger"
         :class="`dock-${nodeLibraryDock}`"
