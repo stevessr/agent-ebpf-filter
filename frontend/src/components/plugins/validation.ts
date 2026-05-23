@@ -81,7 +81,22 @@ export const validateWorkspace = (
     action,
     mapMode,
     mapLimit,
+    usePseudoCode,
+    pseudoCode,
   } = snapshot;
+
+  // 0. Pseudo-code syntax validation if active
+  if (usePseudoCode && pseudoCode) {
+    if (!pseudoCode.includes("export default function filter")) {
+      issues.push({
+        id: "pseudo-code-syntax",
+        severity: "error",
+        title: "伪代码格式不正确",
+        detail:
+          "TS 风格伪代码必须包含主入口函数: export default function filter(ctx: any) { ... }",
+      });
+    }
+  }
 
   // 1. Plugin ID validation
   if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(pluginId.trim())) {

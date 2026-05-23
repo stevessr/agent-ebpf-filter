@@ -63,6 +63,8 @@ export interface VisualWorkspaceSnapshot {
   nodeLayout?: VisualNodeLayout;
   wireStates?: VisualWireStates;
   hiddenNodes?: VisualHiddenNodeStates;
+  pseudoCode?: string;
+  usePseudoCode?: boolean;
 }
 
 export interface VisualRecipe extends VisualWorkspaceSnapshot {

@@ -50,6 +50,8 @@ const {
   mapKey,
   mapLimit,
   aiPrompt,
+  pseudoCode,
+  usePseudoCode,
   pluginId,
   pluginName,
   description,
@@ -1097,6 +1099,23 @@ const handleLoad = async () => {
   }
 };
 
+const compilePseudoCode = async () => {
+  if (!usePseudoCode.value || !pseudoCode.value) return;
+  try {
+    const { pseudoCodeToSnapshot } = await import("./transpiler-ts");
+    const currentSnapshot = createWorkspaceSnapshot();
+    const updatedSnapshot = pseudoCodeToSnapshot(
+      pseudoCode.value,
+      currentSnapshot
+    );
+    applyWorkspaceSnapshot(updatedSnapshot);
+    message.success("TS 伪代码编译成功，已同步至积木面板");
+    await handleCompileAndRegister();
+  } catch (err: any) {
+    message.error(`伪代码解析编译失败: ${err?.message || err}`);
+  }
+};
+
 const moveFlowNodeTo = (node: VisualFlowNodeId, x: number, y: number) => {
   nodeLayout.value = {
     ...nodeLayout.value,
@@ -1587,6 +1606,9 @@ const handleWorkspaceDrop = (event: DragEvent) => {
                   :compiled="isCompiled"
                   :loading="loadingAction"
                   :log="compileLogLocal"
+                  v-model:pseudo-code="pseudoCode"
+                  v-model:use-pseudo-code="usePseudoCode"
+                  @compile-pseudo-code="compilePseudoCode"
                   @load="handleLoad"
                 />
               </div>
