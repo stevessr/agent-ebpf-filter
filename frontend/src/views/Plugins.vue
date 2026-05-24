@@ -18,6 +18,7 @@ import {
   type PluginAttachKind,
   type BPFTemplate,
 } from "../composables/usePlugins";
+import PluginsPseudoCodeTab from "../components/plugins/PluginsPseudoCodeTab.vue";
 import PluginsVisualTab from "../components/plugins/PluginsVisualTab.vue";
 
 const {
@@ -40,13 +41,15 @@ const {
 const route = useRoute();
 const router = useRouter();
 
-const pluginTabKeys = new Set(["list", "builder", "visual"]);
-const normalizePluginTab = (tab: unknown): "list" | "builder" | "visual" =>
+const pluginTabKeys = new Set(["list", "builder", "visual", "pseudo"]);
+const normalizePluginTab = (
+  tab: unknown
+): "list" | "builder" | "visual" | "pseudo" =>
   typeof tab === "string" && pluginTabKeys.has(tab)
-    ? (tab as "list" | "builder" | "visual")
+    ? (tab as "list" | "builder" | "visual" | "pseudo")
     : "list";
 
-const activeTab = ref<"list" | "builder" | "visual">(
+const activeTab = ref<"list" | "builder" | "visual" | "pseudo">(
   normalizePluginTab(route.params.tab)
 );
 
@@ -515,6 +518,12 @@ watch(
           ><span><ThunderboltOutlined /> 可视化积木制作</span></template
         >
         <PluginsVisualTab />
+      </a-tab-pane>
+
+      <!-- ─── 独立 TS 伪代码制作 ─── -->
+      <a-tab-pane key="pseudo">
+        <template #tab><span><CodeOutlined /> TS 伪代码制作</span></template>
+        <PluginsPseudoCodeTab />
       </a-tab-pane>
     </a-tabs>
   </div>
