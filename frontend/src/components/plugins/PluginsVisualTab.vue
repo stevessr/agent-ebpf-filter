@@ -37,6 +37,11 @@ import type {
 } from "./types";
 
 import { generateBpfCode } from "./transpiler";
+import {
+  getAttachKindForTrigger,
+  getAttachTargetForTrigger,
+  VISUAL_PROGRAM_NAME,
+} from "./trigger-runtime";
 import { validateWorkspace, isVisualConditionField } from "./validation";
 import { useVisualWorkspace } from "./useVisualWorkspace";
 
@@ -50,8 +55,6 @@ const {
   mapKey,
   mapLimit,
   aiPrompt,
-  pseudoCode,
-  usePseudoCode,
   pluginId,
   pluginName,
   description,
@@ -941,45 +944,18 @@ const isWorkspaceValid = computed(() => validationErrors.value.length === 0);
 
 const generatedBpfCode = computed(() => {
   const currentSnapshot = createWorkspaceSnapshot();
-  return generateBpfCode(currentSnapshot);
+  return generateBpfCode(currentSnapshot, VISUAL_PROGRAM_NAME);
 });
 
 const generatedLineCount = computed(
   () => generatedBpfCode.value.split(/\r?\n/).length
 );
 
-const visualAttachKind = computed(() =>
-  trigger.value === "unlink" ? "kprobe" : "lsm"
-);
+const visualAttachKind = computed(() => getAttachKindForTrigger(trigger.value));
 
-const visualAttachTarget = computed(() => {
-  switch (trigger.value) {
-    case "process":
-      return "lsm/bprm_check_security";
-    case "file_open":
-      return "lsm/file_open";
-    case "mkdir":
-      return "lsm/inode_mkdir";
-    case "file_create":
-      return "lsm/inode_create";
-    case "rmdir":
-      return "lsm/inode_rmdir";
-    case "symlink":
-      return "lsm/inode_symlink";
-    case "socket_connect":
-      return "lsm/socket_connect";
-    case "inode_mknod":
-      return "lsm/inode_mknod";
-    case "file_mprotect":
-      return "lsm/file_mprotect";
-    case "inode_rename":
-      return "lsm/inode_rename";
-    case "unlink":
-      return "do_unlinkat";
-    default:
-      return "";
-  }
-});
+const visualAttachTarget = computed(() =>
+  getAttachTargetForTrigger(trigger.value)
+);
 
 const handleAiTranslate = (payload: {
   trigger: VisualTrigger;
@@ -1058,7 +1034,7 @@ const handleCompileAndRegister = async () => {
   compileLogLocal.value = "正在将高阶规则积木块转译为标准的 BPF C 源码...\n";
   try {
     compileLogLocal.value += `正在注册插件 Manifest [${pluginId.value}] 至本地仓库...\n`;
-    compileLogLocal.value += `挂载方式: ${visualAttachKind.value} / ${visualAttachTarget.value} / program=visual_custom_plugin\n`;
+    compileLogLocal.value += `挂载方式: ${visualAttachKind.value} / ${visualAttachTarget.value} / program=${VISUAL_PROGRAM_NAME}\n`;
     await upsertPlugin({
       id: pluginId.value,
       name: pluginName.value,
@@ -1067,7 +1043,7 @@ const handleCompileAndRegister = async () => {
       enabled: false,
       attachKind: visualAttachKind.value,
       attachTarget: visualAttachTarget.value,
-      programName: "visual_custom_plugin",
+      programName: VISUAL_PROGRAM_NAME,
       source: generatedBpfCode.value,
     });
 
@@ -1096,96 +1072,6 @@ const handleLoad = async () => {
     await fetchPlugins();
   } finally {
     loadingAction.value = false;
-  }
-};
-
-const compilePseudoCode = async () => {
-  if (!usePseudoCode.value || !pseudoCode.value) return;
-  try {
-    const { pseudoCodeToSnapshot } = await import("./transpiler-ts");
-    const currentSnapshot = createWorkspaceSnapshot();
-    const updatedSnapshot = pseudoCodeToSnapshot(
-      pseudoCode.value,
-      currentSnapshot
-    );
-
-    // 临时应用伪代码解构出的 Snapshot，执行快速 eBPF 源码转译
-    const { generateBpfCode } = await import("./transpiler");
-    const tsGeneratedBpfCode = generateBpfCode(updatedSnapshot);
-
-    compiling.value = true;
-    compileLogLocal.value = "正在使用伪代码编译器转译为标准的 BPF C 源码...\n";
-
-    // 自动清洗与提取伪代码中的 trigger 关联信息
-    const visualAttachKindTs =
-      updatedSnapshot.trigger === "unlink" ? "kprobe" : "lsm";
-    let visualAttachTargetTs = "";
-    switch (updatedSnapshot.trigger) {
-      case "process":
-        visualAttachTargetTs = "lsm/bprm_check_security";
-        break;
-      case "file_open":
-        visualAttachTargetTs = "lsm/file_open";
-        break;
-      case "mkdir":
-        visualAttachTargetTs = "lsm/inode_mkdir";
-        break;
-      case "file_create":
-        visualAttachTargetTs = "lsm/inode_create";
-        break;
-      case "rmdir":
-        visualAttachTargetTs = "lsm/inode_rmdir";
-        break;
-      case "symlink":
-        visualAttachTargetTs = "lsm/inode_symlink";
-        break;
-      case "socket_connect":
-        visualAttachTargetTs = "lsm/socket_connect";
-        break;
-      case "inode_mknod":
-        visualAttachTargetTs = "lsm/inode_mknod";
-        break;
-      case "file_mprotect":
-        visualAttachTargetTs = "lsm/file_mprotect";
-        break;
-      case "inode_rename":
-        visualAttachTargetTs = "lsm/inode_rename";
-        break;
-      case "unlink":
-        visualAttachTargetTs = "do_unlinkat";
-        break;
-    }
-
-    compileLogLocal.value += `正在注册伪代码编译 Manifest [${pluginId.value}] 至本地仓库...\n`;
-    await upsertPlugin({
-      id: pluginId.value,
-      name: pluginName.value,
-      description: description.value,
-      kind: "ebpf",
-      enabled: false,
-      attachKind: visualAttachKindTs,
-      attachTarget: visualAttachTargetTs,
-      programName: "visual_custom_plugin",
-      source: tsGeneratedBpfCode,
-    });
-
-    compileLogLocal.value +=
-      "正在调用 LLVM/Clang 将伪代码源码编译为 ELF 内核字节码...\n";
-    const success = await compileBpf(pluginId.value, tsGeneratedBpfCode);
-    if (success) {
-      isCompiled.value = true;
-      compileLogLocal.value +=
-        "\n[SUCCESS] 伪代码编译成功！点击下方按钮即可一键挂载至内核运行生效。";
-      message.success("TS 伪代码编译及内核规则生成成功！");
-    } else {
-      compileLogLocal.value +=
-        "\n[ERROR] 编译失败，请排查过滤表达式是否在内核 Verifier 安全范围内。";
-    }
-  } catch (err: any) {
-    compileLogLocal.value += `\n[ERROR] 错误: ${err.message}`;
-    message.error(`伪代码解析编译失败: ${err?.message || err}`);
-  } finally {
-    compiling.value = false;
   }
 };
 
@@ -1679,58 +1565,12 @@ const handleWorkspaceDrop = (event: DragEvent) => {
                   :compiled="isCompiled"
                   :loading="loadingAction"
                   :log="compileLogLocal"
-                  v-model:pseudo-code="pseudoCode"
-                  v-model:use-pseudo-code="usePseudoCode"
-                  @compile-pseudo-code="compilePseudoCode"
                   @load="handleLoad"
                 />
               </div>
             </a-tab-pane>
           </a-tabs>
         </div>
-      </a-col>
-    </a-row>
-
-    <!-- 在控制台下方直接展示 TS 风格伪代码的实时状态与提示 -->
-    <a-row :gutter="16" style="margin-top: 24px">
-      <a-col :span="24">
-        <a-card
-          title="实时 TS 风格伪代码状态与提示"
-          size="small"
-          style="
-            background: rgba(13, 19, 33, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-          "
-        >
-          <div
-            style="
-              font-size: 13px;
-              color: #cbd5e1;
-              margin-bottom: 12px;
-              line-height: 1.6;
-            "
-          >
-            您当前在积木面板中拼接的规则，已被**实时、自动反向转译**为如下标准的
-            TypeScript 风格伪代码。您也可以在上面的
-            <strong>"Generated eBPF C"</strong> 选项卡中勾选
-            <strong>"启用 TS 伪代码编译"</strong> 自由编辑这段代码：
-          </div>
-          <div
-            style="
-              background: #070b11;
-              padding: 16px;
-              border-radius: 6px;
-              border: 1px solid rgba(255, 255, 255, 0.05);
-              overflow: auto;
-              max-height: 300px;
-            "
-          >
-            <pre
-              style="margin: 0"
-            ><code style="font-family: 'Consolas', monospace; font-size: 11.5px; color: #a8ffb2; line-height: 1.6;">{{ pseudoCode }}</code></pre>
-          </div>
-        </a-card>
       </a-col>
     </a-row>
 

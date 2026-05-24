@@ -83,22 +83,7 @@ export const validateWorkspace = (
     action,
     mapMode,
     mapLimit,
-    usePseudoCode,
-    pseudoCode,
   } = snapshot;
-
-  // 0. Pseudo-code syntax validation if active
-  if (usePseudoCode && pseudoCode) {
-    if (!pseudoCode.includes("export default function filter")) {
-      issues.push({
-        id: "pseudo-code-syntax",
-        severity: "error",
-        title: "伪代码格式不正确",
-        detail:
-          "TS 风格伪代码必须包含主入口函数: export default function filter(ctx: HookContext) { ... }",
-      });
-    }
-  }
 
   // 1. Plugin ID validation
   if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(pluginId.trim())) {
@@ -150,7 +135,7 @@ export const validateWorkspace = (
 
   // 4. Condition Count & Depth validation
   const conditionCount = countConditions(conditions);
-  if (!usePseudoCode && conditionCount === 0) {
+  if (conditionCount === 0) {
     issues.push({
       id: "no-conditions",
       severity: "error",
@@ -211,100 +196,98 @@ export const validateWorkspace = (
   }
 
   // 8. Individual condition checks
-  if (!usePseudoCode) {
-    const allConditions: VisualCondition[] = [];
-    const collect = (node: VisualLogicNode) => {
-      if (node.type === "CONDITION") {
-        allConditions.push(node);
-        return;
-      }
-      node.children?.forEach(collect);
-    };
-    collect(conditions);
+  const allConditions: VisualCondition[] = [];
+  const collect = (node: VisualLogicNode) => {
+    if (node.type === "CONDITION") {
+      allConditions.push(node);
+      return;
+    }
+    node.children?.forEach(collect);
+  };
+  collect(conditions);
 
-    allConditions.forEach((condition, index) => {
-      const label = `条件 #${index + 1}`;
-      const value = (condition.value || "").trim();
+  allConditions.forEach((condition, index) => {
+    const label = `条件 #${index + 1}`;
+    const value = (condition.value || "").trim();
 
-      if (!value) {
+    if (!value) {
+      issues.push({
+        id: `${condition.id}-empty`,
+        severity: "error",
+        title: `${label} 缺少匹配值`,
+        detail: "空值会退化为无边界匹配，已阻止编译。",
+      });
+      return;
+    }
+
+    if (/"|\\|\r|\n/.test(value)) {
+      issues.push({
+        id: `${condition.id}-unsafe`,
+        severity: "error",
+        title: `${label} 包含不安全 C 字符`,
+        detail:
+          "当前可视化生成器暂不接受引号、反斜杠或换行，请改用纯文本匹配值。",
+      });
+    }
+
+    if (
+      trigger !== "socket_connect" &&
+      (condition.field === "port" || condition.field === "ipv4")
+    ) {
+      issues.push({
+        id: `${condition.id}-socket-field`,
+        severity: "error",
+        title: `${label} 字段不适用于当前 Hook`,
+        detail: "port / ipv4 仅在 socket_connect 挂载点中有可用上下文。",
+      });
+    }
+
+    if (trigger === "unlink" && condition.field === "basename") {
+      issues.push({
+        id: `${condition.id}-unlink-basename`,
+        severity: "error",
+        title: `${label} 无法读取 unlink basename`,
+        detail:
+          "当前 unlink 走 kprobe/do_unlinkat，生成器没有安全读取 dentry 名称。",
+      });
+    }
+
+    if (
+      condition.field === "pid" ||
+      condition.field === "uid" ||
+      condition.field === "gid"
+    ) {
+      if (!/^\d+$/.test(value)) {
         issues.push({
-          id: `${condition.id}-empty`,
+          id: `${condition.id}-numeric`,
           severity: "error",
-          title: `${label} 缺少匹配值`,
-          detail: "空值会退化为无边界匹配，已阻止编译。",
-        });
-        return;
-      }
-
-      if (/"|\\|\r|\n/.test(value)) {
-        issues.push({
-          id: `${condition.id}-unsafe`,
-          severity: "error",
-          title: `${label} 包含不安全 C 字符`,
-          detail:
-            "当前可视化生成器暂不接受引号、反斜杠或换行，请改用纯文本匹配值。",
-        });
-      }
-
-      if (
-        trigger !== "socket_connect" &&
-        (condition.field === "port" || condition.field === "ipv4")
-      ) {
-        issues.push({
-          id: `${condition.id}-socket-field`,
-          severity: "error",
-          title: `${label} 字段不适用于当前 Hook`,
-          detail: "port / ipv4 仅在 socket_connect 挂载点中有可用上下文。",
-        });
-      }
-
-      if (trigger === "unlink" && condition.field === "basename") {
-        issues.push({
-          id: `${condition.id}-unlink-basename`,
-          severity: "error",
-          title: `${label} 无法读取 unlink basename`,
-          detail:
-            "当前 unlink 走 kprobe/do_unlinkat，生成器没有安全读取 dentry 名称。",
-        });
-      }
-
-      if (
-        condition.field === "pid" ||
-        condition.field === "uid" ||
-        condition.field === "gid"
-      ) {
-        if (!/^\d+$/.test(value)) {
-          issues.push({
-            id: `${condition.id}-numeric`,
-            severity: "error",
-            title: `${label} 需要数字值`,
-            detail: `${condition.field} 条件只能填写非负整数。`,
-          });
-        }
-      }
-
-      if (condition.field === "port") {
-        const port = Number(value);
-        if (!/^\d+$/.test(value) || port < 1 || port > 65535) {
-          issues.push({
-            id: `${condition.id}-port`,
-            severity: "error",
-            title: `${label} 端口范围无效`,
-            detail: "目标端口必须位于 1..65535。",
-          });
-        }
-      }
-
-      if (condition.field === "ipv4" && !isValidIPv4(value)) {
-        issues.push({
-          id: `${condition.id}-ipv4`,
-          severity: "error",
-          title: `${label} IPv4 格式无效`,
-          detail: "请使用类似 203.0.113.10 的点分十进制地址。",
+          title: `${label} 需要数字值`,
+          detail: `${condition.field} 条件只能填写非负整数。`,
         });
       }
-    });
-  }
+    }
+
+    if (condition.field === "port") {
+      const port = Number(value);
+      if (!/^\d+$/.test(value) || port < 1 || port > 65535) {
+        issues.push({
+          id: `${condition.id}-port`,
+          severity: "error",
+          title: `${label} 端口范围无效`,
+          detail: "目标端口必须位于 1..65535。",
+        });
+      }
+    }
+
+    if (condition.field === "ipv4" && !isValidIPv4(value)) {
+      issues.push({
+        id: `${condition.id}-ipv4`,
+        severity: "error",
+        title: `${label} IPv4 格式无效`,
+        detail: "请使用类似 203.0.113.10 的点分十进制地址。",
+      });
+    }
+  });
 
   if (action === "KILL") {
     issues.push({

@@ -241,7 +241,7 @@ Important pages:
 - `Executor.vue` — wrapper execution + PTY shell manager
 - `Hooks.vue` — AI CLI hook management
 - `ML.vue` — ML status, parameters, model tuning, LLM scoring, and training-set management
-- `Plugins.vue` — plugin registry, online eBPF builder, and visual block editor; the NLP Blocks Compiler calls `/plugins/visual/llm-compile` and falls back to local parsing when LLM config is unavailable
+- `Plugins.vue` — plugin registry, online eBPF builder, visual block editor, and the independent TS pseudocode builder; the NLP Blocks Compiler calls `/plugins/visual/llm-compile` and falls back to local parsing when LLM config is unavailable. Keep visual-canvas drafts and TS-pseudocode drafts in separate browser storage slots, and do not reintroduce canvas ↔ TS pseudocode bidirectional syncing.
 - `Config.vue` — tags, comms, paths, wrapper rules, Runtime Config, System Health
 
 ## 7. Backend conventions

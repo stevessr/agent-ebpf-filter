@@ -11,8 +11,14 @@ export const ipToHex = (ip: string): string => {
   );
 };
 
-export const generateBpfCode = (snapshot: VisualWorkspaceSnapshot): string => {
+export const generateBpfCode = (
+  snapshot: VisualWorkspaceSnapshot,
+  programName = "visual_custom_plugin"
+): string => {
   const { trigger, action, conditions, mapMode, mapKey, mapLimit } = snapshot;
+  const safeProgramName =
+    programName.replace(/[^a-zA-Z0-9_]/g, "_").replace(/^[^a-zA-Z_]+/, "") ||
+    "visual_custom_plugin";
 
   const isKprobeUnlink = trigger === "unlink";
   const isKill = action === "KILL";
@@ -101,7 +107,7 @@ static __always_inline int str_ends_with(const char *s1, int s1_len, const char 
   if (trigger === "process") {
     body = `
 SEC("lsm/bprm_check_security")
-int BPF_PROG(visual_custom_plugin, struct linux_binprm *bprm, int ret) {
+int BPF_PROG(${safeProgramName}, struct linux_binprm *bprm, int ret) {
     if (ret != 0) return ret;
 
     char comm[16] = {};
@@ -120,7 +126,7 @@ int BPF_PROG(visual_custom_plugin, struct linux_binprm *bprm, int ret) {
   } else if (trigger === "file_open") {
     body = `
 SEC("lsm/file_open")
-int BPF_PROG(visual_custom_plugin, struct file *file, int ret) {
+int BPF_PROG(${safeProgramName}, struct file *file, int ret) {
     if (ret != 0) return ret;
 
     char comm[16] = {};
@@ -162,7 +168,7 @@ int BPF_PROG(visual_custom_plugin, struct file *file, int ret) {
 
     body = `
 SEC("${secName}")
-int BPF_PROG(visual_custom_plugin, ${funcArgs}) {
+int BPF_PROG(${safeProgramName}, ${funcArgs}) {
     char comm[16] = {};
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 pid = bpf_get_current_pid_tgid() >> 32;
@@ -179,7 +185,7 @@ int BPF_PROG(visual_custom_plugin, ${funcArgs}) {
   } else if (trigger === "socket_connect") {
     body = `
 SEC("lsm/socket_connect")
-int BPF_PROG(visual_custom_plugin, struct socket *sock, struct sockaddr *address, int addrlen) {
+int BPF_PROG(${safeProgramName}, struct socket *sock, struct sockaddr *address, int addrlen) {
     char comm[16] = {};
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 pid = bpf_get_current_pid_tgid() >> 32;
@@ -204,7 +210,7 @@ int BPF_PROG(visual_custom_plugin, struct socket *sock, struct sockaddr *address
   } else if (trigger === "inode_mknod") {
     body = `
 SEC("lsm/inode_mknod")
-int BPF_PROG(visual_custom_plugin, struct inode *dir, struct dentry *dentry, umode_t mode, dev_t dev) {
+int BPF_PROG(${safeProgramName}, struct inode *dir, struct dentry *dentry, umode_t mode, dev_t dev) {
     char comm[16] = {};
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 pid = bpf_get_current_pid_tgid() >> 32;
@@ -221,7 +227,7 @@ int BPF_PROG(visual_custom_plugin, struct inode *dir, struct dentry *dentry, umo
   } else if (trigger === "file_mprotect") {
     body = `
 SEC("lsm/file_mprotect")
-int BPF_PROG(visual_custom_plugin, struct vm_area_struct *vma, unsigned long reqprot, unsigned long prot, int ret) {
+int BPF_PROG(${safeProgramName}, struct vm_area_struct *vma, unsigned long reqprot, unsigned long prot, int ret) {
     if (ret != 0) return ret;
     if (!vma) return 0;
 
@@ -244,7 +250,7 @@ int BPF_PROG(visual_custom_plugin, struct vm_area_struct *vma, unsigned long req
   } else if (trigger === "inode_rename") {
     body = `
 SEC("lsm/inode_rename")
-int BPF_PROG(visual_custom_plugin, struct inode *old_dir, struct dentry *old_dentry, struct inode *new_dir, struct dentry *new_dentry) {
+int BPF_PROG(${safeProgramName}, struct inode *old_dir, struct dentry *old_dentry, struct inode *new_dir, struct dentry *new_dentry) {
     char comm[16] = {};
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 pid = bpf_get_current_pid_tgid() >> 32;
@@ -261,7 +267,7 @@ int BPF_PROG(visual_custom_plugin, struct inode *old_dir, struct dentry *old_den
   } else if (isKprobeUnlink) {
     body = `
 SEC("kprobe/do_unlinkat")
-int BPF_PROG(visual_custom_plugin, struct pt_regs *ctx) {
+int BPF_PROG(${safeProgramName}, struct pt_regs *ctx) {
     char comm[16] = {};
     bpf_get_current_comm(&comm, sizeof(comm));
     u32 pid = bpf_get_current_pid_tgid() >> 32;
