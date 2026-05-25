@@ -1346,7 +1346,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
                   <div class="block-header">
                     <div>
-                      <span class="block-badge" style="background: #fa8c16"
+                      <span class="block-badge" style="background: #1677ff"
                         >Block 2</span
                       >
                       <strong style="color: #fff"
@@ -1427,7 +1427,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
                   <div class="node-port port-input action-port-in"></div>
 
                   <div class="block-header">
-                    <span class="block-badge" style="background: #52c41a"
+                    <span class="block-badge" style="background: #1677ff"
                       >Block 3</span
                     >
                     <strong style="color: #fff"
@@ -1468,7 +1468,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
                     <div
                       v-if="trigger === 'unlink'"
                       class="helper-text"
-                      style="color: #fa8c16; margin-top: 8px"
+                      style="color: #ad6800; margin-top: 8px"
                     >
                       * 物理文件 unlink 挂载于 Kprobe
                       上，不改变内核决策链，仅支持 ALERT 或 KILL 动作。其他 LSM
@@ -1734,6 +1734,18 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 <style scoped>
 .plugins-visual-tab {
   min-height: 600px;
+  --workflow-primary: #1677ff;
+  --workflow-primary-hover: #4096ff;
+  --workflow-primary-soft: #e6f4ff;
+  --workflow-primary-subtle: #f0f7ff;
+  --workflow-primary-border: #91caff;
+  --workflow-text: #0f172a;
+  --workflow-text-secondary: #475569;
+  --workflow-text-muted: #64748b;
+  --workflow-border: #d6e4ff;
+  --workflow-surface: #ffffff;
+  --workflow-surface-soft: #f8fbff;
+  --workflow-shadow: 0 14px 34px rgba(22, 119, 255, 0.12);
 }
 .palette-stack {
   margin-top: 16px;
@@ -1760,14 +1772,15 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   margin-bottom: 14px;
   padding: 12px 14px;
   border-radius: 10px;
-  border: 1px solid rgba(59, 130, 246, 0.26);
-  background: rgba(15, 23, 42, 0.78);
-  color: #cbd5e1;
+  border: 1px solid var(--workflow-border);
+  background: linear-gradient(135deg, #ffffff 0%, var(--workflow-primary-subtle) 100%);
+  color: var(--workflow-text-secondary);
+  box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
 }
 
 .dify-workflow-hero h4 {
   margin: 8px 0 4px;
-  color: #f8fafc;
+  color: var(--workflow-text);
   font-size: 15px;
 }
 
@@ -1776,7 +1789,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 .nlp-workspace-notice span,
 .source-workspace-notice span {
   margin: 0;
-  color: #94a3b8;
+  color: var(--workflow-text-muted);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -1784,19 +1797,19 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 .map-workspace-notice {
   align-items: center;
   justify-content: flex-start;
-  border-color: rgba(114, 46, 209, 0.28);
+  border-color: var(--workflow-border);
 }
 
 .source-workspace-notice {
   align-items: center;
   justify-content: flex-start;
-  border-color: rgba(19, 194, 194, 0.32);
+  border-color: var(--workflow-border);
 }
 
 .nlp-workspace-notice {
   align-items: center;
   justify-content: flex-start;
-  border-color: rgba(114, 46, 209, 0.36);
+  border-color: var(--workflow-border);
 }
 
 .node-library-floating-window {
@@ -1809,10 +1822,10 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   min-height: 420px;
   overflow: hidden;
   padding: 10px;
-  border: 1px solid rgba(56, 189, 248, 0.32);
+  border: 1px solid var(--workflow-border);
   border-radius: 14px;
-  background: rgba(2, 6, 23, 0.84);
-  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.48);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--workflow-shadow);
   backdrop-filter: blur(14px);
   --node-library-panel-exit-x: calc(-100% - 24px);
   --node-library-edge-button-hover: -4px;
@@ -1823,7 +1836,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 .node-library-floating-window.dragging {
   cursor: grabbing;
   transition: none;
-  box-shadow: 0 24px 68px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(56, 189, 248, 0.3);
+  box-shadow: 0 24px 68px rgba(22, 119, 255, 0.2), 0 0 0 1px var(--workflow-primary-border);
 }
 
 .node-library-floating-window.dock-right {
@@ -1842,8 +1855,8 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   flex: 0 0 auto;
   margin: -10px -10px 10px;
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(15, 23, 42, 0.94);
+  border-bottom: 1px solid var(--workflow-border);
+  background: rgba(248, 251, 255, 0.96);
 }
 
 .node-library-floating-window.dock-left .node-library-direction-button {
@@ -1876,7 +1889,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   gap: 6px;
   flex: 1 1 auto;
   min-width: 0;
-  color: #94a3b8;
+  color: var(--workflow-text-muted);
   font-size: 11px;
   cursor: grab;
   user-select: none;
@@ -1904,10 +1917,10 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   flex: 0 0 28px;
   width: 28px;
   height: 24px;
-  border: 1px solid rgba(56, 189, 248, 0.36);
+  border: 1px solid var(--workflow-primary-border);
   border-radius: 999px;
-  color: #dbeafe;
-  background: rgba(30, 64, 175, 0.32);
+  color: var(--workflow-primary);
+  background: var(--workflow-primary-soft);
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
@@ -1917,8 +1930,8 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
 .node-library-direction-button:hover {
   transform: translateX(var(--node-library-edge-button-hover));
-  border-color: rgba(125, 211, 252, 0.7);
-  background: rgba(30, 64, 175, 0.56);
+  border-color: var(--workflow-primary);
+  background: #d6eaff;
 }
 
 .node-library-floating-window :deep(.dify-node-library) {
@@ -1933,10 +1946,10 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
-  border: 1px solid rgba(56, 189, 248, 0.42);
-  color: #dbeafe;
-  background: rgba(15, 23, 42, 0.92);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
+  border: 1px solid var(--workflow-primary-border);
+  color: var(--workflow-primary);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--workflow-shadow);
   cursor: pointer;
   font-size: 12px;
   transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease,
@@ -1945,7 +1958,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
 .node-library-floating-trigger:hover {
   transform: translateX(var(--node-library-trigger-hover, 4px));
-  border-color: rgba(125, 211, 252, 0.72);
+  border-color: var(--workflow-primary);
 }
 
 .node-library-floating-trigger span {
@@ -1995,10 +2008,10 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   max-height: calc(100vh - 128px);
   overflow: auto;
   padding: 10px;
-  border: 1px solid rgba(34, 197, 94, 0.28);
+  border: 1px solid var(--workflow-border);
   border-radius: 14px;
-  background: rgba(2, 6, 23, 0.82);
-  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.45);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--workflow-shadow);
   backdrop-filter: blur(14px);
   --recipe-panel-exit-x: calc(-100% - 24px);
   --recipe-edge-button-hover: -4px;
@@ -2009,7 +2022,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 .recipe-floating-window.dragging {
   cursor: grabbing;
   transition: none;
-  box-shadow: 0 24px 68px rgba(0, 0, 0, 0.58), 0 0 0 1px rgba(34, 197, 94, 0.28);
+  box-shadow: 0 24px 68px rgba(22, 119, 255, 0.2), 0 0 0 1px var(--workflow-primary-border);
 }
 
 .recipe-floating-window.dock-right {
@@ -2027,8 +2040,8 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   gap: 8px;
   margin: -10px -10px 10px;
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(15, 23, 42, 0.94);
+  border-bottom: 1px solid var(--workflow-border);
+  background: rgba(248, 251, 255, 0.96);
 }
 
 .recipe-floating-window.dock-left .recipe-direction-button {
@@ -2061,7 +2074,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   gap: 6px;
   flex: 1 1 auto;
   min-width: 0;
-  color: #94a3b8;
+  color: var(--workflow-text-muted);
   font-size: 11px;
   cursor: grab;
   user-select: none;
@@ -2089,10 +2102,10 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   flex: 0 0 28px;
   width: 28px;
   height: 24px;
-  border: 1px solid rgba(34, 197, 94, 0.32);
+  border: 1px solid var(--workflow-primary-border);
   border-radius: 999px;
-  color: #dcfce7;
-  background: rgba(22, 101, 52, 0.32);
+  color: var(--workflow-primary);
+  background: var(--workflow-primary-soft);
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
@@ -2102,8 +2115,8 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
 .recipe-direction-button:hover {
   transform: translateX(var(--recipe-edge-button-hover));
-  border-color: rgba(134, 239, 172, 0.65);
-  background: rgba(22, 101, 52, 0.55);
+  border-color: var(--workflow-primary);
+  background: #d6eaff;
 }
 
 .recipe-floating-trigger {
@@ -2113,11 +2126,11 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
-  border: 1px solid rgba(34, 197, 94, 0.38);
+  border: 1px solid var(--workflow-primary-border);
   border-radius: 999px;
-  color: #dcfce7;
-  background: rgba(15, 23, 42, 0.92);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.36);
+  color: var(--workflow-primary);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--workflow-shadow);
   cursor: pointer;
   font-size: 12px;
   transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease,
@@ -2126,7 +2139,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 
 .recipe-floating-trigger:hover {
   transform: translateX(var(--recipe-trigger-hover, 4px));
-  border-color: rgba(134, 239, 172, 0.65);
+  border-color: var(--workflow-primary);
 }
 
 .recipe-floating-trigger span {
@@ -2176,20 +2189,22 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 :deep(.dify-workspace-tabs .ant-tabs-tab) {
   padding: 8px 14px;
   border-radius: 999px;
-  color: #94a3b8;
-  background: rgba(15, 23, 42, 0.62);
+  color: var(--workflow-text-muted);
+  background: var(--workflow-surface-soft);
+  border: 1px solid transparent;
 }
 
 :deep(.dify-workspace-tabs .ant-tabs-tab-active) {
-  background: rgba(37, 99, 235, 0.18);
+  background: var(--workflow-primary-soft);
+  border-color: var(--workflow-primary-border);
 }
 
 :deep(.dify-workspace-tabs .ant-tabs-tab-active .ant-tabs-tab-btn) {
-  color: #dbeafe;
+  color: var(--workflow-primary);
 }
 
 :deep(.dify-workspace-tabs .ant-tabs-ink-bar) {
-  background: #38bdf8;
+  background: var(--workflow-primary);
 }
 
 .selected-flow-panel {
@@ -2201,9 +2216,9 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   margin-bottom: 16px;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(24, 144, 255, 0.24);
-  background: rgba(15, 23, 42, 0.72);
-  color: #cbd5e1;
+  border: 1px solid var(--workflow-border);
+  background: var(--workflow-primary-subtle);
+  color: var(--workflow-text-secondary);
   font-size: 12px;
 }
 
@@ -2212,113 +2227,113 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 
 .flow-section-active {
-  outline: 2px solid rgba(56, 189, 248, 0.82);
+  outline: 2px solid rgba(22, 119, 255, 0.62);
   outline-offset: 4px;
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25),
-    0 0 24px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.2),
+    0 0 24px rgba(22, 119, 255, 0.16);
   border-radius: 10px;
   transition: outline-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .graphical-workspace {
-  background-color: #0b132b;
+  background-color: #ffffff;
   background-image: linear-gradient(
       to right,
-      rgba(28, 37, 65, 0.4) 1px,
+      rgba(22, 119, 255, 0.06) 1px,
       transparent 1px
     ),
-    linear-gradient(to bottom, rgba(28, 37, 65, 0.4) 1px, transparent 1px),
-    linear-gradient(to right, rgba(28, 37, 65, 0.15) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(28, 37, 65, 0.15) 1px, transparent 1px);
+    linear-gradient(to bottom, rgba(22, 119, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to right, rgba(22, 119, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(22, 119, 255, 0.035) 1px, transparent 1px);
   background-size: 40px 40px, 40px 40px, 10px 10px, 10px 10px;
-  border: 1px solid #1c2541;
+  border: 1px solid var(--workflow-border);
   border-radius: 12px;
   padding: 24px;
-  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 12px 32px rgba(22, 119, 255, 0.08);
   position: relative;
 }
 
 .workspace-title {
   margin-bottom: 20px;
-  border-left: 4px solid #1890ff;
+  border-left: 4px solid var(--workflow-primary);
   padding-left: 10px;
 }
 
 .workspace-title h3 {
   margin: 0;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--workflow-text);
 }
 
 .workspace-title .sub {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--workflow-text-muted);
 }
 
 /* Blueprint nodes styling */
 .block-card {
   border-radius: 8px;
   overflow: visible; /* to show ports */
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  background: rgba(13, 19, 33, 0.85);
+  box-shadow: 0 10px 28px rgba(22, 119, 255, 0.12);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
   transition: all 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--workflow-border);
 }
 
 .block-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 14px 38px rgba(22, 119, 255, 0.18);
 }
 
 .block-trigger {
-  border-color: rgba(24, 144, 255, 0.35);
+  border-color: var(--workflow-primary-border);
 }
 
 .block-trigger:hover {
-  border-color: rgba(24, 144, 255, 0.7);
-  box-shadow: 0 0 15px rgba(24, 144, 255, 0.2);
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 15px rgba(22, 119, 255, 0.18);
 }
 
 .block-trigger .block-header {
-  background: linear-gradient(135deg, #1890ff, #0050b3);
+  background: linear-gradient(135deg, var(--workflow-primary), var(--workflow-primary-hover));
 }
 
 .block-condition {
-  border-color: rgba(250, 140, 22, 0.35);
+  border-color: var(--workflow-primary-border);
 }
 
 .block-condition:hover {
-  border-color: rgba(250, 140, 22, 0.7);
-  box-shadow: 0 0 15px rgba(250, 140, 22, 0.2);
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 15px rgba(22, 119, 255, 0.18);
 }
 
 .block-condition .block-header {
-  background: linear-gradient(135deg, #fa8c16, #ad4e00);
+  background: linear-gradient(135deg, var(--workflow-primary), var(--workflow-primary-hover));
 }
 
 .block-action {
-  border-color: rgba(82, 196, 26, 0.35);
+  border-color: var(--workflow-primary-border);
 }
 
 .block-action:hover {
-  border-color: rgba(82, 196, 26, 0.7);
-  box-shadow: 0 0 15px rgba(82, 196, 26, 0.2);
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 15px rgba(22, 119, 255, 0.18);
 }
 
 .block-action .block-header {
-  background: linear-gradient(135deg, #52c41a, #237804);
+  background: linear-gradient(135deg, var(--workflow-primary), var(--workflow-primary-hover));
 }
 
 .block-header {
   padding: 10px 14px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(22, 119, 255, 0.12);
 }
 
 .block-badge {
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(255, 255, 255, 0.22);
   color: white;
   padding: 2px 8px;
   font-size: 11px;
@@ -2328,14 +2343,14 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 
 .block-body {
-  background: #0f172a;
+  background: #ffffff;
   padding: 18px;
-  color: #cbd5e1;
+  color: var(--workflow-text-secondary);
 }
 
 .desc-line {
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--workflow-text-muted);
   margin-bottom: 12px;
 }
 
@@ -2354,15 +2369,15 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 
 .wire-1-to-2 {
-  background: linear-gradient(180deg, #1890ff, #fa8c16);
+  background: linear-gradient(180deg, var(--workflow-primary), var(--workflow-primary-hover));
 }
 
 .wire-2-to-2-5 {
-  background: linear-gradient(180deg, #fa8c16, #722ed1);
+  background: linear-gradient(180deg, var(--workflow-primary-hover), var(--workflow-primary));
 }
 
 .wire-2-5-to-3 {
-  background: linear-gradient(180deg, #722ed1, #52c41a);
+  background: linear-gradient(180deg, var(--workflow-primary), var(--workflow-primary-hover));
 }
 
 .blueprint-wire-pulse {
@@ -2375,18 +2390,18 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 
 .pulse-1-to-2 {
-  background: #1890ff;
-  box-shadow: 0 0 8px #1890ff, 0 0 15px #1890ff;
+  background: var(--workflow-primary);
+  box-shadow: 0 0 8px var(--workflow-primary), 0 0 15px rgba(22, 119, 255, 0.38);
 }
 
 .pulse-2-to-2-5 {
-  background: #fa8c16;
-  box-shadow: 0 0 8px #fa8c16, 0 0 15px #fa8c16;
+  background: var(--workflow-primary-hover);
+  box-shadow: 0 0 8px var(--workflow-primary-hover), 0 0 15px rgba(64, 150, 255, 0.38);
 }
 
 .pulse-2-5-to-3 {
-  background: #722ed1;
-  box-shadow: 0 0 8px #722ed1, 0 0 15px #722ed1;
+  background: var(--workflow-primary);
+  box-shadow: 0 0 8px var(--workflow-primary), 0 0 15px rgba(22, 119, 255, 0.38);
 }
 
 @keyframes wire-pulse-run {
@@ -2415,7 +2430,7 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.8);
 }
 
 .port-input {
@@ -2427,27 +2442,27 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 
 .trigger-port {
-  background: #1890ff;
-  border-color: #1890ff;
-  box-shadow: 0 0 8px #1890ff;
+  background: var(--workflow-primary);
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 8px var(--workflow-primary);
 }
 
 .condition-port-in {
-  background: #1890ff;
-  border-color: #1890ff;
-  box-shadow: 0 0 8px #1890ff;
+  background: var(--workflow-primary);
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 8px var(--workflow-primary);
 }
 
 .condition-port-out {
-  background: #fa8c16;
-  border-color: #fa8c16;
-  box-shadow: 0 0 8px #fa8c16;
+  background: var(--workflow-primary-hover);
+  border-color: var(--workflow-primary-hover);
+  box-shadow: 0 0 8px var(--workflow-primary-hover);
 }
 
 .action-port-in {
-  background: #722ed1;
-  border-color: #722ed1;
-  box-shadow: 0 0 8px #722ed1;
+  background: var(--workflow-primary);
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 8px var(--workflow-primary);
 }
 
 /* Condition inputs and layout */
@@ -2468,24 +2483,24 @@ const handleWorkspaceDrop = (event: DragEvent) => {
   color: white;
 }
 
-/* Deep input styling for dark mode */
+/* Deep input styling aligned with the app primary palette */
 :deep(.graphical-workspace .ant-select-selector),
 :deep(.graphical-workspace .ant-input),
 :deep(.graphical-workspace .ant-input-number),
 :deep(.graphical-workspace .ant-radio-button-wrapper) {
-  background-color: #1e293b !important;
-  border-color: #334155 !important;
-  color: #f1f5f9 !important;
+  background-color: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: var(--workflow-text) !important;
 }
 
 :deep(.graphical-workspace .ant-select-arrow) {
-  color: #94a3b8 !important;
+  color: var(--workflow-text-muted) !important;
 }
 
 :deep(.graphical-workspace .ant-radio-button-wrapper-checked) {
-  background-color: #1890ff !important;
+  background-color: var(--workflow-primary) !important;
   color: #ffffff !important;
-  border-color: #1890ff !important;
+  border-color: var(--workflow-primary) !important;
 }
 
 :deep(.graphical-workspace .ant-radio-button-wrapper-checked.block-red) {
@@ -2494,24 +2509,24 @@ const handleWorkspaceDrop = (event: DragEvent) => {
 }
 
 :deep(.graphical-workspace .ant-btn-dashed) {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border-color: #475569 !important;
-  color: #94a3b8 !important;
+  background: #ffffff !important;
+  border-color: var(--workflow-border) !important;
+  color: var(--workflow-text-muted) !important;
 }
 
 :deep(.graphical-workspace .ant-btn-dashed:hover) {
-  border-color: #fa8c16 !important;
-  color: #fa8c16 !important;
+  border-color: var(--workflow-primary) !important;
+  color: var(--workflow-primary) !important;
 }
 
 :deep(.graphical-workspace .ant-card) {
-  background: #0f172a !important;
-  border-color: rgba(255, 255, 255, 0.05) !important;
+  background: #ffffff !important;
+  border-color: var(--workflow-border) !important;
 }
 
 :deep(.graphical-workspace .ant-card-head) {
-  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
-  color: #ffffff !important;
-  background: #1e293b !important;
+  border-bottom-color: var(--workflow-border) !important;
+  color: var(--workflow-text) !important;
+  background: var(--workflow-surface-soft) !important;
 }
 </style>

@@ -181,12 +181,12 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
 
 <style scoped>
 .recipe-panel {
-  background-color: #111827;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  background-color: #ffffff;
+  border: 1px solid #d6e4ff;
+  border-radius: 10px;
   padding: 14px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.42);
-  color: #cbd5e1;
+  box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
+  color: #475569;
 }
 
 .panel-header {
@@ -195,30 +195,30 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
   gap: 6px;
   margin-bottom: 8px;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid #d6e4ff;
 }
 
 .panel-icon {
-  color: #52c41a;
+  color: #1677ff;
 }
 
 .panel-header h4 {
   margin: 0;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 13px;
   font-weight: 700;
 }
 
 .panel-desc {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 11px;
   line-height: 1.45;
   margin-bottom: 12px;
 }
 
 .workspace-meter {
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: #f8fbff;
+  border: 1px solid #d6e4ff;
   border-radius: 8px;
   padding: 10px;
   margin-bottom: 12px;
@@ -234,11 +234,11 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
 }
 
 .meter-row span {
-  color: #94a3b8;
+  color: #64748b;
 }
 
 .meter-row code {
-  color: #7dd3fc;
+  color: #1677ff;
   font-size: 10px;
 }
 
@@ -250,7 +250,8 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
 }
 
 .meter-grid div {
-  background: rgba(30, 41, 59, 0.88);
+  background: #ffffff;
+  border: 1px solid #e6f4ff;
   border-radius: 6px;
   padding: 6px 4px;
   text-align: center;
@@ -258,31 +259,31 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
 
 .meter-grid strong {
   display: block;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 15px;
   line-height: 1.1;
 }
 
 .meter-grid span {
   display: block;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 10px;
   margin-top: 2px;
 }
 
 .plugin-id {
-  color: #a78bfa;
+  color: #1677ff;
   font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  border-top: 1px dashed #d6e4ff;
   padding-top: 6px;
 }
 
 .validation-card {
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: #f8fbff;
+  border: 1px solid #d6e4ff;
   border-radius: 8px;
   padding: 10px;
   margin-bottom: 12px;
@@ -292,14 +293,14 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 12px;
   font-weight: 700;
   margin-bottom: 6px;
 }
 
 .autosave-line {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 10px;
   margin-bottom: 8px;
 }
@@ -315,7 +316,7 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
   gap: 6px;
   align-items: flex-start;
   padding: 6px;
-  background: rgba(30, 41, 59, 0.64);
+  background: #ffffff;
   border-radius: 6px;
 }
 
@@ -333,19 +334,19 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
 }
 
 .issue-copy strong {
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 10.5px;
   line-height: 1.3;
 }
 
 .issue-copy span {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 10px;
   line-height: 1.35;
 }
 
 .no-issues {
-  color: #86efac;
+  color: #237804;
   font-size: 10.5px;
 }
 
@@ -358,9 +359,9 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
 .recipe-card {
   width: 100%;
   text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-left: 3px solid #52c41a;
-  background: rgba(30, 41, 59, 0.58);
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #1677ff;
+  background: #ffffff;
   color: inherit;
   border-radius: 6px;
   padding: 9px;
@@ -370,20 +371,20 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
 
 .recipe-card:hover {
   transform: translateX(2px);
-  border-color: rgba(82, 196, 26, 0.55);
-  background: rgba(30, 41, 59, 0.92);
-  box-shadow: 0 0 12px rgba(82, 196, 26, 0.16);
+  border-color: #1677ff;
+  background: #f0f7ff;
+  box-shadow: 0 8px 18px rgba(22, 119, 255, 0.1);
 }
 
 .recipe-title {
-  color: #f8fafc;
+  color: #0f172a;
   font-weight: 700;
   font-size: 12px;
   margin-bottom: 3px;
 }
 
 .recipe-desc {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 10.5px;
   line-height: 1.4;
 }
@@ -398,9 +399,9 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
 .recipe-tag {
   margin: 0;
   font-size: 10px;
-  background: rgba(82, 196, 26, 0.12) !important;
-  border-color: rgba(82, 196, 26, 0.26) !important;
-  color: #bbf7d0 !important;
+  background: #e6f4ff !important;
+  border-color: #91caff !important;
+  color: #0958d9 !important;
 }
 
 .workspace-actions {
@@ -417,7 +418,7 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
 }
 
 .history-line {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 10px;
   line-height: 1.35;
 }

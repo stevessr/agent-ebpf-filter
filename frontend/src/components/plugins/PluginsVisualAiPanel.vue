@@ -518,36 +518,36 @@ const handleAiGenerate = async () => {
 .block-card {
   border-radius: 8px;
   overflow: visible;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  background: rgba(13, 19, 33, 0.85);
+  box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
+  background: #ffffff;
   backdrop-filter: blur(8px);
   transition: all 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid #d6e4ff;
 }
 .block-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 14px 38px rgba(22, 119, 255, 0.16);
 }
 
 .ai-copilot-card {
   margin-bottom: 20px;
-  border-color: rgba(114, 46, 209, 0.35) !important;
+  border-color: #91caff !important;
 }
 .ai-copilot-card:hover {
-  border-color: rgba(114, 46, 209, 0.7) !important;
-  box-shadow: 0 0 15px rgba(114, 46, 209, 0.2);
+  border-color: #1677ff !important;
+  box-shadow: 0 0 15px rgba(22, 119, 255, 0.18);
 }
 
 .block-header {
   padding: 10px 14px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: linear-gradient(135deg, #722ed1, #39006a);
+  border-bottom: 1px solid #d6e4ff;
+  background: linear-gradient(135deg, #1677ff, #4096ff);
 }
 .block-badge {
-  background: rgba(0, 0, 0, 0.35);
-  color: white;
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
   padding: 2px 8px;
   font-size: 11px;
   border-radius: 4px;
@@ -555,13 +555,13 @@ const handleAiGenerate = async () => {
   font-weight: bold;
 }
 .block-body {
-  background: #0f172a;
+  background: #ffffff;
   padding: 18px;
-  color: #cbd5e1;
+  color: #94a3b8;
 }
 .desc-line {
   font-size: 13px;
-  color: #d3adf7;
+  color: #0958d9;
   font-weight: 500;
   margin-bottom: 12px;
 }
@@ -582,45 +582,45 @@ const handleAiGenerate = async () => {
 
 .ai-prompts-examples {
   font-size: 11px;
-  color: #94a3b8;
+  color: #64748b;
 }
 
 .example-tag {
   cursor: pointer;
   margin-right: 4px;
-  background-color: rgba(114, 46, 209, 0.15) !important;
-  border-color: rgba(114, 46, 209, 0.3) !important;
+  background-color: #e6f4ff !important;
+  border-color: #91caff !important;
   color: #d3adf7 !important;
   transition: all 0.2s ease;
 }
 .example-tag:hover {
-  background-color: rgba(114, 46, 209, 0.3) !important;
-  border-color: rgba(114, 46, 209, 0.6) !important;
-  color: #e9d5ff !important;
+  background-color: #91caff !important;
+  border-color: #1677ff !important;
+  color: #0958d9 !important;
 }
 
 .ai-btn {
-  background: #722ed1 !important;
-  border-color: #722ed1 !important;
+  background: #1677ff !important;
+  border-color: #1677ff !important;
   transition: all 0.3s ease;
 }
 .ai-btn:hover {
-  background: #85a5ff !important;
-  box-shadow: 0 0 8px rgba(114, 46, 209, 0.6);
+  background: #4096ff !important;
+  box-shadow: 0 0 8px #1677ff;
 }
 
 /* Deep input styling for dark mode */
 :deep(.ai-textarea) {
-  background-color: #1e293b !important;
-  border-color: #334155 !important;
-  color: #f1f5f9 !important;
+  background-color: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: #0f172a !important;
   border-radius: 6px;
 }
 :deep(.ai-textarea::placeholder) {
-  color: #475569 !important;
+  color: #94a3b8 !important;
 }
 :deep(.ai-textarea:focus) {
-  border-color: #722ed1 !important;
-  box-shadow: 0 0 0 2px rgba(114, 46, 209, 0.2) !important;
+  border-color: #1677ff !important;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.16) !important;
 }
 </style>

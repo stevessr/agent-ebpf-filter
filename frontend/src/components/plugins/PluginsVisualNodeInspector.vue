@@ -318,10 +318,11 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
 .node-inspector {
   margin-bottom: 20px;
   padding: 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(56, 189, 248, 0.22);
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.76));
-  color: #cbd5e1;
+  border-radius: 12px;
+  border: 1px solid #d6e4ff;
+  background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
+  color: #475569;
+  box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
 }
 
 .inspector-heading,
@@ -339,20 +340,20 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
 
 .heading-icon {
   margin-top: 2px;
-  color: #38bdf8;
+  color: #1677ff;
   font-size: 18px;
 }
 
 .heading-title strong {
   display: block;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 13px;
 }
 
 .heading-title span {
   display: block;
   margin-top: 2px;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 12px;
 }
 
@@ -382,16 +383,16 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
   min-height: 58px;
   padding: 9px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(15, 23, 42, 0.72);
-  color: #e2e8f0;
+  border: 1px solid #d6e4ff;
+  background: #ffffff;
+  color: #0f172a;
   cursor: pointer;
   transition: border-color 0.18s ease, transform 0.18s ease;
 }
 
 .quick-block:hover:not(:disabled) {
   transform: translateY(-1px);
-  border-color: #38bdf8;
+  border-color: #1677ff;
 }
 
 .quick-block:disabled {
@@ -404,7 +405,7 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
 }
 
 .quick-block span {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 11px;
 }
 
@@ -428,7 +429,7 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
 
 .code-summary p {
   margin: 0;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 12px;
 }
 
@@ -444,43 +445,43 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
 }
 
 .issue.error {
-  color: #fca5a5;
+  color: #cf1322;
 }
 
 .issue.warning {
-  color: #fde68a;
+  color: #ad6800;
 }
 
 .issue.ok {
-  color: #86efac;
+  color: #237804;
 }
 
 :deep(.ant-statistic-title) {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 11px;
 }
 
 :deep(.ant-statistic-content) {
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 20px;
 }
 
 :deep(.ant-form-item-label > label) {
-  color: #cbd5e1;
+  color: #475569;
 }
 
 :deep(.ant-select-selector),
 :deep(.ant-input),
 :deep(.ant-input-number),
 :deep(.ant-radio-button-wrapper) {
-  background-color: #1e293b !important;
-  border-color: #334155 !important;
-  color: #f1f5f9 !important;
+  background-color: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: #0f172a !important;
 }
 
 :deep(.ant-radio-button-wrapper-checked) {
-  background-color: #1890ff !important;
-  border-color: #1890ff !important;
+  background-color: #1677ff !important;
+  border-color: #1677ff !important;
   color: #ffffff !important;
 }
 </style>
