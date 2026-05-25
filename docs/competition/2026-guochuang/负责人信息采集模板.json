@@ -1,0 +1,99 @@
+{
+  "project": {
+    "name": "Agent eBPF Filter：面向 AI Agent 的内核级运行时安全与可观测平台",
+    "short_name": "Agent eBPF Filter",
+    "track": "高教主赛道",
+    "group": "创意组",
+    "category": "新工科类 / 人工智能+ / 网络空间安全",
+    "registered_company": "否",
+    "school": "",
+    "recommend_college": "",
+    "submission_platform": "全国大学生创业服务网/学校校赛系统",
+    "submission_account_note": ""
+  },
+  "leader": {
+    "name": "",
+    "student_id": "",
+    "college": "",
+    "major": "",
+    "grade": "",
+    "phone": "",
+    "qq": "",
+    "email": "",
+    "birth_date": "",
+    "education_status": "全日制在校生",
+    "role": "项目负责人"
+  },
+  "members": [
+    {
+      "order": 1,
+      "name": "",
+      "student_id": "",
+      "school": "",
+      "college": "",
+      "major": "",
+      "grade": "",
+      "role": "项目负责人",
+      "division": "总体架构、答辩、进度管理、竞赛材料统筹",
+      "phone": "",
+      "email": ""
+    },
+    {
+      "order": 2,
+      "name": "",
+      "student_id": "",
+      "school": "",
+      "college": "",
+      "major": "",
+      "grade": "",
+      "role": "eBPF/内核开发",
+      "division": "tracepoints、BPF LSM、cgroup hook、性能优化",
+      "phone": "",
+      "email": ""
+    },
+    {
+      "order": 3,
+      "name": "",
+      "student_id": "",
+      "school": "",
+      "college": "",
+      "major": "",
+      "grade": "",
+      "role": "后端开发",
+      "division": "Go API、事件模型、策略引擎、测试",
+      "phone": "",
+      "email": ""
+    }
+  ],
+  "teachers": [
+    {
+      "order": 1,
+      "name": "",
+      "school": "",
+      "college": "",
+      "title": "",
+      "research": "系统安全 / AI 工程 / 创新创业",
+      "guidance": "技术路线、项目管理、竞赛材料审核",
+      "phone": "",
+      "email": ""
+    }
+  ],
+  "evidence": {
+    "repo_url": "",
+    "demo_video_url": "",
+    "screenshots_dir": "",
+    "software_copyright": "",
+    "patents": "",
+    "papers": "",
+    "awards": "",
+    "pilot_letters": "",
+    "survey_report": ""
+  },
+  "business": {
+    "first_year_customers": "5个高校/实验室试点，3个企业PoC，2套教育包",
+    "first_year_revenue": "80万元",
+    "second_year_revenue": "420万元",
+    "third_year_revenue": "1600万元",
+    "pricing_note": "校赛版测算，提交前建议用真实调研或试点意向替换"
+  }
+}
