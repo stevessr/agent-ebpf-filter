@@ -103,6 +103,7 @@ WORKDIR /workspaces/agent-ebpf-filiter
 COPY --chown=${USERNAME}:${USERNAME} Makefile ./Makefile
 COPY --chown=${USERNAME}:${USERNAME} frontend/package.json frontend/bun.lock ./frontend/
 COPY --chown=${USERNAME}:${USERNAME} adapters/python/ ./adapters/python/
+COPY --chown=${USERNAME}:${USERNAME} tools/dev-env-tui/ ./tools/dev-env-tui/
 
 RUN mkdir -p ~/.config/bun ~/.cache/go-build ~/.cache/uv \
  && make predev \

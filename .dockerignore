@@ -9,6 +9,9 @@
 !frontend/
 !frontend/package.json
 !frontend/bun.lock
+!tools/
+!tools/dev-env-tui/
+!tools/dev-env-tui/**
 !adapters/
 !adapters/python/
 !adapters/python/**
