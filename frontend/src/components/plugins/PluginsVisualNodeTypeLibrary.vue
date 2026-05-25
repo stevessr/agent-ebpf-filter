@@ -12,6 +12,7 @@ import {
   ThunderboltOutlined,
 } from "@ant-design/icons-vue";
 import { triggerOptions, fieldOptions } from "./constants";
+import { visualWorkflowTheme } from "./theme";
 import type {
   VisualAction,
   VisualConditionField,
@@ -47,6 +48,7 @@ const emit = defineEmits<{
 
 const query = ref("");
 const activeCategory = ref<VisualNodeCategory | "all">("all");
+const theme = visualWorkflowTheme;
 
 const categories: Array<{
   value: VisualNodeCategory | "all";
@@ -70,7 +72,7 @@ const triggerNodeTypes = triggerOptions.map<VisualNodeTypeItem>((item) => ({
   title: item.value,
   description: item.label,
   badge: "START",
-  color: item.color,
+  color: theme.primary,
   icon: item.icon,
   ports: "event → ctx",
 }));
@@ -83,7 +85,7 @@ const conditionNodeTypes = fieldOptions.map<VisualNodeTypeItem>((item) => ({
   title: item.value,
   description: item.label,
   badge: "IF",
-  color: "#fa8c16",
+  color: theme.primaryHover,
   icon: ForkOutlined,
   ports: "ctx → bool",
 }));
@@ -99,7 +101,7 @@ const nodeTypes: VisualNodeTypeItem[] = [
     title: "AND Group",
     description: "全部子条件命中后继续向下游输出 true。",
     badge: "LOGIC",
-    color: "#1890ff",
+    color: theme.primary,
     icon: ApartmentOutlined,
     ports: "bool[] → bool",
   },
@@ -111,7 +113,7 @@ const nodeTypes: VisualNodeTypeItem[] = [
     title: "OR Group",
     description: "任意子条件命中即向下游输出 true。",
     badge: "LOGIC",
-    color: "#eb2f96",
+    color: theme.primaryHover,
     icon: ApartmentOutlined,
     ports: "bool[] → bool",
   },
@@ -123,7 +125,7 @@ const nodeTypes: VisualNodeTypeItem[] = [
     title: "Counter Map",
     description: "按 pid/uid/comm 计数，超过阈值后才触发动作。",
     badge: "BPF MAP",
-    color: "#722ed1",
+    color: theme.primary,
     icon: DatabaseOutlined,
     ports: "bool → state",
   },
@@ -135,7 +137,7 @@ const nodeTypes: VisualNodeTypeItem[] = [
     title: "Blocklist Map",
     description: "声明运行时可填充的 BPF HASH 阻断表。",
     badge: "BPF MAP",
-    color: "#722ed1",
+    color: theme.primary,
     icon: DatabaseOutlined,
     ports: "key → bool",
   },
@@ -147,7 +149,7 @@ const nodeTypes: VisualNodeTypeItem[] = [
     title: "No State",
     description: "不生成状态 map，只使用当前事件上下文判断。",
     badge: "BYPASS",
-    color: "#64748b",
+    color: theme.neutral,
     icon: DatabaseOutlined,
     ports: "bool → bool",
   },
@@ -159,7 +161,7 @@ const nodeTypes: VisualNodeTypeItem[] = [
     title: "BLOCK",
     description: "命中后返回 -EACCES，阻断 LSM 决策链。",
     badge: "DENY",
-    color: "#ef4444",
+    color: theme.danger,
     icon: SafetyCertificateOutlined,
     ports: "match → verdict",
   },
@@ -171,7 +173,7 @@ const nodeTypes: VisualNodeTypeItem[] = [
     title: "ALERT",
     description: "只打印内核日志并保留原始系统行为。",
     badge: "LOG",
-    color: "#f59e0b",
+    color: theme.warning,
     icon: SafetyCertificateOutlined,
     ports: "match → log",
   },
@@ -183,7 +185,7 @@ const nodeTypes: VisualNodeTypeItem[] = [
     title: "KILL",
     description: "命中后发送 SIGKILL，并对 LSM 入口返回拒绝。",
     badge: "SIGNAL",
-    color: "#dc2626",
+    color: theme.danger,
     icon: SafetyCertificateOutlined,
     ports: "match → signal",
   },
@@ -195,7 +197,7 @@ const nodeTypes: VisualNodeTypeItem[] = [
     title: "Generated C",
     description: "跳转到生成源码与编译日志面板。",
     badge: "SOURCE",
-    color: "#13c2c2",
+    color: theme.primaryHover,
     icon: CodeOutlined,
     ports: "graph → c",
   },
@@ -207,7 +209,7 @@ const nodeTypes: VisualNodeTypeItem[] = [
     title: "Compile Gate",
     description: "跳转到元数据、编译注册与加载入口。",
     badge: "BUILD",
-    color: "#22c55e",
+    color: theme.success,
     icon: PlayCircleOutlined,
     ports: "c → elf",
   },
@@ -325,9 +327,9 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
   border: 0;
   border-radius: 0;
   padding: 0;
-  color: #cbd5e1;
+  color: #0f172a;
   box-shadow: none;
-  scrollbar-color: rgba(56, 189, 248, 0.45) rgba(15, 23, 42, 0.9);
+  scrollbar-color: rgba(22, 119, 255, 0.45) #e6f4ff;
 }
 
 .library-header {
@@ -340,12 +342,12 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
 
 .library-header h4 {
   margin: 0;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 13px;
 }
 
 .library-header span {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 11px;
 }
 
@@ -366,18 +368,18 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
   justify-content: center;
   gap: 4px;
   min-height: 28px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  border: 1px solid #d6e4ff;
   border-radius: 7px;
-  background: rgba(15, 23, 42, 0.72);
-  color: #94a3b8;
+  background: #f8fbff;
+  color: #475569;
   font-size: 10px;
   cursor: pointer;
 }
 
 .category-tab.active {
-  border-color: rgba(59, 130, 246, 0.7);
-  color: #dbeafe;
-  background: rgba(30, 64, 175, 0.28);
+  border-color: #1677ff;
+  color: #0958d9;
+  background: #e6f4ff;
 }
 
 .node-type-list {
@@ -396,10 +398,10 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
   align-items: flex-start;
   gap: 9px;
   padding: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
+  border: 1px solid #e2e8f0;
   border-left: 3px solid var(--node-type-color);
   border-radius: 9px;
-  background: rgba(15, 23, 42, 0.86);
+  background: #ffffff;
   color: inherit;
   text-align: left;
   cursor: grab;
@@ -409,7 +411,7 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
 .node-type-card:hover {
   transform: translateX(2px);
   border-color: var(--node-type-color);
-  background: rgba(30, 41, 59, 0.95);
+  background: #f0f7ff;
 }
 
 .node-type-card:active {
@@ -443,7 +445,7 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
 }
 
 .node-title-row strong {
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 12px;
   line-height: 1.1;
 }
@@ -455,7 +457,7 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
 }
 
 .node-desc {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 10.5px;
   line-height: 1.35;
 }
@@ -464,14 +466,14 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #7dd3fc;
+  color: #1677ff;
   font-size: 10px;
 }
 
 :deep(.ant-input) {
-  background: #111827;
-  border-color: rgba(148, 163, 184, 0.2);
-  color: #e2e8f0;
+  background: #ffffff;
+  border-color: #d9d9d9;
+  color: #0f172a;
 }
 
 :deep(.ant-input-prefix) {

@@ -94,9 +94,9 @@ const localLimit = computed({
             <svg class="map-blueprint-wires" viewBox="0 0 400 180" width="100%" height="100%" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="map-wire-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stop-color="#fa8c16" />
-                  <stop offset="50%" stop-color="#722ed1" />
-                  <stop offset="100%" stop-color="#52c41a" />
+                  <stop offset="0%" stop-color="#1677ff" />
+                  <stop offset="50%" stop-color="#4096ff" />
+                  <stop offset="100%" stop-color="#1677ff" />
                 </linearGradient>
                 <filter id="map-wire-glow">
                   <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
@@ -111,7 +111,7 @@ const localLimit = computed({
               <g v-if="localMode === 'NONE'">
                 <path
                   d="M 60 90 L 340 90"
-                  stroke="#52c41a"
+                  stroke="#1677ff"
                   stroke-width="2"
                   fill="none"
                   filter="url(#map-wire-glow)"
@@ -124,7 +124,7 @@ const localLimit = computed({
                 <!-- Event to Extract -->
                 <path
                   d="M 60 90 C 80 90, 100 45, 115 45"
-                  stroke="#fa8c16"
+                  stroke="#1677ff"
                   stroke-width="1.5"
                   fill="none"
                   filter="url(#map-wire-glow)"
@@ -133,7 +133,7 @@ const localLimit = computed({
                 <!-- Extract to Map -->
                 <path
                   d="M 195 45 C 210 45, 205 135, 215 135"
-                  stroke="#722ed1"
+                  stroke="#4096ff"
                   stroke-width="1.5"
                   fill="none"
                   filter="url(#map-wire-glow)"
@@ -142,7 +142,7 @@ const localLimit = computed({
                 <!-- Map to Threshold -->
                 <path
                   d="M 335 135 C 350 135, 340 90, 360 90"
-                  stroke="#52c41a"
+                  stroke="#1677ff"
                   stroke-width="1.5"
                   fill="none"
                   filter="url(#map-wire-glow)"
@@ -155,7 +155,7 @@ const localLimit = computed({
                 <!-- Event to Map Check -->
                 <path
                   d="M 60 90 C 80 90, 100 45, 115 45"
-                  stroke="#1890ff"
+                  stroke="#1677ff"
                   stroke-width="1.5"
                   fill="none"
                   filter="url(#map-wire-glow)"
@@ -164,7 +164,7 @@ const localLimit = computed({
                 <!-- Map Check to Decision -->
                 <path
                   d="M 195 45 C 210 45, 205 135, 215 135"
-                  stroke="#722ed1"
+                  stroke="#4096ff"
                   stroke-width="1.5"
                   fill="none"
                   filter="url(#map-wire-glow)"
@@ -173,7 +173,7 @@ const localLimit = computed({
                 <!-- Decision to Action -->
                 <path
                   d="M 335 135 C 350 135, 340 90, 360 90"
-                  stroke="#52c41a"
+                  stroke="#1677ff"
                   stroke-width="1.5"
                   fill="none"
                   filter="url(#map-wire-glow)"
@@ -191,13 +191,13 @@ const localLimit = computed({
 
             <!-- ALL MODES: Target Action (Right) -->
             <div class="map-node node-right">
-              <div class="node-title" style="color: #52c41a; border-bottom-color: rgba(82,196,26,0.3)">DECISION</div>
+              <div class="node-title" style="color: #1677ff; border-bottom-color: #91caff">DECISION</div>
               <div class="node-content">Trigger Action</div>
             </div>
 
             <!-- NONE Mode Center Node -->
             <div v-if="localMode === 'NONE'" class="map-node node-center-bypass">
-              <div class="node-title" style="color: #13c2c2; border-bottom-color: rgba(19,194,194,0.3)">BYPASS</div>
+              <div class="node-title" style="color: #4096ff; border-bottom-color: #91caff">BYPASS</div>
               <div class="node-content">No State (Direct)</div>
             </div>
 
@@ -205,13 +205,13 @@ const localLimit = computed({
             <template v-if="localMode === 'COUNTER'">
               <!-- Key Extractor (Mid-Left, top) -->
               <div class="map-node node-mid-left">
-                <div class="node-title" style="color: #fa8c16; border-bottom-color: rgba(250,140,22,0.3)">EXTRACT KEY</div>
+                <div class="node-title" style="color: #1677ff; border-bottom-color: rgba(250,140,22,0.3)">EXTRACT KEY</div>
                 <div class="node-content val-highlight">{{ localKeyField.toUpperCase() }}</div>
               </div>
 
               <!-- rate_limit_map (Mid-Right, bottom) -->
               <div class="map-node node-mid-right map-db-node">
-                <div class="node-title" style="color: #722ed1; border-bottom-color: rgba(114,46,209,0.3); display:flex; justify-content:space-between; align-items:center;">
+                <div class="node-title" style="color: #4096ff; border-bottom-color: rgba(114,46,209,0.3); display:flex; justify-content:space-between; align-items:center;">
                   <span>rate_limit_map</span>
                   <span class="db-type">HASH</span>
                 </div>
@@ -236,13 +236,13 @@ const localLimit = computed({
             <template v-if="localMode === 'BLOCKLIST'">
               <!-- Key Lookup (Mid-Left, top) -->
               <div class="map-node node-mid-left">
-                <div class="node-title" style="color: #1890ff; border-bottom-color: rgba(24,144,255,0.3)">LOOKUP KEY</div>
+                <div class="node-title" style="color: #1677ff; border-bottom-color: #91caff">LOOKUP KEY</div>
                 <div class="node-content val-highlight">{{ localKeyField.toUpperCase() }}</div>
               </div>
 
               <!-- blocklist_map (Mid-Right, bottom) -->
               <div class="map-node node-mid-right map-db-node">
-                <div class="node-title" style="color: #722ed1; border-bottom-color: rgba(114,46,209,0.3); display:flex; justify-content:space-between; align-items:center;">
+                <div class="node-title" style="color: #4096ff; border-bottom-color: rgba(114,46,209,0.3); display:flex; justify-content:space-between; align-items:center;">
                   <span>blocklist_map</span>
                   <span class="db-type">HASH</span>
                 </div>
@@ -274,34 +274,34 @@ const localLimit = computed({
 .block-card {
   border-radius: 8px;
   overflow: visible; /* to show ports */
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  background: rgba(13, 19, 33, 0.85);
+  box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
+  background: #ffffff;
   backdrop-filter: blur(8px);
   transition: all 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid #d6e4ff;
 }
 .block-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 14px 38px rgba(22, 119, 255, 0.16);
 }
 
 .block-map {
-  border-color: rgba(47, 84, 235, 0.35) !important;
+  border-color: #91caff !important;
 }
 .block-map:hover {
-  border-color: rgba(47, 84, 235, 0.7) !important;
-  box-shadow: 0 0 15px rgba(47, 84, 235, 0.2);
+  border-color: #1677ff !important;
+  box-shadow: 0 0 15px rgba(22, 119, 255, 0.18);
 }
 
 .block-header {
   padding: 10px 14px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: linear-gradient(135deg, #2f54eb, #12005e);
+  border-bottom: 1px solid #d6e4ff;
+  background: linear-gradient(135deg, #1677ff, #4096ff);
 }
 .block-badge {
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(255, 255, 255, 0.22);
   color: white;
   padding: 2px 8px;
   font-size: 11px;
@@ -310,25 +310,25 @@ const localLimit = computed({
   font-weight: bold;
 }
 .block-body {
-  background: #0f172a;
+  background: #ffffff;
   padding: 18px;
-  color: #cbd5e1;
+  color: #475569;
 }
 .desc-line {
   font-size: 13px;
-  color: #94a3b8;
+  color: #64748b;
   margin-bottom: 12px;
 }
 
 .control-group label {
   display: block;
   font-size: 11px;
-  color: #94a3b8;
+  color: #64748b;
   margin-bottom: 4px;
 }
 
 .helper-text-note {
-  color: #5c7cfa;
+  color: #1677ff;
   margin-top: 10px;
   font-size: 11px;
 }
@@ -336,7 +336,7 @@ const localLimit = computed({
 .canvas-title {
   font-size: 12px;
   font-weight: 600;
-  color: #2f54eb;
+  color: #1677ff;
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -348,11 +348,11 @@ const localLimit = computed({
 .map-blueprint-canvas {
   height: 180px;
   position: relative;
-  border: 1px solid rgba(47, 84, 235, 0.25);
-  background: rgba(13, 19, 33, 0.5);
+  border: 1px solid #d6e4ff;
+  background: #f8fbff;
   border-radius: 6px;
   overflow: hidden;
-  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 15px rgba(22, 119, 255, 0.08);
 }
 
 .map-blueprint-grid {
@@ -362,8 +362,8 @@ const localLimit = computed({
   width: 100%;
   height: 100%;
   background-image: 
-    linear-gradient(to right, rgba(47, 84, 235, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(47, 84, 235, 0.05) 1px, transparent 1px);
+    linear-gradient(to right, rgba(22, 119, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(22, 119, 255, 0.08) 1px, transparent 1px);
   background-size: 15px 15px;
   pointer-events: none;
 }
@@ -393,29 +393,29 @@ const localLimit = computed({
 /* Map node cards */
 .map-node {
   position: absolute;
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(47, 84, 235, 0.4);
+  background: #ffffff;
+  border: 1px solid #91caff;
   border-radius: 5px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 18px rgba(22, 119, 255, 0.10);
   font-family: monospace;
   font-size: 10px;
-  color: #e2e8f0;
+  color: #0f172a;
   z-index: 2;
   box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
 .map-node:hover {
-  border-color: #2f54eb;
-  box-shadow: 0 0 8px rgba(47, 84, 235, 0.4);
+  border-color: #1677ff;
+  box-shadow: 0 0 8px #91caff;
 }
 
 .node-title {
   padding: 3px 6px;
-  background: rgba(47, 84, 235, 0.1);
-  border-bottom: 1px solid rgba(47, 84, 235, 0.2);
+  background: #e6f4ff;
+  border-bottom: 1px solid #91caff;
   font-weight: bold;
-  color: #89a5df;
+  color: #0958d9;
 }
 
 .node-content {
@@ -424,7 +424,7 @@ const localLimit = computed({
 }
 
 .val-highlight {
-  color: #38bdf8;
+  color: #1677ff;
   font-weight: bold;
 }
 
@@ -469,18 +469,18 @@ const localLimit = computed({
 
 /* Database map styles inside the node */
 .map-db-node {
-  border-color: rgba(114, 46, 209, 0.4);
+  border-color: #91caff;
 }
 .map-db-node:hover {
-  border-color: #722ed1;
-  box-shadow: 0 0 8px rgba(114, 46, 209, 0.4);
+  border-color: #1677ff;
+  box-shadow: 0 0 8px #91caff;
 }
 .db-type {
   font-size: 8px;
-  background: rgba(114, 46, 209, 0.3);
+  background: #e6f4ff;
   padding: 0px 3px;
   border-radius: 2px;
-  color: #d3adf7;
+  color: #0958d9;
 }
 .db-grid {
   padding: 4px;
@@ -491,7 +491,7 @@ const localLimit = computed({
 .db-row {
   display: flex;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid #e6f4ff;
   padding: 1px 2px;
   font-size: 8px;
 }
@@ -499,20 +499,20 @@ const localLimit = computed({
   border-bottom: none;
 }
 .db-k {
-  color: #94a3b8;
+  color: #64748b;
 }
 .db-v {
-  color: #10b981;
+  color: #237804;
 }
 .val-warn {
-  color: #f59e0b;
+  color: #ad6800;
 }
 .val-danger {
-  color: #ef4444;
+  color: #cf1322;
   font-weight: bold;
 }
 .trigger-row {
-  background: rgba(239, 68, 68, 0.1);
+  background: #fff1f0;
   border-radius: 2px;
 }
 
@@ -534,22 +534,22 @@ const localLimit = computed({
   bottom: -5px;
 }
 .map-port-in {
-  background: #fa8c16;
-  border-color: #fa8c16;
-  box-shadow: 0 0 8px #fa8c16;
+  background: #1677ff;
+  border-color: #1677ff;
+  box-shadow: 0 0 8px #1677ff;
 }
 .map-port-out {
-  background: #722ed1;
-  border-color: #722ed1;
-  box-shadow: 0 0 8px #722ed1;
+  background: #4096ff;
+  border-color: #1677ff;
+  box-shadow: 0 0 8px #4096ff;
 }
 
-/* Dark theme form styling */
+/* Form styling aligned with app theme */
 :deep(.ant-select-selector),
 :deep(.ant-input-number) {
-  background-color: #1e293b !important;
-  border-color: #334155 !important;
-  color: #f1f5f9 !important;
+  background-color: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: #0f172a !important;
 }
 :deep(.ant-select-arrow) {
   color: #94a3b8 !important;

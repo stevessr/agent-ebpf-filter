@@ -124,7 +124,7 @@ const logicGateLayout = computed(() => {
 </script>
 
 <template>
-  <div style="font-size: 12px; font-weight: 600; color: #fa8c16; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
+  <div style="font-size: 12px; font-weight: 600; color: #1677ff; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
     <span>逻辑拓扑树 (Logic Tree Gate)</span>
     <a-tag size="small" color="orange" style="font-size: 10px; margin: 0; transform: scale(0.9);">Schematic</a-tag>
   </div>
@@ -136,20 +136,20 @@ const logicGateLayout = computed(() => {
     <svg class="logic-gate-wires" viewBox="0 0 200 180" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
       <defs>
         <linearGradient id="wire-gradient-and" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#1890ff" />
-          <stop offset="100%" stop-color="#0050b3" />
+          <stop offset="0%" stop-color="#1677ff" />
+          <stop offset="100%" stop-color="#0958d9" />
         </linearGradient>
         <linearGradient id="wire-gradient-or" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#eb2f96" />
-          <stop offset="100%" stop-color="#722ed1" />
+          <stop offset="0%" stop-color="#4096ff" />
+          <stop offset="100%" stop-color="#4096ff" />
         </linearGradient>
         <radialGradient id="gate-grad-and" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#0077b6" />
-          <stop offset="100%" stop-color="#03045e" />
+          <stop offset="0%" stop-color="#1677ff" />
+          <stop offset="100%" stop-color="#0958d9" />
         </radialGradient>
         <radialGradient id="gate-grad-or" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#d946ef" />
-          <stop offset="100%" stop-color="#701a75" />
+          <stop offset="0%" stop-color="#4096ff" />
+          <stop offset="100%" stop-color="#0958d9" />
         </radialGradient>
         <filter id="wire-glow">
           <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
@@ -182,13 +182,13 @@ const logicGateLayout = computed(() => {
             width="85"
             height="20"
             rx="3"
-            fill="#1e293b"
-            stroke="#334155"
+            fill="#ffffff"
+            stroke="#d6e4ff"
             stroke-width="1"
           />
-          <text :x="elem.x + 4" :y="elem.y + 3" fill="#00b4d8" font-size="7" font-family="monospace" font-weight="bold">{{ elem.field }}</text>
-          <text :x="elem.x + 45" :y="elem.y + 3" fill="#fa8c16" font-size="7" font-family="monospace">{{ elem.op }}</text>
-          <text :x="elem.x + 58" :y="elem.y + 3" fill="#a78bfa" font-size="7" font-family="monospace">{{ elem.value }}</text>
+          <text :x="elem.x + 4" :y="elem.y + 3" fill="#1677ff" font-size="7" font-family="monospace" font-weight="bold">{{ elem.field }}</text>
+          <text :x="elem.x + 45" :y="elem.y + 3" fill="#1677ff" font-size="7" font-family="monospace">{{ elem.op }}</text>
+          <text :x="elem.x + 58" :y="elem.y + 3" fill="#4096ff" font-size="7" font-family="monospace">{{ elem.value }}</text>
         </g>
 
         <!-- Gate Nodes -->
@@ -198,11 +198,11 @@ const logicGateLayout = computed(() => {
             :cy="elem.y"
             r="13"
             :fill="elem.label === 'AND' ? 'url(#gate-grad-and)' : 'url(#gate-grad-or)'"
-            :stroke="elem.label === 'AND' ? '#00b4d8' : '#f472b6'"
+            :stroke="elem.label === 'AND' ? '#1677ff' : '#4096ff'"
             stroke-width="1.5"
           />
-          <text :x="elem.x" :y="elem.y - 1" text-anchor="middle" fill="#fff" font-size="8" font-family="monospace" font-weight="bold">{{ elem.label }}</text>
-          <text :x="elem.x" :y="elem.y + 7" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-size="5" font-family="monospace">GATE</text>
+          <text :x="elem.x" :y="elem.y - 1" text-anchor="middle" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold">{{ elem.label }}</text>
+          <text :x="elem.x" :y="elem.y + 7" text-anchor="middle" fill="#64748b" font-size="5" font-family="monospace">GATE</text>
         </g>
       </g>
     </svg>
@@ -214,11 +214,11 @@ const logicGateLayout = computed(() => {
 .logic-gate-canvas {
   height: 180px;
   position: relative;
-  border: 1px solid rgba(250, 140, 22, 0.2);
-  background: rgba(13, 19, 33, 0.4);
+  border: 1px solid #d6e4ff;
+  background: #f8fbff;
   border-radius: 6px;
   overflow: hidden;
-  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 15px rgba(22, 119, 255, 0.06);
 }
 .logic-gate-grid {
   position: absolute;
@@ -227,8 +227,8 @@ const logicGateLayout = computed(() => {
   width: 100%;
   height: 100%;
   background-image: 
-    linear-gradient(to right, rgba(250, 140, 22, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(250, 140, 22, 0.05) 1px, transparent 1px);
+    linear-gradient(to right, rgba(22, 119, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(22, 119, 255, 0.08) 1px, transparent 1px);
   background-size: 15px 15px;
   pointer-events: none;
 }

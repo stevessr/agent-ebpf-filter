@@ -1,0 +1,17 @@
+export const visualWorkflowTheme = {
+  primary: "#1677ff",
+  primaryHover: "#4096ff",
+  primarySoft: "#e6f4ff",
+  primarySubtle: "#f0f7ff",
+  primaryBorder: "#91caff",
+  text: "#0f172a",
+  textSecondary: "#475569",
+  textMuted: "#64748b",
+  surface: "#ffffff",
+  surfaceSoft: "#f8fbff",
+  border: "#d6e4ff",
+  success: "#52c41a",
+  warning: "#faad14",
+  danger: "#ff4d4f",
+  neutral: "#94a3b8",
+} as const;

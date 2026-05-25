@@ -215,8 +215,8 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
 <style scoped>
 /* Group panel styling */
 .logic-group-container {
-  background: rgba(15, 23, 42, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #f8fbff;
+  border: 1px solid #d6e4ff;
   border-radius: 6px;
   padding: 10px 14px;
   position: relative;
@@ -224,7 +224,7 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
 }
 
 .logic-group-container:hover {
-  background: rgba(15, 23, 42, 0.55);
+  background: #f0f7ff;
 }
 
 .nested-group {
@@ -233,13 +233,13 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
 }
 
 .group-and {
-  border-left: 3px solid #1890ff;
-  box-shadow: inset 2px 0 0 rgba(24, 144, 255, 0.1);
+  border-left: 3px solid #1677ff;
+  box-shadow: inset 2px 0 0 rgba(22, 119, 255, 0.08);
 }
 
 .group-or {
-  border-left: 3px solid #eb2f96;
-  box-shadow: inset 2px 0 0 rgba(235, 47, 150, 0.1);
+  border-left: 3px solid #4096ff;
+  box-shadow: inset 2px 0 0 rgba(64, 150, 255, 0.08);
 }
 
 /* Header controls */
@@ -261,36 +261,36 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
   line-height: 22px;
   font-size: 11px;
   padding: 0 8px;
-  background-color: #1e293b !important;
-  border-color: #334155 !important;
-  color: #94a3b8 !important;
+  background-color: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: #475569 !important;
 }
 
 .group-radio-toggle :deep(.ant-radio-button-wrapper-checked) {
-  background-color: #1890ff !important;
+  background-color: #1677ff !important;
   color: #ffffff !important;
-  border-color: #1890ff !important;
+  border-color: #1677ff !important;
 }
 
 .group-and .group-radio-toggle :deep(.ant-radio-button-wrapper-checked) {
-  background-color: #1890ff !important;
-  border-color: #1890ff !important;
+  background-color: #1677ff !important;
+  border-color: #1677ff !important;
 }
 
 .group-or .group-radio-toggle :deep(.ant-radio-button-wrapper-checked) {
-  background-color: #eb2f96 !important;
-  border-color: #eb2f96 !important;
+  background-color: #4096ff !important;
+  border-color: #4096ff !important;
 }
 
 .btn-action {
-  color: #94a3b8 !important;
+  color: #64748b !important;
   font-size: 11px;
   height: 24px;
   padding: 0 6px;
 }
 .btn-action:hover {
-  color: #ffffff !important;
-  background: rgba(255, 255, 255, 0.05);
+  color: #1677ff !important;
+  background: #e6f4ff;
 }
 
 .btn-delete {
@@ -303,13 +303,13 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
   justify-content: center;
 }
 .btn-delete:hover {
-  background: rgba(239, 68, 68, 0.1);
+  background: #fff1f0;
 }
 
 /* Recursive children spacing */
 .group-children {
   padding-left: 12px;
-  border-left: 1px dashed rgba(255, 255, 255, 0.06);
+  border-left: 1px dashed #d6e4ff;
 }
 
 .group-empty-placeholder {
@@ -317,9 +317,9 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
   color: #64748b;
   font-size: 11px;
   text-align: center;
-  border: 1px dashed rgba(255, 255, 255, 0.04);
+  border: 1px dashed #d6e4ff;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.1);
+  background: #ffffff;
 }
 
 .children-list {
@@ -333,16 +333,16 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(30, 41, 59, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 4px;
   padding: 4px 8px;
   transition: all 0.2s ease;
 }
 
 .logic-condition-row:hover {
-  background: rgba(30, 41, 59, 0.7);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: #f0f7ff;
+  border-color: #91caff;
 }
 
 .drag-handle-indicator {
@@ -359,9 +359,9 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
 /* Theme input overrides for matching visual grid */
 .rule-select :deep(.ant-select-selector),
 .rule-input {
-  background-color: #1e293b !important;
-  border-color: #334155 !important;
-  color: #f1f5f9 !important;
+  background-color: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: #0f172a !important;
   height: 28px !important;
   line-height: 26px !important;
 }

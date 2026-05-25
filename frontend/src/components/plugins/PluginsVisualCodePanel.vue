@@ -59,20 +59,20 @@ const emit = defineEmits<{
 
 <style scoped>
 .blueprint-code-card {
-  background: rgba(13, 19, 33, 0.85) !important;
+  background: #ffffff !important;
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  color: #ffffff !important;
+  border: 1px solid #d6e4ff !important;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
+  color: #0f172a !important;
 }
 
 :deep(.ant-card-head) {
-  background: linear-gradient(135deg, #1e293b, #0f172a) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-  color: #ffffff !important;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
+  background: linear-gradient(135deg, #ffffff, #f0f7ff) !important;
+  border-bottom: 1px solid #d6e4ff !important;
+  color: #0f172a !important;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
 }
 
 :deep(.ant-card-head-title) {
@@ -82,15 +82,15 @@ const emit = defineEmits<{
 
 .source-hint {
   margin-bottom: 12px;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 12px;
   line-height: 1.6;
 }
 
 .generated-code-box {
-  background: #070b11;
+  background: #f8fbff;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid #d6e4ff;
   overflow: auto;
   max-height: 560px;
 }
@@ -101,7 +101,7 @@ const emit = defineEmits<{
 }
 
 .generated-code-box code {
-  color: #b7f7c9;
+  color: #0f172a;
   font-size: 11.5px;
   line-height: 1.6;
   font-family: "JetBrains Mono", Menlo, Consolas, monospace;
@@ -109,10 +109,10 @@ const emit = defineEmits<{
 
 .compilation-logger {
   margin-top: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid #d6e4ff;
   border-radius: 6px;
   overflow: hidden;
-  background: #0f172a;
+  background: #ffffff;
 }
 
 .logger-header {
@@ -120,7 +120,7 @@ const emit = defineEmits<{
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px;
-  background: rgba(30, 41, 59, 0.85);
+  background: #f0f7ff;
   font-size: 13px;
   font-weight: 600;
 }
@@ -128,7 +128,7 @@ const emit = defineEmits<{
 .logger-body {
   margin: 0;
   padding: 14px;
-  color: #e2e8f0;
+  color: #0f172a;
   font-size: 12px;
   line-height: 1.6;
   max-height: 260px;
@@ -139,11 +139,11 @@ const emit = defineEmits<{
   display: flex;
   justify-content: flex-end;
   padding: 12px 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #d6e4ff;
 }
 
 .load-btn {
-  box-shadow: 0 0 18px rgba(34, 197, 94, 0.25);
+  box-shadow: 0 8px 18px rgba(22, 119, 255, 0.14);
 }
 
 .compiling-tag,

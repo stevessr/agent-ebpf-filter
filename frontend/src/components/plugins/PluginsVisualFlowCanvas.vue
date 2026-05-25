@@ -11,6 +11,7 @@ import type {
   VisualWireId,
   VisualWireStates,
 } from "./types";
+import { visualWorkflowTheme } from "./theme";
 
 const props = defineProps<{
   nodeLayout: VisualNodeLayout;
@@ -49,6 +50,7 @@ const minCanvasHeight = 340;
 const maxCanvasWidth = 1800;
 const maxCanvasHeight = 1100;
 const canvasPadding = 12;
+const theme = visualWorkflowTheme;
 const viewportRef = useTemplateRef<HTMLElement>("viewport");
 const canvasRef = useTemplateRef<HTMLElement>("canvas");
 const viewportSize = ref({ width: defaultCanvasWidth });
@@ -236,7 +238,7 @@ const flowNodes = computed(() => [
     title: "Trigger Block",
     subtitle: props.trigger,
     badge: "HOOK",
-    color: "#1890ff",
+    color: theme.primary,
     hint: "选择 eBPF/LSM/cgroup 挂载入口，决定后续条件能读取哪些上下文。",
   },
   {
@@ -244,7 +246,7 @@ const flowNodes = computed(() => [
     title: "Condition Tree",
     subtitle: `${props.conditionCount} 条件 / ${props.treeDepth} 层`,
     badge: "AND/OR",
-    color: "#fa8c16",
+    color: theme.primaryHover,
     hint: "组合 comm、uid、basename、port、ipv4 等条件，生成内核布尔表达式。",
   },
   {
@@ -252,7 +254,7 @@ const flowNodes = computed(() => [
     title: "State Map",
     subtitle: props.mapMode,
     badge: "BPF MAP",
-    color: "#722ed1",
+    color: theme.primary,
     hint: "声明 COUNTER / BLOCKLIST 等状态 map，把一次性判断升级为状态化策略。",
   },
   {
@@ -262,10 +264,10 @@ const flowNodes = computed(() => [
     badge: "DECISION",
     color:
       props.action === "ALERT"
-        ? "#fadb14"
+        ? theme.warning
         : props.action === "KILL"
-        ? "#ff4d4f"
-        : "#52c41a",
+        ? theme.danger
+        : theme.primary,
     hint: "配置命中后的内核动作：告警、返回拒绝，或发送 SIGKILL。",
   },
   {
@@ -273,7 +275,7 @@ const flowNodes = computed(() => [
     title: "Generated C",
     subtitle: `${props.codeLines} lines`,
     badge: "SOURCE",
-    color: "#13c2c2",
+    color: theme.primaryHover,
     hint: "实时预览由积木转译出的 libbpf C 源码和编译日志。",
   },
   {
@@ -281,7 +283,7 @@ const flowNodes = computed(() => [
     title: "Compile Gate",
     subtitle: props.compileReady ? "ready" : "fix required",
     badge: props.compileReady ? "READY" : "ERROR",
-    color: props.compileReady ? "#52c41a" : "#ff4d4f",
+    color: props.compileReady ? theme.success : theme.danger,
     hint: "检查插件元数据和 verifier 友好约束，通过后注册、编译并加载。",
   },
 ]);
@@ -677,9 +679,9 @@ onBeforeUnmount(() => {
         <svg class="flow-wires" :viewBox="canvasViewBox" preserveAspectRatio="none">
         <defs>
           <linearGradient id="flow-wire-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#1890ff" />
-            <stop offset="45%" stop-color="#722ed1" />
-            <stop offset="100%" stop-color="#52c41a" />
+            <stop offset="0%" :stop-color="theme.primary" />
+            <stop offset="48%" :stop-color="theme.primaryHover" />
+            <stop offset="100%" :stop-color="theme.primary" />
           </linearGradient>
           <filter id="flow-glow">
             <feGaussianBlur stdDeviation="2" result="blur" />
@@ -693,7 +695,7 @@ onBeforeUnmount(() => {
           v-for="wire in wires"
           :key="wire.id"
           :d="wire.d"
-          :stroke="wire.enabled ? 'url(#flow-wire-gradient)' : 'rgba(100, 116, 139, 0.45)'"
+          :stroke="wire.enabled ? 'url(#flow-wire-gradient)' : 'rgba(148, 163, 184, 0.5)'"
           :stroke-width="wire.enabled ? 2 : 1.5"
           fill="none"
           :filter="wire.enabled ? 'url(#flow-glow)' : undefined"
@@ -703,7 +705,7 @@ onBeforeUnmount(() => {
         <path
           v-if="connectionPreviewPath"
           :d="connectionPreviewPath"
-          :stroke="connectionDrag?.valid ? '#22c55e' : '#f59e0b'"
+          :stroke="connectionDrag?.valid ? theme.success : theme.warning"
           stroke-width="2.5"
           fill="none"
           class="flow-wire-preview"
@@ -800,12 +802,12 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .flow-shell {
-  background: rgba(15, 23, 42, 0.78);
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #d6e4ff;
+  border-radius: 12px;
   padding: 14px;
   margin-bottom: 20px;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
 }
 
 .flow-header {
@@ -818,12 +820,12 @@ onBeforeUnmount(() => {
 
 .flow-header h4 {
   margin: 0;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 14px;
 }
 
 .flow-header span {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 12px;
 }
 
@@ -834,8 +836,8 @@ onBeforeUnmount(() => {
   padding: 10px 12px;
   margin-bottom: 12px;
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(2, 6, 23, 0.55);
+  border: 1px solid #d6e4ff;
+  background: #f0f7ff;
 }
 
 .inspector-tag {
@@ -846,7 +848,7 @@ onBeforeUnmount(() => {
 
 .flow-inspector strong {
   display: block;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 12px;
   line-height: 1.2;
 }
@@ -854,7 +856,7 @@ onBeforeUnmount(() => {
 .flow-inspector span {
   display: block;
   margin-top: 2px;
-  color: #94a3b8;
+  color: #475569;
   font-size: 11px;
   line-height: 1.4;
 }
@@ -864,20 +866,20 @@ onBeforeUnmount(() => {
   max-width: 100%;
   overflow: auto;
   border-radius: 10px;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  background: rgba(2, 6, 23, 0.56);
-  scrollbar-color: rgba(56, 189, 248, 0.5) rgba(15, 23, 42, 0.9);
+  border: 1px solid #b7d7ff;
+  background: #f8fbff;
+  scrollbar-color: rgba(22, 119, 255, 0.45) #e6f4ff;
 }
 
 .flow-canvas {
   position: relative;
   overflow: hidden;
-  background-color: #07111f;
+  background-color: #f8fbff;
   background-image:
-    linear-gradient(to right, rgba(56, 189, 248, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(56, 189, 248, 0.08) 1px, transparent 1px),
-    radial-gradient(circle at 20% 20%, rgba(24, 144, 255, 0.16), transparent 26%),
-    radial-gradient(circle at 80% 70%, rgba(114, 46, 209, 0.16), transparent 30%);
+    linear-gradient(to right, rgba(22, 119, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(22, 119, 255, 0.08) 1px, transparent 1px),
+    radial-gradient(circle at 18% 20%, rgba(22, 119, 255, 0.12), transparent 28%),
+    radial-gradient(circle at 82% 72%, rgba(64, 150, 255, 0.1), transparent 32%);
   background-size: 24px 24px, 24px 24px, 100% 100%, 100% 100%;
   transition: width 0.12s ease, height 0.12s ease;
 }
@@ -894,11 +896,11 @@ onBeforeUnmount(() => {
   z-index: 5;
   max-width: min(360px, calc(100% - 24px));
   padding: 6px 10px;
-  border: 1px dashed rgba(56, 189, 248, 0.45);
+  border: 1px dashed rgba(22, 119, 255, 0.38);
   border-radius: 999px;
-  color: #bae6fd;
-  background: rgba(15, 23, 42, 0.78);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  color: #0958d9;
+  background: rgba(230, 244, 255, 0.92);
+  box-shadow: 0 8px 22px rgba(22, 119, 255, 0.12);
   font-size: 10.5px;
   pointer-events: none;
 }
@@ -925,12 +927,12 @@ onBeforeUnmount(() => {
 
 .flow-wire-preview {
   stroke-dasharray: 10 5;
-  filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.65));
+  filter: drop-shadow(0 0 8px rgba(82, 196, 26, 0.42));
   pointer-events: none;
 }
 
 .flow-wire-preview.invalid {
-  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.65));
+  filter: drop-shadow(0 0 8px rgba(250, 173, 20, 0.46));
 }
 
 @keyframes dash-flow {
@@ -952,9 +954,9 @@ onBeforeUnmount(() => {
   border: 1px solid var(--node-color);
   border-left-width: 4px;
   border-radius: 10px;
-  color: #f8fafc;
-  background: rgba(15, 23, 42, 0.92);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 28px rgba(22, 119, 255, 0.12);
   cursor: grab;
   user-select: none;
   touch-action: none;
@@ -970,11 +972,11 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 8px;
   padding: 4px 8px;
-  border: 1px solid rgba(56, 189, 248, 0.45);
+  border: 1px solid rgba(22, 119, 255, 0.32);
   border-radius: 999px;
-  color: #dbeafe;
-  background: rgba(15, 23, 42, 0.86);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  color: #0958d9;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 4px 14px rgba(22, 119, 255, 0.12);
   cursor: pointer;
   font-size: 10px;
   line-height: 1;
@@ -983,7 +985,7 @@ onBeforeUnmount(() => {
 
 .wire-toggle:hover {
   transform: translateY(-1px);
-  border-color: #38bdf8;
+  border-color: #1677ff;
 }
 
 .wire-toggle.required::before {
@@ -991,18 +993,18 @@ onBeforeUnmount(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
+  background: #1677ff;
+  box-shadow: 0 0 8px rgba(22, 119, 255, 0.45);
 }
 
 .wire-toggle.disabled {
-  border-color: rgba(148, 163, 184, 0.25);
-  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.34);
+  color: #64748b;
   opacity: 0.72;
 }
 
 .wire-toggle.disabled::before {
-  background: #64748b;
+  background: #94a3b8;
   box-shadow: none;
 }
 
@@ -1022,19 +1024,19 @@ onBeforeUnmount(() => {
   max-width: calc(100% - 24px);
   padding: 7px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  color: #dbeafe;
-  background: rgba(15, 23, 42, 0.9);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(22, 119, 255, 0.32);
+  color: #0958d9;
+  background: rgba(230, 244, 255, 0.96);
+  box-shadow: 0 8px 22px rgba(22, 119, 255, 0.12);
   font-size: 11px;
 }
 
 .connection-hint strong {
-  color: #38bdf8;
+  color: #1677ff;
 }
 
 .connection-hint span {
-  color: #cbd5e1;
+  color: #475569;
 }
 
 .canvas-resize-footer {
@@ -1043,7 +1045,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 10px;
   margin-top: 8px;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 11px;
 }
 
@@ -1052,11 +1054,11 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   padding: 5px 8px;
-  border: 1px solid rgba(56, 189, 248, 0.5);
+  border: 1px solid rgba(22, 119, 255, 0.42);
   border-radius: 999px 999px 4px 999px;
-  color: #dbeafe;
-  background: rgba(15, 23, 42, 0.9);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.34);
+  color: #0958d9;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(22, 119, 255, 0.12);
   cursor: nwse-resize;
   font-size: 10px;
   line-height: 1;
@@ -1066,14 +1068,14 @@ onBeforeUnmount(() => {
 
 .canvas-resize-handle::after {
   content: "⌟";
-  color: #38bdf8;
+  color: #1677ff;
   font-size: 14px;
   line-height: 0.8;
 }
 
 .canvas-resize-handle:hover {
-  border-color: #38bdf8;
-  color: #f8fafc;
+  border-color: #1677ff;
+  color: #0f172a;
 }
 
 .node-delete {
@@ -1086,10 +1088,10 @@ onBeforeUnmount(() => {
   justify-content: center;
   width: 18px;
   height: 18px;
-  border: 1px solid rgba(248, 113, 113, 0.45);
+  border: 1px solid rgba(255, 77, 79, 0.42);
   border-radius: 999px;
-  color: #fecaca;
-  background: rgba(127, 29, 29, 0.62);
+  color: #cf1322;
+  background: #fff1f0;
   cursor: pointer;
   font-size: 13px;
   line-height: 1;
@@ -1104,14 +1106,14 @@ onBeforeUnmount(() => {
 
 .node-delete:hover {
   transform: scale(1.05);
-  border-color: #fca5a5;
-  color: #fff;
+  border-color: #ff7875;
+  color: #a8071a;
 }
 
 .flow-node:hover,
 .flow-node.selected {
   transform: translateY(-1px);
-  box-shadow: 0 0 0 1px var(--node-color), 0 12px 32px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 0 0 1px var(--node-color), 0 14px 34px rgba(22, 119, 255, 0.16);
 }
 
 .flow-node:active {
@@ -1133,7 +1135,7 @@ onBeforeUnmount(() => {
 
 .flow-node code {
   max-width: 132px;
-  color: #c4b5fd;
+  color: #475569;
   font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1147,23 +1149,23 @@ onBeforeUnmount(() => {
   height: 10px;
   border-radius: 50%;
   background: var(--node-color);
-  box-shadow: 0 0 10px var(--node-color);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--node-color) 52%, transparent);
 }
 
 .node-port.candidate {
   width: 14px;
   height: 14px;
-  box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.2), 0 0 14px #facc15;
+  box-shadow: 0 0 0 4px rgba(250, 173, 20, 0.2), 0 0 14px #faad14;
 }
 
 .node-port.valid {
-  background: #22c55e;
-  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2), 0 0 14px #22c55e;
+  background: #52c41a;
+  box-shadow: 0 0 0 4px rgba(82, 196, 26, 0.2), 0 0 14px #52c41a;
 }
 
 .node-port.invalid {
-  background: #f59e0b;
-  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2), 0 0 14px #f59e0b;
+  background: #faad14;
+  box-shadow: 0 0 0 4px rgba(250, 173, 20, 0.2), 0 0 14px #faad14;
 }
 
 .port-in {
