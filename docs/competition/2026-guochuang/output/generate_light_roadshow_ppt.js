@@ -61,8 +61,7 @@ const img = (name) => path.join(ASSET_DIR, name);
 let textObjectSeq = 0;
 
 function shouldTypewriter(text, opts) {
-  if (opts.typewriter === false) return false;
-  if (opts.typewriter === true) return true;
+  if (opts.typewriter !== true) return false;
   if (!text || opts.rotate) return false;
   const s = String(text).trim();
   if (s.length < 10) return false;
@@ -171,7 +170,7 @@ function card(slide, x, y, w, h, heading, body, color = C.blue, fill = C.white) 
   rect(slide, x, y, w, h, fill, C.line, { radius: 0.035 });
   slide.addShape(pptx.ShapeType.rect, { x, y, w: 0.05, h, fill: { color }, line: { color } });
   addText(slide, heading, x + 0.18, y + 0.16, w - 0.32, 0.22, { fontSize: 11.0, color: C.ink, bold: true });
-  addText(slide, body, x + 0.18, y + 0.50, w - 0.34, h - 0.60, { fontSize: 7.8, color: C.text, fit: "shrink" });
+  addText(slide, body, x + 0.18, y + 0.50, w - 0.34, h - 0.60, { fontSize: 7.8, color: C.text, fit: "shrink", typewriter: true });
 }
 
 function codeBox(slide, text, x, y, w, h) {
@@ -183,14 +182,14 @@ function splitRow(slide, x, y, w, h, left, right, color = C.blue) {
   rect(slide, x, y, w, h, C.white, C.line, { radius: 0.02 });
   slide.addShape(pptx.ShapeType.rect, { x, y, w: 1.48, h, fill: { color }, line: { color } });
   addText(slide, left, x + 0.16, y + h / 2 - 0.06, 1.16, 0.10, { fontSize: 8.0, color: C.white, bold: true, align: "center" });
-  addText(slide, right, x + 1.70, y + 0.13, w - 1.90, h - 0.18, { fontSize: 7.6, color: C.text, fit: "shrink" });
+  addText(slide, right, x + 1.70, y + 0.13, w - 1.90, h - 0.18, { fontSize: 7.6, color: C.text, fit: "shrink", typewriter: true });
 }
 
 function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   rect(slide, x, y, w, h, fill, color, { radius: 0.03, lineTransparency: 35 });
   addText(slide, num, x + 0.14, y + 0.14, 0.44, 0.20, { fontFace: EN, fontSize: 12, color, bold: true });
   addText(slide, heading, x + 0.68, y + 0.16, w - 0.82, 0.18, { fontSize: 10.0, color: C.ink, bold: true });
-  addText(slide, body, x + 0.20, y + 0.52, w - 0.38, h - 0.62, { fontSize: 7.4, color: C.text, fit: "shrink" });
+  addText(slide, body, x + 0.20, y + 0.52, w - 0.38, h - 0.62, { fontSize: 7.4, color: C.text, fit: "shrink", typewriter: true });
 }
 
 function injectTypewriterAnimations(fileName) {
@@ -304,7 +303,7 @@ print(f"typewriter animations: {count} objects across {slides} slides")
     slide.addShape(pptx.ShapeType.ellipse, { x: 0.86, y: y + 0.02, w: 0.38, h: 0.38, fill: { color: i < 3 ? C.blue : C.white }, line: { color: C.blue, width: 1.2 } });
     addText(slide, it[0], 0.86, y + 0.15, 0.38, 0.09, { fontFace: EN, fontSize: 6.2, color: i < 3 ? C.white : C.blue, bold: true, align: "center" });
     addText(slide, it[1], 1.46, y, 1.62, 0.22, { fontSize: 11.8, color: C.ink, bold: true });
-    addText(slide, it[2], 3.26, y + 0.02, 5.90, 0.20, { fontSize: 8.1, color: C.text });
+    addText(slide, it[2], 3.26, y + 0.02, 5.90, 0.20, { fontSize: 8.1, color: C.text, typewriter: true });
   });
   rect(slide, 0.82, 4.76, 8.55, 0.34, C.panel, C.line2, { radius: 0.02 });
   addText(slide, "答辩策略：避免“我们还做了 X/Y/Z”的横向铺陈，改为反复回答“为什么这个内核闭环难、为什么能落地”。", 1.02, 4.865, 8.15, 0.09, { fontSize: 7.9, color: C.text, align: "center" });
@@ -339,7 +338,7 @@ print(f"typewriter animations: {count} objects across {slides} slides")
     rect(slide, c.x, 1.38, 2.60, 3.40, C.white, C.line, { radius: 0.035 });
     containImage(slide, img(c.img), c.x + 0.18, 1.58, 2.24, 1.45, { frame: true, bg: "F8FAFC", line: C.line2 });
     addText(slide, c.t, c.x + 0.18, 3.28, 2.24, 0.24, { fontSize: 11.3, color: c.c, bold: true });
-    addText(slide, c.d, c.x + 0.18, 3.68, 2.22, 0.60, { fontSize: 7.2, color: C.text, fit: "shrink" });
+    addText(slide, c.d, c.x + 0.18, 3.68, 2.22, 0.60, { fontSize: 7.2, color: C.text, fit: "shrink", typewriter: true });
     pill(slide, "归因 + 拦截 + 回放", c.x + 0.18, 4.40, 1.38, c.c, c.c === C.red ? C.paleRed : c.c === C.green ? C.paleGreen : C.paleBlue);
   });
   source(slide, "资料来源：[2] GitGuardian 2026；[4] OWASP LLM/Agentic AI Threats；[5] CSA Copilot research note；[6] NVD CVE-2025-32711。详见参考文献页。");
@@ -369,7 +368,7 @@ print(f"typewriter animations: {count} objects across {slides} slides")
     rect(slide, 0.84, y, 8.32, 0.50, i % 2 ? C.panel : C.white, C.line, { radius: 0.02 });
     slide.addShape(pptx.ShapeType.rect, { x: 0.84, y, w: 0.08, h: 0.50, fill: { color: l[2] }, line: { color: l[2] } });
     addText(slide, l[0], 1.12, y + 0.16, 1.10, 0.12, { fontSize: 9.4, color: l[2], bold: true });
-    addText(slide, l[1], 2.48, y + 0.16, 6.30, 0.12, { fontSize: 8.0, color: C.text });
+    addText(slide, l[1], 2.48, y + 0.16, 6.30, 0.12, { fontSize: 8.0, color: C.text, typewriter: true });
     if (i < layers.length - 1) arrow(slide, 5.00, y + 0.52, 5.00, y + 0.66, C.lightText, 1.0);
   });
   rect(slide, 1.08, 4.58, 7.84, 0.34, C.panel2, C.line2, { radius: 0.02 });
@@ -459,7 +458,7 @@ print(f"typewriter animations: {count} objects across {slides} slides")
     addText(slide, d[0], 1.02, y + 0.18, 0.72, 0.08, { fontFace: EN, fontSize: 7.2, color: d[3], bold: true, align: "center" });
     line(slide, 1.88, y + 0.12, 1.88, y + 0.38, d[3], 2);
     addText(slide, d[1], 2.14, y + 0.13, 1.20, 0.13, { fontSize: 9.6, color: C.ink, bold: true });
-    addText(slide, d[2], 3.54, y + 0.14, 5.30, 0.12, { fontSize: 7.5, color: C.text });
+    addText(slide, d[2], 3.54, y + 0.14, 5.30, 0.12, { fontSize: 7.5, color: C.text, typewriter: true });
   });
   splitRow(slide, 1.00, 4.56, 8.00, 0.38, "验收指标", "检测率/阻断率、误报样例、平均事件延迟、CPU/内存开销、证据链完整率。", C.purple);
 }
@@ -477,7 +476,7 @@ print(f"typewriter animations: {count} objects across {slides} slides")
     rect(slide, x, 1.42, 2.58, 2.92, C.white, C.line, { radius: 0.035 });
     addText(slide, a[0], x + 0.20, 1.70, 2.16, 0.24, { fontSize: 12.5, color: a[3], bold: true, align: "center" });
     pill(slide, a[1], x + 0.62, 2.14, 1.34, a[3], a[4]);
-    addText(slide, a[2], x + 0.26, 2.72, 2.04, 0.88, { fontSize: 7.8, color: C.text, align: "center", fit: "shrink" });
+    addText(slide, a[2], x + 0.26, 2.72, 2.04, 0.88, { fontSize: 7.8, color: C.text, align: "center", fit: "shrink", typewriter: true });
     splitRow(slide, x + 0.22, 3.82, 2.14, 0.34, "价值", i === 0 ? "成果转化" : i === 1 ? "降低事故" : "合规落地", a[3]);
   });
   source(slide, "资料来源：[1] Stack Overflow 2025 AI adoption；[2] GitGuardian 2026 secrets sprawl；[3] IBM 2025 AI oversight gap。详见参考文献页。");
@@ -491,7 +490,7 @@ print(f"typewriter animations: {count} objects across {slides} slides")
   axisCard(slide, 6.62, 1.36, 2.62, 1.45, "3", "竞赛训练", "用良性/恶意任务 replay 构造靶场，训练学生识别 prompt 注入、MCP 密钥、异常外联。", C.green, C.paleGreen);
   rect(slide, 0.86, 3.38, 8.28, 0.92, C.white, C.line, { radius: 0.035 });
   addText(slide, "落地路径", 1.12, 3.62, 0.92, 0.18, { fontSize: 10.8, color: C.ink, bold: true });
-  addText(slide, "先以开源 demo + 实验文档进入课程/实验室；用竞赛演示和测试报告证明可复现；再争取软著、导师课题、校企联合实践。", 2.18, 3.62, 6.55, 0.22, { fontSize: 8.0, color: C.text });
+  addText(slide, "先以开源 demo + 实验文档进入课程/实验室；用竞赛演示和测试报告证明可复现；再争取软著、导师课题、校企联合实践。", 2.18, 3.62, 6.55, 0.22, { fontSize: 8.0, color: C.text, typewriter: true });
   splitRow(slide, 1.00, 4.62, 8.00, 0.36, "近期成果", "演示视频、实验指导书、benchmark 数据集、软著/专利材料、导师推荐或试点证明。", C.blue);
 }
 
@@ -501,7 +500,7 @@ print(f"typewriter animations: {count} objects across {slides} slides")
   rect(slide, 0.70, 1.32, 3.10, 3.10, C.white, C.line, { radius: 0.035 });
   containImage(slide, img("gitguardian_state_2026.png"), 0.92, 1.54, 2.66, 1.40, { frame: true, bg: C.white });
   addText(slide, "付费理由", 0.96, 3.18, 1.10, 0.18, { fontSize: 11.2, color: C.red, bold: true });
-  addText(slide, "AI-assisted commits 与 MCP 配置泄露会直接影响代码资产、凭据和客户数据；团队负责人需要可追责证据。", 0.96, 3.54, 2.54, 0.34, { fontSize: 7.1, color: C.text, fit: "shrink" });
+  addText(slide, "AI-assisted commits 与 MCP 配置泄露会直接影响代码资产、凭据和客户数据；团队负责人需要可追责证据。", 0.96, 3.54, 2.54, 0.34, { fontSize: 7.1, color: C.text, fit: "shrink", typewriter: true });
   const vals = [
     ["策略模板", "只读审查、依赖安装、网络访问、敏感路径等团队级策略包", C.blue],
     ["审计报表", "按 run/task/tool_call 输出证据链，支持复盘与责任界定", C.green],
@@ -570,7 +569,7 @@ print(f"typewriter animations: {count} objects across {slides} slides")
     rect(slide, x, 2.82, 1.48, 1.34, C.white, C.line, { radius: 0.03 });
     addText(slide, m[0], x + 0.11, 3.04, 1.26, 0.10, { fontFace: EN, fontSize: 6.5, color: m[3], bold: true, align: "center" });
     addText(slide, m[1], x + 0.11, 3.34, 1.26, 0.14, { fontSize: 9.2, color: C.ink, bold: true, align: "center" });
-    addText(slide, m[2], x + 0.11, 3.66, 1.26, 0.25, { fontSize: 6.3, color: C.text, align: "center", fit: "shrink" });
+    addText(slide, m[2], x + 0.11, 3.66, 1.26, 0.25, { fontSize: 6.3, color: C.text, align: "center", fit: "shrink", typewriter: true });
   });
   splitRow(slide, 0.92, 4.66, 8.15, 0.36, "阶段判断", "如果内核闭环和低误报验证不充分，不急于扩大 UI 功能；先把最难的技术证明做扎实。", C.blue);
 }
