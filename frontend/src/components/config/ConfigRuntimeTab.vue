@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import {
   CopyOutlined,
   DeleteOutlined,
@@ -26,6 +27,173 @@ const schemeOptions = [
   { value: 'https', label: 'https' },
   { value: 'http', label: 'http' },
 ];
+
+type DomainForwardRoutePreview = {
+  id: string;
+  match: string;
+  sampleHost: string;
+  upstream: string;
+  errors: string[];
+  warnings: string[];
+};
+
+const normalizeForwardHost = (raw: string) => {
+  let value = raw.trim().toLowerCase();
+  if (!value) return '';
+
+  if (value.includes('://')) {
+    try {
+      value = new URL(value).host;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  if (value.startsWith('[')) {
+    const end = value.indexOf(']');
+    if (end > 0) value = value.slice(1, end);
+  } else if (value.indexOf(':') === value.lastIndexOf(':')) {
+    value = value.split(':')[0];
+  }
+
+  return value.replace(/\.$/, '').replace(/^\[|\]$/g, '');
+};
+
+const normalizeDomainPattern = (raw: string) => {
+  const value = raw.trim().toLowerCase();
+  if (!value) return '';
+  if (value.startsWith('*.')) {
+    const suffix = normalizeForwardHost(value.slice(2));
+    return suffix ? `*.${suffix}` : '';
+  }
+  return normalizeForwardHost(value);
+};
+
+const sampleHostForPattern = (pattern: string) => {
+  if (!pattern) return '{host}';
+  if (pattern.startsWith('*.')) return `app.${pattern.slice(2)}`;
+  return pattern;
+};
+
+const buildUpstreamPreview = (raw: string, sampleHost: string) => {
+  const scheme = runtimeSettings.value.domainForwardProxy.defaultScheme === 'http' ? 'http' : 'https';
+  let upstream = raw.trim();
+  if (!upstream) {
+    upstream = `${scheme}://${sampleHost}`;
+  } else {
+    upstream = upstream.split('{host}').join(sampleHost);
+    if (!upstream.includes('://')) upstream = `${scheme}://${upstream}`;
+  }
+
+  try {
+    const parsed = new URL(upstream);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    if (!parsed.host) return '';
+    return parsed.toString();
+  } catch (_) {
+    return '';
+  }
+};
+
+const routeDuplicateIndexes = computed(() => {
+  const firstByMatch = new Map<string, number>();
+  const duplicateById = new Map<string, number>();
+
+  domainForwardRoutes.value.forEach((route, index) => {
+    const match = normalizeDomainPattern(String(route.host || ''));
+    if (!match) return;
+    const firstIndex = firstByMatch.get(match);
+    if (firstIndex === undefined) {
+      firstByMatch.set(match, index);
+      return;
+    }
+    duplicateById.set(route.id, firstIndex);
+    const firstRoute = domainForwardRoutes.value[firstIndex];
+    if (firstRoute) duplicateById.set(firstRoute.id, firstIndex);
+  });
+
+  return duplicateById;
+});
+
+const domainForwardRoutePreviews = computed<DomainForwardRoutePreview[]>(() => {
+  const duplicates = routeDuplicateIndexes.value;
+
+  return domainForwardRoutes.value.map((route, index) => {
+    const rawHost = String(route.host || '');
+    const match = normalizeDomainPattern(rawHost);
+    const sampleHost = sampleHostForPattern(match);
+    const upstream = buildUpstreamPreview(String(route.upstream || ''), sampleHost);
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const duplicateFirstIndex = duplicates.get(route.id);
+    const certFile = String(route.certFile || '').trim();
+    const keyFile = String(route.keyFile || '').trim();
+
+    if (!match && (rawHost.trim() || String(route.upstream || '').trim() || certFile || keyFile)) {
+      errors.push('Host pattern is invalid or empty.');
+    }
+    if (match && !upstream) {
+      errors.push('Upstream preview cannot be parsed as an HTTP/HTTPS URL.');
+    }
+    if (duplicateFirstIndex !== undefined) {
+      if (duplicateFirstIndex === index) {
+        warnings.push('Another route uses the same normalized host; backend keeps this first route.');
+      } else {
+        warnings.push(`Duplicate of route #${duplicateFirstIndex + 1}; backend ignores later duplicates.`);
+      }
+    }
+    if ((certFile && !keyFile) || (!certFile && keyFile)) {
+      warnings.push('Route TLS certificate and key should be configured together.');
+    }
+
+    return {
+      id: route.id,
+      match: match || 'invalid host',
+      sampleHost,
+      upstream: upstream || 'invalid upstream',
+      errors,
+      warnings,
+    };
+  });
+});
+
+const domainForwardConfigIssues = computed(() => {
+  const proxy = runtimeSettings.value.domainForwardProxy;
+  const issues: string[] = [];
+  const hasDefaultCertPair = Boolean(proxy.certFile?.trim() && proxy.keyFile?.trim());
+  const hasAnyRouteCertPair = domainForwardRoutes.value.some((route) => (
+    Boolean(String(route.certFile || '').trim() && String(route.keyFile || '').trim())
+  ));
+  const invalidRouteCount = domainForwardRoutePreviews.value.filter((preview) => preview.errors.length > 0).length;
+  const duplicateCount = Array.from(routeDuplicateIndexes.value.entries()).filter(([id, firstIndex]) => {
+    return domainForwardRoutes.value[firstIndex]?.id !== id;
+  }).length;
+
+  if (!proxy.enabled) return issues;
+  if (proxy.httpPort === proxy.httpsPort) {
+    issues.push('HTTP and HTTPS listeners cannot bind the same port.');
+  }
+  if (!proxy.allowAnyHost && domainForwardRoutes.value.length === 0) {
+    issues.push('No route overrides are configured, so every Host header will be rejected.');
+  }
+  if ((proxy.certFile?.trim() && !proxy.keyFile?.trim()) || (!proxy.certFile?.trim() && proxy.keyFile?.trim())) {
+    issues.push('Default TLS certificate and key should be configured together.');
+  }
+  if (!hasDefaultCertPair && !hasAnyRouteCertPair) {
+    issues.push('HTTPS listener needs a default cert/key or at least one route-level cert/key.');
+  }
+  if (invalidRouteCount > 0) {
+    issues.push(`${invalidRouteCount} route preview${invalidRouteCount > 1 ? 's have' : ' has'} invalid host or upstream values.`);
+  }
+  if (duplicateCount > 0) {
+    issues.push(`${duplicateCount} duplicate route${duplicateCount > 1 ? 's are' : ' is'} ignored by the backend.`);
+  }
+  if (proxy.allowAnyHost && !proxy.dnsResolver?.trim()) {
+    issues.push('Allow-any-host mode uses system DNS; set a resolver override if test domains point back to this host.');
+  }
+
+  return issues;
+});
 </script>
 
 <template>
@@ -309,6 +477,20 @@ const schemeOptions = [
                 message="Binding 80/443 requires root or CAP_NET_BIND_SERVICE. HTTPS forwarding requires certificate files."
                 description="If test domains resolve back to this box, set a DNS resolver override or explicit upstreams to avoid forwarding loops."
               />
+              <a-alert
+                v-if="domainForwardConfigIssues.length > 0"
+                type="warning"
+                show-icon
+                message="Configuration preview warnings"
+                :description="domainForwardConfigIssues.join(' ')"
+              />
+              <a-alert
+                v-else-if="runtimeSettings.domainForwardProxy.enabled"
+                type="success"
+                show-icon
+                message="Local preview has no obvious conflicts."
+                description="Save still depends on OS permissions, free listener ports, and readable certificate files."
+              />
               <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
                 <a-button type="primary" @click="saveRuntime">
                   <ReloadOutlined /> Save & Apply Forwarding
@@ -344,18 +526,56 @@ const schemeOptions = [
                 </template>
                 <a-row :gutter="[12, 12]">
                   <a-col :xs="24" :md="12">
-                    <a-input v-model:value="route.host" placeholder="Host, e.g. example.com or *.lab.test" />
+                    <a-input
+                      v-model:value="route.host"
+                      placeholder="Host, e.g. example.com or *.lab.test"
+                      :status="domainForwardRoutePreviews[index]?.errors.length ? 'error' : undefined"
+                    />
                   </a-col>
                   <a-col :xs="24" :md="12">
-                    <a-input v-model:value="route.upstream" placeholder="Upstream, e.g. https://{host}" />
+                    <a-input
+                      v-model:value="route.upstream"
+                      placeholder="Upstream, e.g. https://{host}"
+                      :status="domainForwardRoutePreviews[index]?.errors.length ? 'error' : undefined"
+                    />
                   </a-col>
                   <a-col :xs="24" :md="12">
-                    <a-input v-model:value="route.certFile" placeholder="Route certificate path (optional)" />
+                    <a-input
+                      v-model:value="route.certFile"
+                      placeholder="Route certificate path (optional)"
+                      :status="domainForwardRoutePreviews[index]?.warnings.some((item) => item.includes('certificate')) ? 'warning' : undefined"
+                    />
                   </a-col>
                   <a-col :xs="24" :md="12">
-                    <a-input v-model:value="route.keyFile" placeholder="Route private key path (optional)" />
+                    <a-input
+                      v-model:value="route.keyFile"
+                      placeholder="Route private key path (optional)"
+                      :status="domainForwardRoutePreviews[index]?.warnings.some((item) => item.includes('certificate')) ? 'warning' : undefined"
+                    />
                   </a-col>
                 </a-row>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px">
+                  <a-descriptions size="small" bordered :column="1">
+                    <a-descriptions-item label="Normalized match">
+                      <code>{{ domainForwardRoutePreviews[index]?.match }}</code>
+                    </a-descriptions-item>
+                    <a-descriptions-item label="Sample upstream">
+                      <code>{{ domainForwardRoutePreviews[index]?.upstream }}</code>
+                    </a-descriptions-item>
+                  </a-descriptions>
+                  <a-alert
+                    v-if="domainForwardRoutePreviews[index]?.errors.length"
+                    type="error"
+                    show-icon
+                    :message="domainForwardRoutePreviews[index].errors.join(' ')"
+                  />
+                  <a-alert
+                    v-if="domainForwardRoutePreviews[index]?.warnings.length"
+                    type="warning"
+                    show-icon
+                    :message="domainForwardRoutePreviews[index].warnings.join(' ')"
+                  />
+                </div>
               </a-card>
               <a-typography-text type="secondary">
                 Empty upstreams or <code>allowAnyHost</code> forward to <code>&lt;scheme&gt;://&lt;request-host&gt;</code>. Wildcards support <code>*.example.com</code>; <code>{host}</code> expands to the normalized request host.
