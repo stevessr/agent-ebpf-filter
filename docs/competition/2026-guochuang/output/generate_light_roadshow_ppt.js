@@ -235,7 +235,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   rect(slide, 5.16, 2.42, 4.22, 2.28, C.white, C.line, { radius: 0.035 });
   containImage(slide, img("gitguardian_commits_developers.png"), 5.38, 2.62, 3.80, 1.56, { frame: true, bg: C.white });
   addText(slide, "软件生产提速后，密钥、依赖脚本、MCP 配置的扩散速度也变快；只看 prompt 已经不够 [2]。", 5.40, 4.30, 3.72, 0.16, { fontSize: 7.0, color: C.muted });
-  source(slide, "引用：[1] Stack Overflow Developer Survey 2025；[2] GitGuardian State of Secrets Sprawl 2026；[3] IBM Cost of a Data Breach Report 2025。完整链接见引用页。");
+  source(slide, "资料来源：[1] Stack Overflow Developer Survey 2025；[2] GitGuardian State of Secrets Sprawl 2026；[3] IBM Cost of a Data Breach Report 2025。详见参考文献页。");
 }
 
 {
@@ -253,7 +253,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
     addText(slide, c.d, c.x + 0.18, 3.68, 2.22, 0.60, { fontSize: 7.2, color: C.text, fit: "shrink" });
     pill(slide, "归因 + 拦截 + 回放", c.x + 0.18, 4.40, 1.38, c.c, c.c === C.red ? C.paleRed : c.c === C.green ? C.paleGreen : C.paleBlue);
   });
-  source(slide, "引用：[2] GitGuardian 2026；[4] OWASP LLM/Agentic AI Threats；[5] CSA Copilot research note；[6] NVD CVE-2025-32711。完整链接见引用页。");
+  source(slide, "资料来源：[2] GitGuardian 2026；[4] OWASP LLM/Agentic AI Threats；[5] CSA Copilot research note；[6] NVD CVE-2025-32711。详见参考文献页。");
 }
 
 {
@@ -391,7 +391,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
     addText(slide, a[2], x + 0.26, 2.72, 2.04, 0.88, { fontSize: 7.8, color: C.text, align: "center", fit: "shrink" });
     splitRow(slide, x + 0.22, 3.82, 2.14, 0.34, "价值", i === 0 ? "成果转化" : i === 1 ? "降低事故" : "合规落地", a[3]);
   });
-  source(slide, "引用：[1] Stack Overflow 2025 AI adoption；[2] GitGuardian 2026 secrets sprawl；[3] IBM 2025 AI oversight gap。完整链接见引用页。");
+  source(slide, "资料来源：[1] Stack Overflow 2025 AI adoption；[2] GitGuardian 2026 secrets sprawl；[3] IBM 2025 AI oversight gap。详见参考文献页。");
 }
 
 {
@@ -420,7 +420,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   ];
   vals.forEach((v, i) => card(slide, 4.18, 1.34 + i * 0.96, 4.86, 0.74, v[0], v[1], v[2], i % 2 ? C.panel : C.white));
   splitRow(slide, 4.18, 4.48, 4.86, 0.40, "商业入口", "Team Pro：团队策略、多人审计、报表导出、告警训练集。", C.green);
-  source(slide, "引用：[2] GitGuardian State of Secrets Sprawl 2026；[1] Stack Overflow Developer Survey 2025。完整链接见引用页。");
+  source(slide, "资料来源：[2] GitGuardian State of Secrets Sprawl 2026；[1] Stack Overflow Developer Survey 2025。详见参考文献页。");
 }
 
 {
@@ -504,30 +504,30 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   rect(slide, 0.88, 2.94, 8.24, 0.48, C.panel2, C.line2, { radius: 0.02 });
   addText(slide, "需要支持：导师/学院资源、试点用户、软著/专利指导。目标：校赛晋级、省赛打磨、形成可转化产品。", 1.10, 3.10, 7.80, 0.10, { fontSize: 8.8, color: C.ink, bold: true, align: "center" });
   rect(slide, 0.88, 3.75, 8.24, 0.70, C.white, C.line, { radius: 0.03 });
-  addText(slide, "本 PPT 中统计数据、案例与外部框架已用 [1]–[6] 标注来源；完整引用信息见下一页。", 1.08, 3.98, 7.84, 0.16, { fontSize: 8.6, color: C.text, align: "center", fit: "shrink" });
+  addText(slide, "本 PPT 中统计数据、案例与外部框架已用 [1]–[6] 标注来源；参考文献按 GB/T 7714 常用格式列于下一页。", 1.08, 3.98, 7.84, 0.16, { fontSize: 8.6, color: C.text, align: "center", fit: "shrink" });
   addText(slide, "谢谢各位老师，请批评指正", 3.10, 4.76, 3.8, 0.20, { fontSize: 14.2, bold: true, color: C.blue, align: "center" });
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "REF", "引用信息：统计数据、案例与风险框架来源", "答辩时可按编号追溯数据、报告截图和外部安全框架。", 21);
+  title(slide, "REF", "参考文献", "按中国大陆论文常用著录习惯整理；网络资源类型标注为 [EB/OL]。", 21);
   const refs = [
-    ["[1]", "Stack Overflow Developer Survey 2025 — AI tools adoption / usage", "https://survey.stackoverflow.co/2025/ai", C.blue],
-    ["[2]", "GitGuardian State of Secrets Sprawl 2026 — secrets scale, MCP secrets, AI-assisted commit risk", "https://blog.gitguardian.com/the-state-of-secrets-sprawl-2026/", C.red],
-    ["[3]", "IBM Cost of a Data Breach Report 2025 / IBM newsroom — breach cost and AI access-control gap", "https://www.ibm.com/reports/data-breach", C.purple],
-    ["[4]", "OWASP Top 10 for LLM Applications / Agentic AI Threats / MCP Tool Poisoning", "https://owasp.org/www-project-top-10-for-large-language-model-applications/", C.green],
-    ["[5]", "Cloud Security Alliance research note — M365 Copilot / CVE-2026-24299 security guidance", "https://labs.cloudsecurityalliance.org/", C.orange],
-    ["[6]", "NVD CVE-2025-32711 — EchoLeak vulnerability record", "https://nvd.nist.gov/vuln/detail/CVE-2025-32711", C.cyan],
+    ["[1]", "Stack Overflow. Stack Overflow Developer Survey 2025: AI tools adoption and usage[EB/OL].", "[2026-05-26]. https://survey.stackoverflow.co/2025/ai", C.blue],
+    ["[2]", "GitGuardian. The State of Secrets Sprawl 2026[EB/OL].", "2026 [2026-05-26]. https://blog.gitguardian.com/the-state-of-secrets-sprawl-2026/", C.red],
+    ["[3]", "IBM. Cost of a Data Breach Report 2025[EB/OL].", "2025 [2026-05-26]. https://www.ibm.com/reports/data-breach", C.purple],
+    ["[4]", "OWASP Foundation. OWASP Top 10 for LLM Applications and Agentic AI Threats[EB/OL].", "2025 [2026-05-26]. https://owasp.org/www-project-top-10-for-large-language-model-applications/", C.green],
+    ["[5]", "Cloud Security Alliance. M365 Copilot command injection at scale: security guidance for CVE-2026-24299[EB/OL].", "2026 [2026-05-26]. https://labs.cloudsecurityalliance.org/", C.orange],
+    ["[6]", "National Vulnerability Database. CVE-2025-32711 Detail[EB/OL].", "2025 [2026-05-26]. https://nvd.nist.gov/vuln/detail/CVE-2025-32711", C.cyan],
   ];
   refs.forEach((r, i) => {
-    const y = 1.28 + i * 0.58;
-    rect(slide, 0.72, y, 8.68, 0.42, i % 2 ? C.panel : C.white, C.line, { radius: 0.02 });
-    addText(slide, r[0], 0.92, y + 0.135, 0.42, 0.08, { fontFace: EN, fontSize: 7.8, color: r[3], bold: true, align: "center" });
-    addText(slide, r[1], 1.48, y + 0.08, 4.95, 0.12, { fontSize: 7.2, color: C.ink, bold: true, fit: "shrink" });
-    addText(slide, r[2], 1.48, y + 0.24, 6.95, 0.08, { fontFace: EN, fontSize: 5.8, color: C.muted, fit: "shrink" });
+    const y = 1.25 + i * 0.58;
+    rect(slide, 0.72, y, 8.68, 0.43, i % 2 ? C.panel : C.white, C.line, { radius: 0.02 });
+    addText(slide, r[0], 0.88, y + 0.14, 0.42, 0.08, { fontFace: EN, fontSize: 7.8, color: r[3], bold: true, align: "center" });
+    addText(slide, r[1], 1.36, y + 0.075, 7.62, 0.12, { fontSize: 6.8, color: C.ink, bold: true, fit: "shrink" });
+    addText(slide, r[2], 1.36, y + 0.245, 7.70, 0.08, { fontFace: EN, fontSize: 5.7, color: C.muted, fit: "shrink" });
   });
   rect(slide, 0.92, 4.88, 8.12, 0.28, C.panel2, C.line2, { radius: 0.02 });
-  addText(slide, "说明：PPT 内使用短编号标注来源，详细数值以引用页链接和原报告为准；2026 正式竞赛材料提交前建议再次复核访问状态。", 1.10, 4.965, 7.78, 0.08, { fontSize: 6.9, color: C.text, align: "center" });
+  addText(slide, "说明：PPT 正文采用顺序编码制标注资料来源；网络文献访问日期统一按本材料生成日期记录。", 1.10, 4.965, 7.78, 0.08, { fontSize: 6.9, color: C.text, align: "center" });
 }
 
 pptx.writeFile({ fileName: OUT }).then(() => {
