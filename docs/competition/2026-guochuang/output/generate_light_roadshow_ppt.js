@@ -2,6 +2,7 @@ const pptxgen = require("pptxgenjs");
 const imageSize = require("image-size");
 const fs = require("fs");
 const path = require("path");
+const { spawnSync } = require("child_process");
 
 const OUT_DIR = path.join(__dirname, "final");
 const ASSET_DIR = path.join(__dirname, "ppt_assets_light");
@@ -57,8 +58,22 @@ const C = {
 const A = [C.blue, C.green, C.orange, C.red, C.purple, C.cyan];
 const PALE = [C.paleBlue, C.paleGreen, C.paleOrange, C.paleRed, C.palePurple, C.paleCyan];
 const img = (name) => path.join(ASSET_DIR, name);
+let textObjectSeq = 0;
+
+function shouldTypewriter(text, opts) {
+  if (opts.typewriter === false) return false;
+  if (opts.typewriter === true) return true;
+  if (!text || opts.rotate) return false;
+  const s = String(text).trim();
+  if (s.length < 10) return false;
+  if (s.startsWith("SECTION ") || s.startsWith("资料来源：") || s.startsWith("说明：")) return false;
+  if (/^\[\d+\]$/.test(s) || /^\d{2}$/.test(s)) return false;
+  return /[一-龥A-Za-z]/.test(s);
+}
 
 function addText(slide, text, x, y, w, h, opts = {}) {
+  const useTypewriter = shouldTypewriter(text, opts);
+  const objectName = opts.objectName || `${useTypewriter ? "tw_text" : "static_text"}_${String(++textObjectSeq).padStart(4, "0")}`;
   slide.addText(text, {
     x, y, w, h,
     fontFace: opts.fontFace || CN,
@@ -76,6 +91,7 @@ function addText(slide, text, x, y, w, h, opts = {}) {
     lineSpacingMultiple: opts.lineSpacingMultiple || 0.92,
     transparency: opts.transparency || 0,
     rotate: opts.rotate || 0,
+    objectName,
   });
 }
 
@@ -175,6 +191,79 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   addText(slide, num, x + 0.14, y + 0.14, 0.44, 0.20, { fontFace: EN, fontSize: 12, color, bold: true });
   addText(slide, heading, x + 0.68, y + 0.16, w - 0.82, 0.18, { fontSize: 10.0, color: C.ink, bold: true });
   addText(slide, body, x + 0.20, y + 0.52, w - 0.38, h - 0.62, { fontSize: 7.4, color: C.text, fit: "shrink" });
+}
+
+function injectTypewriterAnimations(fileName) {
+  const script = String.raw`
+import os
+import re
+import sys
+import tempfile
+import zipfile
+from xml.sax.saxutils import escape
+
+pptx_path = sys.argv[1]
+tmp_path = pptx_path + ".tmp"
+slide_re = re.compile(r"ppt/slides/slide(\d+)\.xml$")
+shape_re = re.compile(r'<p:cNvPr[^>]*id="(\d+)"[^>]*name="(tw_text_\d+)"[^>]*>')
+
+
+def timing_xml(spids):
+    tid = 1
+    def next_id():
+        nonlocal tid
+        tid += 1
+        return tid
+
+    items = []
+    blds = []
+    for pos, spid in enumerate(spids):
+        outer_id = next_id()
+        effect_id = next_id()
+        anim_id = next_id()
+        dur = 520 + min(1300, pos * 45)
+        delay = 0 if pos == 0 else 90
+        items.append(f'''<p:par><p:cTn id="{outer_id}" fill="hold"><p:stCondLst><p:cond delay="{delay}"/></p:stCondLst><p:childTnLst><p:par><p:cTn id="{effect_id}" presetID="1" presetClass="entr" presetSubtype="0" fill="hold" nodeType="clickEffect"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst><p:animEffect transition="in" filter="typewriter"><p:cBhvr><p:cTn id="{anim_id}" dur="{dur}" fill="hold"/><p:tgtEl><p:spTgt spid="{escape(spid)}"/></p:tgtEl></p:cBhvr></p:animEffect></p:childTnLst><p:iterate type="lt"><p:tmAbs val="35"/></p:iterate></p:cTn></p:par></p:childTnLst></p:cTn></p:par>''')
+        blds.append(f'<p:bldP spid="{escape(spid)}" grpId="0" build="p"/>')
+
+    return f'''<p:timing><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>{''.join(items)}</p:childTnLst></p:cTn><p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq></p:childTnLst></p:cTn></p:par></p:tnLst><p:bldLst>{''.join(blds)}</p:bldLst></p:timing>'''
+
+
+def patch_slide(xml):
+    spids = [m.group(1) for m in shape_re.finditer(xml)]
+    if not spids:
+        return xml, 0
+    xml = re.sub(r'<p:timing[\s\S]*?</p:timing>', '', xml)
+    timing = timing_xml(spids)
+    if '<p:extLst>' in xml:
+        xml = xml.replace('<p:extLst>', timing + '<p:extLst>', 1)
+    else:
+        xml = xml.replace('</p:sld>', timing + '</p:sld>', 1)
+    return xml, len(spids)
+
+count = 0
+slides = 0
+with zipfile.ZipFile(pptx_path, 'r') as zin, zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as zout:
+    for item in zin.infolist():
+        data = zin.read(item.filename)
+        if slide_re.match(item.filename):
+            text = data.decode('utf-8')
+            text, added = patch_slide(text)
+            data = text.encode('utf-8')
+            if added:
+                slides += 1
+                count += added
+        zout.writestr(item, data)
+
+os.replace(tmp_path, pptx_path)
+print(f"typewriter animations: {count} objects across {slides} slides")
+`;
+  const result = spawnSync("python3", ["-c", script, fileName], { encoding: "utf8" });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.status !== 0) {
+    if (result.stderr) process.stderr.write(result.stderr);
+    throw new Error("failed to inject typewriter animations");
+  }
 }
 
 {
@@ -531,6 +620,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
 }
 
 pptx.writeFile({ fileName: OUT }).then(() => {
+  injectTypewriterAnimations(OUT);
   console.log(OUT);
 }).catch((err) => {
   console.error(err);
