@@ -291,10 +291,10 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   const slide = pptx.addSlide();
   title(slide, "05", "技术深水区一：eBPF 事实采集不是日志替代，而是可信证据底座", "重点解释为什么选 eBPF：低侵入、内核态事件源、可关联进程树和资源对象。", 7);
   card(slide, 0.70, 1.34, 2.55, 2.36, "采集点", "execve / openat / connect / sendto / recvfrom / bind / unlink / mkdir / ioctl 等关键 syscall 与网络路径。", C.blue, C.white);
-  card(slide, 3.44, 1.34, 2.55, 2.36, "数据路径", "BPF map 维护 agent_pids、tracked_comms、tracked_paths；ringbuf 将事件送到 Go runtime。", C.green, C.white);
+  card(slide, 3.44, 1.34, 2.55, 2.36, "数据路径", "BPF map 维护 Agent 进程、关注命令与关注路径；ringbuf 将事件送到用户态 runtime。", C.green, C.white);
   card(slide, 6.18, 1.34, 3.10, 2.36, "证据字段", "PID/TGID/PPID、comm、cwd、路径、网络端点、cgroup_id、时间戳、策略结果，统一进入 EventEnvelope。", C.purple, C.white);
-  codeBox(slide, "backend/ebpf/agent_tracker.c\nbackend/network_events.go\nbackend/runtime_state.go\nbackend/event_envelope.go", 0.92, 4.10, 3.10, 0.62);
-  splitRow(slide, 4.30, 4.08, 4.68, 0.66, "技术难点", "既要拿到足够细的事实字段，又不能把每个 syscall 都变成高开销日志；因此只采关键路径，并用 map/filter 降低噪声。", C.blue);
+  codeBox(slide, "内核事件采集模块\n事件归一化与分发模块\n运行时状态管理模块\n证据信封模型模块", 0.92, 4.10, 3.10, 0.62);
+  splitRow(slide, 4.30, 4.08, 4.68, 0.66, "技术难点", "既要拿到足够细的事实字段，又不能把每个 syscall 都变成高开销日志；未来可扩展为可配置采集策略和行业模板。", C.blue);
 }
 
 {
@@ -307,7 +307,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   ];
   blocks.forEach((b, i) => card(slide, 0.72 + i * 2.94, 1.36, 2.60, 2.42, b[0], b[1], b[2], C.white));
   splitRow(slide, 0.92, 4.18, 8.14, 0.52, "答辩亮点", "评委能听懂的差异：UI 标红只是提醒，LSM/cgroup 返回 -EACCES 或拒绝 connect 才是 OS 层真实拦截。", C.red);
-  source(slide, "代码证据：backend/ebpf/lsm_enforcer.c；backend/ebpf/cgroup_sandbox.c；scripts/os-enforcement-smoke.sh");
+  source(slide, "工程证据：内核文件/执行策略模块；cgroup 网络策略模块；OS 阻断冒烟验证流程。未来可沉淀为多场景策略模板。");
 }
 
 {
@@ -329,7 +329,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   axisCard(slide, 0.82, 2.72, 2.62, 1.42, "A", "继承字段", "agent_run_id、task_id、tool_call_id、trace_id 从父 PID 或 cgroup 继承，避免只看到孤立子进程。", C.blue, C.paleBlue);
   axisCard(slide, 3.70, 2.72, 2.62, 1.42, "B", "事实字段", "PID/TGID/PPID、comm、cwd、cgroup_id 记录真实执行链，支撑后续图谱回放。", C.green, C.paleGreen);
   axisCard(slide, 6.58, 2.72, 2.62, 1.42, "C", "归因结果", "把 file/net/policy 事件归到具体 Agent run 和 tool call，而不是只归到 python 或 curl。", C.purple, C.palePurple);
-  source(slide, "代码证据：backend/event_context.go；backend/execution_graph.go；backend/shell_sessions.go");
+  source(slide, "工程证据：Agent 上下文继承模块；执行图谱模块；交互式会话管理模块。未来可扩展为跨 IDE、跨云端 Agent 的统一追踪层。");
 }
 
 {
@@ -341,7 +341,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   arrow(slide, 6.30, 2.52, 6.64, 2.52, C.lightText);
   card(slide, 6.76, 1.34, 2.45, 2.38, "输出结果", "SECRET_ACCESS、UNEXPECTED_NETWORK_EGRESS、WORKSPACE_ESCAPE、TOKEN_EXFIL_RISK。", C.red, C.white);
   splitRow(slide, 0.96, 4.08, 8.08, 0.58, "安全边界", "模型可以辅助解释风险，但不能直接下发不可解释的内核阻断；真正拦截由认证策略和确定性 map 决策完成。", C.purple);
-  source(slide, "代码证据：backend/semantic_alerts.go；backend/event_envelope.go；backend/execution_graph.go；wrapper/main.go");
+  source(slide, "工程证据：语义风险检测模块；事件信封模型；执行图谱；命令策略代理。未来可扩展为组织级 Agent 安全策略中心。");
 }
 
 {
@@ -377,11 +377,11 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
 
 {
   const slide = pptx.addSlide();
-  title(slide, "11", "应用前景总览：同一条技术闭环对应三类可付费场景", "应用前景不再泛泛讲市场，而是把技术深度映射到具体用户的刚需。", 13);
+  title(slide, "11", "未来前景总览：从单机工具走向 Agent 安全基础设施", "应用前景不再泛泛讲市场，而是把内核级证据链扩展成教育、团队、企业三类长期基础能力。", 13);
   const apps = [
-    ["高校实验室", "教学/科研/竞赛", "把 eBPF、AI 安全、攻防演练做成可复现实验；形成课程、论文、软著和竞赛成果。", C.blue, C.paleBlue],
-    ["AI coding 团队", "开发治理", "治理本地/云端 Agent 对敏感文件、依赖脚本和外联的访问；给团队安全负责人可审计证据。", C.green, C.paleGreen],
-    ["企业安全", "合规与私有化", "在内网 Agent、MCP、代码助手落地时提供策略、审计报表、SIEM/OTLP 对接和留存能力。", C.orange, C.paleOrange],
+    ["高校实验室", "教学/科研/竞赛", "沉淀为 AI 安全与系统安全实验平台，支撑课程、论文、软著、竞赛和校企联合实践。", C.blue, C.paleBlue],
+    ["AI coding 团队", "开发治理", "发展为团队级 Agent 安全工作台，持续管理敏感文件、依赖脚本、MCP 工具和异常外联。", C.green, C.paleGreen],
+    ["企业安全", "合规与私有化", "演进为企业 Agent runtime security 基础设施，接入审计、SIEM/OTLP、策略审批和合规留存。", C.orange, C.paleOrange],
   ];
   apps.forEach((a, i) => {
     const x = 0.72 + i * 2.92;
@@ -425,7 +425,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
 
 {
   const slide = pptx.addSlide();
-  title(slide, "14", "应用前景三：企业私有化，把 Agent 安全接入现有安全体系", "企业价值不只是 UI，而是把 Agent 执行证据送进合规、审计和安全运营流程。", 16);
+  title(slide, "14", "未来前景三：企业私有化，成为 Agent 安全基础设施", "企业价值不只是 UI，而是把 Agent 执行证据送进合规、审计、安全运营和策略治理流程。", 16);
   const cols = [
     ["部署形态", "单机开发机\n团队网关\nK8s / 多节点\n离线私有化", C.blue],
     ["集成对象", "SIEM / OTLP\n审计留存\nSSO / token\n策略审批", C.green],
@@ -434,7 +434,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   ];
   cols.forEach((c, i) => card(slide, 0.64 + i * 2.28, 1.38, 2.02, 2.90, c[0], c[1], c[2], C.white));
   rect(slide, 0.94, 4.54, 8.10, 0.36, C.panel2, C.line2, { radius: 0.02 });
-  addText(slide, "企业侧最容易成交的不是“炫酷监控”，而是私有化部署、审计留存、异常外联管控和事故可复盘。", 1.14, 4.655, 7.70, 0.08, { fontSize: 7.8, color: C.ink, bold: true, align: "center" });
+  addText(slide, "长期前景：当 Agent 成为企业标准生产力工具，runtime guardrail 会像日志、EDR、CI 安全一样成为基础设施。", 1.14, 4.655, 7.70, 0.08, { fontSize: 7.8, color: C.ink, bold: true, align: "center" });
 }
 
 {
