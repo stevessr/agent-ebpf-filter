@@ -12,7 +12,7 @@ const pptx = new pptxgen();
 pptx.author = "Agent eBPF Filter";
 pptx.company = "Agent eBPF Filter";
 pptx.subject = "国创赛 2026 高教主赛道创意组路演";
-pptx.title = "Agent eBPF Filter 项目答辩路演 PPT 浅色模板版";
+pptx.title = "Agent eBPF Filter 项目答辩路演 PPT 技术深度与应用前景版";
 pptx.lang = "zh-CN";
 pptx.defineLayout({ name: "LIGHT_16_9", width: 10, height: 5.625 });
 pptx.layout = "LIGHT_16_9";
@@ -55,8 +55,7 @@ const C = {
   paleCyan: "E9F8FA"
 };
 const A = [C.blue, C.green, C.orange, C.red, C.purple, C.cyan];
-const P = [C.paleBlue, C.paleGreen, C.paleOrange, C.paleRed, C.palePurple, C.paleCyan];
-
+const PALE = [C.paleBlue, C.paleGreen, C.paleOrange, C.paleRed, C.palePurple, C.paleCyan];
 const img = (name) => path.join(ASSET_DIR, name);
 
 function addText(slide, text, x, y, w, h, opts = {}) {
@@ -83,7 +82,7 @@ function addText(slide, text, x, y, w, h, opts = {}) {
 function rect(slide, x, y, w, h, fill = C.white, line = C.line, opts = {}) {
   slide.addShape(opts.shape || pptx.ShapeType.roundRect, {
     x, y, w, h,
-    rectRadius: opts.radius ?? 0.04,
+    rectRadius: opts.radius ?? 0.035,
     fill: { color: fill, transparency: opts.transparency || 0 },
     line: { color: line, width: opts.lineWidth ?? 0.8, transparency: opts.lineTransparency ?? 0 },
     shadow: opts.shadow ? { type: "outer", color: "BED0DD", opacity: 0.08, blur: 1, angle: 45, distance: 0.8 } : undefined,
@@ -94,6 +93,10 @@ function line(slide, x1, y1, x2, y2, color = C.line, width = 1) {
   slide.addShape(pptx.ShapeType.line, { x: x1, y: y1, w: x2 - x1, h: y2 - y1, line: { color, width } });
 }
 
+function arrow(slide, x1, y1, x2, y2, color = C.muted, width = 1.4) {
+  slide.addShape(pptx.ShapeType.line, { x: x1, y: y1, w: x2 - x1, h: y2 - y1, line: { color, width, beginArrowType: "none", endArrowType: "triangle" } });
+}
+
 function pageBadge(slide, index) {
   rect(slide, 9.25, 5.14, 0.48, 0.27, C.white, C.line2, { radius: 0.04 });
   addText(slide, String(index).padStart(2, "0"), 9.25, 5.205, 0.48, 0.10, { fontFace: EN, fontSize: 7.5, bold: true, color: C.blue, align: "center" });
@@ -101,7 +104,7 @@ function pageBadge(slide, index) {
 
 function source(slide, text) {
   line(slide, 0.56, 5.06, 8.95, 5.06, C.line2, 0.8);
-  addText(slide, text, 0.58, 5.16, 8.25, 0.16, { fontSize: 6.8, color: C.lightText });
+  addText(slide, text, 0.58, 5.16, 8.25, 0.16, { fontSize: 6.6, color: C.lightText });
 }
 
 function base(slide, index) {
@@ -117,17 +120,12 @@ function title(slide, section, titleText, subtitle, index) {
   addText(slide, `SECTION ${section}`, 0.58, 0.36, 1.25, 0.18, { fontFace: EN, fontSize: 7.2, color: C.blue, bold: true });
   line(slide, 0.58, 0.65, 0.58, 1.03, C.blue, 2.2);
   addText(slide, titleText, 0.74, 0.58, 8.5, 0.42, { fontSize: 20.5, color: C.ink, bold: true });
-  if (subtitle) addText(slide, subtitle, 0.75, 1.05, 8.3, 0.22, { fontSize: 9.2, color: C.muted });
+  if (subtitle) addText(slide, subtitle, 0.75, 1.05, 8.3, 0.22, { fontSize: 9.0, color: C.muted });
 }
 
 function pill(slide, text, x, y, w, color = C.blue, fill = C.paleBlue) {
   rect(slide, x, y, w, 0.28, fill, color, { radius: 0.08, lineTransparency: 55 });
   addText(slide, text, x + 0.06, y + 0.075, w - 0.12, 0.10, { fontSize: 7.5, color, bold: true, align: "center" });
-}
-
-function label(slide, text, x, y, color = C.blue) {
-  slide.addShape(pptx.ShapeType.rect, { x, y: y + 0.03, w: 0.06, h: 0.24, fill: { color }, line: { color } });
-  addText(slide, text, x + 0.13, y, 2.5, 0.22, { fontSize: 10.5, color: C.ink, bold: true });
 }
 
 function containImage(slide, file, x, y, w, h, opts = {}) {
@@ -156,66 +154,76 @@ function metric(slide, value, labelText, x, y, w, color = C.blue) {
 function card(slide, x, y, w, h, heading, body, color = C.blue, fill = C.white) {
   rect(slide, x, y, w, h, fill, C.line, { radius: 0.035 });
   slide.addShape(pptx.ShapeType.rect, { x, y, w: 0.05, h, fill: { color }, line: { color } });
-  addText(slide, heading, x + 0.18, y + 0.16, w - 0.32, 0.22, { fontSize: 11.5, color: C.ink, bold: true });
-  addText(slide, body, x + 0.18, y + 0.50, w - 0.34, h - 0.60, { fontSize: 8.0, color: C.text, fit: "shrink" });
+  addText(slide, heading, x + 0.18, y + 0.16, w - 0.32, 0.22, { fontSize: 11.0, color: C.ink, bold: true });
+  addText(slide, body, x + 0.18, y + 0.50, w - 0.34, h - 0.60, { fontSize: 7.8, color: C.text, fit: "shrink" });
 }
 
 function codeBox(slide, text, x, y, w, h) {
   rect(slide, x, y, w, h, "F6F9FC", "DCE8F0", { radius: 0.02 });
-  addText(slide, text, x + 0.11, y + 0.11, w - 0.22, h - 0.22, { fontFace: EN, fontSize: 6.8, color: "38566A", fit: "shrink" });
+  addText(slide, text, x + 0.11, y + 0.11, w - 0.22, h - 0.22, { fontFace: EN, fontSize: 6.7, color: "38566A", fit: "shrink" });
 }
 
-function arrow(slide, x1, y1, x2, y2, color = C.muted) {
-  slide.addShape(pptx.ShapeType.line, { x: x1, y: y1, w: x2 - x1, h: y2 - y1, line: { color, width: 1.4, beginArrowType: "none", endArrowType: "triangle" } });
+function splitRow(slide, x, y, w, h, left, right, color = C.blue) {
+  rect(slide, x, y, w, h, C.white, C.line, { radius: 0.02 });
+  slide.addShape(pptx.ShapeType.rect, { x, y, w: 1.48, h, fill: { color }, line: { color } });
+  addText(slide, left, x + 0.16, y + h / 2 - 0.06, 1.16, 0.10, { fontSize: 8.0, color: C.white, bold: true, align: "center" });
+  addText(slide, right, x + 1.70, y + 0.13, w - 1.90, h - 0.18, { fontSize: 7.6, color: C.text, fit: "shrink" });
+}
+
+function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
+  rect(slide, x, y, w, h, fill, color, { radius: 0.03, lineTransparency: 35 });
+  addText(slide, num, x + 0.14, y + 0.14, 0.44, 0.20, { fontFace: EN, fontSize: 12, color, bold: true });
+  addText(slide, heading, x + 0.68, y + 0.16, w - 0.82, 0.18, { fontSize: 10.0, color: C.ink, bold: true });
+  addText(slide, body, x + 0.20, y + 0.52, w - 0.38, h - 0.62, { fontSize: 7.4, color: C.text, fit: "shrink" });
 }
 
 {
   const slide = pptx.addSlide();
   base(slide, 1);
-  slide.addShape(pptx.ShapeType.rect, { x: 6.75, y: 0.08, w: 3.25, h: 5.545, fill: { color: C.panel }, line: { color: C.panel } });
+  slide.addShape(pptx.ShapeType.rect, { x: 6.72, y: 0.08, w: 3.28, h: 5.545, fill: { color: C.panel }, line: { color: C.panel } });
   addText(slide, "国创赛2026 · 高教主赛道 · 创意组", 0.64, 0.56, 3.9, 0.22, { fontSize: 9.6, color: C.blue, bold: true });
   line(slide, 0.64, 1.04, 4.1, 1.04, C.blue, 2.1);
   addText(slide, "Agent eBPF Filter", 0.62, 1.33, 5.85, 0.52, { fontFace: EN, fontSize: 34, color: C.ink, bold: true });
   addText(slide, "面向 AI Agent 的\n内核级运行时安全与可观测平台", 0.64, 2.02, 5.65, 0.88, { fontSize: 23, color: C.ink, bold: true });
-  addText(slide, "让 Agent 的“承诺”和操作系统里的“事实”对齐起来", 0.66, 3.10, 5.7, 0.24, { fontSize: 11.4, color: C.text });
-  pill(slide, "eBPF 内核事实", 0.66, 3.68, 1.35, C.blue, C.paleBlue);
-  pill(slide, "BPF LSM 同步阻断", 2.15, 3.68, 1.55, C.green, C.paleGreen);
-  pill(slide, "Execution Graph 执行归因", 3.85, 3.68, 1.85, C.purple, C.palePurple);
+  addText(slide, "不是罗列更多功能，而是把一个关键问题做深：\nAgent 的语义承诺，如何在操作系统事实里被验证和约束。", 0.66, 3.08, 5.78, 0.42, { fontSize: 10.2, color: C.text });
+  pill(slide, "内核事实采集", 0.66, 3.78, 1.28, C.blue, C.paleBlue);
+  pill(slide, "LSM/cgroup 前置阻断", 2.08, 3.78, 1.78, C.green, C.paleGreen);
+  pill(slide, "语义-事实一致性", 4.02, 3.78, 1.62, C.purple, C.palePurple);
   addText(slide, "负责人/学院/联系方式：\n【待填】\n推荐学院：【待填】\n负责人：【待填】\n手机号/QQ：【待填】", 0.66, 4.55, 4.05, 0.52, { fontSize: 7.9, color: C.muted });
-  addText(slide, "项目答辩 / 路演版 · 2026-05-26", 4.65, 5.03, 1.7, 0.16, { fontSize: 7.5, color: C.lightText, align: "right" });
-  rect(slide, 7.18, 0.70, 2.32, 1.12, C.white, C.line, { radius: 0.04 });
-  addText(slide, "一句话定位", 7.38, 0.93, 1.9, 0.20, { fontSize: 12.5, color: C.ink, bold: true, align: "center" });
-  addText(slide, "Agent 运行时证据链与策略边界", 7.34, 1.27, 1.98, 0.16, { fontSize: 8.2, color: C.muted, align: "center" });
-  metric(slide, "84%", "AI 开发工具采用意愿", 7.18, 2.15, 2.32, C.blue);
-  metric(slide, "28.65M", "public GitHub 新增硬编码密钥", 7.18, 3.08, 2.32, C.red);
-  metric(slide, "OS", "内核级事实采集与阻断", 7.18, 4.01, 2.32, C.green);
+  addText(slide, "技术深度与应用前景版 · 2026-05-26", 4.34, 5.03, 2.0, 0.16, { fontSize: 7.5, color: C.lightText, align: "right" });
+  rect(slide, 7.16, 0.70, 2.34, 1.03, C.white, C.line, { radius: 0.04 });
+  addText(slide, "核心主张", 7.38, 0.90, 1.90, 0.18, { fontSize: 12.0, color: C.ink, bold: true, align: "center" });
+  addText(slide, "从“看得到”升级到“拦得住、讲得清、能落地”", 7.34, 1.22, 1.98, 0.20, { fontSize: 7.8, color: C.muted, align: "center" });
+  metric(slide, "4 层", "采集、归因、判定、阻断", 7.16, 2.02, 2.34, C.blue);
+  metric(slide, "3 类", "高校/团队/企业落地场景", 7.16, 2.96, 2.34, C.green);
+  metric(slide, "1 条", "可复盘 Agent 证据链", 7.16, 3.90, 2.34, C.purple);
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "00", "路演结构：从真实痛点到代码证据，再到商业落地", "按高校项目路演常用逻辑组织：背景痛点、解决方案、创新性、可行性、落地价值。", 2);
+  title(slide, "00", "路演结构：少讲技术广度，深讲一条闭环", "前半段证明为什么必须做，主体部分讲清技术深水区，后半段说明能在哪些场景形成价值。", 2);
   const items = [
-    ["01", "调研痛点", "AI Agent 高权限执行链进入真实开发流程，安全边界仍依赖事后日志。"],
-    ["02", "案例证据", "密钥外泄、MCP 配置泄露、Copilot 信息泄露证明风险已经发生。"],
-    ["03", "技术方案", "eBPF 事实层 + hooks 语义层 + LSM/cgroup 阻断 + 图谱回放。"],
-    ["04", "工程进展", "Go 后端、eBPF 程序、Vue 前端、wrapper、适配器均已有实现。"],
-    ["05", "商业落地", "从高校实验室与 AI coding 团队切入，扩展企业私有化与教育服务。"],
+    ["01", "为什么是刚需", "AI Agent 使用率、密钥泄露和 Copilot/MCP 案例说明运行时边界已经成为现实问题。"],
+    ["02", "深水区一：内核事实", "围绕 exec/file/net/fork 采集、ringbuf、map、上下文字段，而不是泛泛讲“监控”。"],
+    ["03", "深水区二：前置阻断", "BPF LSM 和 cgroup 把策略放到危险动作发生前，形成确定性拒绝证据。"],
+    ["04", "深水区三：语义归因", "把 run/task/tool_call 与 PID、PPID、cwd、cgroup、路径、网络端点连成证据链。"],
+    ["05", "应用前景", "高校实验室、AI coding 团队、企业私有化和教育服务，分别给出落地价值。"],
   ];
-  line(slide, 1.05, 1.58, 1.05, 4.42, C.line, 1.2);
+  line(slide, 1.05, 1.52, 1.05, 4.46, C.line, 1.2);
   items.forEach((it, i) => {
-    const y = 1.35 + i * 0.66;
-    slide.addShape(pptx.ShapeType.ellipse, { x: 0.86, y: y + 0.02, w: 0.38, h: 0.38, fill: { color: i === 0 ? C.blue : C.white }, line: { color: C.blue, width: 1.2 } });
-    addText(slide, it[0], 0.86, y + 0.15, 0.38, 0.09, { fontFace: EN, fontSize: 6.2, color: i === 0 ? C.white : C.blue, bold: true, align: "center" });
-    addText(slide, it[1], 1.46, y, 1.38, 0.22, { fontSize: 12.2, color: C.ink, bold: true });
-    addText(slide, it[2], 2.95, y + 0.02, 5.95, 0.20, { fontSize: 8.4, color: C.text });
+    const y = 1.28 + i * 0.68;
+    slide.addShape(pptx.ShapeType.ellipse, { x: 0.86, y: y + 0.02, w: 0.38, h: 0.38, fill: { color: i < 3 ? C.blue : C.white }, line: { color: C.blue, width: 1.2 } });
+    addText(slide, it[0], 0.86, y + 0.15, 0.38, 0.09, { fontFace: EN, fontSize: 6.2, color: i < 3 ? C.white : C.blue, bold: true, align: "center" });
+    addText(slide, it[1], 1.46, y, 1.62, 0.22, { fontSize: 11.8, color: C.ink, bold: true });
+    addText(slide, it[2], 3.26, y + 0.02, 5.90, 0.20, { fontSize: 8.1, color: C.text });
   });
-  rect(slide, 0.82, 4.75, 8.55, 0.38, C.panel, C.line2, { radius: 0.02 });
-  addText(slide, "展演节奏建议：前 2 分钟交代外部证据，中间 5 分钟集中讲原型和演示，最后 2 分钟说明落地路径与资源诉求。", 1.02, 4.88, 8.15, 0.10, { fontSize: 8.2, color: C.text, align: "center" });
+  rect(slide, 0.82, 4.76, 8.55, 0.34, C.panel, C.line2, { radius: 0.02 });
+  addText(slide, "答辩策略：避免“我们还做了 X/Y/Z”的横向铺陈，改为反复回答“为什么这个内核闭环难、为什么能落地”。", 1.02, 4.865, 8.15, 0.09, { fontSize: 7.9, color: C.text, align: "center" });
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "01", "数据证据：AI Agent 不是未来风险，而是当前安全缺口", "采用公开调研与安全报告，说明市场使用率、泄露规模、治理缺口和经济成本。", 3);
+  title(slide, "01", "数据证据：Agent 普及越快，运行时事实越稀缺", "公开调研和安全报告共同指向同一个缺口：AI 工具进入执行链，但审计和控制仍停留在外围。", 3);
   metric(slide, "84%", "Stack Overflow：正在使用或计划使用 AI 开发工具", 0.62, 1.38, 1.66, C.blue);
   metric(slide, "28.65M", "GitGuardian：2025 年 public GitHub 新增硬编码密钥", 2.42, 1.38, 1.82, C.red);
   metric(slide, "$4.44M", "IBM：全球平均数据泄露成本", 4.38, 1.38, 1.52, C.purple);
@@ -223,278 +231,280 @@ function arrow(slide, x1, y1, x2, y2, color = C.muted) {
   metric(slide, "24,008", "GitGuardian：公开 MCP 配置中暴露的唯一密钥", 7.72, 1.38, 1.66, C.green);
   rect(slide, 0.62, 2.42, 4.32, 2.28, C.white, C.line, { radius: 0.035 });
   containImage(slide, img("stackoverflow_ai_usage.png"), 0.84, 2.62, 3.90, 1.56, { frame: true, bg: C.white });
-  addText(slide, "采用率提升叠加信任下降：Agent 一旦接入终端和文件系统，必须用运行时事实建立审计边界。", 0.86, 4.30, 3.85, 0.16, { fontSize: 7.2, color: C.muted });
+  addText(slide, "采用率提升不是重点，重点是 Agent 已经开始触发终端、文件和网络行为。安全边界必须落到运行时。", 0.86, 4.30, 3.85, 0.16, { fontSize: 7.0, color: C.muted });
   rect(slide, 5.16, 2.42, 4.22, 2.28, C.white, C.line, { radius: 0.035 });
   containImage(slide, img("gitguardian_commits_developers.png"), 5.38, 2.62, 3.80, 1.56, { frame: true, bg: C.white });
-  addText(slide, "软件生产提速：public commits 与开发者规模同步增长，密钥与配置治理需要跟上生成速度。", 5.40, 4.30, 3.72, 0.16, { fontSize: 7.2, color: C.muted });
+  addText(slide, "软件生产提速后，密钥、依赖脚本、MCP 配置的扩散速度也变快；只看 prompt 已经不够。", 5.40, 4.30, 3.72, 0.16, { fontSize: 7.0, color: C.muted });
   source(slide, "数据/图片：Stack Overflow Developer Survey 2025；GitGuardian State of Secrets Sprawl 2026；IBM Cost of a Data Breach Report 2025");
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "02", "真实案例：工具误用、密钥外泄、Copilot 数据外泄已形成样本", "用报告截图替代概念化图标，降低生成感，同时让评委能追溯外部证据。", 4);
+  title(slide, "02", "真实案例：风险不是模型幻觉，而是执行链越界", "报告截图保留为外部证据，但结论聚焦到一个工程问题：如何把越界行为在 OS 层归因和拦截。", 4);
   const cases = [
-    { x: 0.62, img: "csa_copilot_cover_thumb.png", t: "M365 Copilot 信息泄露", d: "CSA 研究梳理 12 个月内多起 Copilot 相关披露；EchoLeak CVSS 9.3，体现上下文边界问题。", c: C.red },
-    { x: 3.70, img: "gitguardian_mcp_valid_secrets.png", t: "MCP 配置密钥泄露", d: "GitGuardian 发现 24,008 个 MCP 相关唯一密钥，其中 2,117 个仍有效；配置本身成为攻击面。", c: C.green },
-    { x: 6.78, img: "owasp_llm_cover_thumb.png", t: "Agentic Tool Misuse", d: "OWASP 将工具误用、权限滥用、不可追踪列为核心风险，强调日志、沙箱和实时边界。", c: C.blue },
+    { x: 0.62, img: "csa_copilot_cover_thumb.png", t: "上下文越权", d: "Copilot / EchoLeak 类案例说明：外部输入可能触发内部知识检索或数据泄露，风险发生在工具链边界。", c: C.red },
+    { x: 3.70, img: "gitguardian_mcp_valid_secrets.png", t: "配置即攻击面", d: "MCP 配置中的有效密钥进入公共仓库，说明 Agent 生态的本机配置、工具描述和凭据都需要治理。", c: C.green },
+    { x: 6.78, img: "owasp_llm_cover_thumb.png", t: "工具误用", d: "OWASP 将 tool misuse、excessive agency、untraceability 列为重点，正对应本项目的运行时证据链。", c: C.blue },
   ];
   cases.forEach((c) => {
     rect(slide, c.x, 1.38, 2.60, 3.40, C.white, C.line, { radius: 0.035 });
     containImage(slide, img(c.img), c.x + 0.18, 1.58, 2.24, 1.45, { frame: true, bg: "F8FAFC", line: C.line2 });
     addText(slide, c.t, c.x + 0.18, 3.28, 2.24, 0.24, { fontSize: 11.3, color: c.c, bold: true });
-    addText(slide, c.d, c.x + 0.18, 3.68, 2.22, 0.60, { fontSize: 7.4, color: C.text, fit: "shrink" });
-    pill(slide, "需要 runtime 证据链", c.x + 0.18, 4.40, 1.35, c.c, c.c === C.red ? C.paleRed : c.c === C.green ? C.paleGreen : C.paleBlue);
+    addText(slide, c.d, c.x + 0.18, 3.68, 2.22, 0.60, { fontSize: 7.2, color: C.text, fit: "shrink" });
+    pill(slide, "归因 + 拦截 + 回放", c.x + 0.18, 4.40, 1.38, c.c, c.c === C.red ? C.paleRed : c.c === C.green ? C.paleGreen : C.paleBlue);
   });
   source(slide, "案例图片：Cloud Security Alliance 2026 Copilot research note；GitGuardian 2026 report；OWASP Top 10 for LLM Applications 2025 / Agentic AI Threats");
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "03", "问题：Agent 安全已从“回答错”变成“三个不可见”", "编码 Agent 会启动终端、改文件、装依赖、访问网络，安全边界必须落到运行时。", 5);
-  card(slide, 0.74, 1.42, 2.62, 2.45, "意图不可见", "• EDR 看得到进程，却不知道哪个 run/task/tool_call 触发\n• Prompt 网关看得到文本，看不到 OS 行为\n• 审计口径无法对齐“承诺”与“事实”", C.blue, C.white);
-  card(slide, 3.68, 1.42, 2.62, 2.45, "链路不可见", "• 危险动作常发生在 shell、python、node、git、npm、curl 子进程\n• MCP、skills、依赖脚本扩大本机攻击面\n• 父子进程上下文容易丢失", C.orange, C.white);
-  card(slide, 6.62, 1.42, 2.62, 2.45, "阻断不可见", "• 事后日志难证明动作是否已被内核拒绝\n• UI 标红不等于 OS 层真实拒绝\n• 安全团队需要可回放证据链", C.red, C.white);
-  rect(slide, 0.92, 4.32, 8.12, 0.48, C.panel, C.line2, { radius: 0.02 });
-  addText(slide, "结论：评委真正需要看到的不是“再加一个大屏”，而是把 Agent 语义与操作系统事实合成可验证、可阻断、可复盘的证据链。", 1.12, 4.48, 7.72, 0.12, { fontSize: 8.8, color: C.ink, bold: true, align: "center" });
-  source(slide, "依据：OWASP LLM/Agentic AI 风险框架；GitGuardian 2026 secrets sprawl；IBM 2025 AI governance findings");
+  title(slide, "03", "核心问题：不是“多做几个监控项”，而是补上证据链断点", "技术深度集中在一个闭环：Agent 声称要做什么、系统实际做了什么、危险动作是否被前置拦截。", 5);
+  card(slide, 0.72, 1.36, 2.68, 2.46, "断点一：意图到进程", "Agent 的 run/task/tool_call 通常进入 shell，再派生 python/node/git/npm/curl。传统日志看到 PID，却丢失了意图来源。", C.blue, C.white);
+  card(slide, 3.66, 1.36, 2.68, 2.46, "断点二：进程到资源", "危险行为落在 open/connect/sendmsg/rename 等 OS 事件上，必须记录路径、端点、cwd、cgroup 和父子关系。", C.orange, C.white);
+  card(slide, 6.60, 1.36, 2.68, 2.46, "断点三：告警到阻断", "事后告警无法证明动作没有发生。对高风险路径和外联，需要在 LSM/cgroup 决策点返回拒绝。", C.red, C.white);
+  rect(slide, 0.92, 4.28, 8.12, 0.48, C.panel, C.line2, { radius: 0.02 });
+  addText(slide, "因此本项目不追求“覆盖所有安全功能”，而是把 Agent 运行时安全最难的一段——语义归因 + 内核事实 + 前置阻断——做深。", 1.12, 4.44, 7.72, 0.12, { fontSize: 8.6, color: C.ink, bold: true, align: "center" });
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "04", "典型风险链：Prompt 注入 → 工具误用 → 子进程漂移 → 数据外泄", "项目从执行链而不是单条日志看待 Agent 风险。", 6);
-  const steps = [
-    ["Prompt 注入", "网页 / Issue / README", C.purple],
-    ["工具误用", "shell / MCP / browser", C.orange],
-    ["子进程漂移", "python / node / curl", C.blue],
-    ["数据外泄", "secret / network / TLS", C.red],
-    ["安全闭环", "告警 / 阻断 / 回放", C.green],
-  ];
-  steps.forEach((s, i) => {
-    const x = 0.62 + i * 1.84;
-    rect(slide, x, 1.58, 1.42, 0.82, C.white, s[2], { radius: 0.03, lineTransparency: 20 });
-    addText(slide, s[0], x + 0.10, 1.78, 1.22, 0.16, { fontSize: 10.0, color: s[2], bold: true, align: "center" });
-    addText(slide, s[1], x + 0.10, 2.12, 1.22, 0.10, { fontSize: 6.8, color: C.text, align: "center" });
-    if (i < steps.length - 1) arrow(slide, x + 1.47, 1.99, x + 1.78, 1.99, C.lightText);
-  });
-  const rows = [
-    ["观测对象", "进程、文件、网络、策略、工具调用", C.blue],
-    ["判断依据", "意图是否与事实行为一致", C.purple],
-    ["处置动作", "ALLOW / ALERT / BLOCK / REWRITE", C.green],
-  ];
-  rows.forEach((r, i) => card(slide, 0.82 + i * 3.05, 3.12, 2.56, 1.05, r[0], r[1], r[2], C.white));
-  addText(slide, "与案例的对应关系：EchoLeak 证明“外部输入可驱动内部数据泄露”；MCP 密钥证明“配置即攻击面”；GitGuardian 数据证明“AI 辅助编码让密钥泄露速度提升”。", 0.88, 4.58, 8.2, 0.22, { fontSize: 8.1, color: C.text, align: "center" });
-}
-
-{
-  const slide = pptx.addSlide();
-  title(slide, "05", "解决方案：看得见、说得清、拦得住、可复盘", "以 eBPF 为事实底座，用 hooks/wrapper 补齐 Agent 语义，再进入图谱和策略闭环。", 7);
-  rect(slide, 0.74, 1.35, 8.52, 3.30, C.white, C.line, { radius: 0.035 });
+  title(slide, "04", "总体架构：四层闭环，每层只解决一个深问题", "从语义入口到内核决策再到证据回放，架构强调深度链路而不是横向功能堆叠。", 6);
   const layers = [
-    ["Agent / CLI", "Codex、Claude、Gemini、Copilot、脚本与子进程", C.purple],
-    ["语义层", "wrapper / native hooks / adapters：run、task、tool_call、intent", C.blue],
-    ["事实层", "eBPF tracepoints / cgroup / BPF LSM：exec、file、net、fork", C.green],
-    ["策略层", "BPF LSM、cgroup、wrapper：ALLOW / ALERT / BLOCK / REWRITE", C.red],
-    ["证据层", "EventEnvelope、semantic_alerts、Execution Graph、JSONL、OTLP", C.orange],
+    ["语义入口", "wrapper / native hooks / adapters 捕获 run、task、tool_call、intent", C.blue],
+    ["上下文继承", "agent_run_id / task_id / tool_call_id / trace_id 随 PID、PPID、cgroup 传播", C.purple],
+    ["内核事实", "eBPF 采集 exec、file、net、fork，形成不可伪造的 OS 行为证据", C.green],
+    ["前置处置", "BPF LSM 与 cgroup 在动作发生前做 ALLOW / ALERT / BLOCK / REWRITE", C.red],
   ];
   layers.forEach((l, i) => {
-    const y = 1.62 + i * 0.50;
-    rect(slide, 1.12, y, 7.75, 0.34, i % 2 ? C.panel : C.white, C.line2, { radius: 0.02 });
-    slide.addShape(pptx.ShapeType.rect, { x: 1.12, y, w: 0.06, h: 0.34, fill: { color: l[2] }, line: { color: l[2] } });
-    addText(slide, l[0], 1.34, y + 0.095, 1.25, 0.10, { fontSize: 8.4, color: l[2], bold: true });
-    addText(slide, l[1], 2.72, y + 0.095, 5.90, 0.10, { fontSize: 7.8, color: C.text });
+    const y = 1.42 + i * 0.68;
+    rect(slide, 0.84, y, 8.32, 0.50, i % 2 ? C.panel : C.white, C.line, { radius: 0.02 });
+    slide.addShape(pptx.ShapeType.rect, { x: 0.84, y, w: 0.08, h: 0.50, fill: { color: l[2] }, line: { color: l[2] } });
+    addText(slide, l[0], 1.12, y + 0.16, 1.10, 0.12, { fontSize: 9.4, color: l[2], bold: true });
+    addText(slide, l[1], 2.48, y + 0.16, 6.30, 0.12, { fontSize: 8.0, color: C.text });
+    if (i < layers.length - 1) arrow(slide, 5.00, y + 0.52, 5.00, y + 0.66, C.lightText, 1.0);
   });
-  rect(slide, 1.12, 4.20, 7.75, 0.28, C.panel2, C.line2, { radius: 0.02 });
-  addText(slide, "核心差异：不是替代模型安全，而是在模型调用工具后，用操作系统事实证明它实际做了什么，并在危险动作发生前拦截。", 1.30, 4.285, 7.40, 0.08, { fontSize: 7.7, bold: true, color: C.ink, align: "center" });
+  rect(slide, 1.08, 4.58, 7.84, 0.34, C.panel2, C.line2, { radius: 0.02 });
+  addText(slide, "可答辩表达：我们不是做一个“安全看板”，而是把 Agent 意图和内核事实接成一条可验证、可阻断、可回放的闭环。", 1.28, 4.69, 7.44, 0.08, { fontSize: 7.7, color: C.ink, bold: true, align: "center" });
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "06", "当前原型：已不是概念图，而是可运行工程", "仓库包含 Go 后端、eBPF 程序、Vue 前端、wrapper、适配器与部署脚本。", 8);
-  const modules = [
-    ["Go 后端", "特权 runtime / HTTP+WS API / hooks / policy engine", "backend/main.go\nbackend/event_envelope.go\nbackend/semantic_alerts.go\nbackend/execution_graph.go", C.blue],
-    ["eBPF 内核", "tracepoints / BPF LSM / cgroup 网络阻断", "backend/ebpf/agent_tracker.c\nbackend/ebpf/lsm_enforcer.c\nbackend/ebpf/cgroup_sandbox.c", C.green],
-    ["Vue 前端", "Dashboard / Execution Graph / Config / Plugins", "frontend/src/views/Dashboard.vue\nfrontend/src/views/ExecutionGraph.vue\nfrontend/src/views/Config.vue\nfrontend/src/views/Plugins.vue", C.purple],
-    ["部署与验证", "systemd / rc.local / K8s / smoke tests", "Makefile install/uninstall\nscripts/os-enforcement-smoke.sh\ndocs/kubernetes.md\ndeploy/kubernetes/*.yaml", C.orange],
+  title(slide, "05", "技术深水区一：eBPF 事实采集不是日志替代，而是可信证据底座", "重点解释为什么选 eBPF：低侵入、内核态事件源、可关联进程树和资源对象。", 7);
+  card(slide, 0.70, 1.34, 2.55, 2.36, "采集点", "execve / openat / connect / sendto / recvfrom / bind / unlink / mkdir / ioctl 等关键 syscall 与网络路径。", C.blue, C.white);
+  card(slide, 3.44, 1.34, 2.55, 2.36, "数据路径", "BPF map 维护 agent_pids、tracked_comms、tracked_paths；ringbuf 将事件送到 Go runtime。", C.green, C.white);
+  card(slide, 6.18, 1.34, 3.10, 2.36, "证据字段", "PID/TGID/PPID、comm、cwd、路径、网络端点、cgroup_id、时间戳、策略结果，统一进入 EventEnvelope。", C.purple, C.white);
+  codeBox(slide, "backend/ebpf/agent_tracker.c\nbackend/network_events.go\nbackend/runtime_state.go\nbackend/event_envelope.go", 0.92, 4.10, 3.10, 0.62);
+  splitRow(slide, 4.30, 4.08, 4.68, 0.66, "技术难点", "既要拿到足够细的事实字段，又不能把每个 syscall 都变成高开销日志；因此只采关键路径，并用 map/filter 降低噪声。", C.blue);
+}
+
+{
+  const slide = pptx.addSlide();
+  title(slide, "06", "技术深水区二：BPF LSM + cgroup 把安全决策前置到内核路径", "真正的亮点不是“发现风险”，而是在危险动作发生前给出确定性拒绝。", 8);
+  const blocks = [
+    ["文件/执行", "bprm_check_security、file_open、file_permission、inode_*：在执行、读写、创建、删除、重命名前判断策略。", C.green],
+    ["网络外联", "connect4/connect6、sendmsg4/sendmsg6：按 cgroup、IP、IPv6、端口对 TCP/UDP 外联做前置约束。", C.blue],
+    ["决策原则", "内核态只做确定性 map lookup；ML/LLM 只输出建议，不直接进入内核阻断路径。", C.red],
   ];
-  modules.forEach((m, i) => {
-    const x = 0.70 + (i % 2) * 4.46;
-    const y = 1.38 + Math.floor(i / 2) * 1.62;
-    card(slide, x, y, 3.86, 1.24, m[0], m[1], m[3], C.white);
-    codeBox(slide, m[2], x + 2.05, y + 0.18, 1.55, 0.86);
-  });
-  rect(slide, 1.06, 4.76, 7.90, 0.26, C.panel, C.line2, { radius: 0.02 });
-  addText(slide, "答辩要点：每个卖点都能指到代码文件、演示页面和验证脚本，避免只停留在概念图。", 1.26, 4.845, 7.50, 0.08, { fontSize: 7.8, color: C.text, align: "center" });
+  blocks.forEach((b, i) => card(slide, 0.72 + i * 2.94, 1.36, 2.60, 2.42, b[0], b[1], b[2], C.white));
+  splitRow(slide, 0.92, 4.18, 8.14, 0.52, "答辩亮点", "评委能听懂的差异：UI 标红只是提醒，LSM/cgroup 返回 -EACCES 或拒绝 connect 才是 OS 层真实拦截。", C.red);
+  source(slide, "代码证据：backend/ebpf/lsm_enforcer.c；backend/ebpf/cgroup_sandbox.c；scripts/os-enforcement-smoke.sh");
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "07", "创新一：BPF LSM + cgroup 形成确定性内核阻断", "不是只做事后日志，而是在 exec/open/read/write/mmap/rename/connect 等路径前置决策。", 9);
-  card(slide, 0.70, 1.36, 2.72, 2.48, "BPF LSM", "• bprm_check_security：执行前检查\n• file_open / file_permission：打开与读写\n• inode_*：创建、删除、重命名、链接\n• 命中策略返回 -EACCES", C.green, C.white);
-  card(slide, 3.66, 1.36, 2.72, 2.48, "cgroup 网络", "• connect4/connect6\n• sendmsg4/sendmsg6\n• 按 cgroup、IP、IPv6、端口阻断\n• 覆盖 TCP/UDP 外联场景", C.blue, C.white);
-  card(slide, 6.62, 1.36, 2.72, 2.48, "策略原则", "• 确定性 map lookup\n• ML/LLM 只建议，不直接内核阻断\n• 策略通过认证 API 修改\n• 阻断证据进入执行图谱", C.red, C.white);
-  rect(slide, 0.92, 4.28, 8.14, 0.42, C.panel, C.line2, { radius: 0.02 });
-  addText(slide, "评委可感知亮点：真实 OS 级拒绝，而不是 UI 上标红。代码证据：backend/ebpf/lsm_enforcer.c；backend/ebpf/cgroup_sandbox.c；scripts/os-enforcement-smoke.sh。", 1.08, 4.42, 7.82, 0.10, { fontSize: 7.6, color: C.text, align: "center" });
-}
-
-{
-  const slide = pptx.addSlide();
-  title(slide, "08", "创新二：进程树追踪让 Agent 子进程不再“失踪”", "真实 Agent 行为经常发生在 /bin/sh、python、node、git、npm、curl 等子进程。", 10);
+  title(slide, "07", "技术深水区三：进程上下文继承解决 Agent 子进程“失踪”", "真实风险常发生在 shell/python/node/git/npm/curl 子进程，必须把语义上下文随进程树传播。", 9);
   const nodes = [
-    ["Agent", 0.82, C.purple],
-    ["Tool Call", 2.28, C.blue],
-    ["shell", 3.86, C.orange],
-    ["python/node", 5.30, C.orange],
-    ["file/net", 6.96, C.red],
-    ["policy", 8.22, C.green],
+    ["Agent Run", 0.78, C.purple],
+    ["Tool Call", 2.16, C.blue],
+    ["/bin/sh", 3.56, C.orange],
+    ["python/node", 4.92, C.orange],
+    ["file/net", 6.48, C.red],
+    ["Policy", 7.82, C.green],
   ];
   nodes.forEach((n, i) => {
-    rect(slide, n[1], 1.66, 1.05, 0.48, C.white, n[2], { radius: 0.03 });
-    addText(slide, n[0], n[1] + 0.06, 1.825, 0.93, 0.08, { fontFace: EN, fontSize: 7.6, color: n[2], bold: true, align: "center" });
-    if (i < nodes.length - 1) arrow(slide, n[1] + 1.08, 1.90, nodes[i + 1][1] - 0.08, 1.90, C.lightText);
+    rect(slide, n[1], 1.58, 1.08, 0.48, C.white, n[2], { radius: 0.03 });
+    addText(slide, n[0], n[1] + 0.06, 1.745, 0.96, 0.08, { fontFace: EN, fontSize: 7.1, color: n[2], bold: true, align: "center" });
+    if (i < nodes.length - 1) arrow(slide, n[1] + 1.10, 1.82, nodes[i + 1][1] - 0.08, 1.82, C.lightText);
   });
-  card(slide, 0.84, 3.00, 2.60, 1.18, "继承字段", "agent_run_id / task_id / tool_call_id / trace_id", C.blue, C.white);
-  card(slide, 3.70, 3.00, 2.60, 1.18, "事实字段", "PID/TGID/PPID、comm、cwd、cgroup_id", C.green, C.white);
-  card(slide, 6.56, 3.00, 2.60, 1.18, "复盘结果", "一条链路回放所有子进程与对象", C.purple, C.white);
-  source(slide, "代码证据：backend/event_context.go 从父 PID 或 cgroup 继承 Agent 上下文；执行图谱将进程、文件、网络和策略关联起来。");
+  axisCard(slide, 0.82, 2.72, 2.62, 1.42, "A", "继承字段", "agent_run_id、task_id、tool_call_id、trace_id 从父 PID 或 cgroup 继承，避免只看到孤立子进程。", C.blue, C.paleBlue);
+  axisCard(slide, 3.70, 2.72, 2.62, 1.42, "B", "事实字段", "PID/TGID/PPID、comm、cwd、cgroup_id 记录真实执行链，支撑后续图谱回放。", C.green, C.paleGreen);
+  axisCard(slide, 6.58, 2.72, 2.62, 1.42, "C", "归因结果", "把 file/net/policy 事件归到具体 Agent run 和 tool call，而不是只归到 python 或 curl。", C.purple, C.palePurple);
+  source(slide, "代码证据：backend/event_context.go；backend/execution_graph.go；backend/shell_sessions.go");
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "09", "创新三：语义-事实一致性检测", "把工具声明的意图与 eBPF 事实对比，识别“说是读文件，实际在外联/读密钥”。", 11);
-  card(slide, 0.72, 1.38, 2.45, 2.40, "语义输入", "• tool_name / task / prompt 摘要\n• wrapper 决策请求\n• native hook 元数据\n• 预期资源与只读/可写声明", C.blue, C.white);
-  arrow(slide, 3.28, 2.55, 3.62, 2.55, C.lightText);
-  card(slide, 3.74, 1.38, 2.45, 2.40, "事实输入", "• exec/open/connect/send\n• 进程树、路径、网络端点\n• BPF LSM/cgroup 决策\n• 阻断/告警/放行结果", C.green, C.white);
-  arrow(slide, 6.30, 2.55, 6.64, 2.55, C.lightText);
-  card(slide, 6.76, 1.38, 2.45, 2.40, "输出告警", "• SECRET_ACCESS\n• UNEXPECTED_NETWORK_EGRESS\n• WORKSPACE_ESCAPE\n• TOKEN_EXFIL_RISK", C.red, C.white);
-  rect(slide, 0.96, 4.28, 8.08, 0.46, C.panel, C.line2, { radius: 0.02 });
-  addText(slide, "示例：任务声明为只读代码审查，但子进程访问 ~/.ssh 或向未知公网地址发送数据 → 触发高风险告警/阻断。", 1.16, 4.43, 7.68, 0.10, { fontSize: 8.0, color: C.text, align: "center" });
-  source(slide, "代码证据：backend/semantic_alerts.go；backend/event_envelope.go；backend/execution_graph.go。");
+  title(slide, "08", "技术深水区四：语义-事实一致性，不靠模型猜测做最终裁决", "让 LLM/规则负责解释和建议，让内核事实负责证据，让确定性策略负责阻断。", 10);
+  card(slide, 0.72, 1.34, 2.45, 2.38, "语义输入", "工具名、任务摘要、hook 元数据、wrapper 请求、只读/可写声明、预期访问范围。", C.blue, C.white);
+  arrow(slide, 3.28, 2.52, 3.62, 2.52, C.lightText);
+  card(slide, 3.74, 1.34, 2.45, 2.38, "事实输入", "exec/open/connect/send、路径、端点、进程树、cgroup、LSM/cgroup 决策。", C.green, C.white);
+  arrow(slide, 6.30, 2.52, 6.64, 2.52, C.lightText);
+  card(slide, 6.76, 1.34, 2.45, 2.38, "输出结果", "SECRET_ACCESS、UNEXPECTED_NETWORK_EGRESS、WORKSPACE_ESCAPE、TOKEN_EXFIL_RISK。", C.red, C.white);
+  splitRow(slide, 0.96, 4.08, 8.08, 0.58, "安全边界", "模型可以辅助解释风险，但不能直接下发不可解释的内核阻断；真正拦截由认证策略和确定性 map 决策完成。", C.purple);
+  source(slide, "代码证据：backend/semantic_alerts.go；backend/event_envelope.go；backend/execution_graph.go；wrapper/main.go");
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "10", "演示场景：三分钟证明“看得见、说得清、拦得住”", "现场优先展示硬核闭环，避免只展示静态大屏。", 12);
+  title(slide, "09", "工程深度：性能、权限和误报边界必须讲清楚", "高权限安全工具不能只展示能力，还要说明开销、权限、误报和隐私边界如何控制。", 11);
+  splitRow(slide, 0.78, 1.34, 8.44, 0.58, "性能边界", "只采关键 syscall 与网络路径；tracked_comm/path、agent_pids、cgroup 过滤降低噪声；ringbuf 异步上报避免阻塞正常路径。", C.blue);
+  splitRow(slide, 0.78, 2.08, 8.44, 0.58, "权限边界", "eBPF 加载需要特权；配置 API 使用 token；shell 与策略变更有 runtime gate；TLS 明文捕获默认关闭。", C.green);
+  splitRow(slide, 0.78, 2.82, 8.44, 0.58, "误报边界", "先观察后阻断；高风险路径默认告警，确认后进入 LSM/cgroup 阻断；ML/LLM 输出进入人工确认或策略模板。", C.orange);
+  splitRow(slide, 0.78, 3.56, 8.44, 0.58, "合规边界", "用于本地/授权环境；事件流以摘要、路径、端点、长度、角色为主；演示数据必须脱敏。", C.red);
+  rect(slide, 1.04, 4.54, 7.92, 0.32, C.panel2, C.line2, { radius: 0.02 });
+  addText(slide, "这一页用于回应评委追问：能不能跑、会不会拖慢、权限是否过大、误报怎么处理。", 1.24, 4.645, 7.52, 0.08, { fontSize: 7.7, color: C.ink, bold: true, align: "center" });
+}
+
+{
+  const slide = pptx.addSlide();
+  title(slide, "10", "验证方式：用三类实验证明深度闭环，而不是只放 UI 截图", "现场演示围绕“采集到、归因准、拦得住”三件事设计。", 12);
   const demos = [
-    ["00:00", "敏感路径", "Agent 尝试读取 .env / ssh key → SECRET_ACCESS + 任务归因", C.red],
-    ["00:50", "异常外联", "curl / python 子进程连接未知 IP:port → UNEXPECTED_NETWORK_EGRESS", C.orange],
-    ["01:40", "内核阻断", "BPF LSM 返回 EACCES，cgroup 拒绝 connect/sendmsg", C.green],
-    ["02:30", "图谱回放", "Agent Run → Tool Call → Process → File/Network → Policy", C.blue],
+    ["实验 A", "敏感路径读取", "Agent 声称只读项目文件，但子进程访问 .env / ssh key → SECRET_ACCESS + 任务归因", C.red],
+    ["实验 B", "异常外联", "curl/python 子进程连接未知 IP:port → UNEXPECTED_NETWORK_EGRESS，并关联到 tool_call", C.orange],
+    ["实验 C", "前置阻断", "命中 LSM/cgroup 策略后返回 EACCES 或拒绝 connect/sendmsg，证据进入图谱", C.green],
+    ["实验 D", "图谱回放", "Agent Run → Tool Call → Process → File/Network → Policy，形成可提交证据链", C.blue],
   ];
   demos.forEach((d, i) => {
-    const y = 1.40 + i * 0.78;
+    const y = 1.34 + i * 0.74;
     rect(slide, 0.78, y, 8.52, 0.50, i % 2 ? C.panel : C.white, C.line, { radius: 0.025 });
-    addText(slide, d[0], 1.02, y + 0.18, 0.60, 0.08, { fontFace: EN, fontSize: 7.3, color: d[3], bold: true, align: "center" });
-    line(slide, 1.78, y + 0.12, 1.78, y + 0.38, d[3], 2);
-    addText(slide, d[1], 2.02, y + 0.13, 1.12, 0.13, { fontSize: 10.4, color: C.ink, bold: true });
-    addText(slide, d[2], 3.32, y + 0.14, 5.45, 0.12, { fontSize: 7.8, color: C.text });
+    addText(slide, d[0], 1.02, y + 0.18, 0.72, 0.08, { fontFace: EN, fontSize: 7.2, color: d[3], bold: true, align: "center" });
+    line(slide, 1.88, y + 0.12, 1.88, y + 0.38, d[3], 2);
+    addText(slide, d[1], 2.14, y + 0.13, 1.20, 0.13, { fontSize: 9.6, color: C.ink, bold: true });
+    addText(slide, d[2], 3.54, y + 0.14, 5.30, 0.12, { fontSize: 7.5, color: C.text });
   });
-  rect(slide, 1.00, 4.70, 8.00, 0.30, C.panel2, C.line2, { radius: 0.02 });
-  addText(slide, "答辩话术：我们不是只做可视化，而是在内核执行路径上获取证据并形成策略闭环。", 1.20, 4.795, 7.60, 0.08, { fontSize: 7.8, color: C.ink, bold: true, align: "center" });
+  splitRow(slide, 1.00, 4.56, 8.00, 0.38, "验收指标", "检测率/阻断率、误报样例、平均事件延迟、CPU/内存开销、证据链完整率。", C.purple);
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "11", "与评审规则对齐：四个维度逐项回应", "高教主赛道创意组重点：个人成长 30、项目创新 30、产业价值 25、团队协作 15。", 13);
-  const evals = [
-    ["个人成长 30", "课程知识到 eBPF 原型；调研 Agent 安全真实问题；专创融合。", C.blue],
-    ["项目创新 30", "BPF LSM、内核态阻断、进程树、语义-事实一致性。", C.green],
-    ["产业价值 25", "AI coding 团队、高校实验室、企业安全审计强需求。", C.orange],
-    ["团队协作 15", "内核、后端、前端、算法、商业分工清晰。", C.purple],
+  title(slide, "11", "应用前景总览：同一条技术闭环对应三类可付费场景", "应用前景不再泛泛讲市场，而是把技术深度映射到具体用户的刚需。", 13);
+  const apps = [
+    ["高校实验室", "教学/科研/竞赛", "把 eBPF、AI 安全、攻防演练做成可复现实验；形成课程、论文、软著和竞赛成果。", C.blue, C.paleBlue],
+    ["AI coding 团队", "开发治理", "治理本地/云端 Agent 对敏感文件、依赖脚本和外联的访问；给团队安全负责人可审计证据。", C.green, C.paleGreen],
+    ["企业安全", "合规与私有化", "在内网 Agent、MCP、代码助手落地时提供策略、审计报表、SIEM/OTLP 对接和留存能力。", C.orange, C.paleOrange],
   ];
-  evals.forEach((e, i) => {
-    const x = 0.78 + (i % 2) * 4.42;
-    const y = 1.44 + Math.floor(i / 2) * 1.38;
-    card(slide, x, y, 3.86, 0.98, e[0], e[1], e[2], C.white);
+  apps.forEach((a, i) => {
+    const x = 0.72 + i * 2.92;
+    rect(slide, x, 1.42, 2.58, 2.92, C.white, C.line, { radius: 0.035 });
+    addText(slide, a[0], x + 0.20, 1.70, 2.16, 0.24, { fontSize: 12.5, color: a[3], bold: true, align: "center" });
+    pill(slide, a[1], x + 0.62, 2.14, 1.34, a[3], a[4]);
+    addText(slide, a[2], x + 0.26, 2.72, 2.04, 0.88, { fontSize: 7.8, color: C.text, align: "center", fit: "shrink" });
+    splitRow(slide, x + 0.22, 3.82, 2.14, 0.34, "价值", i === 0 ? "成果转化" : i === 1 ? "降低事故" : "合规落地", a[3]);
   });
-  rect(slide, 0.96, 4.62, 8.08, 0.30, C.panel, C.line2, { radius: 0.02 });
-  addText(slide, "规则依据：2025 高教主赛道创意组评审规则；2026 正式通知发布后需复核。", 1.18, 4.72, 7.64, 0.08, { fontSize: 7.8, color: C.muted, align: "center" });
+  source(slide, "市场证据：Stack Overflow AI adoption；GitGuardian secrets sprawl；IBM AI oversight gap。");
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "12", "目标市场：AI Agent 落地越快，运行时安全越刚需", "从教育科研切入，扩展到 AI coding 团队和企业私有化部署。", 14);
-  rect(slide, 0.70, 1.36, 3.22, 3.20, C.white, C.line, { radius: 0.035 });
-  containImage(slide, img("gitguardian_state_2026.png"), 0.90, 1.56, 2.82, 1.56, { frame: true, bg: C.white });
-  addText(slide, "风险信号", 0.94, 3.34, 1.2, 0.20, { fontSize: 12.2, color: C.red, bold: true });
-  addText(slide, "GitGuardian：AI service secrets 2025 年达到 1,275,105，YoY +81%；AI 辅助提交泄露率高于全站基线。", 0.94, 3.70, 2.72, 0.36, { fontSize: 7.0, color: C.text, fit: "shrink" });
-  const markets = [
-    ["高校实验室", "eBPF/AI安全教学\n课程实验与竞赛\n软著/论文/项目成果", C.blue],
-    ["AI coding 团队", "本地/云端 Agent 审计\n敏感文件与外联治理\n团队策略模板", C.green],
-    ["企业安全", "私有化部署\n审计报表与 SIEM\n合规留存", C.orange],
+  title(slide, "12", "应用前景一：高校实验室，从竞赛项目变成教学与科研平台", "国创赛场景下，最容易先落地的是可复现实验、课程实践和安全竞赛训练。", 14);
+  axisCard(slide, 0.78, 1.36, 2.62, 1.45, "1", "课程实验", "eBPF syscall 观测、LSM 阻断、Agent 风险 replay，可做成 AI 安全/系统安全课程实验。", C.blue, C.paleBlue);
+  axisCard(slide, 3.70, 1.36, 2.62, 1.45, "2", "科研题目", "Agentic AI runtime guardrail、语义-事实一致性、执行图谱和误报控制，可沉淀论文/专利方向。", C.purple, C.palePurple);
+  axisCard(slide, 6.62, 1.36, 2.62, 1.45, "3", "竞赛训练", "用良性/恶意任务 replay 构造靶场，训练学生识别 prompt 注入、MCP 密钥、异常外联。", C.green, C.paleGreen);
+  rect(slide, 0.86, 3.38, 8.28, 0.92, C.white, C.line, { radius: 0.035 });
+  addText(slide, "落地路径", 1.12, 3.62, 0.92, 0.18, { fontSize: 10.8, color: C.ink, bold: true });
+  addText(slide, "先以开源 demo + 实验文档进入课程/实验室；用竞赛演示和测试报告证明可复现；再争取软著、导师课题、校企联合实践。", 2.18, 3.62, 6.55, 0.22, { fontSize: 8.0, color: C.text });
+  splitRow(slide, 1.00, 4.62, 8.00, 0.36, "近期成果", "演示视频、实验指导书、benchmark 数据集、软著/专利材料、导师推荐或试点证明。", C.blue);
+}
+
+{
+  const slide = pptx.addSlide();
+  title(slide, "13", "应用前景二：AI coding 团队，解决“能用但不敢放开用”", "团队不是缺 AI 工具，而是缺本地执行链的边界、审计和复盘能力。", 15);
+  rect(slide, 0.70, 1.32, 3.10, 3.10, C.white, C.line, { radius: 0.035 });
+  containImage(slide, img("gitguardian_state_2026.png"), 0.92, 1.54, 2.66, 1.40, { frame: true, bg: C.white });
+  addText(slide, "付费理由", 0.96, 3.18, 1.10, 0.18, { fontSize: 11.2, color: C.red, bold: true });
+  addText(slide, "AI-assisted commits 与 MCP 配置泄露会直接影响代码资产、凭据和客户数据；团队负责人需要可追责证据。", 0.96, 3.54, 2.54, 0.34, { fontSize: 7.1, color: C.text, fit: "shrink" });
+  const vals = [
+    ["策略模板", "只读审查、依赖安装、网络访问、敏感路径等团队级策略包", C.blue],
+    ["审计报表", "按 run/task/tool_call 输出证据链，支持复盘与责任界定", C.green],
+    ["训练样本", "将真实告警转成 replay 数据，持续降低误报和漏报", C.purple],
   ];
-  markets.forEach((m, i) => card(slide, 4.28 + i * 1.70, 1.50, 1.48, 2.56, m[0], m[1], m[2], C.white));
-  rect(slide, 4.34, 4.46, 4.72, 0.30, C.panel2, C.line2, { radius: 0.02 });
-  addText(slide, "打法：先低门槛开源获客，再用专业版/私有化/培训完成转化。", 4.50, 4.555, 4.40, 0.08, { fontSize: 7.8, bold: true, color: C.ink, align: "center" });
-  source(slide, "市场证据：Stack Overflow 2025 AI adoption；GitGuardian 2026 secrets sprawl；IBM 2025 AI oversight gap。");
+  vals.forEach((v, i) => card(slide, 4.18, 1.34 + i * 0.96, 4.86, 0.74, v[0], v[1], v[2], i % 2 ? C.panel : C.white));
+  splitRow(slide, 4.18, 4.48, 4.86, 0.40, "商业入口", "Team Pro：团队策略、多人审计、报表导出、告警训练集。", C.green);
+  source(slide, "市场证据：GitGuardian State of Secrets Sprawl 2026；Stack Overflow Developer Survey 2025。");
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "13", "商业模式：开源核心 + 专业版 + 私有化 + 教育服务", "保留技术影响力，同时形成可收费的团队、企业与教学版本。", 15);
+  title(slide, "14", "应用前景三：企业私有化，把 Agent 安全接入现有安全体系", "企业价值不只是 UI，而是把 Agent 执行证据送进合规、审计和安全运营流程。", 16);
+  const cols = [
+    ["部署形态", "单机开发机\n团队网关\nK8s / 多节点\n离线私有化", C.blue],
+    ["集成对象", "SIEM / OTLP\n审计留存\nSSO / token\n策略审批", C.green],
+    ["交付价值", "外联约束\n敏感路径保护\n事故复盘\n合规报告", C.orange],
+    ["服务收入", "PoC\n私有化部署\n策略调优\n培训与靶场", C.purple],
+  ];
+  cols.forEach((c, i) => card(slide, 0.64 + i * 2.28, 1.38, 2.02, 2.90, c[0], c[1], c[2], C.white));
+  rect(slide, 0.94, 4.54, 8.10, 0.36, C.panel2, C.line2, { radius: 0.02 });
+  addText(slide, "企业侧最容易成交的不是“炫酷监控”，而是私有化部署、审计留存、异常外联管控和事故可复盘。", 1.14, 4.655, 7.70, 0.08, { fontSize: 7.8, color: C.ink, bold: true, align: "center" });
+}
+
+{
+  const slide = pptx.addSlide();
+  title(slide, "15", "商业模式：围绕深度能力收费，而不是围绕页面数量收费", "开源用于建立信任，付费集中在团队治理、私有化交付和教育内容。", 17);
   const plans = [
-    ["Community", "免费/开源", "单机观测、基础告警、教学实验"],
-    ["Team Pro", "3.98万/年起", "团队策略、报表/训练样本、多用户"],
-    ["Enterprise", "19.8万/年起", "私有化/多节点、SSO、审计留存、SIEM"],
-    ["Education Kit", "3万/套起", "课程实验、靶场、竞赛训练营"],
-    ["Consulting", "5-20万/项目", "PoC、红队 replay、策略调优"],
+    ["Community", "免费/开源", "单机观测、基础告警、教学实验", "开发者获客与课程传播"],
+    ["Team Pro", "3.98万/年起", "团队策略、报表、训练样本、多用户", "AI coding 团队治理"],
+    ["Enterprise", "19.8万/年起", "私有化、多节点、SSO、SIEM、审计留存", "企业合规与安全运营"],
+    ["Education Kit", "3万/套起", "课程实验、靶场、竞赛训练营", "高校实验室与培训"],
+    ["Consulting", "5-20万/项目", "PoC、红队 replay、策略调优", "落地服务收入"],
   ];
-  rect(slide, 0.72, 1.42, 8.56, 3.02, C.white, C.line, { radius: 0.035 });
-  const widths = [1.72, 1.62, 4.72];
-  addText(slide, "版本", 1.02, 1.72, widths[0], 0.12, { fontSize: 8.2, color: C.blue, bold: true });
-  addText(slide, "价格", 2.74, 1.72, widths[1], 0.12, { fontSize: 8.2, color: C.blue, bold: true });
-  addText(slide, "核心价值", 4.38, 1.72, widths[2], 0.12, { fontSize: 8.2, color: C.blue, bold: true });
-  line(slide, 0.94, 1.98, 9.06, 1.98, C.line, 0.8);
+  rect(slide, 0.62, 1.34, 8.76, 3.36, C.white, C.line, { radius: 0.035 });
+  addText(slide, "版本", 0.94, 1.62, 1.25, 0.12, { fontSize: 8.0, color: C.blue, bold: true });
+  addText(slide, "价格", 2.18, 1.62, 1.30, 0.12, { fontSize: 8.0, color: C.blue, bold: true });
+  addText(slide, "交付内容", 3.52, 1.62, 3.10, 0.12, { fontSize: 8.0, color: C.blue, bold: true });
+  addText(slide, "付费动机", 6.88, 1.62, 1.65, 0.12, { fontSize: 8.0, color: C.blue, bold: true });
+  line(slide, 0.86, 1.90, 9.12, 1.90, C.line, 0.8);
   plans.forEach((p, i) => {
-    const y = 2.18 + i * 0.40;
-    if (i % 2 === 1) slide.addShape(pptx.ShapeType.rect, { x: 0.92, y: y - 0.05, w: 8.16, h: 0.30, fill: { color: C.panel }, line: { color: C.panel } });
-    addText(slide, p[0], 1.02, y, widths[0], 0.10, { fontFace: EN, fontSize: 7.5, color: A[i], bold: true });
-    addText(slide, p[1], 2.74, y, widths[1], 0.10, { fontSize: 7.4, color: C.text });
-    addText(slide, p[2], 4.38, y, widths[2], 0.10, { fontSize: 7.4, color: C.text });
+    const y = 2.10 + i * 0.42;
+    if (i % 2 === 1) slide.addShape(pptx.ShapeType.rect, { x: 0.84, y: y - 0.05, w: 8.30, h: 0.32, fill: { color: C.panel }, line: { color: C.panel } });
+    addText(slide, p[0], 0.94, y, 1.18, 0.10, { fontFace: EN, fontSize: 7.2, color: A[i], bold: true });
+    addText(slide, p[1], 2.18, y, 1.22, 0.10, { fontSize: 7.1, color: C.text });
+    addText(slide, p[2], 3.52, y, 3.05, 0.10, { fontSize: 7.1, color: C.text });
+    addText(slide, p[3], 6.88, y, 1.88, 0.10, { fontSize: 7.1, color: C.text });
   });
-  addText(slide, "注：价格为校赛版测算，提交前建议用真实客户访谈、试点意向或合同报价校准。", 1.04, 4.78, 7.92, 0.10, { fontSize: 7.4, color: C.muted, align: "center" });
+  addText(slide, "注：价格为校赛版测算，提交前建议补充真实访谈、试点意向或导师/企业推荐证明。", 1.02, 4.88, 7.96, 0.10, { fontSize: 7.2, color: C.muted, align: "center" });
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "14", "实施路线：把原型做成可验证产品", "围绕竞赛、试点、知识产权和商业化四条线推进。", 16);
+  title(slide, "16", "实施路线：先把深度闭环跑稳，再扩展场景", "路线图从“证明内核闭环可靠”开始，而不是先堆平台功能。", 18);
   const mile = [
-    ["2026.05-06", "校赛材料", "申报书 / PPT / 演示视频 / 稳定 demo", C.blue],
-    ["2026.06-08", "场景验证", "良性/恶意 replay、检测率/阻断率报告", C.green],
-    ["2026.08-10", "试点应用", "课程/实验室/企业 PoC 反馈", C.orange],
-    ["2026.10-2027.03", "成果固化", "软著/专利/论文/合作证明", C.purple],
-    ["2027", "产品化", "专业版、多节点、企业私有化", C.red],
+    ["2026.05-06", "深度演示", "敏感路径、异常外联、LSM/cgroup 阻断、证据链回放", C.blue],
+    ["2026.06-08", "量化验证", "检测率、阻断率、误报、事件延迟、CPU/内存开销", C.green],
+    ["2026.08-10", "高校试点", "课程实验、靶场、实验室试用、导师反馈", C.orange],
+    ["2026.10-2027.03", "成果固化", "软著、专利、论文、合作证明、开源社区", C.purple],
+    ["2027", "产品化", "Team Pro、企业私有化、教育套件、咨询服务", C.red],
   ];
-  line(slide, 1.05, 2.42, 8.80, 2.42, C.line, 2.2);
+  line(slide, 1.05, 2.34, 8.80, 2.34, C.line, 2.2);
   mile.forEach((m, i) => {
     const x = 0.66 + i * 1.84;
-    slide.addShape(pptx.ShapeType.ellipse, { x: x + 0.62, y: 2.23, w: 0.36, h: 0.36, fill: { color: m[3] }, line: { color: C.white, width: 1 } });
-    rect(slide, x, 2.90, 1.48, 1.28, C.white, C.line, { radius: 0.03 });
-    addText(slide, m[0], x + 0.11, 3.12, 1.26, 0.10, { fontFace: EN, fontSize: 6.7, color: m[3], bold: true, align: "center" });
-    addText(slide, m[1], x + 0.11, 3.43, 1.26, 0.14, { fontSize: 9.6, color: C.ink, bold: true, align: "center" });
-    addText(slide, m[2], x + 0.11, 3.78, 1.26, 0.20, { fontSize: 6.5, color: C.text, align: "center", fit: "shrink" });
+    slide.addShape(pptx.ShapeType.ellipse, { x: x + 0.62, y: 2.15, w: 0.36, h: 0.36, fill: { color: m[3] }, line: { color: C.white, width: 1 } });
+    rect(slide, x, 2.82, 1.48, 1.34, C.white, C.line, { radius: 0.03 });
+    addText(slide, m[0], x + 0.11, 3.04, 1.26, 0.10, { fontFace: EN, fontSize: 6.5, color: m[3], bold: true, align: "center" });
+    addText(slide, m[1], x + 0.11, 3.34, 1.26, 0.14, { fontSize: 9.2, color: C.ink, bold: true, align: "center" });
+    addText(slide, m[2], x + 0.11, 3.66, 1.26, 0.25, { fontSize: 6.3, color: C.text, align: "center", fit: "shrink" });
   });
-  addText(slide, "阶段目标都对应可验收证据：脚本结果、演示录屏、试点反馈、知识产权材料和可复现 benchmark。", 0.92, 4.76, 8.15, 0.10, { fontSize: 7.6, color: C.muted, align: "center" });
+  splitRow(slide, 0.92, 4.66, 8.15, 0.36, "阶段判断", "如果内核闭环和低误报验证不充分，不急于扩大 UI 功能；先把最难的技术证明做扎实。", C.blue);
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "15", "团队分工与合规边界：高权限工具必须讲清楚", "提交前将【待填】替换为真实姓名、学号、年级、学院与贡献证据。", 17);
-  card(slide, 0.72, 1.38, 2.72, 2.70, "团队分工", "负责人：【待填】总体架构 / 答辩 / 进度\neBPF：【待填】LSM / cgroup / tracepoints\n后端：【待填】Go API / EventEnvelope / 策略\n前端：【待填】Vue / 执行图谱 / 低代码\n算法评测：【待填】ML / replay\n商业调研：【待填】客户访谈 / 财务", C.blue, C.white);
-  card(slide, 3.64, 1.38, 2.72, 2.70, "权限与隐私", "• 后端加载 eBPF，保持 root/特权边界\n• 写 API、shell、策略变更均有 token 与 runtime gate\n• TLS 明文捕获默认关闭\n• 事件流只保留摘要/长度/角色/厂商", C.green, C.white);
-  card(slide, 6.56, 1.38, 2.72, 2.70, "误报与合规", "• 先观察模式再阻断\n• 回放 benchmark 调优\n• ML/LLM 建议需人工确认\n• 用于本地/授权环境，不采集未授权数据\n• 演示数据必须脱敏", C.red, C.white);
+  title(slide, "17", "团队分工与合规边界：围绕深度闭环组织，而不是按页面分工", "提交前将【待填】替换为真实姓名、学号、年级、学院与贡献证据。", 19);
+  card(slide, 0.72, 1.38, 2.72, 2.70, "技术主线", "eBPF/LSM/cgroup：【待填】\n上下文继承/执行图谱：【待填】\n语义风险检测：【待填】\n性能与误报验证：【待填】", C.blue, C.white);
+  card(slide, 3.64, 1.38, 2.72, 2.70, "应用主线", "高校实验与课程：【待填】\n团队/企业访谈：【待填】\n商业模式与报价：【待填】\n演示视频与材料：【待填】", C.green, C.white);
+  card(slide, 6.56, 1.38, 2.72, 2.70, "合规边界", "• 只在本地/授权环境使用\n• 先观察后阻断\n• 不采集未授权数据\n• TLS 明文捕获默认关闭\n• 演示数据必须脱敏", C.red, C.white);
   addText(slide, "团队证明建议：commit 记录、模块负责人截图、导师指导记录、测试报告、软著/论文/专利分工。", 0.96, 4.70, 8.1, 0.10, { fontSize: 7.6, color: C.muted, align: "center" });
 }
 
 {
   const slide = pptx.addSlide();
-  title(slide, "16", "总结：让 AI Agent 可观测、可解释、可回放、可控制", "用公开数据说明刚需，用真实工程证明可行，用可复盘演示争取支持。", 18);
-  card(slide, 0.74, 1.30, 2.62, 1.18, "证明 1：真实需求", "Stack Overflow、GitGuardian、IBM 数据说明 AI 开发工具普及、密钥泄露和治理缺口已经同时出现。", C.blue, C.white);
-  card(slide, 3.68, 1.30, 2.62, 1.18, "证明 2：真实风险", "EchoLeak、MCP Tool Poisoning、Copilot 信息泄露案例说明工具链和上下文边界已是攻击面。", C.red, C.white);
-  card(slide, 6.62, 1.30, 2.62, 1.18, "证明 3：真实原型", "eBPF + BPF LSM/cgroup + hooks/wrapper + Execution Graph，形成可演示、可验证闭环。", C.green, C.white);
+  title(slide, "18", "总结：技术深度解决信任问题，应用前景决定项目价值", "用公开数据说明刚需，用内核闭环证明技术深度，用明确场景说明落地前景。", 20);
+  card(slide, 0.74, 1.30, 2.62, 1.20, "深度 1：可信事实", "eBPF 采集关键 OS 行为，EventEnvelope 统一语义和事实字段，形成不可只靠 prompt 替代的证据底座。", C.blue, C.white);
+  card(slide, 3.68, 1.30, 2.62, 1.20, "深度 2：前置控制", "BPF LSM/cgroup 把策略放到危险动作发生前，证明项目不是事后看板，而是 runtime guardrail。", C.green, C.white);
+  card(slide, 6.62, 1.30, 2.62, 1.20, "前景：三类场景", "高校实验室、AI coding 团队、企业私有化分别对应成果转化、团队治理和合规运营。", C.orange, C.white);
   rect(slide, 0.88, 2.94, 8.24, 0.48, C.panel2, C.line2, { radius: 0.02 });
   addText(slide, "需要支持：导师/学院资源、试点用户、软著/专利指导。目标：校赛晋级、省赛打磨、形成可转化产品。", 1.10, 3.10, 7.80, 0.10, { fontSize: 8.8, color: C.ink, bold: true, align: "center" });
   rect(slide, 0.88, 3.75, 8.24, 0.70, C.white, C.line, { radius: 0.03 });
-  addText(slide, "主要来源：Stack Overflow Developer Survey 2025；GitGuardian State of Secrets Sprawl 2026；IBM Cost of a Data Breach Report 2025；OWASP Top 10 for LLM Applications / Agentic AI Threats；CSA M365 Copilot CVE-2026-24299 research note；NVD CVE-2025-32711。", 1.08, 3.92, 7.84, 0.30, { fontSize: 6.8, color: C.text, align: "center", fit: "shrink" });
+  addText(slide, "主要来源：Stack Overflow Developer Survey 2025；GitGuardian State of Secrets Sprawl 2026；IBM Cost of a Data Breach Report 2025；OWASP Top 10 for LLM Applications / Agentic AI Threats；CSA M365 Copilot research note；NVD CVE-2025-32711。", 1.08, 3.92, 7.84, 0.30, { fontSize: 6.8, color: C.text, align: "center", fit: "shrink" });
   addText(slide, "谢谢各位老师，请批评指正", 3.10, 4.76, 3.8, 0.20, { fontSize: 14.2, bold: true, color: C.blue, align: "center" });
 }
 
