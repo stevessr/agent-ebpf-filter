@@ -33,6 +33,8 @@
 
 ## 关键外部数据与案例
 
+PPT 内已使用 `[1]`–`[6]` 短编号标注统计数据、案例和风险框架来源，并在 Slide 21 追加完整引用信息页。
+
 | PPT 位置 | 用途 | 数据/案例 | 来源 |
 |---|---|---|---|
 | Slide 1/3/15/20 | AI 开发工具采用率 | 84% 受访者正在使用或计划使用 AI 开发工具；专业开发者日用比例 51% | Stack Overflow Developer Survey 2025: https://survey.stackoverflow.co/2025/ai |
@@ -68,12 +70,13 @@
 - Slide 5：把问题收束为“意图到进程、进程到资源、告警到阻断”三个证据链断点。
 - Slide 6–12：集中讲四个技术深水区：总体闭环、eBPF 事实采集、BPF LSM/cgroup 前置阻断、进程上下文继承、语义-事实一致性、性能/权限/误报/合规边界、验证实验。
 - Slide 13–18：集中讲未来前景和商业化：高校实验室、AI coding 团队、企业私有化、商业模式、实施路线、团队与合规。
-- Slide 20：总结为“技术深度解决信任问题，应用前景决定项目价值”。
+- Slide 20：总结为“技术深度解决信任问题，应用前景决定项目价值”，并提示完整引用信息见下一页。
+- Slide 21：新增引用信息页，列出 Stack Overflow、GitGuardian、IBM、OWASP、CSA、NVD 等来源与链接。
 - 全文不再展示具体后端源码文件名或源码路径，答辩时统一使用模块级能力与工程证据表述。
 
 ## 验收记录
 
 - 已用 `node ../generate_light_roadshow_ppt.js` 重新生成 PPTX。
 - 已用 LibreOffice headless 导出 PDF。
-- 已用 `pdftoppm` 生成 20 张 PNG 静态预览图到 `../validation/light-ppt-preview-depth/`。
-- 抽查 Slide 1、6、8、13：封面已强调“少讲广度、深讲闭环”；技术页聚焦架构、LSM/cgroup 与证据链；应用页聚焦高校、团队、企业三类场景。
+- 已用 `pdftoppm` 生成 21 张 PNG 静态预览图到 `../validation/light-ppt-preview-depth/`。
+- 抽查 Slide 3、4、20、21：数据页和案例页已有短编号引用；总结页提示引用页；引用页列出完整来源链接。

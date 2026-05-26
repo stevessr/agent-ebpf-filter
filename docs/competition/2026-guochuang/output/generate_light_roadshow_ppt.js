@@ -224,27 +224,27 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
 {
   const slide = pptx.addSlide();
   title(slide, "01", "数据证据：Agent 普及越快，运行时事实越稀缺", "公开调研和安全报告共同指向同一个缺口：AI 工具进入执行链，但审计和控制仍停留在外围。", 3);
-  metric(slide, "84%", "Stack Overflow：正在使用或计划使用 AI 开发工具", 0.62, 1.38, 1.66, C.blue);
-  metric(slide, "28.65M", "GitGuardian：2025 年 public GitHub 新增硬编码密钥", 2.42, 1.38, 1.82, C.red);
-  metric(slide, "$4.44M", "IBM：全球平均数据泄露成本", 4.38, 1.38, 1.52, C.purple);
-  metric(slide, "97%", "IBM：AI 相关事件组织缺少适当 AI 访问控制", 6.04, 1.38, 1.54, C.orange);
-  metric(slide, "24,008", "GitGuardian：公开 MCP 配置中暴露的唯一密钥", 7.72, 1.38, 1.66, C.green);
+  metric(slide, "84%", "Stack Overflow 2025：正在使用或计划使用 AI 开发工具 [1]", 0.62, 1.38, 1.66, C.blue);
+  metric(slide, "28.65M", "GitGuardian 2026：2025 年 public GitHub 新增硬编码密钥 [2]", 2.42, 1.38, 1.82, C.red);
+  metric(slide, "$4.44M", "IBM 2025：全球平均数据泄露成本 [3]", 4.38, 1.38, 1.52, C.purple);
+  metric(slide, "97%", "IBM 2025：AI 相关事件组织缺少适当访问控制 [3]", 6.04, 1.38, 1.54, C.orange);
+  metric(slide, "24,008", "GitGuardian 2026：公开 MCP 配置中暴露的唯一密钥 [2]", 7.72, 1.38, 1.66, C.green);
   rect(slide, 0.62, 2.42, 4.32, 2.28, C.white, C.line, { radius: 0.035 });
   containImage(slide, img("stackoverflow_ai_usage.png"), 0.84, 2.62, 3.90, 1.56, { frame: true, bg: C.white });
-  addText(slide, "采用率提升不是重点，重点是 Agent 已经开始触发终端、文件和网络行为。安全边界必须落到运行时。", 0.86, 4.30, 3.85, 0.16, { fontSize: 7.0, color: C.muted });
+  addText(slide, "采用率提升不是重点，重点是 Agent 已经开始触发终端、文件和网络行为。安全边界必须落到运行时 [1]。", 0.86, 4.30, 3.85, 0.16, { fontSize: 7.0, color: C.muted });
   rect(slide, 5.16, 2.42, 4.22, 2.28, C.white, C.line, { radius: 0.035 });
   containImage(slide, img("gitguardian_commits_developers.png"), 5.38, 2.62, 3.80, 1.56, { frame: true, bg: C.white });
-  addText(slide, "软件生产提速后，密钥、依赖脚本、MCP 配置的扩散速度也变快；只看 prompt 已经不够。", 5.40, 4.30, 3.72, 0.16, { fontSize: 7.0, color: C.muted });
-  source(slide, "数据/图片：Stack Overflow Developer Survey 2025；GitGuardian State of Secrets Sprawl 2026；IBM Cost of a Data Breach Report 2025");
+  addText(slide, "软件生产提速后，密钥、依赖脚本、MCP 配置的扩散速度也变快；只看 prompt 已经不够 [2]。", 5.40, 4.30, 3.72, 0.16, { fontSize: 7.0, color: C.muted });
+  source(slide, "引用：[1] Stack Overflow Developer Survey 2025；[2] GitGuardian State of Secrets Sprawl 2026；[3] IBM Cost of a Data Breach Report 2025。完整链接见引用页。");
 }
 
 {
   const slide = pptx.addSlide();
   title(slide, "02", "真实案例：风险不是模型幻觉，而是执行链越界", "报告截图保留为外部证据，但结论聚焦到一个工程问题：如何把越界行为在 OS 层归因和拦截。", 4);
   const cases = [
-    { x: 0.62, img: "csa_copilot_cover_thumb.png", t: "上下文越权", d: "Copilot / EchoLeak 类案例说明：外部输入可能触发内部知识检索或数据泄露，风险发生在工具链边界。", c: C.red },
-    { x: 3.70, img: "gitguardian_mcp_valid_secrets.png", t: "配置即攻击面", d: "MCP 配置中的有效密钥进入公共仓库，说明 Agent 生态的本机配置、工具描述和凭据都需要治理。", c: C.green },
-    { x: 6.78, img: "owasp_llm_cover_thumb.png", t: "工具误用", d: "OWASP 将 tool misuse、excessive agency、untraceability 列为重点，正对应本项目的运行时证据链。", c: C.blue },
+    { x: 0.62, img: "csa_copilot_cover_thumb.png", t: "上下文越权 [5][6]", d: "Copilot / EchoLeak 类案例说明：外部输入可能触发内部知识检索或数据泄露，风险发生在工具链边界。", c: C.red },
+    { x: 3.70, img: "gitguardian_mcp_valid_secrets.png", t: "配置即攻击面 [2]", d: "MCP 配置中的有效密钥进入公共仓库，说明 Agent 生态的本机配置、工具描述和凭据都需要治理。", c: C.green },
+    { x: 6.78, img: "owasp_llm_cover_thumb.png", t: "工具误用 [4]", d: "OWASP 将 tool misuse、excessive agency、untraceability 列为重点，正对应本项目的运行时证据链。", c: C.blue },
   ];
   cases.forEach((c) => {
     rect(slide, c.x, 1.38, 2.60, 3.40, C.white, C.line, { radius: 0.035 });
@@ -253,7 +253,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
     addText(slide, c.d, c.x + 0.18, 3.68, 2.22, 0.60, { fontSize: 7.2, color: C.text, fit: "shrink" });
     pill(slide, "归因 + 拦截 + 回放", c.x + 0.18, 4.40, 1.38, c.c, c.c === C.red ? C.paleRed : c.c === C.green ? C.paleGreen : C.paleBlue);
   });
-  source(slide, "案例图片：Cloud Security Alliance 2026 Copilot research note；GitGuardian 2026 report；OWASP Top 10 for LLM Applications 2025 / Agentic AI Threats");
+  source(slide, "引用：[2] GitGuardian 2026；[4] OWASP LLM/Agentic AI Threats；[5] CSA Copilot research note；[6] NVD CVE-2025-32711。完整链接见引用页。");
 }
 
 {
@@ -391,7 +391,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
     addText(slide, a[2], x + 0.26, 2.72, 2.04, 0.88, { fontSize: 7.8, color: C.text, align: "center", fit: "shrink" });
     splitRow(slide, x + 0.22, 3.82, 2.14, 0.34, "价值", i === 0 ? "成果转化" : i === 1 ? "降低事故" : "合规落地", a[3]);
   });
-  source(slide, "市场证据：Stack Overflow AI adoption；GitGuardian secrets sprawl；IBM AI oversight gap。");
+  source(slide, "引用：[1] Stack Overflow 2025 AI adoption；[2] GitGuardian 2026 secrets sprawl；[3] IBM 2025 AI oversight gap。完整链接见引用页。");
 }
 
 {
@@ -420,7 +420,7 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   ];
   vals.forEach((v, i) => card(slide, 4.18, 1.34 + i * 0.96, 4.86, 0.74, v[0], v[1], v[2], i % 2 ? C.panel : C.white));
   splitRow(slide, 4.18, 4.48, 4.86, 0.40, "商业入口", "Team Pro：团队策略、多人审计、报表导出、告警训练集。", C.green);
-  source(slide, "市场证据：GitGuardian State of Secrets Sprawl 2026；Stack Overflow Developer Survey 2025。");
+  source(slide, "引用：[2] GitGuardian State of Secrets Sprawl 2026；[1] Stack Overflow Developer Survey 2025。完整链接见引用页。");
 }
 
 {
@@ -504,8 +504,30 @@ function axisCard(slide, x, y, w, h, num, heading, body, color, fill) {
   rect(slide, 0.88, 2.94, 8.24, 0.48, C.panel2, C.line2, { radius: 0.02 });
   addText(slide, "需要支持：导师/学院资源、试点用户、软著/专利指导。目标：校赛晋级、省赛打磨、形成可转化产品。", 1.10, 3.10, 7.80, 0.10, { fontSize: 8.8, color: C.ink, bold: true, align: "center" });
   rect(slide, 0.88, 3.75, 8.24, 0.70, C.white, C.line, { radius: 0.03 });
-  addText(slide, "主要来源：Stack Overflow Developer Survey 2025；GitGuardian State of Secrets Sprawl 2026；IBM Cost of a Data Breach Report 2025；OWASP Top 10 for LLM Applications / Agentic AI Threats；CSA M365 Copilot research note；NVD CVE-2025-32711。", 1.08, 3.92, 7.84, 0.30, { fontSize: 6.8, color: C.text, align: "center", fit: "shrink" });
+  addText(slide, "本 PPT 中统计数据、案例与外部框架已用 [1]–[6] 标注来源；完整引用信息见下一页。", 1.08, 3.98, 7.84, 0.16, { fontSize: 8.6, color: C.text, align: "center", fit: "shrink" });
   addText(slide, "谢谢各位老师，请批评指正", 3.10, 4.76, 3.8, 0.20, { fontSize: 14.2, bold: true, color: C.blue, align: "center" });
+}
+
+{
+  const slide = pptx.addSlide();
+  title(slide, "REF", "引用信息：统计数据、案例与风险框架来源", "答辩时可按编号追溯数据、报告截图和外部安全框架。", 21);
+  const refs = [
+    ["[1]", "Stack Overflow Developer Survey 2025 — AI tools adoption / usage", "https://survey.stackoverflow.co/2025/ai", C.blue],
+    ["[2]", "GitGuardian State of Secrets Sprawl 2026 — secrets scale, MCP secrets, AI-assisted commit risk", "https://blog.gitguardian.com/the-state-of-secrets-sprawl-2026/", C.red],
+    ["[3]", "IBM Cost of a Data Breach Report 2025 / IBM newsroom — breach cost and AI access-control gap", "https://www.ibm.com/reports/data-breach", C.purple],
+    ["[4]", "OWASP Top 10 for LLM Applications / Agentic AI Threats / MCP Tool Poisoning", "https://owasp.org/www-project-top-10-for-large-language-model-applications/", C.green],
+    ["[5]", "Cloud Security Alliance research note — M365 Copilot / CVE-2026-24299 security guidance", "https://labs.cloudsecurityalliance.org/", C.orange],
+    ["[6]", "NVD CVE-2025-32711 — EchoLeak vulnerability record", "https://nvd.nist.gov/vuln/detail/CVE-2025-32711", C.cyan],
+  ];
+  refs.forEach((r, i) => {
+    const y = 1.28 + i * 0.58;
+    rect(slide, 0.72, y, 8.68, 0.42, i % 2 ? C.panel : C.white, C.line, { radius: 0.02 });
+    addText(slide, r[0], 0.92, y + 0.135, 0.42, 0.08, { fontFace: EN, fontSize: 7.8, color: r[3], bold: true, align: "center" });
+    addText(slide, r[1], 1.48, y + 0.08, 4.95, 0.12, { fontSize: 7.2, color: C.ink, bold: true, fit: "shrink" });
+    addText(slide, r[2], 1.48, y + 0.24, 6.95, 0.08, { fontFace: EN, fontSize: 5.8, color: C.muted, fit: "shrink" });
+  });
+  rect(slide, 0.92, 4.88, 8.12, 0.28, C.panel2, C.line2, { radius: 0.02 });
+  addText(slide, "说明：PPT 内使用短编号标注来源，详细数值以引用页链接和原报告为准；2026 正式竞赛材料提交前建议再次复核访问状态。", 1.10, 4.965, 7.78, 0.08, { fontSize: 6.9, color: C.text, align: "center" });
 }
 
 pptx.writeFile({ fileName: OUT }).then(() => {
