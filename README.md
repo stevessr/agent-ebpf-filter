@@ -68,7 +68,7 @@ TLS 明文捕获属于显式启用的高风险诊断能力，不是安全基线�
 
 Go 进程可通过 `POST /tls-capture/go-binary` 手动注册；只有在 `tlsCaptureEnabled=true` 时，后端才会每 60 秒自动扫描 `/proc` 发现的 Go TLS 进程。
 
-安全边界：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization 在后端脱敏；body 截断至 16 KiB。
+安全边界：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization、URL query token/key/secret/password、JSON/form/text body 中常见密钥模式在后端脱敏；body 截断至 16 KiB。TLS/HTTP/SSE/LLM 元数据会写入统一 `EventEnvelope`，并在 collector health 中累积 AgentSight parser/redaction counters。
 
 ### 80/443 域名流量转发
 
@@ -114,7 +114,8 @@ upstream，避免代理再次打回自身。
 - **Explorer**: browse the host filesystem and add tracked paths
 - **Executor**: open a temporary wrapper-backed PTY tab for ad-hoc commands, keep shell PTY sessions separate from tmux, and let the Remote tab self-destruct when you leave it
 - **Executor**: launch coding CLIs in tmux, start Python/Node/Ruby/sh/pwsh/Deno/Bun scripts with optional virtualenv selection, and manage shared launch environment variables in a dedicated config tab with backend-detected env suggestions
-- **TLS 捕获（可选，默认关闭）**: TLS 明文日志，支持实时 WebSocket、进程/库/方向/域名过滤、body 搜索、body 和 curl 一键复制、库挂载状态查看
+- **TLS 捕获（可选，默认关闭）**: TLS 明文日志，支持实时 WebSocket、进程/库/方向/域名过滤、HTTP/SSE 解析、LLM metadata / prompt digest、脱敏状态、body 搜索、body 和 curl 一键复制、库挂载状态查看
+- **AgentSight**: 兼容 `docs/ref/agentsight` 的统一观测页，提供 Log、Timeline、Process Tree、Metrics 四个视图，基于 `EventEnvelope` 展示 TLS/HTTP/SSE、process、policy、wrapper、hook、MCP、未来 stdio/system 事件
 - **Hooks**: install or edit native hook configs / wrapper aliases
 - **Plugins**: register custom eBPF plugins from templates, raw C source, or a low-code multi-block visual builder whose primary workspace is a Dify-style node workflow with a searchable draggable edge-snapping floating node-type library with animated edge hide/restore controls, draggable node types that can be dropped onto the canvas to create/restore Trigger / Condition / Map / Action / Code nodes, grid-snapped node movement, a manually resizable canvas, drag-to-connect ports, editable route/wire connections with disconnected-flow compile gates, undo/redo workspace history, animated wires, node-level inspectors for quick block editing, a draggable edge-snapping floating scenario-block recipe window with animated arrow hide/restore controls, a separate LLM-backed NLP Blocks Compiler tab for natural-language-to-block generation with local fallback, a separate Map / Blueprint tab for detailed condition-tree, state-map, action, and metadata editing, and a separate Generated eBPF C tab for generated source, compile logs, and load controls. A separate top-level TS pseudocode builder owns its own editor state, compile/register/load flow, and browser storage slot instead of syncing with the visual canvas. The visual builder still supports browser draft autosave/restore, JSON import/export, and compile-readiness validation.
 - **ML**: first-level ML Classification page for status / parameters / model management / LLM scoring / training-set management, including a 42-profile local built-in model catalog, native C runtime inference timing with CUDA / Intel iGPU capability detection, OpenAI-compatible LLM scoring that auto-saves to browser storage and syncs to the backend before scoring, validation split controls, square-grid auto parameter tuning with selectable granularity, live progress, and a heatmap preview
@@ -136,6 +137,7 @@ For a rootless static check of the compiled enforcement objects and smoke script
 - `docs/codex-workflows.md`
 - `docs/external-api.md`
 - `docs/kubernetes.md`
+- `docs/agentsight-grafana-compose.yml` and `docs/agentsight-promtail.yml` for optional Loki/Grafana visualization of persisted AgentSight JSONL events
 
 ## Cluster mode
 

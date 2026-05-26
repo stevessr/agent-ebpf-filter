@@ -31,6 +31,11 @@ const routes = [
     component: () => import('../views/TLSCapture.vue'),
   },
   {
+    path: '/agentsight/:tab?',
+    name: 'AgentSight',
+    component: () => import('../views/AgentSight.vue'),
+  },
+  {
     path: '/execution-graph',
     name: 'ExecutionGraph',
     component: () => import('../views/ExecutionGraph.vue'),

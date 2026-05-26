@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -87,8 +88,63 @@ func handleTLSCaptureRecent(store *TLSCaptureStore) gin.HandlerFunc {
 				limit = parsed
 			}
 		}
-		c.JSON(http.StatusOK, gin.H{"events": store.Recent(limit)})
+		events := store.Recent(limit)
+		if filter := c.Query("filter"); filter != "" {
+			events = agentSightHTTPFilter.Filter(events, filter)
+		}
+		c.JSON(http.StatusOK, gin.H{"events": events})
 	}
+}
+
+func filterTLSCaptureEvents(events []TLSPlaintextEvent, filter string) []TLSPlaintextEvent {
+	terms := strings.Fields(filter)
+	if len(terms) == 0 {
+		return events
+	}
+	out := make([]TLSPlaintextEvent, 0, len(events))
+	for _, event := range events {
+		if tlsCaptureEventMatchesFilter(event, terms) {
+			out = append(out, event)
+		}
+	}
+	return out
+}
+
+func tlsCaptureEventMatchesFilter(event TLSPlaintextEvent, terms []string) bool {
+	for _, term := range terms {
+		key, value, ok := strings.Cut(term, ":")
+		if !ok {
+			value = term
+			key = "text"
+		}
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value == "" {
+			continue
+		}
+		var haystack string
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "host":
+			haystack = event.Host
+		case "method":
+			haystack = event.Method
+		case "status":
+			haystack = strconv.Itoa(event.StatusCode)
+		case "type":
+			haystack = event.Type
+		case "comm", "process":
+			haystack = event.Comm
+		case "vendor":
+			haystack = event.Vendor
+		case "redaction":
+			haystack = event.RedactionState
+		default:
+			haystack = strings.Join([]string{event.Type, event.Comm, event.Host, event.Method, event.URL, event.ContentType, event.Vendor, event.RedactionState}, " ")
+		}
+		if !strings.Contains(strings.ToLower(haystack), value) {
+			return false
+		}
+	}
+	return true
 }
 
 func handleTLSCaptureLibraries(store *TLSCaptureStore) gin.HandlerFunc {
@@ -112,10 +168,15 @@ func handleTLSCaptureGoBinary(manager tlsGoBinaryRegistrar) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "TLS capture manager is not available"})
 			return
 		}
-		if err := manager.AttachGoUprobes(req.Path, req.PID); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		resolved := ResolveBinary(req.Path, "")
+		attachPath := req.Path
+		if resolved.Error == "" && resolved.RealPath != "" {
+			attachPath = resolved.RealPath
+		}
+		if err := manager.AttachGoUprobes(attachPath, req.PID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "resolved": resolved})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"status": "attached"})
+		c.JSON(http.StatusOK, gin.H{"status": "attached", "resolved": resolved})
 	}
 }

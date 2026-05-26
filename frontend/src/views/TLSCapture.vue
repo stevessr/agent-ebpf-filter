@@ -25,6 +25,13 @@ interface TLSPlaintextEvent {
   raw_hex_dump?: string;
   raw_available?: boolean;
   truncated?: boolean;
+  redaction_state?: string;
+  sse_event?: string;
+  sse_data_digest?: string;
+  message_role?: string;
+  prompt_digest?: string;
+  prompt_len?: number;
+  vendor?: string;
 }
 
 interface TLSLibraryStatus {
@@ -105,6 +112,10 @@ const summaryStats = computed(() => {
     sends: list.filter(event => event.direction === 'send').length,
     recvs: list.filter(event => event.direction === 'recv').length,
     withBody: list.filter(event => Number(event.body_size || 0) > 0).length,
+    http: list.filter(event => event.type === 'http_request' || event.type === 'http_response').length,
+    sse: list.filter(event => event.type === 'sse_message').length,
+    llm: list.filter(event => event.prompt_digest || event.vendor).length,
+    redacted: list.filter(event => event.redaction_state === 'sanitized').length,
     attachedLibs: libraries.value.filter(item => item.attached).length,
   };
 });
@@ -243,6 +254,18 @@ onUnmounted(() => {
         <a-col :xs="12" :sm="6">
           <a-statistic title="Attached Libraries" :value="summaryStats.attachedLibs" />
         </a-col>
+        <a-col :xs="12" :sm="6">
+          <a-statistic title="HTTP" :value="summaryStats.http" />
+        </a-col>
+        <a-col :xs="12" :sm="6">
+          <a-statistic title="SSE" :value="summaryStats.sse" />
+        </a-col>
+        <a-col :xs="12" :sm="6">
+          <a-statistic title="LLM Metadata" :value="summaryStats.llm" />
+        </a-col>
+        <a-col :xs="12" :sm="6">
+          <a-statistic title="Sanitized" :value="summaryStats.redacted" />
+        </a-col>
       </a-row>
 
       <a-space wrap class="tls-toolbar">
@@ -285,8 +308,18 @@ onUnmounted(() => {
         <a-table-column title="Library" data-index="lib" key="lib" width="120" />
         <a-table-column title="Command" data-index="comm" key="comm" width="140" ellipsis />
         <a-table-column title="Host" data-index="host" key="host" width="180" ellipsis />
+        <a-table-column title="Type" data-index="type" key="type" width="120">
+          <template #default="{ text }">
+            <a-tag :color="text === 'sse_message' ? 'cyan' : text?.startsWith('http') ? 'geekblue' : 'default'">{{ text || 'raw' }}</a-tag>
+          </template>
+        </a-table-column>
         <a-table-column title="Method" data-index="method" key="method" width="90" />
         <a-table-column title="URL" data-index="url" key="url" ellipsis />
+        <a-table-column title="Redaction" data-index="redaction_state" key="redaction_state" width="110">
+          <template #default="{ text }">
+            <a-tag :color="text === 'sanitized' ? 'green' : 'default'">{{ text || 'raw' }}</a-tag>
+          </template>
+        </a-table-column>
         <a-table-column title="Body Size" data-index="body_size" key="body_size" width="110" align="right">
           <template #default="{ text }">{{ formatBytes(text) }}</template>
         </a-table-column>
@@ -350,6 +383,21 @@ onUnmounted(() => {
         <a-descriptions-item label="Status">{{ selectedEvent.status ?? '—' }}</a-descriptions-item>
         <a-descriptions-item label="Content Type">{{ selectedEvent.content_type || '—' }}</a-descriptions-item>
         <a-descriptions-item label="Body Size">{{ formatBytes(selectedEvent.body_size) }}</a-descriptions-item>
+        <a-descriptions-item label="Redaction"><a-tag :color="selectedEvent.redaction_state === 'sanitized' ? 'green' : 'default'">{{ selectedEvent.redaction_state || 'raw' }}</a-tag></a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.sse_event || selectedEvent.sse_data_digest" label="SSE">
+          <a-space wrap>
+            <a-tag v-if="selectedEvent.sse_event" color="cyan">{{ selectedEvent.sse_event }}</a-tag>
+            <a-typography-text v-if="selectedEvent.sse_data_digest" code>{{ selectedEvent.sse_data_digest }}</a-typography-text>
+          </a-space>
+        </a-descriptions-item>
+        <a-descriptions-item v-if="selectedEvent.vendor || selectedEvent.prompt_digest" label="LLM Metadata">
+          <a-space wrap>
+            <a-tag v-if="selectedEvent.vendor" color="purple">{{ selectedEvent.vendor }}</a-tag>
+            <a-tag v-if="selectedEvent.message_role" color="blue">{{ selectedEvent.message_role }}</a-tag>
+            <a-typography-text v-if="selectedEvent.prompt_digest" code>{{ selectedEvent.prompt_digest }}</a-typography-text>
+            <span v-if="selectedEvent.prompt_len">{{ selectedEvent.prompt_len }} chars</span>
+          </a-space>
+        </a-descriptions-item>
         <a-descriptions-item label="Headers">
           <pre class="tls-pre">{{ JSON.stringify(selectedEvent.headers || {}, null, 2) }}</pre>
         </a-descriptions-item>

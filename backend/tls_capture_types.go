@@ -41,24 +41,28 @@ type completedTLSFragment struct {
 }
 
 type TLSPlaintextEvent struct {
-	Type         string            `json:"type"`
-	Timestamp    time.Time         `json:"timestamp"`
-	PID          uint32            `json:"pid"`
-	TGID         uint32            `json:"tgid"`
-	Comm         string            `json:"comm"`
-	Direction    string            `json:"direction"`
-	Lib          string            `json:"lib"`
-	Method       string            `json:"method,omitempty"`
-	URL          string            `json:"url,omitempty"`
-	Host         string            `json:"host,omitempty"`
-	StatusCode   int               `json:"status,omitempty"`
-	Headers      map[string]string `json:"headers,omitempty"`
-	Body         string            `json:"body,omitempty"`
-	BodySize     int               `json:"body_size"`
-	ContentType  string            `json:"content_type,omitempty"`
-	RawHexDump   string            `json:"raw_hex_dump,omitempty"`
-	RawAvailable bool              `json:"raw_available"`
-	Truncated    bool              `json:"truncated"`
+	Type           string            `json:"type"`
+	Timestamp      time.Time         `json:"timestamp"`
+	PID            uint32            `json:"pid"`
+	TGID           uint32            `json:"tgid"`
+	Comm           string            `json:"comm"`
+	Direction      string            `json:"direction"`
+	Lib            string            `json:"lib"`
+	Method         string            `json:"method,omitempty"`
+	URL            string            `json:"url,omitempty"`
+	Host           string            `json:"host,omitempty"`
+	StatusCode     int               `json:"status,omitempty"`
+	Headers        map[string]string `json:"headers,omitempty"`
+	Body           string            `json:"body,omitempty"`
+	BodySize       int               `json:"body_size"`
+	ContentType    string            `json:"content_type,omitempty"`
+	RawHexDump     string            `json:"raw_hex_dump,omitempty"`
+	RawAvailable   bool              `json:"raw_available"`
+	Truncated      bool              `json:"truncated"`
+	RedactionState string            `json:"redaction_state,omitempty"`
+	SSEEvent       string            `json:"sse_event,omitempty"`
+	SSEDataDigest  string            `json:"sse_data_digest,omitempty"`
+	SSEDataCount   int               `json:"sse_data_count,omitempty"`
 
 	RootAgentPID   uint32 `json:"root_agent_pid,omitempty"`
 	AgentRunID     string `json:"agent_run_id,omitempty"`
@@ -87,9 +91,9 @@ type TLSLibraryStatus struct {
 }
 
 type TLSCaptureStats struct {
-	Pending      int           `json:"pending"`
-	Dropped      int           `json:"dropped"`
-	Timeout      time.Duration `json:"timeout"`
-	Libraries    []TLSLibraryStatus `json:"libraries,omitempty"`
-	LastFragmentNS uint64      `json:"lastFragmentNs,omitempty"`
+	Pending        int                `json:"pending"`
+	Dropped        int                `json:"dropped"`
+	Timeout        time.Duration      `json:"timeout"`
+	Libraries      []TLSLibraryStatus `json:"libraries,omitempty"`
+	LastFragmentNS uint64             `json:"lastFragmentNs,omitempty"`
 }

@@ -66,7 +66,7 @@ func buildExternalOpenAPISpec() gin.H {
 		"security": []gin.H{{"ApiKeyAuth": []string{}}, {"BearerAuth": []string{}}, {"QueryKey": []string{}}},
 		"paths": gin.H{
 			"/health":                         endpointSpec("GET", "Service health, collector counters, feature gates, and eBPF bootstrap status."),
-			"/events/recent":                  endpointSpec("GET", "Recent captured events. Query: limit, type."),
+			"/events/recent":                  endpointSpec("GET", "Recent captured events. Query: limit, type, event_type, source, pid, comm, trace_id, span_id, since, until, redaction_state."),
 			"/events/graph":                   endpointSpec("GET", "Aggregated execution graph. Query: agent_run_id, tool_call_id, trace_id, pid, path, domain, risk_min, since, until."),
 			"/network/flows":                  endpointSpec("GET", "Attributed TCP/UDP flow summaries. Query: filter, sort, showHistoric, limit, cursor, pid, domain, service, scope."),
 			"/network/flows/{flowID}":         endpointSpec("GET", "One network flow by stable flow id."),

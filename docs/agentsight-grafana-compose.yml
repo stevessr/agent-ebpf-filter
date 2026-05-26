@@ -1,0 +1,29 @@
+services:
+  loki:
+    image: grafana/loki:3.3.2
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ${AGENTSIGHT_EVENT_LOG:-$HOME/.config/agent-ebpf-filter/events.jsonl}:/var/log/agent-ebpf/events.jsonl:ro
+      - ./agentsight-promtail.yml:/etc/promtail/config.yml:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./agentsight-grafana-datasource.yml:/etc/grafana/provisioning/datasources/agentsight-loki.yml:ro
+      - ./agentsight-grafana-dashboard-provider.yml:/etc/grafana/provisioning/dashboards/agentsight.yml:ro
+      - ./agentsight-grafana-dashboard.json:/var/lib/grafana/dashboards/agentsight-events.json:ro
+    depends_on:
+      - loki

@@ -3,15 +3,39 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
 
 const tlsMaxBodySize = 16 * 1024
+
+const tlsRedactedValue = "***REDACTED***"
+
+var tlsSensitiveQueryKeys = map[string]struct{}{
+	"access_token":  {},
+	"api_key":       {},
+	"apikey":        {},
+	"auth":          {},
+	"authorization": {},
+	"bearer":        {},
+	"client_secret": {},
+	"key":           {},
+	"password":      {},
+	"secret":        {},
+	"session":       {},
+	"token":         {},
+}
+
+var tlsBearerTokenPattern = regexp.MustCompile(`(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]+`)
+var tlsInlineSecretPattern = regexp.MustCompile(`(?i)(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|secret|token)=([^\s&]+)`)
 
 func parseTLSPlaintext(fragment completedTLSFragment) TLSPlaintextEvent {
 	event := TLSPlaintextEvent{
@@ -26,13 +50,16 @@ func parseTLSPlaintext(fragment completedTLSFragment) TLSPlaintextEvent {
 	}
 
 	if req, ok := parseTLSPlaintextHTTPRequest(fragment.Payload); ok {
+		collectorMetricsStore.RecordAgentSightCounter("tls.http_request.parsed")
 		return buildTLSPlaintextHTTPRequestEvent(event, req)
 	}
 	if resp, ok := parseTLSPlaintextHTTPResponse(fragment.Payload); ok {
+		collectorMetricsStore.RecordAgentSightCounter("tls.http_response.parsed")
 		return buildTLSPlaintextHTTPResponseEvent(event, resp)
 	}
 
 	event.RawHexDump = hexDump(fragment.Payload)
+	collectorMetricsStore.RecordAgentSightCounter("tls.raw")
 	return event
 }
 
@@ -139,12 +166,15 @@ func parseTLSPlaintextHTTPResponse(payload []byte) (*tlsHTTPResponse, bool) {
 func buildTLSPlaintextHTTPRequestEvent(base TLSPlaintextEvent, parsed *tlsHTTPRequest) TLSPlaintextEvent {
 	base.Type = "http_request"
 	base.Method = parsed.req.Method
-	base.URL = parsed.req.URL.String()
+	base.URL = sanitizeTLSURL(parsed.req.URL.String())
 	base.Host = parsed.host
 	base.Headers = sanitizeTLSHeaders(parsed.req.Header)
 	base.ContentType = parsed.content
 	base.BodySize = parsed.bodySize
 	base.Body, base.Truncated = formatTLSPlaintextBody(parsed.body, base.ContentType)
+	base.Body = sanitizeTLSBody(base.Body, base.ContentType)
+	base.RedactionState = "sanitized"
+	annotateTLSSSEEvent(&base)
 	base.RawAvailable = true
 	return base
 }
@@ -156,6 +186,9 @@ func buildTLSPlaintextHTTPResponseEvent(base TLSPlaintextEvent, parsed *tlsHTTPR
 	base.ContentType = parsed.content
 	base.BodySize = parsed.bodySize
 	base.Body, base.Truncated = formatTLSPlaintextBody(parsed.body, base.ContentType)
+	base.Body = sanitizeTLSBody(base.Body, base.ContentType)
+	base.RedactionState = "sanitized"
+	annotateTLSSSEEvent(&base)
 	base.RawAvailable = true
 	return base
 }
@@ -165,11 +198,11 @@ func sanitizeTLSHeaders(headers http.Header) map[string]string {
 		return nil
 	}
 	redacted := map[string]string{
-		"authorization":       "***REDACTED***",
-		"proxy-authorization": "***REDACTED***",
-		"x-api-key":           "***REDACTED***",
-		"cookie":              "***REDACTED***",
-		"set-cookie":          "***REDACTED***",
+		"authorization":       tlsRedactedValue,
+		"proxy-authorization": tlsRedactedValue,
+		"x-api-key":           tlsRedactedValue,
+		"cookie":              tlsRedactedValue,
+		"set-cookie":          tlsRedactedValue,
 	}
 	out := make(map[string]string, len(headers))
 	for key, values := range headers {
@@ -181,6 +214,144 @@ func sanitizeTLSHeaders(headers http.Header) map[string]string {
 		out[lower] = strings.Join(values, ", ")
 	}
 	return out
+}
+
+func sanitizeTLSURL(rawURL string) string {
+	if strings.TrimSpace(rawURL) == "" {
+		return rawURL
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return sanitizeTLSInlineSecrets(rawURL)
+	}
+	query := parsed.Query()
+	changed := false
+	for key := range query {
+		if isTLSSensitiveKey(key) {
+			query.Set(key, tlsRedactedValue)
+			changed = true
+		}
+	}
+	if !changed {
+		return sanitizeTLSInlineSecrets(rawURL)
+	}
+	collectorMetricsStore.RecordAgentSightCounter("tls.redaction.url")
+	parsed.RawQuery = query.Encode()
+	return sanitizeTLSInlineSecrets(parsed.String())
+}
+
+func sanitizeTLSBody(body, contentType string) string {
+	if strings.TrimSpace(body) == "" {
+		return body
+	}
+	if looksLikeTLSJSON(contentType, []byte(body)) {
+		var payload any
+		if err := json.Unmarshal([]byte(body), &payload); err == nil {
+			if sanitizeTLSJSONValue(&payload) {
+				collectorMetricsStore.RecordAgentSightCounter("tls.redaction.body")
+				if redacted, err := json.MarshalIndent(payload, "", "  "); err == nil {
+					return string(redacted)
+				}
+			}
+		}
+	}
+	if strings.Contains(strings.ToLower(contentType), "x-www-form-urlencoded") {
+		if values, err := url.ParseQuery(body); err == nil {
+			changed := false
+			for key := range values {
+				if isTLSSensitiveKey(key) {
+					values.Set(key, tlsRedactedValue)
+					changed = true
+				}
+			}
+			if changed {
+				collectorMetricsStore.RecordAgentSightCounter("tls.redaction.body")
+				return values.Encode()
+			}
+		}
+	}
+	return sanitizeTLSInlineSecrets(body)
+}
+
+func sanitizeTLSJSONValue(value *any) bool {
+	switch typed := (*value).(type) {
+	case map[string]any:
+		changed := false
+		for key, child := range typed {
+			if isTLSSensitiveKey(key) {
+				typed[key] = tlsRedactedValue
+				changed = true
+				continue
+			}
+			childValue := child
+			if sanitizeTLSJSONValue(&childValue) {
+				typed[key] = childValue
+				changed = true
+			}
+		}
+		return changed
+	case []any:
+		changed := false
+		for i, child := range typed {
+			childValue := child
+			if sanitizeTLSJSONValue(&childValue) {
+				typed[i] = childValue
+				changed = true
+			}
+		}
+		return changed
+	case string:
+		redacted := sanitizeTLSInlineSecrets(typed)
+		if redacted != typed {
+			*value = redacted
+			return true
+		}
+	}
+	return false
+}
+
+func isTLSSensitiveKey(key string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(key))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	if _, ok := tlsSensitiveQueryKeys[normalized]; ok {
+		return true
+	}
+	return strings.Contains(normalized, "token") || strings.Contains(normalized, "secret") || strings.Contains(normalized, "password") || strings.Contains(normalized, "api_key")
+}
+
+func sanitizeTLSInlineSecrets(value string) string {
+	redacted := tlsBearerTokenPattern.ReplaceAllString(value, `${1}`+tlsRedactedValue)
+	redacted = tlsInlineSecretPattern.ReplaceAllString(redacted, `${1}=`+tlsRedactedValue)
+	if redacted != value {
+		collectorMetricsStore.RecordAgentSightCounter("tls.redaction.inline")
+	}
+	return redacted
+}
+
+func annotateTLSSSEEvent(event *TLSPlaintextEvent) {
+	if event == nil || !strings.Contains(strings.ToLower(event.ContentType), "text/event-stream") {
+		return
+	}
+	event.Type = "sse_message"
+	collectorMetricsStore.RecordAgentSightCounter("tls.sse.parsed")
+	var dataParts []string
+	for _, line := range strings.Split(event.Body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "event:") && event.SSEEvent == "" {
+			event.SSEEvent = strings.TrimSpace(strings.TrimPrefix(trimmed, "event:"))
+		}
+		if strings.HasPrefix(trimmed, "data:") {
+			data := strings.TrimSpace(strings.TrimPrefix(trimmed, "data:"))
+			if data != "" {
+				dataParts = append(dataParts, data)
+			}
+		}
+	}
+	if len(dataParts) > 0 {
+		event.SSEDataCount = len(dataParts)
+		sum := sha256.Sum256([]byte(strings.Join(dataParts, "\n")))
+		event.SSEDataDigest = "sha256:" + hex.EncodeToString(sum[:8])
+	}
 }
 
 func formatTLSPlaintextBody(body []byte, contentType string) (string, bool) {
@@ -267,4 +438,3 @@ func tlsLibLabel(lib uint8) string {
 		return fmt.Sprintf("lib_%d", lib)
 	}
 }
-

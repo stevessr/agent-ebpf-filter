@@ -39,7 +39,7 @@ through the authenticated root `/config/runtime` and inspect listener status at
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/v1/events/recent?limit=100&type=execve` | Recent captured records with normalized envelopes. |
+| `GET` | `/api/v1/events/recent?limit=100&type=execve` | Recent captured records with normalized envelopes. Supports `type`, `event_type`, `source`, `pid`, `comm`, `trace_id`, `span_id`, `since`, `until`, and `redaction_state`. |
 | `GET` | `/api/v1/events/graph?...` | Execution graph nodes and edges for retained events. |
 
 Example:
@@ -47,6 +47,9 @@ Example:
 ```bash
 curl -H "X-API-KEY: $AGENT_API_KEY" \
   "http://127.0.0.1:8080/api/v1/events/recent?limit=25"
+
+curl -H "X-API-KEY: $AGENT_API_KEY" \
+  "http://127.0.0.1:8080/api/v1/events/recent?limit=50&source=ebpf_ringbuf&event_type=TLS_PLAINTEXT&redaction_state=sanitized"
 ```
 
 ## Network and enforcement APIs

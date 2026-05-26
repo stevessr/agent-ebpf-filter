@@ -40,6 +40,13 @@ enum EventType {
   TCP_CLOSE = 32;
   TCP_STATE_CHANGE = 33;
   DNS_QUERY = 34;
+  TLS_PLAINTEXT = 35;
+  HTTP_MESSAGE = 36;
+  SSE_MESSAGE = 37;
+  STDIO = 38;
+  SYSTEM_METRIC = 39;
+  OTEL_SPAN = 40;
+  AGENTSIGHT_ALERT = 41;
 }
 
 enum BehaviorCategory {
@@ -276,6 +283,83 @@ message McpEvent {
   string extra_info = 5;
 }
 
+message TLSEvent {
+  string direction = 1;
+  string library = 2;
+  string host = 3;
+  string method = 4;
+  string url = 5;
+  uint32 status = 6;
+  string content_type = 7;
+  uint64 body_size = 8;
+  bool truncated = 9;
+  string redaction_state = 10;
+  bool raw_available = 11;
+  string message_role = 12;
+  string prompt_digest = 13;
+  uint64 prompt_len = 14;
+  string vendor = 15;
+}
+
+message HTTPEvent {
+  string direction = 1;
+  string method = 2;
+  string url = 3;
+  string host = 4;
+  uint32 status = 5;
+  string content_type = 6;
+  uint64 body_size = 7;
+  bool truncated = 8;
+  string redaction_state = 9;
+}
+
+message SSEEvent {
+  string event = 1;
+  string data_digest = 2;
+  uint64 data_size = 3;
+  bool completed = 4;
+  string redaction_state = 5;
+}
+
+message StdioEvent {
+  string fd = 1;
+  string stream = 2;
+  uint64 size = 3;
+  bool truncated = 4;
+  bool binary = 5;
+  string redaction_state = 6;
+}
+
+message SystemMetricEvent {
+  double cpu_percent = 1;
+  uint64 memory_bytes = 2;
+  uint32 threads = 3;
+  uint32 children = 4;
+  uint32 fd_count = 5;
+  string process_state = 6;
+  string alert = 7;
+}
+
+message OtelSpanEvent {
+  string name = 1;
+  string kind = 2;
+  string status = 3;
+  string provider = 4;
+  string model = 5;
+  uint64 latency_ms = 6;
+  uint64 input_tokens = 7;
+  uint64 output_tokens = 8;
+  string error = 9;
+}
+
+message AgentSightAlertEvent {
+  string category = 1;
+  string severity = 2;
+  string reason = 3;
+  string related_event_id = 4;
+  string redaction_state = 5;
+}
+
 message EventEnvelope {
   string schema_version = 1;
   string event_id = 2;
@@ -312,6 +396,13 @@ message EventEnvelope {
     WrapperEvent wrapper_event = 32;
     HookEvent hook_event = 33;
     McpEvent mcp_event = 34;
+    TLSEvent tls_event = 35;
+    HTTPEvent http_event = 36;
+    SSEEvent sse_event = 37;
+    StdioEvent stdio_event = 38;
+    SystemMetricEvent system_metric_event = 39;
+    OtelSpanEvent otel_span_event = 40;
+    AgentSightAlertEvent agentsight_alert_event = 41;
   }
 }
 

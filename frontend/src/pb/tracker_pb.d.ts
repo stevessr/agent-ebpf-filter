@@ -39,7 +39,14 @@ export namespace pb {
         TCP_CONNECT = 31,
         TCP_CLOSE = 32,
         TCP_STATE_CHANGE = 33,
-        DNS_QUERY = 34
+        DNS_QUERY = 34,
+        TLS_PLAINTEXT = 35,
+        HTTP_MESSAGE = 36,
+        SSE_MESSAGE = 37,
+        STDIO = 38,
+        SYSTEM_METRIC = 39,
+        OTEL_SPAN = 40,
+        AGENTSIGHT_ALERT = 41
     }
 
     /** BehaviorCategory enum. */
@@ -2349,6 +2356,979 @@ export namespace pb {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of a TLSEvent. */
+    interface ITLSEvent {
+
+        /** TLSEvent direction */
+        direction?: (string|null);
+
+        /** TLSEvent library */
+        library?: (string|null);
+
+        /** TLSEvent host */
+        host?: (string|null);
+
+        /** TLSEvent method */
+        method?: (string|null);
+
+        /** TLSEvent url */
+        url?: (string|null);
+
+        /** TLSEvent status */
+        status?: (number|null);
+
+        /** TLSEvent contentType */
+        contentType?: (string|null);
+
+        /** TLSEvent bodySize */
+        bodySize?: (number|Long|null);
+
+        /** TLSEvent truncated */
+        truncated?: (boolean|null);
+
+        /** TLSEvent redactionState */
+        redactionState?: (string|null);
+
+        /** TLSEvent rawAvailable */
+        rawAvailable?: (boolean|null);
+
+        /** TLSEvent messageRole */
+        messageRole?: (string|null);
+
+        /** TLSEvent promptDigest */
+        promptDigest?: (string|null);
+
+        /** TLSEvent promptLen */
+        promptLen?: (number|Long|null);
+
+        /** TLSEvent vendor */
+        vendor?: (string|null);
+    }
+
+    /** Represents a TLSEvent. */
+    class TLSEvent implements ITLSEvent {
+
+        /**
+         * Constructs a new TLSEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.ITLSEvent);
+
+        /** TLSEvent direction. */
+        public direction: string;
+
+        /** TLSEvent library. */
+        public library: string;
+
+        /** TLSEvent host. */
+        public host: string;
+
+        /** TLSEvent method. */
+        public method: string;
+
+        /** TLSEvent url. */
+        public url: string;
+
+        /** TLSEvent status. */
+        public status: number;
+
+        /** TLSEvent contentType. */
+        public contentType: string;
+
+        /** TLSEvent bodySize. */
+        public bodySize: (number|Long);
+
+        /** TLSEvent truncated. */
+        public truncated: boolean;
+
+        /** TLSEvent redactionState. */
+        public redactionState: string;
+
+        /** TLSEvent rawAvailable. */
+        public rawAvailable: boolean;
+
+        /** TLSEvent messageRole. */
+        public messageRole: string;
+
+        /** TLSEvent promptDigest. */
+        public promptDigest: string;
+
+        /** TLSEvent promptLen. */
+        public promptLen: (number|Long);
+
+        /** TLSEvent vendor. */
+        public vendor: string;
+
+        /**
+         * Creates a new TLSEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns TLSEvent instance
+         */
+        public static create(properties?: pb.ITLSEvent): pb.TLSEvent;
+
+        /**
+         * Encodes the specified TLSEvent message. Does not implicitly {@link pb.TLSEvent.verify|verify} messages.
+         * @param message TLSEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.ITLSEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified TLSEvent message, length delimited. Does not implicitly {@link pb.TLSEvent.verify|verify} messages.
+         * @param message TLSEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.ITLSEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a TLSEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns TLSEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.TLSEvent;
+
+        /**
+         * Decodes a TLSEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns TLSEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.TLSEvent;
+
+        /**
+         * Verifies a TLSEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a TLSEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns TLSEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.TLSEvent;
+
+        /**
+         * Creates a plain object from a TLSEvent message. Also converts values to other types if specified.
+         * @param message TLSEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.TLSEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this TLSEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for TLSEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a HTTPEvent. */
+    interface IHTTPEvent {
+
+        /** HTTPEvent direction */
+        direction?: (string|null);
+
+        /** HTTPEvent method */
+        method?: (string|null);
+
+        /** HTTPEvent url */
+        url?: (string|null);
+
+        /** HTTPEvent host */
+        host?: (string|null);
+
+        /** HTTPEvent status */
+        status?: (number|null);
+
+        /** HTTPEvent contentType */
+        contentType?: (string|null);
+
+        /** HTTPEvent bodySize */
+        bodySize?: (number|Long|null);
+
+        /** HTTPEvent truncated */
+        truncated?: (boolean|null);
+
+        /** HTTPEvent redactionState */
+        redactionState?: (string|null);
+    }
+
+    /** Represents a HTTPEvent. */
+    class HTTPEvent implements IHTTPEvent {
+
+        /**
+         * Constructs a new HTTPEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IHTTPEvent);
+
+        /** HTTPEvent direction. */
+        public direction: string;
+
+        /** HTTPEvent method. */
+        public method: string;
+
+        /** HTTPEvent url. */
+        public url: string;
+
+        /** HTTPEvent host. */
+        public host: string;
+
+        /** HTTPEvent status. */
+        public status: number;
+
+        /** HTTPEvent contentType. */
+        public contentType: string;
+
+        /** HTTPEvent bodySize. */
+        public bodySize: (number|Long);
+
+        /** HTTPEvent truncated. */
+        public truncated: boolean;
+
+        /** HTTPEvent redactionState. */
+        public redactionState: string;
+
+        /**
+         * Creates a new HTTPEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns HTTPEvent instance
+         */
+        public static create(properties?: pb.IHTTPEvent): pb.HTTPEvent;
+
+        /**
+         * Encodes the specified HTTPEvent message. Does not implicitly {@link pb.HTTPEvent.verify|verify} messages.
+         * @param message HTTPEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IHTTPEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified HTTPEvent message, length delimited. Does not implicitly {@link pb.HTTPEvent.verify|verify} messages.
+         * @param message HTTPEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IHTTPEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a HTTPEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns HTTPEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.HTTPEvent;
+
+        /**
+         * Decodes a HTTPEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns HTTPEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.HTTPEvent;
+
+        /**
+         * Verifies a HTTPEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a HTTPEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns HTTPEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.HTTPEvent;
+
+        /**
+         * Creates a plain object from a HTTPEvent message. Also converts values to other types if specified.
+         * @param message HTTPEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.HTTPEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this HTTPEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HTTPEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a SSEEvent. */
+    interface ISSEEvent {
+
+        /** SSEEvent event */
+        event?: (string|null);
+
+        /** SSEEvent dataDigest */
+        dataDigest?: (string|null);
+
+        /** SSEEvent dataSize */
+        dataSize?: (number|Long|null);
+
+        /** SSEEvent completed */
+        completed?: (boolean|null);
+
+        /** SSEEvent redactionState */
+        redactionState?: (string|null);
+    }
+
+    /** Represents a SSEEvent. */
+    class SSEEvent implements ISSEEvent {
+
+        /**
+         * Constructs a new SSEEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.ISSEEvent);
+
+        /** SSEEvent event. */
+        public event: string;
+
+        /** SSEEvent dataDigest. */
+        public dataDigest: string;
+
+        /** SSEEvent dataSize. */
+        public dataSize: (number|Long);
+
+        /** SSEEvent completed. */
+        public completed: boolean;
+
+        /** SSEEvent redactionState. */
+        public redactionState: string;
+
+        /**
+         * Creates a new SSEEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns SSEEvent instance
+         */
+        public static create(properties?: pb.ISSEEvent): pb.SSEEvent;
+
+        /**
+         * Encodes the specified SSEEvent message. Does not implicitly {@link pb.SSEEvent.verify|verify} messages.
+         * @param message SSEEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.ISSEEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified SSEEvent message, length delimited. Does not implicitly {@link pb.SSEEvent.verify|verify} messages.
+         * @param message SSEEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.ISSEEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a SSEEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns SSEEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.SSEEvent;
+
+        /**
+         * Decodes a SSEEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns SSEEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.SSEEvent;
+
+        /**
+         * Verifies a SSEEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a SSEEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns SSEEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.SSEEvent;
+
+        /**
+         * Creates a plain object from a SSEEvent message. Also converts values to other types if specified.
+         * @param message SSEEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.SSEEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this SSEEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for SSEEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a StdioEvent. */
+    interface IStdioEvent {
+
+        /** StdioEvent fd */
+        fd?: (string|null);
+
+        /** StdioEvent stream */
+        stream?: (string|null);
+
+        /** StdioEvent size */
+        size?: (number|Long|null);
+
+        /** StdioEvent truncated */
+        truncated?: (boolean|null);
+
+        /** StdioEvent binary */
+        binary?: (boolean|null);
+
+        /** StdioEvent redactionState */
+        redactionState?: (string|null);
+    }
+
+    /** Represents a StdioEvent. */
+    class StdioEvent implements IStdioEvent {
+
+        /**
+         * Constructs a new StdioEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IStdioEvent);
+
+        /** StdioEvent fd. */
+        public fd: string;
+
+        /** StdioEvent stream. */
+        public stream: string;
+
+        /** StdioEvent size. */
+        public size: (number|Long);
+
+        /** StdioEvent truncated. */
+        public truncated: boolean;
+
+        /** StdioEvent binary. */
+        public binary: boolean;
+
+        /** StdioEvent redactionState. */
+        public redactionState: string;
+
+        /**
+         * Creates a new StdioEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns StdioEvent instance
+         */
+        public static create(properties?: pb.IStdioEvent): pb.StdioEvent;
+
+        /**
+         * Encodes the specified StdioEvent message. Does not implicitly {@link pb.StdioEvent.verify|verify} messages.
+         * @param message StdioEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IStdioEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified StdioEvent message, length delimited. Does not implicitly {@link pb.StdioEvent.verify|verify} messages.
+         * @param message StdioEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IStdioEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a StdioEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns StdioEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.StdioEvent;
+
+        /**
+         * Decodes a StdioEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns StdioEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.StdioEvent;
+
+        /**
+         * Verifies a StdioEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a StdioEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns StdioEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.StdioEvent;
+
+        /**
+         * Creates a plain object from a StdioEvent message. Also converts values to other types if specified.
+         * @param message StdioEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.StdioEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this StdioEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for StdioEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a SystemMetricEvent. */
+    interface ISystemMetricEvent {
+
+        /** SystemMetricEvent cpuPercent */
+        cpuPercent?: (number|null);
+
+        /** SystemMetricEvent memoryBytes */
+        memoryBytes?: (number|Long|null);
+
+        /** SystemMetricEvent threads */
+        threads?: (number|null);
+
+        /** SystemMetricEvent children */
+        children?: (number|null);
+
+        /** SystemMetricEvent fdCount */
+        fdCount?: (number|null);
+
+        /** SystemMetricEvent processState */
+        processState?: (string|null);
+
+        /** SystemMetricEvent alert */
+        alert?: (string|null);
+    }
+
+    /** Represents a SystemMetricEvent. */
+    class SystemMetricEvent implements ISystemMetricEvent {
+
+        /**
+         * Constructs a new SystemMetricEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.ISystemMetricEvent);
+
+        /** SystemMetricEvent cpuPercent. */
+        public cpuPercent: number;
+
+        /** SystemMetricEvent memoryBytes. */
+        public memoryBytes: (number|Long);
+
+        /** SystemMetricEvent threads. */
+        public threads: number;
+
+        /** SystemMetricEvent children. */
+        public children: number;
+
+        /** SystemMetricEvent fdCount. */
+        public fdCount: number;
+
+        /** SystemMetricEvent processState. */
+        public processState: string;
+
+        /** SystemMetricEvent alert. */
+        public alert: string;
+
+        /**
+         * Creates a new SystemMetricEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns SystemMetricEvent instance
+         */
+        public static create(properties?: pb.ISystemMetricEvent): pb.SystemMetricEvent;
+
+        /**
+         * Encodes the specified SystemMetricEvent message. Does not implicitly {@link pb.SystemMetricEvent.verify|verify} messages.
+         * @param message SystemMetricEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.ISystemMetricEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified SystemMetricEvent message, length delimited. Does not implicitly {@link pb.SystemMetricEvent.verify|verify} messages.
+         * @param message SystemMetricEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.ISystemMetricEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a SystemMetricEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns SystemMetricEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.SystemMetricEvent;
+
+        /**
+         * Decodes a SystemMetricEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns SystemMetricEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.SystemMetricEvent;
+
+        /**
+         * Verifies a SystemMetricEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a SystemMetricEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns SystemMetricEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.SystemMetricEvent;
+
+        /**
+         * Creates a plain object from a SystemMetricEvent message. Also converts values to other types if specified.
+         * @param message SystemMetricEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.SystemMetricEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this SystemMetricEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for SystemMetricEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an OtelSpanEvent. */
+    interface IOtelSpanEvent {
+
+        /** OtelSpanEvent name */
+        name?: (string|null);
+
+        /** OtelSpanEvent kind */
+        kind?: (string|null);
+
+        /** OtelSpanEvent status */
+        status?: (string|null);
+
+        /** OtelSpanEvent provider */
+        provider?: (string|null);
+
+        /** OtelSpanEvent model */
+        model?: (string|null);
+
+        /** OtelSpanEvent latencyMs */
+        latencyMs?: (number|Long|null);
+
+        /** OtelSpanEvent inputTokens */
+        inputTokens?: (number|Long|null);
+
+        /** OtelSpanEvent outputTokens */
+        outputTokens?: (number|Long|null);
+
+        /** OtelSpanEvent error */
+        error?: (string|null);
+    }
+
+    /** Represents an OtelSpanEvent. */
+    class OtelSpanEvent implements IOtelSpanEvent {
+
+        /**
+         * Constructs a new OtelSpanEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IOtelSpanEvent);
+
+        /** OtelSpanEvent name. */
+        public name: string;
+
+        /** OtelSpanEvent kind. */
+        public kind: string;
+
+        /** OtelSpanEvent status. */
+        public status: string;
+
+        /** OtelSpanEvent provider. */
+        public provider: string;
+
+        /** OtelSpanEvent model. */
+        public model: string;
+
+        /** OtelSpanEvent latencyMs. */
+        public latencyMs: (number|Long);
+
+        /** OtelSpanEvent inputTokens. */
+        public inputTokens: (number|Long);
+
+        /** OtelSpanEvent outputTokens. */
+        public outputTokens: (number|Long);
+
+        /** OtelSpanEvent error. */
+        public error: string;
+
+        /**
+         * Creates a new OtelSpanEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns OtelSpanEvent instance
+         */
+        public static create(properties?: pb.IOtelSpanEvent): pb.OtelSpanEvent;
+
+        /**
+         * Encodes the specified OtelSpanEvent message. Does not implicitly {@link pb.OtelSpanEvent.verify|verify} messages.
+         * @param message OtelSpanEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IOtelSpanEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified OtelSpanEvent message, length delimited. Does not implicitly {@link pb.OtelSpanEvent.verify|verify} messages.
+         * @param message OtelSpanEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IOtelSpanEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an OtelSpanEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns OtelSpanEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.OtelSpanEvent;
+
+        /**
+         * Decodes an OtelSpanEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns OtelSpanEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.OtelSpanEvent;
+
+        /**
+         * Verifies an OtelSpanEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an OtelSpanEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns OtelSpanEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.OtelSpanEvent;
+
+        /**
+         * Creates a plain object from an OtelSpanEvent message. Also converts values to other types if specified.
+         * @param message OtelSpanEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.OtelSpanEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this OtelSpanEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for OtelSpanEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an AgentSightAlertEvent. */
+    interface IAgentSightAlertEvent {
+
+        /** AgentSightAlertEvent category */
+        category?: (string|null);
+
+        /** AgentSightAlertEvent severity */
+        severity?: (string|null);
+
+        /** AgentSightAlertEvent reason */
+        reason?: (string|null);
+
+        /** AgentSightAlertEvent relatedEventId */
+        relatedEventId?: (string|null);
+
+        /** AgentSightAlertEvent redactionState */
+        redactionState?: (string|null);
+    }
+
+    /** Represents an AgentSightAlertEvent. */
+    class AgentSightAlertEvent implements IAgentSightAlertEvent {
+
+        /**
+         * Constructs a new AgentSightAlertEvent.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IAgentSightAlertEvent);
+
+        /** AgentSightAlertEvent category. */
+        public category: string;
+
+        /** AgentSightAlertEvent severity. */
+        public severity: string;
+
+        /** AgentSightAlertEvent reason. */
+        public reason: string;
+
+        /** AgentSightAlertEvent relatedEventId. */
+        public relatedEventId: string;
+
+        /** AgentSightAlertEvent redactionState. */
+        public redactionState: string;
+
+        /**
+         * Creates a new AgentSightAlertEvent instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns AgentSightAlertEvent instance
+         */
+        public static create(properties?: pb.IAgentSightAlertEvent): pb.AgentSightAlertEvent;
+
+        /**
+         * Encodes the specified AgentSightAlertEvent message. Does not implicitly {@link pb.AgentSightAlertEvent.verify|verify} messages.
+         * @param message AgentSightAlertEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IAgentSightAlertEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified AgentSightAlertEvent message, length delimited. Does not implicitly {@link pb.AgentSightAlertEvent.verify|verify} messages.
+         * @param message AgentSightAlertEvent message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IAgentSightAlertEvent, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an AgentSightAlertEvent message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns AgentSightAlertEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.AgentSightAlertEvent;
+
+        /**
+         * Decodes an AgentSightAlertEvent message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns AgentSightAlertEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.AgentSightAlertEvent;
+
+        /**
+         * Verifies an AgentSightAlertEvent message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an AgentSightAlertEvent message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns AgentSightAlertEvent
+         */
+        public static fromObject(object: { [k: string]: any }): pb.AgentSightAlertEvent;
+
+        /**
+         * Creates a plain object from an AgentSightAlertEvent message. Also converts values to other types if specified.
+         * @param message AgentSightAlertEvent
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.AgentSightAlertEvent, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this AgentSightAlertEvent to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for AgentSightAlertEvent
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of an EventEnvelope. */
     interface IEventEnvelope {
 
@@ -2453,6 +3433,27 @@ export namespace pb {
 
         /** EventEnvelope mcpEvent */
         mcpEvent?: (pb.IMcpEvent|null);
+
+        /** EventEnvelope tlsEvent */
+        tlsEvent?: (pb.ITLSEvent|null);
+
+        /** EventEnvelope httpEvent */
+        httpEvent?: (pb.IHTTPEvent|null);
+
+        /** EventEnvelope sseEvent */
+        sseEvent?: (pb.ISSEEvent|null);
+
+        /** EventEnvelope stdioEvent */
+        stdioEvent?: (pb.IStdioEvent|null);
+
+        /** EventEnvelope systemMetricEvent */
+        systemMetricEvent?: (pb.ISystemMetricEvent|null);
+
+        /** EventEnvelope otelSpanEvent */
+        otelSpanEvent?: (pb.IOtelSpanEvent|null);
+
+        /** EventEnvelope agentsightAlertEvent */
+        agentsightAlertEvent?: (pb.IAgentSightAlertEvent|null);
     }
 
     /** Represents an EventEnvelope. */
@@ -2566,8 +3567,29 @@ export namespace pb {
         /** EventEnvelope mcpEvent. */
         public mcpEvent?: (pb.IMcpEvent|null);
 
+        /** EventEnvelope tlsEvent. */
+        public tlsEvent?: (pb.ITLSEvent|null);
+
+        /** EventEnvelope httpEvent. */
+        public httpEvent?: (pb.IHTTPEvent|null);
+
+        /** EventEnvelope sseEvent. */
+        public sseEvent?: (pb.ISSEEvent|null);
+
+        /** EventEnvelope stdioEvent. */
+        public stdioEvent?: (pb.IStdioEvent|null);
+
+        /** EventEnvelope systemMetricEvent. */
+        public systemMetricEvent?: (pb.ISystemMetricEvent|null);
+
+        /** EventEnvelope otelSpanEvent. */
+        public otelSpanEvent?: (pb.IOtelSpanEvent|null);
+
+        /** EventEnvelope agentsightAlertEvent. */
+        public agentsightAlertEvent?: (pb.IAgentSightAlertEvent|null);
+
         /** EventEnvelope payload. */
-        public payload?: ("execEvent"|"fileEvent"|"networkEvent"|"processEvent"|"policyEvent"|"wrapperEvent"|"hookEvent"|"mcpEvent");
+        public payload?: ("execEvent"|"fileEvent"|"networkEvent"|"processEvent"|"policyEvent"|"wrapperEvent"|"hookEvent"|"mcpEvent"|"tlsEvent"|"httpEvent"|"sseEvent"|"stdioEvent"|"systemMetricEvent"|"otelSpanEvent"|"agentsightAlertEvent");
 
         /**
          * Creates a new EventEnvelope instance using the specified properties.

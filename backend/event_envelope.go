@@ -130,6 +130,14 @@ func buildEventEnvelope(record CapturedEventRecord) *pb.EventEnvelope {
 		envelope.Payload = &pb.EventEnvelope_McpEvent{McpEvent: buildMCPEnvelopePayload(event)}
 	case buildProcessEnvelopePayload(event) != nil:
 		envelope.Payload = &pb.EventEnvelope_ProcessEvent{ProcessEvent: buildProcessEnvelopePayload(event)}
+	case buildTLSEnvelopePayload(event) != nil:
+		envelope.Payload = &pb.EventEnvelope_TlsEvent{TlsEvent: buildTLSEnvelopePayload(event)}
+	case buildOTelSpanEnvelopePayload(event) != nil:
+		envelope.Payload = &pb.EventEnvelope_OtelSpanEvent{OtelSpanEvent: buildOTelSpanEnvelopePayload(event)}
+	case buildStdioEnvelopePayload(event) != nil:
+		envelope.Payload = &pb.EventEnvelope_StdioEvent{StdioEvent: buildStdioEnvelopePayload(event)}
+	case buildSystemMetricEnvelopePayload(event) != nil:
+		envelope.Payload = &pb.EventEnvelope_SystemMetricEvent{SystemMetricEvent: buildSystemMetricEnvelopePayload(event)}
 	case buildNetworkEnvelopePayload(event) != nil:
 		envelope.Payload = &pb.EventEnvelope_NetworkEvent{NetworkEvent: buildNetworkEnvelopePayload(event)}
 	case event.GetType() == "execve":
@@ -266,6 +274,74 @@ func buildNetworkEnvelopePayload(event *pb.Event) *pb.NetworkEvent {
 		}
 	default:
 		return nil
+	}
+}
+
+func buildOTelSpanEnvelopePayload(event *pb.Event) *pb.OtelSpanEvent {
+	if event == nil || event.GetType() != "otel_span" {
+		return nil
+	}
+	vendor := firstNonEmpty(event.GetServiceName(), parseStringField(event.GetExtraInfo(), "provider"))
+	status := "ok"
+	if event.GetDecision() == "ALERT" {
+		status = "error"
+	}
+	return &pb.OtelSpanEvent{
+		Name:     firstNonEmpty(event.GetToolName(), vendor, "genai.request"),
+		Kind:     "client",
+		Status:   status,
+		Provider: vendor,
+		Model:    parseStringField(event.GetExtraInfo(), "model"),
+		Error:    parseStringField(event.GetExtraInfo(), "error"),
+	}
+}
+
+func buildTLSEnvelopePayload(event *pb.Event) *pb.TLSEvent {
+	if event == nil || event.GetType() != "tls_plaintext" {
+		return nil
+	}
+	status := parseUintField(event.GetExtraInfo(), "status")
+	return &pb.TLSEvent{
+		Direction:      event.GetNetDirection(),
+		Library:        parseStringField(event.GetExtraInfo(), "lib"),
+		Host:           firstNonEmpty(event.GetHttpHost(), event.GetNetEndpoint()),
+		Method:         event.GetPath(),
+		Url:            event.GetExtraPath(),
+		Status:         status,
+		BodySize:       uint64(parseUintField(event.GetExtraInfo(), "body_size")),
+		RedactionState: "sanitized",
+		RawAvailable:   false,
+		MessageRole:    parseStringField(event.GetExtraInfo(), "role"),
+		PromptDigest:   parseStringField(event.GetExtraInfo(), "prompt_digest"),
+		PromptLen:      uint64(parseUintField(event.GetExtraInfo(), "prompt_len")),
+		Vendor:         firstNonEmpty(event.GetServiceName(), parseStringField(event.GetExtraInfo(), "vendor")),
+	}
+}
+
+func buildStdioEnvelopePayload(event *pb.Event) *pb.StdioEvent {
+	if event == nil || event.GetType() != "stdio" {
+		return nil
+	}
+	stream := firstNonEmpty(parseStringField(event.GetExtraInfo(), "stream"), event.GetPath())
+	return &pb.StdioEvent{
+		Fd:             parseStringField(event.GetExtraInfo(), "fd"),
+		Stream:         stream,
+		Size:           event.GetBytes(),
+		Truncated:      false,
+		Binary:         false,
+		RedactionState: "metadata_only",
+	}
+}
+
+func buildSystemMetricEnvelopePayload(event *pb.Event) *pb.SystemMetricEvent {
+	if event == nil || event.GetType() != "system_metric" {
+		return nil
+	}
+	return &pb.SystemMetricEvent{
+		CpuPercent:   parseFloatField(event.GetExtraInfo(), "cpu_percent"),
+		MemoryBytes:  event.GetBytes(),
+		ProcessState: parseStringField(event.GetExtraInfo(), "state"),
+		Alert:        parseStringField(event.GetExtraInfo(), "alert"),
 	}
 }
 

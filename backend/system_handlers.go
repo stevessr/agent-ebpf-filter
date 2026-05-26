@@ -579,6 +579,7 @@ func serveSystemStatsWS(c *gin.Context) {
 		vmFaults, faultErr := readVMFaultCounters()
 		faultInfo := &pb.FaultInfo{}
 		currentPIDs := make(map[int32]struct{})
+		emittedSystemMetric := false
 		if faultErr == nil {
 			pageFaults := vmFaults.pageFaults
 			majorFaults := vmFaults.majorFaults
@@ -702,6 +703,10 @@ func serveSystemStatsWS(c *gin.Context) {
 			}
 			currentPIDs[p.Pid] = struct{}{}
 			stats.Processes = append(stats.Processes, &pb.Process{Pid: p.Pid, Ppid: pp, Name: n, Cpu: ccp, Mem: mp, User: u, GpuMem: gmem, GpuId: gid, GpuUtil: gutil, Cmdline: cmdl, CreateTime: ct, MinorFaults: minF, MajorFaults: majF})
+			if !emittedSystemMetric && (ccp >= 80 || mp >= 20) {
+				emitSystemMetricEvent(p.Pid, pp, n, ccp, mp, uint64(float64(vm.Total)*float64(mp)/100), "threshold")
+				emittedSystemMetric = true
+			}
 		}
 		for pid := range procCPUSamples {
 			if _, ok := currentPIDs[pid]; !ok {
@@ -713,6 +718,26 @@ func serveSystemStatsWS(c *gin.Context) {
 			return
 		}
 	}
+}
+
+func emitSystemMetricEvent(pid, ppid int32, comm string, cpuPercent float64, memoryPercent float32, memoryBytes uint64, alert string) {
+	if tlsAgentBridge == nil {
+		return
+	}
+	event := &pb.Event{
+		Pid:           uint32(pid),
+		Ppid:          uint32(maxInt(int(ppid), 0)),
+		Type:          "system_metric",
+		EventType:     pb.EventType_SYSTEM_METRIC,
+		Tag:           "System Metric",
+		Comm:          comm,
+		ExtraInfo:     fmt.Sprintf("cpu_percent=%.2f memory_percent=%.2f memory_bytes=%d alert=%s", cpuPercent, memoryPercent, memoryBytes, alert),
+		Bytes:         memoryBytes,
+		RiskScore:     maxFloat64(cpuPercent/100, float64(memoryPercent)/100),
+		Decision:      "ALERT",
+		SchemaVersion: eventSchemaVersion,
+	}
+	sendTLSBridge(tlsAgentBridge, event)
 }
 
 func handleProcessMaps(c *gin.Context) {

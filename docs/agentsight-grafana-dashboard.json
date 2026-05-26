@@ -1,0 +1,31 @@
+{
+  "uid": "agent-ebpf-agentsight",
+  "title": "AgentSight Events",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "logs",
+      "title": "Recent AgentSight JSONL Events",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 16 },
+      "targets": [
+        {
+          "expr": "{job=\"agent-ebpf-agentsight\"}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Event ingestion rate",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({job=\"agent-ebpf-agentsight\"}[1m]))",
+          "refId": "B"
+        }
+      ]
+    }
+  ]
+}

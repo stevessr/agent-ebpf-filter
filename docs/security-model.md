@@ -59,6 +59,9 @@ synchronous cgroup/LSM decision loop.
 - wrapper/native hook events are semantic declarations
 - prompt/response fields supplied by native hooks are reduced to digest/length
   metadata by default; raw text capture is not required for the safe baseline
+- AgentSight-compatible TLS/HTTP/SSE capture defaults to sanitized payloads:
+  sensitive headers, URL query secrets, bearer tokens, and common JSON/form/text
+  secret fields are redacted before API, WebSocket, and persistence output
 - the system raises alerts when the semantic layer and factual layer diverge
 
 ## Planned hardening direction

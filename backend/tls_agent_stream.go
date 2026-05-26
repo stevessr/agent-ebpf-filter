@@ -491,7 +491,7 @@ func convertTLSToProtoEvent(source TLSPlaintextEvent) *pb.Event {
 		Pid:            source.PID,
 		Tgid:           source.TGID,
 		Type:           eventType,
-		EventType:      pb.EventType_NETWORK_CONNECT,
+		EventType:      pb.EventType_TLS_PLAINTEXT,
 		Tag:            "AI Agent",
 		Comm:           source.Comm,
 		Path:           method,
@@ -515,6 +515,42 @@ func convertTLSToProtoEvent(source TLSPlaintextEvent) *pb.Event {
 	}
 }
 
+func convertTLSToOTelSpanEvent(source TLSPlaintextEvent) *pb.Event {
+	if source.PID == 0 && source.TGID == 0 {
+		return nil
+	}
+	if source.Vendor == "" && source.PromptDigest == "" {
+		return nil
+	}
+	extra := []string{
+		"kind=client",
+		"provider=" + source.Vendor,
+		"prompt_digest=" + source.PromptDigest,
+		fmt.Sprintf("prompt_len=%d", source.PromptLen),
+	}
+	return &pb.Event{
+		Pid:            source.PID,
+		Tgid:           source.TGID,
+		Type:           "otel_span",
+		EventType:      pb.EventType_OTEL_SPAN,
+		Tag:            "AgentSight OTEL",
+		Comm:           source.Comm,
+		Path:           firstNonEmpty(source.ToolName, source.Vendor, "genai.request"),
+		ExtraInfo:      strings.Join(extra, " "),
+		SchemaVersion:  eventSchemaVersion,
+		RootAgentPid:   source.RootAgentPID,
+		AgentRunId:     source.AgentRunID,
+		TaskId:         source.TaskID,
+		ConversationId: source.ConversationID,
+		TurnId:         source.TurnID,
+		ToolCallId:     source.ToolCallID,
+		ToolName:       source.ToolName,
+		TraceId:        source.TraceID,
+		SpanId:         source.SpanID,
+		ServiceName:    source.Vendor,
+	}
+}
+
 // dispatchTLSAgentEvent enriches the TLS event with agent context, derives
 // prompt metadata, fires loop detection, and bridges the result into the main
 // pb.Event pipeline. It is invoked from TLSProbeManager.ReadLoop after
@@ -533,6 +569,9 @@ func dispatchTLSAgentEvent(event *TLSPlaintextEvent, loopState *tlsAgentLoopStat
 	}
 	if proto := convertTLSToProtoEvent(*event); proto != nil && bridge != nil {
 		sendTLSBridge(bridge, proto)
+		if otel := convertTLSToOTelSpanEvent(*event); otel != nil {
+			sendTLSBridge(bridge, otel)
+		}
 	}
 }
 

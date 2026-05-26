@@ -263,7 +263,7 @@ func (m *TLSProbeManager) ReadLoop() error {
 		if !ok || completed == nil {
 			continue
 		}
-		event := parseTLSPlaintext(*completed)
+		event := agentSightHTTPAnalyzer.Analyze(*completed)
 		dispatchTLSAgentEvent(&event, tlsAgentLoopDetector, tlsAgentBridge)
 		store.Add(event)
 		broadcaster.Broadcast(event)

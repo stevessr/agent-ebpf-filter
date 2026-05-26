@@ -57,6 +57,13 @@ $root.pb = (function() {
      * @property {number} TCP_CLOSE=32 TCP_CLOSE value
      * @property {number} TCP_STATE_CHANGE=33 TCP_STATE_CHANGE value
      * @property {number} DNS_QUERY=34 DNS_QUERY value
+     * @property {number} TLS_PLAINTEXT=35 TLS_PLAINTEXT value
+     * @property {number} HTTP_MESSAGE=36 HTTP_MESSAGE value
+     * @property {number} SSE_MESSAGE=37 SSE_MESSAGE value
+     * @property {number} STDIO=38 STDIO value
+     * @property {number} SYSTEM_METRIC=39 SYSTEM_METRIC value
+     * @property {number} OTEL_SPAN=40 OTEL_SPAN value
+     * @property {number} AGENTSIGHT_ALERT=41 AGENTSIGHT_ALERT value
      */
     pb.EventType = (function() {
         var valuesById = {}, values = Object.create(valuesById);
@@ -95,6 +102,13 @@ $root.pb = (function() {
         values[valuesById[32] = "TCP_CLOSE"] = 32;
         values[valuesById[33] = "TCP_STATE_CHANGE"] = 33;
         values[valuesById[34] = "DNS_QUERY"] = 34;
+        values[valuesById[35] = "TLS_PLAINTEXT"] = 35;
+        values[valuesById[36] = "HTTP_MESSAGE"] = 36;
+        values[valuesById[37] = "SSE_MESSAGE"] = 37;
+        values[valuesById[38] = "STDIO"] = 38;
+        values[valuesById[39] = "SYSTEM_METRIC"] = 39;
+        values[valuesById[40] = "OTEL_SPAN"] = 40;
+        values[valuesById[41] = "AGENTSIGHT_ALERT"] = 41;
         return values;
     })();
 
@@ -2976,6 +2990,13 @@ $root.pb = (function() {
                 case 32:
                 case 33:
                 case 34:
+                case 35:
+                case 36:
+                case 37:
+                case 38:
+                case 39:
+                case 40:
+                case 41:
                     break;
                 }
             if (message.behavior != null && message.hasOwnProperty("behavior")) {
@@ -3335,6 +3356,34 @@ $root.pb = (function() {
             case "DNS_QUERY":
             case 34:
                 message.eventType = 34;
+                break;
+            case "TLS_PLAINTEXT":
+            case 35:
+                message.eventType = 35;
+                break;
+            case "HTTP_MESSAGE":
+            case 36:
+                message.eventType = 36;
+                break;
+            case "SSE_MESSAGE":
+            case 37:
+                message.eventType = 37;
+                break;
+            case "STDIO":
+            case 38:
+                message.eventType = 38;
+                break;
+            case "SYSTEM_METRIC":
+            case 39:
+                message.eventType = 39;
+                break;
+            case "OTEL_SPAN":
+            case 40:
+                message.eventType = 40;
+                break;
+            case "AGENTSIGHT_ALERT":
+            case 41:
+                message.eventType = 41;
                 break;
             }
             if (object.behavior != null) {
@@ -7200,6 +7249,2701 @@ $root.pb = (function() {
         return McpEvent;
     })();
 
+    pb.TLSEvent = (function() {
+
+        /**
+         * Properties of a TLSEvent.
+         * @memberof pb
+         * @interface ITLSEvent
+         * @property {string|null} [direction] TLSEvent direction
+         * @property {string|null} [library] TLSEvent library
+         * @property {string|null} [host] TLSEvent host
+         * @property {string|null} [method] TLSEvent method
+         * @property {string|null} [url] TLSEvent url
+         * @property {number|null} [status] TLSEvent status
+         * @property {string|null} [contentType] TLSEvent contentType
+         * @property {number|Long|null} [bodySize] TLSEvent bodySize
+         * @property {boolean|null} [truncated] TLSEvent truncated
+         * @property {string|null} [redactionState] TLSEvent redactionState
+         * @property {boolean|null} [rawAvailable] TLSEvent rawAvailable
+         * @property {string|null} [messageRole] TLSEvent messageRole
+         * @property {string|null} [promptDigest] TLSEvent promptDigest
+         * @property {number|Long|null} [promptLen] TLSEvent promptLen
+         * @property {string|null} [vendor] TLSEvent vendor
+         */
+
+        /**
+         * Constructs a new TLSEvent.
+         * @memberof pb
+         * @classdesc Represents a TLSEvent.
+         * @implements ITLSEvent
+         * @constructor
+         * @param {pb.ITLSEvent=} [properties] Properties to set
+         */
+        function TLSEvent(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * TLSEvent direction.
+         * @member {string} direction
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.direction = "";
+
+        /**
+         * TLSEvent library.
+         * @member {string} library
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.library = "";
+
+        /**
+         * TLSEvent host.
+         * @member {string} host
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.host = "";
+
+        /**
+         * TLSEvent method.
+         * @member {string} method
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.method = "";
+
+        /**
+         * TLSEvent url.
+         * @member {string} url
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.url = "";
+
+        /**
+         * TLSEvent status.
+         * @member {number} status
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.status = 0;
+
+        /**
+         * TLSEvent contentType.
+         * @member {string} contentType
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.contentType = "";
+
+        /**
+         * TLSEvent bodySize.
+         * @member {number|Long} bodySize
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.bodySize = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * TLSEvent truncated.
+         * @member {boolean} truncated
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.truncated = false;
+
+        /**
+         * TLSEvent redactionState.
+         * @member {string} redactionState
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.redactionState = "";
+
+        /**
+         * TLSEvent rawAvailable.
+         * @member {boolean} rawAvailable
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.rawAvailable = false;
+
+        /**
+         * TLSEvent messageRole.
+         * @member {string} messageRole
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.messageRole = "";
+
+        /**
+         * TLSEvent promptDigest.
+         * @member {string} promptDigest
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.promptDigest = "";
+
+        /**
+         * TLSEvent promptLen.
+         * @member {number|Long} promptLen
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.promptLen = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * TLSEvent vendor.
+         * @member {string} vendor
+         * @memberof pb.TLSEvent
+         * @instance
+         */
+        TLSEvent.prototype.vendor = "";
+
+        /**
+         * Creates a new TLSEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.TLSEvent
+         * @static
+         * @param {pb.ITLSEvent=} [properties] Properties to set
+         * @returns {pb.TLSEvent} TLSEvent instance
+         */
+        TLSEvent.create = function create(properties) {
+            return new TLSEvent(properties);
+        };
+
+        /**
+         * Encodes the specified TLSEvent message. Does not implicitly {@link pb.TLSEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.TLSEvent
+         * @static
+         * @param {pb.ITLSEvent} message TLSEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        TLSEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.direction != null && Object.hasOwnProperty.call(message, "direction"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.direction);
+            if (message.library != null && Object.hasOwnProperty.call(message, "library"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.library);
+            if (message.host != null && Object.hasOwnProperty.call(message, "host"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.host);
+            if (message.method != null && Object.hasOwnProperty.call(message, "method"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.method);
+            if (message.url != null && Object.hasOwnProperty.call(message, "url"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.url);
+            if (message.status != null && Object.hasOwnProperty.call(message, "status"))
+                writer.uint32(/* id 6, wireType 0 =*/48).uint32(message.status);
+            if (message.contentType != null && Object.hasOwnProperty.call(message, "contentType"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.contentType);
+            if (message.bodySize != null && Object.hasOwnProperty.call(message, "bodySize"))
+                writer.uint32(/* id 8, wireType 0 =*/64).uint64(message.bodySize);
+            if (message.truncated != null && Object.hasOwnProperty.call(message, "truncated"))
+                writer.uint32(/* id 9, wireType 0 =*/72).bool(message.truncated);
+            if (message.redactionState != null && Object.hasOwnProperty.call(message, "redactionState"))
+                writer.uint32(/* id 10, wireType 2 =*/82).string(message.redactionState);
+            if (message.rawAvailable != null && Object.hasOwnProperty.call(message, "rawAvailable"))
+                writer.uint32(/* id 11, wireType 0 =*/88).bool(message.rawAvailable);
+            if (message.messageRole != null && Object.hasOwnProperty.call(message, "messageRole"))
+                writer.uint32(/* id 12, wireType 2 =*/98).string(message.messageRole);
+            if (message.promptDigest != null && Object.hasOwnProperty.call(message, "promptDigest"))
+                writer.uint32(/* id 13, wireType 2 =*/106).string(message.promptDigest);
+            if (message.promptLen != null && Object.hasOwnProperty.call(message, "promptLen"))
+                writer.uint32(/* id 14, wireType 0 =*/112).uint64(message.promptLen);
+            if (message.vendor != null && Object.hasOwnProperty.call(message, "vendor"))
+                writer.uint32(/* id 15, wireType 2 =*/122).string(message.vendor);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified TLSEvent message, length delimited. Does not implicitly {@link pb.TLSEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.TLSEvent
+         * @static
+         * @param {pb.ITLSEvent} message TLSEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        TLSEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a TLSEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.TLSEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.TLSEvent} TLSEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        TLSEvent.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.TLSEvent();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.direction = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.library = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.host = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.method = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.url = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.status = reader.uint32();
+                        break;
+                    }
+                case 7: {
+                        message.contentType = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.bodySize = reader.uint64();
+                        break;
+                    }
+                case 9: {
+                        message.truncated = reader.bool();
+                        break;
+                    }
+                case 10: {
+                        message.redactionState = reader.string();
+                        break;
+                    }
+                case 11: {
+                        message.rawAvailable = reader.bool();
+                        break;
+                    }
+                case 12: {
+                        message.messageRole = reader.string();
+                        break;
+                    }
+                case 13: {
+                        message.promptDigest = reader.string();
+                        break;
+                    }
+                case 14: {
+                        message.promptLen = reader.uint64();
+                        break;
+                    }
+                case 15: {
+                        message.vendor = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a TLSEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.TLSEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.TLSEvent} TLSEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        TLSEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a TLSEvent message.
+         * @function verify
+         * @memberof pb.TLSEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        TLSEvent.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.direction != null && message.hasOwnProperty("direction"))
+                if (!$util.isString(message.direction))
+                    return "direction: string expected";
+            if (message.library != null && message.hasOwnProperty("library"))
+                if (!$util.isString(message.library))
+                    return "library: string expected";
+            if (message.host != null && message.hasOwnProperty("host"))
+                if (!$util.isString(message.host))
+                    return "host: string expected";
+            if (message.method != null && message.hasOwnProperty("method"))
+                if (!$util.isString(message.method))
+                    return "method: string expected";
+            if (message.url != null && message.hasOwnProperty("url"))
+                if (!$util.isString(message.url))
+                    return "url: string expected";
+            if (message.status != null && message.hasOwnProperty("status"))
+                if (!$util.isInteger(message.status))
+                    return "status: integer expected";
+            if (message.contentType != null && message.hasOwnProperty("contentType"))
+                if (!$util.isString(message.contentType))
+                    return "contentType: string expected";
+            if (message.bodySize != null && message.hasOwnProperty("bodySize"))
+                if (!$util.isInteger(message.bodySize) && !(message.bodySize && $util.isInteger(message.bodySize.low) && $util.isInteger(message.bodySize.high)))
+                    return "bodySize: integer|Long expected";
+            if (message.truncated != null && message.hasOwnProperty("truncated"))
+                if (typeof message.truncated !== "boolean")
+                    return "truncated: boolean expected";
+            if (message.redactionState != null && message.hasOwnProperty("redactionState"))
+                if (!$util.isString(message.redactionState))
+                    return "redactionState: string expected";
+            if (message.rawAvailable != null && message.hasOwnProperty("rawAvailable"))
+                if (typeof message.rawAvailable !== "boolean")
+                    return "rawAvailable: boolean expected";
+            if (message.messageRole != null && message.hasOwnProperty("messageRole"))
+                if (!$util.isString(message.messageRole))
+                    return "messageRole: string expected";
+            if (message.promptDigest != null && message.hasOwnProperty("promptDigest"))
+                if (!$util.isString(message.promptDigest))
+                    return "promptDigest: string expected";
+            if (message.promptLen != null && message.hasOwnProperty("promptLen"))
+                if (!$util.isInteger(message.promptLen) && !(message.promptLen && $util.isInteger(message.promptLen.low) && $util.isInteger(message.promptLen.high)))
+                    return "promptLen: integer|Long expected";
+            if (message.vendor != null && message.hasOwnProperty("vendor"))
+                if (!$util.isString(message.vendor))
+                    return "vendor: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a TLSEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.TLSEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.TLSEvent} TLSEvent
+         */
+        TLSEvent.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.TLSEvent)
+                return object;
+            var message = new $root.pb.TLSEvent();
+            if (object.direction != null)
+                message.direction = String(object.direction);
+            if (object.library != null)
+                message.library = String(object.library);
+            if (object.host != null)
+                message.host = String(object.host);
+            if (object.method != null)
+                message.method = String(object.method);
+            if (object.url != null)
+                message.url = String(object.url);
+            if (object.status != null)
+                message.status = object.status >>> 0;
+            if (object.contentType != null)
+                message.contentType = String(object.contentType);
+            if (object.bodySize != null)
+                if ($util.Long)
+                    (message.bodySize = $util.Long.fromValue(object.bodySize)).unsigned = true;
+                else if (typeof object.bodySize === "string")
+                    message.bodySize = parseInt(object.bodySize, 10);
+                else if (typeof object.bodySize === "number")
+                    message.bodySize = object.bodySize;
+                else if (typeof object.bodySize === "object")
+                    message.bodySize = new $util.LongBits(object.bodySize.low >>> 0, object.bodySize.high >>> 0).toNumber(true);
+            if (object.truncated != null)
+                message.truncated = Boolean(object.truncated);
+            if (object.redactionState != null)
+                message.redactionState = String(object.redactionState);
+            if (object.rawAvailable != null)
+                message.rawAvailable = Boolean(object.rawAvailable);
+            if (object.messageRole != null)
+                message.messageRole = String(object.messageRole);
+            if (object.promptDigest != null)
+                message.promptDigest = String(object.promptDigest);
+            if (object.promptLen != null)
+                if ($util.Long)
+                    (message.promptLen = $util.Long.fromValue(object.promptLen)).unsigned = true;
+                else if (typeof object.promptLen === "string")
+                    message.promptLen = parseInt(object.promptLen, 10);
+                else if (typeof object.promptLen === "number")
+                    message.promptLen = object.promptLen;
+                else if (typeof object.promptLen === "object")
+                    message.promptLen = new $util.LongBits(object.promptLen.low >>> 0, object.promptLen.high >>> 0).toNumber(true);
+            if (object.vendor != null)
+                message.vendor = String(object.vendor);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a TLSEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.TLSEvent
+         * @static
+         * @param {pb.TLSEvent} message TLSEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        TLSEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.direction = "";
+                object.library = "";
+                object.host = "";
+                object.method = "";
+                object.url = "";
+                object.status = 0;
+                object.contentType = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.bodySize = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.bodySize = options.longs === String ? "0" : 0;
+                object.truncated = false;
+                object.redactionState = "";
+                object.rawAvailable = false;
+                object.messageRole = "";
+                object.promptDigest = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.promptLen = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.promptLen = options.longs === String ? "0" : 0;
+                object.vendor = "";
+            }
+            if (message.direction != null && message.hasOwnProperty("direction"))
+                object.direction = message.direction;
+            if (message.library != null && message.hasOwnProperty("library"))
+                object.library = message.library;
+            if (message.host != null && message.hasOwnProperty("host"))
+                object.host = message.host;
+            if (message.method != null && message.hasOwnProperty("method"))
+                object.method = message.method;
+            if (message.url != null && message.hasOwnProperty("url"))
+                object.url = message.url;
+            if (message.status != null && message.hasOwnProperty("status"))
+                object.status = message.status;
+            if (message.contentType != null && message.hasOwnProperty("contentType"))
+                object.contentType = message.contentType;
+            if (message.bodySize != null && message.hasOwnProperty("bodySize"))
+                if (typeof message.bodySize === "number")
+                    object.bodySize = options.longs === String ? String(message.bodySize) : message.bodySize;
+                else
+                    object.bodySize = options.longs === String ? $util.Long.prototype.toString.call(message.bodySize) : options.longs === Number ? new $util.LongBits(message.bodySize.low >>> 0, message.bodySize.high >>> 0).toNumber(true) : message.bodySize;
+            if (message.truncated != null && message.hasOwnProperty("truncated"))
+                object.truncated = message.truncated;
+            if (message.redactionState != null && message.hasOwnProperty("redactionState"))
+                object.redactionState = message.redactionState;
+            if (message.rawAvailable != null && message.hasOwnProperty("rawAvailable"))
+                object.rawAvailable = message.rawAvailable;
+            if (message.messageRole != null && message.hasOwnProperty("messageRole"))
+                object.messageRole = message.messageRole;
+            if (message.promptDigest != null && message.hasOwnProperty("promptDigest"))
+                object.promptDigest = message.promptDigest;
+            if (message.promptLen != null && message.hasOwnProperty("promptLen"))
+                if (typeof message.promptLen === "number")
+                    object.promptLen = options.longs === String ? String(message.promptLen) : message.promptLen;
+                else
+                    object.promptLen = options.longs === String ? $util.Long.prototype.toString.call(message.promptLen) : options.longs === Number ? new $util.LongBits(message.promptLen.low >>> 0, message.promptLen.high >>> 0).toNumber(true) : message.promptLen;
+            if (message.vendor != null && message.hasOwnProperty("vendor"))
+                object.vendor = message.vendor;
+            return object;
+        };
+
+        /**
+         * Converts this TLSEvent to JSON.
+         * @function toJSON
+         * @memberof pb.TLSEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        TLSEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for TLSEvent
+         * @function getTypeUrl
+         * @memberof pb.TLSEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        TLSEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.TLSEvent";
+        };
+
+        return TLSEvent;
+    })();
+
+    pb.HTTPEvent = (function() {
+
+        /**
+         * Properties of a HTTPEvent.
+         * @memberof pb
+         * @interface IHTTPEvent
+         * @property {string|null} [direction] HTTPEvent direction
+         * @property {string|null} [method] HTTPEvent method
+         * @property {string|null} [url] HTTPEvent url
+         * @property {string|null} [host] HTTPEvent host
+         * @property {number|null} [status] HTTPEvent status
+         * @property {string|null} [contentType] HTTPEvent contentType
+         * @property {number|Long|null} [bodySize] HTTPEvent bodySize
+         * @property {boolean|null} [truncated] HTTPEvent truncated
+         * @property {string|null} [redactionState] HTTPEvent redactionState
+         */
+
+        /**
+         * Constructs a new HTTPEvent.
+         * @memberof pb
+         * @classdesc Represents a HTTPEvent.
+         * @implements IHTTPEvent
+         * @constructor
+         * @param {pb.IHTTPEvent=} [properties] Properties to set
+         */
+        function HTTPEvent(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HTTPEvent direction.
+         * @member {string} direction
+         * @memberof pb.HTTPEvent
+         * @instance
+         */
+        HTTPEvent.prototype.direction = "";
+
+        /**
+         * HTTPEvent method.
+         * @member {string} method
+         * @memberof pb.HTTPEvent
+         * @instance
+         */
+        HTTPEvent.prototype.method = "";
+
+        /**
+         * HTTPEvent url.
+         * @member {string} url
+         * @memberof pb.HTTPEvent
+         * @instance
+         */
+        HTTPEvent.prototype.url = "";
+
+        /**
+         * HTTPEvent host.
+         * @member {string} host
+         * @memberof pb.HTTPEvent
+         * @instance
+         */
+        HTTPEvent.prototype.host = "";
+
+        /**
+         * HTTPEvent status.
+         * @member {number} status
+         * @memberof pb.HTTPEvent
+         * @instance
+         */
+        HTTPEvent.prototype.status = 0;
+
+        /**
+         * HTTPEvent contentType.
+         * @member {string} contentType
+         * @memberof pb.HTTPEvent
+         * @instance
+         */
+        HTTPEvent.prototype.contentType = "";
+
+        /**
+         * HTTPEvent bodySize.
+         * @member {number|Long} bodySize
+         * @memberof pb.HTTPEvent
+         * @instance
+         */
+        HTTPEvent.prototype.bodySize = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * HTTPEvent truncated.
+         * @member {boolean} truncated
+         * @memberof pb.HTTPEvent
+         * @instance
+         */
+        HTTPEvent.prototype.truncated = false;
+
+        /**
+         * HTTPEvent redactionState.
+         * @member {string} redactionState
+         * @memberof pb.HTTPEvent
+         * @instance
+         */
+        HTTPEvent.prototype.redactionState = "";
+
+        /**
+         * Creates a new HTTPEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.HTTPEvent
+         * @static
+         * @param {pb.IHTTPEvent=} [properties] Properties to set
+         * @returns {pb.HTTPEvent} HTTPEvent instance
+         */
+        HTTPEvent.create = function create(properties) {
+            return new HTTPEvent(properties);
+        };
+
+        /**
+         * Encodes the specified HTTPEvent message. Does not implicitly {@link pb.HTTPEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.HTTPEvent
+         * @static
+         * @param {pb.IHTTPEvent} message HTTPEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HTTPEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.direction != null && Object.hasOwnProperty.call(message, "direction"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.direction);
+            if (message.method != null && Object.hasOwnProperty.call(message, "method"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.method);
+            if (message.url != null && Object.hasOwnProperty.call(message, "url"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.url);
+            if (message.host != null && Object.hasOwnProperty.call(message, "host"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.host);
+            if (message.status != null && Object.hasOwnProperty.call(message, "status"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint32(message.status);
+            if (message.contentType != null && Object.hasOwnProperty.call(message, "contentType"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.contentType);
+            if (message.bodySize != null && Object.hasOwnProperty.call(message, "bodySize"))
+                writer.uint32(/* id 7, wireType 0 =*/56).uint64(message.bodySize);
+            if (message.truncated != null && Object.hasOwnProperty.call(message, "truncated"))
+                writer.uint32(/* id 8, wireType 0 =*/64).bool(message.truncated);
+            if (message.redactionState != null && Object.hasOwnProperty.call(message, "redactionState"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.redactionState);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HTTPEvent message, length delimited. Does not implicitly {@link pb.HTTPEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.HTTPEvent
+         * @static
+         * @param {pb.IHTTPEvent} message HTTPEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HTTPEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HTTPEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.HTTPEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.HTTPEvent} HTTPEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HTTPEvent.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.HTTPEvent();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.direction = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.method = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.url = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.host = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.status = reader.uint32();
+                        break;
+                    }
+                case 6: {
+                        message.contentType = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.bodySize = reader.uint64();
+                        break;
+                    }
+                case 8: {
+                        message.truncated = reader.bool();
+                        break;
+                    }
+                case 9: {
+                        message.redactionState = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a HTTPEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.HTTPEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.HTTPEvent} HTTPEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HTTPEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a HTTPEvent message.
+         * @function verify
+         * @memberof pb.HTTPEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        HTTPEvent.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.direction != null && message.hasOwnProperty("direction"))
+                if (!$util.isString(message.direction))
+                    return "direction: string expected";
+            if (message.method != null && message.hasOwnProperty("method"))
+                if (!$util.isString(message.method))
+                    return "method: string expected";
+            if (message.url != null && message.hasOwnProperty("url"))
+                if (!$util.isString(message.url))
+                    return "url: string expected";
+            if (message.host != null && message.hasOwnProperty("host"))
+                if (!$util.isString(message.host))
+                    return "host: string expected";
+            if (message.status != null && message.hasOwnProperty("status"))
+                if (!$util.isInteger(message.status))
+                    return "status: integer expected";
+            if (message.contentType != null && message.hasOwnProperty("contentType"))
+                if (!$util.isString(message.contentType))
+                    return "contentType: string expected";
+            if (message.bodySize != null && message.hasOwnProperty("bodySize"))
+                if (!$util.isInteger(message.bodySize) && !(message.bodySize && $util.isInteger(message.bodySize.low) && $util.isInteger(message.bodySize.high)))
+                    return "bodySize: integer|Long expected";
+            if (message.truncated != null && message.hasOwnProperty("truncated"))
+                if (typeof message.truncated !== "boolean")
+                    return "truncated: boolean expected";
+            if (message.redactionState != null && message.hasOwnProperty("redactionState"))
+                if (!$util.isString(message.redactionState))
+                    return "redactionState: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a HTTPEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.HTTPEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.HTTPEvent} HTTPEvent
+         */
+        HTTPEvent.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.HTTPEvent)
+                return object;
+            var message = new $root.pb.HTTPEvent();
+            if (object.direction != null)
+                message.direction = String(object.direction);
+            if (object.method != null)
+                message.method = String(object.method);
+            if (object.url != null)
+                message.url = String(object.url);
+            if (object.host != null)
+                message.host = String(object.host);
+            if (object.status != null)
+                message.status = object.status >>> 0;
+            if (object.contentType != null)
+                message.contentType = String(object.contentType);
+            if (object.bodySize != null)
+                if ($util.Long)
+                    (message.bodySize = $util.Long.fromValue(object.bodySize)).unsigned = true;
+                else if (typeof object.bodySize === "string")
+                    message.bodySize = parseInt(object.bodySize, 10);
+                else if (typeof object.bodySize === "number")
+                    message.bodySize = object.bodySize;
+                else if (typeof object.bodySize === "object")
+                    message.bodySize = new $util.LongBits(object.bodySize.low >>> 0, object.bodySize.high >>> 0).toNumber(true);
+            if (object.truncated != null)
+                message.truncated = Boolean(object.truncated);
+            if (object.redactionState != null)
+                message.redactionState = String(object.redactionState);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a HTTPEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.HTTPEvent
+         * @static
+         * @param {pb.HTTPEvent} message HTTPEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        HTTPEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.direction = "";
+                object.method = "";
+                object.url = "";
+                object.host = "";
+                object.status = 0;
+                object.contentType = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.bodySize = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.bodySize = options.longs === String ? "0" : 0;
+                object.truncated = false;
+                object.redactionState = "";
+            }
+            if (message.direction != null && message.hasOwnProperty("direction"))
+                object.direction = message.direction;
+            if (message.method != null && message.hasOwnProperty("method"))
+                object.method = message.method;
+            if (message.url != null && message.hasOwnProperty("url"))
+                object.url = message.url;
+            if (message.host != null && message.hasOwnProperty("host"))
+                object.host = message.host;
+            if (message.status != null && message.hasOwnProperty("status"))
+                object.status = message.status;
+            if (message.contentType != null && message.hasOwnProperty("contentType"))
+                object.contentType = message.contentType;
+            if (message.bodySize != null && message.hasOwnProperty("bodySize"))
+                if (typeof message.bodySize === "number")
+                    object.bodySize = options.longs === String ? String(message.bodySize) : message.bodySize;
+                else
+                    object.bodySize = options.longs === String ? $util.Long.prototype.toString.call(message.bodySize) : options.longs === Number ? new $util.LongBits(message.bodySize.low >>> 0, message.bodySize.high >>> 0).toNumber(true) : message.bodySize;
+            if (message.truncated != null && message.hasOwnProperty("truncated"))
+                object.truncated = message.truncated;
+            if (message.redactionState != null && message.hasOwnProperty("redactionState"))
+                object.redactionState = message.redactionState;
+            return object;
+        };
+
+        /**
+         * Converts this HTTPEvent to JSON.
+         * @function toJSON
+         * @memberof pb.HTTPEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        HTTPEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for HTTPEvent
+         * @function getTypeUrl
+         * @memberof pb.HTTPEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HTTPEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.HTTPEvent";
+        };
+
+        return HTTPEvent;
+    })();
+
+    pb.SSEEvent = (function() {
+
+        /**
+         * Properties of a SSEEvent.
+         * @memberof pb
+         * @interface ISSEEvent
+         * @property {string|null} [event] SSEEvent event
+         * @property {string|null} [dataDigest] SSEEvent dataDigest
+         * @property {number|Long|null} [dataSize] SSEEvent dataSize
+         * @property {boolean|null} [completed] SSEEvent completed
+         * @property {string|null} [redactionState] SSEEvent redactionState
+         */
+
+        /**
+         * Constructs a new SSEEvent.
+         * @memberof pb
+         * @classdesc Represents a SSEEvent.
+         * @implements ISSEEvent
+         * @constructor
+         * @param {pb.ISSEEvent=} [properties] Properties to set
+         */
+        function SSEEvent(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SSEEvent event.
+         * @member {string} event
+         * @memberof pb.SSEEvent
+         * @instance
+         */
+        SSEEvent.prototype.event = "";
+
+        /**
+         * SSEEvent dataDigest.
+         * @member {string} dataDigest
+         * @memberof pb.SSEEvent
+         * @instance
+         */
+        SSEEvent.prototype.dataDigest = "";
+
+        /**
+         * SSEEvent dataSize.
+         * @member {number|Long} dataSize
+         * @memberof pb.SSEEvent
+         * @instance
+         */
+        SSEEvent.prototype.dataSize = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * SSEEvent completed.
+         * @member {boolean} completed
+         * @memberof pb.SSEEvent
+         * @instance
+         */
+        SSEEvent.prototype.completed = false;
+
+        /**
+         * SSEEvent redactionState.
+         * @member {string} redactionState
+         * @memberof pb.SSEEvent
+         * @instance
+         */
+        SSEEvent.prototype.redactionState = "";
+
+        /**
+         * Creates a new SSEEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.SSEEvent
+         * @static
+         * @param {pb.ISSEEvent=} [properties] Properties to set
+         * @returns {pb.SSEEvent} SSEEvent instance
+         */
+        SSEEvent.create = function create(properties) {
+            return new SSEEvent(properties);
+        };
+
+        /**
+         * Encodes the specified SSEEvent message. Does not implicitly {@link pb.SSEEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.SSEEvent
+         * @static
+         * @param {pb.ISSEEvent} message SSEEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SSEEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.event != null && Object.hasOwnProperty.call(message, "event"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.event);
+            if (message.dataDigest != null && Object.hasOwnProperty.call(message, "dataDigest"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.dataDigest);
+            if (message.dataSize != null && Object.hasOwnProperty.call(message, "dataSize"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.dataSize);
+            if (message.completed != null && Object.hasOwnProperty.call(message, "completed"))
+                writer.uint32(/* id 4, wireType 0 =*/32).bool(message.completed);
+            if (message.redactionState != null && Object.hasOwnProperty.call(message, "redactionState"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.redactionState);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SSEEvent message, length delimited. Does not implicitly {@link pb.SSEEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.SSEEvent
+         * @static
+         * @param {pb.ISSEEvent} message SSEEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SSEEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SSEEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.SSEEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.SSEEvent} SSEEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SSEEvent.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SSEEvent();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.event = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.dataDigest = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.dataSize = reader.uint64();
+                        break;
+                    }
+                case 4: {
+                        message.completed = reader.bool();
+                        break;
+                    }
+                case 5: {
+                        message.redactionState = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SSEEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.SSEEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.SSEEvent} SSEEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SSEEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SSEEvent message.
+         * @function verify
+         * @memberof pb.SSEEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SSEEvent.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.event != null && message.hasOwnProperty("event"))
+                if (!$util.isString(message.event))
+                    return "event: string expected";
+            if (message.dataDigest != null && message.hasOwnProperty("dataDigest"))
+                if (!$util.isString(message.dataDigest))
+                    return "dataDigest: string expected";
+            if (message.dataSize != null && message.hasOwnProperty("dataSize"))
+                if (!$util.isInteger(message.dataSize) && !(message.dataSize && $util.isInteger(message.dataSize.low) && $util.isInteger(message.dataSize.high)))
+                    return "dataSize: integer|Long expected";
+            if (message.completed != null && message.hasOwnProperty("completed"))
+                if (typeof message.completed !== "boolean")
+                    return "completed: boolean expected";
+            if (message.redactionState != null && message.hasOwnProperty("redactionState"))
+                if (!$util.isString(message.redactionState))
+                    return "redactionState: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a SSEEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.SSEEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.SSEEvent} SSEEvent
+         */
+        SSEEvent.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.SSEEvent)
+                return object;
+            var message = new $root.pb.SSEEvent();
+            if (object.event != null)
+                message.event = String(object.event);
+            if (object.dataDigest != null)
+                message.dataDigest = String(object.dataDigest);
+            if (object.dataSize != null)
+                if ($util.Long)
+                    (message.dataSize = $util.Long.fromValue(object.dataSize)).unsigned = true;
+                else if (typeof object.dataSize === "string")
+                    message.dataSize = parseInt(object.dataSize, 10);
+                else if (typeof object.dataSize === "number")
+                    message.dataSize = object.dataSize;
+                else if (typeof object.dataSize === "object")
+                    message.dataSize = new $util.LongBits(object.dataSize.low >>> 0, object.dataSize.high >>> 0).toNumber(true);
+            if (object.completed != null)
+                message.completed = Boolean(object.completed);
+            if (object.redactionState != null)
+                message.redactionState = String(object.redactionState);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SSEEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.SSEEvent
+         * @static
+         * @param {pb.SSEEvent} message SSEEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SSEEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.event = "";
+                object.dataDigest = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.dataSize = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.dataSize = options.longs === String ? "0" : 0;
+                object.completed = false;
+                object.redactionState = "";
+            }
+            if (message.event != null && message.hasOwnProperty("event"))
+                object.event = message.event;
+            if (message.dataDigest != null && message.hasOwnProperty("dataDigest"))
+                object.dataDigest = message.dataDigest;
+            if (message.dataSize != null && message.hasOwnProperty("dataSize"))
+                if (typeof message.dataSize === "number")
+                    object.dataSize = options.longs === String ? String(message.dataSize) : message.dataSize;
+                else
+                    object.dataSize = options.longs === String ? $util.Long.prototype.toString.call(message.dataSize) : options.longs === Number ? new $util.LongBits(message.dataSize.low >>> 0, message.dataSize.high >>> 0).toNumber(true) : message.dataSize;
+            if (message.completed != null && message.hasOwnProperty("completed"))
+                object.completed = message.completed;
+            if (message.redactionState != null && message.hasOwnProperty("redactionState"))
+                object.redactionState = message.redactionState;
+            return object;
+        };
+
+        /**
+         * Converts this SSEEvent to JSON.
+         * @function toJSON
+         * @memberof pb.SSEEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SSEEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for SSEEvent
+         * @function getTypeUrl
+         * @memberof pb.SSEEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SSEEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.SSEEvent";
+        };
+
+        return SSEEvent;
+    })();
+
+    pb.StdioEvent = (function() {
+
+        /**
+         * Properties of a StdioEvent.
+         * @memberof pb
+         * @interface IStdioEvent
+         * @property {string|null} [fd] StdioEvent fd
+         * @property {string|null} [stream] StdioEvent stream
+         * @property {number|Long|null} [size] StdioEvent size
+         * @property {boolean|null} [truncated] StdioEvent truncated
+         * @property {boolean|null} [binary] StdioEvent binary
+         * @property {string|null} [redactionState] StdioEvent redactionState
+         */
+
+        /**
+         * Constructs a new StdioEvent.
+         * @memberof pb
+         * @classdesc Represents a StdioEvent.
+         * @implements IStdioEvent
+         * @constructor
+         * @param {pb.IStdioEvent=} [properties] Properties to set
+         */
+        function StdioEvent(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * StdioEvent fd.
+         * @member {string} fd
+         * @memberof pb.StdioEvent
+         * @instance
+         */
+        StdioEvent.prototype.fd = "";
+
+        /**
+         * StdioEvent stream.
+         * @member {string} stream
+         * @memberof pb.StdioEvent
+         * @instance
+         */
+        StdioEvent.prototype.stream = "";
+
+        /**
+         * StdioEvent size.
+         * @member {number|Long} size
+         * @memberof pb.StdioEvent
+         * @instance
+         */
+        StdioEvent.prototype.size = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * StdioEvent truncated.
+         * @member {boolean} truncated
+         * @memberof pb.StdioEvent
+         * @instance
+         */
+        StdioEvent.prototype.truncated = false;
+
+        /**
+         * StdioEvent binary.
+         * @member {boolean} binary
+         * @memberof pb.StdioEvent
+         * @instance
+         */
+        StdioEvent.prototype.binary = false;
+
+        /**
+         * StdioEvent redactionState.
+         * @member {string} redactionState
+         * @memberof pb.StdioEvent
+         * @instance
+         */
+        StdioEvent.prototype.redactionState = "";
+
+        /**
+         * Creates a new StdioEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.StdioEvent
+         * @static
+         * @param {pb.IStdioEvent=} [properties] Properties to set
+         * @returns {pb.StdioEvent} StdioEvent instance
+         */
+        StdioEvent.create = function create(properties) {
+            return new StdioEvent(properties);
+        };
+
+        /**
+         * Encodes the specified StdioEvent message. Does not implicitly {@link pb.StdioEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.StdioEvent
+         * @static
+         * @param {pb.IStdioEvent} message StdioEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        StdioEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.fd != null && Object.hasOwnProperty.call(message, "fd"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.fd);
+            if (message.stream != null && Object.hasOwnProperty.call(message, "stream"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.stream);
+            if (message.size != null && Object.hasOwnProperty.call(message, "size"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.size);
+            if (message.truncated != null && Object.hasOwnProperty.call(message, "truncated"))
+                writer.uint32(/* id 4, wireType 0 =*/32).bool(message.truncated);
+            if (message.binary != null && Object.hasOwnProperty.call(message, "binary"))
+                writer.uint32(/* id 5, wireType 0 =*/40).bool(message.binary);
+            if (message.redactionState != null && Object.hasOwnProperty.call(message, "redactionState"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.redactionState);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified StdioEvent message, length delimited. Does not implicitly {@link pb.StdioEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.StdioEvent
+         * @static
+         * @param {pb.IStdioEvent} message StdioEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        StdioEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a StdioEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.StdioEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.StdioEvent} StdioEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        StdioEvent.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.StdioEvent();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.fd = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.stream = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.size = reader.uint64();
+                        break;
+                    }
+                case 4: {
+                        message.truncated = reader.bool();
+                        break;
+                    }
+                case 5: {
+                        message.binary = reader.bool();
+                        break;
+                    }
+                case 6: {
+                        message.redactionState = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a StdioEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.StdioEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.StdioEvent} StdioEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        StdioEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a StdioEvent message.
+         * @function verify
+         * @memberof pb.StdioEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        StdioEvent.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.fd != null && message.hasOwnProperty("fd"))
+                if (!$util.isString(message.fd))
+                    return "fd: string expected";
+            if (message.stream != null && message.hasOwnProperty("stream"))
+                if (!$util.isString(message.stream))
+                    return "stream: string expected";
+            if (message.size != null && message.hasOwnProperty("size"))
+                if (!$util.isInteger(message.size) && !(message.size && $util.isInteger(message.size.low) && $util.isInteger(message.size.high)))
+                    return "size: integer|Long expected";
+            if (message.truncated != null && message.hasOwnProperty("truncated"))
+                if (typeof message.truncated !== "boolean")
+                    return "truncated: boolean expected";
+            if (message.binary != null && message.hasOwnProperty("binary"))
+                if (typeof message.binary !== "boolean")
+                    return "binary: boolean expected";
+            if (message.redactionState != null && message.hasOwnProperty("redactionState"))
+                if (!$util.isString(message.redactionState))
+                    return "redactionState: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a StdioEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.StdioEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.StdioEvent} StdioEvent
+         */
+        StdioEvent.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.StdioEvent)
+                return object;
+            var message = new $root.pb.StdioEvent();
+            if (object.fd != null)
+                message.fd = String(object.fd);
+            if (object.stream != null)
+                message.stream = String(object.stream);
+            if (object.size != null)
+                if ($util.Long)
+                    (message.size = $util.Long.fromValue(object.size)).unsigned = true;
+                else if (typeof object.size === "string")
+                    message.size = parseInt(object.size, 10);
+                else if (typeof object.size === "number")
+                    message.size = object.size;
+                else if (typeof object.size === "object")
+                    message.size = new $util.LongBits(object.size.low >>> 0, object.size.high >>> 0).toNumber(true);
+            if (object.truncated != null)
+                message.truncated = Boolean(object.truncated);
+            if (object.binary != null)
+                message.binary = Boolean(object.binary);
+            if (object.redactionState != null)
+                message.redactionState = String(object.redactionState);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a StdioEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.StdioEvent
+         * @static
+         * @param {pb.StdioEvent} message StdioEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        StdioEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.fd = "";
+                object.stream = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.size = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.size = options.longs === String ? "0" : 0;
+                object.truncated = false;
+                object.binary = false;
+                object.redactionState = "";
+            }
+            if (message.fd != null && message.hasOwnProperty("fd"))
+                object.fd = message.fd;
+            if (message.stream != null && message.hasOwnProperty("stream"))
+                object.stream = message.stream;
+            if (message.size != null && message.hasOwnProperty("size"))
+                if (typeof message.size === "number")
+                    object.size = options.longs === String ? String(message.size) : message.size;
+                else
+                    object.size = options.longs === String ? $util.Long.prototype.toString.call(message.size) : options.longs === Number ? new $util.LongBits(message.size.low >>> 0, message.size.high >>> 0).toNumber(true) : message.size;
+            if (message.truncated != null && message.hasOwnProperty("truncated"))
+                object.truncated = message.truncated;
+            if (message.binary != null && message.hasOwnProperty("binary"))
+                object.binary = message.binary;
+            if (message.redactionState != null && message.hasOwnProperty("redactionState"))
+                object.redactionState = message.redactionState;
+            return object;
+        };
+
+        /**
+         * Converts this StdioEvent to JSON.
+         * @function toJSON
+         * @memberof pb.StdioEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        StdioEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for StdioEvent
+         * @function getTypeUrl
+         * @memberof pb.StdioEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        StdioEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.StdioEvent";
+        };
+
+        return StdioEvent;
+    })();
+
+    pb.SystemMetricEvent = (function() {
+
+        /**
+         * Properties of a SystemMetricEvent.
+         * @memberof pb
+         * @interface ISystemMetricEvent
+         * @property {number|null} [cpuPercent] SystemMetricEvent cpuPercent
+         * @property {number|Long|null} [memoryBytes] SystemMetricEvent memoryBytes
+         * @property {number|null} [threads] SystemMetricEvent threads
+         * @property {number|null} [children] SystemMetricEvent children
+         * @property {number|null} [fdCount] SystemMetricEvent fdCount
+         * @property {string|null} [processState] SystemMetricEvent processState
+         * @property {string|null} [alert] SystemMetricEvent alert
+         */
+
+        /**
+         * Constructs a new SystemMetricEvent.
+         * @memberof pb
+         * @classdesc Represents a SystemMetricEvent.
+         * @implements ISystemMetricEvent
+         * @constructor
+         * @param {pb.ISystemMetricEvent=} [properties] Properties to set
+         */
+        function SystemMetricEvent(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SystemMetricEvent cpuPercent.
+         * @member {number} cpuPercent
+         * @memberof pb.SystemMetricEvent
+         * @instance
+         */
+        SystemMetricEvent.prototype.cpuPercent = 0;
+
+        /**
+         * SystemMetricEvent memoryBytes.
+         * @member {number|Long} memoryBytes
+         * @memberof pb.SystemMetricEvent
+         * @instance
+         */
+        SystemMetricEvent.prototype.memoryBytes = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * SystemMetricEvent threads.
+         * @member {number} threads
+         * @memberof pb.SystemMetricEvent
+         * @instance
+         */
+        SystemMetricEvent.prototype.threads = 0;
+
+        /**
+         * SystemMetricEvent children.
+         * @member {number} children
+         * @memberof pb.SystemMetricEvent
+         * @instance
+         */
+        SystemMetricEvent.prototype.children = 0;
+
+        /**
+         * SystemMetricEvent fdCount.
+         * @member {number} fdCount
+         * @memberof pb.SystemMetricEvent
+         * @instance
+         */
+        SystemMetricEvent.prototype.fdCount = 0;
+
+        /**
+         * SystemMetricEvent processState.
+         * @member {string} processState
+         * @memberof pb.SystemMetricEvent
+         * @instance
+         */
+        SystemMetricEvent.prototype.processState = "";
+
+        /**
+         * SystemMetricEvent alert.
+         * @member {string} alert
+         * @memberof pb.SystemMetricEvent
+         * @instance
+         */
+        SystemMetricEvent.prototype.alert = "";
+
+        /**
+         * Creates a new SystemMetricEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.SystemMetricEvent
+         * @static
+         * @param {pb.ISystemMetricEvent=} [properties] Properties to set
+         * @returns {pb.SystemMetricEvent} SystemMetricEvent instance
+         */
+        SystemMetricEvent.create = function create(properties) {
+            return new SystemMetricEvent(properties);
+        };
+
+        /**
+         * Encodes the specified SystemMetricEvent message. Does not implicitly {@link pb.SystemMetricEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.SystemMetricEvent
+         * @static
+         * @param {pb.ISystemMetricEvent} message SystemMetricEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SystemMetricEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.cpuPercent != null && Object.hasOwnProperty.call(message, "cpuPercent"))
+                writer.uint32(/* id 1, wireType 1 =*/9).double(message.cpuPercent);
+            if (message.memoryBytes != null && Object.hasOwnProperty.call(message, "memoryBytes"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.memoryBytes);
+            if (message.threads != null && Object.hasOwnProperty.call(message, "threads"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint32(message.threads);
+            if (message.children != null && Object.hasOwnProperty.call(message, "children"))
+                writer.uint32(/* id 4, wireType 0 =*/32).uint32(message.children);
+            if (message.fdCount != null && Object.hasOwnProperty.call(message, "fdCount"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint32(message.fdCount);
+            if (message.processState != null && Object.hasOwnProperty.call(message, "processState"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.processState);
+            if (message.alert != null && Object.hasOwnProperty.call(message, "alert"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.alert);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SystemMetricEvent message, length delimited. Does not implicitly {@link pb.SystemMetricEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.SystemMetricEvent
+         * @static
+         * @param {pb.ISystemMetricEvent} message SystemMetricEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SystemMetricEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SystemMetricEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.SystemMetricEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.SystemMetricEvent} SystemMetricEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SystemMetricEvent.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SystemMetricEvent();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.cpuPercent = reader.double();
+                        break;
+                    }
+                case 2: {
+                        message.memoryBytes = reader.uint64();
+                        break;
+                    }
+                case 3: {
+                        message.threads = reader.uint32();
+                        break;
+                    }
+                case 4: {
+                        message.children = reader.uint32();
+                        break;
+                    }
+                case 5: {
+                        message.fdCount = reader.uint32();
+                        break;
+                    }
+                case 6: {
+                        message.processState = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.alert = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SystemMetricEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.SystemMetricEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.SystemMetricEvent} SystemMetricEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SystemMetricEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SystemMetricEvent message.
+         * @function verify
+         * @memberof pb.SystemMetricEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SystemMetricEvent.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.cpuPercent != null && message.hasOwnProperty("cpuPercent"))
+                if (typeof message.cpuPercent !== "number")
+                    return "cpuPercent: number expected";
+            if (message.memoryBytes != null && message.hasOwnProperty("memoryBytes"))
+                if (!$util.isInteger(message.memoryBytes) && !(message.memoryBytes && $util.isInteger(message.memoryBytes.low) && $util.isInteger(message.memoryBytes.high)))
+                    return "memoryBytes: integer|Long expected";
+            if (message.threads != null && message.hasOwnProperty("threads"))
+                if (!$util.isInteger(message.threads))
+                    return "threads: integer expected";
+            if (message.children != null && message.hasOwnProperty("children"))
+                if (!$util.isInteger(message.children))
+                    return "children: integer expected";
+            if (message.fdCount != null && message.hasOwnProperty("fdCount"))
+                if (!$util.isInteger(message.fdCount))
+                    return "fdCount: integer expected";
+            if (message.processState != null && message.hasOwnProperty("processState"))
+                if (!$util.isString(message.processState))
+                    return "processState: string expected";
+            if (message.alert != null && message.hasOwnProperty("alert"))
+                if (!$util.isString(message.alert))
+                    return "alert: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a SystemMetricEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.SystemMetricEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.SystemMetricEvent} SystemMetricEvent
+         */
+        SystemMetricEvent.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.SystemMetricEvent)
+                return object;
+            var message = new $root.pb.SystemMetricEvent();
+            if (object.cpuPercent != null)
+                message.cpuPercent = Number(object.cpuPercent);
+            if (object.memoryBytes != null)
+                if ($util.Long)
+                    (message.memoryBytes = $util.Long.fromValue(object.memoryBytes)).unsigned = true;
+                else if (typeof object.memoryBytes === "string")
+                    message.memoryBytes = parseInt(object.memoryBytes, 10);
+                else if (typeof object.memoryBytes === "number")
+                    message.memoryBytes = object.memoryBytes;
+                else if (typeof object.memoryBytes === "object")
+                    message.memoryBytes = new $util.LongBits(object.memoryBytes.low >>> 0, object.memoryBytes.high >>> 0).toNumber(true);
+            if (object.threads != null)
+                message.threads = object.threads >>> 0;
+            if (object.children != null)
+                message.children = object.children >>> 0;
+            if (object.fdCount != null)
+                message.fdCount = object.fdCount >>> 0;
+            if (object.processState != null)
+                message.processState = String(object.processState);
+            if (object.alert != null)
+                message.alert = String(object.alert);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SystemMetricEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.SystemMetricEvent
+         * @static
+         * @param {pb.SystemMetricEvent} message SystemMetricEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SystemMetricEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.cpuPercent = 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.memoryBytes = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.memoryBytes = options.longs === String ? "0" : 0;
+                object.threads = 0;
+                object.children = 0;
+                object.fdCount = 0;
+                object.processState = "";
+                object.alert = "";
+            }
+            if (message.cpuPercent != null && message.hasOwnProperty("cpuPercent"))
+                object.cpuPercent = options.json && !isFinite(message.cpuPercent) ? String(message.cpuPercent) : message.cpuPercent;
+            if (message.memoryBytes != null && message.hasOwnProperty("memoryBytes"))
+                if (typeof message.memoryBytes === "number")
+                    object.memoryBytes = options.longs === String ? String(message.memoryBytes) : message.memoryBytes;
+                else
+                    object.memoryBytes = options.longs === String ? $util.Long.prototype.toString.call(message.memoryBytes) : options.longs === Number ? new $util.LongBits(message.memoryBytes.low >>> 0, message.memoryBytes.high >>> 0).toNumber(true) : message.memoryBytes;
+            if (message.threads != null && message.hasOwnProperty("threads"))
+                object.threads = message.threads;
+            if (message.children != null && message.hasOwnProperty("children"))
+                object.children = message.children;
+            if (message.fdCount != null && message.hasOwnProperty("fdCount"))
+                object.fdCount = message.fdCount;
+            if (message.processState != null && message.hasOwnProperty("processState"))
+                object.processState = message.processState;
+            if (message.alert != null && message.hasOwnProperty("alert"))
+                object.alert = message.alert;
+            return object;
+        };
+
+        /**
+         * Converts this SystemMetricEvent to JSON.
+         * @function toJSON
+         * @memberof pb.SystemMetricEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SystemMetricEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for SystemMetricEvent
+         * @function getTypeUrl
+         * @memberof pb.SystemMetricEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SystemMetricEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.SystemMetricEvent";
+        };
+
+        return SystemMetricEvent;
+    })();
+
+    pb.OtelSpanEvent = (function() {
+
+        /**
+         * Properties of an OtelSpanEvent.
+         * @memberof pb
+         * @interface IOtelSpanEvent
+         * @property {string|null} [name] OtelSpanEvent name
+         * @property {string|null} [kind] OtelSpanEvent kind
+         * @property {string|null} [status] OtelSpanEvent status
+         * @property {string|null} [provider] OtelSpanEvent provider
+         * @property {string|null} [model] OtelSpanEvent model
+         * @property {number|Long|null} [latencyMs] OtelSpanEvent latencyMs
+         * @property {number|Long|null} [inputTokens] OtelSpanEvent inputTokens
+         * @property {number|Long|null} [outputTokens] OtelSpanEvent outputTokens
+         * @property {string|null} [error] OtelSpanEvent error
+         */
+
+        /**
+         * Constructs a new OtelSpanEvent.
+         * @memberof pb
+         * @classdesc Represents an OtelSpanEvent.
+         * @implements IOtelSpanEvent
+         * @constructor
+         * @param {pb.IOtelSpanEvent=} [properties] Properties to set
+         */
+        function OtelSpanEvent(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * OtelSpanEvent name.
+         * @member {string} name
+         * @memberof pb.OtelSpanEvent
+         * @instance
+         */
+        OtelSpanEvent.prototype.name = "";
+
+        /**
+         * OtelSpanEvent kind.
+         * @member {string} kind
+         * @memberof pb.OtelSpanEvent
+         * @instance
+         */
+        OtelSpanEvent.prototype.kind = "";
+
+        /**
+         * OtelSpanEvent status.
+         * @member {string} status
+         * @memberof pb.OtelSpanEvent
+         * @instance
+         */
+        OtelSpanEvent.prototype.status = "";
+
+        /**
+         * OtelSpanEvent provider.
+         * @member {string} provider
+         * @memberof pb.OtelSpanEvent
+         * @instance
+         */
+        OtelSpanEvent.prototype.provider = "";
+
+        /**
+         * OtelSpanEvent model.
+         * @member {string} model
+         * @memberof pb.OtelSpanEvent
+         * @instance
+         */
+        OtelSpanEvent.prototype.model = "";
+
+        /**
+         * OtelSpanEvent latencyMs.
+         * @member {number|Long} latencyMs
+         * @memberof pb.OtelSpanEvent
+         * @instance
+         */
+        OtelSpanEvent.prototype.latencyMs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * OtelSpanEvent inputTokens.
+         * @member {number|Long} inputTokens
+         * @memberof pb.OtelSpanEvent
+         * @instance
+         */
+        OtelSpanEvent.prototype.inputTokens = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * OtelSpanEvent outputTokens.
+         * @member {number|Long} outputTokens
+         * @memberof pb.OtelSpanEvent
+         * @instance
+         */
+        OtelSpanEvent.prototype.outputTokens = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * OtelSpanEvent error.
+         * @member {string} error
+         * @memberof pb.OtelSpanEvent
+         * @instance
+         */
+        OtelSpanEvent.prototype.error = "";
+
+        /**
+         * Creates a new OtelSpanEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.OtelSpanEvent
+         * @static
+         * @param {pb.IOtelSpanEvent=} [properties] Properties to set
+         * @returns {pb.OtelSpanEvent} OtelSpanEvent instance
+         */
+        OtelSpanEvent.create = function create(properties) {
+            return new OtelSpanEvent(properties);
+        };
+
+        /**
+         * Encodes the specified OtelSpanEvent message. Does not implicitly {@link pb.OtelSpanEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.OtelSpanEvent
+         * @static
+         * @param {pb.IOtelSpanEvent} message OtelSpanEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        OtelSpanEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
+            if (message.kind != null && Object.hasOwnProperty.call(message, "kind"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.kind);
+            if (message.status != null && Object.hasOwnProperty.call(message, "status"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.status);
+            if (message.provider != null && Object.hasOwnProperty.call(message, "provider"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.provider);
+            if (message.model != null && Object.hasOwnProperty.call(message, "model"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.model);
+            if (message.latencyMs != null && Object.hasOwnProperty.call(message, "latencyMs"))
+                writer.uint32(/* id 6, wireType 0 =*/48).uint64(message.latencyMs);
+            if (message.inputTokens != null && Object.hasOwnProperty.call(message, "inputTokens"))
+                writer.uint32(/* id 7, wireType 0 =*/56).uint64(message.inputTokens);
+            if (message.outputTokens != null && Object.hasOwnProperty.call(message, "outputTokens"))
+                writer.uint32(/* id 8, wireType 0 =*/64).uint64(message.outputTokens);
+            if (message.error != null && Object.hasOwnProperty.call(message, "error"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.error);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified OtelSpanEvent message, length delimited. Does not implicitly {@link pb.OtelSpanEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.OtelSpanEvent
+         * @static
+         * @param {pb.IOtelSpanEvent} message OtelSpanEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        OtelSpanEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an OtelSpanEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.OtelSpanEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.OtelSpanEvent} OtelSpanEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        OtelSpanEvent.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.OtelSpanEvent();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.name = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.kind = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.status = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.provider = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.model = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.latencyMs = reader.uint64();
+                        break;
+                    }
+                case 7: {
+                        message.inputTokens = reader.uint64();
+                        break;
+                    }
+                case 8: {
+                        message.outputTokens = reader.uint64();
+                        break;
+                    }
+                case 9: {
+                        message.error = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an OtelSpanEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.OtelSpanEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.OtelSpanEvent} OtelSpanEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        OtelSpanEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an OtelSpanEvent message.
+         * @function verify
+         * @memberof pb.OtelSpanEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        OtelSpanEvent.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.name != null && message.hasOwnProperty("name"))
+                if (!$util.isString(message.name))
+                    return "name: string expected";
+            if (message.kind != null && message.hasOwnProperty("kind"))
+                if (!$util.isString(message.kind))
+                    return "kind: string expected";
+            if (message.status != null && message.hasOwnProperty("status"))
+                if (!$util.isString(message.status))
+                    return "status: string expected";
+            if (message.provider != null && message.hasOwnProperty("provider"))
+                if (!$util.isString(message.provider))
+                    return "provider: string expected";
+            if (message.model != null && message.hasOwnProperty("model"))
+                if (!$util.isString(message.model))
+                    return "model: string expected";
+            if (message.latencyMs != null && message.hasOwnProperty("latencyMs"))
+                if (!$util.isInteger(message.latencyMs) && !(message.latencyMs && $util.isInteger(message.latencyMs.low) && $util.isInteger(message.latencyMs.high)))
+                    return "latencyMs: integer|Long expected";
+            if (message.inputTokens != null && message.hasOwnProperty("inputTokens"))
+                if (!$util.isInteger(message.inputTokens) && !(message.inputTokens && $util.isInteger(message.inputTokens.low) && $util.isInteger(message.inputTokens.high)))
+                    return "inputTokens: integer|Long expected";
+            if (message.outputTokens != null && message.hasOwnProperty("outputTokens"))
+                if (!$util.isInteger(message.outputTokens) && !(message.outputTokens && $util.isInteger(message.outputTokens.low) && $util.isInteger(message.outputTokens.high)))
+                    return "outputTokens: integer|Long expected";
+            if (message.error != null && message.hasOwnProperty("error"))
+                if (!$util.isString(message.error))
+                    return "error: string expected";
+            return null;
+        };
+
+        /**
+         * Creates an OtelSpanEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.OtelSpanEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.OtelSpanEvent} OtelSpanEvent
+         */
+        OtelSpanEvent.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.OtelSpanEvent)
+                return object;
+            var message = new $root.pb.OtelSpanEvent();
+            if (object.name != null)
+                message.name = String(object.name);
+            if (object.kind != null)
+                message.kind = String(object.kind);
+            if (object.status != null)
+                message.status = String(object.status);
+            if (object.provider != null)
+                message.provider = String(object.provider);
+            if (object.model != null)
+                message.model = String(object.model);
+            if (object.latencyMs != null)
+                if ($util.Long)
+                    (message.latencyMs = $util.Long.fromValue(object.latencyMs)).unsigned = true;
+                else if (typeof object.latencyMs === "string")
+                    message.latencyMs = parseInt(object.latencyMs, 10);
+                else if (typeof object.latencyMs === "number")
+                    message.latencyMs = object.latencyMs;
+                else if (typeof object.latencyMs === "object")
+                    message.latencyMs = new $util.LongBits(object.latencyMs.low >>> 0, object.latencyMs.high >>> 0).toNumber(true);
+            if (object.inputTokens != null)
+                if ($util.Long)
+                    (message.inputTokens = $util.Long.fromValue(object.inputTokens)).unsigned = true;
+                else if (typeof object.inputTokens === "string")
+                    message.inputTokens = parseInt(object.inputTokens, 10);
+                else if (typeof object.inputTokens === "number")
+                    message.inputTokens = object.inputTokens;
+                else if (typeof object.inputTokens === "object")
+                    message.inputTokens = new $util.LongBits(object.inputTokens.low >>> 0, object.inputTokens.high >>> 0).toNumber(true);
+            if (object.outputTokens != null)
+                if ($util.Long)
+                    (message.outputTokens = $util.Long.fromValue(object.outputTokens)).unsigned = true;
+                else if (typeof object.outputTokens === "string")
+                    message.outputTokens = parseInt(object.outputTokens, 10);
+                else if (typeof object.outputTokens === "number")
+                    message.outputTokens = object.outputTokens;
+                else if (typeof object.outputTokens === "object")
+                    message.outputTokens = new $util.LongBits(object.outputTokens.low >>> 0, object.outputTokens.high >>> 0).toNumber(true);
+            if (object.error != null)
+                message.error = String(object.error);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an OtelSpanEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.OtelSpanEvent
+         * @static
+         * @param {pb.OtelSpanEvent} message OtelSpanEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        OtelSpanEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.name = "";
+                object.kind = "";
+                object.status = "";
+                object.provider = "";
+                object.model = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.latencyMs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.latencyMs = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.inputTokens = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.inputTokens = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.outputTokens = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.outputTokens = options.longs === String ? "0" : 0;
+                object.error = "";
+            }
+            if (message.name != null && message.hasOwnProperty("name"))
+                object.name = message.name;
+            if (message.kind != null && message.hasOwnProperty("kind"))
+                object.kind = message.kind;
+            if (message.status != null && message.hasOwnProperty("status"))
+                object.status = message.status;
+            if (message.provider != null && message.hasOwnProperty("provider"))
+                object.provider = message.provider;
+            if (message.model != null && message.hasOwnProperty("model"))
+                object.model = message.model;
+            if (message.latencyMs != null && message.hasOwnProperty("latencyMs"))
+                if (typeof message.latencyMs === "number")
+                    object.latencyMs = options.longs === String ? String(message.latencyMs) : message.latencyMs;
+                else
+                    object.latencyMs = options.longs === String ? $util.Long.prototype.toString.call(message.latencyMs) : options.longs === Number ? new $util.LongBits(message.latencyMs.low >>> 0, message.latencyMs.high >>> 0).toNumber(true) : message.latencyMs;
+            if (message.inputTokens != null && message.hasOwnProperty("inputTokens"))
+                if (typeof message.inputTokens === "number")
+                    object.inputTokens = options.longs === String ? String(message.inputTokens) : message.inputTokens;
+                else
+                    object.inputTokens = options.longs === String ? $util.Long.prototype.toString.call(message.inputTokens) : options.longs === Number ? new $util.LongBits(message.inputTokens.low >>> 0, message.inputTokens.high >>> 0).toNumber(true) : message.inputTokens;
+            if (message.outputTokens != null && message.hasOwnProperty("outputTokens"))
+                if (typeof message.outputTokens === "number")
+                    object.outputTokens = options.longs === String ? String(message.outputTokens) : message.outputTokens;
+                else
+                    object.outputTokens = options.longs === String ? $util.Long.prototype.toString.call(message.outputTokens) : options.longs === Number ? new $util.LongBits(message.outputTokens.low >>> 0, message.outputTokens.high >>> 0).toNumber(true) : message.outputTokens;
+            if (message.error != null && message.hasOwnProperty("error"))
+                object.error = message.error;
+            return object;
+        };
+
+        /**
+         * Converts this OtelSpanEvent to JSON.
+         * @function toJSON
+         * @memberof pb.OtelSpanEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        OtelSpanEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for OtelSpanEvent
+         * @function getTypeUrl
+         * @memberof pb.OtelSpanEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        OtelSpanEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.OtelSpanEvent";
+        };
+
+        return OtelSpanEvent;
+    })();
+
+    pb.AgentSightAlertEvent = (function() {
+
+        /**
+         * Properties of an AgentSightAlertEvent.
+         * @memberof pb
+         * @interface IAgentSightAlertEvent
+         * @property {string|null} [category] AgentSightAlertEvent category
+         * @property {string|null} [severity] AgentSightAlertEvent severity
+         * @property {string|null} [reason] AgentSightAlertEvent reason
+         * @property {string|null} [relatedEventId] AgentSightAlertEvent relatedEventId
+         * @property {string|null} [redactionState] AgentSightAlertEvent redactionState
+         */
+
+        /**
+         * Constructs a new AgentSightAlertEvent.
+         * @memberof pb
+         * @classdesc Represents an AgentSightAlertEvent.
+         * @implements IAgentSightAlertEvent
+         * @constructor
+         * @param {pb.IAgentSightAlertEvent=} [properties] Properties to set
+         */
+        function AgentSightAlertEvent(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * AgentSightAlertEvent category.
+         * @member {string} category
+         * @memberof pb.AgentSightAlertEvent
+         * @instance
+         */
+        AgentSightAlertEvent.prototype.category = "";
+
+        /**
+         * AgentSightAlertEvent severity.
+         * @member {string} severity
+         * @memberof pb.AgentSightAlertEvent
+         * @instance
+         */
+        AgentSightAlertEvent.prototype.severity = "";
+
+        /**
+         * AgentSightAlertEvent reason.
+         * @member {string} reason
+         * @memberof pb.AgentSightAlertEvent
+         * @instance
+         */
+        AgentSightAlertEvent.prototype.reason = "";
+
+        /**
+         * AgentSightAlertEvent relatedEventId.
+         * @member {string} relatedEventId
+         * @memberof pb.AgentSightAlertEvent
+         * @instance
+         */
+        AgentSightAlertEvent.prototype.relatedEventId = "";
+
+        /**
+         * AgentSightAlertEvent redactionState.
+         * @member {string} redactionState
+         * @memberof pb.AgentSightAlertEvent
+         * @instance
+         */
+        AgentSightAlertEvent.prototype.redactionState = "";
+
+        /**
+         * Creates a new AgentSightAlertEvent instance using the specified properties.
+         * @function create
+         * @memberof pb.AgentSightAlertEvent
+         * @static
+         * @param {pb.IAgentSightAlertEvent=} [properties] Properties to set
+         * @returns {pb.AgentSightAlertEvent} AgentSightAlertEvent instance
+         */
+        AgentSightAlertEvent.create = function create(properties) {
+            return new AgentSightAlertEvent(properties);
+        };
+
+        /**
+         * Encodes the specified AgentSightAlertEvent message. Does not implicitly {@link pb.AgentSightAlertEvent.verify|verify} messages.
+         * @function encode
+         * @memberof pb.AgentSightAlertEvent
+         * @static
+         * @param {pb.IAgentSightAlertEvent} message AgentSightAlertEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        AgentSightAlertEvent.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.category != null && Object.hasOwnProperty.call(message, "category"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.category);
+            if (message.severity != null && Object.hasOwnProperty.call(message, "severity"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.severity);
+            if (message.reason != null && Object.hasOwnProperty.call(message, "reason"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.reason);
+            if (message.relatedEventId != null && Object.hasOwnProperty.call(message, "relatedEventId"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.relatedEventId);
+            if (message.redactionState != null && Object.hasOwnProperty.call(message, "redactionState"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.redactionState);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified AgentSightAlertEvent message, length delimited. Does not implicitly {@link pb.AgentSightAlertEvent.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.AgentSightAlertEvent
+         * @static
+         * @param {pb.IAgentSightAlertEvent} message AgentSightAlertEvent message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        AgentSightAlertEvent.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an AgentSightAlertEvent message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.AgentSightAlertEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.AgentSightAlertEvent} AgentSightAlertEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        AgentSightAlertEvent.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.AgentSightAlertEvent();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.category = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.severity = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.reason = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.relatedEventId = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.redactionState = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an AgentSightAlertEvent message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.AgentSightAlertEvent
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.AgentSightAlertEvent} AgentSightAlertEvent
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        AgentSightAlertEvent.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an AgentSightAlertEvent message.
+         * @function verify
+         * @memberof pb.AgentSightAlertEvent
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        AgentSightAlertEvent.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.category != null && message.hasOwnProperty("category"))
+                if (!$util.isString(message.category))
+                    return "category: string expected";
+            if (message.severity != null && message.hasOwnProperty("severity"))
+                if (!$util.isString(message.severity))
+                    return "severity: string expected";
+            if (message.reason != null && message.hasOwnProperty("reason"))
+                if (!$util.isString(message.reason))
+                    return "reason: string expected";
+            if (message.relatedEventId != null && message.hasOwnProperty("relatedEventId"))
+                if (!$util.isString(message.relatedEventId))
+                    return "relatedEventId: string expected";
+            if (message.redactionState != null && message.hasOwnProperty("redactionState"))
+                if (!$util.isString(message.redactionState))
+                    return "redactionState: string expected";
+            return null;
+        };
+
+        /**
+         * Creates an AgentSightAlertEvent message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.AgentSightAlertEvent
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.AgentSightAlertEvent} AgentSightAlertEvent
+         */
+        AgentSightAlertEvent.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.AgentSightAlertEvent)
+                return object;
+            var message = new $root.pb.AgentSightAlertEvent();
+            if (object.category != null)
+                message.category = String(object.category);
+            if (object.severity != null)
+                message.severity = String(object.severity);
+            if (object.reason != null)
+                message.reason = String(object.reason);
+            if (object.relatedEventId != null)
+                message.relatedEventId = String(object.relatedEventId);
+            if (object.redactionState != null)
+                message.redactionState = String(object.redactionState);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an AgentSightAlertEvent message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.AgentSightAlertEvent
+         * @static
+         * @param {pb.AgentSightAlertEvent} message AgentSightAlertEvent
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        AgentSightAlertEvent.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.category = "";
+                object.severity = "";
+                object.reason = "";
+                object.relatedEventId = "";
+                object.redactionState = "";
+            }
+            if (message.category != null && message.hasOwnProperty("category"))
+                object.category = message.category;
+            if (message.severity != null && message.hasOwnProperty("severity"))
+                object.severity = message.severity;
+            if (message.reason != null && message.hasOwnProperty("reason"))
+                object.reason = message.reason;
+            if (message.relatedEventId != null && message.hasOwnProperty("relatedEventId"))
+                object.relatedEventId = message.relatedEventId;
+            if (message.redactionState != null && message.hasOwnProperty("redactionState"))
+                object.redactionState = message.redactionState;
+            return object;
+        };
+
+        /**
+         * Converts this AgentSightAlertEvent to JSON.
+         * @function toJSON
+         * @memberof pb.AgentSightAlertEvent
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        AgentSightAlertEvent.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for AgentSightAlertEvent
+         * @function getTypeUrl
+         * @memberof pb.AgentSightAlertEvent
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        AgentSightAlertEvent.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.AgentSightAlertEvent";
+        };
+
+        return AgentSightAlertEvent;
+    })();
+
     pb.EventEnvelope = (function() {
 
         /**
@@ -7240,6 +9984,13 @@ $root.pb = (function() {
          * @property {pb.IWrapperEvent|null} [wrapperEvent] EventEnvelope wrapperEvent
          * @property {pb.IHookEvent|null} [hookEvent] EventEnvelope hookEvent
          * @property {pb.IMcpEvent|null} [mcpEvent] EventEnvelope mcpEvent
+         * @property {pb.ITLSEvent|null} [tlsEvent] EventEnvelope tlsEvent
+         * @property {pb.IHTTPEvent|null} [httpEvent] EventEnvelope httpEvent
+         * @property {pb.ISSEEvent|null} [sseEvent] EventEnvelope sseEvent
+         * @property {pb.IStdioEvent|null} [stdioEvent] EventEnvelope stdioEvent
+         * @property {pb.ISystemMetricEvent|null} [systemMetricEvent] EventEnvelope systemMetricEvent
+         * @property {pb.IOtelSpanEvent|null} [otelSpanEvent] EventEnvelope otelSpanEvent
+         * @property {pb.IAgentSightAlertEvent|null} [agentsightAlertEvent] EventEnvelope agentsightAlertEvent
          */
 
         /**
@@ -7529,17 +10280,73 @@ $root.pb = (function() {
          */
         EventEnvelope.prototype.mcpEvent = null;
 
+        /**
+         * EventEnvelope tlsEvent.
+         * @member {pb.ITLSEvent|null|undefined} tlsEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.tlsEvent = null;
+
+        /**
+         * EventEnvelope httpEvent.
+         * @member {pb.IHTTPEvent|null|undefined} httpEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.httpEvent = null;
+
+        /**
+         * EventEnvelope sseEvent.
+         * @member {pb.ISSEEvent|null|undefined} sseEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.sseEvent = null;
+
+        /**
+         * EventEnvelope stdioEvent.
+         * @member {pb.IStdioEvent|null|undefined} stdioEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.stdioEvent = null;
+
+        /**
+         * EventEnvelope systemMetricEvent.
+         * @member {pb.ISystemMetricEvent|null|undefined} systemMetricEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.systemMetricEvent = null;
+
+        /**
+         * EventEnvelope otelSpanEvent.
+         * @member {pb.IOtelSpanEvent|null|undefined} otelSpanEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.otelSpanEvent = null;
+
+        /**
+         * EventEnvelope agentsightAlertEvent.
+         * @member {pb.IAgentSightAlertEvent|null|undefined} agentsightAlertEvent
+         * @memberof pb.EventEnvelope
+         * @instance
+         */
+        EventEnvelope.prototype.agentsightAlertEvent = null;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
         /**
          * EventEnvelope payload.
-         * @member {"execEvent"|"fileEvent"|"networkEvent"|"processEvent"|"policyEvent"|"wrapperEvent"|"hookEvent"|"mcpEvent"|undefined} payload
+         * @member {"execEvent"|"fileEvent"|"networkEvent"|"processEvent"|"policyEvent"|"wrapperEvent"|"hookEvent"|"mcpEvent"|"tlsEvent"|"httpEvent"|"sseEvent"|"stdioEvent"|"systemMetricEvent"|"otelSpanEvent"|"agentsightAlertEvent"|undefined} payload
          * @memberof pb.EventEnvelope
          * @instance
          */
         Object.defineProperty(EventEnvelope.prototype, "payload", {
-            get: $util.oneOfGetter($oneOfFields = ["execEvent", "fileEvent", "networkEvent", "processEvent", "policyEvent", "wrapperEvent", "hookEvent", "mcpEvent"]),
+            get: $util.oneOfGetter($oneOfFields = ["execEvent", "fileEvent", "networkEvent", "processEvent", "policyEvent", "wrapperEvent", "hookEvent", "mcpEvent", "tlsEvent", "httpEvent", "sseEvent", "stdioEvent", "systemMetricEvent", "otelSpanEvent", "agentsightAlertEvent"]),
             set: $util.oneOfSetter($oneOfFields)
         });
 
@@ -7635,6 +10442,20 @@ $root.pb = (function() {
                 $root.pb.HookEvent.encode(message.hookEvent, writer.uint32(/* id 33, wireType 2 =*/266).fork()).ldelim();
             if (message.mcpEvent != null && Object.hasOwnProperty.call(message, "mcpEvent"))
                 $root.pb.McpEvent.encode(message.mcpEvent, writer.uint32(/* id 34, wireType 2 =*/274).fork()).ldelim();
+            if (message.tlsEvent != null && Object.hasOwnProperty.call(message, "tlsEvent"))
+                $root.pb.TLSEvent.encode(message.tlsEvent, writer.uint32(/* id 35, wireType 2 =*/282).fork()).ldelim();
+            if (message.httpEvent != null && Object.hasOwnProperty.call(message, "httpEvent"))
+                $root.pb.HTTPEvent.encode(message.httpEvent, writer.uint32(/* id 36, wireType 2 =*/290).fork()).ldelim();
+            if (message.sseEvent != null && Object.hasOwnProperty.call(message, "sseEvent"))
+                $root.pb.SSEEvent.encode(message.sseEvent, writer.uint32(/* id 37, wireType 2 =*/298).fork()).ldelim();
+            if (message.stdioEvent != null && Object.hasOwnProperty.call(message, "stdioEvent"))
+                $root.pb.StdioEvent.encode(message.stdioEvent, writer.uint32(/* id 38, wireType 2 =*/306).fork()).ldelim();
+            if (message.systemMetricEvent != null && Object.hasOwnProperty.call(message, "systemMetricEvent"))
+                $root.pb.SystemMetricEvent.encode(message.systemMetricEvent, writer.uint32(/* id 39, wireType 2 =*/314).fork()).ldelim();
+            if (message.otelSpanEvent != null && Object.hasOwnProperty.call(message, "otelSpanEvent"))
+                $root.pb.OtelSpanEvent.encode(message.otelSpanEvent, writer.uint32(/* id 40, wireType 2 =*/322).fork()).ldelim();
+            if (message.agentsightAlertEvent != null && Object.hasOwnProperty.call(message, "agentsightAlertEvent"))
+                $root.pb.AgentSightAlertEvent.encode(message.agentsightAlertEvent, writer.uint32(/* id 41, wireType 2 =*/330).fork()).ldelim();
             return writer;
         };
 
@@ -7807,6 +10628,34 @@ $root.pb = (function() {
                         message.mcpEvent = $root.pb.McpEvent.decode(reader, reader.uint32());
                         break;
                     }
+                case 35: {
+                        message.tlsEvent = $root.pb.TLSEvent.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 36: {
+                        message.httpEvent = $root.pb.HTTPEvent.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 37: {
+                        message.sseEvent = $root.pb.SSEEvent.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 38: {
+                        message.stdioEvent = $root.pb.StdioEvent.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 39: {
+                        message.systemMetricEvent = $root.pb.SystemMetricEvent.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 40: {
+                        message.otelSpanEvent = $root.pb.OtelSpanEvent.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 41: {
+                        message.agentsightAlertEvent = $root.pb.AgentSightAlertEvent.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -7954,6 +10803,13 @@ $root.pb = (function() {
                 case 32:
                 case 33:
                 case 34:
+                case 35:
+                case 36:
+                case 37:
+                case 38:
+                case 39:
+                case 40:
+                case 41:
                     break;
                 }
             if (message.legacyEvent != null && message.hasOwnProperty("legacyEvent")) {
@@ -8037,6 +10893,76 @@ $root.pb = (function() {
                     var error = $root.pb.McpEvent.verify(message.mcpEvent);
                     if (error)
                         return "mcpEvent." + error;
+                }
+            }
+            if (message.tlsEvent != null && message.hasOwnProperty("tlsEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    var error = $root.pb.TLSEvent.verify(message.tlsEvent);
+                    if (error)
+                        return "tlsEvent." + error;
+                }
+            }
+            if (message.httpEvent != null && message.hasOwnProperty("httpEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    var error = $root.pb.HTTPEvent.verify(message.httpEvent);
+                    if (error)
+                        return "httpEvent." + error;
+                }
+            }
+            if (message.sseEvent != null && message.hasOwnProperty("sseEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    var error = $root.pb.SSEEvent.verify(message.sseEvent);
+                    if (error)
+                        return "sseEvent." + error;
+                }
+            }
+            if (message.stdioEvent != null && message.hasOwnProperty("stdioEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    var error = $root.pb.StdioEvent.verify(message.stdioEvent);
+                    if (error)
+                        return "stdioEvent." + error;
+                }
+            }
+            if (message.systemMetricEvent != null && message.hasOwnProperty("systemMetricEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    var error = $root.pb.SystemMetricEvent.verify(message.systemMetricEvent);
+                    if (error)
+                        return "systemMetricEvent." + error;
+                }
+            }
+            if (message.otelSpanEvent != null && message.hasOwnProperty("otelSpanEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    var error = $root.pb.OtelSpanEvent.verify(message.otelSpanEvent);
+                    if (error)
+                        return "otelSpanEvent." + error;
+                }
+            }
+            if (message.agentsightAlertEvent != null && message.hasOwnProperty("agentsightAlertEvent")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    var error = $root.pb.AgentSightAlertEvent.verify(message.agentsightAlertEvent);
+                    if (error)
+                        return "agentsightAlertEvent." + error;
                 }
             }
             return null;
@@ -8263,6 +11189,34 @@ $root.pb = (function() {
             case 34:
                 message.eventType = 34;
                 break;
+            case "TLS_PLAINTEXT":
+            case 35:
+                message.eventType = 35;
+                break;
+            case "HTTP_MESSAGE":
+            case 36:
+                message.eventType = 36;
+                break;
+            case "SSE_MESSAGE":
+            case 37:
+                message.eventType = 37;
+                break;
+            case "STDIO":
+            case 38:
+                message.eventType = 38;
+                break;
+            case "SYSTEM_METRIC":
+            case 39:
+                message.eventType = 39;
+                break;
+            case "OTEL_SPAN":
+            case 40:
+                message.eventType = 40;
+                break;
+            case "AGENTSIGHT_ALERT":
+            case 41:
+                message.eventType = 41;
+                break;
             }
             if (object.legacyEvent != null) {
                 if (typeof object.legacyEvent !== "object")
@@ -8308,6 +11262,41 @@ $root.pb = (function() {
                 if (typeof object.mcpEvent !== "object")
                     throw TypeError(".pb.EventEnvelope.mcpEvent: object expected");
                 message.mcpEvent = $root.pb.McpEvent.fromObject(object.mcpEvent);
+            }
+            if (object.tlsEvent != null) {
+                if (typeof object.tlsEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.tlsEvent: object expected");
+                message.tlsEvent = $root.pb.TLSEvent.fromObject(object.tlsEvent);
+            }
+            if (object.httpEvent != null) {
+                if (typeof object.httpEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.httpEvent: object expected");
+                message.httpEvent = $root.pb.HTTPEvent.fromObject(object.httpEvent);
+            }
+            if (object.sseEvent != null) {
+                if (typeof object.sseEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.sseEvent: object expected");
+                message.sseEvent = $root.pb.SSEEvent.fromObject(object.sseEvent);
+            }
+            if (object.stdioEvent != null) {
+                if (typeof object.stdioEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.stdioEvent: object expected");
+                message.stdioEvent = $root.pb.StdioEvent.fromObject(object.stdioEvent);
+            }
+            if (object.systemMetricEvent != null) {
+                if (typeof object.systemMetricEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.systemMetricEvent: object expected");
+                message.systemMetricEvent = $root.pb.SystemMetricEvent.fromObject(object.systemMetricEvent);
+            }
+            if (object.otelSpanEvent != null) {
+                if (typeof object.otelSpanEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.otelSpanEvent: object expected");
+                message.otelSpanEvent = $root.pb.OtelSpanEvent.fromObject(object.otelSpanEvent);
+            }
+            if (object.agentsightAlertEvent != null) {
+                if (typeof object.agentsightAlertEvent !== "object")
+                    throw TypeError(".pb.EventEnvelope.agentsightAlertEvent: object expected");
+                message.agentsightAlertEvent = $root.pb.AgentSightAlertEvent.fromObject(object.agentsightAlertEvent);
             }
             return message;
         };
@@ -8458,6 +11447,41 @@ $root.pb = (function() {
                 object.mcpEvent = $root.pb.McpEvent.toObject(message.mcpEvent, options);
                 if (options.oneofs)
                     object.payload = "mcpEvent";
+            }
+            if (message.tlsEvent != null && message.hasOwnProperty("tlsEvent")) {
+                object.tlsEvent = $root.pb.TLSEvent.toObject(message.tlsEvent, options);
+                if (options.oneofs)
+                    object.payload = "tlsEvent";
+            }
+            if (message.httpEvent != null && message.hasOwnProperty("httpEvent")) {
+                object.httpEvent = $root.pb.HTTPEvent.toObject(message.httpEvent, options);
+                if (options.oneofs)
+                    object.payload = "httpEvent";
+            }
+            if (message.sseEvent != null && message.hasOwnProperty("sseEvent")) {
+                object.sseEvent = $root.pb.SSEEvent.toObject(message.sseEvent, options);
+                if (options.oneofs)
+                    object.payload = "sseEvent";
+            }
+            if (message.stdioEvent != null && message.hasOwnProperty("stdioEvent")) {
+                object.stdioEvent = $root.pb.StdioEvent.toObject(message.stdioEvent, options);
+                if (options.oneofs)
+                    object.payload = "stdioEvent";
+            }
+            if (message.systemMetricEvent != null && message.hasOwnProperty("systemMetricEvent")) {
+                object.systemMetricEvent = $root.pb.SystemMetricEvent.toObject(message.systemMetricEvent, options);
+                if (options.oneofs)
+                    object.payload = "systemMetricEvent";
+            }
+            if (message.otelSpanEvent != null && message.hasOwnProperty("otelSpanEvent")) {
+                object.otelSpanEvent = $root.pb.OtelSpanEvent.toObject(message.otelSpanEvent, options);
+                if (options.oneofs)
+                    object.payload = "otelSpanEvent";
+            }
+            if (message.agentsightAlertEvent != null && message.hasOwnProperty("agentsightAlertEvent")) {
+                object.agentsightAlertEvent = $root.pb.AgentSightAlertEvent.toObject(message.agentsightAlertEvent, options);
+                if (options.oneofs)
+                    object.payload = "agentsightAlertEvent";
             }
             return object;
         };

@@ -24,9 +24,10 @@ type collectorPIDKey struct {
 }
 
 type collectorMetricsSnapshot struct {
-	EventsByTypeTotal      map[string]uint64
-	EventsByPIDTotal       map[collectorPIDKey]uint64
-	PersistAppendLatencyNs uint64
+	EventsByTypeTotal       map[string]uint64
+	EventsByPIDTotal        map[collectorPIDKey]uint64
+	AgentSightCountersTotal map[string]uint64
+	PersistAppendLatencyNs  uint64
 }
 
 type CollectorHealthResponse struct {
@@ -36,6 +37,7 @@ type CollectorHealthResponse struct {
 	RingbufReserveFailedTotal uint64            `json:"ringbufReserveFailedTotal"`
 	EventsByTypeTotal         map[string]uint64 `json:"eventsByTypeTotal"`
 	EventsByPidTotal          map[string]uint64 `json:"eventsByPidTotal,omitempty"`
+	AgentSightCountersTotal   map[string]uint64 `json:"agentSightCountersTotal,omitempty"`
 	BackendQueueLen           int               `json:"backendQueueLen"`
 	WsClients                 int               `json:"wsClients"`
 	PersistAppendLatencyNs    uint64            `json:"persistAppendLatencyNs"`
@@ -43,18 +45,20 @@ type CollectorHealthResponse struct {
 }
 
 type collectorMetricsState struct {
-	mu                     sync.RWMutex
-	eventsByTypeTotal      map[string]uint64
-	eventsByPIDTotal       map[collectorPIDKey]uint64
-	persistAppendLatencyNs uint64
+	mu                      sync.RWMutex
+	eventsByTypeTotal       map[string]uint64
+	eventsByPIDTotal        map[collectorPIDKey]uint64
+	agentSightCountersTotal map[string]uint64
+	persistAppendLatencyNs  uint64
 }
 
 const maxCollectorPIDSeries = 512
 
 func newCollectorMetricsState() *collectorMetricsState {
 	return &collectorMetricsState{
-		eventsByTypeTotal: make(map[string]uint64),
-		eventsByPIDTotal:  make(map[collectorPIDKey]uint64),
+		eventsByTypeTotal:       make(map[string]uint64),
+		eventsByPIDTotal:        make(map[collectorPIDKey]uint64),
+		agentSightCountersTotal: make(map[string]uint64),
 	}
 }
 
@@ -88,6 +92,13 @@ func stringsTrimDefault(value, fallback string) string {
 	return trimmed
 }
 
+func (s *collectorMetricsState) RecordAgentSightCounter(name string) {
+	name = stringsTrimDefault(name, "unknown")
+	s.mu.Lock()
+	s.agentSightCountersTotal[name]++
+	s.mu.Unlock()
+}
+
 func (s *collectorMetricsState) SetPersistAppendLatency(duration time.Duration) {
 	s.mu.Lock()
 	s.persistAppendLatencyNs = uint64(duration.Nanoseconds())
@@ -106,10 +117,15 @@ func (s *collectorMetricsState) rawSnapshot() collectorMetricsSnapshot {
 	for key, value := range s.eventsByPIDTotal {
 		eventsByPID[key] = value
 	}
+	agentSightCounters := make(map[string]uint64, len(s.agentSightCountersTotal))
+	for key, value := range s.agentSightCountersTotal {
+		agentSightCounters[key] = value
+	}
 	return collectorMetricsSnapshot{
-		EventsByTypeTotal:      eventsByType,
-		EventsByPIDTotal:       eventsByPID,
-		PersistAppendLatencyNs: s.persistAppendLatencyNs,
+		EventsByTypeTotal:       eventsByType,
+		EventsByPIDTotal:        eventsByPID,
+		AgentSightCountersTotal: agentSightCounters,
+		PersistAppendLatencyNs:  s.persistAppendLatencyNs,
 	}
 }
 
@@ -148,6 +164,16 @@ func (s *collectorMetricsState) Snapshot() CollectorHealthResponse {
 	envelopeWSClients := len(envelopeClients)
 	envelopeClientsMu.Unlock()
 
+	agentSightCounters := make(map[string]uint64, len(raw.AgentSightCountersTotal))
+	agentSightKeys := make([]string, 0, len(raw.AgentSightCountersTotal))
+	for key := range raw.AgentSightCountersTotal {
+		agentSightKeys = append(agentSightKeys, key)
+	}
+	sort.Strings(agentSightKeys)
+	for _, key := range agentSightKeys {
+		agentSightCounters[key] = raw.AgentSightCountersTotal[key]
+	}
+
 	return CollectorHealthResponse{
 		CollectorMapAvailable:     mapAvailable,
 		RingbufEventsTotal:        bpfStats.RingbufEventsTotal,
@@ -155,6 +181,7 @@ func (s *collectorMetricsState) Snapshot() CollectorHealthResponse {
 		RingbufReserveFailedTotal: bpfStats.RingbufReserveFailedTotal,
 		EventsByTypeTotal:         eventsByType,
 		EventsByPidTotal:          eventsByPID,
+		AgentSightCountersTotal:   agentSightCounters,
 		BackendQueueLen:           len(broadcast),
 		WsClients:                 legacyWSClients + envelopeWSClients,
 		PersistAppendLatencyNs:    raw.PersistAppendLatencyNs,

@@ -52,14 +52,58 @@ func TestParseTLSPlaintextHTTPRequestRedactsSensitiveHeaders(t *testing.T) {
 	if got := event.Headers["cookie"]; got != "***REDACTED***" {
 		t.Fatalf("cookie header = %q, want redacted", got)
 	}
-	if got := event.Body; !strings.Contains(got, "\n  \"password\": \"hunter2\"\n") {
-		t.Fatalf("Body = %q, want pretty-printed JSON", got)
+	if event.Body != "{\n  \"password\": \"***REDACTED***\"\n}" {
+		t.Fatalf("Body = %q, want redacted pretty-printed JSON", event.Body)
 	}
 	if event.RawHexDump != "" {
 		t.Fatalf("RawHexDump = %q, want empty for parsed HTTP", event.RawHexDump)
 	}
 	if !event.RawAvailable {
 		t.Fatalf("RawAvailable = false, want true for parsed HTTP")
+	}
+}
+
+func TestParseTLSPlaintextHTTPRequestRedactsSensitiveURLQuery(t *testing.T) {
+	fragment := testCompletedTLSFragment(strings.Join([]string{
+		"GET /v1/messages?api_key=abc&token=secret&safe=value HTTP/1.1",
+		"Host: example.com",
+		"Content-Length: 0",
+		"",
+		"",
+	}, "\r\n"), tlsDirectionSend)
+
+	event := parseTLSPlaintext(fragment)
+
+	if strings.Contains(event.URL, "abc") || strings.Contains(event.URL, "secret") {
+		t.Fatalf("URL = %q, want sensitive query values redacted", event.URL)
+	}
+	if !strings.Contains(event.URL, "api_key=%2A%2A%2AREDACTED%2A%2A%2A") || !strings.Contains(event.URL, "safe=value") {
+		t.Fatalf("URL = %q, want redacted sensitive query and preserved safe query", event.URL)
+	}
+}
+
+func TestParseTLSPlaintextSSEAnnotatesDigest(t *testing.T) {
+	fragment := testCompletedTLSFragment(strings.Join([]string{
+		"HTTP/1.1 200 OK",
+		"Content-Type: text/event-stream",
+		"Content-Length: 39",
+		"",
+		"event: completion\ndata: token=secret\n\n",
+	}, "\r\n"), tlsDirectionRecv)
+
+	event := parseTLSPlaintext(fragment)
+
+	if event.Type != "sse_message" {
+		t.Fatalf("Type = %q, want sse_message", event.Type)
+	}
+	if event.SSEEvent != "completion" {
+		t.Fatalf("SSEEvent = %q, want completion", event.SSEEvent)
+	}
+	if event.SSEDataDigest == "" {
+		t.Fatalf("SSEDataDigest empty, want digest")
+	}
+	if strings.Contains(event.Body, "secret") {
+		t.Fatalf("Body = %q, want inline secret redacted", event.Body)
 	}
 }
 

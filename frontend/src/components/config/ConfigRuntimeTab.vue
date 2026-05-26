@@ -178,7 +178,13 @@ const schemeOptions = [
             type="warning"
             show-icon
             message="Backend restart required."
-            description="TLS capture hooks plaintext before encryption / after decryption via eBPF uprobes."
+            description="TLS capture hooks plaintext before encryption / after decryption via eBPF uprobes, then parses HTTP/SSE and defaults to sanitized payloads before API, WebSocket, and persistence output."
+          />
+          <a-alert
+            type="info"
+            show-icon
+            message="AgentSight compatibility"
+            description="HTTP messages, SSE chunks, LLM metadata, prompt digests, and redaction counters are emitted through the unified EventEnvelope stream for Dashboard, Execution Graph, metrics, and OTLP export."
           />
           <a-button type="primary" @click="saveRuntime">
             <ReloadOutlined /> Save TLS Capture Setting

@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"agent-ebpf-filter/pb"
 	"github.com/creack/pty/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -396,10 +397,35 @@ func (s *shellSession) readLoop() {
 	}
 }
 
+func (s *shellSession) emitStdioEvent(stream string, payload []byte) {
+	if s == nil || len(payload) == 0 || tlsAgentBridge == nil {
+		return
+	}
+	fd := "stdout"
+	if stream == "stdin" {
+		fd = "stdin"
+	}
+	event := &pb.Event{
+		Pid:           uint32(maxInt(s.pid, 0)),
+		Type:          "stdio",
+		EventType:     pb.EventType_STDIO,
+		Tag:           "Shell Session",
+		Comm:          firstNonEmpty(s.label, s.kind, "shell"),
+		Path:          stream,
+		Bytes:         uint64(len(payload)),
+		ExtraInfo:     fmt.Sprintf("session_id=%s stream=%s fd=%s size=%d", s.id, stream, fd, len(payload)),
+		SchemaVersion: eventSchemaVersion,
+		Cwd:           s.workDir,
+	}
+	sendTLSBridge(tlsAgentBridge, event)
+}
+
 func (s *shellSession) forwardOutput(payload []byte) {
 	if len(payload) == 0 {
 		return
 	}
+
+	s.emitStdioEvent("stdout", payload)
 
 	s.mu.Lock()
 	if s.closed {
@@ -488,6 +514,9 @@ func (s *shellSession) WriteInput(payload []byte) error {
 		return fmt.Errorf("shell session PTY is unavailable")
 	}
 	_, err := s.ptmx.Write(payload)
+	if err == nil {
+		s.emitStdioEvent("stdin", payload)
+	}
 	return err
 }
 
