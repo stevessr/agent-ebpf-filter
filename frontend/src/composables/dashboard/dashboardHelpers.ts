@@ -1,4 +1,4 @@
-import { pb } from "../pb/tracker_pb.js";
+import { pb } from "../../pb/tracker_pb.js";
 import { networkEventTypes, eventTypeLabelMap, eventTypeColorMap, syscallDisplayName, type AgentEvent } from "./dashboardConstants";
 
 export const decodeIncomingEvents = (payload: Uint8Array): pb.IEvent[] => {

@@ -1,4 +1,4 @@
-import { pb } from "../pb/tracker_pb.js";
+import { pb } from "../../pb/tracker_pb.js";
 
 export interface AgentEvent {
   key: string;
