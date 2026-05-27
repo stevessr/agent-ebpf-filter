@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue';
 import axios from 'axios';
-import { pb } from '../pb/tracker_pb.js';
-import { buildWebSocketUrl } from '../utils/requestContext';
+import { pb } from '../../pb/tracker_pb.js';
+import { buildWebSocketUrl } from '../../utils/requestContext';
 
 export interface GPUStatus {
   index: number; name: string; utilGpu: number; utilMem: number;

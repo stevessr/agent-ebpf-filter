@@ -10,17 +10,17 @@ import {
   SettingOutlined,
   CodeOutlined,
 } from "@ant-design/icons-vue";
-import ConfigRegistryTab from "../components/config/ConfigRegistryTab.vue";
-import ConfigSecurityTab from "../components/config/ConfigSecurityTab.vue";
-import ConfigRuntimeTab from "../components/config/ConfigRuntimeTab.vue";
-import ConfigSystemHealthTab from "../components/config/ConfigSystemHealthTab.vue";
-import ConfigDocsTab from "../components/config/ConfigDocsTab.vue";
-import ConfigClusterTab from "../components/config/ConfigClusterTab.vue";
-import ConfigVisualFilterTab from "../components/config/ConfigVisualFilterTab.vue";
-import { useConfigRegistry } from "../composables/useConfigRegistry";
-import { useConfigSecurity } from "../composables/useConfigSecurity";
-import { useConfigRuntime } from "../composables/useConfigRuntime";
-import { useConfigCluster } from "../composables/useConfigCluster";
+import ConfigRegistryTab from "../../components/config/ConfigRegistryTab.vue";
+import ConfigSecurityTab from "../../components/config/ConfigSecurityTab.vue";
+import ConfigRuntimeTab from "../../components/config/ConfigRuntimeTab.vue";
+import ConfigSystemHealthTab from "../../components/config/ConfigSystemHealthTab.vue";
+import ConfigDocsTab from "../../components/config/ConfigDocsTab.vue";
+import ConfigClusterTab from "../../components/config/ConfigClusterTab.vue";
+import ConfigVisualFilterTab from "../../components/config/ConfigVisualFilterTab.vue";
+import { useConfigRegistry } from "../../composables/config/useConfigRegistry";
+import { useConfigSecurity } from "../../composables/config/useConfigSecurity";
+import { useConfigRuntime } from "../../composables/config/useConfigRuntime";
+import { useConfigCluster } from "../../composables/config/useConfigCluster";
 
 // ── Composable Instantiations ──
 const registry = useConfigRegistry();

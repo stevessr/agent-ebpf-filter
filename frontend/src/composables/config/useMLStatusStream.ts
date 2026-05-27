@@ -1,5 +1,5 @@
 import { ref, onUnmounted } from 'vue';
-import { buildWebSocketUrl } from '../utils/requestContext';
+import { buildWebSocketUrl } from '../../utils/requestContext';
 
 export function useMLStatusStream(onUpdate: (data: any) => void) {
   const isConnected = ref(false);

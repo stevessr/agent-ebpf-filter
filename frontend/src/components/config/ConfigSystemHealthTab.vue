@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { DeleteOutlined, ReloadOutlined } from '@ant-design/icons-vue';
-import type { useConfigRuntime } from '../../composables/useConfigRuntime';
+import type { useConfigRuntime } from '../../composables/config/useConfigRuntime';
 
 const props = defineProps<{
   runtime: ReturnType<typeof useConfigRuntime>;

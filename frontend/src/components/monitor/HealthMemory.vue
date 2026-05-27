@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { GlobalStats, StatsHistory } from '../../composables/useMonitorData';
+import type { GlobalStats, StatsHistory } from '../../composables/monitor/useMonitorData';
 
 defineProps<{
   systemStats: GlobalStats;

@@ -9,10 +9,10 @@ import {
   PlayCircleOutlined,
 } from '@ant-design/icons-vue';
 
-import { pb } from '../pb/tracker_pb.js';
-import { buildWebSocketUrl } from '../utils/requestContext';
-import NetworkStatsCards from '../components/NetworkStatsCards.vue';
-import NetworkEventModal from '../components/NetworkEventModal.vue';
+import { pb } from '../../pb/tracker_pb.js';
+import { buildWebSocketUrl } from '../../utils/requestContext';
+import NetworkStatsCards from '../../components/network/NetworkStatsCards.vue';
+import NetworkEventModal from '../../components/network/NetworkEventModal.vue';
 
 interface NetworkEvent {
   key: string; pid: number; ppid: number; uid: number; type: string;

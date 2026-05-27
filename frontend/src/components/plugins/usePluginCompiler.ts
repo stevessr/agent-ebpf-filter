@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import { message } from "ant-design-vue";
-import { usePlugins } from "../../composables/usePlugins";
+import { usePlugins } from "../../composables/plugins/usePlugins";
 import type {
   VisualTrigger,
   VisualValidationIssue,

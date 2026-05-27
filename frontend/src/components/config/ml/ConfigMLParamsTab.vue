@@ -1,85 +1,32 @@
 <script setup lang="ts">
-import { ref, computed, watch, defineAsyncComponent } from 'vue';
-import {
-  ReloadOutlined, CheckCircleOutlined, ControlOutlined,
-} from '@ant-design/icons-vue';
-import type { useConfigML } from '../../../composables/useConfigML';
-import { mlModelCategoryColor } from '../../../data/mlModelCatalog';
-
+import { ref, computed, defineAsyncComponent } from 'vue';
+import { ReloadOutlined, CheckCircleOutlined, ControlOutlined } from '@ant-design/icons-vue';
+import type { useConfigML } from '../../../composables/config/useConfigML';
+import { useAutoTuneElapsed } from './useAutoTuneElapsed';
+import { useModelTypeDisplay } from './useModelTypeDisplay';
 const VueApexCharts = defineAsyncComponent(async () => (await import('vue3-apexcharts')).default as any) as any;
-
 const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
-
 const emit = defineEmits<{ (e: 'nav', tab: string): void }>();
-
 const {
   modelType, builtinModelCatalog, selectedBuiltinModel, modelBaseType, cudaAvailable, cudaInfo,
-  hyperParams, mlThresholds, mlTrainingConfig,
-  autoTuneMode,
+  hyperParams, mlThresholds, mlTrainingConfig, autoTuneMode,
   modelTuneSelectedTypes, modelTuneParamSearch, modelTuneApplyBest, modelTuneResponse, modelTuneBest, modelTuneRecommendedTypes,
   autoTuneXAxis, autoTuneYAxis, autoTuneGridSize, autoTuneGranularity, autoTuneMetric,
-  autoTuneMinX, autoTuneMaxX, autoTuneMinY, autoTuneMaxY,
-  autoTuneAxisOptions,
+  autoTuneMinX, autoTuneMaxX, autoTuneMinY, autoTuneMaxY, autoTuneAxisOptions,
   autoTuneLoading, autoTuneInProgress, autoTuneCompleted, autoTuneTotal,
   autoTuneMessage, autoTuneError, autoTuneResponse, autoTuneSelectedCell,
   autoTuneAxisLabel, autoTuneMetricLabel, autoTuneMetricFormat, autoTuneGranularityLabel,
   autoTuneScore, autoTuneHeatmapOptions, autoTuneHeatmapSeries, autoTuneBestCell,
-  runAutoTune, applyAutoTuneCell, applyModelTuneBest, saveMLThresholds, saveMLModelType,
-  trainingLogs,
+  runAutoTune, applyAutoTuneCell, applyModelTuneBest, saveMLThresholds, saveMLModelType, trainingLogs,
 } = props.ml;
-
-// Auto-tune elapsed time tracking (local to params tab)
-const autoTuneStartTime = ref(0);
-const autoTuneElapsed = ref('');
-let autoTuneElapsedTimer: ReturnType<typeof setInterval> | null = null;
-
-watch(autoTuneInProgress, (running) => {
-  if (running) {
-    autoTuneStartTime.value = Date.now();
-    autoTuneElapsed.value = '0s';
-    autoTuneElapsedTimer = setInterval(() => {
-      const sec = Math.floor((Date.now() - autoTuneStartTime.value) / 1000);
-      autoTuneElapsed.value = sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m${sec % 60}s`;
-    }, 1000);
-  } else {
-    if (autoTuneElapsedTimer) { clearInterval(autoTuneElapsedTimer); autoTuneElapsedTimer = null; }
-  }
-});
-
+const { autoTuneElapsed } = useAutoTuneElapsed(autoTuneInProgress);
 const autoTuneJustCompleted = computed(() =>
   !autoTuneInProgress.value && autoTuneResponse.value && autoTuneLoading.value === false
 );
-
-const modelTypeLabel = computed(() => selectedBuiltinModel.value?.label || modelType.value);
-const modelTypeTagColor = computed(() => mlModelCategoryColor(selectedBuiltinModel.value?.category, modelBaseType.value));
-const modelTypeDescription = computed(() => selectedBuiltinModel.value?.description || '本地模型配置');
-const modelBaseLabel = computed(() => selectedBuiltinModel.value?.base || modelType.value);
-
-const modelCatalogGroups = computed(() => {
-  const groups = new Map<string, typeof builtinModelCatalog.value>();
-  for (const item of builtinModelCatalog.value) {
-    const key = item.category || '其他模型';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)?.push(item);
-  }
-  return Array.from(groups.entries()).map(([category, models]) => ({ category, models }));
-});
-
-const isTreeLikeModel = computed(() => modelBaseType.value === 'random_forest' || modelBaseType.value === 'extra_trees');
-const isLinearModel = computed(() => ['logistic', 'svm', 'perceptron', 'passive_aggressive'].includes(modelBaseType.value));
-const isPrototypeModel = computed(() => modelBaseType.value === 'nearest_centroid');
-const hasCompactParams = computed(() => ['naive_bayes', 'ridge', 'adaboost', 'ensemble'].includes(modelBaseType.value));
-
-const modelTuneColumns = [
-  { title: '模型', dataIndex: 'label', key: 'label' },
-  { title: '基础算法', dataIndex: 'base', key: 'base' },
-  { title: '验证准确率', dataIndex: 'validationAccuracy', key: 'validationAccuracy' },
-  { title: '训练准确率', dataIndex: 'trainAccuracy', key: 'trainAccuracy' },
-  { title: '推理速度', dataIndex: 'inferenceThroughput', key: 'inferenceThroughput' },
-  { title: '参数', dataIndex: 'hyperParams', key: 'hyperParams' },
-  { title: '状态', dataIndex: 'state', key: 'state' },
-];
-
+const {
+  modelTypeLabel, modelTypeTagColor, modelTypeDescription, modelBaseLabel,
+  modelCatalogGroups, isTreeLikeModel, isLinearModel, isPrototypeModel, hasCompactParams, modelTuneColumns,
+} = useModelTypeDisplay(modelType, selectedBuiltinModel, builtinModelCatalog, modelBaseType);
 const modelTuneBestType = computed(() => modelTuneBest.value?.modelType || '');
 const modelTuneProgressTotal = computed(() => autoTuneTotal.value || (autoTuneMode.value === 'models' ? modelTuneSelectedTypes.value.length : autoTuneGridSize.value * autoTuneGridSize.value));
 </script>
@@ -406,7 +353,7 @@ const modelTuneProgressTotal = computed(() => autoTuneTotal.value || (autoTuneMo
               :options="autoTuneHeatmapOptions"
               :series="autoTuneHeatmapSeries"
             />
-            <a-empty v-else description="点击“开始调优”生成参数方阵" style="height: 100%; display: flex; align-items: center; justify-content: center" />
+            <a-empty v-else description="点击"开始调优"生成参数方阵" style="height: 100%; display: flex; align-items: center; justify-content: center" />
           </div>
         </a-col>
       </a-row>

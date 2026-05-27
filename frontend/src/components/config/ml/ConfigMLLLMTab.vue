@@ -3,7 +3,7 @@ import {
   ReloadOutlined, CheckCircleOutlined, ExclamationCircleOutlined,
   ThunderboltOutlined, DownloadOutlined,
 } from '@ant-design/icons-vue';
-import type { useConfigML } from '../../../composables/useConfigML';
+import type { useConfigML } from '../../../composables/config/useConfigML';
 
 const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 

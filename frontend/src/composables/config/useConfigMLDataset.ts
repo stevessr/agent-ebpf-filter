@@ -6,7 +6,7 @@ import type {
   ExistingCommandCandidate, RemoteDatasetRow, RemoteDatasetResponse,
   LLMProductionDatasetResponse, LLMProductionDatasetRow,
   ClassicSecurityDatasetPreset,
-} from '../types/config';
+} from '../../types/config';
 
 import { classicSecurityDatasetPresets } from './mlPresets';
 import type { TrainingPreset } from './mlPresets';

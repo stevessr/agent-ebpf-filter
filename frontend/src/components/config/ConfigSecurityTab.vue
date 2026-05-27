@@ -6,7 +6,7 @@ import {
   GlobalOutlined, ThunderboltOutlined, ControlOutlined, AppstoreOutlined,
   ReloadOutlined,
 } from '@ant-design/icons-vue';
-import { quickRulePresets, externalRuleSources, syscallGroups, type useConfigSecurity } from '../../composables/useConfigSecurity';
+import { quickRulePresets, externalRuleSources, syscallGroups, type useConfigSecurity } from '../../composables/config/useConfigSecurity';
 
 const props = defineProps<{
   security: ReturnType<typeof useConfigSecurity>;

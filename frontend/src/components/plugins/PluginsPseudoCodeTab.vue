@@ -14,49 +14,25 @@ import * as monaco from "monaco-editor";
 import "monaco-editor/esm/vs/language/typescript/monaco.contribution";
 import "monaco-editor/esm/vs/editor/editor.all.js";
 
-import { usePlugins } from "../../composables/usePlugins";
+import { usePlugins } from "../../composables/plugins/usePlugins";
 import { configureMonacoTypesAndCompletion } from "./monaco-config";
 import {
   createPseudoSeedSnapshot,
   pseudoCodeToBpfSnapshot,
 } from "./pseudo-compiler";
 import { generateBpfCode } from "./transpiler";
-import {
-  getAttachKindForTrigger,
-  getAttachTargetForTrigger,
-  PSEUDO_PROGRAM_NAME,
-} from "./trigger-runtime";
-import { countConditions } from "./validation";
+import { usePseudoDraft } from "./usePseudoDraft";
+import { usePseudoValidation } from "./usePseudoValidation";
 
 const { compileBpf, loadBpf, upsertPlugin, fetchPlugins, compileLog } =
   usePlugins();
 
-interface PseudoDraft {
-  version: 1;
-  pluginId: string;
-  pluginName: string;
-  description: string;
-  pseudoCode: string;
-}
-
-const defaultPseudoCode = `import { process, Action, Maps, HookContext } from "ebpf";
-
-export default function filter(ctx: HookContext) {
-  // TS 伪代码工作区是独立的，不会回写或读取可视化画布。
-  if (ctx.comm === "nc") {
-    Action.block();
-  }
-}
-`;
-
-const pseudoStorageKey = "agent-ebpf-filter.ts-pseudocode.workspace.v1";
 const pluginId = ref("ts-pseudocode-filter");
 const pluginName = ref("TS 伪代码过滤插件");
 const description = ref(
   "由独立 TS 伪代码工作区生成的 eBPF 过滤审计插件。"
 );
-const pseudoCode = ref(defaultPseudoCode);
-const autosaveLabel = ref("独立 TS 草稿未加载");
+const pseudoCode = ref("");
 const compiling = ref(false);
 const compiled = ref(false);
 const loadingAction = ref(false);
@@ -64,69 +40,19 @@ const compileLogLocal = ref("");
 const editorContainer = ref<HTMLElement | null>(null);
 let editor: monaco.editor.IStandaloneCodeEditor | null = null;
 
-const canUseLocalStorage = () =>
-  typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+// Draft persistence
+const {
+  autosaveLabel,
+  pseudoStorageKey,
+  defaultPseudoCode,
+  saveDraft,
+  restoreDraft,
+  clearDraft,
+  resetDraft: resetDraftBase,
+} = usePseudoDraft(pluginId, pluginName, description, pseudoCode, compiled, compileLogLocal, { value: null });
 
-const getTimeLabel = () => new Date().toLocaleTimeString();
-
-const createDraft = (): PseudoDraft => ({
-  version: 1,
-  pluginId: pluginId.value,
-  pluginName: pluginName.value,
-  description: description.value,
-  pseudoCode: pseudoCode.value,
-});
-
-const applyDraft = (draft: Partial<PseudoDraft>) => {
-  if (draft.pluginId) pluginId.value = draft.pluginId;
-  if (draft.pluginName) pluginName.value = draft.pluginName;
-  if (draft.description) description.value = draft.description;
-  if (typeof draft.pseudoCode === "string") pseudoCode.value = draft.pseudoCode;
-};
-
-const saveDraft = (silent = false) => {
-  if (!canUseLocalStorage()) {
-    autosaveLabel.value = "当前环境不支持 localStorage 草稿";
-    return;
-  }
-  window.localStorage.setItem(pseudoStorageKey, JSON.stringify(createDraft()));
-  autosaveLabel.value = `TS 草稿已保存 ${getTimeLabel()}`;
-  if (!silent) message.success("TS 伪代码草稿已保存到独立浏览器存储槽");
-};
-
-const restoreDraft = () => {
-  if (!canUseLocalStorage()) return;
-  const raw = window.localStorage.getItem(pseudoStorageKey);
-  if (!raw) {
-    autosaveLabel.value = "尚无独立 TS 伪代码草稿";
-    return;
-  }
-  try {
-    applyDraft(JSON.parse(raw) as Partial<PseudoDraft>);
-    autosaveLabel.value = `已恢复 TS 草稿 ${getTimeLabel()}`;
-    message.info("已恢复独立 TS 伪代码草稿");
-  } catch (err) {
-    autosaveLabel.value = "TS 草稿损坏，已忽略";
-    console.warn("Failed to restore TS pseudocode draft:", err);
-  }
-};
-
-const clearDraft = () => {
-  if (!canUseLocalStorage()) return;
-  window.localStorage.removeItem(pseudoStorageKey);
-  autosaveLabel.value = "TS 草稿已清除；继续编辑会自动重新保存";
-  message.success("已清除独立 TS 伪代码存储槽");
-};
-
-const resetDraft = () => {
-  pluginId.value = "ts-pseudocode-filter";
-  pluginName.value = "TS 伪代码过滤插件";
-  description.value = "由独立 TS 伪代码工作区生成的 eBPF 过滤审计插件。";
-  pseudoCode.value = defaultPseudoCode;
-  compiled.value = false;
-  compileLogLocal.value = "";
-  void nextTick(() => editor?.layout());
-};
+// Initialize pseudoCode with default
+pseudoCode.value = defaultPseudoCode;
 
 const parsedSnapshot = computed(() =>
   pseudoCodeToBpfSnapshot(
@@ -143,72 +69,22 @@ const generatedLineCount = computed(
   () => generatedBpfCode.value.split(/\r?\n/).length
 );
 
-const attachKind = computed(() =>
-  getAttachKindForTrigger(parsedSnapshot.value.trigger)
-);
+// Validation
+const {
+  attachKind,
+  attachTarget,
+  validationIssues,
+  validationErrors,
+  compileReady,
+  PSEUDO_PROGRAM_NAME,
+} = usePseudoValidation(pluginId, pseudoCode, parsedSnapshot);
 
-const attachTarget = computed(() =>
-  getAttachTargetForTrigger(parsedSnapshot.value.trigger)
-);
+const conditionCount = computed(() => validationIssues.value.length);
 
-const conditionCount = computed(() => countConditions(parsedSnapshot.value.conditions));
-
-const validationIssues = computed(() => {
-  const issues: Array<{ severity: "error" | "warning" | "info"; text: string }> =
-    [];
-  if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(pluginId.value.trim())) {
-    issues.push({
-      severity: "error",
-      text: "插件 ID 必须为 3-64 位小写字母、数字或中划线，且以字母/数字开头。",
-    });
-  }
-  if (!pseudoCode.value.includes("export default function filter")) {
-    issues.push({
-      severity: "error",
-      text: "TS 伪代码必须包含 export default function filter(ctx: HookContext) 入口。",
-    });
-  }
-  if (!/if\s*\(/.test(pseudoCode.value)) {
-    issues.push({
-      severity: "error",
-      text: "当前独立编译器需要至少一个 if (...) 条件作为过滤边界。",
-    });
-  }
-  if (!/Action\.\w+\s*\(/.test(pseudoCode.value)) {
-    issues.push({
-      severity: "error",
-      text: "请在命中条件内调用 Action.block() / Action.alert() / Action.kill()。",
-    });
-  }
-  if (
-    parsedSnapshot.value.trigger === "unlink" &&
-    parsedSnapshot.value.action === "BLOCK"
-  ) {
-    issues.push({
-      severity: "error",
-      text: "unlink 走 kprobe/do_unlinkat，不能直接 BLOCK，请改用 Action.alert() 或 Action.kill()。",
-    });
-  }
-  if (conditionCount.value > 8) {
-    issues.push({
-      severity: "error",
-      text: "解析出的条件超过 8 个，容易触发 eBPF verifier 复杂度上限。",
-    });
-  }
-  if (parsedSnapshot.value.mapMode === "BLOCKLIST") {
-    issues.push({
-      severity: "warning",
-      text: "BLOCKLIST 只生成查表逻辑，仍需运行时写入对应 map key。",
-    });
-  }
-  return issues;
-});
-
-const validationErrors = computed(() =>
-  validationIssues.value.filter((issue) => issue.severity === "error")
-);
-
-const compileReady = computed(() => validationErrors.value.length === 0);
+const resetDraft = () => {
+  resetDraftBase();
+  void nextTick(() => editor?.layout());
+};
 
 const initMonaco = () => {
   if (!editorContainer.value || editor) return;
@@ -277,7 +153,7 @@ const handleCompileAndRegister = async () => {
     "正在解析独立 TS 伪代码，并生成内部 eBPF 转译输入...",
     `Trigger: ${parsedSnapshot.value.trigger}`,
     `Attach: ${attachKind.value} / ${attachTarget.value} / program=${PSEUDO_PROGRAM_NAME}`,
-    `Conditions: ${conditionCount.value}, generated C lines: ${generatedLineCount.value}`,
+    `Conditions: generated C lines: ${generatedLineCount.value}`,
   ].join("\n");
 
   try {

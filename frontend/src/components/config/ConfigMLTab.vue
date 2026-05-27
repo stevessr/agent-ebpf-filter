@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useMLStatusStream } from '../../composables/useMLStatusStream';
-import type { useConfigML } from '../../composables/useConfigML';
+import { useMLStatusStream } from '../../composables/config/useMLStatusStream';
+import type { useConfigML } from '../../composables/config/useConfigML';
 import ConfigMLStatusTab from './ml/ConfigMLStatusTab.vue';
 import ConfigMLParamsTab from './ml/ConfigMLParamsTab.vue';
 import ConfigMLModelTab from './ml/ConfigMLModelTab.vue';

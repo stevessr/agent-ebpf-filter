@@ -17,8 +17,8 @@ import {
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
-import FilePreviewDrawer from '../components/FilePreviewDrawer.vue';
-import type { FilePreviewResponse } from '../types/filePreview';
+import FilePreviewDrawer from '../../components/explorer/FilePreviewDrawer.vue';
+import type { FilePreviewResponse } from '../../types/filePreview';
 
 interface FileEntry {
   name: string;

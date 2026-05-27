@@ -1,0 +1,283 @@
+/* PluginsVisualDesigner scoped styles — extracted from .vue for line-count reduction */
+.map-workspace-shell {
+  padding-top: 8px;
+}
+
+.map-workspace-notice {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--workflow-border);
+  background: linear-gradient(135deg, #ffffff 0%, var(--workflow-primary-subtle) 100%);
+  color: var(--workflow-text-secondary);
+  box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
+  border-color: var(--workflow-border);
+}
+
+.map-workspace-notice span {
+  margin: 0;
+  color: var(--workflow-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.flow-section-active {
+  outline: 2px solid rgba(22, 119, 255, 0.62);
+  outline-offset: 4px;
+  box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.2),
+    0 0 24px rgba(22, 119, 255, 0.16);
+  border-radius: 10px;
+  transition: outline-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.block-card {
+  border-radius: 8px;
+  overflow: visible;
+  box-shadow: 0 10px 28px rgba(22, 119, 255, 0.12);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  transition: all 0.3s ease;
+  border: 1px solid var(--workflow-border);
+}
+
+.block-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 38px rgba(22, 119, 255, 0.18);
+}
+
+.block-trigger {
+  border-color: var(--workflow-primary-border);
+}
+
+.block-trigger:hover {
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 15px rgba(22, 119, 255, 0.18);
+}
+
+.block-trigger .block-header {
+  background: linear-gradient(135deg, var(--workflow-primary), var(--workflow-primary-hover));
+}
+
+.block-condition {
+  border-color: var(--workflow-primary-border);
+}
+
+.block-condition:hover {
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 15px rgba(22, 119, 255, 0.18);
+}
+
+.block-condition .block-header {
+  background: linear-gradient(135deg, var(--workflow-primary), var(--workflow-primary-hover));
+}
+
+.block-action {
+  border-color: var(--workflow-primary-border);
+}
+
+.block-action:hover {
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 15px rgba(22, 119, 255, 0.18);
+}
+
+.block-action .block-header {
+  background: linear-gradient(135deg, var(--workflow-primary), var(--workflow-primary-hover));
+}
+
+.block-header {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(22, 119, 255, 0.12);
+}
+
+.block-badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: white;
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  margin-right: 12px;
+  font-weight: bold;
+}
+
+.block-body {
+  background: #ffffff;
+  padding: 18px;
+  color: var(--workflow-text-secondary);
+}
+
+.desc-line {
+  font-size: 13px;
+  color: var(--workflow-text-muted);
+  margin-bottom: 12px;
+}
+
+.blueprint-wire-container {
+  height: 36px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.blueprint-wire-line {
+  width: 2px;
+  height: 100%;
+}
+
+.wire-1-to-2 {
+  background: linear-gradient(180deg, var(--workflow-primary), var(--workflow-primary-hover));
+}
+
+.wire-2-to-2-5 {
+  background: linear-gradient(180deg, var(--workflow-primary-hover), var(--workflow-primary));
+}
+
+.wire-2-5-to-3 {
+  background: linear-gradient(180deg, var(--workflow-primary), var(--workflow-primary-hover));
+}
+
+.blueprint-wire-pulse {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  top: 0;
+  animation: wire-pulse-run 1.5s infinite linear;
+}
+
+.pulse-1-to-2 {
+  background: var(--workflow-primary);
+  box-shadow: 0 0 8px var(--workflow-primary), 0 0 15px rgba(22, 119, 255, 0.38);
+}
+
+.pulse-2-to-2-5 {
+  background: var(--workflow-primary-hover);
+  box-shadow: 0 0 8px var(--workflow-primary-hover), 0 0 15px rgba(64, 150, 255, 0.38);
+}
+
+.pulse-2-5-to-3 {
+  background: var(--workflow-primary);
+  box-shadow: 0 0 8px var(--workflow-primary), 0 0 15px rgba(22, 119, 255, 0.38);
+}
+
+@keyframes wire-pulse-run {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.node-port {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+.port-input {
+  top: -5px;
+}
+
+.port-output {
+  bottom: -5px;
+}
+
+.trigger-port {
+  background: var(--workflow-primary);
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 8px var(--workflow-primary);
+}
+
+.condition-port-in {
+  background: var(--workflow-primary);
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 8px var(--workflow-primary);
+}
+
+.condition-port-out {
+  background: var(--workflow-primary-hover);
+  border-color: var(--workflow-primary-hover);
+  box-shadow: 0 0 8px var(--workflow-primary-hover);
+}
+
+.action-port-in {
+  background: var(--workflow-primary);
+  border-color: var(--workflow-primary);
+  box-shadow: 0 0 8px var(--workflow-primary);
+}
+
+.helper-text {
+  font-size: 11px;
+}
+
+.block-red.ant-radio-button-wrapper-checked {
+  background: #f5222d;
+  border-color: #f5222d;
+  color: white;
+}
+
+:deep(.ant-select-selector),
+:deep(.ant-input),
+:deep(.ant-input-number),
+:deep(.ant-radio-button-wrapper) {
+  background-color: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: var(--workflow-text) !important;
+}
+
+:deep(.ant-select-arrow) {
+  color: var(--workflow-text-muted) !important;
+}
+
+:deep(.ant-radio-button-wrapper-checked) {
+  background-color: var(--workflow-primary) !important;
+  color: #ffffff !important;
+  border-color: var(--workflow-primary) !important;
+}
+
+:deep(.ant-radio-button-wrapper-checked.block-red) {
+  background-color: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+:deep(.ant-btn-dashed) {
+  background: #ffffff !important;
+  border-color: var(--workflow-border) !important;
+  color: var(--workflow-text-muted) !important;
+}
+
+:deep(.ant-btn-dashed:hover) {
+  border-color: var(--workflow-primary) !important;
+  color: var(--workflow-primary) !important;
+}
+
+:deep(.ant-card) {
+  background: #ffffff !important;
+  border-color: var(--workflow-border) !important;
+}
+
+:deep(.ant-card-head) {
+  border-bottom-color: var(--workflow-border) !important;
+  color: var(--workflow-text) !important;
+  background: var(--workflow-surface-soft) !important;
+}

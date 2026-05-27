@@ -4,7 +4,7 @@ import axios from 'axios';
 import { SafetyCertificateOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined, SearchOutlined, CopyOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
-import { buildWebSocketUrl } from '../utils/requestContext';
+import { buildWebSocketUrl } from '../../utils/requestContext';
 
 interface TLSPlaintextEvent {
   type?: string;

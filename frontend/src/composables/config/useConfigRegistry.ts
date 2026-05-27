@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
-import type { TrackedItem } from '../types/config';
+import type { TrackedItem } from '../../types/config';
 
 const CATEGORY_COLORS: Record<string, string> = {
   red: 'red', orange: 'orange', gold: 'gold', green: 'green', cyan: 'cyan',

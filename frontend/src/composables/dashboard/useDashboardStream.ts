@@ -2,8 +2,8 @@ import { ref, type Ref } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
 
-import { pb } from '../pb/tracker_pb.js';
-import { buildWebSocketUrl, fetchProto } from '../utils/requestContext';
+import { pb } from '../../pb/tracker_pb.js';
+import { buildWebSocketUrl, fetchProto } from '../../utils/requestContext';
 import { decodeIncomingEvents, buildAgentEvent, normalizeHistoryRecord } from './dashboardHelpers';
 import type { AgentEvent } from './dashboardConstants';
 

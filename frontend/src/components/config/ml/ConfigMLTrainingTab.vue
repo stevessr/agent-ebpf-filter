@@ -4,8 +4,8 @@ import {
   FileOutlined, StopOutlined, AlertOutlined, SearchOutlined, PlusOutlined,
   EyeOutlined, EyeInvisibleOutlined, BookOutlined, GlobalOutlined, ReloadOutlined,
 } from '@ant-design/icons-vue';
-import { getCategoryColor } from '../../../composables/useConfigRegistry';
-import { classicSecurityDatasetPresets, highRiskPresets, safetyNetHighRiskPresets, syntheticExpansionPresets, type useConfigML } from '../../../composables/useConfigML';
+import { getCategoryColor } from '../../../composables/config/useConfigRegistry';
+import { classicSecurityDatasetPresets, highRiskPresets, safetyNetHighRiskPresets, syntheticExpansionPresets, type useConfigML } from '../../../composables/config/useConfigML';
 
 const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 

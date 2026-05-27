@@ -1,0 +1,148 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/pelletier/go-toml/v2"
+)
+
+// hasNativeHookMarker checks whether the agent-ebpf hook marker is present in a config file.
+func hasNativeHookMarker(cfgPath string) bool {
+	b, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(b), hookMarker)
+}
+
+// isCodexHooksFeatureEnabled checks whether the codex_hooks feature flag is enabled.
+func isCodexHooksFeatureEnabled(cfgPath string) bool {
+	b, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return false
+	}
+
+	var cfg map[string]interface{}
+	if err := toml.Unmarshal(b, &cfg); err != nil {
+		return false
+	}
+
+	features, _ := cfg["features"].(map[string]interface{})
+	if features == nil {
+		return false
+	}
+
+	enabled, _ := features["codex_hooks"].(bool)
+	return enabled
+}
+
+// isNativeHookInstalled checks whether the agent-ebpf hook is present in the config
+// and whether any required feature flags are enabled.
+func isNativeHookInstalled(h HookDef) bool {
+	if h.ID == "kiro" {
+		return hasNativeHookMarker(h.NativeConfigPath) && isKiroManagedAgentSelected()
+	}
+	if !hasNativeHookMarker(h.NativeConfigPath) {
+		return false
+	}
+	if h.NativeFeatureConfigPath != "" && !isCodexHooksFeatureEnabled(h.NativeFeatureConfigPath) {
+		return false
+	}
+	return true
+}
+
+func isWrapperHookInstalled(cmd string) bool {
+	p := getShellConfigPath()
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(b), fmt.Sprintf("alias %s=", cmd))
+}
+
+func isHookInstalled(h HookDef) bool {
+	if h.HookType == HookTypeNative {
+		return isNativeHookInstalled(h)
+	}
+	return isWrapperHookInstalled(h.TargetCmd)
+}
+
+func ensureCodexHooksFeatureEnabled(cfgPath string) error {
+	if err := mkdirAllAsRealUser(filepath.Dir(cfgPath), 0755); err != nil {
+		return err
+	}
+
+	var cfg map[string]interface{}
+	if b, err := os.ReadFile(cfgPath); err == nil {
+		_ = toml.Unmarshal(b, &cfg)
+	}
+	if cfg == nil {
+		cfg = make(map[string]interface{})
+	}
+
+	features, _ := cfg["features"].(map[string]interface{})
+	if features == nil {
+		features = make(map[string]interface{})
+	}
+	features["codex_hooks"] = true
+	cfg["features"] = features
+
+	out, err := toml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return writeFileAsRealUser(cfgPath, out, 0644)
+}
+
+func hookRelayScriptPath(h HookDef) string {
+	return filepath.Join(filepath.Dir(h.NativeConfigPath), "hooks", hookMarker+"-"+h.ID+".sh")
+}
+
+func hookCommand(h HookDef, hookEvent string) string {
+	scriptPath := hookRelayScriptPath(h)
+	if strings.TrimSpace(hookEvent) == "" {
+		return shellQuote(scriptPath)
+	}
+	return shellQuote(scriptPath) + " " + shellQuote(hookEvent)
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func readJSONObjectFile(path string) (map[string]interface{}, error) {
+	var cfg map[string]interface{}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return make(map[string]interface{}), nil
+		}
+		return nil, err
+	}
+	if len(bytes.TrimSpace(b)) == 0 {
+		return make(map[string]interface{}), nil
+	}
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return nil, err
+	}
+	if cfg == nil {
+		cfg = make(map[string]interface{})
+	}
+	return cfg, nil
+}
+
+func writeJSONObjectFile(path string, cfg map[string]interface{}) error {
+	if err := mkdirAllAsRealUser(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeFileAsRealUser(path, b, 0644)
+}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from "vue";
+import { onMounted, watch } from "vue";
 import { ReloadOutlined } from "@ant-design/icons-vue";
 import type {
   VisualAction,
@@ -11,7 +11,14 @@ import type {
   VisualWireId,
   VisualWireStates,
 } from "./types";
-import { visualWorkflowTheme } from "./theme";
+import {
+  useCanvasLayout,
+  DEFAULT_CANVAS_WIDTH,
+  DEFAULT_CANVAS_HEIGHT,
+  MIN_CANVAS_WIDTH,
+  clamp,
+} from "../../composables/plugins/useCanvasLayout";
+import { useCanvasInteraction } from "../../composables/plugins/useCanvasInteraction";
 
 const props = defineProps<{
   nodeLayout: VisualNodeLayout;
@@ -40,421 +47,89 @@ const emit = defineEmits<{
   ): void;
 }>();
 
-const nodeWidth = 160;
-const nodeHeight = 72;
-const gridSize = 24;
-const defaultCanvasWidth = 920;
-const defaultCanvasHeight = 420;
-const minCanvasWidth = 720;
-const minCanvasHeight = 340;
-const maxCanvasWidth = 1800;
-const maxCanvasHeight = 1100;
-const canvasPadding = 12;
-const theme = visualWorkflowTheme;
-const viewportRef = useTemplateRef<HTMLElement>("viewport");
-const canvasRef = useTemplateRef<HTMLElement>("canvas");
-const viewportSize = ref({ width: defaultCanvasWidth });
-const workspaceSize = ref({
-  width: defaultCanvasWidth,
-  height: defaultCanvasHeight,
-});
-let viewportResizeObserver: ResizeObserver | null = null;
-const dragging = ref<{
-  id: VisualFlowNodeId;
-  offsetX: number;
-  offsetY: number;
-  startX: number;
-  startY: number;
-  moved: boolean;
-} | null>(null);
-const connectionDrag = ref<{
-  from: VisualFlowNodeId;
-  startX: number;
-  startY: number;
-  currentX: number;
-  currentY: number;
-  target: VisualFlowNodeId | null;
-  valid: boolean;
-} | null>(null);
-const canvasResizeDrag = ref<{
-  startX: number;
-  startY: number;
-  startWidth: number;
-  startHeight: number;
-} | null>(null);
-
-const defaultLayout: VisualNodeLayout = {
-  trigger: { x: 24, y: 38 },
-  condition: { x: 196, y: 38 },
-  map: { x: 368, y: 38 },
-  action: { x: 540, y: 38 },
-  code: { x: 368, y: 176 },
-  compile: { x: 540, y: 176 },
-};
-
-const flowNodeIds: VisualFlowNodeId[] = [
-  "trigger",
-  "condition",
-  "map",
-  "action",
-  "code",
-  "compile",
-];
-
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value));
-
-const snapToGrid = (value: number) => Math.round(value / gridSize) * gridSize;
-
-const snapNodeX = (value: number) =>
-  clamp(snapToGrid(Math.round(value)), canvasPadding, maxNodeX.value);
-
-const snapNodeY = (value: number) =>
-  clamp(snapToGrid(Math.round(value)), canvasPadding, maxNodeY.value);
-
-const wireDefinitions: Array<{
-  id: VisualWireId;
-  from: VisualFlowNodeId;
-  to: VisualFlowNodeId;
-  label: string;
-  required: boolean;
-}> = [
-  {
-    id: "trigger-condition",
-    from: "trigger",
-    to: "condition",
-    label: "event ctx",
-    required: true,
-  },
-  {
-    id: "condition-map",
-    from: "condition",
-    to: "map",
-    label: "match",
-    required: true,
-  },
-  {
-    id: "map-action",
-    from: "map",
-    to: "action",
-    label: "state",
-    required: true,
-  },
-  {
-    id: "condition-code",
-    from: "condition",
-    to: "code",
-    label: "expr",
-    required: true,
-  },
-  {
-    id: "map-code",
-    from: "map",
-    to: "code",
-    label: "map def",
-    required: true,
-  },
-  {
-    id: "action-compile",
-    from: "action",
-    to: "compile",
-    label: "decision",
-    required: true,
-  },
-  {
-    id: "code-compile",
-    from: "code",
-    to: "compile",
-    label: "source",
-    required: true,
-  },
-];
-
-const defaultWireStates: Record<VisualWireId, boolean> = {
-  "trigger-condition": true,
-  "condition-map": true,
-  "map-action": true,
-  "condition-code": true,
-  "map-code": true,
-  "action-compile": true,
-  "code-compile": true,
-};
-
-const mergedLayout = computed<VisualNodeLayout>(() => ({
-  ...defaultLayout,
-  ...props.nodeLayout,
+const layout = useCanvasLayout(() => ({
+  nodeLayout: props.nodeLayout,
+  wireStates: props.wireStates,
+  trigger: props.trigger,
+  action: props.action,
+  mapMode: props.mapMode,
+  conditionCount: props.conditionCount,
+  treeDepth: props.treeDepth,
+  codeLines: props.codeLines,
+  compileReady: props.compileReady,
+  hiddenNodes: props.hiddenNodes,
 }));
 
-const mergedWireStates = computed<Record<VisualWireId, boolean>>(() => ({
-  ...defaultWireStates,
-  ...props.wireStates,
+const {
+  theme,
+  mergedLayout,
+  mergedWireStates,
+  canvasSize,
+  snapNodeX,
+  snapNodeY,
+  boundedLayout,
+  canvasViewBox,
+  selectedNode,
+  visibleFlowNodes,
+  visibleWireDefinitions,
+  wires,
+  connectedWireCount,
+  getNodePortPoint,
+  getWireForEndpoints,
+  hasOutgoingWire,
+  hasIncomingWire,
+  canDeleteNode,
+} = layout;
+
+const interaction = useCanvasInteraction(() => ({
+  canvasSize: canvasSize.value,
+  mergedWireStates: mergedWireStates.value,
+  mergedLayout: mergedLayout.value,
+  visibleFlowNodes: visibleFlowNodes.value,
+  visibleWireDefinitions: visibleWireDefinitions.value,
+  getNodePortPoint,
+  getWireForEndpoints,
+  hasOutgoingWire,
+  hasIncomingWire,
+  snapNodeX,
+  snapNodeY,
+  emit: emit as any,
 }));
 
-const canvasSize = computed(() => ({
-  width: Math.max(
-    minCanvasWidth,
-    workspaceSize.value.width,
-    Math.round(viewportSize.value.width)
-  ),
+const {
+  viewportRef,
+  canvasRef,
+  viewportSize,
+  workspaceSize,
+  dragging,
+  connectionDrag,
+  canvasResizeDrag,
+  handlePointerDown,
+  handleConnectionPointerDown,
+  handleCanvasDragOver,
+  handleCanvasDrop,
+  handleCanvasResizePointerDown,
+  connectionPreviewPath,
+  expandWorkspace,
+  resetWorkspaceSize,
+  updateViewportSize,
+  initResizeObserver,
+} = interaction;
+
+// Canvas size computation -- wired to workspace + viewport
+const computedCanvasSize = () => ({
+  width: Math.max(MIN_CANVAS_WIDTH, workspaceSize.value.width, Math.round(viewportSize.value.width)),
   height: workspaceSize.value.height,
-}));
-
-const canvasStyle = computed(() => ({
-  width: `${canvasSize.value.width}px`,
-  height: `${canvasSize.value.height}px`,
-}));
-
-const maxNodeX = computed(() =>
-  Math.max(canvasPadding, canvasSize.value.width - nodeWidth - canvasPadding)
-);
-
-const maxNodeY = computed(() =>
-  Math.max(canvasPadding, canvasSize.value.height - nodeHeight - canvasPadding)
-);
-
-const boundedLayout = computed<VisualNodeLayout>(() => {
-  const next: VisualNodeLayout = {};
-  flowNodeIds.forEach((id) => {
-    const position = mergedLayout.value[id] || defaultLayout[id];
-    next[id] = {
-      x: clamp(Math.round(position.x), canvasPadding, maxNodeX.value),
-      y: clamp(Math.round(position.y), canvasPadding, maxNodeY.value),
-    };
-  });
-  return next;
 });
 
-const canvasViewBox = computed(
-  () =>
-    `0 0 ${Math.max(1, Math.round(canvasSize.value.width))} ${Math.max(
-      1,
-      Math.round(canvasSize.value.height)
-    )}`
-);
+canvasSize.value = computedCanvasSize();
 
-const flowNodes = computed(() => [
-  {
-    id: "trigger" as const,
-    title: "Trigger Block",
-    subtitle: props.trigger,
-    badge: "HOOK",
-    color: theme.primary,
-    hint: "选择 eBPF/LSM/cgroup 挂载入口，决定后续条件能读取哪些上下文。",
-  },
-  {
-    id: "condition" as const,
-    title: "Condition Tree",
-    subtitle: `${props.conditionCount} 条件 / ${props.treeDepth} 层`,
-    badge: "AND/OR",
-    color: theme.primaryHover,
-    hint: "组合 comm、uid、basename、port、ipv4 等条件，生成内核布尔表达式。",
-  },
-  {
-    id: "map" as const,
-    title: "State Map",
-    subtitle: props.mapMode,
-    badge: "BPF MAP",
-    color: theme.primary,
-    hint: "声明 COUNTER / BLOCKLIST 等状态 map，把一次性判断升级为状态化策略。",
-  },
-  {
-    id: "action" as const,
-    title: "Action Block",
-    subtitle: props.action,
-    badge: "DECISION",
-    color:
-      props.action === "ALERT"
-        ? theme.warning
-        : props.action === "KILL"
-        ? theme.danger
-        : theme.primary,
-    hint: "配置命中后的内核动作：告警、返回拒绝，或发送 SIGKILL。",
-  },
-  {
-    id: "code" as const,
-    title: "Generated C",
-    subtitle: `${props.codeLines} lines`,
-    badge: "SOURCE",
-    color: theme.primaryHover,
-    hint: "实时预览由积木转译出的 libbpf C 源码和编译日志。",
-  },
-  {
-    id: "compile" as const,
-    title: "Compile Gate",
-    subtitle: props.compileReady ? "ready" : "fix required",
-    badge: props.compileReady ? "READY" : "ERROR",
-    color: props.compileReady ? theme.success : theme.danger,
-    hint: "检查插件元数据和 verifier 友好约束，通过后注册、编译并加载。",
-  },
-]);
+watch(workspaceSize, () => { canvasSize.value = computedCanvasSize(); });
+watch(viewportSize, () => { canvasSize.value = computedCanvasSize(); });
 
-const selectedNode = computed(
-  () =>
-    flowNodes.value.find((node) => node.id === props.selectedNodeId) ||
-    flowNodes.value[0]
-);
+// applyWorkspaceSize already syncs canvasSize via workspaceSize watcher
 
-const isNodeHidden = (id: VisualFlowNodeId) => !!props.hiddenNodes[id];
-
-const visibleFlowNodes = computed(() =>
-  flowNodes.value.filter((node) => !isNodeHidden(node.id))
-);
-
-const visibleWireDefinitions = computed(() =>
-  wireDefinitions.filter(
-    (wire) => !isNodeHidden(wire.from) && !isNodeHidden(wire.to)
-  )
-);
-
-const wires = computed(() => {
-  return visibleWireDefinitions.value.map((wire) => {
-    const start = boundedLayout.value[wire.from] || defaultLayout[wire.from];
-    const end = boundedLayout.value[wire.to] || defaultLayout[wire.to];
-    const x1 = start.x + nodeWidth;
-    const y1 = start.y + nodeHeight / 2;
-    const x2 = end.x;
-    const y2 = end.y + nodeHeight / 2;
-    const mid = Math.max(24, Math.abs(x2 - x1) / 2);
-    return {
-      ...wire,
-      enabled: mergedWireStates.value[wire.id],
-      d: `M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`,
-      labelX: clamp(
-        (x1 + x2) / 2 - 52,
-        6,
-        Math.max(6, canvasSize.value.width - 116)
-      ),
-      labelY: clamp(
-        (y1 + y2) / 2 - 13,
-        6,
-        Math.max(6, canvasSize.value.height - 34)
-      ),
-    };
-  });
-});
-
-const connectedWireCount = computed(
-  () =>
-    visibleWireDefinitions.value.filter((wire) => mergedWireStates.value[wire.id])
-      .length
-);
-
-const connectionPreviewPath = computed(() => {
-  if (!connectionDrag.value) return "";
-  const { startX, startY, currentX, currentY } = connectionDrag.value;
-  const mid = Math.max(28, Math.abs(currentX - startX) / 2);
-  return `M ${startX} ${startY} C ${startX + mid} ${startY}, ${
-    currentX - mid
-  } ${currentY}, ${currentX} ${currentY}`;
-});
-
-const getNodePosition = (id: VisualFlowNodeId) =>
-  boundedLayout.value[id] || defaultLayout[id];
-
-const getNodePortPoint = (id: VisualFlowNodeId, side: "in" | "out") => {
-  const position = getNodePosition(id);
-  return {
-    x: position.x + (side === "out" ? nodeWidth : 0),
-    y: position.y + nodeHeight / 2,
-  };
-};
-
-const canvasPointFromEvent = (event: PointerEvent) => {
-  const canvas = canvasRef.value;
-  if (!canvas) return null;
-  const rect = canvas.getBoundingClientRect();
-  return {
-    x: clamp(event.clientX - rect.left, 0, rect.width),
-    y: clamp(event.clientY - rect.top, 0, rect.height),
-  };
-};
-
-const canvasPointFromDragEvent = (event: DragEvent) => {
-  const canvas = canvasRef.value;
-  if (!canvas) return null;
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = rect.width > 0 ? canvasSize.value.width / rect.width : 1;
-  const scaleY = rect.height > 0 ? canvasSize.value.height / rect.height : 1;
-  return {
-    x: clamp((event.clientX - rect.left) * scaleX, 0, canvasSize.value.width),
-    y: clamp((event.clientY - rect.top) * scaleY, 0, canvasSize.value.height),
-  };
-};
-
-const getWireForEndpoints = (from: VisualFlowNodeId, to: VisualFlowNodeId) =>
-  wireDefinitions.find((wire) => wire.from === from && wire.to === to) || null;
-
-const hasOutgoingWire = (id: VisualFlowNodeId) =>
-  visibleWireDefinitions.value.some((wire) => wire.from === id);
-
-const hasIncomingWire = (id: VisualFlowNodeId) =>
-  visibleWireDefinitions.value.some((wire) => wire.to === id);
-
-const canDeleteNode = (id: VisualFlowNodeId) =>
-  id !== "trigger" && id !== "compile";
-
-const getNearestInputNode = (
-  point: { x: number; y: number },
-  from: VisualFlowNodeId
-): VisualFlowNodeId | null => {
-  let nearestId: VisualFlowNodeId | null = null;
-  let nearestDistance = Infinity;
-  visibleFlowNodes.value.forEach((node) => {
-    if (node.id === from || !hasIncomingWire(node.id)) return;
-    const input = getNodePortPoint(node.id, "in");
-    const distance = Math.hypot(point.x - input.x, point.y - input.y);
-    if (distance <= 34 && distance < nearestDistance) {
-      nearestId = node.id;
-      nearestDistance = distance;
-    }
-  });
-  return nearestId;
-};
-
-const updateNodePosition = (id: VisualFlowNodeId, x: number, y: number) => {
-  const next = {
-    ...mergedLayout.value,
-    [id]: {
-      x: snapNodeX(x),
-      y: snapNodeY(y),
-    },
-  };
-  emit("update:nodeLayout", next);
-};
-
-const handleCanvasDragOver = (event: DragEvent) => {
-  event.preventDefault();
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = "move";
-  }
-};
-
-const handleCanvasDrop = (event: DragEvent) => {
-  event.preventDefault();
-  event.stopPropagation();
-  const point = canvasPointFromDragEvent(event);
-  const rawData = event.dataTransfer?.getData("text/plain");
-  if (!point || !rawData) return;
-
-  try {
-    const parsed = JSON.parse(rawData) as {
-      category?: unknown;
-      value?: unknown;
-    };
-    if (typeof parsed.category !== "string" || typeof parsed.value !== "string") {
-      return;
-    }
-    emit("drop-node-type", {
-      category: parsed.category,
-      value: parsed.value,
-      x: snapNodeX(point.x - nodeWidth / 2),
-      y: snapNodeY(point.y - nodeHeight / 2),
-    });
-  } catch (err) {
-    console.error("Failed to parse node type drop payload:", err);
-  }
-};
-
+// Wire toggle
 const toggleWire = (id: VisualWireId) => {
   emit("update:wireStates", {
     ...mergedWireStates.value,
@@ -462,171 +137,21 @@ const toggleWire = (id: VisualWireId) => {
   });
 };
 
-const enableWire = (id: VisualWireId) => {
-  if (mergedWireStates.value[id]) return;
+// Wire toggle (enableWire handled by composable's stopConnectionDragging)
+const toggleWire = (id: VisualWireId) => {
   emit("update:wireStates", {
     ...mergedWireStates.value,
-    [id]: true,
+    [id]: !mergedWireStates.value[id],
   });
 };
 
-const stopDragging = () => {
-  if (dragging.value && !dragging.value.moved) {
-    emit("update:selectedNodeId", dragging.value.id);
-  }
-  dragging.value = null;
-  window.removeEventListener("pointermove", handlePointerMove);
-  window.removeEventListener("pointerup", stopDragging);
-};
-
-const handlePointerMove = (event: PointerEvent) => {
-  if (!dragging.value) return;
-  const canvas = canvasRef.value;
-  if (!canvas) return;
-  const rect = canvas.getBoundingClientRect();
-  if (
-    Math.abs(event.clientX - dragging.value.startX) > 3 ||
-    Math.abs(event.clientY - dragging.value.startY) > 3
-  ) {
-    dragging.value.moved = true;
-  }
-  updateNodePosition(
-    dragging.value.id,
-    event.clientX - rect.left - dragging.value.offsetX,
-    event.clientY - rect.top - dragging.value.offsetY
-  );
-};
-
-const handlePointerDown = (event: PointerEvent, id: VisualFlowNodeId) => {
-  const target = event.currentTarget as HTMLElement;
-  const rect = target.getBoundingClientRect();
-  dragging.value = {
-    id,
-    offsetX: event.clientX - rect.left,
-    offsetY: event.clientY - rect.top,
-    startX: event.clientX,
-    startY: event.clientY,
-    moved: false,
-  };
-  window.addEventListener("pointermove", handlePointerMove);
-  window.addEventListener("pointerup", stopDragging);
-};
-
-const handleConnectionPointerMove = (event: PointerEvent) => {
-  if (!connectionDrag.value) return;
-  const point = canvasPointFromEvent(event);
-  if (!point) return;
-  const target = getNearestInputNode(point, connectionDrag.value.from);
-  connectionDrag.value = {
-    ...connectionDrag.value,
-    currentX: point.x,
-    currentY: point.y,
-    target,
-    valid: !!target && !!getWireForEndpoints(connectionDrag.value.from, target),
-  };
-};
-
-const stopConnectionDragging = () => {
-  if (connectionDrag.value?.target && connectionDrag.value.valid) {
-    const wire = getWireForEndpoints(
-      connectionDrag.value.from,
-      connectionDrag.value.target
-    );
-    if (wire) {
-      enableWire(wire.id);
-      emit("update:selectedNodeId", wire.to);
-    }
-  }
-  connectionDrag.value = null;
-  window.removeEventListener("pointermove", handleConnectionPointerMove);
-  window.removeEventListener("pointerup", stopConnectionDragging);
-};
-
-const handleConnectionPointerDown = (event: PointerEvent, id: VisualFlowNodeId) => {
-  if (!hasOutgoingWire(id)) return;
-  const point = canvasPointFromEvent(event);
-  const start = getNodePortPoint(id, "out");
-  connectionDrag.value = {
-    from: id,
-    startX: start.x,
-    startY: start.y,
-    currentX: point?.x ?? start.x,
-    currentY: point?.y ?? start.y,
-    target: null,
-    valid: false,
-  };
-  emit("update:selectedNodeId", id);
-  window.addEventListener("pointermove", handleConnectionPointerMove);
-  window.addEventListener("pointerup", stopConnectionDragging);
-};
-
-const applyWorkspaceSize = (width: number, height: number) => {
-  workspaceSize.value = {
-    width: clamp(Math.round(width), minCanvasWidth, maxCanvasWidth),
-    height: clamp(Math.round(height), minCanvasHeight, maxCanvasHeight),
-  };
-};
-
-const expandWorkspace = () => {
-  applyWorkspaceSize(canvasSize.value.width + 260, canvasSize.value.height + 160);
-};
-
-const resetWorkspaceSize = () => {
-  applyWorkspaceSize(defaultCanvasWidth, defaultCanvasHeight);
-};
-
-const stopCanvasResizing = () => {
-  canvasResizeDrag.value = null;
-  window.removeEventListener("pointermove", handleCanvasResizeMove);
-  window.removeEventListener("pointerup", stopCanvasResizing);
-};
-
-const handleCanvasResizeMove = (event: PointerEvent) => {
-  if (!canvasResizeDrag.value) return;
-  const deltaX = event.clientX - canvasResizeDrag.value.startX;
-  const deltaY = event.clientY - canvasResizeDrag.value.startY;
-  applyWorkspaceSize(
-    canvasResizeDrag.value.startWidth + deltaX,
-    canvasResizeDrag.value.startHeight + deltaY
-  );
-};
-
-const handleCanvasResizePointerDown = (event: PointerEvent) => {
-  canvasResizeDrag.value = {
-    startX: event.clientX,
-    startY: event.clientY,
-    startWidth: canvasSize.value.width,
-    startHeight: canvasSize.value.height,
-  };
-  window.addEventListener("pointermove", handleCanvasResizeMove);
-  window.addEventListener("pointerup", stopCanvasResizing);
-};
-
-const updateViewportSize = () => {
-  const viewport = viewportRef.value;
-  if (!viewport) return;
-  const rect = viewport.getBoundingClientRect();
-  viewportSize.value = {
-    width: Math.max(minCanvasWidth, Math.round(rect.width)),
-  };
-};
-
-onMounted(() => {
-  updateViewportSize();
-  if (typeof ResizeObserver !== "undefined" && viewportRef.value) {
-    viewportResizeObserver = new ResizeObserver(updateViewportSize);
-    viewportResizeObserver.observe(viewportRef.value);
-  }
+const canvasStyle = () => ({
+  width: `${canvasSize.value.width}px`,
+  height: `${canvasSize.value.height}px`,
 });
 
-onBeforeUnmount(() => {
-  stopDragging();
-  stopCanvasResizing();
-  connectionDrag.value = null;
-  viewportResizeObserver?.disconnect();
-  viewportResizeObserver = null;
-  window.removeEventListener("pointermove", handleConnectionPointerMove);
-  window.removeEventListener("pointerup", stopConnectionDragging);
+onMounted(() => {
+  initResizeObserver();
 });
 </script>
 
@@ -669,7 +194,7 @@ onBeforeUnmount(() => {
         ref="canvas"
         class="flow-canvas"
         :class="{ resizing: !!canvasResizeDrag }"
-        :style="canvasStyle"
+        :style="canvasStyle()"
         @dragover="handleCanvasDragOver"
         @drop="handleCanvasDrop"
       >
@@ -703,8 +228,8 @@ onBeforeUnmount(() => {
           :class="{ disabled: !wire.enabled }"
         />
         <path
-          v-if="connectionPreviewPath"
-          :d="connectionPreviewPath"
+          v-if="connectionPreviewPath()"
+          :d="connectionPreviewPath()"
           :stroke="connectionDrag?.valid ? theme.success : theme.warning"
           stroke-width="2.5"
           fill="none"
@@ -800,381 +325,4 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<style scoped>
-.flow-shell {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  border: 1px solid #d6e4ff;
-  border-radius: 12px;
-  padding: 14px;
-  margin-bottom: 20px;
-  box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
-}
-
-.flow-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.flow-header h4 {
-  margin: 0;
-  color: #0f172a;
-  font-size: 14px;
-}
-
-.flow-header span {
-  color: #64748b;
-  font-size: 12px;
-}
-
-.flow-inspector {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 10px 12px;
-  margin-bottom: 12px;
-  border-radius: 8px;
-  border: 1px solid #d6e4ff;
-  background: #f0f7ff;
-}
-
-.inspector-tag {
-  margin: 0;
-  min-width: 72px;
-  text-align: center;
-}
-
-.flow-inspector strong {
-  display: block;
-  color: #0f172a;
-  font-size: 12px;
-  line-height: 1.2;
-}
-
-.flow-inspector span {
-  display: block;
-  margin-top: 2px;
-  color: #475569;
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.flow-canvas-viewport {
-  position: relative;
-  max-width: 100%;
-  overflow: auto;
-  border-radius: 10px;
-  border: 1px solid #b7d7ff;
-  background: #f8fbff;
-  scrollbar-color: rgba(22, 119, 255, 0.45) #e6f4ff;
-}
-
-.flow-canvas {
-  position: relative;
-  overflow: hidden;
-  background-color: #f8fbff;
-  background-image:
-    linear-gradient(to right, rgba(22, 119, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(22, 119, 255, 0.08) 1px, transparent 1px),
-    radial-gradient(circle at 18% 20%, rgba(22, 119, 255, 0.12), transparent 28%),
-    radial-gradient(circle at 82% 72%, rgba(64, 150, 255, 0.1), transparent 32%);
-  background-size: 24px 24px, 24px 24px, 100% 100%, 100% 100%;
-  transition: width 0.12s ease, height 0.12s ease;
-}
-
-.flow-canvas.resizing {
-  cursor: nwse-resize;
-  transition: none;
-}
-
-.drop-target-hint {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  z-index: 5;
-  max-width: min(360px, calc(100% - 24px));
-  padding: 6px 10px;
-  border: 1px dashed rgba(22, 119, 255, 0.38);
-  border-radius: 999px;
-  color: #0958d9;
-  background: rgba(230, 244, 255, 0.92);
-  box-shadow: 0 8px 22px rgba(22, 119, 255, 0.12);
-  font-size: 10.5px;
-  pointer-events: none;
-}
-
-.flow-wires {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.flow-wire {
-  stroke-dasharray: 8 8;
-  animation: dash-flow 1.4s linear infinite;
-  opacity: 0.78;
-}
-
-.flow-wire.disabled {
-  stroke-dasharray: 4 8;
-  animation: none;
-  opacity: 0.42;
-}
-
-.flow-wire-preview {
-  stroke-dasharray: 10 5;
-  filter: drop-shadow(0 0 8px rgba(82, 196, 26, 0.42));
-  pointer-events: none;
-}
-
-.flow-wire-preview.invalid {
-  filter: drop-shadow(0 0 8px rgba(250, 173, 20, 0.46));
-}
-
-@keyframes dash-flow {
-  to {
-    stroke-dashoffset: -32;
-  }
-}
-
-.flow-node {
-  position: absolute;
-  width: 160px;
-  height: 72px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 4px;
-  padding: 10px 12px 10px 14px;
-  border: 1px solid var(--node-color);
-  border-left-width: 4px;
-  border-radius: 10px;
-  color: #0f172a;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 10px 28px rgba(22, 119, 255, 0.12);
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
-  transition: box-shadow 0.18s ease, transform 0.18s ease;
-}
-
-.wire-toggle {
-  position: absolute;
-  z-index: 4;
-  min-width: 104px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 8px;
-  border: 1px solid rgba(22, 119, 255, 0.32);
-  border-radius: 999px;
-  color: #0958d9;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 4px 14px rgba(22, 119, 255, 0.12);
-  cursor: pointer;
-  font-size: 10px;
-  line-height: 1;
-  transition: border-color 0.16s ease, opacity 0.16s ease, transform 0.16s ease;
-}
-
-.wire-toggle:hover {
-  transform: translateY(-1px);
-  border-color: #1677ff;
-}
-
-.wire-toggle.required::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #1677ff;
-  box-shadow: 0 0 8px rgba(22, 119, 255, 0.45);
-}
-
-.wire-toggle.disabled {
-  border-color: rgba(148, 163, 184, 0.34);
-  color: #64748b;
-  opacity: 0.72;
-}
-
-.wire-toggle.disabled::before {
-  background: #94a3b8;
-  box-shadow: none;
-}
-
-.wire-toggle code {
-  color: inherit;
-  font-size: 9px;
-}
-
-.connection-hint {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  z-index: 8;
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  max-width: calc(100% - 24px);
-  padding: 7px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(22, 119, 255, 0.32);
-  color: #0958d9;
-  background: rgba(230, 244, 255, 0.96);
-  box-shadow: 0 8px 22px rgba(22, 119, 255, 0.12);
-  font-size: 11px;
-}
-
-.connection-hint strong {
-  color: #1677ff;
-}
-
-.connection-hint span {
-  color: #475569;
-}
-
-.canvas-resize-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 8px;
-  color: #64748b;
-  font-size: 11px;
-}
-
-.canvas-resize-handle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  border: 1px solid rgba(22, 119, 255, 0.42);
-  border-radius: 999px 999px 4px 999px;
-  color: #0958d9;
-  background: #ffffff;
-  box-shadow: 0 8px 20px rgba(22, 119, 255, 0.12);
-  cursor: nwse-resize;
-  font-size: 10px;
-  line-height: 1;
-  user-select: none;
-  touch-action: none;
-}
-
-.canvas-resize-handle::after {
-  content: "⌟";
-  color: #1677ff;
-  font-size: 14px;
-  line-height: 0.8;
-}
-
-.canvas-resize-handle:hover {
-  border-color: #1677ff;
-  color: #0f172a;
-}
-
-.node-delete {
-  position: absolute;
-  top: 6px;
-  right: 7px;
-  z-index: 3;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid rgba(255, 77, 79, 0.42);
-  border-radius: 999px;
-  color: #cf1322;
-  background: #fff1f0;
-  cursor: pointer;
-  font-size: 13px;
-  line-height: 1;
-  opacity: 0;
-  transition: opacity 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
-}
-
-.flow-node:hover .node-delete,
-.flow-node.selected .node-delete {
-  opacity: 1;
-}
-
-.node-delete:hover {
-  transform: scale(1.05);
-  border-color: #ff7875;
-  color: #a8071a;
-}
-
-.flow-node:hover,
-.flow-node.selected {
-  transform: translateY(-1px);
-  box-shadow: 0 0 0 1px var(--node-color), 0 14px 34px rgba(22, 119, 255, 0.16);
-}
-
-.flow-node:active {
-  cursor: grabbing;
-}
-
-.node-badge {
-  color: var(--node-color);
-  font-size: 10px;
-  font-family: "Consolas", "Courier New", monospace;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.flow-node strong {
-  font-size: 12px;
-  line-height: 1.15;
-}
-
-.flow-node code {
-  max-width: 132px;
-  color: #475569;
-  font-size: 10px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.node-port {
-  position: absolute;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--node-color);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--node-color) 52%, transparent);
-}
-
-.node-port.candidate {
-  width: 14px;
-  height: 14px;
-  box-shadow: 0 0 0 4px rgba(250, 173, 20, 0.2), 0 0 14px #faad14;
-}
-
-.node-port.valid {
-  background: #52c41a;
-  box-shadow: 0 0 0 4px rgba(82, 196, 26, 0.2), 0 0 14px #52c41a;
-}
-
-.node-port.invalid {
-  background: #faad14;
-  box-shadow: 0 0 0 4px rgba(250, 173, 20, 0.2), 0 0 14px #faad14;
-}
-
-.port-in {
-  left: -6px;
-  transform: translateY(-50%);
-}
-
-.port-out {
-  right: -6px;
-  transform: translateY(-50%);
-}
-</style>
+<style scoped src="./flow-canvas/flow-canvas.css"></style>

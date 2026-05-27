@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { GlobalStats, StatsHistory } from '../../composables/useMonitorData';
+import type { GlobalStats, StatsHistory } from '../../composables/monitor/useMonitorData';
 
 const props = defineProps<{
   systemStats: GlobalStats;

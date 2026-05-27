@@ -6,8 +6,8 @@ import {
   isLocalClusterTarget,
   normalizeClusterTarget,
   setStoredClusterTarget,
-} from '../utils/requestContext';
-import type { ClusterNodeInfo, ClusterStateResponse } from '../types/config';
+} from '../../utils/requestContext';
+import type { ClusterNodeInfo, ClusterStateResponse } from '../../types/config';
 
 export function useConfigCluster() {
   const clusterState = ref<ClusterStateResponse | null>(null);

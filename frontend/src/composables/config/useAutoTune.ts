@@ -6,7 +6,7 @@ import type {
   MLBuiltinModelCatalogItem,
   MLAutoTuneAxis, MLAutoTuneCell, MLAutoTuneGranularity, MLAutoTuneMetric, MLAutoTuneMode, MLAutoTuneResponse,
   MLModelTuneCandidate, MLModelTuneResponse,
-} from '../types/config';
+} from '../../types/config';
 
 export interface AutoTuneDeps {
   modelType: Ref<string>;

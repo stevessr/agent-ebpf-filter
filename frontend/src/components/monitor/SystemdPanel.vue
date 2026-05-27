@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SystemdService } from '../../composables/useSystemd';
+import type { SystemdService } from '../../composables/monitor/useSystemd';
 
 defineProps<{
   systemdServices: SystemdService[];

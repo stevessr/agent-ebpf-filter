@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ClusterOutlined, ReloadOutlined } from '@ant-design/icons-vue';
-import type { useConfigCluster } from '../../composables/useConfigCluster';
+import type { useConfigCluster } from '../../composables/config/useConfigCluster';
 
 const props = defineProps<{
   cluster: ReturnType<typeof useConfigCluster>;

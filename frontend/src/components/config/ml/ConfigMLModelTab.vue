@@ -4,7 +4,7 @@ import {
   ThunderboltOutlined, ReloadOutlined, StopOutlined,
   SearchOutlined, ControlOutlined,
 } from '@ant-design/icons-vue';
-import { highRiskPresets, type useConfigML } from '../../../composables/useConfigML';
+import { highRiskPresets, type useConfigML } from '../../../composables/config/useConfigML';
 import { mlModelCategoryColor } from '../../../data/mlModelCatalog';
 
 const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();

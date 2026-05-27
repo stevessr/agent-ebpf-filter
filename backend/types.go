@@ -6,199 +6,103 @@ import (
 	"sync"
 	"time"
 
+	"agent-ebpf-filter/core"
+
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/cilium/ebpf"
 )
 
-const udsPath = "/tmp/agent-ebpf.sock"
-const ebpfPinRoot = "/sys/fs/bpf/agent-ebpf"
-const ebpfPinMapsDir = ebpfPinRoot + "/maps"
-const ebpfPinLinksDir = ebpfPinRoot + "/links"
+// ── Type aliases to core package ─────────────────────────────────────────────
 
-type bpfEvent struct {
-	PID, TGID, PPID, UID, GID, Type, TagID uint32
-	Comm                                   [16]byte
-	Path                                   [256]byte
-	NetFamily                              uint32
-	NetDirection                           uint32
-	NetBytes                               uint32
-	NetPort                                uint32
-	NetAddr                                [16]byte
-	_                                      [4]byte // Padding for 8-byte alignment of Retval
-	Retval                                 int64
-	DurationNs                             uint64
-	CgroupID                               uint64
-	Extra1                                 uint32
-	Extra2                                 uint32
-	Extra3                                 uint64
-	Extra4                                 [256]byte
-}
+type bpfEvent = core.BpfEvent
+type WrapperRule = core.WrapperRule
+type HookType = core.HookType
+type ConfigFormat = core.ConfigFormat
+type HookDef = core.HookDef
+type gpuInfo = core.GpuInfo
+type vmFaultCounters = core.VmFaultCounters
+type kiroHookState = core.KiroHookState
+type FilePreviewResponse = core.FilePreviewResponse
+type trackerMapSet = core.TrackerMapSet
+type ModelType = core.ModelType
+type MLConfig = core.MLConfig
+type DomainForwardRoute = core.DomainForwardRoute
+type DomainForwardProxySettings = core.DomainForwardProxySettings
 
-type WrapperRule struct {
-	Comm         string   `json:"comm"`
-	Action       string   `json:"action"`
-	RewrittenCmd []string `json:"rewritten_cmd,omitempty"`
-	Regex        string   `json:"regex,omitempty"`
-	Replacement  string   `json:"replacement,omitempty"`
-	Priority     int      `json:"priority,omitempty"`
-	Behavior     string   `json:"behavior,omitempty"`
-}
+// ── Constants ────────────────────────────────────────────────────────────────
 
-type shellControlMessage struct {
-	Type string `json:"type"`
-	Cols int    `json:"cols,omitempty"`
-	Rows int    `json:"rows,omitempty"`
-}
+const udsPath = core.UDSPATH
+const ebpfPinRoot = core.EBPFPinRoot
+const ebpfPinMapsDir = core.EBPFPinMapsDir
+const ebpfPinLinksDir = core.EBPFPinLinksDir
 
-type trackerMapSet struct {
-	AgentPids       *ebpf.Map
-	TrackedComms    *ebpf.Map
-	TrackedPaths    *ebpf.Map
-	TrackedPrefixes *ebpf.Map
-	Events          *ebpf.Map
-	CollectorStats  *ebpf.Map
-}
+const HookTypeNative = core.HookTypeNative
+const HookTypeWrapper = core.HookTypeWrapper
+const ConfigFormatJSON = core.ConfigFormatJSON
+const ConfigFormatTOML = core.ConfigFormatTOML
 
-type ExportConfig struct {
-	Tags    []string               `json:"tags"`
-	Comms   map[string]string      `json:"comms"`
-	Paths   map[string]string      `json:"paths"`
-	Rules   map[string]WrapperRule `json:"rules"`
-	Runtime *RuntimeSettings       `json:"runtime,omitempty"`
-}
-
-type RuntimeConfigResponse struct {
-	Runtime                RuntimeSettings `json:"runtime"`
-	MCPEndpoint            string          `json:"mcpEndpoint"`
-	AuthHeaderName         string          `json:"authHeaderName"`
-	BearerAuthHeaderName   string          `json:"bearerAuthHeaderName"`
-	PersistedEventLogPath  string          `json:"persistedEventLogPath"`
-	PersistedEventLogAlive bool            `json:"persistedEventLogAlive"`
-}
-
-type kiroHookState struct {
-	PreviousDefaultAgent string `json:"previous_default_agent,omitempty"`
-}
-
-type FilePreviewResponse struct {
-	Path        string    `json:"path"`
-	Name        string    `json:"name"`
-	ParentDir   string    `json:"parentDir"`
-	IsDir       bool      `json:"isDir"`
-	Size        int64     `json:"size"`
-	Mode        string    `json:"mode"`
-	ModTime     time.Time `json:"modTime"`
-	MimeType    string    `json:"mimeType,omitempty"`
-	PreviewType string    `json:"previewType"`
-	Language    string    `json:"language,omitempty"`
-	Content     string    `json:"content,omitempty"`
-	DataURL     string    `json:"dataUrl,omitempty"`
-	Truncated   bool      `json:"truncated,omitempty"`
-}
-
-// HookType distinguishes how the hook intercepts the agent CLI.
-// "native" = write into the agent CLI's own config file (preferred).
-// "wrapper" = install a shell alias that routes through agent-wrapper.
-type HookType string
-
+// ModelType constants (re-exported from core)
 const (
-	HookTypeNative  HookType = "native"
-	HookTypeWrapper HookType = "wrapper"
+	ModelRandomForest       = core.ModelRandomForest
+	ModelKNN                = core.ModelKNN
+	ModelLogisticRegression = core.ModelLogisticRegression
+	ModelNaiveBayes         = core.ModelNaiveBayes
+	ModelNearestCentroid    = core.ModelNearestCentroid
+	ModelExtraTrees         = core.ModelExtraTrees
+	ModelAdaBoost           = core.ModelAdaBoost
+	ModelSVM                = core.ModelSVM
+	ModelRidge              = core.ModelRidge
+	ModelPerceptron         = core.ModelPerceptron
+	ModelPassiveAggressive  = core.ModelPassiveAggressive
+	ModelEnsemble           = core.ModelEnsemble
+
+	ModelRandomForestFast    = core.ModelRandomForestFast
+	ModelRandomForestShallow = core.ModelRandomForestShallow
+	ModelRandomForestStable  = core.ModelRandomForestStable
+	ModelRandomForestDeep    = core.ModelRandomForestDeep
+	ModelRandomForestWide    = core.ModelRandomForestWide
+
+	ModelExtraTreesFast = core.ModelExtraTreesFast
+	ModelExtraTreesDeep = core.ModelExtraTreesDeep
+	ModelExtraTreesWide = core.ModelExtraTreesWide
+
+	ModelLogisticFast       = core.ModelLogisticFast
+	ModelLogisticNone       = core.ModelLogisticNone
+	ModelLogisticL1         = core.ModelLogisticL1
+	ModelLogisticBalanced   = core.ModelLogisticBalanced
+	ModelLogisticL1Balanced = core.ModelLogisticL1Balanced
+
+	ModelSVMLong     = core.ModelSVMLong
+	ModelSVMBalanced = core.ModelSVMBalanced
+
+	ModelPerceptronLong     = core.ModelPerceptronLong
+	ModelPerceptronBalanced = core.ModelPerceptronBalanced
+
+	ModelPassiveAggressiveLong     = core.ModelPassiveAggressiveLong
+	ModelPassiveAggressiveBalanced = core.ModelPassiveAggressiveBalanced
+
+	ModelKNNManhattan = core.ModelKNNManhattan
+	ModelKNNCosine    = core.ModelKNNCosine
+	ModelKNNDistance  = core.ModelKNNDistance
+
+	ModelNearestCentroidBalanced  = core.ModelNearestCentroidBalanced
+	ModelNearestCentroidCosine    = core.ModelNearestCentroidCosine
+	ModelNearestCentroidManhattan = core.ModelNearestCentroidManhattan
+
+	ModelNaiveBayesBalanced = core.ModelNaiveBayesBalanced
+
+	ModelEnsembleSoft    = core.ModelEnsembleSoft
+	ModelEnsembleHard    = core.ModelEnsembleHard
+	ModelEnsembleStacked = core.ModelEnsembleStacked
+
+	ModelRidgeLight  = core.ModelRidgeLight
+	ModelRidgeStrong = core.ModelRidgeStrong
+
+	ModelAdaBoostFast  = core.ModelAdaBoostFast
+	ModelAdaBoostLarge = core.ModelAdaBoostLarge
 )
 
-type ConfigFormat string
-
-const (
-	ConfigFormatJSON ConfigFormat = "json"
-	ConfigFormatTOML ConfigFormat = "toml"
-)
-
-type HookDef struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	TargetCmd   string   `json:"target_cmd"`
-	HookType    HookType `json:"hook_type"`
-	// NativeConfigPath is the path to the agent CLI's config file (for native hooks).
-	NativeConfigPath string `json:"-"`
-	// NativeFeatureConfigPath is an optional companion config file used to enable hook support.
-	NativeFeatureConfigPath string `json:"-"`
-	// NativeHookEvent is the event name for native hooks (e.g. "PreToolUse" or "BeforeTool").
-	NativeHookEvent string `json:"-"`
-	// NativeMatcher is an optional default matcher to inject for native hooks.
-	NativeMatcher string `json:"-"`
-	// ConfigFormat defines if the config is JSON or TOML.
-	ConfigFormat ConfigFormat `json:"-"`
-}
-
-var availableHooks = []HookDef{
-	{
-		ID: "claude", Name: "Claude Code", HookType: HookTypeNative,
-		Description:     "Uses Claude Code's built-in PreToolUse hook to intercept all tool calls (recommended)",
-		TargetCmd:       "claude",
-		NativeHookEvent: "PreToolUse",
-		ConfigFormat:    ConfigFormatJSON,
-	},
-	{
-		ID: "gemini", Name: "Gemini CLI", HookType: HookTypeNative,
-		Description:     "Uses Gemini CLI's native BeforeTool hook for high-performance interception",
-		TargetCmd:       "gemini",
-		NativeHookEvent: "BeforeTool",
-		ConfigFormat:    ConfigFormatJSON,
-	},
-	{
-		ID: "codex", Name: "Codex", HookType: HookTypeNative,
-		Description:     "Uses Codex's native hooks.json and enables codex_hooks in config.toml for Bash command monitoring",
-		TargetCmd:       "codex",
-		NativeHookEvent: "PreToolUse",
-		NativeMatcher:   "Bash",
-		ConfigFormat:    ConfigFormatJSON,
-	},
-	{
-		ID: "copilot", Name: "GitHub Copilot", HookType: HookTypeNative,
-		Description:     "Uses GitHub Copilot CLI's preToolUse hook for security inspection",
-		TargetCmd:       "gh",
-		NativeHookEvent: "preToolUse",
-		ConfigFormat:    ConfigFormatJSON,
-	},
-	{
-		ID: "kiro", Name: "Kiro CLI", HookType: HookTypeNative,
-		Description:     "Creates a managed Kiro agent derived from kiro_default and installs a native preToolUse hook for execute_bash",
-		TargetCmd:       "kiro-cli",
-		NativeHookEvent: "preToolUse",
-		NativeMatcher:   "execute_bash",
-		ConfigFormat:    ConfigFormatJSON,
-	},
-	{
-		ID: "augment", Name: "Augment (Auggie CLI)", HookType: HookTypeNative,
-		Description:     "Uses Auggie's native PreToolUse hook in ~/.augment/settings.json to intercept tool calls",
-		TargetCmd:       "auggie",
-		NativeHookEvent: "PreToolUse",
-		ConfigFormat:    ConfigFormatJSON,
-	},
-	{
-		ID: "antigravity", Name: "Antigravity CLI", HookType: HookTypeNative,
-		Description:     "Installs an Antigravity CLI plugin with hooks.json and a JSON-stdout aware relay for all tool calls",
-		TargetCmd:       "agy",
-		NativeHookEvent: "PreToolUse",
-		NativeMatcher:   "*",
-		ConfigFormat:    ConfigFormatJSON,
-	},
-	{
-		ID: "cursor", Name: "Cursor", HookType: HookTypeWrapper,
-		Description: "Intercepts cursor execution via shell alias wrapper",
-		TargetCmd:   "cursor",
-	},
-}
-
-type gpuInfo struct{ mem, gpu, util uint32 }
-
-type vmFaultCounters struct {
-	pageFaults  uint64
-	majorFaults uint64
-	swapIn      uint64
-	swapOut     uint64
-}
+// ── Global variables ─────────────────────────────────────────────────────────
 
 var (
 	trackerMaps trackerMapSet
@@ -235,3 +139,6 @@ func init() {
 		log.Printf("NVML Init failed: %v", nvml.ErrorString(ret))
 	}
 }
+
+// availableHooks is a local copy of core.AvailableHooks for path resolution.
+var availableHooks = core.AvailableHooks

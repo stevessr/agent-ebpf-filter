@@ -1,8 +1,8 @@
 import { ref, computed } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
-import { pb } from '../pb/tracker_pb.js';
-import type { WrapperRule, SecurityRulePreset, SyscallGroup, ExternalRuleSource } from '../types/config';
+import { pb } from '../../pb/tracker_pb.js';
+import type { WrapperRule, SecurityRulePreset, SyscallGroup, ExternalRuleSource } from '../../types/config';
 
 type CgroupSandboxActionResponse = Record<string, unknown> & {
   ip?: string;

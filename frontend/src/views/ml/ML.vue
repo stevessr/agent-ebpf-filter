@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { ThunderboltOutlined } from '@ant-design/icons-vue';
-import ConfigMLTab from '../components/config/ConfigMLTab.vue';
-import { useConfigML } from '../composables/useConfigML';
+import ConfigMLTab from '../../components/config/ConfigMLTab.vue';
+import { useConfigML } from '../../composables/config/useConfigML';
 
 const ml = useConfigML();
 const { fetchMLStatus, fetchAllSamples, fetchExistingCommandData } = ml;

@@ -4,9 +4,9 @@ import axios from "axios";
 import { message } from "ant-design-vue";
 import { LinkOutlined } from "@ant-design/icons-vue";
 
-import HookCard from "../components/hooks/HookCard.vue";
-import HookConfigModal from "../components/hooks/HookConfigModal.vue";
-import type { HookDef } from "../types/hooks";
+import HookCard from "../../components/hooks/HookCard.vue";
+import HookConfigModal from "../../components/hooks/HookConfigModal.vue";
+import type { HookDef } from "../../types/hooks";
 
 const hooks = ref<HookDef[]>([]);
 const loading = ref(false);

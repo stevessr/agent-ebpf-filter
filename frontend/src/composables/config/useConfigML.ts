@@ -6,9 +6,9 @@ import type {
   MLStatusState, MLLlmConfig, MLLlmBatchEntry, MLLlmBatchResponse,
   MLTrainingHistoryEntry, MLCommandSafetyResult,
   SampleEntry, MLBuiltinModelCatalogItem, MLCRuntimeStatus,
-} from '../types/config';
+} from '../../types/config';
 
-import { defaultMLBuiltinModelCatalog, findMLBuiltinModel } from '../data/mlModelCatalog';
+import { defaultMLBuiltinModelCatalog, findMLBuiltinModel } from '../../data/mlModelCatalog';
 import { safetyNetHighRiskPresets, classicSecurityDatasetPresets, syntheticExpansionPresets, highRiskPresets } from './mlPresets';
 import type { TrainingPreset } from './mlPresets';
 export { safetyNetHighRiskPresets, classicSecurityDatasetPresets, highRiskPresets, syntheticExpansionPresets } from './mlPresets';

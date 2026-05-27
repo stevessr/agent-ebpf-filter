@@ -6,20 +6,20 @@ import {
   DashboardOutlined, AppstoreOutlined,
   ApiOutlined,
 } from '@ant-design/icons-vue';
-import { useMonitorData } from '../composables/useMonitorData';
-import { useSensors } from '../composables/useSensors';
-import { useSystemd } from '../composables/useSystemd';
-import HealthCpu from '../components/monitor/HealthCpu.vue';
-import HealthMemory from '../components/monitor/HealthMemory.vue';
-import HealthIO from '../components/monitor/HealthIO.vue';
-import HealthFaults from '../components/monitor/HealthFaults.vue';
-import HealthGpu from '../components/monitor/HealthGpu.vue';
-import HealthProcMem from '../components/monitor/HealthProcMem.vue';
-import ProcessTable from '../components/monitor/ProcessTable.vue';
-import SystemdPanel from '../components/monitor/SystemdPanel.vue';
-import SensorsPanel from '../components/monitor/SensorsPanel.vue';
-import TracingPanel from '../components/monitor/TracingPanel.vue';
-import HistoryChartModal from '../components/monitor/HistoryChartModal.vue';
+import { useMonitorData } from '../../composables/monitor/useMonitorData';
+import { useSensors } from '../../composables/monitor/useSensors';
+import { useSystemd } from '../../composables/monitor/useSystemd';
+import HealthCpu from '../../components/monitor/HealthCpu.vue';
+import HealthMemory from '../../components/monitor/HealthMemory.vue';
+import HealthIO from '../../components/monitor/HealthIO.vue';
+import HealthFaults from '../../components/monitor/HealthFaults.vue';
+import HealthGpu from '../../components/monitor/HealthGpu.vue';
+import HealthProcMem from '../../components/monitor/HealthProcMem.vue';
+import ProcessTable from '../../components/monitor/ProcessTable.vue';
+import SystemdPanel from '../../components/monitor/SystemdPanel.vue';
+import SensorsPanel from '../../components/monitor/SensorsPanel.vue';
+import TracingPanel from '../../components/monitor/TracingPanel.vue';
+import HistoryChartModal from '../../components/monitor/HistoryChartModal.vue';
 
 // ── Composable instances ──
 const {

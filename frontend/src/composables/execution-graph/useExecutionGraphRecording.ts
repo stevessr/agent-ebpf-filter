@@ -2,7 +2,7 @@ import { ref, type Ref } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
 
-import type { ExecutionGraphFilterState, ExecutionGraphResponse } from '../types/executionGraph';
+import type { ExecutionGraphFilterState, ExecutionGraphResponse } from '../../types/executionGraph';
 
 export type GraphState = ExecutionGraphResponse & { nodes: any[]; edges: any[] };
 export type BrowserGraphSnapshot = { recordedAt: string; graph: GraphState };

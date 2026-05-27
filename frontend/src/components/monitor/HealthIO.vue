@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { DatabaseOutlined } from '@ant-design/icons-vue';
-import type { GlobalStats, StatsHistory, IOSpeed } from '../../composables/useMonitorData';
+import type { GlobalStats, StatsHistory, IOSpeed } from '../../composables/monitor/useMonitorData';
 
 const props = defineProps<{
   systemStats: GlobalStats;

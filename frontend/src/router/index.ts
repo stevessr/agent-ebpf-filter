@@ -8,62 +8,62 @@ const routes = [
   {
     path: '/dashboard/:tab?',
     name: 'Dashboard',
-    component: () => import('../views/Dashboard.vue'),
+    component: () => import('../views/dashboard/Dashboard.vue'),
   },
   {
     path: '/monitor/:tab?/:subtab?',
     name: 'Monitor',
-    component: () => import('../views/Monitor.vue'),
+    component: () => import('../views/monitor/Monitor.vue'),
   },
   {
     path: '/network',
     name: 'Network',
-    component: () => import('../views/Network.vue'),
+    component: () => import('../views/network/Network.vue'),
   },
   {
     path: '/network-flow/:tab?',
     name: 'NetworkFlow',
-    component: () => import('../views/NetworkFlow.vue'),
+    component: () => import('../views/network/NetworkFlow.vue'),
   },
   {
     path: '/tls-capture',
     name: 'TLSCapture',
-    component: () => import('../views/TLSCapture.vue'),
+    component: () => import('../views/network/TLSCapture.vue'),
   },
   {
     path: '/agentsight/:tab?',
     name: 'AgentSight',
-    component: () => import('../views/AgentSight.vue'),
+    component: () => import('../views/agentsight/AgentSight.vue'),
   },
   {
     path: '/execution-graph',
     name: 'ExecutionGraph',
-    component: () => import('../views/ExecutionGraph.vue'),
+    component: () => import('../views/execution-graph/ExecutionGraph.vue'),
   },
   {
     path: '/explorer',
     name: 'Explorer',
-    component: () => import('../views/Explorer.vue'),
+    component: () => import('../views/explorer/Explorer.vue'),
   },
   {
     path: '/executor/:tab?',
     name: 'Executor',
-    component: () => import('../views/Executor.vue'),
+    component: () => import('../views/executor/Executor.vue'),
   },
   {
     path: '/hooks',
     name: 'Hooks',
-    component: () => import('../views/Hooks.vue'),
+    component: () => import('../views/hooks/Hooks.vue'),
   },
   {
     path: '/ml/:subtab?',
     name: 'ML',
-    component: () => import('../views/ML.vue'),
+    component: () => import('../views/ml/ML.vue'),
   },
   {
     path: '/plugins/:tab?',
     name: 'Plugins',
-    component: () => import('../views/Plugins.vue'),
+    component: () => import('../views/plugins/Plugins.vue'),
   },
   {
     path: '/config/ml/:subtab?',
@@ -75,7 +75,7 @@ const routes = [
   {
     path: '/config/:tab?/:subtab?/:subsubtab?',
     name: 'Config',
-    component: () => import('../views/Config.vue'),
+    component: () => import('../views/config/Config.vue'),
   },
 ];
 

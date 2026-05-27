@@ -3,7 +3,7 @@ import axios from 'axios';
 import { message } from 'ant-design-vue';
 import {
   setStoredApiToken,
-} from '../utils/requestContext';
+} from '../../utils/requestContext';
 import type {
   RuntimeSettings,
   RuntimeConfigResponse,
@@ -13,7 +13,7 @@ import type {
   DomainForwardProxySettings,
   DomainForwardProxyStatus,
   TracepointBootstrapStatus,
-} from '../types/config';
+} from '../../types/config';
 
 interface EditableHeaderRow {
   id: string;

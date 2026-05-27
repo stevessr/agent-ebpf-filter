@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ClusterOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
-import { useAgentSightI18n } from '../composables/useAgentSightI18n';
+import { useAgentSightI18n } from '../../composables/agentsight/useAgentSightI18n';
 import {
   formatAgentSightTime,
   recordComm,
@@ -15,7 +15,7 @@ import {
   recordTitle,
   recordTraceID,
   useAgentSightEvents,
-} from '../composables/useAgentSightEvents';
+} from '../../composables/agentsight/useAgentSightEvents';
 
 const route = useRoute();
 const router = useRouter();

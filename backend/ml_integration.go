@@ -5,70 +5,13 @@ import (
 	"strings"
 	"time"
 
+	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
 )
 
-// MLConfig holds configuration for the ML behavior classifier
-type MLConfig struct {
-	Enabled                  bool      `json:"enabled"`
-	ModelType                ModelType `json:"modelType"`
-	ModelPath                string    `json:"modelPath"`
-	AutoTrain                bool      `json:"autoTrain"`
-	TrainInterval            string    `json:"trainInterval"`
-	MinSamplesForTraining    int       `json:"minSamplesForTraining"`
-	BlockConfidenceThreshold float64   `json:"blockConfidenceThreshold"`
-	MlMinConfidence          float64   `json:"mlMinConfidence"`
-	LowAnomalyThreshold      float64   `json:"lowAnomalyThreshold"`
-	HighAnomalyThreshold     float64   `json:"highAnomalyThreshold"`
-	RuleOverridePriority     int       `json:"ruleOverridePriority"`
-	ActiveLearningEnabled    bool      `json:"activeLearningEnabled"`
-	FeatureHistorySize       int       `json:"featureHistorySize"`
-	NumTrees                 int       `json:"numTrees"`
-	MaxDepth                 int       `json:"maxDepth"`
-	MinSamplesLeaf           int       `json:"minSamplesLeaf"`
-	ValidationSplitRatio     float64   `json:"validationSplitRatio"`
-	BalanceClasses           bool      `json:"balanceClasses"`
-	LlmEnabled               bool      `json:"llmEnabled"`
-	LlmBaseURL               string    `json:"llmBaseUrl"`
-	LlmAPIKey                string    `json:"llmApiKey,omitempty"`
-	LlmModel                 string    `json:"llmModel"`
-	LlmTimeoutSeconds        int       `json:"llmTimeoutSeconds"`
-	LlmTemperature           float64   `json:"llmTemperature"`
-	LlmMaxTokens             int       `json:"llmMaxTokens"`
-	LlmSystemPrompt          string    `json:"llmSystemPrompt"`
-}
-
-// DefaultMLConfig returns sensible defaults
-func DefaultMLConfig() MLConfig {
-	return MLConfig{
-		Enabled:                  true,
-		ModelType:                ModelRandomForest,
-		ModelPath:                "",
-		AutoTrain:                true,
-		TrainInterval:            "24h",
-		MinSamplesForTraining:    1000,
-		BlockConfidenceThreshold: 0.85,
-		MlMinConfidence:          0.60,
-		LowAnomalyThreshold:      0.30,
-		HighAnomalyThreshold:     0.70,
-		RuleOverridePriority:     100,
-		ActiveLearningEnabled:    false,
-		FeatureHistorySize:       100,
-		NumTrees:                 31,
-		MaxDepth:                 8,
-		MinSamplesLeaf:           5,
-		ValidationSplitRatio:     0.20,
-		BalanceClasses:           false,
-		LlmEnabled:               false,
-		LlmBaseURL:               "",
-		LlmAPIKey:                "",
-		LlmModel:                 "",
-		LlmTimeoutSeconds:        45,
-		LlmTemperature:           0.0,
-		LlmMaxTokens:             256,
-		LlmSystemPrompt:          "",
-	}
-}
+// DefaultMLConfig re-exports the core default configuration.
+// The canonical MLConfig type lives in the core package.
+var DefaultMLConfig = core.DefaultMLConfig
 
 // Global ML state
 var (

@@ -1,0 +1,298 @@
+import type * as d3 from 'd3';
+import type { ExecutionGraphEdge, ExecutionGraphNode } from '../../types/executionGraph';
+import {
+  activityEdgeKinds,
+  processDisplayLabel,
+  processSortValue,
+  processTreeEdgeKinds,
+} from './useExecutionGraphHelpers';
+
+export interface ForceNode extends d3.SimulationNodeDatum, ExecutionGraphNode {}
+export interface ForceLink extends d3.SimulationLinkDatum<ForceNode> {
+  id: string;
+  kind: string;
+  label?: string;
+  source: string | ForceNode;
+  target: string | ForceNode;
+}
+
+export interface DisplayGraph {
+  nodes: ExecutionGraphNode[];
+  edges: ExecutionGraphEdge[];
+}
+
+/**
+ * Build the aggregated display graph from raw nodes and edges.
+ * Groups events by process and type, merges duplicate edges.
+ */
+export const buildDisplayGraph = (
+  rawNodes: ExecutionGraphNode[],
+  rawEdges: ExecutionGraphEdge[],
+): DisplayGraph => {
+  const sourceNodes = new Map(rawNodes.map((node) => [node.id, node]));
+  const eventToProcess = new Map<string, string>();
+  rawEdges.forEach((edge) => {
+    if (!activityEdgeKinds.has(edge.kind)) return;
+    const source = sourceNodes.get(edge.source);
+    const target = sourceNodes.get(edge.target);
+    if (source?.kind === 'process' && target && target.kind !== 'process')
+      eventToProcess.set(target.id, source.id);
+  });
+
+  const aggregateByKey = new Map<
+    string,
+    { node: ExecutionGraphNode; eventIds: string[]; sourceIds: string[] }
+  >();
+  const aggregateIdByEventId = new Map<string, string>();
+  const processToAggregateIds = new Map<string, string[]>();
+  rawNodes.forEach((node) => {
+    const processId = eventToProcess.get(node.id);
+    if (!processId) return;
+    const processNode = sourceNodes.get(processId);
+    const pLabel = processDisplayLabel(processNode);
+    const eventType = node.metadata?.type || node.label || node.kind;
+    const key = `${processId}${node.kind}${eventType}`;
+    const existing = aggregateByKey.get(key);
+    if (existing) {
+      existing.eventIds.push(node.id);
+      existing.sourceIds.push(node.id);
+      existing.node.riskScore = Math.max(existing.node.riskScore ?? 0, node.riskScore ?? 0);
+      return;
+    }
+    const aggregateId = `agg:${processId}:${node.kind}:${eventType}`;
+    const ids = processToAggregateIds.get(processId) ?? [];
+    ids.push(aggregateId);
+    processToAggregateIds.set(processId, ids);
+    aggregateByKey.set(key, {
+      eventIds: [node.id],
+      sourceIds: [node.id],
+      node: {
+        ...node,
+        id: aggregateId,
+        label: pLabel ? `${pLabel} · ${eventType}` : eventType,
+        subtitle: [pLabel, node.subtitle].filter(Boolean).join(' · '),
+        metadata: {
+          ...(node.metadata ?? {}),
+          sourceNodeId: node.id,
+          eventCount: '1',
+        },
+      },
+    });
+    aggregateIdByEventId.set(node.id, aggregateId);
+  });
+
+  aggregateByKey.forEach(({ node, eventIds, sourceIds }) => {
+    eventIds.forEach((id) => aggregateIdByEventId.set(id, node.id));
+    if (eventIds.length <= 1) return;
+    node.label = `${node.label} ×${eventIds.length}`;
+    node.subtitle = `${node.subtitle || 'events'} · ${eventIds.length} events`;
+    node.metadata = {
+      ...(node.metadata ?? {}),
+      sourceNodeId: sourceIds[0],
+      eventCount: String(eventIds.length),
+    };
+  });
+
+  const displayNodes = rawNodes
+    .filter((node) => node.kind !== 'process')
+    .filter((node) => !aggregateIdByEventId.has(node.id))
+    .concat([...aggregateByKey.values()].map((item) => item.node));
+  const displayNodeIds = new Set(displayNodes.map((node) => node.id));
+  const edgeById = new Map<string, ExecutionGraphEdge>();
+
+  const representativeForProcess = (processId: string) =>
+    processToAggregateIds.get(processId)?.[0] ?? '';
+
+  rawEdges.forEach((edge) => {
+    const rawSource =
+      aggregateIdByEventId.get(edge.source) ??
+      (sourceNodes.get(edge.source)?.kind === 'process'
+        ? representativeForProcess(edge.source)
+        : edge.source);
+    const rawTarget =
+      aggregateIdByEventId.get(edge.target) ??
+      (sourceNodes.get(edge.target)?.kind === 'process'
+        ? representativeForProcess(edge.target)
+        : edge.target);
+    const source = rawSource;
+    const target = rawTarget;
+    if (!source || !target || source === target) return;
+    if (!displayNodeIds.has(source) || !displayNodeIds.has(target)) return;
+    const id = `${source}->${target}:${edge.kind}`;
+    if (!edgeById.has(id)) {
+      edgeById.set(id, { ...edge, id, source, target });
+    }
+  });
+
+  return { nodes: displayNodes, edges: [...edgeById.values()] };
+};
+
+/**
+ * Build force simulation nodes, reusing existing positions when available.
+ */
+export const buildForceNodes = (
+  displayNodes: ExecutionGraphNode[],
+  displayEdges: ExecutionGraphEdge[],
+  existingNodes: ForceNode[],
+  width: number,
+  height: number,
+): ForceNode[] => {
+  const existingById = new Map(existingNodes.map((node) => [node.id, node]));
+  return displayNodes.map((node) => {
+    const existing = existingById.get(node.id);
+    if (existing) {
+      Object.assign(existing, node);
+      return existing;
+    }
+    const relatedEdge = displayEdges.find(
+      (edge) => edge.source === node.id || edge.target === node.id,
+    );
+    const relatedId =
+      relatedEdge?.source === node.id ? relatedEdge.target : relatedEdge?.source;
+    const relatedNode = relatedId ? existingById.get(relatedId) : undefined;
+    return {
+      ...node,
+      x: relatedNode?.x ?? width / 2 + (Math.random() - 0.5) * 80,
+      y: relatedNode?.y ?? height / 2 + (Math.random() - 0.5) * 80,
+    } as ForceNode;
+  });
+};
+
+/**
+ * Apply hierarchical tree layout to process nodes based on parent-child links.
+ */
+export const applyProcessTreeLayout = (
+  nodes: ForceNode[],
+  links: ForceLink[],
+  width: number,
+  height: number,
+) => {
+  nodes.forEach((node) => {
+    node.fx = null;
+    node.fy = null;
+  });
+
+  const processLinks = links.filter((link) =>
+    processTreeEdgeKinds.has(link.kind),
+  );
+  if (!processLinks.length) return;
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const processNodeIds = new Set(
+    nodes.filter((node) => node.kind === 'process').map((node) => node.id),
+  );
+  const children = new Map<string, string[]>();
+  const incoming = new Set<string>();
+  processLinks.forEach((link) => {
+    const source = String(link.source);
+    const target = String(link.target);
+    if (!processNodeIds.has(source) || !processNodeIds.has(target) || source === target)
+      return;
+    const list = children.get(source) ?? [];
+    if (!list.includes(target)) list.push(target);
+    children.set(source, list);
+    incoming.add(target);
+  });
+
+  children.forEach((ids) => {
+    ids.sort(
+      (left, right) =>
+        processSortValue(nodeById.get(left) as ForceNode | undefined) -
+          processSortValue(nodeById.get(right) as ForceNode | undefined) ||
+        left.localeCompare(right),
+    );
+  });
+
+  const roots = [...processNodeIds]
+    .filter((id) => !incoming.has(id))
+    .sort(
+      (left, right) =>
+        processSortValue(nodeById.get(left) as ForceNode | undefined) -
+          processSortValue(nodeById.get(right) as ForceNode | undefined) ||
+        left.localeCompare(right),
+    );
+  if (!roots.length && processNodeIds.size) roots.push([...processNodeIds][0]);
+
+  const levels = new Map<string, number>();
+  const ySlots = new Map<string, number>();
+  const visited = new Set<string>();
+  let nextSlot = 0;
+
+  const assignSubtree = (id: string, level: number): number => {
+    if (visited.has(id)) return ySlots.get(id) ?? nextSlot;
+    visited.add(id);
+    levels.set(id, level);
+
+    const childSlots = (children.get(id) ?? [])
+      .filter((child) => processNodeIds.has(child))
+      .map((child) => assignSubtree(child, level + 1));
+
+    if (!childSlots.length) {
+      const slot = nextSlot;
+      nextSlot += 1;
+      ySlots.set(id, slot);
+      return slot;
+    }
+
+    const slot = (Math.min(...childSlots) + Math.max(...childSlots)) / 2;
+    ySlots.set(id, slot);
+    return slot;
+  };
+
+  roots.forEach((root) => assignSubtree(root, 0));
+  [...processNodeIds]
+    .filter((id) => !visited.has(id))
+    .sort(
+      (left, right) =>
+        processSortValue(nodeById.get(left) as ForceNode | undefined) -
+          processSortValue(nodeById.get(right) as ForceNode | undefined) ||
+        left.localeCompare(right),
+    )
+    .forEach((id) => assignSubtree(id, 0));
+
+  const maxLevel = Math.max(0, ...levels.values());
+  const leftPadding = 96;
+  const rightPadding = 180;
+  const topPadding = 72;
+  const bottomPadding = 72;
+  const levelGap = Math.max(
+    150,
+    Math.min(260, (width - leftPadding - rightPadding) / Math.max(1, maxLevel)),
+  );
+  const slotCount = Math.max(1, nextSlot);
+  const rowGap = Math.max(
+    64,
+    Math.min(128, (height - topPadding - bottomPadding) / Math.max(1, slotCount - 1)),
+  );
+  const totalTreeHeight = (slotCount - 1) * rowGap;
+  const verticalOffset = Math.max(topPadding, (height - totalTreeHeight) / 2);
+
+  processNodeIds.forEach((id) => {
+    const node = nodeById.get(id);
+    const level = levels.get(id);
+    const slot = ySlots.get(id);
+    if (!node || level === undefined || slot === undefined) return;
+    node.fx = leftPadding + level * levelGap;
+    node.fy = verticalOffset + slot * rowGap;
+  });
+};
+
+/**
+ * Create a string key that captures the current topology for change detection.
+ */
+export const createTopologyKey = (
+  height: number,
+  displayGraph: DisplayGraph,
+) =>
+  [
+    height,
+    displayGraph.nodes
+      .map((node) => `${node.id}:${node.kind}:${node.label}:${node.subtitle ?? ''}`)
+      .join(''),
+    displayGraph.edges
+      .map(
+        (edge) =>
+          `${edge.id}:${edge.source}:${edge.target}:${edge.kind}:${edge.label ?? ''}`,
+      )
+      .join(''),
+  ].join('');

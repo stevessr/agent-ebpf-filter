@@ -3,7 +3,7 @@ import {
   PlusOutlined, SettingOutlined, EditOutlined, CopyOutlined,
   DeleteOutlined, ReloadOutlined,
 } from '@ant-design/icons-vue';
-import { useLaunchEnv } from '../composables/useLaunchEnv';
+import { useLaunchEnv } from '../../composables/executor/useLaunchEnv';
 
 const {
   profiles, activeProfileId, activeProfile,

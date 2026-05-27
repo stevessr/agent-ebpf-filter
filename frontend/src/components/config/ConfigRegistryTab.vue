@@ -5,7 +5,7 @@ import {
   ExportOutlined, ImportOutlined, PlusOutlined,
 } from '@ant-design/icons-vue';
 import PathNavigatorDrawer from '../PathNavigatorDrawer.vue';
-import { getCategoryColor, type useConfigRegistry } from '../../composables/useConfigRegistry';
+import { getCategoryColor, type useConfigRegistry } from '../../composables/config/useConfigRegistry';
 
 const props = defineProps<{
   registry: ReturnType<typeof useConfigRegistry>;

@@ -1,4 +1,4 @@
-import type { PluginAttachKind } from "../../composables/usePlugins";
+import type { PluginAttachKind } from "../../composables/plugins/usePlugins";
 import type { VisualTrigger } from "./types";
 
 export const VISUAL_PROGRAM_NAME = "visual_custom_plugin";

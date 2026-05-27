@@ -7,7 +7,7 @@ import {
   h,
 } from "vue";
 import { message, Modal } from "ant-design-vue";
-import { usePlugins } from "../../composables/usePlugins";
+import { usePlugins } from "../../composables/plugins/usePlugins";
 
 import PluginsVisualAiPanel from "./PluginsVisualAiPanel.vue";
 import PluginsVisualFlowCanvas from "./PluginsVisualFlowCanvas.vue";

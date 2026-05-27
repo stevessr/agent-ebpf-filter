@@ -2,8 +2,8 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
 
-import { pb } from '../pb/tracker_pb.js';
-import { buildWebSocketUrl } from '../utils/requestContext';
+import { pb } from '../../pb/tracker_pb.js';
+import { buildWebSocketUrl } from '../../utils/requestContext';
 
 export interface AgentSightEventRecord {
   Event?: Record<string, any>;

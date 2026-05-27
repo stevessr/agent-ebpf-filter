@@ -1,4 +1,4 @@
-import type { ClassicSecurityDatasetPreset } from '../types/config';
+import type { ClassicSecurityDatasetPreset } from '../../types/config';
 
 export type TrainingPreset = {
   comm: string;

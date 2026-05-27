@@ -11,6 +11,46 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type llmBatchScoreRequest struct {
+	Source        string `json:"source"`
+	Limit         int    `json:"limit"`
+	OnlyUnlabeled bool   `json:"onlyUnlabeled"`
+	ApplyLabels   bool   `json:"applyLabels"`
+}
+
+type llmBatchScoreResponse struct {
+	Source               string               `json:"source"`
+	Model                string               `json:"model"`
+	Total                int                  `json:"total"`
+	Scored               int                  `json:"scored"`
+	Applied              int                  `json:"applied"`
+	Skipped              int                  `json:"skipped"`
+	AverageRiskScore     float64              `json:"averageRiskScore"`
+	Agreement            float64              `json:"agreement"`
+	ValidationSplitRatio float64              `json:"validationSplitRatio"`
+	Review               *LLMReviewSummary    `json:"review,omitempty"`
+	Entries              []llmBatchScoreEntry  `json:"entries"`
+}
+
+type llmScoreSubject struct {
+	Index  int
+	Sample TrainingSample
+}
+
+type llmBatchScoreEntry struct {
+	Index             int      `json:"index"`
+	CommandLine       string   `json:"commandLine"`
+	Comm              string   `json:"comm"`
+	Args              []string `json:"args"`
+	CurrentLabel      string   `json:"currentLabel"`
+	RiskScore         float64  `json:"riskScore,omitempty"`
+	Confidence        float64  `json:"confidence,omitempty"`
+	RecommendedAction string   `json:"recommendedAction,omitempty"`
+	Reasoning         string   `json:"reasoning,omitempty"`
+	Error             string   `json:"error,omitempty"`
+	Applied           bool     `json:"applied,omitempty"`
+}
+
 func handleMLLLMBatchScorePost(c *gin.Context) {
 	req, ok := bindLLMBatchScoreRequest(c)
 	if !ok {

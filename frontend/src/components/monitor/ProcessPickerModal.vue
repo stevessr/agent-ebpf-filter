@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { ProcessInfo } from '../composables/useMonitorData';
+import type { ProcessInfo } from '../../composables/monitor/useMonitorData';
 
 type ProcessRow = ProcessInfo & {
   key: number;

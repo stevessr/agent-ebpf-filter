@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { EyeOutlined, FilterOutlined, FolderOpenOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
+import { EyeOutlined, FolderOpenOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
 
-import FilePreviewDrawer from '../components/FilePreviewDrawer.vue';
-import { useDashboard } from '../composables/useDashboard';
+import FilePreviewDrawer from '../../components/explorer/FilePreviewDrawer.vue';
+import DashboardToolbar from '../../components/dashboard/DashboardToolbar.vue';
+import DashboardEventModal from '../../components/dashboard/DashboardEventModal.vue';
+import { useDashboard } from '../../composables/dashboard/useDashboard';
 
 const {
   events,
@@ -81,79 +83,31 @@ void tableWrapperRef;
     >
       <a-tab-pane v-for="tab in categoryTabs" :key="tab.key" :tab="tab.label" />
     </a-tabs>
-    <div class="dashboard-toolbar">
-      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; width: 100%;">
-        <div style="display: flex; align-items: center; gap: 16px;">
-          <a-badge :status="isConnected ? 'success' : 'error'" :text="isConnected ? 'Connected' : 'Disconnected'" />
-          <span style="font-weight: 500;">Total Events: {{ events.length }}</span>
-          <a-divider type="vertical" />
-          <a-button @click="isPaused = !isPaused" :type="isPaused ? 'primary' : 'default'" size="small" danger>
-            {{ isPaused ? 'Resume Stream' : 'Pause Stream' }}
-          </a-button>
-          <a-button type="primary" danger size="small" @click="clearEvents">Clear Events</a-button>
-          <a-select
-            v-model:value="streamDirection"
-            size="small"
-            style="width: 150px;"
-          >
-            <a-select-option value="top">Newest First</a-select-option>
-            <a-select-option value="bottom">Log Flow ↓</a-select-option>
-          </a-select>
-          <a-checkbox v-model:checked="showAllRows">
-            <span style="font-size: 12px;">No Page Limit</span>
-          </a-checkbox>
-          <a-checkbox v-model:checked="hideUnknown" size="small">
-            <span style="font-size: 12px;">Hide Unknown</span>
-          </a-checkbox>
-          <a-checkbox v-model:checked="isDeduplicated" size="small">
-            <span style="font-size: 12px;">Clean Duplicates</span>
-          </a-checkbox>
-          <a-popover trigger="click" placement="bottomLeft" :arrow="false">
-            <template #content>
-              <div class="builtin-filter-popover">
-                <div class="builtin-filter-popover-title">Built-in Filters</div>
-                <div class="builtin-filter-popover-summary">{{ builtinFilterSummary }}</div>
-                <a-space direction="vertical" :size="4" style="width: 100%;">
-                  <a-checkbox
-                    v-for="rule in builtinFilterRules"
-                    :key="rule.id"
-                    v-model:checked="builtinFilterState[rule.id]"
-                  >
-                    {{ rule.label }}
-                  </a-checkbox>
-                </a-space>
-                <div class="builtin-filter-popover-actions">
-                  <a-button size="small" @click="setBuiltinFiltersEnabled(true)">Enable All</a-button>
-                  <a-button size="small" @click="setBuiltinFiltersEnabled(false)">Disable All</a-button>
-                </div>
-              </div>
-            </template>
-            <a-tag
-              color="blue"
-              style="cursor: pointer;"
-              :title="builtinFilterSummary"
-            >
-              Built-in Filters
-            </a-tag>
-          </a-popover>
-        </div>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <span style="font-size: 12px; color: #888;">Max:</span>
-          <a-select v-model:value="maxEvents" size="small" style="width: 80px">
-            <a-select-option v-for="opt in maxEventsOptions" :key="opt" :value="Number(opt)">{{ opt }}</a-select-option>
-          </a-select>
-          <a-dropdown>
-            <template #overlay>
-              <a-menu>
-                <a-menu-item key="json" @click="exportEvents">JSON Format</a-menu-item>
-                <a-menu-item key="csv" @click="exportEventsCSV">CSV Format</a-menu-item>
-              </a-menu>
-            </template>
-            <a-button size="small">Export Data</a-button>
-          </a-dropdown>
-        </div>
-      </div>
-    </div>
+
+    <DashboardToolbar
+      :is-connected="isConnected"
+      :events-length="events.length"
+      :is-paused="isPaused"
+      :stream-direction="streamDirection"
+      :show-all-rows="showAllRows"
+      :hide-unknown="hideUnknown"
+      :is-deduplicated="isDeduplicated"
+      :max-events="maxEvents"
+      :max-events-options="maxEventsOptions"
+      :builtin-filter-summary="builtinFilterSummary"
+      :builtin-filter-rules="builtinFilterRules"
+      :builtin-filter-state="builtinFilterState"
+      :set-builtin-filters-enabled="setBuiltinFiltersEnabled"
+      :export-events="exportEvents"
+      :export-events-csv="exportEventsCSV"
+      :clear-events="clearEvents"
+      @update:is-paused="isPaused = $event"
+      @update:stream-direction="streamDirection = $event"
+      @update:show-all-rows="showAllRows = $event"
+      @update:hide-unknown="hideUnknown = $event"
+      @update:is-deduplicated="isDeduplicated = $event"
+      @update:max-events="maxEvents = $event"
+    />
 
     <div v-if="activeTab === 'network'" class="net-dir-bar">
       <span style="font-weight: 600; margin-right: 8px; color: #555;">Direction:</span>
@@ -347,92 +301,18 @@ void tableWrapperRef;
       </a-table>
     </div>
 
-    <a-modal v-model:open="showDetails" title="Event Details" :footer="null" width="600px">
-      <a-descriptions bordered :column="1" size="small" v-if="selectedEvent">
-        <a-descriptions-item label="Time">{{ selectedEvent.time }}</a-descriptions-item>
-        <a-descriptions-item v-if="selectedTraceSummary" label="Trace Summary">
-          <a-typography-text code style="word-break: break-all;">{{ selectedTraceSummary }}</a-typography-text>
-        </a-descriptions-item>
-        <a-descriptions-item label="Event Type">
-          <a-tag :color="getTagColor(selectedEvent.eventType, selectedEvent.type)">{{ selectedEvent.type.toUpperCase() }}</a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item label="Tag">
-          <a-tag :color="getCategoryColor(selectedEvent.tag)">{{ selectedEvent.tag }}</a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item label="Command"><a-typography-text strong>{{ selectedEvent.comm }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="PID"><code>{{ formatDetailValue(selectedEvent.pid) }}</code></a-descriptions-item>
-        <a-descriptions-item label="Parent PID (PPID)"><code>{{ formatDetailValue(selectedEvent.ppid) }}</code></a-descriptions-item>
-        <a-descriptions-item label="User ID (UID)"><code>{{ formatDetailValue(selectedEvent.uid) }}</code></a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.netDirection" label="Network Direction">
-          <a-tag color="blue">{{ selectedEvent.netDirection }}</a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.netEndpoint" label="Network Endpoint">
-          <a-typography-text code style="word-break: break-all;">{{ selectedEvent.netEndpoint }}</a-typography-text>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.netFamily" label="Network Family">
-          <a-tag color="purple">{{ selectedEvent.netFamily }}</a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.netBytes !== undefined" label="Network Bytes">
-          <a-typography-text code>{{ selectedEvent.netBytes }}</a-typography-text>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.retval !== undefined" label="Return Value">
-          <a-typography-text :type="selectedEvent.retval < 0 ? 'danger' : undefined" code>{{ selectedEvent.retval }}</a-typography-text>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="(selectedEvent.occurrenceCount ?? 1) > 1" label="Occurrences">
-          <a-tag color="blue">×{{ selectedEvent.occurrenceCount ?? 1 }}</a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.extraInfo" label="Extra Info">
-          <a-typography-text code>{{ selectedEvent.extraInfo }}</a-typography-text>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.extraPath" label="Extra Path">
-          <code style="word-break: break-all;">{{ selectedEvent.extraPath }}</code>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.bytes !== undefined" label="Bytes">
-          <a-typography-text code>{{ selectedEvent.bytes }}</a-typography-text>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.mode" label="Mode">
-          <a-typography-text code>{{ selectedEvent.mode }}</a-typography-text>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.domain" label="Domain">
-          <a-tag>{{ selectedEvent.domain }}</a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.sockType" label="Socket Type">
-          <a-tag>{{ selectedEvent.sockType }}</a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.protocol !== undefined" label="Protocol">
-          <a-typography-text code>{{ selectedEvent.protocol }}</a-typography-text>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.uidArg !== undefined" label="Chown UID">
-          <a-typography-text code>{{ selectedEvent.uidArg }}</a-typography-text>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.gidArg !== undefined" label="Chown GID">
-          <a-typography-text code>{{ selectedEvent.gidArg }}</a-typography-text>
-        </a-descriptions-item>
-        <a-descriptions-item label="Resource Path / Info">
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <code style="word-break: break-all;">{{ formatDetailValue(selectedEvent.path) }}</code>
-            <a-button
-              v-if="canInteractWithPath(selectedEvent)"
-              type="link"
-              size="small"
-              @click="previewRecordPath(selectedEvent)"
-            >
-              <template #icon><EyeOutlined /></template>
-              Preview
-            </a-button>
-            <a-button
-              v-if="canInteractWithPath(selectedEvent)"
-              type="link"
-              size="small"
-              @click="openInExplorer(selectedEvent)"
-            >
-              <template #icon><FolderOpenOutlined /></template>
-              Open in Explorer
-            </a-button>
-          </div>
-        </a-descriptions-item>
-      </a-descriptions>
-    </a-modal>
+    <DashboardEventModal
+      :show-details="showDetails"
+      :selected-event="selectedEvent"
+      :selected-trace-summary="selectedTraceSummary"
+      :get-tag-color="getTagColor"
+      :get-category-color="getCategoryColor"
+      :format-detail-value="formatDetailValue"
+      :can-interact-with-path="canInteractWithPath"
+      :preview-record-path="previewRecordPath"
+      :open-in-explorer="openInExplorer"
+      @update:show-details="showDetails = $event"
+    />
 
     <FilePreviewDrawer
       v-model:open="showPreview"
@@ -461,49 +341,6 @@ void tableWrapperRef;
 
 .dashboard-tabs {
   margin-bottom: 4px;
-}
-
-.dashboard-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  border: 1px solid #d9e4d1;
-  border-radius: 6px;
-  padding: 12px 14px;
-  background: #f8fcf6;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
-}
-
-.dashboard-toolbar {
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.builtin-filter-popover {
-  min-width: 220px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.builtin-filter-popover-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.builtin-filter-popover-summary {
-  font-size: 12px;
-  color: #6b7280;
-  line-height: 1.4;
-}
-
-.builtin-filter-popover-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
 }
 
 .excel-table {

@@ -1,7 +1,7 @@
 import { ref, computed, watch } from 'vue';
 import axios from 'axios';
-import { buildWebSocketUrl } from '../utils/requestContext';
-import { pb } from '../pb/tracker_pb.js';
+import { buildWebSocketUrl } from '../../utils/requestContext';
+import { pb } from '../../pb/tracker_pb.js';
 
 export function useSensors() {
   // Sensor state

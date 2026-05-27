@@ -3,7 +3,7 @@ import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
 
-import { canPreviewEventPath, type FilePreviewResponse } from '../types/filePreview';
+import { canPreviewEventPath, type FilePreviewResponse } from '../../types/filePreview';
 import { minColumnWidths, pageSizeOptions, eventTypeLabelMap, selectableEventTypes, eventCategories, categoryTabs, syscallCatLabels, syscallCatColors, parseSyscallNr, syscallCategory, syscallDisplayName, builtinFilterRules, baseColumns, type AgentEvent, type BuiltinFilterRule } from './dashboardConstants';
 import { getTagColor, getCategoryColor, formatTraceSummary } from './dashboardHelpers';
 import { useDashboardStream } from './useDashboardStream';

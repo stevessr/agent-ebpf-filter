@@ -1,13 +1,13 @@
 import { computed, type Ref } from "vue";
 import type { Router } from "vue-router";
 
-import type { ProcessInfo } from "../composables/useMonitorData";
+import type { ProcessInfo } from "../monitor/useMonitorData";
 import type {
   ExecutionGraphEdge,
   ExecutionGraphFilterState,
   ExecutionGraphNode,
   ExecutionGraphResponse,
-} from "../types/executionGraph";
+} from "../../types/executionGraph";
 
 export type GraphState = ExecutionGraphResponse & { nodes: ExecutionGraphNode[]; edges: ExecutionGraphEdge[] };
 export type BrowserGraphSnapshot = { recordedAt: string; graph: GraphState };

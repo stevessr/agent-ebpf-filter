@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"agent-ebpf-filter/pb"
 )
 
 // Codex-specific workflow semantic checks

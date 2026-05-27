@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, computed, ref } from 'vue';
-import { useNetworkEnrichment } from '../composables/useNetworkEnrichment';
-import type { TCPConnection } from '../composables/useNetworkEnrichment';
+import { useNetworkEnrichment } from '../../composables/network/useNetworkEnrichment';
+import type { TCPConnection } from '../../composables/network/useNetworkEnrichment';
 
 const { flows, tcpConns, loading, error, fetchFlows, fetchTCPState } = useNetworkEnrichment(5000);
 

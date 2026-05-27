@@ -3,7 +3,7 @@ import { computed, defineAsyncComponent } from 'vue';
 import {
   ImportOutlined, ExportOutlined, ReloadOutlined,
 } from '@ant-design/icons-vue';
-import type { useConfigML } from '../../../composables/useConfigML';
+import type { useConfigML } from '../../../composables/config/useConfigML';
 
 const VueApexCharts = defineAsyncComponent(async () => (await import('vue3-apexcharts')).default as any) as any;
 

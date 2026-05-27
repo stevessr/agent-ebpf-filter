@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FaultInfo } from '../../composables/useMonitorData';
+import type { FaultInfo } from '../../composables/monitor/useMonitorData';
 
 defineProps<{
   faults: FaultInfo;

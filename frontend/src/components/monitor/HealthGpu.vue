@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { GPUStatus, StatsHistory } from '../../composables/useMonitorData';
+import type { GPUStatus, StatsHistory } from '../../composables/monitor/useMonitorData';
 
 const props = defineProps<{
   gpus: GPUStatus[];
