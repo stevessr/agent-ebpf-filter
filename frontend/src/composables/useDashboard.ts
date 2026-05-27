@@ -3,11 +3,10 @@ import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { message } from 'ant-design-vue';
 
-import { pb } from '../pb/tracker_pb.js';
 import { canPreviewEventPath, type FilePreviewResponse } from '../types/filePreview';
-import { buildWebSocketUrl, fetchProto } from '../utils/requestContext';
 import { minColumnWidths, pageSizeOptions, eventTypeLabelMap, selectableEventTypes, eventCategories, categoryTabs, syscallCatLabels, syscallCatColors, parseSyscallNr, syscallCategory, syscallDisplayName, builtinFilterRules, baseColumns, type AgentEvent, type BuiltinFilterRule } from './dashboardConstants';
-import { decodeIncomingEvents, getTagColor, getCategoryColor, buildAgentEvent, formatTraceSummary, normalizeHistoryRecord } from './dashboardHelpers';
+import { getTagColor, getCategoryColor, formatTraceSummary } from './dashboardHelpers';
+import { useDashboardStream } from './useDashboardStream';
 
 export type { AgentEvent, BuiltinFilterRule };
 
@@ -46,48 +45,49 @@ const tableWrapperRef = ref<HTMLElement | null>(null);
 const tableContentWidth = ref(0);
 const router = useRouter();
 const route = useRoute();
-let ws: WebSocket | null = null;
-let reconnectTimer: number | null = null;
-let shouldReconnect = true;
 let resizeObserver: ResizeObserver | null = null;
 let cleanupColumnResize: (() => void) | null = null;
 let recentRowTimer: number | null = null;
-const eventBuffer: AgentEvent[] = [];
-let flushTimer: number | null = null;
-const EVENT_BATCH_WINDOW_MS = 80;
-const EVENT_MERGE_WINDOW_MS = 5000;
-const HISTORY_LOAD_LIMIT = 200;
-const HISTORY_LOAD_BATCH_SIZE = 24;
-const HISTORY_LOAD_BATCH_DELAY_MS = 24;
-let historyLoadTimer: number | null = null;
-let historyLoadToken = 0;
-const pendingLiveEvents: AgentEvent[] = [];
-const historyLoaded = ref(false);
 
 const maxEvents = ref(5000);
 const maxEventsOptions = ['2000', '5000', '10000', '20000', '50000'];
 
-const flushEventBuffer = () => {
-  if (eventBuffer.length === 0) return;
+const EVENT_MERGE_WINDOW_MS = 5000;
 
-  const bufferedEvents = [...eventBuffer];
-  const newEvents = [...bufferedEvents.reverse(), ...events.value];
-  if (newEvents.length > maxEvents.value) {
-    newEvents.length = maxEvents.value;
+// ── Stream composable ──
+
+const stream = useDashboardStream({
+  events,
+  isConnected,
+  isPaused,
+  maxEvents,
+  getFilteredEvents: () => filteredEvents.value,
+});
+
+const { historyLoaded, startStream, stopStream, resetStreamState, clearEvents, exportEvents, exportEventsCSV, markRecentRowsRef } = stream;
+
+// Wire up markRecentRows into the stream composable
+const markRecentRows = (keys: string[]) => {
+  if (keys.length === 0) return;
+
+  const nextKeys = new Set(recentRowKeys.value);
+  for (const key of keys) {
+    nextKeys.add(key);
   }
-  events.value = newEvents;
-  eventBuffer.length = 0;
+  recentRowKeys.value = nextKeys;
 
-  markRecentRows(newEvents.slice(0, bufferedEvents.length).map((event) => event.key));
+  if (recentRowTimer !== null) {
+    window.clearTimeout(recentRowTimer);
+  }
+  recentRowTimer = window.setTimeout(() => {
+    recentRowKeys.value = new Set();
+    recentRowTimer = null;
+  }, 320);
 };
 
-const scheduleEventBufferFlush = () => {
-  if (flushTimer !== null) return;
-  flushTimer = window.setTimeout(() => {
-    flushTimer = null;
-    flushEventBuffer();
-  }, EVENT_BATCH_WINDOW_MS);
-};
+markRecentRowsRef.value = markRecentRows;
+
+// ── Stream direction / show-all-rows preferences ──
 
 const STREAM_DIRECTION_STORAGE_KEY = 'dashboard.streamDirection';
 const SHOW_ALL_ROWS_STORAGE_KEY = 'dashboard.showAllRows';
@@ -115,18 +115,11 @@ const columnWidths = ref<Record<ResizableColumnKey, number>>({
   action: 80,
 });
 
-
-
 // Event category sets for tab filtering
-
 
 const activeTab = ref<string>('all');
 const netDirFilter = ref<string>('all');
 const syscallCatFilter = ref<string>('all');
-
-
-
-
 
 const syncTabFromRoute = () => {
   const tab = route.params.tab as string | undefined;
@@ -142,8 +135,6 @@ const onTabChange = (key: string) => {
   activeTab.value = key;
   router.push(key === 'all' ? '/dashboard' : `/dashboard/${key}`);
 };
-
-
 
 function createDefaultBuiltinFilterState(): BuiltinFilterState {
   return Object.fromEntries(builtinFilterRules.map((rule) => [rule.id, true])) as BuiltinFilterState;
@@ -186,7 +177,6 @@ const setBuiltinFiltersEnabled = (enabled: boolean) => {
     builtinFilterRules.map((rule) => [rule.id, enabled]),
   ) as BuiltinFilterState;
 };
-
 
 const tagOptions = computed(() =>
   tags.value.map((tag) => ({
@@ -288,7 +278,7 @@ const createEventMergeSignature = (event: AgentEvent) =>
     event.protocol ?? '',
     event.uidArg ?? '',
     event.gidArg ?? '',
-  ].map((value) => String(value)).join('\u001f');
+  ].map((value) => String(value)).join('');
 
 const mergeEventsWithinWindow = (list: AgentEvent[]) => {
   const merged: DisplayedAgentEvent[] = [];
@@ -369,24 +359,6 @@ const handleTableChange = (pagination: { current?: number; pageSize?: number }) 
 };
 
 const recentRowKeys = ref<Set<string>>(new Set());
-
-const markRecentRows = (keys: string[]) => {
-  if (keys.length === 0) return;
-
-  const nextKeys = new Set(recentRowKeys.value);
-  for (const key of keys) {
-    nextKeys.add(key);
-  }
-  recentRowKeys.value = nextKeys;
-
-  if (recentRowTimer !== null) {
-    window.clearTimeout(recentRowTimer);
-  }
-  recentRowTimer = window.setTimeout(() => {
-    recentRowKeys.value = new Set();
-    recentRowTimer = null;
-  }, 320);
-};
 
 const getRowClassName = (record: AgentEvent, index: number) => {
   const classes = [index % 2 === 0 ? 'excel-row-even' : 'excel-row-odd'];
@@ -608,18 +580,8 @@ const openInExplorer = (record: AgentEvent) => {
   });
 };
 
-const clearHistoryLoadTimer = () => {
-  if (historyLoadTimer !== null) {
-    window.clearTimeout(historyLoadTimer);
-    historyLoadTimer = null;
-  }
-};
-
-const clearPendingLiveEvents = () => {
-  pendingLiveEvents.length = 0;
-};
-
 const resetDashboardRuntimeState = () => {
+  // Reset UI/filter state
   events.value = [];
   isConnected.value = false;
   isPaused.value = false;
@@ -654,247 +616,20 @@ const resetDashboardRuntimeState = () => {
     action: 80,
   };
   recentRowKeys.value = new Set();
-  eventBuffer.length = 0;
-  clearHistoryLoadTimer();
-  clearPendingLiveEvents();
-  historyLoadToken += 1;
-  historyLoaded.value = false;
   if (recentRowTimer !== null) {
     window.clearTimeout(recentRowTimer);
     recentRowTimer = null;
   }
-  if (flushTimer !== null) {
-    window.clearTimeout(flushTimer);
-    flushTimer = null;
-  }
-  if (reconnectTimer !== null) {
-    window.clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-  resizeObserver?.disconnect();
-  resizeObserver = null;
-  cleanupColumnResize?.();
-  cleanupColumnResize = null;
-  if (ws) {
-    ws.onopen = null;
-    ws.onmessage = null;
-    ws.onclose = null;
-    ws.close();
-    ws = null;
-  }
-};
-
-const flushPendingLiveEvents = () => {
-  if (pendingLiveEvents.length === 0) {
-    return;
-  }
-  eventBuffer.push(...pendingLiveEvents);
-  clearPendingLiveEvents();
-  flushEventBuffer();
-};
-
-const animateHistoryRecords = (records: AgentEvent[], token: number) => new Promise<void>((resolve) => {
-  if (records.length === 0 || token !== historyLoadToken) {
-    resolve();
-    return;
-  }
-
-  let index = 0;
-  const pump = () => {
-    if (token !== historyLoadToken) {
-      resolve();
-      return;
-    }
-
-    const chunk = records.slice(index, index + HISTORY_LOAD_BATCH_SIZE);
-    if (chunk.length === 0) {
-      resolve();
-      return;
-    }
-
-    eventBuffer.push(...chunk);
-    flushEventBuffer();
-    index += chunk.length;
-
-    if (index < records.length) {
-      historyLoadTimer = window.setTimeout(pump, HISTORY_LOAD_BATCH_DELAY_MS);
-      return;
-    }
-
-    historyLoadTimer = null;
-    resolve();
-  };
-
-  clearHistoryLoadTimer();
-  pump();
-});
-
-const loadRecentEvents = async () => {
-  const token = ++historyLoadToken;
-  historyLoaded.value = false;
-  clearPendingLiveEvents();
-  clearHistoryLoadTimer();
-
-  try {
-    const response = await fetchProto(`/events/recent?limit=${HISTORY_LOAD_LIMIT}`, pb.EventHistoryResponse.decode);
-    if (token !== historyLoadToken) {
-      return;
-    }
-
-    const rawEvents = ((response as any).events ?? (response as any).Events ?? []) as any[];
-    const records = rawEvents
-      .map((record) => normalizeHistoryRecord(record))
-      .filter((record): record is AgentEvent => record !== null);
-
-    await animateHistoryRecords(records, token);
-  } catch (err) {
-    if (token === historyLoadToken) {
-      console.error('Failed to load recent dashboard events', err);
-    }
-  } finally {
-    if (token === historyLoadToken) {
-      historyLoaded.value = true;
-      flushPendingLiveEvents();
-      clearHistoryLoadTimer();
-    }
-  }
-};
-
-const connectWebSocket = () => {
-  if (!shouldReconnect) return;
-  if (ws) {
-    ws.onopen = null;
-    ws.onmessage = null;
-    ws.onclose = null;
-    ws.close();
-  }
-  const socket = new WebSocket(buildWebSocketUrl('/ws'));
-  ws = socket;
-  socket.binaryType = 'arraybuffer';
-
-  socket.onopen = () => {
-    if (ws !== socket) return;
-    isConnected.value = true;
-  };
-
-  socket.onmessage = (message) => {
-    if (ws !== socket) return;
-    if (isPaused.value) return;
-    try {
-      const incomingEvents = decodeIncomingEvents(new Uint8Array(message.data));
-      const normalizedEvents = incomingEvents.map((data) => buildAgentEvent(data as Record<string, unknown>, Date.now()));
-      if (!historyLoaded.value) {
-        pendingLiveEvents.push(...normalizedEvents);
-      } else {
-        eventBuffer.push(...normalizedEvents);
-        scheduleEventBufferFlush();
-      }
-    } catch (e) {
-      console.error('Failed to parse message', e);
-    }
-  };
-
-  socket.onclose = () => {
-    if (ws !== socket) return;
-    isConnected.value = false;
-    ws = null;
-    if (!shouldReconnect) return;
-    if (reconnectTimer !== null) {
-      window.clearTimeout(reconnectTimer);
-    }
-    reconnectTimer = window.setTimeout(() => {
-      connectWebSocket();
-    }, 3000);
-  };
-};
-
-const clearEvents = async () => {
-  try {
-    await axios.post('/data/clear-events-memory');
-    events.value = [];
-    eventBuffer.length = 0;
-    clearPendingLiveEvents();
-    clearHistoryLoadTimer();
-    historyLoadToken += 1;
-    historyLoaded.value = true;
-    if (flushTimer !== null) {
-      window.clearTimeout(flushTimer);
-      flushTimer = null;
-    }
-    recentRowKeys.value = new Set();
-    currentPage.value = 1;
-    message.success('Event buffer cleared on backend');
-  } catch (err: any) {
-    message.error(err?.response?.data?.error || 'Failed to clear events');
-    events.value = [];
-    eventBuffer.length = 0;
-    clearPendingLiveEvents();
-    clearHistoryLoadTimer();
-    historyLoadToken += 1;
-    historyLoaded.value = true;
-    if (flushTimer !== null) {
-      window.clearTimeout(flushTimer);
-      flushTimer = null;
-    }
-    recentRowKeys.value = new Set();
-    currentPage.value = 1;
-  }
-};
-
-const exportEvents = () => {
-  try {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(events.value, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `ebpf-events-${new Date().toISOString()}.json`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    message.success('Events exported as JSON');
-  } catch (err) {
-    message.error('Failed to export events');
-  }
-};
-
-const exportEventsCSV = () => {
-  try {
-    const headers = ['Time', 'Tag', 'PID', 'PPID', 'UID', 'Command', 'Event Type', 'Path', 'Net Direction', 'Net Endpoint', 'Net Bytes'];
-    const rows = filteredEvents.value.map(e => [
-      e.time,
-      e.tag,
-      e.pid,
-      e.ppid,
-      e.uid,
-      e.comm,
-      e.type,
-      e.path,
-      e.netDirection || '',
-      e.netEndpoint || '',
-      e.netBytes || 0,
-    ]);
-    const csvContent = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute("href", url);
-    link.setAttribute("download", `ebpf-events-${new Date().toISOString()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    message.success('Events exported as CSV');
-  } catch (err) {
-    message.error('Failed to export CSV');
-  }
+  // Reset stream state
+  resetStreamState();
 };
 
 onMounted(() => {
   resetDashboardRuntimeState();
-  shouldReconnect = true;
   streamDirection.value = getStoredStreamDirection();
   showAllRows.value = getStoredShowAllRows();
   builtinFilterState.value = getStoredBuiltinFilterState();
-  connectWebSocket();
-  void loadRecentEvents();
+  startStream();
   fetchTags();
   document.addEventListener('click', handleDocumentClick);
   if (tableWrapperRef.value && typeof ResizeObserver !== 'undefined') {
@@ -904,9 +639,12 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  shouldReconnect = false;
   document.removeEventListener('click', handleDocumentClick);
   resetDashboardRuntimeState();
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  cleanupColumnResize?.();
+  cleanupColumnResize = null;
 });
 
   return {

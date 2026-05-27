@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package pb;
+option go_package = "agent-ebpf-filter/pb";
+
+// ── Shell session types ──────────────────────────────────────────────
+
+message ShellSession {
+  string id = 1;
+  string label = 2;
+  int32 pid = 3;
+  bool active = 4;
+  int64 created_at = 5;
+  string cols = 6;
+  string rows = 7;
+  string cwd = 8;
+}
+
+message ShellSessionList {
+  repeated ShellSession sessions = 1;
+}
+
+message ShellSessionCreateRequest {
+  string workdir = 1;
+  repeated string args = 2;
+  string label = 3;
+}
+
+// ── File browsing types ──────────────────────────────────────────────
+
+message FileEntry {
+  string name = 1;
+  bool is_dir = 2;
+  string path = 3;
+  string mime_type = 4;
+  int64 size = 5;
+  string mod_time = 6;
+}
+
+message FileListResponse {
+  repeated FileEntry items = 1;
+  int32 total = 2;
+  int32 offset = 3;
+  int32 limit = 4;
+}
+
+message FilePreviewResponse {
+  string content = 1;
+  string mime_type = 2;
+  string path = 3;
+  int64 size = 4;
+  string mod_time = 5;
+  bool truncated = 6;
+}

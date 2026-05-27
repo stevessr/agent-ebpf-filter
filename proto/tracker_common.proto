@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package pb;
+option go_package = "agent-ebpf-filter/pb";
+
+// Normalized event types for kernel + user-space events
+enum EventType {
+  EXECVE = 0;
+  OPENAT = 1;
+  NETWORK_CONNECT = 2;
+  MKDIR = 3;
+  UNLINK = 4;
+  IOCTL = 5;
+  NETWORK_BIND = 6;
+  NETWORK_SENDTO = 7;
+  NETWORK_RECVFROM = 8;
+  READ = 9;
+  WRITE = 10;
+  OPEN = 11;
+  CHMOD = 12;
+  CHOWN = 13;
+  RENAME = 14;
+  LINK = 15;
+  SYMLINK = 16;
+  MKNOD = 17;
+  CLONE = 18;
+  EXIT = 19;
+  SOCKET = 20;
+  ACCEPT = 21;
+  ACCEPT4 = 22;
+  WRAPPER_INTERCEPT = 23;
+  NATIVE_HOOK = 24;
+  GENERIC_SYSCALL = 25;
+  SCHED_PROCESS_FORK = 26;
+  SCHED_PROCESS_EXEC = 27;
+  SCHED_PROCESS_EXIT = 28;
+  WAIT4 = 29;
+  SEMANTIC_ALERT = 30;
+  TCP_CONNECT = 31;
+  TCP_CLOSE = 32;
+  TCP_STATE_CHANGE = 33;
+  DNS_QUERY = 34;
+  TLS_PLAINTEXT = 35;
+  HTTP_MESSAGE = 36;
+  SSE_MESSAGE = 37;
+  STDIO = 38;
+  SYSTEM_METRIC = 39;
+  OTEL_SPAN = 40;
+  AGENTSIGHT_ALERT = 41;
+}
+
+enum BehaviorCategory {
+  UNKNOWN = 0;
+  FILE_READ = 1;
+  FILE_WRITE = 2;
+  FILE_DELETE = 3;
+  FILE_PERMISSION = 4;
+  NETWORK = 5;
+  PROCESS_EXEC = 6;
+  PROCESS_KILL = 7;
+  SYSTEM_INFO = 8;
+  PACKAGE_MANAGER = 9;
+  DATABASE = 10;
+  COMPRESSION = 11;
+  DEVELOPMENT = 12;
+  CONTAINER = 13;
+  SENSITIVE = 14;
+}
+
+message BehaviorClassification {
+  repeated BehaviorCategory categories = 1;
+  string primary_category = 2;
+  string confidence = 3;
+  string reasoning = 4;
+}
+
+message StatusResponse {
+  string status = 1;
+  string message = 2;
+}
+
+message ConfigKeyRequest {
+  string key = 1;
+  string name = 2;
+}
+
+message ConfigBoolResponse {
+  bool value = 1;
+  string message = 2;
+}

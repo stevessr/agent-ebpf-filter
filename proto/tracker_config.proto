@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package pb;
+option go_package = "agent-ebpf-filter/pb";
+
+// ── Config / Registry types ──────────────────────────────────────────
+
+message ConfigTag {
+  string name = 1;
+}
+
+message ConfigTagList {
+  repeated string names = 1;
+}
+
+message TrackedComm {
+  string comm = 1;
+  string tag = 2;
+  bool disabled = 3;
+}
+
+message TrackedCommList {
+  repeated TrackedComm items = 1;
+}
+
+message TrackedPath {
+  string path = 1;
+  string tag = 2;
+}
+
+message TrackedPathList {
+  repeated TrackedPath items = 1;
+}
+
+message TrackedPrefix {
+  string prefix = 1;
+  string tag = 2;
+}
+
+message TrackedPrefixList {
+  repeated TrackedPrefix items = 1;
+}
+
+message WrapperRule {
+  string comm = 1;
+  string action = 2;
+  repeated string rewritten_cmd = 3;
+  string regex = 4;
+  string replacement = 5;
+  int32 priority = 6;
+}
+
+message WrapperRuleList {
+  repeated WrapperRule items = 1;
+}
+
+message RuntimeSettings {
+  bool log_persistence_enabled = 1;
+  string log_file_path = 2;
+  string access_token = 3;
+  int32 max_event_count = 4;
+  string max_event_age = 5;
+  bool shell_sessions_enabled = 6;
+  bool system_run_enabled = 7;
+  bool hook_management_enabled = 8;
+  bool policy_management_enabled = 9;
+  bool otlp_enabled = 10;
+  string otlp_endpoint = 11;
+  string otlp_service_name = 12;
+  map<string, string> otlp_headers = 13;
+}
+
+message RuntimeConfigResponse {
+  RuntimeSettings runtime = 1;
+  string mcp_endpoint = 2;
+  string auth_header_name = 3;
+  string bearer_auth_header_name = 4;
+  string persisted_event_log_path = 5;
+  bool persisted_event_log_alive = 6;
+}
+
+message ExportConfigData {
+  repeated string tags = 1;
+  repeated TrackedComm comms = 2;
+  repeated TrackedPath paths = 3;
+  repeated TrackedPrefix prefixes = 4;
+  repeated WrapperRule rules = 5;
+  RuntimeSettings runtime = 6;
+}
+
+message Hook {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  bool installed = 4;
+  string target_cmd = 5;
+}
+
+message HookRequest {
+  string id = 1;
+  bool install = 2;
+}
+
+message HookResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message MLStatus {
+  bool model_loaded = 1;
+  int32 num_trees = 2;
+  int32 num_samples = 3;
+  int32 num_labeled_samples = 4;
+  string last_trained = 5;
+  double test_accuracy = 6;
+  string model_path = 7;
+  bool training_in_progress = 8;
+  double training_progress = 9;
+}

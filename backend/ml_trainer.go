@@ -2,182 +2,14 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
-	"sort"
-	"strings"
-	"sync"
 	"time"
-
-	"agent-ebpf-filter/pb"
 )
-
-// TrainingLogEntry is a single timestamped log line during training
-type TrainingLogEntry struct {
-	Timestamp time.Time
-	Message   string
-}
-
-// TrainingHistoryEntry records metrics from a single training run
-type TrainingHistoryEntry struct {
-	Timestamp            time.Time `json:"timestamp"`
-	Accuracy             float64   `json:"accuracy"`
-	TrainAccuracy        float64   `json:"trainAccuracy,omitempty"`
-	ValidationAccuracy   float64   `json:"validationAccuracy,omitempty"`
-	NumTrees             int       `json:"numTrees"`
-	NumSamples           int       `json:"numSamples"`
-	TrainSamples         int       `json:"trainSamples,omitempty"`
-	ValidationSamples    int       `json:"validationSamples,omitempty"`
-	ValidationSplitRatio float64   `json:"validationSplitRatio,omitempty"`
-	LLMScoredSamples     int       `json:"llmScoredSamples,omitempty"`
-	LLMAverageRiskScore  float64   `json:"llmAverageRiskScore,omitempty"`
-	LLMAgreement         float64   `json:"llmAgreement,omitempty"`
-	Duration             float64   `json:"duration"` // seconds
-}
-
-// ModelTrainer builds and evaluates random forest models
-type ModelTrainer struct {
-	mu                 chan struct{} // single-training mutex via channel
-	cancelCh           chan struct{} // closed to request cancellation
-	isRunning          bool
-	progress           float64
-	lastError          string
-	lastTrain          time.Time
-	accuracy           float64
-	trainAccuracy      float64
-	validationAccuracy float64
-	validationRatio    float64
-	// Training log ring buffer
-	logMu      sync.RWMutex
-	logs       []TrainingLogEntry
-	logMaxSize int
-	logNext    int
-	logTotal   int
-	// Training history
-	historyMu             sync.RWMutex
-	history               []TrainingHistoryEntry
-	splitMu               sync.RWMutex
-	lastTrainSamples      []TrainingSample
-	lastValidationSamples []TrainingSample
-	lastLLMReview         *LLMReviewSummary
-}
-
-// CancelTraining signals any running training to stop.
-func (t *ModelTrainer) CancelTraining() {
-	if t.isRunning {
-		t.logf("训练中止请求已接收")
-		close(t.cancelCh)
-	}
-}
-
-// IsCancelled returns true if cancellation has been requested.
-func (t *ModelTrainer) IsCancelled() bool {
-	select {
-	case <-t.cancelCh:
-		return true
-	default:
-		return false
-	}
-}
-
-// ResetCancel prepares a new cancel channel for the next training run.
-func (t *ModelTrainer) ResetCancel() {
-	t.cancelCh = make(chan struct{})
-}
-
-var globalTrainer = &ModelTrainer{
-	mu:         make(chan struct{}, 1),
-	cancelCh:   make(chan struct{}),
-	logMaxSize: 200,
-}
-
-func (t *ModelTrainer) logf(format string, args ...interface{}) {
-	msg := fmt.Sprintf(format, args...)
-	log.Printf("[ML-Train] %s", msg)
-
-	t.logMu.Lock()
-	entry := TrainingLogEntry{Timestamp: time.Now(), Message: msg}
-	if len(t.logs) < t.logMaxSize {
-		t.logs = append(t.logs, entry)
-	} else {
-		t.logs[t.logNext] = entry
-	}
-	t.logNext = (t.logNext + 1) % t.logMaxSize
-	t.logTotal++
-	t.logMu.Unlock()
-}
-
-// GetLogs returns recent training log entries (newest last)
-func (t *ModelTrainer) GetLogs(limit int) []TrainingLogEntry {
-	t.logMu.RLock()
-	defer t.logMu.RUnlock()
-
-	n := len(t.logs)
-	if limit <= 0 || limit > n {
-		limit = n
-	}
-	if n == 0 {
-		return nil
-	}
-	// Return in chronological order
-	out := make([]TrainingLogEntry, limit)
-	copy(out, t.logs[max(0, n-limit):])
-	return out
-}
-
-// GetHistory returns training history entries
-func (t *ModelTrainer) GetHistory() []TrainingHistoryEntry {
-	t.historyMu.RLock()
-	defer t.historyMu.RUnlock()
-	out := make([]TrainingHistoryEntry, len(t.history))
-	copy(out, t.history)
-	return out
-}
-
-// addHistory records a training run to history
-func (t *ModelTrainer) addHistory(entry TrainingHistoryEntry) {
-	t.historyMu.Lock()
-	defer t.historyMu.Unlock()
-	t.history = append(t.history, entry)
-	// Keep last 100 entries
-	if len(t.history) > 100 {
-		t.history = t.history[len(t.history)-100:]
-	}
-}
-
-// TrainResult holds the outcome of a training run
-type TrainResult struct {
-	Accuracy            float64
-	TrainAccuracy       float64
-	ValidationAccuracy  float64
-	NumTrees            int
-	NumSamples          int
-	TrainSamples        int
-	ValidationSamples   int
-	LLMScoredSamples    int
-	LLMAverageRiskScore float64
-	LLMAgreement        float64
-	Error               string
-}
-
-// splitPoint represents a candidate feature split during training
-type splitPoint struct {
-	featureIdx int
-	threshold  float64
-	giniGain   float64
-}
-
-// trainSample labels are [0,3] for ALLOW/BLOCK/REWRITE/ALERT
-type trainSample struct {
-	features [FeatureDim]float64
-	label    int32
-}
 
 // Train builds a random forest from labeled training data.
 // Uses bootstrap aggregating (bagging) with Gini impurity splitting.
 func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSamplesLeaf int) (*DecisionForest, TrainResult) {
-	// Acquire training mutex
 	select {
 	case t.mu <- struct{}{}:
 		defer func() { <-t.mu }()
@@ -204,7 +36,6 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 	}
 	t.logf("Labeled samples loaded: %d", len(labeled))
 
-	// Convert to internal format
 	samples := make([]trainSample, len(labeled))
 	classDist := make(map[int32]int)
 	for i, s := range labeled {
@@ -214,7 +45,6 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 	t.logf("Class distribution: ALLOW=%d, BLOCK=%d, ALERT=%d, REWRITE=%d",
 		classDist[0], classDist[1], classDist[3], classDist[2])
 
-	// Train/validation split
 	validationRatio := mlConfig.ValidationSplitRatio
 	if validationRatio <= 0 || validationRatio >= 0.5 {
 		validationRatio = 0.20
@@ -239,10 +69,9 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 	validationRaw := append([]TrainingSample(nil), shuffledRaw[trainCount:]...)
 	t.logf("Data split: train=%d, validation=%d (ratio=%.2f)", len(trainSet), len(validationSet), validationRatio)
 
-	// Build forest
 	t.logf("Building random forest with %d trees...", numTrees)
 	forest := NewDecisionForest(numTrees, maxDepth, 4)
-	featureSampleCount := int(math.Sqrt(float64(FeatureDim))) // sqrt(F) features per split
+	featureSampleCount := int(math.Sqrt(float64(FeatureDim)))
 	t.logf("Feature sampling: %d of %d per split", featureSampleCount, FeatureDim)
 
 	totalNodes := 0
@@ -255,12 +84,9 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 		t.progress = float64(ti) / float64(numTrees)
 		tStart := time.Now()
 
-		// Stratified bootstrap: draw from each class proportionally
-		// to ensure minority classes (BLOCK, ALERT, REWRITE) are represented.
 		bootstrap := make([]trainSample, len(trainSet))
 		classStratifiedBootstrap(trainSet, bootstrap, rng)
 
-		// Build tree
 		nodes := buildTree(bootstrap, 0, maxDepth, minSamplesLeaf, featureSampleCount, rng)
 		forest.Trees[ti] = DecisionTree{Nodes: nodes}
 		totalNodes += len(nodes)
@@ -277,20 +103,17 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 
 	forest.IsTrained = true
 
-	// Prune underperforming trees
 	pruned := forest.Prune(trainSet)
 	if pruned > 0 {
 		t.logf("Pruned %d underperforming trees, %d remaining", pruned, len(forest.Trees))
 	}
 
-	// Evaluate on train and validation sets
 	t.logf("Evaluating model on %d train samples and %d validation samples...", len(trainSet), len(validationSet))
 	evalStart := time.Now()
 	trainAccuracy := evaluateForest(forest, trainSet)
 	validationAccuracy := evaluateForest(forest, validationSet)
 	evalElapsed := time.Since(evalStart)
 
-	// Per-class metrics
 	perClassCorrect := make(map[int32]int)
 	perClassTotal := make(map[int32]int)
 	for _, s := range validationSet {
@@ -333,7 +156,6 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 	t.logf("══════ Training complete in %s ══════", treeElapsed.Round(time.Millisecond))
 	t.setLastSplit(trainRaw, validationRaw)
 
-	// Record to history
 	t.addHistory(TrainingHistoryEntry{
 		Timestamp:            trainStart,
 		Accuracy:             validationAccuracy,
@@ -366,316 +188,7 @@ func (t *ModelTrainer) Train(store *TrainingDataStore, numTrees, maxDepth, minSa
 	return forest, result
 }
 
-func (t *ModelTrainer) setLastSplit(trainSamples, validationSamples []TrainingSample) {
-	t.splitMu.Lock()
-	defer t.splitMu.Unlock()
-
-	t.lastTrainSamples = append(t.lastTrainSamples[:0], trainSamples...)
-	t.lastValidationSamples = append(t.lastValidationSamples[:0], validationSamples...)
-}
-
-func (t *ModelTrainer) setLastLLMReview(review *LLMReviewSummary) {
-	t.splitMu.Lock()
-	defer t.splitMu.Unlock()
-
-	if review == nil {
-		t.lastLLMReview = nil
-		return
-	}
-	copyReview := *review
-	t.lastLLMReview = &copyReview
-}
-
-func (t *ModelTrainer) LastValidationSamples() []TrainingSample {
-	t.splitMu.RLock()
-	defer t.splitMu.RUnlock()
-
-	out := make([]TrainingSample, len(t.lastValidationSamples))
-	copy(out, t.lastValidationSamples)
-	return out
-}
-
-func (t *ModelTrainer) LastTrainSamples() []TrainingSample {
-	t.splitMu.RLock()
-	defer t.splitMu.RUnlock()
-
-	out := make([]TrainingSample, len(t.lastTrainSamples))
-	copy(out, t.lastTrainSamples)
-	return out
-}
-
-func (t *ModelTrainer) LastLLMReview() *LLMReviewSummary {
-	t.splitMu.RLock()
-	defer t.splitMu.RUnlock()
-
-	if t.lastLLMReview == nil {
-		return nil
-	}
-	copyReview := *t.lastLLMReview
-	return &copyReview
-}
-
-func (t *ModelTrainer) SplitMetrics() (trainAccuracy, validationAccuracy, validationRatio float64, trainSamples, validationSamples int) {
-	t.splitMu.RLock()
-	defer t.splitMu.RUnlock()
-
-	return t.trainAccuracy, t.validationAccuracy, t.validationRatio, len(t.lastTrainSamples), len(t.lastValidationSamples)
-}
-
-// buildTree recursively builds a decision tree using Gini impurity
-func buildTree(samples []trainSample, depth, maxDepth, minSamplesLeaf, featureSampleCount int, rng *rand.Rand) []DecisionNode {
-	// Check termination conditions
-	if depth >= maxDepth || len(samples) < minSamplesLeaf*2 {
-		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
-	}
-
-	// Check if all same class
-	allSame := true
-	firstLabel := samples[0].label
-	for _, s := range samples[1:] {
-		if s.label != firstLabel {
-			allSame = false
-			break
-		}
-	}
-	if allSame {
-		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: float32(firstLabel)}}
-	}
-
-	// Find best split
-	best := findBestSplit(samples, featureSampleCount, rng)
-	if best.giniGain <= 0 {
-		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
-	}
-
-	// Partition samples
-	var leftSamples, rightSamples []trainSample
-	for _, s := range samples {
-		if s.features[best.featureIdx] < best.threshold {
-			leftSamples = append(leftSamples, s)
-		} else {
-			rightSamples = append(rightSamples, s)
-		}
-	}
-
-	if len(leftSamples) == 0 || len(rightSamples) == 0 {
-		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: majorityClass(samples)}}
-	}
-
-	// Build children
-	leftNodes := buildTree(leftSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount, rng)
-	rightNodes := buildTree(rightSamples, depth+1, maxDepth, minSamplesLeaf, featureSampleCount, rng)
-
-	// Rebase child pointers from subtree-relative to absolute positions
-	leftOffset := 1
-	rightOffset := 1 + len(leftNodes)
-
-	for i := range leftNodes {
-		n := &leftNodes[i]
-		if !n.IsLeaf() {
-			n.LeftChild += int16(leftOffset)
-			n.RightChild += int16(leftOffset)
-		}
-	}
-	for i := range rightNodes {
-		n := &rightNodes[i]
-		if !n.IsLeaf() {
-			n.LeftChild += int16(rightOffset)
-			n.RightChild += int16(rightOffset)
-		}
-	}
-
-	root := DecisionNode{
-		FeatureIndex: uint8(best.featureIdx),
-		Threshold:    float32(best.threshold),
-		LeftChild:    int16(leftOffset),
-		RightChild:   int16(rightOffset),
-		LeafValue:    0,
-	}
-
-	nodes := []DecisionNode{root}
-	nodes = append(nodes, leftNodes...)
-	nodes = append(nodes, rightNodes...)
-
-	return nodes
-}
-
-// findBestSplit finds the best feature and threshold using Gini impurity
-func findBestSplit(samples []trainSample, featureSampleCount int, rng *rand.Rand) splitPoint {
-	best := splitPoint{giniGain: -1}
-	parentGini := giniImpurity(samples)
-
-	// Random feature selection
-	features := make([]int, FeatureDim)
-	for i := range features {
-		features[i] = i
-	}
-	rng.Shuffle(len(features), func(i, j int) { features[i], features[j] = features[j], features[i] })
-	selectedFeatures := features[:featureSampleCount]
-
-	for _, fi := range selectedFeatures {
-		// Sort by this feature
-		sort.Slice(samples, func(i, j int) bool {
-			return samples[i].features[fi] < samples[j].features[fi]
-		})
-
-		// Try thresholds between distinct values
-		for i := 1; i < len(samples); i++ {
-			if samples[i].features[fi] == samples[i-1].features[fi] {
-				continue
-			}
-			threshold := (samples[i].features[fi] + samples[i-1].features[fi]) / 2.0
-
-			leftSamples := samples[:i]
-			rightSamples := samples[i:]
-
-			if len(leftSamples) < 1 || len(rightSamples) < 1 {
-				continue
-			}
-
-			leftWeight := float64(len(leftSamples)) / float64(len(samples))
-			gain := parentGini - leftWeight*giniImpurity(leftSamples) -
-				(1-leftWeight)*giniImpurity(rightSamples)
-
-			if gain > best.giniGain {
-				best = splitPoint{
-					featureIdx: fi,
-					threshold:  threshold,
-					giniGain:   gain,
-				}
-			}
-		}
-	}
-	return best
-}
-
-// giniImpurity computes Gini impurity for a set of samples
-func giniImpurity(samples []trainSample) float64 {
-	if len(samples) == 0 {
-		return 0
-	}
-	counts := make(map[int32]float64)
-	for _, s := range samples {
-		counts[s.label]++
-	}
-	var impurity float64
-	n := float64(len(samples))
-	for _, c := range counts {
-		p := c / n
-		impurity += p * (1 - p)
-	}
-	return impurity
-}
-
-// majorityClass returns the most common class label as float32
-func majorityClass(samples []trainSample) float32 {
-	if len(samples) == 0 {
-		return 0
-	}
-	counts := make(map[int32]int)
-	for _, s := range samples {
-		counts[s.label]++
-	}
-	best := int32(0)
-	bestCount := 0
-	for label, count := range counts {
-		if count > bestCount {
-			bestCount = count
-			best = label
-		}
-	}
-	return float32(best)
-}
-
-// classStratifiedBootstrap creates a bootstrap sample where each class
-// is proportionally represented. Minority classes are upsampled to ensure
-// they appear in every tree's training set.
-func classStratifiedBootstrap(src, dst []trainSample, rng *rand.Rand) {
-	// Group samples by class
-	groups := make(map[int32][]trainSample)
-	for _, s := range src {
-		groups[s.label] = append(groups[s.label], s)
-	}
-
-	// Each class gets equal slot count to upweight minorities
-	nClasses := len(groups)
-	if nClasses == 0 {
-		return
-	}
-	perClass := len(dst) / nClasses
-	if perClass < 1 {
-		perClass = 1
-	}
-
-	// Interleave: round-robin across classes
-	i := 0
-	for i < len(dst) {
-		for _, group := range groups {
-			if i >= len(dst) {
-				break
-			}
-			dst[i] = group[rng.Intn(len(group))]
-			i++
-		}
-	}
-}
-
-func evaluateForest(forest *DecisionForest, testSet []trainSample) float64 {
-	if len(testSet) == 0 {
-		return 1.0
-	}
-	correct := 0
-	for _, s := range testSet {
-		pred := forest.Predict(s.features)
-		if pred.Action == s.label {
-			correct++
-		}
-	}
-	return float64(correct) / float64(len(testSet))
-}
-
-// GetStatus returns training status for the API
-func (t *ModelTrainer) GetStatus() map[string]interface{} {
-	return map[string]interface{}{
-		"isRunning": t.isRunning,
-		"progress":  t.progress,
-		"lastError": t.lastError,
-		"lastTrain": t.lastTrain.Format(time.RFC3339),
-		"accuracy":  t.accuracy,
-	}
-}
-
-// mlReasoning builds a human-readable explanation of the ML prediction
-func mlReasoning(pred Prediction, anomalyScore float64, classification *pb.BehaviorClassification) string {
-	parts := make([]string, 0, 3)
-
-	if pred.Confidence >= 0.85 {
-		parts = append(parts, "high-confidence ML prediction")
-	} else if pred.Confidence >= 0.60 {
-		parts = append(parts, "moderate-confidence ML prediction")
-	} else {
-		parts = append(parts, "low-confidence ML prediction")
-	}
-
-	parts = append(parts, "action="+actionLabel[pred.Action])
-
-	if anomalyScore > 0.7 {
-		parts = append(parts, "highly anomalous")
-	} else if anomalyScore > 0.3 {
-		parts = append(parts, "moderately anomalous")
-	} else {
-		parts = append(parts, "behavior within normal range")
-	}
-
-	if classification != nil && classification.PrimaryCategory != "" {
-		parts = append(parts, "category="+classification.PrimaryCategory)
-	}
-
-	return strings.Join(parts, "; ")
-}
-
 // TrainWithConfig trains a model based on the MLConfig.ModelType.
-// Returns a Model interface so callers don't need to know the concrete type.
 func (t *ModelTrainer) TrainWithConfig(store *TrainingDataStore, cfg MLConfig) (Model, TrainResult) {
 	requestedType := cfg.ModelType
 	if requestedType == "" {

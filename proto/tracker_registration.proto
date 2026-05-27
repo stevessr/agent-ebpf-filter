@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package pb;
+option go_package = "agent-ebpf-filter/pb";
+
+import "tracker_common.proto";
+
+// Represents a process registration request
+message RegisterRequest {
+  uint32 pid = 1;
+  string tag = 2;
+  string agent_run_id = 3;
+  string conversation_id = 4;
+  string turn_id = 5;
+  string tool_call_id = 6;
+  string tool_name = 7;
+  string trace_id = 8;
+  string span_id = 9;
+  uint32 root_agent_pid = 10;
+  string decision = 11;
+  double risk_score = 12;
+  string container_id = 13;
+  string argv_digest = 14;
+  string task_id = 15;
+  string cwd = 16;
+}
+
+// Represents a process registration response
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Represents a process unregistration request
+message UnregisterRequest {
+  uint32 pid = 1;
+}
+
+// Represents a process unregistration response
+message UnregisterResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message WrapperRequest {
+  uint32 pid = 1;
+  string comm = 2;
+  repeated string args = 3;
+  string user = 4;
+  string agent_run_id = 5;
+  string conversation_id = 6;
+  string turn_id = 7;
+  string tool_call_id = 8;
+  string tool_name = 9;
+  string trace_id = 10;
+  string span_id = 11;
+  uint32 root_agent_pid = 12;
+  string decision = 13;
+  double risk_score = 14;
+  string container_id = 15;
+  string argv_digest = 16;
+  string task_id = 17;
+  string cwd = 18;
+}
+
+message WrapperResponse {
+  enum Action {
+    ALLOW = 0;
+    BLOCK = 1;
+    REWRITE = 2;
+    ALERT = 3;
+  }
+  Action action = 1;
+  string message = 2;
+  repeated string rewritten_args = 3;
+  BehaviorClassification classification = 4;
+  double ml_score = 5;
+  double anomaly_score = 6;
+  string ml_action = 7;
+  string ml_reasoning = 8;
+}

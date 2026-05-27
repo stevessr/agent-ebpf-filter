@@ -1,0 +1,323 @@
+syntax = "proto3";
+
+package pb;
+option go_package = "agent-ebpf-filter/pb";
+
+import "tracker_common.proto";
+
+// Represents an intercepted eBPF event (e.g., file open, exec)
+message Event {
+  uint32 pid = 1;
+  uint32 ppid = 2;
+  uint32 uid = 3;
+  string type = 4;
+  string tag = 5;
+  string comm = 6;
+  string path = 7;
+  string net_direction = 8;
+  string net_endpoint = 9;
+  uint32 net_bytes = 10;
+  string net_family = 11;
+  int64 retval = 12;
+  string extra_info = 13;
+  string extra_path = 14;
+  uint64 bytes = 15;
+  string mode = 16;
+  string domain = 17;
+  string sock_type = 18;
+  uint32 protocol = 19;
+  uint32 uid_arg = 20;
+  uint32 gid_arg = 21;
+  EventType event_type = 22;
+  BehaviorClassification behavior = 23;
+  uint64 duration_ns = 24;
+  string schema_version = 25;
+  uint32 gid = 26;
+  uint64 cgroup_id = 27;
+  uint32 root_agent_pid = 28;
+  string agent_run_id = 29;
+  string conversation_id = 30;
+  string turn_id = 31;
+  string tool_call_id = 32;
+  string tool_name = 33;
+  string trace_id = 34;
+  string span_id = 35;
+  string decision = 36;
+  double risk_score = 37;
+  string container_id = 38;
+  string argv_digest = 39;
+  string task_id = 40;
+  string cwd = 41;
+  uint32 tgid = 42;
+  string flow_id = 43;
+  string src_ip = 44;
+  uint32 src_port = 45;
+  string dst_ip = 46;
+  uint32 dst_port = 47;
+  string transport = 48;
+  string app_protocol = 49;
+  string service_name = 50;
+  string dns_name = 51;
+  string sni = 52;
+  string http_host = 53;
+  string tls_alpn = 54;
+  string quic_state = 55;
+  string interface_name = 56;
+  uint64 bytes_in = 57;
+  uint64 bytes_out = 58;
+  uint64 packets_in = 59;
+  uint64 packets_out = 60;
+  uint64 first_seen_ms = 61;
+  uint64 last_seen_ms = 62;
+  string stale_level = 63;
+  bool historic = 64;
+  string geo_country = 65;
+  string geo_country_code = 66;
+  uint32 geo_asn = 67;
+  string ip_scope = 68;
+}
+
+message ExecEvent {
+  string path = 1;
+  int64 retval = 2;
+  uint64 duration_ns = 3;
+  string extra_info = 4;
+  string argv_digest = 5;
+  string cwd = 6;
+}
+
+message FileEvent {
+  string operation = 1;
+  string path = 2;
+  string extra_path = 3;
+  string mode = 4;
+  uint64 bytes = 5;
+  uint32 uid_arg = 6;
+  uint32 gid_arg = 7;
+  int64 retval = 8;
+  string extra_info = 9;
+}
+
+message NetworkEvent {
+  string endpoint = 1;
+  string direction = 2;
+  uint32 bytes = 3;
+  string family = 4;
+  string domain = 5;
+  string sock_type = 6;
+  uint32 protocol = 7;
+  int64 retval = 8;
+  string extra_info = 9;
+  string flow_id = 10;
+  string src_ip = 11;
+  uint32 src_port = 12;
+  string dst_ip = 13;
+  uint32 dst_port = 14;
+  string transport = 15;
+  string app_protocol = 16;
+  string service_name = 17;
+  string dns_name = 18;
+  string sni = 19;
+  string http_host = 20;
+  string tls_alpn = 21;
+  string quic_state = 22;
+  string interface_name = 23;
+  uint64 bytes_in = 24;
+  uint64 bytes_out = 25;
+  uint64 packets_in = 26;
+  uint64 packets_out = 27;
+  uint64 first_seen_ms = 28;
+  uint64 last_seen_ms = 29;
+  string stale_level = 30;
+  bool historic = 31;
+  string geo_country = 32;
+  string geo_country_code = 33;
+  uint32 geo_asn = 34;
+  string ip_scope = 35;
+}
+
+message ProcessEvent {
+  string phase = 1;
+  uint32 parent_pid = 2;
+  uint32 child_pid = 3;
+  uint32 old_pid = 4;
+  uint32 target_pid = 5;
+  int32 exit_status = 6;
+  string extra_info = 7;
+}
+
+message PolicyEvent {
+  string decision = 1;
+  double risk_score = 2;
+  string reason = 3;
+  string related_path = 4;
+  string related_endpoint = 5;
+}
+
+message WrapperEvent {
+  string command_line = 1;
+  repeated string args = 2;
+  BehaviorClassification behavior = 3;
+  string extra_info = 4;
+  string tool_name = 5;
+}
+
+message HookEvent {
+  string hook_name = 1;
+  string tool_name = 2;
+  string target_path = 3;
+  string extra_info = 4;
+}
+
+message McpEvent {
+  string tool_name = 1;
+  string server_name = 2;
+  string endpoint = 3;
+  string request_id = 4;
+  string extra_info = 5;
+}
+
+message TLSEvent {
+  string direction = 1;
+  string library = 2;
+  string host = 3;
+  string method = 4;
+  string url = 5;
+  uint32 status = 6;
+  string content_type = 7;
+  uint64 body_size = 8;
+  bool truncated = 9;
+  string redaction_state = 10;
+  bool raw_available = 11;
+  string message_role = 12;
+  string prompt_digest = 13;
+  uint64 prompt_len = 14;
+  string vendor = 15;
+}
+
+message HTTPEvent {
+  string direction = 1;
+  string method = 2;
+  string url = 3;
+  string host = 4;
+  uint32 status = 5;
+  string content_type = 6;
+  uint64 body_size = 7;
+  bool truncated = 8;
+  string redaction_state = 9;
+}
+
+message SSEEvent {
+  string event = 1;
+  string data_digest = 2;
+  uint64 data_size = 3;
+  bool completed = 4;
+  string redaction_state = 5;
+}
+
+message StdioEvent {
+  string fd = 1;
+  string stream = 2;
+  uint64 size = 3;
+  bool truncated = 4;
+  bool binary = 5;
+  string redaction_state = 6;
+}
+
+message SystemMetricEvent {
+  double cpu_percent = 1;
+  uint64 memory_bytes = 2;
+  uint32 threads = 3;
+  uint32 children = 4;
+  uint32 fd_count = 5;
+  string process_state = 6;
+  string alert = 7;
+}
+
+message OtelSpanEvent {
+  string name = 1;
+  string kind = 2;
+  string status = 3;
+  string provider = 4;
+  string model = 5;
+  uint64 latency_ms = 6;
+  uint64 input_tokens = 7;
+  uint64 output_tokens = 8;
+  string error = 9;
+}
+
+message AgentSightAlertEvent {
+  string category = 1;
+  string severity = 2;
+  string reason = 3;
+  string related_event_id = 4;
+  string redaction_state = 5;
+}
+
+message EventEnvelope {
+  string schema_version = 1;
+  string event_id = 2;
+  uint64 timestamp_ns = 3;
+  string source = 4;
+  string agent_run_id = 5;
+  string task_id = 6;
+  string conversation_id = 7;
+  string turn_id = 8;
+  string tool_call_id = 9;
+  string tool_name = 10;
+  string trace_id = 11;
+  string span_id = 12;
+  uint32 pid = 13;
+  uint32 tgid = 14;
+  uint32 ppid = 15;
+  uint32 uid = 16;
+  uint32 gid = 17;
+  string comm = 18;
+  string argv_digest = 19;
+  string cwd = 20;
+  uint64 cgroup_id = 21;
+  string container_id = 22;
+  string policy_decision = 23;
+  double risk_score = 24;
+  EventType event_type = 25;
+  Event legacy_event = 26;
+  oneof payload {
+    ExecEvent exec_event = 27;
+    FileEvent file_event = 28;
+    NetworkEvent network_event = 29;
+    ProcessEvent process_event = 30;
+    PolicyEvent policy_event = 31;
+    WrapperEvent wrapper_event = 32;
+    HookEvent hook_event = 33;
+    McpEvent mcp_event = 34;
+    TLSEvent tls_event = 35;
+    HTTPEvent http_event = 36;
+    SSEEvent sse_event = 37;
+    StdioEvent stdio_event = 38;
+    SystemMetricEvent system_metric_event = 39;
+    OtelSpanEvent otel_span_event = 40;
+    AgentSightAlertEvent agentsight_alert_event = 41;
+  }
+}
+
+message EventEnvelopeBatch {
+  repeated EventEnvelope envelopes = 1;
+}
+
+// Batch of events for WebSocket delivery efficiency
+message EventBatch {
+  repeated Event events = 1;
+}
+
+// ── Event history types ──────────────────────────────────────────────
+
+message CapturedEventRecord {
+  Event event = 1;
+  int64 timestamp = 2;
+  EventEnvelope envelope = 3;
+}
+
+message EventHistoryResponse {
+  repeated CapturedEventRecord events = 1;
+  string source = 2;
+}

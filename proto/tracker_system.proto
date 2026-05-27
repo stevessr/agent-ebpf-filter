@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+package pb;
+option go_package = "agent-ebpf-filter/pb";
+
+// Represents system process information for the tree view
+message Process {
+  int32 pid = 1;
+  int32 ppid = 2;
+  string name = 3;
+  double cpu = 4;
+  float mem = 5;
+  string user = 6;
+  uint32 gpu_mem = 7; // GPU VRAM usage in MiB
+  uint32 gpu_util = 8; // GPU utilization percentage
+  uint32 gpu_id = 9;   // GPU index
+  string cmdline = 10;
+  int64 create_time = 11;
+  uint64 minor_faults = 12; // Page faults that did not require disk I/O
+  uint64 major_faults = 13; // Hard page faults that required disk I/O
+}
+
+message GPUStatus {
+  uint32 index = 1;
+  string name = 2;
+  uint32 util_gpu = 3;
+  uint32 util_mem = 4;
+  uint32 mem_total = 5;
+  uint32 mem_used = 6;
+  uint32 temp = 7;
+  // NVIDIA detailed engine stats
+  uint32 enc_util = 8;
+  uint32 dec_util = 9;
+  uint32 sm_clock_mhz = 10;
+  uint32 mem_clock_mhz = 11;
+  uint32 gfx_clock_mhz = 12;
+  uint32 power_w = 13;
+  uint32 power_limit_w = 14;
+  uint32 fan_speed = 15;
+  int32 pcie_gen = 16;
+  int32 pcie_width = 17;
+}
+
+message CPUInfo {
+  message Core {
+    uint32 index = 1;
+    double usage = 2;
+    enum Type {
+      PERFORMANCE = 0; // P-core
+      EFFICIENCY = 1;  // E-core
+      HYPERTHREAD = 2; // SMT thread
+    }
+    Type type = 3;
+  }
+  double total = 1;
+  repeated double cores = 2; // Keep for backward compatibility
+  repeated Core core_details = 3;
+}
+
+message MemoryInfo {
+  uint64 total = 1;
+  uint64 used = 2;
+  float percent = 3;
+  uint64 cached = 4;
+  uint64 buffers = 5;
+  uint64 shared = 6;
+  uint64 zram_used = 7;
+  uint64 zram_total = 8;
+  uint64 swap_total = 9;
+  uint64 swap_used = 10;
+}
+
+message NetworkInterface {
+  string name = 1;
+  uint64 recv_bytes = 2;
+  uint64 sent_bytes = 3;
+}
+
+message DiskDevice {
+  string name = 1;
+  uint64 read_bytes = 2;
+  uint64 write_bytes = 3;
+}
+
+message IOInfo {
+  uint64 total_read_bytes = 1;
+  uint64 total_write_bytes = 2;
+  uint64 total_net_recv_bytes = 3;
+  uint64 total_net_sent_bytes = 4;
+  repeated NetworkInterface networks = 5;
+  repeated DiskDevice disks = 6;
+}
+
+message FaultInfo {
+  uint64 page_faults = 1;      // pgfault
+  uint64 major_faults = 2;     // pgmajfault (hard faults)
+  uint64 minor_faults = 3;     // page_faults - major_faults
+  double page_fault_rate = 4;  // faults/sec
+  double major_fault_rate = 5; // hard faults/sec
+  double minor_fault_rate = 6; // soft faults/sec
+  uint64 swap_in = 7;
+  uint64 swap_out = 8;
+  double swap_in_rate = 9;
+  double swap_out_rate = 10;
+}
+
+message SystemStats {
+  repeated Process processes = 1;
+  repeated GPUStatus gpus = 2;
+  CPUInfo cpu = 3;
+  MemoryInfo memory = 4;
+  IOInfo io = 5;
+  FaultInfo faults = 6;
+}
+
+message ProcessList {
+  repeated Process processes = 1;
+}
+
+message SystemdUnit {
+  string unit = 1;
+  string load = 2;
+  string active = 3;
+  string sub = 4;
+  string description = 5;
+}
+
+message SystemdUnitList {
+  repeated SystemdUnit services = 1;
+}
+
+message SensorReading {
+  string key = 1;
+  double value = 2;
+  string unit = 3;
+}
+
+message SensorsSnapshot {
+  repeated SensorReading temperatures = 1;
+  repeated string fans = 2;
+}

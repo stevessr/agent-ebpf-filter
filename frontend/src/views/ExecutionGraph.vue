@@ -20,6 +20,7 @@ import { useMonitorData } from '../composables/useMonitorData';
 import type { ProcessInfo } from '../composables/useMonitorData';
 import { buildWebSocketUrl } from '../utils/requestContext';
 import { useExecutionGraph } from '../composables/useExecutionGraph';
+import { useExecutionGraphRecording } from '../composables/useExecutionGraphRecording';
 import type {
   ExecutionGraphEdge,
   ExecutionGraphFilterState,
@@ -89,23 +90,12 @@ const selectedProcessPid = ref<number | null>(filters.pid ? Number(filters.pid) 
 const processPickerOpen = ref(false);
 const liveListen = ref(true);
 const graphSocketStatus = ref<'connecting' | 'connected' | 'paused' | 'closed' | 'error'>('closed');
-const recordingPath = ref('');
 const replayPath = ref(String(singleQuery(route.query.replay_path)).trim());
-const recordingActive = ref(false);
-const recordingCount = ref(0);
-const recordingStartedAt = ref('');
-const recordingBusy = ref(false);
-const replayBusy = ref(false);
 const browserRecordingActive = ref(false);
 const browserReplayActive = ref(false);
-const browserReplayIndex = ref(0);
 const browserSnapshots = ref<BrowserGraphSnapshot[]>([]);
-const browserSavePath = ref('');
-const browserSaveBusy = ref(false);
 let graphWs: WebSocket | null = null;
 let graphReconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let recordingStatusTimer: ReturnType<typeof setInterval> | null = null;
-let browserReplayTimer: ReturnType<typeof setInterval> | null = null;
 const {
   kindTagColorMap,
   decisionOptions,
@@ -148,6 +138,7 @@ const {
   processes,
   selectedProcessPid,
 });
+
 const applyGraphPayload = (payload: Partial<ExecutionGraphResponse> | undefined) => {
   graph.value = normalizeGraphResponse(payload);
   appendBrowserSnapshot(graph.value);
@@ -160,6 +151,7 @@ const applyGraphPayload = (payload: Partial<ExecutionGraphResponse> | undefined)
   }
   lastLoadedAt.value = new Date().toLocaleString();
 };
+
 const closeGraphSocket = (status: typeof graphSocketStatus.value = 'closed') => {
   if (graphReconnectTimer) {
     clearTimeout(graphReconnectTimer);
@@ -177,6 +169,7 @@ const closeGraphSocket = (status: typeof graphSocketStatus.value = 'closed') => 
   loading.value = false;
   graphSocketStatus.value = status;
 };
+
 const connectGraphSocket = () => {
   if (!liveListen.value) {
     closeGraphSocket('paused');
@@ -229,186 +222,58 @@ const connectGraphSocket = () => {
     graphReconnectTimer = setTimeout(() => connectGraphSocket(), 2000);
   };
 };
+
+// ── Recording composable ──
+
+const recording = useExecutionGraphRecording({
+  graph,
+  filters,
+  replayPath,
+  browserSnapshots,
+  browserRecordingActive,
+  browserReplayActive,
+  applyGraphPayload,
+  syncRouteQuery,
+  connectGraphSocket,
+  closeGraphSocket,
+  cloneGraphState,
+  appendBrowserSnapshot,
+  setLastLoadedAt: (value: string) => { lastLoadedAt.value = value; },
+  browserSnapshotCount,
+  replayEnabled,
+  browserRecordingSummary,
+});
+
+const {
+  recordingPath,
+  recordingActive,
+  recordingCount,
+  recordingStartedAt,
+  recordingBusy,
+  replayBusy,
+  startRecording,
+  stopRecording,
+  playRecording,
+  stopReplay,
+  browserReplayIndex,
+  browserSavePath,
+  browserSaveBusy,
+  startBrowserRecording,
+  stopBrowserRecording,
+  playBrowserRecording,
+  clearBrowserRecording,
+  exitBrowserReplay,
+  exportBrowserRecording,
+  saveBrowserRecordingToBackend,
+  startRecordingStatusPolling,
+  cleanup: cleanupRecording,
+} = recording;
+
 const applyFilters = async () => {
   await syncRouteQuery();
   connectGraphSocket();
 };
-const loadRecordingStatus = async () => {
-  try {
-    const { data } = await axios.get('/events/recording');
-    recordingActive.value = Boolean(data?.active);
-    recordingCount.value = Number(data?.count ?? 0);
-    recordingStartedAt.value = String(data?.startedAt ?? '');
-    if (!recordingPath.value) {
-      recordingPath.value = String(data?.path || data?.defaultPath || '');
-    }
-  } catch (error) {
-    console.error('Failed to load event recording status', error);
-  }
-};
-const startRecording = async () => {
-  recordingBusy.value = true;
-  try {
-    const { data } = await axios.post('/events/recording/start', { path: recordingPath.value, truncate: false });
-    recordingActive.value = Boolean(data?.active);
-    recordingCount.value = Number(data?.count ?? 0);
-    recordingStartedAt.value = String(data?.startedAt ?? '');
-    recordingPath.value = String(data?.path || recordingPath.value);
-    message.success('已开始录制事件到文件');
-  } catch (error) {
-    console.error('Failed to start event recording', error);
-    message.error('开始录制失败');
-  } finally {
-    recordingBusy.value = false;
-  }
-};
-const stopRecording = async () => {
-  recordingBusy.value = true;
-  try {
-    const { data } = await axios.post('/events/recording/stop');
-    recordingActive.value = Boolean(data?.active);
-    recordingCount.value = Number(data?.count ?? recordingCount.value);
-    message.success('已停止录制');
-  } catch (error) {
-    console.error('Failed to stop event recording', error);
-    message.error('停止录制失败');
-  } finally {
-    recordingBusy.value = false;
-  }
-};
-const playRecording = async () => {
-  const path = recordingPath.value.trim();
-  if (!path) {
-    message.warning('请先填写录制文件路径');
-    return;
-  }
-  replayBusy.value = true;
-  try {
-    const { data } = await axios.post('/events/recording/replay', { path, limit: filters.limit });
-    replayPath.value = String(data?.path || path);
-    applyGraphPayload(data?.graph);
-    await syncRouteQuery();
-    connectGraphSocket();
-    message.success(`已回放 ${Number(data?.events ?? 0)} 条事件`);
-  } catch (error) {
-    console.error('Failed to replay event recording', error);
-    message.error('回放录制文件失败');
-  } finally {
-    replayBusy.value = false;
-  }
-};
-const stopReplay = async () => {
-  replayPath.value = '';
-  await applyFilters();
-};
-const stopBrowserReplay = () => {
-  if (browserReplayTimer) {
-    clearInterval(browserReplayTimer);
-    browserReplayTimer = null;
-  }
-  browserReplayActive.value = false;
-  browserReplayIndex.value = 0;
-};
-const startBrowserRecording = () => {
-  stopBrowserReplay();
-  browserSnapshots.value = [];
-  browserRecordingActive.value = true;
-  appendBrowserSnapshot(graph.value);
-  message.success('已开始录制到浏览器内存');
-};
-const stopBrowserRecording = () => {
-  browserRecordingActive.value = false;
-  message.success(`已停止内存录制，共 ${browserSnapshotCount.value} 个快照`);
-};
-const playBrowserRecording = () => {
-  if (!browserSnapshots.value.length) {
-    message.warning('浏览器内存中没有可回放的快照');
-    return;
-  }
-  closeGraphSocket('paused');
-  browserRecordingActive.value = false;
-  browserReplayActive.value = true;
-  browserReplayIndex.value = 0;
-  const snapshots = browserSnapshots.value;
-  const playNext = () => {
-    const snapshot = snapshots[browserReplayIndex.value];
-    if (!snapshot) {
-      stopBrowserReplay();
-      return;
-    }
-    applyGraphPayload({ ...cloneGraphState(snapshot.graph), source: 'browser_memory' });
-    lastLoadedAt.value = snapshot.recordedAt;
-    browserReplayIndex.value += 1;
-    if (browserReplayIndex.value >= snapshots.length) {
-      stopBrowserReplay();
-    }
-  };
-  playNext();
-  browserReplayTimer = setInterval(playNext, 900);
-};
-const clearBrowserRecording = () => {
-  stopBrowserReplay();
-  browserRecordingActive.value = false;
-  browserSnapshots.value = [];
-  message.success('已清空浏览器内存录制');
-};
-const exitBrowserReplay = () => {
-  stopBrowserReplay();
-  if (liveListen.value) {
-    connectGraphSocket();
-  }
-};
-const buildBrowserRecordingExport = () => ({
-  version: 1,
-  kind: 'agent-ebpf-filter.execution-graph.browser-memory',
-  exportedAt: new Date().toISOString(),
-  snapshotCount: browserSnapshots.value.length,
-  snapshots: browserSnapshots.value.map((snapshot) => ({
-    recordedAt: snapshot.recordedAt,
-    graph: cloneGraphState(snapshot.graph),
-  })),
-});
-const browserRecordingFilename = () => {
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `execution-graph-browser-memory-${stamp}.json`;
-};
-const exportBrowserRecording = () => {
-  if (!browserSnapshots.value.length) {
-    message.warning('浏览器内存中没有可导出的快照');
-    return;
-  }
-  const payload = JSON.stringify(buildBrowserRecordingExport(), null, 2);
-  const blob = new Blob([payload, '\n'], { type: 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = browserRecordingFilename();
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-  message.success('已导出浏览器内存录制');
-};
-const saveBrowserRecordingToBackend = async () => {
-  if (!browserSnapshots.value.length) {
-    message.warning('浏览器内存中没有可保存的快照');
-    return;
-  }
-  browserSaveBusy.value = true;
-  try {
-    const { data } = await axios.post('/events/recording/browser/save', {
-      path: browserSavePath.value.trim(),
-      export: buildBrowserRecordingExport(),
-    });
-    browserSavePath.value = String(data?.path || browserSavePath.value);
-    message.success(`已保存到后端：${browserSavePath.value}`);
-  } catch (error) {
-    console.error('Failed to save browser recording to backend', error);
-    message.error('保存浏览器内存录制到后端失败');
-  } finally {
-    browserSaveBusy.value = false;
-  }
-};
+
 const resetFilters = async () => {
   Object.assign(filters, defaultFilters());
   selectedProcessPid.value = null;
@@ -518,43 +383,12 @@ watch(liveListen, (enabled) => {
 });
 onMounted(async () => {
   setupMonitorData();
-  void loadRecordingStatus();
-  recordingStatusTimer = setInterval(() => {
-    void loadRecordingStatus();
-  }, 2500);
+  startRecordingStatusPolling();
   connectGraphSocket();
 });
 onUnmounted(() => {
   teardownMonitorData();
-  if (recordingStatusTimer) {
-    clearInterval(recordingStatusTimer);
-    recordingStatusTimer = null;
-  }
-  stopBrowserReplay();
-  closeGraphSocket('closed');
-});
-watch(liveListen, (enabled) => {
-  if (enabled) {
-    connectGraphSocket();
-  } else {
-    closeGraphSocket('paused');
-  }
-});
-onMounted(async () => {
-  setupMonitorData();
-  void loadRecordingStatus();
-  recordingStatusTimer = setInterval(() => {
-    void loadRecordingStatus();
-  }, 2500);
-  connectGraphSocket();
-});
-onUnmounted(() => {
-  teardownMonitorData();
-  if (recordingStatusTimer) {
-    clearInterval(recordingStatusTimer);
-    recordingStatusTimer = null;
-  }
-  stopBrowserReplay();
+  cleanupRecording();
   closeGraphSocket('closed');
 });
 </script>

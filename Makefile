@@ -277,8 +277,8 @@ proto: ## Generate Protocol Buffers code
 	mkdir -p backend/pb
 	mkdir -p adapters/python adapters/js frontend/src/pb
 	@set -e; \
-		protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto proto/tracker.proto & pid_go=$$!; \
-		(cd adapters/python && uv run python -m grpc_tools.protoc -I ../../proto --python_out=. ../../proto/tracker.proto) & pid_py=$$!; \
+		protoc --go_out=backend/pb --go_opt=paths=source_relative -I proto proto/tracker_common.proto proto/tracker_events.proto proto/tracker_registration.proto proto/tracker_system.proto proto/tracker_config.proto proto/tracker_shell.proto & pid_go=$$!; \
+		(cd adapters/python && uv run python -m grpc_tools.protoc -I ../../proto --python_out=. ../../proto/tracker_common.proto ../../proto/tracker_events.proto ../../proto/tracker_registration.proto ../../proto/tracker_system.proto ../../proto/tracker_config.proto ../../proto/tracker_shell.proto) & pid_py=$$!; \
 		(cd frontend && node node_modules/protobufjs-cli/bin/pbjs -t static-module -w commonjs -o ../adapters/js/tracker_pb.js ../proto/tracker.proto && node node_modules/protobufjs-cli/bin/pbjs -t static-module -w es6 -o src/pb/tracker_pb.js ../proto/tracker.proto && node node_modules/protobufjs-cli/bin/pbts -o src/pb/tracker_pb.d.ts src/pb/tracker_pb.js) & pid_js=$$!; \
 		for pid in $$pid_go $$pid_py $$pid_js; do wait $$pid; done
 	@echo "Proto generation complete."
