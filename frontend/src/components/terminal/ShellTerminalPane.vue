@@ -4,9 +4,9 @@ import { message } from 'ant-design-vue';
 import { WTerm } from '@wterm/dom';
 import '@wterm/dom/css';
 
-import type { ShellSessionInfo } from '../types/shell';
-import { buildWebSocketUrl } from '../utils/requestContext';
-import { isTmuxSession, TMUX_SHORTCUTS } from '../utils/tmux';
+import type { ShellSessionInfo } from '../../types/shell';
+import { buildWebSocketUrl } from '../../utils/requestContext';
+import { isTmuxSession, TMUX_SHORTCUTS } from '../../utils/tmux';
 
 const INITIAL_COLS = 100;
 const INITIAL_ROWS = 32;

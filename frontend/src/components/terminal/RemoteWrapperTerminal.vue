@@ -5,9 +5,9 @@ import { CodeOutlined, PlayCircleOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
 import ShellTerminalPane from './ShellTerminalPane.vue';
-import { pb } from '../pb/tracker_pb.js';
-import { buildWebSocketUrl } from '../utils/requestContext';
-import type { ShellSessionCreateRequest, ShellSessionInfo } from '../types/shell';
+import { pb } from '../../pb/tracker_pb.js';
+import { buildWebSocketUrl } from '../../utils/requestContext';
+import type { ShellSessionCreateRequest, ShellSessionInfo } from '../../types/shell';
 
 const RECENT_COMMANDS_STORAGE_KEY = 'recent_cmds';
 

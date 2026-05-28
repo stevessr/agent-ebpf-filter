@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, watchEffect } from 'vue';
 import { createHighlighter, type Highlighter } from 'shiki';
-import type { FilePreviewResponse } from '../types/filePreview';
+import type { FilePreviewResponse } from '../../types/filePreview';
 
 let highlighterInstance: Highlighter | null = null;
 const getHighlighter = async () => {

@@ -69,7 +69,7 @@ const handleRemoveCgroupPort = async (port: number) => {
           show-icon
           style="margin-bottom: 16px"
           message="可视化 eBPF 编辑已升级为多积木画布"
-          description="通过 Trigger / Condition / Map / Action 积木组合生成 eBPF C 源码，可一键注册、编译并加载为插件；下方"快速核心规则"仍保留对内置 cgroup/LSM map 的直接写入。"
+          description="通过 Trigger / Condition / Map / Action 积木组合生成 eBPF C 源码，可一键注册、编译并加载为插件；下方「快速核心规则」仍保留对内置 cgroup/LSM map 的直接写入。"
         />
         <PluginsVisualTab />
       </a-tab-pane>

@@ -4,7 +4,7 @@ import {
   TagOutlined, AppstoreOutlined, FolderOutlined,
   ExportOutlined, ImportOutlined, PlusOutlined,
 } from '@ant-design/icons-vue';
-import PathNavigatorDrawer from '../PathNavigatorDrawer.vue';
+import PathNavigatorDrawer from '../explorer/PathNavigatorDrawer.vue';
 import { getCategoryColor, type useConfigRegistry } from '../../composables/config/useConfigRegistry';
 
 const props = defineProps<{

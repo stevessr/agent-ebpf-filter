@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue';
 import ShellTerminalPane from './ShellTerminalPane.vue';
-import type { ShellSessionInfo } from '../types/shell';
-import { isTmuxSession } from '../utils/tmux';
+import type { ShellSessionInfo } from '../../types/shell';
+import { isTmuxSession } from '../../utils/tmux';
 import { useShellSessions, SHELL_MODE_OPTIONS } from '../../composables/executor/useShellSessions';
 
 const props = withDefaults(defineProps<{

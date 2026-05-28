@@ -1,4 +1,4 @@
-import type { MLLlmConfig, LLMProductionDatasetRow } from "../types/config";
+import type { MLLlmConfig, LLMProductionDatasetRow } from "../../types/config";
 
 export const LLM_SCORING_STORAGE_KEY = 'agent-ebpf-filter.ml.llm-scoring-config';
 
