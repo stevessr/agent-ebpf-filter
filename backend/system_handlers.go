@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"mime"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"

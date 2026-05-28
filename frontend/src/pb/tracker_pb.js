@@ -534,39 +534,25 @@ export const pb = $root.pb = (() => {
         return BehaviorClassification;
     })();
 
-    pb.RegisterRequest = (function() {
+    pb.StatusResponse = (function() {
 
         /**
-         * Properties of a RegisterRequest.
+         * Properties of a StatusResponse.
          * @memberof pb
-         * @interface IRegisterRequest
-         * @property {number|null} [pid] RegisterRequest pid
-         * @property {string|null} [tag] RegisterRequest tag
-         * @property {string|null} [agentRunId] RegisterRequest agentRunId
-         * @property {string|null} [conversationId] RegisterRequest conversationId
-         * @property {string|null} [turnId] RegisterRequest turnId
-         * @property {string|null} [toolCallId] RegisterRequest toolCallId
-         * @property {string|null} [toolName] RegisterRequest toolName
-         * @property {string|null} [traceId] RegisterRequest traceId
-         * @property {string|null} [spanId] RegisterRequest spanId
-         * @property {number|null} [rootAgentPid] RegisterRequest rootAgentPid
-         * @property {string|null} [decision] RegisterRequest decision
-         * @property {number|null} [riskScore] RegisterRequest riskScore
-         * @property {string|null} [containerId] RegisterRequest containerId
-         * @property {string|null} [argvDigest] RegisterRequest argvDigest
-         * @property {string|null} [taskId] RegisterRequest taskId
-         * @property {string|null} [cwd] RegisterRequest cwd
+         * @interface IStatusResponse
+         * @property {string|null} [status] StatusResponse status
+         * @property {string|null} [message] StatusResponse message
          */
 
         /**
-         * Constructs a new RegisterRequest.
+         * Constructs a new StatusResponse.
          * @memberof pb
-         * @classdesc Represents a RegisterRequest.
-         * @implements IRegisterRequest
+         * @classdesc Represents a StatusResponse.
+         * @implements IStatusResponse
          * @constructor
-         * @param {pb.IRegisterRequest=} [properties] Properties to set
+         * @param {pb.IStatusResponse=} [properties] Properties to set
          */
-        function RegisterRequest(properties) {
+        function StatusResponse(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -574,624 +560,87 @@ export const pb = $root.pb = (() => {
         }
 
         /**
-         * RegisterRequest pid.
-         * @member {number} pid
-         * @memberof pb.RegisterRequest
+         * StatusResponse status.
+         * @member {string} status
+         * @memberof pb.StatusResponse
          * @instance
          */
-        RegisterRequest.prototype.pid = 0;
+        StatusResponse.prototype.status = "";
 
         /**
-         * RegisterRequest tag.
-         * @member {string} tag
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.tag = "";
-
-        /**
-         * RegisterRequest agentRunId.
-         * @member {string} agentRunId
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.agentRunId = "";
-
-        /**
-         * RegisterRequest conversationId.
-         * @member {string} conversationId
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.conversationId = "";
-
-        /**
-         * RegisterRequest turnId.
-         * @member {string} turnId
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.turnId = "";
-
-        /**
-         * RegisterRequest toolCallId.
-         * @member {string} toolCallId
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.toolCallId = "";
-
-        /**
-         * RegisterRequest toolName.
-         * @member {string} toolName
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.toolName = "";
-
-        /**
-         * RegisterRequest traceId.
-         * @member {string} traceId
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.traceId = "";
-
-        /**
-         * RegisterRequest spanId.
-         * @member {string} spanId
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.spanId = "";
-
-        /**
-         * RegisterRequest rootAgentPid.
-         * @member {number} rootAgentPid
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.rootAgentPid = 0;
-
-        /**
-         * RegisterRequest decision.
-         * @member {string} decision
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.decision = "";
-
-        /**
-         * RegisterRequest riskScore.
-         * @member {number} riskScore
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.riskScore = 0;
-
-        /**
-         * RegisterRequest containerId.
-         * @member {string} containerId
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.containerId = "";
-
-        /**
-         * RegisterRequest argvDigest.
-         * @member {string} argvDigest
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.argvDigest = "";
-
-        /**
-         * RegisterRequest taskId.
-         * @member {string} taskId
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.taskId = "";
-
-        /**
-         * RegisterRequest cwd.
-         * @member {string} cwd
-         * @memberof pb.RegisterRequest
-         * @instance
-         */
-        RegisterRequest.prototype.cwd = "";
-
-        /**
-         * Creates a new RegisterRequest instance using the specified properties.
-         * @function create
-         * @memberof pb.RegisterRequest
-         * @static
-         * @param {pb.IRegisterRequest=} [properties] Properties to set
-         * @returns {pb.RegisterRequest} RegisterRequest instance
-         */
-        RegisterRequest.create = function create(properties) {
-            return new RegisterRequest(properties);
-        };
-
-        /**
-         * Encodes the specified RegisterRequest message. Does not implicitly {@link pb.RegisterRequest.verify|verify} messages.
-         * @function encode
-         * @memberof pb.RegisterRequest
-         * @static
-         * @param {pb.IRegisterRequest} message RegisterRequest message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        RegisterRequest.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
-                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.pid);
-            if (message.tag != null && Object.hasOwnProperty.call(message, "tag"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.tag);
-            if (message.agentRunId != null && Object.hasOwnProperty.call(message, "agentRunId"))
-                writer.uint32(/* id 3, wireType 2 =*/26).string(message.agentRunId);
-            if (message.conversationId != null && Object.hasOwnProperty.call(message, "conversationId"))
-                writer.uint32(/* id 4, wireType 2 =*/34).string(message.conversationId);
-            if (message.turnId != null && Object.hasOwnProperty.call(message, "turnId"))
-                writer.uint32(/* id 5, wireType 2 =*/42).string(message.turnId);
-            if (message.toolCallId != null && Object.hasOwnProperty.call(message, "toolCallId"))
-                writer.uint32(/* id 6, wireType 2 =*/50).string(message.toolCallId);
-            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
-                writer.uint32(/* id 7, wireType 2 =*/58).string(message.toolName);
-            if (message.traceId != null && Object.hasOwnProperty.call(message, "traceId"))
-                writer.uint32(/* id 8, wireType 2 =*/66).string(message.traceId);
-            if (message.spanId != null && Object.hasOwnProperty.call(message, "spanId"))
-                writer.uint32(/* id 9, wireType 2 =*/74).string(message.spanId);
-            if (message.rootAgentPid != null && Object.hasOwnProperty.call(message, "rootAgentPid"))
-                writer.uint32(/* id 10, wireType 0 =*/80).uint32(message.rootAgentPid);
-            if (message.decision != null && Object.hasOwnProperty.call(message, "decision"))
-                writer.uint32(/* id 11, wireType 2 =*/90).string(message.decision);
-            if (message.riskScore != null && Object.hasOwnProperty.call(message, "riskScore"))
-                writer.uint32(/* id 12, wireType 1 =*/97).double(message.riskScore);
-            if (message.containerId != null && Object.hasOwnProperty.call(message, "containerId"))
-                writer.uint32(/* id 13, wireType 2 =*/106).string(message.containerId);
-            if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
-                writer.uint32(/* id 14, wireType 2 =*/114).string(message.argvDigest);
-            if (message.taskId != null && Object.hasOwnProperty.call(message, "taskId"))
-                writer.uint32(/* id 15, wireType 2 =*/122).string(message.taskId);
-            if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
-                writer.uint32(/* id 16, wireType 2 =*/130).string(message.cwd);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified RegisterRequest message, length delimited. Does not implicitly {@link pb.RegisterRequest.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.RegisterRequest
-         * @static
-         * @param {pb.IRegisterRequest} message RegisterRequest message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        RegisterRequest.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a RegisterRequest message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.RegisterRequest
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.RegisterRequest} RegisterRequest
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        RegisterRequest.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RegisterRequest();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.pid = reader.uint32();
-                        break;
-                    }
-                case 2: {
-                        message.tag = reader.string();
-                        break;
-                    }
-                case 3: {
-                        message.agentRunId = reader.string();
-                        break;
-                    }
-                case 4: {
-                        message.conversationId = reader.string();
-                        break;
-                    }
-                case 5: {
-                        message.turnId = reader.string();
-                        break;
-                    }
-                case 6: {
-                        message.toolCallId = reader.string();
-                        break;
-                    }
-                case 7: {
-                        message.toolName = reader.string();
-                        break;
-                    }
-                case 8: {
-                        message.traceId = reader.string();
-                        break;
-                    }
-                case 9: {
-                        message.spanId = reader.string();
-                        break;
-                    }
-                case 10: {
-                        message.rootAgentPid = reader.uint32();
-                        break;
-                    }
-                case 11: {
-                        message.decision = reader.string();
-                        break;
-                    }
-                case 12: {
-                        message.riskScore = reader.double();
-                        break;
-                    }
-                case 13: {
-                        message.containerId = reader.string();
-                        break;
-                    }
-                case 14: {
-                        message.argvDigest = reader.string();
-                        break;
-                    }
-                case 15: {
-                        message.taskId = reader.string();
-                        break;
-                    }
-                case 16: {
-                        message.cwd = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a RegisterRequest message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.RegisterRequest
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.RegisterRequest} RegisterRequest
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        RegisterRequest.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a RegisterRequest message.
-         * @function verify
-         * @memberof pb.RegisterRequest
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        RegisterRequest.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.pid != null && message.hasOwnProperty("pid"))
-                if (!$util.isInteger(message.pid))
-                    return "pid: integer expected";
-            if (message.tag != null && message.hasOwnProperty("tag"))
-                if (!$util.isString(message.tag))
-                    return "tag: string expected";
-            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
-                if (!$util.isString(message.agentRunId))
-                    return "agentRunId: string expected";
-            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
-                if (!$util.isString(message.conversationId))
-                    return "conversationId: string expected";
-            if (message.turnId != null && message.hasOwnProperty("turnId"))
-                if (!$util.isString(message.turnId))
-                    return "turnId: string expected";
-            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
-                if (!$util.isString(message.toolCallId))
-                    return "toolCallId: string expected";
-            if (message.toolName != null && message.hasOwnProperty("toolName"))
-                if (!$util.isString(message.toolName))
-                    return "toolName: string expected";
-            if (message.traceId != null && message.hasOwnProperty("traceId"))
-                if (!$util.isString(message.traceId))
-                    return "traceId: string expected";
-            if (message.spanId != null && message.hasOwnProperty("spanId"))
-                if (!$util.isString(message.spanId))
-                    return "spanId: string expected";
-            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
-                if (!$util.isInteger(message.rootAgentPid))
-                    return "rootAgentPid: integer expected";
-            if (message.decision != null && message.hasOwnProperty("decision"))
-                if (!$util.isString(message.decision))
-                    return "decision: string expected";
-            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
-                if (typeof message.riskScore !== "number")
-                    return "riskScore: number expected";
-            if (message.containerId != null && message.hasOwnProperty("containerId"))
-                if (!$util.isString(message.containerId))
-                    return "containerId: string expected";
-            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
-                if (!$util.isString(message.argvDigest))
-                    return "argvDigest: string expected";
-            if (message.taskId != null && message.hasOwnProperty("taskId"))
-                if (!$util.isString(message.taskId))
-                    return "taskId: string expected";
-            if (message.cwd != null && message.hasOwnProperty("cwd"))
-                if (!$util.isString(message.cwd))
-                    return "cwd: string expected";
-            return null;
-        };
-
-        /**
-         * Creates a RegisterRequest message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.RegisterRequest
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.RegisterRequest} RegisterRequest
-         */
-        RegisterRequest.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.RegisterRequest)
-                return object;
-            let message = new $root.pb.RegisterRequest();
-            if (object.pid != null)
-                message.pid = object.pid >>> 0;
-            if (object.tag != null)
-                message.tag = String(object.tag);
-            if (object.agentRunId != null)
-                message.agentRunId = String(object.agentRunId);
-            if (object.conversationId != null)
-                message.conversationId = String(object.conversationId);
-            if (object.turnId != null)
-                message.turnId = String(object.turnId);
-            if (object.toolCallId != null)
-                message.toolCallId = String(object.toolCallId);
-            if (object.toolName != null)
-                message.toolName = String(object.toolName);
-            if (object.traceId != null)
-                message.traceId = String(object.traceId);
-            if (object.spanId != null)
-                message.spanId = String(object.spanId);
-            if (object.rootAgentPid != null)
-                message.rootAgentPid = object.rootAgentPid >>> 0;
-            if (object.decision != null)
-                message.decision = String(object.decision);
-            if (object.riskScore != null)
-                message.riskScore = Number(object.riskScore);
-            if (object.containerId != null)
-                message.containerId = String(object.containerId);
-            if (object.argvDigest != null)
-                message.argvDigest = String(object.argvDigest);
-            if (object.taskId != null)
-                message.taskId = String(object.taskId);
-            if (object.cwd != null)
-                message.cwd = String(object.cwd);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a RegisterRequest message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.RegisterRequest
-         * @static
-         * @param {pb.RegisterRequest} message RegisterRequest
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        RegisterRequest.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.defaults) {
-                object.pid = 0;
-                object.tag = "";
-                object.agentRunId = "";
-                object.conversationId = "";
-                object.turnId = "";
-                object.toolCallId = "";
-                object.toolName = "";
-                object.traceId = "";
-                object.spanId = "";
-                object.rootAgentPid = 0;
-                object.decision = "";
-                object.riskScore = 0;
-                object.containerId = "";
-                object.argvDigest = "";
-                object.taskId = "";
-                object.cwd = "";
-            }
-            if (message.pid != null && message.hasOwnProperty("pid"))
-                object.pid = message.pid;
-            if (message.tag != null && message.hasOwnProperty("tag"))
-                object.tag = message.tag;
-            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
-                object.agentRunId = message.agentRunId;
-            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
-                object.conversationId = message.conversationId;
-            if (message.turnId != null && message.hasOwnProperty("turnId"))
-                object.turnId = message.turnId;
-            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
-                object.toolCallId = message.toolCallId;
-            if (message.toolName != null && message.hasOwnProperty("toolName"))
-                object.toolName = message.toolName;
-            if (message.traceId != null && message.hasOwnProperty("traceId"))
-                object.traceId = message.traceId;
-            if (message.spanId != null && message.hasOwnProperty("spanId"))
-                object.spanId = message.spanId;
-            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
-                object.rootAgentPid = message.rootAgentPid;
-            if (message.decision != null && message.hasOwnProperty("decision"))
-                object.decision = message.decision;
-            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
-                object.riskScore = options.json && !isFinite(message.riskScore) ? String(message.riskScore) : message.riskScore;
-            if (message.containerId != null && message.hasOwnProperty("containerId"))
-                object.containerId = message.containerId;
-            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
-                object.argvDigest = message.argvDigest;
-            if (message.taskId != null && message.hasOwnProperty("taskId"))
-                object.taskId = message.taskId;
-            if (message.cwd != null && message.hasOwnProperty("cwd"))
-                object.cwd = message.cwd;
-            return object;
-        };
-
-        /**
-         * Converts this RegisterRequest to JSON.
-         * @function toJSON
-         * @memberof pb.RegisterRequest
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        RegisterRequest.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for RegisterRequest
-         * @function getTypeUrl
-         * @memberof pb.RegisterRequest
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        RegisterRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.RegisterRequest";
-        };
-
-        return RegisterRequest;
-    })();
-
-    pb.RegisterResponse = (function() {
-
-        /**
-         * Properties of a RegisterResponse.
-         * @memberof pb
-         * @interface IRegisterResponse
-         * @property {boolean|null} [success] RegisterResponse success
-         * @property {string|null} [message] RegisterResponse message
-         */
-
-        /**
-         * Constructs a new RegisterResponse.
-         * @memberof pb
-         * @classdesc Represents a RegisterResponse.
-         * @implements IRegisterResponse
-         * @constructor
-         * @param {pb.IRegisterResponse=} [properties] Properties to set
-         */
-        function RegisterResponse(properties) {
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * RegisterResponse success.
-         * @member {boolean} success
-         * @memberof pb.RegisterResponse
-         * @instance
-         */
-        RegisterResponse.prototype.success = false;
-
-        /**
-         * RegisterResponse message.
+         * StatusResponse message.
          * @member {string} message
-         * @memberof pb.RegisterResponse
+         * @memberof pb.StatusResponse
          * @instance
          */
-        RegisterResponse.prototype.message = "";
+        StatusResponse.prototype.message = "";
 
         /**
-         * Creates a new RegisterResponse instance using the specified properties.
+         * Creates a new StatusResponse instance using the specified properties.
          * @function create
-         * @memberof pb.RegisterResponse
+         * @memberof pb.StatusResponse
          * @static
-         * @param {pb.IRegisterResponse=} [properties] Properties to set
-         * @returns {pb.RegisterResponse} RegisterResponse instance
+         * @param {pb.IStatusResponse=} [properties] Properties to set
+         * @returns {pb.StatusResponse} StatusResponse instance
          */
-        RegisterResponse.create = function create(properties) {
-            return new RegisterResponse(properties);
+        StatusResponse.create = function create(properties) {
+            return new StatusResponse(properties);
         };
 
         /**
-         * Encodes the specified RegisterResponse message. Does not implicitly {@link pb.RegisterResponse.verify|verify} messages.
+         * Encodes the specified StatusResponse message. Does not implicitly {@link pb.StatusResponse.verify|verify} messages.
          * @function encode
-         * @memberof pb.RegisterResponse
+         * @memberof pb.StatusResponse
          * @static
-         * @param {pb.IRegisterResponse} message RegisterResponse message or plain object to encode
+         * @param {pb.IStatusResponse} message StatusResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        RegisterResponse.encode = function encode(message, writer) {
+        StatusResponse.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
-            if (message.success != null && Object.hasOwnProperty.call(message, "success"))
-                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.success);
+            if (message.status != null && Object.hasOwnProperty.call(message, "status"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.status);
             if (message.message != null && Object.hasOwnProperty.call(message, "message"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
             return writer;
         };
 
         /**
-         * Encodes the specified RegisterResponse message, length delimited. Does not implicitly {@link pb.RegisterResponse.verify|verify} messages.
+         * Encodes the specified StatusResponse message, length delimited. Does not implicitly {@link pb.StatusResponse.verify|verify} messages.
          * @function encodeDelimited
-         * @memberof pb.RegisterResponse
+         * @memberof pb.StatusResponse
          * @static
-         * @param {pb.IRegisterResponse} message RegisterResponse message or plain object to encode
+         * @param {pb.IStatusResponse} message StatusResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        RegisterResponse.encodeDelimited = function encodeDelimited(message, writer) {
+        StatusResponse.encodeDelimited = function encodeDelimited(message, writer) {
             return this.encode(message, writer).ldelim();
         };
 
         /**
-         * Decodes a RegisterResponse message from the specified reader or buffer.
+         * Decodes a StatusResponse message from the specified reader or buffer.
          * @function decode
-         * @memberof pb.RegisterResponse
+         * @memberof pb.StatusResponse
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {pb.RegisterResponse} RegisterResponse
+         * @returns {pb.StatusResponse} StatusResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        RegisterResponse.decode = function decode(reader, length, error) {
+        StatusResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RegisterResponse();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.StatusResponse();
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 if (tag === error)
                     break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.success = reader.bool();
+                        message.status = reader.string();
                         break;
                     }
                 case 2: {
@@ -1207,35 +656,35 @@ export const pb = $root.pb = (() => {
         };
 
         /**
-         * Decodes a RegisterResponse message from the specified reader or buffer, length delimited.
+         * Decodes a StatusResponse message from the specified reader or buffer, length delimited.
          * @function decodeDelimited
-         * @memberof pb.RegisterResponse
+         * @memberof pb.StatusResponse
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.RegisterResponse} RegisterResponse
+         * @returns {pb.StatusResponse} StatusResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        RegisterResponse.decodeDelimited = function decodeDelimited(reader) {
+        StatusResponse.decodeDelimited = function decodeDelimited(reader) {
             if (!(reader instanceof $Reader))
                 reader = new $Reader(reader);
             return this.decode(reader, reader.uint32());
         };
 
         /**
-         * Verifies a RegisterResponse message.
+         * Verifies a StatusResponse message.
          * @function verify
-         * @memberof pb.RegisterResponse
+         * @memberof pb.StatusResponse
          * @static
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        RegisterResponse.verify = function verify(message) {
+        StatusResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.success != null && message.hasOwnProperty("success"))
-                if (typeof message.success !== "boolean")
-                    return "success: boolean expected";
+            if (message.status != null && message.hasOwnProperty("status"))
+                if (!$util.isString(message.status))
+                    return "status: string expected";
             if (message.message != null && message.hasOwnProperty("message"))
                 if (!$util.isString(message.message))
                     return "message: string expected";
@@ -1243,95 +692,96 @@ export const pb = $root.pb = (() => {
         };
 
         /**
-         * Creates a RegisterResponse message from a plain object. Also converts values to their respective internal types.
+         * Creates a StatusResponse message from a plain object. Also converts values to their respective internal types.
          * @function fromObject
-         * @memberof pb.RegisterResponse
+         * @memberof pb.StatusResponse
          * @static
          * @param {Object.<string,*>} object Plain object
-         * @returns {pb.RegisterResponse} RegisterResponse
+         * @returns {pb.StatusResponse} StatusResponse
          */
-        RegisterResponse.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.RegisterResponse)
+        StatusResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.StatusResponse)
                 return object;
-            let message = new $root.pb.RegisterResponse();
-            if (object.success != null)
-                message.success = Boolean(object.success);
+            let message = new $root.pb.StatusResponse();
+            if (object.status != null)
+                message.status = String(object.status);
             if (object.message != null)
                 message.message = String(object.message);
             return message;
         };
 
         /**
-         * Creates a plain object from a RegisterResponse message. Also converts values to other types if specified.
+         * Creates a plain object from a StatusResponse message. Also converts values to other types if specified.
          * @function toObject
-         * @memberof pb.RegisterResponse
+         * @memberof pb.StatusResponse
          * @static
-         * @param {pb.RegisterResponse} message RegisterResponse
+         * @param {pb.StatusResponse} message StatusResponse
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        RegisterResponse.toObject = function toObject(message, options) {
+        StatusResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
             let object = {};
             if (options.defaults) {
-                object.success = false;
+                object.status = "";
                 object.message = "";
             }
-            if (message.success != null && message.hasOwnProperty("success"))
-                object.success = message.success;
+            if (message.status != null && message.hasOwnProperty("status"))
+                object.status = message.status;
             if (message.message != null && message.hasOwnProperty("message"))
                 object.message = message.message;
             return object;
         };
 
         /**
-         * Converts this RegisterResponse to JSON.
+         * Converts this StatusResponse to JSON.
          * @function toJSON
-         * @memberof pb.RegisterResponse
+         * @memberof pb.StatusResponse
          * @instance
          * @returns {Object.<string,*>} JSON object
          */
-        RegisterResponse.prototype.toJSON = function toJSON() {
+        StatusResponse.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
         /**
-         * Gets the default type url for RegisterResponse
+         * Gets the default type url for StatusResponse
          * @function getTypeUrl
-         * @memberof pb.RegisterResponse
+         * @memberof pb.StatusResponse
          * @static
          * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns {string} The default type url
          */
-        RegisterResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+        StatusResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
             if (typeUrlPrefix === undefined) {
                 typeUrlPrefix = "type.googleapis.com";
             }
-            return typeUrlPrefix + "/pb.RegisterResponse";
+            return typeUrlPrefix + "/pb.StatusResponse";
         };
 
-        return RegisterResponse;
+        return StatusResponse;
     })();
 
-    pb.UnregisterRequest = (function() {
+    pb.ConfigKeyRequest = (function() {
 
         /**
-         * Properties of an UnregisterRequest.
+         * Properties of a ConfigKeyRequest.
          * @memberof pb
-         * @interface IUnregisterRequest
-         * @property {number|null} [pid] UnregisterRequest pid
+         * @interface IConfigKeyRequest
+         * @property {string|null} [key] ConfigKeyRequest key
+         * @property {string|null} [name] ConfigKeyRequest name
          */
 
         /**
-         * Constructs a new UnregisterRequest.
+         * Constructs a new ConfigKeyRequest.
          * @memberof pb
-         * @classdesc Represents an UnregisterRequest.
-         * @implements IUnregisterRequest
+         * @classdesc Represents a ConfigKeyRequest.
+         * @implements IConfigKeyRequest
          * @constructor
-         * @param {pb.IUnregisterRequest=} [properties] Properties to set
+         * @param {pb.IConfigKeyRequest=} [properties] Properties to set
          */
-        function UnregisterRequest(properties) {
+        function ConfigKeyRequest(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -1339,77 +789,91 @@ export const pb = $root.pb = (() => {
         }
 
         /**
-         * UnregisterRequest pid.
-         * @member {number} pid
-         * @memberof pb.UnregisterRequest
+         * ConfigKeyRequest key.
+         * @member {string} key
+         * @memberof pb.ConfigKeyRequest
          * @instance
          */
-        UnregisterRequest.prototype.pid = 0;
+        ConfigKeyRequest.prototype.key = "";
 
         /**
-         * Creates a new UnregisterRequest instance using the specified properties.
-         * @function create
-         * @memberof pb.UnregisterRequest
-         * @static
-         * @param {pb.IUnregisterRequest=} [properties] Properties to set
-         * @returns {pb.UnregisterRequest} UnregisterRequest instance
+         * ConfigKeyRequest name.
+         * @member {string} name
+         * @memberof pb.ConfigKeyRequest
+         * @instance
          */
-        UnregisterRequest.create = function create(properties) {
-            return new UnregisterRequest(properties);
+        ConfigKeyRequest.prototype.name = "";
+
+        /**
+         * Creates a new ConfigKeyRequest instance using the specified properties.
+         * @function create
+         * @memberof pb.ConfigKeyRequest
+         * @static
+         * @param {pb.IConfigKeyRequest=} [properties] Properties to set
+         * @returns {pb.ConfigKeyRequest} ConfigKeyRequest instance
+         */
+        ConfigKeyRequest.create = function create(properties) {
+            return new ConfigKeyRequest(properties);
         };
 
         /**
-         * Encodes the specified UnregisterRequest message. Does not implicitly {@link pb.UnregisterRequest.verify|verify} messages.
+         * Encodes the specified ConfigKeyRequest message. Does not implicitly {@link pb.ConfigKeyRequest.verify|verify} messages.
          * @function encode
-         * @memberof pb.UnregisterRequest
+         * @memberof pb.ConfigKeyRequest
          * @static
-         * @param {pb.IUnregisterRequest} message UnregisterRequest message or plain object to encode
+         * @param {pb.IConfigKeyRequest} message ConfigKeyRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        UnregisterRequest.encode = function encode(message, writer) {
+        ConfigKeyRequest.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
-            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
-                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.pid);
+            if (message.key != null && Object.hasOwnProperty.call(message, "key"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.key);
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.name);
             return writer;
         };
 
         /**
-         * Encodes the specified UnregisterRequest message, length delimited. Does not implicitly {@link pb.UnregisterRequest.verify|verify} messages.
+         * Encodes the specified ConfigKeyRequest message, length delimited. Does not implicitly {@link pb.ConfigKeyRequest.verify|verify} messages.
          * @function encodeDelimited
-         * @memberof pb.UnregisterRequest
+         * @memberof pb.ConfigKeyRequest
          * @static
-         * @param {pb.IUnregisterRequest} message UnregisterRequest message or plain object to encode
+         * @param {pb.IConfigKeyRequest} message ConfigKeyRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        UnregisterRequest.encodeDelimited = function encodeDelimited(message, writer) {
+        ConfigKeyRequest.encodeDelimited = function encodeDelimited(message, writer) {
             return this.encode(message, writer).ldelim();
         };
 
         /**
-         * Decodes an UnregisterRequest message from the specified reader or buffer.
+         * Decodes a ConfigKeyRequest message from the specified reader or buffer.
          * @function decode
-         * @memberof pb.UnregisterRequest
+         * @memberof pb.ConfigKeyRequest
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {pb.UnregisterRequest} UnregisterRequest
+         * @returns {pb.ConfigKeyRequest} ConfigKeyRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        UnregisterRequest.decode = function decode(reader, length, error) {
+        ConfigKeyRequest.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.UnregisterRequest();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ConfigKeyRequest();
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 if (tag === error)
                     break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.pid = reader.uint32();
+                        message.key = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.name = reader.string();
                         break;
                     }
                 default:
@@ -1421,123 +885,132 @@ export const pb = $root.pb = (() => {
         };
 
         /**
-         * Decodes an UnregisterRequest message from the specified reader or buffer, length delimited.
+         * Decodes a ConfigKeyRequest message from the specified reader or buffer, length delimited.
          * @function decodeDelimited
-         * @memberof pb.UnregisterRequest
+         * @memberof pb.ConfigKeyRequest
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.UnregisterRequest} UnregisterRequest
+         * @returns {pb.ConfigKeyRequest} ConfigKeyRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        UnregisterRequest.decodeDelimited = function decodeDelimited(reader) {
+        ConfigKeyRequest.decodeDelimited = function decodeDelimited(reader) {
             if (!(reader instanceof $Reader))
                 reader = new $Reader(reader);
             return this.decode(reader, reader.uint32());
         };
 
         /**
-         * Verifies an UnregisterRequest message.
+         * Verifies a ConfigKeyRequest message.
          * @function verify
-         * @memberof pb.UnregisterRequest
+         * @memberof pb.ConfigKeyRequest
          * @static
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        UnregisterRequest.verify = function verify(message) {
+        ConfigKeyRequest.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.pid != null && message.hasOwnProperty("pid"))
-                if (!$util.isInteger(message.pid))
-                    return "pid: integer expected";
+            if (message.key != null && message.hasOwnProperty("key"))
+                if (!$util.isString(message.key))
+                    return "key: string expected";
+            if (message.name != null && message.hasOwnProperty("name"))
+                if (!$util.isString(message.name))
+                    return "name: string expected";
             return null;
         };
 
         /**
-         * Creates an UnregisterRequest message from a plain object. Also converts values to their respective internal types.
+         * Creates a ConfigKeyRequest message from a plain object. Also converts values to their respective internal types.
          * @function fromObject
-         * @memberof pb.UnregisterRequest
+         * @memberof pb.ConfigKeyRequest
          * @static
          * @param {Object.<string,*>} object Plain object
-         * @returns {pb.UnregisterRequest} UnregisterRequest
+         * @returns {pb.ConfigKeyRequest} ConfigKeyRequest
          */
-        UnregisterRequest.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.UnregisterRequest)
+        ConfigKeyRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.ConfigKeyRequest)
                 return object;
-            let message = new $root.pb.UnregisterRequest();
-            if (object.pid != null)
-                message.pid = object.pid >>> 0;
+            let message = new $root.pb.ConfigKeyRequest();
+            if (object.key != null)
+                message.key = String(object.key);
+            if (object.name != null)
+                message.name = String(object.name);
             return message;
         };
 
         /**
-         * Creates a plain object from an UnregisterRequest message. Also converts values to other types if specified.
+         * Creates a plain object from a ConfigKeyRequest message. Also converts values to other types if specified.
          * @function toObject
-         * @memberof pb.UnregisterRequest
+         * @memberof pb.ConfigKeyRequest
          * @static
-         * @param {pb.UnregisterRequest} message UnregisterRequest
+         * @param {pb.ConfigKeyRequest} message ConfigKeyRequest
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        UnregisterRequest.toObject = function toObject(message, options) {
+        ConfigKeyRequest.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
             let object = {};
-            if (options.defaults)
-                object.pid = 0;
-            if (message.pid != null && message.hasOwnProperty("pid"))
-                object.pid = message.pid;
+            if (options.defaults) {
+                object.key = "";
+                object.name = "";
+            }
+            if (message.key != null && message.hasOwnProperty("key"))
+                object.key = message.key;
+            if (message.name != null && message.hasOwnProperty("name"))
+                object.name = message.name;
             return object;
         };
 
         /**
-         * Converts this UnregisterRequest to JSON.
+         * Converts this ConfigKeyRequest to JSON.
          * @function toJSON
-         * @memberof pb.UnregisterRequest
+         * @memberof pb.ConfigKeyRequest
          * @instance
          * @returns {Object.<string,*>} JSON object
          */
-        UnregisterRequest.prototype.toJSON = function toJSON() {
+        ConfigKeyRequest.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
         /**
-         * Gets the default type url for UnregisterRequest
+         * Gets the default type url for ConfigKeyRequest
          * @function getTypeUrl
-         * @memberof pb.UnregisterRequest
+         * @memberof pb.ConfigKeyRequest
          * @static
          * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns {string} The default type url
          */
-        UnregisterRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+        ConfigKeyRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
             if (typeUrlPrefix === undefined) {
                 typeUrlPrefix = "type.googleapis.com";
             }
-            return typeUrlPrefix + "/pb.UnregisterRequest";
+            return typeUrlPrefix + "/pb.ConfigKeyRequest";
         };
 
-        return UnregisterRequest;
+        return ConfigKeyRequest;
     })();
 
-    pb.UnregisterResponse = (function() {
+    pb.ConfigBoolResponse = (function() {
 
         /**
-         * Properties of an UnregisterResponse.
+         * Properties of a ConfigBoolResponse.
          * @memberof pb
-         * @interface IUnregisterResponse
-         * @property {boolean|null} [success] UnregisterResponse success
-         * @property {string|null} [message] UnregisterResponse message
+         * @interface IConfigBoolResponse
+         * @property {boolean|null} [value] ConfigBoolResponse value
+         * @property {string|null} [message] ConfigBoolResponse message
          */
 
         /**
-         * Constructs a new UnregisterResponse.
+         * Constructs a new ConfigBoolResponse.
          * @memberof pb
-         * @classdesc Represents an UnregisterResponse.
-         * @implements IUnregisterResponse
+         * @classdesc Represents a ConfigBoolResponse.
+         * @implements IConfigBoolResponse
          * @constructor
-         * @param {pb.IUnregisterResponse=} [properties] Properties to set
+         * @param {pb.IConfigBoolResponse=} [properties] Properties to set
          */
-        function UnregisterResponse(properties) {
+        function ConfigBoolResponse(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -1545,87 +1018,87 @@ export const pb = $root.pb = (() => {
         }
 
         /**
-         * UnregisterResponse success.
-         * @member {boolean} success
-         * @memberof pb.UnregisterResponse
+         * ConfigBoolResponse value.
+         * @member {boolean} value
+         * @memberof pb.ConfigBoolResponse
          * @instance
          */
-        UnregisterResponse.prototype.success = false;
+        ConfigBoolResponse.prototype.value = false;
 
         /**
-         * UnregisterResponse message.
+         * ConfigBoolResponse message.
          * @member {string} message
-         * @memberof pb.UnregisterResponse
+         * @memberof pb.ConfigBoolResponse
          * @instance
          */
-        UnregisterResponse.prototype.message = "";
+        ConfigBoolResponse.prototype.message = "";
 
         /**
-         * Creates a new UnregisterResponse instance using the specified properties.
+         * Creates a new ConfigBoolResponse instance using the specified properties.
          * @function create
-         * @memberof pb.UnregisterResponse
+         * @memberof pb.ConfigBoolResponse
          * @static
-         * @param {pb.IUnregisterResponse=} [properties] Properties to set
-         * @returns {pb.UnregisterResponse} UnregisterResponse instance
+         * @param {pb.IConfigBoolResponse=} [properties] Properties to set
+         * @returns {pb.ConfigBoolResponse} ConfigBoolResponse instance
          */
-        UnregisterResponse.create = function create(properties) {
-            return new UnregisterResponse(properties);
+        ConfigBoolResponse.create = function create(properties) {
+            return new ConfigBoolResponse(properties);
         };
 
         /**
-         * Encodes the specified UnregisterResponse message. Does not implicitly {@link pb.UnregisterResponse.verify|verify} messages.
+         * Encodes the specified ConfigBoolResponse message. Does not implicitly {@link pb.ConfigBoolResponse.verify|verify} messages.
          * @function encode
-         * @memberof pb.UnregisterResponse
+         * @memberof pb.ConfigBoolResponse
          * @static
-         * @param {pb.IUnregisterResponse} message UnregisterResponse message or plain object to encode
+         * @param {pb.IConfigBoolResponse} message ConfigBoolResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        UnregisterResponse.encode = function encode(message, writer) {
+        ConfigBoolResponse.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
-            if (message.success != null && Object.hasOwnProperty.call(message, "success"))
-                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.success);
+            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.value);
             if (message.message != null && Object.hasOwnProperty.call(message, "message"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
             return writer;
         };
 
         /**
-         * Encodes the specified UnregisterResponse message, length delimited. Does not implicitly {@link pb.UnregisterResponse.verify|verify} messages.
+         * Encodes the specified ConfigBoolResponse message, length delimited. Does not implicitly {@link pb.ConfigBoolResponse.verify|verify} messages.
          * @function encodeDelimited
-         * @memberof pb.UnregisterResponse
+         * @memberof pb.ConfigBoolResponse
          * @static
-         * @param {pb.IUnregisterResponse} message UnregisterResponse message or plain object to encode
+         * @param {pb.IConfigBoolResponse} message ConfigBoolResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        UnregisterResponse.encodeDelimited = function encodeDelimited(message, writer) {
+        ConfigBoolResponse.encodeDelimited = function encodeDelimited(message, writer) {
             return this.encode(message, writer).ldelim();
         };
 
         /**
-         * Decodes an UnregisterResponse message from the specified reader or buffer.
+         * Decodes a ConfigBoolResponse message from the specified reader or buffer.
          * @function decode
-         * @memberof pb.UnregisterResponse
+         * @memberof pb.ConfigBoolResponse
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {pb.UnregisterResponse} UnregisterResponse
+         * @returns {pb.ConfigBoolResponse} ConfigBoolResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        UnregisterResponse.decode = function decode(reader, length, error) {
+        ConfigBoolResponse.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.UnregisterResponse();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ConfigBoolResponse();
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 if (tag === error)
                     break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.success = reader.bool();
+                        message.value = reader.bool();
                         break;
                     }
                 case 2: {
@@ -1641,35 +1114,35 @@ export const pb = $root.pb = (() => {
         };
 
         /**
-         * Decodes an UnregisterResponse message from the specified reader or buffer, length delimited.
+         * Decodes a ConfigBoolResponse message from the specified reader or buffer, length delimited.
          * @function decodeDelimited
-         * @memberof pb.UnregisterResponse
+         * @memberof pb.ConfigBoolResponse
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.UnregisterResponse} UnregisterResponse
+         * @returns {pb.ConfigBoolResponse} ConfigBoolResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        UnregisterResponse.decodeDelimited = function decodeDelimited(reader) {
+        ConfigBoolResponse.decodeDelimited = function decodeDelimited(reader) {
             if (!(reader instanceof $Reader))
                 reader = new $Reader(reader);
             return this.decode(reader, reader.uint32());
         };
 
         /**
-         * Verifies an UnregisterResponse message.
+         * Verifies a ConfigBoolResponse message.
          * @function verify
-         * @memberof pb.UnregisterResponse
+         * @memberof pb.ConfigBoolResponse
          * @static
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        UnregisterResponse.verify = function verify(message) {
+        ConfigBoolResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.success != null && message.hasOwnProperty("success"))
-                if (typeof message.success !== "boolean")
-                    return "success: boolean expected";
+            if (message.value != null && message.hasOwnProperty("value"))
+                if (typeof message.value !== "boolean")
+                    return "value: boolean expected";
             if (message.message != null && message.hasOwnProperty("message"))
                 if (!$util.isString(message.message))
                     return "message: string expected";
@@ -1677,75 +1150,75 @@ export const pb = $root.pb = (() => {
         };
 
         /**
-         * Creates an UnregisterResponse message from a plain object. Also converts values to their respective internal types.
+         * Creates a ConfigBoolResponse message from a plain object. Also converts values to their respective internal types.
          * @function fromObject
-         * @memberof pb.UnregisterResponse
+         * @memberof pb.ConfigBoolResponse
          * @static
          * @param {Object.<string,*>} object Plain object
-         * @returns {pb.UnregisterResponse} UnregisterResponse
+         * @returns {pb.ConfigBoolResponse} ConfigBoolResponse
          */
-        UnregisterResponse.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.UnregisterResponse)
+        ConfigBoolResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.ConfigBoolResponse)
                 return object;
-            let message = new $root.pb.UnregisterResponse();
-            if (object.success != null)
-                message.success = Boolean(object.success);
+            let message = new $root.pb.ConfigBoolResponse();
+            if (object.value != null)
+                message.value = Boolean(object.value);
             if (object.message != null)
                 message.message = String(object.message);
             return message;
         };
 
         /**
-         * Creates a plain object from an UnregisterResponse message. Also converts values to other types if specified.
+         * Creates a plain object from a ConfigBoolResponse message. Also converts values to other types if specified.
          * @function toObject
-         * @memberof pb.UnregisterResponse
+         * @memberof pb.ConfigBoolResponse
          * @static
-         * @param {pb.UnregisterResponse} message UnregisterResponse
+         * @param {pb.ConfigBoolResponse} message ConfigBoolResponse
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        UnregisterResponse.toObject = function toObject(message, options) {
+        ConfigBoolResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
             let object = {};
             if (options.defaults) {
-                object.success = false;
+                object.value = false;
                 object.message = "";
             }
-            if (message.success != null && message.hasOwnProperty("success"))
-                object.success = message.success;
+            if (message.value != null && message.hasOwnProperty("value"))
+                object.value = message.value;
             if (message.message != null && message.hasOwnProperty("message"))
                 object.message = message.message;
             return object;
         };
 
         /**
-         * Converts this UnregisterResponse to JSON.
+         * Converts this ConfigBoolResponse to JSON.
          * @function toJSON
-         * @memberof pb.UnregisterResponse
+         * @memberof pb.ConfigBoolResponse
          * @instance
          * @returns {Object.<string,*>} JSON object
          */
-        UnregisterResponse.prototype.toJSON = function toJSON() {
+        ConfigBoolResponse.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
         /**
-         * Gets the default type url for UnregisterResponse
+         * Gets the default type url for ConfigBoolResponse
          * @function getTypeUrl
-         * @memberof pb.UnregisterResponse
+         * @memberof pb.ConfigBoolResponse
          * @static
          * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns {string} The default type url
          */
-        UnregisterResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+        ConfigBoolResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
             if (typeUrlPrefix === undefined) {
                 typeUrlPrefix = "type.googleapis.com";
             }
-            return typeUrlPrefix + "/pb.UnregisterResponse";
+            return typeUrlPrefix + "/pb.ConfigBoolResponse";
         };
 
-        return UnregisterResponse;
+        return ConfigBoolResponse;
     })();
 
     pb.Event = (function() {
@@ -11965,6 +11438,2796 @@ export const pb = $root.pb = (() => {
         return EventBatch;
     })();
 
+    pb.CapturedEventRecord = (function() {
+
+        /**
+         * Properties of a CapturedEventRecord.
+         * @memberof pb
+         * @interface ICapturedEventRecord
+         * @property {pb.IEvent|null} [event] CapturedEventRecord event
+         * @property {number|Long|null} [timestamp] CapturedEventRecord timestamp
+         * @property {pb.IEventEnvelope|null} [envelope] CapturedEventRecord envelope
+         */
+
+        /**
+         * Constructs a new CapturedEventRecord.
+         * @memberof pb
+         * @classdesc Represents a CapturedEventRecord.
+         * @implements ICapturedEventRecord
+         * @constructor
+         * @param {pb.ICapturedEventRecord=} [properties] Properties to set
+         */
+        function CapturedEventRecord(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * CapturedEventRecord event.
+         * @member {pb.IEvent|null|undefined} event
+         * @memberof pb.CapturedEventRecord
+         * @instance
+         */
+        CapturedEventRecord.prototype.event = null;
+
+        /**
+         * CapturedEventRecord timestamp.
+         * @member {number|Long} timestamp
+         * @memberof pb.CapturedEventRecord
+         * @instance
+         */
+        CapturedEventRecord.prototype.timestamp = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
+
+        /**
+         * CapturedEventRecord envelope.
+         * @member {pb.IEventEnvelope|null|undefined} envelope
+         * @memberof pb.CapturedEventRecord
+         * @instance
+         */
+        CapturedEventRecord.prototype.envelope = null;
+
+        /**
+         * Creates a new CapturedEventRecord instance using the specified properties.
+         * @function create
+         * @memberof pb.CapturedEventRecord
+         * @static
+         * @param {pb.ICapturedEventRecord=} [properties] Properties to set
+         * @returns {pb.CapturedEventRecord} CapturedEventRecord instance
+         */
+        CapturedEventRecord.create = function create(properties) {
+            return new CapturedEventRecord(properties);
+        };
+
+        /**
+         * Encodes the specified CapturedEventRecord message. Does not implicitly {@link pb.CapturedEventRecord.verify|verify} messages.
+         * @function encode
+         * @memberof pb.CapturedEventRecord
+         * @static
+         * @param {pb.ICapturedEventRecord} message CapturedEventRecord message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        CapturedEventRecord.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.event != null && Object.hasOwnProperty.call(message, "event"))
+                $root.pb.Event.encode(message.event, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            if (message.timestamp != null && Object.hasOwnProperty.call(message, "timestamp"))
+                writer.uint32(/* id 2, wireType 0 =*/16).int64(message.timestamp);
+            if (message.envelope != null && Object.hasOwnProperty.call(message, "envelope"))
+                $root.pb.EventEnvelope.encode(message.envelope, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified CapturedEventRecord message, length delimited. Does not implicitly {@link pb.CapturedEventRecord.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.CapturedEventRecord
+         * @static
+         * @param {pb.ICapturedEventRecord} message CapturedEventRecord message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        CapturedEventRecord.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a CapturedEventRecord message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.CapturedEventRecord
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.CapturedEventRecord} CapturedEventRecord
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        CapturedEventRecord.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.CapturedEventRecord();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.event = $root.pb.Event.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 2: {
+                        message.timestamp = reader.int64();
+                        break;
+                    }
+                case 3: {
+                        message.envelope = $root.pb.EventEnvelope.decode(reader, reader.uint32());
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a CapturedEventRecord message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.CapturedEventRecord
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.CapturedEventRecord} CapturedEventRecord
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        CapturedEventRecord.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a CapturedEventRecord message.
+         * @function verify
+         * @memberof pb.CapturedEventRecord
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        CapturedEventRecord.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.event != null && message.hasOwnProperty("event")) {
+                let error = $root.pb.Event.verify(message.event);
+                if (error)
+                    return "event." + error;
+            }
+            if (message.timestamp != null && message.hasOwnProperty("timestamp"))
+                if (!$util.isInteger(message.timestamp) && !(message.timestamp && $util.isInteger(message.timestamp.low) && $util.isInteger(message.timestamp.high)))
+                    return "timestamp: integer|Long expected";
+            if (message.envelope != null && message.hasOwnProperty("envelope")) {
+                let error = $root.pb.EventEnvelope.verify(message.envelope);
+                if (error)
+                    return "envelope." + error;
+            }
+            return null;
+        };
+
+        /**
+         * Creates a CapturedEventRecord message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.CapturedEventRecord
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.CapturedEventRecord} CapturedEventRecord
+         */
+        CapturedEventRecord.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.CapturedEventRecord)
+                return object;
+            let message = new $root.pb.CapturedEventRecord();
+            if (object.event != null) {
+                if (typeof object.event !== "object")
+                    throw TypeError(".pb.CapturedEventRecord.event: object expected");
+                message.event = $root.pb.Event.fromObject(object.event);
+            }
+            if (object.timestamp != null)
+                if ($util.Long)
+                    (message.timestamp = $util.Long.fromValue(object.timestamp)).unsigned = false;
+                else if (typeof object.timestamp === "string")
+                    message.timestamp = parseInt(object.timestamp, 10);
+                else if (typeof object.timestamp === "number")
+                    message.timestamp = object.timestamp;
+                else if (typeof object.timestamp === "object")
+                    message.timestamp = new $util.LongBits(object.timestamp.low >>> 0, object.timestamp.high >>> 0).toNumber();
+            if (object.envelope != null) {
+                if (typeof object.envelope !== "object")
+                    throw TypeError(".pb.CapturedEventRecord.envelope: object expected");
+                message.envelope = $root.pb.EventEnvelope.fromObject(object.envelope);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a CapturedEventRecord message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.CapturedEventRecord
+         * @static
+         * @param {pb.CapturedEventRecord} message CapturedEventRecord
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        CapturedEventRecord.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.event = null;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, false);
+                    object.timestamp = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.timestamp = options.longs === String ? "0" : 0;
+                object.envelope = null;
+            }
+            if (message.event != null && message.hasOwnProperty("event"))
+                object.event = $root.pb.Event.toObject(message.event, options);
+            if (message.timestamp != null && message.hasOwnProperty("timestamp"))
+                if (typeof message.timestamp === "number")
+                    object.timestamp = options.longs === String ? String(message.timestamp) : message.timestamp;
+                else
+                    object.timestamp = options.longs === String ? $util.Long.prototype.toString.call(message.timestamp) : options.longs === Number ? new $util.LongBits(message.timestamp.low >>> 0, message.timestamp.high >>> 0).toNumber() : message.timestamp;
+            if (message.envelope != null && message.hasOwnProperty("envelope"))
+                object.envelope = $root.pb.EventEnvelope.toObject(message.envelope, options);
+            return object;
+        };
+
+        /**
+         * Converts this CapturedEventRecord to JSON.
+         * @function toJSON
+         * @memberof pb.CapturedEventRecord
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        CapturedEventRecord.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for CapturedEventRecord
+         * @function getTypeUrl
+         * @memberof pb.CapturedEventRecord
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        CapturedEventRecord.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.CapturedEventRecord";
+        };
+
+        return CapturedEventRecord;
+    })();
+
+    pb.EventHistoryResponse = (function() {
+
+        /**
+         * Properties of an EventHistoryResponse.
+         * @memberof pb
+         * @interface IEventHistoryResponse
+         * @property {Array.<pb.ICapturedEventRecord>|null} [events] EventHistoryResponse events
+         * @property {string|null} [source] EventHistoryResponse source
+         */
+
+        /**
+         * Constructs a new EventHistoryResponse.
+         * @memberof pb
+         * @classdesc Represents an EventHistoryResponse.
+         * @implements IEventHistoryResponse
+         * @constructor
+         * @param {pb.IEventHistoryResponse=} [properties] Properties to set
+         */
+        function EventHistoryResponse(properties) {
+            this.events = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * EventHistoryResponse events.
+         * @member {Array.<pb.ICapturedEventRecord>} events
+         * @memberof pb.EventHistoryResponse
+         * @instance
+         */
+        EventHistoryResponse.prototype.events = $util.emptyArray;
+
+        /**
+         * EventHistoryResponse source.
+         * @member {string} source
+         * @memberof pb.EventHistoryResponse
+         * @instance
+         */
+        EventHistoryResponse.prototype.source = "";
+
+        /**
+         * Creates a new EventHistoryResponse instance using the specified properties.
+         * @function create
+         * @memberof pb.EventHistoryResponse
+         * @static
+         * @param {pb.IEventHistoryResponse=} [properties] Properties to set
+         * @returns {pb.EventHistoryResponse} EventHistoryResponse instance
+         */
+        EventHistoryResponse.create = function create(properties) {
+            return new EventHistoryResponse(properties);
+        };
+
+        /**
+         * Encodes the specified EventHistoryResponse message. Does not implicitly {@link pb.EventHistoryResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pb.EventHistoryResponse
+         * @static
+         * @param {pb.IEventHistoryResponse} message EventHistoryResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EventHistoryResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.events != null && message.events.length)
+                for (let i = 0; i < message.events.length; ++i)
+                    $root.pb.CapturedEventRecord.encode(message.events[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            if (message.source != null && Object.hasOwnProperty.call(message, "source"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.source);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified EventHistoryResponse message, length delimited. Does not implicitly {@link pb.EventHistoryResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.EventHistoryResponse
+         * @static
+         * @param {pb.IEventHistoryResponse} message EventHistoryResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EventHistoryResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an EventHistoryResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.EventHistoryResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.EventHistoryResponse} EventHistoryResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EventHistoryResponse.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.EventHistoryResponse();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        if (!(message.events && message.events.length))
+                            message.events = [];
+                        message.events.push($root.pb.CapturedEventRecord.decode(reader, reader.uint32()));
+                        break;
+                    }
+                case 2: {
+                        message.source = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an EventHistoryResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.EventHistoryResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.EventHistoryResponse} EventHistoryResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EventHistoryResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an EventHistoryResponse message.
+         * @function verify
+         * @memberof pb.EventHistoryResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        EventHistoryResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.events != null && message.hasOwnProperty("events")) {
+                if (!Array.isArray(message.events))
+                    return "events: array expected";
+                for (let i = 0; i < message.events.length; ++i) {
+                    let error = $root.pb.CapturedEventRecord.verify(message.events[i]);
+                    if (error)
+                        return "events." + error;
+                }
+            }
+            if (message.source != null && message.hasOwnProperty("source"))
+                if (!$util.isString(message.source))
+                    return "source: string expected";
+            return null;
+        };
+
+        /**
+         * Creates an EventHistoryResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.EventHistoryResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.EventHistoryResponse} EventHistoryResponse
+         */
+        EventHistoryResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.EventHistoryResponse)
+                return object;
+            let message = new $root.pb.EventHistoryResponse();
+            if (object.events) {
+                if (!Array.isArray(object.events))
+                    throw TypeError(".pb.EventHistoryResponse.events: array expected");
+                message.events = [];
+                for (let i = 0; i < object.events.length; ++i) {
+                    if (typeof object.events[i] !== "object")
+                        throw TypeError(".pb.EventHistoryResponse.events: object expected");
+                    message.events[i] = $root.pb.CapturedEventRecord.fromObject(object.events[i]);
+                }
+            }
+            if (object.source != null)
+                message.source = String(object.source);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an EventHistoryResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.EventHistoryResponse
+         * @static
+         * @param {pb.EventHistoryResponse} message EventHistoryResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        EventHistoryResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults)
+                object.events = [];
+            if (options.defaults)
+                object.source = "";
+            if (message.events && message.events.length) {
+                object.events = [];
+                for (let j = 0; j < message.events.length; ++j)
+                    object.events[j] = $root.pb.CapturedEventRecord.toObject(message.events[j], options);
+            }
+            if (message.source != null && message.hasOwnProperty("source"))
+                object.source = message.source;
+            return object;
+        };
+
+        /**
+         * Converts this EventHistoryResponse to JSON.
+         * @function toJSON
+         * @memberof pb.EventHistoryResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        EventHistoryResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for EventHistoryResponse
+         * @function getTypeUrl
+         * @memberof pb.EventHistoryResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        EventHistoryResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.EventHistoryResponse";
+        };
+
+        return EventHistoryResponse;
+    })();
+
+    pb.RegisterRequest = (function() {
+
+        /**
+         * Properties of a RegisterRequest.
+         * @memberof pb
+         * @interface IRegisterRequest
+         * @property {number|null} [pid] RegisterRequest pid
+         * @property {string|null} [tag] RegisterRequest tag
+         * @property {string|null} [agentRunId] RegisterRequest agentRunId
+         * @property {string|null} [conversationId] RegisterRequest conversationId
+         * @property {string|null} [turnId] RegisterRequest turnId
+         * @property {string|null} [toolCallId] RegisterRequest toolCallId
+         * @property {string|null} [toolName] RegisterRequest toolName
+         * @property {string|null} [traceId] RegisterRequest traceId
+         * @property {string|null} [spanId] RegisterRequest spanId
+         * @property {number|null} [rootAgentPid] RegisterRequest rootAgentPid
+         * @property {string|null} [decision] RegisterRequest decision
+         * @property {number|null} [riskScore] RegisterRequest riskScore
+         * @property {string|null} [containerId] RegisterRequest containerId
+         * @property {string|null} [argvDigest] RegisterRequest argvDigest
+         * @property {string|null} [taskId] RegisterRequest taskId
+         * @property {string|null} [cwd] RegisterRequest cwd
+         */
+
+        /**
+         * Constructs a new RegisterRequest.
+         * @memberof pb
+         * @classdesc Represents a RegisterRequest.
+         * @implements IRegisterRequest
+         * @constructor
+         * @param {pb.IRegisterRequest=} [properties] Properties to set
+         */
+        function RegisterRequest(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * RegisterRequest pid.
+         * @member {number} pid
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.pid = 0;
+
+        /**
+         * RegisterRequest tag.
+         * @member {string} tag
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.tag = "";
+
+        /**
+         * RegisterRequest agentRunId.
+         * @member {string} agentRunId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.agentRunId = "";
+
+        /**
+         * RegisterRequest conversationId.
+         * @member {string} conversationId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.conversationId = "";
+
+        /**
+         * RegisterRequest turnId.
+         * @member {string} turnId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.turnId = "";
+
+        /**
+         * RegisterRequest toolCallId.
+         * @member {string} toolCallId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.toolCallId = "";
+
+        /**
+         * RegisterRequest toolName.
+         * @member {string} toolName
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.toolName = "";
+
+        /**
+         * RegisterRequest traceId.
+         * @member {string} traceId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.traceId = "";
+
+        /**
+         * RegisterRequest spanId.
+         * @member {string} spanId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.spanId = "";
+
+        /**
+         * RegisterRequest rootAgentPid.
+         * @member {number} rootAgentPid
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.rootAgentPid = 0;
+
+        /**
+         * RegisterRequest decision.
+         * @member {string} decision
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.decision = "";
+
+        /**
+         * RegisterRequest riskScore.
+         * @member {number} riskScore
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.riskScore = 0;
+
+        /**
+         * RegisterRequest containerId.
+         * @member {string} containerId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.containerId = "";
+
+        /**
+         * RegisterRequest argvDigest.
+         * @member {string} argvDigest
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.argvDigest = "";
+
+        /**
+         * RegisterRequest taskId.
+         * @member {string} taskId
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.taskId = "";
+
+        /**
+         * RegisterRequest cwd.
+         * @member {string} cwd
+         * @memberof pb.RegisterRequest
+         * @instance
+         */
+        RegisterRequest.prototype.cwd = "";
+
+        /**
+         * Creates a new RegisterRequest instance using the specified properties.
+         * @function create
+         * @memberof pb.RegisterRequest
+         * @static
+         * @param {pb.IRegisterRequest=} [properties] Properties to set
+         * @returns {pb.RegisterRequest} RegisterRequest instance
+         */
+        RegisterRequest.create = function create(properties) {
+            return new RegisterRequest(properties);
+        };
+
+        /**
+         * Encodes the specified RegisterRequest message. Does not implicitly {@link pb.RegisterRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pb.RegisterRequest
+         * @static
+         * @param {pb.IRegisterRequest} message RegisterRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        RegisterRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.pid);
+            if (message.tag != null && Object.hasOwnProperty.call(message, "tag"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.tag);
+            if (message.agentRunId != null && Object.hasOwnProperty.call(message, "agentRunId"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.agentRunId);
+            if (message.conversationId != null && Object.hasOwnProperty.call(message, "conversationId"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.conversationId);
+            if (message.turnId != null && Object.hasOwnProperty.call(message, "turnId"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.turnId);
+            if (message.toolCallId != null && Object.hasOwnProperty.call(message, "toolCallId"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.toolCallId);
+            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.toolName);
+            if (message.traceId != null && Object.hasOwnProperty.call(message, "traceId"))
+                writer.uint32(/* id 8, wireType 2 =*/66).string(message.traceId);
+            if (message.spanId != null && Object.hasOwnProperty.call(message, "spanId"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.spanId);
+            if (message.rootAgentPid != null && Object.hasOwnProperty.call(message, "rootAgentPid"))
+                writer.uint32(/* id 10, wireType 0 =*/80).uint32(message.rootAgentPid);
+            if (message.decision != null && Object.hasOwnProperty.call(message, "decision"))
+                writer.uint32(/* id 11, wireType 2 =*/90).string(message.decision);
+            if (message.riskScore != null && Object.hasOwnProperty.call(message, "riskScore"))
+                writer.uint32(/* id 12, wireType 1 =*/97).double(message.riskScore);
+            if (message.containerId != null && Object.hasOwnProperty.call(message, "containerId"))
+                writer.uint32(/* id 13, wireType 2 =*/106).string(message.containerId);
+            if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
+                writer.uint32(/* id 14, wireType 2 =*/114).string(message.argvDigest);
+            if (message.taskId != null && Object.hasOwnProperty.call(message, "taskId"))
+                writer.uint32(/* id 15, wireType 2 =*/122).string(message.taskId);
+            if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
+                writer.uint32(/* id 16, wireType 2 =*/130).string(message.cwd);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified RegisterRequest message, length delimited. Does not implicitly {@link pb.RegisterRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.RegisterRequest
+         * @static
+         * @param {pb.IRegisterRequest} message RegisterRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        RegisterRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a RegisterRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.RegisterRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.RegisterRequest} RegisterRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        RegisterRequest.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RegisterRequest();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.pid = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.tag = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.agentRunId = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.conversationId = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.turnId = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.toolCallId = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.toolName = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.traceId = reader.string();
+                        break;
+                    }
+                case 9: {
+                        message.spanId = reader.string();
+                        break;
+                    }
+                case 10: {
+                        message.rootAgentPid = reader.uint32();
+                        break;
+                    }
+                case 11: {
+                        message.decision = reader.string();
+                        break;
+                    }
+                case 12: {
+                        message.riskScore = reader.double();
+                        break;
+                    }
+                case 13: {
+                        message.containerId = reader.string();
+                        break;
+                    }
+                case 14: {
+                        message.argvDigest = reader.string();
+                        break;
+                    }
+                case 15: {
+                        message.taskId = reader.string();
+                        break;
+                    }
+                case 16: {
+                        message.cwd = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a RegisterRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.RegisterRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.RegisterRequest} RegisterRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        RegisterRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a RegisterRequest message.
+         * @function verify
+         * @memberof pb.RegisterRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        RegisterRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                if (!$util.isInteger(message.pid))
+                    return "pid: integer expected";
+            if (message.tag != null && message.hasOwnProperty("tag"))
+                if (!$util.isString(message.tag))
+                    return "tag: string expected";
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                if (!$util.isString(message.agentRunId))
+                    return "agentRunId: string expected";
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                if (!$util.isString(message.conversationId))
+                    return "conversationId: string expected";
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                if (!$util.isString(message.turnId))
+                    return "turnId: string expected";
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                if (!$util.isString(message.toolCallId))
+                    return "toolCallId: string expected";
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                if (!$util.isString(message.toolName))
+                    return "toolName: string expected";
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                if (!$util.isString(message.traceId))
+                    return "traceId: string expected";
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                if (!$util.isString(message.spanId))
+                    return "spanId: string expected";
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                if (!$util.isInteger(message.rootAgentPid))
+                    return "rootAgentPid: integer expected";
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                if (!$util.isString(message.decision))
+                    return "decision: string expected";
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                if (typeof message.riskScore !== "number")
+                    return "riskScore: number expected";
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                if (!$util.isString(message.containerId))
+                    return "containerId: string expected";
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                if (!$util.isString(message.argvDigest))
+                    return "argvDigest: string expected";
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                if (!$util.isString(message.taskId))
+                    return "taskId: string expected";
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                if (!$util.isString(message.cwd))
+                    return "cwd: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a RegisterRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.RegisterRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.RegisterRequest} RegisterRequest
+         */
+        RegisterRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.RegisterRequest)
+                return object;
+            let message = new $root.pb.RegisterRequest();
+            if (object.pid != null)
+                message.pid = object.pid >>> 0;
+            if (object.tag != null)
+                message.tag = String(object.tag);
+            if (object.agentRunId != null)
+                message.agentRunId = String(object.agentRunId);
+            if (object.conversationId != null)
+                message.conversationId = String(object.conversationId);
+            if (object.turnId != null)
+                message.turnId = String(object.turnId);
+            if (object.toolCallId != null)
+                message.toolCallId = String(object.toolCallId);
+            if (object.toolName != null)
+                message.toolName = String(object.toolName);
+            if (object.traceId != null)
+                message.traceId = String(object.traceId);
+            if (object.spanId != null)
+                message.spanId = String(object.spanId);
+            if (object.rootAgentPid != null)
+                message.rootAgentPid = object.rootAgentPid >>> 0;
+            if (object.decision != null)
+                message.decision = String(object.decision);
+            if (object.riskScore != null)
+                message.riskScore = Number(object.riskScore);
+            if (object.containerId != null)
+                message.containerId = String(object.containerId);
+            if (object.argvDigest != null)
+                message.argvDigest = String(object.argvDigest);
+            if (object.taskId != null)
+                message.taskId = String(object.taskId);
+            if (object.cwd != null)
+                message.cwd = String(object.cwd);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a RegisterRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.RegisterRequest
+         * @static
+         * @param {pb.RegisterRequest} message RegisterRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        RegisterRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.pid = 0;
+                object.tag = "";
+                object.agentRunId = "";
+                object.conversationId = "";
+                object.turnId = "";
+                object.toolCallId = "";
+                object.toolName = "";
+                object.traceId = "";
+                object.spanId = "";
+                object.rootAgentPid = 0;
+                object.decision = "";
+                object.riskScore = 0;
+                object.containerId = "";
+                object.argvDigest = "";
+                object.taskId = "";
+                object.cwd = "";
+            }
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                object.pid = message.pid;
+            if (message.tag != null && message.hasOwnProperty("tag"))
+                object.tag = message.tag;
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                object.agentRunId = message.agentRunId;
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                object.conversationId = message.conversationId;
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                object.turnId = message.turnId;
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                object.toolCallId = message.toolCallId;
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                object.toolName = message.toolName;
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                object.traceId = message.traceId;
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                object.spanId = message.spanId;
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                object.rootAgentPid = message.rootAgentPid;
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                object.decision = message.decision;
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                object.riskScore = options.json && !isFinite(message.riskScore) ? String(message.riskScore) : message.riskScore;
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                object.containerId = message.containerId;
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                object.argvDigest = message.argvDigest;
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                object.taskId = message.taskId;
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                object.cwd = message.cwd;
+            return object;
+        };
+
+        /**
+         * Converts this RegisterRequest to JSON.
+         * @function toJSON
+         * @memberof pb.RegisterRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        RegisterRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for RegisterRequest
+         * @function getTypeUrl
+         * @memberof pb.RegisterRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        RegisterRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.RegisterRequest";
+        };
+
+        return RegisterRequest;
+    })();
+
+    pb.RegisterResponse = (function() {
+
+        /**
+         * Properties of a RegisterResponse.
+         * @memberof pb
+         * @interface IRegisterResponse
+         * @property {boolean|null} [success] RegisterResponse success
+         * @property {string|null} [message] RegisterResponse message
+         */
+
+        /**
+         * Constructs a new RegisterResponse.
+         * @memberof pb
+         * @classdesc Represents a RegisterResponse.
+         * @implements IRegisterResponse
+         * @constructor
+         * @param {pb.IRegisterResponse=} [properties] Properties to set
+         */
+        function RegisterResponse(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * RegisterResponse success.
+         * @member {boolean} success
+         * @memberof pb.RegisterResponse
+         * @instance
+         */
+        RegisterResponse.prototype.success = false;
+
+        /**
+         * RegisterResponse message.
+         * @member {string} message
+         * @memberof pb.RegisterResponse
+         * @instance
+         */
+        RegisterResponse.prototype.message = "";
+
+        /**
+         * Creates a new RegisterResponse instance using the specified properties.
+         * @function create
+         * @memberof pb.RegisterResponse
+         * @static
+         * @param {pb.IRegisterResponse=} [properties] Properties to set
+         * @returns {pb.RegisterResponse} RegisterResponse instance
+         */
+        RegisterResponse.create = function create(properties) {
+            return new RegisterResponse(properties);
+        };
+
+        /**
+         * Encodes the specified RegisterResponse message. Does not implicitly {@link pb.RegisterResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pb.RegisterResponse
+         * @static
+         * @param {pb.IRegisterResponse} message RegisterResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        RegisterResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.success != null && Object.hasOwnProperty.call(message, "success"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.success);
+            if (message.message != null && Object.hasOwnProperty.call(message, "message"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified RegisterResponse message, length delimited. Does not implicitly {@link pb.RegisterResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.RegisterResponse
+         * @static
+         * @param {pb.IRegisterResponse} message RegisterResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        RegisterResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a RegisterResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.RegisterResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.RegisterResponse} RegisterResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        RegisterResponse.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RegisterResponse();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.success = reader.bool();
+                        break;
+                    }
+                case 2: {
+                        message.message = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a RegisterResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.RegisterResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.RegisterResponse} RegisterResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        RegisterResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a RegisterResponse message.
+         * @function verify
+         * @memberof pb.RegisterResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        RegisterResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.success != null && message.hasOwnProperty("success"))
+                if (typeof message.success !== "boolean")
+                    return "success: boolean expected";
+            if (message.message != null && message.hasOwnProperty("message"))
+                if (!$util.isString(message.message))
+                    return "message: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a RegisterResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.RegisterResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.RegisterResponse} RegisterResponse
+         */
+        RegisterResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.RegisterResponse)
+                return object;
+            let message = new $root.pb.RegisterResponse();
+            if (object.success != null)
+                message.success = Boolean(object.success);
+            if (object.message != null)
+                message.message = String(object.message);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a RegisterResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.RegisterResponse
+         * @static
+         * @param {pb.RegisterResponse} message RegisterResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        RegisterResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.success = false;
+                object.message = "";
+            }
+            if (message.success != null && message.hasOwnProperty("success"))
+                object.success = message.success;
+            if (message.message != null && message.hasOwnProperty("message"))
+                object.message = message.message;
+            return object;
+        };
+
+        /**
+         * Converts this RegisterResponse to JSON.
+         * @function toJSON
+         * @memberof pb.RegisterResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        RegisterResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for RegisterResponse
+         * @function getTypeUrl
+         * @memberof pb.RegisterResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        RegisterResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.RegisterResponse";
+        };
+
+        return RegisterResponse;
+    })();
+
+    pb.UnregisterRequest = (function() {
+
+        /**
+         * Properties of an UnregisterRequest.
+         * @memberof pb
+         * @interface IUnregisterRequest
+         * @property {number|null} [pid] UnregisterRequest pid
+         */
+
+        /**
+         * Constructs a new UnregisterRequest.
+         * @memberof pb
+         * @classdesc Represents an UnregisterRequest.
+         * @implements IUnregisterRequest
+         * @constructor
+         * @param {pb.IUnregisterRequest=} [properties] Properties to set
+         */
+        function UnregisterRequest(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * UnregisterRequest pid.
+         * @member {number} pid
+         * @memberof pb.UnregisterRequest
+         * @instance
+         */
+        UnregisterRequest.prototype.pid = 0;
+
+        /**
+         * Creates a new UnregisterRequest instance using the specified properties.
+         * @function create
+         * @memberof pb.UnregisterRequest
+         * @static
+         * @param {pb.IUnregisterRequest=} [properties] Properties to set
+         * @returns {pb.UnregisterRequest} UnregisterRequest instance
+         */
+        UnregisterRequest.create = function create(properties) {
+            return new UnregisterRequest(properties);
+        };
+
+        /**
+         * Encodes the specified UnregisterRequest message. Does not implicitly {@link pb.UnregisterRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pb.UnregisterRequest
+         * @static
+         * @param {pb.IUnregisterRequest} message UnregisterRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        UnregisterRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.pid);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified UnregisterRequest message, length delimited. Does not implicitly {@link pb.UnregisterRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.UnregisterRequest
+         * @static
+         * @param {pb.IUnregisterRequest} message UnregisterRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        UnregisterRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an UnregisterRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.UnregisterRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.UnregisterRequest} UnregisterRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        UnregisterRequest.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.UnregisterRequest();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.pid = reader.uint32();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an UnregisterRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.UnregisterRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.UnregisterRequest} UnregisterRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        UnregisterRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an UnregisterRequest message.
+         * @function verify
+         * @memberof pb.UnregisterRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        UnregisterRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                if (!$util.isInteger(message.pid))
+                    return "pid: integer expected";
+            return null;
+        };
+
+        /**
+         * Creates an UnregisterRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.UnregisterRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.UnregisterRequest} UnregisterRequest
+         */
+        UnregisterRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.UnregisterRequest)
+                return object;
+            let message = new $root.pb.UnregisterRequest();
+            if (object.pid != null)
+                message.pid = object.pid >>> 0;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an UnregisterRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.UnregisterRequest
+         * @static
+         * @param {pb.UnregisterRequest} message UnregisterRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        UnregisterRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults)
+                object.pid = 0;
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                object.pid = message.pid;
+            return object;
+        };
+
+        /**
+         * Converts this UnregisterRequest to JSON.
+         * @function toJSON
+         * @memberof pb.UnregisterRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        UnregisterRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for UnregisterRequest
+         * @function getTypeUrl
+         * @memberof pb.UnregisterRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        UnregisterRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.UnregisterRequest";
+        };
+
+        return UnregisterRequest;
+    })();
+
+    pb.UnregisterResponse = (function() {
+
+        /**
+         * Properties of an UnregisterResponse.
+         * @memberof pb
+         * @interface IUnregisterResponse
+         * @property {boolean|null} [success] UnregisterResponse success
+         * @property {string|null} [message] UnregisterResponse message
+         */
+
+        /**
+         * Constructs a new UnregisterResponse.
+         * @memberof pb
+         * @classdesc Represents an UnregisterResponse.
+         * @implements IUnregisterResponse
+         * @constructor
+         * @param {pb.IUnregisterResponse=} [properties] Properties to set
+         */
+        function UnregisterResponse(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * UnregisterResponse success.
+         * @member {boolean} success
+         * @memberof pb.UnregisterResponse
+         * @instance
+         */
+        UnregisterResponse.prototype.success = false;
+
+        /**
+         * UnregisterResponse message.
+         * @member {string} message
+         * @memberof pb.UnregisterResponse
+         * @instance
+         */
+        UnregisterResponse.prototype.message = "";
+
+        /**
+         * Creates a new UnregisterResponse instance using the specified properties.
+         * @function create
+         * @memberof pb.UnregisterResponse
+         * @static
+         * @param {pb.IUnregisterResponse=} [properties] Properties to set
+         * @returns {pb.UnregisterResponse} UnregisterResponse instance
+         */
+        UnregisterResponse.create = function create(properties) {
+            return new UnregisterResponse(properties);
+        };
+
+        /**
+         * Encodes the specified UnregisterResponse message. Does not implicitly {@link pb.UnregisterResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pb.UnregisterResponse
+         * @static
+         * @param {pb.IUnregisterResponse} message UnregisterResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        UnregisterResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.success != null && Object.hasOwnProperty.call(message, "success"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.success);
+            if (message.message != null && Object.hasOwnProperty.call(message, "message"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified UnregisterResponse message, length delimited. Does not implicitly {@link pb.UnregisterResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.UnregisterResponse
+         * @static
+         * @param {pb.IUnregisterResponse} message UnregisterResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        UnregisterResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an UnregisterResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.UnregisterResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.UnregisterResponse} UnregisterResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        UnregisterResponse.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.UnregisterResponse();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.success = reader.bool();
+                        break;
+                    }
+                case 2: {
+                        message.message = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an UnregisterResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.UnregisterResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.UnregisterResponse} UnregisterResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        UnregisterResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an UnregisterResponse message.
+         * @function verify
+         * @memberof pb.UnregisterResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        UnregisterResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.success != null && message.hasOwnProperty("success"))
+                if (typeof message.success !== "boolean")
+                    return "success: boolean expected";
+            if (message.message != null && message.hasOwnProperty("message"))
+                if (!$util.isString(message.message))
+                    return "message: string expected";
+            return null;
+        };
+
+        /**
+         * Creates an UnregisterResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.UnregisterResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.UnregisterResponse} UnregisterResponse
+         */
+        UnregisterResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.UnregisterResponse)
+                return object;
+            let message = new $root.pb.UnregisterResponse();
+            if (object.success != null)
+                message.success = Boolean(object.success);
+            if (object.message != null)
+                message.message = String(object.message);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an UnregisterResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.UnregisterResponse
+         * @static
+         * @param {pb.UnregisterResponse} message UnregisterResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        UnregisterResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.success = false;
+                object.message = "";
+            }
+            if (message.success != null && message.hasOwnProperty("success"))
+                object.success = message.success;
+            if (message.message != null && message.hasOwnProperty("message"))
+                object.message = message.message;
+            return object;
+        };
+
+        /**
+         * Converts this UnregisterResponse to JSON.
+         * @function toJSON
+         * @memberof pb.UnregisterResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        UnregisterResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for UnregisterResponse
+         * @function getTypeUrl
+         * @memberof pb.UnregisterResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        UnregisterResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.UnregisterResponse";
+        };
+
+        return UnregisterResponse;
+    })();
+
+    pb.WrapperRequest = (function() {
+
+        /**
+         * Properties of a WrapperRequest.
+         * @memberof pb
+         * @interface IWrapperRequest
+         * @property {number|null} [pid] WrapperRequest pid
+         * @property {string|null} [comm] WrapperRequest comm
+         * @property {Array.<string>|null} [args] WrapperRequest args
+         * @property {string|null} [user] WrapperRequest user
+         * @property {string|null} [agentRunId] WrapperRequest agentRunId
+         * @property {string|null} [conversationId] WrapperRequest conversationId
+         * @property {string|null} [turnId] WrapperRequest turnId
+         * @property {string|null} [toolCallId] WrapperRequest toolCallId
+         * @property {string|null} [toolName] WrapperRequest toolName
+         * @property {string|null} [traceId] WrapperRequest traceId
+         * @property {string|null} [spanId] WrapperRequest spanId
+         * @property {number|null} [rootAgentPid] WrapperRequest rootAgentPid
+         * @property {string|null} [decision] WrapperRequest decision
+         * @property {number|null} [riskScore] WrapperRequest riskScore
+         * @property {string|null} [containerId] WrapperRequest containerId
+         * @property {string|null} [argvDigest] WrapperRequest argvDigest
+         * @property {string|null} [taskId] WrapperRequest taskId
+         * @property {string|null} [cwd] WrapperRequest cwd
+         */
+
+        /**
+         * Constructs a new WrapperRequest.
+         * @memberof pb
+         * @classdesc Represents a WrapperRequest.
+         * @implements IWrapperRequest
+         * @constructor
+         * @param {pb.IWrapperRequest=} [properties] Properties to set
+         */
+        function WrapperRequest(properties) {
+            this.args = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * WrapperRequest pid.
+         * @member {number} pid
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.pid = 0;
+
+        /**
+         * WrapperRequest comm.
+         * @member {string} comm
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.comm = "";
+
+        /**
+         * WrapperRequest args.
+         * @member {Array.<string>} args
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.args = $util.emptyArray;
+
+        /**
+         * WrapperRequest user.
+         * @member {string} user
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.user = "";
+
+        /**
+         * WrapperRequest agentRunId.
+         * @member {string} agentRunId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.agentRunId = "";
+
+        /**
+         * WrapperRequest conversationId.
+         * @member {string} conversationId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.conversationId = "";
+
+        /**
+         * WrapperRequest turnId.
+         * @member {string} turnId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.turnId = "";
+
+        /**
+         * WrapperRequest toolCallId.
+         * @member {string} toolCallId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.toolCallId = "";
+
+        /**
+         * WrapperRequest toolName.
+         * @member {string} toolName
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.toolName = "";
+
+        /**
+         * WrapperRequest traceId.
+         * @member {string} traceId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.traceId = "";
+
+        /**
+         * WrapperRequest spanId.
+         * @member {string} spanId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.spanId = "";
+
+        /**
+         * WrapperRequest rootAgentPid.
+         * @member {number} rootAgentPid
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.rootAgentPid = 0;
+
+        /**
+         * WrapperRequest decision.
+         * @member {string} decision
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.decision = "";
+
+        /**
+         * WrapperRequest riskScore.
+         * @member {number} riskScore
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.riskScore = 0;
+
+        /**
+         * WrapperRequest containerId.
+         * @member {string} containerId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.containerId = "";
+
+        /**
+         * WrapperRequest argvDigest.
+         * @member {string} argvDigest
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.argvDigest = "";
+
+        /**
+         * WrapperRequest taskId.
+         * @member {string} taskId
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.taskId = "";
+
+        /**
+         * WrapperRequest cwd.
+         * @member {string} cwd
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.cwd = "";
+
+        /**
+         * Creates a new WrapperRequest instance using the specified properties.
+         * @function create
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {pb.IWrapperRequest=} [properties] Properties to set
+         * @returns {pb.WrapperRequest} WrapperRequest instance
+         */
+        WrapperRequest.create = function create(properties) {
+            return new WrapperRequest(properties);
+        };
+
+        /**
+         * Encodes the specified WrapperRequest message. Does not implicitly {@link pb.WrapperRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {pb.IWrapperRequest} message WrapperRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WrapperRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.pid);
+            if (message.comm != null && Object.hasOwnProperty.call(message, "comm"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.comm);
+            if (message.args != null && message.args.length)
+                for (let i = 0; i < message.args.length; ++i)
+                    writer.uint32(/* id 3, wireType 2 =*/26).string(message.args[i]);
+            if (message.user != null && Object.hasOwnProperty.call(message, "user"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.user);
+            if (message.agentRunId != null && Object.hasOwnProperty.call(message, "agentRunId"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.agentRunId);
+            if (message.conversationId != null && Object.hasOwnProperty.call(message, "conversationId"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.conversationId);
+            if (message.turnId != null && Object.hasOwnProperty.call(message, "turnId"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.turnId);
+            if (message.toolCallId != null && Object.hasOwnProperty.call(message, "toolCallId"))
+                writer.uint32(/* id 8, wireType 2 =*/66).string(message.toolCallId);
+            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.toolName);
+            if (message.traceId != null && Object.hasOwnProperty.call(message, "traceId"))
+                writer.uint32(/* id 10, wireType 2 =*/82).string(message.traceId);
+            if (message.spanId != null && Object.hasOwnProperty.call(message, "spanId"))
+                writer.uint32(/* id 11, wireType 2 =*/90).string(message.spanId);
+            if (message.rootAgentPid != null && Object.hasOwnProperty.call(message, "rootAgentPid"))
+                writer.uint32(/* id 12, wireType 0 =*/96).uint32(message.rootAgentPid);
+            if (message.decision != null && Object.hasOwnProperty.call(message, "decision"))
+                writer.uint32(/* id 13, wireType 2 =*/106).string(message.decision);
+            if (message.riskScore != null && Object.hasOwnProperty.call(message, "riskScore"))
+                writer.uint32(/* id 14, wireType 1 =*/113).double(message.riskScore);
+            if (message.containerId != null && Object.hasOwnProperty.call(message, "containerId"))
+                writer.uint32(/* id 15, wireType 2 =*/122).string(message.containerId);
+            if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
+                writer.uint32(/* id 16, wireType 2 =*/130).string(message.argvDigest);
+            if (message.taskId != null && Object.hasOwnProperty.call(message, "taskId"))
+                writer.uint32(/* id 17, wireType 2 =*/138).string(message.taskId);
+            if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
+                writer.uint32(/* id 18, wireType 2 =*/146).string(message.cwd);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified WrapperRequest message, length delimited. Does not implicitly {@link pb.WrapperRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {pb.IWrapperRequest} message WrapperRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WrapperRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a WrapperRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.WrapperRequest} WrapperRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WrapperRequest.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperRequest();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.pid = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.comm = reader.string();
+                        break;
+                    }
+                case 3: {
+                        if (!(message.args && message.args.length))
+                            message.args = [];
+                        message.args.push(reader.string());
+                        break;
+                    }
+                case 4: {
+                        message.user = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.agentRunId = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.conversationId = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.turnId = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.toolCallId = reader.string();
+                        break;
+                    }
+                case 9: {
+                        message.toolName = reader.string();
+                        break;
+                    }
+                case 10: {
+                        message.traceId = reader.string();
+                        break;
+                    }
+                case 11: {
+                        message.spanId = reader.string();
+                        break;
+                    }
+                case 12: {
+                        message.rootAgentPid = reader.uint32();
+                        break;
+                    }
+                case 13: {
+                        message.decision = reader.string();
+                        break;
+                    }
+                case 14: {
+                        message.riskScore = reader.double();
+                        break;
+                    }
+                case 15: {
+                        message.containerId = reader.string();
+                        break;
+                    }
+                case 16: {
+                        message.argvDigest = reader.string();
+                        break;
+                    }
+                case 17: {
+                        message.taskId = reader.string();
+                        break;
+                    }
+                case 18: {
+                        message.cwd = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a WrapperRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.WrapperRequest} WrapperRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WrapperRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a WrapperRequest message.
+         * @function verify
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        WrapperRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                if (!$util.isInteger(message.pid))
+                    return "pid: integer expected";
+            if (message.comm != null && message.hasOwnProperty("comm"))
+                if (!$util.isString(message.comm))
+                    return "comm: string expected";
+            if (message.args != null && message.hasOwnProperty("args")) {
+                if (!Array.isArray(message.args))
+                    return "args: array expected";
+                for (let i = 0; i < message.args.length; ++i)
+                    if (!$util.isString(message.args[i]))
+                        return "args: string[] expected";
+            }
+            if (message.user != null && message.hasOwnProperty("user"))
+                if (!$util.isString(message.user))
+                    return "user: string expected";
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                if (!$util.isString(message.agentRunId))
+                    return "agentRunId: string expected";
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                if (!$util.isString(message.conversationId))
+                    return "conversationId: string expected";
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                if (!$util.isString(message.turnId))
+                    return "turnId: string expected";
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                if (!$util.isString(message.toolCallId))
+                    return "toolCallId: string expected";
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                if (!$util.isString(message.toolName))
+                    return "toolName: string expected";
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                if (!$util.isString(message.traceId))
+                    return "traceId: string expected";
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                if (!$util.isString(message.spanId))
+                    return "spanId: string expected";
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                if (!$util.isInteger(message.rootAgentPid))
+                    return "rootAgentPid: integer expected";
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                if (!$util.isString(message.decision))
+                    return "decision: string expected";
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                if (typeof message.riskScore !== "number")
+                    return "riskScore: number expected";
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                if (!$util.isString(message.containerId))
+                    return "containerId: string expected";
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                if (!$util.isString(message.argvDigest))
+                    return "argvDigest: string expected";
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                if (!$util.isString(message.taskId))
+                    return "taskId: string expected";
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                if (!$util.isString(message.cwd))
+                    return "cwd: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a WrapperRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.WrapperRequest} WrapperRequest
+         */
+        WrapperRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.WrapperRequest)
+                return object;
+            let message = new $root.pb.WrapperRequest();
+            if (object.pid != null)
+                message.pid = object.pid >>> 0;
+            if (object.comm != null)
+                message.comm = String(object.comm);
+            if (object.args) {
+                if (!Array.isArray(object.args))
+                    throw TypeError(".pb.WrapperRequest.args: array expected");
+                message.args = [];
+                for (let i = 0; i < object.args.length; ++i)
+                    message.args[i] = String(object.args[i]);
+            }
+            if (object.user != null)
+                message.user = String(object.user);
+            if (object.agentRunId != null)
+                message.agentRunId = String(object.agentRunId);
+            if (object.conversationId != null)
+                message.conversationId = String(object.conversationId);
+            if (object.turnId != null)
+                message.turnId = String(object.turnId);
+            if (object.toolCallId != null)
+                message.toolCallId = String(object.toolCallId);
+            if (object.toolName != null)
+                message.toolName = String(object.toolName);
+            if (object.traceId != null)
+                message.traceId = String(object.traceId);
+            if (object.spanId != null)
+                message.spanId = String(object.spanId);
+            if (object.rootAgentPid != null)
+                message.rootAgentPid = object.rootAgentPid >>> 0;
+            if (object.decision != null)
+                message.decision = String(object.decision);
+            if (object.riskScore != null)
+                message.riskScore = Number(object.riskScore);
+            if (object.containerId != null)
+                message.containerId = String(object.containerId);
+            if (object.argvDigest != null)
+                message.argvDigest = String(object.argvDigest);
+            if (object.taskId != null)
+                message.taskId = String(object.taskId);
+            if (object.cwd != null)
+                message.cwd = String(object.cwd);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a WrapperRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {pb.WrapperRequest} message WrapperRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        WrapperRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults)
+                object.args = [];
+            if (options.defaults) {
+                object.pid = 0;
+                object.comm = "";
+                object.user = "";
+                object.agentRunId = "";
+                object.conversationId = "";
+                object.turnId = "";
+                object.toolCallId = "";
+                object.toolName = "";
+                object.traceId = "";
+                object.spanId = "";
+                object.rootAgentPid = 0;
+                object.decision = "";
+                object.riskScore = 0;
+                object.containerId = "";
+                object.argvDigest = "";
+                object.taskId = "";
+                object.cwd = "";
+            }
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                object.pid = message.pid;
+            if (message.comm != null && message.hasOwnProperty("comm"))
+                object.comm = message.comm;
+            if (message.args && message.args.length) {
+                object.args = [];
+                for (let j = 0; j < message.args.length; ++j)
+                    object.args[j] = message.args[j];
+            }
+            if (message.user != null && message.hasOwnProperty("user"))
+                object.user = message.user;
+            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
+                object.agentRunId = message.agentRunId;
+            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
+                object.conversationId = message.conversationId;
+            if (message.turnId != null && message.hasOwnProperty("turnId"))
+                object.turnId = message.turnId;
+            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
+                object.toolCallId = message.toolCallId;
+            if (message.toolName != null && message.hasOwnProperty("toolName"))
+                object.toolName = message.toolName;
+            if (message.traceId != null && message.hasOwnProperty("traceId"))
+                object.traceId = message.traceId;
+            if (message.spanId != null && message.hasOwnProperty("spanId"))
+                object.spanId = message.spanId;
+            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
+                object.rootAgentPid = message.rootAgentPid;
+            if (message.decision != null && message.hasOwnProperty("decision"))
+                object.decision = message.decision;
+            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
+                object.riskScore = options.json && !isFinite(message.riskScore) ? String(message.riskScore) : message.riskScore;
+            if (message.containerId != null && message.hasOwnProperty("containerId"))
+                object.containerId = message.containerId;
+            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
+                object.argvDigest = message.argvDigest;
+            if (message.taskId != null && message.hasOwnProperty("taskId"))
+                object.taskId = message.taskId;
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                object.cwd = message.cwd;
+            return object;
+        };
+
+        /**
+         * Converts this WrapperRequest to JSON.
+         * @function toJSON
+         * @memberof pb.WrapperRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        WrapperRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for WrapperRequest
+         * @function getTypeUrl
+         * @memberof pb.WrapperRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        WrapperRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.WrapperRequest";
+        };
+
+        return WrapperRequest;
+    })();
+
+    pb.WrapperResponse = (function() {
+
+        /**
+         * Properties of a WrapperResponse.
+         * @memberof pb
+         * @interface IWrapperResponse
+         * @property {pb.WrapperResponse.Action|null} [action] WrapperResponse action
+         * @property {string|null} [message] WrapperResponse message
+         * @property {Array.<string>|null} [rewrittenArgs] WrapperResponse rewrittenArgs
+         * @property {pb.IBehaviorClassification|null} [classification] WrapperResponse classification
+         * @property {number|null} [mlScore] WrapperResponse mlScore
+         * @property {number|null} [anomalyScore] WrapperResponse anomalyScore
+         * @property {string|null} [mlAction] WrapperResponse mlAction
+         * @property {string|null} [mlReasoning] WrapperResponse mlReasoning
+         */
+
+        /**
+         * Constructs a new WrapperResponse.
+         * @memberof pb
+         * @classdesc Represents a WrapperResponse.
+         * @implements IWrapperResponse
+         * @constructor
+         * @param {pb.IWrapperResponse=} [properties] Properties to set
+         */
+        function WrapperResponse(properties) {
+            this.rewrittenArgs = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * WrapperResponse action.
+         * @member {pb.WrapperResponse.Action} action
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.action = 0;
+
+        /**
+         * WrapperResponse message.
+         * @member {string} message
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.message = "";
+
+        /**
+         * WrapperResponse rewrittenArgs.
+         * @member {Array.<string>} rewrittenArgs
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.rewrittenArgs = $util.emptyArray;
+
+        /**
+         * WrapperResponse classification.
+         * @member {pb.IBehaviorClassification|null|undefined} classification
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.classification = null;
+
+        /**
+         * WrapperResponse mlScore.
+         * @member {number} mlScore
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.mlScore = 0;
+
+        /**
+         * WrapperResponse anomalyScore.
+         * @member {number} anomalyScore
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.anomalyScore = 0;
+
+        /**
+         * WrapperResponse mlAction.
+         * @member {string} mlAction
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.mlAction = "";
+
+        /**
+         * WrapperResponse mlReasoning.
+         * @member {string} mlReasoning
+         * @memberof pb.WrapperResponse
+         * @instance
+         */
+        WrapperResponse.prototype.mlReasoning = "";
+
+        /**
+         * Creates a new WrapperResponse instance using the specified properties.
+         * @function create
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {pb.IWrapperResponse=} [properties] Properties to set
+         * @returns {pb.WrapperResponse} WrapperResponse instance
+         */
+        WrapperResponse.create = function create(properties) {
+            return new WrapperResponse(properties);
+        };
+
+        /**
+         * Encodes the specified WrapperResponse message. Does not implicitly {@link pb.WrapperResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {pb.IWrapperResponse} message WrapperResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WrapperResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.action != null && Object.hasOwnProperty.call(message, "action"))
+                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.action);
+            if (message.message != null && Object.hasOwnProperty.call(message, "message"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
+            if (message.rewrittenArgs != null && message.rewrittenArgs.length)
+                for (let i = 0; i < message.rewrittenArgs.length; ++i)
+                    writer.uint32(/* id 3, wireType 2 =*/26).string(message.rewrittenArgs[i]);
+            if (message.classification != null && Object.hasOwnProperty.call(message, "classification"))
+                $root.pb.BehaviorClassification.encode(message.classification, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            if (message.mlScore != null && Object.hasOwnProperty.call(message, "mlScore"))
+                writer.uint32(/* id 5, wireType 1 =*/41).double(message.mlScore);
+            if (message.anomalyScore != null && Object.hasOwnProperty.call(message, "anomalyScore"))
+                writer.uint32(/* id 6, wireType 1 =*/49).double(message.anomalyScore);
+            if (message.mlAction != null && Object.hasOwnProperty.call(message, "mlAction"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.mlAction);
+            if (message.mlReasoning != null && Object.hasOwnProperty.call(message, "mlReasoning"))
+                writer.uint32(/* id 8, wireType 2 =*/66).string(message.mlReasoning);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified WrapperResponse message, length delimited. Does not implicitly {@link pb.WrapperResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {pb.IWrapperResponse} message WrapperResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WrapperResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a WrapperResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.WrapperResponse} WrapperResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WrapperResponse.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperResponse();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.action = reader.int32();
+                        break;
+                    }
+                case 2: {
+                        message.message = reader.string();
+                        break;
+                    }
+                case 3: {
+                        if (!(message.rewrittenArgs && message.rewrittenArgs.length))
+                            message.rewrittenArgs = [];
+                        message.rewrittenArgs.push(reader.string());
+                        break;
+                    }
+                case 4: {
+                        message.classification = $root.pb.BehaviorClassification.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 5: {
+                        message.mlScore = reader.double();
+                        break;
+                    }
+                case 6: {
+                        message.anomalyScore = reader.double();
+                        break;
+                    }
+                case 7: {
+                        message.mlAction = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.mlReasoning = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a WrapperResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.WrapperResponse} WrapperResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WrapperResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a WrapperResponse message.
+         * @function verify
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        WrapperResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.action != null && message.hasOwnProperty("action"))
+                switch (message.action) {
+                default:
+                    return "action: enum value expected";
+                case 0:
+                case 1:
+                case 2:
+                case 3:
+                    break;
+                }
+            if (message.message != null && message.hasOwnProperty("message"))
+                if (!$util.isString(message.message))
+                    return "message: string expected";
+            if (message.rewrittenArgs != null && message.hasOwnProperty("rewrittenArgs")) {
+                if (!Array.isArray(message.rewrittenArgs))
+                    return "rewrittenArgs: array expected";
+                for (let i = 0; i < message.rewrittenArgs.length; ++i)
+                    if (!$util.isString(message.rewrittenArgs[i]))
+                        return "rewrittenArgs: string[] expected";
+            }
+            if (message.classification != null && message.hasOwnProperty("classification")) {
+                let error = $root.pb.BehaviorClassification.verify(message.classification);
+                if (error)
+                    return "classification." + error;
+            }
+            if (message.mlScore != null && message.hasOwnProperty("mlScore"))
+                if (typeof message.mlScore !== "number")
+                    return "mlScore: number expected";
+            if (message.anomalyScore != null && message.hasOwnProperty("anomalyScore"))
+                if (typeof message.anomalyScore !== "number")
+                    return "anomalyScore: number expected";
+            if (message.mlAction != null && message.hasOwnProperty("mlAction"))
+                if (!$util.isString(message.mlAction))
+                    return "mlAction: string expected";
+            if (message.mlReasoning != null && message.hasOwnProperty("mlReasoning"))
+                if (!$util.isString(message.mlReasoning))
+                    return "mlReasoning: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a WrapperResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.WrapperResponse} WrapperResponse
+         */
+        WrapperResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.WrapperResponse)
+                return object;
+            let message = new $root.pb.WrapperResponse();
+            switch (object.action) {
+            default:
+                if (typeof object.action === "number") {
+                    message.action = object.action;
+                    break;
+                }
+                break;
+            case "ALLOW":
+            case 0:
+                message.action = 0;
+                break;
+            case "BLOCK":
+            case 1:
+                message.action = 1;
+                break;
+            case "REWRITE":
+            case 2:
+                message.action = 2;
+                break;
+            case "ALERT":
+            case 3:
+                message.action = 3;
+                break;
+            }
+            if (object.message != null)
+                message.message = String(object.message);
+            if (object.rewrittenArgs) {
+                if (!Array.isArray(object.rewrittenArgs))
+                    throw TypeError(".pb.WrapperResponse.rewrittenArgs: array expected");
+                message.rewrittenArgs = [];
+                for (let i = 0; i < object.rewrittenArgs.length; ++i)
+                    message.rewrittenArgs[i] = String(object.rewrittenArgs[i]);
+            }
+            if (object.classification != null) {
+                if (typeof object.classification !== "object")
+                    throw TypeError(".pb.WrapperResponse.classification: object expected");
+                message.classification = $root.pb.BehaviorClassification.fromObject(object.classification);
+            }
+            if (object.mlScore != null)
+                message.mlScore = Number(object.mlScore);
+            if (object.anomalyScore != null)
+                message.anomalyScore = Number(object.anomalyScore);
+            if (object.mlAction != null)
+                message.mlAction = String(object.mlAction);
+            if (object.mlReasoning != null)
+                message.mlReasoning = String(object.mlReasoning);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a WrapperResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {pb.WrapperResponse} message WrapperResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        WrapperResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults)
+                object.rewrittenArgs = [];
+            if (options.defaults) {
+                object.action = options.enums === String ? "ALLOW" : 0;
+                object.message = "";
+                object.classification = null;
+                object.mlScore = 0;
+                object.anomalyScore = 0;
+                object.mlAction = "";
+                object.mlReasoning = "";
+            }
+            if (message.action != null && message.hasOwnProperty("action"))
+                object.action = options.enums === String ? $root.pb.WrapperResponse.Action[message.action] === undefined ? message.action : $root.pb.WrapperResponse.Action[message.action] : message.action;
+            if (message.message != null && message.hasOwnProperty("message"))
+                object.message = message.message;
+            if (message.rewrittenArgs && message.rewrittenArgs.length) {
+                object.rewrittenArgs = [];
+                for (let j = 0; j < message.rewrittenArgs.length; ++j)
+                    object.rewrittenArgs[j] = message.rewrittenArgs[j];
+            }
+            if (message.classification != null && message.hasOwnProperty("classification"))
+                object.classification = $root.pb.BehaviorClassification.toObject(message.classification, options);
+            if (message.mlScore != null && message.hasOwnProperty("mlScore"))
+                object.mlScore = options.json && !isFinite(message.mlScore) ? String(message.mlScore) : message.mlScore;
+            if (message.anomalyScore != null && message.hasOwnProperty("anomalyScore"))
+                object.anomalyScore = options.json && !isFinite(message.anomalyScore) ? String(message.anomalyScore) : message.anomalyScore;
+            if (message.mlAction != null && message.hasOwnProperty("mlAction"))
+                object.mlAction = message.mlAction;
+            if (message.mlReasoning != null && message.hasOwnProperty("mlReasoning"))
+                object.mlReasoning = message.mlReasoning;
+            return object;
+        };
+
+        /**
+         * Converts this WrapperResponse to JSON.
+         * @function toJSON
+         * @memberof pb.WrapperResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        WrapperResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for WrapperResponse
+         * @function getTypeUrl
+         * @memberof pb.WrapperResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        WrapperResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.WrapperResponse";
+        };
+
+        /**
+         * Action enum.
+         * @name pb.WrapperResponse.Action
+         * @enum {number}
+         * @property {number} ALLOW=0 ALLOW value
+         * @property {number} BLOCK=1 BLOCK value
+         * @property {number} REWRITE=2 REWRITE value
+         * @property {number} ALERT=3 ALERT value
+         */
+        WrapperResponse.Action = (function() {
+            const valuesById = {}, values = Object.create(valuesById);
+            values[valuesById[0] = "ALLOW"] = 0;
+            values[valuesById[1] = "BLOCK"] = 1;
+            values[valuesById[2] = "REWRITE"] = 2;
+            values[valuesById[3] = "ALERT"] = 3;
+            return values;
+        })();
+
+        return WrapperResponse;
+    })();
+
     pb.Process = (function() {
 
         /**
@@ -14192,762 +16455,6 @@ export const pb = $root.pb = (() => {
         return MemoryInfo;
     })();
 
-    pb.Hook = (function() {
-
-        /**
-         * Properties of a Hook.
-         * @memberof pb
-         * @interface IHook
-         * @property {string|null} [id] Hook id
-         * @property {string|null} [name] Hook name
-         * @property {string|null} [description] Hook description
-         * @property {boolean|null} [installed] Hook installed
-         * @property {string|null} [targetCmd] Hook targetCmd
-         */
-
-        /**
-         * Constructs a new Hook.
-         * @memberof pb
-         * @classdesc Represents a Hook.
-         * @implements IHook
-         * @constructor
-         * @param {pb.IHook=} [properties] Properties to set
-         */
-        function Hook(properties) {
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * Hook id.
-         * @member {string} id
-         * @memberof pb.Hook
-         * @instance
-         */
-        Hook.prototype.id = "";
-
-        /**
-         * Hook name.
-         * @member {string} name
-         * @memberof pb.Hook
-         * @instance
-         */
-        Hook.prototype.name = "";
-
-        /**
-         * Hook description.
-         * @member {string} description
-         * @memberof pb.Hook
-         * @instance
-         */
-        Hook.prototype.description = "";
-
-        /**
-         * Hook installed.
-         * @member {boolean} installed
-         * @memberof pb.Hook
-         * @instance
-         */
-        Hook.prototype.installed = false;
-
-        /**
-         * Hook targetCmd.
-         * @member {string} targetCmd
-         * @memberof pb.Hook
-         * @instance
-         */
-        Hook.prototype.targetCmd = "";
-
-        /**
-         * Creates a new Hook instance using the specified properties.
-         * @function create
-         * @memberof pb.Hook
-         * @static
-         * @param {pb.IHook=} [properties] Properties to set
-         * @returns {pb.Hook} Hook instance
-         */
-        Hook.create = function create(properties) {
-            return new Hook(properties);
-        };
-
-        /**
-         * Encodes the specified Hook message. Does not implicitly {@link pb.Hook.verify|verify} messages.
-         * @function encode
-         * @memberof pb.Hook
-         * @static
-         * @param {pb.IHook} message Hook message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        Hook.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
-                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
-            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.name);
-            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
-                writer.uint32(/* id 3, wireType 2 =*/26).string(message.description);
-            if (message.installed != null && Object.hasOwnProperty.call(message, "installed"))
-                writer.uint32(/* id 4, wireType 0 =*/32).bool(message.installed);
-            if (message.targetCmd != null && Object.hasOwnProperty.call(message, "targetCmd"))
-                writer.uint32(/* id 5, wireType 2 =*/42).string(message.targetCmd);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified Hook message, length delimited. Does not implicitly {@link pb.Hook.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.Hook
-         * @static
-         * @param {pb.IHook} message Hook message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        Hook.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a Hook message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.Hook
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.Hook} Hook
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        Hook.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.Hook();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.id = reader.string();
-                        break;
-                    }
-                case 2: {
-                        message.name = reader.string();
-                        break;
-                    }
-                case 3: {
-                        message.description = reader.string();
-                        break;
-                    }
-                case 4: {
-                        message.installed = reader.bool();
-                        break;
-                    }
-                case 5: {
-                        message.targetCmd = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a Hook message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.Hook
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.Hook} Hook
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        Hook.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a Hook message.
-         * @function verify
-         * @memberof pb.Hook
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        Hook.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.id != null && message.hasOwnProperty("id"))
-                if (!$util.isString(message.id))
-                    return "id: string expected";
-            if (message.name != null && message.hasOwnProperty("name"))
-                if (!$util.isString(message.name))
-                    return "name: string expected";
-            if (message.description != null && message.hasOwnProperty("description"))
-                if (!$util.isString(message.description))
-                    return "description: string expected";
-            if (message.installed != null && message.hasOwnProperty("installed"))
-                if (typeof message.installed !== "boolean")
-                    return "installed: boolean expected";
-            if (message.targetCmd != null && message.hasOwnProperty("targetCmd"))
-                if (!$util.isString(message.targetCmd))
-                    return "targetCmd: string expected";
-            return null;
-        };
-
-        /**
-         * Creates a Hook message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.Hook
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.Hook} Hook
-         */
-        Hook.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.Hook)
-                return object;
-            let message = new $root.pb.Hook();
-            if (object.id != null)
-                message.id = String(object.id);
-            if (object.name != null)
-                message.name = String(object.name);
-            if (object.description != null)
-                message.description = String(object.description);
-            if (object.installed != null)
-                message.installed = Boolean(object.installed);
-            if (object.targetCmd != null)
-                message.targetCmd = String(object.targetCmd);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a Hook message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.Hook
-         * @static
-         * @param {pb.Hook} message Hook
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        Hook.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.defaults) {
-                object.id = "";
-                object.name = "";
-                object.description = "";
-                object.installed = false;
-                object.targetCmd = "";
-            }
-            if (message.id != null && message.hasOwnProperty("id"))
-                object.id = message.id;
-            if (message.name != null && message.hasOwnProperty("name"))
-                object.name = message.name;
-            if (message.description != null && message.hasOwnProperty("description"))
-                object.description = message.description;
-            if (message.installed != null && message.hasOwnProperty("installed"))
-                object.installed = message.installed;
-            if (message.targetCmd != null && message.hasOwnProperty("targetCmd"))
-                object.targetCmd = message.targetCmd;
-            return object;
-        };
-
-        /**
-         * Converts this Hook to JSON.
-         * @function toJSON
-         * @memberof pb.Hook
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        Hook.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for Hook
-         * @function getTypeUrl
-         * @memberof pb.Hook
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        Hook.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.Hook";
-        };
-
-        return Hook;
-    })();
-
-    pb.HookRequest = (function() {
-
-        /**
-         * Properties of a HookRequest.
-         * @memberof pb
-         * @interface IHookRequest
-         * @property {string|null} [id] HookRequest id
-         * @property {boolean|null} [install] HookRequest install
-         */
-
-        /**
-         * Constructs a new HookRequest.
-         * @memberof pb
-         * @classdesc Represents a HookRequest.
-         * @implements IHookRequest
-         * @constructor
-         * @param {pb.IHookRequest=} [properties] Properties to set
-         */
-        function HookRequest(properties) {
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * HookRequest id.
-         * @member {string} id
-         * @memberof pb.HookRequest
-         * @instance
-         */
-        HookRequest.prototype.id = "";
-
-        /**
-         * HookRequest install.
-         * @member {boolean} install
-         * @memberof pb.HookRequest
-         * @instance
-         */
-        HookRequest.prototype.install = false;
-
-        /**
-         * Creates a new HookRequest instance using the specified properties.
-         * @function create
-         * @memberof pb.HookRequest
-         * @static
-         * @param {pb.IHookRequest=} [properties] Properties to set
-         * @returns {pb.HookRequest} HookRequest instance
-         */
-        HookRequest.create = function create(properties) {
-            return new HookRequest(properties);
-        };
-
-        /**
-         * Encodes the specified HookRequest message. Does not implicitly {@link pb.HookRequest.verify|verify} messages.
-         * @function encode
-         * @memberof pb.HookRequest
-         * @static
-         * @param {pb.IHookRequest} message HookRequest message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        HookRequest.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
-                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
-            if (message.install != null && Object.hasOwnProperty.call(message, "install"))
-                writer.uint32(/* id 2, wireType 0 =*/16).bool(message.install);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified HookRequest message, length delimited. Does not implicitly {@link pb.HookRequest.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.HookRequest
-         * @static
-         * @param {pb.IHookRequest} message HookRequest message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        HookRequest.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a HookRequest message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.HookRequest
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.HookRequest} HookRequest
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        HookRequest.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.HookRequest();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.id = reader.string();
-                        break;
-                    }
-                case 2: {
-                        message.install = reader.bool();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a HookRequest message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.HookRequest
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.HookRequest} HookRequest
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        HookRequest.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a HookRequest message.
-         * @function verify
-         * @memberof pb.HookRequest
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        HookRequest.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.id != null && message.hasOwnProperty("id"))
-                if (!$util.isString(message.id))
-                    return "id: string expected";
-            if (message.install != null && message.hasOwnProperty("install"))
-                if (typeof message.install !== "boolean")
-                    return "install: boolean expected";
-            return null;
-        };
-
-        /**
-         * Creates a HookRequest message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.HookRequest
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.HookRequest} HookRequest
-         */
-        HookRequest.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.HookRequest)
-                return object;
-            let message = new $root.pb.HookRequest();
-            if (object.id != null)
-                message.id = String(object.id);
-            if (object.install != null)
-                message.install = Boolean(object.install);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a HookRequest message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.HookRequest
-         * @static
-         * @param {pb.HookRequest} message HookRequest
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        HookRequest.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.defaults) {
-                object.id = "";
-                object.install = false;
-            }
-            if (message.id != null && message.hasOwnProperty("id"))
-                object.id = message.id;
-            if (message.install != null && message.hasOwnProperty("install"))
-                object.install = message.install;
-            return object;
-        };
-
-        /**
-         * Converts this HookRequest to JSON.
-         * @function toJSON
-         * @memberof pb.HookRequest
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        HookRequest.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for HookRequest
-         * @function getTypeUrl
-         * @memberof pb.HookRequest
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        HookRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.HookRequest";
-        };
-
-        return HookRequest;
-    })();
-
-    pb.HookResponse = (function() {
-
-        /**
-         * Properties of a HookResponse.
-         * @memberof pb
-         * @interface IHookResponse
-         * @property {boolean|null} [success] HookResponse success
-         * @property {string|null} [message] HookResponse message
-         */
-
-        /**
-         * Constructs a new HookResponse.
-         * @memberof pb
-         * @classdesc Represents a HookResponse.
-         * @implements IHookResponse
-         * @constructor
-         * @param {pb.IHookResponse=} [properties] Properties to set
-         */
-        function HookResponse(properties) {
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * HookResponse success.
-         * @member {boolean} success
-         * @memberof pb.HookResponse
-         * @instance
-         */
-        HookResponse.prototype.success = false;
-
-        /**
-         * HookResponse message.
-         * @member {string} message
-         * @memberof pb.HookResponse
-         * @instance
-         */
-        HookResponse.prototype.message = "";
-
-        /**
-         * Creates a new HookResponse instance using the specified properties.
-         * @function create
-         * @memberof pb.HookResponse
-         * @static
-         * @param {pb.IHookResponse=} [properties] Properties to set
-         * @returns {pb.HookResponse} HookResponse instance
-         */
-        HookResponse.create = function create(properties) {
-            return new HookResponse(properties);
-        };
-
-        /**
-         * Encodes the specified HookResponse message. Does not implicitly {@link pb.HookResponse.verify|verify} messages.
-         * @function encode
-         * @memberof pb.HookResponse
-         * @static
-         * @param {pb.IHookResponse} message HookResponse message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        HookResponse.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.success != null && Object.hasOwnProperty.call(message, "success"))
-                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.success);
-            if (message.message != null && Object.hasOwnProperty.call(message, "message"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified HookResponse message, length delimited. Does not implicitly {@link pb.HookResponse.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.HookResponse
-         * @static
-         * @param {pb.IHookResponse} message HookResponse message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        HookResponse.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a HookResponse message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.HookResponse
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.HookResponse} HookResponse
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        HookResponse.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.HookResponse();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.success = reader.bool();
-                        break;
-                    }
-                case 2: {
-                        message.message = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a HookResponse message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.HookResponse
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.HookResponse} HookResponse
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        HookResponse.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a HookResponse message.
-         * @function verify
-         * @memberof pb.HookResponse
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        HookResponse.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.success != null && message.hasOwnProperty("success"))
-                if (typeof message.success !== "boolean")
-                    return "success: boolean expected";
-            if (message.message != null && message.hasOwnProperty("message"))
-                if (!$util.isString(message.message))
-                    return "message: string expected";
-            return null;
-        };
-
-        /**
-         * Creates a HookResponse message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.HookResponse
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.HookResponse} HookResponse
-         */
-        HookResponse.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.HookResponse)
-                return object;
-            let message = new $root.pb.HookResponse();
-            if (object.success != null)
-                message.success = Boolean(object.success);
-            if (object.message != null)
-                message.message = String(object.message);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a HookResponse message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.HookResponse
-         * @static
-         * @param {pb.HookResponse} message HookResponse
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        HookResponse.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.defaults) {
-                object.success = false;
-                object.message = "";
-            }
-            if (message.success != null && message.hasOwnProperty("success"))
-                object.success = message.success;
-            if (message.message != null && message.hasOwnProperty("message"))
-                object.message = message.message;
-            return object;
-        };
-
-        /**
-         * Converts this HookResponse to JSON.
-         * @function toJSON
-         * @memberof pb.HookResponse
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        HookResponse.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for HookResponse
-         * @function getTypeUrl
-         * @memberof pb.HookResponse
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        HookResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.HookResponse";
-        };
-
-        return HookResponse;
-    })();
-
     pb.NetworkInterface = (function() {
 
         /**
@@ -16797,1446 +18304,6 @@ export const pb = $root.pb = (() => {
         return SystemStats;
     })();
 
-    pb.WrapperRequest = (function() {
-
-        /**
-         * Properties of a WrapperRequest.
-         * @memberof pb
-         * @interface IWrapperRequest
-         * @property {number|null} [pid] WrapperRequest pid
-         * @property {string|null} [comm] WrapperRequest comm
-         * @property {Array.<string>|null} [args] WrapperRequest args
-         * @property {string|null} [user] WrapperRequest user
-         * @property {string|null} [agentRunId] WrapperRequest agentRunId
-         * @property {string|null} [conversationId] WrapperRequest conversationId
-         * @property {string|null} [turnId] WrapperRequest turnId
-         * @property {string|null} [toolCallId] WrapperRequest toolCallId
-         * @property {string|null} [toolName] WrapperRequest toolName
-         * @property {string|null} [traceId] WrapperRequest traceId
-         * @property {string|null} [spanId] WrapperRequest spanId
-         * @property {number|null} [rootAgentPid] WrapperRequest rootAgentPid
-         * @property {string|null} [decision] WrapperRequest decision
-         * @property {number|null} [riskScore] WrapperRequest riskScore
-         * @property {string|null} [containerId] WrapperRequest containerId
-         * @property {string|null} [argvDigest] WrapperRequest argvDigest
-         * @property {string|null} [taskId] WrapperRequest taskId
-         * @property {string|null} [cwd] WrapperRequest cwd
-         */
-
-        /**
-         * Constructs a new WrapperRequest.
-         * @memberof pb
-         * @classdesc Represents a WrapperRequest.
-         * @implements IWrapperRequest
-         * @constructor
-         * @param {pb.IWrapperRequest=} [properties] Properties to set
-         */
-        function WrapperRequest(properties) {
-            this.args = [];
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * WrapperRequest pid.
-         * @member {number} pid
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.pid = 0;
-
-        /**
-         * WrapperRequest comm.
-         * @member {string} comm
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.comm = "";
-
-        /**
-         * WrapperRequest args.
-         * @member {Array.<string>} args
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.args = $util.emptyArray;
-
-        /**
-         * WrapperRequest user.
-         * @member {string} user
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.user = "";
-
-        /**
-         * WrapperRequest agentRunId.
-         * @member {string} agentRunId
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.agentRunId = "";
-
-        /**
-         * WrapperRequest conversationId.
-         * @member {string} conversationId
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.conversationId = "";
-
-        /**
-         * WrapperRequest turnId.
-         * @member {string} turnId
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.turnId = "";
-
-        /**
-         * WrapperRequest toolCallId.
-         * @member {string} toolCallId
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.toolCallId = "";
-
-        /**
-         * WrapperRequest toolName.
-         * @member {string} toolName
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.toolName = "";
-
-        /**
-         * WrapperRequest traceId.
-         * @member {string} traceId
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.traceId = "";
-
-        /**
-         * WrapperRequest spanId.
-         * @member {string} spanId
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.spanId = "";
-
-        /**
-         * WrapperRequest rootAgentPid.
-         * @member {number} rootAgentPid
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.rootAgentPid = 0;
-
-        /**
-         * WrapperRequest decision.
-         * @member {string} decision
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.decision = "";
-
-        /**
-         * WrapperRequest riskScore.
-         * @member {number} riskScore
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.riskScore = 0;
-
-        /**
-         * WrapperRequest containerId.
-         * @member {string} containerId
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.containerId = "";
-
-        /**
-         * WrapperRequest argvDigest.
-         * @member {string} argvDigest
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.argvDigest = "";
-
-        /**
-         * WrapperRequest taskId.
-         * @member {string} taskId
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.taskId = "";
-
-        /**
-         * WrapperRequest cwd.
-         * @member {string} cwd
-         * @memberof pb.WrapperRequest
-         * @instance
-         */
-        WrapperRequest.prototype.cwd = "";
-
-        /**
-         * Creates a new WrapperRequest instance using the specified properties.
-         * @function create
-         * @memberof pb.WrapperRequest
-         * @static
-         * @param {pb.IWrapperRequest=} [properties] Properties to set
-         * @returns {pb.WrapperRequest} WrapperRequest instance
-         */
-        WrapperRequest.create = function create(properties) {
-            return new WrapperRequest(properties);
-        };
-
-        /**
-         * Encodes the specified WrapperRequest message. Does not implicitly {@link pb.WrapperRequest.verify|verify} messages.
-         * @function encode
-         * @memberof pb.WrapperRequest
-         * @static
-         * @param {pb.IWrapperRequest} message WrapperRequest message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        WrapperRequest.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
-                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.pid);
-            if (message.comm != null && Object.hasOwnProperty.call(message, "comm"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.comm);
-            if (message.args != null && message.args.length)
-                for (let i = 0; i < message.args.length; ++i)
-                    writer.uint32(/* id 3, wireType 2 =*/26).string(message.args[i]);
-            if (message.user != null && Object.hasOwnProperty.call(message, "user"))
-                writer.uint32(/* id 4, wireType 2 =*/34).string(message.user);
-            if (message.agentRunId != null && Object.hasOwnProperty.call(message, "agentRunId"))
-                writer.uint32(/* id 5, wireType 2 =*/42).string(message.agentRunId);
-            if (message.conversationId != null && Object.hasOwnProperty.call(message, "conversationId"))
-                writer.uint32(/* id 6, wireType 2 =*/50).string(message.conversationId);
-            if (message.turnId != null && Object.hasOwnProperty.call(message, "turnId"))
-                writer.uint32(/* id 7, wireType 2 =*/58).string(message.turnId);
-            if (message.toolCallId != null && Object.hasOwnProperty.call(message, "toolCallId"))
-                writer.uint32(/* id 8, wireType 2 =*/66).string(message.toolCallId);
-            if (message.toolName != null && Object.hasOwnProperty.call(message, "toolName"))
-                writer.uint32(/* id 9, wireType 2 =*/74).string(message.toolName);
-            if (message.traceId != null && Object.hasOwnProperty.call(message, "traceId"))
-                writer.uint32(/* id 10, wireType 2 =*/82).string(message.traceId);
-            if (message.spanId != null && Object.hasOwnProperty.call(message, "spanId"))
-                writer.uint32(/* id 11, wireType 2 =*/90).string(message.spanId);
-            if (message.rootAgentPid != null && Object.hasOwnProperty.call(message, "rootAgentPid"))
-                writer.uint32(/* id 12, wireType 0 =*/96).uint32(message.rootAgentPid);
-            if (message.decision != null && Object.hasOwnProperty.call(message, "decision"))
-                writer.uint32(/* id 13, wireType 2 =*/106).string(message.decision);
-            if (message.riskScore != null && Object.hasOwnProperty.call(message, "riskScore"))
-                writer.uint32(/* id 14, wireType 1 =*/113).double(message.riskScore);
-            if (message.containerId != null && Object.hasOwnProperty.call(message, "containerId"))
-                writer.uint32(/* id 15, wireType 2 =*/122).string(message.containerId);
-            if (message.argvDigest != null && Object.hasOwnProperty.call(message, "argvDigest"))
-                writer.uint32(/* id 16, wireType 2 =*/130).string(message.argvDigest);
-            if (message.taskId != null && Object.hasOwnProperty.call(message, "taskId"))
-                writer.uint32(/* id 17, wireType 2 =*/138).string(message.taskId);
-            if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
-                writer.uint32(/* id 18, wireType 2 =*/146).string(message.cwd);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified WrapperRequest message, length delimited. Does not implicitly {@link pb.WrapperRequest.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.WrapperRequest
-         * @static
-         * @param {pb.IWrapperRequest} message WrapperRequest message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        WrapperRequest.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a WrapperRequest message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.WrapperRequest
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.WrapperRequest} WrapperRequest
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        WrapperRequest.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperRequest();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.pid = reader.uint32();
-                        break;
-                    }
-                case 2: {
-                        message.comm = reader.string();
-                        break;
-                    }
-                case 3: {
-                        if (!(message.args && message.args.length))
-                            message.args = [];
-                        message.args.push(reader.string());
-                        break;
-                    }
-                case 4: {
-                        message.user = reader.string();
-                        break;
-                    }
-                case 5: {
-                        message.agentRunId = reader.string();
-                        break;
-                    }
-                case 6: {
-                        message.conversationId = reader.string();
-                        break;
-                    }
-                case 7: {
-                        message.turnId = reader.string();
-                        break;
-                    }
-                case 8: {
-                        message.toolCallId = reader.string();
-                        break;
-                    }
-                case 9: {
-                        message.toolName = reader.string();
-                        break;
-                    }
-                case 10: {
-                        message.traceId = reader.string();
-                        break;
-                    }
-                case 11: {
-                        message.spanId = reader.string();
-                        break;
-                    }
-                case 12: {
-                        message.rootAgentPid = reader.uint32();
-                        break;
-                    }
-                case 13: {
-                        message.decision = reader.string();
-                        break;
-                    }
-                case 14: {
-                        message.riskScore = reader.double();
-                        break;
-                    }
-                case 15: {
-                        message.containerId = reader.string();
-                        break;
-                    }
-                case 16: {
-                        message.argvDigest = reader.string();
-                        break;
-                    }
-                case 17: {
-                        message.taskId = reader.string();
-                        break;
-                    }
-                case 18: {
-                        message.cwd = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a WrapperRequest message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.WrapperRequest
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.WrapperRequest} WrapperRequest
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        WrapperRequest.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a WrapperRequest message.
-         * @function verify
-         * @memberof pb.WrapperRequest
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        WrapperRequest.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.pid != null && message.hasOwnProperty("pid"))
-                if (!$util.isInteger(message.pid))
-                    return "pid: integer expected";
-            if (message.comm != null && message.hasOwnProperty("comm"))
-                if (!$util.isString(message.comm))
-                    return "comm: string expected";
-            if (message.args != null && message.hasOwnProperty("args")) {
-                if (!Array.isArray(message.args))
-                    return "args: array expected";
-                for (let i = 0; i < message.args.length; ++i)
-                    if (!$util.isString(message.args[i]))
-                        return "args: string[] expected";
-            }
-            if (message.user != null && message.hasOwnProperty("user"))
-                if (!$util.isString(message.user))
-                    return "user: string expected";
-            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
-                if (!$util.isString(message.agentRunId))
-                    return "agentRunId: string expected";
-            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
-                if (!$util.isString(message.conversationId))
-                    return "conversationId: string expected";
-            if (message.turnId != null && message.hasOwnProperty("turnId"))
-                if (!$util.isString(message.turnId))
-                    return "turnId: string expected";
-            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
-                if (!$util.isString(message.toolCallId))
-                    return "toolCallId: string expected";
-            if (message.toolName != null && message.hasOwnProperty("toolName"))
-                if (!$util.isString(message.toolName))
-                    return "toolName: string expected";
-            if (message.traceId != null && message.hasOwnProperty("traceId"))
-                if (!$util.isString(message.traceId))
-                    return "traceId: string expected";
-            if (message.spanId != null && message.hasOwnProperty("spanId"))
-                if (!$util.isString(message.spanId))
-                    return "spanId: string expected";
-            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
-                if (!$util.isInteger(message.rootAgentPid))
-                    return "rootAgentPid: integer expected";
-            if (message.decision != null && message.hasOwnProperty("decision"))
-                if (!$util.isString(message.decision))
-                    return "decision: string expected";
-            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
-                if (typeof message.riskScore !== "number")
-                    return "riskScore: number expected";
-            if (message.containerId != null && message.hasOwnProperty("containerId"))
-                if (!$util.isString(message.containerId))
-                    return "containerId: string expected";
-            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
-                if (!$util.isString(message.argvDigest))
-                    return "argvDigest: string expected";
-            if (message.taskId != null && message.hasOwnProperty("taskId"))
-                if (!$util.isString(message.taskId))
-                    return "taskId: string expected";
-            if (message.cwd != null && message.hasOwnProperty("cwd"))
-                if (!$util.isString(message.cwd))
-                    return "cwd: string expected";
-            return null;
-        };
-
-        /**
-         * Creates a WrapperRequest message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.WrapperRequest
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.WrapperRequest} WrapperRequest
-         */
-        WrapperRequest.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.WrapperRequest)
-                return object;
-            let message = new $root.pb.WrapperRequest();
-            if (object.pid != null)
-                message.pid = object.pid >>> 0;
-            if (object.comm != null)
-                message.comm = String(object.comm);
-            if (object.args) {
-                if (!Array.isArray(object.args))
-                    throw TypeError(".pb.WrapperRequest.args: array expected");
-                message.args = [];
-                for (let i = 0; i < object.args.length; ++i)
-                    message.args[i] = String(object.args[i]);
-            }
-            if (object.user != null)
-                message.user = String(object.user);
-            if (object.agentRunId != null)
-                message.agentRunId = String(object.agentRunId);
-            if (object.conversationId != null)
-                message.conversationId = String(object.conversationId);
-            if (object.turnId != null)
-                message.turnId = String(object.turnId);
-            if (object.toolCallId != null)
-                message.toolCallId = String(object.toolCallId);
-            if (object.toolName != null)
-                message.toolName = String(object.toolName);
-            if (object.traceId != null)
-                message.traceId = String(object.traceId);
-            if (object.spanId != null)
-                message.spanId = String(object.spanId);
-            if (object.rootAgentPid != null)
-                message.rootAgentPid = object.rootAgentPid >>> 0;
-            if (object.decision != null)
-                message.decision = String(object.decision);
-            if (object.riskScore != null)
-                message.riskScore = Number(object.riskScore);
-            if (object.containerId != null)
-                message.containerId = String(object.containerId);
-            if (object.argvDigest != null)
-                message.argvDigest = String(object.argvDigest);
-            if (object.taskId != null)
-                message.taskId = String(object.taskId);
-            if (object.cwd != null)
-                message.cwd = String(object.cwd);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a WrapperRequest message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.WrapperRequest
-         * @static
-         * @param {pb.WrapperRequest} message WrapperRequest
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        WrapperRequest.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.arrays || options.defaults)
-                object.args = [];
-            if (options.defaults) {
-                object.pid = 0;
-                object.comm = "";
-                object.user = "";
-                object.agentRunId = "";
-                object.conversationId = "";
-                object.turnId = "";
-                object.toolCallId = "";
-                object.toolName = "";
-                object.traceId = "";
-                object.spanId = "";
-                object.rootAgentPid = 0;
-                object.decision = "";
-                object.riskScore = 0;
-                object.containerId = "";
-                object.argvDigest = "";
-                object.taskId = "";
-                object.cwd = "";
-            }
-            if (message.pid != null && message.hasOwnProperty("pid"))
-                object.pid = message.pid;
-            if (message.comm != null && message.hasOwnProperty("comm"))
-                object.comm = message.comm;
-            if (message.args && message.args.length) {
-                object.args = [];
-                for (let j = 0; j < message.args.length; ++j)
-                    object.args[j] = message.args[j];
-            }
-            if (message.user != null && message.hasOwnProperty("user"))
-                object.user = message.user;
-            if (message.agentRunId != null && message.hasOwnProperty("agentRunId"))
-                object.agentRunId = message.agentRunId;
-            if (message.conversationId != null && message.hasOwnProperty("conversationId"))
-                object.conversationId = message.conversationId;
-            if (message.turnId != null && message.hasOwnProperty("turnId"))
-                object.turnId = message.turnId;
-            if (message.toolCallId != null && message.hasOwnProperty("toolCallId"))
-                object.toolCallId = message.toolCallId;
-            if (message.toolName != null && message.hasOwnProperty("toolName"))
-                object.toolName = message.toolName;
-            if (message.traceId != null && message.hasOwnProperty("traceId"))
-                object.traceId = message.traceId;
-            if (message.spanId != null && message.hasOwnProperty("spanId"))
-                object.spanId = message.spanId;
-            if (message.rootAgentPid != null && message.hasOwnProperty("rootAgentPid"))
-                object.rootAgentPid = message.rootAgentPid;
-            if (message.decision != null && message.hasOwnProperty("decision"))
-                object.decision = message.decision;
-            if (message.riskScore != null && message.hasOwnProperty("riskScore"))
-                object.riskScore = options.json && !isFinite(message.riskScore) ? String(message.riskScore) : message.riskScore;
-            if (message.containerId != null && message.hasOwnProperty("containerId"))
-                object.containerId = message.containerId;
-            if (message.argvDigest != null && message.hasOwnProperty("argvDigest"))
-                object.argvDigest = message.argvDigest;
-            if (message.taskId != null && message.hasOwnProperty("taskId"))
-                object.taskId = message.taskId;
-            if (message.cwd != null && message.hasOwnProperty("cwd"))
-                object.cwd = message.cwd;
-            return object;
-        };
-
-        /**
-         * Converts this WrapperRequest to JSON.
-         * @function toJSON
-         * @memberof pb.WrapperRequest
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        WrapperRequest.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for WrapperRequest
-         * @function getTypeUrl
-         * @memberof pb.WrapperRequest
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        WrapperRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.WrapperRequest";
-        };
-
-        return WrapperRequest;
-    })();
-
-    pb.WrapperResponse = (function() {
-
-        /**
-         * Properties of a WrapperResponse.
-         * @memberof pb
-         * @interface IWrapperResponse
-         * @property {pb.WrapperResponse.Action|null} [action] WrapperResponse action
-         * @property {string|null} [message] WrapperResponse message
-         * @property {Array.<string>|null} [rewrittenArgs] WrapperResponse rewrittenArgs
-         * @property {pb.IBehaviorClassification|null} [classification] WrapperResponse classification
-         * @property {number|null} [mlScore] WrapperResponse mlScore
-         * @property {number|null} [anomalyScore] WrapperResponse anomalyScore
-         * @property {string|null} [mlAction] WrapperResponse mlAction
-         * @property {string|null} [mlReasoning] WrapperResponse mlReasoning
-         */
-
-        /**
-         * Constructs a new WrapperResponse.
-         * @memberof pb
-         * @classdesc Represents a WrapperResponse.
-         * @implements IWrapperResponse
-         * @constructor
-         * @param {pb.IWrapperResponse=} [properties] Properties to set
-         */
-        function WrapperResponse(properties) {
-            this.rewrittenArgs = [];
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * WrapperResponse action.
-         * @member {pb.WrapperResponse.Action} action
-         * @memberof pb.WrapperResponse
-         * @instance
-         */
-        WrapperResponse.prototype.action = 0;
-
-        /**
-         * WrapperResponse message.
-         * @member {string} message
-         * @memberof pb.WrapperResponse
-         * @instance
-         */
-        WrapperResponse.prototype.message = "";
-
-        /**
-         * WrapperResponse rewrittenArgs.
-         * @member {Array.<string>} rewrittenArgs
-         * @memberof pb.WrapperResponse
-         * @instance
-         */
-        WrapperResponse.prototype.rewrittenArgs = $util.emptyArray;
-
-        /**
-         * WrapperResponse classification.
-         * @member {pb.IBehaviorClassification|null|undefined} classification
-         * @memberof pb.WrapperResponse
-         * @instance
-         */
-        WrapperResponse.prototype.classification = null;
-
-        /**
-         * WrapperResponse mlScore.
-         * @member {number} mlScore
-         * @memberof pb.WrapperResponse
-         * @instance
-         */
-        WrapperResponse.prototype.mlScore = 0;
-
-        /**
-         * WrapperResponse anomalyScore.
-         * @member {number} anomalyScore
-         * @memberof pb.WrapperResponse
-         * @instance
-         */
-        WrapperResponse.prototype.anomalyScore = 0;
-
-        /**
-         * WrapperResponse mlAction.
-         * @member {string} mlAction
-         * @memberof pb.WrapperResponse
-         * @instance
-         */
-        WrapperResponse.prototype.mlAction = "";
-
-        /**
-         * WrapperResponse mlReasoning.
-         * @member {string} mlReasoning
-         * @memberof pb.WrapperResponse
-         * @instance
-         */
-        WrapperResponse.prototype.mlReasoning = "";
-
-        /**
-         * Creates a new WrapperResponse instance using the specified properties.
-         * @function create
-         * @memberof pb.WrapperResponse
-         * @static
-         * @param {pb.IWrapperResponse=} [properties] Properties to set
-         * @returns {pb.WrapperResponse} WrapperResponse instance
-         */
-        WrapperResponse.create = function create(properties) {
-            return new WrapperResponse(properties);
-        };
-
-        /**
-         * Encodes the specified WrapperResponse message. Does not implicitly {@link pb.WrapperResponse.verify|verify} messages.
-         * @function encode
-         * @memberof pb.WrapperResponse
-         * @static
-         * @param {pb.IWrapperResponse} message WrapperResponse message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        WrapperResponse.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.action != null && Object.hasOwnProperty.call(message, "action"))
-                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.action);
-            if (message.message != null && Object.hasOwnProperty.call(message, "message"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
-            if (message.rewrittenArgs != null && message.rewrittenArgs.length)
-                for (let i = 0; i < message.rewrittenArgs.length; ++i)
-                    writer.uint32(/* id 3, wireType 2 =*/26).string(message.rewrittenArgs[i]);
-            if (message.classification != null && Object.hasOwnProperty.call(message, "classification"))
-                $root.pb.BehaviorClassification.encode(message.classification, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
-            if (message.mlScore != null && Object.hasOwnProperty.call(message, "mlScore"))
-                writer.uint32(/* id 5, wireType 1 =*/41).double(message.mlScore);
-            if (message.anomalyScore != null && Object.hasOwnProperty.call(message, "anomalyScore"))
-                writer.uint32(/* id 6, wireType 1 =*/49).double(message.anomalyScore);
-            if (message.mlAction != null && Object.hasOwnProperty.call(message, "mlAction"))
-                writer.uint32(/* id 7, wireType 2 =*/58).string(message.mlAction);
-            if (message.mlReasoning != null && Object.hasOwnProperty.call(message, "mlReasoning"))
-                writer.uint32(/* id 8, wireType 2 =*/66).string(message.mlReasoning);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified WrapperResponse message, length delimited. Does not implicitly {@link pb.WrapperResponse.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.WrapperResponse
-         * @static
-         * @param {pb.IWrapperResponse} message WrapperResponse message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        WrapperResponse.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a WrapperResponse message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.WrapperResponse
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.WrapperResponse} WrapperResponse
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        WrapperResponse.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.WrapperResponse();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.action = reader.int32();
-                        break;
-                    }
-                case 2: {
-                        message.message = reader.string();
-                        break;
-                    }
-                case 3: {
-                        if (!(message.rewrittenArgs && message.rewrittenArgs.length))
-                            message.rewrittenArgs = [];
-                        message.rewrittenArgs.push(reader.string());
-                        break;
-                    }
-                case 4: {
-                        message.classification = $root.pb.BehaviorClassification.decode(reader, reader.uint32());
-                        break;
-                    }
-                case 5: {
-                        message.mlScore = reader.double();
-                        break;
-                    }
-                case 6: {
-                        message.anomalyScore = reader.double();
-                        break;
-                    }
-                case 7: {
-                        message.mlAction = reader.string();
-                        break;
-                    }
-                case 8: {
-                        message.mlReasoning = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a WrapperResponse message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.WrapperResponse
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.WrapperResponse} WrapperResponse
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        WrapperResponse.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a WrapperResponse message.
-         * @function verify
-         * @memberof pb.WrapperResponse
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        WrapperResponse.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.action != null && message.hasOwnProperty("action"))
-                switch (message.action) {
-                default:
-                    return "action: enum value expected";
-                case 0:
-                case 1:
-                case 2:
-                case 3:
-                    break;
-                }
-            if (message.message != null && message.hasOwnProperty("message"))
-                if (!$util.isString(message.message))
-                    return "message: string expected";
-            if (message.rewrittenArgs != null && message.hasOwnProperty("rewrittenArgs")) {
-                if (!Array.isArray(message.rewrittenArgs))
-                    return "rewrittenArgs: array expected";
-                for (let i = 0; i < message.rewrittenArgs.length; ++i)
-                    if (!$util.isString(message.rewrittenArgs[i]))
-                        return "rewrittenArgs: string[] expected";
-            }
-            if (message.classification != null && message.hasOwnProperty("classification")) {
-                let error = $root.pb.BehaviorClassification.verify(message.classification);
-                if (error)
-                    return "classification." + error;
-            }
-            if (message.mlScore != null && message.hasOwnProperty("mlScore"))
-                if (typeof message.mlScore !== "number")
-                    return "mlScore: number expected";
-            if (message.anomalyScore != null && message.hasOwnProperty("anomalyScore"))
-                if (typeof message.anomalyScore !== "number")
-                    return "anomalyScore: number expected";
-            if (message.mlAction != null && message.hasOwnProperty("mlAction"))
-                if (!$util.isString(message.mlAction))
-                    return "mlAction: string expected";
-            if (message.mlReasoning != null && message.hasOwnProperty("mlReasoning"))
-                if (!$util.isString(message.mlReasoning))
-                    return "mlReasoning: string expected";
-            return null;
-        };
-
-        /**
-         * Creates a WrapperResponse message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.WrapperResponse
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.WrapperResponse} WrapperResponse
-         */
-        WrapperResponse.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.WrapperResponse)
-                return object;
-            let message = new $root.pb.WrapperResponse();
-            switch (object.action) {
-            default:
-                if (typeof object.action === "number") {
-                    message.action = object.action;
-                    break;
-                }
-                break;
-            case "ALLOW":
-            case 0:
-                message.action = 0;
-                break;
-            case "BLOCK":
-            case 1:
-                message.action = 1;
-                break;
-            case "REWRITE":
-            case 2:
-                message.action = 2;
-                break;
-            case "ALERT":
-            case 3:
-                message.action = 3;
-                break;
-            }
-            if (object.message != null)
-                message.message = String(object.message);
-            if (object.rewrittenArgs) {
-                if (!Array.isArray(object.rewrittenArgs))
-                    throw TypeError(".pb.WrapperResponse.rewrittenArgs: array expected");
-                message.rewrittenArgs = [];
-                for (let i = 0; i < object.rewrittenArgs.length; ++i)
-                    message.rewrittenArgs[i] = String(object.rewrittenArgs[i]);
-            }
-            if (object.classification != null) {
-                if (typeof object.classification !== "object")
-                    throw TypeError(".pb.WrapperResponse.classification: object expected");
-                message.classification = $root.pb.BehaviorClassification.fromObject(object.classification);
-            }
-            if (object.mlScore != null)
-                message.mlScore = Number(object.mlScore);
-            if (object.anomalyScore != null)
-                message.anomalyScore = Number(object.anomalyScore);
-            if (object.mlAction != null)
-                message.mlAction = String(object.mlAction);
-            if (object.mlReasoning != null)
-                message.mlReasoning = String(object.mlReasoning);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a WrapperResponse message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.WrapperResponse
-         * @static
-         * @param {pb.WrapperResponse} message WrapperResponse
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        WrapperResponse.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.arrays || options.defaults)
-                object.rewrittenArgs = [];
-            if (options.defaults) {
-                object.action = options.enums === String ? "ALLOW" : 0;
-                object.message = "";
-                object.classification = null;
-                object.mlScore = 0;
-                object.anomalyScore = 0;
-                object.mlAction = "";
-                object.mlReasoning = "";
-            }
-            if (message.action != null && message.hasOwnProperty("action"))
-                object.action = options.enums === String ? $root.pb.WrapperResponse.Action[message.action] === undefined ? message.action : $root.pb.WrapperResponse.Action[message.action] : message.action;
-            if (message.message != null && message.hasOwnProperty("message"))
-                object.message = message.message;
-            if (message.rewrittenArgs && message.rewrittenArgs.length) {
-                object.rewrittenArgs = [];
-                for (let j = 0; j < message.rewrittenArgs.length; ++j)
-                    object.rewrittenArgs[j] = message.rewrittenArgs[j];
-            }
-            if (message.classification != null && message.hasOwnProperty("classification"))
-                object.classification = $root.pb.BehaviorClassification.toObject(message.classification, options);
-            if (message.mlScore != null && message.hasOwnProperty("mlScore"))
-                object.mlScore = options.json && !isFinite(message.mlScore) ? String(message.mlScore) : message.mlScore;
-            if (message.anomalyScore != null && message.hasOwnProperty("anomalyScore"))
-                object.anomalyScore = options.json && !isFinite(message.anomalyScore) ? String(message.anomalyScore) : message.anomalyScore;
-            if (message.mlAction != null && message.hasOwnProperty("mlAction"))
-                object.mlAction = message.mlAction;
-            if (message.mlReasoning != null && message.hasOwnProperty("mlReasoning"))
-                object.mlReasoning = message.mlReasoning;
-            return object;
-        };
-
-        /**
-         * Converts this WrapperResponse to JSON.
-         * @function toJSON
-         * @memberof pb.WrapperResponse
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        WrapperResponse.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for WrapperResponse
-         * @function getTypeUrl
-         * @memberof pb.WrapperResponse
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        WrapperResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.WrapperResponse";
-        };
-
-        /**
-         * Action enum.
-         * @name pb.WrapperResponse.Action
-         * @enum {number}
-         * @property {number} ALLOW=0 ALLOW value
-         * @property {number} BLOCK=1 BLOCK value
-         * @property {number} REWRITE=2 REWRITE value
-         * @property {number} ALERT=3 ALERT value
-         */
-        WrapperResponse.Action = (function() {
-            const valuesById = {}, values = Object.create(valuesById);
-            values[valuesById[0] = "ALLOW"] = 0;
-            values[valuesById[1] = "BLOCK"] = 1;
-            values[valuesById[2] = "REWRITE"] = 2;
-            values[valuesById[3] = "ALERT"] = 3;
-            return values;
-        })();
-
-        return WrapperResponse;
-    })();
-
-    pb.MLStatus = (function() {
-
-        /**
-         * Properties of a MLStatus.
-         * @memberof pb
-         * @interface IMLStatus
-         * @property {boolean|null} [modelLoaded] MLStatus modelLoaded
-         * @property {number|null} [numTrees] MLStatus numTrees
-         * @property {number|null} [numSamples] MLStatus numSamples
-         * @property {number|null} [numLabeledSamples] MLStatus numLabeledSamples
-         * @property {string|null} [lastTrained] MLStatus lastTrained
-         * @property {number|null} [testAccuracy] MLStatus testAccuracy
-         * @property {string|null} [modelPath] MLStatus modelPath
-         * @property {boolean|null} [trainingInProgress] MLStatus trainingInProgress
-         * @property {number|null} [trainingProgress] MLStatus trainingProgress
-         */
-
-        /**
-         * Constructs a new MLStatus.
-         * @memberof pb
-         * @classdesc Represents a MLStatus.
-         * @implements IMLStatus
-         * @constructor
-         * @param {pb.IMLStatus=} [properties] Properties to set
-         */
-        function MLStatus(properties) {
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * MLStatus modelLoaded.
-         * @member {boolean} modelLoaded
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.modelLoaded = false;
-
-        /**
-         * MLStatus numTrees.
-         * @member {number} numTrees
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.numTrees = 0;
-
-        /**
-         * MLStatus numSamples.
-         * @member {number} numSamples
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.numSamples = 0;
-
-        /**
-         * MLStatus numLabeledSamples.
-         * @member {number} numLabeledSamples
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.numLabeledSamples = 0;
-
-        /**
-         * MLStatus lastTrained.
-         * @member {string} lastTrained
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.lastTrained = "";
-
-        /**
-         * MLStatus testAccuracy.
-         * @member {number} testAccuracy
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.testAccuracy = 0;
-
-        /**
-         * MLStatus modelPath.
-         * @member {string} modelPath
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.modelPath = "";
-
-        /**
-         * MLStatus trainingInProgress.
-         * @member {boolean} trainingInProgress
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.trainingInProgress = false;
-
-        /**
-         * MLStatus trainingProgress.
-         * @member {number} trainingProgress
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.trainingProgress = 0;
-
-        /**
-         * Creates a new MLStatus instance using the specified properties.
-         * @function create
-         * @memberof pb.MLStatus
-         * @static
-         * @param {pb.IMLStatus=} [properties] Properties to set
-         * @returns {pb.MLStatus} MLStatus instance
-         */
-        MLStatus.create = function create(properties) {
-            return new MLStatus(properties);
-        };
-
-        /**
-         * Encodes the specified MLStatus message. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
-         * @function encode
-         * @memberof pb.MLStatus
-         * @static
-         * @param {pb.IMLStatus} message MLStatus message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        MLStatus.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.modelLoaded != null && Object.hasOwnProperty.call(message, "modelLoaded"))
-                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.modelLoaded);
-            if (message.numTrees != null && Object.hasOwnProperty.call(message, "numTrees"))
-                writer.uint32(/* id 2, wireType 0 =*/16).int32(message.numTrees);
-            if (message.numSamples != null && Object.hasOwnProperty.call(message, "numSamples"))
-                writer.uint32(/* id 3, wireType 0 =*/24).int32(message.numSamples);
-            if (message.numLabeledSamples != null && Object.hasOwnProperty.call(message, "numLabeledSamples"))
-                writer.uint32(/* id 4, wireType 0 =*/32).int32(message.numLabeledSamples);
-            if (message.lastTrained != null && Object.hasOwnProperty.call(message, "lastTrained"))
-                writer.uint32(/* id 5, wireType 2 =*/42).string(message.lastTrained);
-            if (message.testAccuracy != null && Object.hasOwnProperty.call(message, "testAccuracy"))
-                writer.uint32(/* id 6, wireType 1 =*/49).double(message.testAccuracy);
-            if (message.modelPath != null && Object.hasOwnProperty.call(message, "modelPath"))
-                writer.uint32(/* id 7, wireType 2 =*/58).string(message.modelPath);
-            if (message.trainingInProgress != null && Object.hasOwnProperty.call(message, "trainingInProgress"))
-                writer.uint32(/* id 8, wireType 0 =*/64).bool(message.trainingInProgress);
-            if (message.trainingProgress != null && Object.hasOwnProperty.call(message, "trainingProgress"))
-                writer.uint32(/* id 9, wireType 1 =*/73).double(message.trainingProgress);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified MLStatus message, length delimited. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.MLStatus
-         * @static
-         * @param {pb.IMLStatus} message MLStatus message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        MLStatus.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a MLStatus message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.MLStatus
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.MLStatus} MLStatus
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        MLStatus.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.MLStatus();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.modelLoaded = reader.bool();
-                        break;
-                    }
-                case 2: {
-                        message.numTrees = reader.int32();
-                        break;
-                    }
-                case 3: {
-                        message.numSamples = reader.int32();
-                        break;
-                    }
-                case 4: {
-                        message.numLabeledSamples = reader.int32();
-                        break;
-                    }
-                case 5: {
-                        message.lastTrained = reader.string();
-                        break;
-                    }
-                case 6: {
-                        message.testAccuracy = reader.double();
-                        break;
-                    }
-                case 7: {
-                        message.modelPath = reader.string();
-                        break;
-                    }
-                case 8: {
-                        message.trainingInProgress = reader.bool();
-                        break;
-                    }
-                case 9: {
-                        message.trainingProgress = reader.double();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a MLStatus message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.MLStatus
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.MLStatus} MLStatus
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        MLStatus.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a MLStatus message.
-         * @function verify
-         * @memberof pb.MLStatus
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        MLStatus.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.modelLoaded != null && message.hasOwnProperty("modelLoaded"))
-                if (typeof message.modelLoaded !== "boolean")
-                    return "modelLoaded: boolean expected";
-            if (message.numTrees != null && message.hasOwnProperty("numTrees"))
-                if (!$util.isInteger(message.numTrees))
-                    return "numTrees: integer expected";
-            if (message.numSamples != null && message.hasOwnProperty("numSamples"))
-                if (!$util.isInteger(message.numSamples))
-                    return "numSamples: integer expected";
-            if (message.numLabeledSamples != null && message.hasOwnProperty("numLabeledSamples"))
-                if (!$util.isInteger(message.numLabeledSamples))
-                    return "numLabeledSamples: integer expected";
-            if (message.lastTrained != null && message.hasOwnProperty("lastTrained"))
-                if (!$util.isString(message.lastTrained))
-                    return "lastTrained: string expected";
-            if (message.testAccuracy != null && message.hasOwnProperty("testAccuracy"))
-                if (typeof message.testAccuracy !== "number")
-                    return "testAccuracy: number expected";
-            if (message.modelPath != null && message.hasOwnProperty("modelPath"))
-                if (!$util.isString(message.modelPath))
-                    return "modelPath: string expected";
-            if (message.trainingInProgress != null && message.hasOwnProperty("trainingInProgress"))
-                if (typeof message.trainingInProgress !== "boolean")
-                    return "trainingInProgress: boolean expected";
-            if (message.trainingProgress != null && message.hasOwnProperty("trainingProgress"))
-                if (typeof message.trainingProgress !== "number")
-                    return "trainingProgress: number expected";
-            return null;
-        };
-
-        /**
-         * Creates a MLStatus message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.MLStatus
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.MLStatus} MLStatus
-         */
-        MLStatus.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.MLStatus)
-                return object;
-            let message = new $root.pb.MLStatus();
-            if (object.modelLoaded != null)
-                message.modelLoaded = Boolean(object.modelLoaded);
-            if (object.numTrees != null)
-                message.numTrees = object.numTrees | 0;
-            if (object.numSamples != null)
-                message.numSamples = object.numSamples | 0;
-            if (object.numLabeledSamples != null)
-                message.numLabeledSamples = object.numLabeledSamples | 0;
-            if (object.lastTrained != null)
-                message.lastTrained = String(object.lastTrained);
-            if (object.testAccuracy != null)
-                message.testAccuracy = Number(object.testAccuracy);
-            if (object.modelPath != null)
-                message.modelPath = String(object.modelPath);
-            if (object.trainingInProgress != null)
-                message.trainingInProgress = Boolean(object.trainingInProgress);
-            if (object.trainingProgress != null)
-                message.trainingProgress = Number(object.trainingProgress);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a MLStatus message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.MLStatus
-         * @static
-         * @param {pb.MLStatus} message MLStatus
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        MLStatus.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.defaults) {
-                object.modelLoaded = false;
-                object.numTrees = 0;
-                object.numSamples = 0;
-                object.numLabeledSamples = 0;
-                object.lastTrained = "";
-                object.testAccuracy = 0;
-                object.modelPath = "";
-                object.trainingInProgress = false;
-                object.trainingProgress = 0;
-            }
-            if (message.modelLoaded != null && message.hasOwnProperty("modelLoaded"))
-                object.modelLoaded = message.modelLoaded;
-            if (message.numTrees != null && message.hasOwnProperty("numTrees"))
-                object.numTrees = message.numTrees;
-            if (message.numSamples != null && message.hasOwnProperty("numSamples"))
-                object.numSamples = message.numSamples;
-            if (message.numLabeledSamples != null && message.hasOwnProperty("numLabeledSamples"))
-                object.numLabeledSamples = message.numLabeledSamples;
-            if (message.lastTrained != null && message.hasOwnProperty("lastTrained"))
-                object.lastTrained = message.lastTrained;
-            if (message.testAccuracy != null && message.hasOwnProperty("testAccuracy"))
-                object.testAccuracy = options.json && !isFinite(message.testAccuracy) ? String(message.testAccuracy) : message.testAccuracy;
-            if (message.modelPath != null && message.hasOwnProperty("modelPath"))
-                object.modelPath = message.modelPath;
-            if (message.trainingInProgress != null && message.hasOwnProperty("trainingInProgress"))
-                object.trainingInProgress = message.trainingInProgress;
-            if (message.trainingProgress != null && message.hasOwnProperty("trainingProgress"))
-                object.trainingProgress = options.json && !isFinite(message.trainingProgress) ? String(message.trainingProgress) : message.trainingProgress;
-            return object;
-        };
-
-        /**
-         * Converts this MLStatus to JSON.
-         * @function toJSON
-         * @memberof pb.MLStatus
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        MLStatus.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for MLStatus
-         * @function getTypeUrl
-         * @memberof pb.MLStatus
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        MLStatus.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.MLStatus";
-        };
-
-        return MLStatus;
-    })();
-
     pb.ProcessList = (function() {
 
         /**
@@ -18461,6 +18528,1048 @@ export const pb = $root.pb = (() => {
         };
 
         return ProcessList;
+    })();
+
+    pb.SystemdUnit = (function() {
+
+        /**
+         * Properties of a SystemdUnit.
+         * @memberof pb
+         * @interface ISystemdUnit
+         * @property {string|null} [unit] SystemdUnit unit
+         * @property {string|null} [load] SystemdUnit load
+         * @property {string|null} [active] SystemdUnit active
+         * @property {string|null} [sub] SystemdUnit sub
+         * @property {string|null} [description] SystemdUnit description
+         */
+
+        /**
+         * Constructs a new SystemdUnit.
+         * @memberof pb
+         * @classdesc Represents a SystemdUnit.
+         * @implements ISystemdUnit
+         * @constructor
+         * @param {pb.ISystemdUnit=} [properties] Properties to set
+         */
+        function SystemdUnit(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SystemdUnit unit.
+         * @member {string} unit
+         * @memberof pb.SystemdUnit
+         * @instance
+         */
+        SystemdUnit.prototype.unit = "";
+
+        /**
+         * SystemdUnit load.
+         * @member {string} load
+         * @memberof pb.SystemdUnit
+         * @instance
+         */
+        SystemdUnit.prototype.load = "";
+
+        /**
+         * SystemdUnit active.
+         * @member {string} active
+         * @memberof pb.SystemdUnit
+         * @instance
+         */
+        SystemdUnit.prototype.active = "";
+
+        /**
+         * SystemdUnit sub.
+         * @member {string} sub
+         * @memberof pb.SystemdUnit
+         * @instance
+         */
+        SystemdUnit.prototype.sub = "";
+
+        /**
+         * SystemdUnit description.
+         * @member {string} description
+         * @memberof pb.SystemdUnit
+         * @instance
+         */
+        SystemdUnit.prototype.description = "";
+
+        /**
+         * Creates a new SystemdUnit instance using the specified properties.
+         * @function create
+         * @memberof pb.SystemdUnit
+         * @static
+         * @param {pb.ISystemdUnit=} [properties] Properties to set
+         * @returns {pb.SystemdUnit} SystemdUnit instance
+         */
+        SystemdUnit.create = function create(properties) {
+            return new SystemdUnit(properties);
+        };
+
+        /**
+         * Encodes the specified SystemdUnit message. Does not implicitly {@link pb.SystemdUnit.verify|verify} messages.
+         * @function encode
+         * @memberof pb.SystemdUnit
+         * @static
+         * @param {pb.ISystemdUnit} message SystemdUnit message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SystemdUnit.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.unit != null && Object.hasOwnProperty.call(message, "unit"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.unit);
+            if (message.load != null && Object.hasOwnProperty.call(message, "load"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.load);
+            if (message.active != null && Object.hasOwnProperty.call(message, "active"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.active);
+            if (message.sub != null && Object.hasOwnProperty.call(message, "sub"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.sub);
+            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.description);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SystemdUnit message, length delimited. Does not implicitly {@link pb.SystemdUnit.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.SystemdUnit
+         * @static
+         * @param {pb.ISystemdUnit} message SystemdUnit message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SystemdUnit.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SystemdUnit message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.SystemdUnit
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.SystemdUnit} SystemdUnit
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SystemdUnit.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SystemdUnit();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.unit = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.load = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.active = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.sub = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.description = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SystemdUnit message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.SystemdUnit
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.SystemdUnit} SystemdUnit
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SystemdUnit.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SystemdUnit message.
+         * @function verify
+         * @memberof pb.SystemdUnit
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SystemdUnit.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.unit != null && message.hasOwnProperty("unit"))
+                if (!$util.isString(message.unit))
+                    return "unit: string expected";
+            if (message.load != null && message.hasOwnProperty("load"))
+                if (!$util.isString(message.load))
+                    return "load: string expected";
+            if (message.active != null && message.hasOwnProperty("active"))
+                if (!$util.isString(message.active))
+                    return "active: string expected";
+            if (message.sub != null && message.hasOwnProperty("sub"))
+                if (!$util.isString(message.sub))
+                    return "sub: string expected";
+            if (message.description != null && message.hasOwnProperty("description"))
+                if (!$util.isString(message.description))
+                    return "description: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a SystemdUnit message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.SystemdUnit
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.SystemdUnit} SystemdUnit
+         */
+        SystemdUnit.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.SystemdUnit)
+                return object;
+            let message = new $root.pb.SystemdUnit();
+            if (object.unit != null)
+                message.unit = String(object.unit);
+            if (object.load != null)
+                message.load = String(object.load);
+            if (object.active != null)
+                message.active = String(object.active);
+            if (object.sub != null)
+                message.sub = String(object.sub);
+            if (object.description != null)
+                message.description = String(object.description);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SystemdUnit message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.SystemdUnit
+         * @static
+         * @param {pb.SystemdUnit} message SystemdUnit
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SystemdUnit.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.unit = "";
+                object.load = "";
+                object.active = "";
+                object.sub = "";
+                object.description = "";
+            }
+            if (message.unit != null && message.hasOwnProperty("unit"))
+                object.unit = message.unit;
+            if (message.load != null && message.hasOwnProperty("load"))
+                object.load = message.load;
+            if (message.active != null && message.hasOwnProperty("active"))
+                object.active = message.active;
+            if (message.sub != null && message.hasOwnProperty("sub"))
+                object.sub = message.sub;
+            if (message.description != null && message.hasOwnProperty("description"))
+                object.description = message.description;
+            return object;
+        };
+
+        /**
+         * Converts this SystemdUnit to JSON.
+         * @function toJSON
+         * @memberof pb.SystemdUnit
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SystemdUnit.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for SystemdUnit
+         * @function getTypeUrl
+         * @memberof pb.SystemdUnit
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SystemdUnit.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.SystemdUnit";
+        };
+
+        return SystemdUnit;
+    })();
+
+    pb.SystemdUnitList = (function() {
+
+        /**
+         * Properties of a SystemdUnitList.
+         * @memberof pb
+         * @interface ISystemdUnitList
+         * @property {Array.<pb.ISystemdUnit>|null} [services] SystemdUnitList services
+         */
+
+        /**
+         * Constructs a new SystemdUnitList.
+         * @memberof pb
+         * @classdesc Represents a SystemdUnitList.
+         * @implements ISystemdUnitList
+         * @constructor
+         * @param {pb.ISystemdUnitList=} [properties] Properties to set
+         */
+        function SystemdUnitList(properties) {
+            this.services = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SystemdUnitList services.
+         * @member {Array.<pb.ISystemdUnit>} services
+         * @memberof pb.SystemdUnitList
+         * @instance
+         */
+        SystemdUnitList.prototype.services = $util.emptyArray;
+
+        /**
+         * Creates a new SystemdUnitList instance using the specified properties.
+         * @function create
+         * @memberof pb.SystemdUnitList
+         * @static
+         * @param {pb.ISystemdUnitList=} [properties] Properties to set
+         * @returns {pb.SystemdUnitList} SystemdUnitList instance
+         */
+        SystemdUnitList.create = function create(properties) {
+            return new SystemdUnitList(properties);
+        };
+
+        /**
+         * Encodes the specified SystemdUnitList message. Does not implicitly {@link pb.SystemdUnitList.verify|verify} messages.
+         * @function encode
+         * @memberof pb.SystemdUnitList
+         * @static
+         * @param {pb.ISystemdUnitList} message SystemdUnitList message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SystemdUnitList.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.services != null && message.services.length)
+                for (let i = 0; i < message.services.length; ++i)
+                    $root.pb.SystemdUnit.encode(message.services[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SystemdUnitList message, length delimited. Does not implicitly {@link pb.SystemdUnitList.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.SystemdUnitList
+         * @static
+         * @param {pb.ISystemdUnitList} message SystemdUnitList message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SystemdUnitList.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SystemdUnitList message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.SystemdUnitList
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.SystemdUnitList} SystemdUnitList
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SystemdUnitList.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SystemdUnitList();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        if (!(message.services && message.services.length))
+                            message.services = [];
+                        message.services.push($root.pb.SystemdUnit.decode(reader, reader.uint32()));
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SystemdUnitList message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.SystemdUnitList
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.SystemdUnitList} SystemdUnitList
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SystemdUnitList.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SystemdUnitList message.
+         * @function verify
+         * @memberof pb.SystemdUnitList
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SystemdUnitList.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.services != null && message.hasOwnProperty("services")) {
+                if (!Array.isArray(message.services))
+                    return "services: array expected";
+                for (let i = 0; i < message.services.length; ++i) {
+                    let error = $root.pb.SystemdUnit.verify(message.services[i]);
+                    if (error)
+                        return "services." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates a SystemdUnitList message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.SystemdUnitList
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.SystemdUnitList} SystemdUnitList
+         */
+        SystemdUnitList.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.SystemdUnitList)
+                return object;
+            let message = new $root.pb.SystemdUnitList();
+            if (object.services) {
+                if (!Array.isArray(object.services))
+                    throw TypeError(".pb.SystemdUnitList.services: array expected");
+                message.services = [];
+                for (let i = 0; i < object.services.length; ++i) {
+                    if (typeof object.services[i] !== "object")
+                        throw TypeError(".pb.SystemdUnitList.services: object expected");
+                    message.services[i] = $root.pb.SystemdUnit.fromObject(object.services[i]);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SystemdUnitList message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.SystemdUnitList
+         * @static
+         * @param {pb.SystemdUnitList} message SystemdUnitList
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SystemdUnitList.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults)
+                object.services = [];
+            if (message.services && message.services.length) {
+                object.services = [];
+                for (let j = 0; j < message.services.length; ++j)
+                    object.services[j] = $root.pb.SystemdUnit.toObject(message.services[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this SystemdUnitList to JSON.
+         * @function toJSON
+         * @memberof pb.SystemdUnitList
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SystemdUnitList.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for SystemdUnitList
+         * @function getTypeUrl
+         * @memberof pb.SystemdUnitList
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SystemdUnitList.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.SystemdUnitList";
+        };
+
+        return SystemdUnitList;
+    })();
+
+    pb.SensorReading = (function() {
+
+        /**
+         * Properties of a SensorReading.
+         * @memberof pb
+         * @interface ISensorReading
+         * @property {string|null} [key] SensorReading key
+         * @property {number|null} [value] SensorReading value
+         * @property {string|null} [unit] SensorReading unit
+         */
+
+        /**
+         * Constructs a new SensorReading.
+         * @memberof pb
+         * @classdesc Represents a SensorReading.
+         * @implements ISensorReading
+         * @constructor
+         * @param {pb.ISensorReading=} [properties] Properties to set
+         */
+        function SensorReading(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SensorReading key.
+         * @member {string} key
+         * @memberof pb.SensorReading
+         * @instance
+         */
+        SensorReading.prototype.key = "";
+
+        /**
+         * SensorReading value.
+         * @member {number} value
+         * @memberof pb.SensorReading
+         * @instance
+         */
+        SensorReading.prototype.value = 0;
+
+        /**
+         * SensorReading unit.
+         * @member {string} unit
+         * @memberof pb.SensorReading
+         * @instance
+         */
+        SensorReading.prototype.unit = "";
+
+        /**
+         * Creates a new SensorReading instance using the specified properties.
+         * @function create
+         * @memberof pb.SensorReading
+         * @static
+         * @param {pb.ISensorReading=} [properties] Properties to set
+         * @returns {pb.SensorReading} SensorReading instance
+         */
+        SensorReading.create = function create(properties) {
+            return new SensorReading(properties);
+        };
+
+        /**
+         * Encodes the specified SensorReading message. Does not implicitly {@link pb.SensorReading.verify|verify} messages.
+         * @function encode
+         * @memberof pb.SensorReading
+         * @static
+         * @param {pb.ISensorReading} message SensorReading message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SensorReading.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.key != null && Object.hasOwnProperty.call(message, "key"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.key);
+            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                writer.uint32(/* id 2, wireType 1 =*/17).double(message.value);
+            if (message.unit != null && Object.hasOwnProperty.call(message, "unit"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.unit);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SensorReading message, length delimited. Does not implicitly {@link pb.SensorReading.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.SensorReading
+         * @static
+         * @param {pb.ISensorReading} message SensorReading message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SensorReading.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SensorReading message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.SensorReading
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.SensorReading} SensorReading
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SensorReading.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SensorReading();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.key = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.value = reader.double();
+                        break;
+                    }
+                case 3: {
+                        message.unit = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SensorReading message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.SensorReading
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.SensorReading} SensorReading
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SensorReading.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SensorReading message.
+         * @function verify
+         * @memberof pb.SensorReading
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SensorReading.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.key != null && message.hasOwnProperty("key"))
+                if (!$util.isString(message.key))
+                    return "key: string expected";
+            if (message.value != null && message.hasOwnProperty("value"))
+                if (typeof message.value !== "number")
+                    return "value: number expected";
+            if (message.unit != null && message.hasOwnProperty("unit"))
+                if (!$util.isString(message.unit))
+                    return "unit: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a SensorReading message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.SensorReading
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.SensorReading} SensorReading
+         */
+        SensorReading.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.SensorReading)
+                return object;
+            let message = new $root.pb.SensorReading();
+            if (object.key != null)
+                message.key = String(object.key);
+            if (object.value != null)
+                message.value = Number(object.value);
+            if (object.unit != null)
+                message.unit = String(object.unit);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SensorReading message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.SensorReading
+         * @static
+         * @param {pb.SensorReading} message SensorReading
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SensorReading.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.key = "";
+                object.value = 0;
+                object.unit = "";
+            }
+            if (message.key != null && message.hasOwnProperty("key"))
+                object.key = message.key;
+            if (message.value != null && message.hasOwnProperty("value"))
+                object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
+            if (message.unit != null && message.hasOwnProperty("unit"))
+                object.unit = message.unit;
+            return object;
+        };
+
+        /**
+         * Converts this SensorReading to JSON.
+         * @function toJSON
+         * @memberof pb.SensorReading
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SensorReading.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for SensorReading
+         * @function getTypeUrl
+         * @memberof pb.SensorReading
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SensorReading.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.SensorReading";
+        };
+
+        return SensorReading;
+    })();
+
+    pb.SensorsSnapshot = (function() {
+
+        /**
+         * Properties of a SensorsSnapshot.
+         * @memberof pb
+         * @interface ISensorsSnapshot
+         * @property {Array.<pb.ISensorReading>|null} [temperatures] SensorsSnapshot temperatures
+         * @property {Array.<string>|null} [fans] SensorsSnapshot fans
+         */
+
+        /**
+         * Constructs a new SensorsSnapshot.
+         * @memberof pb
+         * @classdesc Represents a SensorsSnapshot.
+         * @implements ISensorsSnapshot
+         * @constructor
+         * @param {pb.ISensorsSnapshot=} [properties] Properties to set
+         */
+        function SensorsSnapshot(properties) {
+            this.temperatures = [];
+            this.fans = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SensorsSnapshot temperatures.
+         * @member {Array.<pb.ISensorReading>} temperatures
+         * @memberof pb.SensorsSnapshot
+         * @instance
+         */
+        SensorsSnapshot.prototype.temperatures = $util.emptyArray;
+
+        /**
+         * SensorsSnapshot fans.
+         * @member {Array.<string>} fans
+         * @memberof pb.SensorsSnapshot
+         * @instance
+         */
+        SensorsSnapshot.prototype.fans = $util.emptyArray;
+
+        /**
+         * Creates a new SensorsSnapshot instance using the specified properties.
+         * @function create
+         * @memberof pb.SensorsSnapshot
+         * @static
+         * @param {pb.ISensorsSnapshot=} [properties] Properties to set
+         * @returns {pb.SensorsSnapshot} SensorsSnapshot instance
+         */
+        SensorsSnapshot.create = function create(properties) {
+            return new SensorsSnapshot(properties);
+        };
+
+        /**
+         * Encodes the specified SensorsSnapshot message. Does not implicitly {@link pb.SensorsSnapshot.verify|verify} messages.
+         * @function encode
+         * @memberof pb.SensorsSnapshot
+         * @static
+         * @param {pb.ISensorsSnapshot} message SensorsSnapshot message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SensorsSnapshot.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.temperatures != null && message.temperatures.length)
+                for (let i = 0; i < message.temperatures.length; ++i)
+                    $root.pb.SensorReading.encode(message.temperatures[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            if (message.fans != null && message.fans.length)
+                for (let i = 0; i < message.fans.length; ++i)
+                    writer.uint32(/* id 2, wireType 2 =*/18).string(message.fans[i]);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SensorsSnapshot message, length delimited. Does not implicitly {@link pb.SensorsSnapshot.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.SensorsSnapshot
+         * @static
+         * @param {pb.ISensorsSnapshot} message SensorsSnapshot message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SensorsSnapshot.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SensorsSnapshot message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.SensorsSnapshot
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.SensorsSnapshot} SensorsSnapshot
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SensorsSnapshot.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SensorsSnapshot();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        if (!(message.temperatures && message.temperatures.length))
+                            message.temperatures = [];
+                        message.temperatures.push($root.pb.SensorReading.decode(reader, reader.uint32()));
+                        break;
+                    }
+                case 2: {
+                        if (!(message.fans && message.fans.length))
+                            message.fans = [];
+                        message.fans.push(reader.string());
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SensorsSnapshot message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.SensorsSnapshot
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.SensorsSnapshot} SensorsSnapshot
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SensorsSnapshot.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SensorsSnapshot message.
+         * @function verify
+         * @memberof pb.SensorsSnapshot
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SensorsSnapshot.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.temperatures != null && message.hasOwnProperty("temperatures")) {
+                if (!Array.isArray(message.temperatures))
+                    return "temperatures: array expected";
+                for (let i = 0; i < message.temperatures.length; ++i) {
+                    let error = $root.pb.SensorReading.verify(message.temperatures[i]);
+                    if (error)
+                        return "temperatures." + error;
+                }
+            }
+            if (message.fans != null && message.hasOwnProperty("fans")) {
+                if (!Array.isArray(message.fans))
+                    return "fans: array expected";
+                for (let i = 0; i < message.fans.length; ++i)
+                    if (!$util.isString(message.fans[i]))
+                        return "fans: string[] expected";
+            }
+            return null;
+        };
+
+        /**
+         * Creates a SensorsSnapshot message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.SensorsSnapshot
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.SensorsSnapshot} SensorsSnapshot
+         */
+        SensorsSnapshot.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.SensorsSnapshot)
+                return object;
+            let message = new $root.pb.SensorsSnapshot();
+            if (object.temperatures) {
+                if (!Array.isArray(object.temperatures))
+                    throw TypeError(".pb.SensorsSnapshot.temperatures: array expected");
+                message.temperatures = [];
+                for (let i = 0; i < object.temperatures.length; ++i) {
+                    if (typeof object.temperatures[i] !== "object")
+                        throw TypeError(".pb.SensorsSnapshot.temperatures: object expected");
+                    message.temperatures[i] = $root.pb.SensorReading.fromObject(object.temperatures[i]);
+                }
+            }
+            if (object.fans) {
+                if (!Array.isArray(object.fans))
+                    throw TypeError(".pb.SensorsSnapshot.fans: array expected");
+                message.fans = [];
+                for (let i = 0; i < object.fans.length; ++i)
+                    message.fans[i] = String(object.fans[i]);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SensorsSnapshot message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.SensorsSnapshot
+         * @static
+         * @param {pb.SensorsSnapshot} message SensorsSnapshot
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SensorsSnapshot.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults) {
+                object.temperatures = [];
+                object.fans = [];
+            }
+            if (message.temperatures && message.temperatures.length) {
+                object.temperatures = [];
+                for (let j = 0; j < message.temperatures.length; ++j)
+                    object.temperatures[j] = $root.pb.SensorReading.toObject(message.temperatures[j], options);
+            }
+            if (message.fans && message.fans.length) {
+                object.fans = [];
+                for (let j = 0; j < message.fans.length; ++j)
+                    object.fans[j] = message.fans[j];
+            }
+            return object;
+        };
+
+        /**
+         * Converts this SensorsSnapshot to JSON.
+         * @function toJSON
+         * @memberof pb.SensorsSnapshot
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SensorsSnapshot.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for SensorsSnapshot
+         * @function getTypeUrl
+         * @memberof pb.SensorsSnapshot
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SensorsSnapshot.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.SensorsSnapshot";
+        };
+
+        return SensorsSnapshot;
     })();
 
     pb.ConfigTag = (function() {
@@ -22112,25 +23221,28 @@ export const pb = $root.pb = (() => {
         return ExportConfigData;
     })();
 
-    pb.StatusResponse = (function() {
+    pb.Hook = (function() {
 
         /**
-         * Properties of a StatusResponse.
+         * Properties of a Hook.
          * @memberof pb
-         * @interface IStatusResponse
-         * @property {string|null} [status] StatusResponse status
-         * @property {string|null} [message] StatusResponse message
+         * @interface IHook
+         * @property {string|null} [id] Hook id
+         * @property {string|null} [name] Hook name
+         * @property {string|null} [description] Hook description
+         * @property {boolean|null} [installed] Hook installed
+         * @property {string|null} [targetCmd] Hook targetCmd
          */
 
         /**
-         * Constructs a new StatusResponse.
+         * Constructs a new Hook.
          * @memberof pb
-         * @classdesc Represents a StatusResponse.
-         * @implements IStatusResponse
+         * @classdesc Represents a Hook.
+         * @implements IHook
          * @constructor
-         * @param {pb.IStatusResponse=} [properties] Properties to set
+         * @param {pb.IHook=} [properties] Properties to set
          */
-        function StatusResponse(properties) {
+        function Hook(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -22138,87 +23250,611 @@ export const pb = $root.pb = (() => {
         }
 
         /**
-         * StatusResponse status.
-         * @member {string} status
-         * @memberof pb.StatusResponse
+         * Hook id.
+         * @member {string} id
+         * @memberof pb.Hook
          * @instance
          */
-        StatusResponse.prototype.status = "";
+        Hook.prototype.id = "";
 
         /**
-         * StatusResponse message.
-         * @member {string} message
-         * @memberof pb.StatusResponse
+         * Hook name.
+         * @member {string} name
+         * @memberof pb.Hook
          * @instance
          */
-        StatusResponse.prototype.message = "";
+        Hook.prototype.name = "";
 
         /**
-         * Creates a new StatusResponse instance using the specified properties.
+         * Hook description.
+         * @member {string} description
+         * @memberof pb.Hook
+         * @instance
+         */
+        Hook.prototype.description = "";
+
+        /**
+         * Hook installed.
+         * @member {boolean} installed
+         * @memberof pb.Hook
+         * @instance
+         */
+        Hook.prototype.installed = false;
+
+        /**
+         * Hook targetCmd.
+         * @member {string} targetCmd
+         * @memberof pb.Hook
+         * @instance
+         */
+        Hook.prototype.targetCmd = "";
+
+        /**
+         * Creates a new Hook instance using the specified properties.
          * @function create
-         * @memberof pb.StatusResponse
+         * @memberof pb.Hook
          * @static
-         * @param {pb.IStatusResponse=} [properties] Properties to set
-         * @returns {pb.StatusResponse} StatusResponse instance
+         * @param {pb.IHook=} [properties] Properties to set
+         * @returns {pb.Hook} Hook instance
          */
-        StatusResponse.create = function create(properties) {
-            return new StatusResponse(properties);
+        Hook.create = function create(properties) {
+            return new Hook(properties);
         };
 
         /**
-         * Encodes the specified StatusResponse message. Does not implicitly {@link pb.StatusResponse.verify|verify} messages.
+         * Encodes the specified Hook message. Does not implicitly {@link pb.Hook.verify|verify} messages.
          * @function encode
-         * @memberof pb.StatusResponse
+         * @memberof pb.Hook
          * @static
-         * @param {pb.IStatusResponse} message StatusResponse message or plain object to encode
+         * @param {pb.IHook} message Hook message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        StatusResponse.encode = function encode(message, writer) {
+        Hook.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
-            if (message.status != null && Object.hasOwnProperty.call(message, "status"))
-                writer.uint32(/* id 1, wireType 2 =*/10).string(message.status);
-            if (message.message != null && Object.hasOwnProperty.call(message, "message"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
+            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.name);
+            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.description);
+            if (message.installed != null && Object.hasOwnProperty.call(message, "installed"))
+                writer.uint32(/* id 4, wireType 0 =*/32).bool(message.installed);
+            if (message.targetCmd != null && Object.hasOwnProperty.call(message, "targetCmd"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.targetCmd);
             return writer;
         };
 
         /**
-         * Encodes the specified StatusResponse message, length delimited. Does not implicitly {@link pb.StatusResponse.verify|verify} messages.
+         * Encodes the specified Hook message, length delimited. Does not implicitly {@link pb.Hook.verify|verify} messages.
          * @function encodeDelimited
-         * @memberof pb.StatusResponse
+         * @memberof pb.Hook
          * @static
-         * @param {pb.IStatusResponse} message StatusResponse message or plain object to encode
+         * @param {pb.IHook} message Hook message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        StatusResponse.encodeDelimited = function encodeDelimited(message, writer) {
+        Hook.encodeDelimited = function encodeDelimited(message, writer) {
             return this.encode(message, writer).ldelim();
         };
 
         /**
-         * Decodes a StatusResponse message from the specified reader or buffer.
+         * Decodes a Hook message from the specified reader or buffer.
          * @function decode
-         * @memberof pb.StatusResponse
+         * @memberof pb.Hook
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {pb.StatusResponse} StatusResponse
+         * @returns {pb.Hook} Hook
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        StatusResponse.decode = function decode(reader, length, error) {
+        Hook.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.StatusResponse();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.Hook();
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 if (tag === error)
                     break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.status = reader.string();
+                        message.id = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.name = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.description = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.installed = reader.bool();
+                        break;
+                    }
+                case 5: {
+                        message.targetCmd = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a Hook message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.Hook
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.Hook} Hook
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Hook.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a Hook message.
+         * @function verify
+         * @memberof pb.Hook
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        Hook.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.id != null && message.hasOwnProperty("id"))
+                if (!$util.isString(message.id))
+                    return "id: string expected";
+            if (message.name != null && message.hasOwnProperty("name"))
+                if (!$util.isString(message.name))
+                    return "name: string expected";
+            if (message.description != null && message.hasOwnProperty("description"))
+                if (!$util.isString(message.description))
+                    return "description: string expected";
+            if (message.installed != null && message.hasOwnProperty("installed"))
+                if (typeof message.installed !== "boolean")
+                    return "installed: boolean expected";
+            if (message.targetCmd != null && message.hasOwnProperty("targetCmd"))
+                if (!$util.isString(message.targetCmd))
+                    return "targetCmd: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a Hook message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.Hook
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.Hook} Hook
+         */
+        Hook.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.Hook)
+                return object;
+            let message = new $root.pb.Hook();
+            if (object.id != null)
+                message.id = String(object.id);
+            if (object.name != null)
+                message.name = String(object.name);
+            if (object.description != null)
+                message.description = String(object.description);
+            if (object.installed != null)
+                message.installed = Boolean(object.installed);
+            if (object.targetCmd != null)
+                message.targetCmd = String(object.targetCmd);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a Hook message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.Hook
+         * @static
+         * @param {pb.Hook} message Hook
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        Hook.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.id = "";
+                object.name = "";
+                object.description = "";
+                object.installed = false;
+                object.targetCmd = "";
+            }
+            if (message.id != null && message.hasOwnProperty("id"))
+                object.id = message.id;
+            if (message.name != null && message.hasOwnProperty("name"))
+                object.name = message.name;
+            if (message.description != null && message.hasOwnProperty("description"))
+                object.description = message.description;
+            if (message.installed != null && message.hasOwnProperty("installed"))
+                object.installed = message.installed;
+            if (message.targetCmd != null && message.hasOwnProperty("targetCmd"))
+                object.targetCmd = message.targetCmd;
+            return object;
+        };
+
+        /**
+         * Converts this Hook to JSON.
+         * @function toJSON
+         * @memberof pb.Hook
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        Hook.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for Hook
+         * @function getTypeUrl
+         * @memberof pb.Hook
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        Hook.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.Hook";
+        };
+
+        return Hook;
+    })();
+
+    pb.HookRequest = (function() {
+
+        /**
+         * Properties of a HookRequest.
+         * @memberof pb
+         * @interface IHookRequest
+         * @property {string|null} [id] HookRequest id
+         * @property {boolean|null} [install] HookRequest install
+         */
+
+        /**
+         * Constructs a new HookRequest.
+         * @memberof pb
+         * @classdesc Represents a HookRequest.
+         * @implements IHookRequest
+         * @constructor
+         * @param {pb.IHookRequest=} [properties] Properties to set
+         */
+        function HookRequest(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HookRequest id.
+         * @member {string} id
+         * @memberof pb.HookRequest
+         * @instance
+         */
+        HookRequest.prototype.id = "";
+
+        /**
+         * HookRequest install.
+         * @member {boolean} install
+         * @memberof pb.HookRequest
+         * @instance
+         */
+        HookRequest.prototype.install = false;
+
+        /**
+         * Creates a new HookRequest instance using the specified properties.
+         * @function create
+         * @memberof pb.HookRequest
+         * @static
+         * @param {pb.IHookRequest=} [properties] Properties to set
+         * @returns {pb.HookRequest} HookRequest instance
+         */
+        HookRequest.create = function create(properties) {
+            return new HookRequest(properties);
+        };
+
+        /**
+         * Encodes the specified HookRequest message. Does not implicitly {@link pb.HookRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pb.HookRequest
+         * @static
+         * @param {pb.IHookRequest} message HookRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HookRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
+            if (message.install != null && Object.hasOwnProperty.call(message, "install"))
+                writer.uint32(/* id 2, wireType 0 =*/16).bool(message.install);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HookRequest message, length delimited. Does not implicitly {@link pb.HookRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.HookRequest
+         * @static
+         * @param {pb.IHookRequest} message HookRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HookRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HookRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.HookRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.HookRequest} HookRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HookRequest.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.HookRequest();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.id = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.install = reader.bool();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a HookRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.HookRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.HookRequest} HookRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HookRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a HookRequest message.
+         * @function verify
+         * @memberof pb.HookRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        HookRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.id != null && message.hasOwnProperty("id"))
+                if (!$util.isString(message.id))
+                    return "id: string expected";
+            if (message.install != null && message.hasOwnProperty("install"))
+                if (typeof message.install !== "boolean")
+                    return "install: boolean expected";
+            return null;
+        };
+
+        /**
+         * Creates a HookRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.HookRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.HookRequest} HookRequest
+         */
+        HookRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.HookRequest)
+                return object;
+            let message = new $root.pb.HookRequest();
+            if (object.id != null)
+                message.id = String(object.id);
+            if (object.install != null)
+                message.install = Boolean(object.install);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a HookRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.HookRequest
+         * @static
+         * @param {pb.HookRequest} message HookRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        HookRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.id = "";
+                object.install = false;
+            }
+            if (message.id != null && message.hasOwnProperty("id"))
+                object.id = message.id;
+            if (message.install != null && message.hasOwnProperty("install"))
+                object.install = message.install;
+            return object;
+        };
+
+        /**
+         * Converts this HookRequest to JSON.
+         * @function toJSON
+         * @memberof pb.HookRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        HookRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for HookRequest
+         * @function getTypeUrl
+         * @memberof pb.HookRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HookRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.HookRequest";
+        };
+
+        return HookRequest;
+    })();
+
+    pb.HookResponse = (function() {
+
+        /**
+         * Properties of a HookResponse.
+         * @memberof pb
+         * @interface IHookResponse
+         * @property {boolean|null} [success] HookResponse success
+         * @property {string|null} [message] HookResponse message
+         */
+
+        /**
+         * Constructs a new HookResponse.
+         * @memberof pb
+         * @classdesc Represents a HookResponse.
+         * @implements IHookResponse
+         * @constructor
+         * @param {pb.IHookResponse=} [properties] Properties to set
+         */
+        function HookResponse(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HookResponse success.
+         * @member {boolean} success
+         * @memberof pb.HookResponse
+         * @instance
+         */
+        HookResponse.prototype.success = false;
+
+        /**
+         * HookResponse message.
+         * @member {string} message
+         * @memberof pb.HookResponse
+         * @instance
+         */
+        HookResponse.prototype.message = "";
+
+        /**
+         * Creates a new HookResponse instance using the specified properties.
+         * @function create
+         * @memberof pb.HookResponse
+         * @static
+         * @param {pb.IHookResponse=} [properties] Properties to set
+         * @returns {pb.HookResponse} HookResponse instance
+         */
+        HookResponse.create = function create(properties) {
+            return new HookResponse(properties);
+        };
+
+        /**
+         * Encodes the specified HookResponse message. Does not implicitly {@link pb.HookResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pb.HookResponse
+         * @static
+         * @param {pb.IHookResponse} message HookResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HookResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.success != null && Object.hasOwnProperty.call(message, "success"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.success);
+            if (message.message != null && Object.hasOwnProperty.call(message, "message"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HookResponse message, length delimited. Does not implicitly {@link pb.HookResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.HookResponse
+         * @static
+         * @param {pb.IHookResponse} message HookResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HookResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HookResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.HookResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.HookResponse} HookResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HookResponse.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.HookResponse();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.success = reader.bool();
                         break;
                     }
                 case 2: {
@@ -22234,35 +23870,35 @@ export const pb = $root.pb = (() => {
         };
 
         /**
-         * Decodes a StatusResponse message from the specified reader or buffer, length delimited.
+         * Decodes a HookResponse message from the specified reader or buffer, length delimited.
          * @function decodeDelimited
-         * @memberof pb.StatusResponse
+         * @memberof pb.HookResponse
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.StatusResponse} StatusResponse
+         * @returns {pb.HookResponse} HookResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        StatusResponse.decodeDelimited = function decodeDelimited(reader) {
+        HookResponse.decodeDelimited = function decodeDelimited(reader) {
             if (!(reader instanceof $Reader))
                 reader = new $Reader(reader);
             return this.decode(reader, reader.uint32());
         };
 
         /**
-         * Verifies a StatusResponse message.
+         * Verifies a HookResponse message.
          * @function verify
-         * @memberof pb.StatusResponse
+         * @memberof pb.HookResponse
          * @static
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        StatusResponse.verify = function verify(message) {
+        HookResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.status != null && message.hasOwnProperty("status"))
-                if (!$util.isString(message.status))
-                    return "status: string expected";
+            if (message.success != null && message.hasOwnProperty("success"))
+                if (typeof message.success !== "boolean")
+                    return "success: boolean expected";
             if (message.message != null && message.hasOwnProperty("message"))
                 if (!$util.isString(message.message))
                     return "message: string expected";
@@ -22270,75 +23906,1341 @@ export const pb = $root.pb = (() => {
         };
 
         /**
-         * Creates a StatusResponse message from a plain object. Also converts values to their respective internal types.
+         * Creates a HookResponse message from a plain object. Also converts values to their respective internal types.
          * @function fromObject
-         * @memberof pb.StatusResponse
+         * @memberof pb.HookResponse
          * @static
          * @param {Object.<string,*>} object Plain object
-         * @returns {pb.StatusResponse} StatusResponse
+         * @returns {pb.HookResponse} HookResponse
          */
-        StatusResponse.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.StatusResponse)
+        HookResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.HookResponse)
                 return object;
-            let message = new $root.pb.StatusResponse();
-            if (object.status != null)
-                message.status = String(object.status);
+            let message = new $root.pb.HookResponse();
+            if (object.success != null)
+                message.success = Boolean(object.success);
             if (object.message != null)
                 message.message = String(object.message);
             return message;
         };
 
         /**
-         * Creates a plain object from a StatusResponse message. Also converts values to other types if specified.
+         * Creates a plain object from a HookResponse message. Also converts values to other types if specified.
          * @function toObject
-         * @memberof pb.StatusResponse
+         * @memberof pb.HookResponse
          * @static
-         * @param {pb.StatusResponse} message StatusResponse
+         * @param {pb.HookResponse} message HookResponse
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        StatusResponse.toObject = function toObject(message, options) {
+        HookResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
             let object = {};
             if (options.defaults) {
-                object.status = "";
+                object.success = false;
                 object.message = "";
             }
-            if (message.status != null && message.hasOwnProperty("status"))
-                object.status = message.status;
+            if (message.success != null && message.hasOwnProperty("success"))
+                object.success = message.success;
             if (message.message != null && message.hasOwnProperty("message"))
                 object.message = message.message;
             return object;
         };
 
         /**
-         * Converts this StatusResponse to JSON.
+         * Converts this HookResponse to JSON.
          * @function toJSON
-         * @memberof pb.StatusResponse
+         * @memberof pb.HookResponse
          * @instance
          * @returns {Object.<string,*>} JSON object
          */
-        StatusResponse.prototype.toJSON = function toJSON() {
+        HookResponse.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
         /**
-         * Gets the default type url for StatusResponse
+         * Gets the default type url for HookResponse
          * @function getTypeUrl
-         * @memberof pb.StatusResponse
+         * @memberof pb.HookResponse
          * @static
          * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns {string} The default type url
          */
-        StatusResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+        HookResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
             if (typeUrlPrefix === undefined) {
                 typeUrlPrefix = "type.googleapis.com";
             }
-            return typeUrlPrefix + "/pb.StatusResponse";
+            return typeUrlPrefix + "/pb.HookResponse";
         };
 
-        return StatusResponse;
+        return HookResponse;
+    })();
+
+    pb.MLStatus = (function() {
+
+        /**
+         * Properties of a MLStatus.
+         * @memberof pb
+         * @interface IMLStatus
+         * @property {boolean|null} [modelLoaded] MLStatus modelLoaded
+         * @property {number|null} [numTrees] MLStatus numTrees
+         * @property {number|null} [numSamples] MLStatus numSamples
+         * @property {number|null} [numLabeledSamples] MLStatus numLabeledSamples
+         * @property {string|null} [lastTrained] MLStatus lastTrained
+         * @property {number|null} [testAccuracy] MLStatus testAccuracy
+         * @property {string|null} [modelPath] MLStatus modelPath
+         * @property {boolean|null} [trainingInProgress] MLStatus trainingInProgress
+         * @property {number|null} [trainingProgress] MLStatus trainingProgress
+         */
+
+        /**
+         * Constructs a new MLStatus.
+         * @memberof pb
+         * @classdesc Represents a MLStatus.
+         * @implements IMLStatus
+         * @constructor
+         * @param {pb.IMLStatus=} [properties] Properties to set
+         */
+        function MLStatus(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * MLStatus modelLoaded.
+         * @member {boolean} modelLoaded
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.modelLoaded = false;
+
+        /**
+         * MLStatus numTrees.
+         * @member {number} numTrees
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.numTrees = 0;
+
+        /**
+         * MLStatus numSamples.
+         * @member {number} numSamples
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.numSamples = 0;
+
+        /**
+         * MLStatus numLabeledSamples.
+         * @member {number} numLabeledSamples
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.numLabeledSamples = 0;
+
+        /**
+         * MLStatus lastTrained.
+         * @member {string} lastTrained
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.lastTrained = "";
+
+        /**
+         * MLStatus testAccuracy.
+         * @member {number} testAccuracy
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.testAccuracy = 0;
+
+        /**
+         * MLStatus modelPath.
+         * @member {string} modelPath
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.modelPath = "";
+
+        /**
+         * MLStatus trainingInProgress.
+         * @member {boolean} trainingInProgress
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.trainingInProgress = false;
+
+        /**
+         * MLStatus trainingProgress.
+         * @member {number} trainingProgress
+         * @memberof pb.MLStatus
+         * @instance
+         */
+        MLStatus.prototype.trainingProgress = 0;
+
+        /**
+         * Creates a new MLStatus instance using the specified properties.
+         * @function create
+         * @memberof pb.MLStatus
+         * @static
+         * @param {pb.IMLStatus=} [properties] Properties to set
+         * @returns {pb.MLStatus} MLStatus instance
+         */
+        MLStatus.create = function create(properties) {
+            return new MLStatus(properties);
+        };
+
+        /**
+         * Encodes the specified MLStatus message. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
+         * @function encode
+         * @memberof pb.MLStatus
+         * @static
+         * @param {pb.IMLStatus} message MLStatus message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        MLStatus.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.modelLoaded != null && Object.hasOwnProperty.call(message, "modelLoaded"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.modelLoaded);
+            if (message.numTrees != null && Object.hasOwnProperty.call(message, "numTrees"))
+                writer.uint32(/* id 2, wireType 0 =*/16).int32(message.numTrees);
+            if (message.numSamples != null && Object.hasOwnProperty.call(message, "numSamples"))
+                writer.uint32(/* id 3, wireType 0 =*/24).int32(message.numSamples);
+            if (message.numLabeledSamples != null && Object.hasOwnProperty.call(message, "numLabeledSamples"))
+                writer.uint32(/* id 4, wireType 0 =*/32).int32(message.numLabeledSamples);
+            if (message.lastTrained != null && Object.hasOwnProperty.call(message, "lastTrained"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.lastTrained);
+            if (message.testAccuracy != null && Object.hasOwnProperty.call(message, "testAccuracy"))
+                writer.uint32(/* id 6, wireType 1 =*/49).double(message.testAccuracy);
+            if (message.modelPath != null && Object.hasOwnProperty.call(message, "modelPath"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.modelPath);
+            if (message.trainingInProgress != null && Object.hasOwnProperty.call(message, "trainingInProgress"))
+                writer.uint32(/* id 8, wireType 0 =*/64).bool(message.trainingInProgress);
+            if (message.trainingProgress != null && Object.hasOwnProperty.call(message, "trainingProgress"))
+                writer.uint32(/* id 9, wireType 1 =*/73).double(message.trainingProgress);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified MLStatus message, length delimited. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.MLStatus
+         * @static
+         * @param {pb.IMLStatus} message MLStatus message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        MLStatus.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a MLStatus message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.MLStatus
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.MLStatus} MLStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        MLStatus.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.MLStatus();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.modelLoaded = reader.bool();
+                        break;
+                    }
+                case 2: {
+                        message.numTrees = reader.int32();
+                        break;
+                    }
+                case 3: {
+                        message.numSamples = reader.int32();
+                        break;
+                    }
+                case 4: {
+                        message.numLabeledSamples = reader.int32();
+                        break;
+                    }
+                case 5: {
+                        message.lastTrained = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.testAccuracy = reader.double();
+                        break;
+                    }
+                case 7: {
+                        message.modelPath = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.trainingInProgress = reader.bool();
+                        break;
+                    }
+                case 9: {
+                        message.trainingProgress = reader.double();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a MLStatus message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.MLStatus
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.MLStatus} MLStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        MLStatus.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a MLStatus message.
+         * @function verify
+         * @memberof pb.MLStatus
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        MLStatus.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.modelLoaded != null && message.hasOwnProperty("modelLoaded"))
+                if (typeof message.modelLoaded !== "boolean")
+                    return "modelLoaded: boolean expected";
+            if (message.numTrees != null && message.hasOwnProperty("numTrees"))
+                if (!$util.isInteger(message.numTrees))
+                    return "numTrees: integer expected";
+            if (message.numSamples != null && message.hasOwnProperty("numSamples"))
+                if (!$util.isInteger(message.numSamples))
+                    return "numSamples: integer expected";
+            if (message.numLabeledSamples != null && message.hasOwnProperty("numLabeledSamples"))
+                if (!$util.isInteger(message.numLabeledSamples))
+                    return "numLabeledSamples: integer expected";
+            if (message.lastTrained != null && message.hasOwnProperty("lastTrained"))
+                if (!$util.isString(message.lastTrained))
+                    return "lastTrained: string expected";
+            if (message.testAccuracy != null && message.hasOwnProperty("testAccuracy"))
+                if (typeof message.testAccuracy !== "number")
+                    return "testAccuracy: number expected";
+            if (message.modelPath != null && message.hasOwnProperty("modelPath"))
+                if (!$util.isString(message.modelPath))
+                    return "modelPath: string expected";
+            if (message.trainingInProgress != null && message.hasOwnProperty("trainingInProgress"))
+                if (typeof message.trainingInProgress !== "boolean")
+                    return "trainingInProgress: boolean expected";
+            if (message.trainingProgress != null && message.hasOwnProperty("trainingProgress"))
+                if (typeof message.trainingProgress !== "number")
+                    return "trainingProgress: number expected";
+            return null;
+        };
+
+        /**
+         * Creates a MLStatus message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.MLStatus
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.MLStatus} MLStatus
+         */
+        MLStatus.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.MLStatus)
+                return object;
+            let message = new $root.pb.MLStatus();
+            if (object.modelLoaded != null)
+                message.modelLoaded = Boolean(object.modelLoaded);
+            if (object.numTrees != null)
+                message.numTrees = object.numTrees | 0;
+            if (object.numSamples != null)
+                message.numSamples = object.numSamples | 0;
+            if (object.numLabeledSamples != null)
+                message.numLabeledSamples = object.numLabeledSamples | 0;
+            if (object.lastTrained != null)
+                message.lastTrained = String(object.lastTrained);
+            if (object.testAccuracy != null)
+                message.testAccuracy = Number(object.testAccuracy);
+            if (object.modelPath != null)
+                message.modelPath = String(object.modelPath);
+            if (object.trainingInProgress != null)
+                message.trainingInProgress = Boolean(object.trainingInProgress);
+            if (object.trainingProgress != null)
+                message.trainingProgress = Number(object.trainingProgress);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a MLStatus message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.MLStatus
+         * @static
+         * @param {pb.MLStatus} message MLStatus
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        MLStatus.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.modelLoaded = false;
+                object.numTrees = 0;
+                object.numSamples = 0;
+                object.numLabeledSamples = 0;
+                object.lastTrained = "";
+                object.testAccuracy = 0;
+                object.modelPath = "";
+                object.trainingInProgress = false;
+                object.trainingProgress = 0;
+            }
+            if (message.modelLoaded != null && message.hasOwnProperty("modelLoaded"))
+                object.modelLoaded = message.modelLoaded;
+            if (message.numTrees != null && message.hasOwnProperty("numTrees"))
+                object.numTrees = message.numTrees;
+            if (message.numSamples != null && message.hasOwnProperty("numSamples"))
+                object.numSamples = message.numSamples;
+            if (message.numLabeledSamples != null && message.hasOwnProperty("numLabeledSamples"))
+                object.numLabeledSamples = message.numLabeledSamples;
+            if (message.lastTrained != null && message.hasOwnProperty("lastTrained"))
+                object.lastTrained = message.lastTrained;
+            if (message.testAccuracy != null && message.hasOwnProperty("testAccuracy"))
+                object.testAccuracy = options.json && !isFinite(message.testAccuracy) ? String(message.testAccuracy) : message.testAccuracy;
+            if (message.modelPath != null && message.hasOwnProperty("modelPath"))
+                object.modelPath = message.modelPath;
+            if (message.trainingInProgress != null && message.hasOwnProperty("trainingInProgress"))
+                object.trainingInProgress = message.trainingInProgress;
+            if (message.trainingProgress != null && message.hasOwnProperty("trainingProgress"))
+                object.trainingProgress = options.json && !isFinite(message.trainingProgress) ? String(message.trainingProgress) : message.trainingProgress;
+            return object;
+        };
+
+        /**
+         * Converts this MLStatus to JSON.
+         * @function toJSON
+         * @memberof pb.MLStatus
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        MLStatus.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for MLStatus
+         * @function getTypeUrl
+         * @memberof pb.MLStatus
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        MLStatus.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.MLStatus";
+        };
+
+        return MLStatus;
+    })();
+
+    pb.ShellSession = (function() {
+
+        /**
+         * Properties of a ShellSession.
+         * @memberof pb
+         * @interface IShellSession
+         * @property {string|null} [id] ShellSession id
+         * @property {string|null} [label] ShellSession label
+         * @property {number|null} [pid] ShellSession pid
+         * @property {boolean|null} [active] ShellSession active
+         * @property {number|Long|null} [createdAt] ShellSession createdAt
+         * @property {string|null} [cols] ShellSession cols
+         * @property {string|null} [rows] ShellSession rows
+         * @property {string|null} [cwd] ShellSession cwd
+         */
+
+        /**
+         * Constructs a new ShellSession.
+         * @memberof pb
+         * @classdesc Represents a ShellSession.
+         * @implements IShellSession
+         * @constructor
+         * @param {pb.IShellSession=} [properties] Properties to set
+         */
+        function ShellSession(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ShellSession id.
+         * @member {string} id
+         * @memberof pb.ShellSession
+         * @instance
+         */
+        ShellSession.prototype.id = "";
+
+        /**
+         * ShellSession label.
+         * @member {string} label
+         * @memberof pb.ShellSession
+         * @instance
+         */
+        ShellSession.prototype.label = "";
+
+        /**
+         * ShellSession pid.
+         * @member {number} pid
+         * @memberof pb.ShellSession
+         * @instance
+         */
+        ShellSession.prototype.pid = 0;
+
+        /**
+         * ShellSession active.
+         * @member {boolean} active
+         * @memberof pb.ShellSession
+         * @instance
+         */
+        ShellSession.prototype.active = false;
+
+        /**
+         * ShellSession createdAt.
+         * @member {number|Long} createdAt
+         * @memberof pb.ShellSession
+         * @instance
+         */
+        ShellSession.prototype.createdAt = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
+
+        /**
+         * ShellSession cols.
+         * @member {string} cols
+         * @memberof pb.ShellSession
+         * @instance
+         */
+        ShellSession.prototype.cols = "";
+
+        /**
+         * ShellSession rows.
+         * @member {string} rows
+         * @memberof pb.ShellSession
+         * @instance
+         */
+        ShellSession.prototype.rows = "";
+
+        /**
+         * ShellSession cwd.
+         * @member {string} cwd
+         * @memberof pb.ShellSession
+         * @instance
+         */
+        ShellSession.prototype.cwd = "";
+
+        /**
+         * Creates a new ShellSession instance using the specified properties.
+         * @function create
+         * @memberof pb.ShellSession
+         * @static
+         * @param {pb.IShellSession=} [properties] Properties to set
+         * @returns {pb.ShellSession} ShellSession instance
+         */
+        ShellSession.create = function create(properties) {
+            return new ShellSession(properties);
+        };
+
+        /**
+         * Encodes the specified ShellSession message. Does not implicitly {@link pb.ShellSession.verify|verify} messages.
+         * @function encode
+         * @memberof pb.ShellSession
+         * @static
+         * @param {pb.IShellSession} message ShellSession message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ShellSession.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
+            if (message.label != null && Object.hasOwnProperty.call(message, "label"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.label);
+            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
+                writer.uint32(/* id 3, wireType 0 =*/24).int32(message.pid);
+            if (message.active != null && Object.hasOwnProperty.call(message, "active"))
+                writer.uint32(/* id 4, wireType 0 =*/32).bool(message.active);
+            if (message.createdAt != null && Object.hasOwnProperty.call(message, "createdAt"))
+                writer.uint32(/* id 5, wireType 0 =*/40).int64(message.createdAt);
+            if (message.cols != null && Object.hasOwnProperty.call(message, "cols"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.cols);
+            if (message.rows != null && Object.hasOwnProperty.call(message, "rows"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.rows);
+            if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
+                writer.uint32(/* id 8, wireType 2 =*/66).string(message.cwd);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ShellSession message, length delimited. Does not implicitly {@link pb.ShellSession.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.ShellSession
+         * @static
+         * @param {pb.IShellSession} message ShellSession message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ShellSession.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ShellSession message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.ShellSession
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.ShellSession} ShellSession
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ShellSession.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ShellSession();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.id = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.label = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.pid = reader.int32();
+                        break;
+                    }
+                case 4: {
+                        message.active = reader.bool();
+                        break;
+                    }
+                case 5: {
+                        message.createdAt = reader.int64();
+                        break;
+                    }
+                case 6: {
+                        message.cols = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.rows = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.cwd = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ShellSession message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.ShellSession
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.ShellSession} ShellSession
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ShellSession.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ShellSession message.
+         * @function verify
+         * @memberof pb.ShellSession
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ShellSession.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.id != null && message.hasOwnProperty("id"))
+                if (!$util.isString(message.id))
+                    return "id: string expected";
+            if (message.label != null && message.hasOwnProperty("label"))
+                if (!$util.isString(message.label))
+                    return "label: string expected";
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                if (!$util.isInteger(message.pid))
+                    return "pid: integer expected";
+            if (message.active != null && message.hasOwnProperty("active"))
+                if (typeof message.active !== "boolean")
+                    return "active: boolean expected";
+            if (message.createdAt != null && message.hasOwnProperty("createdAt"))
+                if (!$util.isInteger(message.createdAt) && !(message.createdAt && $util.isInteger(message.createdAt.low) && $util.isInteger(message.createdAt.high)))
+                    return "createdAt: integer|Long expected";
+            if (message.cols != null && message.hasOwnProperty("cols"))
+                if (!$util.isString(message.cols))
+                    return "cols: string expected";
+            if (message.rows != null && message.hasOwnProperty("rows"))
+                if (!$util.isString(message.rows))
+                    return "rows: string expected";
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                if (!$util.isString(message.cwd))
+                    return "cwd: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a ShellSession message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.ShellSession
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.ShellSession} ShellSession
+         */
+        ShellSession.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.ShellSession)
+                return object;
+            let message = new $root.pb.ShellSession();
+            if (object.id != null)
+                message.id = String(object.id);
+            if (object.label != null)
+                message.label = String(object.label);
+            if (object.pid != null)
+                message.pid = object.pid | 0;
+            if (object.active != null)
+                message.active = Boolean(object.active);
+            if (object.createdAt != null)
+                if ($util.Long)
+                    (message.createdAt = $util.Long.fromValue(object.createdAt)).unsigned = false;
+                else if (typeof object.createdAt === "string")
+                    message.createdAt = parseInt(object.createdAt, 10);
+                else if (typeof object.createdAt === "number")
+                    message.createdAt = object.createdAt;
+                else if (typeof object.createdAt === "object")
+                    message.createdAt = new $util.LongBits(object.createdAt.low >>> 0, object.createdAt.high >>> 0).toNumber();
+            if (object.cols != null)
+                message.cols = String(object.cols);
+            if (object.rows != null)
+                message.rows = String(object.rows);
+            if (object.cwd != null)
+                message.cwd = String(object.cwd);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ShellSession message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.ShellSession
+         * @static
+         * @param {pb.ShellSession} message ShellSession
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ShellSession.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.id = "";
+                object.label = "";
+                object.pid = 0;
+                object.active = false;
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, false);
+                    object.createdAt = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.createdAt = options.longs === String ? "0" : 0;
+                object.cols = "";
+                object.rows = "";
+                object.cwd = "";
+            }
+            if (message.id != null && message.hasOwnProperty("id"))
+                object.id = message.id;
+            if (message.label != null && message.hasOwnProperty("label"))
+                object.label = message.label;
+            if (message.pid != null && message.hasOwnProperty("pid"))
+                object.pid = message.pid;
+            if (message.active != null && message.hasOwnProperty("active"))
+                object.active = message.active;
+            if (message.createdAt != null && message.hasOwnProperty("createdAt"))
+                if (typeof message.createdAt === "number")
+                    object.createdAt = options.longs === String ? String(message.createdAt) : message.createdAt;
+                else
+                    object.createdAt = options.longs === String ? $util.Long.prototype.toString.call(message.createdAt) : options.longs === Number ? new $util.LongBits(message.createdAt.low >>> 0, message.createdAt.high >>> 0).toNumber() : message.createdAt;
+            if (message.cols != null && message.hasOwnProperty("cols"))
+                object.cols = message.cols;
+            if (message.rows != null && message.hasOwnProperty("rows"))
+                object.rows = message.rows;
+            if (message.cwd != null && message.hasOwnProperty("cwd"))
+                object.cwd = message.cwd;
+            return object;
+        };
+
+        /**
+         * Converts this ShellSession to JSON.
+         * @function toJSON
+         * @memberof pb.ShellSession
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ShellSession.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ShellSession
+         * @function getTypeUrl
+         * @memberof pb.ShellSession
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ShellSession.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.ShellSession";
+        };
+
+        return ShellSession;
+    })();
+
+    pb.ShellSessionList = (function() {
+
+        /**
+         * Properties of a ShellSessionList.
+         * @memberof pb
+         * @interface IShellSessionList
+         * @property {Array.<pb.IShellSession>|null} [sessions] ShellSessionList sessions
+         */
+
+        /**
+         * Constructs a new ShellSessionList.
+         * @memberof pb
+         * @classdesc Represents a ShellSessionList.
+         * @implements IShellSessionList
+         * @constructor
+         * @param {pb.IShellSessionList=} [properties] Properties to set
+         */
+        function ShellSessionList(properties) {
+            this.sessions = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ShellSessionList sessions.
+         * @member {Array.<pb.IShellSession>} sessions
+         * @memberof pb.ShellSessionList
+         * @instance
+         */
+        ShellSessionList.prototype.sessions = $util.emptyArray;
+
+        /**
+         * Creates a new ShellSessionList instance using the specified properties.
+         * @function create
+         * @memberof pb.ShellSessionList
+         * @static
+         * @param {pb.IShellSessionList=} [properties] Properties to set
+         * @returns {pb.ShellSessionList} ShellSessionList instance
+         */
+        ShellSessionList.create = function create(properties) {
+            return new ShellSessionList(properties);
+        };
+
+        /**
+         * Encodes the specified ShellSessionList message. Does not implicitly {@link pb.ShellSessionList.verify|verify} messages.
+         * @function encode
+         * @memberof pb.ShellSessionList
+         * @static
+         * @param {pb.IShellSessionList} message ShellSessionList message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ShellSessionList.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.sessions != null && message.sessions.length)
+                for (let i = 0; i < message.sessions.length; ++i)
+                    $root.pb.ShellSession.encode(message.sessions[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ShellSessionList message, length delimited. Does not implicitly {@link pb.ShellSessionList.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.ShellSessionList
+         * @static
+         * @param {pb.IShellSessionList} message ShellSessionList message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ShellSessionList.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ShellSessionList message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.ShellSessionList
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.ShellSessionList} ShellSessionList
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ShellSessionList.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ShellSessionList();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        if (!(message.sessions && message.sessions.length))
+                            message.sessions = [];
+                        message.sessions.push($root.pb.ShellSession.decode(reader, reader.uint32()));
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ShellSessionList message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.ShellSessionList
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.ShellSessionList} ShellSessionList
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ShellSessionList.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ShellSessionList message.
+         * @function verify
+         * @memberof pb.ShellSessionList
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ShellSessionList.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.sessions != null && message.hasOwnProperty("sessions")) {
+                if (!Array.isArray(message.sessions))
+                    return "sessions: array expected";
+                for (let i = 0; i < message.sessions.length; ++i) {
+                    let error = $root.pb.ShellSession.verify(message.sessions[i]);
+                    if (error)
+                        return "sessions." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates a ShellSessionList message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.ShellSessionList
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.ShellSessionList} ShellSessionList
+         */
+        ShellSessionList.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.ShellSessionList)
+                return object;
+            let message = new $root.pb.ShellSessionList();
+            if (object.sessions) {
+                if (!Array.isArray(object.sessions))
+                    throw TypeError(".pb.ShellSessionList.sessions: array expected");
+                message.sessions = [];
+                for (let i = 0; i < object.sessions.length; ++i) {
+                    if (typeof object.sessions[i] !== "object")
+                        throw TypeError(".pb.ShellSessionList.sessions: object expected");
+                    message.sessions[i] = $root.pb.ShellSession.fromObject(object.sessions[i]);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ShellSessionList message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.ShellSessionList
+         * @static
+         * @param {pb.ShellSessionList} message ShellSessionList
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ShellSessionList.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults)
+                object.sessions = [];
+            if (message.sessions && message.sessions.length) {
+                object.sessions = [];
+                for (let j = 0; j < message.sessions.length; ++j)
+                    object.sessions[j] = $root.pb.ShellSession.toObject(message.sessions[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this ShellSessionList to JSON.
+         * @function toJSON
+         * @memberof pb.ShellSessionList
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ShellSessionList.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ShellSessionList
+         * @function getTypeUrl
+         * @memberof pb.ShellSessionList
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ShellSessionList.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.ShellSessionList";
+        };
+
+        return ShellSessionList;
+    })();
+
+    pb.ShellSessionCreateRequest = (function() {
+
+        /**
+         * Properties of a ShellSessionCreateRequest.
+         * @memberof pb
+         * @interface IShellSessionCreateRequest
+         * @property {string|null} [workdir] ShellSessionCreateRequest workdir
+         * @property {Array.<string>|null} [args] ShellSessionCreateRequest args
+         * @property {string|null} [label] ShellSessionCreateRequest label
+         */
+
+        /**
+         * Constructs a new ShellSessionCreateRequest.
+         * @memberof pb
+         * @classdesc Represents a ShellSessionCreateRequest.
+         * @implements IShellSessionCreateRequest
+         * @constructor
+         * @param {pb.IShellSessionCreateRequest=} [properties] Properties to set
+         */
+        function ShellSessionCreateRequest(properties) {
+            this.args = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ShellSessionCreateRequest workdir.
+         * @member {string} workdir
+         * @memberof pb.ShellSessionCreateRequest
+         * @instance
+         */
+        ShellSessionCreateRequest.prototype.workdir = "";
+
+        /**
+         * ShellSessionCreateRequest args.
+         * @member {Array.<string>} args
+         * @memberof pb.ShellSessionCreateRequest
+         * @instance
+         */
+        ShellSessionCreateRequest.prototype.args = $util.emptyArray;
+
+        /**
+         * ShellSessionCreateRequest label.
+         * @member {string} label
+         * @memberof pb.ShellSessionCreateRequest
+         * @instance
+         */
+        ShellSessionCreateRequest.prototype.label = "";
+
+        /**
+         * Creates a new ShellSessionCreateRequest instance using the specified properties.
+         * @function create
+         * @memberof pb.ShellSessionCreateRequest
+         * @static
+         * @param {pb.IShellSessionCreateRequest=} [properties] Properties to set
+         * @returns {pb.ShellSessionCreateRequest} ShellSessionCreateRequest instance
+         */
+        ShellSessionCreateRequest.create = function create(properties) {
+            return new ShellSessionCreateRequest(properties);
+        };
+
+        /**
+         * Encodes the specified ShellSessionCreateRequest message. Does not implicitly {@link pb.ShellSessionCreateRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pb.ShellSessionCreateRequest
+         * @static
+         * @param {pb.IShellSessionCreateRequest} message ShellSessionCreateRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ShellSessionCreateRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.workdir != null && Object.hasOwnProperty.call(message, "workdir"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.workdir);
+            if (message.args != null && message.args.length)
+                for (let i = 0; i < message.args.length; ++i)
+                    writer.uint32(/* id 2, wireType 2 =*/18).string(message.args[i]);
+            if (message.label != null && Object.hasOwnProperty.call(message, "label"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.label);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ShellSessionCreateRequest message, length delimited. Does not implicitly {@link pb.ShellSessionCreateRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.ShellSessionCreateRequest
+         * @static
+         * @param {pb.IShellSessionCreateRequest} message ShellSessionCreateRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ShellSessionCreateRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ShellSessionCreateRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.ShellSessionCreateRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.ShellSessionCreateRequest} ShellSessionCreateRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ShellSessionCreateRequest.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ShellSessionCreateRequest();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.workdir = reader.string();
+                        break;
+                    }
+                case 2: {
+                        if (!(message.args && message.args.length))
+                            message.args = [];
+                        message.args.push(reader.string());
+                        break;
+                    }
+                case 3: {
+                        message.label = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ShellSessionCreateRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.ShellSessionCreateRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.ShellSessionCreateRequest} ShellSessionCreateRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ShellSessionCreateRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ShellSessionCreateRequest message.
+         * @function verify
+         * @memberof pb.ShellSessionCreateRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ShellSessionCreateRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.workdir != null && message.hasOwnProperty("workdir"))
+                if (!$util.isString(message.workdir))
+                    return "workdir: string expected";
+            if (message.args != null && message.hasOwnProperty("args")) {
+                if (!Array.isArray(message.args))
+                    return "args: array expected";
+                for (let i = 0; i < message.args.length; ++i)
+                    if (!$util.isString(message.args[i]))
+                        return "args: string[] expected";
+            }
+            if (message.label != null && message.hasOwnProperty("label"))
+                if (!$util.isString(message.label))
+                    return "label: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a ShellSessionCreateRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.ShellSessionCreateRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.ShellSessionCreateRequest} ShellSessionCreateRequest
+         */
+        ShellSessionCreateRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.ShellSessionCreateRequest)
+                return object;
+            let message = new $root.pb.ShellSessionCreateRequest();
+            if (object.workdir != null)
+                message.workdir = String(object.workdir);
+            if (object.args) {
+                if (!Array.isArray(object.args))
+                    throw TypeError(".pb.ShellSessionCreateRequest.args: array expected");
+                message.args = [];
+                for (let i = 0; i < object.args.length; ++i)
+                    message.args[i] = String(object.args[i]);
+            }
+            if (object.label != null)
+                message.label = String(object.label);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ShellSessionCreateRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.ShellSessionCreateRequest
+         * @static
+         * @param {pb.ShellSessionCreateRequest} message ShellSessionCreateRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ShellSessionCreateRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults)
+                object.args = [];
+            if (options.defaults) {
+                object.workdir = "";
+                object.label = "";
+            }
+            if (message.workdir != null && message.hasOwnProperty("workdir"))
+                object.workdir = message.workdir;
+            if (message.args && message.args.length) {
+                object.args = [];
+                for (let j = 0; j < message.args.length; ++j)
+                    object.args[j] = message.args[j];
+            }
+            if (message.label != null && message.hasOwnProperty("label"))
+                object.label = message.label;
+            return object;
+        };
+
+        /**
+         * Converts this ShellSessionCreateRequest to JSON.
+         * @function toJSON
+         * @memberof pb.ShellSessionCreateRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ShellSessionCreateRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ShellSessionCreateRequest
+         * @function getTypeUrl
+         * @memberof pb.ShellSessionCreateRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ShellSessionCreateRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.ShellSessionCreateRequest";
+        };
+
+        return ShellSessionCreateRequest;
     })();
 
     pb.FileEntry = (function() {
@@ -23306,2908 +26208,6 @@ export const pb = $root.pb = (() => {
         };
 
         return FilePreviewResponse;
-    })();
-
-    pb.SystemdUnit = (function() {
-
-        /**
-         * Properties of a SystemdUnit.
-         * @memberof pb
-         * @interface ISystemdUnit
-         * @property {string|null} [unit] SystemdUnit unit
-         * @property {string|null} [load] SystemdUnit load
-         * @property {string|null} [active] SystemdUnit active
-         * @property {string|null} [sub] SystemdUnit sub
-         * @property {string|null} [description] SystemdUnit description
-         */
-
-        /**
-         * Constructs a new SystemdUnit.
-         * @memberof pb
-         * @classdesc Represents a SystemdUnit.
-         * @implements ISystemdUnit
-         * @constructor
-         * @param {pb.ISystemdUnit=} [properties] Properties to set
-         */
-        function SystemdUnit(properties) {
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * SystemdUnit unit.
-         * @member {string} unit
-         * @memberof pb.SystemdUnit
-         * @instance
-         */
-        SystemdUnit.prototype.unit = "";
-
-        /**
-         * SystemdUnit load.
-         * @member {string} load
-         * @memberof pb.SystemdUnit
-         * @instance
-         */
-        SystemdUnit.prototype.load = "";
-
-        /**
-         * SystemdUnit active.
-         * @member {string} active
-         * @memberof pb.SystemdUnit
-         * @instance
-         */
-        SystemdUnit.prototype.active = "";
-
-        /**
-         * SystemdUnit sub.
-         * @member {string} sub
-         * @memberof pb.SystemdUnit
-         * @instance
-         */
-        SystemdUnit.prototype.sub = "";
-
-        /**
-         * SystemdUnit description.
-         * @member {string} description
-         * @memberof pb.SystemdUnit
-         * @instance
-         */
-        SystemdUnit.prototype.description = "";
-
-        /**
-         * Creates a new SystemdUnit instance using the specified properties.
-         * @function create
-         * @memberof pb.SystemdUnit
-         * @static
-         * @param {pb.ISystemdUnit=} [properties] Properties to set
-         * @returns {pb.SystemdUnit} SystemdUnit instance
-         */
-        SystemdUnit.create = function create(properties) {
-            return new SystemdUnit(properties);
-        };
-
-        /**
-         * Encodes the specified SystemdUnit message. Does not implicitly {@link pb.SystemdUnit.verify|verify} messages.
-         * @function encode
-         * @memberof pb.SystemdUnit
-         * @static
-         * @param {pb.ISystemdUnit} message SystemdUnit message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        SystemdUnit.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.unit != null && Object.hasOwnProperty.call(message, "unit"))
-                writer.uint32(/* id 1, wireType 2 =*/10).string(message.unit);
-            if (message.load != null && Object.hasOwnProperty.call(message, "load"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.load);
-            if (message.active != null && Object.hasOwnProperty.call(message, "active"))
-                writer.uint32(/* id 3, wireType 2 =*/26).string(message.active);
-            if (message.sub != null && Object.hasOwnProperty.call(message, "sub"))
-                writer.uint32(/* id 4, wireType 2 =*/34).string(message.sub);
-            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
-                writer.uint32(/* id 5, wireType 2 =*/42).string(message.description);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified SystemdUnit message, length delimited. Does not implicitly {@link pb.SystemdUnit.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.SystemdUnit
-         * @static
-         * @param {pb.ISystemdUnit} message SystemdUnit message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        SystemdUnit.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a SystemdUnit message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.SystemdUnit
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.SystemdUnit} SystemdUnit
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        SystemdUnit.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SystemdUnit();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.unit = reader.string();
-                        break;
-                    }
-                case 2: {
-                        message.load = reader.string();
-                        break;
-                    }
-                case 3: {
-                        message.active = reader.string();
-                        break;
-                    }
-                case 4: {
-                        message.sub = reader.string();
-                        break;
-                    }
-                case 5: {
-                        message.description = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a SystemdUnit message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.SystemdUnit
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.SystemdUnit} SystemdUnit
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        SystemdUnit.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a SystemdUnit message.
-         * @function verify
-         * @memberof pb.SystemdUnit
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        SystemdUnit.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.unit != null && message.hasOwnProperty("unit"))
-                if (!$util.isString(message.unit))
-                    return "unit: string expected";
-            if (message.load != null && message.hasOwnProperty("load"))
-                if (!$util.isString(message.load))
-                    return "load: string expected";
-            if (message.active != null && message.hasOwnProperty("active"))
-                if (!$util.isString(message.active))
-                    return "active: string expected";
-            if (message.sub != null && message.hasOwnProperty("sub"))
-                if (!$util.isString(message.sub))
-                    return "sub: string expected";
-            if (message.description != null && message.hasOwnProperty("description"))
-                if (!$util.isString(message.description))
-                    return "description: string expected";
-            return null;
-        };
-
-        /**
-         * Creates a SystemdUnit message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.SystemdUnit
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.SystemdUnit} SystemdUnit
-         */
-        SystemdUnit.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.SystemdUnit)
-                return object;
-            let message = new $root.pb.SystemdUnit();
-            if (object.unit != null)
-                message.unit = String(object.unit);
-            if (object.load != null)
-                message.load = String(object.load);
-            if (object.active != null)
-                message.active = String(object.active);
-            if (object.sub != null)
-                message.sub = String(object.sub);
-            if (object.description != null)
-                message.description = String(object.description);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a SystemdUnit message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.SystemdUnit
-         * @static
-         * @param {pb.SystemdUnit} message SystemdUnit
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        SystemdUnit.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.defaults) {
-                object.unit = "";
-                object.load = "";
-                object.active = "";
-                object.sub = "";
-                object.description = "";
-            }
-            if (message.unit != null && message.hasOwnProperty("unit"))
-                object.unit = message.unit;
-            if (message.load != null && message.hasOwnProperty("load"))
-                object.load = message.load;
-            if (message.active != null && message.hasOwnProperty("active"))
-                object.active = message.active;
-            if (message.sub != null && message.hasOwnProperty("sub"))
-                object.sub = message.sub;
-            if (message.description != null && message.hasOwnProperty("description"))
-                object.description = message.description;
-            return object;
-        };
-
-        /**
-         * Converts this SystemdUnit to JSON.
-         * @function toJSON
-         * @memberof pb.SystemdUnit
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        SystemdUnit.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for SystemdUnit
-         * @function getTypeUrl
-         * @memberof pb.SystemdUnit
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        SystemdUnit.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.SystemdUnit";
-        };
-
-        return SystemdUnit;
-    })();
-
-    pb.SystemdUnitList = (function() {
-
-        /**
-         * Properties of a SystemdUnitList.
-         * @memberof pb
-         * @interface ISystemdUnitList
-         * @property {Array.<pb.ISystemdUnit>|null} [services] SystemdUnitList services
-         */
-
-        /**
-         * Constructs a new SystemdUnitList.
-         * @memberof pb
-         * @classdesc Represents a SystemdUnitList.
-         * @implements ISystemdUnitList
-         * @constructor
-         * @param {pb.ISystemdUnitList=} [properties] Properties to set
-         */
-        function SystemdUnitList(properties) {
-            this.services = [];
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * SystemdUnitList services.
-         * @member {Array.<pb.ISystemdUnit>} services
-         * @memberof pb.SystemdUnitList
-         * @instance
-         */
-        SystemdUnitList.prototype.services = $util.emptyArray;
-
-        /**
-         * Creates a new SystemdUnitList instance using the specified properties.
-         * @function create
-         * @memberof pb.SystemdUnitList
-         * @static
-         * @param {pb.ISystemdUnitList=} [properties] Properties to set
-         * @returns {pb.SystemdUnitList} SystemdUnitList instance
-         */
-        SystemdUnitList.create = function create(properties) {
-            return new SystemdUnitList(properties);
-        };
-
-        /**
-         * Encodes the specified SystemdUnitList message. Does not implicitly {@link pb.SystemdUnitList.verify|verify} messages.
-         * @function encode
-         * @memberof pb.SystemdUnitList
-         * @static
-         * @param {pb.ISystemdUnitList} message SystemdUnitList message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        SystemdUnitList.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.services != null && message.services.length)
-                for (let i = 0; i < message.services.length; ++i)
-                    $root.pb.SystemdUnit.encode(message.services[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
-            return writer;
-        };
-
-        /**
-         * Encodes the specified SystemdUnitList message, length delimited. Does not implicitly {@link pb.SystemdUnitList.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.SystemdUnitList
-         * @static
-         * @param {pb.ISystemdUnitList} message SystemdUnitList message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        SystemdUnitList.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a SystemdUnitList message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.SystemdUnitList
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.SystemdUnitList} SystemdUnitList
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        SystemdUnitList.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SystemdUnitList();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        if (!(message.services && message.services.length))
-                            message.services = [];
-                        message.services.push($root.pb.SystemdUnit.decode(reader, reader.uint32()));
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a SystemdUnitList message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.SystemdUnitList
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.SystemdUnitList} SystemdUnitList
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        SystemdUnitList.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a SystemdUnitList message.
-         * @function verify
-         * @memberof pb.SystemdUnitList
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        SystemdUnitList.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.services != null && message.hasOwnProperty("services")) {
-                if (!Array.isArray(message.services))
-                    return "services: array expected";
-                for (let i = 0; i < message.services.length; ++i) {
-                    let error = $root.pb.SystemdUnit.verify(message.services[i]);
-                    if (error)
-                        return "services." + error;
-                }
-            }
-            return null;
-        };
-
-        /**
-         * Creates a SystemdUnitList message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.SystemdUnitList
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.SystemdUnitList} SystemdUnitList
-         */
-        SystemdUnitList.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.SystemdUnitList)
-                return object;
-            let message = new $root.pb.SystemdUnitList();
-            if (object.services) {
-                if (!Array.isArray(object.services))
-                    throw TypeError(".pb.SystemdUnitList.services: array expected");
-                message.services = [];
-                for (let i = 0; i < object.services.length; ++i) {
-                    if (typeof object.services[i] !== "object")
-                        throw TypeError(".pb.SystemdUnitList.services: object expected");
-                    message.services[i] = $root.pb.SystemdUnit.fromObject(object.services[i]);
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a SystemdUnitList message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.SystemdUnitList
-         * @static
-         * @param {pb.SystemdUnitList} message SystemdUnitList
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        SystemdUnitList.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.arrays || options.defaults)
-                object.services = [];
-            if (message.services && message.services.length) {
-                object.services = [];
-                for (let j = 0; j < message.services.length; ++j)
-                    object.services[j] = $root.pb.SystemdUnit.toObject(message.services[j], options);
-            }
-            return object;
-        };
-
-        /**
-         * Converts this SystemdUnitList to JSON.
-         * @function toJSON
-         * @memberof pb.SystemdUnitList
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        SystemdUnitList.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for SystemdUnitList
-         * @function getTypeUrl
-         * @memberof pb.SystemdUnitList
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        SystemdUnitList.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.SystemdUnitList";
-        };
-
-        return SystemdUnitList;
-    })();
-
-    pb.SensorReading = (function() {
-
-        /**
-         * Properties of a SensorReading.
-         * @memberof pb
-         * @interface ISensorReading
-         * @property {string|null} [key] SensorReading key
-         * @property {number|null} [value] SensorReading value
-         * @property {string|null} [unit] SensorReading unit
-         */
-
-        /**
-         * Constructs a new SensorReading.
-         * @memberof pb
-         * @classdesc Represents a SensorReading.
-         * @implements ISensorReading
-         * @constructor
-         * @param {pb.ISensorReading=} [properties] Properties to set
-         */
-        function SensorReading(properties) {
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * SensorReading key.
-         * @member {string} key
-         * @memberof pb.SensorReading
-         * @instance
-         */
-        SensorReading.prototype.key = "";
-
-        /**
-         * SensorReading value.
-         * @member {number} value
-         * @memberof pb.SensorReading
-         * @instance
-         */
-        SensorReading.prototype.value = 0;
-
-        /**
-         * SensorReading unit.
-         * @member {string} unit
-         * @memberof pb.SensorReading
-         * @instance
-         */
-        SensorReading.prototype.unit = "";
-
-        /**
-         * Creates a new SensorReading instance using the specified properties.
-         * @function create
-         * @memberof pb.SensorReading
-         * @static
-         * @param {pb.ISensorReading=} [properties] Properties to set
-         * @returns {pb.SensorReading} SensorReading instance
-         */
-        SensorReading.create = function create(properties) {
-            return new SensorReading(properties);
-        };
-
-        /**
-         * Encodes the specified SensorReading message. Does not implicitly {@link pb.SensorReading.verify|verify} messages.
-         * @function encode
-         * @memberof pb.SensorReading
-         * @static
-         * @param {pb.ISensorReading} message SensorReading message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        SensorReading.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.key != null && Object.hasOwnProperty.call(message, "key"))
-                writer.uint32(/* id 1, wireType 2 =*/10).string(message.key);
-            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
-                writer.uint32(/* id 2, wireType 1 =*/17).double(message.value);
-            if (message.unit != null && Object.hasOwnProperty.call(message, "unit"))
-                writer.uint32(/* id 3, wireType 2 =*/26).string(message.unit);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified SensorReading message, length delimited. Does not implicitly {@link pb.SensorReading.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.SensorReading
-         * @static
-         * @param {pb.ISensorReading} message SensorReading message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        SensorReading.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a SensorReading message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.SensorReading
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.SensorReading} SensorReading
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        SensorReading.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SensorReading();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.key = reader.string();
-                        break;
-                    }
-                case 2: {
-                        message.value = reader.double();
-                        break;
-                    }
-                case 3: {
-                        message.unit = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a SensorReading message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.SensorReading
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.SensorReading} SensorReading
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        SensorReading.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a SensorReading message.
-         * @function verify
-         * @memberof pb.SensorReading
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        SensorReading.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.key != null && message.hasOwnProperty("key"))
-                if (!$util.isString(message.key))
-                    return "key: string expected";
-            if (message.value != null && message.hasOwnProperty("value"))
-                if (typeof message.value !== "number")
-                    return "value: number expected";
-            if (message.unit != null && message.hasOwnProperty("unit"))
-                if (!$util.isString(message.unit))
-                    return "unit: string expected";
-            return null;
-        };
-
-        /**
-         * Creates a SensorReading message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.SensorReading
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.SensorReading} SensorReading
-         */
-        SensorReading.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.SensorReading)
-                return object;
-            let message = new $root.pb.SensorReading();
-            if (object.key != null)
-                message.key = String(object.key);
-            if (object.value != null)
-                message.value = Number(object.value);
-            if (object.unit != null)
-                message.unit = String(object.unit);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a SensorReading message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.SensorReading
-         * @static
-         * @param {pb.SensorReading} message SensorReading
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        SensorReading.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.defaults) {
-                object.key = "";
-                object.value = 0;
-                object.unit = "";
-            }
-            if (message.key != null && message.hasOwnProperty("key"))
-                object.key = message.key;
-            if (message.value != null && message.hasOwnProperty("value"))
-                object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
-            if (message.unit != null && message.hasOwnProperty("unit"))
-                object.unit = message.unit;
-            return object;
-        };
-
-        /**
-         * Converts this SensorReading to JSON.
-         * @function toJSON
-         * @memberof pb.SensorReading
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        SensorReading.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for SensorReading
-         * @function getTypeUrl
-         * @memberof pb.SensorReading
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        SensorReading.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.SensorReading";
-        };
-
-        return SensorReading;
-    })();
-
-    pb.SensorsSnapshot = (function() {
-
-        /**
-         * Properties of a SensorsSnapshot.
-         * @memberof pb
-         * @interface ISensorsSnapshot
-         * @property {Array.<pb.ISensorReading>|null} [temperatures] SensorsSnapshot temperatures
-         * @property {Array.<string>|null} [fans] SensorsSnapshot fans
-         */
-
-        /**
-         * Constructs a new SensorsSnapshot.
-         * @memberof pb
-         * @classdesc Represents a SensorsSnapshot.
-         * @implements ISensorsSnapshot
-         * @constructor
-         * @param {pb.ISensorsSnapshot=} [properties] Properties to set
-         */
-        function SensorsSnapshot(properties) {
-            this.temperatures = [];
-            this.fans = [];
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * SensorsSnapshot temperatures.
-         * @member {Array.<pb.ISensorReading>} temperatures
-         * @memberof pb.SensorsSnapshot
-         * @instance
-         */
-        SensorsSnapshot.prototype.temperatures = $util.emptyArray;
-
-        /**
-         * SensorsSnapshot fans.
-         * @member {Array.<string>} fans
-         * @memberof pb.SensorsSnapshot
-         * @instance
-         */
-        SensorsSnapshot.prototype.fans = $util.emptyArray;
-
-        /**
-         * Creates a new SensorsSnapshot instance using the specified properties.
-         * @function create
-         * @memberof pb.SensorsSnapshot
-         * @static
-         * @param {pb.ISensorsSnapshot=} [properties] Properties to set
-         * @returns {pb.SensorsSnapshot} SensorsSnapshot instance
-         */
-        SensorsSnapshot.create = function create(properties) {
-            return new SensorsSnapshot(properties);
-        };
-
-        /**
-         * Encodes the specified SensorsSnapshot message. Does not implicitly {@link pb.SensorsSnapshot.verify|verify} messages.
-         * @function encode
-         * @memberof pb.SensorsSnapshot
-         * @static
-         * @param {pb.ISensorsSnapshot} message SensorsSnapshot message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        SensorsSnapshot.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.temperatures != null && message.temperatures.length)
-                for (let i = 0; i < message.temperatures.length; ++i)
-                    $root.pb.SensorReading.encode(message.temperatures[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
-            if (message.fans != null && message.fans.length)
-                for (let i = 0; i < message.fans.length; ++i)
-                    writer.uint32(/* id 2, wireType 2 =*/18).string(message.fans[i]);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified SensorsSnapshot message, length delimited. Does not implicitly {@link pb.SensorsSnapshot.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.SensorsSnapshot
-         * @static
-         * @param {pb.ISensorsSnapshot} message SensorsSnapshot message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        SensorsSnapshot.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a SensorsSnapshot message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.SensorsSnapshot
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.SensorsSnapshot} SensorsSnapshot
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        SensorsSnapshot.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.SensorsSnapshot();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        if (!(message.temperatures && message.temperatures.length))
-                            message.temperatures = [];
-                        message.temperatures.push($root.pb.SensorReading.decode(reader, reader.uint32()));
-                        break;
-                    }
-                case 2: {
-                        if (!(message.fans && message.fans.length))
-                            message.fans = [];
-                        message.fans.push(reader.string());
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a SensorsSnapshot message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.SensorsSnapshot
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.SensorsSnapshot} SensorsSnapshot
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        SensorsSnapshot.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a SensorsSnapshot message.
-         * @function verify
-         * @memberof pb.SensorsSnapshot
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        SensorsSnapshot.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.temperatures != null && message.hasOwnProperty("temperatures")) {
-                if (!Array.isArray(message.temperatures))
-                    return "temperatures: array expected";
-                for (let i = 0; i < message.temperatures.length; ++i) {
-                    let error = $root.pb.SensorReading.verify(message.temperatures[i]);
-                    if (error)
-                        return "temperatures." + error;
-                }
-            }
-            if (message.fans != null && message.hasOwnProperty("fans")) {
-                if (!Array.isArray(message.fans))
-                    return "fans: array expected";
-                for (let i = 0; i < message.fans.length; ++i)
-                    if (!$util.isString(message.fans[i]))
-                        return "fans: string[] expected";
-            }
-            return null;
-        };
-
-        /**
-         * Creates a SensorsSnapshot message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.SensorsSnapshot
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.SensorsSnapshot} SensorsSnapshot
-         */
-        SensorsSnapshot.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.SensorsSnapshot)
-                return object;
-            let message = new $root.pb.SensorsSnapshot();
-            if (object.temperatures) {
-                if (!Array.isArray(object.temperatures))
-                    throw TypeError(".pb.SensorsSnapshot.temperatures: array expected");
-                message.temperatures = [];
-                for (let i = 0; i < object.temperatures.length; ++i) {
-                    if (typeof object.temperatures[i] !== "object")
-                        throw TypeError(".pb.SensorsSnapshot.temperatures: object expected");
-                    message.temperatures[i] = $root.pb.SensorReading.fromObject(object.temperatures[i]);
-                }
-            }
-            if (object.fans) {
-                if (!Array.isArray(object.fans))
-                    throw TypeError(".pb.SensorsSnapshot.fans: array expected");
-                message.fans = [];
-                for (let i = 0; i < object.fans.length; ++i)
-                    message.fans[i] = String(object.fans[i]);
-            }
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a SensorsSnapshot message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.SensorsSnapshot
-         * @static
-         * @param {pb.SensorsSnapshot} message SensorsSnapshot
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        SensorsSnapshot.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.arrays || options.defaults) {
-                object.temperatures = [];
-                object.fans = [];
-            }
-            if (message.temperatures && message.temperatures.length) {
-                object.temperatures = [];
-                for (let j = 0; j < message.temperatures.length; ++j)
-                    object.temperatures[j] = $root.pb.SensorReading.toObject(message.temperatures[j], options);
-            }
-            if (message.fans && message.fans.length) {
-                object.fans = [];
-                for (let j = 0; j < message.fans.length; ++j)
-                    object.fans[j] = message.fans[j];
-            }
-            return object;
-        };
-
-        /**
-         * Converts this SensorsSnapshot to JSON.
-         * @function toJSON
-         * @memberof pb.SensorsSnapshot
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        SensorsSnapshot.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for SensorsSnapshot
-         * @function getTypeUrl
-         * @memberof pb.SensorsSnapshot
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        SensorsSnapshot.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.SensorsSnapshot";
-        };
-
-        return SensorsSnapshot;
-    })();
-
-    pb.ShellSession = (function() {
-
-        /**
-         * Properties of a ShellSession.
-         * @memberof pb
-         * @interface IShellSession
-         * @property {string|null} [id] ShellSession id
-         * @property {string|null} [label] ShellSession label
-         * @property {number|null} [pid] ShellSession pid
-         * @property {boolean|null} [active] ShellSession active
-         * @property {number|Long|null} [createdAt] ShellSession createdAt
-         * @property {string|null} [cols] ShellSession cols
-         * @property {string|null} [rows] ShellSession rows
-         * @property {string|null} [cwd] ShellSession cwd
-         */
-
-        /**
-         * Constructs a new ShellSession.
-         * @memberof pb
-         * @classdesc Represents a ShellSession.
-         * @implements IShellSession
-         * @constructor
-         * @param {pb.IShellSession=} [properties] Properties to set
-         */
-        function ShellSession(properties) {
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * ShellSession id.
-         * @member {string} id
-         * @memberof pb.ShellSession
-         * @instance
-         */
-        ShellSession.prototype.id = "";
-
-        /**
-         * ShellSession label.
-         * @member {string} label
-         * @memberof pb.ShellSession
-         * @instance
-         */
-        ShellSession.prototype.label = "";
-
-        /**
-         * ShellSession pid.
-         * @member {number} pid
-         * @memberof pb.ShellSession
-         * @instance
-         */
-        ShellSession.prototype.pid = 0;
-
-        /**
-         * ShellSession active.
-         * @member {boolean} active
-         * @memberof pb.ShellSession
-         * @instance
-         */
-        ShellSession.prototype.active = false;
-
-        /**
-         * ShellSession createdAt.
-         * @member {number|Long} createdAt
-         * @memberof pb.ShellSession
-         * @instance
-         */
-        ShellSession.prototype.createdAt = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
-
-        /**
-         * ShellSession cols.
-         * @member {string} cols
-         * @memberof pb.ShellSession
-         * @instance
-         */
-        ShellSession.prototype.cols = "";
-
-        /**
-         * ShellSession rows.
-         * @member {string} rows
-         * @memberof pb.ShellSession
-         * @instance
-         */
-        ShellSession.prototype.rows = "";
-
-        /**
-         * ShellSession cwd.
-         * @member {string} cwd
-         * @memberof pb.ShellSession
-         * @instance
-         */
-        ShellSession.prototype.cwd = "";
-
-        /**
-         * Creates a new ShellSession instance using the specified properties.
-         * @function create
-         * @memberof pb.ShellSession
-         * @static
-         * @param {pb.IShellSession=} [properties] Properties to set
-         * @returns {pb.ShellSession} ShellSession instance
-         */
-        ShellSession.create = function create(properties) {
-            return new ShellSession(properties);
-        };
-
-        /**
-         * Encodes the specified ShellSession message. Does not implicitly {@link pb.ShellSession.verify|verify} messages.
-         * @function encode
-         * @memberof pb.ShellSession
-         * @static
-         * @param {pb.IShellSession} message ShellSession message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        ShellSession.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
-                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
-            if (message.label != null && Object.hasOwnProperty.call(message, "label"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.label);
-            if (message.pid != null && Object.hasOwnProperty.call(message, "pid"))
-                writer.uint32(/* id 3, wireType 0 =*/24).int32(message.pid);
-            if (message.active != null && Object.hasOwnProperty.call(message, "active"))
-                writer.uint32(/* id 4, wireType 0 =*/32).bool(message.active);
-            if (message.createdAt != null && Object.hasOwnProperty.call(message, "createdAt"))
-                writer.uint32(/* id 5, wireType 0 =*/40).int64(message.createdAt);
-            if (message.cols != null && Object.hasOwnProperty.call(message, "cols"))
-                writer.uint32(/* id 6, wireType 2 =*/50).string(message.cols);
-            if (message.rows != null && Object.hasOwnProperty.call(message, "rows"))
-                writer.uint32(/* id 7, wireType 2 =*/58).string(message.rows);
-            if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
-                writer.uint32(/* id 8, wireType 2 =*/66).string(message.cwd);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified ShellSession message, length delimited. Does not implicitly {@link pb.ShellSession.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.ShellSession
-         * @static
-         * @param {pb.IShellSession} message ShellSession message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        ShellSession.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a ShellSession message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.ShellSession
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.ShellSession} ShellSession
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        ShellSession.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ShellSession();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.id = reader.string();
-                        break;
-                    }
-                case 2: {
-                        message.label = reader.string();
-                        break;
-                    }
-                case 3: {
-                        message.pid = reader.int32();
-                        break;
-                    }
-                case 4: {
-                        message.active = reader.bool();
-                        break;
-                    }
-                case 5: {
-                        message.createdAt = reader.int64();
-                        break;
-                    }
-                case 6: {
-                        message.cols = reader.string();
-                        break;
-                    }
-                case 7: {
-                        message.rows = reader.string();
-                        break;
-                    }
-                case 8: {
-                        message.cwd = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a ShellSession message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.ShellSession
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.ShellSession} ShellSession
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        ShellSession.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a ShellSession message.
-         * @function verify
-         * @memberof pb.ShellSession
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        ShellSession.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.id != null && message.hasOwnProperty("id"))
-                if (!$util.isString(message.id))
-                    return "id: string expected";
-            if (message.label != null && message.hasOwnProperty("label"))
-                if (!$util.isString(message.label))
-                    return "label: string expected";
-            if (message.pid != null && message.hasOwnProperty("pid"))
-                if (!$util.isInteger(message.pid))
-                    return "pid: integer expected";
-            if (message.active != null && message.hasOwnProperty("active"))
-                if (typeof message.active !== "boolean")
-                    return "active: boolean expected";
-            if (message.createdAt != null && message.hasOwnProperty("createdAt"))
-                if (!$util.isInteger(message.createdAt) && !(message.createdAt && $util.isInteger(message.createdAt.low) && $util.isInteger(message.createdAt.high)))
-                    return "createdAt: integer|Long expected";
-            if (message.cols != null && message.hasOwnProperty("cols"))
-                if (!$util.isString(message.cols))
-                    return "cols: string expected";
-            if (message.rows != null && message.hasOwnProperty("rows"))
-                if (!$util.isString(message.rows))
-                    return "rows: string expected";
-            if (message.cwd != null && message.hasOwnProperty("cwd"))
-                if (!$util.isString(message.cwd))
-                    return "cwd: string expected";
-            return null;
-        };
-
-        /**
-         * Creates a ShellSession message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.ShellSession
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.ShellSession} ShellSession
-         */
-        ShellSession.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.ShellSession)
-                return object;
-            let message = new $root.pb.ShellSession();
-            if (object.id != null)
-                message.id = String(object.id);
-            if (object.label != null)
-                message.label = String(object.label);
-            if (object.pid != null)
-                message.pid = object.pid | 0;
-            if (object.active != null)
-                message.active = Boolean(object.active);
-            if (object.createdAt != null)
-                if ($util.Long)
-                    (message.createdAt = $util.Long.fromValue(object.createdAt)).unsigned = false;
-                else if (typeof object.createdAt === "string")
-                    message.createdAt = parseInt(object.createdAt, 10);
-                else if (typeof object.createdAt === "number")
-                    message.createdAt = object.createdAt;
-                else if (typeof object.createdAt === "object")
-                    message.createdAt = new $util.LongBits(object.createdAt.low >>> 0, object.createdAt.high >>> 0).toNumber();
-            if (object.cols != null)
-                message.cols = String(object.cols);
-            if (object.rows != null)
-                message.rows = String(object.rows);
-            if (object.cwd != null)
-                message.cwd = String(object.cwd);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a ShellSession message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.ShellSession
-         * @static
-         * @param {pb.ShellSession} message ShellSession
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        ShellSession.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.defaults) {
-                object.id = "";
-                object.label = "";
-                object.pid = 0;
-                object.active = false;
-                if ($util.Long) {
-                    let long = new $util.Long(0, 0, false);
-                    object.createdAt = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
-                } else
-                    object.createdAt = options.longs === String ? "0" : 0;
-                object.cols = "";
-                object.rows = "";
-                object.cwd = "";
-            }
-            if (message.id != null && message.hasOwnProperty("id"))
-                object.id = message.id;
-            if (message.label != null && message.hasOwnProperty("label"))
-                object.label = message.label;
-            if (message.pid != null && message.hasOwnProperty("pid"))
-                object.pid = message.pid;
-            if (message.active != null && message.hasOwnProperty("active"))
-                object.active = message.active;
-            if (message.createdAt != null && message.hasOwnProperty("createdAt"))
-                if (typeof message.createdAt === "number")
-                    object.createdAt = options.longs === String ? String(message.createdAt) : message.createdAt;
-                else
-                    object.createdAt = options.longs === String ? $util.Long.prototype.toString.call(message.createdAt) : options.longs === Number ? new $util.LongBits(message.createdAt.low >>> 0, message.createdAt.high >>> 0).toNumber() : message.createdAt;
-            if (message.cols != null && message.hasOwnProperty("cols"))
-                object.cols = message.cols;
-            if (message.rows != null && message.hasOwnProperty("rows"))
-                object.rows = message.rows;
-            if (message.cwd != null && message.hasOwnProperty("cwd"))
-                object.cwd = message.cwd;
-            return object;
-        };
-
-        /**
-         * Converts this ShellSession to JSON.
-         * @function toJSON
-         * @memberof pb.ShellSession
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        ShellSession.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for ShellSession
-         * @function getTypeUrl
-         * @memberof pb.ShellSession
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        ShellSession.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.ShellSession";
-        };
-
-        return ShellSession;
-    })();
-
-    pb.ShellSessionList = (function() {
-
-        /**
-         * Properties of a ShellSessionList.
-         * @memberof pb
-         * @interface IShellSessionList
-         * @property {Array.<pb.IShellSession>|null} [sessions] ShellSessionList sessions
-         */
-
-        /**
-         * Constructs a new ShellSessionList.
-         * @memberof pb
-         * @classdesc Represents a ShellSessionList.
-         * @implements IShellSessionList
-         * @constructor
-         * @param {pb.IShellSessionList=} [properties] Properties to set
-         */
-        function ShellSessionList(properties) {
-            this.sessions = [];
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * ShellSessionList sessions.
-         * @member {Array.<pb.IShellSession>} sessions
-         * @memberof pb.ShellSessionList
-         * @instance
-         */
-        ShellSessionList.prototype.sessions = $util.emptyArray;
-
-        /**
-         * Creates a new ShellSessionList instance using the specified properties.
-         * @function create
-         * @memberof pb.ShellSessionList
-         * @static
-         * @param {pb.IShellSessionList=} [properties] Properties to set
-         * @returns {pb.ShellSessionList} ShellSessionList instance
-         */
-        ShellSessionList.create = function create(properties) {
-            return new ShellSessionList(properties);
-        };
-
-        /**
-         * Encodes the specified ShellSessionList message. Does not implicitly {@link pb.ShellSessionList.verify|verify} messages.
-         * @function encode
-         * @memberof pb.ShellSessionList
-         * @static
-         * @param {pb.IShellSessionList} message ShellSessionList message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        ShellSessionList.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.sessions != null && message.sessions.length)
-                for (let i = 0; i < message.sessions.length; ++i)
-                    $root.pb.ShellSession.encode(message.sessions[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
-            return writer;
-        };
-
-        /**
-         * Encodes the specified ShellSessionList message, length delimited. Does not implicitly {@link pb.ShellSessionList.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.ShellSessionList
-         * @static
-         * @param {pb.IShellSessionList} message ShellSessionList message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        ShellSessionList.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a ShellSessionList message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.ShellSessionList
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.ShellSessionList} ShellSessionList
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        ShellSessionList.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ShellSessionList();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        if (!(message.sessions && message.sessions.length))
-                            message.sessions = [];
-                        message.sessions.push($root.pb.ShellSession.decode(reader, reader.uint32()));
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a ShellSessionList message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.ShellSessionList
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.ShellSessionList} ShellSessionList
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        ShellSessionList.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a ShellSessionList message.
-         * @function verify
-         * @memberof pb.ShellSessionList
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        ShellSessionList.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.sessions != null && message.hasOwnProperty("sessions")) {
-                if (!Array.isArray(message.sessions))
-                    return "sessions: array expected";
-                for (let i = 0; i < message.sessions.length; ++i) {
-                    let error = $root.pb.ShellSession.verify(message.sessions[i]);
-                    if (error)
-                        return "sessions." + error;
-                }
-            }
-            return null;
-        };
-
-        /**
-         * Creates a ShellSessionList message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.ShellSessionList
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.ShellSessionList} ShellSessionList
-         */
-        ShellSessionList.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.ShellSessionList)
-                return object;
-            let message = new $root.pb.ShellSessionList();
-            if (object.sessions) {
-                if (!Array.isArray(object.sessions))
-                    throw TypeError(".pb.ShellSessionList.sessions: array expected");
-                message.sessions = [];
-                for (let i = 0; i < object.sessions.length; ++i) {
-                    if (typeof object.sessions[i] !== "object")
-                        throw TypeError(".pb.ShellSessionList.sessions: object expected");
-                    message.sessions[i] = $root.pb.ShellSession.fromObject(object.sessions[i]);
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a ShellSessionList message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.ShellSessionList
-         * @static
-         * @param {pb.ShellSessionList} message ShellSessionList
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        ShellSessionList.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.arrays || options.defaults)
-                object.sessions = [];
-            if (message.sessions && message.sessions.length) {
-                object.sessions = [];
-                for (let j = 0; j < message.sessions.length; ++j)
-                    object.sessions[j] = $root.pb.ShellSession.toObject(message.sessions[j], options);
-            }
-            return object;
-        };
-
-        /**
-         * Converts this ShellSessionList to JSON.
-         * @function toJSON
-         * @memberof pb.ShellSessionList
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        ShellSessionList.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for ShellSessionList
-         * @function getTypeUrl
-         * @memberof pb.ShellSessionList
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        ShellSessionList.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.ShellSessionList";
-        };
-
-        return ShellSessionList;
-    })();
-
-    pb.ShellSessionCreateRequest = (function() {
-
-        /**
-         * Properties of a ShellSessionCreateRequest.
-         * @memberof pb
-         * @interface IShellSessionCreateRequest
-         * @property {string|null} [workdir] ShellSessionCreateRequest workdir
-         * @property {Array.<string>|null} [args] ShellSessionCreateRequest args
-         * @property {string|null} [label] ShellSessionCreateRequest label
-         */
-
-        /**
-         * Constructs a new ShellSessionCreateRequest.
-         * @memberof pb
-         * @classdesc Represents a ShellSessionCreateRequest.
-         * @implements IShellSessionCreateRequest
-         * @constructor
-         * @param {pb.IShellSessionCreateRequest=} [properties] Properties to set
-         */
-        function ShellSessionCreateRequest(properties) {
-            this.args = [];
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * ShellSessionCreateRequest workdir.
-         * @member {string} workdir
-         * @memberof pb.ShellSessionCreateRequest
-         * @instance
-         */
-        ShellSessionCreateRequest.prototype.workdir = "";
-
-        /**
-         * ShellSessionCreateRequest args.
-         * @member {Array.<string>} args
-         * @memberof pb.ShellSessionCreateRequest
-         * @instance
-         */
-        ShellSessionCreateRequest.prototype.args = $util.emptyArray;
-
-        /**
-         * ShellSessionCreateRequest label.
-         * @member {string} label
-         * @memberof pb.ShellSessionCreateRequest
-         * @instance
-         */
-        ShellSessionCreateRequest.prototype.label = "";
-
-        /**
-         * Creates a new ShellSessionCreateRequest instance using the specified properties.
-         * @function create
-         * @memberof pb.ShellSessionCreateRequest
-         * @static
-         * @param {pb.IShellSessionCreateRequest=} [properties] Properties to set
-         * @returns {pb.ShellSessionCreateRequest} ShellSessionCreateRequest instance
-         */
-        ShellSessionCreateRequest.create = function create(properties) {
-            return new ShellSessionCreateRequest(properties);
-        };
-
-        /**
-         * Encodes the specified ShellSessionCreateRequest message. Does not implicitly {@link pb.ShellSessionCreateRequest.verify|verify} messages.
-         * @function encode
-         * @memberof pb.ShellSessionCreateRequest
-         * @static
-         * @param {pb.IShellSessionCreateRequest} message ShellSessionCreateRequest message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        ShellSessionCreateRequest.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.workdir != null && Object.hasOwnProperty.call(message, "workdir"))
-                writer.uint32(/* id 1, wireType 2 =*/10).string(message.workdir);
-            if (message.args != null && message.args.length)
-                for (let i = 0; i < message.args.length; ++i)
-                    writer.uint32(/* id 2, wireType 2 =*/18).string(message.args[i]);
-            if (message.label != null && Object.hasOwnProperty.call(message, "label"))
-                writer.uint32(/* id 3, wireType 2 =*/26).string(message.label);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified ShellSessionCreateRequest message, length delimited. Does not implicitly {@link pb.ShellSessionCreateRequest.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.ShellSessionCreateRequest
-         * @static
-         * @param {pb.IShellSessionCreateRequest} message ShellSessionCreateRequest message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        ShellSessionCreateRequest.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a ShellSessionCreateRequest message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.ShellSessionCreateRequest
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.ShellSessionCreateRequest} ShellSessionCreateRequest
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        ShellSessionCreateRequest.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ShellSessionCreateRequest();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.workdir = reader.string();
-                        break;
-                    }
-                case 2: {
-                        if (!(message.args && message.args.length))
-                            message.args = [];
-                        message.args.push(reader.string());
-                        break;
-                    }
-                case 3: {
-                        message.label = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a ShellSessionCreateRequest message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.ShellSessionCreateRequest
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.ShellSessionCreateRequest} ShellSessionCreateRequest
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        ShellSessionCreateRequest.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a ShellSessionCreateRequest message.
-         * @function verify
-         * @memberof pb.ShellSessionCreateRequest
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        ShellSessionCreateRequest.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.workdir != null && message.hasOwnProperty("workdir"))
-                if (!$util.isString(message.workdir))
-                    return "workdir: string expected";
-            if (message.args != null && message.hasOwnProperty("args")) {
-                if (!Array.isArray(message.args))
-                    return "args: array expected";
-                for (let i = 0; i < message.args.length; ++i)
-                    if (!$util.isString(message.args[i]))
-                        return "args: string[] expected";
-            }
-            if (message.label != null && message.hasOwnProperty("label"))
-                if (!$util.isString(message.label))
-                    return "label: string expected";
-            return null;
-        };
-
-        /**
-         * Creates a ShellSessionCreateRequest message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.ShellSessionCreateRequest
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.ShellSessionCreateRequest} ShellSessionCreateRequest
-         */
-        ShellSessionCreateRequest.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.ShellSessionCreateRequest)
-                return object;
-            let message = new $root.pb.ShellSessionCreateRequest();
-            if (object.workdir != null)
-                message.workdir = String(object.workdir);
-            if (object.args) {
-                if (!Array.isArray(object.args))
-                    throw TypeError(".pb.ShellSessionCreateRequest.args: array expected");
-                message.args = [];
-                for (let i = 0; i < object.args.length; ++i)
-                    message.args[i] = String(object.args[i]);
-            }
-            if (object.label != null)
-                message.label = String(object.label);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a ShellSessionCreateRequest message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.ShellSessionCreateRequest
-         * @static
-         * @param {pb.ShellSessionCreateRequest} message ShellSessionCreateRequest
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        ShellSessionCreateRequest.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.arrays || options.defaults)
-                object.args = [];
-            if (options.defaults) {
-                object.workdir = "";
-                object.label = "";
-            }
-            if (message.workdir != null && message.hasOwnProperty("workdir"))
-                object.workdir = message.workdir;
-            if (message.args && message.args.length) {
-                object.args = [];
-                for (let j = 0; j < message.args.length; ++j)
-                    object.args[j] = message.args[j];
-            }
-            if (message.label != null && message.hasOwnProperty("label"))
-                object.label = message.label;
-            return object;
-        };
-
-        /**
-         * Converts this ShellSessionCreateRequest to JSON.
-         * @function toJSON
-         * @memberof pb.ShellSessionCreateRequest
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        ShellSessionCreateRequest.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for ShellSessionCreateRequest
-         * @function getTypeUrl
-         * @memberof pb.ShellSessionCreateRequest
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        ShellSessionCreateRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.ShellSessionCreateRequest";
-        };
-
-        return ShellSessionCreateRequest;
-    })();
-
-    pb.CapturedEventRecord = (function() {
-
-        /**
-         * Properties of a CapturedEventRecord.
-         * @memberof pb
-         * @interface ICapturedEventRecord
-         * @property {pb.IEvent|null} [event] CapturedEventRecord event
-         * @property {number|Long|null} [timestamp] CapturedEventRecord timestamp
-         * @property {pb.IEventEnvelope|null} [envelope] CapturedEventRecord envelope
-         */
-
-        /**
-         * Constructs a new CapturedEventRecord.
-         * @memberof pb
-         * @classdesc Represents a CapturedEventRecord.
-         * @implements ICapturedEventRecord
-         * @constructor
-         * @param {pb.ICapturedEventRecord=} [properties] Properties to set
-         */
-        function CapturedEventRecord(properties) {
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * CapturedEventRecord event.
-         * @member {pb.IEvent|null|undefined} event
-         * @memberof pb.CapturedEventRecord
-         * @instance
-         */
-        CapturedEventRecord.prototype.event = null;
-
-        /**
-         * CapturedEventRecord timestamp.
-         * @member {number|Long} timestamp
-         * @memberof pb.CapturedEventRecord
-         * @instance
-         */
-        CapturedEventRecord.prototype.timestamp = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
-
-        /**
-         * CapturedEventRecord envelope.
-         * @member {pb.IEventEnvelope|null|undefined} envelope
-         * @memberof pb.CapturedEventRecord
-         * @instance
-         */
-        CapturedEventRecord.prototype.envelope = null;
-
-        /**
-         * Creates a new CapturedEventRecord instance using the specified properties.
-         * @function create
-         * @memberof pb.CapturedEventRecord
-         * @static
-         * @param {pb.ICapturedEventRecord=} [properties] Properties to set
-         * @returns {pb.CapturedEventRecord} CapturedEventRecord instance
-         */
-        CapturedEventRecord.create = function create(properties) {
-            return new CapturedEventRecord(properties);
-        };
-
-        /**
-         * Encodes the specified CapturedEventRecord message. Does not implicitly {@link pb.CapturedEventRecord.verify|verify} messages.
-         * @function encode
-         * @memberof pb.CapturedEventRecord
-         * @static
-         * @param {pb.ICapturedEventRecord} message CapturedEventRecord message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        CapturedEventRecord.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.event != null && Object.hasOwnProperty.call(message, "event"))
-                $root.pb.Event.encode(message.event, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
-            if (message.timestamp != null && Object.hasOwnProperty.call(message, "timestamp"))
-                writer.uint32(/* id 2, wireType 0 =*/16).int64(message.timestamp);
-            if (message.envelope != null && Object.hasOwnProperty.call(message, "envelope"))
-                $root.pb.EventEnvelope.encode(message.envelope, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
-            return writer;
-        };
-
-        /**
-         * Encodes the specified CapturedEventRecord message, length delimited. Does not implicitly {@link pb.CapturedEventRecord.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.CapturedEventRecord
-         * @static
-         * @param {pb.ICapturedEventRecord} message CapturedEventRecord message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        CapturedEventRecord.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a CapturedEventRecord message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.CapturedEventRecord
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.CapturedEventRecord} CapturedEventRecord
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        CapturedEventRecord.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.CapturedEventRecord();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.event = $root.pb.Event.decode(reader, reader.uint32());
-                        break;
-                    }
-                case 2: {
-                        message.timestamp = reader.int64();
-                        break;
-                    }
-                case 3: {
-                        message.envelope = $root.pb.EventEnvelope.decode(reader, reader.uint32());
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a CapturedEventRecord message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.CapturedEventRecord
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.CapturedEventRecord} CapturedEventRecord
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        CapturedEventRecord.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a CapturedEventRecord message.
-         * @function verify
-         * @memberof pb.CapturedEventRecord
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        CapturedEventRecord.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.event != null && message.hasOwnProperty("event")) {
-                let error = $root.pb.Event.verify(message.event);
-                if (error)
-                    return "event." + error;
-            }
-            if (message.timestamp != null && message.hasOwnProperty("timestamp"))
-                if (!$util.isInteger(message.timestamp) && !(message.timestamp && $util.isInteger(message.timestamp.low) && $util.isInteger(message.timestamp.high)))
-                    return "timestamp: integer|Long expected";
-            if (message.envelope != null && message.hasOwnProperty("envelope")) {
-                let error = $root.pb.EventEnvelope.verify(message.envelope);
-                if (error)
-                    return "envelope." + error;
-            }
-            return null;
-        };
-
-        /**
-         * Creates a CapturedEventRecord message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.CapturedEventRecord
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.CapturedEventRecord} CapturedEventRecord
-         */
-        CapturedEventRecord.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.CapturedEventRecord)
-                return object;
-            let message = new $root.pb.CapturedEventRecord();
-            if (object.event != null) {
-                if (typeof object.event !== "object")
-                    throw TypeError(".pb.CapturedEventRecord.event: object expected");
-                message.event = $root.pb.Event.fromObject(object.event);
-            }
-            if (object.timestamp != null)
-                if ($util.Long)
-                    (message.timestamp = $util.Long.fromValue(object.timestamp)).unsigned = false;
-                else if (typeof object.timestamp === "string")
-                    message.timestamp = parseInt(object.timestamp, 10);
-                else if (typeof object.timestamp === "number")
-                    message.timestamp = object.timestamp;
-                else if (typeof object.timestamp === "object")
-                    message.timestamp = new $util.LongBits(object.timestamp.low >>> 0, object.timestamp.high >>> 0).toNumber();
-            if (object.envelope != null) {
-                if (typeof object.envelope !== "object")
-                    throw TypeError(".pb.CapturedEventRecord.envelope: object expected");
-                message.envelope = $root.pb.EventEnvelope.fromObject(object.envelope);
-            }
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a CapturedEventRecord message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.CapturedEventRecord
-         * @static
-         * @param {pb.CapturedEventRecord} message CapturedEventRecord
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        CapturedEventRecord.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.defaults) {
-                object.event = null;
-                if ($util.Long) {
-                    let long = new $util.Long(0, 0, false);
-                    object.timestamp = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
-                } else
-                    object.timestamp = options.longs === String ? "0" : 0;
-                object.envelope = null;
-            }
-            if (message.event != null && message.hasOwnProperty("event"))
-                object.event = $root.pb.Event.toObject(message.event, options);
-            if (message.timestamp != null && message.hasOwnProperty("timestamp"))
-                if (typeof message.timestamp === "number")
-                    object.timestamp = options.longs === String ? String(message.timestamp) : message.timestamp;
-                else
-                    object.timestamp = options.longs === String ? $util.Long.prototype.toString.call(message.timestamp) : options.longs === Number ? new $util.LongBits(message.timestamp.low >>> 0, message.timestamp.high >>> 0).toNumber() : message.timestamp;
-            if (message.envelope != null && message.hasOwnProperty("envelope"))
-                object.envelope = $root.pb.EventEnvelope.toObject(message.envelope, options);
-            return object;
-        };
-
-        /**
-         * Converts this CapturedEventRecord to JSON.
-         * @function toJSON
-         * @memberof pb.CapturedEventRecord
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        CapturedEventRecord.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for CapturedEventRecord
-         * @function getTypeUrl
-         * @memberof pb.CapturedEventRecord
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        CapturedEventRecord.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.CapturedEventRecord";
-        };
-
-        return CapturedEventRecord;
-    })();
-
-    pb.EventHistoryResponse = (function() {
-
-        /**
-         * Properties of an EventHistoryResponse.
-         * @memberof pb
-         * @interface IEventHistoryResponse
-         * @property {Array.<pb.ICapturedEventRecord>|null} [events] EventHistoryResponse events
-         * @property {string|null} [source] EventHistoryResponse source
-         */
-
-        /**
-         * Constructs a new EventHistoryResponse.
-         * @memberof pb
-         * @classdesc Represents an EventHistoryResponse.
-         * @implements IEventHistoryResponse
-         * @constructor
-         * @param {pb.IEventHistoryResponse=} [properties] Properties to set
-         */
-        function EventHistoryResponse(properties) {
-            this.events = [];
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * EventHistoryResponse events.
-         * @member {Array.<pb.ICapturedEventRecord>} events
-         * @memberof pb.EventHistoryResponse
-         * @instance
-         */
-        EventHistoryResponse.prototype.events = $util.emptyArray;
-
-        /**
-         * EventHistoryResponse source.
-         * @member {string} source
-         * @memberof pb.EventHistoryResponse
-         * @instance
-         */
-        EventHistoryResponse.prototype.source = "";
-
-        /**
-         * Creates a new EventHistoryResponse instance using the specified properties.
-         * @function create
-         * @memberof pb.EventHistoryResponse
-         * @static
-         * @param {pb.IEventHistoryResponse=} [properties] Properties to set
-         * @returns {pb.EventHistoryResponse} EventHistoryResponse instance
-         */
-        EventHistoryResponse.create = function create(properties) {
-            return new EventHistoryResponse(properties);
-        };
-
-        /**
-         * Encodes the specified EventHistoryResponse message. Does not implicitly {@link pb.EventHistoryResponse.verify|verify} messages.
-         * @function encode
-         * @memberof pb.EventHistoryResponse
-         * @static
-         * @param {pb.IEventHistoryResponse} message EventHistoryResponse message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        EventHistoryResponse.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.events != null && message.events.length)
-                for (let i = 0; i < message.events.length; ++i)
-                    $root.pb.CapturedEventRecord.encode(message.events[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
-            if (message.source != null && Object.hasOwnProperty.call(message, "source"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.source);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified EventHistoryResponse message, length delimited. Does not implicitly {@link pb.EventHistoryResponse.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.EventHistoryResponse
-         * @static
-         * @param {pb.IEventHistoryResponse} message EventHistoryResponse message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        EventHistoryResponse.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes an EventHistoryResponse message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.EventHistoryResponse
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.EventHistoryResponse} EventHistoryResponse
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        EventHistoryResponse.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.EventHistoryResponse();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        if (!(message.events && message.events.length))
-                            message.events = [];
-                        message.events.push($root.pb.CapturedEventRecord.decode(reader, reader.uint32()));
-                        break;
-                    }
-                case 2: {
-                        message.source = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes an EventHistoryResponse message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.EventHistoryResponse
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.EventHistoryResponse} EventHistoryResponse
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        EventHistoryResponse.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies an EventHistoryResponse message.
-         * @function verify
-         * @memberof pb.EventHistoryResponse
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        EventHistoryResponse.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.events != null && message.hasOwnProperty("events")) {
-                if (!Array.isArray(message.events))
-                    return "events: array expected";
-                for (let i = 0; i < message.events.length; ++i) {
-                    let error = $root.pb.CapturedEventRecord.verify(message.events[i]);
-                    if (error)
-                        return "events." + error;
-                }
-            }
-            if (message.source != null && message.hasOwnProperty("source"))
-                if (!$util.isString(message.source))
-                    return "source: string expected";
-            return null;
-        };
-
-        /**
-         * Creates an EventHistoryResponse message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.EventHistoryResponse
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.EventHistoryResponse} EventHistoryResponse
-         */
-        EventHistoryResponse.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.EventHistoryResponse)
-                return object;
-            let message = new $root.pb.EventHistoryResponse();
-            if (object.events) {
-                if (!Array.isArray(object.events))
-                    throw TypeError(".pb.EventHistoryResponse.events: array expected");
-                message.events = [];
-                for (let i = 0; i < object.events.length; ++i) {
-                    if (typeof object.events[i] !== "object")
-                        throw TypeError(".pb.EventHistoryResponse.events: object expected");
-                    message.events[i] = $root.pb.CapturedEventRecord.fromObject(object.events[i]);
-                }
-            }
-            if (object.source != null)
-                message.source = String(object.source);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from an EventHistoryResponse message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.EventHistoryResponse
-         * @static
-         * @param {pb.EventHistoryResponse} message EventHistoryResponse
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        EventHistoryResponse.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.arrays || options.defaults)
-                object.events = [];
-            if (options.defaults)
-                object.source = "";
-            if (message.events && message.events.length) {
-                object.events = [];
-                for (let j = 0; j < message.events.length; ++j)
-                    object.events[j] = $root.pb.CapturedEventRecord.toObject(message.events[j], options);
-            }
-            if (message.source != null && message.hasOwnProperty("source"))
-                object.source = message.source;
-            return object;
-        };
-
-        /**
-         * Converts this EventHistoryResponse to JSON.
-         * @function toJSON
-         * @memberof pb.EventHistoryResponse
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        EventHistoryResponse.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for EventHistoryResponse
-         * @function getTypeUrl
-         * @memberof pb.EventHistoryResponse
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        EventHistoryResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.EventHistoryResponse";
-        };
-
-        return EventHistoryResponse;
-    })();
-
-    pb.ConfigKeyRequest = (function() {
-
-        /**
-         * Properties of a ConfigKeyRequest.
-         * @memberof pb
-         * @interface IConfigKeyRequest
-         * @property {string|null} [key] ConfigKeyRequest key
-         * @property {string|null} [name] ConfigKeyRequest name
-         */
-
-        /**
-         * Constructs a new ConfigKeyRequest.
-         * @memberof pb
-         * @classdesc Represents a ConfigKeyRequest.
-         * @implements IConfigKeyRequest
-         * @constructor
-         * @param {pb.IConfigKeyRequest=} [properties] Properties to set
-         */
-        function ConfigKeyRequest(properties) {
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * ConfigKeyRequest key.
-         * @member {string} key
-         * @memberof pb.ConfigKeyRequest
-         * @instance
-         */
-        ConfigKeyRequest.prototype.key = "";
-
-        /**
-         * ConfigKeyRequest name.
-         * @member {string} name
-         * @memberof pb.ConfigKeyRequest
-         * @instance
-         */
-        ConfigKeyRequest.prototype.name = "";
-
-        /**
-         * Creates a new ConfigKeyRequest instance using the specified properties.
-         * @function create
-         * @memberof pb.ConfigKeyRequest
-         * @static
-         * @param {pb.IConfigKeyRequest=} [properties] Properties to set
-         * @returns {pb.ConfigKeyRequest} ConfigKeyRequest instance
-         */
-        ConfigKeyRequest.create = function create(properties) {
-            return new ConfigKeyRequest(properties);
-        };
-
-        /**
-         * Encodes the specified ConfigKeyRequest message. Does not implicitly {@link pb.ConfigKeyRequest.verify|verify} messages.
-         * @function encode
-         * @memberof pb.ConfigKeyRequest
-         * @static
-         * @param {pb.IConfigKeyRequest} message ConfigKeyRequest message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        ConfigKeyRequest.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.key != null && Object.hasOwnProperty.call(message, "key"))
-                writer.uint32(/* id 1, wireType 2 =*/10).string(message.key);
-            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.name);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified ConfigKeyRequest message, length delimited. Does not implicitly {@link pb.ConfigKeyRequest.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.ConfigKeyRequest
-         * @static
-         * @param {pb.IConfigKeyRequest} message ConfigKeyRequest message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        ConfigKeyRequest.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a ConfigKeyRequest message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.ConfigKeyRequest
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.ConfigKeyRequest} ConfigKeyRequest
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        ConfigKeyRequest.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ConfigKeyRequest();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.key = reader.string();
-                        break;
-                    }
-                case 2: {
-                        message.name = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a ConfigKeyRequest message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.ConfigKeyRequest
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.ConfigKeyRequest} ConfigKeyRequest
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        ConfigKeyRequest.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a ConfigKeyRequest message.
-         * @function verify
-         * @memberof pb.ConfigKeyRequest
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        ConfigKeyRequest.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.key != null && message.hasOwnProperty("key"))
-                if (!$util.isString(message.key))
-                    return "key: string expected";
-            if (message.name != null && message.hasOwnProperty("name"))
-                if (!$util.isString(message.name))
-                    return "name: string expected";
-            return null;
-        };
-
-        /**
-         * Creates a ConfigKeyRequest message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.ConfigKeyRequest
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.ConfigKeyRequest} ConfigKeyRequest
-         */
-        ConfigKeyRequest.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.ConfigKeyRequest)
-                return object;
-            let message = new $root.pb.ConfigKeyRequest();
-            if (object.key != null)
-                message.key = String(object.key);
-            if (object.name != null)
-                message.name = String(object.name);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a ConfigKeyRequest message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.ConfigKeyRequest
-         * @static
-         * @param {pb.ConfigKeyRequest} message ConfigKeyRequest
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        ConfigKeyRequest.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.defaults) {
-                object.key = "";
-                object.name = "";
-            }
-            if (message.key != null && message.hasOwnProperty("key"))
-                object.key = message.key;
-            if (message.name != null && message.hasOwnProperty("name"))
-                object.name = message.name;
-            return object;
-        };
-
-        /**
-         * Converts this ConfigKeyRequest to JSON.
-         * @function toJSON
-         * @memberof pb.ConfigKeyRequest
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        ConfigKeyRequest.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for ConfigKeyRequest
-         * @function getTypeUrl
-         * @memberof pb.ConfigKeyRequest
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        ConfigKeyRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.ConfigKeyRequest";
-        };
-
-        return ConfigKeyRequest;
-    })();
-
-    pb.ConfigBoolResponse = (function() {
-
-        /**
-         * Properties of a ConfigBoolResponse.
-         * @memberof pb
-         * @interface IConfigBoolResponse
-         * @property {boolean|null} [value] ConfigBoolResponse value
-         * @property {string|null} [message] ConfigBoolResponse message
-         */
-
-        /**
-         * Constructs a new ConfigBoolResponse.
-         * @memberof pb
-         * @classdesc Represents a ConfigBoolResponse.
-         * @implements IConfigBoolResponse
-         * @constructor
-         * @param {pb.IConfigBoolResponse=} [properties] Properties to set
-         */
-        function ConfigBoolResponse(properties) {
-            if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
-                        this[keys[i]] = properties[keys[i]];
-        }
-
-        /**
-         * ConfigBoolResponse value.
-         * @member {boolean} value
-         * @memberof pb.ConfigBoolResponse
-         * @instance
-         */
-        ConfigBoolResponse.prototype.value = false;
-
-        /**
-         * ConfigBoolResponse message.
-         * @member {string} message
-         * @memberof pb.ConfigBoolResponse
-         * @instance
-         */
-        ConfigBoolResponse.prototype.message = "";
-
-        /**
-         * Creates a new ConfigBoolResponse instance using the specified properties.
-         * @function create
-         * @memberof pb.ConfigBoolResponse
-         * @static
-         * @param {pb.IConfigBoolResponse=} [properties] Properties to set
-         * @returns {pb.ConfigBoolResponse} ConfigBoolResponse instance
-         */
-        ConfigBoolResponse.create = function create(properties) {
-            return new ConfigBoolResponse(properties);
-        };
-
-        /**
-         * Encodes the specified ConfigBoolResponse message. Does not implicitly {@link pb.ConfigBoolResponse.verify|verify} messages.
-         * @function encode
-         * @memberof pb.ConfigBoolResponse
-         * @static
-         * @param {pb.IConfigBoolResponse} message ConfigBoolResponse message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        ConfigBoolResponse.encode = function encode(message, writer) {
-            if (!writer)
-                writer = $Writer.create();
-            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
-                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.value);
-            if (message.message != null && Object.hasOwnProperty.call(message, "message"))
-                writer.uint32(/* id 2, wireType 2 =*/18).string(message.message);
-            return writer;
-        };
-
-        /**
-         * Encodes the specified ConfigBoolResponse message, length delimited. Does not implicitly {@link pb.ConfigBoolResponse.verify|verify} messages.
-         * @function encodeDelimited
-         * @memberof pb.ConfigBoolResponse
-         * @static
-         * @param {pb.IConfigBoolResponse} message ConfigBoolResponse message or plain object to encode
-         * @param {$protobuf.Writer} [writer] Writer to encode to
-         * @returns {$protobuf.Writer} Writer
-         */
-        ConfigBoolResponse.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
-        };
-
-        /**
-         * Decodes a ConfigBoolResponse message from the specified reader or buffer.
-         * @function decode
-         * @memberof pb.ConfigBoolResponse
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @param {number} [length] Message length if known beforehand
-         * @returns {pb.ConfigBoolResponse} ConfigBoolResponse
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        ConfigBoolResponse.decode = function decode(reader, length, error) {
-            if (!(reader instanceof $Reader))
-                reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ConfigBoolResponse();
-            while (reader.pos < end) {
-                let tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.value = reader.bool();
-                        break;
-                    }
-                case 2: {
-                        message.message = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-                }
-            }
-            return message;
-        };
-
-        /**
-         * Decodes a ConfigBoolResponse message from the specified reader or buffer, length delimited.
-         * @function decodeDelimited
-         * @memberof pb.ConfigBoolResponse
-         * @static
-         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.ConfigBoolResponse} ConfigBoolResponse
-         * @throws {Error} If the payload is not a reader or valid buffer
-         * @throws {$protobuf.util.ProtocolError} If required fields are missing
-         */
-        ConfigBoolResponse.decodeDelimited = function decodeDelimited(reader) {
-            if (!(reader instanceof $Reader))
-                reader = new $Reader(reader);
-            return this.decode(reader, reader.uint32());
-        };
-
-        /**
-         * Verifies a ConfigBoolResponse message.
-         * @function verify
-         * @memberof pb.ConfigBoolResponse
-         * @static
-         * @param {Object.<string,*>} message Plain object to verify
-         * @returns {string|null} `null` if valid, otherwise the reason why it is not
-         */
-        ConfigBoolResponse.verify = function verify(message) {
-            if (typeof message !== "object" || message === null)
-                return "object expected";
-            if (message.value != null && message.hasOwnProperty("value"))
-                if (typeof message.value !== "boolean")
-                    return "value: boolean expected";
-            if (message.message != null && message.hasOwnProperty("message"))
-                if (!$util.isString(message.message))
-                    return "message: string expected";
-            return null;
-        };
-
-        /**
-         * Creates a ConfigBoolResponse message from a plain object. Also converts values to their respective internal types.
-         * @function fromObject
-         * @memberof pb.ConfigBoolResponse
-         * @static
-         * @param {Object.<string,*>} object Plain object
-         * @returns {pb.ConfigBoolResponse} ConfigBoolResponse
-         */
-        ConfigBoolResponse.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.ConfigBoolResponse)
-                return object;
-            let message = new $root.pb.ConfigBoolResponse();
-            if (object.value != null)
-                message.value = Boolean(object.value);
-            if (object.message != null)
-                message.message = String(object.message);
-            return message;
-        };
-
-        /**
-         * Creates a plain object from a ConfigBoolResponse message. Also converts values to other types if specified.
-         * @function toObject
-         * @memberof pb.ConfigBoolResponse
-         * @static
-         * @param {pb.ConfigBoolResponse} message ConfigBoolResponse
-         * @param {$protobuf.IConversionOptions} [options] Conversion options
-         * @returns {Object.<string,*>} Plain object
-         */
-        ConfigBoolResponse.toObject = function toObject(message, options) {
-            if (!options)
-                options = {};
-            let object = {};
-            if (options.defaults) {
-                object.value = false;
-                object.message = "";
-            }
-            if (message.value != null && message.hasOwnProperty("value"))
-                object.value = message.value;
-            if (message.message != null && message.hasOwnProperty("message"))
-                object.message = message.message;
-            return object;
-        };
-
-        /**
-         * Converts this ConfigBoolResponse to JSON.
-         * @function toJSON
-         * @memberof pb.ConfigBoolResponse
-         * @instance
-         * @returns {Object.<string,*>} JSON object
-         */
-        ConfigBoolResponse.prototype.toJSON = function toJSON() {
-            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for ConfigBoolResponse
-         * @function getTypeUrl
-         * @memberof pb.ConfigBoolResponse
-         * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
-         */
-        ConfigBoolResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/pb.ConfigBoolResponse";
-        };
-
-        return ConfigBoolResponse;
     })();
 
     return pb;

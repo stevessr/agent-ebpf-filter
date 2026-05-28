@@ -3,16 +3,17 @@ package main
 import (
 	"bytes"
 
+	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
 	"github.com/gin-gonic/gin"
 )
 
 func handleConfigExportGet(c *gin.Context) {
 	runtimeSnapshot := runtimeSettingsStore.Snapshot()
-	cfg := ExportConfig{
+	cfg := core.ExportConfig{
 		Comms:   make(map[string]string),
 		Paths:   make(map[string]string),
-		Rules:   make(map[string]WrapperRule),
+		Rules:   make(map[string]core.WrapperRule),
 		Runtime: &runtimeSnapshot,
 	}
 	tagsMu.RLock()
@@ -73,7 +74,7 @@ func handleConfigExportGet(c *gin.Context) {
 }
 
 func handleConfigImportPost(c *gin.Context) {
-	var cfg ExportConfig
+	var cfg core.ExportConfig
 	if err := c.ShouldBindJSON(&cfg); err != nil {
 		c.JSON(400, gin.H{"error": "invalid import data"})
 		return
@@ -101,7 +102,7 @@ func handleConfigImportPost(c *gin.Context) {
 		_ = trackerMaps.TrackedPaths.Put(k, getTagID(tag))
 	}
 	rulesMu.Lock()
-	wrapperRules = make(map[string]WrapperRule, len(cfg.Rules))
+	wrapperRules = make(map[string]core.WrapperRule, len(cfg.Rules))
 	for comm, rule := range cfg.Rules {
 		wrapperRules[comm] = rule
 	}

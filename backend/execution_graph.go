@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"agent-ebpf-filter/pb"
 	"github.com/gin-gonic/gin"
 )
 

@@ -3,9 +3,7 @@ package main
 import (
 	"crypto/subtle"
 	"fmt"
-	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"os"
 	"sort"
 	"strings"

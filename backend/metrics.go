@@ -71,7 +71,7 @@ func getGPUMetrics() (map[int32]gpuInfo, []*pb.GPUStatus) {
 			procs, ret := device.GetComputeRunningProcesses()
 			if ret == nvml.SUCCESS {
 				for _, p := range procs {
-					procMap[int32(p.Pid)] = gpuInfo{mem: uint32(p.UsedGpuMemory / 1024 / 1024), gpu: uint32(i), util: 0}
+					procMap[int32(p.Pid)] = gpuInfo{Mem: uint32(p.UsedGpuMemory / 1024 / 1024), GPU: uint32(i), Util: 0}
 				}
 			}
 		}
@@ -104,13 +104,13 @@ func readVMFaultCounters() (vmFaultCounters, error) {
 
 		switch fields[0] {
 		case "pgfault":
-			counters.pageFaults = val
+			counters.PageFaults = val
 		case "pgmajfault":
-			counters.majorFaults = val
+			counters.MajorFaults = val
 		case "pswpin":
-			counters.swapIn = val
+			counters.SwapIn = val
 		case "pswpout":
-			counters.swapOut = val
+			counters.SwapOut = val
 		}
 	}
 
@@ -213,11 +213,11 @@ func scanFdinfo(procMap map[int32]gpuInfo, globalStats *[]*pb.GPUStatus) {
 
 			cur := procMap[p]
 			if !seenClients[ckey] {
-				cur.mem += uint32(memKb / 1024)
+				cur.Mem += uint32(memKb / 1024)
 				seenClients[ckey] = true
 			}
-			if util > cur.util {
-				cur.util = util
+			if util > cur.Util {
+				cur.Util = util
 			}
 			procMap[p] = cur
 
@@ -229,7 +229,7 @@ func scanFdinfo(procMap map[int32]gpuInfo, globalStats *[]*pb.GPUStatus) {
 					if gs.UtilGpu > 100 {
 						gs.UtilGpu = 100
 					}
-					gs.MemUsed = cur.mem // This is tricky. Let's just track drivers.
+					gs.MemUsed = cur.Mem // This is tricky. Let's just track drivers.
 					found = true
 					break
 				}

@@ -9,7 +9,6 @@ import (
 	"agent-ebpf-filter/core"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/cilium/ebpf"
 )
 
 // ── Type aliases to core package ─────────────────────────────────────────────

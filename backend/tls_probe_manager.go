@@ -259,7 +259,7 @@ func (m *TLSProbeManager) ReadLoop() error {
 			continue
 		}
 		event := agentSightHTTPAnalyzer.Analyze(*completed)
-		dispatchTLSAgentEvent(&event, tlsAgentLoopDetector, tlsAgentBridge)
+		dispatchTLSAgentEvent(&event, tlsAgentLoopDetector, broadcast)
 		store.Add(event)
 		broadcaster.Broadcast(event)
 	}

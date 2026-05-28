@@ -1,14 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/pelletier/go-toml/v2"
 )
 
 // ── Kiro-specific hook functions ──────────────────────────────────────

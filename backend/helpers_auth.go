@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"agent-ebpf-filter/core"
 	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/proto"
 )
@@ -58,7 +59,7 @@ func hookIngressAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-func runtimeToggleMiddleware(featureName string, enabled func(RuntimeSettings) bool) gin.HandlerFunc {
+func runtimeToggleMiddleware(featureName string, enabled func(core.RuntimeSettings) bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if enabled(runtimeSettingsStore.Snapshot()) {
 			c.Next()
@@ -72,25 +73,25 @@ func runtimeToggleMiddleware(featureName string, enabled func(RuntimeSettings) b
 }
 
 func shellSessionsEnabledMiddleware() gin.HandlerFunc {
-	return runtimeToggleMiddleware("shell_sessions", func(settings RuntimeSettings) bool {
+	return runtimeToggleMiddleware("shell_sessions", func(settings core.RuntimeSettings) bool {
 		return settings.ShellSessionsEnabled
 	})
 }
 
 func systemRunEnabledMiddleware() gin.HandlerFunc {
-	return runtimeToggleMiddleware("system_run", func(settings RuntimeSettings) bool {
+	return runtimeToggleMiddleware("system_run", func(settings core.RuntimeSettings) bool {
 		return settings.SystemRunEnabled
 	})
 }
 
 func hookManagementEnabledMiddleware() gin.HandlerFunc {
-	return runtimeToggleMiddleware("hook_management", func(settings RuntimeSettings) bool {
+	return runtimeToggleMiddleware("hook_management", func(settings core.RuntimeSettings) bool {
 		return settings.HookManagementEnabled
 	})
 }
 
 func policyManagementEnabledMiddleware() gin.HandlerFunc {
-	return runtimeToggleMiddleware("policy_management", func(settings RuntimeSettings) bool {
+	return runtimeToggleMiddleware("policy_management", func(settings core.RuntimeSettings) bool {
 		return settings.PolicyManagementEnabled
 	})
 }
@@ -111,7 +112,7 @@ func requestAuthToken(c *gin.Context) string {
 	return ""
 }
 
-func buildRuntimeConfigResponseFromSettings(settings RuntimeSettings) RuntimeConfigResponse {
+func buildRuntimeConfigResponseFromSettings(settings core.RuntimeSettings) core.RuntimeConfigResponse {
 	logPath := strings.TrimSpace(settings.LogFilePath)
 	logAlive := false
 	if settings.LogPersistenceEnabled && logPath != "" {
@@ -131,7 +132,7 @@ func buildRuntimeConfigResponseFromSettings(settings RuntimeSettings) RuntimeCon
 		}
 		settings.OtlpHeaders = cloned
 	}
-	return RuntimeConfigResponse{
+	return core.RuntimeConfigResponse{
 		Runtime:                settings,
 		MCPEndpoint:            fmt.Sprintf("http://127.0.0.1:%d/mcp", resolveBackendPort()),
 		AuthHeaderName:         "X-API-KEY",
@@ -141,7 +142,7 @@ func buildRuntimeConfigResponseFromSettings(settings RuntimeSettings) RuntimeCon
 	}
 }
 
-func buildRuntimeConfigResponse() RuntimeConfigResponse {
+func buildRuntimeConfigResponse() core.RuntimeConfigResponse {
 	return buildRuntimeConfigResponseFromSettings(runtimeSettingsStore.Snapshot())
 }
 

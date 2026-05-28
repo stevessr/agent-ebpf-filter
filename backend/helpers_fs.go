@@ -15,8 +15,6 @@ import (
 	"strings"
 	"sync"
 	"unicode/utf8"
-
-	"github.com/gin-gonic/gin"
 )
 
 const hookMarker = "agent-ebpf-hook-active"

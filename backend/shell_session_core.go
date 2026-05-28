@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"agent-ebpf-filter/pb"
@@ -240,7 +241,7 @@ func (s *shellSession) readLoop() {
 }
 
 func (s *shellSession) emitStdioEvent(stream string, payload []byte) {
-	if s == nil || len(payload) == 0 || tlsAgentBridge == nil {
+	if s == nil || len(payload) == 0 || broadcast == nil {
 		return
 	}
 	fd := "stdout"
@@ -259,7 +260,7 @@ func (s *shellSession) emitStdioEvent(stream string, payload []byte) {
 		SchemaVersion: eventSchemaVersion,
 		Cwd:           s.workDir,
 	}
-	sendTLSBridge(tlsAgentBridge, event)
+	sendTLSBridge(broadcast, event)
 }
 
 func (s *shellSession) forwardOutput(payload []byte) {

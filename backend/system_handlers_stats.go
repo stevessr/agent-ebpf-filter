@@ -67,8 +67,8 @@ func serveSystemStatsWS(c *gin.Context) {
 		currentPIDs := make(map[int32]struct{})
 		emittedSystemMetric := false
 		if faultErr == nil {
-			pageFaults := vmFaults.pageFaults
-			majorFaults := vmFaults.majorFaults
+			pageFaults := vmFaults.PageFaults
+			majorFaults := vmFaults.MajorFaults
 			minorFaults := uint64(0)
 			if pageFaults >= majorFaults {
 				minorFaults = pageFaults - majorFaults
@@ -78,18 +78,18 @@ func serveSystemStatsWS(c *gin.Context) {
 			faultInfo.MinorFaults = minorFaults
 			dt := now.Sub(lastFaultTime).Seconds()
 			if dt > 0 {
-				pageDelta := deltaUint64(pageFaults, lastFaults.pageFaults)
-				majorDelta := deltaUint64(majorFaults, lastFaults.majorFaults)
-				swapInDelta := deltaUint64(vmFaults.swapIn, lastFaults.swapIn)
-				swapOutDelta := deltaUint64(vmFaults.swapOut, lastFaults.swapOut)
+				pageDelta := deltaUint64(pageFaults, lastFaults.PageFaults)
+				majorDelta := deltaUint64(majorFaults, lastFaults.MajorFaults)
+				swapInDelta := deltaUint64(vmFaults.SwapIn, lastFaults.SwapIn)
+				swapOutDelta := deltaUint64(vmFaults.SwapOut, lastFaults.SwapOut)
 				faultInfo.PageFaultRate = float64(pageDelta) / dt
 				faultInfo.MajorFaultRate = float64(majorDelta) / dt
 				faultInfo.MinorFaultRate = faultInfo.PageFaultRate - faultInfo.MajorFaultRate
 				if faultInfo.MinorFaultRate < 0 {
 					faultInfo.MinorFaultRate = 0
 				}
-				faultInfo.SwapIn = vmFaults.swapIn
-				faultInfo.SwapOut = vmFaults.swapOut
+				faultInfo.SwapIn = vmFaults.SwapIn
+				faultInfo.SwapOut = vmFaults.SwapOut
 				faultInfo.SwapInRate = float64(swapInDelta) / dt
 				faultInfo.SwapOutRate = float64(swapOutDelta) / dt
 			}
@@ -180,7 +180,7 @@ func serveSystemStatsWS(c *gin.Context) {
 			cmdl, _ := p.Cmdline()
 			gmem, gid, gutil := uint32(0), uint32(0), uint32(0)
 			if info, ok := gm[p.Pid]; ok {
-				gmem, gid, gutil = info.mem, info.gpu, info.util
+				gmem, gid, gutil = info.Mem, info.GPU, info.Util
 			}
 			minF, majF := uint64(0), uint64(0)
 			if faults, err := p.PageFaults(); err == nil && faults != nil {
@@ -207,7 +207,7 @@ func serveSystemStatsWS(c *gin.Context) {
 }
 
 func emitSystemMetricEvent(pid, ppid int32, comm string, cpuPercent float64, memoryPercent float32, memoryBytes uint64, alert string) {
-	if tlsAgentBridge == nil {
+	if broadcast == nil {
 		return
 	}
 	event := &pb.Event{
@@ -223,5 +223,5 @@ func emitSystemMetricEvent(pid, ppid int32, comm string, cpuPercent float64, mem
 		Decision:      "ALERT",
 		SchemaVersion: eventSchemaVersion,
 	}
-	sendTLSBridge(tlsAgentBridge, event)
+	sendTLSBridge(broadcast, event)
 }
