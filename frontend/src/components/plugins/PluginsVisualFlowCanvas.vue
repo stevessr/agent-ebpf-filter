@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from "vue";
+import { computed, onMounted, watch } from "vue";
 import { ReloadOutlined } from "@ant-design/icons-vue";
 import type {
   VisualAction,
@@ -13,10 +13,7 @@ import type {
 } from "./types";
 import {
   useCanvasLayout,
-  DEFAULT_CANVAS_WIDTH,
-  DEFAULT_CANVAS_HEIGHT,
   MIN_CANVAS_WIDTH,
-  clamp,
 } from "../../composables/plugins/useCanvasLayout";
 import { useCanvasInteraction } from "../../composables/plugins/useCanvasInteraction";
 
@@ -69,7 +66,7 @@ const {
   snapNodeY,
   boundedLayout,
   canvasViewBox,
-  selectedNode,
+  flowNodes,
   visibleFlowNodes,
   visibleWireDefinitions,
   wires,
@@ -97,11 +94,8 @@ const interaction = useCanvasInteraction(() => ({
 }));
 
 const {
-  viewportRef,
-  canvasRef,
   viewportSize,
   workspaceSize,
-  dragging,
   connectionDrag,
   canvasResizeDrag,
   handlePointerDown,
@@ -112,9 +106,15 @@ const {
   connectionPreviewPath,
   expandWorkspace,
   resetWorkspaceSize,
-  updateViewportSize,
   initResizeObserver,
 } = interaction;
+
+const selectedNode = computed(
+  () =>
+    visibleFlowNodes.value.find((node) => node.id === props.selectedNodeId) ??
+    flowNodes.value.find((node) => node.id === props.selectedNodeId) ??
+    flowNodes.value[0]
+);
 
 // Canvas size computation -- wired to workspace + viewport
 const computedCanvasSize = () => ({
@@ -128,14 +128,6 @@ watch(workspaceSize, () => { canvasSize.value = computedCanvasSize(); });
 watch(viewportSize, () => { canvasSize.value = computedCanvasSize(); });
 
 // applyWorkspaceSize already syncs canvasSize via workspaceSize watcher
-
-// Wire toggle
-const toggleWire = (id: VisualWireId) => {
-  emit("update:wireStates", {
-    ...mergedWireStates.value,
-    [id]: !mergedWireStates.value[id],
-  });
-};
 
 // Wire toggle (enableWire handled by composable's stopConnectionDragging)
 const toggleWire = (id: VisualWireId) => {

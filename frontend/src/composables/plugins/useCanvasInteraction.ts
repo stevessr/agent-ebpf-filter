@@ -10,8 +10,6 @@ import {
   MAX_CANVAS_WIDTH,
   MAX_CANVAS_HEIGHT,
   clamp,
-  snapToGrid,
-  CANVAS_PADDING,
 } from "./useCanvasLayout";
 
 export interface UseCanvasInteractionEmit {
@@ -30,7 +28,10 @@ export interface UseCanvasInteractionOptions {
   visibleFlowNodes: Array<{ id: VisualFlowNodeId }>;
   visibleWireDefinitions: Array<{ id: VisualWireId; from: VisualFlowNodeId; to: VisualFlowNodeId }>;
   getNodePortPoint: (id: VisualFlowNodeId, side: "in" | "out") => { x: number; y: number };
-  getWireForEndpoints: (from: VisualFlowNodeId, to: VisualFlowNodeId) => { id: VisualWireId } | null;
+  getWireForEndpoints: (
+    from: VisualFlowNodeId,
+    to: VisualFlowNodeId
+  ) => { id: VisualWireId; to: VisualFlowNodeId } | null;
   hasOutgoingWire: (id: VisualFlowNodeId) => boolean;
   hasIncomingWire: (id: VisualFlowNodeId) => boolean;
   snapNodeX: (v: number) => number;
@@ -116,19 +117,6 @@ export function useCanvasInteraction(opts: () => UseCanvasInteractionOptions) {
       }
     });
     return nearestId;
-  };
-
-  const updateNodePosition = (id: VisualFlowNodeId, x: number, y: number) => {
-    const o = opts();
-    const next = {
-      ...o.mergedLayout,
-      [id]: {
-        x: o.snapNodeX(x),
-        y: o.snapNodeY(y),
-      },
-    };
-    // Emit layout update via parent
-    return next;
   };
 
   // Drag handlers
