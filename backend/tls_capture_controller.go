@@ -7,13 +7,14 @@ import (
 )
 
 type TLSCaptureController struct {
-	mu          sync.Mutex
-	manager     *TLSProbeManager
-	store       *TLSCaptureStore
-	rules       *TLSCaptureRuleStore
-	broadcaster *tlsCaptureBroadcaster
-	readStarted bool
-	lastError   string
+	mu                 sync.Mutex
+	manager            *TLSProbeManager
+	store              *TLSCaptureStore
+	rules              *TLSCaptureRuleStore
+	broadcaster        *tlsCaptureBroadcaster
+	readStarted        bool
+	goDiscoveryStarted bool
+	lastError          string
 }
 
 func NewTLSCaptureController(store *TLSCaptureStore, rules *TLSCaptureRuleStore, broadcaster *tlsCaptureBroadcaster) *TLSCaptureController {
@@ -62,11 +63,18 @@ func (c *TLSCaptureController) AttachDefaults() error {
 	if err != nil {
 		return err
 	}
-	if err := manager.AttachStaticLibs(); err != nil {
+	err = manager.AttachStaticLibs()
+	c.startGoDiscovery(manager)
+	if err != nil && c.store != nil {
+		for _, library := range c.store.LibraryStatuses() {
+			if library.Attached {
+				c.setLastError(err)
+				return nil
+			}
+		}
 		c.setLastError(err)
 		return err
 	}
-	manager.StartGoDiscoveryLoop(time.Minute)
 	c.setLastError(nil)
 	return nil
 }
@@ -78,10 +86,11 @@ func (c *TLSCaptureController) Status() map[string]any {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return map[string]any{
-		"enabled":     c.manager != nil,
-		"available":   c.manager != nil,
-		"readStarted": c.readStarted,
-		"error":       c.lastError,
+		"enabled":            c.manager != nil,
+		"available":          c.manager != nil,
+		"readStarted":        c.readStarted,
+		"goDiscoveryStarted": c.goDiscoveryStarted,
+		"error":              c.lastError,
 	}
 }
 
@@ -110,6 +119,17 @@ func (c *TLSCaptureController) startReadLoopLocked(manager *TLSProbeManager) {
 			c.setLastError(err)
 		}
 	}()
+}
+
+func (c *TLSCaptureController) startGoDiscovery(manager *TLSProbeManager) {
+	c.mu.Lock()
+	if c.goDiscoveryStarted || manager == nil {
+		c.mu.Unlock()
+		return
+	}
+	c.goDiscoveryStarted = true
+	c.mu.Unlock()
+	manager.StartGoDiscoveryLoop(time.Minute)
 }
 
 func (c *TLSCaptureController) setLastError(err error) {

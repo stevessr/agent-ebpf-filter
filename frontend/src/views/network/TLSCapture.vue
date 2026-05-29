@@ -56,9 +56,18 @@ interface TLSCaptureRule {
   description?: string;
 }
 
+interface TLSCaptureStatus {
+  enabled?: boolean;
+  available?: boolean;
+  readStarted?: boolean;
+  error?: string;
+  libraries?: TLSLibraryStatus[];
+}
+
 const events = ref<TLSPlaintextEvent[]>([]);
 const libraries = ref<TLSLibraryStatus[]>([]);
 const rules = ref<TLSCaptureRule[]>([]);
+const captureStatus = ref<TLSCaptureStatus>({});
 const isConnected = ref(false);
 const isPaused = ref(false);
 const searchQuery = ref('');
@@ -69,6 +78,7 @@ const selectedDirection = ref<string>('all');
 const showDetails = ref(false);
 const selectedEvent = ref<TLSPlaintextEvent | null>(null);
 const rulesLoading = ref(false);
+const attachLoading = ref(false);
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -135,6 +145,16 @@ const summaryStats = computed(() => {
   };
 });
 
+const captureStatusText = computed(() => {
+  if (captureStatus.value.enabled) return summaryStats.value.attachedLibs > 0 ? 'Running' : 'Running, no libraries attached';
+  return 'Not started';
+});
+
+const captureStatusColor = computed(() => {
+  if (!captureStatus.value.enabled) return 'default';
+  return summaryStats.value.attachedLibs > 0 ? 'green' : 'orange';
+});
+
 const fetchRecentEvents = async () => {
   try {
     const response = await axios.get('/tls-capture/recent?limit=500');
@@ -150,6 +170,36 @@ const fetchLibraries = async () => {
     libraries.value = Array.isArray(response.data?.libraries) ? response.data.libraries : [];
   } catch (error: any) {
     message.error(error?.response?.data?.error || 'Failed to load TLS capture libraries');
+  }
+};
+
+const fetchStatus = async () => {
+  try {
+    const response = await axios.get('/tls-capture/status');
+    captureStatus.value = response.data || {};
+    if (Array.isArray(response.data?.libraries)) libraries.value = response.data.libraries;
+  } catch (error: any) {
+    message.error(error?.response?.data?.error || 'Failed to load Hook SSL status');
+  }
+};
+
+const attachDefaultLibraries = async (silent = false) => {
+  attachLoading.value = true;
+  try {
+    const response = await axios.post('/tls-capture/attach-defaults');
+    captureStatus.value = response.data || {};
+    if (!silent) {
+      if (response.data?.error) message.warning(response.data.error);
+      else message.success('Hook SSL probes attached');
+    }
+    await Promise.all([fetchLibraries(), fetchRecentEvents()]);
+  } catch (error: any) {
+    const status = error?.response?.data?.status;
+    if (status) captureStatus.value = status;
+    if (!silent) message.error(error?.response?.data?.error || 'Failed to attach Hook SSL probes');
+    await fetchLibraries();
+  } finally {
+    attachLoading.value = false;
   }
 };
 
@@ -198,6 +248,9 @@ const removeRule = (id: string) => {
 
 const splitRuleValues = (value: string) => value.split(',').map(item => item.trim()).filter(Boolean);
 const joinRuleValues = (values?: string[]) => (values || []).join(', ');
+const updateRuleValues = (rule: TLSCaptureRule, field: 'comms' | 'hosts' | 'methods' | 'libraries' | 'directions', value: string) => {
+  rule[field] = splitRuleValues(value);
+};
 
 const connectWebSocket = () => {
   if (!shouldReconnect) return;
@@ -233,7 +286,7 @@ const connectWebSocket = () => {
 };
 
 const refreshData = async () => {
-  await Promise.all([fetchRecentEvents(), fetchLibraries(), fetchRules()]);
+  await Promise.all([fetchRecentEvents(), fetchStatus(), fetchRules()]);
 };
 
 const openDetails = (event: TLSPlaintextEvent) => {
@@ -267,8 +320,11 @@ const buildCurl = (event: TLSPlaintextEvent): string => {
   return parts.map(part => `'${part.replaceAll("'", "'\\''")}'`).join(' ');
 };
 
-onMounted(() => {
-  void refreshData();
+onMounted(async () => {
+  await refreshData();
+  if (!captureStatus.value.enabled || summaryStats.value.attachedLibs === 0) {
+    await attachDefaultLibraries(true);
+  }
   connectWebSocket();
 });
 
@@ -310,6 +366,25 @@ onUnmounted(() => {
         description="OpenSSL/libssl, GnuTLS, NSS/NSPR, and Go crypto/tls symbols are attached when TLS capture is enabled. Independent Hook SSL rules decide which plaintext events are retained; by default only agent CLI tagged processes are shown."
       />
 
+      <a-card size="small" class="tls-runtime-card">
+        <a-space wrap>
+          <a-tag :color="captureStatusColor">{{ captureStatusText }}</a-tag>
+          <a-tag :color="isConnected ? 'green' : 'red'">WebSocket {{ isConnected ? 'live' : 'offline' }}</a-tag>
+          <a-tag color="blue">{{ summaryStats.attachedLibs }} attached libraries</a-tag>
+          <a-button type="primary" size="small" :loading="attachLoading" @click="() => attachDefaultLibraries()">
+            Start / Attach SSL hooks
+          </a-button>
+          <a-button size="small" :loading="attachLoading" @click="refreshData">Refresh status</a-button>
+        </a-space>
+        <a-alert
+          v-if="captureStatus.error"
+          type="warning"
+          show-icon
+          class="tls-runtime-error"
+          :message="captureStatus.error"
+        />
+      </a-card>
+
       <a-card size="small" title="Hook SSL Rules" class="tls-rules-card">
         <template #extra>
           <a-space>
@@ -317,39 +392,51 @@ onUnmounted(() => {
             <a-button size="small" type="primary" :loading="rulesLoading" @click="saveRules">Save Rules</a-button>
           </a-space>
         </template>
-        <a-list :data-source="rules" size="small" bordered>
+        <a-list :data-source="rules" size="small" class="tls-rule-list">
           <template #renderItem="{ item }">
-            <a-list-item>
-              <a-space direction="vertical" style="width: 100%">
-                <a-space wrap>
-                  <a-switch v-model:checked="item.enabled" checked-children="on" un-checked-children="off" />
-                  <a-input v-model:value="item.name" size="small" style="width: 220px" placeholder="Rule name" />
-                  <a-select v-model:value="item.scope" size="small" style="width: 160px" :options="[
-                    { label: 'Agent CLI tag', value: 'agent_cli_tag' },
-                    { label: 'Custom', value: 'custom' },
-                  ]" />
-                  <a-tag v-if="item.scope === 'agent_cli_tag'" color="green">default agent CLI tag</a-tag>
-                  <a-button v-if="item.id !== 'agent-cli-tag'" size="small" danger @click="removeRule(item.id)">Remove</a-button>
-                </a-space>
-                <a-row :gutter="8">
-                  <a-col :xs="24" :lg="6">
-                    <a-input size="small" placeholder="Commands, comma-separated" :value="joinRuleValues(item.comms)" @change="event => item.comms = splitRuleValues((event.target as HTMLInputElement).value)" />
-                  </a-col>
-                  <a-col :xs="24" :lg="6">
-                    <a-input size="small" placeholder="Hosts, comma-separated" :value="joinRuleValues(item.hosts)" @change="event => item.hosts = splitRuleValues((event.target as HTMLInputElement).value)" />
-                  </a-col>
-                  <a-col :xs="24" :lg="4">
-                    <a-input size="small" placeholder="Methods" :value="joinRuleValues(item.methods)" @change="event => item.methods = splitRuleValues((event.target as HTMLInputElement).value)" />
-                  </a-col>
-                  <a-col :xs="24" :lg="4">
-                    <a-input size="small" placeholder="Libraries" :value="joinRuleValues(item.libraries)" @change="event => item.libraries = splitRuleValues((event.target as HTMLInputElement).value)" />
-                  </a-col>
-                  <a-col :xs="24" :lg="4">
-                    <a-input size="small" placeholder="Directions" :value="joinRuleValues(item.directions)" @change="event => item.directions = splitRuleValues((event.target as HTMLInputElement).value)" />
-                  </a-col>
-                </a-row>
-                <a-typography-text type="secondary">{{ item.description || 'All filled fields must match. Leave fields empty to match any value.' }}</a-typography-text>
-              </a-space>
+            <a-list-item class="tls-rule-item">
+              <div class="tls-rule-card">
+                <div class="tls-rule-header">
+                  <a-space wrap>
+                    <a-switch v-model:checked="item.enabled" checked-children="on" un-checked-children="off" />
+                    <a-input v-model:value="item.name" size="small" class="tls-rule-name" placeholder="Rule name" />
+                    <a-select v-model:value="item.scope" size="small" class="tls-rule-scope" :options="[
+                      { label: 'Agent CLI tag', value: 'agent_cli_tag' },
+                      { label: 'Custom', value: 'custom' },
+                    ]" />
+                    <a-tag v-if="item.id === 'agent-cli-tag'" color="green">default</a-tag>
+                    <a-tag v-else-if="item.scope === 'agent_cli_tag'" color="cyan">agent context</a-tag>
+                  </a-space>
+                  <a-button v-if="item.id !== 'agent-cli-tag'" size="small" danger ghost @click="removeRule(item.id)">Remove</a-button>
+                </div>
+
+                <div class="tls-rule-fields">
+                  <label class="tls-rule-field">
+                    <span>Commands</span>
+                    <a-input size="small" placeholder="claude, cursor, node" :value="joinRuleValues(item.comms)" @change="event => updateRuleValues(item, 'comms', (event.target as HTMLInputElement).value)" />
+                  </label>
+                  <label class="tls-rule-field">
+                    <span>Hosts</span>
+                    <a-input size="small" placeholder="api.anthropic.com, github.com" :value="joinRuleValues(item.hosts)" @change="event => updateRuleValues(item, 'hosts', (event.target as HTMLInputElement).value)" />
+                  </label>
+                  <label class="tls-rule-field compact">
+                    <span>Methods</span>
+                    <a-input size="small" placeholder="POST, GET" :value="joinRuleValues(item.methods)" @change="event => updateRuleValues(item, 'methods', (event.target as HTMLInputElement).value)" />
+                  </label>
+                  <label class="tls-rule-field compact">
+                    <span>Libraries</span>
+                    <a-input size="small" placeholder="openssl, gnutls" :value="joinRuleValues(item.libraries)" @change="event => updateRuleValues(item, 'libraries', (event.target as HTMLInputElement).value)" />
+                  </label>
+                  <label class="tls-rule-field compact">
+                    <span>Directions</span>
+                    <a-input size="small" placeholder="send, recv" :value="joinRuleValues(item.directions)" @change="event => updateRuleValues(item, 'directions', (event.target as HTMLInputElement).value)" />
+                  </label>
+                </div>
+
+                <a-typography-text type="secondary" class="tls-rule-help">
+                  {{ item.description || 'All filled fields must match. Empty fields match any value.' }}
+                </a-typography-text>
+              </div>
             </a-list-item>
           </template>
         </a-list>
@@ -544,9 +631,73 @@ onUnmounted(() => {
 }
 
 .tls-rules-hint,
+.tls-runtime-card,
 .tls-rules-card,
 .tls-stats {
   margin-bottom: 16px;
+}
+
+.tls-runtime-error {
+  margin-top: 10px;
+}
+
+.tls-rule-list :deep(.ant-list-items) {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tls-rule-item {
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.tls-rule-card {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.tls-rule-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.tls-rule-name {
+  width: 260px;
+}
+
+.tls-rule-scope {
+  width: 170px;
+}
+
+.tls-rule-fields {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(260px, 1.6fr) repeat(3, minmax(140px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.tls-rule-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.tls-rule-field span {
+  line-height: 18px;
+}
+
+.tls-rule-help {
+  display: block;
+  margin-top: 10px;
 }
 
 .tls-toolbar {
@@ -576,5 +727,26 @@ onUnmounted(() => {
 
 .tls-body {
   max-height: 320px;
+}
+
+@media (max-width: 1200px) {
+  .tls-rule-fields {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .tls-rule-header {
+    flex-direction: column;
+  }
+
+  .tls-rule-name,
+  .tls-rule-scope {
+    width: 100%;
+  }
+
+  .tls-rule-fields {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

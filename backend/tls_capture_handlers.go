@@ -66,20 +66,25 @@ func (b *tlsCaptureBroadcaster) Broadcast(event TLSPlaintextEvent) {
 	}
 }
 
-type tlsGoBinaryRegistrar interface {
-	AttachGoUprobes(binPath string, pid int) error
+type tlsCaptureRuntime interface {
+	AttachDefaults() error
+	EnsureStarted() (*TLSProbeManager, error)
+	Status() map[string]any
 }
 
 func newTLSCaptureBroadcaster() *tlsCaptureBroadcaster {
 	return &tlsCaptureBroadcaster{clients: make(map[*websocket.Conn]*sync.Mutex)}
 }
 
-func registerTLSCaptureRoutes(router gin.IRouter, manager tlsGoBinaryRegistrar, store *TLSCaptureStore, rules *TLSCaptureRuleStore) {
+func registerTLSCaptureRoutes(router gin.IRouter, runtime tlsCaptureRuntime, store *TLSCaptureStore, rules *TLSCaptureRuleStore) {
 	router.GET("/tls-capture/recent", handleTLSCaptureRecent(store))
 	router.GET("/tls-capture/libraries", handleTLSCaptureLibraries(store))
+	router.GET("/tls-capture/status", handleTLSCaptureStatus(runtime, store))
+	router.POST("/tls-capture/start", handleTLSCaptureStart(runtime))
+	router.POST("/tls-capture/attach-defaults", handleTLSCaptureAttachDefaults(runtime))
 	router.GET("/tls-capture/rules", handleTLSCaptureRulesGet(rules))
 	router.PUT("/tls-capture/rules", handleTLSCaptureRulesPut(rules))
-	router.POST("/tls-capture/go-binary", handleTLSCaptureGoBinary(manager))
+	router.POST("/tls-capture/go-binary", handleTLSCaptureGoBinary(runtime))
 }
 
 func handleTLSCaptureRecent(store *TLSCaptureStore) gin.HandlerFunc {
@@ -155,6 +160,45 @@ func handleTLSCaptureLibraries(store *TLSCaptureStore) gin.HandlerFunc {
 	}
 }
 
+func handleTLSCaptureStatus(runtime tlsCaptureRuntime, store *TLSCaptureStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		status := map[string]any{"enabled": false, "available": false, "error": "TLS capture manager is not started"}
+		if runtime != nil {
+			status = runtime.Status()
+		}
+		status["libraries"] = store.LibraryStatuses()
+		c.JSON(http.StatusOK, status)
+	}
+}
+
+func handleTLSCaptureStart(runtime tlsCaptureRuntime) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if runtime == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "TLS capture runtime is unavailable"})
+			return
+		}
+		if _, err := runtime.EnsureStarted(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "status": runtime.Status()})
+			return
+		}
+		c.JSON(http.StatusOK, runtime.Status())
+	}
+}
+
+func handleTLSCaptureAttachDefaults(runtime tlsCaptureRuntime) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if runtime == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "TLS capture runtime is unavailable"})
+			return
+		}
+		if err := runtime.AttachDefaults(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "status": runtime.Status()})
+			return
+		}
+		c.JSON(http.StatusOK, runtime.Status())
+	}
+}
+
 func handleTLSCaptureRulesGet(rules *TLSCaptureRuleStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if rules == nil {
@@ -181,7 +225,7 @@ func handleTLSCaptureRulesPut(rules *TLSCaptureRuleStore) gin.HandlerFunc {
 	}
 }
 
-func handleTLSCaptureGoBinary(manager tlsGoBinaryRegistrar) gin.HandlerFunc {
+func handleTLSCaptureGoBinary(runtime tlsCaptureRuntime) gin.HandlerFunc {
 	type request struct {
 		Path string `json:"path"`
 		PID  int    `json:"pid"`
@@ -192,8 +236,13 @@ func handleTLSCaptureGoBinary(manager tlsGoBinaryRegistrar) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
 			return
 		}
-		if manager == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "TLS capture manager is not available"})
+		if runtime == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "TLS capture runtime is unavailable"})
+			return
+		}
+		manager, err := runtime.EnsureStarted()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "status": runtime.Status()})
 			return
 		}
 		resolved := ResolveBinary(req.Path, "")

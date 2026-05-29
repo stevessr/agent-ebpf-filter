@@ -7,14 +7,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func registerRoutes(r *gin.Engine, tlsBroadcaster *tlsCaptureBroadcaster, tlsManager tlsGoBinaryRegistrar, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore) {
+func registerRoutes(r *gin.Engine, tlsBroadcaster *tlsCaptureBroadcaster, tlsController *TLSCaptureController, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore) {
 	registerWebSocketRoutes(r, tlsBroadcaster)
 	registerShellSessionRoutes(r)
 	registerEventRoutes(r)
 	registerNetworkRoutes(r)
 	registerSandboxRoutes(r)
 	registerUtilityRoutes(r)
-	registerAuthenticatedAPIRoutes(r, tlsManager, tlsStore, tlsRules)
+	registerAuthenticatedAPIRoutes(r, tlsController, tlsStore, tlsRules)
 	registerCompatibilityRoutes(r, tlsStore)
 	registerStaticRoutes(r)
 }
@@ -91,12 +91,12 @@ func registerUtilityRoutes(r gin.IRouter) {
 	r.POST("/cluster/register", clusterHeartbeatHandler)
 }
 
-func registerAuthenticatedAPIRoutes(r *gin.Engine, tlsManager tlsGoBinaryRegistrar, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore) {
+func registerAuthenticatedAPIRoutes(r *gin.Engine, tlsController *TLSCaptureController, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore) {
 	api := r.Group("/", authMiddleware())
 	{
 		registerConfigRoutes(api.Group("/config"))
 		registerSystemRoutes(api.Group("/system"))
-		registerTLSCaptureRoutes(api, tlsManager, tlsStore, tlsRules)
+		registerTLSCaptureRoutes(api, tlsController, tlsStore, tlsRules)
 		registerAgentSightRoutes(api, tlsStore)
 		registerPluginRoutes(api.Group("/plugins"))
 

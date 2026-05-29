@@ -168,6 +168,11 @@ func handleSendShellSessionInput(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
+func handleShellSessionsCleanup(c *gin.Context) {
+	shellSessions.ClearClosed()
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 func stringsTrimToDefault(value, fallback string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {

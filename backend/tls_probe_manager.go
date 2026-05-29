@@ -52,13 +52,14 @@ var staticTLSLibraries = []tlsProbeTarget{
 }
 
 type TLSProbeManager struct {
-	objs        *bpf.AgentTlsCaptureObjects
-	links       []link.Link
-	assembler   *FragmentAssembler
-	store       *TLSCaptureStore
-	rules       *TLSCaptureRuleStore
-	broadcaster *tlsCaptureBroadcaster
-	attachedGo  map[string]bool
+	objs           *bpf.AgentTlsCaptureObjects
+	links          []link.Link
+	assembler      *FragmentAssembler
+	store          *TLSCaptureStore
+	rules          *TLSCaptureRuleStore
+	broadcaster    *tlsCaptureBroadcaster
+	attachedStatic map[string]bool
+	attachedGo     map[string]bool
 
 	mu     sync.Mutex
 	closed bool
@@ -79,12 +80,13 @@ func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *tlsCaptureBroadcast
 		rules = NewTLSCaptureRuleStore()
 	}
 	return &TLSProbeManager{
-		objs:        objs,
-		assembler:   NewFragmentAssembler(10 * time.Second),
-		store:       store,
-		rules:       rules,
-		broadcaster: broadcaster,
-		attachedGo:  make(map[string]bool),
+		objs:           objs,
+		assembler:      NewFragmentAssembler(10 * time.Second),
+		store:          store,
+		rules:          rules,
+		broadcaster:    broadcaster,
+		attachedStatic: make(map[string]bool),
+		attachedGo:     make(map[string]bool),
 	}, nil
 }
 
@@ -109,8 +111,17 @@ func (m *TLSProbeManager) AttachStaticLibs() error {
 			continue
 		}
 		status.Available = true
+		attachKey := target.name + "\x00" + path
+		if m.attachedStatic[attachKey] {
+			status.Attached = true
+			m.store.SetLibraryStatus(status)
+			continue
+		}
 		attached, err := m.attachLibraryPath(target, path, status)
 		status.Attached = attached > 0
+		if status.Attached {
+			m.attachedStatic[attachKey] = true
+		}
 		if err != nil {
 			errs = append(errs, err)
 			status.Error = err.Error()

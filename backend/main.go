@@ -1,89 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"log"
-	"net"
-	"os"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/gin-gonic/gin"
-	ps "github.com/shirou/gopsutil/v3/process"
 )
-
-func handleRegister(c *gin.Context) {
-	if trackerMaps.AgentPids == nil {
-		c.JSON(500, gin.H{"error": "agent pid map not initialized"})
-		return
-	}
-	var req registerPayload
-	if err := c.ShouldBindJSON(&req); err != nil || req.PID == 0 {
-		c.JSON(400, gin.H{"error": "invalid pid"})
-		return
-	}
-	tag := req.Tag
-	if tag == "" {
-		tag = "AI Agent"
-	}
-	if err := trackerMaps.AgentPids.Put(req.PID, getTagID(tag)); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
-		return
-	}
-	trackedProcessContexts.Set(req.PID, buildProcessContextFromRegister(req))
-	c.JSON(200, gin.H{"status": "ok"})
-}
-
-func handleUnregister(c *gin.Context) {
-	if trackerMaps.AgentPids == nil {
-		c.JSON(500, gin.H{"error": "agent pid map not initialized"})
-		return
-	}
-	var req struct {
-		PID uint32 `json:"pid"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.PID == 0 {
-		c.JSON(400, gin.H{"error": "invalid pid"})
-		return
-	}
-	_ = trackerMaps.AgentPids.Delete(req.PID)
-	trackedProcessContexts.Delete(req.PID)
-	c.JSON(200, gin.H{"status": "ok"})
-}
-
-func handleClearEvents(c *gin.Context) {
-	capturedEventArchive.Clear()
-	agentSightUploadedEvents.Clear()
-	if err := runtimeSettingsStore.TruncateEventLog(); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(200, gin.H{"status": "ok"})
-}
-
-func handleClearEventsMemory(c *gin.Context) {
-	capturedEventArchive.Clear()
-	agentSightUploadedEvents.Clear()
-	c.JSON(200, gin.H{"status": "ok"})
-}
-
-func handleClearEventsPersisted(c *gin.Context) {
-	if err := runtimeSettingsStore.TruncateEventLog(); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(200, gin.H{"status": "ok"})
-}
-
-func handleShellSessionsCleanup(c *gin.Context) {
-	shellSessions.ClearClosed()
-	c.JSON(200, gin.H{"status": "ok"})
-}
 
 func main() {
 	if isBootstrapMode() {
@@ -104,104 +28,24 @@ func main() {
 	}
 	defer otelExporterStore.Close()
 
-	procsList, _ := ps.Processes()
-	curr := int32(os.Getpid())
-	for _, p := range procsList {
-		if p.Pid != curr {
-			if n, _ := p.Name(); n == "agent-ebpf-filter" || n == "main" {
-				_ = p.Kill()
-			}
-		}
-	}
+	killPreviousBackendProcesses()
 
 	if err := ensureTrackerMapsLoaded(); err != nil {
 		log.Fatalf("failed to initialize eBPF components: %v", err)
 	}
-	objs := &trackerMaps
-
 	settings := runtimeSettingsStore.Snapshot()
 	domainForwardProxyService.Activate()
 	applyRuntimeDomainForwardProxy(settings)
 	defer domainForwardProxyService.Close()
 
-	tlsStore := NewTLSCaptureStore(2000)
-	tlsRules := NewTLSCaptureRuleStore()
-	tlsBroadcaster := newTLSCaptureBroadcaster()
-	var tlsManager *TLSProbeManager
-	if settings.TlsCaptureEnabled {
-		if manager, err := NewTLSProbeManager(tlsStore, tlsBroadcaster, tlsRules); err != nil {
-			log.Printf("[TLS] capture disabled: %v", err)
-		} else {
-			tlsManager = manager
-			defer tlsManager.Close()
-			if err := tlsManager.AttachStaticLibs(); err != nil {
-				log.Printf("[TLS] static library attach completed with warnings: %v", err)
-			}
-			tlsManager.StartGoDiscoveryLoop(time.Minute)
-			go func() {
-				if err := tlsManager.ReadLoop(); err != nil {
-					log.Printf("[TLS] read loop stopped: %v", err)
-				}
-			}()
-		}
-	}
+	tlsRuntime := startTLSCaptureRuntime(settings)
+	defer tlsRuntime.controller.Close()
 
-	rd, _ := ringbuf.NewReader(objs.Events)
+	rd, _ := ringbuf.NewReader(trackerMaps.Events)
 	defer rd.Close()
 
-	go func() {
-		var event bpfEvent
-		selfPid := uint32(os.Getpid())
-		for {
-			record, err := rd.Read()
-			if err != nil {
-				return
-			}
-			if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event); err != nil {
-				log.Printf("[WARN] failed to decode eBPF event: %v (sample len=%d)", err, len(record.RawSample))
-				continue
-			}
-			if event.PID == selfPid {
-				continue
-			}
-			comm := sanitizeUTF8(event.Comm[:])
-			if isCommDisabled(comm) {
-				continue
-			}
-			if isEventTypeDisabled(event.Type) {
-				continue
-			}
-			broadcast <- buildKernelEvent(event)
-		}
-	}()
-
-	startEventBroadcaster()
-	go startUDSServer(broadcast)
-	startCgroupAttributionGC()
-	startDNSCacheGC()
-	startTCPStateTrackerGC()
-	startFlowAggregatorGC()
-	startExfilDetectionLoop()
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		initGeoIPDatabase()
-	}()
-	go func() {
-		ticker := time.NewTicker(3 * time.Minute)
-		for range ticker.C {
-			globalBandwidthTracker.EvictOlderThan(15 * time.Minute)
-		}
-	}()
-	go func() {
-		if err := ensureCgroupSandboxLoaded(); err != nil {
-			log.Printf("[CGROUP-SANDBOX] not available: %v", err)
-		}
-	}()
-	go func() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			log.Printf("[LSM-ENFORCER] not available: %v", err)
-		}
-	}()
+	startKernelEventReader(rd)
+	startRuntimeBackgroundJobs()
 
 	ApplySandbox()
 
@@ -211,109 +55,17 @@ func main() {
 	// Periodic archive eviction based on MaxEventAge
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				settings := runtimeSettingsStore.Snapshot()
-				if d, err := time.ParseDuration(settings.MaxEventAge); err == nil && d > 0 {
-					capturedEventArchive.EvictOlderThan(time.Now().UTC().Add(-d))
-				}
-			}
-		}
-	}()
+	startArchiveEvictionLoop(ctx)
 
-	registerRoutes(r, tlsBroadcaster, tlsManager, tlsStore, tlsRules)
+	registerRoutes(r, tlsRuntime.broadcaster, tlsRuntime.controller, tlsRuntime.store, tlsRuntime.rules)
 
-	commonCLIs := map[string]string{
-		// Git
-		"git": "Git",
-		// Language Pkg (npm/pip/cargo/uv etc.)
-		"npm": "Language Pkg", "bun": "Language Pkg", "pnpm": "Language Pkg",
-		"yarn": "Language Pkg", "pip": "Language Pkg", "pip3": "Language Pkg",
-		"gem": "Language Pkg", "uv": "Language Pkg", "zig": "Language Pkg",
-		// System Pkg (apt/pacman/dnf/brew etc.)
-		"dpkg": "System Pkg", "apt": "System Pkg", "apt-get": "System Pkg",
-		"snap": "System Pkg", "flatpak": "System Pkg",
-		"pacman": "System Pkg", "yay": "System Pkg", "paru": "System Pkg",
-		"dnf": "System Pkg", "yum": "System Pkg", "zypper": "System Pkg",
-		"rpm": "System Pkg", "nix": "System Pkg", "brew": "System Pkg",
-		// Container CLI
-		"docker": "Container CLI", "podman": "Container CLI", "kubectl": "Container CLI",
-		// Agent CLI
-		"claude": "Agent CLI", "gemini": "Agent CLI", "codex": "Agent CLI",
-		"kiro-cli": "Agent CLI", "gh": "Agent CLI", "cursor": "Agent CLI",
-		// Build Tool
-		"go": "Build Tool", "cargo": "Build Tool", "rustc": "Build Tool",
-		"gcc": "Build Tool", "g++": "Build Tool", "clang": "Build Tool",
-		"make": "Build Tool", "cmake": "Build Tool", "ninja": "Build Tool",
-		"meson": "Build Tool", "gradle": "Build Tool", "mvn": "Build Tool",
-		"lldb": "Build Tool", "gdb": "Build Tool",
-		// Runtime
-		"node": "Runtime", "python": "Runtime", "python3": "Runtime",
-		"java": "Runtime", "javac": "Runtime", "ruby": "Runtime",
-		"perl": "Runtime", "lua": "Runtime", "deno": "Runtime", "pwsh": "Runtime",
-		"php": "Runtime", "dotnet": "Runtime", "erl": "Runtime", "ghc": "Runtime",
-		// System Tool
-		"systemctl": "System Tool", "journalctl": "System Tool",
-		"ffmpeg": "System Tool", "tar": "System Tool", "gzip": "System Tool",
-		"unzip": "System Tool",
-		// Network Tool
-		"ssh": "Network Tool", "scp": "Network Tool", "rsync": "Network Tool",
-		"curl": "Network Tool", "wget": "Network Tool",
-		// Shell (shadow-banned by default)
-		"bash": "Shell", "zsh": "Shell", "fish": "Shell",
-		"sh": "Shell", "dash": "Shell", "ash": "Shell",
-	}
-	for cl, t := range commonCLIs {
-		var k [16]byte
-		copy(k[:], cl)
-		_ = objs.TrackedComms.Put(k, getTagID(t))
-	}
-	// Shadow-ban shell binaries by default (too noisy for debugging)
-	for _, sh := range []string{"bash", "zsh", "fish", "sh", "dash", "ash"} {
-		disabledComms[sh] = struct{}{}
-	}
+	seedDefaultTrackedCommands()
 
-	startPort, maxTries := 8080, 10
-	if rawPort := strings.TrimSpace(os.Getenv("AGENT_BACKEND_PORT")); rawPort != "" {
-		if configuredPort, err := strconv.Atoi(rawPort); err == nil && configuredPort > 0 {
-			startPort = configuredPort
-			maxTries = 1
-		} else {
-			log.Printf("[WARN] ignoring invalid AGENT_BACKEND_PORT=%q", rawPort)
-		}
-	}
-	actualPort := startPort
-	for i := 0; i < maxTries; i++ {
-		l, err := net.Listen("tcp", fmt.Sprintf(":%d", startPort+i))
-		if err == nil {
-			actualPort = startPort + i
-			l.Close()
-			break
-		}
-	}
-	clusterManagerStore.ConfigurePort(actualPort)
-	writePortFile(actualPort)
-	startClusterHeartbeatLoop()
+	actualPort := chooseBackendPort()
+	configureRuntimePort(actualPort)
 
-	// Initialize ML behavior classifier (master node only)
-	go func() {
-		time.Sleep(1 * time.Second) // brief delay to let cluster role settle
-		settings := runtimeSettingsStore.Snapshot()
-		InitMLEngine(settings.MLConfig)
-		StartMLEngine()
-	}()
-
-	// Reapply user eBPF plugins that were enabled in a prior run.
-	go func() {
-		time.Sleep(2 * time.Second)
-		ReapplyEBPFPluginsOnBoot()
-	}()
+	startDeferredMLRuntime()
+	startDeferredPluginRuntime()
 
 	_ = r.Run(fmt.Sprintf(":%d", actualPort))
 }
