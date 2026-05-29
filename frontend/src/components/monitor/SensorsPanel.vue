@@ -75,24 +75,35 @@ const micWaveformSeries = ref<{ name: string; data: number[][] }[]>([
 
 let micChartTimer: ReturnType<typeof setInterval> | null = null;
 
+const stopMicChart = () => {
+  if (micChartTimer) {
+    clearInterval(micChartTimer);
+    micChartTimer = null;
+  }
+};
+
+const refreshMicWaveform = () => {
+  const buf = props.micDataBuffer;
+  const data: number[][] = [];
+  const stride = Math.max(1, Math.ceil(buf.length / 256));
+  for (let i = 0; i < buf.length; i += stride) {
+    data.push([i, buf[i]]);
+  }
+  micWaveformSeries.value = [{ name: 'Mic', data }];
+};
+
 watch(() => props.micLiveMode, (val) => {
+  stopMicChart();
   if (val) {
-    micChartTimer = setInterval(() => {
-      const buf = props.micDataBuffer;
-      const data: number[][] = [];
-      for (let i = 0; i < buf.length; i += 2) {
-        data.push([i, buf[i]]);
-      }
-      micWaveformSeries.value = [{ name: 'Mic', data }];
-    }, 80);
+    refreshMicWaveform();
+    micChartTimer = setInterval(refreshMicWaveform, 120);
   } else {
-    if (micChartTimer) { clearInterval(micChartTimer); micChartTimer = null; }
     micWaveformSeries.value = [{ name: 'Mic', data: [] }];
   }
 });
 
 onUnmounted(() => {
-  if (micChartTimer) clearInterval(micChartTimer);
+  stopMicChart();
 });
 </script>
 

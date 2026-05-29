@@ -32,6 +32,8 @@ const {
 
 void trainingDatasetImportInput;
 
+const trainingSampleRowKey = (record: any) => `${record.commandLine || [record.comm, ...(record.args || [])].filter(Boolean).join(' ')}:${record.label || ''}:${record.userLabel || ''}:${record.index ?? ''}`;
+
 const downloadableInternetDatasetCount = classicSecurityDatasetPresets.filter((preset) => Boolean(preset.downloadUrl)).length;
 const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
 </script>
@@ -267,7 +269,7 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
           <a-button size="small" @click="fetchAllSamples()" :loading="loadingSamples"><ReloadOutlined /> Refresh</a-button>
         </a-space>
       </template>
-      <a-table :dataSource="filteredSamples" :pagination="{ pageSize: sampleTablePageSize, showSizeChanger: true, pageSizeOptions: ['10','15','30','50'], showTotal: (t:number) => `${t} samples` }" :scroll="{ x: 1100 }" size="small" rowKey="index">
+      <a-table :dataSource="filteredSamples" :pagination="{ pageSize: sampleTablePageSize, showSizeChanger: true, pageSizeOptions: ['10','15','30','50'], showTotal: (t:number) => `${t} samples` }" :scroll="{ x: 1100 }" size="small" :rowKey="trainingSampleRowKey">
         <a-table-column title="#" dataIndex="index" :width="50" />
         <a-table-column title="Command" dataIndex="commandLine" :width="240" ellipsis>
           <template #default="{ record }"><code>{{ maskSensitiveData(record.commandLine || [record.comm, ...(record.args || [])].filter(Boolean).join(' ')) }}</code></template>

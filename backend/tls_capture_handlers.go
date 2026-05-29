@@ -74,9 +74,11 @@ func newTLSCaptureBroadcaster() *tlsCaptureBroadcaster {
 	return &tlsCaptureBroadcaster{clients: make(map[*websocket.Conn]*sync.Mutex)}
 }
 
-func registerTLSCaptureRoutes(router gin.IRouter, manager tlsGoBinaryRegistrar, store *TLSCaptureStore) {
+func registerTLSCaptureRoutes(router gin.IRouter, manager tlsGoBinaryRegistrar, store *TLSCaptureStore, rules *TLSCaptureRuleStore) {
 	router.GET("/tls-capture/recent", handleTLSCaptureRecent(store))
 	router.GET("/tls-capture/libraries", handleTLSCaptureLibraries(store))
+	router.GET("/tls-capture/rules", handleTLSCaptureRulesGet(rules))
+	router.PUT("/tls-capture/rules", handleTLSCaptureRulesPut(rules))
 	router.POST("/tls-capture/go-binary", handleTLSCaptureGoBinary(manager))
 }
 
@@ -150,6 +152,32 @@ func tlsCaptureEventMatchesFilter(event TLSPlaintextEvent, terms []string) bool 
 func handleTLSCaptureLibraries(store *TLSCaptureStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"libraries": store.LibraryStatuses()})
+	}
+}
+
+func handleTLSCaptureRulesGet(rules *TLSCaptureRuleStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if rules == nil {
+			rules = NewTLSCaptureRuleStore()
+		}
+		c.JSON(http.StatusOK, gin.H{"rules": rules.List()})
+	}
+}
+
+func handleTLSCaptureRulesPut(rules *TLSCaptureRuleStore) gin.HandlerFunc {
+	type request struct {
+		Rules []TLSCaptureRule `json:"rules"`
+	}
+	return func(c *gin.Context) {
+		var req request
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if rules == nil {
+			rules = NewTLSCaptureRuleStore()
+		}
+		c.JSON(http.StatusOK, gin.H{"rules": rules.Replace(req.Rules)})
 	}
 }
 

@@ -325,6 +325,7 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
 
     ws.onopen = () => {
       wsConnected.value = true;
+      sessionError.value = '';
     };
 
     ws.onmessage = (message) => {
@@ -335,6 +336,11 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
       } catch (err) {
         console.error('Failed to parse shell sessions update', err);
       }
+    };
+
+    ws.onerror = () => {
+      wsConnected.value = false;
+      sessionError.value = 'Shell sessions WebSocket 连接失败，请确认访问令牌有效且 shell_sessions 功能已启用。';
     };
 
     ws.onclose = () => {

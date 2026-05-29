@@ -16,6 +16,8 @@ const {
   fetchLLMProductionDataset, exportLLMProductionDataset,
   maskSensitiveData, getLabelColor,
 } = props.ml;
+
+const productionPreviewRowKey = (record: any) => `${record.commandLine || ''}:${record.label || ''}:${record.userLabel || ''}:${record.index ?? ''}`;
 </script>
 
 <template>
@@ -184,7 +186,7 @@ const {
         </a-space>
         <a-alert v-if="llmProductionMeta" type="success" show-icon :message="`已生成 ${llmProductionMeta.included} 条 LLM 生产训练样本`" :description="`导出 JSONL 每行仅包含 messages，适合 chat fine-tuning；系统提示词来自当前 LLM 配置：${llmProductionMeta.systemPrompt}`" />
         <a-alert v-else type="warning" show-icon message="点击“拉取当前训练集”后，会直接从训练存储生成可训练的 chat JSONL 预览。" />
-        <a-table v-if="llmProductionPreview.length > 0" :dataSource="llmProductionPreview" :pagination="{ pageSize: 5, showSizeChanger: true, pageSizeOptions: ['5', '10', '20'] }" :scroll="{ x: 1280 }" size="small" rowKey="index">
+        <a-table v-if="llmProductionPreview.length > 0" :dataSource="llmProductionPreview" :pagination="{ pageSize: 5, showSizeChanger: true, pageSizeOptions: ['5', '10', '20'] }" :scroll="{ x: 1280 }" size="small" :rowKey="productionPreviewRowKey">
           <a-table-column title="#" dataIndex="index" :width="70" />
           <a-table-column title="Command" dataIndex="commandLine" :width="260" ellipsis>
             <template #default="{ record }"><code>{{ maskSensitiveData(record.commandLine) }}</code></template>

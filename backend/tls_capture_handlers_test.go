@@ -18,7 +18,7 @@ func TestHandleTLSCaptureRecentReturnsStoredEventsWithoutAuthMiddleware(t *testi
 	store.Add(TLSPlaintextEvent{Type: "tls_plaintext", PID: 42, Comm: "curl", Timestamp: time.Unix(1, 0).UTC()})
 
 	r := gin.New()
-	registerTLSCaptureRoutes(r.Group("/"), nil, store)
+	registerTLSCaptureRoutes(r.Group("/"), nil, store, NewTLSCaptureRuleStore())
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/tls-capture/recent?limit=5", nil)
@@ -41,7 +41,7 @@ func TestHandleTLSCaptureRecentReturnsStoredEventsWithoutAuthMiddleware(t *testi
 func TestHandleTLSCaptureGoBinaryRejectsMissingPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	registerTLSCaptureRoutes(r.Group("/"), nil, NewTLSCaptureStore(10))
+	registerTLSCaptureRoutes(r.Group("/"), nil, NewTLSCaptureStore(10), NewTLSCaptureRuleStore())
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/tls-capture/go-binary", strings.NewReader(`{}`))
@@ -50,6 +50,37 @@ func TestHandleTLSCaptureGoBinaryRejectsMissingPath(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleTLSCaptureRulesRoundTrip(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rules := NewTLSCaptureRuleStore()
+	r := gin.New()
+	registerTLSCaptureRoutes(r.Group("/"), nil, NewTLSCaptureStore(10), rules)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/tls-capture/rules", strings.NewReader(`{"rules":[{"id":"node-api","name":"Node API","enabled":true,"scope":"custom","comms":["node"],"hosts":["api.example.com"]}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("put status = %d body = %s", w.Code, w.Body.String())
+	}
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/tls-capture/rules", nil)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get status = %d body = %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Rules []TLSCaptureRule `json:"rules"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json decode: %v", err)
+	}
+	if len(resp.Rules) != 1 || resp.Rules[0].ID != "node-api" || len(resp.Rules[0].Hosts) != 1 {
+		t.Fatalf("rules = %#v", resp.Rules)
 	}
 }
 

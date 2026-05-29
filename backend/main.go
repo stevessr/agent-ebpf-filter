@@ -126,10 +126,11 @@ func main() {
 	defer domainForwardProxyService.Close()
 
 	tlsStore := NewTLSCaptureStore(2000)
+	tlsRules := NewTLSCaptureRuleStore()
 	tlsBroadcaster := newTLSCaptureBroadcaster()
 	var tlsManager *TLSProbeManager
 	if settings.TlsCaptureEnabled {
-		if manager, err := NewTLSProbeManager(tlsStore, tlsBroadcaster); err != nil {
+		if manager, err := NewTLSProbeManager(tlsStore, tlsBroadcaster, tlsRules); err != nil {
 			log.Printf("[TLS] capture disabled: %v", err)
 		} else {
 			tlsManager = manager
@@ -287,7 +288,7 @@ func main() {
 	{
 		registerConfigRoutes(api.Group("/config"))
 		registerSystemRoutes(api.Group("/system"))
-		registerTLSCaptureRoutes(api, tlsManager, tlsStore)
+		registerTLSCaptureRoutes(api, tlsManager, tlsStore, tlsRules)
 		registerAgentSightRoutes(api, tlsStore)
 		registerPluginRoutes(api.Group("/plugins"))
 

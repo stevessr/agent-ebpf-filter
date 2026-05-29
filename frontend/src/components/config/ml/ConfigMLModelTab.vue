@@ -32,6 +32,8 @@ const {
   getLabelColor, maskSensitiveData,
 } = props.ml;
 
+const sampleMatchRowKey = (record: any) => `${record.commandLine || ''}:${record.label || ''}:${record.userLabel || ''}:${record.index ?? ''}`;
+
 const modelCatalogGroups = computed(() => {
   const groups = new Map<string, typeof builtinModelCatalog.value>();
   for (const item of builtinModelCatalog.value) {
@@ -420,7 +422,7 @@ const formatRuntimeSpeedup = (value?: number) => {
                 :message="`命中已有样本 ${backtestResult.sampleEvidence.totalMatches} 条，已标注 ${backtestResult.sampleEvidence.labeledMatches} 条`"
                 :description="backtestResult.sampleEvidence?.decision ? `历史标注倾向：${backtestResult.sampleEvidence.decision}，置信度 ${(backtestResult.sampleEvidence.confidence * 100).toFixed(0)}%` : '暂无可直接用于判断的标注，但命令已存在于样本库。'"
                 style="margin-bottom: 8px" />
-              <a-table :dataSource="backtestResult.sampleMatches || []" :pagination="false" size="small" rowKey="index" :scroll="{ x: 700 }">
+              <a-table :dataSource="backtestResult.sampleMatches || []" :pagination="false" size="small" :rowKey="sampleMatchRowKey" :scroll="{ x: 700 }">
                 <a-table-column title="#" dataIndex="index" :width="60" />
                 <a-table-column title="Command" dataIndex="commandLine" :width="260" ellipsis>
                   <template #default="{ record }"><code>{{ maskSensitiveData(record.commandLine) }}</code></template>

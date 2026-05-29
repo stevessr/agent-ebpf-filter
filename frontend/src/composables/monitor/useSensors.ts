@@ -14,6 +14,15 @@ export function useSensors() {
 
   let sensorWs: WebSocket | null = null;
 
+  const closeWebSocket = (ws: WebSocket | null) => {
+    if (!ws) return;
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onerror = null;
+    ws.onclose = null;
+    ws.close();
+  };
+
   const getSensorCategory = (key: string, label: string) => {
     const s = (key + label).toLowerCase();
     if (s.includes('nvme')) return 'Storage (NVMe)';
@@ -28,7 +37,7 @@ export function useSensors() {
   };
 
   const connectSensorsWS = () => {
-    if (sensorWs) sensorWs.close();
+    closeWebSocket(sensorWs);
     const wsUrl = buildWebSocketUrl(`/ws/sensors?interval=${sensorInterval.value}`);
     sensorWs = new WebSocket(wsUrl);
     sensorWs.binaryType = 'arraybuffer';
@@ -97,6 +106,46 @@ export function useSensors() {
   const cameraSnapshotUrl = ref('');
 
   let cameraWs: WebSocket | null = null;
+  let cameraReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let cameraFrameRaf: number | null = null;
+  let pendingCameraFrame: ArrayBuffer | null = null;
+  let lastCameraFrameAt = 0;
+  const cameraFrameInterval = 66;
+
+  const clearCameraReconnect = () => {
+    if (cameraReconnectTimer) {
+      clearTimeout(cameraReconnectTimer);
+      cameraReconnectTimer = null;
+    }
+  };
+
+  const clearCameraFrameRaf = () => {
+    if (cameraFrameRaf !== null) {
+      cancelAnimationFrame(cameraFrameRaf);
+      cameraFrameRaf = null;
+    }
+  };
+
+  const publishCameraFrame = (now: number) => {
+    cameraFrameRaf = null;
+    if (!pendingCameraFrame) return;
+    if (now - lastCameraFrameAt < cameraFrameInterval) {
+      cameraFrameRaf = requestAnimationFrame(publishCameraFrame);
+      return;
+    }
+    const blob = new Blob([pendingCameraFrame], { type: 'image/jpeg' });
+    pendingCameraFrame = null;
+    const url = URL.createObjectURL(blob);
+    const previousUrl = cameraFrameUrl.value;
+    cameraFrameUrl.value = url;
+    lastCameraFrameAt = now;
+    if (previousUrl) URL.revokeObjectURL(previousUrl);
+  };
+
+  const scheduleCameraFrame = (frame: ArrayBuffer) => {
+    pendingCameraFrame = frame.slice(0);
+    if (cameraFrameRaf === null) cameraFrameRaf = requestAnimationFrame(publishCameraFrame);
+  };
 
   const fetchCameras = async () => {
     try {
@@ -108,25 +157,32 @@ export function useSensors() {
 
   const connectCameraWS = () => {
     if (!selectedCamera.value) return;
-    if (cameraWs) cameraWs.close();
+    clearCameraReconnect();
+    closeWebSocket(cameraWs);
     cameraLoading.value = true;
     const wsUrl = buildWebSocketUrl(`/ws/camera?device=${encodeURIComponent(selectedCamera.value)}`);
-    cameraWs = new WebSocket(wsUrl);
-    cameraWs.binaryType = 'arraybuffer';
-    cameraWs.onopen = () => cameraLoading.value = false;
-    cameraWs.onmessage = (e) => {
-      if (typeof e.data !== 'string') {
-        const blob = new Blob([e.data], { type: 'image/jpeg' });
-        const url = URL.createObjectURL(blob);
-        if (cameraFrameUrl.value) URL.revokeObjectURL(cameraFrameUrl.value);
-        cameraFrameUrl.value = url;
-      }
+    const socket = new WebSocket(wsUrl);
+    cameraWs = socket;
+    socket.binaryType = 'arraybuffer';
+    socket.onopen = () => {
+      if (cameraWs === socket) cameraLoading.value = false;
     };
-    cameraWs.onclose = () => { if (cameraLiveMode.value) setTimeout(connectCameraWS, 2000); };
+    socket.onmessage = (e) => {
+      if (cameraWs !== socket || typeof e.data === 'string') return;
+      scheduleCameraFrame(e.data);
+    };
+    socket.onclose = () => {
+      if (cameraWs === socket) cameraWs = null;
+      if (cameraLiveMode.value) cameraReconnectTimer = setTimeout(connectCameraWS, 2000);
+    };
   };
 
   const stopCameraWS = () => {
-    if (cameraWs) { cameraWs.onclose = null; cameraWs.close(); cameraWs = null; }
+    clearCameraReconnect();
+    closeWebSocket(cameraWs);
+    cameraWs = null;
+    clearCameraFrameRaf();
+    pendingCameraFrame = null;
     if (cameraFrameUrl.value) { URL.revokeObjectURL(cameraFrameUrl.value); cameraFrameUrl.value = ''; }
   };
 
@@ -153,6 +209,14 @@ export function useSensors() {
   const micDataBuffer = ref(new Int16Array(1024));
 
   let micWs: WebSocket | null = null;
+  let micReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearMicReconnect = () => {
+    if (micReconnectTimer) {
+      clearTimeout(micReconnectTimer);
+      micReconnectTimer = null;
+    }
+  };
 
   const fetchMicrophones = async () => {
     try {
@@ -163,37 +227,46 @@ export function useSensors() {
   };
 
   const connectMicWS = () => {
-    if (micWs) { micWs.onclose = null; micWs.onerror = null; micWs.close(); }
+    clearMicReconnect();
+    closeWebSocket(micWs);
     const wsUrl = buildWebSocketUrl(`/ws/microphone?device=${encodeURIComponent(selectedMic.value)}`);
-    micWs = new WebSocket(wsUrl);
-    micWs.binaryType = 'arraybuffer';
-    micWs.onopen = () => { micVolume.value = 0; };
-    micWs.onmessage = async (e) => {
+    const socket = new WebSocket(wsUrl);
+    micWs = socket;
+    socket.binaryType = 'arraybuffer';
+    socket.onopen = () => { if (micWs === socket) micVolume.value = 0; };
+    socket.onmessage = (e) => {
+      if (micWs !== socket) return;
       const samples = new Int16Array(e.data);
       let sum = 0;
+      const buffer = micDataBuffer.value;
+      const limit = Math.min(samples.length, buffer.length);
       for (let i = 0; i < samples.length; i++) {
         sum += Math.abs(samples[i]);
-        if (i < micDataBuffer.value.length) micDataBuffer.value[i] = samples[i];
+        if (i < limit) buffer[i] = samples[i];
       }
       micVolume.value = Math.min(100, (sum / samples.length) / 327.68 * 2.5);
     };
-    micWs.onerror = () => { /* auto-retry via onclose */ };
-    micWs.onclose = () => {
+    socket.onerror = () => { /* auto-retry via onclose */ };
+    socket.onclose = () => {
+      if (micWs === socket) micWs = null;
       micVolume.value = 0;
       if (micLiveMode.value) {
-        setTimeout(() => { if (micLiveMode.value) connectMicWS(); }, 2000);
+        micReconnectTimer = setTimeout(() => { if (micLiveMode.value) connectMicWS(); }, 2000);
       }
     };
-    return micWs;
+    return socket;
   };
 
   const stopMicWS = () => {
-    if (micWs) { micWs.close(); micWs = null; }
+    clearMicReconnect();
+    closeWebSocket(micWs);
+    micWs = null;
     micVolume.value = 0;
   };
 
   const closeSensorWS = () => {
-    if (sensorWs) { sensorWs.close(); sensorWs = null; }
+    closeWebSocket(sensorWs);
+    sensorWs = null;
   };
 
   watch(selectedMic, () => { if (micLiveMode.value) connectMicWS(); });

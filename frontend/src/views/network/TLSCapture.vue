@@ -43,8 +43,22 @@ interface TLSLibraryStatus {
   error?: string;
 }
 
+interface TLSCaptureRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  scope: string;
+  comms?: string[];
+  hosts?: string[];
+  methods?: string[];
+  libraries?: string[];
+  directions?: string[];
+  description?: string;
+}
+
 const events = ref<TLSPlaintextEvent[]>([]);
 const libraries = ref<TLSLibraryStatus[]>([]);
+const rules = ref<TLSCaptureRule[]>([]);
 const isConnected = ref(false);
 const isPaused = ref(false);
 const searchQuery = ref('');
@@ -54,6 +68,7 @@ const selectedLib = ref<string>('all');
 const selectedDirection = ref<string>('all');
 const showDetails = ref(false);
 const selectedEvent = ref<TLSPlaintextEvent | null>(null);
+const rulesLoading = ref(false);
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -138,6 +153,52 @@ const fetchLibraries = async () => {
   }
 };
 
+const fetchRules = async () => {
+  try {
+    const response = await axios.get('/tls-capture/rules');
+    rules.value = Array.isArray(response.data?.rules) ? response.data.rules : [];
+  } catch (error: any) {
+    message.error(error?.response?.data?.error || 'Failed to load Hook SSL rules');
+  }
+};
+
+const saveRules = async () => {
+  rulesLoading.value = true;
+  try {
+    const response = await axios.put('/tls-capture/rules', { rules: rules.value });
+    rules.value = Array.isArray(response.data?.rules) ? response.data.rules : rules.value;
+    message.success('Hook SSL rules saved');
+  } catch (error: any) {
+    message.error(error?.response?.data?.error || 'Failed to save Hook SSL rules');
+  } finally {
+    rulesLoading.value = false;
+  }
+};
+
+const addRule = () => {
+  rules.value = [
+    ...rules.value,
+    {
+      id: `custom-${Date.now()}`,
+      name: 'Custom Hook SSL rule',
+      enabled: true,
+      scope: 'custom',
+      comms: [],
+      hosts: [],
+      methods: [],
+      libraries: [],
+      directions: [],
+    },
+  ];
+};
+
+const removeRule = (id: string) => {
+  rules.value = rules.value.filter(rule => rule.id !== id);
+};
+
+const splitRuleValues = (value: string) => value.split(',').map(item => item.trim()).filter(Boolean);
+const joinRuleValues = (values?: string[]) => (values || []).join(', ');
+
 const connectWebSocket = () => {
   if (!shouldReconnect) return;
   if (ws) ws.close();
@@ -172,7 +233,7 @@ const connectWebSocket = () => {
 };
 
 const refreshData = async () => {
-  await Promise.all([fetchRecentEvents(), fetchLibraries()]);
+  await Promise.all([fetchRecentEvents(), fetchLibraries(), fetchRules()]);
 };
 
 const openDetails = (event: TLSPlaintextEvent) => {
@@ -240,6 +301,59 @@ onUnmounted(() => {
           </a-button>
         </a-space>
       </template>
+
+      <a-alert
+        type="info"
+        show-icon
+        class="tls-rules-hint"
+        message="Hook SSL uses eBPF uprobes on common TLS libraries"
+        description="OpenSSL/libssl, GnuTLS, NSS/NSPR, and Go crypto/tls symbols are attached when TLS capture is enabled. Independent Hook SSL rules decide which plaintext events are retained; by default only agent CLI tagged processes are shown."
+      />
+
+      <a-card size="small" title="Hook SSL Rules" class="tls-rules-card">
+        <template #extra>
+          <a-space>
+            <a-button size="small" @click="addRule">Add Rule</a-button>
+            <a-button size="small" type="primary" :loading="rulesLoading" @click="saveRules">Save Rules</a-button>
+          </a-space>
+        </template>
+        <a-list :data-source="rules" size="small" bordered>
+          <template #renderItem="{ item }">
+            <a-list-item>
+              <a-space direction="vertical" style="width: 100%">
+                <a-space wrap>
+                  <a-switch v-model:checked="item.enabled" checked-children="on" un-checked-children="off" />
+                  <a-input v-model:value="item.name" size="small" style="width: 220px" placeholder="Rule name" />
+                  <a-select v-model:value="item.scope" size="small" style="width: 160px" :options="[
+                    { label: 'Agent CLI tag', value: 'agent_cli_tag' },
+                    { label: 'Custom', value: 'custom' },
+                  ]" />
+                  <a-tag v-if="item.scope === 'agent_cli_tag'" color="green">default agent CLI tag</a-tag>
+                  <a-button v-if="item.id !== 'agent-cli-tag'" size="small" danger @click="removeRule(item.id)">Remove</a-button>
+                </a-space>
+                <a-row :gutter="8">
+                  <a-col :xs="24" :lg="6">
+                    <a-input size="small" placeholder="Commands, comma-separated" :value="joinRuleValues(item.comms)" @change="event => item.comms = splitRuleValues((event.target as HTMLInputElement).value)" />
+                  </a-col>
+                  <a-col :xs="24" :lg="6">
+                    <a-input size="small" placeholder="Hosts, comma-separated" :value="joinRuleValues(item.hosts)" @change="event => item.hosts = splitRuleValues((event.target as HTMLInputElement).value)" />
+                  </a-col>
+                  <a-col :xs="24" :lg="4">
+                    <a-input size="small" placeholder="Methods" :value="joinRuleValues(item.methods)" @change="event => item.methods = splitRuleValues((event.target as HTMLInputElement).value)" />
+                  </a-col>
+                  <a-col :xs="24" :lg="4">
+                    <a-input size="small" placeholder="Libraries" :value="joinRuleValues(item.libraries)" @change="event => item.libraries = splitRuleValues((event.target as HTMLInputElement).value)" />
+                  </a-col>
+                  <a-col :xs="24" :lg="4">
+                    <a-input size="small" placeholder="Directions" :value="joinRuleValues(item.directions)" @change="event => item.directions = splitRuleValues((event.target as HTMLInputElement).value)" />
+                  </a-col>
+                </a-row>
+                <a-typography-text type="secondary">{{ item.description || 'All filled fields must match. Leave fields empty to match any value.' }}</a-typography-text>
+              </a-space>
+            </a-list-item>
+          </template>
+        </a-list>
+      </a-card>
 
       <a-row :gutter="16" class="tls-stats">
         <a-col :xs="12" :sm="6">
@@ -429,6 +543,8 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
+.tls-rules-hint,
+.tls-rules-card,
 .tls-stats {
   margin-bottom: 16px;
 }

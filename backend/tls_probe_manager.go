@@ -25,8 +25,12 @@ type tlsProbeTarget struct {
 
 var staticTLSLibraries = []tlsProbeTarget{
 	{
-		name:        "openssl",
-		paths:       []string{"/lib/x86_64-linux-gnu/libssl.so.3", "/lib/aarch64-linux-gnu/libssl.so.3", "/lib64/libssl.so.3", "/usr/lib64/libssl.so.3", "/usr/lib/x86_64-linux-gnu/libssl.so.3", "/usr/lib/aarch64-linux-gnu/libssl.so.3", "/usr/lib/libssl.so.3", "/usr/local/lib/libssl.so.3", "/usr/local/lib64/libssl.so.3"},
+		name: "openssl",
+		paths: []string{
+			"/lib/x86_64-linux-gnu/libssl.so.3", "/lib/aarch64-linux-gnu/libssl.so.3", "/lib64/libssl.so.3", "/usr/lib64/libssl.so.3", "/usr/lib/x86_64-linux-gnu/libssl.so.3", "/usr/lib/aarch64-linux-gnu/libssl.so.3", "/usr/lib/libssl.so.3", "/usr/local/lib/libssl.so.3", "/usr/local/lib64/libssl.so.3",
+			"/lib/x86_64-linux-gnu/libssl.so.1.1", "/lib/aarch64-linux-gnu/libssl.so.1.1", "/lib64/libssl.so.1.1", "/usr/lib64/libssl.so.1.1", "/usr/lib/x86_64-linux-gnu/libssl.so.1.1", "/usr/lib/aarch64-linux-gnu/libssl.so.1.1", "/usr/lib/libssl.so.1.1", "/usr/local/lib/libssl.so.1.1", "/usr/local/lib64/libssl.so.1.1",
+			"/lib/x86_64-linux-gnu/libssl.so", "/lib/aarch64-linux-gnu/libssl.so", "/lib64/libssl.so", "/usr/lib64/libssl.so", "/usr/lib/x86_64-linux-gnu/libssl.so", "/usr/lib/aarch64-linux-gnu/libssl.so", "/usr/lib/libssl.so", "/usr/local/lib/libssl.so", "/usr/local/lib64/libssl.so",
+		},
 		sendSymbols: []string{"SSL_write", "SSL_write_ex"},
 		recvSymbols: []string{"SSL_read", "SSL_read_ex"},
 		libType:     tlsLibOpenSSL,
@@ -52,6 +56,7 @@ type TLSProbeManager struct {
 	links       []link.Link
 	assembler   *FragmentAssembler
 	store       *TLSCaptureStore
+	rules       *TLSCaptureRuleStore
 	broadcaster *tlsCaptureBroadcaster
 	attachedGo  map[string]bool
 
@@ -59,7 +64,7 @@ type TLSProbeManager struct {
 	closed bool
 }
 
-func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *tlsCaptureBroadcaster) (*TLSProbeManager, error) {
+func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *tlsCaptureBroadcaster, rules *TLSCaptureRuleStore) (*TLSProbeManager, error) {
 	objs := &bpf.AgentTlsCaptureObjects{}
 	if err := bpf.LoadAgentTlsCaptureObjects(objs, nil); err != nil {
 		return nil, err
@@ -70,10 +75,14 @@ func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *tlsCaptureBroadcast
 	if broadcaster == nil {
 		broadcaster = newTLSCaptureBroadcaster()
 	}
+	if rules == nil {
+		rules = NewTLSCaptureRuleStore()
+	}
 	return &TLSProbeManager{
 		objs:        objs,
 		assembler:   NewFragmentAssembler(10 * time.Second),
 		store:       store,
+		rules:       rules,
 		broadcaster: broadcaster,
 		attachedGo:  make(map[string]bool),
 	}, nil
@@ -268,6 +277,9 @@ func (m *TLSProbeManager) ReadLoop() error {
 			continue
 		}
 		event := agentSightHTTPAnalyzer.Analyze(*completed)
+		if m.rules != nil && !m.rules.Allows(event) {
+			continue
+		}
 		dispatchTLSAgentEvent(&event, tlsAgentLoopDetector, broadcast)
 		store.Add(event)
 		broadcaster.Broadcast(event)

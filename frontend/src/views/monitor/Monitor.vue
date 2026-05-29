@@ -145,10 +145,6 @@ watch(micLiveMode, (val) => {
   else stopMicWS();
 });
 
-watch(selectedMic, () => {
-  if (micLiveMode.value) connectMicWS();
-});
-
 // ── Lifecycle ──
 onMounted(() => {
   setup();
