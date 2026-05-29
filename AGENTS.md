@@ -209,6 +209,10 @@ Avoid describing path tracking as recursive or policy-tree based unless you also
   - `/metrics`
   - `/register`
   - `/unregister`
+  - `/agentsight/**`
+  - `/api/events*`
+  - `/api/runners*`
+  - `/api/stream*`
   - `/shell-sessions*`
   - `/events/recent`
   - `/events/graph`
@@ -236,6 +240,7 @@ Important pages:
 
 - `Dashboard.vue` — live event stream
 - `Monitor.vue` — system/process metrics
+- `AgentSight.vue` — AgentSight-compatible log / timeline / process-tree / metrics workspace, backed by EventEnvelope history, TLS capture history/stream, `/ws/system` metric conversion, imported traces, the bundled sample trace, and backend JSON/JSONL import/export/stats/query aliases `/agentsight/events`, `/agentsight/runners`, `/api/events`, and `/api/v1/agentsight/*`
 - `ExecutionGraph.vue` — agent run / tool / process / syscall / file / network / policy graph
 - `Explorer.vue` — filesystem browser and path tagging
 - `Executor.vue` — wrapper execution + PTY shell manager

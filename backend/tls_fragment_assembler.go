@@ -15,11 +15,14 @@ type tlsFragmentAssemblerKey struct {
 }
 
 type pendingTLSFragment struct {
-	firstSeen time.Time
-	fragCount uint16
-	totalLen  uint32
-	comm      string
-	fragMap   map[uint16]tlsFragment
+	firstSeen   time.Time
+	fragCount   uint16
+	totalLen    uint32
+	originalLen uint32
+	comm        string
+	flags       uint8
+	function    uint8
+	fragMap     map[uint16]tlsFragment
 }
 
 type FragmentAssembler struct {
@@ -99,14 +102,17 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*completedTLSFragment, bo
 			a.evictOldestPendingLocked()
 		}
 		pending = &pendingTLSFragment{
-			firstSeen: now,
-			fragCount: fragment.FragCount,
-			totalLen:  fragment.TotalLen,
-			comm:      sanitizeTLSComm(fragment.Comm),
-			fragMap:   make(map[uint16]tlsFragment, fragment.FragCount),
+			firstSeen:   now,
+			fragCount:   fragment.FragCount,
+			totalLen:    fragment.TotalLen,
+			originalLen: fragment.OriginalLen,
+			comm:        sanitizeTLSComm(fragment.Comm),
+			flags:       fragment.Flags,
+			function:    fragment.Function,
+			fragMap:     make(map[uint16]tlsFragment, fragment.FragCount),
 		}
 		a.pending[key] = pending
-	} else if pending.fragCount != fragment.FragCount || pending.totalLen != fragment.TotalLen {
+	} else if pending.fragCount != fragment.FragCount || pending.totalLen != fragment.TotalLen || pending.originalLen != fragment.OriginalLen || pending.flags != fragment.Flags || pending.function != fragment.Function {
 		delete(a.pending, key)
 		a.dropped++
 		return nil, false
@@ -139,10 +145,13 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*completedTLSFragment, bo
 		PID:         fragment.PID,
 		TGID:        fragment.TGID,
 		DataLen:     fragment.DataLen,
-		TotalLen:    fragment.TotalLen,
-		FragCount:   fragment.FragCount,
+		TotalLen:    pending.totalLen,
+		OriginalLen: pending.originalLen,
+		FragCount:   pending.fragCount,
 		LibType:     fragment.LibType,
 		Direction:   fragment.Direction,
+		Flags:       pending.flags,
+		Function:    pending.function,
 		Comm:        pending.comm,
 		Payload:     payload,
 	}, true

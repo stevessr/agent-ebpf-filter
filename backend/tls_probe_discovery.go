@@ -163,8 +163,10 @@ func goTLSSymbolName(name string) (string, bool) {
 
 func tlsProgramForSymbol(symbol string) (string, bool) {
 	switch symbol {
-	case "SSL_write", "SSL_write_ex":
+	case "SSL_write":
 		return "uprobe_ssl_write", true
+	case "SSL_write_ex":
+		return "uprobe_ssl_write_ex", true
 	case "gnutls_record_send":
 		return "uprobe_gnutls_record_send", true
 	case "PR_Write":
@@ -177,8 +179,10 @@ func tlsProgramForSymbol(symbol string) (string, bool) {
 		return "uprobe_gnutls_record_recv", true
 	case "PR_Read":
 		return "uprobe_pr_read", true
-	case "SSL_read", "SSL_read_ex":
+	case "SSL_read":
 		return "uprobe_ssl_read", true
+	case "SSL_read_ex":
+		return "uprobe_ssl_read_ex", true
 	default:
 		return "", false
 	}
@@ -186,8 +190,12 @@ func tlsProgramForSymbol(symbol string) (string, bool) {
 
 func tlsReturnProgramForSymbol(symbol string) (string, bool) {
 	switch symbol {
-	case "SSL_read", "SSL_read_ex":
+	case "SSL_read":
 		return "uretprobe_ssl_read", true
+	case "SSL_read_ex":
+		return "uretprobe_ssl_read_ex", true
+	case "SSL_write_ex":
+		return "uretprobe_ssl_write_ex", true
 	case "gnutls_record_recv":
 		return "uretprobe_gnutls_record_recv", true
 	case "PR_Read":

@@ -32,9 +32,9 @@ func TestTLSProgramForSymbol(t *testing.T) {
 		program string
 	}{
 		{symbol: "SSL_write", program: "uprobe_ssl_write"},
-		{symbol: "SSL_write_ex", program: "uprobe_ssl_write"},
+		{symbol: "SSL_write_ex", program: "uprobe_ssl_write_ex"},
 		{symbol: "SSL_read", program: "uprobe_ssl_read"},
-		{symbol: "SSL_read_ex", program: "uprobe_ssl_read"},
+		{symbol: "SSL_read_ex", program: "uprobe_ssl_read_ex"},
 		{symbol: "gnutls_record_send", program: "uprobe_gnutls_record_send"},
 		{symbol: "gnutls_record_recv", program: "uprobe_gnutls_record_recv"},
 		{symbol: "PR_Write", program: "uprobe_pr_write"},
@@ -62,7 +62,8 @@ func TestTLSReturnProgramForSymbol(t *testing.T) {
 		program string
 	}{
 		{symbol: "SSL_read", program: "uretprobe_ssl_read"},
-		{symbol: "SSL_read_ex", program: "uretprobe_ssl_read"},
+		{symbol: "SSL_read_ex", program: "uretprobe_ssl_read_ex"},
+		{symbol: "SSL_write_ex", program: "uretprobe_ssl_write_ex"},
 		{symbol: "gnutls_record_recv", program: "uretprobe_gnutls_record_recv"},
 		{symbol: "PR_Read", program: "uretprobe_pr_read"},
 		{symbol: "crypto/tls.(*Conn).Read", program: "uretprobe_crypto_tls_conn_read"},
@@ -79,7 +80,7 @@ func TestTLSReturnProgramForSymbol(t *testing.T) {
 		})
 	}
 
-	for _, symbol := range []string{"SSL_write", "SSL_write_ex", "gnutls_record_send", "PR_Write", "crypto/tls.(*Conn).Write"} {
+	for _, symbol := range []string{"SSL_write", "gnutls_record_send", "PR_Write", "crypto/tls.(*Conn).Write"} {
 		t.Run(symbol+" no return", func(t *testing.T) {
 			if got, ok := tlsReturnProgramForSymbol(symbol); ok {
 				t.Fatalf("return program for %q = %q, want none", symbol, got)

@@ -32,11 +32,10 @@ const routes = [
   },
   {
     path: '/agentsight/:tab?',
-    name: 'AgentSight',
-    component: () => import('../views/agentsight/AgentSight.vue'),
+    redirect: { name: 'ExecutionGraph', params: { tab: 'behavior' } },
   },
   {
-    path: '/execution-graph',
+    path: '/execution-graph/:tab?',
     name: 'ExecutionGraph',
     component: () => import('../views/execution-graph/ExecutionGraph.vue'),
   },

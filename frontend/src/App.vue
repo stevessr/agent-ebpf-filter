@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined, GlobalOutlined, DeploymentUnitOutlined, ClusterOutlined, SafetyCertificateOutlined, ThunderboltOutlined, AppstoreOutlined, RadarChartOutlined } from '@ant-design/icons-vue';
+import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined, GlobalOutlined, DeploymentUnitOutlined, ClusterOutlined, SafetyCertificateOutlined, ThunderboltOutlined, AppstoreOutlined } from '@ant-design/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -10,9 +10,7 @@ const selectedKeys = ref<string[]>(['/dashboard']);
 watch(() => route.path, (path) => {
   if (path.startsWith('/tls-capture')) {
     selectedKeys.value = ['/tls-capture'];
-  } else if (path.startsWith('/agentsight')) {
-    selectedKeys.value = ['/agentsight'];
-  } else if (path.startsWith('/execution-graph')) {
+  } else if (path.startsWith('/agentsight') || path.startsWith('/execution-graph')) {
     selectedKeys.value = ['/execution-graph'];
   } else if (path.startsWith('/executor')) {
     selectedKeys.value = ['/executor'];
@@ -71,15 +69,11 @@ const handleMenuClick = ({ key }: { key: string }) => {
         </a-menu-item>
         <a-menu-item key="/tls-capture">
           <template #icon><SafetyCertificateOutlined /></template>
-          TLS 捕获
-        </a-menu-item>
-        <a-menu-item key="/agentsight">
-          <template #icon><RadarChartOutlined /></template>
-          AgentSight
+          Hook SSL
         </a-menu-item>
         <a-menu-item key="/execution-graph">
           <template #icon><ClusterOutlined /></template>
-          Execution Graph
+          追踪
         </a-menu-item>
         <a-menu-item key="/explorer">
           <template #icon><FolderOpenOutlined /></template>

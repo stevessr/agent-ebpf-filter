@@ -16,6 +16,7 @@ import {
 } from '@ant-design/icons-vue';
 import ExecutionGraphCanvas from '../../components/execution-graph/ExecutionGraphCanvas.vue';
 import ProcessPickerModal from '../../components/monitor/ProcessPickerModal.vue';
+import AgentSightTracePanel from '../../components/agentsight/AgentSightTracePanel.vue';
 import { useMonitorData } from '../../composables/monitor/useMonitorData';
 import type { ProcessInfo } from '../../composables/monitor/useMonitorData';
 import { useExecutionGraph } from '../../composables/execution-graph/useExecutionGraph';
@@ -26,14 +27,16 @@ import type {
   ExecutionGraphNode,
   ExecutionGraphResponse,
 } from '../../types/executionGraph';
-import { defaultFilters, filtersFromRoute, useGraphFilters } from './useGraphFilters';
+import { filtersFromRoute, useGraphFilters } from './useGraphFilters';
 import { useGraphWebSocket } from './useGraphWebSocket';
 const route = useRoute();
 const router = useRouter();
 const monitorData = useMonitorData();
 const { processes, loading: processLoading, setup: setupMonitorData, teardown: teardownMonitorData } = monitorData;
 const detailTabs = ['processes', 'files', 'network', 'policy', 'edges', 'metadata'] as const;
+const traceTabs = ['topology', 'behavior', 'recording'] as const;
 type DetailTab = typeof detailTabs[number];
+type TraceTab = typeof traceTabs[number];
 type GraphState = ExecutionGraphResponse & { nodes: ExecutionGraphNode[]; edges: ExecutionGraphEdge[] };
 type BrowserGraphSnapshot = { recordedAt: string; graph: GraphState };
 // ── Standalone state (created first to break circular deps) ──────────
@@ -80,7 +83,7 @@ const applyGraphPayload = (payload: Partial<ExecutionGraphResponse> | undefined)
   }
   lastLoadedAt.value = new Date().toLocaleString();
 };
-const { loading, graphSocketStatus, connectGraphSocket, closeGraphSocket } = useGraphWebSocket({
+const { loading, connectGraphSocket, closeGraphSocket } = useGraphWebSocket({
   liveListen,
   buildParams,
   applyGraphPayload,
@@ -133,6 +136,15 @@ const nearestProcessNode = computed(() => {
 });
 const actionableComm = computed(() => nearestProcessNode.value?.metadata?.comm?.trim() || nearestProcessNode.value?.label.trim() || '');
 const replayAvailable = computed(() => !!(selectedNode.value?.metadata?.agentRunId || selectedNode.value?.metadata?.toolCallId || selectedNode.value?.metadata?.traceId));
+const activeTraceTab = computed<TraceTab>({
+  get() {
+    const tab = String(route.params.tab || 'topology');
+    return traceTabs.includes(tab as TraceTab) ? tab as TraceTab : 'topology';
+  },
+  set(tab) {
+    void router.push({ name: 'ExecutionGraph', params: { tab }, query: route.query });
+  },
+});
 const renderNodeSubtitle = (node: ExecutionGraphNode) => node.subtitle?.trim() || node.metadata?.path || node.metadata?.endpoint || '—';
 // ── Event handlers ───────────────────────────────────────────────────
 const handleSelectNode = (id: string) => { selectedNodeId.value = id; };
@@ -179,10 +191,10 @@ onUnmounted(() => {
       <div class="hero-header">
         <div>
           <a-typography-title :level="3" style="margin-bottom: 8px;">
-            <ClusterOutlined /> Agent Execution Graph
+            <ClusterOutlined /> 追踪
           </a-typography-title>
           <a-typography-paragraph type="secondary" style="margin-bottom: 0;">
-            Correlate agent runs, tool calls, processes, syscalls, files, network endpoints, policy decisions, and audit alerts in one execution graph.
+            将执行拓扑、行为追踪、录制与回放集中在同一个追踪工作台中。
           </a-typography-paragraph>
         </div>
         <a-space wrap>
@@ -194,300 +206,316 @@ onUnmounted(() => {
         </a-space>
       </div>
     </a-card>
-    <a-row :gutter="16" class="summary-row">
-      <a-col :xs="24" :lg="8">
-        <a-card size="small" title="Top Node Kinds">
-          <a-space wrap>
-            <a-tag v-for="[kind, count] in sortedNodeCounts.slice(0, 8)" :key="kind" :color="kindTagColorMap[kind] || 'default'">
-              {{ kind }} · {{ count }}
-            </a-tag>
-          </a-space>
-        </a-card>
-      </a-col>
-      <a-col :xs="24" :lg="8">
-        <a-card size="small" title="Top Edge Kinds">
-          <a-space wrap>
-            <a-tag v-for="[kind, count] in sortedEdgeCounts.slice(0, 8)" :key="kind" color="processing">
-              {{ kind }} · {{ count }}
-            </a-tag>
-          </a-space>
-        </a-card>
-      </a-col>
-      <a-col :xs="24" :lg="8">
-        <a-card size="small" title="Time Scope">
-          <a-space direction="vertical" size="small">
-            <span><b>Preset:</b> {{ timePresetLabels[filters.timePreset] }}</span>
-            <span v-if="filters.timePreset === 'custom'"><b>Since:</b> {{ filters.since || '—' }}</span>
-            <span v-if="filters.timePreset === 'custom'"><b>Until:</b> {{ filters.until || '—' }}</span>
-            <span v-else-if="filters.timePreset !== 'all'"><b>Computed since:</b> {{ buildPresetSince(filters.timePreset) }}</span>
-          </a-space>
-        </a-card>
-      </a-col>
-    </a-row>
-    <a-card :bordered="false" class="process-listener-card">
-      <template #title><span><RadarChartOutlined /> Process Tree Listener</span></template>
-      <a-row :gutter="12" align="middle">
-        <a-col :xs="24" :lg="10">
-          <a-space wrap>
-            <a-button type="primary" @click="processPickerOpen = true">
-              从进程列表选择
-            </a-button>
-            <a-button v-if="filters.pid" @click="focusProcessBase(null)">清除 PID</a-button>
-            <a-tag v-if="filters.pid" color="processing">PID {{ filters.pid }}</a-tag>
-          </a-space>
-        </a-col>
-        <a-col :xs="24" :lg="8">
-          <a-typography-text type="secondary">{{ selectedProcessSummary }}</a-typography-text>
-        </a-col>
-        <a-col :xs="24" :lg="6">
-          <a-space wrap>
-            <a-switch v-model:checked="liveListen" checked-children="监听" un-checked-children="暂停" />
-            <a-checkbox v-model:checked="filters.processTree" :disabled="!filters.pid" @change="applyFilters">显示子进程调用树</a-checkbox>
-            <a-button size="small" :disabled="!nearestProcessNode" @click="focusProcessFromNode">监听当前节点 PID</a-button>
-          </a-space>
-        </a-col>
-      </a-row>
-    </a-card>
-    <a-card :bordered="false" class="recording-card">
-      <template #title><span><PlayCircleOutlined /> 录制 / 回放</span></template>
-      <a-row :gutter="12" align="middle">
-        <a-col :xs="24" :lg="12">
-          <a-input v-model:value="recordingPath" allow-clear placeholder="~/.config/agent-ebpf-filter/recordings/events.jsonl" />
-        </a-col>
-        <a-col :xs="24" :lg="12">
-          <a-space wrap>
-            <a-button type="primary" :loading="recordingBusy" :disabled="recordingActive" @click="startRecording">开始录制到文件</a-button>
-            <a-button danger :loading="recordingBusy" :disabled="!recordingActive" @click="stopRecording">停止录制</a-button>
-            <a-button :loading="replayBusy" @click="playRecording">回放文件</a-button>
-            <a-button v-if="replayEnabled" @click="stopReplay">退出回放</a-button>
-            <a-tag v-if="recordingActive" color="red">录制中 · {{ recordingCount }}</a-tag>
-            <a-tag v-if="replayEnabled" color="purple">回放中</a-tag>
-          </a-space>
-        </a-col>
-      </a-row>
-      <a-typography-text v-if="recordingStartedAt" type="secondary" class="recording-meta">
-        started {{ recordingStartedAt }}
-      </a-typography-text>
-      <div class="browser-recording-row">
-        <a-space wrap>
-          <a-button type="primary" ghost :disabled="browserRecordingActive" @click="startBrowserRecording">开始录制到浏览器内存</a-button>
-          <a-button :disabled="!browserRecordingActive" @click="stopBrowserRecording">停止内存录制</a-button>
-          <a-button :disabled="!browserSnapshotCount" @click="playBrowserRecording">回放内存</a-button>
-          <a-button v-if="browserReplayActive" @click="exitBrowserReplay">退出内存回放</a-button>
-          <a-button :disabled="!browserSnapshotCount" danger ghost @click="clearBrowserRecording">清空内存</a-button>
-          <a-button :disabled="!browserSnapshotCount" @click="exportBrowserRecording">导出内存 JSON</a-button>
-          <a-button type="primary" :loading="browserSaveBusy" :disabled="!browserSnapshotCount" @click="saveBrowserRecordingToBackend">保存到后端</a-button>
-          <a-tag v-if="browserRecordingActive" color="blue">内存录制中 · {{ browserSnapshotCount }}</a-tag>
-          <a-tag v-if="browserReplayActive" color="purple">内存回放 {{ browserReplayIndex }}/{{ browserSnapshotCount }}</a-tag>
-        </a-space>
-        <a-input
-          v-model:value="browserSavePath"
-          allow-clear
-          class="browser-save-path"
-          placeholder="后端保存路径，可空；默认保存到 ~/.config/agent-ebpf-filter/recordings/browser-memory-*.json"
-        />
-        <a-typography-text type="secondary" class="recording-meta">
-          {{ browserRecordingSummary }}
-        </a-typography-text>
-      </div>
-    </a-card>
-    <ProcessPickerModal
-      v-model:open="processPickerOpen"
-      :processes="processList"
-      :selected-pid="selectedProcessPid"
-      :loading="processLoading"
-      title="选择要监听的进程"
-      @select="handleProcessPicked"
-    />
-    <a-card :bordered="false" class="filter-card">
-      <template #title><span><FilterOutlined /> Graph Filters</span></template>
-      <a-form layout="vertical">
-        <div class="filter-grid">
-          <a-form-item label="Agent Run ID"><a-input v-model:value="filters.agentRunId" allow-clear placeholder="run-..." /></a-form-item>
-          <a-form-item label="Tool Call ID"><a-input v-model:value="filters.toolCallId" allow-clear placeholder="tool-..." /></a-form-item>
-          <a-form-item label="Trace ID"><a-input v-model:value="filters.traceId" allow-clear placeholder="trace-..." /></a-form-item>
-          <a-form-item label="PID"><a-input v-model:value="filters.pid" allow-clear placeholder="101" /></a-form-item>
-          <a-form-item label="Command"><a-input v-model:value="filters.comm" allow-clear placeholder="bash / git / python" /></a-form-item>
-          <a-form-item label="Tool Name"><a-input v-model:value="filters.toolName" allow-clear placeholder="read_file / bash / npm" /></a-form-item>
-          <a-form-item label="Path"><a-input v-model:value="filters.path" allow-clear placeholder="/workspace or id_rsa" /></a-form-item>
-          <a-form-item label="Domain / Endpoint"><a-input v-model:value="filters.domain" allow-clear placeholder="github.com or :443" /></a-form-item>
-          <a-form-item label="Decision"><a-select v-model:value="filters.decision" :options="decisionOptions" /></a-form-item>
-          <a-form-item label="Minimum Risk Score"><a-input-number v-model:value="filters.riskMin" :min="0" :max="100" :step="5" style="width: 100%;" /></a-form-item>
-          <a-form-item label="Event Limit"><a-input-number v-model:value="filters.limit" :min="50" :max="2000" :step="50" style="width: 100%;" /></a-form-item>
-          <a-form-item label="Time Range Preset"><a-select v-model:value="filters.timePreset" :options="timePresetOptions.map(value => ({ label: timePresetLabels[value], value }))" /></a-form-item>
-          <a-form-item v-if="filters.timePreset === 'custom'" label="Since (RFC3339 / unix ms)"><a-input v-model:value="filters.since" allow-clear placeholder="2026-05-08T10:00:00Z" /></a-form-item>
-          <a-form-item v-if="filters.timePreset === 'custom'" label="Until (RFC3339 / unix ms)"><a-input v-model:value="filters.until" allow-clear placeholder="2026-05-08T12:00:00Z" /></a-form-item>
-        </div>
-      </a-form>
-      <div class="filter-actions">
-        <a-space wrap>
-          <a-button type="primary" :loading="loading" @click="applyFilters"><ReloadOutlined /> Refresh Graph</a-button>
-          <a-button @click="resetFilters">Reset Filters</a-button>
-          <a-button :disabled="!replayAvailable" @click="replaySelectedContext"><PlayCircleOutlined /> Replay This Run</a-button>
-        </a-space>
-      </div>
-    </a-card>
-    <div class="graph-layout">
-      <a-card :bordered="false" class="graph-card">
-        <template #title>
-          <a-space wrap>
-            <span>Execution Topology</span>
-            <a-tag color="green">process tree {{ processTreeNodes.length }}</a-tag>
-            <a-tag color="cyan">chain edges {{ processTreeEdges.length }}</a-tag>
-          </a-space>
-        </template>
-        <template #extra>
-          <a-space wrap>
-            <a-tag color="green">process</a-tag>
-            <a-tag color="orange">syscall</a-tag>
-            <a-tag color="blue">tool</a-tag>
-            <a-tag color="red">network</a-tag>
-            <a-tag color="default">file</a-tag>
-          </a-space>
-        </template>
-        <a-alert
-          v-if="replayEnabled"
-          type="warning"
-          show-icon
-          class="graph-hint"
-          :message="`正在回放文件：${replayPath}`"
-        />
-        <a-alert
-          v-if="filters.pid"
-          type="info"
-          show-icon
-          class="graph-hint"
-          :message="`正在实时监听 PID ${filters.pid}${filters.processTree ? ' 的进程树和调用链' : ''}`"
-        />
-        <a-spin :spinning="loading">
-          <ExecutionGraphCanvas
-            :nodes="graph.nodes"
-            :edges="graph.edges"
-            :selected-node-id="selectedNodeId"
-            zoom-storage-key="agent-ebpf.execution-graph.execution-topology.zoom"
-            @select-node="handleSelectNode"
-          />
-        </a-spin>
-      </a-card>
-      <a-card :bordered="false" class="detail-card">
-        <template #title><span><InfoCircleOutlined /> Node Details</span></template>
-        <template #extra>
-          <a-space v-if="selectedNode">
-            <a-tag :color="selectedNodeKindColor">{{ selectedNode.kind }}</a-tag>
-            <a-tag v-if="selectedNode.riskScore !== undefined" color="volcano">risk {{ Number(selectedNode.riskScore).toFixed(0) }}</a-tag>
-          </a-space>
-        </template>
-        <a-empty v-if="!selectedNode" description="Select a node from the graph to inspect context, resources, and actions." />
-        <template v-else>
-          <a-space direction="vertical" size="middle" style="width: 100%;">
-            <div>
-              <a-typography-title :level="5" style="margin-bottom: 6px;">{{ selectedNode.label }}</a-typography-title>
-              <a-typography-paragraph type="secondary" style="margin-bottom: 0;">
-                {{ renderNodeSubtitle(selectedNode) }}
-              </a-typography-paragraph>
-            </div>
-            <a-descriptions :column="1" size="small" bordered>
-              <a-descriptions-item label="Node ID">{{ selectedNode.id }}</a-descriptions-item>
-              <a-descriptions-item label="Kind">{{ selectedNode.kind }}</a-descriptions-item>
-              <a-descriptions-item v-if="selectedNode.pid" label="PID">{{ selectedNode.pid }}</a-descriptions-item>
-              <a-descriptions-item v-if="actionableComm" label="Actionable Command">{{ actionableComm }}</a-descriptions-item>
-            </a-descriptions>
-            <div class="node-actions">
+
+    <a-tabs v-model:activeKey="activeTraceTab" class="trace-tabs">
+      <a-tab-pane key="topology" tab="执行拓扑">
+        <a-row :gutter="16" class="summary-row">
+          <a-col :xs="24" :lg="8">
+            <a-card size="small" title="Top Node Kinds">
               <a-space wrap>
-                <a-button size="small" @click="addRule('ALLOW')"><SafetyCertificateOutlined /> Add allow rule</a-button>
-                <a-button size="small" danger @click="addRule('BLOCK')"><StopOutlined /> Add block rule</a-button>
-                <a-button size="small" @click="exportTrainingSample('ALLOW')">Mark benign</a-button>
-                <a-button size="small" type="primary" ghost @click="exportTrainingSample('ALERT')"><AlertOutlined /> Mark suspicious</a-button>
-                <a-button size="small" type="dashed" @click="exportTrainingSample('BLOCK')">Export BLOCK sample</a-button>
+                <a-tag v-for="[kind, count] in sortedNodeCounts.slice(0, 8)" :key="kind" :color="kindTagColorMap[kind] || 'default'">
+                  {{ kind }} · {{ count }}
+                </a-tag>
               </a-space>
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :lg="8">
+            <a-card size="small" title="Top Edge Kinds">
+              <a-space wrap>
+                <a-tag v-for="[kind, count] in sortedEdgeCounts.slice(0, 8)" :key="kind" color="processing">
+                  {{ kind }} · {{ count }}
+                </a-tag>
+              </a-space>
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :lg="8">
+            <a-card size="small" title="Time Scope">
+              <a-space direction="vertical" size="small">
+                <span><b>Preset:</b> {{ timePresetLabels[filters.timePreset] }}</span>
+                <span v-if="filters.timePreset === 'custom'"><b>Since:</b> {{ filters.since || '—' }}</span>
+                <span v-if="filters.timePreset === 'custom'"><b>Until:</b> {{ filters.until || '—' }}</span>
+                <span v-else-if="filters.timePreset !== 'all'"><b>Computed since:</b> {{ buildPresetSince(filters.timePreset) }}</span>
+              </a-space>
+            </a-card>
+          </a-col>
+        </a-row>
+
+        <a-card :bordered="false" class="process-listener-card">
+          <template #title><span><RadarChartOutlined /> Process Tree Listener</span></template>
+          <a-row :gutter="12" align="middle">
+            <a-col :xs="24" :lg="10">
+              <a-space wrap>
+                <a-button type="primary" @click="processPickerOpen = true">
+                  从进程列表选择
+                </a-button>
+                <a-button v-if="filters.pid" @click="focusProcessBase(null)">清除 PID</a-button>
+                <a-tag v-if="filters.pid" color="processing">PID {{ filters.pid }}</a-tag>
+              </a-space>
+            </a-col>
+            <a-col :xs="24" :lg="8">
+              <a-typography-text type="secondary">{{ selectedProcessSummary }}</a-typography-text>
+            </a-col>
+            <a-col :xs="24" :lg="6">
+              <a-space wrap>
+                <a-switch v-model:checked="liveListen" checked-children="监听" un-checked-children="暂停" />
+                <a-checkbox v-model:checked="filters.processTree" :disabled="!filters.pid" @change="applyFilters">显示子进程调用树</a-checkbox>
+                <a-button size="small" :disabled="!nearestProcessNode" @click="focusProcessFromNode">监听当前节点 PID</a-button>
+              </a-space>
+            </a-col>
+          </a-row>
+        </a-card>
+
+        <ProcessPickerModal
+          v-model:open="processPickerOpen"
+          :processes="processList"
+          :selected-pid="selectedProcessPid"
+          :loading="processLoading"
+          title="选择要监听的进程"
+          @select="handleProcessPicked"
+        />
+
+        <a-card :bordered="false" class="filter-card">
+          <template #title><span><FilterOutlined /> Graph Filters</span></template>
+          <a-form layout="vertical">
+            <div class="filter-grid">
+              <a-form-item label="Agent Run ID"><a-input v-model:value="filters.agentRunId" allow-clear placeholder="run-..." /></a-form-item>
+              <a-form-item label="Tool Call ID"><a-input v-model:value="filters.toolCallId" allow-clear placeholder="tool-..." /></a-form-item>
+              <a-form-item label="Trace ID"><a-input v-model:value="filters.traceId" allow-clear placeholder="trace-..." /></a-form-item>
+              <a-form-item label="PID"><a-input v-model:value="filters.pid" allow-clear placeholder="101" /></a-form-item>
+              <a-form-item label="Command"><a-input v-model:value="filters.comm" allow-clear placeholder="bash / git / python" /></a-form-item>
+              <a-form-item label="Tool Name"><a-input v-model:value="filters.toolName" allow-clear placeholder="read_file / bash / npm" /></a-form-item>
+              <a-form-item label="Path"><a-input v-model:value="filters.path" allow-clear placeholder="/workspace or id_rsa" /></a-form-item>
+              <a-form-item label="Domain / Endpoint"><a-input v-model:value="filters.domain" allow-clear placeholder="github.com or :443" /></a-form-item>
+              <a-form-item label="Decision"><a-select v-model:value="filters.decision" :options="decisionOptions" /></a-form-item>
+              <a-form-item label="Minimum Risk Score"><a-input-number v-model:value="filters.riskMin" :min="0" :max="100" :step="5" style="width: 100%;" /></a-form-item>
+              <a-form-item label="Event Limit"><a-input-number v-model:value="filters.limit" :min="50" :max="2000" :step="50" style="width: 100%;" /></a-form-item>
+              <a-form-item label="Time Range Preset"><a-select v-model:value="filters.timePreset" :options="timePresetOptions.map(value => ({ label: timePresetLabels[value], value }))" /></a-form-item>
+              <a-form-item v-if="filters.timePreset === 'custom'" label="Since (RFC3339 / unix ms)"><a-input v-model:value="filters.since" allow-clear placeholder="2026-05-08T10:00:00Z" /></a-form-item>
+              <a-form-item v-if="filters.timePreset === 'custom'" label="Until (RFC3339 / unix ms)"><a-input v-model:value="filters.until" allow-clear placeholder="2026-05-08T12:00:00Z" /></a-form-item>
             </div>
+          </a-form>
+          <div class="filter-actions">
             <a-space wrap>
-              <a-button size="small" @click="focusRelatedTab('processes')">Show related process tree</a-button>
-              <a-button size="small" @click="focusRelatedTab('files')">Show related files</a-button>
-              <a-button size="small" @click="focusRelatedTab('network')">Show related network flows</a-button>
-              <a-button size="small" @click="focusRelatedTab('policy')">Show related policy events</a-button>
+              <a-button type="primary" :loading="loading" @click="applyFilters"><ReloadOutlined /> Refresh Graph</a-button>
+              <a-button @click="resetFilters">Reset Filters</a-button>
+              <a-button :disabled="!replayAvailable" @click="replaySelectedContext"><PlayCircleOutlined /> Replay This Run</a-button>
             </a-space>
-            <a-tabs v-model:activeKey="activeDetailTab" size="small">
-              <a-tab-pane key="processes" :tab="`Processes (${relatedProcesses.length})`">
-                <a-list size="small" :data-source="selectedNode?.kind === 'process' ? processTreeNodes : relatedProcesses" bordered>
-                  <template #renderItem="{ item }">
-                    <a-list-item @click="selectedNodeId = item.id" class="clickable-list-item">
-                      <a-space direction="vertical" size="small">
-                        <span><b>{{ item.label }}</b> <a-tag color="green">process</a-tag></span>
-                        <span class="muted-line">{{ renderNodeSubtitle(item) }}</span>
-                      </a-space>
-                    </a-list-item>
-                  </template>
-                </a-list>
-              </a-tab-pane>
-              <a-tab-pane key="files" :tab="`Files (${relatedFiles.length})`">
-                <a-list size="small" :data-source="relatedFiles" bordered>
-                  <template #renderItem="{ item }">
-                    <a-list-item @click="selectedNodeId = item.id" class="clickable-list-item">
-                      <a-space direction="vertical" size="small">
-                        <span><b>{{ item.label }}</b></span>
-                        <span class="muted-line">{{ item.metadata?.path || 'file access' }}</span>
-                      </a-space>
-                    </a-list-item>
-                  </template>
-                </a-list>
-              </a-tab-pane>
-              <a-tab-pane key="network" :tab="`Network (${relatedNetwork.length})`">
-                <a-list size="small" :data-source="relatedNetwork" bordered>
-                  <template #renderItem="{ item }">
-                    <a-list-item @click="selectedNodeId = item.id" class="clickable-list-item">
-                      <a-space direction="vertical" size="small">
-                        <span><b>{{ item.label }}</b></span>
-                        <span class="muted-line">{{ item.subtitle || item.metadata?.domain || 'network relation' }}</span>
-                      </a-space>
-                    </a-list-item>
-                  </template>
-                </a-list>
-              </a-tab-pane>
-              <a-tab-pane key="policy" :tab="`Policy (${relatedPolicies.length})`">
-                <a-list size="small" :data-source="relatedPolicies" bordered>
-                  <template #renderItem="{ item }">
-                    <a-list-item @click="selectedNodeId = item.id" class="clickable-list-item">
-                      <a-space direction="vertical" size="small">
-                        <span>
-                          <b>{{ item.label }}</b>
-                          <a-tag :color="item.kind === 'policy_alert' ? 'error' : 'default'">{{ item.kind }}</a-tag>
-                        </span>
-                        <span class="muted-line">{{ renderNodeSubtitle(item) }}</span>
-                      </a-space>
-                    </a-list-item>
-                  </template>
-                </a-list>
-              </a-tab-pane>
-              <a-tab-pane key="edges" :tab="`Edges (${incidentEdges.length})`">
-                <a-list size="small" :data-source="incidentEdges" bordered>
-                  <template #renderItem="{ item }">
-                    <a-list-item>
-                      <a-space direction="vertical" size="small">
-                        <span><b>{{ item.kind }}</b></span>
-                        <span class="muted-line">{{ item.source }} → {{ item.target }}</span>
-                      </a-space>
-                    </a-list-item>
-                  </template>
-                </a-list>
-              </a-tab-pane>
-              <a-tab-pane key="metadata" tab="Metadata">
-                <a-list size="small" :data-source="metadataEntries" bordered>
-                  <template #renderItem="{ item }">
-                    <a-list-item>
-                      <div class="metadata-row">
-                        <span class="metadata-key">{{ item[0] }}</span>
-                        <span class="metadata-value">{{ item[1] || '—' }}</span>
-                      </div>
-                    </a-list-item>
-                  </template>
-                </a-list>
-              </a-tab-pane>
-            </a-tabs>
-          </a-space>
-        </template>
-      </a-card>
-    </div>
+          </div>
+        </a-card>
+
+        <div class="graph-layout">
+          <a-card :bordered="false" class="graph-card">
+            <template #title>
+              <a-space wrap>
+                <span>Execution Topology</span>
+                <a-tag color="green">process tree {{ processTreeNodes.length }}</a-tag>
+                <a-tag color="cyan">chain edges {{ processTreeEdges.length }}</a-tag>
+              </a-space>
+            </template>
+            <template #extra>
+              <a-space wrap>
+                <a-tag color="green">process</a-tag>
+                <a-tag color="orange">syscall</a-tag>
+                <a-tag color="blue">tool</a-tag>
+                <a-tag color="red">network</a-tag>
+                <a-tag color="default">file</a-tag>
+              </a-space>
+            </template>
+            <a-alert
+              v-if="replayEnabled"
+              type="warning"
+              show-icon
+              class="graph-hint"
+              :message="`正在回放文件：${replayPath}`"
+            />
+            <a-alert
+              v-if="filters.pid"
+              type="info"
+              show-icon
+              class="graph-hint"
+              :message="`正在实时监听 PID ${filters.pid}${filters.processTree ? ' 的进程树和调用链' : ''}`"
+            />
+            <a-spin :spinning="loading">
+              <ExecutionGraphCanvas
+                :nodes="graph.nodes"
+                :edges="graph.edges"
+                :selected-node-id="selectedNodeId"
+                zoom-storage-key="agent-ebpf.execution-graph.execution-topology.zoom"
+                @select-node="handleSelectNode"
+              />
+            </a-spin>
+          </a-card>
+          <a-card :bordered="false" class="detail-card">
+            <template #title><span><InfoCircleOutlined /> Node Details</span></template>
+            <template #extra>
+              <a-space v-if="selectedNode">
+                <a-tag :color="selectedNodeKindColor">{{ selectedNode.kind }}</a-tag>
+                <a-tag v-if="selectedNode.riskScore !== undefined" color="volcano">risk {{ Number(selectedNode.riskScore).toFixed(0) }}</a-tag>
+              </a-space>
+            </template>
+            <a-empty v-if="!selectedNode" description="Select a node from the graph to inspect context, resources, and actions." />
+            <template v-else>
+              <a-space direction="vertical" size="middle" style="width: 100%;">
+                <div>
+                  <a-typography-title :level="5" style="margin-bottom: 6px;">{{ selectedNode.label }}</a-typography-title>
+                  <a-typography-paragraph type="secondary" style="margin-bottom: 0;">
+                    {{ renderNodeSubtitle(selectedNode) }}
+                  </a-typography-paragraph>
+                </div>
+                <a-descriptions :column="1" size="small" bordered>
+                  <a-descriptions-item label="Node ID">{{ selectedNode.id }}</a-descriptions-item>
+                  <a-descriptions-item label="Kind">{{ selectedNode.kind }}</a-descriptions-item>
+                  <a-descriptions-item v-if="selectedNode.pid" label="PID">{{ selectedNode.pid }}</a-descriptions-item>
+                  <a-descriptions-item v-if="actionableComm" label="Actionable Command">{{ actionableComm }}</a-descriptions-item>
+                </a-descriptions>
+                <div class="node-actions">
+                  <a-space wrap>
+                    <a-button size="small" @click="addRule('ALLOW')"><SafetyCertificateOutlined /> Add allow rule</a-button>
+                    <a-button size="small" danger @click="addRule('BLOCK')"><StopOutlined /> Add block rule</a-button>
+                    <a-button size="small" @click="exportTrainingSample('ALLOW')">Mark benign</a-button>
+                    <a-button size="small" type="primary" ghost @click="exportTrainingSample('ALERT')"><AlertOutlined /> Mark suspicious</a-button>
+                    <a-button size="small" type="dashed" @click="exportTrainingSample('BLOCK')">Export BLOCK sample</a-button>
+                  </a-space>
+                </div>
+                <a-space wrap>
+                  <a-button size="small" @click="focusRelatedTab('processes')">Show related process tree</a-button>
+                  <a-button size="small" @click="focusRelatedTab('files')">Show related files</a-button>
+                  <a-button size="small" @click="focusRelatedTab('network')">Show related network flows</a-button>
+                  <a-button size="small" @click="focusRelatedTab('policy')">Show related policy events</a-button>
+                </a-space>
+                <a-tabs v-model:activeKey="activeDetailTab" size="small">
+                  <a-tab-pane key="processes" :tab="`Processes (${relatedProcesses.length})`">
+                    <a-list size="small" :data-source="selectedNode?.kind === 'process' ? processTreeNodes : relatedProcesses" bordered>
+                      <template #renderItem="{ item }">
+                        <a-list-item @click="selectedNodeId = item.id" class="clickable-list-item">
+                          <a-space direction="vertical" size="small">
+                            <span><b>{{ item.label }}</b> <a-tag color="green">process</a-tag></span>
+                            <span class="muted-line">{{ renderNodeSubtitle(item) }}</span>
+                          </a-space>
+                        </a-list-item>
+                      </template>
+                    </a-list>
+                  </a-tab-pane>
+                  <a-tab-pane key="files" :tab="`Files (${relatedFiles.length})`">
+                    <a-list size="small" :data-source="relatedFiles" bordered>
+                      <template #renderItem="{ item }">
+                        <a-list-item @click="selectedNodeId = item.id" class="clickable-list-item">
+                          <a-space direction="vertical" size="small">
+                            <span><b>{{ item.label }}</b></span>
+                            <span class="muted-line">{{ item.metadata?.path || 'file access' }}</span>
+                          </a-space>
+                        </a-list-item>
+                      </template>
+                    </a-list>
+                  </a-tab-pane>
+                  <a-tab-pane key="network" :tab="`Network (${relatedNetwork.length})`">
+                    <a-list size="small" :data-source="relatedNetwork" bordered>
+                      <template #renderItem="{ item }">
+                        <a-list-item @click="selectedNodeId = item.id" class="clickable-list-item">
+                          <a-space direction="vertical" size="small">
+                            <span><b>{{ item.label }}</b></span>
+                            <span class="muted-line">{{ item.subtitle || item.metadata?.domain || 'network relation' }}</span>
+                          </a-space>
+                        </a-list-item>
+                      </template>
+                    </a-list>
+                  </a-tab-pane>
+                  <a-tab-pane key="policy" :tab="`Policy (${relatedPolicies.length})`">
+                    <a-list size="small" :data-source="relatedPolicies" bordered>
+                      <template #renderItem="{ item }">
+                        <a-list-item @click="selectedNodeId = item.id" class="clickable-list-item">
+                          <a-space direction="vertical" size="small">
+                            <span>
+                              <b>{{ item.label }}</b>
+                              <a-tag :color="item.kind === 'policy_alert' ? 'error' : 'default'">{{ item.kind }}</a-tag>
+                            </span>
+                            <span class="muted-line">{{ renderNodeSubtitle(item) }}</span>
+                          </a-space>
+                        </a-list-item>
+                      </template>
+                    </a-list>
+                  </a-tab-pane>
+                  <a-tab-pane key="edges" :tab="`Edges (${incidentEdges.length})`">
+                    <a-list size="small" :data-source="incidentEdges" bordered>
+                      <template #renderItem="{ item }">
+                        <a-list-item>
+                          <a-space direction="vertical" size="small">
+                            <span><b>{{ item.kind }}</b></span>
+                            <span class="muted-line">{{ item.source }} → {{ item.target }}</span>
+                          </a-space>
+                        </a-list-item>
+                      </template>
+                    </a-list>
+                  </a-tab-pane>
+                  <a-tab-pane key="metadata" tab="Metadata">
+                    <a-list size="small" :data-source="metadataEntries" bordered>
+                      <template #renderItem="{ item }">
+                        <a-list-item>
+                          <div class="metadata-row">
+                            <span class="metadata-key">{{ item[0] }}</span>
+                            <span class="metadata-value">{{ item[1] || '—' }}</span>
+                          </div>
+                        </a-list-item>
+                      </template>
+                    </a-list>
+                  </a-tab-pane>
+                </a-tabs>
+              </a-space>
+            </template>
+          </a-card>
+        </div>
+      </a-tab-pane>
+
+      <a-tab-pane key="behavior" tab="行为追踪">
+        <AgentSightTracePanel />
+      </a-tab-pane>
+
+      <a-tab-pane key="recording" tab="录制 / 回放">
+        <a-card :bordered="false" class="recording-card">
+          <template #title><span><PlayCircleOutlined /> 录制 / 回放</span></template>
+          <a-row :gutter="12" align="middle">
+            <a-col :xs="24" :lg="12">
+              <a-input v-model:value="recordingPath" allow-clear placeholder="~/.config/agent-ebpf-filter/recordings/events.jsonl" />
+            </a-col>
+            <a-col :xs="24" :lg="12">
+              <a-space wrap>
+                <a-button type="primary" :loading="recordingBusy" :disabled="recordingActive" @click="startRecording">开始录制到文件</a-button>
+                <a-button danger :loading="recordingBusy" :disabled="!recordingActive" @click="stopRecording">停止录制</a-button>
+                <a-button :loading="replayBusy" @click="playRecording">回放文件</a-button>
+                <a-button v-if="replayEnabled" @click="stopReplay">退出回放</a-button>
+                <a-tag v-if="recordingActive" color="red">录制中 · {{ recordingCount }}</a-tag>
+                <a-tag v-if="replayEnabled" color="purple">回放中</a-tag>
+              </a-space>
+            </a-col>
+          </a-row>
+          <a-typography-text v-if="recordingStartedAt" type="secondary" class="recording-meta">
+            started {{ recordingStartedAt }}
+          </a-typography-text>
+          <div class="browser-recording-row">
+            <a-space wrap>
+              <a-button type="primary" ghost :disabled="browserRecordingActive" @click="startBrowserRecording">开始录制到浏览器内存</a-button>
+              <a-button :disabled="!browserRecordingActive" @click="stopBrowserRecording">停止内存录制</a-button>
+              <a-button :disabled="!browserSnapshotCount" @click="playBrowserRecording">回放内存</a-button>
+              <a-button v-if="browserReplayActive" @click="exitBrowserReplay">退出内存回放</a-button>
+              <a-button :disabled="!browserSnapshotCount" danger ghost @click="clearBrowserRecording">清空内存</a-button>
+              <a-button :disabled="!browserSnapshotCount" @click="exportBrowserRecording">导出内存 JSON</a-button>
+              <a-button type="primary" :loading="browserSaveBusy" :disabled="!browserSnapshotCount" @click="saveBrowserRecordingToBackend">保存到后端</a-button>
+              <a-tag v-if="browserRecordingActive" color="blue">内存录制中 · {{ browserSnapshotCount }}</a-tag>
+              <a-tag v-if="browserReplayActive" color="purple">内存回放 {{ browserReplayIndex }}/{{ browserSnapshotCount }}</a-tag>
+            </a-space>
+            <a-input
+              v-model:value="browserSavePath"
+              allow-clear
+              class="browser-save-path"
+              placeholder="后端保存路径，可空；默认保存到 ~/.config/agent-ebpf-filter/recordings/browser-memory-*.json"
+            />
+            <a-typography-text type="secondary" class="recording-meta">
+              {{ browserRecordingSummary }}
+            </a-typography-text>
+          </div>
+        </a-card>
+      </a-tab-pane>
+    </a-tabs>
   </div>
 </template>
 <style scoped src="./execution-graph.css"></style>

@@ -106,7 +106,7 @@ Stable external API aliases:
 
 - `GET /api/v1/health` returns service health, runtime gates, eBPF bootstrap status, and collector counters for external controllers.
 - `GET /api/v1/openapi.json` returns a compact OpenAPI 3.0 summary.
-- `/api/v1/events/*`, `/api/v1/network/*`, `/api/v1/sandbox/*`, `/api/v1/policies/*`, `/api/v1/agents/*`, and `/api/v1/config/export` mirror the root API for automation and Kubernetes callers. Mutating policy aliases remain behind `policyManagementEnabledMiddleware()`.
+- `/api/v1/events/*`, `/api/v1/agentsight/*`, `/api/v1/network/*`, `/api/v1/sandbox/*`, `/api/v1/policies/*`, `/api/v1/agents/*`, and `/api/v1/config/export` mirror the root API for automation and Kubernetes callers. Mutating policy aliases remain behind `policyManagementEnabledMiddleware()`.
 
 Kernel-side network blocking APIs:
 
@@ -181,8 +181,10 @@ The runtime access token protects:
 
 - `GET /events/recent?type=&limit=` — historical events (used for initial WS load); each record now also includes a normalized `Envelope`
 - `GET /events/graph?...` — aggregated execution graph API for the current event retention window
+- `GET /agentsight/events?format=json|array|jsonl` / `POST /agentsight/events` / `GET /agentsight/events.jsonl` — AgentSight-compatible export/import that merges retained `EventEnvelope` records, uploaded AgentSight traces, and TLS capture history into `{timestamp,source,pid,comm,data}` JSON/JSONL
+- `GET /agentsight/runners` / `GET /agentsight/events/stats` / `GET /agentsight/events/runners/:id/stats` / `POST /agentsight/events/query` / `GET /agentsight/stream/merged` / `GET /agentsight/stream/runner/:id` — AgentSight logical runner status, storage stats, advanced query, and SSE stream compatibility; `/api/events`, `/api/runners`, and `/api/stream/*` mirror the original AgentSight frontend sync/upload/SSE surface
 - `GET /api/v1/health` / `GET /api/v1/openapi.json` — stable external API discovery endpoints
-- `/api/v1/events/*`, `/api/v1/network/*`, `/api/v1/sandbox/*`, `/api/v1/policies/*`, `/api/v1/agents/*`, `/api/v1/config/export` — stable external aliases for automation and Kubernetes callers
+- `/api/v1/events/*`, `/api/v1/agentsight/*`, `/api/v1/network/*`, `/api/v1/sandbox/*`, `/api/v1/policies/*`, `/api/v1/agents/*`, `/api/v1/config/export` — stable external aliases for automation and Kubernetes callers
 - `GET /ws/envelopes` — live `pb.EventEnvelopeBatch` stream for normalized event consumers
 - `GET /metrics` — Prometheus exposition for collector / queue / WS / per-type / per-pid counters
 - `GET /system/bootstrap-health` — current kernel release plus tracepoint attach/skipped summary for the backend bootstrap

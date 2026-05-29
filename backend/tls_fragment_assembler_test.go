@@ -21,6 +21,7 @@ func newTestTLSFragmentAt(index, count int, totalLen int, data string, timestamp
 	frag.TGID = 5678
 	frag.DataLen = uint32(len(data))
 	frag.TotalLen = uint32(totalLen)
+	frag.OriginalLen = uint32(totalLen)
 	frag.FragIndex = uint16(index)
 	frag.FragCount = uint16(count)
 	frag.LibType = tlsLibOpenSSL
@@ -210,6 +211,36 @@ func TestFragmentAssemblerDropsPendingWhenCountOrLengthMismatchAppearsForSameKey
 func TestTLSFragmentLayoutMatchesGeneratedBPFStruct(t *testing.T) {
 	if got, want := unsafe.Sizeof(tlsFragment{}), unsafe.Sizeof(bpf.AgentTlsCaptureTlsFragment{}); got != want {
 		t.Fatalf("unexpected tlsFragment size: got %d want %d", got, want)
+	}
+}
+
+func TestFragmentAssemblerPreservesCaptureMetadata(t *testing.T) {
+	assembler := NewFragmentAssembler(10 * time.Second)
+	frag := newTestTLSFragment(0, 1, 5, "abcde")
+	frag.OriginalLen = 20
+	frag.Flags = tlsFlagTruncated
+	frag.Function = tlsFuncSSLReadEx
+
+	completed, ok := assembler.Add(frag)
+	if !ok || completed == nil {
+		t.Fatalf("expected completed fragment")
+	}
+	if completed.OriginalLen != 20 {
+		t.Fatalf("original_len = %d, want 20", completed.OriginalLen)
+	}
+	if completed.Flags&tlsFlagTruncated == 0 {
+		t.Fatalf("expected truncated flag to be preserved")
+	}
+	if completed.Function != tlsFuncSSLReadEx {
+		t.Fatalf("function = %d, want %d", completed.Function, tlsFuncSSLReadEx)
+	}
+
+	event := parseTLSPlaintext(*completed)
+	if event.CapturedLen != 5 || event.OriginalLen != 20 || !event.Truncated {
+		t.Fatalf("unexpected capture metadata: captured=%d original=%d truncated=%v", event.CapturedLen, event.OriginalLen, event.Truncated)
+	}
+	if event.Function != "SSL_read_ex" {
+		t.Fatalf("function = %q, want SSL_read_ex", event.Function)
 	}
 }
 

@@ -16,34 +16,34 @@ import (
 )
 
 type tlsProbeTarget struct {
-	name       string
-	paths      []string
-	sendSymbol string
-	recvSymbol string
-	libType    uint8
+	name        string
+	paths       []string
+	sendSymbols []string
+	recvSymbols []string
+	libType     uint8
 }
 
 var staticTLSLibraries = []tlsProbeTarget{
 	{
-		name:       "openssl",
-		paths:      []string{"/lib/x86_64-linux-gnu/libssl.so.3", "/lib64/libssl.so.3", "/usr/lib64/libssl.so.3", "/usr/lib/x86_64-linux-gnu/libssl.so.3", "/usr/lib/libssl.so.3"},
-		sendSymbol: "SSL_write",
-		recvSymbol: "SSL_read",
-		libType:    tlsLibOpenSSL,
+		name:        "openssl",
+		paths:       []string{"/lib/x86_64-linux-gnu/libssl.so.3", "/lib/aarch64-linux-gnu/libssl.so.3", "/lib64/libssl.so.3", "/usr/lib64/libssl.so.3", "/usr/lib/x86_64-linux-gnu/libssl.so.3", "/usr/lib/aarch64-linux-gnu/libssl.so.3", "/usr/lib/libssl.so.3", "/usr/local/lib/libssl.so.3", "/usr/local/lib64/libssl.so.3"},
+		sendSymbols: []string{"SSL_write", "SSL_write_ex"},
+		recvSymbols: []string{"SSL_read", "SSL_read_ex"},
+		libType:     tlsLibOpenSSL,
 	},
 	{
-		name:       "gnutls",
-		paths:      []string{"/lib/x86_64-linux-gnu/libgnutls.so.30", "/lib64/libgnutls.so.30", "/usr/lib64/libgnutls.so.30", "/usr/lib/x86_64-linux-gnu/libgnutls.so.30", "/usr/lib/libgnutls.so.30"},
-		sendSymbol: "gnutls_record_send",
-		recvSymbol: "gnutls_record_recv",
-		libType:    tlsLibGnuTLS,
+		name:        "gnutls",
+		paths:       []string{"/lib/x86_64-linux-gnu/libgnutls.so.30", "/lib/aarch64-linux-gnu/libgnutls.so.30", "/lib64/libgnutls.so.30", "/usr/lib64/libgnutls.so.30", "/usr/lib/x86_64-linux-gnu/libgnutls.so.30", "/usr/lib/aarch64-linux-gnu/libgnutls.so.30", "/usr/lib/libgnutls.so.30", "/usr/local/lib/libgnutls.so.30", "/usr/local/lib64/libgnutls.so.30"},
+		sendSymbols: []string{"gnutls_record_send"},
+		recvSymbols: []string{"gnutls_record_recv"},
+		libType:     tlsLibGnuTLS,
 	},
 	{
-		name:       "nss",
-		paths:      []string{"/lib/x86_64-linux-gnu/libnspr4.so", "/lib64/libnspr4.so", "/usr/lib64/libnspr4.so", "/usr/lib/x86_64-linux-gnu/libnspr4.so", "/usr/lib/libnspr4.so"},
-		sendSymbol: "PR_Write",
-		recvSymbol: "PR_Read",
-		libType:    tlsLibNSS,
+		name:        "nss",
+		paths:       []string{"/lib/x86_64-linux-gnu/libnspr4.so", "/lib/aarch64-linux-gnu/libnspr4.so", "/lib64/libnspr4.so", "/usr/lib64/libnspr4.so", "/usr/lib/x86_64-linux-gnu/libnspr4.so", "/usr/lib/aarch64-linux-gnu/libnspr4.so", "/usr/lib/libnspr4.so", "/usr/local/lib/libnspr4.so", "/usr/local/lib64/libnspr4.so"},
+		sendSymbols: []string{"PR_Write"},
+		recvSymbols: []string{"PR_Read"},
+		libType:     tlsLibNSS,
 	},
 }
 
@@ -122,20 +122,29 @@ func (m *TLSProbeManager) attachLibraryPath(target tlsProbeTarget, path string, 
 
 	attached := 0
 	var errs []error
-	if l, err := m.attachEntryProbe(lib, target.name, target.sendSymbol, nil); err != nil {
-		errs = append(errs, err)
-	} else if l != nil {
-		attached++
+	for _, symbol := range target.sendSymbols {
+		if l, err := m.attachEntryProbe(lib, target.name, symbol, nil); err != nil {
+			errs = append(errs, err)
+		} else if l != nil {
+			attached++
+		}
+		if l, err := m.attachReturnProbe(lib, target.name, symbol, nil); err != nil {
+			errs = append(errs, err)
+		} else if l != nil {
+			attached++
+		}
 	}
-	if l, err := m.attachEntryProbe(lib, target.name, target.recvSymbol, nil); err != nil {
-		errs = append(errs, err)
-	} else if l != nil {
-		attached++
-	}
-	if l, err := m.attachReturnProbe(lib, target.name, target.recvSymbol, nil); err != nil {
-		errs = append(errs, err)
-	} else if l != nil {
-		attached++
+	for _, symbol := range target.recvSymbols {
+		if l, err := m.attachEntryProbe(lib, target.name, symbol, nil); err != nil {
+			errs = append(errs, err)
+		} else if l != nil {
+			attached++
+		}
+		if l, err := m.attachReturnProbe(lib, target.name, symbol, nil); err != nil {
+			errs = append(errs, err)
+		} else if l != nil {
+			attached++
+		}
 	}
 	return attached, errors.Join(errs...)
 }
@@ -310,11 +319,15 @@ func programByName(programs *bpf.AgentTlsCapturePrograms, name string) (*ebpf.Pr
 		"uprobe_pr_read":                 programs.UprobePrRead,
 		"uprobe_pr_write":                programs.UprobePrWrite,
 		"uprobe_ssl_read":                programs.UprobeSslRead,
+		"uprobe_ssl_read_ex":             programs.UprobeSslReadEx,
 		"uprobe_ssl_write":               programs.UprobeSslWrite,
+		"uprobe_ssl_write_ex":            programs.UprobeSslWriteEx,
 		"uretprobe_crypto_tls_conn_read": programs.UretprobeCryptoTlsConnRead,
 		"uretprobe_gnutls_record_recv":   programs.UretprobeGnutlsRecordRecv,
 		"uretprobe_pr_read":              programs.UretprobePrRead,
 		"uretprobe_ssl_read":             programs.UretprobeSslRead,
+		"uretprobe_ssl_read_ex":          programs.UretprobeSslReadEx,
+		"uretprobe_ssl_write_ex":         programs.UretprobeSslWriteEx,
 	}
 	prog, ok := programsByName[name]
 	return prog, ok

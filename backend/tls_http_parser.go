@@ -38,6 +38,11 @@ var tlsBearerTokenPattern = regexp.MustCompile(`(?i)\b(bearer\s+)[A-Za-z0-9._~+/
 var tlsInlineSecretPattern = regexp.MustCompile(`(?i)(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|secret|token)=([^\s&]+)`)
 
 func parseTLSPlaintext(fragment completedTLSFragment) TLSPlaintextEvent {
+	capturedLen := len(fragment.Payload)
+	originalLen := int(fragment.OriginalLen)
+	if originalLen == 0 {
+		originalLen = int(fragment.TotalLen)
+	}
 	event := TLSPlaintextEvent{
 		Type:         "raw",
 		Timestamp:    time.Unix(0, int64(fragment.TimestampNS)).UTC(),
@@ -46,6 +51,10 @@ func parseTLSPlaintext(fragment completedTLSFragment) TLSPlaintextEvent {
 		Comm:         fragment.Comm,
 		Direction:    tlsDirectionLabel(fragment.Direction),
 		Lib:          tlsLibLabel(fragment.LibType),
+		Function:     tlsFunctionLabel(fragment.Function),
+		CapturedLen:  capturedLen,
+		OriginalLen:  originalLen,
+		Truncated:    fragment.Flags&tlsFlagTruncated != 0 || originalLen > capturedLen,
 		RawAvailable: false,
 	}
 
@@ -436,5 +445,32 @@ func tlsLibLabel(lib uint8) string {
 		return "nss"
 	default:
 		return fmt.Sprintf("lib_%d", lib)
+	}
+}
+
+func tlsFunctionLabel(function uint8) string {
+	switch function {
+	case tlsFuncSSLWrite:
+		return "SSL_write"
+	case tlsFuncSSLRead:
+		return "SSL_read"
+	case tlsFuncSSLWriteEx:
+		return "SSL_write_ex"
+	case tlsFuncSSLReadEx:
+		return "SSL_read_ex"
+	case tlsFuncGnuTLSRecordSend:
+		return "gnutls_record_send"
+	case tlsFuncGnuTLSRecordRecv:
+		return "gnutls_record_recv"
+	case tlsFuncPRWrite:
+		return "PR_Write"
+	case tlsFuncPRRead:
+		return "PR_Read"
+	case tlsFuncGoConnWrite:
+		return "crypto/tls.(*Conn).Write"
+	case tlsFuncGoConnRead:
+		return "crypto/tls.(*Conn).Read"
+	default:
+		return ""
 	}
 }

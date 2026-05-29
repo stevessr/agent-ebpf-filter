@@ -59,6 +59,7 @@ func handleUnregister(c *gin.Context) {
 
 func handleClearEvents(c *gin.Context) {
 	capturedEventArchive.Clear()
+	agentSightUploadedEvents.Clear()
 	if err := runtimeSettingsStore.TruncateEventLog(); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -68,6 +69,7 @@ func handleClearEvents(c *gin.Context) {
 
 func handleClearEventsMemory(c *gin.Context) {
 	capturedEventArchive.Clear()
+	agentSightUploadedEvents.Clear()
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
@@ -286,6 +288,7 @@ func main() {
 		registerConfigRoutes(api.Group("/config"))
 		registerSystemRoutes(api.Group("/system"))
 		registerTLSCaptureRoutes(api, tlsManager, tlsStore)
+		registerAgentSightRoutes(api, tlsStore)
 		registerPluginRoutes(api.Group("/plugins"))
 
 		data := api.Group("/data")
@@ -302,7 +305,8 @@ func main() {
 			cluster.GET("/nodes", clusterNodesHandler)
 		}
 	}
-	registerExternalAPIRoutes(r.Group("/api/v1", authMiddleware()))
+	registerAgentSightCompatibilityRoutes(r.Group("/api", authMiddleware()), tlsStore)
+	registerExternalAPIRoutes(r.Group("/api/v1", authMiddleware()), tlsStore)
 
 	staticDir := "../frontend/dist"
 	if _, err := os.Stat(staticDir); err != nil {

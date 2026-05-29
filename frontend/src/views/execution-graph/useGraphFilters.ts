@@ -51,7 +51,7 @@ export const filtersFromRoute = (query: LocationQuery): ExecutionGraphFilterStat
 
 export interface UseGraphFiltersOptions {
   route: { query: LocationQuery };
-  router: { push: (...args: any[]) => Promise<void> };
+  router: { push: (...args: any[]) => Promise<unknown> };
   filters: ExecutionGraphFilterState;
   selectedProcessPid: { value: number | null };
   replayPath: { value: string };

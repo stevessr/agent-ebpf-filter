@@ -13,16 +13,32 @@ const tlsLibNSS = 3
 const tlsDirectionRecv = 0
 const tlsDirectionSend = 1
 
+const tlsFlagTruncated = 1
+
+const tlsFuncSSLWrite = 1
+const tlsFuncSSLRead = 2
+const tlsFuncSSLWriteEx = 3
+const tlsFuncSSLReadEx = 4
+const tlsFuncGnuTLSRecordSend = 5
+const tlsFuncGnuTLSRecordRecv = 6
+const tlsFuncPRWrite = 7
+const tlsFuncPRRead = 8
+const tlsFuncGoConnWrite = 9
+const tlsFuncGoConnRead = 10
+
 type tlsFragment struct {
 	TimestampNS uint64
 	PID         uint32
 	TGID        uint32
 	DataLen     uint32
 	TotalLen    uint32
+	OriginalLen uint32
 	FragIndex   uint16
 	FragCount   uint16
 	LibType     uint8
 	Direction   uint8
+	Flags       uint8
+	Function    uint8
 	Comm        [16]byte
 	Data        [tlsFragmentSize]byte
 }
@@ -33,9 +49,12 @@ type completedTLSFragment struct {
 	TGID        uint32
 	DataLen     uint32
 	TotalLen    uint32
+	OriginalLen uint32
 	FragCount   uint16
 	LibType     uint8
 	Direction   uint8
+	Flags       uint8
+	Function    uint8
 	Comm        string
 	Payload     []byte
 }
@@ -48,6 +67,9 @@ type TLSPlaintextEvent struct {
 	Comm           string            `json:"comm"`
 	Direction      string            `json:"direction"`
 	Lib            string            `json:"lib"`
+	Function       string            `json:"function,omitempty"`
+	CapturedLen    int               `json:"captured_len"`
+	OriginalLen    int               `json:"original_len"`
 	Method         string            `json:"method,omitempty"`
 	URL            string            `json:"url,omitempty"`
 	Host           string            `json:"host,omitempty"`

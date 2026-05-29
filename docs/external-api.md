@@ -41,6 +41,13 @@ through the authenticated root `/config/runtime` and inspect listener status at
 | --- | --- | --- |
 | `GET` | `/api/v1/events/recent?limit=100&type=execve` | Recent captured records with normalized envelopes. Supports `type`, `event_type`, `source`, `pid`, `comm`, `trace_id`, `span_id`, `since`, `until`, and `redaction_state`. |
 | `GET` | `/api/v1/events/graph?...` | Execution graph nodes and edges for retained events. |
+| `GET` | `/api/v1/agentsight/events?format=json\|array\|jsonl` | AgentSight-compatible merged export of retained EventEnvelope records, uploaded AgentSight traces, and TLS capture history. Supports `limit`, `include_tls`, `type`, `event_type`, semantic `source` (`file`, `process`, `http_parser`, `ssl`, `stdio`, `system`, `policy`), `pid`, `comm`, `trace_id`, `span_id`, `since`, `until`, `redaction_state`, and `filter`. |
+| `POST` | `/api/v1/agentsight/events` | Import AgentSight JSON, JSON arrays, `{ "events": [...] }`, or JSONL text into the in-memory AgentSight compatibility store. |
+| `GET` | `/api/v1/agentsight/runners` | Logical AgentSight runner status for process/eBPF, TLS, stdio, system, wrapper/policy/OTel, and uploaded traces. |
+| `GET` | `/api/v1/agentsight/events/stats` | AgentSight storage statistics by source, event type, logical runner, and command. |
+| `GET` | `/api/v1/agentsight/events/runners/{id}/stats` | Same statistics filtered to one logical runner (`process`, `tls`, `stdio`, `system`, `agent`, or `uploaded`). |
+| `POST` | `/api/v1/agentsight/events/query` | Advanced AgentSight query with JSON body filters such as `sources`, `event_types`, `pids`, `runner`, `since`, `until`, and `filter`. |
+| `GET` | `/api/v1/agentsight/events/stream` / `/api/v1/agentsight/stream/merged` | Server-sent AgentSight-compatible stream for clients that cannot use WebSockets. |
 
 Example:
 
@@ -50,7 +57,30 @@ curl -H "X-API-KEY: $AGENT_API_KEY" \
 
 curl -H "X-API-KEY: $AGENT_API_KEY" \
   "http://127.0.0.1:8080/api/v1/events/recent?limit=50&source=ebpf_ringbuf&event_type=TLS_PLAINTEXT&redaction_state=sanitized"
+
+curl -H "X-API-KEY: $AGENT_API_KEY" \
+  "http://127.0.0.1:8080/api/v1/agentsight/events?format=jsonl&limit=200&source=http_parser"
+
+curl -X POST -H "X-API-KEY: $AGENT_API_KEY" \
+  -H "Content-Type: application/x-ndjson" \
+  --data-binary @agentsight-trace.jsonl \
+  http://127.0.0.1:8080/api/v1/agentsight/events
+
+curl -H "X-API-KEY: $AGENT_API_KEY" \
+  http://127.0.0.1:8080/api/v1/agentsight/runners
+
+curl -X POST -H "X-API-KEY: $AGENT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"runner":"tls","event_types":["HTTP_MESSAGE","SSE_MESSAGE"],"filter":"anthropic","limit":100}' \
+  http://127.0.0.1:8080/api/v1/agentsight/events/query
 ```
+
+For compatibility with the original AgentSight frontend in
+`docs/ref/agentsight`, the authenticated root aliases `GET /api/events` and
+`GET /api/events/stream`, `GET /api/runners`, and `GET /api/stream/merged`
+return the same semantic AgentSight event shape/status, and `POST /api/events`
+plus `POST /api/events/query` accept the same import/query payloads. The plain
+`/api/events` endpoint returns JSONL text.
 
 ## Network and enforcement APIs
 
