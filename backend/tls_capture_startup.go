@@ -2,14 +2,14 @@ package main
 
 import "log"
 
-type tlsCaptureRuntime struct {
+type tlsCaptureRuntimeBundle struct {
 	store       *TLSCaptureStore
 	rules       *TLSCaptureRuleStore
 	broadcaster *tlsCaptureBroadcaster
 	controller  *TLSCaptureController
 }
 
-func startTLSCaptureRuntime(settings RuntimeSettings) *tlsCaptureRuntime {
+func startTLSCaptureRuntime(settings RuntimeSettings) *tlsCaptureRuntimeBundle {
 	store := NewTLSCaptureStore(2000)
 	rules := NewTLSCaptureRuleStore()
 	broadcaster := newTLSCaptureBroadcaster()
@@ -19,7 +19,7 @@ func startTLSCaptureRuntime(settings RuntimeSettings) *tlsCaptureRuntime {
 			log.Printf("[TLS] static library attach completed with warnings: %v", err)
 		}
 	}
-	return &tlsCaptureRuntime{
+	return &tlsCaptureRuntimeBundle{
 		store:       store,
 		rules:       rules,
 		broadcaster: broadcaster,
