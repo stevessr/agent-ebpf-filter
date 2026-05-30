@@ -179,7 +179,7 @@ Current behavior:
 
 The runtime access token protects:
 
-- `GET /events/recent?type=&limit=` — historical events (used for initial WS load); each record now also includes a normalized `Envelope`
+- `GET /events/recent?type=&limit=` — historical events (used for initial WS load); `limit=all`/`0` returns the full retained window, and each record includes a normalized `Envelope`
 - `GET /events/graph?...` — aggregated execution graph API for the current event retention window
 - `GET /agentsight/events?format=json|array|jsonl` / `POST /agentsight/events` / `GET /agentsight/events.jsonl` — AgentSight-compatible export/import that merges retained `EventEnvelope` records, uploaded AgentSight traces, and TLS capture history into `{timestamp,source,pid,comm,data}` JSON/JSONL
 - `GET /agentsight/runners` / `GET /agentsight/events/stats` / `GET /agentsight/events/runners/:id/stats` / `POST /agentsight/events/query` / `GET /agentsight/stream/merged` / `GET /agentsight/stream/runner/:id` — AgentSight logical runner status, storage stats, advanced query, and SSE stream compatibility; `/api/events`, `/api/runners`, and `/api/stream/*` mirror the original AgentSight frontend sync/upload/SSE surface

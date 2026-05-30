@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -49,6 +51,28 @@ var staticTLSLibraries = []tlsProbeTarget{
 		recvSymbols: []string{"PR_Read"},
 		libType:     tlsLibNSS,
 	},
+}
+
+func resolveManualTLSProbeTarget(path, library string) (tlsProbeTarget, error) {
+	lookup := strings.ToLower(strings.TrimSpace(library))
+	if lookup == "" {
+		lookup = strings.ToLower(filepath.Base(strings.TrimSpace(path)))
+	}
+	for _, target := range staticTLSLibraries {
+		if lookup == target.name || strings.Contains(lookup, target.name) {
+			return target, nil
+		}
+	}
+	if strings.Contains(lookup, "libssl") {
+		return staticTLSLibraries[0], nil
+	}
+	if strings.Contains(lookup, "libgnutls") {
+		return staticTLSLibraries[1], nil
+	}
+	if strings.Contains(lookup, "libnspr") || strings.Contains(lookup, "libnss") {
+		return staticTLSLibraries[2], nil
+	}
+	return tlsProbeTarget{}, fmt.Errorf("unsupported TLS library %q", lookup)
 }
 
 type TLSProbeManager struct {
@@ -112,25 +136,51 @@ func (m *TLSProbeManager) AttachStaticLibs() error {
 			m.store.SetLibraryStatus(status)
 			continue
 		}
-		status.Available = true
-		attachKey := target.name + "\x00" + path
-		if m.attachedStatic[attachKey] {
-			status.Attached = true
-			m.store.SetLibraryStatus(status)
-			continue
-		}
-		attached, err := m.attachLibraryPath(target, path, status)
-		status.Attached = attached > 0
-		if status.Attached {
-			m.attachedStatic[attachKey] = true
-		}
-		if err != nil {
+		if err := m.attachLibraryPathLocked(target, path, status); err != nil {
 			errs = append(errs, err)
-			status.Error = err.Error()
 		}
-		m.store.SetLibraryStatus(status)
 	}
 	return errors.Join(errs...)
+}
+
+func (m *TLSProbeManager) AttachLibrary(path, library string) error {
+	if m == nil {
+		return nil
+	}
+	target, err := resolveManualTLSProbeTarget(path, library)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed || m.objs == nil {
+		return fmt.Errorf("TLS probe manager is closed")
+	}
+	return m.attachLibraryPathLocked(target, strings.TrimSpace(path), TLSLibraryStatus{Name: target.name, Path: strings.TrimSpace(path), Available: true})
+}
+
+func (m *TLSProbeManager) attachLibraryPathLocked(target tlsProbeTarget, path string, status TLSLibraryStatus) error {
+	status.Available = true
+	attachKey := target.name + "\x00" + path
+	if m.attachedStatic[attachKey] {
+		status.Attached = true
+		m.store.SetLibraryStatus(status)
+		return nil
+	}
+	attached, err := m.attachLibraryPath(target, path, status)
+	status.Attached = attached > 0
+	if status.Attached {
+		m.attachedStatic[attachKey] = true
+	}
+	if err != nil {
+		status.Error = err.Error()
+	}
+	if attached == 0 && err == nil {
+		err = fmt.Errorf("no TLS probes attached for %s", path)
+		status.Error = err.Error()
+	}
+	m.store.SetLibraryStatus(status)
+	return err
 }
 
 func (m *TLSProbeManager) attachLibraryPath(target tlsProbeTarget, path string, status TLSLibraryStatus) (int, error) {

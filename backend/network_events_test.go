@@ -69,6 +69,47 @@ func TestBuildKernelEventRecordsUDPFlow(t *testing.T) {
 	}
 }
 
+func TestBuildKernelEventRecordsGenericTCPConnectFlowAndState(t *testing.T) {
+	origAgg := networkFlowAggregator
+	origTCP := tcpTracker
+	networkFlowAggregator = newFlowAggregator()
+	tcpTracker = newTCPStateTracker()
+	defer func() {
+		networkFlowAggregator = origAgg
+		tcpTracker = origTCP
+	}()
+
+	event := bpfEvent{
+		PID:          42,
+		Type:         uint32(pb.EventType_NETWORK_CONNECT),
+		TagID:        7,
+		NetFamily:    2,
+		NetDirection: 1,
+		NetPort:      443,
+		Retval:       0,
+	}
+	copy(event.Comm[:], []byte("curl"))
+	copy(event.NetAddr[:4], []byte{93, 184, 216, 34})
+
+	out := buildKernelEvent(event)
+	if out == nil || out.GetFlowId() != "TCP:local:0->93.184.216.34:443" {
+		t.Fatalf("FlowId = %q, want generic TCP connect flow", out.GetFlowId())
+	}
+
+	result := networkFlowAggregator.Query(networkFlowQuery{ShowHistoric: true, Filter: "proto:tcp dport:443", Limit: 10})
+	if result.Total != 1 || len(result.Flows) != 1 {
+		t.Fatalf("TCP flow query total=%d len=%d, want 1", result.Total, len(result.Flows))
+	}
+	if got := result.Flows[0].State; got != "ESTABLISHED" {
+		t.Fatalf("flow state = %q, want ESTABLISHED", got)
+	}
+
+	conns := tcpTracker.Snapshot()
+	if len(conns) != 1 || conns[0].State != TCPStateEstablished {
+		t.Fatalf("tcp conns = %#v, want one ESTABLISHED connection", conns)
+	}
+}
+
 func TestBuildKernelEventCopiesDurationNs(t *testing.T) {
 	event := bpfEvent{
 		PID:        42,

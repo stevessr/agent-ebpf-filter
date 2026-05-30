@@ -336,17 +336,12 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 			// Handled by recordUDPFlowFromEvent below -- skip the TCP path.
 			srcIP, dstIP = "0.0.0.0", "0.0.0.0"
 		case "network_connect":
-			// Tagged processes get a full tcp_connect event with both
-			// srcIP and dstIP from Extra2/Extra3.  Untagged processes
-			// only see this generic event -- extract dstIP from NetAddr.
-			if event.TagID == 0 {
-				if addr := networkIP(event.NetFamily, event.NetAddr); addr != nil {
-					if s := addr.String(); s != "" && s != "<nil>" {
-						dstIP = s
-					}
+			srcIP = "local"
+			srcPort = 0
+			if addr := networkIP(event.NetFamily, event.NetAddr); addr != nil {
+				if s := addr.String(); s != "" && s != "<nil>" {
+					dstIP = s
 				}
-			} else {
-				srcIP, dstIP = "0.0.0.0", "0.0.0.0"
 			}
 		}
 
@@ -354,6 +349,12 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 			applyBestEffortProcessContextToEvent(out)
 			flowState := ""
 			switch typeName {
+			case "network_connect":
+				if event.Retval == 0 {
+					flowState = "ESTABLISHED"
+				} else if event.Retval < 0 {
+					flowState = "FAILED"
+				}
 			case "tcp_close":
 				flowState = "CLOSED"
 			case "tcp_state_change":
@@ -379,6 +380,13 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 		}
 		// TCP state tracking
 		switch typeName {
+		case "network_connect":
+			if srcIP != "0.0.0.0" && dstIP != "0.0.0.0" && dstPort > 0 {
+				tcpTracker.RecordConnect(srcIP, dstIP, srcPort, dstPort, out.Pid, out.Comm)
+				if event.Retval == 0 {
+					tcpTracker.RecordStateChange(srcIP, dstIP, srcPort, dstPort, uint8(TCPStateSynSent), uint8(TCPStateEstablished), out.Pid, out.Comm)
+				}
+			}
 		case "tcp_connect":
 			tcpTracker.RecordConnect(srcIP, dstIP, srcPort, dstPort, out.Pid, out.Comm)
 		case "tcp_close":

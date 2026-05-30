@@ -230,7 +230,7 @@ func applyRetentionConfig(settings RuntimeSettings) {
 }
 
 func (s *runtimeState) RecentEvents(limit int) ([]CapturedEventRecord, string, error) {
-	if limit <= 0 {
+	if limit == 0 {
 		limit = 50
 	}
 	s.mu.RLock()
@@ -276,7 +276,7 @@ func (s *runtimeState) AppendEvent(record CapturedEventRecord) error {
 }
 
 func tailCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, error) {
-	if limit <= 0 {
+	if limit == 0 {
 		limit = 50
 	}
 
@@ -289,7 +289,10 @@ func tailCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, erro
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 64*1024), 2*1024*1024)
 
-	buffer := make([]CapturedEventRecord, 0, limit)
+	buffer := make([]CapturedEventRecord, 0)
+	if limit > 0 {
+		buffer = make([]CapturedEventRecord, 0, limit)
+	}
 	for scanner.Scan() {
 		var record CapturedEventRecord
 		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
@@ -299,7 +302,7 @@ func tailCapturedEventsFile(path string, limit int) ([]CapturedEventRecord, erro
 		if record.Event == nil {
 			continue
 		}
-		if len(buffer) < limit {
+		if limit < 0 || len(buffer) < limit {
 			buffer = append(buffer, record)
 			continue
 		}

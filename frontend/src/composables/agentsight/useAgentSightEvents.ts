@@ -24,6 +24,8 @@ export interface AgentSightFilters {
 const AGENTSIGHT_CACHE_KEY = 'agent-ebpf.agentsight.importedRecords';
 const AGENTSIGHT_SAMPLE_TRACE_URL = '/agentsight-sample-trace.jsonl';
 const AGENTSIGHT_SYSTEM_TOP_PROCESSES = 40;
+const AGENTSIGHT_DEFAULT_LIMIT = 500;
+const AGENTSIGHT_UNLIMITED_LIMIT = 0;
 
 const defaultFilters = (): AgentSightFilters => ({
   source: '',
@@ -48,7 +50,11 @@ function loadCachedAgentSightRecords(): AgentSightEventRecord[] {
 
 function cacheAgentSightRecords(records: AgentSightEventRecord[]) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(AGENTSIGHT_CACHE_KEY, JSON.stringify(records.slice(0, 2000)));
+  try {
+    window.localStorage.setItem(AGENTSIGHT_CACHE_KEY, JSON.stringify(records));
+  } catch {
+    window.localStorage.removeItem(AGENTSIGHT_CACHE_KEY);
+  }
 }
 
 function normalizeImportedAgentSightRecord(value: any, index: number): AgentSightEventRecord | null {
@@ -199,6 +205,14 @@ function csvCell(value: unknown) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
+function applyAgentSightLimit<T>(items: T[], limit: number): T[] {
+  return limit > AGENTSIGHT_UNLIMITED_LIMIT ? items.slice(0, limit) : items;
+}
+
+function agentSightLimitQuery(limit: number): string {
+  return limit > AGENTSIGHT_UNLIMITED_LIMIT ? String(limit) : 'all';
+}
+
 export function useAgentSightEvents() {
   const liveRecords = ref<AgentSightEventRecord[]>([]);
   const tlsRecords = ref<AgentSightEventRecord[]>([]);
@@ -208,7 +222,7 @@ export function useAgentSightEvents() {
   const loading = shallowRef(false);
   const tlsLoading = shallowRef(false);
   const sampleLoading = shallowRef(false);
-  const limit = shallowRef(500);
+  const limit = shallowRef(AGENTSIGHT_DEFAULT_LIMIT);
   const activeTab = shallowRef('process-tree');
   const filters = ref<AgentSightFilters>(defaultFilters());
   const isEnvelopeConnected = shallowRef(false);
@@ -227,12 +241,12 @@ export function useAgentSightEvents() {
 
   const realRecords = computed(() => [...importedRecords.value, ...systemRecords.value, ...tlsRecords.value, ...liveRecords.value]);
   const rawRecords = computed(() => realRecords.value.length > 0 ? realRecords.value : sampleRecords.value);
-  const events = computed<AgentSightEvent[]>(() => normalizeAgentSightEvents(rawRecords.value).slice(0, limit.value));
+  const events = computed<AgentSightEvent[]>(() => applyAgentSightLimit(normalizeAgentSightEvents(rawRecords.value), limit.value));
   const processedEvents = computed(() => processAgentSightEvents(events.value));
 
   const queryString = computed(() => {
     const params = new URLSearchParams();
-    params.set('limit', String(limit.value));
+    params.set('limit', agentSightLimitQuery(limit.value));
     if (filters.value.source) params.set('source', filters.value.source);
     if (filters.value.eventType) params.set('event_type', filters.value.eventType);
     if (filters.value.pid) params.set('pid', filters.value.pid);
@@ -258,7 +272,7 @@ export function useAgentSightEvents() {
   const fetchTLSEvents = async () => {
     tlsLoading.value = true;
     try {
-      const response = await axios.get(`/tls-capture/recent?limit=${Math.min(Math.max(limit.value, 100), 1000)}`);
+      const response = await axios.get(`/tls-capture/recent?limit=${agentSightLimitQuery(limit.value)}`);
       const tls = Array.isArray(response.data?.events) ? response.data.events.map(tlsCaptureEventToRecord) : [];
       tlsRecords.value = tls;
     } catch (error: any) {
@@ -279,7 +293,7 @@ export function useAgentSightEvents() {
   const mergeEnvelopeRecords = (incoming: Record<string, any>[]) => {
     if (incoming.length === 0) return;
     const records = incoming.map(envelope => ({ Envelope: envelope, Timestamp: (envelope.timestamp_ns || envelope.timestampNs) ? Math.floor(Number(envelope.timestamp_ns || envelope.timestampNs) / 1_000_000) : Date.now() }));
-    liveRecords.value = [...records.reverse(), ...liveRecords.value].slice(0, limit.value);
+    liveRecords.value = applyAgentSightLimit([...records.reverse(), ...liveRecords.value], limit.value);
   };
 
   const connectEnvelopeWebSocket = () => {
@@ -320,7 +334,7 @@ export function useAgentSightEvents() {
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(String(event.data));
-        tlsRecords.value = [tlsCaptureEventToRecord(payload), ...tlsRecords.value].slice(0, Math.min(Math.max(limit.value, 100), 1000));
+        tlsRecords.value = applyAgentSightLimit([tlsCaptureEventToRecord(payload), ...tlsRecords.value], limit.value);
       } catch (error) {
         console.error('AgentSight TLS websocket parse error', error);
       }
@@ -348,7 +362,7 @@ export function useAgentSightEvents() {
         const stats = pb.SystemStats.decode(new Uint8Array(event.data));
         const plain = JSON.parse(JSON.stringify(stats));
         const timestamp = Date.now();
-        systemRecords.value = [...systemStatsToRecords(plain, timestamp), ...systemRecords.value].slice(0, 600);
+        systemRecords.value = applyAgentSightLimit([...systemStatsToRecords(plain, timestamp), ...systemRecords.value], limit.value);
       } catch (error) {
         console.error('AgentSight system websocket parse error', error);
       }
@@ -364,7 +378,7 @@ export function useAgentSightEvents() {
 
   const importRecordsText = (text: string) => {
     const parsed = parseAgentSightRecordsText(text);
-    importedRecords.value = [...parsed, ...importedRecords.value].slice(0, 2000);
+    importedRecords.value = [...parsed, ...importedRecords.value];
     cacheAgentSightRecords(importedRecords.value);
     return parsed.length;
   };

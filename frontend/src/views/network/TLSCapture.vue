@@ -4,6 +4,7 @@ import axios from 'axios';
 import { SafetyCertificateOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined, SearchOutlined, CopyOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
+import FileBrowserPanel from '../../components/explorer/FileBrowserPanel.vue';
 import { buildWebSocketUrl } from '../../utils/requestContext';
 
 interface TLSPlaintextEvent {
@@ -68,6 +69,12 @@ interface TLSCaptureStatus {
   libraries?: TLSLibraryStatus[];
 }
 
+interface FileEntry {
+  name: string;
+  isDir: boolean;
+  path: string;
+}
+
 const events = ref<TLSPlaintextEvent[]>([]);
 const libraries = ref<TLSLibraryStatus[]>([]);
 const rules = ref<TLSCaptureRule[]>([]);
@@ -83,6 +90,17 @@ const showDetails = ref(false);
 const selectedEvent = ref<TLSPlaintextEvent | null>(null);
 const rulesLoading = ref(false);
 const attachLoading = ref(false);
+const manualHookLoading = ref(false);
+const hookManagementTab = ref('rules');
+const manualHookType = ref<'go' | 'openssl' | 'gnutls' | 'nss'>('go');
+const manualHookPid = ref<number | null>(null);
+
+const manualHookOptions = [
+  { label: 'Go TLS binary', value: 'go' },
+  { label: 'OpenSSL libssl', value: 'openssl' },
+  { label: 'GnuTLS library', value: 'gnutls' },
+  { label: 'NSS / NSPR library', value: 'nss' },
+];
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -220,6 +238,27 @@ const attachDefaultLibraries = async (silent = false) => {
     await fetchLibraries();
   } finally {
     attachLoading.value = false;
+  }
+};
+
+const attachManualHook = async (entry: FileEntry) => {
+  if (entry.isDir) {
+    message.warning('Select a TLS library or Go binary file');
+    return;
+  }
+  manualHookLoading.value = true;
+  try {
+    if (manualHookType.value === 'go') {
+      await axios.post('/tls-capture/go-binary', { path: entry.path, pid: manualHookPid.value || 0 });
+    } else {
+      await axios.post('/tls-capture/library', { path: entry.path, library: manualHookType.value });
+    }
+    message.success(`Hook attached for ${entry.name}`);
+    await Promise.all([fetchStatus(), fetchLibraries()]);
+  } catch (error: any) {
+    message.error(error?.response?.data?.error || 'Failed to attach manual hook');
+  } finally {
+    manualHookLoading.value = false;
   }
 };
 
@@ -411,61 +450,116 @@ onUnmounted(() => {
         />
       </a-card>
 
-      <a-card size="small" title="Hook SSL Rules" class="tls-rules-card">
-        <template #extra>
-          <a-space>
-            <a-button size="small" @click="addRule">Add Rule</a-button>
-            <a-button size="small" type="primary" :loading="rulesLoading" @click="saveRules">Save Rules</a-button>
-          </a-space>
-        </template>
-        <a-list :data-source="rules" size="small" class="tls-rule-list">
-          <template #renderItem="{ item }">
-            <a-list-item class="tls-rule-item">
-              <div class="tls-rule-card">
-                <div class="tls-rule-header">
-                  <a-space wrap>
-                    <a-switch v-model:checked="item.enabled" checked-children="on" un-checked-children="off" />
-                    <a-input v-model:value="item.name" size="small" class="tls-rule-name" placeholder="Rule name" />
-                    <a-select v-model:value="item.scope" size="small" class="tls-rule-scope" :options="[
-                      { label: 'Agent CLI tag', value: 'agent_cli_tag' },
-                      { label: 'Custom', value: 'custom' },
-                    ]" />
-                    <a-tag v-if="item.id === 'agent-cli-tag'" color="green">default</a-tag>
-                    <a-tag v-else-if="item.scope === 'agent_cli_tag'" color="cyan">agent context</a-tag>
-                  </a-space>
-                  <a-button v-if="item.id !== 'agent-cli-tag'" size="small" danger ghost @click="removeRule(item.id)">Remove</a-button>
-                </div>
+      <a-card size="small" title="Hook SSL Management" class="tls-rules-card">
+        <a-tabs v-model:activeKey="hookManagementTab" size="small">
+          <a-tab-pane key="rules" tab="Rules">
+            <div class="tls-tab-actions">
+              <a-space>
+                <a-button size="small" @click="addRule">Add Rule</a-button>
+                <a-button size="small" type="primary" :loading="rulesLoading" @click="saveRules">Save Rules</a-button>
+              </a-space>
+            </div>
+            <a-list :data-source="rules" size="small" class="tls-rule-list">
+              <template #renderItem="{ item }">
+                <a-list-item class="tls-rule-item">
+                  <div class="tls-rule-card">
+                    <div class="tls-rule-header">
+                      <a-space wrap>
+                        <a-switch v-model:checked="item.enabled" checked-children="on" un-checked-children="off" />
+                        <a-input v-model:value="item.name" size="small" class="tls-rule-name" placeholder="Rule name" />
+                        <a-select v-model:value="item.scope" size="small" class="tls-rule-scope" :options="[
+                          { label: 'Agent CLI tag', value: 'agent_cli_tag' },
+                          { label: 'Custom', value: 'custom' },
+                        ]" />
+                        <a-tag v-if="item.id === 'agent-cli-tag'" color="green">default</a-tag>
+                        <a-tag v-else-if="item.scope === 'agent_cli_tag'" color="cyan">agent context</a-tag>
+                      </a-space>
+                      <a-button v-if="item.id !== 'agent-cli-tag'" size="small" danger ghost @click="removeRule(item.id)">Remove</a-button>
+                    </div>
 
-                <div class="tls-rule-fields">
-                  <label class="tls-rule-field">
-                    <span>Commands</span>
-                    <a-input size="small" placeholder="claude, cursor, node" :value="joinRuleValues(item.comms)" @change="onRuleValuesChange(item, 'comms', $event)" />
-                  </label>
-                  <label class="tls-rule-field">
-                    <span>Hosts</span>
-                    <a-input size="small" placeholder="api.anthropic.com, github.com" :value="joinRuleValues(item.hosts)" @change="onRuleValuesChange(item, 'hosts', $event)" />
-                  </label>
-                  <label class="tls-rule-field compact">
-                    <span>Methods</span>
-                    <a-input size="small" placeholder="POST, GET" :value="joinRuleValues(item.methods)" @change="onRuleValuesChange(item, 'methods', $event)" />
-                  </label>
-                  <label class="tls-rule-field compact">
-                    <span>Libraries</span>
-                    <a-input size="small" placeholder="openssl, gnutls" :value="joinRuleValues(item.libraries)" @change="onRuleValuesChange(item, 'libraries', $event)" />
-                  </label>
-                  <label class="tls-rule-field compact">
-                    <span>Directions</span>
-                    <a-input size="small" placeholder="send, recv" :value="joinRuleValues(item.directions)" @change="onRuleValuesChange(item, 'directions', $event)" />
-                  </label>
-                </div>
+                    <div class="tls-rule-fields">
+                      <label class="tls-rule-field">
+                        <span>Commands</span>
+                        <a-input size="small" placeholder="claude, cursor, node" :value="joinRuleValues(item.comms)" @change="onRuleValuesChange(item, 'comms', $event)" />
+                      </label>
+                      <label class="tls-rule-field">
+                        <span>Hosts</span>
+                        <a-input size="small" placeholder="api.anthropic.com, github.com" :value="joinRuleValues(item.hosts)" @change="onRuleValuesChange(item, 'hosts', $event)" />
+                      </label>
+                      <label class="tls-rule-field compact">
+                        <span>Methods</span>
+                        <a-input size="small" placeholder="POST, GET" :value="joinRuleValues(item.methods)" @change="onRuleValuesChange(item, 'methods', $event)" />
+                      </label>
+                      <label class="tls-rule-field compact">
+                        <span>Libraries</span>
+                        <a-input size="small" placeholder="openssl, gnutls" :value="joinRuleValues(item.libraries)" @change="onRuleValuesChange(item, 'libraries', $event)" />
+                      </label>
+                      <label class="tls-rule-field compact">
+                        <span>Directions</span>
+                        <a-input size="small" placeholder="send, recv" :value="joinRuleValues(item.directions)" @change="onRuleValuesChange(item, 'directions', $event)" />
+                      </label>
+                    </div>
 
-                <a-typography-text type="secondary" class="tls-rule-help">
-                  {{ item.description || 'All filled fields must match. Empty fields match any value.' }}
-                </a-typography-text>
-              </div>
-            </a-list-item>
-          </template>
-        </a-list>
+                    <a-typography-text type="secondary" class="tls-rule-help">
+                      {{ item.description || 'All filled fields must match. Empty fields match any value.' }}
+                    </a-typography-text>
+                  </div>
+                </a-list-item>
+              </template>
+            </a-list>
+          </a-tab-pane>
+
+          <a-tab-pane key="libraries" tab="Libraries">
+            <a-list :data-source="libraries" size="small" bordered>
+              <template #renderItem="{ item }">
+                <a-list-item>
+                  <a-list-item-meta :description="item.path || '—'">
+                    <template #title>
+                      <a-space>
+                        <span>{{ item.name }}</span>
+                        <a-tag :color="item.attached ? 'green' : 'default'">{{ item.attached ? 'Attached' : 'Not attached' }}</a-tag>
+                        <a-tag v-if="item.available === false" color="red">Unavailable</a-tag>
+                      </a-space>
+                    </template>
+                  </a-list-item-meta>
+                  <template #actions>
+                    <span v-if="item.error" class="tls-error">{{ item.error }}</span>
+                  </template>
+                </a-list-item>
+              </template>
+            </a-list>
+          </a-tab-pane>
+
+          <a-tab-pane key="manual" tab="Manual Hook">
+            <a-alert
+              type="info"
+              show-icon
+              class="tls-manual-hint"
+              message="Select a local TLS library or Go TLS binary to attach manually"
+              description="Use this when the automatic default library discovery missed a libssl, GnuTLS, NSS/NSPR shared object, or a Go binary using crypto/tls."
+            />
+            <a-space wrap class="tls-manual-controls">
+              <span class="tls-manual-label">Target type</span>
+              <a-select v-model:value="manualHookType" size="small" style="width: 180px" :options="manualHookOptions" />
+              <template v-if="manualHookType === 'go'">
+                <span class="tls-manual-label">PID</span>
+                <a-input-number v-model:value="manualHookPid" size="small" :min="0" placeholder="0 = all" style="width: 120px" />
+              </template>
+              <a-tag v-if="manualHookLoading" color="blue">Attaching…</a-tag>
+            </a-space>
+            <FileBrowserPanel
+              action-type="emit"
+              action-label="Hook"
+              :show-tracking-controls="false"
+              :show-upload="false"
+              :file-action-only="true"
+              alert-message=""
+              alert-description=""
+              preview-title="TLS Hook File Preview"
+              @action="attachManualHook"
+            />
+          </a-tab-pane>
+        </a-tabs>
       </a-card>
 
       <a-row :gutter="16" class="tls-stats">
@@ -563,29 +657,6 @@ onUnmounted(() => {
         </a-table-column>
       </a-table>
 
-      <a-divider />
-
-      <div class="tls-libraries">
-        <div class="tls-libraries-title">Library Status</div>
-        <a-list :data-source="libraries" size="small" bordered>
-          <template #renderItem="{ item }">
-            <a-list-item>
-              <a-list-item-meta :description="item.path || '—'">
-                <template #title>
-                  <a-space>
-                    <span>{{ item.name }}</span>
-                    <a-tag :color="item.attached ? 'green' : 'default'">{{ item.attached ? 'Attached' : 'Not attached' }}</a-tag>
-                    <a-tag v-if="item.available === false" color="red">Unavailable</a-tag>
-                  </a-space>
-                </template>
-              </a-list-item-meta>
-              <template #actions>
-                <span v-if="item.error" class="tls-error">{{ item.error }}</span>
-              </template>
-            </a-list-item>
-          </template>
-        </a-list>
-      </div>
     </a-card>
 
     <a-modal v-model:open="showDetails" :title="selectedEvent ? packetTypeLabel(selectedEvent) : 'TLS HTTP Packet'" :footer="null" width="820px">
@@ -668,6 +739,22 @@ onUnmounted(() => {
 
 .tls-runtime-error {
   margin-top: 10px;
+}
+
+.tls-tab-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.tls-manual-hint,
+.tls-manual-controls {
+  margin-bottom: 12px;
+}
+
+.tls-manual-label {
+  color: #64748b;
+  font-size: 12px;
 }
 
 .tls-rule-list :deep(.ant-list-items) {

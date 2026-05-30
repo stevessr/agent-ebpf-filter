@@ -21,6 +21,13 @@ const tabs = [
   { key: 'metrics', label: 'Metrics' },
 ];
 
+const limitOptions = [
+  { label: '500', value: 500 },
+  { label: '2,000', value: 2000 },
+  { label: '10,000', value: 10000 },
+  { label: '全部', value: 0 },
+];
+
 const changeLocale = (value: string | number) => {
   setLocale(value === 'zh' ? 'zh' : 'en');
 };
@@ -57,6 +64,7 @@ const loadSampleDemo = async () => {
           <a-badge :status="state.isEnvelopeConnected.value ? 'success' : 'error'" :text="state.isEnvelopeConnected.value ? 'Envelope live' : 'Envelope offline'" />
           <a-badge :status="state.isTLSConnected.value ? 'success' : 'warning'" :text="state.isTLSConnected.value ? 'TLS live' : 'TLS offline'" />
           <a-badge :status="state.isSystemConnected.value ? 'success' : 'warning'" :text="state.isSystemConnected.value ? 'System live' : 'System offline'" />
+          <a-select v-model:value="state.limit.value" size="small" style="width: 110px" :options="limitOptions" />
           <a-tag color="purple">{{ state.metrics.value.total }} {{ t.events }}</a-tag>
           <a-button size="small" :loading="state.loading.value || state.tlsLoading.value" @click="state.fetchEvents">
             <template #icon><ReloadOutlined /></template>

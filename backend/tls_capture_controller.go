@@ -79,6 +79,19 @@ func (c *TLSCaptureController) AttachDefaults() error {
 	return nil
 }
 
+func (c *TLSCaptureController) AttachLibrary(path, library string) error {
+	manager, err := c.EnsureStarted()
+	if err != nil {
+		return err
+	}
+	if err := manager.AttachLibrary(path, library); err != nil {
+		c.setLastError(err)
+		return err
+	}
+	c.setLastError(nil)
+	return nil
+}
+
 func (c *TLSCaptureController) Status() map[string]any {
 	if c == nil {
 		return map[string]any{"enabled": false, "available": false, "error": "TLS capture controller is unavailable"}

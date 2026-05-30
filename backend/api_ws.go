@@ -282,13 +282,27 @@ func envelopeRedactionState(envelope *pb.EventEnvelope) string {
 	return ""
 }
 
-func handleRecentEvents(c *gin.Context) {
-	limit := 50
-	if l := c.Query("limit"); l != "" {
-		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 200 {
-			limit = parsed
-		}
+func parseEventLimitQuery(raw string, defaultLimit int) int {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" {
+		return defaultLimit
 	}
+	switch value {
+	case "0", "all", "unlimited", "none":
+		return -1
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 0 {
+		return defaultLimit
+	}
+	if parsed == 0 {
+		return -1
+	}
+	return parsed
+}
+
+func handleRecentEvents(c *gin.Context) {
+	limit := parseEventLimitQuery(c.Query("limit"), 50)
 	filters := recentEventFiltersFromRequest(c)
 	records, source, err := runtimeSettingsStore.RecentEvents(limit)
 	if err != nil {

@@ -64,9 +64,9 @@ The maps/links are pinned under `/sys/fs/bpf/agent-ebpf/lsm_enforcer`; policy ma
 
 TLS 明文捕获属于显式启用的高风险诊断能力，不是安全基线的一部分；本轮参赛实现只补齐安全的 hook 元数据、系统调用、网络元数据和用户态关联分析，不新增或强化加密库明文截获。
 
-当 Runtime Config 中 `tlsCaptureEnabled` 显式开启时，后端可以通过 eBPF uprobes 挂载 OpenSSL、GnuTLS、NSS 和手动注册的 Go TLS 二进制，在加密发送前或解密接收后捕获 HTTPS 明文片段。片段在 Go 后端拼装后解析 HTTP request/response，并通过 `GET /ws/tls-capture`、`GET /tls-capture/recent`、`GET /tls-capture/libraries` 暴露给前端。
+当 Runtime Config 中 `tlsCaptureEnabled` 显式开启时，后端可以通过 eBPF uprobes 挂载 OpenSSL、GnuTLS、NSS 和手动注册的 Go TLS 二进制，在加密发送前或解密接收后捕获 HTTPS 明文片段。片段在 Go 后端拼装后解析 HTTP request/response，并通过 `GET /ws/tls-capture`、`GET /tls-capture/recent`（支持 `limit=all`/`0` 返回保留窗口内全部记录）、`GET /tls-capture/libraries` 暴露给前端。
 
-Go 进程可通过 `POST /tls-capture/go-binary` 手动注册；只有在 `tlsCaptureEnabled=true` 时，后端才会每 60 秒自动扫描 `/proc` 发现的 Go TLS 进程。
+Go 进程可通过 `POST /tls-capture/go-binary` 手动注册；OpenSSL/GnuTLS/NSS 库路径可通过 `POST /tls-capture/library` 手动挂载。只有在 `tlsCaptureEnabled=true` 时，后端才会每 60 秒自动扫描 `/proc` 发现的 Go TLS 进程。
 
 Codex 定制适配可在源码级请求发送前把已构造的 reqwest/WebSocket 请求 POST 到 `POST /codex/capture`。该入口走认证、复用同一套 TLS plaintext store、脱敏器、AgentSight/EventEnvelope 输出和 bounded body 截断，因此适合 rustls/reqwest 这类 uprobe 不稳定的本地观测场景。参考源码补丁通过 `AGENT_EBPF_CODEX_CAPTURE_URL` 和 `AGENT_API_KEY` 显式启用，未配置时不产生上报。
 
@@ -455,7 +455,7 @@ See `docs/external-api.md` for curl examples and `docs/kubernetes.md` plus
 - `GET /ws/system?interval=2000` — process/system telemetry stream
 - `GET /ws/shell?session_id=...` — attach to a PTY session
 - `GET /ws/shell-sessions` — live shell session list (WebSocket JSON push, pub/sub)
-- `GET /events/recent?type=&limit=` — historical events for initial load (REST fallback), now including a normalized `Envelope` per record
+- `GET /events/recent?type=&limit=` — historical events for initial load (REST fallback); `limit=all`/`0` returns the full retained window, and each record includes a normalized `Envelope`
 - `GET /agentsight/events?format=json|array|jsonl` / `POST /agentsight/events` / `GET /agentsight/events.jsonl` — AgentSight-compatible merged export/import of retained `EventEnvelope` records, uploaded AgentSight traces, and TLS capture history using semantic sources such as `file`, `process`, `http_parser`, `ssl`, `stdio`, `system`, and `policy`
 - `GET /agentsight/events/stats` / `GET /agentsight/events/runners/:id/stats` / `POST /agentsight/events/query` / `GET /agentsight/runners` — AgentSight storage stats, runner-specific stats, advanced filtered query, and logical runner status for `process`, `tls`, `stdio`, `system`, `agent`, and `uploaded`
 - `GET /api/events` / `POST /api/events` / `GET /api/events/stream` / `GET /api/runners` / `POST /api/events/query` / `GET /api/stream/merged` — authenticated compatibility aliases for the original AgentSight sync/upload/stats/SSE surface; `/api/events` returns JSONL text

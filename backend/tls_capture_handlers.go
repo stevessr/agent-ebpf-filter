@@ -68,6 +68,7 @@ func (b *tlsCaptureBroadcaster) Broadcast(event TLSPlaintextEvent) {
 
 type tlsCaptureRuntime interface {
 	AttachDefaults() error
+	AttachLibrary(path, library string) error
 	EnsureStarted() (*TLSProbeManager, error)
 	Status() map[string]any
 }
@@ -84,17 +85,13 @@ func registerTLSCaptureRoutes(router gin.IRouter, runtime tlsCaptureRuntime, sto
 	router.POST("/tls-capture/attach-defaults", handleTLSCaptureAttachDefaults(runtime))
 	router.GET("/tls-capture/rules", handleTLSCaptureRulesGet(rules))
 	router.PUT("/tls-capture/rules", handleTLSCaptureRulesPut(rules))
+	router.POST("/tls-capture/library", handleTLSCaptureLibrary(runtime))
 	router.POST("/tls-capture/go-binary", handleTLSCaptureGoBinary(runtime))
 }
 
 func handleTLSCaptureRecent(store *TLSCaptureStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		limit := 100
-		if raw := c.Query("limit"); raw != "" {
-			if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 1000 {
-				limit = parsed
-			}
-		}
+		limit := parseEventLimitQuery(c.Query("limit"), 100)
 		events := store.Recent(limit)
 		if filter := c.Query("filter"); filter != "" {
 			events = agentSightHTTPFilter.Filter(events, filter)
@@ -222,6 +219,29 @@ func handleTLSCaptureRulesPut(rules *TLSCaptureRuleStore) gin.HandlerFunc {
 			rules = NewTLSCaptureRuleStore()
 		}
 		c.JSON(http.StatusOK, gin.H{"rules": rules.Replace(req.Rules)})
+	}
+}
+
+func handleTLSCaptureLibrary(runtime tlsCaptureRuntime) gin.HandlerFunc {
+	type request struct {
+		Path    string `json:"path"`
+		Library string `json:"library"`
+	}
+	return func(c *gin.Context) {
+		var req request
+		if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Path) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
+			return
+		}
+		if runtime == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "TLS capture runtime is unavailable"})
+			return
+		}
+		if err := runtime.AttachLibrary(req.Path, req.Library); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "status": runtime.Status()})
+			return
+		}
+		c.JSON(http.StatusOK, runtime.Status())
 	}
 }
 
