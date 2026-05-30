@@ -133,13 +133,13 @@ const loadSampleDemo = async () => {
               <template #prefix><SearchOutlined /></template>
             </a-input>
           </a-col>
-          <a-col :xs="24" :md="4">
+          <a-col :xs="24" :md="3">
             <a-input v-model:value="state.filters.value.comm" size="small" :placeholder="t.command" allow-clear />
           </a-col>
-          <a-col :xs="24" :md="3">
+          <a-col :xs="24" :md="2">
             <a-input v-model:value="state.filters.value.pid" size="small" :placeholder="t.pid" allow-clear />
           </a-col>
-          <a-col :xs="24" :md="4">
+          <a-col :xs="24" :md="3">
             <a-input v-model:value="state.filters.value.traceId" size="small" :placeholder="t.traceId" allow-clear />
           </a-col>
           <a-col :xs="24" :md="3">
@@ -147,6 +147,9 @@ const loadSampleDemo = async () => {
           </a-col>
           <a-col :xs="24" :md="3">
             <a-select v-model:value="state.filters.value.eventType" size="small" allow-clear :placeholder="t.eventType" style="width: 100%" :options="state.eventTypeOptions.value" />
+          </a-col>
+          <a-col :xs="24" :md="3">
+            <a-select v-model:value="state.filters.value.redactionState" size="small" allow-clear :placeholder="t.redaction" style="width: 100%" :options="state.redactionStateOptions.value" />
           </a-col>
           <a-col :xs="24" :md="2">
             <a-button size="small" block @click="state.clearFilters">{{ t.clear }}</a-button>

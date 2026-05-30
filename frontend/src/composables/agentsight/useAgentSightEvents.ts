@@ -424,6 +424,7 @@ export function useAgentSightEvents() {
 
   const eventTypeOptions = computed(() => Array.from(new Set(events.value.map(event => event.eventType))).filter(Boolean).sort().map(value => ({ label: value, value })));
   const sourceOptions = computed(() => Array.from(new Set(events.value.map(event => event.source))).filter(Boolean).sort().map(value => ({ label: value, value })));
+  const redactionStateOptions = computed(() => Array.from(new Set(events.value.map(event => event.redactionState))).filter(Boolean).sort().map(value => ({ label: value, value })));
 
   const visibleEvents = computed(() => {
     const f = filters.value;
@@ -519,6 +520,7 @@ export function useAgentSightEvents() {
     activeTab,
     eventTypeOptions,
     sourceOptions,
+    redactionStateOptions,
     metrics,
     fetchEvents,
     importRecordsText,
