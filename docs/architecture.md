@@ -242,12 +242,14 @@ native hook 的 digest/length 元数据、eBPF 系统调用事件和网络元数
 
 ```
 eBPF uprobes -> tls_events ringbuf -> TLSProbeManager -> FragmentAssembler -> HTTP parser -> TLSCaptureStore -> /ws/tls-capture -> Vue TLSCapture
+Codex reqwest/WebSocket adapter -> POST /codex/capture -> TLSCaptureStore -> convertTLSToProtoEvent -> EventEnvelope -> AgentSight/Dashboard/OTLP
 ```
 
 - OpenSSL/GnuTLS/NSS 静态库通过 `link.OpenExecutable` 挂载 uprobe/uretprobe
 - Go `crypto/tls` 二进制通过 ELF 符号解析和自动 /proc 扫描挂载
+- Codex adapter 是源码级、显式环境变量启用的上报路径，适配 rustls/reqwest，未配置时不发送任何捕获数据
 - 分片在 `FragmentAssembler` 中按 TGID+TimestampNS+Direction 拼装
-- HTTP 解析器检测 request/response，敏感 header 脱敏，非 HTTP 负载 hex dump 回退
+- HTTP 解析器和 Codex ingest 共用敏感 header、URL query、JSON/form/text body 脱敏，主 `pb.Event` 只携带 metadata/digest
 
 ## Matching model
 

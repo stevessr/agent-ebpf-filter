@@ -68,6 +68,8 @@ TLS 明文捕获属于显式启用的高风险诊断能力，不是安全基线�
 
 Go 进程可通过 `POST /tls-capture/go-binary` 手动注册；只有在 `tlsCaptureEnabled=true` 时，后端才会每 60 秒自动扫描 `/proc` 发现的 Go TLS 进程。
 
+Codex 定制适配可在源码级请求发送前把已构造的 reqwest/WebSocket 请求 POST 到 `POST /codex/capture`。该入口走认证、复用同一套 TLS plaintext store、脱敏器、AgentSight/EventEnvelope 输出和 bounded body 截断，因此适合 rustls/reqwest 这类 uprobe 不稳定的本地观测场景。参考源码补丁通过 `AGENT_EBPF_CODEX_CAPTURE_URL` 和 `AGENT_API_KEY` 显式启用，未配置时不产生上报。
+
 安全边界：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization、URL query token/key/secret/password、JSON/form/text body 中常见密钥模式在后端脱敏；body 截断至 16 KiB。TLS/HTTP/SSE/LLM 元数据会写入统一 `EventEnvelope`，并在 collector health 中累积 AgentSight parser/redaction counters。
 
 ### 80/443 域名流量转发

@@ -14,6 +14,9 @@ interface TLSPlaintextEvent {
   comm?: string;
   direction?: string;
   lib?: string;
+  function?: string;
+  captured_len?: number;
+  original_len?: number;
   method?: string;
   url?: string;
   host?: string;
@@ -98,12 +101,22 @@ const formatTimestamp = (timestamp?: string) => {
   return Number.isNaN(date.getTime()) ? timestamp : date.toLocaleString();
 };
 
-const eventKey = (event: TLSPlaintextEvent, index: number) => `${event.timestamp ?? 'ts'}-${event.pid ?? 0}-${index}`;
-const directionLabel = (direction?: string) => (direction === 'send' ? 'Send' : direction === 'recv' ? 'Recv' : '—');
+const eventKey = (event: TLSPlaintextEvent, index: number) => `${event.timestamp ?? 'ts'}-${event.pid ?? 0}-${event.direction ?? 'dir'}-${index}`;
+const isRequestEvent = (event: TLSPlaintextEvent) => event.type === 'http_request';
+const isResponseEvent = (event: TLSPlaintextEvent) => event.type === 'http_response' || event.type === 'sse_message';
+const isDisplayEvent = (event: TLSPlaintextEvent) => isRequestEvent(event) || isResponseEvent(event);
+const directionLabel = (direction?: string) => (direction === 'send' ? 'Request' : direction === 'recv' ? 'Response' : '—');
 const directionColor = (direction?: string) => (direction === 'send' ? 'green' : direction === 'recv' ? 'blue' : 'default');
+const packetTypeLabel = (event: TLSPlaintextEvent) => {
+  if (event.type === 'http_request') return 'HTTP Request';
+  if (event.type === 'http_response') return 'HTTP Response';
+  if (event.type === 'sse_message') return 'SSE Response';
+  return '—';
+};
+const packetTypeColor = (event: TLSPlaintextEvent) => (event.type === 'sse_message' ? 'cyan' : isRequestEvent(event) ? 'green' : isResponseEvent(event) ? 'blue' : 'default');
 
 const filteredEvents = computed(() => {
-  let list = [...events.value];
+  let list = events.value.filter(isDisplayEvent);
 
   if (selectedLib.value !== 'all') {
     list = list.filter(event => (event.lib || '').toLowerCase() === selectedLib.value.toLowerCase());
@@ -122,7 +135,7 @@ const filteredEvents = computed(() => {
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.trim().toLowerCase();
     list = list.filter(event =>
-      [event.method, event.url, event.host, event.body, JSON.stringify(event.headers || {})]
+      [event.method, event.url, event.host, String(event.status || ''), event.body, JSON.stringify(event.headers || {})]
         .some(value => (value || '').toLowerCase().includes(q))
     );
   }
@@ -134,8 +147,8 @@ const summaryStats = computed(() => {
   const list = filteredEvents.value;
   return {
     total: list.length,
-    sends: list.filter(event => event.direction === 'send').length,
-    recvs: list.filter(event => event.direction === 'recv').length,
+    sends: list.filter(isRequestEvent).length,
+    recvs: list.filter(isResponseEvent).length,
     withBody: list.filter(event => Number(event.body_size || 0) > 0).length,
     http: list.filter(event => event.type === 'http_request' || event.type === 'http_response').length,
     sse: list.filter(event => event.type === 'sse_message').length,
@@ -158,7 +171,8 @@ const captureStatusColor = computed(() => {
 const fetchRecentEvents = async () => {
   try {
     const response = await axios.get('/tls-capture/recent?limit=500');
-    events.value = Array.isArray(response.data?.events) ? response.data.events : [];
+    const recentEvents = Array.isArray(response.data?.events) ? response.data.events as TLSPlaintextEvent[] : [];
+    events.value = recentEvents.filter(isDisplayEvent);
   } catch (error: any) {
     message.error(error?.response?.data?.error || 'Failed to load TLS capture events');
   }
@@ -271,7 +285,9 @@ const connectWebSocket = () => {
     if (isPaused.value) return;
     try {
       const payload = JSON.parse(String(event.data)) as TLSPlaintextEvent;
-      events.value = [payload, ...events.value].slice(0, 500);
+      if (isDisplayEvent(payload)) {
+        events.value = [payload, ...events.value].slice(0, 500);
+      }
     } catch (error) {
       console.error('TLS capture websocket parse error', error);
     }
@@ -451,10 +467,10 @@ onUnmounted(() => {
           <a-statistic title="Total" :value="summaryStats.total" />
         </a-col>
         <a-col :xs="12" :sm="6">
-          <a-statistic title="Send" :value="summaryStats.sends" />
+          <a-statistic title="Requests" :value="summaryStats.sends" />
         </a-col>
         <a-col :xs="12" :sm="6">
-          <a-statistic title="Recv" :value="summaryStats.recvs" />
+          <a-statistic title="Responses" :value="summaryStats.recvs" />
         </a-col>
         <a-col :xs="12" :sm="6">
           <a-statistic title="Attached Libraries" :value="summaryStats.attachedLibs" />
@@ -492,8 +508,8 @@ onUnmounted(() => {
         <a-button size="small" @click="clearFilters">Clear Filters</a-button>
       </a-space>
 
-      <a-empty v-if="events.length === 0" description="暂无 TLS 明文事件 — 请确保后端已启动且 eBPF TLS 探针已挂载" />
-      <a-empty v-else-if="filteredEvents.length === 0" description="无匹配事件，请调整过滤条件" />
+      <a-empty v-if="events.length === 0" description="暂无完整 HTTP 请求/返回包 — 请确保后端已启动且 eBPF TLS 探针已挂载" />
+      <a-empty v-else-if="filteredEvents.length === 0" description="无匹配请求/返回包，请调整过滤条件" />
 
       <a-table
         :data-source="filteredEvents"
@@ -505,7 +521,7 @@ onUnmounted(() => {
         <a-table-column title="Time" data-index="timestamp" key="timestamp" width="180">
           <template #default="{ text }">{{ formatTimestamp(text) }}</template>
         </a-table-column>
-        <a-table-column title="Direction" data-index="direction" key="direction" width="100">
+        <a-table-column title="Packet" data-index="direction" key="direction" width="110">
           <template #default="{ text }">
             <a-tag :color="directionColor(text)">{{ directionLabel(text) }}</a-tag>
           </template>
@@ -513,12 +529,13 @@ onUnmounted(() => {
         <a-table-column title="Library" data-index="lib" key="lib" width="120" />
         <a-table-column title="Command" data-index="comm" key="comm" width="140" ellipsis />
         <a-table-column title="Host" data-index="host" key="host" width="180" ellipsis />
-        <a-table-column title="Type" data-index="type" key="type" width="120">
-          <template #default="{ text }">
-            <a-tag :color="text === 'sse_message' ? 'cyan' : text?.startsWith('http') ? 'geekblue' : 'default'">{{ text || 'raw' }}</a-tag>
+        <a-table-column title="Type" key="type" width="140">
+          <template #default="{ record }">
+            <a-tag :color="packetTypeColor(record)">{{ packetTypeLabel(record) }}</a-tag>
           </template>
         </a-table-column>
         <a-table-column title="Method" data-index="method" key="method" width="90" />
+        <a-table-column title="Status" data-index="status" key="status" width="90" />
         <a-table-column title="URL" data-index="url" key="url" ellipsis />
         <a-table-column title="Redaction" data-index="redaction_state" key="redaction_state" width="110">
           <template #default="{ text }">
@@ -565,20 +582,21 @@ onUnmounted(() => {
       </div>
     </a-card>
 
-    <a-modal v-model:open="showDetails" title="TLS Plaintext Event" :footer="null" width="760px">
+    <a-modal v-model:open="showDetails" :title="selectedEvent ? packetTypeLabel(selectedEvent) : 'TLS HTTP Packet'" :footer="null" width="820px">
       <template v-if="selectedEvent">
         <a-space style="margin-bottom: 12px;">
           <a-button size="small" @click="copyText(selectedEvent.body || selectedEvent.raw_hex_dump || '', 'Body')">
             <template #icon><CopyOutlined /></template>Copy Body
           </a-button>
-          <a-button v-if="selectedEvent.direction === 'send'" size="small" @click="copyText(buildCurl(selectedEvent), 'cURL')">
+          <a-button v-if="isRequestEvent(selectedEvent)" size="small" @click="copyText(buildCurl(selectedEvent), 'cURL')">
             <template #icon><CopyOutlined /></template>Copy cURL
           </a-button>
         </a-space>
         <a-descriptions bordered :column="1" size="small">
         <a-descriptions-item label="Timestamp">{{ formatTimestamp(selectedEvent.timestamp) }}</a-descriptions-item>
-        <a-descriptions-item label="Direction"><a-tag :color="directionColor(selectedEvent.direction)">{{ directionLabel(selectedEvent.direction) }}</a-tag></a-descriptions-item>
+        <a-descriptions-item label="Packet"><a-tag :color="directionColor(selectedEvent.direction)">{{ directionLabel(selectedEvent.direction) }}</a-tag></a-descriptions-item>
         <a-descriptions-item label="Library">{{ selectedEvent.lib || '—' }}</a-descriptions-item>
+        <a-descriptions-item label="Function">{{ selectedEvent.function || '—' }}</a-descriptions-item>
         <a-descriptions-item label="Command">{{ selectedEvent.comm || '—' }}</a-descriptions-item>
         <a-descriptions-item label="PID">{{ selectedEvent.pid ?? '—' }}</a-descriptions-item>
         <a-descriptions-item label="TGID">{{ selectedEvent.tgid ?? '—' }}</a-descriptions-item>
@@ -588,6 +606,7 @@ onUnmounted(() => {
         <a-descriptions-item label="Status">{{ selectedEvent.status ?? '—' }}</a-descriptions-item>
         <a-descriptions-item label="Content Type">{{ selectedEvent.content_type || '—' }}</a-descriptions-item>
         <a-descriptions-item label="Body Size">{{ formatBytes(selectedEvent.body_size) }}</a-descriptions-item>
+        <a-descriptions-item label="TLS Capture">{{ formatBytes(selectedEvent.captured_len) }} / {{ formatBytes(selectedEvent.original_len) }}</a-descriptions-item>
         <a-descriptions-item label="Redaction"><a-tag :color="selectedEvent.redaction_state === 'sanitized' ? 'green' : 'default'">{{ selectedEvent.redaction_state || 'raw' }}</a-tag></a-descriptions-item>
         <a-descriptions-item v-if="selectedEvent.sse_event || selectedEvent.sse_data_digest" label="SSE">
           <a-space wrap>

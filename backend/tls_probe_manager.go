@@ -55,6 +55,7 @@ type TLSProbeManager struct {
 	objs           *bpf.AgentTlsCaptureObjects
 	links          []link.Link
 	assembler      *FragmentAssembler
+	httpStreams    *TLSHTTPStreamAssembler
 	store          *TLSCaptureStore
 	rules          *TLSCaptureRuleStore
 	broadcaster    *tlsCaptureBroadcaster
@@ -82,6 +83,7 @@ func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *tlsCaptureBroadcast
 	return &TLSProbeManager{
 		objs:           objs,
 		assembler:      NewFragmentAssembler(10 * time.Second),
+		httpStreams:    NewTLSHTTPStreamAssembler(10 * time.Second),
 		store:          store,
 		rules:          rules,
 		broadcaster:    broadcaster,
@@ -255,12 +257,13 @@ func (m *TLSProbeManager) ReadLoop() error {
 		return nil
 	}
 	m.mu.Lock()
-	if m.closed || m.objs == nil || m.objs.TlsEvents == nil || m.assembler == nil || m.store == nil || m.broadcaster == nil {
+	if m.closed || m.objs == nil || m.objs.TlsEvents == nil || m.assembler == nil || m.httpStreams == nil || m.store == nil || m.broadcaster == nil {
 		m.mu.Unlock()
 		return nil
 	}
 	events := m.objs.TlsEvents
 	assembler := m.assembler
+	httpStreams := m.httpStreams
 	store := m.store
 	broadcaster := m.broadcaster
 	m.mu.Unlock()
@@ -287,13 +290,14 @@ func (m *TLSProbeManager) ReadLoop() error {
 		if !ok || completed == nil {
 			continue
 		}
-		event := agentSightHTTPAnalyzer.Analyze(*completed)
-		if m.rules != nil && !m.rules.Allows(event) {
-			continue
+		for _, event := range httpStreams.Add(*completed) {
+			if m.rules != nil && !m.rules.Allows(event) {
+				continue
+			}
+			dispatchTLSAgentEvent(&event, tlsAgentLoopDetector, broadcast)
+			store.Add(event)
+			broadcaster.Broadcast(event)
 		}
-		dispatchTLSAgentEvent(&event, tlsAgentLoopDetector, broadcast)
-		store.Add(event)
-		broadcaster.Broadcast(event)
 	}
 }
 

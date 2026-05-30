@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -246,7 +247,7 @@ func sanitizeTLSURL(rawURL string) string {
 	}
 	collectorMetricsStore.RecordAgentSightCounter("tls.redaction.url")
 	parsed.RawQuery = query.Encode()
-	return sanitizeTLSInlineSecrets(parsed.String())
+	return parsed.String()
 }
 
 func sanitizeTLSBody(body, contentType string) string {
@@ -329,8 +330,12 @@ func isTLSSensitiveKey(key string) bool {
 }
 
 func sanitizeTLSInlineSecrets(value string) string {
-	redacted := tlsBearerTokenPattern.ReplaceAllString(value, `${1}`+tlsRedactedValue)
+	encodedRedactedValue := url.QueryEscape(tlsRedactedValue)
+	placeholder := "__TLS_REDACTED_VALUE__"
+	protected := strings.ReplaceAll(value, encodedRedactedValue, placeholder)
+	redacted := tlsBearerTokenPattern.ReplaceAllString(protected, `${1}`+tlsRedactedValue)
 	redacted = tlsInlineSecretPattern.ReplaceAllString(redacted, `${1}=`+tlsRedactedValue)
+	redacted = strings.ReplaceAll(redacted, placeholder, encodedRedactedValue)
 	if redacted != value {
 		collectorMetricsStore.RecordAgentSightCounter("tls.redaction.inline")
 	}
@@ -385,7 +390,7 @@ func formatTLSPlaintextBody(body []byte, contentType string) (string, bool) {
 func readBoundedTLSBody(r io.Reader) ([]byte, int, error) {
 	limited := io.LimitReader(r, tlsMaxBodySize+1)
 	body, err := io.ReadAll(limited)
-	if err != nil {
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return nil, 0, err
 	}
 	return body, len(body), nil

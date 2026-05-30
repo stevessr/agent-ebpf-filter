@@ -186,6 +186,12 @@ const schemeOptions = [
             message="AgentSight compatibility"
             description="HTTP messages, SSE chunks, LLM metadata, prompt digests, and redaction counters are emitted through the unified EventEnvelope stream for Dashboard, Execution Graph, metrics, and OTLP export."
           />
+          <a-alert
+            type="info"
+            show-icon
+            message="Codex adapter"
+            description="Custom Codex builds can POST sanitized request metadata to /codex/capture; this does not depend on TLS uprobes and still uses the same bounded plaintext store and EventEnvelope stream."
+          />
           <a-button type="primary" @click="saveRuntime">
             <ReloadOutlined /> Save TLS Capture Setting
           </a-button>

@@ -72,7 +72,9 @@ func annotateTLSAgentMessage(event *TLSPlaintextEvent) {
 	}
 	event.PromptDigest = digest
 	event.MessageRole = role
-	event.Vendor = vendor
+	if event.Vendor == "" {
+		event.Vendor = vendor
+	}
 	event.PromptLen = length
 }
 

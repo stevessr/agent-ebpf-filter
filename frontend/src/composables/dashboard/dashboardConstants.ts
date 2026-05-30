@@ -95,6 +95,12 @@ export const eventTypes = [
   'wrapper_intercept',
   'native_hook',
   'semantic_alert',
+  'tls_plaintext',
+  'http_message',
+  'sse_message',
+  'stdio',
+  'otel_span',
+  'agentsight_alert',
 ];
 
 export const pageSizeOptions = ['20', '50', '100', '200'];
@@ -135,6 +141,12 @@ export const eventTypeLabelMap: Record<number, string> = {
   [pb.EventType.TCP_CLOSE]: 'tcp_close',
   [pb.EventType.TCP_STATE_CHANGE]: 'tcp_state_change',
   [pb.EventType.DNS_QUERY]: 'dns_query',
+  [pb.EventType.TLS_PLAINTEXT]: 'tls_plaintext',
+  [pb.EventType.HTTP_MESSAGE]: 'http_message',
+  [pb.EventType.SSE_MESSAGE]: 'sse_message',
+  [pb.EventType.STDIO]: 'stdio',
+  [pb.EventType.OTEL_SPAN]: 'otel_span',
+  [pb.EventType.AGENTSIGHT_ALERT]: 'agentsight_alert',
 };
 
 export const eventTypeColorMap: Record<number, string> = {
@@ -171,6 +183,12 @@ export const eventTypeColorMap: Record<number, string> = {
   [pb.EventType.TCP_CLOSE]: 'volcano',
   [pb.EventType.TCP_STATE_CHANGE]: 'gold',
   [pb.EventType.DNS_QUERY]: 'purple',
+  [pb.EventType.TLS_PLAINTEXT]: 'geekblue',
+  [pb.EventType.HTTP_MESSAGE]: 'blue',
+  [pb.EventType.SSE_MESSAGE]: 'cyan',
+  [pb.EventType.STDIO]: 'purple',
+  [pb.EventType.OTEL_SPAN]: 'green',
+  [pb.EventType.AGENTSIGHT_ALERT]: 'red',
 };
 
 export const networkEventTypes = new Set<number>([
@@ -229,8 +247,19 @@ export const eventCategories: Record<string, Set<number>> = {
     pb.EventType.WRAPPER_INTERCEPT,
     pb.EventType.NATIVE_HOOK,
   ]),
+  agent: new Set([
+    pb.EventType.WRAPPER_INTERCEPT,
+    pb.EventType.NATIVE_HOOK,
+    pb.EventType.TLS_PLAINTEXT,
+    pb.EventType.HTTP_MESSAGE,
+    pb.EventType.SSE_MESSAGE,
+    pb.EventType.STDIO,
+    pb.EventType.OTEL_SPAN,
+    pb.EventType.AGENTSIGHT_ALERT,
+  ]),
   alert: new Set([
     pb.EventType.SEMANTIC_ALERT,
+    pb.EventType.AGENTSIGHT_ALERT,
   ]),
 };
 
@@ -239,6 +268,7 @@ export const categoryTabs = [
   { key: 'network', label: '网络' },
   { key: 'file', label: '文件' },
   { key: 'process', label: '进程' },
+  { key: 'agent', label: 'Agent' },
   { key: 'hook', label: '钩子' },
   { key: 'alert', label: '警报' },
   { key: 'syscall', label: '系统调用' },

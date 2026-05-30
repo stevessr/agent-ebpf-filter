@@ -24,6 +24,16 @@ const decodedStdio = computed(() => (props.event && isStdioSource(props.event.so
 const rawJson = computed(() => JSON.stringify(props.event?.raw ?? props.event?.data ?? {}, null, 2));
 const dataJson = computed(() => JSON.stringify(props.event?.data ?? {}, null, 2));
 const decodedStdioText = computed(() => (decodedStdio.value ? formatStdioExpandedContent(decodedStdio.value) : ''));
+const agentPlaintextMeta = computed(() => {
+  const data = props.event?.data;
+  if (!data || typeof data !== 'object') return null;
+  const vendor = String(data.vendor || '').trim();
+  const promptDigest = String(data.prompt_digest || data.promptDigest || '').trim();
+  const role = String(data.message_role || data.messageRole || '').trim();
+  const redaction = String(data.redaction_state || data.redactionState || props.event?.redactionState || '').trim();
+  if (!vendor && !promptDigest && !role && !redaction) return null;
+  return { vendor, promptDigest, role, redaction };
+});
 
 const copy = async (text: string, label: string) => {
   await navigator.clipboard.writeText(text);
@@ -54,6 +64,24 @@ const copy = async (text: string, label: string) => {
         </a-descriptions-item>
         <a-descriptions-item label="Summary" :span="2">{{ event.title }}</a-descriptions-item>
       </a-descriptions>
+
+      <a-card v-if="agentPlaintextMeta" size="small" title="Agent plaintext metadata" class="details-card">
+        <a-descriptions size="small" bordered :column="2">
+          <a-descriptions-item label="Vendor">
+            <a-tag v-if="agentPlaintextMeta.vendor" color="geekblue">{{ agentPlaintextMeta.vendor }}</a-tag>
+            <span v-else>—</span>
+          </a-descriptions-item>
+          <a-descriptions-item label="Role">{{ agentPlaintextMeta.role || '—' }}</a-descriptions-item>
+          <a-descriptions-item label="Prompt digest">
+            <a-typography-text code>{{ agentPlaintextMeta.promptDigest || '—' }}</a-typography-text>
+          </a-descriptions-item>
+          <a-descriptions-item label="Redaction">
+            <a-tag :color="agentPlaintextMeta.redaction === 'sanitized' ? 'green' : 'orange'">
+              {{ agentPlaintextMeta.redaction || '—' }}
+            </a-tag>
+          </a-descriptions-item>
+        </a-descriptions>
+      </a-card>
 
       <a-card v-if="decodedStdio" size="small" title="Decoded stdio / MCP payload" class="details-card">
         <template #extra>

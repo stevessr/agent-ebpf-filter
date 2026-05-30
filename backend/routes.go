@@ -14,7 +14,7 @@ func registerRoutes(r *gin.Engine, tlsBroadcaster *tlsCaptureBroadcaster, tlsCon
 	registerNetworkRoutes(r)
 	registerSandboxRoutes(r)
 	registerUtilityRoutes(r)
-	registerAuthenticatedAPIRoutes(r, tlsController, tlsStore, tlsRules)
+	registerAuthenticatedAPIRoutes(r, tlsController, tlsStore, tlsRules, tlsBroadcaster)
 	registerCompatibilityRoutes(r, tlsStore)
 	registerStaticRoutes(r)
 }
@@ -91,12 +91,13 @@ func registerUtilityRoutes(r gin.IRouter) {
 	r.POST("/cluster/register", clusterHeartbeatHandler)
 }
 
-func registerAuthenticatedAPIRoutes(r *gin.Engine, tlsController *TLSCaptureController, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore) {
+func registerAuthenticatedAPIRoutes(r *gin.Engine, tlsController *TLSCaptureController, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore, tlsBroadcaster *tlsCaptureBroadcaster) {
 	api := r.Group("/", authMiddleware())
 	{
 		registerConfigRoutes(api.Group("/config"))
 		registerSystemRoutes(api.Group("/system"))
 		registerTLSCaptureRoutes(api, tlsController, tlsStore, tlsRules)
+		registerCodexCaptureRoutes(api, tlsStore, tlsBroadcaster)
 		registerAgentSightRoutes(api, tlsStore)
 		registerPluginRoutes(api.Group("/plugins"))
 

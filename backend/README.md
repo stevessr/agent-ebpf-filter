@@ -392,6 +392,15 @@ TLS capture is an explicit opt-in diagnostic path (`tlsCaptureEnabled=true`) and
 - `GET /tls-capture/recent?limit=100` — recent in-memory TLS plaintext events。
 - `GET /tls-capture/libraries` — current library attach status (OpenSSL, GnuTLS, NSS, Go)。
 - `POST /tls-capture/go-binary` — manually attach Go TLS uprobes for `{ "path": "/path/to/bin", "pid": 123 }`。
+- `POST /codex/capture` — authenticated Codex adapter ingest for locally customized Codex builds. It accepts constructed reqwest/WebSocket request metadata, sanitizes headers/query/body with the TLS redaction rules, stores bounded plaintext only in `TLSCaptureStore`, and emits `vendor=codex` metadata through the unified `EventEnvelope` stream.
+
+Codex adapter usage:
+
+```bash
+export AGENT_EBPF_CODEX_CAPTURE_URL="http://127.0.0.1:${PORT}/codex/capture"
+export AGENT_API_KEY="$(jq -r .accessToken ~/.config/agent-ebpf-filter/runtime.json)"
+```
+
 During event broadcast, the backend may also synthesize `semantic_alert` events (for example `SECRET_ACCESS`, `UNEXPECTED_NETWORK_EGRESS`, `UNEXPECTED_CHILD_PROCESS`, `SEMANTIC_MISMATCH`, `RESOURCE_WASTING_LOOP`, or `MULTI_AGENT_FILE_CONTENTION`) when child behavior conflicts with read-only style tool intent, repeated prompt/API/file-I/O windows suggest a runaway loop, or multiple agent contexts touch the same path in a short window.
 
 ## Build notes
