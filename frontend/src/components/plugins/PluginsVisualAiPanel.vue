@@ -24,6 +24,7 @@ const {
 } = useNlpCompiler((payload) => emit("translate", payload));
 
 const applyExample = (text: string) => { localPrompt.value = text; };
+const generateFromPrompt = () => handleAiGenerate(localPrompt.value);
 </script>
 
 <template>
@@ -59,7 +60,7 @@ const applyExample = (text: string) => { localPrompt.value = text; };
           <a-tag @click="applyExample('当外连端口为 4444 时强杀进程，并限频计数最多 5 次')" class="example-tag">外连4444强杀限频5次</a-tag>
           <a-tag @click="applyExample('拦截对 shadow 文件的重命名操作并发出警告')" class="example-tag">勒索shadow重命名保护</a-tag>
         </div>
-        <a-button type="primary" :loading="aiGenerating" @click="handleAiGenerate(localPrompt)" class="ai-btn">
+        <a-button type="primary" :loading="aiGenerating" @click="generateFromPrompt" class="ai-btn">
           <template #icon><ThunderboltOutlined /></template>
           调用 LLM 生成积木
         </a-button>

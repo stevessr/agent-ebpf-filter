@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { InfoCircleOutlined } from "@ant-design/icons-vue";
 import { useConfigVisualFilter } from "../../composables/config/useConfigVisualFilter";
 import { usePlugins } from "../../composables/plugins/usePlugins";
@@ -12,7 +12,10 @@ const props = defineProps<{
 }>();
 
 const { currentConfig, generatedCode, updateMetadata } = useConfigVisualFilter();
-const { compileBpf, loadBpf, unloadBpf, upsertPlugin, fetchPlugins, plugins } = usePlugins();
+const { compileBpf, loadBpf, unloadBpf, fetchPlugins, plugins } = usePlugins();
+const visualEditorMode = ref("blocks");
+const loadBpfVoid = async (id: string) => { await loadBpf(id); };
+const unloadBpfVoid = async (id: string) => { await unloadBpf(id); };
 
 // Auto update metadata on state changes
 watch(
@@ -61,7 +64,7 @@ const handleRemoveCgroupPort = async (port: number) => {
 
 <template>
   <div class="visual-filter-tab">
-    <a-tabs v-model:activeKey="currentConfig.value.visualEditorMode" type="card">
+    <a-tabs v-model:activeKey="visualEditorMode" type="card">
       <a-tab-pane key="blocks">
         <template #tab>低代码多积木工作台</template>
         <a-alert
@@ -82,15 +85,15 @@ const handleRemoveCgroupPort = async (port: number) => {
           :security="security"
           :update-metadata="updateMetadata"
           :compile-bpf="compileBpf"
-          :load-bpf="loadBpf"
+          :load-bpf="loadBpfVoid"
           :fetch-plugins="fetchPlugins"
         />
 
         <CoreRuleMonitorBoard
           :security="security"
           :plugins="plugins"
-          :load-bpf="loadBpf"
-          :unload-bpf="unloadBpf"
+          :load-bpf="loadBpfVoid"
+          :unload-bpf="unloadBpfVoid"
           :fetch-plugins="fetchPlugins"
           @remove-lsm-path="handleRemoveLsmPath"
           @remove-lsm-name="handleRemoveLsmName"

@@ -5,7 +5,7 @@ defineProps<{
   showDetails: boolean;
   selectedEvent: any;
   selectedTraceSummary: string;
-  getTagColor: (eventType: string, type: string) => string;
+  getTagColor: (eventType?: number, type?: string) => string;
   getCategoryColor: (tag: string) => string;
   formatDetailValue: (value: any) => string;
   canInteractWithPath: (record: any) => boolean;

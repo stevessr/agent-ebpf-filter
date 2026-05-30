@@ -702,7 +702,6 @@ export function useConfigML() {
     splitCommandLine, submitManualSample, addPresetSample, importAllHighRiskPresets,
     importAllSafetyNetPresets: async () => { await dataset.importPresetBatch(safetyNetHighRiskPresets, 'Safety Net 预设'); },
     importAllSyntheticPresets,
-    importAllInternetDatasets: dataset.importAllInternetDatasets,
     importExpandedTrainingCorpus,
     runBacktest, runBacktestPreset, riskLevelColor, riskMeterColor,
     llmApiKeyStatus,

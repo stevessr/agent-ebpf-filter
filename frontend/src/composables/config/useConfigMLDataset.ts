@@ -216,7 +216,7 @@ export function useConfigMLDataset(deps: {
       for (const preset of presets) {
         const argsArray = preset.args ? splitCommandLine(preset.args) : [];
         const argsStr = argsArray.join(' ');
-        if (deps.allSamples.value.find((s) => s.comm === preset.comm && (s.args || []).join(' ') === argsStr)) {
+        if ((deps.allSamples.value ?? []).find((s) => s.comm === preset.comm && (s.args || []).join(' ') === argsStr)) {
           skipped++;
           continue;
         }

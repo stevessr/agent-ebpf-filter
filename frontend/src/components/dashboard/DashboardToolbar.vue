@@ -5,7 +5,7 @@ defineProps<{
   isConnected: boolean;
   eventsLength: number;
   isPaused: boolean;
-  streamDirection: string;
+  streamDirection: 'top' | 'bottom';
   showAllRows: boolean;
   hideUnknown: boolean;
   isDeduplicated: boolean;
@@ -16,13 +16,13 @@ defineProps<{
   builtinFilterState: Record<string, boolean>;
   setBuiltinFiltersEnabled: (enabled: boolean) => void;
   exportEvents: () => void;
-  exportEventsCSV: () => void;
+  exportEventsCsv: () => void;
   clearEvents: () => void;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:isPaused', value: boolean): void;
-  (e: 'update:streamDirection', value: string): void;
+  (e: 'update:streamDirection', value: 'top' | 'bottom'): void;
   (e: 'update:showAllRows', value: boolean): void;
   (e: 'update:hideUnknown', value: boolean): void;
   (e: 'update:isDeduplicated', value: boolean): void;
@@ -97,7 +97,7 @@ const emit = defineEmits<{
           <template #overlay>
             <a-menu>
               <a-menu-item key="json" @click="exportEvents">JSON Format</a-menu-item>
-              <a-menu-item key="csv" @click="exportEventsCSV">CSV Format</a-menu-item>
+              <a-menu-item key="csv" @click="exportEventsCsv">CSV Format</a-menu-item>
             </a-menu>
           </template>
           <a-button size="small">Export Data</a-button>

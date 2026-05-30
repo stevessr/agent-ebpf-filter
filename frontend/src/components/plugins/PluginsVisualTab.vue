@@ -46,6 +46,8 @@ import { usePluginCompiler } from "./usePluginCompiler";
 import { visualRecipes, useRecipeOperations } from "./visualRecipes";
 import { triggerOptions } from "./constants";
 
+const { fetchPlugins } = usePlugins();
+
 // --- Workspace state ---
 const {
   trigger,
@@ -176,6 +178,14 @@ const addLogicNodeType = (value: "AND" | "OR") => {
   message.success(`已从节点类型库添加逻辑组: ${value}`);
 };
 
+const handleAddGroup = (groupIdOrType: string, type?: "AND" | "OR") => {
+  if (type) {
+    onAddGroup(groupIdOrType, type);
+  } else if (groupIdOrType === "AND" || groupIdOrType === "OR") {
+    onAddGroup("root", groupIdOrType);
+  }
+};
+
 const setMapNodeType = (value: VisualMapMode) => {
   mapMode.value = value;
   void focusFlowNode("map");
@@ -291,6 +301,16 @@ const applyNodeTypeDrop = (
   activeFlowNode.value = targetNode;
   designerSubtab.value = "dify";
   message.success(position ? `${statusText}，已吸附到画布网格` : statusText);
+};
+
+const handleFocusNode = (node: string) => {
+  if (!visualFlowNodeIds.includes(node as VisualFlowNodeId)) return;
+  void focusFlowNode(node as VisualFlowNodeId);
+};
+
+const flowSectionClassForAnyNode = (node: string) => {
+  if (!visualFlowNodeIds.includes(node as VisualFlowNodeId)) return {};
+  return flowSectionClass(node as VisualFlowNodeId);
 };
 
 const handleWorkspaceDrop = (event: DragEvent) => {
@@ -438,7 +458,7 @@ onBeforeUnmount(() => {
                   :compiling="compiling"
                   :validation-issues="validationIssues"
                   @add-condition="onAddRule('root', $event)"
-                  @add-group="onAddGroup('root', $event)"
+                  @add-group="handleAddGroup"
                   @compile="handleCompileAndRegister"
                 />
               </div>
@@ -462,12 +482,12 @@ onBeforeUnmount(() => {
                 :active-flow-node="activeFlowNode"
                 :count-conditions="countConditions"
                 :tree-depth="treeDepth"
-                :delete-node="onDeleteNode"
-                :add-rule="onAddRule"
-                :add-group="onAddGroup"
-                :update-rule="onUpdateRule"
-                :update-group-type="onUpdateGroupType"
-                :flow-section-class="flowSectionClass"
+                :on-delete-node="onDeleteNode"
+                :on-add-rule="onAddRule"
+                :on-add-group="onAddGroup"
+                :on-update-rule="onUpdateRule"
+                :on-update-group-type="onUpdateGroupType"
+                :flow-section-class="flowSectionClassForAnyNode"
                 @update:trigger="trigger = $event"
                 @update:action="action = $event"
                 @update:map-mode="mapMode = $event"
@@ -477,7 +497,7 @@ onBeforeUnmount(() => {
                 @update:plugin-name="pluginName = $event"
                 @update:description="description = $event"
                 @add-condition="onAddRule('root', $event)"
-                @add-group="onAddGroup('root', $event)"
+                @add-group="handleAddGroup"
                 @compile="handleCompileAndRegister"
               />
             </a-tab-pane>
@@ -509,7 +529,7 @@ onBeforeUnmount(() => {
                 :loading="loadingAction"
                 :log="compileLogLocal"
                 :active-flow-node="activeFlowNode"
-                :flow-section-class="flowSectionClass"
+                :flow-section-class="flowSectionClassForAnyNode"
                 @load="handleLoad"
               />
             </a-tab-pane>
@@ -539,7 +559,7 @@ onBeforeUnmount(() => {
       @add-group="addLogicNodeType"
       @set-map="setMapNodeType"
       @set-action="setActionNodeType"
-      @focus-node="focusFlowNode"
+      @focus-node="handleFocusNode"
       @apply-recipe="applyRecipe"
       @reset-workspace="resetWorkspace"
       @export-workspace="exportWorkspace"

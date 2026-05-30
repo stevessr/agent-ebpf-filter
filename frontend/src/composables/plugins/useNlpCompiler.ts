@@ -314,7 +314,7 @@ export const requestLLMBlocks = async (prompt: string): Promise<VisualLLMCompile
   return res.data;
 };
 
-export function useNlpCompiler(emit: (event: "translate", payload: VisualBlocksPayload) => void) {
+export function useNlpCompiler(emit: (payload: VisualBlocksPayload) => void) {
   const aiGenerating = ref(false);
   const lastCompileResult = ref<LlmCompileResult | null>(null);
 
@@ -337,7 +337,7 @@ export function useNlpCompiler(emit: (event: "translate", payload: VisualBlocksP
   });
 
   const emitBlocks = (payload: VisualBlocksPayload) => {
-    emit("translate", payload);
+    emit(payload);
   };
 
   const handleAiGenerate = async (prompt: string) => {

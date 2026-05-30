@@ -248,8 +248,12 @@ const removeRule = (id: string) => {
 
 const splitRuleValues = (value: string) => value.split(',').map(item => item.trim()).filter(Boolean);
 const joinRuleValues = (values?: string[]) => (values || []).join(', ');
-const updateRuleValues = (rule: TLSCaptureRule, field: 'comms' | 'hosts' | 'methods' | 'libraries' | 'directions', value: string) => {
+type TLSRuleListField = 'comms' | 'hosts' | 'methods' | 'libraries' | 'directions';
+const updateRuleValues = (rule: TLSCaptureRule, field: TLSRuleListField, value: string) => {
   rule[field] = splitRuleValues(value);
+};
+const onRuleValuesChange = (rule: TLSCaptureRule, field: TLSRuleListField, event: Event) => {
+  updateRuleValues(rule, field, (event.target as HTMLInputElement).value);
 };
 
 const connectWebSocket = () => {
@@ -413,23 +417,23 @@ onUnmounted(() => {
                 <div class="tls-rule-fields">
                   <label class="tls-rule-field">
                     <span>Commands</span>
-                    <a-input size="small" placeholder="claude, cursor, node" :value="joinRuleValues(item.comms)" @change="event => updateRuleValues(item, 'comms', (event.target as HTMLInputElement).value)" />
+                    <a-input size="small" placeholder="claude, cursor, node" :value="joinRuleValues(item.comms)" @change="onRuleValuesChange(item, 'comms', $event)" />
                   </label>
                   <label class="tls-rule-field">
                     <span>Hosts</span>
-                    <a-input size="small" placeholder="api.anthropic.com, github.com" :value="joinRuleValues(item.hosts)" @change="event => updateRuleValues(item, 'hosts', (event.target as HTMLInputElement).value)" />
+                    <a-input size="small" placeholder="api.anthropic.com, github.com" :value="joinRuleValues(item.hosts)" @change="onRuleValuesChange(item, 'hosts', $event)" />
                   </label>
                   <label class="tls-rule-field compact">
                     <span>Methods</span>
-                    <a-input size="small" placeholder="POST, GET" :value="joinRuleValues(item.methods)" @change="event => updateRuleValues(item, 'methods', (event.target as HTMLInputElement).value)" />
+                    <a-input size="small" placeholder="POST, GET" :value="joinRuleValues(item.methods)" @change="onRuleValuesChange(item, 'methods', $event)" />
                   </label>
                   <label class="tls-rule-field compact">
                     <span>Libraries</span>
-                    <a-input size="small" placeholder="openssl, gnutls" :value="joinRuleValues(item.libraries)" @change="event => updateRuleValues(item, 'libraries', (event.target as HTMLInputElement).value)" />
+                    <a-input size="small" placeholder="openssl, gnutls" :value="joinRuleValues(item.libraries)" @change="onRuleValuesChange(item, 'libraries', $event)" />
                   </label>
                   <label class="tls-rule-field compact">
                     <span>Directions</span>
-                    <a-input size="small" placeholder="send, recv" :value="joinRuleValues(item.directions)" @change="event => updateRuleValues(item, 'directions', (event.target as HTMLInputElement).value)" />
+                    <a-input size="small" placeholder="send, recv" :value="joinRuleValues(item.directions)" @change="onRuleValuesChange(item, 'directions', $event)" />
                   </label>
                 </div>
 

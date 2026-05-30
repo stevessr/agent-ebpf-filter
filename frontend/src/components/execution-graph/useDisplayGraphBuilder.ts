@@ -197,8 +197,8 @@ export const applyProcessTreeLayout = (
   children.forEach((ids) => {
     ids.sort(
       (left, right) =>
-        processSortValue(nodeById.get(left) as ForceNode | undefined) -
-          processSortValue(nodeById.get(right) as ForceNode | undefined) ||
+        processSortValue(nodeById.get(left)?.pid) -
+          processSortValue(nodeById.get(right)?.pid) ||
         left.localeCompare(right),
     );
   });
@@ -207,8 +207,8 @@ export const applyProcessTreeLayout = (
     .filter((id) => !incoming.has(id))
     .sort(
       (left, right) =>
-        processSortValue(nodeById.get(left) as ForceNode | undefined) -
-          processSortValue(nodeById.get(right) as ForceNode | undefined) ||
+        processSortValue(nodeById.get(left)?.pid) -
+          processSortValue(nodeById.get(right)?.pid) ||
         left.localeCompare(right),
     );
   if (!roots.length && processNodeIds.size) roots.push([...processNodeIds][0]);
@@ -244,8 +244,8 @@ export const applyProcessTreeLayout = (
     .filter((id) => !visited.has(id))
     .sort(
       (left, right) =>
-        processSortValue(nodeById.get(left) as ForceNode | undefined) -
-          processSortValue(nodeById.get(right) as ForceNode | undefined) ||
+        processSortValue(nodeById.get(left)?.pid) -
+          processSortValue(nodeById.get(right)?.pid) ||
         left.localeCompare(right),
     )
     .forEach((id) => assignSubtree(id, 0));

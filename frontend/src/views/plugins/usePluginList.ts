@@ -9,8 +9,8 @@ import type { PluginManifest } from '../../composables/plugins/usePlugins';
  */
 export function usePluginList(
   plugins: Ref<PluginManifest[]>,
-  deletePlugin: (id: string) => Promise<void>,
-  togglePlugin: (id: string, enabled: boolean) => Promise<void>,
+  deletePlugin: (id: string) => Promise<unknown>,
+  togglePlugin: (id: string, enabled: boolean) => Promise<unknown>,
 ) {
   const kindLabel = (kind: string) => {
     switch (kind) {
