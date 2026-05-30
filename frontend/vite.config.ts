@@ -44,7 +44,14 @@ export default defineConfig({
       '/system': backendUrl,
       '^/events(/|$)': backendUrl,
       '^/network(/|$)': backendUrl,
-      '^/tls-capture(/|$)': backendUrl,
+      '^/tls-capture(/|$)': {
+        target: backendUrl,
+        bypass: (req) => {
+          if (req.headers.accept?.includes('text/html')) {
+            return '/index.html';
+          }
+        },
+      },
       '^/sandbox(/|$)': backendUrl,
     },
   },
