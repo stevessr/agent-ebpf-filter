@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/tls"
 	"log"
 	"net/http"
+	"net/url"
 
 	"agent-ebpf-filter/internal/domainforwardproxy"
 	"github.com/gin-gonic/gin"
@@ -105,4 +107,65 @@ func fromInternalDomainForwardRoute(route domainforwardproxy.DomainForwardRoute)
 		CertFile: route.CertFile,
 		KeyFile:  route.KeyFile,
 	}
+}
+
+func newDomainForwardTLSConfig(settings DomainForwardProxySettings) (*tls.Config, []string, error) {
+	return domainforwardproxy.NewTLSConfig(toInternalDomainForwardProxySettings(settings))
+}
+
+func newDomainForwardTransport(settings DomainForwardProxySettings) http.RoundTripper {
+	return domainforwardproxy.NewTransport(toInternalDomainForwardProxySettings(settings))
+}
+
+func normalizeDomainForwardProxySettings(settings *DomainForwardProxySettings) {
+	if settings == nil {
+		return
+	}
+	internal := toInternalDomainForwardProxySettings(*settings)
+	domainforwardproxy.NormalizeSettings(&internal)
+	*settings = fromInternalDomainForwardProxySettings(internal)
+}
+
+func normalizeDomainPattern(raw string) string {
+	return domainforwardproxy.NormalizeDomainPattern(raw)
+}
+
+func normalizeForwardHost(raw string) string {
+	return domainforwardproxy.NormalizeForwardHost(raw)
+}
+
+func domainForwardProxySettingsEqual(a, b DomainForwardProxySettings) bool {
+	return domainforwardproxy.SettingsEqual(toInternalDomainForwardProxySettings(a), toInternalDomainForwardProxySettings(b))
+}
+
+type domainForwardProxyHandler struct {
+	inner *domainforwardproxy.Handler
+}
+
+func newDomainForwardProxyHandler(settings DomainForwardProxySettings) *domainForwardProxyHandler {
+	return &domainForwardProxyHandler{inner: domainforwardproxy.NewHandler(toInternalDomainForwardProxySettings(settings))}
+}
+
+func (h *domainForwardProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.inner.ServeHTTP(w, r)
+}
+
+func (h *domainForwardProxyHandler) targetForHost(host string) (*url.URL, DomainForwardRoute, error) {
+	target, route, err := h.inner.TargetForHost(host)
+	return target, fromInternalDomainForwardRoute(route), err
+}
+
+func parseForwardUpstream(raw string, defaultScheme string, requestHost string) (*url.URL, error) {
+	return domainforwardproxy.ParseUpstream(raw, defaultScheme, requestHost)
+}
+
+func joinForwardProxyPath(target *url.URL, incoming *url.URL) (path, rawpath string) {
+	return domainforwardproxy.JoinPath(target, incoming)
+}
+
+func requestForwardedProto(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
 }
