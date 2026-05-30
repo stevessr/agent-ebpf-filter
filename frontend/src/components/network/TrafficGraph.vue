@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, toRef } from 'vue';
 import { useTrafficGraph, type TrafficInterface } from '../../composables/network/useTrafficGraph';
 
 const props = withDefaults(defineProps<{
@@ -19,8 +19,8 @@ const svgRef = ref<SVGSVGElement | null>(null);
 useTrafficGraph(
   containerRef,
   svgRef,
-  ref(props.interfaces),
-  ref(props.height),
+  toRef(props, 'interfaces'),
+  toRef(props, 'height'),
   (name) => emit('select-interface', name),
 );
 </script>

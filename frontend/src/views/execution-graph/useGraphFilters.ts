@@ -28,7 +28,10 @@ export const filtersFromRoute = (query: LocationQuery): ExecutionGraphFilterStat
   const parsedLimit = Number(singleQuery(query.limit));
   const parsedRisk = Number(singleQuery(query.risk_min));
   const timePreset = String(singleQuery(query.timePreset || query.time_preset || defaults.timePreset)).trim() as ExecutionGraphFilterState['timePreset'];
+  const since = String(singleQuery(query.since)).trim();
+  const until = String(singleQuery(query.until)).trim();
   const processTreeRaw = String(singleQuery(query.process_tree)).trim().toLowerCase();
+  const parsedTimePreset = timePresetOptions.includes(timePreset) ? timePreset : defaults.timePreset;
   return {
     ...defaults,
     limit: Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : defaults.limit,
@@ -43,9 +46,9 @@ export const filtersFromRoute = (query: LocationQuery): ExecutionGraphFilterStat
     domain: String(singleQuery(query.domain)).trim(),
     decision: String(singleQuery(query.decision)).trim(),
     riskMin: Number.isFinite(parsedRisk) && parsedRisk > 0 ? parsedRisk : defaults.riskMin,
-    timePreset: timePresetOptions.includes(timePreset) ? timePreset : defaults.timePreset,
-    since: String(singleQuery(query.since)).trim(),
-    until: String(singleQuery(query.until)).trim(),
+    timePreset: (since || until) && parsedTimePreset !== 'custom' ? 'custom' : parsedTimePreset,
+    since,
+    until,
   };
 };
 

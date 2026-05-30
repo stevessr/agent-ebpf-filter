@@ -44,7 +44,6 @@ export const buildDisplayGraph = (
     { node: ExecutionGraphNode; eventIds: string[]; sourceIds: string[] }
   >();
   const aggregateIdByEventId = new Map<string, string>();
-  const processToAggregateIds = new Map<string, string[]>();
   rawNodes.forEach((node) => {
     const processId = eventToProcess.get(node.id);
     if (!processId) return;
@@ -60,9 +59,6 @@ export const buildDisplayGraph = (
       return;
     }
     const aggregateId = `agg:${processId}:${node.kind}:${eventType}`;
-    const ids = processToAggregateIds.get(processId) ?? [];
-    ids.push(aggregateId);
-    processToAggregateIds.set(processId, ids);
     aggregateByKey.set(key, {
       eventIds: [node.id],
       sourceIds: [node.id],
@@ -94,28 +90,14 @@ export const buildDisplayGraph = (
   });
 
   const displayNodes = rawNodes
-    .filter((node) => node.kind !== 'process')
-    .filter((node) => !aggregateIdByEventId.has(node.id))
+    .filter((node) => node.kind === 'process' || !aggregateIdByEventId.has(node.id))
     .concat([...aggregateByKey.values()].map((item) => item.node));
   const displayNodeIds = new Set(displayNodes.map((node) => node.id));
   const edgeById = new Map<string, ExecutionGraphEdge>();
 
-  const representativeForProcess = (processId: string) =>
-    processToAggregateIds.get(processId)?.[0] ?? '';
-
   rawEdges.forEach((edge) => {
-    const rawSource =
-      aggregateIdByEventId.get(edge.source) ??
-      (sourceNodes.get(edge.source)?.kind === 'process'
-        ? representativeForProcess(edge.source)
-        : edge.source);
-    const rawTarget =
-      aggregateIdByEventId.get(edge.target) ??
-      (sourceNodes.get(edge.target)?.kind === 'process'
-        ? representativeForProcess(edge.target)
-        : edge.target);
-    const source = rawSource;
-    const target = rawTarget;
+    const source = aggregateIdByEventId.get(edge.source) ?? edge.source;
+    const target = aggregateIdByEventId.get(edge.target) ?? edge.target;
     if (!source || !target || source === target) return;
     if (!displayNodeIds.has(source) || !displayNodeIds.has(target)) return;
     const id = `${source}->${target}:${edge.kind}`;

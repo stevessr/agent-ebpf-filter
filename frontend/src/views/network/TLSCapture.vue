@@ -7,6 +7,7 @@ import { message } from 'ant-design-vue';
 import { buildWebSocketUrl } from '../../utils/requestContext';
 
 interface TLSPlaintextEvent {
+  key?: string;
   type?: string;
   timestamp?: string;
   pid?: number;
@@ -86,6 +87,7 @@ const attachLoading = ref(false);
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let shouldReconnect = true;
+let eventKeySequence = 0;
 
 const formatBytes = (bytes?: number) => {
   const value = Number(bytes || 0);
@@ -101,7 +103,11 @@ const formatTimestamp = (timestamp?: string) => {
   return Number.isNaN(date.getTime()) ? timestamp : date.toLocaleString();
 };
 
-const eventKey = (event: TLSPlaintextEvent, index: number) => `${event.timestamp ?? 'ts'}-${event.pid ?? 0}-${event.direction ?? 'dir'}-${index}`;
+const withEventKey = (event: TLSPlaintextEvent): TLSPlaintextEvent => {
+  if (event.key) return event;
+  eventKeySequence += 1;
+  return { ...event, key: `${event.timestamp ?? 'ts'}-${event.pid ?? 0}-${event.direction ?? 'dir'}-${eventKeySequence}` };
+};
 const isRequestEvent = (event: TLSPlaintextEvent) => event.type === 'http_request';
 const isResponseEvent = (event: TLSPlaintextEvent) => event.type === 'http_response' || event.type === 'sse_message';
 const isDisplayEvent = (event: TLSPlaintextEvent) => isRequestEvent(event) || isResponseEvent(event);
@@ -172,7 +178,7 @@ const fetchRecentEvents = async () => {
   try {
     const response = await axios.get('/tls-capture/recent?limit=500');
     const recentEvents = Array.isArray(response.data?.events) ? response.data.events as TLSPlaintextEvent[] : [];
-    events.value = recentEvents.filter(isDisplayEvent);
+    events.value = recentEvents.filter(isDisplayEvent).map(withEventKey);
   } catch (error: any) {
     message.error(error?.response?.data?.error || 'Failed to load TLS capture events');
   }
@@ -286,7 +292,7 @@ const connectWebSocket = () => {
     try {
       const payload = JSON.parse(String(event.data)) as TLSPlaintextEvent;
       if (isDisplayEvent(payload)) {
-        events.value = [payload, ...events.value].slice(0, 500);
+        events.value = [withEventKey(payload), ...events.value].slice(0, 500);
       }
     } catch (error) {
       console.error('TLS capture websocket parse error', error);
@@ -513,7 +519,7 @@ onUnmounted(() => {
 
       <a-table
         :data-source="filteredEvents"
-        :row-key="eventKey"
+        row-key="key"
         size="small"
         :pagination="{ pageSize: 20, showSizeChanger: true }"
         :scroll="{ x: 1200 }"

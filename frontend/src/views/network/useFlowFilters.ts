@@ -15,7 +15,7 @@ export function useFlowFilters() {
 
   // ── Interface stats from REST API ──────────────────────────────────
   const {
-    interfaces: apiInterfaces, dnsMap,
+    interfaces: apiInterfaces, interfaceRates: apiInterfaceRates, dnsMap,
     fetchInterfaces, fetchDNSCache,
     totalErrors, totalDrops,
   } = useNetworkInterfaces(5000);
@@ -204,6 +204,7 @@ export function useFlowFilters() {
     publicFlows,
     establishedConns,
     apiInterfaces,
+    apiInterfaceRates,
     dnsMap,
     totalErrors,
     totalDrops,

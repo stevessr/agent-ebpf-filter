@@ -26,3 +26,5 @@ frontend/package-lock.json
 docs/ref/2508.02736v2
 frontend/scripts/prepare-agentsight-sample.mjs
 frontend/public/agentsight-sample-trace.jsonl
+.port
+backend/.port

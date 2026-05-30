@@ -511,8 +511,10 @@ export function useConfigML() {
     }
   };
 
-  const llmBatchRowKey = (record: MLLlmBatchEntry, index: number) =>
-    record.index !== undefined ? `${record.index}-${index}` : `${record.commandLine}-${index}`;
+  const llmBatchRowKey = (record: MLLlmBatchEntry) =>
+    record.index !== undefined
+      ? String(record.index)
+      : `${record.commandLine}:${record.recommendedAction}:${record.riskScore}:${record.confidence}`;
 
   // ── Sample CRUD ──
   const filteredSamples = computed(() => {

@@ -16,6 +16,12 @@ export interface InterfaceStats {
   timestamp: number;
 }
 
+export interface InterfaceRate {
+  name: string;
+  readSpeed: number;
+  writeSpeed: number;
+}
+
 export interface DNSMapsEntry {
   domain: string;
   ip: string;
@@ -26,16 +32,27 @@ export interface DNSMapsEntry {
 
 export function useNetworkInterfaces(refreshMs = 5000) {
   const interfaces = ref<InterfaceStats[]>([]);
+  const interfaceRates = ref<InterfaceRate[]>([]);
   const dnsMap = ref<DNSMapsEntry[]>([]);
   const loading = ref(false);
   const error = ref('');
   let timer: ReturnType<typeof setInterval> | null = null;
+  let previousInterfaces = new Map<string, InterfaceStats>();
 
   async function fetchInterfaces() {
     try {
       loading.value = true;
       const res = await axios.get('/network/interfaces');
-      interfaces.value = res.data.interfaces || [];
+      const nextInterfaces: InterfaceStats[] = res.data.interfaces || [];
+      interfaceRates.value = nextInterfaces.map((iface) => {
+        const prev = previousInterfaces.get(iface.name);
+        const elapsed = prev ? (iface.timestamp - prev.timestamp) / 1000 : 0;
+        const readSpeed = prev && elapsed > 0 ? Math.max(0, iface.bytesRecv - prev.bytesRecv) / elapsed : 0;
+        const writeSpeed = prev && elapsed > 0 ? Math.max(0, iface.bytesSent - prev.bytesSent) / elapsed : 0;
+        return { name: iface.name, readSpeed, writeSpeed };
+      });
+      previousInterfaces = new Map(nextInterfaces.map((iface) => [iface.name, iface]));
+      interfaces.value = nextInterfaces;
       error.value = '';
     } catch (e: any) {
       error.value = e.message || 'Failed to fetch interfaces';
@@ -98,7 +115,7 @@ export function useNetworkInterfaces(refreshMs = 5000) {
   const totalBytesSent = () => interfaces.value.reduce((s, i) => s + i.bytesSent, 0);
 
   return {
-    interfaces, dnsMap, loading, error,
+    interfaces, interfaceRates, dnsMap, loading, error,
     fetchInterfaces, fetchDNSCache,
     startAutoRefresh, stopAutoRefresh,
     totalRecvRate, totalSentRate, totalErrors, totalDrops,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   GlobalOutlined, ArrowDownOutlined, ArrowUpOutlined,
@@ -16,7 +16,7 @@ const monitor = useInterfaceMonitor();
 const {
   isConnected, wsTimeRange, cumRecv, cumSent,
   showInterfaceChartModal, selectedInterfaceName, interfaceChartTimeRange,
-  netInterfaces, totalNetRecv, totalNetSent,
+  netInterfaces,
   openInterfaceChart, interfaceChartOptions, interfaceChartSeries,
   formatBytes, formatRate, VueApexCharts,
 } = monitor;
@@ -25,7 +25,7 @@ const flows = useFlowFilters();
 const {
   flows: flowList, tcpConns, flowsLoading, flowsError,
   totalBytesOut, totalBytesIn, suspiciousFlows, publicFlows, establishedConns,
-  apiInterfaces, dnsMap, totalErrors, totalDrops,
+  apiInterfaces, apiInterfaceRates, dnsMap, totalErrors, totalDrops,
   filterQuery, showHistoric, sortKey, filterError, filterExamples,
   refreshFlows, applyFilterExample,
   topProcesses, riskSummary, flowProtocols,
@@ -34,6 +34,15 @@ const {
   selectedFlow, showFlowDetail, openFlowDetail,
   flowColumns, flowData, tcpColumns,
 } = flows;
+
+// ── Traffic source ─────────────────────────────────────────────────
+const trafficInterfaces = computed(() => {
+  if (netInterfaces.value.length) return netInterfaces.value;
+  if (apiInterfaceRates.value.length) return apiInterfaceRates.value;
+  return apiInterfaces.value.map((item) => ({ name: item.name, readSpeed: 0, writeSpeed: 0 }));
+});
+const displayTotalNetRecv = computed(() => trafficInterfaces.value.reduce((sum, item) => sum + item.readSpeed, 0));
+const displayTotalNetSent = computed(() => trafficInterfaces.value.reduce((sum, item) => sum + item.writeSpeed, 0));
 
 // ── Tab state ──────────────────────────────────────────────────────
 const route = useRoute();
@@ -77,7 +86,7 @@ const startResize = (e: MouseEvent) => {
             <ArrowDownOutlined style="font-size: 24px; color: #1890ff;" />
             <div>
               <div style="font-size: 12px; color: #666;">Download</div>
-              <div style="font-size: 22px; font-weight: bold; color: #1890ff;">{{ formatBytes(totalNetRecv, 1) }}/s</div>
+              <div style="font-size: 22px; font-weight: bold; color: #1890ff;">{{ formatBytes(displayTotalNetRecv, 1) }}/s</div>
             </div>
           </div>
         </a-card>
@@ -88,7 +97,7 @@ const startResize = (e: MouseEvent) => {
             <ArrowUpOutlined style="font-size: 24px; color: #52c41a;" />
             <div>
               <div style="font-size: 12px; color: #666;">Upload</div>
-              <div style="font-size: 22px; font-weight: bold; color: #52c41a;">{{ formatBytes(totalNetSent, 1) }}/s</div>
+              <div style="font-size: 22px; font-weight: bold; color: #52c41a;">{{ formatBytes(displayTotalNetSent, 1) }}/s</div>
             </div>
           </div>
         </a-card>
@@ -159,7 +168,7 @@ const startResize = (e: MouseEvent) => {
             <a-col :span="24">
               <a-card title="Traffic Graph" size="small">
                 <div style="position: relative;">
-                  <TrafficGraph :interfaces="netInterfaces" :height="graphHeight" @select-interface="openInterfaceChart" />
+                  <TrafficGraph :interfaces="trafficInterfaces" :height="graphHeight" @select-interface="openInterfaceChart" />
                   <div
                     style="position: absolute; bottom: 0; left: 0; right: 0; height: 8px; cursor: ns-resize; background: rgba(0,0,0,0.02); display: flex; justify-content: center; align-items: center;"
                     @mousedown="startResize"
@@ -323,7 +332,7 @@ const startResize = (e: MouseEvent) => {
             <span><WifiOutlined /> Interfaces</span>
           </template>
           <a-table
-            :data-source="netInterfaces"
+            :data-source="trafficInterfaces"
             :columns="[
               { title: 'Interface', dataIndex: 'name', key: 'name' },
               { title: 'Download', dataIndex: 'readSpeed', key: 'readSpeed', align: 'right' },

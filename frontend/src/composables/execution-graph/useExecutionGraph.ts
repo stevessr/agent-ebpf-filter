@@ -218,6 +218,7 @@ const syncRouteQuery = async () => {
   const params = buildParams();
   const query: Record<string, string> = {};
   Object.entries(params).forEach(([key, value]) => {
+    if ((key === 'since' || key === 'until') && filters.timePreset !== 'custom') return;
     query[key] = String(value);
   });
   query.timePreset = filters.timePreset;
