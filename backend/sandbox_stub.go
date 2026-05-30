@@ -2,8 +2,8 @@
 
 package main
 
-import "log"
+import "agent-ebpf-filter/internal/sandbox"
 
 func ApplySandbox() {
-	log.Println("[SANDBOX] sandbox only available on Linux")
+	sandbox.Apply()
 }

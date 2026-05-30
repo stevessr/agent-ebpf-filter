@@ -1,4 +1,4 @@
-package main
+package domainforwardproxy
 
 import (
 	"fmt"
@@ -6,17 +6,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/gin-gonic/gin"
 )
 
-func TestDomainForwardProxyRoutesByHost(t *testing.T) {
+func TestRoutesByHost(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "host=%s path=%s query=%s forwarded=%s route=%s", r.Host, r.URL.Path, r.URL.RawQuery, r.Header.Get("X-Forwarded-Host"), r.Header.Get("X-Agent-Forward-Route"))
 	}))
 	defer upstream.Close()
 
-	handler := newDomainForwardProxyHandler(DomainForwardProxySettings{
+	handler := NewHandler(DomainForwardProxySettings{
 		DefaultScheme: "http",
 		Routes: []DomainForwardRoute{{
 			Host:     "Example.TEST",
@@ -46,8 +44,8 @@ func TestDomainForwardProxyRoutesByHost(t *testing.T) {
 	}
 }
 
-func TestDomainForwardProxyRejectsUnknownHostUnlessAllowed(t *testing.T) {
-	handler := newDomainForwardProxyHandler(DomainForwardProxySettings{
+func TestRejectsUnknownHostUnlessAllowed(t *testing.T) {
+	handler := NewHandler(DomainForwardProxySettings{
 		DefaultScheme: "http",
 		Routes:        []DomainForwardRoute{{Host: "known.test", Upstream: "http://127.0.0.1:1"}},
 	})
@@ -65,15 +63,15 @@ func TestDomainForwardProxyRejectsUnknownHostUnlessAllowed(t *testing.T) {
 	}
 }
 
-func TestDomainForwardProxyAllowAnyHostBuildsHostTarget(t *testing.T) {
-	handler := newDomainForwardProxyHandler(DomainForwardProxySettings{
+func TestAllowAnyHostBuildsHostTarget(t *testing.T) {
+	handler := NewHandler(DomainForwardProxySettings{
 		AllowAnyHost:  true,
 		DefaultScheme: "https",
 	})
 
-	target, route, err := handler.targetForHost("Service.Example:443")
+	target, route, err := handler.TargetForHost("Service.Example:443")
 	if err != nil {
-		t.Fatalf("targetForHost returned error: %v", err)
+		t.Fatalf("TargetForHost returned error: %v", err)
 	}
 	if got, want := target.String(), "https://service.example"; got != want {
 		t.Fatalf("target = %q, want %q", got, want)
@@ -83,8 +81,8 @@ func TestDomainForwardProxyAllowAnyHostBuildsHostTarget(t *testing.T) {
 	}
 }
 
-func TestDomainForwardProxyWildcardAndHostPlaceholder(t *testing.T) {
-	handler := newDomainForwardProxyHandler(DomainForwardProxySettings{
+func TestWildcardAndHostPlaceholder(t *testing.T) {
+	handler := NewHandler(DomainForwardProxySettings{
 		DefaultScheme: "http",
 		Routes: []DomainForwardRoute{{
 			Host:     "*.example.test",
@@ -92,9 +90,9 @@ func TestDomainForwardProxyWildcardAndHostPlaceholder(t *testing.T) {
 		}},
 	})
 
-	target, route, err := handler.targetForHost("api.example.test")
+	target, route, err := handler.TargetForHost("api.example.test")
 	if err != nil {
-		t.Fatalf("targetForHost returned error: %v", err)
+		t.Fatalf("TargetForHost returned error: %v", err)
 	}
 	if route.Host != "*.example.test" {
 		t.Fatalf("route host = %q", route.Host)
@@ -104,7 +102,7 @@ func TestDomainForwardProxyWildcardAndHostPlaceholder(t *testing.T) {
 	}
 }
 
-func TestNormalizeDomainForwardProxySettingsDefaults(t *testing.T) {
+func TestNormalizeSettingsDefaults(t *testing.T) {
 	settings := DomainForwardProxySettings{
 		HTTPPort:           -1,
 		HTTPSPort:          70000,
@@ -117,7 +115,7 @@ func TestNormalizeDomainForwardProxySettingsDefaults(t *testing.T) {
 			{Host: ""},
 		},
 	}
-	normalizeDomainForwardProxySettings(&settings)
+	NormalizeSettings(&settings)
 
 	if settings.HTTPPort != 80 || settings.HTTPSPort != 443 {
 		t.Fatalf("ports = %d/%d, want 80/443", settings.HTTPPort, settings.HTTPSPort)
@@ -136,23 +134,5 @@ func TestNormalizeDomainForwardProxySettingsDefaults(t *testing.T) {
 	}
 	if settings.Routes[0].Host != "example.test" || settings.Routes[0].Upstream != "backend:8080" {
 		t.Fatalf("route = %+v", settings.Routes[0])
-	}
-}
-
-func TestDomainForwardProxyStatusEndpointReturnsCopy(t *testing.T) {
-	oldService := domainForwardProxyService
-	service := newDomainForwardProxyRuntime()
-	domainForwardProxyService = service
-	t.Cleanup(func() { domainForwardProxyService = oldService })
-
-	gin.SetMode(gin.TestMode)
-	req := httptest.NewRequest(http.MethodGet, "/system/domain-forward/status", nil)
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = req
-	handleDomainForwardProxyStatus(c)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }
