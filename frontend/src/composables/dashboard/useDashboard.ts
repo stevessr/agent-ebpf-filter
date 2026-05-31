@@ -132,8 +132,14 @@ const syncTabFromRoute = () => {
 syncTabFromRoute();
 
 const onTabChange = (key: string) => {
-  activeTab.value = key;
-  router.push(key === 'all' ? '/dashboard' : `/dashboard/${key}`);
+  const resolved = categoryTabs.some((tab) => tab.key === key) ? key : 'all';
+  activeTab.value = resolved;
+  void router.replace({
+    name: 'Dashboard',
+    params: resolved === 'all' ? {} : { tab: resolved },
+    query: route.query,
+    hash: route.hash,
+  });
 };
 
 function createDefaultBuiltinFilterState(): BuiltinFilterState {

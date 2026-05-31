@@ -58,45 +58,77 @@ const {
 const route = useRoute();
 const router = useRouter();
 
-const activeTab = ref((route.params.tab as string) || 'dashboard');
-const sensorSubTab = ref('hardware');
-const healthTab = ref('cpu');
+const monitorTabKeys = new Set(['dashboard', 'processes', 'systemd', 'sensors', 'tracing']);
+const healthTabKeys = new Set(['cpu', 'mem', 'io', 'faults', 'gpu', 'procmem']);
+const sensorSubTabKeys = new Set(['hardware', 'camera', 'mic']);
 
-// Parse subtab from URL on init; redirect to default if missing
-if (route.params.subtab) {
-  const subtab = route.params.subtab as string;
-  if (activeTab.value === 'dashboard' && ['cpu', 'mem', 'io', 'faults', 'gpu', 'procmem'].includes(subtab)) {
-    healthTab.value = subtab;
-  } else if (activeTab.value === 'sensors' && ['hardware', 'camera', 'mic'].includes(subtab)) {
-    sensorSubTab.value = subtab;
-  }
-} else if (activeTab.value === 'dashboard') {
-  void router.replace({ name: 'Monitor', params: { tab: 'dashboard', subtab: healthTab.value } });
-} else if (activeTab.value === 'sensors') {
-  void router.replace({ name: 'Monitor', params: { tab: 'sensors', subtab: sensorSubTab.value } });
-}
+type MonitorTabKey = 'dashboard' | 'processes' | 'systemd' | 'sensors' | 'tracing';
+type HealthTabKey = 'cpu' | 'mem' | 'io' | 'faults' | 'gpu' | 'procmem';
+type SensorSubTabKey = 'hardware' | 'camera' | 'mic';
 
-const navigate = (tab: string, subtab?: string) => {
+const getRouteParam = (param: unknown) => Array.isArray(param) ? param[0] : param;
+const normalizeMonitorTab = (tab: unknown): MonitorTabKey => (
+  typeof tab === 'string' && monitorTabKeys.has(tab) ? tab as MonitorTabKey : 'dashboard'
+);
+const normalizeHealthTab = (tab: unknown): HealthTabKey => (
+  typeof tab === 'string' && healthTabKeys.has(tab) ? tab as HealthTabKey : 'cpu'
+);
+const normalizeSensorSubTab = (tab: unknown): SensorSubTabKey => (
+  typeof tab === 'string' && sensorSubTabKeys.has(tab) ? tab as SensorSubTabKey : 'hardware'
+);
+
+const activeTab = ref<MonitorTabKey>(normalizeMonitorTab(getRouteParam(route.params.tab)));
+const sensorSubTab = ref<SensorSubTabKey>('hardware');
+const healthTab = ref<HealthTabKey>('cpu');
+
+const navigate = (tab: MonitorTabKey, subtab?: string) => {
   const params: Record<string, string> = { tab };
   if (subtab) params.subtab = subtab;
-  void router.replace({ name: 'Monitor', params });
+  void router.replace({ name: 'Monitor', params, query: route.query, hash: route.hash });
 };
 
+const syncTabsFromRoute = () => {
+  const tab = normalizeMonitorTab(getRouteParam(route.params.tab));
+  const subtab = getRouteParam(route.params.subtab);
+  activeTab.value = tab;
+
+  if (tab === 'dashboard') {
+    const resolved = normalizeHealthTab(subtab);
+    healthTab.value = resolved;
+    if (getRouteParam(route.params.tab) !== 'dashboard' || subtab !== resolved) navigate('dashboard', resolved);
+    return;
+  }
+
+  if (tab === 'sensors') {
+    const resolved = normalizeSensorSubTab(subtab);
+    sensorSubTab.value = resolved;
+    if (getRouteParam(route.params.tab) !== 'sensors' || subtab !== resolved) navigate('sensors', resolved);
+    return;
+  }
+
+  if (getRouteParam(route.params.tab) !== tab || subtab) navigate(tab);
+};
+
+watch(() => [route.params.tab, route.params.subtab], syncTabsFromRoute, { immediate: true });
+
 const handleTabChange = (key: string) => {
-  activeTab.value = key;
-  if (key === 'dashboard') navigate(key, healthTab.value);
-  else if (key === 'sensors') navigate(key, sensorSubTab.value);
-  else navigate(key);
+  const tab = normalizeMonitorTab(key);
+  activeTab.value = tab;
+  if (tab === 'dashboard') navigate(tab, healthTab.value);
+  else if (tab === 'sensors') navigate(tab, sensorSubTab.value);
+  else navigate(tab);
 };
 
 const handleHealthSubTabChange = (key: string) => {
-  healthTab.value = key;
-  navigate('dashboard', key);
+  const tab = normalizeHealthTab(key);
+  healthTab.value = tab;
+  navigate('dashboard', tab);
 };
 
 const handleSensorSubTabChange = (key: string) => {
-  sensorSubTab.value = key;
-  navigate('sensors', key);
+  const tab = normalizeSensorSubTab(key);
+  sensorSubTab.value = tab;
+  navigate('sensors', tab);
 };
 
 const onSendProcessSignal = async (pid: number, signal: string) => {

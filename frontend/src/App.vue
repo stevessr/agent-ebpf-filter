@@ -1,129 +1,70 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { DashboardOutlined, SettingOutlined, BarChartOutlined, FolderOpenOutlined, PlaySquareOutlined, LinkOutlined, GlobalOutlined, DeploymentUnitOutlined, ClusterOutlined, SafetyCertificateOutlined, ThunderboltOutlined, AppstoreOutlined } from '@ant-design/icons-vue';
+import AppSideNav from './components/layout/AppSideNav.vue';
+import AppWorkbenchTabs from './components/layout/AppWorkbenchTabs.vue';
+import { useWorkbenchNavigation } from './composables/navigation/useWorkbenchNavigation';
 
-const route = useRoute();
-const router = useRouter();
-const selectedKeys = ref<string[]>(['/dashboard']);
-
-watch(() => route.path, (path) => {
-  if (path.startsWith('/tls-capture')) {
-    selectedKeys.value = ['/tls-capture'];
-  } else if (path.startsWith('/agentsight') || path.startsWith('/execution-graph')) {
-    selectedKeys.value = ['/execution-graph'];
-  } else if (path.startsWith('/executor')) {
-    selectedKeys.value = ['/executor'];
-  } else if (path.startsWith('/network-flow')) {
-    selectedKeys.value = ['/network-flow'];
-  } else if (path.startsWith('/network')) {
-    selectedKeys.value = ['/network'];
-  } else if (path.startsWith('/ml')) {
-    selectedKeys.value = ['/ml'];
-  } else if (path.startsWith('/plugins')) {
-    selectedKeys.value = ['/plugins'];
-  } else if (path.startsWith('/config')) {
-    selectedKeys.value = ['/config'];
-  } else if (path.startsWith('/dashboard')) {
-    selectedKeys.value = ['/dashboard'];
-  } else {
-    selectedKeys.value = [path];
-  }
-}, { immediate: true });
-
-const handleMenuClick = ({ key }: { key: string }) => {
-  router.push(key);
-};
+const {
+  navGroups,
+  collapsed,
+  openedTabs,
+  activeTabKey,
+  selectedMenuKeys,
+  openKeys,
+  handleMenuSelect,
+  handleTabChange,
+  handleTabEdit,
+  updateOpenKeys,
+} = useWorkbenchNavigation();
 </script>
 
 <template>
-  <a-layout class="layout">
-    <a-layout-header class="header">
-      <div class="logo" style="flex-shrink: 0; min-width: 150px;">
-        <a-typography-title :level="3" style="color: white; margin: 0; line-height: 64px; margin-right: 24px;">
-          Agent eBPF
-        </a-typography-title>
-      </div>
-      <a-menu
-        v-model:selectedKeys="selectedKeys"
-        theme="dark"
-        mode="horizontal"
-        :style="{ lineHeight: '64px', flex: 1, minWidth: 0 }"
-        @click="handleMenuClick"
-      >
-        <a-menu-item key="/dashboard">
-          <template #icon><DashboardOutlined /></template>
-          Dashboard
-        </a-menu-item>
-        <a-menu-item key="/monitor">
-          <template #icon><BarChartOutlined /></template>
-          Monitor
-        </a-menu-item>
-        <a-menu-item key="/network">
-          <template #icon><GlobalOutlined /></template>
-          Network
-        </a-menu-item>
-        <a-menu-item key="/network-flow">
-          <template #icon><DeploymentUnitOutlined /></template>
-          Traffic
-        </a-menu-item>
-        <a-menu-item key="/tls-capture">
-          <template #icon><SafetyCertificateOutlined /></template>
-          Hook SSL
-        </a-menu-item>
-        <a-menu-item key="/execution-graph">
-          <template #icon><ClusterOutlined /></template>
-          追踪
-        </a-menu-item>
-        <a-menu-item key="/explorer">
-          <template #icon><FolderOpenOutlined /></template>
-          Explorer
-        </a-menu-item>
-        <a-menu-item key="/executor">
-          <template #icon><PlaySquareOutlined /></template>
-          Executor
-        </a-menu-item>
-        <a-menu-item key="/hooks">
-          <template #icon><LinkOutlined /></template>
-          Hooks
-        </a-menu-item>
-        <a-menu-item key="/ml">
-          <template #icon><ThunderboltOutlined /></template>
-          ML
-        </a-menu-item>
-        <a-menu-item key="/plugins">
-          <template #icon><AppstoreOutlined /></template>
-          插件
-        </a-menu-item>
-        <a-menu-item key="/config">
-          <template #icon><SettingOutlined /></template>
-          Configuration
-        </a-menu-item>
-      </a-menu>
-    </a-layout-header>
-    <a-layout-content class="app-content">
-      <router-view></router-view>
-    </a-layout-content>
-    <a-layout-footer style="text-align: center">
-      Agent eBPF Tracker ©2026 Created by Stevessr
-    </a-layout-footer>
+  <a-layout class="app-layout">
+    <AppSideNav
+      v-model:collapsed="collapsed"
+      :nav-groups="navGroups"
+      :selected-keys="selectedMenuKeys"
+      :open-keys="openKeys"
+      @update:open-keys="updateOpenKeys"
+      @select="handleMenuSelect"
+    />
+
+    <a-layout class="app-layout__main">
+      <AppWorkbenchTabs
+        :tabs="openedTabs"
+        :active-key="activeTabKey"
+        @change="handleTabChange"
+        @edit="handleTabEdit"
+      />
+
+      <a-layout-content class="app-content">
+        <router-view />
+      </a-layout-content>
+
+      <a-layout-footer class="app-footer">
+        Agent eBPF Tracker ©2026 Created by Stevessr
+      </a-layout-footer>
+    </a-layout>
   </a-layout>
 </template>
 
 <style scoped>
-.layout {
+.app-layout {
   min-height: 100vh;
 }
-.header {
-  display: flex;
-  align-items: center;
-}
-.logo {
-  float: left;
+
+.app-layout__main {
+  min-width: 0;
+  min-height: 100vh;
 }
 
 .app-content {
-  padding: 16px 16px 20px;
   min-width: 0;
+  padding: 16px 16px 20px;
+  overflow: auto;
+}
+
+.app-footer {
+  padding: 12px 16px;
+  text-align: center;
 }
 </style>
