@@ -1,11 +1,12 @@
 import { ref } from "vue";
 import { message } from "ant-design-vue";
 import { usePlugins } from "../../composables/plugins/usePlugins";
-import type {
-  VisualTrigger,
-  VisualValidationIssue,
-} from "./types";
-import { getAttachKindForTrigger, getAttachTargetForTrigger, VISUAL_PROGRAM_NAME } from "./trigger-runtime";
+import type { VisualTrigger, VisualValidationIssue } from "./types";
+import {
+  getAttachKindForTrigger,
+  getAttachTargetForTrigger,
+  VISUAL_PROGRAM_NAME,
+} from "./trigger-runtime";
 
 export interface UsePluginCompilerOptions {
   pluginId: () => string;
@@ -32,12 +33,14 @@ export function usePluginCompiler(opts: UsePluginCompilerOptions) {
     if (!opts.isWorkspaceValid()) {
       compileLogLocal.value = [
         "已阻止编译：当前积木工作台存在错误。",
-        ...opts.validationErrors().map(
-          (issue) =>
-            `[${issue.severity.toUpperCase()}] ${issue.title}${
-              issue.detail ? ` - ${issue.detail}` : ""
-            }`
-        ),
+        ...opts
+          .validationErrors()
+          .map(
+            (issue) =>
+              `[${issue.severity.toUpperCase()}] ${issue.title}${
+                issue.detail ? ` - ${issue.detail}` : ""
+              }`,
+          ),
       ].join("\n");
       message.error(`请先修复左侧"编译前验证"中的错误`);
       return;
@@ -61,7 +64,10 @@ export function usePluginCompiler(opts: UsePluginCompilerOptions) {
 
       compileLogLocal.value +=
         "正在调用 LLVM/Clang 将源码编译为 ELF 内核字节码...\n";
-      const success = await compileBpf(opts.pluginId(), opts.generatedBpfCode());
+      const success = await compileBpf(
+        opts.pluginId(),
+        opts.generatedBpfCode(),
+      );
       if (success) {
         opts.isCompiled.value = true;
         compileLogLocal.value +=

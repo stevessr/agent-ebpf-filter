@@ -10,12 +10,12 @@ import (
 // This enables attribution of all child processes and flows within a cgroup
 // to the originating agent run and tool call.
 type cgroupAttributionEntry struct {
-	CgroupID    uint64
-	AgentRunID  string
-	TaskID      string
-	ToolCallID  string
+	CgroupID     uint64
+	AgentRunID   string
+	TaskID       string
+	ToolCallID   string
 	RootAgentPID uint32
-	CreatedAt   time.Time
+	CreatedAt    time.Time
 }
 
 type cgroupAttributionStore struct {
@@ -93,12 +93,12 @@ func enrichEventWithCgroupContext(cgroupID uint64) (agentRunID, taskID, toolCall
 // ── Per-tool baseline and drift detection ────────────────────────────
 
 type toolBaselineSample struct {
-	ToolName    string
-	Comm        string
-	EventType   string
-	Path        string
-	Count       int
-	LastSeen    time.Time
+	ToolName  string
+	Comm      string
+	EventType string
+	Path      string
+	Count     int
+	LastSeen  time.Time
 }
 
 type toolBaselineStore struct {

@@ -64,13 +64,19 @@ const issueColor = (severity: VisualValidationIssue["severity"]) => {
       </div>
       <div class="meter-row">
         <span>Action</span>
-        <a-tag :color="action === 'ALERT' ? 'gold' : action === 'KILL' ? 'red' : 'volcano'">
+        <a-tag
+          :color="
+            action === 'ALERT' ? 'gold' : action === 'KILL' ? 'red' : 'volcano'
+          "
+        >
           {{ action }}
         </a-tag>
       </div>
       <div class="meter-row">
         <span>Map</span>
-        <a-tag :color="mapMode === 'NONE' ? 'default' : 'purple'">{{ mapMode }}</a-tag>
+        <a-tag :color="mapMode === 'NONE' ? 'default' : 'purple'">{{
+          mapMode
+        }}</a-tag>
       </div>
       <div class="meter-grid">
         <div>

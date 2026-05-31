@@ -68,13 +68,13 @@ watch(
         ? route.params.subtab[0]
         : route.params.subtab;
       router.replace(
-        subtab ? { name: "ML", params: { subtab } } : { name: "ML" }
+        subtab ? { name: "ML", params: { subtab } } : { name: "ML" },
       );
       return;
     }
     activeTabKey.value = normalizeConfigTab(tab);
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 watch(activeTabKey, (val) => {

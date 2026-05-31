@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue';
-import { CompressOutlined, EyeOutlined } from '@ant-design/icons-vue';
+import { computed, shallowRef, watch } from "vue";
+import { CompressOutlined, EyeOutlined } from "@ant-design/icons-vue";
 
-import { formatFullTime, type ProcessedAgentSightEvent } from '../../utils/agentsight';
+import {
+  formatFullTime,
+  type ProcessedAgentSightEvent,
+} from "../../utils/agentsight";
 import {
   agentSightFlameBreadcrumbs,
   agentSightFlameMetricValue,
@@ -14,85 +17,156 @@ import {
   type AgentSightFlameMetric,
   type AgentSightFlameNode,
   type AgentSightFlameRect,
-} from '../../utils/agentsightFlamegraph';
-import AgentSightEventDetails from './AgentSightEventDetails.vue';
+} from "../../utils/agentsightFlamegraph";
+import AgentSightEventDetails from "./AgentSightEventDetails.vue";
 
 const props = defineProps<{
   events: ProcessedAgentSightEvent[];
 }>();
 
-const metric = shallowRef<AgentSightFlameMetric>('duration');
-const dimensionPreset = shallowRef<AgentSightFlameDimensionPreset>('execution');
-const focusedNodeId = shallowRef('root');
-const selectedNodeId = shallowRef('root');
+const metric = shallowRef<AgentSightFlameMetric>("duration");
+const dimensionPreset = shallowRef<AgentSightFlameDimensionPreset>("execution");
+const focusedNodeId = shallowRef("root");
+const selectedNodeId = shallowRef("root");
 const selectedEvent = shallowRef<ProcessedAgentSightEvent | null>(null);
 const detailsOpen = shallowRef(false);
 
 const metricOptions: Array<{ label: string; value: AgentSightFlameMetric }> = [
-  { label: 'Duration', value: 'duration' },
-  { label: 'Count', value: 'count' },
-  { label: 'Bytes', value: 'bytes' },
-  { label: 'Risk', value: 'risk' },
+  { label: "Duration", value: "duration" },
+  { label: "Count", value: "count" },
+  { label: "Bytes", value: "bytes" },
+  { label: "Risk", value: "risk" },
 ];
 
-const dimensionOptions: Array<{ label: string; value: AgentSightFlameDimensionPreset }> = [
-  { label: 'Execution', value: 'execution' },
-  { label: 'Process', value: 'process' },
-  { label: 'Conversation', value: 'conversation' },
+const dimensionOptions: Array<{
+  label: string;
+  value: AgentSightFlameDimensionPreset;
+}> = [
+  { label: "Execution", value: "execution" },
+  { label: "Process", value: "process" },
+  { label: "Conversation", value: "conversation" },
 ];
 
-const tree = computed(() => buildAgentSightFlameTree(props.events, dimensionPreset.value));
-const focusedNode = computed(() => findAgentSightFlameNode(tree.value, focusedNodeId.value) || tree.value);
-const selectedNode = computed(() => findAgentSightFlameNode(tree.value, selectedNodeId.value) || focusedNode.value);
-const breadcrumbs = computed(() => agentSightFlameBreadcrumbs(tree.value, focusedNode.value.id));
-const rects = computed(() => layoutAgentSightFlamegraph(focusedNode.value, metric.value));
-const visibleRects = computed(() => rects.value.filter(rect => focusedNode.value.id !== 'root' || rect.node.level !== 'root'));
-const hasMetricValue = computed(() => agentSightFlameMetricValue(tree.value, metric.value) > 0);
-const hasFocusedMetricValue = computed(() => agentSightFlameMetricValue(focusedNode.value, metric.value) > 0);
-const displayY = (rect: AgentSightFlameRect) => focusedNode.value.id === 'root' ? rect.y - 30 : rect.y;
-const svgHeight = computed(() => Math.max(96, visibleRects.value.reduce((max, rect) => Math.max(max, displayY(rect) + rect.height), 0) + 8));
+const tree = computed(() =>
+  buildAgentSightFlameTree(props.events, dimensionPreset.value),
+);
+const focusedNode = computed(
+  () => findAgentSightFlameNode(tree.value, focusedNodeId.value) || tree.value,
+);
+const selectedNode = computed(
+  () =>
+    findAgentSightFlameNode(tree.value, selectedNodeId.value) ||
+    focusedNode.value,
+);
+const breadcrumbs = computed(() =>
+  agentSightFlameBreadcrumbs(tree.value, focusedNode.value.id),
+);
+const rects = computed(() =>
+  layoutAgentSightFlamegraph(focusedNode.value, metric.value),
+);
+const visibleRects = computed(() =>
+  rects.value.filter(
+    (rect) => focusedNode.value.id !== "root" || rect.node.level !== "root",
+  ),
+);
+const hasMetricValue = computed(
+  () => agentSightFlameMetricValue(tree.value, metric.value) > 0,
+);
+const hasFocusedMetricValue = computed(
+  () => agentSightFlameMetricValue(focusedNode.value, metric.value) > 0,
+);
+const displayY = (rect: AgentSightFlameRect) =>
+  focusedNode.value.id === "root" ? rect.y - 30 : rect.y;
+const svgHeight = computed(() =>
+  Math.max(
+    96,
+    visibleRects.value.reduce(
+      (max, rect) => Math.max(max, displayY(rect) + rect.height),
+      0,
+    ) + 8,
+  ),
+);
 const eventCount = computed(() => props.events.length.toLocaleString());
-const currentMetricLabel = computed(() => metricOptions.find(option => option.value === metric.value)?.label || metric.value);
-const rootMetricValue = computed(() => agentSightFlameMetricValue(tree.value, metric.value));
-const focusedMetricValue = computed(() => agentSightFlameMetricValue(focusedNode.value, metric.value));
-const selectedMetricValue = computed(() => agentSightFlameMetricValue(selectedNode.value, metric.value));
-const selectedRootPercent = computed(() => rootMetricValue.value > 0 ? selectedMetricValue.value / rootMetricValue.value : 0);
-const selectedFocusPercent = computed(() => focusedMetricValue.value > 0 ? selectedMetricValue.value / focusedMetricValue.value : 0);
-const rootExplicitDuration = computed(() => tree.value.metrics.explicitDuration);
-const rootInferredDuration = computed(() => tree.value.metrics.inferredDuration);
+const currentMetricLabel = computed(
+  () =>
+    metricOptions.find((option) => option.value === metric.value)?.label ||
+    metric.value,
+);
+const rootMetricValue = computed(() =>
+  agentSightFlameMetricValue(tree.value, metric.value),
+);
+const focusedMetricValue = computed(() =>
+  agentSightFlameMetricValue(focusedNode.value, metric.value),
+);
+const selectedMetricValue = computed(() =>
+  agentSightFlameMetricValue(selectedNode.value, metric.value),
+);
+const selectedRootPercent = computed(() =>
+  rootMetricValue.value > 0
+    ? selectedMetricValue.value / rootMetricValue.value
+    : 0,
+);
+const selectedFocusPercent = computed(() =>
+  focusedMetricValue.value > 0
+    ? selectedMetricValue.value / focusedMetricValue.value
+    : 0,
+);
+const rootExplicitDuration = computed(
+  () => tree.value.metrics.explicitDuration,
+);
+const rootInferredDuration = computed(
+  () => tree.value.metrics.inferredDuration,
+);
 const rootDuration = computed(() => tree.value.metrics.duration);
-const durationCoverage = computed(() => rootDuration.value > 0 ? rootExplicitDuration.value / rootDuration.value : 0);
+const durationCoverage = computed(() =>
+  rootDuration.value > 0 ? rootExplicitDuration.value / rootDuration.value : 0,
+);
 const selectedDurationSource = computed(() => {
-  if (selectedNode.value.metrics.explicitDuration > 0 && selectedNode.value.metrics.inferredDuration > 0) return 'mixed explicit + inferred';
-  if (selectedNode.value.metrics.explicitDuration > 0) return 'explicit duration fields';
-  if (selectedNode.value.metrics.inferredDuration > 0) return 'timestamp gap inferred';
-  return 'none';
+  if (
+    selectedNode.value.metrics.explicitDuration > 0 &&
+    selectedNode.value.metrics.inferredDuration > 0
+  )
+    return "mixed explicit + inferred";
+  if (selectedNode.value.metrics.explicitDuration > 0)
+    return "explicit duration fields";
+  if (selectedNode.value.metrics.inferredDuration > 0)
+    return "timestamp gap inferred";
+  return "none";
 });
 const sourceLegend = computed(() => {
-  const sources = new Map<string, { source: string; color: string; count: number }>();
-  visibleRects.value.forEach(rect => {
-    if (rect.node.level === 'other' || !rect.node.dominantSource) return;
-    const current = sources.get(rect.node.dominantSource) || { source: rect.node.dominantSource, color: rect.node.dominantColor, count: 0 };
+  const sources = new Map<
+    string,
+    { source: string; color: string; count: number }
+  >();
+  visibleRects.value.forEach((rect) => {
+    if (rect.node.level === "other" || !rect.node.dominantSource) return;
+    const current = sources.get(rect.node.dominantSource) || {
+      source: rect.node.dominantSource,
+      color: rect.node.dominantColor,
+      count: 0,
+    };
     current.count += rect.node.eventCount;
     sources.set(rect.node.dominantSource, current);
   });
-  return Array.from(sources.values()).sort((a, b) => b.count - a.count).slice(0, 8);
+  return Array.from(sources.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
 });
 
 const resetFocus = () => {
-  focusedNodeId.value = 'root';
-  selectedNodeId.value = 'root';
+  focusedNodeId.value = "root";
+  selectedNodeId.value = "root";
 };
 
 const focusNode = (node: AgentSightFlameNode) => {
-  if (node.level === 'other') return;
+  if (node.level === "other") return;
   focusedNodeId.value = node.id;
   selectedNodeId.value = node.id;
 };
 
 const selectNode = (node: AgentSightFlameNode) => {
   selectedNodeId.value = node.id;
-  if (node.children.length > 0 && node.level !== 'other') {
+  if (node.children.length > 0 && node.level !== "other") {
     focusNode(node);
     return;
   }
@@ -112,26 +186,36 @@ const closeDetails = () => {
   detailsOpen.value = false;
 };
 
-const formatMetric = (value: number, nextMetric = metric.value) => formatAgentSightFlameMetric(value, nextMetric);
-const percentLabel = (value: number) => `${(value * 100).toFixed(value >= 0.1 ? 1 : 2)}%`;
+const formatMetric = (value: number, nextMetric = metric.value) =>
+  formatAgentSightFlameMetric(value, nextMetric);
+const percentLabel = (value: number) =>
+  `${(value * 100).toFixed(value >= 0.1 ? 1 : 2)}%`;
 const labelVisible = (rect: AgentSightFlameRect) => rect.width >= 56;
 const valueVisible = (rect: AgentSightFlameRect) => rect.width >= 110;
 
-const rectFill = (node: AgentSightFlameNode) => node.level === 'other' ? '#94a3b8' : node.dominantColor || '#64748b';
-const rectOpacity = (node: AgentSightFlameNode) => String(Math.max(0.58, 0.94 - Math.max(0, node.depth - focusedNode.value.depth) * 0.055));
-const tooltipText = (rect: AgentSightFlameRect) => [
-  `${rect.node.label}`,
-  `Level: ${rect.node.level}`,
-  `${currentMetricLabel.value}: ${formatMetric(rect.value)}`,
-  `Explicit duration: ${formatMetric(rect.node.metrics.explicitDuration, 'duration')}`,
-  `Inferred duration: ${formatMetric(rect.node.metrics.inferredDuration, 'duration')}`,
-  `Root: ${percentLabel(rect.percentOfRoot)}`,
-  `Parent: ${percentLabel(rect.percentOfParent)}`,
-  `Events: ${rect.node.eventCount.toLocaleString()}`,
-  `Dominant source: ${rect.node.dominantSource || 'unknown'}`,
-  `Latest: ${formatFullTime(rect.node.latestTimestamp)}`,
-  `Representative: ${rect.node.representativeEvent?.title || '—'}`,
-].join('\n');
+const rectFill = (node: AgentSightFlameNode) =>
+  node.level === "other" ? "#94a3b8" : node.dominantColor || "#64748b";
+const rectOpacity = (node: AgentSightFlameNode) =>
+  String(
+    Math.max(
+      0.58,
+      0.94 - Math.max(0, node.depth - focusedNode.value.depth) * 0.055,
+    ),
+  );
+const tooltipText = (rect: AgentSightFlameRect) =>
+  [
+    `${rect.node.label}`,
+    `Level: ${rect.node.level}`,
+    `${currentMetricLabel.value}: ${formatMetric(rect.value)}`,
+    `Explicit duration: ${formatMetric(rect.node.metrics.explicitDuration, "duration")}`,
+    `Inferred duration: ${formatMetric(rect.node.metrics.inferredDuration, "duration")}`,
+    `Root: ${percentLabel(rect.percentOfRoot)}`,
+    `Parent: ${percentLabel(rect.percentOfParent)}`,
+    `Events: ${rect.node.eventCount.toLocaleString()}`,
+    `Dominant source: ${rect.node.dominantSource || "unknown"}`,
+    `Latest: ${formatFullTime(rect.node.latestTimestamp)}`,
+    `Representative: ${rect.node.representativeEvent?.title || "—"}`,
+  ].join("\n");
 
 watch([() => props.events, dimensionPreset], () => resetFocus());
 watch(metric, () => {
@@ -144,12 +228,22 @@ watch(metric, () => {
     <div class="flamegraph-toolbar">
       <div class="flamegraph-heading">
         <strong>真实火焰图</strong>
-        <span>{{ eventCount }} events · 默认按真实/推断耗时绘制，可切换事件数、字节和风险聚合</span>
+        <span
+          >{{ eventCount }} events ·
+          默认按真实/推断耗时绘制，可切换事件数、字节和风险聚合</span
+        >
       </div>
       <a-space wrap>
         <a-segmented v-model:value="metric" :options="metricOptions" />
-        <a-segmented v-model:value="dimensionPreset" :options="dimensionOptions" />
-        <a-button size="small" :disabled="focusedNode.id === 'root'" @click="resetFocus">
+        <a-segmented
+          v-model:value="dimensionPreset"
+          :options="dimensionOptions"
+        />
+        <a-button
+          size="small"
+          :disabled="focusedNode.id === 'root'"
+          @click="resetFocus"
+        >
           <template #icon><CompressOutlined /></template>
           Reset Zoom
         </a-button>
@@ -166,13 +260,25 @@ watch(metric, () => {
 
     <div class="flamegraph-overview">
       <a-tag color="blue">Focused: {{ focusedNode.label }}</a-tag>
-      <a-tag>{{ currentMetricLabel }} {{ formatMetric(focusedMetricValue) }}</a-tag>
-      <a-tag color="green">explicit {{ formatMetric(rootExplicitDuration, 'duration') }}</a-tag>
-      <a-tag color="orange">inferred {{ formatMetric(rootInferredDuration, 'duration') }}</a-tag>
+      <a-tag
+        >{{ currentMetricLabel }} {{ formatMetric(focusedMetricValue) }}</a-tag
+      >
+      <a-tag color="green"
+        >explicit {{ formatMetric(rootExplicitDuration, "duration") }}</a-tag
+      >
+      <a-tag color="orange"
+        >inferred {{ formatMetric(rootInferredDuration, "duration") }}</a-tag
+      >
       <a-tag color="cyan">coverage {{ percentLabel(durationCoverage) }}</a-tag>
-      <a-tag>{{ focusedNode.eventCount.toLocaleString() }} events in focus</a-tag>
+      <a-tag
+        >{{ focusedNode.eventCount.toLocaleString() }} events in focus</a-tag
+      >
       <span v-if="sourceLegend.length > 0" class="source-legend">
-        <span v-for="source in sourceLegend" :key="source.source" class="source-chip">
+        <span
+          v-for="source in sourceLegend"
+          :key="source.source"
+          class="source-chip"
+        >
           <span class="source-dot" :style="{ background: source.color }" />
           {{ source.source }}
         </span>
@@ -182,21 +288,38 @@ watch(metric, () => {
     <div v-if="breadcrumbs.length > 1" class="flamegraph-breadcrumbs">
       <a-breadcrumb>
         <a-breadcrumb-item v-for="node in breadcrumbs" :key="node.id">
-          <a-button type="link" size="small" @click="focusNode(node)">{{ node.label }}</a-button>
+          <a-button type="link" size="small" @click="focusNode(node)">{{
+            node.label
+          }}</a-button>
         </a-breadcrumb-item>
       </a-breadcrumb>
     </div>
 
-    <a-empty v-if="events.length === 0" description="No AgentSight events match current filters" />
-    <a-empty v-else-if="!hasMetricValue" :description="`No non-zero values for the selected metric: ${currentMetricLabel}`" />
-    <a-empty v-else-if="!hasFocusedMetricValue" :description="`The focused subtree has no non-zero ${currentMetricLabel} values`">
+    <a-empty
+      v-if="events.length === 0"
+      description="No AgentSight events match current filters"
+    />
+    <a-empty
+      v-else-if="!hasMetricValue"
+      :description="`No non-zero values for the selected metric: ${currentMetricLabel}`"
+    />
+    <a-empty
+      v-else-if="!hasFocusedMetricValue"
+      :description="`The focused subtree has no non-zero ${currentMetricLabel} values`"
+    >
       <template #extra>
         <a-button size="small" @click="resetFocus">Reset Zoom</a-button>
       </template>
     </a-empty>
     <template v-else>
       <div class="flamegraph-canvas">
-        <svg class="flamegraph-svg" :viewBox="`0 0 1200 ${svgHeight}`" preserveAspectRatio="none" role="img" aria-label="AgentSight flamegraph">
+        <svg
+          class="flamegraph-svg"
+          :viewBox="`0 0 1200 ${svgHeight}`"
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="AgentSight flamegraph"
+        >
           <g v-for="rect in visibleRects" :key="rect.node.id">
             <rect
               class="flamegraph-rect"
@@ -235,15 +358,30 @@ watch(metric, () => {
         </svg>
       </div>
 
-      <a-card size="small" class="flamegraph-summary" :title="selectedNode.label">
+      <a-card
+        size="small"
+        class="flamegraph-summary"
+        :title="selectedNode.label"
+      >
         <template #extra>
           <a-space wrap>
             <a-tag color="blue">{{ selectedNode.level }}</a-tag>
             <a-tag>{{ selectedNode.eventCount.toLocaleString() }} events</a-tag>
-            <a-button size="small" :disabled="selectedNode.children.length === 0 || selectedNode.level === 'other'" @click="focusNode(selectedNode)">
+            <a-button
+              size="small"
+              :disabled="
+                selectedNode.children.length === 0 ||
+                selectedNode.level === 'other'
+              "
+              @click="focusNode(selectedNode)"
+            >
               Zoom here
             </a-button>
-            <a-button size="small" :disabled="!selectedNode.representativeEvent" @click="openEvent(selectedNode.representativeEvent)">
+            <a-button
+              size="small"
+              :disabled="!selectedNode.representativeEvent"
+              @click="openEvent(selectedNode.representativeEvent)"
+            >
               <template #icon><EyeOutlined /></template>
               Open sample event
             </a-button>
@@ -251,31 +389,88 @@ watch(metric, () => {
         </template>
 
         <a-row :gutter="[12, 12]">
-          <a-col :xs="12" :md="4"><a-statistic title="Count" :value="selectedNode.metrics.count" /></a-col>
-          <a-col :xs="12" :md="4"><a-statistic title="Bytes" :value="formatMetric(selectedNode.metrics.bytes, 'bytes')" /></a-col>
-          <a-col :xs="12" :md="4"><a-statistic title="Duration" :value="formatMetric(selectedNode.metrics.duration, 'duration')" /></a-col>
-          <a-col :xs="12" :md="4"><a-statistic title="Explicit" :value="formatMetric(selectedNode.metrics.explicitDuration, 'duration')" /></a-col>
-          <a-col :xs="12" :md="4"><a-statistic title="Inferred" :value="formatMetric(selectedNode.metrics.inferredDuration, 'duration')" /></a-col>
-          <a-col :xs="12" :md="4"><a-statistic title="Risk" :value="formatMetric(selectedNode.metrics.risk, 'risk')" /></a-col>
+          <a-col :xs="12" :md="4"
+            ><a-statistic title="Count" :value="selectedNode.metrics.count"
+          /></a-col>
+          <a-col :xs="12" :md="4"
+            ><a-statistic
+              title="Bytes"
+              :value="formatMetric(selectedNode.metrics.bytes, 'bytes')"
+          /></a-col>
+          <a-col :xs="12" :md="4"
+            ><a-statistic
+              title="Duration"
+              :value="formatMetric(selectedNode.metrics.duration, 'duration')"
+          /></a-col>
+          <a-col :xs="12" :md="4"
+            ><a-statistic
+              title="Explicit"
+              :value="
+                formatMetric(selectedNode.metrics.explicitDuration, 'duration')
+              "
+          /></a-col>
+          <a-col :xs="12" :md="4"
+            ><a-statistic
+              title="Inferred"
+              :value="
+                formatMetric(selectedNode.metrics.inferredDuration, 'duration')
+              "
+          /></a-col>
+          <a-col :xs="12" :md="4"
+            ><a-statistic
+              title="Risk"
+              :value="formatMetric(selectedNode.metrics.risk, 'risk')"
+          /></a-col>
         </a-row>
 
         <div class="node-meta">
-          <span>Selected {{ currentMetricLabel }}: <strong>{{ formatMetric(selectedMetricValue) }}</strong></span>
-          <span>Root share: <strong>{{ percentLabel(selectedRootPercent) }}</strong></span>
-          <span>Focused share: <strong>{{ percentLabel(selectedFocusPercent) }}</strong></span>
-          <span>Latest: <strong>{{ formatFullTime(selectedNode.latestTimestamp) }}</strong></span>
-          <span>Duration source: <strong>{{ selectedDurationSource }}</strong></span>
-          <span>Dominant source: <strong>{{ selectedNode.dominantSource || 'unknown' }}</strong></span>
+          <span
+            >Selected {{ currentMetricLabel }}:
+            <strong>{{ formatMetric(selectedMetricValue) }}</strong></span
+          >
+          <span
+            >Root share:
+            <strong>{{ percentLabel(selectedRootPercent) }}</strong></span
+          >
+          <span
+            >Focused share:
+            <strong>{{ percentLabel(selectedFocusPercent) }}</strong></span
+          >
+          <span
+            >Latest:
+            <strong>{{
+              formatFullTime(selectedNode.latestTimestamp)
+            }}</strong></span
+          >
+          <span
+            >Duration source:
+            <strong>{{ selectedDurationSource }}</strong></span
+          >
+          <span
+            >Dominant source:
+            <strong>{{
+              selectedNode.dominantSource || "unknown"
+            }}</strong></span
+          >
         </div>
 
-        <a-list v-if="selectedNode.sampleEvents.length > 0" size="small" :data-source="selectedNode.sampleEvents" class="sample-list">
+        <a-list
+          v-if="selectedNode.sampleEvents.length > 0"
+          size="small"
+          :data-source="selectedNode.sampleEvents"
+          class="sample-list"
+        >
           <template #header>Sample events</template>
           <template #renderItem="{ item }">
             <a-list-item @click="openEvent(item)">
-              <a-list-item-meta :description="`${item.formattedTime} · ${item.comm}#${item.pid} · ${item.eventType}`">
+              <a-list-item-meta
+                :description="`${item.formattedTime} · ${item.comm}#${item.pid} · ${item.eventType}`"
+              >
                 <template #title>
                   <a-space wrap>
-                    <a-tag :color="item.sourceColorClass">{{ item.source }}</a-tag>
+                    <a-tag :color="item.sourceColorClass">{{
+                      item.source
+                    }}</a-tag>
                     <span>{{ item.title }}</span>
                   </a-space>
                 </template>
@@ -286,7 +481,11 @@ watch(metric, () => {
       </a-card>
     </template>
 
-    <AgentSightEventDetails :open="detailsOpen" :event="selectedEvent" @close="closeDetails" />
+    <AgentSightEventDetails
+      :open="detailsOpen"
+      :event="selectedEvent"
+      @close="closeDetails"
+    />
   </div>
 </template>
 
@@ -379,7 +578,9 @@ watch(metric, () => {
   stroke: rgba(15, 23, 42, 0.22);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
-  transition: opacity 0.15s ease, stroke 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    stroke 0.15s ease;
 }
 
 .flamegraph-rect:hover,

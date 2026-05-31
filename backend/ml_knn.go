@@ -18,13 +18,13 @@ func init() {
 // KNNModel is a k-nearest neighbors classifier.
 // Pure Go — stores training data in memory for lazy inference.
 type KNNModel struct {
-	K           int      `json:"k"`
-	Distance    string   `json:"distance"`   // euclidean, manhattan
-	Weight      string   `json:"weight"`     // uniform, distance
-	MaxDistance float64  `json:"maxDistance,omitempty"` // skip samples beyond this dist (0=unlimited)
+	K           int                   `json:"k"`
+	Distance    string                `json:"distance"`              // euclidean, manhattan
+	Weight      string                `json:"weight"`                // uniform, distance
+	MaxDistance float64               `json:"maxDistance,omitempty"` // skip samples beyond this dist (0=unlimited)
 	Samples     [][FeatureDim]float64 `json:"-"`
-	Labels      []int32  `json:"-"`
-	NumClasses  int      `json:"numClasses"`
+	Labels      []int32               `json:"-"`
+	NumClasses  int                   `json:"numClasses"`
 }
 
 func NewKNNModel(k int, distance, weight string) *KNNModel {
@@ -229,13 +229,13 @@ func (m *KNNModel) Serialize(path string) error {
 	}
 
 	data = append(data, []byte("KNNN")...)
-	putU32(2)                          // version (2 = added MaxDistance)
-	putU32(uint32(m.K))                // k
-	putU32(uint32(len(m.Distance)))    // dist len
+	putU32(2)                       // version (2 = added MaxDistance)
+	putU32(uint32(m.K))             // k
+	putU32(uint32(len(m.Distance))) // dist len
 	data = append(data, []byte(m.Distance)...)
-	putU32(uint32(len(m.Weight)))      // weight len
+	putU32(uint32(len(m.Weight))) // weight len
 	data = append(data, []byte(m.Weight)...)
-	putU32(uint32(len(m.Samples)))     // sample count
+	putU32(uint32(len(m.Samples))) // sample count
 	putU32(uint32(m.NumClasses))
 	// MaxDistance (new in v2)
 	b := make([]byte, 8)

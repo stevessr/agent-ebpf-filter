@@ -21,8 +21,20 @@ import type {
   VisualTrigger,
 } from "./types";
 
-type VisualNodeCategory = "trigger" | "condition" | "logic" | "state" | "action" | "output";
-type VisualNodeTypeKind = "trigger" | "condition" | "logic_group" | "map" | "action" | "focus";
+type VisualNodeCategory =
+  | "trigger"
+  | "condition"
+  | "logic"
+  | "state"
+  | "action"
+  | "output";
+type VisualNodeTypeKind =
+  | "trigger"
+  | "condition"
+  | "logic_group"
+  | "map"
+  | "action"
+  | "focus";
 
 interface VisualNodeTypeItem {
   id: string;
@@ -218,7 +230,8 @@ const nodeTypes: VisualNodeTypeItem[] = [
 const filteredNodeTypes = computed(() => {
   const keyword = query.value.trim().toLowerCase();
   return nodeTypes.filter((item) => {
-    const matchesCategory = activeCategory.value === "all" || item.category === activeCategory.value;
+    const matchesCategory =
+      activeCategory.value === "all" || item.category === activeCategory.value;
     const matchesQuery =
       !keyword ||
       item.title.toLowerCase().includes(keyword) ||
@@ -249,7 +262,7 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
   if (!event.dataTransfer) return;
   event.dataTransfer.setData(
     "text/plain",
-    JSON.stringify({ category: item.kind, value: item.value })
+    JSON.stringify({ category: item.kind, value: item.value }),
   );
   event.dataTransfer.effectAllowed = "move";
 };
@@ -307,9 +320,7 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
             <code>{{ item.badge }}</code>
           </span>
           <span class="node-desc">{{ item.description }}</span>
-          <span class="node-ports">
-            <ApiOutlined /> {{ item.ports }}
-          </span>
+          <span class="node-ports"> <ApiOutlined /> {{ item.ports }} </span>
         </span>
       </button>
     </div>
@@ -405,7 +416,10 @@ const handleDragStart = (event: DragEvent, item: VisualNodeTypeItem) => {
   color: inherit;
   text-align: left;
   cursor: grab;
-  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
 }
 
 .node-type-card:hover {

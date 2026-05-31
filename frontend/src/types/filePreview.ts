@@ -1,4 +1,11 @@
-export type FilePreviewType = 'text' | 'image' | 'pdf' | 'video' | 'binary' | 'elf' | 'directory';
+export type FilePreviewType =
+  | "text"
+  | "image"
+  | "pdf"
+  | "video"
+  | "binary"
+  | "elf"
+  | "directory";
 
 export interface FilePreviewResponse {
   path: string;
@@ -19,7 +26,19 @@ export interface FilePreviewResponse {
   hexable?: boolean;
 }
 
-const previewableEventTypes = new Set(['execve', 'openat', 'mkdir', 'unlink', 'open', 'chmod', 'chown', 'rename', 'link', 'symlink', 'mknod']);
+const previewableEventTypes = new Set([
+  "execve",
+  "openat",
+  "mkdir",
+  "unlink",
+  "open",
+  "chmod",
+  "chown",
+  "rename",
+  "link",
+  "symlink",
+  "mknod",
+]);
 
 export const canPreviewEventPath = (event: { type: string; path: string }) =>
-  previewableEventTypes.has(event.type) && event.path.startsWith('/');
+  previewableEventTypes.has(event.type) && event.path.startsWith("/");

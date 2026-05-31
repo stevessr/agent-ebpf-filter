@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { message } from 'ant-design-vue';
-import { WTerm } from '@wterm/dom';
-import '@wterm/dom/css';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
+import { message } from "ant-design-vue";
+import { WTerm } from "@wterm/dom";
+import "@wterm/dom/css";
 
-import type { ShellSessionInfo } from '../../types/shell';
-import { buildWebSocketUrl } from '../../utils/requestContext';
-import { isTmuxSession, TMUX_SHORTCUTS } from '../../utils/tmux';
+import type { ShellSessionInfo } from "../../types/shell";
+import { buildWebSocketUrl } from "../../utils/requestContext";
+import { isTmuxSession, TMUX_SHORTCUTS } from "../../utils/tmux";
 
 const INITIAL_COLS = 100;
 const INITIAL_ROWS = 32;
@@ -18,15 +25,15 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (event: 'detach'): void;
-  (event: 'close-session'): void;
+  (event: "detach"): void;
+  (event: "close-session"): void;
 }>();
 
-type SocketStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error';
+type SocketStatus = "idle" | "connecting" | "open" | "closed" | "error";
 
 const terminalRef = ref<HTMLDivElement | null>(null);
-const socketStatus = ref<SocketStatus>('idle');
-const connectionError = ref('');
+const socketStatus = ref<SocketStatus>("idle");
+const connectionError = ref("");
 const connecting = ref(false);
 
 let term: WTerm | null = null;
@@ -37,56 +44,58 @@ let pendingInput: string[] = [];
 
 const backendStatusColor = computed(() => {
   switch (props.session.status) {
-    case 'running':
-      return 'success';
-    case 'exited':
-      return 'warning';
-    case 'closed':
-      return 'default';
-    case 'error':
-      return 'error';
+    case "running":
+      return "success";
+    case "exited":
+      return "warning";
+    case "closed":
+      return "default";
+    case "error":
+      return "error";
     default:
-      return 'default';
+      return "default";
   }
 });
 
-const backendStatusLabel = computed(() => props.session.status || 'unknown');
+const backendStatusLabel = computed(() => props.session.status || "unknown");
 
 const socketStatusColor = computed(() => {
   switch (socketStatus.value) {
-    case 'connecting':
-      return 'blue';
-    case 'open':
-      return 'success';
-    case 'closed':
-      return 'default';
-    case 'error':
-      return 'error';
+    case "connecting":
+      return "blue";
+    case "open":
+      return "success";
+    case "closed":
+      return "default";
+    case "error":
+      return "error";
     default:
-      return 'default';
+      return "default";
   }
 });
 
 const socketStatusLabel = computed(() => {
   switch (socketStatus.value) {
-    case 'connecting':
-      return 'Connecting';
-    case 'open':
-      return 'Connected';
-    case 'closed':
-      return 'Disconnected';
-    case 'error':
-      return 'Error';
+    case "connecting":
+      return "Connecting";
+    case "open":
+      return "Connected";
+    case "closed":
+      return "Disconnected";
+    case "error":
+      return "Error";
     default:
-      return 'Idle';
+      return "Idle";
   }
 });
 
-const canReconnect = computed(() => props.session.status === 'running');
+const canReconnect = computed(() => props.session.status === "running");
 
 const shellLabel = computed(() => {
-  const shell = props.session.label || props.session.shell || 'auto';
-  return props.session.shellPath ? `${shell} → ${props.session.shellPath}` : shell;
+  const shell = props.session.label || props.session.shell || "auto";
+  return props.session.shellPath
+    ? `${shell} → ${props.session.shellPath}`
+    : shell;
 });
 
 const showTmuxQuickActions = computed(() => isTmuxSession(props.session));
@@ -94,33 +103,47 @@ const showTmuxQuickActions = computed(() => isTmuxSession(props.session));
 const statusNotice = computed(() => {
   if (connectionError.value) {
     return {
-      type: 'error' as const,
+      type: "error" as const,
       message: connectionError.value,
-      description: props.session.lastError ? `Last error: ${props.session.lastError}` : undefined,
+      description: props.session.lastError
+        ? `Last error: ${props.session.lastError}`
+        : undefined,
     };
   }
 
-  if (socketStatus.value === 'error') {
+  if (socketStatus.value === "error") {
     return {
-      type: 'error' as const,
-      message: props.session.lastError || 'Terminal websocket connection failed',
-      description: props.session.lastError ? `Last error: ${props.session.lastError}` : undefined,
+      type: "error" as const,
+      message:
+        props.session.lastError || "Terminal websocket connection failed",
+      description: props.session.lastError
+        ? `Last error: ${props.session.lastError}`
+        : undefined,
     };
   }
 
-  if (props.session.status !== 'running') {
+  if (props.session.status !== "running") {
     return {
-      type: props.session.status === 'error' ? ('error' as const) : ('warning' as const),
-      message: props.session.lastError || 'Backend terminal session is not running',
-      description: props.session.lastError ? `Last error: ${props.session.lastError}` : undefined,
+      type:
+        props.session.status === "error"
+          ? ("error" as const)
+          : ("warning" as const),
+      message:
+        props.session.lastError || "Backend terminal session is not running",
+      description: props.session.lastError
+        ? `Last error: ${props.session.lastError}`
+        : undefined,
     };
   }
 
-  if (socketStatus.value === 'closed') {
+  if (socketStatus.value === "closed") {
     return {
-      type: 'warning' as const,
-      message: 'Terminal connection closed. You can reconnect to the existing backend session.',
-      description: props.session.lastError ? `Last error: ${props.session.lastError}` : undefined,
+      type: "warning" as const,
+      message:
+        "Terminal connection closed. You can reconnect to the existing backend session.",
+      description: props.session.lastError
+        ? `Last error: ${props.session.lastError}`
+        : undefined,
     };
   }
 
@@ -128,7 +151,7 @@ const statusNotice = computed(() => {
 });
 
 const wsUrl = () => {
-  return buildWebSocketUrl('/ws/shell', {
+  return buildWebSocketUrl("/ws/shell", {
     session_id: props.session.id,
     cols: INITIAL_COLS,
     rows: INITIAL_ROWS,
@@ -139,7 +162,7 @@ const flushPending = () => {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
   if (pendingResize) {
-    socket.send(JSON.stringify({ type: 'resize', ...pendingResize }));
+    socket.send(JSON.stringify({ type: "resize", ...pendingResize }));
     pendingResize = null;
   }
 
@@ -188,9 +211,9 @@ const terminalFontSize = ref(14);
 const terminalStyle = computed(() => {
   const lh = 1.2;
   return {
-    '--term-font-size': `${terminalFontSize.value}px`,
-    '--term-line-height': lh,
-    '--term-row-height': `${Math.round(terminalFontSize.value * lh)}px`,
+    "--term-font-size": `${terminalFontSize.value}px`,
+    "--term-line-height": lh,
+    "--term-row-height": `${Math.round(terminalFontSize.value * lh)}px`,
   };
 });
 
@@ -199,7 +222,7 @@ const triggerTerminalResize = () => {
   nextTick(() => {
     const measured = (term as any)._measureCharSize();
     if (measured) {
-      if (typeof (term as any)._setRowHeight === 'function') {
+      if (typeof (term as any)._setRowHeight === "function") {
         (term as any)._setRowHeight();
       }
       const rect = terminalRef.value!.getBoundingClientRect();
@@ -213,8 +236,8 @@ const triggerTerminalResize = () => {
 const connect = async () => {
   const currentGeneration = ++generation;
   connecting.value = true;
-  socketStatus.value = 'connecting';
-  connectionError.value = '';
+  socketStatus.value = "connecting";
+  connectionError.value = "";
 
   cleanup();
   await nextTick();
@@ -224,18 +247,18 @@ const connect = async () => {
     return;
   }
 
-  terminalRef.value.innerHTML = '';
+  terminalRef.value.innerHTML = "";
 
   try {
     const currentSocket = new WebSocket(wsUrl());
     socket = currentSocket;
-    currentSocket.binaryType = 'arraybuffer';
+    currentSocket.binaryType = "arraybuffer";
     currentSocket.onopen = () => {
       if (currentGeneration !== generation) {
         currentSocket.close();
         return;
       }
-      socketStatus.value = 'open';
+      socketStatus.value = "open";
       connecting.value = false;
       flushPending();
       focusTerminal();
@@ -244,7 +267,7 @@ const connect = async () => {
       if (currentGeneration !== generation) return;
       if (!term) return;
 
-      if (typeof event.data === 'string') {
+      if (typeof event.data === "string") {
         term.write(event.data);
       } else if (event.data instanceof ArrayBuffer) {
         term.write(new Uint8Array(event.data));
@@ -252,19 +275,19 @@ const connect = async () => {
     };
     currentSocket.onclose = () => {
       if (currentGeneration !== generation) return;
-      if (socketStatus.value === 'connecting') {
-        socketStatus.value = 'error';
-        connectionError.value = 'Shell websocket closed before opening';
-      } else if (socketStatus.value !== 'error') {
-        socketStatus.value = 'closed';
+      if (socketStatus.value === "connecting") {
+        socketStatus.value = "error";
+        connectionError.value = "Shell websocket closed before opening";
+      } else if (socketStatus.value !== "error") {
+        socketStatus.value = "closed";
       }
       connecting.value = false;
     };
     currentSocket.onerror = () => {
       if (currentGeneration !== generation) return;
-      socketStatus.value = 'error';
+      socketStatus.value = "error";
       connecting.value = false;
-      connectionError.value = 'Shell websocket connection failed';
+      connectionError.value = "Shell websocket connection failed";
     };
 
     term = new WTerm(terminalRef.value, {
@@ -303,23 +326,34 @@ const connect = async () => {
     // This must be done AFTER term.init() because term.input is created during init.
     const inputHandler = (term as any).input;
     if (inputHandler && inputHandler.keyToSequence) {
-      const originalKeyToSequence = inputHandler.keyToSequence.bind(inputHandler);
-      inputHandler.keyToSequence = function(e: KeyboardEvent) {
+      const originalKeyToSequence =
+        inputHandler.keyToSequence.bind(inputHandler);
+      inputHandler.keyToSequence = function (e: KeyboardEvent) {
         const isZoom = (e.ctrlKey || e.metaKey) && !e.altKey;
         if (isZoom) {
-          if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.key === '=' || e.key === '+') {
+          if (
+            e.code === "Equal" ||
+            e.code === "NumpadAdd" ||
+            e.key === "=" ||
+            e.key === "+"
+          ) {
             e.preventDefault();
             terminalFontSize.value = Math.min(48, terminalFontSize.value + 1);
             triggerTerminalResize();
             return null;
           }
-          if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.key === '-' || e.key === '_') {
+          if (
+            e.code === "Minus" ||
+            e.code === "NumpadSubtract" ||
+            e.key === "-" ||
+            e.key === "_"
+          ) {
             e.preventDefault();
             terminalFontSize.value = Math.max(8, terminalFontSize.value - 1);
             triggerTerminalResize();
             return null;
           }
-          if (e.code === 'Digit0' || e.key === '0') {
+          if (e.code === "Digit0" || e.key === "0") {
             e.preventDefault();
             terminalFontSize.value = 14;
             triggerTerminalResize();
@@ -329,29 +363,39 @@ const connect = async () => {
 
         if (e.altKey && !e.ctrlKey && !e.metaKey) {
           // Handle Option+Arrows for word jumping and Option+Backspace for word deletion
-          if (e.key === 'ArrowLeft') return '\x1bb';
-          if (e.key === 'ArrowRight') return '\x1bf';
-          if (e.key === 'ArrowUp') return '\x1b[1;3A';
-          if (e.key === 'ArrowDown') return '\x1b[1;3B';
-          if (e.key === 'Backspace') return '\x1b\x7f';
+          if (e.key === "ArrowLeft") return "\x1bb";
+          if (e.key === "ArrowRight") return "\x1bf";
+          if (e.key === "ArrowUp") return "\x1b[1;3A";
+          if (e.key === "ArrowDown") return "\x1b[1;3B";
+          if (e.key === "Backspace") return "\x1b\x7f";
 
           if (e.key.length === 1) {
             // Use e.keyCode to get the unmodified letter/number safely
             if (e.keyCode >= 65 && e.keyCode <= 90) {
-              const char = String.fromCharCode(e.keyCode + (e.shiftKey ? 0 : 32));
-              return '\x1b' + char;
+              const char = String.fromCharCode(
+                e.keyCode + (e.shiftKey ? 0 : 32),
+              );
+              return "\x1b" + char;
             }
             if (e.keyCode >= 48 && e.keyCode <= 57) {
-              return '\x1b' + String.fromCharCode(e.keyCode);
+              return "\x1b" + String.fromCharCode(e.keyCode);
             }
             // Fallback to e.code for common punctuation
             const symbolMap: Record<string, string> = {
-              'Minus': '-', 'Equal': '=', 'BracketLeft': '[', 'BracketRight': ']',
-              'Backslash': '\\', 'Semicolon': ';', 'Quote': "'", 'Comma': ',',
-              'Period': '.', 'Slash': '/', 'Backquote': '`'
+              Minus: "-",
+              Equal: "=",
+              BracketLeft: "[",
+              BracketRight: "]",
+              Backslash: "\\",
+              Semicolon: ";",
+              Quote: "'",
+              Comma: ",",
+              Period: ".",
+              Slash: "/",
+              Backquote: "`",
             };
             if (e.code && symbolMap[e.code]) {
-              return '\x1b' + symbolMap[e.code];
+              return "\x1b" + symbolMap[e.code];
             }
           }
         }
@@ -364,9 +408,10 @@ const connect = async () => {
     focusTerminal();
   } catch (err: any) {
     if (currentGeneration !== generation) return;
-    socketStatus.value = 'error';
+    socketStatus.value = "error";
     connecting.value = false;
-    connectionError.value = err?.message || 'Failed to connect to terminal session';
+    connectionError.value =
+      err?.message || "Failed to connect to terminal session";
     message.error(connectionError.value);
     cleanup();
   }
@@ -411,26 +456,41 @@ onBeforeUnmount(() => {
       <div class="shell-pane__meta">
         <div class="shell-pane__meta-line">
           <a-tag color="blue">#{{ session.id }}</a-tag>
-          <span class="shell-pane__shell" :title="shellLabel">{{ shellLabel }}</span>
+          <span class="shell-pane__shell" :title="shellLabel">{{
+            shellLabel
+          }}</span>
           <a-tag v-if="showTmuxQuickActions" color="purple">tmux</a-tag>
         </div>
         <div class="shell-pane__meta-line">
-          <a-tag :color="backendStatusColor">backend: {{ backendStatusLabel }}</a-tag>
-          <a-tag :color="socketStatusColor">socket: {{ socketStatusLabel }}</a-tag>
+          <a-tag :color="backendStatusColor"
+            >backend: {{ backendStatusLabel }}</a-tag
+          >
+          <a-tag :color="socketStatusColor"
+            >socket: {{ socketStatusLabel }}</a-tag
+          >
         </div>
         <div class="shell-pane__meta-line">
-          <span class="shell-pane__path" :title="session.workDir">{{ session.workDir }}</span>
+          <span class="shell-pane__path" :title="session.workDir">{{
+            session.workDir
+          }}</span>
         </div>
       </div>
 
       <a-space wrap>
-        <a-button size="small" :loading="connecting" :disabled="!canReconnect || connecting" @click="reconnect">
+        <a-button
+          size="small"
+          :loading="connecting"
+          :disabled="!canReconnect || connecting"
+          @click="reconnect"
+        >
           Reconnect
         </a-button>
-        <a-button size="small" @click="focusTerminal">
-          Focus
-        </a-button>
-        <a-button v-if="props.showDetach ?? true" size="small" @click="emit('detach')">
+        <a-button size="small" @click="focusTerminal"> Focus </a-button>
+        <a-button
+          v-if="props.showDetach ?? true"
+          size="small"
+          @click="emit('detach')"
+        >
           Detach
         </a-button>
         <a-button size="small" danger @click="emit('close-session')">
@@ -464,7 +524,11 @@ onBeforeUnmount(() => {
       :description="statusNotice.description"
     />
 
-    <div ref="terminalRef" class="wterm theme-monokai shell-pane__terminal" :style="terminalStyle"></div>
+    <div
+      ref="terminalRef"
+      class="wterm theme-monokai shell-pane__terminal"
+      :style="terminalStyle"
+    ></div>
   </div>
 </template>
 

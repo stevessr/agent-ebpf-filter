@@ -1,11 +1,15 @@
-import { ref, type Ref } from 'vue';
-import axios from 'axios';
-import { message } from 'ant-design-vue';
+import { ref, type Ref } from "vue";
+import axios from "axios";
+import { message } from "ant-design-vue";
 
-import { pb } from '../../pb/tracker_pb.js';
-import { buildWebSocketUrl, fetchProto } from '../../utils/requestContext';
-import { decodeIncomingEvents, buildAgentEvent, normalizeHistoryRecord } from './dashboardHelpers';
-import type { AgentEvent } from './dashboardConstants';
+import { pb } from "../../pb/tracker_pb.js";
+import { buildWebSocketUrl, fetchProto } from "../../utils/requestContext";
+import {
+  decodeIncomingEvents,
+  buildAgentEvent,
+  normalizeHistoryRecord,
+} from "./dashboardHelpers";
+import type { AgentEvent } from "./dashboardConstants";
 
 export type DashboardStreamDeps = {
   events: Ref<AgentEvent[]>;
@@ -47,7 +51,9 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
     deps.events.value = newEvents;
     eventBuffer.length = 0;
 
-    markRecentRowsRef.value(newEvents.slice(0, bufferedEvents.length).map((event) => event.key));
+    markRecentRowsRef.value(
+      newEvents.slice(0, bufferedEvents.length).map((event) => event.key),
+    );
   };
 
   const scheduleEventBufferFlush = () => {
@@ -80,41 +86,45 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
     flushEventBuffer();
   };
 
-  const animateHistoryRecords = (records: AgentEvent[], token: number) => new Promise<void>((resolve) => {
-    if (records.length === 0 || token !== historyLoadToken) {
-      resolve();
-      return;
-    }
-
-    let index = 0;
-    const pump = () => {
-      if (token !== historyLoadToken) {
+  const animateHistoryRecords = (records: AgentEvent[], token: number) =>
+    new Promise<void>((resolve) => {
+      if (records.length === 0 || token !== historyLoadToken) {
         resolve();
         return;
       }
 
-      const chunk = records.slice(index, index + HISTORY_LOAD_BATCH_SIZE);
-      if (chunk.length === 0) {
+      let index = 0;
+      const pump = () => {
+        if (token !== historyLoadToken) {
+          resolve();
+          return;
+        }
+
+        const chunk = records.slice(index, index + HISTORY_LOAD_BATCH_SIZE);
+        if (chunk.length === 0) {
+          resolve();
+          return;
+        }
+
+        eventBuffer.push(...chunk);
+        flushEventBuffer();
+        index += chunk.length;
+
+        if (index < records.length) {
+          historyLoadTimer = window.setTimeout(
+            pump,
+            HISTORY_LOAD_BATCH_DELAY_MS,
+          );
+          return;
+        }
+
+        historyLoadTimer = null;
         resolve();
-        return;
-      }
+      };
 
-      eventBuffer.push(...chunk);
-      flushEventBuffer();
-      index += chunk.length;
-
-      if (index < records.length) {
-        historyLoadTimer = window.setTimeout(pump, HISTORY_LOAD_BATCH_DELAY_MS);
-        return;
-      }
-
-      historyLoadTimer = null;
-      resolve();
-    };
-
-    clearHistoryLoadTimer();
-    pump();
-  });
+      clearHistoryLoadTimer();
+      pump();
+    });
 
   const loadRecentEvents = async () => {
     const token = ++historyLoadToken;
@@ -123,12 +133,17 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
     clearHistoryLoadTimer();
 
     try {
-      const response = await fetchProto(`/events/recent?limit=${HISTORY_LOAD_LIMIT}`, pb.EventHistoryResponse.decode);
+      const response = await fetchProto(
+        `/events/recent?limit=${HISTORY_LOAD_LIMIT}`,
+        pb.EventHistoryResponse.decode,
+      );
       if (token !== historyLoadToken) {
         return;
       }
 
-      const rawEvents = ((response as any).events ?? (response as any).Events ?? []) as any[];
+      const rawEvents = ((response as any).events ??
+        (response as any).Events ??
+        []) as any[];
       const records = rawEvents
         .map((record) => normalizeHistoryRecord(record))
         .filter((record): record is AgentEvent => record !== null);
@@ -136,7 +151,7 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
       await animateHistoryRecords(records, token);
     } catch (err) {
       if (token === historyLoadToken) {
-        console.error('Failed to load recent dashboard events', err);
+        console.error("Failed to load recent dashboard events", err);
       }
     } finally {
       if (token === historyLoadToken) {
@@ -157,9 +172,9 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
       ws.onclose = null;
       ws.close();
     }
-    const socket = new WebSocket(buildWebSocketUrl('/ws'));
+    const socket = new WebSocket(buildWebSocketUrl("/ws"));
     ws = socket;
-    socket.binaryType = 'arraybuffer';
+    socket.binaryType = "arraybuffer";
 
     socket.onopen = () => {
       if (ws !== socket) return;
@@ -171,7 +186,9 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
       if (deps.isPaused.value) return;
       try {
         const incomingEvents = decodeIncomingEvents(new Uint8Array(ev.data));
-        const normalizedEvents = incomingEvents.map((data) => buildAgentEvent(data as Record<string, unknown>, Date.now()));
+        const normalizedEvents = incomingEvents.map((data) =>
+          buildAgentEvent(data as Record<string, unknown>, Date.now()),
+        );
         if (!historyLoaded.value) {
           pendingLiveEvents.push(...normalizedEvents);
         } else {
@@ -179,7 +196,7 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
           scheduleEventBufferFlush();
         }
       } catch (e) {
-        console.error('Failed to parse message', e);
+        console.error("Failed to parse message", e);
       }
     };
 
@@ -201,7 +218,7 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
 
   const clearEvents = async () => {
     try {
-      await axios.post('/data/clear-events-memory');
+      await axios.post("/data/clear-events-memory");
       deps.events.value = [];
       eventBuffer.length = 0;
       clearPendingLiveEvents();
@@ -212,9 +229,9 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
         window.clearTimeout(flushTimer);
         flushTimer = null;
       }
-      message.success('Event buffer cleared on backend');
+      message.success("Event buffer cleared on backend");
     } catch (err: any) {
-      message.error(err?.response?.data?.error || 'Failed to clear events');
+      message.error(err?.response?.data?.error || "Failed to clear events");
       deps.events.value = [];
       eventBuffer.length = 0;
       clearPendingLiveEvents();
@@ -230,47 +247,73 @@ export function useDashboardStream(deps: DashboardStreamDeps) {
 
   const exportEvents = () => {
     try {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(deps.events.value, null, 2));
-      const downloadAnchorNode = document.createElement('a');
+      const dataStr =
+        "data:text/json;charset=utf-8," +
+        encodeURIComponent(JSON.stringify(deps.events.value, null, 2));
+      const downloadAnchorNode = document.createElement("a");
       downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", `ebpf-events-${new Date().toISOString()}.json`);
+      downloadAnchorNode.setAttribute(
+        "download",
+        `ebpf-events-${new Date().toISOString()}.json`,
+      );
       document.body.appendChild(downloadAnchorNode);
       downloadAnchorNode.click();
       downloadAnchorNode.remove();
-      message.success('Events exported as JSON');
+      message.success("Events exported as JSON");
     } catch (err) {
-      message.error('Failed to export events');
+      message.error("Failed to export events");
     }
   };
 
   const exportEventsCSV = () => {
     try {
-      const headers = ['Time', 'Tag', 'PID', 'PPID', 'UID', 'Command', 'Event Type', 'Path', 'Net Direction', 'Net Endpoint', 'Net Bytes'];
-      const rows = deps.getFilteredEvents().map(e => [
-        e.time,
-        e.tag,
-        e.pid,
-        e.ppid,
-        e.uid,
-        e.comm,
-        e.type,
-        e.path,
-        e.netDirection || '',
-        e.netEndpoint || '',
-        e.netBytes || 0,
-      ]);
-      const csvContent = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const headers = [
+        "Time",
+        "Tag",
+        "PID",
+        "PPID",
+        "UID",
+        "Command",
+        "Event Type",
+        "Path",
+        "Net Direction",
+        "Net Endpoint",
+        "Net Bytes",
+      ];
+      const rows = deps
+        .getFilteredEvents()
+        .map((e) => [
+          e.time,
+          e.tag,
+          e.pid,
+          e.ppid,
+          e.uid,
+          e.comm,
+          e.type,
+          e.path,
+          e.netDirection || "",
+          e.netEndpoint || "",
+          e.netBytes || 0,
+        ]);
+      const csvContent = [headers, ...rows]
+        .map((r) =>
+          r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","),
+        )
+        .join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `ebpf-events-${new Date().toISOString()}.csv`);
+      link.setAttribute(
+        "download",
+        `ebpf-events-${new Date().toISOString()}.csv`,
+      );
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      message.success('Events exported as CSV');
+      message.success("Events exported as CSV");
     } catch (err) {
-      message.error('Failed to export CSV');
+      message.error("Failed to export CSV");
     }
   };
 

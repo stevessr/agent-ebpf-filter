@@ -1,5 +1,8 @@
 import { onBeforeUnmount, ref, useTemplateRef } from "vue";
-import type { VisualFlowNodeId, VisualWireId } from "../../components/plugins/types";
+import type {
+  VisualFlowNodeId,
+  VisualWireId,
+} from "../../components/plugins/types";
 import {
   NODE_WIDTH,
   NODE_HEIGHT,
@@ -17,7 +20,7 @@ export interface UseCanvasInteractionEmit {
   (e: "update:wireStates", value: Record<VisualWireId, boolean>): void;
   (
     e: "drop-node-type",
-    value: { category: string; value: string; x: number; y: number }
+    value: { category: string; value: string; x: number; y: number },
   ): void;
 }
 
@@ -26,11 +29,18 @@ export interface UseCanvasInteractionOptions {
   mergedWireStates: Record<VisualWireId, boolean>;
   mergedLayout: Record<string, { x: number; y: number }>;
   visibleFlowNodes: Array<{ id: VisualFlowNodeId }>;
-  visibleWireDefinitions: Array<{ id: VisualWireId; from: VisualFlowNodeId; to: VisualFlowNodeId }>;
-  getNodePortPoint: (id: VisualFlowNodeId, side: "in" | "out") => { x: number; y: number };
+  visibleWireDefinitions: Array<{
+    id: VisualWireId;
+    from: VisualFlowNodeId;
+    to: VisualFlowNodeId;
+  }>;
+  getNodePortPoint: (
+    id: VisualFlowNodeId,
+    side: "in" | "out",
+  ) => { x: number; y: number };
   getWireForEndpoints: (
     from: VisualFlowNodeId,
-    to: VisualFlowNodeId
+    to: VisualFlowNodeId,
   ) => { id: VisualWireId; to: VisualFlowNodeId } | null;
   hasOutgoingWire: (id: VisualFlowNodeId) => boolean;
   hasIncomingWire: (id: VisualFlowNodeId) => boolean;
@@ -102,7 +112,7 @@ export function useCanvasInteraction(opts: () => UseCanvasInteractionOptions) {
 
   const getNearestInputNode = (
     point: { x: number; y: number },
-    from: VisualFlowNodeId
+    from: VisualFlowNodeId,
   ): VisualFlowNodeId | null => {
     const o = opts();
     let nearestId: VisualFlowNodeId | null = null;
@@ -179,7 +189,8 @@ export function useCanvasInteraction(opts: () => UseCanvasInteractionOptions) {
       currentX: point.x,
       currentY: point.y,
       target,
-      valid: !!target && !!o.getWireForEndpoints(connectionDrag.value.from, target),
+      valid:
+        !!target && !!o.getWireForEndpoints(connectionDrag.value.from, target),
     };
   };
 
@@ -188,7 +199,7 @@ export function useCanvasInteraction(opts: () => UseCanvasInteractionOptions) {
     if (connectionDrag.value?.target && connectionDrag.value.valid) {
       const wire = o.getWireForEndpoints(
         connectionDrag.value.from,
-        connectionDrag.value.target
+        connectionDrag.value.target,
       );
       if (wire) {
         if (!o.mergedWireStates[wire.id]) {
@@ -205,7 +216,10 @@ export function useCanvasInteraction(opts: () => UseCanvasInteractionOptions) {
     window.removeEventListener("pointerup", stopConnectionDragging);
   };
 
-  const handleConnectionPointerDown = (event: PointerEvent, id: VisualFlowNodeId) => {
+  const handleConnectionPointerDown = (
+    event: PointerEvent,
+    id: VisualFlowNodeId,
+  ) => {
     const o = opts();
     if (!o.hasOutgoingWire(id)) return;
     const point = canvasPointFromEvent(event);
@@ -253,7 +267,7 @@ export function useCanvasInteraction(opts: () => UseCanvasInteractionOptions) {
     const deltaY = event.clientY - canvasResizeDrag.value.startY;
     applyWorkspaceSize(
       canvasResizeDrag.value.startWidth + deltaX,
-      canvasResizeDrag.value.startHeight + deltaY
+      canvasResizeDrag.value.startHeight + deltaY,
     );
   };
 
@@ -289,7 +303,10 @@ export function useCanvasInteraction(opts: () => UseCanvasInteractionOptions) {
         category?: unknown;
         value?: unknown;
       };
-      if (typeof parsed.category !== "string" || typeof parsed.value !== "string") {
+      if (
+        typeof parsed.category !== "string" ||
+        typeof parsed.value !== "string"
+      ) {
         return;
       }
       o.emit("drop-node-type", {

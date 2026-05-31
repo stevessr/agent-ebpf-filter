@@ -9,7 +9,7 @@ export interface DomainForwardProxySettings {
   enabled: boolean;
   httpPort: number;
   httpsPort: number;
-  defaultScheme: 'http' | 'https';
+  defaultScheme: "http" | "https";
   allowAnyHost: boolean;
   dnsResolver?: string;
   dialTimeoutSeconds: number;
@@ -130,7 +130,7 @@ export interface TracepointBootstrapStatus {
   attachedCount: number;
   skippedCount: number;
   skippedTracepoints: string[];
-  status: 'unknown' | 'ready' | 'partial' | 'error';
+  status: "unknown" | "ready" | "partial" | "error";
   message: string;
   observedAt?: string;
 }
@@ -174,7 +174,6 @@ export interface MLReviewSummary {
   validationSplitRatio?: number;
   reviewedAt: string;
 }
-
 
 export interface MLBuiltinModelDefaults {
   numTrees?: number;
@@ -304,7 +303,7 @@ export interface MLTrainingHistoryEntry {
 }
 
 export type MLAutoTuneAxis = string;
-export type MLAutoTuneMetric = 'validationAccuracy' | 'inferenceThroughput';
+export type MLAutoTuneMetric = "validationAccuracy" | "inferenceThroughput";
 export type MLAutoTuneGranularity = 1 | 2 | 4;
 
 export interface MLAutoTuneCell {
@@ -339,14 +338,18 @@ export interface MLAutoTuneResponse {
   best: MLAutoTuneCell | null;
 }
 
-export type MLAutoTuneMode = 'params' | 'models';
+export type MLAutoTuneMode = "params" | "models";
 
 export interface MLModelTuneCandidate {
   modelType: string;
   label: string;
   base: string;
   recommended?: boolean;
-  hyperParams: { numTrees?: number; maxDepth?: number; minSamplesLeaf?: number };
+  hyperParams: {
+    numTrees?: number;
+    maxDepth?: number;
+    minSamplesLeaf?: number;
+  };
   trainAccuracy: number;
   validationAccuracy: number;
   inferenceThroughput: number;
@@ -423,7 +426,7 @@ export interface RemoteDatasetResponse {
 }
 
 export interface LLMProductionDatasetMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: "system" | "user" | "assistant";
   content: string;
 }
 
@@ -467,8 +470,8 @@ export interface ClassicSecurityDatasetPreset {
   platform: string;
   pageUrl: string;
   downloadUrl?: string;
-  format?: 'auto' | 'json' | 'jsonl' | 'csv' | 'tsv' | 'text';
-  labelMode?: 'preserve' | 'unlabeled' | 'heuristic' | 'block';
+  format?: "auto" | "json" | "jsonl" | "csv" | "tsv" | "text";
+  labelMode?: "preserve" | "unlabeled" | "heuristic" | "block";
   note: string;
 }
 
@@ -489,7 +492,7 @@ export interface MLCommandSafetyResult {
   llmAssessment?: MLLlmAssessment;
 }
 
-export type SecurityRuleAction = 'BLOCK' | 'ALERT';
+export type SecurityRuleAction = "BLOCK" | "ALERT";
 
 export interface SecurityRulePreset {
   comm: string;
@@ -504,9 +507,9 @@ export interface ExternalRuleSource {
   name: string;
   description: string;
   url: string;
-  format: 'json' | 'yaml' | 'markdown';
+  format: "json" | "yaml" | "markdown";
   sourceAttribution: string;
-  category: 'agent-security' | 'community' | 'owasp';
+  category: "agent-security" | "community" | "owasp";
 }
 
 export interface SyscallDef {

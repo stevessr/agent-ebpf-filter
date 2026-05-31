@@ -1,6 +1,6 @@
-import { computed, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import type { RouteLocationRaw } from 'vue-router';
+import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import type { RouteLocationRaw } from "vue-router";
 import {
   NAV_GROUPS,
   WORKBENCH_REGISTRY,
@@ -9,22 +9,21 @@ import {
   getAffixWorkbenchTabs,
   getWorkbenchDefaultRoute,
   resolveWorkbench,
-} from '../../config/navigation';
-import type { WorkbenchKey, WorkbenchTabState } from '../../types/navigation';
+} from "../../config/navigation";
+import type { WorkbenchKey, WorkbenchTabState } from "../../types/navigation";
 
-const STORAGE_KEY = 'app.workbenchTabs.v1';
-const COLLAPSED_STORAGE_KEY = 'app.sideNav.collapsed.v1';
+const STORAGE_KEY = "app.workbenchTabs.v1";
+const COLLAPSED_STORAGE_KEY = "app.sideNav.collapsed.v1";
 
 type PersistedWorkbenchState = {
   tabs?: WorkbenchTabState[];
 };
 
-const isWorkbenchKey = (key: unknown): key is WorkbenchKey => (
-  typeof key === 'string' && key in WORKBENCH_REGISTRY
-);
+const isWorkbenchKey = (key: unknown): key is WorkbenchKey =>
+  typeof key === "string" && key in WORKBENCH_REGISTRY;
 
 const readStoredTabs = (): WorkbenchTabState[] => {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
@@ -33,7 +32,10 @@ const readStoredTabs = (): WorkbenchTabState[] => {
     return parsed.tabs
       .filter((tab) => isWorkbenchKey(tab.key))
       .map((tab) => ({
-        ...createWorkbenchTab(tab.key, tab.lastRoute || getWorkbenchDefaultRoute(tab.key)),
+        ...createWorkbenchTab(
+          tab.key,
+          tab.lastRoute || getWorkbenchDefaultRoute(tab.key),
+        ),
         lastRoute: tab.lastRoute || getWorkbenchDefaultRoute(tab.key),
       }));
   } catch {
@@ -42,18 +44,21 @@ const readStoredTabs = (): WorkbenchTabState[] => {
 };
 
 const readStoredCollapsed = () => {
-  if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === 'true';
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true";
 };
 
 const writeStoredTabs = (tabs: WorkbenchTabState[]) => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs }));
 };
 
 const writeStoredCollapsed = (collapsed: boolean) => {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(COLLAPSED_STORAGE_KEY, collapsed ? 'true' : 'false');
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    COLLAPSED_STORAGE_KEY,
+    collapsed ? "true" : "false",
+  );
 };
 
 const uniqueTabs = (tabs: WorkbenchTabState[]) => {
@@ -71,16 +76,19 @@ export function useWorkbenchNavigation() {
 
   const collapsed = ref(readStoredCollapsed());
   const userOpenKeys = ref<string[]>(NAV_GROUPS.map((group) => group.key));
-  const openedTabs = ref<WorkbenchTabState[]>(uniqueTabs([
-    ...getAffixWorkbenchTabs(),
-    ...readStoredTabs(),
-  ]));
+  const openedTabs = ref<WorkbenchTabState[]>(
+    uniqueTabs([...getAffixWorkbenchTabs(), ...readStoredTabs()]),
+  );
 
   const activeWorkbench = computed(() => resolveWorkbench(route));
   const activeTabKey = computed(() => activeWorkbench.value.key);
   const selectedMenuKeys = computed(() => [activeWorkbench.value.key]);
-  const routeOpenKeys = computed(() => [activeWorkbench.value.definition.groupKey]);
-  const openKeys = computed(() => Array.from(new Set([...userOpenKeys.value, ...routeOpenKeys.value])));
+  const routeOpenKeys = computed(() => [
+    activeWorkbench.value.definition.groupKey,
+  ]);
+  const openKeys = computed(() =>
+    Array.from(new Set([...userOpenKeys.value, ...routeOpenKeys.value])),
+  );
 
   const ensureAffixTabs = () => {
     const affixTabs = getAffixWorkbenchTabs();
@@ -94,12 +102,15 @@ export function useWorkbenchNavigation() {
   const upsertTab = (key: WorkbenchKey, lastRoute: RouteLocationRaw) => {
     const existing = openedTabs.value.find((tab) => tab.key === key);
     if (existing) {
-      openedTabs.value = openedTabs.value.map((tab) => (
-        tab.key === key ? { ...tab, lastRoute } : tab
-      ));
+      openedTabs.value = openedTabs.value.map((tab) =>
+        tab.key === key ? { ...tab, lastRoute } : tab,
+      );
       return;
     }
-    openedTabs.value = [...openedTabs.value, createWorkbenchTab(key, lastRoute)];
+    openedTabs.value = [
+      ...openedTabs.value,
+      createWorkbenchTab(key, lastRoute),
+    ];
   };
 
   const navigateToRoute = (target: RouteLocationRaw) => {
@@ -130,12 +141,21 @@ export function useWorkbenchNavigation() {
 
     if (!isActive) return;
 
-    const fallback = nextTabs[currentIndex] || nextTabs[currentIndex - 1] || openedTabs.value[0] || createWorkbenchTab('dashboard');
-    navigateToRoute(fallback.lastRoute || getWorkbenchDefaultRoute(fallback.key));
+    const fallback =
+      nextTabs[currentIndex] ||
+      nextTabs[currentIndex - 1] ||
+      openedTabs.value[0] ||
+      createWorkbenchTab("dashboard");
+    navigateToRoute(
+      fallback.lastRoute || getWorkbenchDefaultRoute(fallback.key),
+    );
   };
 
-  const handleTabEdit = (targetKey: string | number | MouseEvent, action: 'add' | 'remove') => {
-    if (action !== 'remove' || !isWorkbenchKey(targetKey)) return;
+  const handleTabEdit = (
+    targetKey: string | number | MouseEvent,
+    action: "add" | "remove",
+  ) => {
+    if (action !== "remove" || !isWorkbenchKey(targetKey)) return;
     closeTab(targetKey);
   };
 
@@ -152,10 +172,14 @@ export function useWorkbenchNavigation() {
     { immediate: true },
   );
 
-  watch(openedTabs, (tabs) => {
-    ensureAffixTabs();
-    writeStoredTabs(tabs);
-  }, { deep: true });
+  watch(
+    openedTabs,
+    (tabs) => {
+      ensureAffixTabs();
+      writeStoredTabs(tabs);
+    },
+    { deep: true },
+  );
 
   watch(collapsed, writeStoredCollapsed);
 

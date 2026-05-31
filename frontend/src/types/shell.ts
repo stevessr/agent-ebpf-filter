@@ -1,4 +1,12 @@
-export type ShellMode = 'auto' | 'system' | 'fish' | 'zsh' | 'bash' | 'ash' | 'sh' | 'custom';
+export type ShellMode =
+  | "auto"
+  | "system"
+  | "fish"
+  | "zsh"
+  | "bash"
+  | "ash"
+  | "sh"
+  | "custom";
 
 export interface ShellConfig {
   mode: ShellMode;

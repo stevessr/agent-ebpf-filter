@@ -202,28 +202,28 @@ int BPF_PROG(visual_file_filter, struct file *file, int ret) {
         type === "mkdir"
           ? "lsm/inode_mkdir"
           : type === "file_create"
-          ? "lsm/inode_create"
-          : type === "rmdir"
-          ? "lsm/inode_rmdir"
-          : "lsm/inode_symlink";
+            ? "lsm/inode_create"
+            : type === "rmdir"
+              ? "lsm/inode_rmdir"
+              : "lsm/inode_symlink";
 
       const funcArgs =
         type === "mkdir"
           ? "struct inode *dir, struct dentry *dentry, umode_t mode"
           : type === "file_create"
-          ? "struct inode *dir, struct dentry *dentry, umode_t mode"
-          : type === "rmdir"
-          ? "struct inode *dir, struct dentry *dentry"
-          : "struct inode *dir, struct dentry *dentry, const char *old_name";
+            ? "struct inode *dir, struct dentry *dentry, umode_t mode"
+            : type === "rmdir"
+              ? "struct inode *dir, struct dentry *dentry"
+              : "struct inode *dir, struct dentry *dentry, const char *old_name";
 
       const typeDesc =
         type === "mkdir"
           ? "folder creation"
           : type === "file_create"
-          ? "file creation"
-          : type === "rmdir"
-          ? "folder deletion"
-          : "symlink creation";
+            ? "file creation"
+            : type === "rmdir"
+              ? "folder deletion"
+              : "symlink creation";
 
       return `#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -314,24 +314,24 @@ int visual_port_filter(struct bpf_sock_addr *ctx) {
 
     currentConfig.value.pluginId = `visual-${type}-${val.replace(
       /[^a-z0-9]/g,
-      "-"
+      "-",
     )}-${currentConfig.value.action.toLowerCase()}`;
     currentConfig.value.pluginName = `可视化${
       type === "process"
         ? "进程"
         : type === "file"
-        ? "文件打开"
-        : type === "mkdir"
-        ? "新建目录"
-        : type === "file_create"
-        ? "新建文件"
-        : type === "rmdir"
-        ? "删除目录"
-        : type === "symlink"
-        ? "符号链接"
-        : type === "ip"
-        ? "网络IP"
-        : "网络端口"
+          ? "文件打开"
+          : type === "mkdir"
+            ? "新建目录"
+            : type === "file_create"
+              ? "新建文件"
+              : type === "rmdir"
+                ? "删除目录"
+                : type === "symlink"
+                  ? "符号链接"
+                  : type === "ip"
+                    ? "网络IP"
+                    : "网络端口"
     }${actionText}(${val})`;
 
     if (type === "process") {

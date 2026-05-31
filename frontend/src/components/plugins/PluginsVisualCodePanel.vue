@@ -21,14 +21,18 @@ const emit = defineEmits<{
     class="blueprint-code-card"
   >
     <div class="source-hint">
-      这里仅展示由低代码画布生成的 libbpf C 源码；TS 伪代码已拆到独立工作区，不再与画布互相转换或共享草稿槽。
+      这里仅展示由低代码画布生成的 libbpf C 源码；TS
+      伪代码已拆到独立工作区，不再与画布互相转换或共享草稿槽。
     </div>
 
     <div class="generated-code-box">
       <pre><code>{{ props.code }}</code></pre>
     </div>
 
-    <div v-if="props.compiling || props.compiled || props.log" class="compilation-logger">
+    <div
+      v-if="props.compiling || props.compiled || props.log"
+      class="compilation-logger"
+    >
       <div class="logger-header">
         <span>Clang LLVM 编译与内核校验审计台</span>
         <a-space>

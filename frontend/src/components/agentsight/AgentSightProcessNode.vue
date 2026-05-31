@@ -1,6 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { CaretDownOutlined, CaretRightOutlined, CodeOutlined, FileTextOutlined, LockOutlined, RobotOutlined } from '@ant-design/icons-vue';
+import { computed } from "vue";
+import {
+  CaretDownOutlined,
+  CaretRightOutlined,
+  CodeOutlined,
+  FileTextOutlined,
+  LockOutlined,
+  RobotOutlined,
+} from "@ant-design/icons-vue";
 
 import {
   buildParsedEventPreview,
@@ -9,7 +16,7 @@ import {
   type AgentSightProcessNode,
   type AgentSightTimelineItem,
   type ParsedAgentSightEvent,
-} from '../../utils/agentsight';
+} from "../../utils/agentsight";
 
 const props = defineProps<{
   process: AgentSightProcessNode;
@@ -23,60 +30,108 @@ const emit = defineEmits<{
   toggleEvent: [id: string];
 }>();
 
-const isExpanded = computed(() => props.expandedProcesses.has(props.process.pid));
-const eventCounts = computed(() => props.process.events.reduce<Record<string, number>>((counts, event) => {
-  counts[event.type] = (counts[event.type] || 0) + 1;
-  return counts;
-}, {}));
+const isExpanded = computed(() =>
+  props.expandedProcesses.has(props.process.pid),
+);
+const eventCounts = computed(() =>
+  props.process.events.reduce<Record<string, number>>((counts, event) => {
+    counts[event.type] = (counts[event.type] || 0) + 1;
+    return counts;
+  }, {}),
+);
 
 const iconFor = (event: ParsedAgentSightEvent) => {
-  if (event.type === 'prompt' || event.type === 'response' || event.type === 'agent') return RobotOutlined;
-  if (event.type === 'file') return FileTextOutlined;
-  if (event.type === 'stdio') return CodeOutlined;
+  if (
+    event.type === "prompt" ||
+    event.type === "response" ||
+    event.type === "agent"
+  )
+    return RobotOutlined;
+  if (event.type === "file") return FileTextOutlined;
+  if (event.type === "stdio") return CodeOutlined;
   return LockOutlined;
 };
 
-const renderableTimeline = computed(() => props.process.timeline.filter(item => item.event || item.process));
-const eventTagText = (event: ParsedAgentSightEvent) => event.type === 'prompt' && event.promptDiff?.hasChanges ? 'prompt changed' : event.type;
-const itemKey = (item: AgentSightTimelineItem, index: number) => item.event?.id || `process-${item.process?.pid ?? index}`;
+const renderableTimeline = computed(() =>
+  props.process.timeline.filter((item) => item.event || item.process),
+);
+const eventTagText = (event: ParsedAgentSightEvent) =>
+  event.type === "prompt" && event.promptDiff?.hasChanges
+    ? "prompt changed"
+    : event.type;
+const itemKey = (item: AgentSightTimelineItem, index: number) =>
+  item.event?.id || `process-${item.process?.pid ?? index}`;
 </script>
 
 <template>
   <div class="process-node">
-    <button class="process-header" :style="{ marginLeft: `${depth * 24}px` }" @click="emit('toggleProcess', process.pid)">
+    <button
+      class="process-header"
+      :style="{ marginLeft: `${depth * 24}px` }"
+      @click="emit('toggleProcess', process.pid)"
+    >
       <CaretDownOutlined v-if="isExpanded" />
       <CaretRightOutlined v-else />
       <span class="pid">PID {{ process.pid }}</span>
       <strong>[{{ process.comm }}]</strong>
       <span v-if="process.ppid" class="ppid">← {{ process.ppid }}</span>
       <span class="badges">
-        <a-tag v-for="(count, type) in eventCounts" :key="type" :color="parsedTypeColor(type as any)">{{ type }} {{ count }}</a-tag>
+        <a-tag
+          v-for="(count, type) in eventCounts"
+          :key="type"
+          :color="parsedTypeColor(type as any)"
+          >{{ type }} {{ count }}</a-tag
+        >
       </span>
     </button>
 
-    <div v-if="isExpanded" class="timeline" :style="{ marginLeft: `${depth * 24 + 34}px` }">
-      <template v-for="(item, index) in renderableTimeline" :key="itemKey(item, index)">
+    <div
+      v-if="isExpanded"
+      class="timeline"
+      :style="{ marginLeft: `${depth * 24 + 34}px` }"
+    >
+      <template
+        v-for="(item, index) in renderableTimeline"
+        :key="itemKey(item, index)"
+      >
         <AgentSightProcessNode
           v-if="item.process"
           :process="item.process"
           :depth="depth + 1"
           :expanded-processes="expandedProcesses"
           :expanded-events="expandedEvents"
-          @toggle-process="pid => emit('toggleProcess', pid)"
-          @toggle-event="id => emit('toggleEvent', id)"
+          @toggle-process="(pid) => emit('toggleProcess', pid)"
+          @toggle-event="(id) => emit('toggleEvent', id)"
         />
-        <div v-else-if="item.event" class="event-block" :class="`event-${item.event.type}`" @click="emit('toggleEvent', item.event.id)">
+        <div
+          v-else-if="item.event"
+          class="event-block"
+          :class="`event-${item.event.type}`"
+          @click="emit('toggleEvent', item.event.id)"
+        >
           <div class="event-head">
             <component :is="iconFor(item.event)" class="event-icon" />
-            <a-tag :color="parsedTypeColor(item.event.type)">{{ eventTagText(item.event) }}</a-tag>
-            <a-tag v-if="item.event.metadata.model">{{ item.event.metadata.model }}</a-tag>
+            <a-tag :color="parsedTypeColor(item.event.type)">{{
+              eventTagText(item.event)
+            }}</a-tag>
+            <a-tag v-if="item.event.metadata.model">{{
+              item.event.metadata.model
+            }}</a-tag>
             <span class="event-title">{{ item.event.title }}</span>
-            <span class="event-time">{{ formatFullTime(item.event.timestamp) }}</span>
+            <span class="event-time">{{
+              formatFullTime(item.event.timestamp)
+            }}</span>
             <CaretDownOutlined v-if="expandedEvents.has(item.event.id)" />
             <CaretRightOutlined v-else-if="item.event.content.length > 300" />
           </div>
-          <div v-if="!expandedEvents.has(item.event.id)" class="event-preview">{{ buildParsedEventPreview(item.event) }}</div>
-          <pre v-else class="event-content">{{ item.event.promptDiff?.diff ? `=== CHANGES FROM PREVIOUS PROMPT ===\n${item.event.promptDiff.diff}\n\n=== FULL CONTENT ===\n${item.event.content}` : item.event.content }}</pre>
+          <div v-if="!expandedEvents.has(item.event.id)" class="event-preview">
+            {{ buildParsedEventPreview(item.event) }}
+          </div>
+          <pre v-else class="event-content">{{
+            item.event.promptDiff?.diff
+              ? `=== CHANGES FROM PREVIOUS PROMPT ===\n${item.event.promptDiff.diff}\n\n=== FULL CONTENT ===\n${item.event.content}`
+              : item.event.content
+          }}</pre>
         </div>
       </template>
     </div>

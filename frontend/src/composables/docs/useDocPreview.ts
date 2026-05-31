@@ -42,7 +42,9 @@ export const sanitizeAndOutline = (html: string, entryUrl: string) => {
   const headingCounts = new Map<string, number>();
   const outline: OutlineItem[] = [];
 
-  root.querySelectorAll("script, style, iframe, object, embed, noscript").forEach((node) => node.remove());
+  root
+    .querySelectorAll("script, style, iframe, object, embed, noscript")
+    .forEach((node) => node.remove());
 
   root.querySelectorAll("*").forEach((element) => {
     Array.from(element.attributes).forEach((attr) => {
@@ -171,8 +173,8 @@ export function useDocPreview() {
     sourceText.value ? sourceText.value.split(/\r?\n/).length : 0,
   );
 
-  const releaseText = computed(() => '');
-  const kindText = computed(() => '');
+  const releaseText = computed(() => "");
+  const kindText = computed(() => "");
 
   const resetPreviewState = () => {
     sourceText.value = "";
@@ -185,7 +187,10 @@ export function useDocPreview() {
     reloadNonce.value += 1;
   };
 
-  const loadContent = async (entry: LinuxReferenceEntry, signal: AbortSignal) => {
+  const loadContent = async (
+    entry: LinuxReferenceEntry,
+    signal: AbortSignal,
+  ) => {
     const path = entry.localPath;
     activeTab.value = "preview";
     loading.value = true;
@@ -194,7 +199,9 @@ export function useDocPreview() {
     try {
       const response = await fetch(path, { signal });
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
+        throw new Error(
+          `HTTP ${response.status} ${response.statusText}`.trim(),
+        );
       }
 
       const raw = await response.text();
@@ -209,7 +216,9 @@ export function useDocPreview() {
     } catch (error) {
       if (signal.aborted) return;
       loadError.value =
-        error instanceof Error ? error.message : "Failed to load the cached snapshot.";
+        error instanceof Error
+          ? error.message
+          : "Failed to load the cached snapshot.";
     } finally {
       if (!signal.aborted) {
         loading.value = false;
@@ -224,7 +233,9 @@ export function useDocPreview() {
     const container = previewScrollRef.value;
     if (!container) return;
 
-    const target = container.querySelector<HTMLElement>(`#${escapeSelector(id)}`);
+    const target = container.querySelector<HTMLElement>(
+      `#${escapeSelector(id)}`,
+    );
     if (!target) return;
 
     const containerRect = container.getBoundingClientRect();

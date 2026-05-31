@@ -239,14 +239,20 @@ const recipePanel = useFloatingPanel({
   backdrop-filter: blur(14px);
   --node-library-panel-exit-x: calc(-100% - 24px);
   --node-library-edge-button-hover: -4px;
-  transition: left 0.18s ease, top 0.18s ease, opacity 0.2s ease,
-    transform 0.2s ease, box-shadow 0.18s ease;
+  transition:
+    left 0.18s ease,
+    top 0.18s ease,
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.18s ease;
 }
 
 .node-library-floating-window.dragging {
   cursor: grabbing;
   transition: none;
-  box-shadow: 0 24px 68px rgba(22, 119, 255, 0.2), 0 0 0 1px var(--workflow-primary-border);
+  box-shadow:
+    0 24px 68px rgba(22, 119, 255, 0.2),
+    0 0 0 1px var(--workflow-primary-border);
 }
 
 .node-library-floating-window.dock-right {
@@ -334,7 +340,9 @@ const recipePanel = useFloatingPanel({
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
-  transition: transform 0.16s ease, border-color 0.16s ease,
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
     background 0.16s ease;
 }
 
@@ -362,7 +370,9 @@ const recipePanel = useFloatingPanel({
   box-shadow: var(--workflow-shadow);
   cursor: pointer;
   font-size: 12px;
-  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease,
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.18s ease,
     border-color 0.16s ease;
 }
 
@@ -396,7 +406,9 @@ const recipePanel = useFloatingPanel({
 .node-library-float-leave-active,
 .node-library-trigger-enter-active,
 .node-library-trigger-leave-active {
-  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .node-library-float-enter-from,
@@ -426,14 +438,20 @@ const recipePanel = useFloatingPanel({
   backdrop-filter: blur(14px);
   --recipe-panel-exit-x: calc(-100% - 24px);
   --recipe-edge-button-hover: -4px;
-  transition: left 0.18s ease, top 0.18s ease, opacity 0.2s ease,
-    transform 0.2s ease, box-shadow 0.18s ease;
+  transition:
+    left 0.18s ease,
+    top 0.18s ease,
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.18s ease;
 }
 
 .recipe-floating-window.dragging {
   cursor: grabbing;
   transition: none;
-  box-shadow: 0 24px 68px rgba(22, 119, 255, 0.2), 0 0 0 1px var(--workflow-primary-border);
+  box-shadow:
+    0 24px 68px rgba(22, 119, 255, 0.2),
+    0 0 0 1px var(--workflow-primary-border);
 }
 
 .recipe-floating-window.dock-right {
@@ -520,7 +538,9 @@ const recipePanel = useFloatingPanel({
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
-  transition: transform 0.16s ease, border-color 0.16s ease,
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
     background 0.16s ease;
 }
 
@@ -544,7 +564,9 @@ const recipePanel = useFloatingPanel({
   box-shadow: var(--workflow-shadow);
   cursor: pointer;
   font-size: 12px;
-  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease,
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.18s ease,
     border-color 0.16s ease;
 }
 
@@ -578,7 +600,9 @@ const recipePanel = useFloatingPanel({
 .recipe-float-leave-active,
 .recipe-trigger-enter-active,
 .recipe-trigger-leave-active {
-  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .recipe-float-enter-from,

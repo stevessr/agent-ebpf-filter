@@ -90,17 +90,17 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	}
 
 	// Binary flags [15-25]
-	f[15] = boolToFloat(isShell(comm))                // is_shell
-	f[16] = boolToFloat(isPackageManager(comm))        // is_package_manager
-	f[17] = boolToFloat(isAgentCLI(comm))              // is_agent_cli
-	f[18] = boolToFloat(user == "root")                // is_root_user
-	f[19] = boolToFloat(hasNetworkArgs(args))           // has_network_args
-	f[20] = boolToFloat(hasFileArgs(args))              // has_file_args
-	f[21] = boolToFloat(hasRedirect(args))              // has_redirection
-	f[22] = boolToFloat(hasPipeChain(args))             // has_pipe
-	f[23] = boolToFloat(len(args) > 10)                 // many_args
+	f[15] = boolToFloat(isShell(comm))                                      // is_shell
+	f[16] = boolToFloat(isPackageManager(comm))                             // is_package_manager
+	f[17] = boolToFloat(isAgentCLI(comm))                                   // is_agent_cli
+	f[18] = boolToFloat(user == "root")                                     // is_root_user
+	f[19] = boolToFloat(hasNetworkArgs(args))                               // has_network_args
+	f[20] = boolToFloat(hasFileArgs(args))                                  // has_file_args
+	f[21] = boolToFloat(hasRedirect(args))                                  // has_redirection
+	f[22] = boolToFloat(hasPipeChain(args))                                 // has_pipe
+	f[23] = boolToFloat(len(args) > 10)                                     // many_args
 	f[24] = boolToFloat(strings.Contains(strings.Join(args, " "), "/dev/")) // dev_access
-	f[25] = boolToFloat(hasSudoInArgs(args))            // sudo_in_args
+	f[25] = boolToFloat(hasSudoInArgs(args))                                // sudo_in_args
 
 	// Confidence encoding [26-27]
 	switch classification.Confidence {
@@ -130,7 +130,7 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 			sumSqLen += l * l
 		}
 		meanLen := sumLen / float64(len(args))
-		f[32] = meanLen / 256.0  // mean arg length (normalized)
+		f[32] = meanLen / 256.0 // mean arg length (normalized)
 		if f[32] > 1.0 {
 			f[32] = 1.0
 		}
@@ -264,7 +264,7 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 		f[96] = float64(commMatch) / n
 		f[97] = float64(blockCount) / n
 		f[98] = float64(alertCount) / n
-		f[99] = sumAnomaly / n // mean anomaly
+		f[99] = sumAnomaly / n                // mean anomaly
 		f[100] = sumSqAnomaly/n - f[99]*f[99] // variance
 		if f[100] < 0 {
 			f[100] = 0

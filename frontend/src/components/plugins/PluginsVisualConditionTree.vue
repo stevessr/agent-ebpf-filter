@@ -44,7 +44,10 @@ const conditionNode = computed(() => props.node as VisualCondition);
 
 const handleDragStart = (event: DragEvent, nodeId: string) => {
   if (event.dataTransfer) {
-    event.dataTransfer.setData("text/plain", JSON.stringify({ category: "tree_node", value: nodeId }));
+    event.dataTransfer.setData(
+      "text/plain",
+      JSON.stringify({ category: "tree_node", value: nodeId }),
+    );
     event.dataTransfer.effectAllowed = "move";
   }
 };
@@ -74,16 +77,22 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
   <div
     v-if="node.type === 'AND' || node.type === 'OR'"
     class="logic-group-container"
-    :class="[node.type === 'AND' ? 'group-and' : 'group-or', depth > 0 ? 'nested-group' : '']"
+    :class="[
+      node.type === 'AND' ? 'group-and' : 'group-or',
+      depth > 0 ? 'nested-group' : '',
+    ]"
     @dragover.prevent
     @drop.stop="handleGroupDrop($event, node.id)"
   >
     <div class="group-header">
       <div class="header-left">
-        <a-tag :color="node.type === 'AND' ? 'blue' : 'magenta'" style="font-weight: bold; font-family: monospace;">
+        <a-tag
+          :color="node.type === 'AND' ? 'blue' : 'magenta'"
+          style="font-weight: bold; font-family: monospace"
+        >
           {{ node.type }}
         </a-tag>
-        
+
         <a-radio-group
           :value="node.type"
           @change="(e: any) => onUpdateGroupType(node.id, e.target.value)"
@@ -98,11 +107,21 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
 
       <div class="header-right">
         <a-space size="small">
-          <a-button type="text" size="small" @click="() => onAddRule(node.id)" class="btn-action">
+          <a-button
+            type="text"
+            size="small"
+            @click="() => onAddRule(node.id)"
+            class="btn-action"
+          >
             <template #icon><PlusOutlined /></template>
             +条件
           </a-button>
-          <a-button type="text" size="small" @click="() => onAddGroup(node.id, 'AND')" class="btn-action">
+          <a-button
+            type="text"
+            size="small"
+            @click="() => onAddGroup(node.id, 'AND')"
+            class="btn-action"
+          >
             <template #icon><FolderAddOutlined /></template>
             +子组
           </a-button>
@@ -122,11 +141,18 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
 
     <!-- Recursive children -->
     <div class="group-children">
-      <div v-if="!node.children || node.children.length === 0" class="group-empty-placeholder">
+      <div
+        v-if="!node.children || node.children.length === 0"
+        class="group-empty-placeholder"
+      >
         拖拽组件或点击 “+条件” 向此逻辑分组添加内容
       </div>
       <div v-else class="children-list">
-        <div v-for="child in node.children" :key="child.id" class="child-node-row">
+        <div
+          v-for="child in node.children"
+          :key="child.id"
+          class="child-node-row"
+        >
           <PluginsVisualConditionTree
             :node="child"
             :trigger="trigger"
@@ -165,7 +191,8 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
         :value="f.value"
         :disabled="
           (trigger === 'unlink' && f.value === 'basename') ||
-          (trigger !== 'socket_connect' && (f.value === 'port' || f.value === 'ipv4'))
+          (trigger !== 'socket_connect' &&
+            (f.value === 'port' || f.value === 'ipv4'))
         "
       >
         {{ f.label }}
@@ -183,7 +210,11 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
         :key="o.value"
         :value="o.value"
         :disabled="
-          (conditionNode.field === 'pid' || conditionNode.field === 'uid' || conditionNode.field === 'port' || conditionNode.field === 'ipv4' || conditionNode.field === 'gid') &&
+          (conditionNode.field === 'pid' ||
+            conditionNode.field === 'uid' ||
+            conditionNode.field === 'port' ||
+            conditionNode.field === 'ipv4' ||
+            conditionNode.field === 'gid') &&
           (o.value === 'starts_with' || o.value === 'ends_with')
         "
       >

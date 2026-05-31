@@ -1,69 +1,82 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-import axios from 'axios';
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import axios from "axios";
 import {
   DeleteOutlined,
   GlobalOutlined,
   InfoCircleOutlined,
   PauseOutlined,
   PlayCircleOutlined,
-} from '@ant-design/icons-vue';
+} from "@ant-design/icons-vue";
 
-import { pb } from '../../pb/tracker_pb.js';
-import { buildWebSocketUrl } from '../../utils/requestContext';
-import NetworkStatsCards from '../../components/network/NetworkStatsCards.vue';
-import NetworkEventModal from '../../components/network/NetworkEventModal.vue';
+import { pb } from "../../pb/tracker_pb.js";
+import { buildWebSocketUrl } from "../../utils/requestContext";
+import NetworkStatsCards from "../../components/network/NetworkStatsCards.vue";
+import NetworkEventModal from "../../components/network/NetworkEventModal.vue";
 
 interface NetworkEvent {
-  key: string; pid: number; ppid: number; uid: number; type: string;
-  eventType?: number; tag: string; comm: string; path: string;
-  netDirection: string; netEndpoint: string; netFamily: string;
-  netBytes: number; time: string;
+  key: string;
+  pid: number;
+  ppid: number;
+  uid: number;
+  type: string;
+  eventType?: number;
+  tag: string;
+  comm: string;
+  path: string;
+  netDirection: string;
+  netEndpoint: string;
+  netFamily: string;
+  netBytes: number;
+  time: string;
 }
 
 const eventTypeLabelMap: Record<number, string> = {
-  [pb.EventType.NETWORK_CONNECT]: 'network_connect',
-  [pb.EventType.NETWORK_BIND]: 'network_bind',
-  [pb.EventType.NETWORK_SENDTO]: 'network_sendto',
-  [pb.EventType.NETWORK_RECVFROM]: 'network_recvfrom',
-  [pb.EventType.ACCEPT]: 'accept',
-  [pb.EventType.ACCEPT4]: 'accept4',
-  [pb.EventType.SOCKET]: 'socket',
-  [pb.EventType.TCP_CONNECT]: 'tcp_connect',
-  [pb.EventType.TCP_CLOSE]: 'tcp_close',
-  [pb.EventType.TCP_STATE_CHANGE]: 'tcp_state_change',
-  [pb.EventType.DNS_QUERY]: 'dns_query',
+  [pb.EventType.NETWORK_CONNECT]: "network_connect",
+  [pb.EventType.NETWORK_BIND]: "network_bind",
+  [pb.EventType.NETWORK_SENDTO]: "network_sendto",
+  [pb.EventType.NETWORK_RECVFROM]: "network_recvfrom",
+  [pb.EventType.ACCEPT]: "accept",
+  [pb.EventType.ACCEPT4]: "accept4",
+  [pb.EventType.SOCKET]: "socket",
+  [pb.EventType.TCP_CONNECT]: "tcp_connect",
+  [pb.EventType.TCP_CLOSE]: "tcp_close",
+  [pb.EventType.TCP_STATE_CHANGE]: "tcp_state_change",
+  [pb.EventType.DNS_QUERY]: "dns_query",
 };
 const eventTypeColorMap: Record<number, string> = {
-  [pb.EventType.NETWORK_CONNECT]: 'orange', [pb.EventType.NETWORK_BIND]: 'volcano',
-  [pb.EventType.NETWORK_SENDTO]: 'cyan', [pb.EventType.NETWORK_RECVFROM]: 'geekblue',
-  [pb.EventType.ACCEPT]: 'volcano', [pb.EventType.ACCEPT4]: 'volcano',
-  [pb.EventType.SOCKET]: 'default',
-  [pb.EventType.TCP_CONNECT]: 'orange',
-  [pb.EventType.TCP_CLOSE]: 'volcano',
-  [pb.EventType.TCP_STATE_CHANGE]: 'gold',
-  [pb.EventType.DNS_QUERY]: 'purple',
+  [pb.EventType.NETWORK_CONNECT]: "orange",
+  [pb.EventType.NETWORK_BIND]: "volcano",
+  [pb.EventType.NETWORK_SENDTO]: "cyan",
+  [pb.EventType.NETWORK_RECVFROM]: "geekblue",
+  [pb.EventType.ACCEPT]: "volcano",
+  [pb.EventType.ACCEPT4]: "volcano",
+  [pb.EventType.SOCKET]: "default",
+  [pb.EventType.TCP_CONNECT]: "orange",
+  [pb.EventType.TCP_CLOSE]: "volcano",
+  [pb.EventType.TCP_STATE_CHANGE]: "gold",
+  [pb.EventType.DNS_QUERY]: "purple",
 };
 const networkTypeTabs: [number | string, string][] = [
-  [pb.EventType.NETWORK_CONNECT, 'Connect'],
-  [pb.EventType.NETWORK_SENDTO, 'Send'],
-  [pb.EventType.NETWORK_RECVFROM, 'Recv'],
-  [pb.EventType.NETWORK_BIND, 'Bind'],
-  [pb.EventType.ACCEPT, 'Accept'],
-  [pb.EventType.ACCEPT4, 'Accept4'],
-  [pb.EventType.TCP_CONNECT, 'TCP Connect'],
-  [pb.EventType.TCP_CLOSE, 'TCP Close'],
-  [pb.EventType.TCP_STATE_CHANGE, 'TCP State'],
-  [pb.EventType.DNS_QUERY, 'DNS'],
-  ['unknown', 'Unknown'],
+  [pb.EventType.NETWORK_CONNECT, "Connect"],
+  [pb.EventType.NETWORK_SENDTO, "Send"],
+  [pb.EventType.NETWORK_RECVFROM, "Recv"],
+  [pb.EventType.NETWORK_BIND, "Bind"],
+  [pb.EventType.ACCEPT, "Accept"],
+  [pb.EventType.ACCEPT4, "Accept4"],
+  [pb.EventType.TCP_CONNECT, "TCP Connect"],
+  [pb.EventType.TCP_CLOSE, "TCP Close"],
+  [pb.EventType.TCP_STATE_CHANGE, "TCP State"],
+  [pb.EventType.DNS_QUERY, "DNS"],
+  ["unknown", "Unknown"],
 ];
 
 const events = ref<NetworkEvent[]>([]);
 const tags = ref<string[]>([]);
 const selectedTags = ref<string[]>([]);
 const selectedTypes = ref<number[]>([]);
-const searchQuery = ref('');
-const activeTypeTab = ref<string>('all');
+const searchQuery = ref("");
+const activeTypeTab = ref<string>("all");
 const cumulativeBytes = ref(0);
 const isDeduplicated = ref(false);
 const isPaused = ref(false);
@@ -71,7 +84,7 @@ const isConnected = ref(false);
 const showDetails = ref(false);
 const selectedEvent = ref<NetworkEvent | null>(null);
 const maxEvents = ref(5000);
-const maxEventsOptions = ['2000', '5000', '10000', '20000', '50000'];
+const maxEventsOptions = ["2000", "5000", "10000", "20000", "50000"];
 
 let ws: WebSocket | null = null;
 let reconnectTimer: any = null;
@@ -92,39 +105,69 @@ const flushNetEventBuffer = () => {
 };
 
 const formatBytes = (bytes: number) => {
-  if (!bytes) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
   const base = 1024;
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(base)), units.length - 1);
+  const index = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(base)),
+    units.length - 1,
+  );
   return `${(bytes / Math.pow(base, index)).toFixed(1)} ${units[index]}`;
 };
 
 const extractEventType = (event: pb.IEvent) =>
-  Object.prototype.hasOwnProperty.call(event, 'eventType') && event.eventType !== null && event.eventType !== undefined
-    ? Number(event.eventType) : undefined;
+  Object.prototype.hasOwnProperty.call(event, "eventType") &&
+  event.eventType !== null &&
+  event.eventType !== undefined
+    ? Number(event.eventType)
+    : undefined;
 
 const isNetworkEvent = (eventType: number | undefined, type?: string) => {
-  if (eventType !== undefined && (eventTypeLabelMap[eventType] || eventType === 20)) return true;
-  return type === 'accept' || type === 'accept4' || type === 'socket' || Boolean(type?.startsWith('network_'));
+  if (
+    eventType !== undefined &&
+    (eventTypeLabelMap[eventType] || eventType === 20)
+  )
+    return true;
+  return (
+    type === "accept" ||
+    type === "accept4" ||
+    type === "socket" ||
+    Boolean(type?.startsWith("network_"))
+  );
 };
 
 const networkFilteredEvents = computed(() => {
   let list = events.value;
   if (isDeduplicated.value) {
     const seen = new Set<string>();
-    list = list.filter(e => {
+    list = list.filter((e) => {
       const id = `${e.pid}-${e.netEndpoint}-${e.type}`;
       if (seen.has(id)) return false;
-      seen.add(id); return true;
+      seen.add(id);
+      return true;
     });
   }
-  if (selectedTags.value.length > 0) list = list.filter(e => selectedTags.value.includes(e.tag));
-  if (selectedTypes.value.length > 0) list = list.filter(e => e.eventType !== undefined && selectedTypes.value.includes(e.eventType));
-  if (activeTypeTab.value === 'unknown') list = list.filter(e => !e.netDirection || e.eventType === pb.EventType.SOCKET);
-  else if (activeTypeTab.value !== 'all') list = list.filter(e => e.eventType === Number(activeTypeTab.value));
+  if (selectedTags.value.length > 0)
+    list = list.filter((e) => selectedTags.value.includes(e.tag));
+  if (selectedTypes.value.length > 0)
+    list = list.filter(
+      (e) =>
+        e.eventType !== undefined && selectedTypes.value.includes(e.eventType),
+    );
+  if (activeTypeTab.value === "unknown")
+    list = list.filter(
+      (e) => !e.netDirection || e.eventType === pb.EventType.SOCKET,
+    );
+  else if (activeTypeTab.value !== "all")
+    list = list.filter((e) => e.eventType === Number(activeTypeTab.value));
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase();
-    list = list.filter(e => e.comm.toLowerCase().includes(q) || e.netEndpoint.toLowerCase().includes(q) || String(e.pid).includes(q));
+    list = list.filter(
+      (e) =>
+        e.comm.toLowerCase().includes(q) ||
+        e.netEndpoint.toLowerCase().includes(q) ||
+        String(e.pid).includes(q),
+    );
   }
   return list;
 });
@@ -132,67 +175,100 @@ const networkFilteredEvents = computed(() => {
 const summaryStats = computed(() => {
   const fe = networkFilteredEvents.value;
   return {
-    outgoing: fe.filter(e => e.netDirection === 'outgoing').length,
-    incoming: fe.filter(e => e.netDirection === 'incoming').length,
-    listening: fe.filter(e => e.netDirection === 'listening').length,
-    uniquePids: new Set(fe.map(e => e.pid)).size,
-    uniqueEndpoints: new Set(fe.map(e => e.netEndpoint).filter(Boolean)).size,
+    outgoing: fe.filter((e) => e.netDirection === "outgoing").length,
+    incoming: fe.filter((e) => e.netDirection === "incoming").length,
+    listening: fe.filter((e) => e.netDirection === "listening").length,
+    uniquePids: new Set(fe.map((e) => e.pid)).size,
+    uniqueEndpoints: new Set(fe.map((e) => e.netEndpoint).filter(Boolean)).size,
     totalBytes: cumulativeBytes.value,
   };
 });
 
-const directionColor = (v: string) => (v === 'outgoing' ? 'green' : v === 'incoming' ? 'blue' : v === 'listening' ? 'gold' : 'default');
-const formatDirection = (v: string) => v ? v.charAt(0).toUpperCase() + v.slice(1) : 'Unknown';
-const typeColor = (et?: number, _v?: string) => (et !== undefined ? eventTypeColorMap[et] : 'default');
-const familyColor = (v: string) => (v === 'ipv4' ? 'blue' : v === 'ipv6' ? 'purple' : 'default');
-const formatDetailValue = (v: any) => (v === undefined || v === null || v === '' ? '—' : String(v));
+const directionColor = (v: string) =>
+  v === "outgoing"
+    ? "green"
+    : v === "incoming"
+      ? "blue"
+      : v === "listening"
+        ? "gold"
+        : "default";
+const formatDirection = (v: string) =>
+  v ? v.charAt(0).toUpperCase() + v.slice(1) : "Unknown";
+const typeColor = (et?: number, _v?: string) =>
+  et !== undefined ? eventTypeColorMap[et] : "default";
+const familyColor = (v: string) =>
+  v === "ipv4" ? "blue" : v === "ipv6" ? "purple" : "default";
+const formatDetailValue = (v: any) =>
+  v === undefined || v === null || v === "" ? "—" : String(v);
 
 const fetchRecentEvents = async () => {
   try {
-    const res = await axios.get('/events/recent?limit=400');
-    events.value = (res.data.events || []).map((r: any) => {
-      const d = r.Event;
-      return {
-        key: `${d.pid}-${d.type}-${r.Timestamp}-${Math.random()}`,
-        pid: d.pid || 0, ppid: d.ppid || 0, uid: d.uid || 0,
-        type: d.type || '', eventType: extractEventType(d),
-        tag: d.tag || '', comm: d.comm || '', path: d.path || '',
-        netDirection: d.netDirection || '', netEndpoint: d.netEndpoint || '',
-        netFamily: d.netFamily || '', netBytes: Number(d.netBytes || 0),
-        time: new Date(r.Timestamp).toLocaleTimeString(),
-      };
-    }).filter((e: any) => isNetworkEvent(e.eventType, e.type));
-    cumulativeBytes.value = events.value.reduce((sum, e) => sum + (e.netBytes || 0), 0);
+    const res = await axios.get("/events/recent?limit=400");
+    events.value = (res.data.events || [])
+      .map((r: any) => {
+        const d = r.Event;
+        return {
+          key: `${d.pid}-${d.type}-${r.Timestamp}-${Math.random()}`,
+          pid: d.pid || 0,
+          ppid: d.ppid || 0,
+          uid: d.uid || 0,
+          type: d.type || "",
+          eventType: extractEventType(d),
+          tag: d.tag || "",
+          comm: d.comm || "",
+          path: d.path || "",
+          netDirection: d.netDirection || "",
+          netEndpoint: d.netEndpoint || "",
+          netFamily: d.netFamily || "",
+          netBytes: Number(d.netBytes || 0),
+          time: new Date(r.Timestamp).toLocaleTimeString(),
+        };
+      })
+      .filter((e: any) => isNetworkEvent(e.eventType, e.type));
+    cumulativeBytes.value = events.value.reduce(
+      (sum, e) => sum + (e.netBytes || 0),
+      0,
+    );
   } catch (err) {}
 };
 
 const connectWebSocket = () => {
   if (!shouldReconnect) return;
   if (ws) ws.close();
-  const socket = new WebSocket(buildWebSocketUrl('/ws'));
+  const socket = new WebSocket(buildWebSocketUrl("/ws"));
   ws = socket;
-  socket.binaryType = 'arraybuffer';
-  socket.onopen = () => isConnected.value = true;
+  socket.binaryType = "arraybuffer";
+  socket.onopen = () => (isConnected.value = true);
   socket.onmessage = (me) => {
     if (isPaused.value) return;
     try {
-      const incoming = (payload: Uint8Array): pb.IEvent[] => (payload[0] === 10 ? pb.EventBatch.decode(payload).events || [] : [pb.Event.decode(payload)]);
-      incoming(new Uint8Array(me.data)).forEach(d => {
+      const incoming = (payload: Uint8Array): pb.IEvent[] =>
+        payload[0] === 10
+          ? pb.EventBatch.decode(payload).events || []
+          : [pb.Event.decode(payload)];
+      incoming(new Uint8Array(me.data)).forEach((d) => {
         const et = extractEventType(d);
-        if (!isNetworkEvent(et, d.type || '')) return;
+        if (!isNetworkEvent(et, d.type || "")) return;
         cumulativeBytes.value += Number(d.netBytes || 0);
         netEventBuffer.push({
           key: `${d.pid}-${d.type}-${Date.now()}-${Math.random()}`,
-          pid: d.pid || 0, ppid: d.ppid || 0, uid: d.uid || 0,
-          type: d.type || '', eventType: et, tag: d.tag || '',
-          comm: d.comm || '', path: d.path || '',
-          netDirection: d.netDirection || '', netEndpoint: d.netEndpoint || '',
-          netFamily: d.netFamily || '', netBytes: Number(d.netBytes || 0),
+          pid: d.pid || 0,
+          ppid: d.ppid || 0,
+          uid: d.uid || 0,
+          type: d.type || "",
+          eventType: et,
+          tag: d.tag || "",
+          comm: d.comm || "",
+          path: d.path || "",
+          netDirection: d.netDirection || "",
+          netEndpoint: d.netEndpoint || "",
+          netFamily: d.netFamily || "",
+          netBytes: Number(d.netBytes || 0),
           time: new Date().toLocaleTimeString(),
         });
       });
     } catch (e) {
-      console.error('Network: failed to parse message', e);
+      console.error("Network: failed to parse message", e);
     }
     if (netRafId === null) {
       netRafId = requestAnimationFrame(flushNetEventBuffer);
@@ -207,7 +283,7 @@ const connectWebSocket = () => {
 onMounted(() => {
   fetchRecentEvents();
   connectWebSocket();
-  axios.get('/config/tags').then(res => tags.value = res.data);
+  axios.get("/config/tags").then((res) => (tags.value = res.data));
 });
 const clearNetworkEvents = () => {
   events.value = [];
@@ -234,68 +310,171 @@ onUnmounted(() => {
 <template>
   <div class="network-page">
     <a-card :bordered="false">
-      <template #title><span><GlobalOutlined /> Network Monitor</span></template>
+      <template #title
+        ><span><GlobalOutlined /> Network Monitor</span></template
+      >
       <template #extra>
         <a-space>
-          <a-badge :status="isConnected ? 'success' : 'error'" :text="isConnected ? 'Live' : 'Offline'" />
-          <a-tag color="purple">{{ events.length }} / {{ maxEvents }} events</a-tag>
+          <a-badge
+            :status="isConnected ? 'success' : 'error'"
+            :text="isConnected ? 'Live' : 'Offline'"
+          />
+          <a-tag color="purple"
+            >{{ events.length }} / {{ maxEvents }} events</a-tag
+          >
         </a-space>
       </template>
 
-      <NetworkStatsCards :totalEvents="networkFilteredEvents.length" :stats="summaryStats" :formatBytes="formatBytes" />
+      <NetworkStatsCards
+        :totalEvents="networkFilteredEvents.length"
+        :stats="summaryStats"
+        :formatBytes="formatBytes"
+      />
 
-      <div style="display: flex; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 16px;
+          flex-wrap: wrap;
+          gap: 8px;
+        "
+      >
         <a-space>
-          <a-button @click="isPaused = !isPaused" :type="isPaused ? 'primary' : 'default'" danger size="small">
-            <template #icon><PauseOutlined v-if="isPaused" /><PlayCircleOutlined v-else /></template>
-            {{ isPaused ? 'Resume' : 'Pause' }}
+          <a-button
+            @click="isPaused = !isPaused"
+            :type="isPaused ? 'primary' : 'default'"
+            danger
+            size="small"
+          >
+            <template #icon
+              ><PauseOutlined v-if="isPaused" /><PlayCircleOutlined v-else
+            /></template>
+            {{ isPaused ? "Resume" : "Pause" }}
           </a-button>
-          <a-button danger @click="clearNetworkEvents" size="small"><template #icon><DeleteOutlined /></template>Clear</a-button>
+          <a-button danger @click="clearNetworkEvents" size="small"
+            ><template #icon><DeleteOutlined /></template>Clear</a-button
+          >
           <a-select v-model:value="maxEvents" size="small" style="width: 100px">
-            <a-select-option v-for="opt in maxEventsOptions" :key="opt" :value="Number(opt)">{{ opt }}</a-select-option>
+            <a-select-option
+              v-for="opt in maxEventsOptions"
+              :key="opt"
+              :value="Number(opt)"
+              >{{ opt }}</a-select-option
+            >
           </a-select>
         </a-space>
         <a-space>
-          <a-input-search v-model:value="searchQuery" placeholder="Search..." size="small" style="width: 180px" />
-          <a-select v-model:value="selectedTags" mode="multiple" placeholder="Tags" style="min-width: 120px" size="small" :options="tags.map(t => ({label:t, value:t}))" max-tag-count="responsive" />
+          <a-input-search
+            v-model:value="searchQuery"
+            placeholder="Search..."
+            size="small"
+            style="width: 180px"
+          />
+          <a-select
+            v-model:value="selectedTags"
+            mode="multiple"
+            placeholder="Tags"
+            style="min-width: 120px"
+            size="small"
+            :options="tags.map((t) => ({ label: t, value: t }))"
+            max-tag-count="responsive"
+          />
         </a-space>
       </div>
 
-      <a-tabs v-model:activeKey="activeTypeTab" size="small" style="margin-bottom: 8px;">
+      <a-tabs
+        v-model:activeKey="activeTypeTab"
+        size="small"
+        style="margin-bottom: 8px"
+      >
         <a-tab-pane key="all" tab="All" />
-        <a-tab-pane v-for="[et, label] in networkTypeTabs" :key="String(et)" :tab="label" />
+        <a-tab-pane
+          v-for="[et, label] in networkTypeTabs"
+          :key="String(et)"
+          :tab="label"
+        />
       </a-tabs>
 
-      <a-table :dataSource="networkFilteredEvents" row-key="key" size="small" :pagination="{ pageSize: 20, showSizeChanger: true }">
+      <a-table
+        :dataSource="networkFilteredEvents"
+        row-key="key"
+        size="small"
+        :pagination="{ pageSize: 20, showSizeChanger: true }"
+      >
         <a-table-column title="Time" dataIndex="time" key="time" width="100" />
-        <a-table-column title="Dir" dataIndex="netDirection" key="netDirection" width="100">
-          <template #default="{ text }"><a-tag :color="directionColor(text)" size="small">{{ formatDirection(text) }}</a-tag></template>
+        <a-table-column
+          title="Dir"
+          dataIndex="netDirection"
+          key="netDirection"
+          width="100"
+        >
+          <template #default="{ text }"
+            ><a-tag :color="directionColor(text)" size="small">{{
+              formatDirection(text)
+            }}</a-tag></template
+          >
         </a-table-column>
         <a-table-column title="Type" dataIndex="type" key="type" width="140">
-          <template #default="{ text, record }"><a-tag :color="typeColor(record.eventType, text)" size="small">{{ text.toUpperCase() }}</a-tag></template>
+          <template #default="{ text, record }"
+            ><a-tag :color="typeColor(record.eventType, text)" size="small">{{
+              text.toUpperCase()
+            }}</a-tag></template
+          >
         </a-table-column>
         <a-table-column title="Command" dataIndex="comm" key="comm" ellipsis />
-        <a-table-column title="Endpoint" dataIndex="netEndpoint" key="netEndpoint" ellipsis />
-        <a-table-column title="Bytes" dataIndex="netBytes" key="netBytes" width="100" align="right">
+        <a-table-column
+          title="Endpoint"
+          dataIndex="netEndpoint"
+          key="netEndpoint"
+          ellipsis
+        />
+        <a-table-column
+          title="Bytes"
+          dataIndex="netBytes"
+          key="netBytes"
+          width="100"
+          align="right"
+        >
           <template #default="{ text }">{{ formatBytes(text) }}</template>
         </a-table-column>
         <a-table-column title="" key="action" width="50">
-          <template #default="{ record }"><a-button type="link" size="small" @click="selectedEvent = record; showDetails = true"><InfoCircleOutlined /></a-button></template>
+          <template #default="{ record }"
+            ><a-button
+              type="link"
+              size="small"
+              @click="
+                selectedEvent = record;
+                showDetails = true;
+              "
+              ><InfoCircleOutlined /></a-button
+          ></template>
         </a-table-column>
       </a-table>
     </a-card>
 
-    <NetworkEventModal 
-      v-model:open="showDetails" :event="selectedEvent"
-      :directionColor="directionColor" :formatDirection="formatDirection"
-      :typeColor="typeColor" :familyColor="familyColor"
-      :formatBytes="formatBytes" :formatDetailValue="formatDetailValue"
+    <NetworkEventModal
+      v-model:open="showDetails"
+      :event="selectedEvent"
+      :directionColor="directionColor"
+      :formatDirection="formatDirection"
+      :typeColor="typeColor"
+      :familyColor="familyColor"
+      :formatBytes="formatBytes"
+      :formatDetailValue="formatDetailValue"
     />
   </div>
 </template>
 
 <style scoped>
-.network-page { padding: 0; }
-:deep(.ant-table-thead > tr > th) { background: #f9fafb; font-weight: 600; }
-:deep(.ant-tag) { margin-right: 0; }
+.network-page {
+  padding: 0;
+}
+:deep(.ant-table-thead > tr > th) {
+  background: #f9fafb;
+  font-weight: 600;
+}
+:deep(.ant-tag) {
+  margin-right: 0;
+}
 </style>

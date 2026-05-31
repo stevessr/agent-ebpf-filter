@@ -8,10 +8,10 @@ import (
 )
 
 var (
-	benchmarkEngineInst     = newBenchmarkEngine()
-	benchmarkEngineInstMu   sync.Mutex
-	latestBenchmarkStats    benchmarkStats
-	latestBenchmarkStatsMu  sync.RWMutex
+	benchmarkEngineInst    = newBenchmarkEngine()
+	benchmarkEngineInstMu  sync.Mutex
+	latestBenchmarkStats   benchmarkStats
+	latestBenchmarkStatsMu sync.RWMutex
 )
 
 func handleRunBenchmark(c *gin.Context) {

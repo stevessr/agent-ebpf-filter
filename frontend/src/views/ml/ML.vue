@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { ThunderboltOutlined } from '@ant-design/icons-vue';
-import ConfigMLTab from '../../components/config/ConfigMLTab.vue';
-import { useConfigML } from '../../composables/config/useConfigML';
+import { onMounted } from "vue";
+import { ThunderboltOutlined } from "@ant-design/icons-vue";
+import ConfigMLTab from "../../components/config/ConfigMLTab.vue";
+import { useConfigML } from "../../composables/config/useConfigML";
 
 const ml = useConfigML();
 const { fetchMLStatus, fetchAllSamples, fetchExistingCommandData } = ml;
@@ -22,7 +22,8 @@ onMounted(async () => {
         ML Classification
       </a-typography-title>
       <a-typography-paragraph class="ml-page__description">
-        本地命令安全模型、参数调优、LLM 复核和训练集管理现在是独立一级页面，不再嵌套在 Configuration 中。
+        本地命令安全模型、参数调优、LLM
+        复核和训练集管理现在是独立一级页面，不再嵌套在 Configuration 中。
       </a-typography-paragraph>
     </div>
     <ConfigMLTab :ml="ml" />

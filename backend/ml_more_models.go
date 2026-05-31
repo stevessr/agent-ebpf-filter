@@ -24,13 +24,13 @@ func init() {
 // ── 4. Gaussian Naive Bayes ────────────────────────────────────────
 
 type NaiveBayesModel struct {
-	Means    [][FeatureDim]float64
-	Vars     [][FeatureDim]float64
-	Priors   []float64
-	Classes  int
+	Means   [][FeatureDim]float64
+	Vars    [][FeatureDim]float64
+	Priors  []float64
+	Classes int
 }
 
-func NewNaiveBayes() *NaiveBayesModel { return &NaiveBayesModel{Classes: 4} }
+func NewNaiveBayes() *NaiveBayesModel      { return &NaiveBayesModel{Classes: 4} }
 func (m *NaiveBayesModel) Type() ModelType { return ModelNaiveBayes }
 
 func (m *NaiveBayesModel) Predict(features [FeatureDim]float64) Prediction {
@@ -63,7 +63,11 @@ func (m *NaiveBayesModel) Predict(features [FeatureDim]float64) Prediction {
 func (m *NaiveBayesModel) Serialize(path string) error {
 	data := []byte("NBAY")
 	putU32 := func(v uint32) { b := make([]byte, 4); binary.LittleEndian.PutUint32(b, v); data = append(data, b...) }
-	putF64 := func(v float64) { b := make([]byte, 8); binary.LittleEndian.PutUint64(b, math.Float64bits(v)); data = append(data, b...) }
+	putF64 := func(v float64) {
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, math.Float64bits(v))
+		data = append(data, b...)
+	}
 	putU32(1)
 	putU32(uint32(m.Classes))
 	for c := 0; c < m.Classes; c++ {
@@ -106,9 +110,9 @@ func DeserializeNaiveBayes(path string) (*NaiveBayesModel, error) {
 // ── 5. Extra Trees ─────────────────────────────────────────────────
 
 type ExtraTreesModel struct {
-	Forest     *DecisionForest
-	MaxDepth   int
-	NumTrees   int
+	Forest   *DecisionForest
+	MaxDepth int
+	NumTrees int
 }
 
 func NewExtraTrees(numTrees, maxDepth int) *ExtraTreesModel {
@@ -134,7 +138,9 @@ func buildExtraTrees(trainSet []trainSample, numTrees, maxDepth, minLeaf int, se
 	rng := rand.New(rand.NewSource(seed))
 	forest := NewDecisionForest(numTrees, maxDepth, 4)
 	fCount := int(math.Sqrt(float64(FeatureDim)))
-	if fCount < 1 { fCount = 1 }
+	if fCount < 1 {
+		fCount = 1
+	}
 	for ti := 0; ti < numTrees; ti++ {
 		bootstrap := make([]trainSample, len(trainSet))
 		for i := range bootstrap {
@@ -153,7 +159,10 @@ func buildExtraTree(samples []trainSample, depth, maxDepth, minLeaf, fCount int,
 	}
 	allSame := true
 	for _, s := range samples[1:] {
-		if s.label != samples[0].label { allSame = false; break }
+		if s.label != samples[0].label {
+			allSame = false
+			break
+		}
 	}
 	if allSame {
 		return []DecisionNode{{LeftChild: -1, RightChild: -1, LeafValue: float32(samples[0].label)}}
@@ -163,8 +172,12 @@ func buildExtraTree(samples []trainSample, depth, maxDepth, minLeaf, fCount int,
 	fi := rng.Intn(FeatureDim)
 	minV, maxV := samples[0].features[fi], samples[0].features[fi]
 	for _, s := range samples {
-		if s.features[fi] < minV { minV = s.features[fi] }
-		if s.features[fi] > maxV { maxV = s.features[fi] }
+		if s.features[fi] < minV {
+			minV = s.features[fi]
+		}
+		if s.features[fi] > maxV {
+			maxV = s.features[fi]
+		}
 	}
 	threshold := minV + rng.Float64()*(maxV-minV)
 	if minV >= maxV {
@@ -188,10 +201,16 @@ func buildExtraTree(samples []trainSample, depth, maxDepth, minLeaf, fCount int,
 
 	leftOff, rightOff := 1, 1+len(leftNodes)
 	for i := range leftNodes {
-		if n := &leftNodes[i]; !n.IsLeaf() { n.LeftChild += int16(leftOff); n.RightChild += int16(leftOff) }
+		if n := &leftNodes[i]; !n.IsLeaf() {
+			n.LeftChild += int16(leftOff)
+			n.RightChild += int16(leftOff)
+		}
 	}
 	for i := range rightNodes {
-		if n := &rightNodes[i]; !n.IsLeaf() { n.LeftChild += int16(rightOff); n.RightChild += int16(rightOff) }
+		if n := &rightNodes[i]; !n.IsLeaf() {
+			n.LeftChild += int16(rightOff)
+			n.RightChild += int16(rightOff)
+		}
 	}
 
 	nodes := []DecisionNode{{FeatureIndex: uint8(fi), Threshold: float32(threshold), LeftChild: int16(leftOff), RightChild: int16(rightOff)}}
@@ -203,10 +222,10 @@ func buildExtraTree(samples []trainSample, depth, maxDepth, minLeaf, fCount int,
 // ── 6. AdaBoost with Decision Stumps ───────────────────────────────
 
 type AdaBoostModel struct {
-	Stumps   []adaboostStump
-	Alphas   []float64
-	NEst     int
-	Classes  int
+	Stumps  []adaboostStump
+	Alphas  []float64
+	NEst    int
+	Classes int
 }
 type adaboostStump struct {
 	Feature   int
@@ -216,7 +235,9 @@ type adaboostStump struct {
 }
 
 func NewAdaBoost(nEstimators int) *AdaBoostModel {
-	if nEstimators < 10 { nEstimators = 50 }
+	if nEstimators < 10 {
+		nEstimators = 50
+	}
 	return &AdaBoostModel{NEst: nEstimators, Classes: 4}
 }
 func (m *AdaBoostModel) Type() ModelType { return ModelAdaBoost }
@@ -242,23 +263,39 @@ func (m *AdaBoostModel) Predict(features [FeatureDim]float64) Prediction {
 	}
 	bestClass := int32(0)
 	for c := 1; c < m.Classes; c++ {
-		if votes[c] > votes[bestClass] { bestClass = int32(c) }
+		if votes[c] > votes[bestClass] {
+			bestClass = int32(c)
+		}
 	}
 	confidence := 0.0
-	if totalWeight > 0 { confidence = votes[bestClass] / totalWeight }
+	if totalWeight > 0 {
+		confidence = votes[bestClass] / totalWeight
+	}
 	return Prediction{Action: bestClass, Confidence: confidence, AnomalyScore: 1 - confidence}
 }
 
 func (m *AdaBoostModel) Serialize(path string) error {
 	data := []byte("ADAB")
 	putU32 := func(v uint32) { b := make([]byte, 4); binary.LittleEndian.PutUint32(b, v); data = append(data, b...) }
-	putF64 := func(v float64) { b := make([]byte, 8); binary.LittleEndian.PutUint64(b, math.Float64bits(v)); data = append(data, b...) }
-	putU32(1); putU32(uint32(len(m.Stumps))); putU32(uint32(m.Classes))
-	for _, s := range m.Stumps {
-		putU32(uint32(s.Feature)); putF64(s.Threshold); putF64(s.LeftVote); putF64(s.RightVote)
+	putF64 := func(v float64) {
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, math.Float64bits(v))
+		data = append(data, b...)
 	}
-	for _, a := range m.Alphas { putF64(a) }
-	dir := filepath.Dir(path); os.MkdirAll(dir, 0755)
+	putU32(1)
+	putU32(uint32(len(m.Stumps)))
+	putU32(uint32(m.Classes))
+	for _, s := range m.Stumps {
+		putU32(uint32(s.Feature))
+		putF64(s.Threshold)
+		putF64(s.LeftVote)
+		putF64(s.RightVote)
+	}
+	for _, a := range m.Alphas {
+		putF64(a)
+	}
+	dir := filepath.Dir(path)
+	os.MkdirAll(dir, 0755)
 	os.WriteFile(path+".tmp", data, 0644)
 	return os.Rename(path+".tmp", path)
 }
@@ -266,11 +303,11 @@ func (m *AdaBoostModel) Serialize(path string) error {
 // ── 7. Linear SVM (SGD with hinge loss) ────────────────────────────
 
 type SVMModel struct {
-	Weights    [][FeatureDim + 1]float64
-	Classes    int
-	LR         float64
-	MaxIter    int
-	C          float64 // regularization strength
+	Weights [][FeatureDim + 1]float64
+	Classes int
+	LR      float64
+	MaxIter int
+	C       float64 // regularization strength
 }
 
 func NewSVMModel(lr float64, maxIter int) *SVMModel {
@@ -291,24 +328,37 @@ func (m *SVMModel) Predict(features [FeatureDim]float64) Prediction {
 	}
 	bestClass := int32(0)
 	for c := 1; c < m.Classes; c++ {
-		if scores[c] > scores[bestClass] { bestClass = int32(c) }
+		if scores[c] > scores[bestClass] {
+			bestClass = int32(c)
+		}
 	}
 	// Platt scaling approximation
 	confidence := 1.0 / (1.0 + math.Exp(-scores[bestClass]))
-	if confidence > 1 { confidence = 1 }
+	if confidence > 1 {
+		confidence = 1
+	}
 	return Prediction{Action: bestClass, Confidence: confidence, AnomalyScore: 1 - confidence}
 }
 
 func (m *SVMModel) Serialize(path string) error {
 	data := []byte("SVM0")
 	putU32 := func(v uint32) { b := make([]byte, 4); binary.LittleEndian.PutUint32(b, v); data = append(data, b...) }
-	putF64 := func(v float64) { b := make([]byte, 8); binary.LittleEndian.PutUint64(b, math.Float64bits(v)); data = append(data, b...) }
-	putU32(1); putU32(uint32(m.Classes))
-	putF64(m.LR); putF64(m.C)
-	for c := 0; c < m.Classes; c++ {
-		for d := 0; d <= FeatureDim; d++ { putF64(m.Weights[c][d]) }
+	putF64 := func(v float64) {
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, math.Float64bits(v))
+		data = append(data, b...)
 	}
-	dir := filepath.Dir(path); os.MkdirAll(dir, 0755)
+	putU32(1)
+	putU32(uint32(m.Classes))
+	putF64(m.LR)
+	putF64(m.C)
+	for c := 0; c < m.Classes; c++ {
+		for d := 0; d <= FeatureDim; d++ {
+			putF64(m.Weights[c][d])
+		}
+	}
+	dir := filepath.Dir(path)
+	os.MkdirAll(dir, 0755)
 	os.WriteFile(path+".tmp", data, 0644)
 	return os.Rename(path+".tmp", path)
 }
@@ -316,13 +366,13 @@ func (m *SVMModel) Serialize(path string) error {
 // ── 8. Ridge Classifier ────────────────────────────────────────────
 
 type RidgeModel struct {
-	Weights  [][FeatureDim + 1]float64
-	Classes  int
-	Alpha    float64
+	Weights [][FeatureDim + 1]float64
+	Classes int
+	Alpha   float64
 }
 
 func NewRidgeModel(alpha float64) *RidgeModel { return &RidgeModel{Classes: 4, Alpha: alpha} }
-func (m *RidgeModel) Type() ModelType { return ModelRidge }
+func (m *RidgeModel) Type() ModelType         { return ModelRidge }
 
 func (m *RidgeModel) Predict(features [FeatureDim]float64) Prediction {
 	if len(m.Weights) == 0 {
@@ -331,26 +381,41 @@ func (m *RidgeModel) Predict(features [FeatureDim]float64) Prediction {
 	scores := make([]float64, m.Classes)
 	for c := 0; c < m.Classes; c++ {
 		scores[c] = m.Weights[c][FeatureDim]
-		for d := 0; d < FeatureDim; d++ { scores[c] += m.Weights[c][d] * features[d] }
+		for d := 0; d < FeatureDim; d++ {
+			scores[c] += m.Weights[c][d] * features[d]
+		}
 	}
 	bestClass := int32(0)
 	for c := 1; c < m.Classes; c++ {
-		if scores[c] > scores[bestClass] { bestClass = int32(c) }
+		if scores[c] > scores[bestClass] {
+			bestClass = int32(c)
+		}
 	}
 	confidence := 1.0 / (1.0 + math.Exp(-(scores[bestClass] - 0.5)))
-	if confidence > 1 { confidence = 1 }
+	if confidence > 1 {
+		confidence = 1
+	}
 	return Prediction{Action: bestClass, Confidence: confidence, AnomalyScore: 1 - confidence}
 }
 
 func (m *RidgeModel) Serialize(path string) error {
 	data := []byte("RIDG")
 	putU32 := func(v uint32) { b := make([]byte, 4); binary.LittleEndian.PutUint32(b, v); data = append(data, b...) }
-	putF64 := func(v float64) { b := make([]byte, 8); binary.LittleEndian.PutUint64(b, math.Float64bits(v)); data = append(data, b...) }
-	putU32(1); putU32(uint32(m.Classes)); putF64(m.Alpha)
-	for c := 0; c < m.Classes; c++ {
-		for d := 0; d <= FeatureDim; d++ { putF64(m.Weights[c][d]) }
+	putF64 := func(v float64) {
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, math.Float64bits(v))
+		data = append(data, b...)
 	}
-	dir := filepath.Dir(path); os.MkdirAll(dir, 0755)
+	putU32(1)
+	putU32(uint32(m.Classes))
+	putF64(m.Alpha)
+	for c := 0; c < m.Classes; c++ {
+		for d := 0; d <= FeatureDim; d++ {
+			putF64(m.Weights[c][d])
+		}
+	}
+	dir := filepath.Dir(path)
+	os.MkdirAll(dir, 0755)
 	os.WriteFile(path+".tmp", data, 0644)
 	return os.Rename(path+".tmp", path)
 }
@@ -358,10 +423,10 @@ func (m *RidgeModel) Serialize(path string) error {
 // ── 9. Perceptron ──────────────────────────────────────────────────
 
 type PerceptronModel struct {
-	Weights  [][FeatureDim + 1]float64
-	Classes  int
-	LR       float64
-	MaxIter  int
+	Weights [][FeatureDim + 1]float64
+	Classes int
+	LR      float64
+	MaxIter int
 }
 
 func NewPerceptron(lr float64, maxIter int) *PerceptronModel {
@@ -376,26 +441,41 @@ func (m *PerceptronModel) Predict(features [FeatureDim]float64) Prediction {
 	scores := make([]float64, m.Classes)
 	for c := 0; c < m.Classes; c++ {
 		scores[c] = m.Weights[c][FeatureDim]
-		for d := 0; d < FeatureDim; d++ { scores[c] += m.Weights[c][d] * features[d] }
+		for d := 0; d < FeatureDim; d++ {
+			scores[c] += m.Weights[c][d] * features[d]
+		}
 	}
 	bestClass := int32(0)
 	for c := 1; c < m.Classes; c++ {
-		if scores[c] > scores[bestClass] { bestClass = int32(c) }
+		if scores[c] > scores[bestClass] {
+			bestClass = int32(c)
+		}
 	}
 	confidence := 1.0 / (1.0 + math.Exp(-scores[bestClass]+scores[0]))
-	if confidence > 1 { confidence = 1 }
+	if confidence > 1 {
+		confidence = 1
+	}
 	return Prediction{Action: bestClass, Confidence: confidence, AnomalyScore: 1 - confidence}
 }
 
 func (m *PerceptronModel) Serialize(path string) error {
 	data := []byte("PERC")
 	putU32 := func(v uint32) { b := make([]byte, 4); binary.LittleEndian.PutUint32(b, v); data = append(data, b...) }
-	putF64 := func(v float64) { b := make([]byte, 8); binary.LittleEndian.PutUint64(b, math.Float64bits(v)); data = append(data, b...) }
-	putU32(1); putU32(uint32(m.Classes)); putF64(m.LR)
-	for c := 0; c < m.Classes; c++ {
-		for d := 0; d <= FeatureDim; d++ { putF64(m.Weights[c][d]) }
+	putF64 := func(v float64) {
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, math.Float64bits(v))
+		data = append(data, b...)
 	}
-	dir := filepath.Dir(path); os.MkdirAll(dir, 0755)
+	putU32(1)
+	putU32(uint32(m.Classes))
+	putF64(m.LR)
+	for c := 0; c < m.Classes; c++ {
+		for d := 0; d <= FeatureDim; d++ {
+			putF64(m.Weights[c][d])
+		}
+	}
+	dir := filepath.Dir(path)
+	os.MkdirAll(dir, 0755)
 	os.WriteFile(path+".tmp", data, 0644)
 	return os.Rename(path+".tmp", path)
 }
@@ -403,10 +483,10 @@ func (m *PerceptronModel) Serialize(path string) error {
 // ── 10. Passive Aggressive Classifier ──────────────────────────────
 
 type PAModel struct {
-	Weights  [][FeatureDim + 1]float64
-	Classes  int
-	C        float64
-	MaxIter  int
+	Weights [][FeatureDim + 1]float64
+	Classes int
+	C       float64
+	MaxIter int
 }
 
 func NewPAModel(C float64, maxIter int) *PAModel {
@@ -421,26 +501,41 @@ func (m *PAModel) Predict(features [FeatureDim]float64) Prediction {
 	scores := make([]float64, m.Classes)
 	for c := 0; c < m.Classes; c++ {
 		scores[c] = m.Weights[c][FeatureDim]
-		for d := 0; d < FeatureDim; d++ { scores[c] += m.Weights[c][d] * features[d] }
+		for d := 0; d < FeatureDim; d++ {
+			scores[c] += m.Weights[c][d] * features[d]
+		}
 	}
 	bestClass := int32(0)
 	for c := 1; c < m.Classes; c++ {
-		if scores[c] > scores[bestClass] { bestClass = int32(c) }
+		if scores[c] > scores[bestClass] {
+			bestClass = int32(c)
+		}
 	}
 	confidence := 1.0 / (1.0 + math.Exp(-scores[bestClass]+scores[0]))
-	if confidence > 1 { confidence = 1 }
+	if confidence > 1 {
+		confidence = 1
+	}
 	return Prediction{Action: bestClass, Confidence: confidence, AnomalyScore: 1 - confidence}
 }
 
 func (m *PAModel) Serialize(path string) error {
 	data := []byte("PASG")
 	putU32 := func(v uint32) { b := make([]byte, 4); binary.LittleEndian.PutUint32(b, v); data = append(data, b...) }
-	putF64 := func(v float64) { b := make([]byte, 8); binary.LittleEndian.PutUint64(b, math.Float64bits(v)); data = append(data, b...) }
-	putU32(1); putU32(uint32(m.Classes)); putF64(m.C)
-	for c := 0; c < m.Classes; c++ {
-		for d := 0; d <= FeatureDim; d++ { putF64(m.Weights[c][d]) }
+	putF64 := func(v float64) {
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, math.Float64bits(v))
+		data = append(data, b...)
 	}
-	dir := filepath.Dir(path); os.MkdirAll(dir, 0755)
+	putU32(1)
+	putU32(uint32(m.Classes))
+	putF64(m.C)
+	for c := 0; c < m.Classes; c++ {
+		for d := 0; d <= FeatureDim; d++ {
+			putF64(m.Weights[c][d])
+		}
+	}
+	dir := filepath.Dir(path)
+	os.MkdirAll(dir, 0755)
 	os.WriteFile(path+".tmp", data, 0644)
 	return os.Rename(path+".tmp", path)
 }

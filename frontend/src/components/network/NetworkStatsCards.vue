@@ -16,7 +16,7 @@ defineProps<{
 </script>
 
 <template>
-  <a-row :gutter="[16, 16]" style="margin-bottom: 16px;">
+  <a-row :gutter="[16, 16]" style="margin-bottom: 16px">
     <a-col :xs="12" :lg="4">
       <a-card size="small" :bordered="false">
         <a-statistic title="Packets" :value="totalEvents" />

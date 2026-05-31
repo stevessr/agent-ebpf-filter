@@ -74,7 +74,7 @@ export const configureMonacoTypesAndCompletion = () => {
         }
       }
     `,
-      "ts:ebpf.d.ts"
+      "ts:ebpf.d.ts",
     );
   }
 

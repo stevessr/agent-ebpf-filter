@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import axios from 'axios';
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import axios from "axios";
 import {
   FolderOutlined,
   FileOutlined,
@@ -14,11 +14,11 @@ import {
   DownloadOutlined,
   UploadOutlined,
   HomeOutlined,
-} from '@ant-design/icons-vue';
-import { message } from 'ant-design-vue';
+} from "@ant-design/icons-vue";
+import { message } from "ant-design-vue";
 
-import FilePreviewDrawer from './FilePreviewDrawer.vue';
-import type { FilePreviewResponse } from '../../types/filePreview';
+import FilePreviewDrawer from "./FilePreviewDrawer.vue";
+import type { FilePreviewResponse } from "../../types/filePreview";
 
 interface FileEntry {
   name: string;
@@ -29,44 +29,48 @@ interface FileEntry {
   modTime?: string;
 }
 
-const props = withDefaults(defineProps<{
-  routePath?: string;
-  actionLabel?: string;
-  actionType?: 'track' | 'emit';
-  showTrackingControls?: boolean;
-  showUpload?: boolean;
-  alertMessage?: string;
-  alertDescription?: string;
-  fileActionOnly?: boolean;
-  previewTitle?: string;
-}>(), {
-  routePath: '',
-  actionLabel: 'Track path',
-  actionType: 'track',
-  showTrackingControls: true,
-  showUpload: true,
-  alertMessage: 'Path tracking is exact-match',
-  alertDescription: 'Adding a file or directory here tracks that exact path string only. Directory entries are not tracked recursively.',
-  fileActionOnly: false,
-  previewTitle: 'Explorer File Preview',
-});
+const props = withDefaults(
+  defineProps<{
+    routePath?: string;
+    actionLabel?: string;
+    actionType?: "track" | "emit";
+    showTrackingControls?: boolean;
+    showUpload?: boolean;
+    alertMessage?: string;
+    alertDescription?: string;
+    fileActionOnly?: boolean;
+    previewTitle?: string;
+  }>(),
+  {
+    routePath: "",
+    actionLabel: "Track path",
+    actionType: "track",
+    showTrackingControls: true,
+    showUpload: true,
+    alertMessage: "Path tracking is exact-match",
+    alertDescription:
+      "Adding a file or directory here tracks that exact path string only. Directory entries are not tracked recursively.",
+    fileActionOnly: false,
+    previewTitle: "Explorer File Preview",
+  },
+);
 
 const emit = defineEmits<{
   action: [entry: FileEntry];
 }>();
 
-const currentPath = ref('');
+const currentPath = ref("");
 const entries = ref<FileEntry[]>([]);
 const loading = ref(false);
 const tags = ref<string[]>([]);
-const selectedTag = ref('Security');
+const selectedTag = ref("Security");
 const showHidden = ref(false);
-const viewMode = ref<'list' | 'grid'>('grid');
-const selectedPath = ref('');
+const viewMode = ref<"list" | "grid">("grid");
+const selectedPath = ref("");
 const previewLoading = ref(false);
 const showPreview = ref(false);
 const previewData = ref<FilePreviewResponse | null>(null);
-const homePath = ref('/');
+const homePath = ref("/");
 const gridItemSize = ref(100);
 const route = useRoute();
 const router = useRouter();
@@ -76,23 +80,26 @@ const currentPage = ref(1);
 const totalItems = ref(0);
 
 const hasRouteSync = computed(() => Boolean(props.routePath));
-const previewRequested = computed(() => route.query.preview === '1' || route.query.preview === 'true');
+const previewRequested = computed(
+  () => route.query.preview === "1" || route.query.preview === "true",
+);
 const paginatedEntries = computed(() => entries.value);
 
-const isImage = (entry: FileEntry) => entry.mimeType?.startsWith('image/');
-const getImageUrl = (path: string) => `/system/download?path=${encodeURIComponent(path)}`;
+const isImage = (entry: FileEntry) => entry.mimeType?.startsWith("image/");
+const getImageUrl = (path: string) =>
+  `/system/download?path=${encodeURIComponent(path)}`;
 
 const formatBytes = (value: number | undefined) => {
-  if (value === undefined) return '-';
-  if (value === 0) return '0 B';
+  if (value === undefined) return "-";
+  if (value === 0) return "0 B";
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(value) / Math.log(k));
-  return parseFloat((value / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  return parseFloat((value / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
 const formatTime = (time: string | undefined) => {
-  if (!time) return '-';
+  if (!time) return "-";
   return new Date(time).toLocaleString();
 };
 
@@ -103,7 +110,7 @@ const fetchEntries = async (path: string, force = false) => {
   loading.value = true;
   try {
     const offset = (currentPage.value - 1) * pageSize.value;
-    const res = await axios.get('/system/ls', {
+    const res = await axios.get("/system/ls", {
       params: {
         path,
         offset,
@@ -115,7 +122,7 @@ const fetchEntries = async (path: string, force = false) => {
     totalItems.value = res.data.total || 0;
     currentPath.value = path;
   } catch (err) {
-    message.error('Failed to read directory');
+    message.error("Failed to read directory");
   } finally {
     loading.value = false;
   }
@@ -128,9 +135,11 @@ const openTargetPath = async (targetPath: string, preview = false) => {
     if (preview) {
       previewLoading.value = true;
     }
-    const res = await axios.get(`/system/file-preview?path=${encodeURIComponent(targetPath)}`);
+    const res = await axios.get(
+      `/system/file-preview?path=${encodeURIComponent(targetPath)}`,
+    );
     const meta = res.data as FilePreviewResponse;
-    const targetDir = meta.isDir ? meta.path : meta.parentDir || '/';
+    const targetDir = meta.isDir ? meta.path : meta.parentDir || "/";
 
     if (currentPath.value !== targetDir || entries.value.length === 0) {
       await fetchEntries(targetDir);
@@ -151,7 +160,7 @@ const openTargetPath = async (targetPath: string, preview = false) => {
     }
   } catch (err) {
     if (!currentPath.value) {
-      await fetchEntries(homePath.value || '/', true);
+      await fetchEntries(homePath.value || "/", true);
     }
   } finally {
     previewLoading.value = false;
@@ -159,7 +168,10 @@ const openTargetPath = async (targetPath: string, preview = false) => {
 };
 
 const openRouteTarget = async () => {
-  const targetPath = typeof route.query.path === 'string' && route.query.path.trim() ? route.query.path.trim() : homePath.value || '/';
+  const targetPath =
+    typeof route.query.path === "string" && route.query.path.trim()
+      ? route.query.path.trim()
+      : homePath.value || "/";
   await openTargetPath(targetPath, previewRequested.value);
 };
 
@@ -171,11 +183,17 @@ const setExplorerTarget = async (path: string, preview = false) => {
 
   const query: Record<string, string> = { path };
   if (preview) {
-    query.preview = '1';
+    query.preview = "1";
   }
-  const currentPathQuery = typeof route.query.path === 'string' ? route.query.path : '';
-  const currentPreviewQuery = route.query.preview === '1' || route.query.preview === 'true';
-  if (route.path === props.routePath && currentPathQuery === path && currentPreviewQuery === preview) {
+  const currentPathQuery =
+    typeof route.query.path === "string" ? route.query.path : "";
+  const currentPreviewQuery =
+    route.query.preview === "1" || route.query.preview === "true";
+  if (
+    route.path === props.routePath &&
+    currentPathQuery === path &&
+    currentPreviewQuery === preview
+  ) {
     await openRouteTarget();
     return;
   }
@@ -191,7 +209,7 @@ const navigateToPath = async (path: string) => {
 
 const fetchHome = async () => {
   try {
-    const res = await axios.get('/system/home');
+    const res = await axios.get("/system/home");
     homePath.value = res.data.path;
     if (hasRouteSync.value) {
       if (!route.query.path) {
@@ -201,9 +219,9 @@ const fetchHome = async () => {
       }
       return;
     }
-    await fetchEntries(homePath.value || '/', true);
+    await fetchEntries(homePath.value || "/", true);
   } catch (err) {
-    console.error('Failed to fetch home path', err);
+    console.error("Failed to fetch home path", err);
   }
 };
 
@@ -229,75 +247,89 @@ const handlePageChange = (page: number, size: number) => {
 
 const listColumns = [
   {
-    title: 'Name',
-    dataIndex: 'name',
-    key: 'name',
+    title: "Name",
+    dataIndex: "name",
+    key: "name",
     sorter: (a: FileEntry, b: FileEntry) => a.name.localeCompare(b.name),
   },
   {
-    title: 'Type',
-    dataIndex: 'mimeType',
-    key: 'mimeType',
-    sorter: (a: FileEntry, b: FileEntry) => (a.mimeType || '').localeCompare(b.mimeType || ''),
+    title: "Type",
+    dataIndex: "mimeType",
+    key: "mimeType",
+    sorter: (a: FileEntry, b: FileEntry) =>
+      (a.mimeType || "").localeCompare(b.mimeType || ""),
     filters: [
-      { text: 'Directory', value: 'dir' },
-      { text: 'Image', value: 'image' },
-      { text: 'Application', value: 'application' },
-      { text: 'Text', value: 'text' },
+      { text: "Directory", value: "dir" },
+      { text: "Image", value: "image" },
+      { text: "Application", value: "application" },
+      { text: "Text", value: "text" },
     ],
     onFilter: (value: string, record: FileEntry) => {
-      if (value === 'dir') return record.isDir;
-      if (value === 'image') return record.mimeType?.startsWith('image/');
-      if (value === 'application') return record.mimeType?.startsWith('application/');
-      if (value === 'text') return record.mimeType?.startsWith('text/');
+      if (value === "dir") return record.isDir;
+      if (value === "image") return record.mimeType?.startsWith("image/");
+      if (value === "application")
+        return record.mimeType?.startsWith("application/");
+      if (value === "text") return record.mimeType?.startsWith("text/");
       return true;
     },
   },
-  { title: 'Size', dataIndex: 'size', key: 'size', align: 'right' as const, sorter: (a: FileEntry, b: FileEntry) => (a.size || 0) - (b.size || 0) },
-  { title: 'Modified', dataIndex: 'modTime', key: 'modTime', sorter: (a: FileEntry, b: FileEntry) => (a.modTime || '').localeCompare(b.modTime || '') },
-  { title: 'Action', key: 'action', width: 220, align: 'right' as const },
+  {
+    title: "Size",
+    dataIndex: "size",
+    key: "size",
+    align: "right" as const,
+    sorter: (a: FileEntry, b: FileEntry) => (a.size || 0) - (b.size || 0),
+  },
+  {
+    title: "Modified",
+    dataIndex: "modTime",
+    key: "modTime",
+    sorter: (a: FileEntry, b: FileEntry) =>
+      (a.modTime || "").localeCompare(b.modTime || ""),
+  },
+  { title: "Action", key: "action", width: 220, align: "right" as const },
 ];
 
 const fetchTags = async () => {
   try {
-    const res = await axios.get('/config/tags');
+    const res = await axios.get("/config/tags");
     tags.value = res.data;
   } catch (err) {}
 };
 
 const goUp = () => {
-  const parts = currentPath.value.split('/').filter(p => p);
+  const parts = currentPath.value.split("/").filter((p) => p);
   parts.pop();
-  const parent = '/' + parts.join('/');
-  void navigateToPath(parent || '/');
+  const parent = "/" + parts.join("/");
+  void navigateToPath(parent || "/");
 };
 
 const runEntryAction = async (entry: FileEntry) => {
   if (props.fileActionOnly && entry.isDir) {
-    message.warning('Select a file to continue');
+    message.warning("Select a file to continue");
     return;
   }
-  if (props.actionType === 'emit') {
-    emit('action', entry);
+  if (props.actionType === "emit") {
+    emit("action", entry);
     return;
   }
   try {
-    await axios.post('/config/paths', {
+    await axios.post("/config/paths", {
       path: entry.path,
       tag: selectedTag.value,
     });
     message.success(`Added ${entry.name} to tracking`);
   } catch (err) {
-    message.error('Failed to add path to rules');
+    message.error("Failed to add path to rules");
   }
 };
 
 const pathBreadcrumbs = computed(() => {
-  const parts = currentPath.value.split('/').filter(p => p);
-  const crumbs = [{ name: 'Root', path: '/' }];
-  let current = '';
-  parts.forEach(p => {
-    current += '/' + p;
+  const parts = currentPath.value.split("/").filter((p) => p);
+  const crumbs = [{ name: "Root", path: "/" }];
+  let current = "";
+  parts.forEach((p) => {
+    current += "/" + p;
     crumbs.push({ name: p, path: current });
   });
   return crumbs;
@@ -315,19 +347,22 @@ const handleEntryClick = async (entry: FileEntry) => {
 };
 
 const downloadFile = (path: string) => {
-  window.open(`/system/download?path=${encodeURIComponent(path)}`, '_blank');
+  window.open(`/system/download?path=${encodeURIComponent(path)}`, "_blank");
 };
 
 const handleUpload = async (info: any) => {
   const { file } = info;
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append("file", file);
   try {
-    await axios.post(`/system/upload?path=${encodeURIComponent(currentPath.value)}`, formData);
+    await axios.post(
+      `/system/upload?path=${encodeURIComponent(currentPath.value)}`,
+      formData,
+    );
     message.success(`File ${file.name} uploaded`);
     void fetchEntries(currentPath.value);
   } catch (err) {
-    message.error('Upload failed');
+    message.error("Upload failed");
   }
 };
 
@@ -353,24 +388,41 @@ onMounted(async () => {
     <div class="file-browser-header">
       <a-breadcrumb>
         <a-breadcrumb-item v-for="crumb in pathBreadcrumbs" :key="crumb.path">
-          <a @click.prevent="navigateToPath(crumb.path)" class="file-browser-breadcrumb">{{ crumb.name }}</a>
+          <a
+            @click.prevent="navigateToPath(crumb.path)"
+            class="file-browser-breadcrumb"
+            >{{ crumb.name }}</a
+          >
         </a-breadcrumb-item>
       </a-breadcrumb>
 
       <div class="file-browser-tools">
         <div v-if="viewMode === 'grid'" class="file-browser-size-control">
           <span>Size:</span>
-          <a-slider v-model:value="gridItemSize" :min="60" :max="240" :step="10" size="small" class="file-browser-size-slider" />
+          <a-slider
+            v-model:value="gridItemSize"
+            :min="60"
+            :max="240"
+            :step="10"
+            size="small"
+            class="file-browser-size-slider"
+          />
         </div>
 
         <a-radio-group v-model:value="viewMode" size="small">
-          <a-radio-button value="list"><UnorderedListOutlined /></a-radio-button>
+          <a-radio-button value="list"
+            ><UnorderedListOutlined
+          /></a-radio-button>
           <a-radio-button value="grid"><AppstoreOutlined /></a-radio-button>
         </a-radio-group>
 
         <a-divider v-if="showUpload" type="vertical" />
 
-        <a-upload v-if="showUpload" :customRequest="handleUpload" :showUploadList="false">
+        <a-upload
+          v-if="showUpload"
+          :customRequest="handleUpload"
+          :showUploadList="false"
+        >
           <a-button size="small"><UploadOutlined /> Upload</a-button>
         </a-upload>
 
@@ -388,7 +440,9 @@ onMounted(async () => {
           <a-divider type="vertical" />
           <span class="file-browser-track-label">Track as:</span>
           <a-select v-model:value="selectedTag" class="file-browser-tag-select">
-            <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</a-select-option>
+            <a-select-option v-for="tag in tags" :key="tag" :value="tag">{{
+              tag
+            }}</a-select-option>
           </a-select>
         </template>
       </div>
@@ -417,33 +471,64 @@ onMounted(async () => {
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
-            <div class="file-browser-name-cell" @click="handleEntryClick(record)">
-              <FolderOutlined v-if="record.isDir" class="file-browser-folder-icon" />
+            <div
+              class="file-browser-name-cell"
+              @click="handleEntryClick(record)"
+            >
+              <FolderOutlined
+                v-if="record.isDir"
+                class="file-browser-folder-icon"
+              />
               <div v-else-if="isImage(record)" class="file-browser-list-image">
                 <img :src="getImageUrl(record.path)" />
               </div>
               <FileOutlined v-else />
-              <span class="file-browser-entry-name" :class="{ 'is-dir': record.isDir }">{{ record.name }}</span>
+              <span
+                class="file-browser-entry-name"
+                :class="{ 'is-dir': record.isDir }"
+                >{{ record.name }}</span
+              >
             </div>
           </template>
           <template v-else-if="column.key === 'mimeType'">
-            <span class="file-browser-muted">{{ record.isDir ? 'Directory' : (record.mimeType || 'unknown') }}</span>
+            <span class="file-browser-muted">{{
+              record.isDir ? "Directory" : record.mimeType || "unknown"
+            }}</span>
           </template>
           <template v-else-if="column.key === 'size'">
-            <span class="file-browser-mono">{{ record.isDir ? '-' : formatBytes(record.size) }}</span>
+            <span class="file-browser-mono">{{
+              record.isDir ? "-" : formatBytes(record.size)
+            }}</span>
           </template>
           <template v-else-if="column.key === 'modTime'">
-            <span class="file-browser-muted">{{ formatTime(record.modTime) }}</span>
+            <span class="file-browser-muted">{{
+              formatTime(record.modTime)
+            }}</span>
           </template>
           <template v-else-if="column.key === 'action'">
             <div class="file-browser-actions">
-              <a-button v-if="!record.isDir" type="link" size="small" @click.stop="previewFile(record.path)">
+              <a-button
+                v-if="!record.isDir"
+                type="link"
+                size="small"
+                @click.stop="previewFile(record.path)"
+              >
                 <template #icon><EyeOutlined /></template>
               </a-button>
-              <a-button v-if="!record.isDir" type="link" size="small" @click.stop="downloadFile(record.path)">
+              <a-button
+                v-if="!record.isDir"
+                type="link"
+                size="small"
+                @click.stop="downloadFile(record.path)"
+              >
                 <template #icon><DownloadOutlined /></template>
               </a-button>
-              <a-button type="link" size="small" :disabled="fileActionOnly && record.isDir" @click.stop="runEntryAction(record)">
+              <a-button
+                type="link"
+                size="small"
+                :disabled="fileActionOnly && record.isDir"
+                @click.stop="runEntryAction(record)"
+              >
                 <template #icon><PlusOutlined /></template>
                 {{ actionLabel }}
               </a-button>
@@ -465,21 +550,60 @@ onMounted(async () => {
             @click="handleEntryClick(item)"
           >
             <div class="file-browser-grid-icon">
-              <FolderOutlined v-if="item.isDir" :style="{ fontSize: `${Math.floor(gridItemSize * 0.35)}px`, color: '#1890ff' }" />
-              <div v-else-if="isImage(item)" :style="{ width: `${Math.floor(gridItemSize * 0.5)}px`, height: `${Math.floor(gridItemSize * 0.5)}px` }" class="file-browser-grid-image">
+              <FolderOutlined
+                v-if="item.isDir"
+                :style="{
+                  fontSize: `${Math.floor(gridItemSize * 0.35)}px`,
+                  color: '#1890ff',
+                }"
+              />
+              <div
+                v-else-if="isImage(item)"
+                :style="{
+                  width: `${Math.floor(gridItemSize * 0.5)}px`,
+                  height: `${Math.floor(gridItemSize * 0.5)}px`,
+                }"
+                class="file-browser-grid-image"
+              >
                 <img :src="getImageUrl(item.path)" />
               </div>
-              <FileOutlined v-else :style="{ fontSize: `${Math.floor(gridItemSize * 0.35)}px`, color: '#666' }" />
+              <FileOutlined
+                v-else
+                :style="{
+                  fontSize: `${Math.floor(gridItemSize * 0.35)}px`,
+                  color: '#666',
+                }"
+              />
             </div>
-            <div class="file-browser-grid-name" :title="item.name" :style="{ fontSize: gridItemSize < 80 ? '10px' : '12px' }">{{ item.name }}</div>
+            <div
+              class="file-browser-grid-name"
+              :title="item.name"
+              :style="{ fontSize: gridItemSize < 80 ? '10px' : '12px' }"
+            >
+              {{ item.name }}
+            </div>
             <div class="file-browser-grid-actions">
               <a-dropdown>
-                <a-button type="text" size="small" @click.stop><PlusOutlined /></a-button>
+                <a-button type="text" size="small" @click.stop
+                  ><PlusOutlined
+                /></a-button>
                 <template #overlay>
                   <a-menu>
-                    <a-menu-item v-if="!item.isDir" @click="previewFile(item.path)">Preview</a-menu-item>
-                    <a-menu-item v-if="!item.isDir" @click="downloadFile(item.path)">Download</a-menu-item>
-                    <a-menu-item :disabled="fileActionOnly && item.isDir" @click="runEntryAction(item)">{{ actionLabel }}</a-menu-item>
+                    <a-menu-item
+                      v-if="!item.isDir"
+                      @click="previewFile(item.path)"
+                      >Preview</a-menu-item
+                    >
+                    <a-menu-item
+                      v-if="!item.isDir"
+                      @click="downloadFile(item.path)"
+                      >Download</a-menu-item
+                    >
+                    <a-menu-item
+                      :disabled="fileActionOnly && item.isDir"
+                      @click="runEntryAction(item)"
+                      >{{ actionLabel }}</a-menu-item
+                    >
                   </a-menu>
                 </template>
               </a-dropdown>

@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { VisualLogicNode, VisualLogicGroup, VisualCondition } from "./types";
+import type {
+  VisualLogicNode,
+  VisualLogicGroup,
+  VisualCondition,
+} from "./types";
 
 interface Props {
   logicRoot: VisualLogicGroup;
@@ -48,10 +52,10 @@ const logicGateLayout = computed(() => {
       leaf.operator === "=="
         ? "="
         : leaf.operator === "!="
-        ? "≠"
-        : leaf.operator === "starts_with"
-        ? "pref"
-        : "suff";
+          ? "≠"
+          : leaf.operator === "starts_with"
+            ? "pref"
+            : "suff";
     elements.push({
       id: leaf.id,
       type: "condition",
@@ -66,7 +70,10 @@ const logicGateLayout = computed(() => {
 
   const nodePositionMap = new Map<string, { x: number; y: number }>();
 
-  const positionNode = (node: VisualLogicNode, depth: number): { x: number; y: number } => {
+  const positionNode = (
+    node: VisualLogicNode,
+    depth: number,
+  ): { x: number; y: number } => {
     if (node.type === "CONDITION") {
       return leafMap.get(node.id) || { x: 8, y: 90 };
     }
@@ -100,8 +107,8 @@ const logicGateLayout = computed(() => {
 
     if (node.children && node.children.length > 0) {
       node.children.forEach((child) => {
-        const childPos =
-          nodePositionMap.get(child.id) || leafMap.get(child.id) || { x: 8, y: 90 };
+        const childPos = nodePositionMap.get(child.id) ||
+          leafMap.get(child.id) || { x: 8, y: 90 };
         const startX = childPos.x + (child.type === "CONDITION" ? 85 : 14);
         const startY = childPos.y;
         const endX = x - 14;
@@ -109,7 +116,9 @@ const logicGateLayout = computed(() => {
 
         const path = `M ${startX} ${startY} C ${startX + 15} ${startY}, ${endX - 15} ${endY}, ${endX} ${endY}`;
         const color =
-          node.type === "AND" ? "url(#wire-gradient-and)" : "url(#wire-gradient-or)";
+          node.type === "AND"
+            ? "url(#wire-gradient-and)"
+            : "url(#wire-gradient-or)";
         wires.push({ d: path, color });
       });
     }
@@ -124,18 +133,47 @@ const logicGateLayout = computed(() => {
 </script>
 
 <template>
-  <div style="font-size: 12px; font-weight: 600; color: #1677ff; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
+  <div
+    style="
+      font-size: 12px;
+      font-weight: 600;
+      color: #1677ff;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    "
+  >
     <span>逻辑拓扑树 (Logic Tree Gate)</span>
-    <a-tag size="small" color="orange" style="font-size: 10px; margin: 0; transform: scale(0.9);">Schematic</a-tag>
+    <a-tag
+      size="small"
+      color="orange"
+      style="font-size: 10px; margin: 0; transform: scale(0.9)"
+      >Schematic</a-tag
+    >
   </div>
-  
+
   <div class="logic-gate-canvas">
     <div class="logic-gate-grid"></div>
 
     <!-- SVG containing both dynamic bezier wires and gate/node elements -->
-    <svg class="logic-gate-wires" viewBox="0 0 200 180" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+    <svg
+      class="logic-gate-wires"
+      viewBox="0 0 200 180"
+      width="100%"
+      height="100%"
+      preserveAspectRatio="xMidYMid meet"
+    >
       <defs>
-        <linearGradient id="wire-gradient-and" x1="0%" y1="0%" x2="100%" y2="0%">
+        <linearGradient
+          id="wire-gradient-and"
+          x1="0%"
+          y1="0%"
+          x2="100%"
+          y2="0%"
+        >
           <stop offset="0%" stop-color="#1677ff" />
           <stop offset="100%" stop-color="#0958d9" />
         </linearGradient>
@@ -152,14 +190,14 @@ const logicGateLayout = computed(() => {
           <stop offset="100%" stop-color="#0958d9" />
         </radialGradient>
         <filter id="wire-glow">
-          <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+          <feGaussianBlur stdDeviation="1" result="coloredBlur" />
           <feMerge>
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
+            <feMergeNode in="coloredBlur" />
+            <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
       </defs>
-      
+
       <!-- Connections / Bezier wires -->
       <path
         v-for="(wire, idx) in logicGateLayout.wires"
@@ -186,9 +224,34 @@ const logicGateLayout = computed(() => {
             stroke="#d6e4ff"
             stroke-width="1"
           />
-          <text :x="elem.x + 4" :y="elem.y + 3" fill="#1677ff" font-size="7" font-family="monospace" font-weight="bold">{{ elem.field }}</text>
-          <text :x="elem.x + 45" :y="elem.y + 3" fill="#1677ff" font-size="7" font-family="monospace">{{ elem.op }}</text>
-          <text :x="elem.x + 58" :y="elem.y + 3" fill="#4096ff" font-size="7" font-family="monospace">{{ elem.value }}</text>
+          <text
+            :x="elem.x + 4"
+            :y="elem.y + 3"
+            fill="#1677ff"
+            font-size="7"
+            font-family="monospace"
+            font-weight="bold"
+          >
+            {{ elem.field }}
+          </text>
+          <text
+            :x="elem.x + 45"
+            :y="elem.y + 3"
+            fill="#1677ff"
+            font-size="7"
+            font-family="monospace"
+          >
+            {{ elem.op }}
+          </text>
+          <text
+            :x="elem.x + 58"
+            :y="elem.y + 3"
+            fill="#4096ff"
+            font-size="7"
+            font-family="monospace"
+          >
+            {{ elem.value }}
+          </text>
         </g>
 
         <!-- Gate Nodes -->
@@ -197,12 +260,35 @@ const logicGateLayout = computed(() => {
             :cx="elem.x"
             :cy="elem.y"
             r="13"
-            :fill="elem.label === 'AND' ? 'url(#gate-grad-and)' : 'url(#gate-grad-or)'"
+            :fill="
+              elem.label === 'AND'
+                ? 'url(#gate-grad-and)'
+                : 'url(#gate-grad-or)'
+            "
             :stroke="elem.label === 'AND' ? '#1677ff' : '#4096ff'"
             stroke-width="1.5"
           />
-          <text :x="elem.x" :y="elem.y - 1" text-anchor="middle" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold">{{ elem.label }}</text>
-          <text :x="elem.x" :y="elem.y + 7" text-anchor="middle" fill="#64748b" font-size="5" font-family="monospace">GATE</text>
+          <text
+            :x="elem.x"
+            :y="elem.y - 1"
+            text-anchor="middle"
+            fill="#ffffff"
+            font-size="8"
+            font-family="monospace"
+            font-weight="bold"
+          >
+            {{ elem.label }}
+          </text>
+          <text
+            :x="elem.x"
+            :y="elem.y + 7"
+            text-anchor="middle"
+            fill="#64748b"
+            font-size="5"
+            font-family="monospace"
+          >
+            GATE
+          </text>
         </g>
       </g>
     </svg>
@@ -226,7 +312,7 @@ const logicGateLayout = computed(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: 
+  background-image:
     linear-gradient(to right, rgba(22, 119, 255, 0.08) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(22, 119, 255, 0.08) 1px, transparent 1px);
   background-size: 15px 15px;

@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { ThunderboltOutlined, SafetyCertificateOutlined, AlertOutlined, CloseCircleOutlined } from "@ant-design/icons-vue";
+import {
+  ThunderboltOutlined,
+  SafetyCertificateOutlined,
+  AlertOutlined,
+  CloseCircleOutlined,
+} from "@ant-design/icons-vue";
 import PluginsVisualConditionTree from "./PluginsVisualConditionTree.vue";
 import PluginsVisualMapPanel from "./PluginsVisualMapPanel.vue";
 import PluginsVisualSchematic from "./PluginsVisualSchematic.vue";
@@ -74,14 +79,10 @@ const emit = defineEmits<{
       <div class="node-port port-output trigger-port"></div>
       <div class="block-header">
         <span class="block-badge">Block 1</span>
-        <strong style="color: #fff"
-          >防御拦截挂载点积木 (Trigger Block)</strong
-        >
+        <strong style="color: #fff">防御拦截挂载点积木 (Trigger Block)</strong>
       </div>
       <div class="block-body">
-        <div class="desc-line">
-          选择安全管控的内核底层事件拦截入口：
-        </div>
+        <div class="desc-line">选择安全管控的内核底层事件拦截入口：</div>
         <a-select
           :value="trigger"
           style="width: 100%"
@@ -92,10 +93,7 @@ const emit = defineEmits<{
             :key="opt.value"
             :value="opt.value"
           >
-            <component
-              :is="opt.icon"
-              :style="{ color: opt.color }"
-            />
+            <component :is="opt.icon" :style="{ color: opt.color }" />
             <span style="margin-left: 8px">{{ opt.label }}</span>
           </a-select-option>
         </a-select>
@@ -147,7 +145,10 @@ const emit = defineEmits<{
           </a-col>
           <a-col
             :span="9"
-            style="border-left: 1px dashed rgba(255, 255, 255, 0.1); padding-left: 16px"
+            style="
+              border-left: 1px dashed rgba(255, 255, 255, 0.1);
+              padding-left: 16px;
+            "
           >
             <PluginsVisualSchematic :logic-root="logicRoot" />
           </a-col>
@@ -188,9 +189,7 @@ const emit = defineEmits<{
       <div class="node-port port-input action-port-in"></div>
       <div class="block-header">
         <span class="block-badge" style="background: #1677ff">Block 3</span>
-        <strong style="color: #fff"
-          >安全管控响应积木 (Action Block)</strong
-        >
+        <strong style="color: #fff">安全管控响应积木 (Action Block)</strong>
       </div>
       <div class="block-body">
         <div class="desc-line">
@@ -229,9 +228,8 @@ const emit = defineEmits<{
           class="helper-text"
           style="color: #ad6800; margin-top: 8px"
         >
-          * 物理文件 unlink 挂载于 Kprobe
-          上，不改变内核决策链，仅支持 ALERT 或 KILL 动作。其他 LSM
-          挂载点支持完整的 BLOCK、ALERT 与 KILL 动作。
+          * 物理文件 unlink 挂载于 Kprobe 上，不改变内核决策链，仅支持 ALERT 或
+          KILL 动作。其他 LSM 挂载点支持完整的 BLOCK、ALERT 与 KILL 动作。
         </div>
       </div>
     </div>

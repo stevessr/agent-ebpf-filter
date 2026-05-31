@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { NavMenuGroup } from '../../types/navigation';
+import type { NavMenuGroup } from "../../types/navigation";
 
 const props = defineProps<{
   navGroups: NavMenuGroup[];
@@ -9,21 +9,21 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'update:collapsed': [value: boolean];
-  'update:openKeys': [keys: string[]];
+  "update:collapsed": [value: boolean];
+  "update:openKeys": [keys: string[]];
   select: [payload: { key: string }];
 }>();
 
 const handleCollapse = (value: boolean) => {
-  emit('update:collapsed', value);
+  emit("update:collapsed", value);
 };
 
 const handleOpenChange = (keys: unknown[]) => {
-  emit('update:openKeys', keys.map(String));
+  emit("update:openKeys", keys.map(String));
 };
 
 const handleSelect = ({ key }: { key: string | number }) => {
-  emit('select', { key: String(key) });
+  emit("select", { key: String(key) });
 };
 </script>
 

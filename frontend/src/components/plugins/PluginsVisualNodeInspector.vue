@@ -91,7 +91,10 @@ const descriptionModel = computed({
   set: (value: string) => emit("update:description", value),
 });
 
-const nodeCopy: Record<VisualFlowNodeId, { title: string; summary: string; icon: any }> = {
+const nodeCopy: Record<
+  VisualFlowNodeId,
+  { title: string; summary: string; icon: any }
+> = {
   trigger: {
     title: "Trigger Inspector",
     summary: "从画布直接切换内核挂载点，后续条件字段会按入口自动收敛。",
@@ -140,11 +143,15 @@ const conditionQuickActions: Array<{
 ];
 
 const selectedErrors = computed(() =>
-  props.validationIssues.filter((issue) => issue.severity === "error").slice(0, 3)
+  props.validationIssues
+    .filter((issue) => issue.severity === "error")
+    .slice(0, 3),
 );
 
 const selectedWarnings = computed(() =>
-  props.validationIssues.filter((issue) => issue.severity !== "error").slice(0, 2)
+  props.validationIssues
+    .filter((issue) => issue.severity !== "error")
+    .slice(0, 2),
 );
 
 const canUseSocketFields = computed(() => props.trigger === "socket_connect");
@@ -162,7 +169,7 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
         </div>
       </div>
       <a-tag :color="compileReady ? 'green' : 'red'">
-        {{ compileReady ? 'compile ready' : 'needs fix' }}
+        {{ compileReady ? "compile ready" : "needs fix" }}
       </a-tag>
     </div>
 
@@ -199,7 +206,11 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
           :key="item.value"
           type="button"
           class="quick-block"
-          :disabled="(item.value === 'port' || item.value === 'ipv4') && !canUseSocketFields || item.value === 'basename' && !canUseBasename"
+          :disabled="
+            ((item.value === 'port' || item.value === 'ipv4') &&
+              !canUseSocketFields) ||
+            (item.value === 'basename' && !canUseBasename)
+          "
           @click="emit('add-condition', item.value)"
         >
           <strong>{{ item.label }}</strong>
@@ -250,7 +261,11 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
     </div>
 
     <div v-else-if="selectedNodeId === 'action'" class="inspector-body">
-      <a-radio-group v-model:value="actionModel" button-style="solid" class="action-switch">
+      <a-radio-group
+        v-model:value="actionModel"
+        button-style="solid"
+        class="action-switch"
+      >
         <a-radio-button value="BLOCK" :disabled="trigger === 'unlink'">
           BLOCK
         </a-radio-button>
@@ -271,9 +286,15 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
       />
     </div>
 
-    <div v-else-if="selectedNodeId === 'code'" class="inspector-body code-summary">
+    <div
+      v-else-if="selectedNodeId === 'code'"
+      class="inspector-body code-summary"
+    >
       <a-statistic title="Generated C Lines" :value="codeLines" />
-      <p>右侧代码面板会随积木实时刷新；编译失败时可先检查这里生成的条件表达式与 Map 查表逻辑。</p>
+      <p>
+        右侧代码面板会随积木实时刷新；编译失败时可先检查这里生成的条件表达式与
+        Map 查表逻辑。
+      </p>
     </div>
 
     <div v-else class="inspector-body">
@@ -290,13 +311,24 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
       </a-form>
       <div class="compile-footer">
         <div class="issue-list">
-          <div v-for="issue in selectedErrors" :key="issue.id" class="issue error">
+          <div
+            v-for="issue in selectedErrors"
+            :key="issue.id"
+            class="issue error"
+          >
             {{ issue.title }}
           </div>
-          <div v-for="issue in selectedWarnings" :key="issue.id" class="issue warning">
+          <div
+            v-for="issue in selectedWarnings"
+            :key="issue.id"
+            class="issue warning"
+          >
             {{ issue.title }}
           </div>
-          <div v-if="selectedErrors.length === 0 && selectedWarnings.length === 0" class="issue ok">
+          <div
+            v-if="selectedErrors.length === 0 && selectedWarnings.length === 0"
+            class="issue ok"
+          >
             当前积木配置通过编译前验证。
           </div>
         </div>
@@ -387,7 +419,9 @@ const canUseBasename = computed(() => props.trigger !== "unlink");
   background: #ffffff;
   color: #0f172a;
   cursor: pointer;
-  transition: border-color 0.18s ease, transform 0.18s ease;
+  transition:
+    border-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .quick-block:hover:not(:disabled) {

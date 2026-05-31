@@ -1,11 +1,14 @@
-import type * as d3 from 'd3';
-import type { ExecutionGraphEdge, ExecutionGraphNode } from '../../types/executionGraph';
+import type * as d3 from "d3";
+import type {
+  ExecutionGraphEdge,
+  ExecutionGraphNode,
+} from "../../types/executionGraph";
 import {
   activityEdgeKinds,
   processDisplayLabel,
   processSortValue,
   processTreeEdgeKinds,
-} from './useExecutionGraphHelpers';
+} from "./useExecutionGraphHelpers";
 
 export interface ForceNode extends d3.SimulationNodeDatum, ExecutionGraphNode {
   positionLocked?: boolean;
@@ -34,59 +37,69 @@ const stableHash = (value: string) => {
 
 const kindColumnRatio = (kind: string) => {
   switch (kind) {
-    case 'agent_run':
+    case "agent_run":
       return 0.12;
-    case 'tool_call':
+    case "tool_call":
       return 0.22;
-    case 'process':
+    case "process":
       return 0.28;
-    case 'syscall':
-    case 'wrapper_event':
-    case 'hook_event':
+    case "syscall":
+    case "wrapper_event":
+    case "hook_event":
       return 0.52;
-    case 'policy_alert':
-    case 'policy_decision':
-    case 'exit_status':
+    case "policy_alert":
+    case "policy_decision":
+    case "exit_status":
       return 0.64;
-    case 'file':
+    case "file":
       return 0.78;
-    case 'network':
+    case "network":
       return 0.88;
     default:
       return 0.5;
   }
 };
 
-const stableInitialPosition = (node: ExecutionGraphNode, width: number, height: number) => {
-  const hash = stableHash(`${node.kind}:${node.metadata?.sourceNodeId ?? node.id}:${node.label}`);
+const stableInitialPosition = (
+  node: ExecutionGraphNode,
+  width: number,
+  height: number,
+) => {
+  const hash = stableHash(
+    `${node.kind}:${node.metadata?.sourceNodeId ?? node.id}:${node.label}`,
+  );
   const columnJitter = ((hash & 0xff) / 255 - 0.5) * 64;
   const rowRatio = ((hash >>> 8) % 1000) / 999;
   const topPadding = 72;
   const bottomPadding = 72;
   return {
-    x: Math.max(48, Math.min(width - 48, width * kindColumnRatio(node.kind) + columnJitter)),
+    x: Math.max(
+      48,
+      Math.min(width - 48, width * kindColumnRatio(node.kind) + columnJitter),
+    ),
     y: topPadding + rowRatio * Math.max(1, height - topPadding - bottomPadding),
   };
 };
 
 const processPid = (node: ExecutionGraphNode) => {
-  if (node.kind !== 'process') return '';
-  const explicitPid = String(node.metadata?.pid ?? node.pid ?? '').trim();
+  if (node.kind !== "process") return "";
+  const explicitPid = String(node.metadata?.pid ?? node.pid ?? "").trim();
   if (explicitPid) return explicitPid;
   const idMatch = /^proc:(\d+)$/.exec(node.id.trim());
   if (idMatch) return idMatch[1];
   const labelMatch = /^pid\s+(\d+)$/i.exec(node.label.trim());
-  return labelMatch?.[1] ?? '';
+  return labelMatch?.[1] ?? "";
 };
 
-const isPidOnlyProcessNode = (node: ExecutionGraphNode) => /^pid\s+\d+$/i.test(node.label.trim());
+const isPidOnlyProcessNode = (node: ExecutionGraphNode) =>
+  /^pid\s+\d+$/i.test(node.label.trim());
 
 const processProgramKey = (node: ExecutionGraphNode) => {
-  if (node.kind !== 'process' || isPidOnlyProcessNode(node)) return '';
+  if (node.kind !== "process" || isPidOnlyProcessNode(node)) return "";
   const comm = node.metadata?.comm?.trim();
-  const label = node.label.trim().replace(/\s*\(\d+\)$/, '');
+  const label = node.label.trim().replace(/\s*\(\d+\)$/, "");
   const key = (comm || label).trim().toLowerCase();
-  return key && key !== 'process' ? `program:${key}` : '';
+  return key && key !== "process" ? `program:${key}` : "";
 };
 
 const formatProcessNode = (node: ExecutionGraphNode): ExecutionGraphNode => {
@@ -101,8 +114,15 @@ const formatProcessNode = (node: ExecutionGraphNode): ExecutionGraphNode => {
   };
 };
 
-const mergeProcessNode = (current: ExecutionGraphNode | undefined, next: ExecutionGraphNode): ExecutionGraphNode => {
-  if (!current) return formatProcessNode({ ...next, metadata: next.metadata ? { ...next.metadata } : undefined });
+const mergeProcessNode = (
+  current: ExecutionGraphNode | undefined,
+  next: ExecutionGraphNode,
+): ExecutionGraphNode => {
+  if (!current)
+    return formatProcessNode({
+      ...next,
+      metadata: next.metadata ? { ...next.metadata } : undefined,
+    });
   const currentPidOnly = isPidOnlyProcessNode(current);
   const nextPidOnly = isPidOnlyProcessNode(next);
   const winner = currentPidOnly && !nextPidOnly ? next : current;
@@ -112,8 +132,16 @@ const mergeProcessNode = (current: ExecutionGraphNode | undefined, next: Executi
   if (pid) metadata.pid = pid;
   const subtitleParts = [winner.subtitle, fallback.subtitle]
     .map((value) => value?.trim())
-    .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index);
-  const label = processDisplayLabel({ ...winner, metadata, pid: winner.pid || fallback.pid }) || winner.label;
+    .filter(
+      (value, index, values): value is string =>
+        Boolean(value) && values.indexOf(value) === index,
+    );
+  const label =
+    processDisplayLabel({
+      ...winner,
+      metadata,
+      pid: winner.pid || fallback.pid,
+    }) || winner.label;
   return {
     ...fallback,
     ...winner,
@@ -121,7 +149,8 @@ const mergeProcessNode = (current: ExecutionGraphNode | undefined, next: Executi
     label,
     subtitle: subtitleParts[0] ?? (pid ? `pid=${pid}` : winner.subtitle),
     pid: winner.pid || fallback.pid,
-    riskScore: Math.max(winner.riskScore ?? 0, fallback.riskScore ?? 0) || undefined,
+    riskScore:
+      Math.max(winner.riskScore ?? 0, fallback.riskScore ?? 0) || undefined,
     metadata,
   };
 };
@@ -136,7 +165,7 @@ const normalizeProcessNodes = (
   const normalizedNodes: ExecutionGraphNode[] = [];
 
   nodes.forEach((node) => {
-    if (node.kind !== 'process') {
+    if (node.kind !== "process") {
       normalizedNodes.push(node);
       return;
     }
@@ -147,23 +176,30 @@ const normalizeProcessNodes = (
   });
 
   nodes.forEach((node) => {
-    if (node.kind !== 'process' || isPidOnlyProcessNode(node)) return;
+    if (node.kind !== "process" || isPidOnlyProcessNode(node)) return;
     const key = processProgramKey(node) || `pid:${processPid(node) || node.id}`;
     const canonical = processByProgram.get(key);
     if (canonical) canonicalIdBySourceId.set(node.id, canonical.id);
   });
 
   nodes.forEach((node) => {
-    if (node.kind !== 'process' || !isPidOnlyProcessNode(node)) return;
+    if (node.kind !== "process" || !isPidOnlyProcessNode(node)) return;
     const adjacentProcessId = edges
       .filter((edge) => edge.source === node.id || edge.target === node.id)
       .map((edge) => (edge.source === node.id ? edge.target : edge.source))
       .find((id) => {
         const adjacent = nodeById.get(id);
-        return adjacent?.kind === 'process' && !isPidOnlyProcessNode(adjacent) && canonicalIdBySourceId.has(adjacent.id);
+        return (
+          adjacent?.kind === "process" &&
+          !isPidOnlyProcessNode(adjacent) &&
+          canonicalIdBySourceId.has(adjacent.id)
+        );
       });
     if (adjacentProcessId) {
-      canonicalIdBySourceId.set(node.id, canonicalIdBySourceId.get(adjacentProcessId) ?? adjacentProcessId);
+      canonicalIdBySourceId.set(
+        node.id,
+        canonicalIdBySourceId.get(adjacentProcessId) ?? adjacentProcessId,
+      );
       return;
     }
     const fallback = formatProcessNode(node);
@@ -193,13 +229,15 @@ export const buildDisplayGraph = (
   rawEdges: ExecutionGraphEdge[],
 ): DisplayGraph => {
   const normalizedGraph = normalizeProcessNodes(rawNodes, rawEdges);
-  const sourceNodes = new Map(normalizedGraph.nodes.map((node) => [node.id, node]));
+  const sourceNodes = new Map(
+    normalizedGraph.nodes.map((node) => [node.id, node]),
+  );
   const eventToProcess = new Map<string, string>();
   normalizedGraph.edges.forEach((edge) => {
     if (!activityEdgeKinds.has(edge.kind)) return;
     const source = sourceNodes.get(edge.source);
     const target = sourceNodes.get(edge.target);
-    if (source?.kind === 'process' && target && target.kind !== 'process')
+    if (source?.kind === "process" && target && target.kind !== "process")
       eventToProcess.set(target.id, source.id);
   });
 
@@ -219,7 +257,10 @@ export const buildDisplayGraph = (
     if (existing) {
       existing.eventIds.push(node.id);
       existing.sourceIds.push(node.id);
-      existing.node.riskScore = Math.max(existing.node.riskScore ?? 0, node.riskScore ?? 0);
+      existing.node.riskScore = Math.max(
+        existing.node.riskScore ?? 0,
+        node.riskScore ?? 0,
+      );
       return;
     }
     const aggregateId = `agg:${processId}:${node.kind}:${eventType}`;
@@ -230,11 +271,11 @@ export const buildDisplayGraph = (
         ...node,
         id: aggregateId,
         label: pLabel ? `${pLabel} · ${eventType}` : eventType,
-        subtitle: [pLabel, node.subtitle].filter(Boolean).join(' · '),
+        subtitle: [pLabel, node.subtitle].filter(Boolean).join(" · "),
         metadata: {
           ...(node.metadata ?? {}),
           sourceNodeId: node.id,
-          eventCount: '1',
+          eventCount: "1",
         },
       },
     });
@@ -245,7 +286,7 @@ export const buildDisplayGraph = (
     eventIds.forEach((id) => aggregateIdByEventId.set(id, node.id));
     if (eventIds.length <= 1) return;
     node.label = `${node.label} ×${eventIds.length}`;
-    node.subtitle = `${node.subtitle || 'events'} · ${eventIds.length} events`;
+    node.subtitle = `${node.subtitle || "events"} · ${eventIds.length} events`;
     node.metadata = {
       ...(node.metadata ?? {}),
       sourceNodeId: sourceIds[0],
@@ -254,7 +295,9 @@ export const buildDisplayGraph = (
   });
 
   const displayNodes = normalizedGraph.nodes
-    .filter((node) => node.kind === 'process' || !aggregateIdByEventId.has(node.id))
+    .filter(
+      (node) => node.kind === "process" || !aggregateIdByEventId.has(node.id),
+    )
     .concat([...aggregateByKey.values()].map((item) => item.node));
   const displayNodeIds = new Set(displayNodes.map((node) => node.id));
   const edgeById = new Map<string, ExecutionGraphEdge>();
@@ -337,14 +380,18 @@ export const applyProcessTreeLayout = (
 
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const processNodeIds = new Set(
-    nodes.filter((node) => node.kind === 'process').map((node) => node.id),
+    nodes.filter((node) => node.kind === "process").map((node) => node.id),
   );
   const children = new Map<string, string[]>();
   const incoming = new Set<string>();
   processLinks.forEach((link) => {
     const source = String(link.source);
     const target = String(link.target);
-    if (!processNodeIds.has(source) || !processNodeIds.has(target) || source === target)
+    if (
+      !processNodeIds.has(source) ||
+      !processNodeIds.has(target) ||
+      source === target
+    )
       return;
     const list = children.get(source) ?? [];
     if (!list.includes(target)) list.push(target);
@@ -420,7 +467,10 @@ export const applyProcessTreeLayout = (
   const slotCount = Math.max(1, nextSlot);
   const rowGap = Math.max(
     64,
-    Math.min(128, (height - topPadding - bottomPadding) / Math.max(1, slotCount - 1)),
+    Math.min(
+      128,
+      (height - topPadding - bottomPadding) / Math.max(1, slotCount - 1),
+    ),
   );
   const totalTreeHeight = (slotCount - 1) * rowGap;
   const verticalOffset = Math.max(topPadding, (height - totalTreeHeight) / 2);
@@ -429,7 +479,13 @@ export const applyProcessTreeLayout = (
     const node = nodeById.get(id);
     const level = levels.get(id);
     const slot = ySlots.get(id);
-    if (!node || level === undefined || slot === undefined || node.positionLocked) return;
+    if (
+      !node ||
+      level === undefined ||
+      slot === undefined ||
+      node.positionLocked
+    )
+      return;
     node.fx = leftPadding + level * levelGap;
     node.fy = verticalOffset + slot * rowGap;
   });
@@ -447,12 +503,15 @@ export const createTopologyKey = (
     width,
     height,
     displayGraph.nodes
-      .map((node) => `${node.id}:${node.kind}:${node.label}:${node.subtitle ?? ''}`)
-      .join(''),
+      .map(
+        (node) =>
+          `${node.id}:${node.kind}:${node.label}:${node.subtitle ?? ""}`,
+      )
+      .join(""),
     displayGraph.edges
       .map(
         (edge) =>
-          `${edge.id}:${edge.source}:${edge.target}:${edge.kind}:${edge.label ?? ''}`,
+          `${edge.id}:${edge.source}:${edge.target}:${edge.kind}:${edge.label ?? ""}`,
       )
-      .join(''),
-  ].join('');
+      .join(""),
+  ].join("");

@@ -60,7 +60,7 @@ const normalizeField = (field: string): VisualConditionField =>
 export const createPseudoSeedSnapshot = (
   pluginId = "ts-pseudocode-filter",
   pluginName = "TS 伪代码插件",
-  description = "由独立 TS 伪代码工作区生成的 eBPF 过滤审计插件。"
+  description = "由独立 TS 伪代码工作区生成的 eBPF 过滤审计插件。",
 ): VisualWorkspaceSnapshot => ({
   version: 1,
   trigger: "process",
@@ -92,10 +92,10 @@ export const createPseudoSeedSnapshot = (
  */
 export const pseudoCodeToBpfSnapshot = (
   code: string,
-  seedSnapshot: VisualWorkspaceSnapshot
+  seedSnapshot: VisualWorkspaceSnapshot,
 ): VisualWorkspaceSnapshot => {
   const result: VisualWorkspaceSnapshot = JSON.parse(
-    JSON.stringify(seedSnapshot)
+    JSON.stringify(seedSnapshot),
   ) as VisualWorkspaceSnapshot;
   let idCounter = 0;
   const nextId = (prefix: string) => `${prefix}-${++idCounter}`;
@@ -116,7 +116,7 @@ export const pseudoCodeToBpfSnapshot = (
   if (code.includes("Maps.createCounter")) {
     result.mapMode = "COUNTER";
     const keyMatch = code.match(
-      /Maps\.createCounter\(\{\s*key:\s*["'](\w+)["']/
+      /Maps\.createCounter\(\{\s*key:\s*["'](\w+)["']/,
     );
     if (keyMatch?.[1] && isMapKey(keyMatch[1])) result.mapKey = keyMatch[1];
     const limitMatch = code.match(/limit:\s*(\d+)/);
@@ -124,7 +124,7 @@ export const pseudoCodeToBpfSnapshot = (
   } else if (code.includes("Maps.createBlocklist")) {
     result.mapMode = "BLOCKLIST";
     const keyMatch = code.match(
-      /Maps\.createBlocklist\(\{\s*key:\s*["'](\w+)["']/
+      /Maps\.createBlocklist\(\{\s*key:\s*["'](\w+)["']/,
     );
     if (keyMatch?.[1] && isMapKey(keyMatch[1])) result.mapKey = keyMatch[1];
   } else {

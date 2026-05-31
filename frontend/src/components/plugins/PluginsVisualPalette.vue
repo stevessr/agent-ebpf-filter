@@ -4,7 +4,10 @@ import { triggerOptions, fieldOptions } from "./constants";
 
 const handleDragStart = (event: DragEvent, category: string, value: string) => {
   if (event.dataTransfer) {
-    event.dataTransfer.setData("text/plain", JSON.stringify({ category, value }));
+    event.dataTransfer.setData(
+      "text/plain",
+      JSON.stringify({ category, value }),
+    );
     event.dataTransfer.effectAllowed = "move";
   }
 };
@@ -19,7 +22,7 @@ const handleDragStart = (event: DragEvent, category: string, value: string) => {
     <div class="palette-desc">
       拖拽下列组件到右侧画布即可快速拼接 eBPF 过滤流。
     </div>
-    
+
     <!-- Category 1: Trigger Hooks -->
     <div class="palette-category">
       <div class="category-title">事件触发器 (Triggers)</div>
@@ -31,7 +34,10 @@ const handleDragStart = (event: DragEvent, category: string, value: string) => {
           draggable="true"
           @dragstart="handleDragStart($event, 'trigger', opt.value)"
         >
-          <component :is="opt.icon" :style="{ color: '#1890ff', marginRight: '6px' }" />
+          <component
+            :is="opt.icon"
+            :style="{ color: '#1890ff', marginRight: '6px' }"
+          />
           <span class="item-text" :title="opt.label">{{ opt.value }}</span>
         </div>
       </div>
@@ -60,20 +66,26 @@ const handleDragStart = (event: DragEvent, category: string, value: string) => {
       <div class="palette-items">
         <div
           class="palette-item item-group-and"
-          style="border-left: 3px solid #1890ff;"
+          style="border-left: 3px solid #1890ff"
           draggable="true"
           @dragstart="handleDragStart($event, 'logic_group', 'AND')"
         >
-          <span class="item-dot" style="background: #1890ff; box-shadow: 0 0 6px #1890ff;"></span>
+          <span
+            class="item-dot"
+            style="background: #1890ff; box-shadow: 0 0 6px #1890ff"
+          ></span>
           <span class="item-text" title="且运算组 (AND Group)">AND Group</span>
         </div>
         <div
           class="palette-item item-group-or"
-          style="border-left: 3px solid #eb2f96;"
+          style="border-left: 3px solid #eb2f96"
           draggable="true"
           @dragstart="handleDragStart($event, 'logic_group', 'OR')"
         >
-          <span class="item-dot" style="background: #eb2f96; box-shadow: 0 0 6px #eb2f96;"></span>
+          <span
+            class="item-dot"
+            style="background: #eb2f96; box-shadow: 0 0 6px #eb2f96"
+          ></span>
           <span class="item-text" title="或运算组 (OR Group)">OR Group</span>
         </div>
       </div>
@@ -97,7 +109,9 @@ const handleDragStart = (event: DragEvent, category: string, value: string) => {
           @dragstart="handleDragStart($event, 'map', 'BLOCKLIST')"
         >
           <span class="item-dot map-dot"></span>
-          <span class="item-text" title="黑名单判定 (BLOCKLIST)">BLOCKLIST</span>
+          <span class="item-text" title="黑名单判定 (BLOCKLIST)"
+            >BLOCKLIST</span
+          >
         </div>
         <div
           class="palette-item item-map"

@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { EyeOutlined, FolderOpenOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
+import {
+  EyeOutlined,
+  FolderOpenOutlined,
+  InfoCircleOutlined,
+} from "@ant-design/icons-vue";
 
-import FilePreviewDrawer from '../../components/explorer/FilePreviewDrawer.vue';
-import DashboardToolbar from '../../components/dashboard/DashboardToolbar.vue';
-import DashboardEventModal from '../../components/dashboard/DashboardEventModal.vue';
-import { useDashboard } from '../../composables/dashboard/useDashboard';
+import FilePreviewDrawer from "../../components/explorer/FilePreviewDrawer.vue";
+import DashboardToolbar from "../../components/dashboard/DashboardToolbar.vue";
+import DashboardEventModal from "../../components/dashboard/DashboardEventModal.vue";
+import { useDashboard } from "../../composables/dashboard/useDashboard";
 
 const {
   events,
@@ -110,31 +114,55 @@ void tableWrapperRef;
     />
 
     <div v-if="activeTab === 'network'" class="net-dir-bar">
-      <span style="font-weight: 600; margin-right: 8px; color: #555;">Direction:</span>
+      <span style="font-weight: 600; margin-right: 8px; color: #555"
+        >Direction:</span
+      >
       <a-tag
-        v-for="d in ['outgoing','incoming','listening','unknown']" :key="d"
+        v-for="d in ['outgoing', 'incoming', 'listening', 'unknown']"
+        :key="d"
         :color="netDirFilter === d ? 'blue' : 'default'"
-        style="cursor: pointer;"
+        style="cursor: pointer"
         @click="netDirFilter = netDirFilter === d ? 'all' : d"
       >
-        {{ d === 'unknown' ? 'Unknown' : d.charAt(0).toUpperCase() + d.slice(1) }}
-        <span style="margin-left: 2px; font-weight: 600;">{{ (networkDirStats as any)[d] }}</span>
+        {{
+          d === "unknown" ? "Unknown" : d.charAt(0).toUpperCase() + d.slice(1)
+        }}
+        <span style="margin-left: 2px; font-weight: 600">{{
+          (networkDirStats as any)[d]
+        }}</span>
       </a-tag>
-      <a-tag v-if="netDirFilter !== 'all'" color="red" style="cursor: pointer;" @click="netDirFilter = 'all'">✕ Clear</a-tag>
+      <a-tag
+        v-if="netDirFilter !== 'all'"
+        color="red"
+        style="cursor: pointer"
+        @click="netDirFilter = 'all'"
+        >✕ Clear</a-tag
+      >
     </div>
 
     <div v-if="activeTab === 'syscall'" class="net-dir-bar">
-      <span style="font-weight: 600; margin-right: 8px; color: #555;">Category:</span>
+      <span style="font-weight: 600; margin-right: 8px; color: #555"
+        >Category:</span
+      >
       <a-tag
-        v-for="cat in Object.keys(syscallCatLabels)" :key="cat"
+        v-for="cat in Object.keys(syscallCatLabels)"
+        :key="cat"
         :color="syscallCatFilter === cat ? syscallCatColors[cat] : 'default'"
-        style="cursor: pointer;"
+        style="cursor: pointer"
         @click="syscallCatFilter = syscallCatFilter === cat ? 'all' : cat"
       >
         {{ syscallCatLabels[cat] }}
-        <span style="margin-left: 2px; font-weight: 600;">{{ syscallCatStats[cat] || 0 }}</span>
+        <span style="margin-left: 2px; font-weight: 600">{{
+          syscallCatStats[cat] || 0
+        }}</span>
       </a-tag>
-      <a-tag v-if="syscallCatFilter !== 'all'" color="red" style="cursor: pointer;" @click="syscallCatFilter = 'all'">✕ Clear</a-tag>
+      <a-tag
+        v-if="syscallCatFilter !== 'all'"
+        color="red"
+        style="cursor: pointer"
+        @click="syscallCatFilter = 'all'"
+        >✕ Clear</a-tag
+      >
     </div>
 
     <div ref="tableWrapperRef" class="dashboard-table-wrap">
@@ -148,156 +176,190 @@ void tableWrapperRef;
         :tableLayout="'fixed'"
         @change="handleTableChange"
       >
-      <template #headerCell="{ column }">
-        <div class="excel-header-cell">
-          <span class="excel-header-title">{{ column.title }}</span>
-          <div class="excel-header-actions">
-            <a-popover
-              v-if="hasHeaderFilter(column.key)"
-              trigger="click"
-              placement="bottomRight"
-              :arrow="false"
-              :open="activeHeaderFilter === column.key"
-              overlay-class-name="excel-filter-popover"
-            >
-              <template #content>
-                <div
-                  class="excel-filter-dropdown"
-                  :class="{ 'excel-filter-dropdown--wide': column.key === 'tag' || column.key === 'type' }"
-                  @mousedown.stop
-                  @click.stop
-                >
-                  <div class="excel-filter-dropdown-title">
-                    {{ column.title }} Filter
-                  </div>
-                  <template v-if="column.key === 'time'">
-                    <a-input
-                      v-model:value="timeFilter"
-                      placeholder="Search time..."
-                      size="small"
-                      allow-clear
-                    />
-                  </template>
-                  <template v-else-if="column.key === 'tag'">
-                    <a-select
-                      v-model:value="selectedTags"
-                      mode="multiple"
-                      placeholder="All Tags"
-                      size="small"
-                      allow-clear
-                      show-search
-                      :options="tagOptions"
-                      option-filter-prop="label"
-                      :get-popup-container="getFilterPopupContainer"
-                      style="width: 100%;"
-                    />
-                  </template>
-                  <template v-else-if="column.key === 'pid'">
-                    <a-input
-                      v-model:value="pidFilter"
-                      placeholder="PID contains..."
-                      size="small"
-                      allow-clear
-                    />
-                  </template>
-                  <template v-else-if="column.key === 'comm'">
-                    <a-input
-                      v-model:value="commandFilter"
-                      placeholder="Command contains..."
-                      size="small"
-                      allow-clear
-                    />
-                  </template>
-                  <template v-else-if="column.key === 'type'">
-                    <a-select
-                      v-model:value="selectedTypes"
-                      mode="multiple"
-                      placeholder="All Types"
-                      size="small"
-                      allow-clear
-                      show-search
-                      :options="eventTypeOptions"
-                      option-filter-prop="label"
-                      :get-popup-container="getFilterPopupContainer"
-                      style="width: 100%;"
-                    />
-                  </template>
-                  <template v-else-if="column.key === 'path'">
-                    <a-input
-                      v-model:value="pathFilter"
-                      placeholder="Path contains..."
-                      size="small"
-                      allow-clear
-                    />
-                  </template>
-
-                  <div class="excel-filter-dropdown-actions">
-                    <a-button size="small" :disabled="!isHeaderFilterActive(column.key)" @click="clearHeaderFilter(column.key)">
-                      Clear
-                    </a-button>
-                  </div>
-                </div>
-              </template>
-              <a-button
-                type="text"
-                size="small"
-                class="excel-header-filter-trigger"
-                :class="{ active: isHeaderFilterActive(column.key) }"
-                @click.stop="toggleHeaderFilter(column.key)"
+        <template #headerCell="{ column }">
+          <div class="excel-header-cell">
+            <span class="excel-header-title">{{ column.title }}</span>
+            <div class="excel-header-actions">
+              <a-popover
+                v-if="hasHeaderFilter(column.key)"
+                trigger="click"
+                placement="bottomRight"
+                :arrow="false"
+                :open="activeHeaderFilter === column.key"
+                overlay-class-name="excel-filter-popover"
               >
-                <template #icon><FilterOutlined /></template>
-              </a-button>
-            </a-popover>
-            <span
-              v-if="isResizableColumn(column.key)"
-              class="excel-column-resizer"
-              title="Drag to resize"
-              @mousedown.stop.prevent="startColumnResize(column.key, $event)"
-            />
+                <template #content>
+                  <div
+                    class="excel-filter-dropdown"
+                    :class="{
+                      'excel-filter-dropdown--wide':
+                        column.key === 'tag' || column.key === 'type',
+                    }"
+                    @mousedown.stop
+                    @click.stop
+                  >
+                    <div class="excel-filter-dropdown-title">
+                      {{ column.title }} Filter
+                    </div>
+                    <template v-if="column.key === 'time'">
+                      <a-input
+                        v-model:value="timeFilter"
+                        placeholder="Search time..."
+                        size="small"
+                        allow-clear
+                      />
+                    </template>
+                    <template v-else-if="column.key === 'tag'">
+                      <a-select
+                        v-model:value="selectedTags"
+                        mode="multiple"
+                        placeholder="All Tags"
+                        size="small"
+                        allow-clear
+                        show-search
+                        :options="tagOptions"
+                        option-filter-prop="label"
+                        :get-popup-container="getFilterPopupContainer"
+                        style="width: 100%"
+                      />
+                    </template>
+                    <template v-else-if="column.key === 'pid'">
+                      <a-input
+                        v-model:value="pidFilter"
+                        placeholder="PID contains..."
+                        size="small"
+                        allow-clear
+                      />
+                    </template>
+                    <template v-else-if="column.key === 'comm'">
+                      <a-input
+                        v-model:value="commandFilter"
+                        placeholder="Command contains..."
+                        size="small"
+                        allow-clear
+                      />
+                    </template>
+                    <template v-else-if="column.key === 'type'">
+                      <a-select
+                        v-model:value="selectedTypes"
+                        mode="multiple"
+                        placeholder="All Types"
+                        size="small"
+                        allow-clear
+                        show-search
+                        :options="eventTypeOptions"
+                        option-filter-prop="label"
+                        :get-popup-container="getFilterPopupContainer"
+                        style="width: 100%"
+                      />
+                    </template>
+                    <template v-else-if="column.key === 'path'">
+                      <a-input
+                        v-model:value="pathFilter"
+                        placeholder="Path contains..."
+                        size="small"
+                        allow-clear
+                      />
+                    </template>
+
+                    <div class="excel-filter-dropdown-actions">
+                      <a-button
+                        size="small"
+                        :disabled="!isHeaderFilterActive(column.key)"
+                        @click="clearHeaderFilter(column.key)"
+                      >
+                        Clear
+                      </a-button>
+                    </div>
+                  </div>
+                </template>
+                <a-button
+                  type="text"
+                  size="small"
+                  class="excel-header-filter-trigger"
+                  :class="{ active: isHeaderFilterActive(column.key) }"
+                  @click.stop="toggleHeaderFilter(column.key)"
+                >
+                  <template #icon><FilterOutlined /></template>
+                </a-button>
+              </a-popover>
+              <span
+                v-if="isResizableColumn(column.key)"
+                class="excel-column-resizer"
+                title="Drag to resize"
+                @mousedown.stop.prevent="startColumnResize(column.key, $event)"
+              />
+            </div>
           </div>
-        </div>
-      </template>
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'type'">
-          <div class="excel-type-cell">
-            <a-tag :color="getTagColor(record.eventType, record.type)">
-              {{ record.type === 'syscall' && syscallDisplayName(record.extraInfo) ? syscallDisplayName(record.extraInfo) : record.type.toUpperCase() }}
-            </a-tag>
-            <a-tag v-if="(record.occurrenceCount ?? 1) > 1" color="blue" class="excel-occurrence-tag">
-              ×{{ record.occurrenceCount }}
-            </a-tag>
-          </div>
         </template>
-        <template v-if="column.key === 'tag'">
-          <a-tag :color="getCategoryColor(record.tag)">{{ record.tag }}</a-tag>
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'type'">
+            <div class="excel-type-cell">
+              <a-tag :color="getTagColor(record.eventType, record.type)">
+                {{
+                  record.type === "syscall" &&
+                  syscallDisplayName(record.extraInfo)
+                    ? syscallDisplayName(record.extraInfo)
+                    : record.type.toUpperCase()
+                }}
+              </a-tag>
+              <a-tag
+                v-if="(record.occurrenceCount ?? 1) > 1"
+                color="blue"
+                class="excel-occurrence-tag"
+              >
+                ×{{ record.occurrenceCount }}
+              </a-tag>
+            </div>
+          </template>
+          <template v-if="column.key === 'tag'">
+            <a-tag :color="getCategoryColor(record.tag)">{{
+              record.tag
+            }}</a-tag>
+          </template>
+          <template v-if="column.key === 'path'">
+            <div class="excel-path-cell">
+              <a-typography-text
+                class="excel-path-text"
+                :style="{
+                  cursor: canInteractWithPath(record) ? 'pointer' : 'default',
+                }"
+                @click="previewRecordPath(record)"
+              >
+                {{ formatDetailValue(record.path) }}
+              </a-typography-text>
+              <a-tooltip
+                v-if="canInteractWithPath(record)"
+                title="Preview file"
+              >
+                <a-button
+                  type="link"
+                  size="small"
+                  @click.stop="previewRecordPath(record)"
+                >
+                  <template #icon><EyeOutlined /></template>
+                </a-button>
+              </a-tooltip>
+              <a-tooltip
+                v-if="canInteractWithPath(record)"
+                title="Open in Explorer"
+              >
+                <a-button
+                  type="link"
+                  size="small"
+                  @click.stop="openInExplorer(record)"
+                >
+                  <template #icon><FolderOpenOutlined /></template>
+                </a-button>
+              </a-tooltip>
+            </div>
+          </template>
+          <template v-if="column.key === 'action'">
+            <a-button type="link" size="small" @click="openDetails(record)">
+              <template #icon><InfoCircleOutlined /></template>
+            </a-button>
+          </template>
         </template>
-        <template v-if="column.key === 'path'">
-          <div class="excel-path-cell">
-            <a-typography-text
-              class="excel-path-text"
-              :style="{ cursor: canInteractWithPath(record) ? 'pointer' : 'default' }"
-              @click="previewRecordPath(record)"
-            >
-              {{ formatDetailValue(record.path) }}
-            </a-typography-text>
-            <a-tooltip v-if="canInteractWithPath(record)" title="Preview file">
-              <a-button type="link" size="small" @click.stop="previewRecordPath(record)">
-                <template #icon><EyeOutlined /></template>
-              </a-button>
-            </a-tooltip>
-            <a-tooltip v-if="canInteractWithPath(record)" title="Open in Explorer">
-              <a-button type="link" size="small" @click.stop="openInExplorer(record)">
-                <template #icon><FolderOpenOutlined /></template>
-              </a-button>
-            </a-tooltip>
-          </div>
-        </template>
-        <template v-if="column.key === 'action'">
-          <a-button type="link" size="small" @click="openDetails(record)">
-            <template #icon><InfoCircleOutlined /></template>
-          </a-button>
-        </template>
-      </template>
       </a-table>
     </div>
 
@@ -325,7 +387,9 @@ void tableWrapperRef;
 
 <style scoped>
 .net-dir-bar {
-  display: flex; align-items: center; gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 4px 0 10px;
   flex-wrap: wrap;
 }
@@ -333,7 +397,7 @@ void tableWrapperRef;
   min-height: 280px;
   padding: 0;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbf5 100%);
-  font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+  font-family: Calibri, "Segoe UI", Arial, sans-serif;
   color: #1f2937;
   width: 100%;
   box-sizing: border-box;
@@ -429,7 +493,7 @@ void tableWrapperRef;
 }
 
 .excel-column-resizer::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 18%;
   bottom: 18%;

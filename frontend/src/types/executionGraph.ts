@@ -38,7 +38,7 @@ export interface ExecutionGraphFilterState {
   domain: string;
   decision: string;
   riskMin: number;
-  timePreset: 'all' | '15m' | '1h' | '6h' | '24h' | '7d' | 'custom';
+  timePreset: "all" | "15m" | "1h" | "6h" | "24h" | "7d" | "custom";
   since: string;
   until: string;
 }

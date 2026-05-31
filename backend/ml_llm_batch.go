@@ -29,7 +29,7 @@ type llmBatchScoreResponse struct {
 	Agreement            float64              `json:"agreement"`
 	ValidationSplitRatio float64              `json:"validationSplitRatio"`
 	Review               *LLMReviewSummary    `json:"review,omitempty"`
-	Entries              []llmBatchScoreEntry  `json:"entries"`
+	Entries              []llmBatchScoreEntry `json:"entries"`
 }
 
 type llmScoreSubject struct {

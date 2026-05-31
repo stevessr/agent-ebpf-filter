@@ -12,7 +12,11 @@
   padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid var(--workflow-border);
-  background: linear-gradient(135deg, #ffffff 0%, var(--workflow-primary-subtle) 100%);
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    var(--workflow-primary-subtle) 100%
+  );
   color: var(--workflow-text-secondary);
   box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
   border-color: var(--workflow-border);
@@ -28,10 +32,13 @@
 .flow-section-active {
   outline: 2px solid rgba(22, 119, 255, 0.62);
   outline-offset: 4px;
-  box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.2),
+  box-shadow:
+    0 0 0 1px rgba(22, 119, 255, 0.2),
     0 0 24px rgba(22, 119, 255, 0.16);
   border-radius: 10px;
-  transition: outline-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    outline-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .block-card {
@@ -59,7 +66,11 @@
 }
 
 .block-trigger .block-header {
-  background: linear-gradient(135deg, var(--workflow-primary), var(--workflow-primary-hover));
+  background: linear-gradient(
+    135deg,
+    var(--workflow-primary),
+    var(--workflow-primary-hover)
+  );
 }
 
 .block-condition {
@@ -72,7 +83,11 @@
 }
 
 .block-condition .block-header {
-  background: linear-gradient(135deg, var(--workflow-primary), var(--workflow-primary-hover));
+  background: linear-gradient(
+    135deg,
+    var(--workflow-primary),
+    var(--workflow-primary-hover)
+  );
 }
 
 .block-action {
@@ -85,7 +100,11 @@
 }
 
 .block-action .block-header {
-  background: linear-gradient(135deg, var(--workflow-primary), var(--workflow-primary-hover));
+  background: linear-gradient(
+    135deg,
+    var(--workflow-primary),
+    var(--workflow-primary-hover)
+  );
 }
 
 .block-header {
@@ -131,15 +150,27 @@
 }
 
 .wire-1-to-2 {
-  background: linear-gradient(180deg, var(--workflow-primary), var(--workflow-primary-hover));
+  background: linear-gradient(
+    180deg,
+    var(--workflow-primary),
+    var(--workflow-primary-hover)
+  );
 }
 
 .wire-2-to-2-5 {
-  background: linear-gradient(180deg, var(--workflow-primary-hover), var(--workflow-primary));
+  background: linear-gradient(
+    180deg,
+    var(--workflow-primary-hover),
+    var(--workflow-primary)
+  );
 }
 
 .wire-2-5-to-3 {
-  background: linear-gradient(180deg, var(--workflow-primary), var(--workflow-primary-hover));
+  background: linear-gradient(
+    180deg,
+    var(--workflow-primary),
+    var(--workflow-primary-hover)
+  );
 }
 
 .blueprint-wire-pulse {
@@ -153,17 +184,23 @@
 
 .pulse-1-to-2 {
   background: var(--workflow-primary);
-  box-shadow: 0 0 8px var(--workflow-primary), 0 0 15px rgba(22, 119, 255, 0.38);
+  box-shadow:
+    0 0 8px var(--workflow-primary),
+    0 0 15px rgba(22, 119, 255, 0.38);
 }
 
 .pulse-2-to-2-5 {
   background: var(--workflow-primary-hover);
-  box-shadow: 0 0 8px var(--workflow-primary-hover), 0 0 15px rgba(64, 150, 255, 0.38);
+  box-shadow:
+    0 0 8px var(--workflow-primary-hover),
+    0 0 15px rgba(64, 150, 255, 0.38);
 }
 
 .pulse-2-5-to-3 {
   background: var(--workflow-primary);
-  box-shadow: 0 0 8px var(--workflow-primary), 0 0 15px rgba(22, 119, 255, 0.38);
+  box-shadow:
+    0 0 8px var(--workflow-primary),
+    0 0 15px rgba(22, 119, 255, 0.38);
 }
 
 @keyframes wire-pulse-run {

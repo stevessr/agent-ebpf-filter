@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useMLStatusStream } from '../../composables/config/useMLStatusStream';
-import type { useConfigML } from '../../composables/config/useConfigML';
-import ConfigMLStatusTab from './ml/ConfigMLStatusTab.vue';
-import ConfigMLParamsTab from './ml/ConfigMLParamsTab.vue';
-import ConfigMLModelTab from './ml/ConfigMLModelTab.vue';
-import ConfigMLLLMTab from './ml/ConfigMLLLMTab.vue';
-import ConfigMLTrainingTab from './ml/ConfigMLTrainingTab.vue';
+import { onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useMLStatusStream } from "../../composables/config/useMLStatusStream";
+import type { useConfigML } from "../../composables/config/useConfigML";
+import ConfigMLStatusTab from "./ml/ConfigMLStatusTab.vue";
+import ConfigMLParamsTab from "./ml/ConfigMLParamsTab.vue";
+import ConfigMLModelTab from "./ml/ConfigMLModelTab.vue";
+import ConfigMLLLMTab from "./ml/ConfigMLLLMTab.vue";
+import ConfigMLTrainingTab from "./ml/ConfigMLTrainingTab.vue";
 
 const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 
@@ -18,31 +18,51 @@ const { wsActive, applyMLStatusResponse } = props.ml;
 // WebSocket status stream
 const { connect: wsConnect } = useMLStatusStream(applyMLStatusResponse);
 
-const validMLSubTabs = new Set(['status', 'params', 'model', 'llm', 'training']);
-const storedSubTab = localStorage.getItem('ml_subtab') || localStorage.getItem('config_ml_subtab') || '';
-const initialSubTab = typeof route.params.subtab === 'string' && validMLSubTabs.has(route.params.subtab)
-  ? route.params.subtab
-  : validMLSubTabs.has(storedSubTab) ? storedSubTab : 'status';
+const validMLSubTabs = new Set([
+  "status",
+  "params",
+  "model",
+  "llm",
+  "training",
+]);
+const storedSubTab =
+  localStorage.getItem("ml_subtab") ||
+  localStorage.getItem("config_ml_subtab") ||
+  "";
+const initialSubTab =
+  typeof route.params.subtab === "string" &&
+  validMLSubTabs.has(route.params.subtab)
+    ? route.params.subtab
+    : validMLSubTabs.has(storedSubTab)
+      ? storedSubTab
+      : "status";
 const mlSubTabKey = ref(initialSubTab);
 
-watch(() => route.params.subtab, (subtab) => {
-  if (route.name === 'ML' && typeof subtab === 'string' && validMLSubTabs.has(subtab)) {
-    mlSubTabKey.value = subtab;
-  }
-});
+watch(
+  () => route.params.subtab,
+  (subtab) => {
+    if (
+      route.name === "ML" &&
+      typeof subtab === "string" &&
+      validMLSubTabs.has(subtab)
+    ) {
+      mlSubTabKey.value = subtab;
+    }
+  },
+);
 
 watch(mlSubTabKey, (val) => {
-  localStorage.setItem('ml_subtab', val);
-  if (route.name === 'ML' && route.params.subtab !== val) {
-    router.replace({ name: 'ML', params: { subtab: val } });
+  localStorage.setItem("ml_subtab", val);
+  if (route.name === "ML" && route.params.subtab !== val) {
+    router.replace({ name: "ML", params: { subtab: val } });
   }
 });
 
 onMounted(() => {
   wsActive.value = true;
   wsConnect();
-  if (route.name === 'ML' && route.params.subtab !== mlSubTabKey.value) {
-    router.replace({ name: 'ML', params: { subtab: mlSubTabKey.value } });
+  if (route.name === "ML" && route.params.subtab !== mlSubTabKey.value) {
+    router.replace({ name: "ML", params: { subtab: mlSubTabKey.value } });
   }
 });
 

@@ -1,5 +1,5 @@
-import * as d3 from 'd3';
-import { onBeforeUnmount, onMounted, watch, type Ref } from 'vue';
+import * as d3 from "d3";
+import { onBeforeUnmount, onMounted, watch, type Ref } from "vue";
 
 export interface TrafficInterface {
   name: string;
@@ -9,7 +9,7 @@ export interface TrafficInterface {
 
 interface GraphNode {
   id: string;
-  kind: 'internet' | 'interface';
+  kind: "internet" | "interface";
   readSpeed: number;
   writeSpeed: number;
   totalSpeed: number;
@@ -36,38 +36,53 @@ interface LinkGeometry {
 }
 
 const kbps = 1000 / 8;
-const mbps = 1000 * 1000 / 8;
+const mbps = (1000 * 1000) / 8;
 
 export const formatBytes = (bytes: number, decimals = 1) => {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
   const base = 1024;
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(base)), units.length - 1);
+  const index = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(base)),
+    units.length - 1,
+  );
   return `${(bytes / Math.pow(base, index)).toFixed(index === 0 ? 0 : decimals)} ${units[index]}`;
 };
 
 const trafficColor = (speed: number) => {
-  if (speed >= 100 * mbps) return '#ff4d4f';
-  if (speed >= 10 * mbps) return '#faad14';
-  if (speed >= mbps) return '#13c2c2';
-  if (speed >= 100 * kbps) return '#52c41a';
-  return '#94a3b8';
+  if (speed >= 100 * mbps) return "#ff4d4f";
+  if (speed >= 10 * mbps) return "#faad14";
+  if (speed >= mbps) return "#13c2c2";
+  if (speed >= 100 * kbps) return "#52c41a";
+  return "#94a3b8";
 };
 
 const nodeColor = (speed: number) => {
-  if (speed <= 0) return '#94a3b8';
+  if (speed <= 0) return "#94a3b8";
   return trafficColor(speed);
 };
 
-const logGrowth = (value: number, min: number, max: number, ceiling: number) => {
+const logGrowth = (
+  value: number,
+  min: number,
+  max: number,
+  ceiling: number,
+) => {
   if (ceiling <= 0) return min;
-  const normalized = Math.log1p(Math.max(0, value)) / Math.log1p(Math.max(ceiling, 1));
+  const normalized =
+    Math.log1p(Math.max(0, value)) / Math.log1p(Math.max(ceiling, 1));
   return min + (max - min) * Math.min(1, normalized);
 };
 
-const layoutInterfaces = (interfaces: TrafficInterface[]) => [...interfaces]
-  .map((item) => ({ ...item, totalSpeed: item.readSpeed + item.writeSpeed }))
-  .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+const layoutInterfaces = (interfaces: TrafficInterface[]) =>
+  [...interfaces]
+    .map((item) => ({ ...item, totalSpeed: item.readSpeed + item.writeSpeed }))
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }),
+    );
 
 export function useTrafficGraph(
   containerRef: Ref<HTMLElement | null>,
@@ -91,29 +106,47 @@ export function useTrafficGraph(
     const centerY = h / 2;
     const svg = d3.select(svgRef.value);
 
-    svg.selectAll('*').remove();
-    svg.attr('viewBox', `0 0 ${width} ${h}`);
+    svg.selectAll("*").remove();
+    svg.attr("viewBox", `0 0 ${width} ${h}`);
 
     const sortedInterfaces = layoutInterfaces(interfaces.value);
 
     if (!sortedInterfaces.length) {
-      svg.append('text')
-        .attr('x', centerX).attr('y', centerY - 6)
-        .attr('text-anchor', 'middle').attr('fill', '#64748b')
-        .attr('font-size', 16).attr('font-weight', 600)
-        .text('No network interfaces detected');
-      svg.append('text')
-        .attr('x', centerX).attr('y', centerY + 18)
-        .attr('text-anchor', 'middle').attr('fill', '#94a3b8')
-        .attr('font-size', 12)
-        .text('Waiting for network counters from /ws/system');
+      svg
+        .append("text")
+        .attr("x", centerX)
+        .attr("y", centerY - 6)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#64748b")
+        .attr("font-size", 16)
+        .attr("font-weight", 600)
+        .text("No network interfaces detected");
+      svg
+        .append("text")
+        .attr("x", centerX)
+        .attr("y", centerY + 18)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#94a3b8")
+        .attr("font-size", 12)
+        .text("Waiting for network counters from /ws/system");
       return;
     }
 
-    const aggregateIn = sortedInterfaces.reduce((sum, item) => sum + item.readSpeed, 0);
-    const aggregateOut = sortedInterfaces.reduce((sum, item) => sum + item.writeSpeed, 0);
+    const aggregateIn = sortedInterfaces.reduce(
+      (sum, item) => sum + item.readSpeed,
+      0,
+    );
+    const aggregateOut = sortedInterfaces.reduce(
+      (sum, item) => sum + item.writeSpeed,
+      0,
+    );
 
-    const maxSpeed = Math.max(1, ...sortedInterfaces.map((item) => item.totalSpeed), aggregateIn, aggregateOut);
+    const maxSpeed = Math.max(
+      1,
+      ...sortedInterfaces.map((item) => item.totalSpeed),
+      aggregateIn,
+      aggregateOut,
+    );
     const minDimension = Math.min(width, h);
     const nodeRadius = (speed: number) => logGrowth(speed, 22, 58, maxSpeed);
     const linkWidth = (speed: number) => logGrowth(speed, 1.4, 10, maxSpeed);
@@ -121,7 +154,12 @@ export function useTrafficGraph(
       Math.max(minDimension * 0.24, 90),
       Math.max(minDimension / 2 - 92, 72),
     );
-    const internetRadius = logGrowth(aggregateIn + aggregateOut, 58, 76, maxSpeed);
+    const internetRadius = logGrowth(
+      aggregateIn + aggregateOut,
+      58,
+      76,
+      maxSpeed,
+    );
 
     const clampPosition = (x: number, y: number, radius: number) => {
       const minX = radius + 12;
@@ -134,31 +172,45 @@ export function useTrafficGraph(
       };
     };
 
-    const activeNames = new Set(['Internet', ...sortedInterfaces.map((item) => item.name)]);
+    const activeNames = new Set([
+      "Internet",
+      ...sortedInterfaces.map((item) => item.name),
+    ]);
     [...nodePositionCache.keys()].forEach((name) => {
       if (!activeNames.has(name)) nodePositionCache.delete(name);
     });
 
-    const internetCache = nodePositionCache.get('Internet');
+    const internetCache = nodePositionCache.get("Internet");
     const internetPosition = internetCache
       ? clampPosition(internetCache.x, internetCache.y, internetRadius)
       : { x: centerX, y: centerY };
-    if (internetCache && (internetCache.x !== internetPosition.x || internetCache.y !== internetPosition.y)) {
-      nodePositionCache.set('Internet', internetPosition);
+    if (
+      internetCache &&
+      (internetCache.x !== internetPosition.x ||
+        internetCache.y !== internetPosition.y)
+    ) {
+      nodePositionCache.set("Internet", internetPosition);
     }
 
     const nodes: GraphNode[] = [
       {
-        id: 'Internet', kind: 'internet',
-        readSpeed: aggregateIn, writeSpeed: aggregateOut,
+        id: "Internet",
+        kind: "internet",
+        readSpeed: aggregateIn,
+        writeSpeed: aggregateOut,
         totalSpeed: aggregateIn + aggregateOut,
-        x: internetPosition.x, y: internetPosition.y,
+        x: internetPosition.x,
+        y: internetPosition.y,
       },
       ...sortedInterfaces.map((item, index) => {
         const angle = Math.PI + (index / sortedInterfaces.length) * Math.PI * 2;
         const currentRadius = nodeRadius(item.totalSpeed);
-        const maxRadius = Math.max(orbitRadius, minDimension / 2 - currentRadius - 20);
-        const sizeBoost = Math.max(0, currentRadius - 22) * Math.max(2.2, minDimension / 120);
+        const maxRadius = Math.max(
+          orbitRadius,
+          minDimension / 2 - currentRadius - 20,
+        );
+        const sizeBoost =
+          Math.max(0, currentRadius - 22) * Math.max(2.2, minDimension / 120);
         const defaultRadius = Math.min(orbitRadius + sizeBoost, maxRadius);
         const defaultPosition = clampPosition(
           internetPosition.x + Math.cos(angle) * defaultRadius,
@@ -169,13 +221,20 @@ export function useTrafficGraph(
         const position = cachedPosition
           ? clampPosition(cachedPosition.x, cachedPosition.y, currentRadius)
           : defaultPosition;
-        if (cachedPosition && (cachedPosition.x !== position.x || cachedPosition.y !== position.y)) {
+        if (
+          cachedPosition &&
+          (cachedPosition.x !== position.x || cachedPosition.y !== position.y)
+        ) {
           nodePositionCache.set(item.name, position);
         }
         return {
-          id: item.name, kind: 'interface' as const,
-          readSpeed: item.readSpeed, writeSpeed: item.writeSpeed,
-          totalSpeed: item.totalSpeed, x: position.x, y: position.y,
+          id: item.name,
+          kind: "interface" as const,
+          readSpeed: item.readSpeed,
+          writeSpeed: item.writeSpeed,
+          totalSpeed: item.totalSpeed,
+          x: position.x,
+          y: position.y,
         };
       }),
     ];
@@ -185,56 +244,97 @@ export function useTrafficGraph(
     const links: GraphLink[] = [];
     sortedInterfaces.forEach((item) => {
       if (item.writeSpeed > 0) {
-        links.push({ id: `${item.name}-tx`, source: item.name, target: 'Internet', speed: item.writeSpeed });
+        links.push({
+          id: `${item.name}-tx`,
+          source: item.name,
+          target: "Internet",
+          speed: item.writeSpeed,
+        });
       }
       if (item.readSpeed > 0) {
-        links.push({ id: `${item.name}-rx`, source: 'Internet', target: item.name, speed: item.readSpeed });
+        links.push({
+          id: `${item.name}-rx`,
+          source: "Internet",
+          target: item.name,
+          speed: item.readSpeed,
+        });
       }
     });
 
-    const orbitSelection = svg.append('circle')
-      .attr('cx', internetPosition.x).attr('cy', internetPosition.y)
-      .attr('r', orbitRadius).attr('fill', 'none')
-      .attr('stroke', 'rgba(148, 163, 184, 0.25)').attr('stroke-dasharray', '6 10');
+    const orbitSelection = svg
+      .append("circle")
+      .attr("cx", internetPosition.x)
+      .attr("cy", internetPosition.y)
+      .attr("r", orbitRadius)
+      .attr("fill", "none")
+      .attr("stroke", "rgba(148, 163, 184, 0.25)")
+      .attr("stroke-dasharray", "6 10");
 
-    const getNodeRadius = (node: GraphNode) => (node.kind === 'internet' ? internetRadius : nodeRadius(node.totalSpeed));
-    const hubX = () => nodeById.get('Internet')?.x ?? internetPosition.x;
-    const hubY = () => nodeById.get('Internet')?.y ?? internetPosition.y;
+    const getNodeRadius = (node: GraphNode) =>
+      node.kind === "internet" ? internetRadius : nodeRadius(node.totalSpeed);
+    const hubX = () => nodeById.get("Internet")?.x ?? internetPosition.x;
+    const hubY = () => nodeById.get("Internet")?.y ?? internetPosition.y;
 
     const maskId = `traffic-link-mask-${Math.random().toString(36).slice(2, 10)}`;
     const markerId = `arrowhead-${Math.random().toString(36).slice(2, 10)}`;
-    const defs = svg.append('defs');
+    const defs = svg.append("defs");
 
-    defs.append('marker')
-      .attr('id', markerId).attr('viewBox', '0 -5 10 10')
-      .attr('refX', 9).attr('refY', 0)
-      .attr('markerWidth', 5).attr('markerHeight', 5).attr('orient', 'auto')
-      .append('path').attr('d', 'M0,-4L8,0L0,4').attr('fill', 'context-stroke');
+    defs
+      .append("marker")
+      .attr("id", markerId)
+      .attr("viewBox", "0 -5 10 10")
+      .attr("refX", 9)
+      .attr("refY", 0)
+      .attr("markerWidth", 5)
+      .attr("markerHeight", 5)
+      .attr("orient", "auto")
+      .append("path")
+      .attr("d", "M0,-4L8,0L0,4")
+      .attr("fill", "context-stroke");
 
-    const linkMask = defs.append('mask')
-      .attr('id', maskId).attr('maskUnits', 'userSpaceOnUse')
-      .attr('maskContentUnits', 'userSpaceOnUse')
-      .attr('x', 0).attr('y', 0).attr('width', width).attr('height', h);
+    const linkMask = defs
+      .append("mask")
+      .attr("id", maskId)
+      .attr("maskUnits", "userSpaceOnUse")
+      .attr("maskContentUnits", "userSpaceOnUse")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("width", width)
+      .attr("height", h);
 
-    linkMask.append('rect')
-      .attr('x', 0).attr('y', 0).attr('width', width).attr('height', h).attr('fill', '#fff');
+    linkMask
+      .append("rect")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("width", width)
+      .attr("height", h)
+      .attr("fill", "#fff");
 
-    const linkMaskNodes = linkMask.append('g')
-      .selectAll<SVGCircleElement, GraphNode>('circle')
+    const linkMaskNodes = linkMask
+      .append("g")
+      .selectAll<SVGCircleElement, GraphNode>("circle")
       .data(nodes, (node) => node.id)
-      .join('circle').attr('fill', '#000').attr('stroke', 'none');
+      .join("circle")
+      .attr("fill", "#000")
+      .attr("stroke", "none");
 
     const syncLinkMask = () => {
       linkMaskNodes
-        .attr('cx', (node) => node.x).attr('cy', (node) => node.y)
-        .attr('r', (node) => getNodeRadius(node) + 6);
+        .attr("cx", (node) => node.x)
+        .attr("cy", (node) => node.y)
+        .attr("r", (node) => getNodeRadius(node) + 6);
     };
 
     const getLinkEndpoints = (link: GraphLink) => {
       const source = nodeById.get(link.source);
       const target = nodeById.get(link.target);
       if (!source || !target) {
-        return { x1: internetPosition.x, y1: internetPosition.y, x2: internetPosition.x, y2: internetPosition.y };
+        return {
+          x1: internetPosition.x,
+          y1: internetPosition.y,
+          x2: internetPosition.x,
+          y2: internetPosition.y,
+        };
       }
       return { x1: source.x, y1: source.y, x2: target.x, y2: target.y };
     };
@@ -245,65 +345,79 @@ export function useTrafficGraph(
       if (!source || !target) return null;
 
       const points = getLinkEndpoints(link);
-      const interfaceNode = source.kind === 'interface' ? source : target;
-      const angle = Math.atan2(interfaceNode.y - hubY(), interfaceNode.x - hubX());
+      const interfaceNode = source.kind === "interface" ? source : target;
+      const angle = Math.atan2(
+        interfaceNode.y - hubY(),
+        interfaceNode.x - hubX(),
+      );
       const radialX = Math.cos(angle);
       const radialY = Math.sin(angle);
       const tangentX = -radialY;
       const tangentY = radialX;
-      const side = link.id.endsWith('-tx') ? 1 : -1;
+      const side = link.id.endsWith("-tx") ? 1 : -1;
       const arcSpread = Math.min(92, Math.max(30, linkWidth(link.speed) * 5.6));
       const outward = Math.min(52, Math.max(16, linkWidth(link.speed) * 2.7));
 
       return {
-        x1: points.x1, y1: points.y1,
+        x1: points.x1,
+        y1: points.y1,
         c1x: points.x1 + radialX * outward + tangentX * arcSpread * side,
         c1y: points.y1 + radialY * outward + tangentY * arcSpread * side,
         c2x: points.x2 + radialX * outward + tangentX * arcSpread * side,
         c2y: points.y2 + radialY * outward + tangentY * arcSpread * side,
-        x2: points.x2, y2: points.y2,
+        x2: points.x2,
+        y2: points.y2,
       };
     };
 
     const buildLinkPath = (geometry: LinkGeometry) =>
       `M ${geometry.x1} ${geometry.y1} C ${geometry.c1x} ${geometry.c1y} ${geometry.c2x} ${geometry.c2y} ${geometry.x2} ${geometry.y2}`;
 
-    const linkSelection = svg.append('g').attr('fill', 'none')
-      .selectAll<SVGPathElement, GraphLink>('path')
+    const linkSelection = svg
+      .append("g")
+      .attr("fill", "none")
+      .selectAll<SVGPathElement, GraphLink>("path")
       .data(links, (link) => link.id)
-      .join('path')
-      .attr('class', 'traffic-link').attr('fill', 'none')
-      .attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round')
-      .attr('stroke-width', (link) => linkWidth(link.speed))
-      .attr('stroke', (link) => trafficColor(link.speed))
-      .attr('marker-end', `url(#${markerId})`)
-      .attr('mask', `url(#${maskId})`);
+      .join("path")
+      .attr("class", "traffic-link")
+      .attr("fill", "none")
+      .attr("stroke-linecap", "round")
+      .attr("stroke-linejoin", "round")
+      .attr("stroke-width", (link) => linkWidth(link.speed))
+      .attr("stroke", (link) => trafficColor(link.speed))
+      .attr("marker-end", `url(#${markerId})`)
+      .attr("mask", `url(#${maskId})`);
 
     const updateLinkPaths = () => {
-      linkSelection.attr('d', (link) => {
+      linkSelection.attr("d", (link) => {
         const geometry = getLinkGeometry(link);
-        return geometry ? buildLinkPath(geometry) : '';
+        return geometry ? buildLinkPath(geometry) : "";
       });
     };
 
     syncLinkMask();
     updateLinkPaths();
 
-    linkSelection.append('title')
-      .text((link) => `${link.id.endsWith('-tx') ? 'TX' : 'RX'} ${formatBytes(link.speed)}/s`);
+    linkSelection
+      .append("title")
+      .text(
+        (link) =>
+          `${link.id.endsWith("-tx") ? "TX" : "RX"} ${formatBytes(link.speed)}/s`,
+      );
 
     let currentDragMoved = false;
     let dragOrigins: Map<string, { x: number; y: number }> | null = null;
 
-    const nodeSelection = svg.append('g')
-      .selectAll<SVGGElement, GraphNode>('g')
+    const nodeSelection = svg
+      .append("g")
+      .selectAll<SVGGElement, GraphNode>("g")
       .data(nodes, (node) => node.id)
-      .join('g')
-      .attr('class', 'traffic-node')
-      .attr('transform', (node) => `translate(${node.x},${node.y})`)
-      .style('cursor', 'grab')
-      .on('click', (event, node) => {
-        if (node.kind !== 'interface') return;
+      .join("g")
+      .attr("class", "traffic-node")
+      .attr("transform", (node) => `translate(${node.x},${node.y})`)
+      .style("cursor", "grab")
+      .on("click", (event, node) => {
+        if (node.kind !== "interface") return;
         if ((clickBlockUntil.get(node.id) || 0) > Date.now()) {
           event.stopPropagation();
           return;
@@ -313,50 +427,73 @@ export function useTrafficGraph(
         onSelectInterface(node.id);
       });
 
-    nodeSelection.append('circle')
-      .attr('r', (node) => (node.kind === 'internet' ? internetRadius : nodeRadius(node.totalSpeed)))
-      .attr('fill', (node) => (node.kind === 'internet' ? '#1677ff' : nodeColor(node.totalSpeed)))
-      .attr('fill-opacity', (node) => {
-        if (node.kind === 'internet') return 0.9;
+    nodeSelection
+      .append("circle")
+      .attr("r", (node) =>
+        node.kind === "internet" ? internetRadius : nodeRadius(node.totalSpeed),
+      )
+      .attr("fill", (node) =>
+        node.kind === "internet" ? "#1677ff" : nodeColor(node.totalSpeed),
+      )
+      .attr("fill-opacity", (node) => {
+        if (node.kind === "internet") return 0.9;
         return node.totalSpeed > 0 ? 0.85 : 0.55;
       });
 
-    const dragBehavior = d3.drag<SVGGElement, GraphNode>()
-      .filter((_event, node) => node.kind === 'interface' || node.kind === 'internet')
-      .on('start', function (_event, _node) {
+    const dragBehavior = d3
+      .drag<SVGGElement, GraphNode>()
+      .filter(
+        (_event, node) => node.kind === "interface" || node.kind === "internet",
+      )
+      .on("start", function (_event, _node) {
         dragDepth += 1;
         currentDragMoved = false;
-        dragOrigins = new Map(nodes.map((item) => [item.id, { x: item.x, y: item.y }]));
-        d3.select(this).raise().style('cursor', 'grabbing');
+        dragOrigins = new Map(
+          nodes.map((item) => [item.id, { x: item.x, y: item.y }]),
+        );
+        d3.select(this).raise().style("cursor", "grabbing");
       })
-      .on('drag', function (event, node) {
+      .on("drag", function (event, node) {
         currentDragMoved = true;
         const radius = getNodeRadius(node);
         const position = clampPosition(event.x, event.y, radius);
-        if (node.kind === 'internet' && dragOrigins) {
-          const origin = dragOrigins.get('Internet') ?? { x: node.x, y: node.y };
+        if (node.kind === "internet" && dragOrigins) {
+          const origin = dragOrigins.get("Internet") ?? {
+            x: node.x,
+            y: node.y,
+          };
           const deltaX = position.x - origin.x;
           const deltaY = position.y - origin.y;
           nodes.forEach((item) => {
             const start = dragOrigins?.get(item.id) ?? { x: item.x, y: item.y };
-            const next = clampPosition(start.x + deltaX, start.y + deltaY, getNodeRadius(item));
+            const next = clampPosition(
+              start.x + deltaX,
+              start.y + deltaY,
+              getNodeRadius(item),
+            );
             item.x = next.x;
             item.y = next.y;
             nodePositionCache.set(item.id, next);
           });
-          orbitSelection.attr('cx', position.x).attr('cy', position.y);
-          nodeSelection.attr('transform', (item) => `translate(${item.x},${item.y})`);
+          orbitSelection.attr("cx", position.x).attr("cy", position.y);
+          nodeSelection.attr(
+            "transform",
+            (item) => `translate(${item.x},${item.y})`,
+          );
         } else {
           node.x = position.x;
           node.y = position.y;
           nodePositionCache.set(node.id, position);
-          d3.select(this).attr('transform', `translate(${position.x},${position.y})`);
+          d3.select(this).attr(
+            "transform",
+            `translate(${position.x},${position.y})`,
+          );
         }
         syncLinkMask();
         updateLinkPaths();
       })
-      .on('end', function (_event, node) {
-        d3.select(this).style('cursor', 'grab');
+      .on("end", function (_event, node) {
+        d3.select(this).style("cursor", "grab");
         if (currentDragMoved) {
           clickBlockUntil.set(node.id, Date.now() + 250);
         }
@@ -371,30 +508,41 @@ export function useTrafficGraph(
 
     nodeSelection.call(dragBehavior as any);
 
-    const textSelection = nodeSelection.append('text')
-      .attr('text-anchor', 'middle')
-      .attr('dy', (node) => (node.kind === 'internet' ? -10 : -8));
+    const textSelection = nodeSelection
+      .append("text")
+      .attr("text-anchor", "middle")
+      .attr("dy", (node) => (node.kind === "internet" ? -10 : -8));
 
-    textSelection.append('tspan')
-      .attr('x', 0).attr('font-size', (node) => (node.kind === 'internet' ? 16 : 12))
-      .attr('font-weight', 700).text((node) => node.id);
+    textSelection
+      .append("tspan")
+      .attr("x", 0)
+      .attr("font-size", (node) => (node.kind === "internet" ? 16 : 12))
+      .attr("font-weight", 700)
+      .text((node) => node.id);
 
-    textSelection.append('tspan')
-      .attr('x', 0).attr('dy', (node) => (node.kind === 'internet' ? 18 : 17))
-      .attr('font-size', 11).attr('font-weight', 500)
+    textSelection
+      .append("tspan")
+      .attr("x", 0)
+      .attr("dy", (node) => (node.kind === "internet" ? 18 : 17))
+      .attr("font-size", 11)
+      .attr("font-weight", 500)
       .text((node) => `↓ ${formatBytes(node.readSpeed)}/s`);
 
-    textSelection.append('tspan')
-      .attr('x', 0).attr('dy', 17).attr('font-size', 11).attr('font-weight', 500)
+    textSelection
+      .append("tspan")
+      .attr("x", 0)
+      .attr("dy", 17)
+      .attr("font-size", 11)
+      .attr("font-weight", 500)
       .text((node) => `↑ ${formatBytes(node.writeSpeed)}/s`);
 
-    nodeSelection.append('title').text((node) => {
+    nodeSelection.append("title").text((node) => {
       const lines = [node.id];
-      if (node.kind === 'interface') lines.push('Click to view history');
+      if (node.kind === "interface") lines.push("Click to view history");
       lines.push(`RX ${formatBytes(node.readSpeed)}/s`);
       lines.push(`TX ${formatBytes(node.writeSpeed)}/s`);
       lines.push(`TOTAL ${formatBytes(node.totalSpeed)}/s`);
-      return lines.join('\n');
+      return lines.join("\n");
     });
   };
 
@@ -409,11 +557,15 @@ export function useTrafficGraph(
 
   watch(
     () => [interfaces.value, height.value],
-    () => { requestRender(); },
+    () => {
+      requestRender();
+    },
   );
 
   onMounted(() => {
-    resizeObserver = new ResizeObserver(() => { requestRender(); });
+    resizeObserver = new ResizeObserver(() => {
+      requestRender();
+    });
     if (containerRef.value) {
       resizeObserver.observe(containerRef.value);
     }

@@ -1,5 +1,5 @@
-import { ref, watch, onBeforeUnmount } from 'vue';
-import type { Ref } from 'vue';
+import { ref, watch, onBeforeUnmount } from "vue";
+import type { Ref } from "vue";
 
 /**
  * Elapsed-time tracker for the auto-tune progress indicator.
@@ -7,13 +7,13 @@ import type { Ref } from 'vue';
  */
 export function useAutoTuneElapsed(autoTuneInProgress: Ref<boolean>) {
   const autoTuneStartTime = ref(0);
-  const autoTuneElapsed = ref('');
+  const autoTuneElapsed = ref("");
   let autoTuneElapsedTimer: ReturnType<typeof setInterval> | null = null;
 
   watch(autoTuneInProgress, (running) => {
     if (running) {
       autoTuneStartTime.value = Date.now();
-      autoTuneElapsed.value = '0s';
+      autoTuneElapsed.value = "0s";
       autoTuneElapsedTimer = setInterval(() => {
         const sec = Math.floor((Date.now() - autoTuneStartTime.value) / 1000);
         autoTuneElapsed.value =

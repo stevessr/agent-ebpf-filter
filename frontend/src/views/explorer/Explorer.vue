@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import FileBrowserPanel from '../../components/explorer/FileBrowserPanel.vue';
+import FileBrowserPanel from "../../components/explorer/FileBrowserPanel.vue";
 </script>
 
 <template>

@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import {
   CodeOutlined,
   CopyOutlined,
@@ -29,9 +36,7 @@ const { compileBpf, loadBpf, upsertPlugin, fetchPlugins, compileLog } =
 
 const pluginId = ref("ts-pseudocode-filter");
 const pluginName = ref("TS 伪代码过滤插件");
-const description = ref(
-  "由独立 TS 伪代码工作区生成的 eBPF 过滤审计插件。"
-);
+const description = ref("由独立 TS 伪代码工作区生成的 eBPF 过滤审计插件。");
 const pseudoCode = ref("");
 const compiling = ref(false);
 const compiled = ref(false);
@@ -49,7 +54,15 @@ const {
   restoreDraft,
   clearDraft,
   resetDraft: resetDraftBase,
-} = usePseudoDraft(pluginId, pluginName, description, pseudoCode, compiled, compileLogLocal, { value: null });
+} = usePseudoDraft(
+  pluginId,
+  pluginName,
+  description,
+  pseudoCode,
+  compiled,
+  compileLogLocal,
+  { value: null },
+);
 
 // Initialize pseudoCode with default
 pseudoCode.value = defaultPseudoCode;
@@ -57,16 +70,20 @@ pseudoCode.value = defaultPseudoCode;
 const parsedSnapshot = computed(() =>
   pseudoCodeToBpfSnapshot(
     pseudoCode.value,
-    createPseudoSeedSnapshot(pluginId.value, pluginName.value, description.value)
-  )
+    createPseudoSeedSnapshot(
+      pluginId.value,
+      pluginName.value,
+      description.value,
+    ),
+  ),
 );
 
 const generatedBpfCode = computed(() =>
-  generateBpfCode(parsedSnapshot.value, PSEUDO_PROGRAM_NAME)
+  generateBpfCode(parsedSnapshot.value, PSEUDO_PROGRAM_NAME),
 );
 
 const generatedLineCount = computed(
-  () => generatedBpfCode.value.split(/\r?\n/).length
+  () => generatedBpfCode.value.split(/\r?\n/).length,
 );
 
 // Validation
@@ -118,7 +135,7 @@ watch(
     compiled.value = false;
     saveDraft(true);
   },
-  { deep: false }
+  { deep: false },
 );
 
 onMounted(() => {
@@ -266,7 +283,10 @@ const copyGeneratedSource = async () => {
               <code>{{ parsedSnapshot.action }}</code>
             </a-descriptions-item>
             <a-descriptions-item label="Map">
-              <code>{{ parsedSnapshot.mapMode }} / {{ parsedSnapshot.mapKey }}</code>
+              <code
+                >{{ parsedSnapshot.mapMode }} /
+                {{ parsedSnapshot.mapKey }}</code
+              >
             </a-descriptions-item>
             <a-descriptions-item label="Conditions">
               <code>{{ conditionCount }}</code>
@@ -335,7 +355,9 @@ const copyGeneratedSource = async () => {
             <template #extra>
               <a-tag color="cyan">{{ generatedLineCount }} lines</a-tag>
             </template>
-            <pre class="generated-code"><code>{{ generatedBpfCode }}</code></pre>
+            <pre
+              class="generated-code"
+            ><code>{{ generatedBpfCode }}</code></pre>
           </a-card>
 
           <a-card

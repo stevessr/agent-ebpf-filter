@@ -29,7 +29,8 @@ export const visualRecipes: VisualRecipe[] = [
   {
     id: "reverse-shell-ports",
     name: "反连端口强杀",
-    description: "socket_connect 上组合 comm + 多端口 OR，并用 COUNTER 限频兜底。",
+    description:
+      "socket_connect 上组合 comm + 多端口 OR，并用 COUNTER 限频兜底。",
     tags: ["socket", "OR", "KILL", "COUNTER"],
     version: 1,
     trigger: "socket_connect",
@@ -119,7 +120,8 @@ export const visualRecipes: VisualRecipe[] = [
   {
     id: "ransomware-rename-watch",
     name: "勒索重命名审计",
-    description: "inode_rename 上关注 shadow / .env / .key 等敏感名称，先告警审计。",
+    description:
+      "inode_rename 上关注 shadow / .env / .key 等敏感名称，先告警审计。",
     tags: ["rename", "ALERT", "OR"],
     version: 1,
     trigger: "inode_rename",

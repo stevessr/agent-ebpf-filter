@@ -1,35 +1,41 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import axios from 'axios';
-import { CodeOutlined, PlayCircleOutlined } from '@ant-design/icons-vue';
-import { message } from 'ant-design-vue';
+import { computed, onBeforeUnmount, ref, watch } from "vue";
+import axios from "axios";
+import { CodeOutlined, PlayCircleOutlined } from "@ant-design/icons-vue";
+import { message } from "ant-design-vue";
 
-import ShellTerminalPane from './ShellTerminalPane.vue';
-import { pb } from '../../pb/tracker_pb.js';
-import { buildWebSocketUrl } from '../../utils/requestContext';
-import type { ShellSessionCreateRequest, ShellSessionInfo } from '../../types/shell';
+import ShellTerminalPane from "./ShellTerminalPane.vue";
+import { pb } from "../../pb/tracker_pb.js";
+import { buildWebSocketUrl } from "../../utils/requestContext";
+import type {
+  ShellSessionCreateRequest,
+  ShellSessionInfo,
+} from "../../types/shell";
 
-const RECENT_COMMANDS_STORAGE_KEY = 'recent_cmds';
+const RECENT_COMMANDS_STORAGE_KEY = "recent_cmds";
 
-const props = withDefaults(defineProps<{
-  active?: boolean;
-  defaultEnv?: Record<string, string>;
-}>(), {
-  active: false,
-});
+const props = withDefaults(
+  defineProps<{
+    active?: boolean;
+    defaultEnv?: Record<string, string>;
+  }>(),
+  {
+    active: false,
+  },
+);
 
-const command = ref('');
-const args = ref('');
+const command = ref("");
+const args = ref("");
 const recentCommands = ref<string[]>(
-  JSON.parse(localStorage.getItem(RECENT_COMMANDS_STORAGE_KEY) || '[]'),
+  JSON.parse(localStorage.getItem(RECENT_COMMANDS_STORAGE_KEY) || "[]"),
 );
 const launching = ref(false);
 const session = ref<ShellSessionInfo | null>(null);
 
 const splitArgs = (input: string) => {
   const output: string[] = [];
-  let current = '';
-  let quote: '"' | '\'' | null = null;
+  let current = "";
+  let quote: '"' | "'" | null = null;
   let escaped = false;
 
   for (const char of input.trim()) {
@@ -39,7 +45,7 @@ const splitArgs = (input: string) => {
       continue;
     }
 
-    if (char === '\\') {
+    if (char === "\\") {
       escaped = true;
       continue;
     }
@@ -53,7 +59,7 @@ const splitArgs = (input: string) => {
       continue;
     }
 
-    if (char === '"' || char === '\'') {
+    if (char === '"' || char === "'") {
       quote = char;
       continue;
     }
@@ -61,7 +67,7 @@ const splitArgs = (input: string) => {
     if (/\s/.test(char)) {
       if (current) {
         output.push(current);
-        current = '';
+        current = "";
       }
       continue;
     }
@@ -70,7 +76,7 @@ const splitArgs = (input: string) => {
   }
 
   if (escaped) {
-    current += '\\';
+    current += "\\";
   }
 
   if (current) {
@@ -81,22 +87,25 @@ const splitArgs = (input: string) => {
 };
 
 const persistRecentCommands = () => {
-  localStorage.setItem(RECENT_COMMANDS_STORAGE_KEY, JSON.stringify(recentCommands.value));
+  localStorage.setItem(
+    RECENT_COMMANDS_STORAGE_KEY,
+    JSON.stringify(recentCommands.value),
+  );
 };
 
 const useRecent = (cmdStr: string) => {
   const parts = splitArgs(cmdStr);
-  command.value = parts[0] || '';
-  args.value = parts.slice(1).join(' ');
+  command.value = parts[0] || "";
+  args.value = parts.slice(1).join(" ");
 };
 
 const launchPreview = computed(() => {
   const executable = command.value.trim();
   if (!executable) {
-    return 'Enter a command to launch it through agent-wrapper';
+    return "Enter a command to launch it through agent-wrapper";
   }
   const argList = splitArgs(args.value);
-  return ['agent-wrapper', executable, ...argList].join(' ');
+  return ["agent-wrapper", executable, ...argList].join(" ");
 });
 
 const closeSession = async () => {
@@ -112,7 +121,11 @@ const closeSession = async () => {
   } catch (err: any) {
     const status = err?.response?.status;
     if (status !== 404) {
-      message.error(err?.response?.data?.error || err?.message || 'Failed to close remote terminal');
+      message.error(
+        err?.response?.data?.error ||
+          err?.message ||
+          "Failed to close remote terminal",
+      );
     }
   }
 };
@@ -120,7 +133,7 @@ const closeSession = async () => {
 const launchCommand = async () => {
   const executable = command.value.trim();
   if (!executable) {
-    message.error('Please enter an executable');
+    message.error("Please enter an executable");
     return;
   }
 
@@ -132,19 +145,20 @@ const launchCommand = async () => {
     }
 
     const payload: ShellSessionCreateRequest = {
-      shell: 'wrapper',
-      command: 'agent-wrapper',
+      shell: "wrapper",
+      command: "agent-wrapper",
       args: [executable, ...argList],
       cols: 100,
       rows: 32,
       label: `wrapper: ${executable}`,
-      kind: 'wrapper',
-      env: props.defaultEnv && Object.keys(props.defaultEnv).length > 0
-        ? { ...props.defaultEnv }
-        : undefined,
+      kind: "wrapper",
+      env:
+        props.defaultEnv && Object.keys(props.defaultEnv).length > 0
+          ? { ...props.defaultEnv }
+          : undefined,
     };
 
-    const res = await axios.post('/shell-sessions', payload);
+    const res = await axios.post("/shell-sessions", payload);
     const created = res.data as ShellSessionInfo;
 
     if (!props.active) {
@@ -166,7 +180,11 @@ const launchCommand = async () => {
       persistRecentCommands();
     }
   } catch (err: any) {
-    message.error(err?.response?.data?.error || err?.message || 'Failed to launch remote terminal');
+    message.error(
+      err?.response?.data?.error ||
+        err?.message ||
+        "Failed to launch remote terminal",
+    );
   } finally {
     launching.value = false;
   }
@@ -197,23 +215,26 @@ const connectWebSocket = () => {
   }
 
   // Load initial historical events once
-  axios.get('/events/recent', {
-    params: { type: 'wrapper_intercept', limit: 20 },
-  }).then((res) => {
-    recentEvents.value = (res.data.events || []).reverse().map((r: any) => ({
-      key: `${r.event.pid}-${r.event.path}-${Date.now()}-${Math.random()}`,
-      pid: r.event.pid,
-      comm: r.event.comm,
-      tag: r.event.tag,
-      path: r.event.path,
-      receivedAt: r.receivedAt,
-    }));
-  }).catch(() => {
-    // Silently ignore initial load errors
-  });
+  axios
+    .get("/events/recent", {
+      params: { type: "wrapper_intercept", limit: 20 },
+    })
+    .then((res) => {
+      recentEvents.value = (res.data.events || []).reverse().map((r: any) => ({
+        key: `${r.event.pid}-${r.event.path}-${Date.now()}-${Math.random()}`,
+        pid: r.event.pid,
+        comm: r.event.comm,
+        tag: r.event.tag,
+        path: r.event.path,
+        receivedAt: r.receivedAt,
+      }));
+    })
+    .catch(() => {
+      // Silently ignore initial load errors
+    });
 
-  ws = new WebSocket(buildWebSocketUrl('/ws'));
-  ws.binaryType = 'arraybuffer';
+  ws = new WebSocket(buildWebSocketUrl("/ws"));
+  ws.binaryType = "arraybuffer";
 
   ws.onopen = () => {
     wsConnected.value = true;
@@ -222,32 +243,43 @@ const connectWebSocket = () => {
   ws.onmessage = (messageEvent) => {
     try {
       const payload = new Uint8Array(messageEvent.data);
-      const incomingEvents = payload[0] === 10
-        ? (pb.EventBatch.decode(payload).events || [])
-        : [pb.Event.decode(payload)];
+      const incomingEvents =
+        payload[0] === 10
+          ? pb.EventBatch.decode(payload).events || []
+          : [pb.Event.decode(payload)];
 
       incomingEvents.forEach((data) => {
-        const eventType = Object.prototype.hasOwnProperty.call(data, 'eventType') && data.eventType !== null && data.eventType !== undefined
-          ? Number(data.eventType)
-          : undefined;
-        const isWrapperIntercept = eventType === pb.EventType.WRAPPER_INTERCEPT || data.type === 'wrapper_intercept';
+        const eventType =
+          Object.prototype.hasOwnProperty.call(data, "eventType") &&
+          data.eventType !== null &&
+          data.eventType !== undefined
+            ? Number(data.eventType)
+            : undefined;
+        const isWrapperIntercept =
+          eventType === pb.EventType.WRAPPER_INTERCEPT ||
+          data.type === "wrapper_intercept";
         const isTrackedPid = trackedPids.value.has(data.pid ?? 0);
         if (!isWrapperIntercept && !isTrackedPid) return;
 
-        const evType = data.type || '';
+        const evType = data.type || "";
         const record: WrapperEventRecord = {
-          key: `${data.pid}-${data.path}-${data.type ?? 'event'}-${Date.now()}-${Math.random()}`,
+          key: `${data.pid}-${data.path}-${data.type ?? "event"}-${Date.now()}-${Math.random()}`,
           pid: data.pid ?? 0,
-          comm: data.comm ?? '',
-          tag: data.tag ?? '',
-          path: isWrapperIntercept ? (data.path ?? '') : (evType ? `[${evType}] ${data.path ?? ''}` : (data.path ?? '')),
+          comm: data.comm ?? "",
+          tag: data.tag ?? "",
+          path: isWrapperIntercept
+            ? (data.path ?? "")
+            : evType
+              ? `[${evType}] ${data.path ?? ""}`
+              : (data.path ?? ""),
           receivedAt: new Date().toISOString(),
         };
         recentEvents.value.unshift(record);
       });
-      while (recentEvents.value.length > maxRecentEvents) recentEvents.value.pop();
+      while (recentEvents.value.length > maxRecentEvents)
+        recentEvents.value.pop();
     } catch (e) {
-      console.error('Failed to parse wrapper event', e);
+      console.error("Failed to parse wrapper event", e);
     }
   };
 
@@ -312,7 +344,7 @@ onBeforeUnmount(() => {
         <a-alert
           type="info"
           show-icon
-          style="margin-bottom: 16px;"
+          style="margin-bottom: 16px"
           message="Commands run through agent-wrapper in a temporary terminal."
           description="Leaving this tab destroys the backend PTY session automatically."
         />
@@ -341,7 +373,7 @@ onBeforeUnmount(() => {
           <a-alert
             type="success"
             show-icon
-            style="margin-bottom: 16px;"
+            style="margin-bottom: 16px"
             :message="launchPreview"
           />
 
@@ -361,11 +393,17 @@ onBeforeUnmount(() => {
           <a-list size="small" :data-source="recentCommands">
             <template #renderItem="{ item }">
               <a-list-item>
-                <code style="cursor: pointer; color: #1890ff" @click="useRecent(item)">{{ item }}</code>
+                <code
+                  style="cursor: pointer; color: #1890ff"
+                  @click="useRecent(item)"
+                  >{{ item }}</code
+                >
               </a-list-item>
             </template>
             <template v-if="recentCommands.length === 0" #header>
-              <div style="text-align: center; color: #999;">No recent commands</div>
+              <div style="text-align: center; color: #999">
+                No recent commands
+              </div>
             </template>
           </a-list>
         </a-form>
@@ -378,7 +416,11 @@ onBeforeUnmount(() => {
           <a-space :size="8">
             <a-tag v-if="session" color="green">live</a-tag>
             <a-tag v-else color="default">idle</a-tag>
-            <a-button size="small" :disabled="!session" @click="closeTemporaryTerminal">
+            <a-button
+              size="small"
+              :disabled="!session"
+              @click="closeTemporaryTerminal"
+            >
               Close temp terminal
             </a-button>
           </a-space>
@@ -399,7 +441,11 @@ onBeforeUnmount(() => {
         </template>
       </a-card>
 
-      <a-card title="Recent Wrapper Events (eBPF)" :bordered="false" style="margin-top: 16px;">
+      <a-card
+        title="Recent Wrapper Events (eBPF)"
+        :bordered="false"
+        style="margin-top: 16px"
+      >
         <template #extra>
           <a-tag color="orange">live</a-tag>
         </template>
@@ -408,7 +454,12 @@ onBeforeUnmount(() => {
           :columns="[
             { title: 'Time', dataIndex: 'receivedAt', key: 'receivedAt' },
             { title: 'Command', dataIndex: 'comm', key: 'comm' },
-            { title: 'Args/Path', dataIndex: 'path', key: 'path', ellipsis: true },
+            {
+              title: 'Args/Path',
+              dataIndex: 'path',
+              key: 'path',
+              ellipsis: true,
+            },
             { title: 'Tag', dataIndex: 'tag', key: 'tag' },
           ]"
           :pagination="false"
@@ -419,13 +470,15 @@ onBeforeUnmount(() => {
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'receivedAt'">
-              <span style="font-size: 12px; white-space: nowrap;">{{ formatEventTime(record.receivedAt) }}</span>
+              <span style="font-size: 12px; white-space: nowrap">{{
+                formatEventTime(record.receivedAt)
+              }}</span>
             </template>
             <template v-else-if="column.key === 'comm'">
               <code>{{ record.comm }}</code>
             </template>
             <template v-else-if="column.key === 'path'">
-              <span style="font-size: 12px;">{{ record.path }}</span>
+              <span style="font-size: 12px">{{ record.path }}</span>
             </template>
             <template v-else-if="column.key === 'tag'">
               <a-tag color="blue">{{ record.tag }}</a-tag>

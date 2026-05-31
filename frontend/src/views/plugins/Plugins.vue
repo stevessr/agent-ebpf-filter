@@ -12,9 +12,7 @@ import {
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import { useRoute, useRouter } from "vue-router";
-import {
-  usePlugins,
-} from "../../composables/plugins/usePlugins";
+import { usePlugins } from "../../composables/plugins/usePlugins";
 import PluginsPseudoCodeTab from "../../components/plugins/PluginsPseudoCodeTab.vue";
 import PluginsVisualTab from "../../components/plugins/PluginsVisualTab.vue";
 import { usePluginBuilder } from "./usePluginBuilder";
@@ -42,14 +40,14 @@ const router = useRouter();
 
 const pluginTabKeys = new Set(["list", "builder", "visual", "pseudo"]);
 const normalizePluginTab = (
-  tab: unknown
+  tab: unknown,
 ): "list" | "builder" | "visual" | "pseudo" =>
   typeof tab === "string" && pluginTabKeys.has(tab)
     ? (tab as "list" | "builder" | "visual" | "pseudo")
     : "list";
 
 const activeTab = ref<"list" | "builder" | "visual" | "pseudo">(
-  normalizePluginTab(route.params.tab)
+  normalizePluginTab(route.params.tab),
 );
 
 // Plugin builder state and operations
@@ -63,23 +61,25 @@ const {
   handleCompile,
   handleSave,
   handleLoadIntoBuilder,
-} = usePluginBuilder(compileBpf, upsertPlugin, fetchPlugin, compileLog, lastCompile, activeTab);
+} = usePluginBuilder(
+  compileBpf,
+  upsertPlugin,
+  fetchPlugin,
+  compileLog,
+  lastCompile,
+  activeTab,
+);
 
 // Plugin list helpers
-const {
-  kindLabel,
-  statusTag,
-  sortedPlugins,
-  confirmDelete,
-  handleToggle,
-} = usePluginList(plugins, deletePlugin, togglePlugin);
+const { kindLabel, statusTag, sortedPlugins, confirmDelete, handleToggle } =
+  usePluginList(plugins, deletePlugin, togglePlugin);
 
 watch(
   () => route.params.tab,
   (tab) => {
     activeTab.value = normalizePluginTab(tab);
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 watch(activeTab, (tab) => {
@@ -322,7 +322,8 @@ onMounted(async () => {
                 :rows="20"
                 placeholder="Select a template or enter libbpf C source code"
                 style="
-                  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+                  font-family:
+                    &quot;JetBrains Mono&quot;, Menlo, Consolas, monospace;
                   font-size: 12px;
                 "
               />
@@ -360,11 +361,12 @@ onMounted(async () => {
                   <code>&lt;bpf/...&gt;</code> headers are allowed.
                 </li>
                 <li>
-                  At least one <code>SEC(&quot;...&quot;)</code> program is required.
+                  At least one <code>SEC(&quot;...&quot;)</code> program is
+                  required.
                 </li>
                 <li>
-                  Requires <code>clang &ge; 14</code> on host, and backend access to
-                  <code>/sys/fs/bpf</code>.
+                  Requires <code>clang &ge; 14</code> on host, and backend
+                  access to <code>/sys/fs/bpf</code>.
                 </li>
                 <li>
                   Tracepoint target format: <code>category/name</code>, e.g.
@@ -390,7 +392,9 @@ onMounted(async () => {
 
       <!-- --- TS Pseudocode --- -->
       <a-tab-pane key="pseudo">
-        <template #tab><span><CodeOutlined /> TS Pseudocode</span></template>
+        <template #tab
+          ><span><CodeOutlined /> TS Pseudocode</span></template
+        >
         <PluginsPseudoCodeTab />
       </a-tab-pane>
     </a-tabs>

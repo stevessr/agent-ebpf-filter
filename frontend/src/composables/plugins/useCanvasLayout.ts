@@ -47,13 +47,49 @@ export const WIRE_DEFINITIONS: Array<{
   label: string;
   required: boolean;
 }> = [
-  { id: "trigger-condition", from: "trigger", to: "condition", label: "event ctx", required: true },
-  { id: "condition-map", from: "condition", to: "map", label: "match", required: true },
-  { id: "map-action", from: "map", to: "action", label: "state", required: true },
-  { id: "condition-code", from: "condition", to: "code", label: "expr", required: true },
+  {
+    id: "trigger-condition",
+    from: "trigger",
+    to: "condition",
+    label: "event ctx",
+    required: true,
+  },
+  {
+    id: "condition-map",
+    from: "condition",
+    to: "map",
+    label: "match",
+    required: true,
+  },
+  {
+    id: "map-action",
+    from: "map",
+    to: "action",
+    label: "state",
+    required: true,
+  },
+  {
+    id: "condition-code",
+    from: "condition",
+    to: "code",
+    label: "expr",
+    required: true,
+  },
   { id: "map-code", from: "map", to: "code", label: "map def", required: true },
-  { id: "action-compile", from: "action", to: "compile", label: "decision", required: true },
-  { id: "code-compile", from: "code", to: "compile", label: "source", required: true },
+  {
+    id: "action-compile",
+    from: "action",
+    to: "compile",
+    label: "decision",
+    required: true,
+  },
+  {
+    id: "code-compile",
+    from: "code",
+    to: "compile",
+    label: "source",
+    required: true,
+  },
 ];
 
 export const DEFAULT_WIRE_STATES: Record<VisualWireId, boolean> = {
@@ -69,7 +105,8 @@ export const DEFAULT_WIRE_STATES: Record<VisualWireId, boolean> = {
 export const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.min(min, value));
 
-export const snapToGrid = (value: number) => Math.round(value / GRID_SIZE) * GRID_SIZE;
+export const snapToGrid = (value: number) =>
+  Math.round(value / GRID_SIZE) * GRID_SIZE;
 
 export interface UseCanvasLayoutParams {
   nodeLayout: VisualNodeLayout;
@@ -97,14 +134,23 @@ export function useCanvasLayout(params: () => UseCanvasLayoutParams) {
     ...params().wireStates,
   }));
 
-  const canvasSize = ref({ width: DEFAULT_CANVAS_WIDTH, height: DEFAULT_CANVAS_HEIGHT });
+  const canvasSize = ref({
+    width: DEFAULT_CANVAS_WIDTH,
+    height: DEFAULT_CANVAS_HEIGHT,
+  });
 
   const maxNodeX = computed(() =>
-    Math.max(CANVAS_PADDING, canvasSize.value.width - NODE_WIDTH - CANVAS_PADDING)
+    Math.max(
+      CANVAS_PADDING,
+      canvasSize.value.width - NODE_WIDTH - CANVAS_PADDING,
+    ),
   );
 
   const maxNodeY = computed(() =>
-    Math.max(CANVAS_PADDING, canvasSize.value.height - NODE_HEIGHT - CANVAS_PADDING)
+    Math.max(
+      CANVAS_PADDING,
+      canvasSize.value.height - NODE_HEIGHT - CANVAS_PADDING,
+    ),
   );
 
   const snapNodeX = (value: number) =>
@@ -129,8 +175,8 @@ export function useCanvasLayout(params: () => UseCanvasLayoutParams) {
     () =>
       `0 0 ${Math.max(1, Math.round(canvasSize.value.width))} ${Math.max(
         1,
-        Math.round(canvasSize.value.height)
-      )}`
+        Math.round(canvasSize.value.height),
+      )}`,
   );
 
   const flowNodes = computed(() => {
@@ -169,8 +215,8 @@ export function useCanvasLayout(params: () => UseCanvasLayoutParams) {
           p.action === "ALERT"
             ? theme.warning
             : p.action === "KILL"
-            ? theme.danger
-            : theme.primary,
+              ? theme.danger
+              : theme.primary,
         hint: "配置命中后的内核动作：告警、返回拒绝，或发送 SIGKILL。",
       },
       {
@@ -195,13 +241,13 @@ export function useCanvasLayout(params: () => UseCanvasLayoutParams) {
   const isNodeHidden = (id: VisualFlowNodeId) => !!params().hiddenNodes[id];
 
   const visibleFlowNodes = computed(() =>
-    flowNodes.value.filter((node) => !isNodeHidden(node.id))
+    flowNodes.value.filter((node) => !isNodeHidden(node.id)),
   );
 
   const visibleWireDefinitions = computed(() =>
     WIRE_DEFINITIONS.filter(
-      (wire) => !isNodeHidden(wire.from) && !isNodeHidden(wire.to)
-    )
+      (wire) => !isNodeHidden(wire.from) && !isNodeHidden(wire.to),
+    ),
   );
 
   const wires = computed(() => {
@@ -220,12 +266,12 @@ export function useCanvasLayout(params: () => UseCanvasLayoutParams) {
         labelX: clamp(
           (x1 + x2) / 2 - 52,
           6,
-          Math.max(6, canvasSize.value.width - 116)
+          Math.max(6, canvasSize.value.width - 116),
         ),
         labelY: clamp(
           (y1 + y2) / 2 - 13,
           6,
-          Math.max(6, canvasSize.value.height - 34)
+          Math.max(6, canvasSize.value.height - 34),
         ),
       };
     });
@@ -233,7 +279,9 @@ export function useCanvasLayout(params: () => UseCanvasLayoutParams) {
 
   const connectedWireCount = computed(
     () =>
-      visibleWireDefinitions.value.filter((wire) => mergedWireStates.value[wire.id]).length
+      visibleWireDefinitions.value.filter(
+        (wire) => mergedWireStates.value[wire.id],
+      ).length,
   );
 
   const getNodePosition = (id: VisualFlowNodeId) =>
@@ -248,7 +296,8 @@ export function useCanvasLayout(params: () => UseCanvasLayoutParams) {
   };
 
   const getWireForEndpoints = (from: VisualFlowNodeId, to: VisualFlowNodeId) =>
-    WIRE_DEFINITIONS.find((wire) => wire.from === from && wire.to === to) || null;
+    WIRE_DEFINITIONS.find((wire) => wire.from === from && wire.to === to) ||
+    null;
 
   const hasOutgoingWire = (id: VisualFlowNodeId) =>
     visibleWireDefinitions.value.some((wire) => wire.from === id);

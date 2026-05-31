@@ -1,5 +1,5 @@
-import { ref } from 'vue';
-import axios from 'axios';
+import { ref } from "vue";
+import axios from "axios";
 
 export interface InterfaceStats {
   name: string;
@@ -35,27 +35,35 @@ export function useNetworkInterfaces(refreshMs = 5000) {
   const interfaceRates = ref<InterfaceRate[]>([]);
   const dnsMap = ref<DNSMapsEntry[]>([]);
   const loading = ref(false);
-  const error = ref('');
+  const error = ref("");
   let timer: ReturnType<typeof setInterval> | null = null;
   let previousInterfaces = new Map<string, InterfaceStats>();
 
   async function fetchInterfaces() {
     try {
       loading.value = true;
-      const res = await axios.get('/network/interfaces');
+      const res = await axios.get("/network/interfaces");
       const nextInterfaces: InterfaceStats[] = res.data.interfaces || [];
       interfaceRates.value = nextInterfaces.map((iface) => {
         const prev = previousInterfaces.get(iface.name);
         const elapsed = prev ? (iface.timestamp - prev.timestamp) / 1000 : 0;
-        const readSpeed = prev && elapsed > 0 ? Math.max(0, iface.bytesRecv - prev.bytesRecv) / elapsed : 0;
-        const writeSpeed = prev && elapsed > 0 ? Math.max(0, iface.bytesSent - prev.bytesSent) / elapsed : 0;
+        const readSpeed =
+          prev && elapsed > 0
+            ? Math.max(0, iface.bytesRecv - prev.bytesRecv) / elapsed
+            : 0;
+        const writeSpeed =
+          prev && elapsed > 0
+            ? Math.max(0, iface.bytesSent - prev.bytesSent) / elapsed
+            : 0;
         return { name: iface.name, readSpeed, writeSpeed };
       });
-      previousInterfaces = new Map(nextInterfaces.map((iface) => [iface.name, iface]));
+      previousInterfaces = new Map(
+        nextInterfaces.map((iface) => [iface.name, iface]),
+      );
       interfaces.value = nextInterfaces;
-      error.value = '';
+      error.value = "";
     } catch (e: any) {
-      error.value = e.message || 'Failed to fetch interfaces';
+      error.value = e.message || "Failed to fetch interfaces";
     } finally {
       loading.value = false;
     }
@@ -63,7 +71,7 @@ export function useNetworkInterfaces(refreshMs = 5000) {
 
   async function fetchDNSCache() {
     try {
-      const res = await axios.get('/network/dns-cache');
+      const res = await axios.get("/network/dns-cache");
       dnsMap.value = res.data.entries || [];
     } catch {
       // non-critical
@@ -109,16 +117,30 @@ export function useNetworkInterfaces(refreshMs = 5000) {
     return rate;
   };
 
-  const totalErrors = () => interfaces.value.reduce((s, i) => s + i.errin + i.errout, 0);
-  const totalDrops = () => interfaces.value.reduce((s, i) => s + i.dropin + i.dropout, 0);
-  const totalBytesRecv = () => interfaces.value.reduce((s, i) => s + i.bytesRecv, 0);
-  const totalBytesSent = () => interfaces.value.reduce((s, i) => s + i.bytesSent, 0);
+  const totalErrors = () =>
+    interfaces.value.reduce((s, i) => s + i.errin + i.errout, 0);
+  const totalDrops = () =>
+    interfaces.value.reduce((s, i) => s + i.dropin + i.dropout, 0);
+  const totalBytesRecv = () =>
+    interfaces.value.reduce((s, i) => s + i.bytesRecv, 0);
+  const totalBytesSent = () =>
+    interfaces.value.reduce((s, i) => s + i.bytesSent, 0);
 
   return {
-    interfaces, interfaceRates, dnsMap, loading, error,
-    fetchInterfaces, fetchDNSCache,
-    startAutoRefresh, stopAutoRefresh,
-    totalRecvRate, totalSentRate, totalErrors, totalDrops,
-    totalBytesRecv, totalBytesSent,
+    interfaces,
+    interfaceRates,
+    dnsMap,
+    loading,
+    error,
+    fetchInterfaces,
+    fetchDNSCache,
+    startAutoRefresh,
+    stopAutoRefresh,
+    totalRecvRate,
+    totalSentRate,
+    totalErrors,
+    totalDrops,
+    totalBytesRecv,
+    totalBytesSent,
   };
 }

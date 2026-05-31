@@ -1,19 +1,22 @@
-import type { Component } from 'vue';
-import type { RouteLocationNormalizedLoaded, RouteLocationRaw } from 'vue-router';
+import type { Component } from "vue";
+import type {
+  RouteLocationNormalizedLoaded,
+  RouteLocationRaw,
+} from "vue-router";
 
 export type WorkbenchKey =
-  | 'dashboard'
-  | 'monitor'
-  | 'network'
-  | 'network-flow'
-  | 'tls-capture'
-  | 'execution-graph'
-  | 'explorer'
-  | 'executor'
-  | 'hooks'
-  | 'ml'
-  | 'plugins'
-  | 'config';
+  | "dashboard"
+  | "monitor"
+  | "network"
+  | "network-flow"
+  | "tls-capture"
+  | "execution-graph"
+  | "explorer"
+  | "executor"
+  | "hooks"
+  | "ml"
+  | "plugins"
+  | "config";
 
 export type NavMenuLeaf = {
   key: WorkbenchKey;
@@ -49,4 +52,6 @@ export type ResolvedWorkbench = {
   definition: WorkbenchDefinition;
 };
 
-export type WorkbenchRouteResolver = (route: RouteLocationNormalizedLoaded) => WorkbenchKey | null;
+export type WorkbenchRouteResolver = (
+  route: RouteLocationNormalizedLoaded,
+) => WorkbenchKey | null;

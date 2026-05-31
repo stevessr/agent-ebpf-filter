@@ -1,79 +1,88 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import axios from 'axios';
-import { message } from 'ant-design-vue';
-import { buildWebSocketUrl } from '../../utils/requestContext';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import axios from "axios";
+import { message } from "ant-design-vue";
+import { buildWebSocketUrl } from "../../utils/requestContext";
 import type {
   ShellConfig,
   ShellMode,
   ShellSessionCreateRequest,
   ShellSessionInfo,
   ShellSessionInputRequest,
-} from '../../types/shell';
-import { isTmuxSession, TMUX_SHORTCUTS } from '../../utils/tmux';
+} from "../../types/shell";
+import { isTmuxSession, TMUX_SHORTCUTS } from "../../utils/tmux";
 
-const SHELL_STORAGE_KEY = 'executor-shell-config';
+const SHELL_STORAGE_KEY = "executor-shell-config";
 
 const normalizeShellMode = (value: unknown): ShellMode => {
-  const candidate = String(value || '').trim().toLowerCase();
+  const candidate = String(value || "")
+    .trim()
+    .toLowerCase();
   if (
-    candidate === 'auto' ||
-    candidate === 'system' ||
-    candidate === 'env' ||
-    candidate === 'fish' ||
-    candidate === 'zsh' ||
-    candidate === 'bash' ||
-    candidate === 'ash' ||
-    candidate === 'sh' ||
-    candidate === 'custom'
+    candidate === "auto" ||
+    candidate === "system" ||
+    candidate === "env" ||
+    candidate === "fish" ||
+    candidate === "zsh" ||
+    candidate === "bash" ||
+    candidate === "ash" ||
+    candidate === "sh" ||
+    candidate === "custom"
   ) {
-    return candidate === 'env' ? 'system' : (candidate as ShellMode);
+    return candidate === "env" ? "system" : (candidate as ShellMode);
   }
-  return 'auto';
+  return "auto";
 };
 
 const loadShellConfig = (): ShellConfig => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(SHELL_STORAGE_KEY) || '{}') as Partial<ShellConfig>;
+    const parsed = JSON.parse(
+      localStorage.getItem(SHELL_STORAGE_KEY) || "{}",
+    ) as Partial<ShellConfig>;
     return {
       mode: normalizeShellMode(parsed.mode),
-      customPath: typeof parsed.customPath === 'string' ? parsed.customPath : '',
+      customPath:
+        typeof parsed.customPath === "string" ? parsed.customPath : "",
     };
   } catch {
-    return { mode: 'auto', customPath: '' };
+    return { mode: "auto", customPath: "" };
   }
 };
 
 export const SHELL_MODE_OPTIONS = [
-  { label: 'Auto (fish → zsh → bash → ash → sh)', value: 'auto' },
-  { label: 'System shell ($SHELL)', value: 'system' },
-  { label: 'fish', value: 'fish' },
-  { label: 'zsh', value: 'zsh' },
-  { label: 'bash', value: 'bash' },
-  { label: 'ash', value: 'ash' },
-  { label: 'sh', value: 'sh' },
-  { label: 'Custom path', value: 'custom' },
+  { label: "Auto (fish → zsh → bash → ash → sh)", value: "auto" },
+  { label: "System shell ($SHELL)", value: "system" },
+  { label: "fish", value: "fish" },
+  { label: "zsh", value: "zsh" },
+  { label: "bash", value: "bash" },
+  { label: "ash", value: "ash" },
+  { label: "sh", value: "sh" },
+  { label: "Custom path", value: "custom" },
 ] as const;
 
-export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' = 'all') {
+export function useShellSessions(
+  sessionKindFilter: "all" | "tmux" | "non-tmux" = "all",
+) {
   const initialShellConfig = loadShellConfig();
   const defaultShellMode = ref<ShellMode>(initialShellConfig.mode);
   const defaultCustomShellPath = ref(initialShellConfig.customPath);
 
   const sessions = ref<ShellSessionInfo[]>([]);
   const sessionsLoading = ref(false);
-  const sessionError = ref('');
+  const sessionError = ref("");
   const creating = ref(false);
 
   const openSessionIds = ref<string[]>([]);
-  const activeTabKey = ref('');
+  const activeTabKey = ref("");
 
   const wsConnected = ref(false);
   let ws: WebSocket | null = null;
   let wsReconnectTimer: number | null = null;
   let shouldReconnect = true;
 
-  const isTmuxFilteredView = computed(() => sessionKindFilter === 'tmux');
-  const isNonTmuxFilteredView = computed(() => sessionKindFilter === 'non-tmux');
+  const isTmuxFilteredView = computed(() => sessionKindFilter === "tmux");
+  const isNonTmuxFilteredView = computed(
+    () => sessionKindFilter === "non-tmux",
+  );
 
   const persistShellConfig = () => {
     const payload: ShellConfig = {
@@ -83,28 +92,35 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
     localStorage.setItem(SHELL_STORAGE_KEY, JSON.stringify(payload));
   };
 
-  watch([defaultShellMode, defaultCustomShellPath], persistShellConfig, { immediate: true });
+  watch([defaultShellMode, defaultCustomShellPath], persistShellConfig, {
+    immediate: true,
+  });
 
   const matchesSessionFilter = (session: ShellSessionInfo) => {
-    const kind = (session.kind || '').trim().toLowerCase();
-    if (sessionKindFilter === 'all') return true;
-    if (sessionKindFilter === 'tmux') return isTmuxSession(session);
-    if (sessionKindFilter === 'non-tmux') return !isTmuxSession(session) && kind !== 'wrapper';
+    const kind = (session.kind || "").trim().toLowerCase();
+    if (sessionKindFilter === "all") return true;
+    if (sessionKindFilter === "tmux") return isTmuxSession(session);
+    if (sessionKindFilter === "non-tmux")
+      return !isTmuxSession(session) && kind !== "wrapper";
     return true;
   };
 
-  const filteredSessions = computed(() => sessions.value.filter(matchesSessionFilter));
-  const tmuxQuickShortcuts = TMUX_SHORTCUTS.filter((shortcut) => !shortcut.danger);
+  const filteredSessions = computed(() =>
+    sessions.value.filter(matchesSessionFilter),
+  );
+  const tmuxQuickShortcuts = TMUX_SHORTCUTS.filter(
+    (shortcut) => !shortcut.danger,
+  );
 
   const defaultShellRequest = computed(() => {
-    if (defaultShellMode.value === 'custom') {
+    if (defaultShellMode.value === "custom") {
       return defaultCustomShellPath.value.trim();
     }
     return defaultShellMode.value;
   });
 
   const canCreateSession = computed(() => {
-    if (defaultShellMode.value === 'custom') {
+    if (defaultShellMode.value === "custom") {
       return defaultShellRequest.value.length > 0;
     }
     return true;
@@ -112,28 +128,36 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
 
   const shellSelectionLabel = computed(() => {
     switch (defaultShellMode.value) {
-      case 'auto':
-        return 'Auto: fish → zsh → bash → ash → sh';
-      case 'system':
-        return 'System: $SHELL';
-      case 'custom':
-        return defaultShellRequest.value ? `Custom: ${defaultShellRequest.value}` : 'Custom: unset';
+      case "auto":
+        return "Auto: fish → zsh → bash → ash → sh";
+      case "system":
+        return "System: $SHELL";
+      case "custom":
+        return defaultShellRequest.value
+          ? `Custom: ${defaultShellRequest.value}`
+          : "Custom: unset";
       default:
         return defaultShellMode.value;
     }
   });
 
-  const sessionMap = computed(() => new Map(sessions.value.map((session) => [session.id, session] as const)));
+  const sessionMap = computed(
+    () =>
+      new Map(sessions.value.map((session) => [session.id, session] as const)),
+  );
   const filteredSessionMap = computed(
-    () => new Map(filteredSessions.value.map((session) => [session.id, session] as const)),
+    () =>
+      new Map(
+        filteredSessions.value.map((session) => [session.id, session] as const),
+      ),
   );
 
   const sessionColumns = [
-    { title: 'Session', dataIndex: 'session', key: 'session' },
-    { title: 'PID', dataIndex: 'pid', key: 'pid' },
-    { title: 'Status', dataIndex: 'status', key: 'status' },
-    { title: 'Updated', dataIndex: 'updatedAt', key: 'updatedAt' },
-    { title: 'Actions', dataIndex: 'actions', key: 'actions' },
+    { title: "Session", dataIndex: "session", key: "session" },
+    { title: "PID", dataIndex: "pid", key: "pid" },
+    { title: "Status", dataIndex: "status", key: "status" },
+    { title: "Updated", dataIndex: "updatedAt", key: "updatedAt" },
+    { title: "Actions", dataIndex: "actions", key: "actions" },
   ];
 
   const openSessions = computed(() =>
@@ -143,7 +167,9 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
   );
 
   const runningSessionCount = computed(
-    () => filteredSessions.value.filter((session) => session.status === 'running').length,
+    () =>
+      filteredSessions.value.filter((session) => session.status === "running")
+        .length,
   );
 
   const formatDateTime = (value: string) => {
@@ -154,30 +180,43 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
 
   const shellStatusColor = (status: string) => {
     switch (status) {
-      case 'running': return 'success';
-      case 'exited': return 'warning';
-      case 'closed': return 'default';
-      case 'error': return 'error';
-      default: return 'default';
+      case "running":
+        return "success";
+      case "exited":
+        return "warning";
+      case "closed":
+        return "default";
+      case "error":
+        return "error";
+      default:
+        return "default";
     }
   };
 
-  const attachedColor = (attached: boolean) => (attached ? 'success' : 'default');
+  const attachedColor = (attached: boolean) =>
+    attached ? "success" : "default";
 
-  const isSessionOpen = (sessionId: string) => openSessionIds.value.includes(sessionId);
+  const isSessionOpen = (sessionId: string) =>
+    openSessionIds.value.includes(sessionId);
 
   const syncOpenTabs = () => {
-    const availableIds = new Set(filteredSessions.value.map((session) => session.id));
-    openSessionIds.value = openSessionIds.value.filter((id) => availableIds.has(id));
+    const availableIds = new Set(
+      filteredSessions.value.map((session) => session.id),
+    );
+    openSessionIds.value = openSessionIds.value.filter((id) =>
+      availableIds.has(id),
+    );
     if (!openSessionIds.value.includes(activeTabKey.value)) {
-      activeTabKey.value = openSessionIds.value[0] || '';
+      activeTabKey.value = openSessionIds.value[0] || "";
     }
   };
 
   const upsertSession = (session: ShellSessionInfo) => {
     const index = sessions.value.findIndex((item) => item.id === session.id);
     if (index >= 0) {
-      sessions.value = sessions.value.map((item) => (item.id === session.id ? session : item));
+      sessions.value = sessions.value.map((item) =>
+        item.id === session.id ? session : item,
+      );
     } else {
       sessions.value = [session, ...sessions.value];
     }
@@ -185,10 +224,14 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
   };
 
   const removeSessionLocally = (sessionId: string) => {
-    sessions.value = sessions.value.filter((session) => session.id !== sessionId);
-    openSessionIds.value = openSessionIds.value.filter((id) => id !== sessionId);
+    sessions.value = sessions.value.filter(
+      (session) => session.id !== sessionId,
+    );
+    openSessionIds.value = openSessionIds.value.filter(
+      (id) => id !== sessionId,
+    );
     if (activeTabKey.value === sessionId) {
-      activeTabKey.value = openSessionIds.value[0] || '';
+      activeTabKey.value = openSessionIds.value[0] || "";
     }
   };
 
@@ -196,13 +239,18 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
     if (sessionsLoading.value) return;
 
     sessionsLoading.value = true;
-    sessionError.value = '';
+    sessionError.value = "";
     try {
-      const res = await axios.get('/shell-sessions');
-      sessions.value = Array.isArray(res.data) ? (res.data as ShellSessionInfo[]) : [];
+      const res = await axios.get("/shell-sessions");
+      sessions.value = Array.isArray(res.data)
+        ? (res.data as ShellSessionInfo[])
+        : [];
       syncOpenTabs();
     } catch (err: any) {
-      sessionError.value = err?.response?.data?.error || err?.message || 'Failed to load shell sessions';
+      sessionError.value =
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to load shell sessions";
     } finally {
       sessionsLoading.value = false;
     }
@@ -229,7 +277,7 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
       return;
     }
 
-    if (session.status !== 'running') {
+    if (session.status !== "running") {
       message.warning(`Session #${session.id} is not running`);
       return;
     }
@@ -239,14 +287,19 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
 
   const detachSession = (sessionId: string) => {
     if (!isSessionOpen(sessionId)) return;
-    openSessionIds.value = openSessionIds.value.filter((id) => id !== sessionId);
+    openSessionIds.value = openSessionIds.value.filter(
+      (id) => id !== sessionId,
+    );
     if (activeTabKey.value === sessionId) {
-      activeTabKey.value = openSessionIds.value[0] || '';
+      activeTabKey.value = openSessionIds.value[0] || "";
     }
   };
 
-  const handleTabEdit = (targetKey: string | number | MouseEvent, action: 'add' | 'remove') => {
-    if (action !== 'remove') return;
+  const handleTabEdit = (
+    targetKey: string | number | MouseEvent,
+    action: "add" | "remove",
+  ) => {
+    if (action !== "remove") return;
     detachSession(String(targetKey));
   };
 
@@ -257,7 +310,9 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
       removeSessionLocally(sessionId);
       message.success(`Closed session #${sessionId}`);
     } catch (err: any) {
-      message.error(err?.response?.data?.error || err?.message || 'Failed to close session');
+      message.error(
+        err?.response?.data?.error || err?.message || "Failed to close session",
+      );
     }
   };
 
@@ -266,40 +321,51 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
     await axios.post(`/shell-sessions/${sessionId}/input`, payload);
   };
 
-  const sendTmuxShortcut = async (sessionId: string, shortcut: string, label: string) => {
+  const sendTmuxShortcut = async (
+    sessionId: string,
+    shortcut: string,
+    label: string,
+  ) => {
     try {
       await sendSessionInput(sessionId, shortcut);
     } catch (err: any) {
-      message.error(err?.response?.data?.error || err?.message || `Failed to send ${label}`);
+      message.error(
+        err?.response?.data?.error || err?.message || `Failed to send ${label}`,
+      );
     }
   };
 
   const createSession = async (defaultEnv?: Record<string, string>) => {
     if (!canCreateSession.value) {
-      message.error('Please provide a custom shell path');
+      message.error("Please provide a custom shell path");
       return;
     }
 
     creating.value = true;
     try {
-      const env = defaultEnv && Object.keys(defaultEnv).length > 0
-        ? { ...defaultEnv }
-        : undefined;
+      const env =
+        defaultEnv && Object.keys(defaultEnv).length > 0
+          ? { ...defaultEnv }
+          : undefined;
       const payload: ShellSessionCreateRequest = {
-        shell: defaultShellRequest.value || 'auto',
+        shell: defaultShellRequest.value || "auto",
         cols: 100,
         rows: 32,
-        kind: 'shell',
+        kind: "shell",
         env,
       };
-      const res = await axios.post('/shell-sessions', payload);
+      const res = await axios.post("/shell-sessions", payload);
       const session = res.data as ShellSessionInfo;
       upsertSession(session);
       openSession(session.id);
       message.success(`Created shell session #${session.id}`);
       return session;
     } catch (err: any) {
-      message.error(err?.response?.data?.error || err?.message || 'Failed to create session');
+      message.error(
+        err?.response?.data?.error ||
+          err?.message ||
+          "Failed to create session",
+      );
     } finally {
       creating.value = false;
     }
@@ -307,10 +373,12 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
 
   const cleanupSessions = async () => {
     try {
-      await axios.post('/shell-sessions/cleanup');
-      message.success('Exited/closed sessions cleaned up');
+      await axios.post("/shell-sessions/cleanup");
+      message.success("Exited/closed sessions cleaned up");
     } catch (err: any) {
-      message.error(err?.response?.data?.error || 'Failed to clean up sessions');
+      message.error(
+        err?.response?.data?.error || "Failed to clean up sessions",
+      );
     }
   };
 
@@ -321,11 +389,11 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
       ws = null;
     }
 
-    ws = new WebSocket(buildWebSocketUrl('/ws/shell-sessions'));
+    ws = new WebSocket(buildWebSocketUrl("/ws/shell-sessions"));
 
     ws.onopen = () => {
       wsConnected.value = true;
-      sessionError.value = '';
+      sessionError.value = "";
     };
 
     ws.onmessage = (message) => {
@@ -334,13 +402,14 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
         sessions.value = Array.isArray(data) ? data : [];
         syncOpenTabs();
       } catch (err) {
-        console.error('Failed to parse shell sessions update', err);
+        console.error("Failed to parse shell sessions update", err);
       }
     };
 
     ws.onerror = () => {
       wsConnected.value = false;
-      sessionError.value = 'Shell sessions WebSocket 连接失败，请确认访问令牌有效且 shell_sessions 功能已启用。';
+      sessionError.value =
+        "Shell sessions WebSocket 连接失败，请确认访问令牌有效且 shell_sessions 功能已启用。";
     };
 
     ws.onclose = () => {
@@ -364,8 +433,10 @@ export function useShellSessions(sessionKindFilter: 'all' | 'tmux' | 'non-tmux' 
     }
   };
 
-  const sessionLabel = (session: ShellSessionInfo) => session.label || session.shell || 'auto';
-  const tabLabel = (session: ShellSessionInfo) => `#${session.id} · ${sessionLabel(session)}`;
+  const sessionLabel = (session: ShellSessionInfo) =>
+    session.label || session.shell || "auto";
+  const tabLabel = (session: ShellSessionInfo) =>
+    `#${session.id} · ${sessionLabel(session)}`;
 
   return {
     defaultShellMode,

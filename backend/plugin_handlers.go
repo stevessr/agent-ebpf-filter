@@ -31,23 +31,23 @@ func handlePluginGet(c *gin.Context) {
 }
 
 type pluginUpsertRequest struct {
-	ID           string           `json:"id"`
-	Name         string           `json:"name"`
-	Description  string           `json:"description"`
-	Author       string           `json:"author"`
-	Version      string           `json:"version"`
-	Kind         PluginKind       `json:"kind"`
-	Enabled      bool             `json:"enabled"`
-	Source       string           `json:"source"`
-	AttachKind   PluginAttachKind `json:"attachKind"`
-	AttachTarget string           `json:"attachTarget"`
-	ProgramName  string           `json:"programName"`
-	WebhookURL   string           `json:"webhookUrl"`
-	WebhookEvents []string        `json:"webhookEvents"`
-	CommandComm  string           `json:"commandComm"`
-	CommandArgs  []string         `json:"commandArgs"`
-	CommandRule  string           `json:"commandRule"`
-	CommandRewrite []string       `json:"commandRewrite"`
+	ID             string           `json:"id"`
+	Name           string           `json:"name"`
+	Description    string           `json:"description"`
+	Author         string           `json:"author"`
+	Version        string           `json:"version"`
+	Kind           PluginKind       `json:"kind"`
+	Enabled        bool             `json:"enabled"`
+	Source         string           `json:"source"`
+	AttachKind     PluginAttachKind `json:"attachKind"`
+	AttachTarget   string           `json:"attachTarget"`
+	ProgramName    string           `json:"programName"`
+	WebhookURL     string           `json:"webhookUrl"`
+	WebhookEvents  []string         `json:"webhookEvents"`
+	CommandComm    string           `json:"commandComm"`
+	CommandArgs    []string         `json:"commandArgs"`
+	CommandRule    string           `json:"commandRule"`
+	CommandRewrite []string         `json:"commandRewrite"`
 }
 
 func handlePluginUpsert(c *gin.Context) {
@@ -64,21 +64,21 @@ func handlePluginUpsert(c *gin.Context) {
 		req.Kind = PluginKindEBPF
 	}
 	manifest := &PluginManifest{
-		ID:            req.ID,
-		Name:          sanitizePluginName(req.Name),
-		Description:   strings.TrimSpace(req.Description),
-		Author:        strings.TrimSpace(req.Author),
-		Version:       strings.TrimSpace(req.Version),
-		Kind:          req.Kind,
-		Enabled:       req.Enabled,
-		AttachKind:    req.AttachKind,
-		AttachTarget:  strings.TrimSpace(req.AttachTarget),
-		ProgramName:   strings.TrimSpace(req.ProgramName),
-		WebhookURL:    strings.TrimSpace(req.WebhookURL),
-		WebhookEvents: req.WebhookEvents,
-		CommandComm:   strings.TrimSpace(req.CommandComm),
-		CommandArgs:   req.CommandArgs,
-		CommandRule:   strings.TrimSpace(req.CommandRule),
+		ID:             req.ID,
+		Name:           sanitizePluginName(req.Name),
+		Description:    strings.TrimSpace(req.Description),
+		Author:         strings.TrimSpace(req.Author),
+		Version:        strings.TrimSpace(req.Version),
+		Kind:           req.Kind,
+		Enabled:        req.Enabled,
+		AttachKind:     req.AttachKind,
+		AttachTarget:   strings.TrimSpace(req.AttachTarget),
+		ProgramName:    strings.TrimSpace(req.ProgramName),
+		WebhookURL:     strings.TrimSpace(req.WebhookURL),
+		WebhookEvents:  req.WebhookEvents,
+		CommandComm:    strings.TrimSpace(req.CommandComm),
+		CommandArgs:    req.CommandArgs,
+		CommandRule:    strings.TrimSpace(req.CommandRule),
 		CommandRewrite: req.CommandRewrite,
 	}
 
@@ -174,10 +174,10 @@ func handleBPFCompile(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{
-		"objectPath":  objPath,
+		"objectPath":   objPath,
 		"sourceSha256": sha256Hex([]byte(req.Source)),
-		"log":         string(log),
-		"compiledAt":  time.Now().UTC(),
+		"log":          string(log),
+		"compiledAt":   time.Now().UTC(),
 	})
 }
 

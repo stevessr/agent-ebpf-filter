@@ -343,4 +343,3 @@ func (t *ModelTrainer) trainEnsemble(store *TrainingDataStore, cfg MLConfig) (Mo
 	t.setLastSplit(labeled, labeled)
 	return model, TrainResult{Accuracy: acc, TrainAccuracy: acc, ValidationAccuracy: acc, NumSamples: len(labeled), TrainSamples: len(samples)}
 }
-

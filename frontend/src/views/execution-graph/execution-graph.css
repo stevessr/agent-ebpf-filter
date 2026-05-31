@@ -36,7 +36,9 @@
 .graph-kind-tag {
   cursor: pointer;
   user-select: none;
-  transition: opacity 0.18s ease, filter 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    filter 0.18s ease;
 }
 .graph-kind-tag:hover {
   filter: brightness(0.96);

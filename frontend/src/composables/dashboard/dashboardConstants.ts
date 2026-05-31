@@ -51,7 +51,14 @@ export interface BuiltinFilterRule {
   test: (event: AgentEvent) => boolean;
 }
 
-type ResizableColumnKey = 'time' | 'tag' | 'pid' | 'comm' | 'type' | 'path' | 'action';
+type ResizableColumnKey =
+  | "time"
+  | "tag"
+  | "pid"
+  | "comm"
+  | "type"
+  | "path"
+  | "action";
 
 export const minColumnWidths: Record<ResizableColumnKey, number> = {
   time: 100,
@@ -64,131 +71,131 @@ export const minColumnWidths: Record<ResizableColumnKey, number> = {
 };
 
 export const eventTypes = [
-  'execve',
-  'openat',
-  'network_connect',
-  'network_bind',
-  'network_sendto',
-  'network_recvfrom',
-  'mkdir',
-  'unlink',
-  'ioctl',
-  'read',
-  'write',
-  'open',
-  'chmod',
-  'chown',
-  'rename',
-  'link',
-  'symlink',
-  'mknod',
-  'clone',
-  'exit',
-  'process_fork',
-  'process_exec',
-  'process_exit',
-  'wait4',
-  'socket',
-  'accept',
-  'accept4',
-  'syscall',
-  'wrapper_intercept',
-  'native_hook',
-  'semantic_alert',
-  'tls_plaintext',
-  'http_message',
-  'sse_message',
-  'stdio',
-  'otel_span',
-  'agentsight_alert',
+  "execve",
+  "openat",
+  "network_connect",
+  "network_bind",
+  "network_sendto",
+  "network_recvfrom",
+  "mkdir",
+  "unlink",
+  "ioctl",
+  "read",
+  "write",
+  "open",
+  "chmod",
+  "chown",
+  "rename",
+  "link",
+  "symlink",
+  "mknod",
+  "clone",
+  "exit",
+  "process_fork",
+  "process_exec",
+  "process_exit",
+  "wait4",
+  "socket",
+  "accept",
+  "accept4",
+  "syscall",
+  "wrapper_intercept",
+  "native_hook",
+  "semantic_alert",
+  "tls_plaintext",
+  "http_message",
+  "sse_message",
+  "stdio",
+  "otel_span",
+  "agentsight_alert",
 ];
 
-export const pageSizeOptions = ['20', '50', '100', '200'];
+export const pageSizeOptions = ["20", "50", "100", "200"];
 
 export const eventTypeLabelMap: Record<number, string> = {
-  [pb.EventType.EXECVE]: 'execve',
-  [pb.EventType.OPENAT]: 'openat',
-  [pb.EventType.NETWORK_CONNECT]: 'network_connect',
-  [pb.EventType.MKDIR]: 'mkdir',
-  [pb.EventType.UNLINK]: 'unlink',
-  [pb.EventType.IOCTL]: 'ioctl',
-  [pb.EventType.NETWORK_BIND]: 'network_bind',
-  [pb.EventType.NETWORK_SENDTO]: 'network_sendto',
-  [pb.EventType.NETWORK_RECVFROM]: 'network_recvfrom',
-  [pb.EventType.READ]: 'read',
-  [pb.EventType.WRITE]: 'write',
-  [pb.EventType.OPEN]: 'open',
-  [pb.EventType.CHMOD]: 'chmod',
-  [pb.EventType.CHOWN]: 'chown',
-  [pb.EventType.RENAME]: 'rename',
-  [pb.EventType.LINK]: 'link',
-  [pb.EventType.SYMLINK]: 'symlink',
-  [pb.EventType.MKNOD]: 'mknod',
-  [pb.EventType.CLONE]: 'clone',
-  [pb.EventType.EXIT]: 'exit',
-  [pb.EventType.SCHED_PROCESS_FORK]: 'process_fork',
-  [pb.EventType.SCHED_PROCESS_EXEC]: 'process_exec',
-  [pb.EventType.SCHED_PROCESS_EXIT]: 'process_exit',
-  [pb.EventType.WAIT4]: 'wait4',
-  [pb.EventType.SOCKET]: 'socket',
-  [pb.EventType.ACCEPT]: 'accept',
-  [pb.EventType.ACCEPT4]: 'accept4',
-  [pb.EventType.GENERIC_SYSCALL]: 'syscall',
-  [pb.EventType.WRAPPER_INTERCEPT]: 'wrapper_intercept',
-  [pb.EventType.NATIVE_HOOK]: 'native_hook',
-  [pb.EventType.SEMANTIC_ALERT]: 'semantic_alert',
-  [pb.EventType.TCP_CONNECT]: 'tcp_connect',
-  [pb.EventType.TCP_CLOSE]: 'tcp_close',
-  [pb.EventType.TCP_STATE_CHANGE]: 'tcp_state_change',
-  [pb.EventType.DNS_QUERY]: 'dns_query',
-  [pb.EventType.TLS_PLAINTEXT]: 'tls_plaintext',
-  [pb.EventType.HTTP_MESSAGE]: 'http_message',
-  [pb.EventType.SSE_MESSAGE]: 'sse_message',
-  [pb.EventType.STDIO]: 'stdio',
-  [pb.EventType.OTEL_SPAN]: 'otel_span',
-  [pb.EventType.AGENTSIGHT_ALERT]: 'agentsight_alert',
+  [pb.EventType.EXECVE]: "execve",
+  [pb.EventType.OPENAT]: "openat",
+  [pb.EventType.NETWORK_CONNECT]: "network_connect",
+  [pb.EventType.MKDIR]: "mkdir",
+  [pb.EventType.UNLINK]: "unlink",
+  [pb.EventType.IOCTL]: "ioctl",
+  [pb.EventType.NETWORK_BIND]: "network_bind",
+  [pb.EventType.NETWORK_SENDTO]: "network_sendto",
+  [pb.EventType.NETWORK_RECVFROM]: "network_recvfrom",
+  [pb.EventType.READ]: "read",
+  [pb.EventType.WRITE]: "write",
+  [pb.EventType.OPEN]: "open",
+  [pb.EventType.CHMOD]: "chmod",
+  [pb.EventType.CHOWN]: "chown",
+  [pb.EventType.RENAME]: "rename",
+  [pb.EventType.LINK]: "link",
+  [pb.EventType.SYMLINK]: "symlink",
+  [pb.EventType.MKNOD]: "mknod",
+  [pb.EventType.CLONE]: "clone",
+  [pb.EventType.EXIT]: "exit",
+  [pb.EventType.SCHED_PROCESS_FORK]: "process_fork",
+  [pb.EventType.SCHED_PROCESS_EXEC]: "process_exec",
+  [pb.EventType.SCHED_PROCESS_EXIT]: "process_exit",
+  [pb.EventType.WAIT4]: "wait4",
+  [pb.EventType.SOCKET]: "socket",
+  [pb.EventType.ACCEPT]: "accept",
+  [pb.EventType.ACCEPT4]: "accept4",
+  [pb.EventType.GENERIC_SYSCALL]: "syscall",
+  [pb.EventType.WRAPPER_INTERCEPT]: "wrapper_intercept",
+  [pb.EventType.NATIVE_HOOK]: "native_hook",
+  [pb.EventType.SEMANTIC_ALERT]: "semantic_alert",
+  [pb.EventType.TCP_CONNECT]: "tcp_connect",
+  [pb.EventType.TCP_CLOSE]: "tcp_close",
+  [pb.EventType.TCP_STATE_CHANGE]: "tcp_state_change",
+  [pb.EventType.DNS_QUERY]: "dns_query",
+  [pb.EventType.TLS_PLAINTEXT]: "tls_plaintext",
+  [pb.EventType.HTTP_MESSAGE]: "http_message",
+  [pb.EventType.SSE_MESSAGE]: "sse_message",
+  [pb.EventType.STDIO]: "stdio",
+  [pb.EventType.OTEL_SPAN]: "otel_span",
+  [pb.EventType.AGENTSIGHT_ALERT]: "agentsight_alert",
 };
 
 export const eventTypeColorMap: Record<number, string> = {
-  [pb.EventType.EXECVE]: 'blue',
-  [pb.EventType.OPENAT]: 'green',
-  [pb.EventType.NETWORK_CONNECT]: 'orange',
-  [pb.EventType.MKDIR]: 'cyan',
-  [pb.EventType.UNLINK]: 'red',
-  [pb.EventType.IOCTL]: 'purple',
-  [pb.EventType.NETWORK_BIND]: 'volcano',
-  [pb.EventType.NETWORK_SENDTO]: 'cyan',
-  [pb.EventType.NETWORK_RECVFROM]: 'geekblue',
-  [pb.EventType.READ]: 'cyan',
-  [pb.EventType.WRITE]: 'cyan',
-  [pb.EventType.OPEN]: 'green',
-  [pb.EventType.CHMOD]: 'gold',
-  [pb.EventType.CHOWN]: 'gold',
-  [pb.EventType.RENAME]: 'orange',
-  [pb.EventType.LINK]: 'orange',
-  [pb.EventType.SYMLINK]: 'orange',
-  [pb.EventType.MKNOD]: 'purple',
-  [pb.EventType.CLONE]: 'blue',
-  [pb.EventType.EXIT]: 'red',
-  [pb.EventType.SCHED_PROCESS_FORK]: 'blue',
-  [pb.EventType.SCHED_PROCESS_EXEC]: 'cyan',
-  [pb.EventType.SCHED_PROCESS_EXIT]: 'red',
-  [pb.EventType.WAIT4]: 'gold',
-  [pb.EventType.SOCKET]: 'orange',
-  [pb.EventType.ACCEPT]: 'volcano',
-  [pb.EventType.ACCEPT4]: 'volcano',
-  [pb.EventType.GENERIC_SYSCALL]: 'geekblue',
-  [pb.EventType.SEMANTIC_ALERT]: 'red',
-  [pb.EventType.TCP_CONNECT]: 'orange',
-  [pb.EventType.TCP_CLOSE]: 'volcano',
-  [pb.EventType.TCP_STATE_CHANGE]: 'gold',
-  [pb.EventType.DNS_QUERY]: 'purple',
-  [pb.EventType.TLS_PLAINTEXT]: 'geekblue',
-  [pb.EventType.HTTP_MESSAGE]: 'blue',
-  [pb.EventType.SSE_MESSAGE]: 'cyan',
-  [pb.EventType.STDIO]: 'purple',
-  [pb.EventType.OTEL_SPAN]: 'green',
-  [pb.EventType.AGENTSIGHT_ALERT]: 'red',
+  [pb.EventType.EXECVE]: "blue",
+  [pb.EventType.OPENAT]: "green",
+  [pb.EventType.NETWORK_CONNECT]: "orange",
+  [pb.EventType.MKDIR]: "cyan",
+  [pb.EventType.UNLINK]: "red",
+  [pb.EventType.IOCTL]: "purple",
+  [pb.EventType.NETWORK_BIND]: "volcano",
+  [pb.EventType.NETWORK_SENDTO]: "cyan",
+  [pb.EventType.NETWORK_RECVFROM]: "geekblue",
+  [pb.EventType.READ]: "cyan",
+  [pb.EventType.WRITE]: "cyan",
+  [pb.EventType.OPEN]: "green",
+  [pb.EventType.CHMOD]: "gold",
+  [pb.EventType.CHOWN]: "gold",
+  [pb.EventType.RENAME]: "orange",
+  [pb.EventType.LINK]: "orange",
+  [pb.EventType.SYMLINK]: "orange",
+  [pb.EventType.MKNOD]: "purple",
+  [pb.EventType.CLONE]: "blue",
+  [pb.EventType.EXIT]: "red",
+  [pb.EventType.SCHED_PROCESS_FORK]: "blue",
+  [pb.EventType.SCHED_PROCESS_EXEC]: "cyan",
+  [pb.EventType.SCHED_PROCESS_EXIT]: "red",
+  [pb.EventType.WAIT4]: "gold",
+  [pb.EventType.SOCKET]: "orange",
+  [pb.EventType.ACCEPT]: "volcano",
+  [pb.EventType.ACCEPT4]: "volcano",
+  [pb.EventType.GENERIC_SYSCALL]: "geekblue",
+  [pb.EventType.SEMANTIC_ALERT]: "red",
+  [pb.EventType.TCP_CONNECT]: "orange",
+  [pb.EventType.TCP_CLOSE]: "volcano",
+  [pb.EventType.TCP_STATE_CHANGE]: "gold",
+  [pb.EventType.DNS_QUERY]: "purple",
+  [pb.EventType.TLS_PLAINTEXT]: "geekblue",
+  [pb.EventType.HTTP_MESSAGE]: "blue",
+  [pb.EventType.SSE_MESSAGE]: "cyan",
+  [pb.EventType.STDIO]: "purple",
+  [pb.EventType.OTEL_SPAN]: "green",
+  [pb.EventType.AGENTSIGHT_ALERT]: "red",
 };
 
 export const networkEventTypes = new Set<number>([
@@ -243,10 +250,7 @@ export const eventCategories: Record<string, Set<number>> = {
     pb.EventType.SCHED_PROCESS_EXIT,
     pb.EventType.WAIT4,
   ]),
-  hook: new Set([
-    pb.EventType.WRAPPER_INTERCEPT,
-    pb.EventType.NATIVE_HOOK,
-  ]),
+  hook: new Set([pb.EventType.WRAPPER_INTERCEPT, pb.EventType.NATIVE_HOOK]),
   agent: new Set([
     pb.EventType.WRAPPER_INTERCEPT,
     pb.EventType.NATIVE_HOOK,
@@ -257,86 +261,94 @@ export const eventCategories: Record<string, Set<number>> = {
     pb.EventType.OTEL_SPAN,
     pb.EventType.AGENTSIGHT_ALERT,
   ]),
-  alert: new Set([
-    pb.EventType.SEMANTIC_ALERT,
-    pb.EventType.AGENTSIGHT_ALERT,
-  ]),
+  alert: new Set([pb.EventType.SEMANTIC_ALERT, pb.EventType.AGENTSIGHT_ALERT]),
 };
 
 export const categoryTabs = [
-  { key: 'all', label: '全部' },
-  { key: 'network', label: '网络' },
-  { key: 'file', label: '文件' },
-  { key: 'process', label: '进程' },
-  { key: 'agent', label: 'Agent' },
-  { key: 'hook', label: '钩子' },
-  { key: 'alert', label: '警报' },
-  { key: 'syscall', label: '系统调用' },
+  { key: "all", label: "全部" },
+  { key: "network", label: "网络" },
+  { key: "file", label: "文件" },
+  { key: "process", label: "进程" },
+  { key: "agent", label: "Agent" },
+  { key: "hook", label: "钩子" },
+  { key: "alert", label: "警报" },
+  { key: "syscall", label: "系统调用" },
 ] as const;
 
 export const syscallCatLabels: Record<string, string> = {
-  io: 'I/O & FS',
-  net: 'Network',
-  proc: 'Process',
-  sig: 'Signal',
-  ipc: 'SysV IPC',
-  sec: 'Security',
-  misc: 'Misc',
-  other: 'Other',
+  io: "I/O & FS",
+  net: "Network",
+  proc: "Process",
+  sig: "Signal",
+  ipc: "SysV IPC",
+  sec: "Security",
+  misc: "Misc",
+  other: "Other",
 };
 
 export const syscallCatColors: Record<string, string> = {
-  io: 'cyan', net: 'purple', proc: 'orange', sig: 'red',
-  ipc: 'gold', sec: 'red', misc: 'default', other: 'default',
+  io: "cyan",
+  net: "purple",
+  proc: "orange",
+  sig: "red",
+  ipc: "gold",
+  sec: "red",
+  misc: "default",
+  other: "default",
 };
 
 export const builtinFilterRules: BuiltinFilterRule[] = [
   {
-    id: 'tty',
-    label: 'TTY / PTY',
+    id: "tty",
+    label: "TTY / PTY",
     test: (event) => {
-      const path = `${event.path ?? ''}\n${event.extraPath ?? ''}`.toLowerCase();
+      const path =
+        `${event.path ?? ""}\n${event.extraPath ?? ""}`.toLowerCase();
       const comm = event.comm.toLowerCase();
-      return comm === 'tty'
-        || path.includes('/dev/tty')
-        || path.includes('/dev/pts/');
+      return (
+        comm === "tty" ||
+        path.includes("/dev/tty") ||
+        path.includes("/dev/pts/")
+      );
     },
   },
   {
-    id: 'git',
-    label: '.git metadata',
+    id: "git",
+    label: ".git metadata",
     test: (event) => {
-      const path = `${event.path ?? ''}\n${event.extraPath ?? ''}`;
+      const path = `${event.path ?? ""}\n${event.extraPath ?? ""}`;
       return /(^|\/)\.git(\/|$)/.test(path);
     },
   },
   {
-    id: 'temp',
-    label: 'Temp / cache',
+    id: "temp",
+    label: "Temp / cache",
     test: (event) => {
-      const path = `${event.path ?? ''}\n${event.extraPath ?? ''}`;
-      return /(^|\/)(?:\.cache|__pycache__)(\/|$)/.test(path)
-        || /(?:\.swp|\.tmp|~)$/i.test(path);
+      const path = `${event.path ?? ""}\n${event.extraPath ?? ""}`;
+      return (
+        /(^|\/)(?:\.cache|__pycache__)(\/|$)/.test(path) ||
+        /(?:\.swp|\.tmp|~)$/i.test(path)
+      );
     },
   },
   {
-    id: 'builddirs',
-    label: '.venv / node_modules / target',
+    id: "builddirs",
+    label: ".venv / node_modules / target",
     test: (event) => {
-      const path = `${event.path ?? ''}\n${event.extraPath ?? ''}`;
+      const path = `${event.path ?? ""}\n${event.extraPath ?? ""}`;
       return /(^|\/)(?:\.venv|node_modules|target)(\/|$)/.test(path);
     },
   },
 ];
 
 export const baseColumns = [
-  { title: 'Time', dataIndex: 'time', key: 'time' },
-  { title: 'Tag', dataIndex: 'tag', key: 'tag' },
-  { title: 'PID', dataIndex: 'pid', key: 'pid' },
-  { title: 'Command', dataIndex: 'comm', key: 'comm' },
-  { title: 'Event Type', dataIndex: 'type', key: 'type' },
-  { title: 'Path', dataIndex: 'path', key: 'path', ellipsis: true },
-  { title: 'Action', key: 'action', fixed: 'right' as const },
+  { title: "Time", dataIndex: "time", key: "time" },
+  { title: "Tag", dataIndex: "tag", key: "tag" },
+  { title: "PID", dataIndex: "pid", key: "pid" },
+  { title: "Command", dataIndex: "comm", key: "comm" },
+  { title: "Event Type", dataIndex: "type", key: "type" },
+  { title: "Path", dataIndex: "path", key: "path", ellipsis: true },
+  { title: "Action", key: "action", fixed: "right" as const },
 ] as const;
 
 export const parseSyscallNr = (info?: string): number => {
@@ -345,29 +357,30 @@ export const parseSyscallNr = (info?: string): number => {
 };
 
 export const syscallCategory = (nr: number): string => {
-  if (nr >= 0 && nr <= 40) return 'io';       // read,write,open,close,stat,poll,mmap,brk,dup,pipe,nanosleep...
-  if (nr >= 41 && nr <= 55) return 'net';      // socket,connect,accept,sendto,recvfrom,bind,listen...
-  if (nr >= 56 && nr <= 61) return 'proc';     // clone,fork,vfork,execve,exit
-  if (nr >= 62 && nr <= 63) return 'sig';      // kill,uname
-  if (nr >= 64 && nr <= 71) return 'ipc';      // System V IPC
-  if (nr >= 72 && nr <= 100) return 'io';      // fcntl,flock,fsync,truncate,chdir,mkdir,chmod,chown...
-  if (nr >= 101 && nr <= 200) return 'sec';    // ptrace,prctl,capget,setuid,mount,pivot_root,chroot...
-  if (nr >= 201 && nr <= 256) return 'misc';   // futex,epoll,timer,clock,mbind,inotify,migrate...
-  if (nr >= 257 && nr <= 334) return 'io';     // openat,mkdirat,unlinkat,renameat,execveat,memfd_create...
-  if (nr >= 424 && nr <= 453) return 'sec';    // pidfd,io_uring,open_tree,mount,landlock,clone3...
-  return 'other';
+  if (nr >= 0 && nr <= 40) return "io"; // read,write,open,close,stat,poll,mmap,brk,dup,pipe,nanosleep...
+  if (nr >= 41 && nr <= 55) return "net"; // socket,connect,accept,sendto,recvfrom,bind,listen...
+  if (nr >= 56 && nr <= 61) return "proc"; // clone,fork,vfork,execve,exit
+  if (nr >= 62 && nr <= 63) return "sig"; // kill,uname
+  if (nr >= 64 && nr <= 71) return "ipc"; // System V IPC
+  if (nr >= 72 && nr <= 100) return "io"; // fcntl,flock,fsync,truncate,chdir,mkdir,chmod,chown...
+  if (nr >= 101 && nr <= 200) return "sec"; // ptrace,prctl,capget,setuid,mount,pivot_root,chroot...
+  if (nr >= 201 && nr <= 256) return "misc"; // futex,epoll,timer,clock,mbind,inotify,migrate...
+  if (nr >= 257 && nr <= 334) return "io"; // openat,mkdirat,unlinkat,renameat,execveat,memfd_create...
+  if (nr >= 424 && nr <= 453) return "sec"; // pidfd,io_uring,open_tree,mount,landlock,clone3...
+  return "other";
 };
 
 export const syscallDisplayName = (info?: string): string => {
-  if (!info) return '';
+  if (!info) return "";
   const m = info.match(/^(\w+)\(\d+\)/);
-  return m ? m[1] : '';
+  return m ? m[1] : "";
 };
-
 
 export const selectableEventTypes = eventTypes
   .map((label) => {
-    const entry = Object.entries(eventTypeLabelMap).find(([, mappedLabel]) => mappedLabel === label);
+    const entry = Object.entries(eventTypeLabelMap).find(
+      ([, mappedLabel]) => mappedLabel === label,
+    );
     return entry ? Number(entry[0]) : undefined;
   })
   .filter((value): value is number => value !== undefined);

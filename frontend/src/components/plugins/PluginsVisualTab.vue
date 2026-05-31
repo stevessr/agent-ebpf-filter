@@ -1,11 +1,5 @@
 <script setup lang="ts">
-import {
-  ref,
-  computed,
-  onMounted,
-  onBeforeUnmount,
-  h,
-} from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, h } from "vue";
 import { message, Modal } from "ant-design-vue";
 import { usePlugins } from "../../composables/plugins/usePlugins";
 
@@ -116,12 +110,12 @@ const validationIssues = computed(() => {
     visualWireLabels,
     visualWireEndpoints,
     visualFlowNodeIds,
-    visualWireIds
+    visualWireIds,
   );
 });
 
 const validationErrors = computed(() =>
-  validationIssues.value.filter((issue) => issue.severity === "error")
+  validationIssues.value.filter((issue) => issue.severity === "error"),
 );
 
 const isWorkspaceValid = computed(() => validationErrors.value.length === 0);
@@ -132,7 +126,7 @@ const generatedBpfCode = computed(() => {
 });
 
 const generatedLineCount = computed(
-  () => generatedBpfCode.value.split(/\r?\n/).length
+  () => generatedBpfCode.value.split(/\r?\n/).length,
 );
 
 const {
@@ -195,7 +189,7 @@ const setMapNodeType = (value: VisualMapMode) => {
 const setActionNodeType = (value: VisualAction) => {
   if (trigger.value === "unlink" && value === "BLOCK") {
     message.error(
-      "unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL"
+      "unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL",
     );
     return;
   }
@@ -243,12 +237,16 @@ const handleCanvasNodeTypeDrop = (payload: CanvasNodeTypeDropPayload) => {
 const applyNodeTypeDrop = (
   category: string,
   value: string,
-  position?: { x: number; y: number }
+  position?: { x: number; y: number },
 ) => {
   let targetNode: VisualFlowNodeId | null = null;
   let statusText = "";
 
-  const visualMapModeSet = new Set<VisualMapMode>(["NONE", "COUNTER", "BLOCKLIST"]);
+  const visualMapModeSet = new Set<VisualMapMode>([
+    "NONE",
+    "COUNTER",
+    "BLOCKLIST",
+  ]);
   const visualActionSet = new Set<VisualAction>(["BLOCK", "ALERT", "KILL"]);
 
   if (category === "trigger") {
@@ -279,7 +277,7 @@ const applyNodeTypeDrop = (
     if (!visualActionSet.has(value as VisualAction)) return;
     if (trigger.value === "unlink" && value === "BLOCK") {
       message.error(
-        "unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL"
+        "unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL",
       );
       return;
     }
@@ -432,12 +430,24 @@ onBeforeUnmount(() => {
                   </a-tag>
                   <span>{{ selectedFlowNodeDetail.focus }}</span>
                   <a-space size="small" wrap>
-                    <a-button size="small" @click="focusFlowNode('trigger')">Trigger</a-button>
-                    <a-button size="small" @click="focusFlowNode('condition')">Condition</a-button>
-                    <a-button size="small" @click="focusFlowNode('map')">Map</a-button>
-                    <a-button size="small" @click="focusFlowNode('action')">Action</a-button>
-                    <a-button size="small" @click="focusFlowNode('code')">Code</a-button>
-                    <a-button size="small" @click="focusFlowNode('compile')">Compile</a-button>
+                    <a-button size="small" @click="focusFlowNode('trigger')"
+                      >Trigger</a-button
+                    >
+                    <a-button size="small" @click="focusFlowNode('condition')"
+                      >Condition</a-button
+                    >
+                    <a-button size="small" @click="focusFlowNode('map')"
+                      >Map</a-button
+                    >
+                    <a-button size="small" @click="focusFlowNode('action')"
+                      >Action</a-button
+                    >
+                    <a-button size="small" @click="focusFlowNode('code')"
+                      >Code</a-button
+                    >
+                    <a-button size="small" @click="focusFlowNode('compile')"
+                      >Compile</a-button
+                    >
                   </a-space>
                 </div>
 
@@ -608,7 +618,11 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid var(--workflow-border);
-  background: linear-gradient(135deg, #ffffff 0%, var(--workflow-primary-subtle) 100%);
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    var(--workflow-primary-subtle) 100%
+  );
   color: var(--workflow-text-secondary);
   box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
 }
@@ -679,15 +693,16 @@ onBeforeUnmount(() => {
 
 .graphical-workspace {
   background-color: #ffffff;
-  background-image: linear-gradient(
-      to right,
-      rgba(22, 119, 255, 0.06) 1px,
-      transparent 1px
-    ),
+  background-image:
+    linear-gradient(to right, rgba(22, 119, 255, 0.06) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(22, 119, 255, 0.06) 1px, transparent 1px),
     linear-gradient(to right, rgba(22, 119, 255, 0.035) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(22, 119, 255, 0.035) 1px, transparent 1px);
-  background-size: 40px 40px, 40px 40px, 10px 10px, 10px 10px;
+  background-size:
+    40px 40px,
+    40px 40px,
+    10px 10px,
+    10px 10px;
   border: 1px solid var(--workflow-border);
   border-radius: 12px;
   padding: 24px;
@@ -715,9 +730,12 @@ onBeforeUnmount(() => {
 .flow-section-active {
   outline: 2px solid rgba(22, 119, 255, 0.62);
   outline-offset: 4px;
-  box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.2),
+  box-shadow:
+    0 0 0 1px rgba(22, 119, 255, 0.2),
     0 0 24px rgba(22, 119, 255, 0.16);
   border-radius: 10px;
-  transition: outline-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    outline-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 </style>

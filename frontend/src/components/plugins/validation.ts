@@ -31,7 +31,7 @@ const visualFieldSet = new Set<VisualConditionField>([
 ]);
 
 export const isVisualConditionField = (
-  value: unknown
+  value: unknown,
 ): value is VisualConditionField =>
   typeof value === "string" &&
   visualFieldSet.has(value as VisualConditionField);
@@ -70,7 +70,7 @@ export const validateWorkspace = (
   visualWireLabels: Record<string, string>,
   visualWireEndpoints: Record<string, { from: string; to: string }>,
   visualFlowNodeIds: string[],
-  visualWireIds: string[]
+  visualWireIds: string[],
 ): VisualValidationIssue[] => {
   const issues: VisualValidationIssue[] = [];
 
@@ -97,7 +97,7 @@ export const validateWorkspace = (
 
   // 2. Deleted nodes validation
   const deletedNodes = visualFlowNodeIds.filter(
-    (id) => (hiddenNodes as Record<string, boolean>)[id]
+    (id) => (hiddenNodes as Record<string, boolean>)[id],
   );
   if (deletedNodes.length > 0) {
     issues.push({

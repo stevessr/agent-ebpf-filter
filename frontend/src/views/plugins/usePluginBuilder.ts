@@ -1,6 +1,9 @@
-import { ref, watch } from 'vue';
-import { message } from 'ant-design-vue';
-import type { PluginAttachKind, BPFTemplate } from '../../composables/plugins/usePlugins';
+import { ref, watch } from "vue";
+import { message } from "ant-design-vue";
+import type {
+  PluginAttachKind,
+  BPFTemplate,
+} from "../../composables/plugins/usePlugins";
 
 export interface BuilderState {
   id: string;
@@ -16,16 +19,16 @@ export interface BuilderState {
 }
 
 const DEFAULT_BUILDER: BuilderState = {
-  id: '',
-  name: '',
-  description: '',
-  author: '',
-  version: '1.0.0',
-  attachKind: 'tracepoint',
-  attachTarget: 'syscalls/sys_enter_execve',
-  programName: 'trace_execve',
+  id: "",
+  name: "",
+  description: "",
+  author: "",
+  version: "1.0.0",
+  attachKind: "tracepoint",
+  attachTarget: "syscalls/sys_enter_execve",
+  programName: "trace_execve",
   enabled: false,
-  source: '',
+  source: "",
 };
 
 /**
@@ -45,10 +48,10 @@ export function usePluginBuilder(
   const saving = ref(false);
 
   const attachKindOptions = [
-    { value: 'tracepoint', label: 'Tracepoint' },
-    { value: 'kprobe', label: 'Kprobe' },
-    { value: 'kretprobe', label: 'Kretprobe' },
-    { value: 'lsm', label: 'BPF LSM' },
+    { value: "tracepoint", label: "Tracepoint" },
+    { value: "kprobe", label: "Kprobe" },
+    { value: "kretprobe", label: "Kretprobe" },
+    { value: "lsm", label: "BPF LSM" },
   ];
 
   const applyTemplate = (tpl: BPFTemplate) => {
@@ -64,13 +67,13 @@ export function usePluginBuilder(
 
   const resetBuilder = () => {
     builder.value = { ...DEFAULT_BUILDER };
-    compileLog.value = '';
+    compileLog.value = "";
     lastCompile.value = null;
   };
 
   const handleCompile = async () => {
     if (!builder.value.id) {
-      message.warning('请填写插件 ID');
+      message.warning("请填写插件 ID");
       return;
     }
     compiling.value = true;
@@ -80,7 +83,7 @@ export function usePluginBuilder(
 
   const handleSave = async () => {
     if (!builder.value.id || !builder.value.name) {
-      message.warning('请填写 ID 与名称');
+      message.warning("请填写 ID 与名称");
       return;
     }
     saving.value = true;
@@ -90,7 +93,7 @@ export function usePluginBuilder(
       description: builder.value.description,
       author: builder.value.author,
       version: builder.value.version,
-      kind: 'ebpf' as const,
+      kind: "ebpf" as const,
       enabled: builder.value.enabled,
       attachKind: builder.value.attachKind,
       attachTarget: builder.value.attachTarget,
@@ -100,7 +103,7 @@ export function usePluginBuilder(
     const saved = await upsertPlugin(payload);
     saving.value = false;
     if (saved) {
-      activeTab.value = 'list';
+      activeTab.value = "list";
     }
   };
 
@@ -111,23 +114,23 @@ export function usePluginBuilder(
     builder.value = {
       id: plugin.id,
       name: plugin.name,
-      description: plugin.description || '',
-      author: plugin.author || '',
-      version: plugin.version || '1.0.0',
-      attachKind: (plugin.attachKind || 'tracepoint') as PluginAttachKind,
-      attachTarget: plugin.attachTarget || '',
-      programName: plugin.programName || '',
+      description: plugin.description || "",
+      author: plugin.author || "",
+      version: plugin.version || "1.0.0",
+      attachKind: (plugin.attachKind || "tracepoint") as PluginAttachKind,
+      attachTarget: plugin.attachTarget || "",
+      programName: plugin.programName || "",
       enabled: !!plugin.enabled,
       source,
     };
-    activeTab.value = 'builder';
+    activeTab.value = "builder";
   };
 
   watch(
     () => builder.value.programName,
     (val) => {
       if (val && !builder.value.id) {
-        builder.value.id = val.replace(/_/g, '-').toLowerCase();
+        builder.value.id = val.replace(/_/g, "-").toLowerCase();
       }
     },
   );

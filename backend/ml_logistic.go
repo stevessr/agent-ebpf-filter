@@ -34,10 +34,10 @@ func NewLogisticModel(learningRate float64, reg string, maxIter int) *LogisticMo
 		maxIter = 1000
 	}
 	return &LogisticModel{
-		NumClasses:    4,
-		LearningRate:  learningRate,
+		NumClasses:     4,
+		LearningRate:   learningRate,
 		Regularization: reg,
-		MaxIterations: maxIter,
+		MaxIterations:  maxIter,
 	}
 }
 
@@ -189,6 +189,7 @@ func (m *LogisticModel) Train(samples [][FeatureDim]float64, labels []int32) {
 		}
 	}
 }
+
 // computeClassWeights computes inverse-frequency class weights to handle imbalance.
 // Minority classes get weight > 1, majority get weight <= 1.
 func computeClassWeights(labels []int32, numClasses int) []float64 {
@@ -227,7 +228,6 @@ func computeClassWeights(labels []int32, numClasses int) []float64 {
 	}
 	return weights
 }
-
 
 // Serialize writes the logistic model to a binary file
 func (m *LogisticModel) Serialize(path string) error {
@@ -299,10 +299,10 @@ func DeserializeLogistic(path string) (*LogisticModel, error) {
 	pos += regLen
 
 	m := &LogisticModel{
-		NumClasses:    numClasses,
-		LearningRate:  learningRate,
+		NumClasses:     numClasses,
+		LearningRate:   learningRate,
 		Regularization: regularization,
-		Weights:       make([][FeatureDim + 1]float64, numClasses),
+		Weights:        make([][FeatureDim + 1]float64, numClasses),
 	}
 
 	for c := 0; c < numClasses; c++ {

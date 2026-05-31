@@ -346,4 +346,3 @@ func loadRemoteDatasetPayload(req remoteDatasetRequest) ([]byte, string, string,
 	}
 	return downloaded, contentType, source, nil
 }
-

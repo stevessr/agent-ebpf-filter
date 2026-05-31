@@ -26,8 +26,7 @@ const emit = defineEmits<{
       <a-tag color="cyan">独立源码 Tab</a-tag>
       <span
         >动态生成的 eBPF C 语言高阶过滤器源码、Clang
-        编译日志和加载入口集中在这里，主画布只负责 Dify
-        风格节点编排。</span
+        编译日志和加载入口集中在这里，主画布只负责 Dify 风格节点编排。</span
       >
     </div>
     <PluginsVisualCodePanel
@@ -55,7 +54,11 @@ const emit = defineEmits<{
   padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid var(--workflow-border);
-  background: linear-gradient(135deg, #ffffff 0%, var(--workflow-primary-subtle) 100%);
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    var(--workflow-primary-subtle) 100%
+  );
   color: var(--workflow-text-secondary);
   box-shadow: 0 8px 24px rgba(22, 119, 255, 0.08);
   border-color: var(--workflow-border);
@@ -71,9 +74,12 @@ const emit = defineEmits<{
 .flow-section-active {
   outline: 2px solid rgba(22, 119, 255, 0.62);
   outline-offset: 4px;
-  box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.2),
+  box-shadow:
+    0 0 0 1px rgba(22, 119, 255, 0.2),
     0 0 24px rgba(22, 119, 255, 0.16);
   border-radius: 10px;
-  transition: outline-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    outline-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 </style>

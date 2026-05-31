@@ -68,7 +68,7 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 	if !s.running {
 		var cam *device.Device
 		var err error
-		
+
 		for i := 0; i < 3; i++ {
 			cam, err = device.Open(s.devName, device.WithIOType(v4l2.IOTypeMMAP))
 			if err == nil {
@@ -109,7 +109,7 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 			output := stream.cam.GetOutput()
 			for frame := range output {
 				stream.frameMu.Lock()
-				stream.latestFrame = frame 
+				stream.latestFrame = frame
 				stream.frameMu.Unlock()
 				stream.frameCond.Broadcast()
 			}
@@ -127,7 +127,7 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 			streamsMu.Lock()
 			delete(activeStreams, stream.devName)
 			streamsMu.Unlock()
-			
+
 			stream.frameCond.Broadcast()
 		}(s)
 	}
@@ -139,23 +139,23 @@ func (sub *CameraSubscriber) NextFrame(ctx context.Context) ([]byte, error) {
 	if atomic.LoadInt32(&sub.closed) == 1 {
 		return nil, context.Canceled
 	}
-	
+
 	s := sub.stream
 	s.frameMu.Lock() // Must use Lock() for sync.Cond.Wait()
 	s.frameCond.Wait()
-	
+
 	if !s.running || atomic.LoadInt32(&sub.closed) == 1 {
 		s.frameMu.Unlock()
 		return nil, context.Canceled
 	}
-	
+
 	select {
 	case <-ctx.Done():
 		s.frameMu.Unlock()
 		return nil, ctx.Err()
 	default:
 	}
-	
+
 	frame := s.latestFrame
 	s.frameMu.Unlock()
 	return frame, nil
@@ -163,11 +163,11 @@ func (sub *CameraSubscriber) NextFrame(ctx context.Context) ([]byte, error) {
 
 func (sub *CameraSubscriber) Unsubscribe() {
 	if !atomic.CompareAndSwapInt32(&sub.closed, 0, 1) {
-		return 
+		return
 	}
 
 	s := sub.stream
-	s.frameCond.Broadcast() 
+	s.frameCond.Broadcast()
 
 	s.streamMu.Lock()
 	defer s.streamMu.Unlock()

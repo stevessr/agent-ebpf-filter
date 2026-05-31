@@ -1,15 +1,25 @@
-import { computed, ref } from 'vue';
-import { message } from 'ant-design-vue';
-import type { ShellSessionCreateRequest, ShellSessionInfo } from '../../types/shell';
+import { computed, ref } from "vue";
+import { message } from "ant-design-vue";
+import type {
+  ShellSessionCreateRequest,
+  ShellSessionInfo,
+} from "../../types/shell";
 import {
   splitArgs,
   basename,
   dirname,
   resolvePythonInterpreter,
   splitRuntimeAndScriptArgs,
-} from './useLauncherUtils';
+} from "./useLauncherUtils";
 
-export type ScriptLanguage = 'python' | 'node' | 'ruby' | 'sh' | 'pwsh' | 'deno' | 'bun';
+export type ScriptLanguage =
+  | "python"
+  | "node"
+  | "ruby"
+  | "sh"
+  | "pwsh"
+  | "deno"
+  | "bun";
 
 export interface ScriptLaunchPlan {
   command: string;
@@ -17,14 +27,17 @@ export interface ScriptLaunchPlan {
   preview: string;
 }
 
-export const SCRIPT_LANGUAGE_OPTIONS: Array<{ label: string; value: ScriptLanguage }> = [
-  { label: 'Python', value: 'python' },
-  { label: 'Node.js', value: 'node' },
-  { label: 'Ruby', value: 'ruby' },
-  { label: 'Shell (sh)', value: 'sh' },
-  { label: 'PowerShell (pwsh)', value: 'pwsh' },
-  { label: 'Deno', value: 'deno' },
-  { label: 'Bun', value: 'bun' },
+export const SCRIPT_LANGUAGE_OPTIONS: Array<{
+  label: string;
+  value: ScriptLanguage;
+}> = [
+  { label: "Python", value: "python" },
+  { label: "Node.js", value: "node" },
+  { label: "Ruby", value: "ruby" },
+  { label: "Shell (sh)", value: "sh" },
+  { label: "PowerShell (pwsh)", value: "pwsh" },
+  { label: "Deno", value: "deno" },
+  { label: "Bun", value: "bun" },
 ];
 
 export const resolveScriptLaunchPlan = (
@@ -34,87 +47,109 @@ export const resolveScriptLaunchPlan = (
   rawArgs: string,
 ): ScriptLaunchPlan => {
   const script = scriptPath.trim();
-  const scriptDisplay = script || '<script>';
+  const scriptDisplay = script || "<script>";
   const tokens = splitArgs(rawArgs);
 
   switch (language) {
-    case 'python':
+    case "python":
       return {
         command: resolvePythonInterpreter(venvPath),
         args: [scriptDisplay, ...tokens],
-        preview: [resolvePythonInterpreter(venvPath), scriptDisplay, ...tokens].join(' '),
+        preview: [
+          resolvePythonInterpreter(venvPath),
+          scriptDisplay,
+          ...tokens,
+        ].join(" "),
       };
-    case 'node':
+    case "node":
       return {
-        command: 'node',
+        command: "node",
         args: [scriptDisplay, ...tokens],
-        preview: ['node', scriptDisplay, ...tokens].join(' '),
+        preview: ["node", scriptDisplay, ...tokens].join(" "),
       };
-    case 'ruby':
+    case "ruby":
       return {
-        command: 'ruby',
+        command: "ruby",
         args: [scriptDisplay, ...tokens],
-        preview: ['ruby', scriptDisplay, ...tokens].join(' '),
+        preview: ["ruby", scriptDisplay, ...tokens].join(" "),
       };
-    case 'sh':
+    case "sh":
       return {
-        command: 'sh',
+        command: "sh",
         args: [scriptDisplay, ...tokens],
-        preview: ['sh', scriptDisplay, ...tokens].join(' '),
+        preview: ["sh", scriptDisplay, ...tokens].join(" "),
       };
-    case 'pwsh':
-      {
-        const { runtimeArgs, scriptArgs } = splitRuntimeAndScriptArgs(rawArgs);
-        return {
-          command: 'pwsh',
-          args: [...runtimeArgs, '-File', scriptDisplay, ...scriptArgs],
-          preview: ['pwsh', ...runtimeArgs, '-File', scriptDisplay, ...scriptArgs].join(' '),
-        };
-      }
-    case 'deno': {
+    case "pwsh": {
       const { runtimeArgs, scriptArgs } = splitRuntimeAndScriptArgs(rawArgs);
       return {
-        command: 'deno',
-        args: ['run', ...runtimeArgs, scriptDisplay, ...scriptArgs],
-        preview: ['deno', 'run', ...runtimeArgs, scriptDisplay, ...scriptArgs].join(' '),
+        command: "pwsh",
+        args: [...runtimeArgs, "-File", scriptDisplay, ...scriptArgs],
+        preview: [
+          "pwsh",
+          ...runtimeArgs,
+          "-File",
+          scriptDisplay,
+          ...scriptArgs,
+        ].join(" "),
       };
     }
-    case 'bun':
+    case "deno": {
+      const { runtimeArgs, scriptArgs } = splitRuntimeAndScriptArgs(rawArgs);
       return {
-        command: 'bun',
+        command: "deno",
+        args: ["run", ...runtimeArgs, scriptDisplay, ...scriptArgs],
+        preview: [
+          "deno",
+          "run",
+          ...runtimeArgs,
+          scriptDisplay,
+          ...scriptArgs,
+        ].join(" "),
+      };
+    }
+    case "bun":
+      return {
+        command: "bun",
         args: [scriptDisplay, ...tokens],
-        preview: ['bun', scriptDisplay, ...tokens].join(' '),
+        preview: ["bun", scriptDisplay, ...tokens].join(" "),
       };
     default:
       return {
         command: resolvePythonInterpreter(venvPath),
         args: [scriptDisplay, ...tokens],
-        preview: [resolvePythonInterpreter(venvPath), scriptDisplay, ...tokens].join(' '),
+        preview: [
+          resolvePythonInterpreter(venvPath),
+          scriptDisplay,
+          ...tokens,
+        ].join(" "),
       };
   }
 };
 
 export function useScriptLauncher(
-  createSession: (payload: ShellSessionCreateRequest, successMessage: string) => Promise<ShellSessionInfo | undefined>,
+  createSession: (
+    payload: ShellSessionCreateRequest,
+    successMessage: string,
+  ) => Promise<ShellSessionInfo | undefined>,
   getLaunchEnvRecord: () => Record<string, string>,
 ) {
-  const scriptLanguage = ref<ScriptLanguage>('python');
-  const scriptPath = ref('');
-  const scriptWorkDir = ref('');
-  const pythonVenv = ref('');
-  const scriptArgs = ref('');
+  const scriptLanguage = ref<ScriptLanguage>("python");
+  const scriptPath = ref("");
+  const scriptWorkDir = ref("");
+  const pythonVenv = ref("");
+  const scriptArgs = ref("");
   const scriptLaunching = ref(false);
 
   const scriptArgsPlaceholder = computed(() => {
     switch (scriptLanguage.value) {
-      case 'deno':
-        return '--allow-read -- --foo bar';
-      case 'pwsh':
-        return '-ExecutionPolicy Bypass -- --foo bar';
-      case 'bun':
-        return '--foo bar';
+      case "deno":
+        return "--allow-read -- --foo bar";
+      case "pwsh":
+        return "-ExecutionPolicy Bypass -- --foo bar";
+      case "bun":
+        return "--foo bar";
       default:
-        return '--debug --foo bar';
+        return "--debug --foo bar";
     }
   });
 
@@ -130,7 +165,7 @@ export function useScriptLauncher(
   const launchScript = async () => {
     const script = scriptPath.value.trim();
     if (!script) {
-      message.error('Please choose a script file');
+      message.error("Please choose a script file");
       return;
     }
 
@@ -152,12 +187,17 @@ export function useScriptLauncher(
         cols: 100,
         rows: 32,
         label: `${scriptLanguage.value}: ${basename(script)}`,
-        kind: 'script',
+        kind: "script",
         env: getLaunchEnvRecord(),
       };
-      await createSession(payload, `Launched ${scriptLanguage.value} script: ${basename(script)}`);
+      await createSession(
+        payload,
+        `Launched ${scriptLanguage.value} script: ${basename(script)}`,
+      );
     } catch (err: any) {
-      message.error(err?.response?.data?.error || err?.message || 'Failed to launch script');
+      message.error(
+        err?.response?.data?.error || err?.message || "Failed to launch script",
+      );
     } finally {
       scriptLaunching.value = false;
     }

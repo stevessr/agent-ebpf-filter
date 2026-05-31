@@ -119,4 +119,3 @@ func tcpStateName(state uint8) string {
 	}
 	return fmt.Sprintf("STATE_%d", state)
 }
-

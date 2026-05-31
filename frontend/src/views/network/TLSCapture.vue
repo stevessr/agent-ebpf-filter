@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-import axios from 'axios';
-import { SafetyCertificateOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined, SearchOutlined, CopyOutlined } from '@ant-design/icons-vue';
-import { message } from 'ant-design-vue';
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import axios from "axios";
+import {
+  SafetyCertificateOutlined,
+  PauseOutlined,
+  PlayCircleOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  CopyOutlined,
+} from "@ant-design/icons-vue";
+import { message } from "ant-design-vue";
 
-import FileBrowserPanel from '../../components/explorer/FileBrowserPanel.vue';
-import { buildWebSocketUrl } from '../../utils/requestContext';
+import FileBrowserPanel from "../../components/explorer/FileBrowserPanel.vue";
+import { buildWebSocketUrl } from "../../utils/requestContext";
 
 interface TLSPlaintextEvent {
   key?: string;
@@ -81,36 +88,40 @@ const rules = ref<TLSCaptureRule[]>([]);
 const captureStatus = ref<TLSCaptureStatus>({});
 const isConnected = ref(false);
 const isPaused = ref(false);
-const searchQuery = ref('');
-const commFilter = ref('');
-const hostFilter = ref('');
-const selectedLib = ref<string>('all');
-const selectedDirection = ref<string>('all');
+const searchQuery = ref("");
+const commFilter = ref("");
+const hostFilter = ref("");
+const selectedLib = ref<string>("all");
+const selectedDirection = ref<string>("all");
 const showDetails = ref(false);
 const selectedEvent = ref<TLSPlaintextEvent | null>(null);
 const rulesLoading = ref(false);
 const attachLoading = ref(false);
 const manualHookLoading = ref(false);
-const hookManagementTab = ref('rules');
-const manualHookType = ref<'executable' | 'go' | 'openssl' | 'gnutls' | 'nss'>('executable');
+const hookManagementTab = ref("rules");
+const manualHookType = ref<"executable" | "go" | "openssl" | "gnutls" | "nss">(
+  "executable",
+);
 const manualHookPid = ref<number | null>(null);
-const executablePathInput = ref('');
-const executableLibraryHint = ref<'auto' | 'openssl' | 'gnutls' | 'nss'>('auto');
+const executablePathInput = ref("");
+const executableLibraryHint = ref<"auto" | "openssl" | "gnutls" | "nss">(
+  "auto",
+);
 const executableAttachResult = ref<any | null>(null);
 
 const manualHookOptions = [
-  { label: 'Executable / CLI bin', value: 'executable' },
-  { label: 'Go TLS binary', value: 'go' },
-  { label: 'OpenSSL libssl', value: 'openssl' },
-  { label: 'GnuTLS library', value: 'gnutls' },
-  { label: 'NSS / NSPR library', value: 'nss' },
+  { label: "Executable / CLI bin", value: "executable" },
+  { label: "Go TLS binary", value: "go" },
+  { label: "OpenSSL libssl", value: "openssl" },
+  { label: "GnuTLS library", value: "gnutls" },
+  { label: "NSS / NSPR library", value: "nss" },
 ];
 
 const executableLibraryOptions = [
-  { label: 'Auto detect', value: 'auto' },
-  { label: 'OpenSSL', value: 'openssl' },
-  { label: 'GnuTLS', value: 'gnutls' },
-  { label: 'NSS / NSPR', value: 'nss' },
+  { label: "Auto detect", value: "auto" },
+  { label: "OpenSSL", value: "openssl" },
+  { label: "GnuTLS", value: "gnutls" },
+  { label: "NSS / NSPR", value: "nss" },
 ];
 
 let ws: WebSocket | null = null;
@@ -120,14 +131,17 @@ let eventKeySequence = 0;
 
 const formatBytes = (bytes?: number) => {
   const value = Number(bytes || 0);
-  if (!value) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  if (!value) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const index = Math.min(
+    Math.floor(Math.log(value) / Math.log(1024)),
+    units.length - 1,
+  );
   return `${(value / Math.pow(1024, index)).toFixed(1)} ${units[index]}`;
 };
 
 const formatTimestamp = (timestamp?: string) => {
-  if (!timestamp) return '—';
+  if (!timestamp) return "—";
   const date = new Date(timestamp);
   return Number.isNaN(date.getTime()) ? timestamp : date.toLocaleString();
 };
@@ -135,43 +149,71 @@ const formatTimestamp = (timestamp?: string) => {
 const withEventKey = (event: TLSPlaintextEvent): TLSPlaintextEvent => {
   if (event.key) return event;
   eventKeySequence += 1;
-  return { ...event, key: `${event.timestamp ?? 'ts'}-${event.pid ?? 0}-${event.direction ?? 'dir'}-${eventKeySequence}` };
+  return {
+    ...event,
+    key: `${event.timestamp ?? "ts"}-${event.pid ?? 0}-${event.direction ?? "dir"}-${eventKeySequence}`,
+  };
 };
-const isRequestEvent = (event: TLSPlaintextEvent) => event.type === 'http_request';
-const isResponseEvent = (event: TLSPlaintextEvent) => event.type === 'http_response' || event.type === 'sse_message';
-const isDisplayEvent = (event: TLSPlaintextEvent) => isRequestEvent(event) || isResponseEvent(event);
-const directionLabel = (direction?: string) => (direction === 'send' ? 'Request' : direction === 'recv' ? 'Response' : '—');
-const directionColor = (direction?: string) => (direction === 'send' ? 'green' : direction === 'recv' ? 'blue' : 'default');
+const isRequestEvent = (event: TLSPlaintextEvent) =>
+  event.type === "http_request";
+const isResponseEvent = (event: TLSPlaintextEvent) =>
+  event.type === "http_response" || event.type === "sse_message";
+const isDisplayEvent = (event: TLSPlaintextEvent) =>
+  isRequestEvent(event) || isResponseEvent(event);
+const directionLabel = (direction?: string) =>
+  direction === "send" ? "Request" : direction === "recv" ? "Response" : "—";
+const directionColor = (direction?: string) =>
+  direction === "send" ? "green" : direction === "recv" ? "blue" : "default";
 const packetTypeLabel = (event: TLSPlaintextEvent) => {
-  if (event.type === 'http_request') return 'HTTP Request';
-  if (event.type === 'http_response') return 'HTTP Response';
-  if (event.type === 'sse_message') return 'SSE Response';
-  return '—';
+  if (event.type === "http_request") return "HTTP Request";
+  if (event.type === "http_response") return "HTTP Response";
+  if (event.type === "sse_message") return "SSE Response";
+  return "—";
 };
-const packetTypeColor = (event: TLSPlaintextEvent) => (event.type === 'sse_message' ? 'cyan' : isRequestEvent(event) ? 'green' : isResponseEvent(event) ? 'blue' : 'default');
+const packetTypeColor = (event: TLSPlaintextEvent) =>
+  event.type === "sse_message"
+    ? "cyan"
+    : isRequestEvent(event)
+      ? "green"
+      : isResponseEvent(event)
+        ? "blue"
+        : "default";
 
 const filteredEvents = computed(() => {
   let list = events.value.filter(isDisplayEvent);
 
-  if (selectedLib.value !== 'all') {
-    list = list.filter(event => (event.lib || '').toLowerCase() === selectedLib.value.toLowerCase());
+  if (selectedLib.value !== "all") {
+    list = list.filter(
+      (event) =>
+        (event.lib || "").toLowerCase() === selectedLib.value.toLowerCase(),
+    );
   }
-  if (selectedDirection.value !== 'all') {
-    list = list.filter(event => (event.direction || '').toLowerCase() === selectedDirection.value.toLowerCase());
+  if (selectedDirection.value !== "all") {
+    list = list.filter(
+      (event) =>
+        (event.direction || "").toLowerCase() ===
+        selectedDirection.value.toLowerCase(),
+    );
   }
   if (commFilter.value.trim()) {
     const q = commFilter.value.trim().toLowerCase();
-    list = list.filter(event => (event.comm || '').toLowerCase().includes(q));
+    list = list.filter((event) => (event.comm || "").toLowerCase().includes(q));
   }
   if (hostFilter.value.trim()) {
     const q = hostFilter.value.trim().toLowerCase();
-    list = list.filter(event => (event.host || '').toLowerCase().includes(q));
+    list = list.filter((event) => (event.host || "").toLowerCase().includes(q));
   }
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.trim().toLowerCase();
-    list = list.filter(event =>
-      [event.method, event.url, event.host, String(event.status || ''), event.body, JSON.stringify(event.headers || {})]
-        .some(value => (value || '').toLowerCase().includes(q))
+    list = list.filter((event) =>
+      [
+        event.method,
+        event.url,
+        event.host,
+        String(event.status || ""),
+        event.body,
+        JSON.stringify(event.headers || {}),
+      ].some((value) => (value || "").toLowerCase().includes(q)),
     );
   }
 
@@ -184,68 +226,89 @@ const summaryStats = computed(() => {
     total: list.length,
     sends: list.filter(isRequestEvent).length,
     recvs: list.filter(isResponseEvent).length,
-    withBody: list.filter(event => Number(event.body_size || 0) > 0).length,
-    http: list.filter(event => event.type === 'http_request' || event.type === 'http_response').length,
-    sse: list.filter(event => event.type === 'sse_message').length,
-    llm: list.filter(event => event.prompt_digest || event.vendor).length,
-    redacted: list.filter(event => event.redaction_state === 'sanitized').length,
-    attachedLibs: libraries.value.filter(item => item.attached).length,
+    withBody: list.filter((event) => Number(event.body_size || 0) > 0).length,
+    http: list.filter(
+      (event) =>
+        event.type === "http_request" || event.type === "http_response",
+    ).length,
+    sse: list.filter((event) => event.type === "sse_message").length,
+    llm: list.filter((event) => event.prompt_digest || event.vendor).length,
+    redacted: list.filter((event) => event.redaction_state === "sanitized")
+      .length,
+    attachedLibs: libraries.value.filter((item) => item.attached).length,
   };
 });
 
 const captureStatusText = computed(() => {
-  if (captureStatus.value.enabled) return summaryStats.value.attachedLibs > 0 ? 'Running' : 'Running, no libraries attached';
-  return 'Not started';
+  if (captureStatus.value.enabled)
+    return summaryStats.value.attachedLibs > 0
+      ? "Running"
+      : "Running, no libraries attached";
+  return "Not started";
 });
 
 const captureStatusColor = computed(() => {
-  if (!captureStatus.value.enabled) return 'default';
-  return summaryStats.value.attachedLibs > 0 ? 'green' : 'orange';
+  if (!captureStatus.value.enabled) return "default";
+  return summaryStats.value.attachedLibs > 0 ? "green" : "orange";
 });
 
 const fetchRecentEvents = async () => {
   try {
-    const response = await axios.get('/tls-capture/recent?limit=500');
-    const recentEvents = Array.isArray(response.data?.events) ? response.data.events as TLSPlaintextEvent[] : [];
+    const response = await axios.get("/tls-capture/recent?limit=500");
+    const recentEvents = Array.isArray(response.data?.events)
+      ? (response.data.events as TLSPlaintextEvent[])
+      : [];
     events.value = recentEvents.filter(isDisplayEvent).map(withEventKey);
   } catch (error: any) {
-    message.error(error?.response?.data?.error || 'Failed to load TLS capture events');
+    message.error(
+      error?.response?.data?.error || "Failed to load TLS capture events",
+    );
   }
 };
 
 const fetchLibraries = async () => {
   try {
-    const response = await axios.get('/tls-capture/libraries');
-    libraries.value = Array.isArray(response.data?.libraries) ? response.data.libraries : [];
+    const response = await axios.get("/tls-capture/libraries");
+    libraries.value = Array.isArray(response.data?.libraries)
+      ? response.data.libraries
+      : [];
   } catch (error: any) {
-    message.error(error?.response?.data?.error || 'Failed to load TLS capture libraries');
+    message.error(
+      error?.response?.data?.error || "Failed to load TLS capture libraries",
+    );
   }
 };
 
 const fetchStatus = async () => {
   try {
-    const response = await axios.get('/tls-capture/status');
+    const response = await axios.get("/tls-capture/status");
     captureStatus.value = response.data || {};
-    if (Array.isArray(response.data?.libraries)) libraries.value = response.data.libraries;
+    if (Array.isArray(response.data?.libraries))
+      libraries.value = response.data.libraries;
   } catch (error: any) {
-    message.error(error?.response?.data?.error || 'Failed to load Hook SSL status');
+    message.error(
+      error?.response?.data?.error || "Failed to load Hook SSL status",
+    );
   }
 };
 
 const attachDefaultLibraries = async (silent = false) => {
   attachLoading.value = true;
   try {
-    const response = await axios.post('/tls-capture/attach-defaults');
+    const response = await axios.post("/tls-capture/attach-defaults");
     captureStatus.value = response.data || {};
     if (!silent) {
       if (response.data?.error) message.warning(response.data.error);
-      else message.success('Hook SSL probes attached');
+      else message.success("Hook SSL probes attached");
     }
     await Promise.all([fetchLibraries(), fetchRecentEvents()]);
   } catch (error: any) {
     const status = error?.response?.data?.status;
     if (status) captureStatus.value = status;
-    if (!silent) message.error(error?.response?.data?.error || 'Failed to attach Hook SSL probes');
+    if (!silent)
+      message.error(
+        error?.response?.data?.error || "Failed to attach Hook SSL probes",
+      );
     await fetchLibraries();
   } finally {
     attachLoading.value = false;
@@ -256,24 +319,34 @@ const attachHookPath = async (path: string, label: string) => {
   manualHookLoading.value = true;
   executableAttachResult.value = null;
   try {
-    if (manualHookType.value === 'executable') {
-      const response = await axios.post('/tls-capture/executable', {
+    if (manualHookType.value === "executable") {
+      const response = await axios.post("/tls-capture/executable", {
         path,
         pid: manualHookPid.value || 0,
         library: executableLibraryHint.value,
       });
       executableAttachResult.value = response.data?.result || null;
-    } else if (manualHookType.value === 'go') {
-      const response = await axios.post('/tls-capture/go-binary', { path, pid: manualHookPid.value || 0 });
-      executableAttachResult.value = response.data?.resolved ? { resolved: response.data.resolved } : null;
+    } else if (manualHookType.value === "go") {
+      const response = await axios.post("/tls-capture/go-binary", {
+        path,
+        pid: manualHookPid.value || 0,
+      });
+      executableAttachResult.value = response.data?.resolved
+        ? { resolved: response.data.resolved }
+        : null;
     } else {
-      await axios.post('/tls-capture/library', { path, library: manualHookType.value });
+      await axios.post("/tls-capture/library", {
+        path,
+        library: manualHookType.value,
+      });
     }
     message.success(`Hook attached for ${label}`);
     await Promise.all([fetchStatus(), fetchLibraries()]);
   } catch (error: any) {
     executableAttachResult.value = error?.response?.data?.result || null;
-    message.error(error?.response?.data?.error || 'Failed to attach manual hook');
+    message.error(
+      error?.response?.data?.error || "Failed to attach manual hook",
+    );
   } finally {
     manualHookLoading.value = false;
   }
@@ -281,7 +354,7 @@ const attachHookPath = async (path: string, label: string) => {
 
 const attachManualHook = async (entry: FileEntry) => {
   if (entry.isDir) {
-    message.warning('Select a TLS library, Go binary, or executable file');
+    message.warning("Select a TLS library, Go binary, or executable file");
     return;
   }
   executablePathInput.value = entry.path;
@@ -291,7 +364,7 @@ const attachManualHook = async (entry: FileEntry) => {
 const attachExecutableInput = async () => {
   const path = executablePathInput.value.trim();
   if (!path) {
-    message.warning('Enter a binary name or absolute executable path');
+    message.warning("Enter a binary name or absolute executable path");
     return;
   }
   await attachHookPath(path, path);
@@ -299,21 +372,31 @@ const attachExecutableInput = async () => {
 
 const fetchRules = async () => {
   try {
-    const response = await axios.get('/tls-capture/rules');
-    rules.value = Array.isArray(response.data?.rules) ? response.data.rules : [];
+    const response = await axios.get("/tls-capture/rules");
+    rules.value = Array.isArray(response.data?.rules)
+      ? response.data.rules
+      : [];
   } catch (error: any) {
-    message.error(error?.response?.data?.error || 'Failed to load Hook SSL rules');
+    message.error(
+      error?.response?.data?.error || "Failed to load Hook SSL rules",
+    );
   }
 };
 
 const saveRules = async () => {
   rulesLoading.value = true;
   try {
-    const response = await axios.put('/tls-capture/rules', { rules: rules.value });
-    rules.value = Array.isArray(response.data?.rules) ? response.data.rules : rules.value;
-    message.success('Hook SSL rules saved');
+    const response = await axios.put("/tls-capture/rules", {
+      rules: rules.value,
+    });
+    rules.value = Array.isArray(response.data?.rules)
+      ? response.data.rules
+      : rules.value;
+    message.success("Hook SSL rules saved");
   } catch (error: any) {
-    message.error(error?.response?.data?.error || 'Failed to save Hook SSL rules');
+    message.error(
+      error?.response?.data?.error || "Failed to save Hook SSL rules",
+    );
   } finally {
     rulesLoading.value = false;
   }
@@ -324,9 +407,9 @@ const addRule = () => {
     ...rules.value,
     {
       id: `custom-${Date.now()}`,
-      name: 'Custom Hook SSL rule',
+      name: "Custom Hook SSL rule",
       enabled: true,
-      scope: 'custom',
+      scope: "custom",
       comms: [],
       hosts: [],
       methods: [],
@@ -337,16 +420,33 @@ const addRule = () => {
 };
 
 const removeRule = (id: string) => {
-  rules.value = rules.value.filter(rule => rule.id !== id);
+  rules.value = rules.value.filter((rule) => rule.id !== id);
 };
 
-const splitRuleValues = (value: string) => value.split(',').map(item => item.trim()).filter(Boolean);
-const joinRuleValues = (values?: string[]) => (values || []).join(', ');
-type TLSRuleListField = 'comms' | 'hosts' | 'methods' | 'libraries' | 'directions';
-const updateRuleValues = (rule: TLSCaptureRule, field: TLSRuleListField, value: string) => {
+const splitRuleValues = (value: string) =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+const joinRuleValues = (values?: string[]) => (values || []).join(", ");
+type TLSRuleListField =
+  | "comms"
+  | "hosts"
+  | "methods"
+  | "libraries"
+  | "directions";
+const updateRuleValues = (
+  rule: TLSCaptureRule,
+  field: TLSRuleListField,
+  value: string,
+) => {
   rule[field] = splitRuleValues(value);
 };
-const onRuleValuesChange = (rule: TLSCaptureRule, field: TLSRuleListField, event: Event) => {
+const onRuleValuesChange = (
+  rule: TLSCaptureRule,
+  field: TLSRuleListField,
+  event: Event,
+) => {
   updateRuleValues(rule, field, (event.target as HTMLInputElement).value);
 };
 
@@ -354,7 +454,7 @@ const connectWebSocket = () => {
   if (!shouldReconnect) return;
   if (ws) ws.close();
 
-  const socket = new WebSocket(buildWebSocketUrl('/ws/tls-capture'));
+  const socket = new WebSocket(buildWebSocketUrl("/ws/tls-capture"));
   ws = socket;
 
   socket.onopen = () => {
@@ -369,7 +469,7 @@ const connectWebSocket = () => {
         events.value = [withEventKey(payload), ...events.value].slice(0, 500);
       }
     } catch (error) {
-      console.error('TLS capture websocket parse error', error);
+      console.error("TLS capture websocket parse error", error);
     }
   };
 
@@ -395,11 +495,11 @@ const openDetails = (event: TLSPlaintextEvent) => {
 };
 
 const clearFilters = () => {
-  searchQuery.value = '';
-  commFilter.value = '';
-  hostFilter.value = '';
-  selectedLib.value = 'all';
-  selectedDirection.value = 'all';
+  searchQuery.value = "";
+  commFilter.value = "";
+  hostFilter.value = "";
+  selectedLib.value = "all";
+  selectedDirection.value = "all";
 };
 
 const copyText = async (text: string, label: string) => {
@@ -408,16 +508,19 @@ const copyText = async (text: string, label: string) => {
 };
 
 const buildCurl = (event: TLSPlaintextEvent): string => {
-  const target = event.host && (event.url || '').startsWith('/') ? `https://${event.host}${event.url}` : (event.url || 'https://example.invalid');
-  const parts = ['curl', '-X', event.method || 'GET'];
+  const target =
+    event.host && (event.url || "").startsWith("/")
+      ? `https://${event.host}${event.url}`
+      : event.url || "https://example.invalid";
+  const parts = ["curl", "-X", event.method || "GET"];
   Object.entries(event.headers || {}).forEach(([key, value]) => {
-    if (value !== '***REDACTED***') {
-      parts.push('-H', `${key}: ${value}`);
+    if (value !== "***REDACTED***") {
+      parts.push("-H", `${key}: ${value}`);
     }
   });
-  if (event.body) parts.push('--data', event.body);
+  if (event.body) parts.push("--data", event.body);
   parts.push(target);
-  return parts.map(part => `'${part.replaceAll("'", "'\\''")}'`).join(' ');
+  return parts.map((part) => `'${part.replaceAll("'", "'\\''")}'`).join(" ");
 };
 
 onMounted(async () => {
@@ -449,7 +552,10 @@ onUnmounted(() => {
       </template>
       <template #extra>
         <a-space>
-          <a-badge :status="isConnected ? 'success' : 'error'" :text="isConnected ? 'Live' : 'Offline'" />
+          <a-badge
+            :status="isConnected ? 'success' : 'error'"
+            :text="isConnected ? 'Live' : 'Offline'"
+          />
           <a-tag color="purple">{{ summaryStats.total }} events</a-tag>
           <a-button size="small" @click="refreshData">
             <template #icon><ReloadOutlined /></template>
@@ -469,12 +575,23 @@ onUnmounted(() => {
       <a-card size="small" class="tls-runtime-card">
         <a-space wrap>
           <a-tag :color="captureStatusColor">{{ captureStatusText }}</a-tag>
-          <a-tag :color="isConnected ? 'green' : 'red'">WebSocket {{ isConnected ? 'live' : 'offline' }}</a-tag>
-          <a-tag color="blue">{{ summaryStats.attachedLibs }} attached libraries</a-tag>
-          <a-button type="primary" size="small" :loading="attachLoading" @click="() => attachDefaultLibraries()">
+          <a-tag :color="isConnected ? 'green' : 'red'"
+            >WebSocket {{ isConnected ? "live" : "offline" }}</a-tag
+          >
+          <a-tag color="blue"
+            >{{ summaryStats.attachedLibs }} attached libraries</a-tag
+          >
+          <a-button
+            type="primary"
+            size="small"
+            :loading="attachLoading"
+            @click="() => attachDefaultLibraries()"
+          >
             Start / Attach SSL hooks
           </a-button>
-          <a-button size="small" :loading="attachLoading" @click="refreshData">Refresh status</a-button>
+          <a-button size="small" :loading="attachLoading" @click="refreshData"
+            >Refresh status</a-button
+          >
         </a-space>
         <a-alert
           v-if="captureStatus.error"
@@ -491,7 +608,13 @@ onUnmounted(() => {
             <div class="tls-tab-actions">
               <a-space>
                 <a-button size="small" @click="addRule">Add Rule</a-button>
-                <a-button size="small" type="primary" :loading="rulesLoading" @click="saveRules">Save Rules</a-button>
+                <a-button
+                  size="small"
+                  type="primary"
+                  :loading="rulesLoading"
+                  @click="saveRules"
+                  >Save Rules</a-button
+                >
               </a-space>
             </div>
             <a-list :data-source="rules" size="small" class="tls-rule-list">
@@ -500,43 +623,102 @@ onUnmounted(() => {
                   <div class="tls-rule-card">
                     <div class="tls-rule-header">
                       <a-space wrap>
-                        <a-switch v-model:checked="item.enabled" checked-children="on" un-checked-children="off" />
-                        <a-input v-model:value="item.name" size="small" class="tls-rule-name" placeholder="Rule name" />
-                        <a-select v-model:value="item.scope" size="small" class="tls-rule-scope" :options="[
-                          { label: 'Agent CLI tag', value: 'agent_cli_tag' },
-                          { label: 'Custom', value: 'custom' },
-                        ]" />
-                        <a-tag v-if="item.id === 'agent-cli-tag'" color="green">default</a-tag>
-                        <a-tag v-else-if="item.scope === 'agent_cli_tag'" color="cyan">agent context</a-tag>
+                        <a-switch
+                          v-model:checked="item.enabled"
+                          checked-children="on"
+                          un-checked-children="off"
+                        />
+                        <a-input
+                          v-model:value="item.name"
+                          size="small"
+                          class="tls-rule-name"
+                          placeholder="Rule name"
+                        />
+                        <a-select
+                          v-model:value="item.scope"
+                          size="small"
+                          class="tls-rule-scope"
+                          :options="[
+                            { label: 'Agent CLI tag', value: 'agent_cli_tag' },
+                            { label: 'Custom', value: 'custom' },
+                          ]"
+                        />
+                        <a-tag v-if="item.id === 'agent-cli-tag'" color="green"
+                          >default</a-tag
+                        >
+                        <a-tag
+                          v-else-if="item.scope === 'agent_cli_tag'"
+                          color="cyan"
+                          >agent context</a-tag
+                        >
                       </a-space>
-                      <a-button v-if="item.id !== 'agent-cli-tag'" size="small" danger ghost @click="removeRule(item.id)">Remove</a-button>
+                      <a-button
+                        v-if="item.id !== 'agent-cli-tag'"
+                        size="small"
+                        danger
+                        ghost
+                        @click="removeRule(item.id)"
+                        >Remove</a-button
+                      >
                     </div>
 
                     <div class="tls-rule-fields">
                       <label class="tls-rule-field">
                         <span>Commands</span>
-                        <a-input size="small" placeholder="claude, cursor, node" :value="joinRuleValues(item.comms)" @change="onRuleValuesChange(item, 'comms', $event)" />
+                        <a-input
+                          size="small"
+                          placeholder="claude, cursor, node"
+                          :value="joinRuleValues(item.comms)"
+                          @change="onRuleValuesChange(item, 'comms', $event)"
+                        />
                       </label>
                       <label class="tls-rule-field">
                         <span>Hosts</span>
-                        <a-input size="small" placeholder="api.anthropic.com, github.com" :value="joinRuleValues(item.hosts)" @change="onRuleValuesChange(item, 'hosts', $event)" />
+                        <a-input
+                          size="small"
+                          placeholder="api.anthropic.com, github.com"
+                          :value="joinRuleValues(item.hosts)"
+                          @change="onRuleValuesChange(item, 'hosts', $event)"
+                        />
                       </label>
                       <label class="tls-rule-field compact">
                         <span>Methods</span>
-                        <a-input size="small" placeholder="POST, GET" :value="joinRuleValues(item.methods)" @change="onRuleValuesChange(item, 'methods', $event)" />
+                        <a-input
+                          size="small"
+                          placeholder="POST, GET"
+                          :value="joinRuleValues(item.methods)"
+                          @change="onRuleValuesChange(item, 'methods', $event)"
+                        />
                       </label>
                       <label class="tls-rule-field compact">
                         <span>Libraries</span>
-                        <a-input size="small" placeholder="openssl, gnutls" :value="joinRuleValues(item.libraries)" @change="onRuleValuesChange(item, 'libraries', $event)" />
+                        <a-input
+                          size="small"
+                          placeholder="openssl, gnutls"
+                          :value="joinRuleValues(item.libraries)"
+                          @change="
+                            onRuleValuesChange(item, 'libraries', $event)
+                          "
+                        />
                       </label>
                       <label class="tls-rule-field compact">
                         <span>Directions</span>
-                        <a-input size="small" placeholder="send, recv" :value="joinRuleValues(item.directions)" @change="onRuleValuesChange(item, 'directions', $event)" />
+                        <a-input
+                          size="small"
+                          placeholder="send, recv"
+                          :value="joinRuleValues(item.directions)"
+                          @change="
+                            onRuleValuesChange(item, 'directions', $event)
+                          "
+                        />
                       </label>
                     </div>
 
                     <a-typography-text type="secondary" class="tls-rule-help">
-                      {{ item.description || 'All filled fields must match. Empty fields match any value.' }}
+                      {{
+                        item.description ||
+                        "All filled fields must match. Empty fields match any value."
+                      }}
                     </a-typography-text>
                   </div>
                 </a-list-item>
@@ -552,13 +734,19 @@ onUnmounted(() => {
                     <template #title>
                       <a-space>
                         <span>{{ item.name }}</span>
-                        <a-tag :color="item.attached ? 'green' : 'default'">{{ item.attached ? 'Attached' : 'Not attached' }}</a-tag>
-                        <a-tag v-if="item.available === false" color="red">Unavailable</a-tag>
+                        <a-tag :color="item.attached ? 'green' : 'default'">{{
+                          item.attached ? "Attached" : "Not attached"
+                        }}</a-tag>
+                        <a-tag v-if="item.available === false" color="red"
+                          >Unavailable</a-tag
+                        >
                       </a-space>
                     </template>
                   </a-list-item-meta>
                   <template #actions>
-                    <span v-if="item.error" class="tls-error">{{ item.error }}</span>
+                    <span v-if="item.error" class="tls-error">{{
+                      item.error
+                    }}</span>
                   </template>
                 </a-list-item>
               </template>
@@ -575,14 +763,34 @@ onUnmounted(() => {
             />
             <a-space wrap class="tls-manual-controls">
               <span class="tls-manual-label">Target type</span>
-              <a-select v-model:value="manualHookType" size="small" style="width: 190px" :options="manualHookOptions" />
+              <a-select
+                v-model:value="manualHookType"
+                size="small"
+                style="width: 190px"
+                :options="manualHookOptions"
+              />
               <template v-if="manualHookType === 'executable'">
                 <span class="tls-manual-label">TLS symbols</span>
-                <a-select v-model:value="executableLibraryHint" size="small" style="width: 150px" :options="executableLibraryOptions" />
+                <a-select
+                  v-model:value="executableLibraryHint"
+                  size="small"
+                  style="width: 150px"
+                  :options="executableLibraryOptions"
+                />
               </template>
-              <template v-if="manualHookType === 'executable' || manualHookType === 'go'">
+              <template
+                v-if="
+                  manualHookType === 'executable' || manualHookType === 'go'
+                "
+              >
                 <span class="tls-manual-label">PID</span>
-                <a-input-number v-model:value="manualHookPid" size="small" :min="0" placeholder="0 = all" style="width: 120px" />
+                <a-input-number
+                  v-model:value="manualHookPid"
+                  size="small"
+                  :min="0"
+                  placeholder="0 = all"
+                  style="width: 120px"
+                />
               </template>
               <a-tag v-if="manualHookLoading" color="blue">Attaching…</a-tag>
             </a-space>
@@ -602,15 +810,41 @@ onUnmounted(() => {
               :type="executableAttachResult.error ? 'warning' : 'success'"
               show-icon
               class="tls-manual-hint"
-              :message="executableAttachResult.error ? 'Executable hook attach failed' : 'Executable hook target resolved'"
+              :message="
+                executableAttachResult.error
+                  ? 'Executable hook attach failed'
+                  : 'Executable hook target resolved'
+              "
             >
               <template #description>
                 <a-descriptions size="small" :column="1" bordered>
-                  <a-descriptions-item label="Input">{{ executableAttachResult.resolved?.input || executablePathInput || '—' }}</a-descriptions-item>
-                  <a-descriptions-item label="Resolved path">{{ executableAttachResult.resolved?.realPath || executableAttachResult.resolved?.path || '—' }}</a-descriptions-item>
-                  <a-descriptions-item v-if="executableAttachResult.resolved?.shebang" label="Shebang">{{ executableAttachResult.resolved.shebang }}</a-descriptions-item>
-                  <a-descriptions-item label="Attach path">{{ executableAttachResult.attachPath || executableAttachResult.resolved?.realPath || '—' }}</a-descriptions-item>
-                  <a-descriptions-item label="Mode">{{ executableAttachResult.targetKind || executableAttachResult.library || 'resolved' }}</a-descriptions-item>
+                  <a-descriptions-item label="Input">{{
+                    executableAttachResult.resolved?.input ||
+                    executablePathInput ||
+                    "—"
+                  }}</a-descriptions-item>
+                  <a-descriptions-item label="Resolved path">{{
+                    executableAttachResult.resolved?.realPath ||
+                    executableAttachResult.resolved?.path ||
+                    "—"
+                  }}</a-descriptions-item>
+                  <a-descriptions-item
+                    v-if="executableAttachResult.resolved?.shebang"
+                    label="Shebang"
+                    >{{
+                      executableAttachResult.resolved.shebang
+                    }}</a-descriptions-item
+                  >
+                  <a-descriptions-item label="Attach path">{{
+                    executableAttachResult.attachPath ||
+                    executableAttachResult.resolved?.realPath ||
+                    "—"
+                  }}</a-descriptions-item>
+                  <a-descriptions-item label="Mode">{{
+                    executableAttachResult.targetKind ||
+                    executableAttachResult.library ||
+                    "resolved"
+                  }}</a-descriptions-item>
                 </a-descriptions>
               </template>
             </a-alert>
@@ -641,7 +875,10 @@ onUnmounted(() => {
           <a-statistic title="Responses" :value="summaryStats.recvs" />
         </a-col>
         <a-col :xs="12" :sm="6">
-          <a-statistic title="Attached Libraries" :value="summaryStats.attachedLibs" />
+          <a-statistic
+            title="Attached Libraries"
+            :value="summaryStats.attachedLibs"
+          />
         </a-col>
         <a-col :xs="12" :sm="6">
           <a-statistic title="HTTP" :value="summaryStats.http" />
@@ -658,26 +895,73 @@ onUnmounted(() => {
       </a-row>
 
       <a-space wrap class="tls-toolbar">
-        <a-button @click="isPaused = !isPaused" :type="isPaused ? 'primary' : 'default'" danger size="small">
-          <template #icon><PauseOutlined v-if="isPaused" /><PlayCircleOutlined v-else /></template>
-          {{ isPaused ? 'Resume' : 'Pause' }}
+        <a-button
+          @click="isPaused = !isPaused"
+          :type="isPaused ? 'primary' : 'default'"
+          danger
+          size="small"
+        >
+          <template #icon
+            ><PauseOutlined v-if="isPaused" /><PlayCircleOutlined v-else
+          /></template>
+          {{ isPaused ? "Resume" : "Pause" }}
         </a-button>
-        <a-input v-model:value="searchQuery" size="small" placeholder="Search URL, headers, body" allow-clear style="width: 220px;">
+        <a-input
+          v-model:value="searchQuery"
+          size="small"
+          placeholder="Search URL, headers, body"
+          allow-clear
+          style="width: 220px"
+        >
           <template #prefix><SearchOutlined /></template>
         </a-input>
-        <a-input v-model:value="commFilter" size="small" placeholder="Command filter" allow-clear style="width: 180px;" />
-        <a-input v-model:value="hostFilter" size="small" placeholder="Host filter" allow-clear style="width: 180px;" />
-        <a-select v-model:value="selectedLib" size="small" style="width: 160px;" :options="[{ label: 'All libraries', value: 'all' }, ...libraries.map(item => ({ label: item.name, value: item.name }))]" />
-        <a-select v-model:value="selectedDirection" size="small" style="width: 120px;" :options="[
-          { label: 'All directions', value: 'all' },
-          { label: 'Send', value: 'send' },
-          { label: 'Recv', value: 'recv' },
-        ]" />
+        <a-input
+          v-model:value="commFilter"
+          size="small"
+          placeholder="Command filter"
+          allow-clear
+          style="width: 180px"
+        />
+        <a-input
+          v-model:value="hostFilter"
+          size="small"
+          placeholder="Host filter"
+          allow-clear
+          style="width: 180px"
+        />
+        <a-select
+          v-model:value="selectedLib"
+          size="small"
+          style="width: 160px"
+          :options="[
+            { label: 'All libraries', value: 'all' },
+            ...libraries.map((item) => ({
+              label: item.name,
+              value: item.name,
+            })),
+          ]"
+        />
+        <a-select
+          v-model:value="selectedDirection"
+          size="small"
+          style="width: 120px"
+          :options="[
+            { label: 'All directions', value: 'all' },
+            { label: 'Send', value: 'send' },
+            { label: 'Recv', value: 'recv' },
+          ]"
+        />
         <a-button size="small" @click="clearFilters">Clear Filters</a-button>
       </a-space>
 
-      <a-empty v-if="events.length === 0" description="暂无完整 HTTP 请求/返回包 — 请确保后端已启动且 eBPF TLS 探针已挂载" />
-      <a-empty v-else-if="filteredEvents.length === 0" description="无匹配请求/返回包，请调整过滤条件" />
+      <a-empty
+        v-if="events.length === 0"
+        description="暂无完整 HTTP 请求/返回包 — 请确保后端已启动且 eBPF TLS 探针已挂载"
+      />
+      <a-empty
+        v-else-if="filteredEvents.length === 0"
+        description="无匹配请求/返回包，请调整过滤条件"
+      />
 
       <a-table
         :data-source="filteredEvents"
@@ -686,96 +970,241 @@ onUnmounted(() => {
         :pagination="{ pageSize: 20, showSizeChanger: true }"
         :scroll="{ x: 1200 }"
       >
-        <a-table-column title="Time" data-index="timestamp" key="timestamp" width="180">
+        <a-table-column
+          title="Time"
+          data-index="timestamp"
+          key="timestamp"
+          width="180"
+        >
           <template #default="{ text }">{{ formatTimestamp(text) }}</template>
         </a-table-column>
-        <a-table-column title="Packet" data-index="direction" key="direction" width="110">
+        <a-table-column
+          title="Packet"
+          data-index="direction"
+          key="direction"
+          width="110"
+        >
           <template #default="{ text }">
-            <a-tag :color="directionColor(text)">{{ directionLabel(text) }}</a-tag>
+            <a-tag :color="directionColor(text)">{{
+              directionLabel(text)
+            }}</a-tag>
           </template>
         </a-table-column>
-        <a-table-column title="Library" data-index="lib" key="lib" width="120" />
-        <a-table-column title="Command" data-index="comm" key="comm" width="140" ellipsis />
-        <a-table-column title="Host" data-index="host" key="host" width="180" ellipsis />
+        <a-table-column
+          title="Library"
+          data-index="lib"
+          key="lib"
+          width="120"
+        />
+        <a-table-column
+          title="Command"
+          data-index="comm"
+          key="comm"
+          width="140"
+          ellipsis
+        />
+        <a-table-column
+          title="Host"
+          data-index="host"
+          key="host"
+          width="180"
+          ellipsis
+        />
         <a-table-column title="Type" key="type" width="140">
           <template #default="{ record }">
-            <a-tag :color="packetTypeColor(record)">{{ packetTypeLabel(record) }}</a-tag>
+            <a-tag :color="packetTypeColor(record)">{{
+              packetTypeLabel(record)
+            }}</a-tag>
           </template>
         </a-table-column>
-        <a-table-column title="Method" data-index="method" key="method" width="90" />
-        <a-table-column title="Status" data-index="status" key="status" width="90" />
+        <a-table-column
+          title="Method"
+          data-index="method"
+          key="method"
+          width="90"
+        />
+        <a-table-column
+          title="Status"
+          data-index="status"
+          key="status"
+          width="90"
+        />
         <a-table-column title="URL" data-index="url" key="url" ellipsis />
-        <a-table-column title="Redaction" data-index="redaction_state" key="redaction_state" width="110">
+        <a-table-column
+          title="Redaction"
+          data-index="redaction_state"
+          key="redaction_state"
+          width="110"
+        >
           <template #default="{ text }">
-            <a-tag :color="text === 'sanitized' ? 'green' : 'default'">{{ text || 'raw' }}</a-tag>
+            <a-tag :color="text === 'sanitized' ? 'green' : 'default'">{{
+              text || "raw"
+            }}</a-tag>
           </template>
         </a-table-column>
-        <a-table-column title="Body Size" data-index="body_size" key="body_size" width="110" align="right">
+        <a-table-column
+          title="Body Size"
+          data-index="body_size"
+          key="body_size"
+          width="110"
+          align="right"
+        >
           <template #default="{ text }">{{ formatBytes(text) }}</template>
         </a-table-column>
         <a-table-column title="" key="action" width="160" fixed="right">
           <template #default="{ record }">
             <a-space :size="4">
-              <a-button type="link" size="small" @click="openDetails(record)">Detail</a-button>
-              <a-button type="link" size="small" @click="copyText(record.body || record.raw_hex_dump || '', 'Body')">
+              <a-button type="link" size="small" @click="openDetails(record)"
+                >Detail</a-button
+              >
+              <a-button
+                type="link"
+                size="small"
+                @click="
+                  copyText(record.body || record.raw_hex_dump || '', 'Body')
+                "
+              >
                 <template #icon><CopyOutlined /></template>
               </a-button>
             </a-space>
           </template>
         </a-table-column>
       </a-table>
-
     </a-card>
 
-    <a-modal v-model:open="showDetails" :title="selectedEvent ? packetTypeLabel(selectedEvent) : 'TLS HTTP Packet'" :footer="null" width="820px">
+    <a-modal
+      v-model:open="showDetails"
+      :title="
+        selectedEvent ? packetTypeLabel(selectedEvent) : 'TLS HTTP Packet'
+      "
+      :footer="null"
+      width="820px"
+    >
       <template v-if="selectedEvent">
-        <a-space style="margin-bottom: 12px;">
-          <a-button size="small" @click="copyText(selectedEvent.body || selectedEvent.raw_hex_dump || '', 'Body')">
+        <a-space style="margin-bottom: 12px">
+          <a-button
+            size="small"
+            @click="
+              copyText(
+                selectedEvent.body || selectedEvent.raw_hex_dump || '',
+                'Body',
+              )
+            "
+          >
             <template #icon><CopyOutlined /></template>Copy Body
           </a-button>
-          <a-button v-if="isRequestEvent(selectedEvent)" size="small" @click="copyText(buildCurl(selectedEvent), 'cURL')">
+          <a-button
+            v-if="isRequestEvent(selectedEvent)"
+            size="small"
+            @click="copyText(buildCurl(selectedEvent), 'cURL')"
+          >
             <template #icon><CopyOutlined /></template>Copy cURL
           </a-button>
         </a-space>
         <a-descriptions bordered :column="1" size="small">
-        <a-descriptions-item label="Timestamp">{{ formatTimestamp(selectedEvent.timestamp) }}</a-descriptions-item>
-        <a-descriptions-item label="Packet"><a-tag :color="directionColor(selectedEvent.direction)">{{ directionLabel(selectedEvent.direction) }}</a-tag></a-descriptions-item>
-        <a-descriptions-item label="Library">{{ selectedEvent.lib || '—' }}</a-descriptions-item>
-        <a-descriptions-item label="Function">{{ selectedEvent.function || '—' }}</a-descriptions-item>
-        <a-descriptions-item label="Command">{{ selectedEvent.comm || '—' }}</a-descriptions-item>
-        <a-descriptions-item label="PID">{{ selectedEvent.pid ?? '—' }}</a-descriptions-item>
-        <a-descriptions-item label="TGID">{{ selectedEvent.tgid ?? '—' }}</a-descriptions-item>
-        <a-descriptions-item label="Method">{{ selectedEvent.method || '—' }}</a-descriptions-item>
-        <a-descriptions-item label="URL"><a-typography-text code style="word-break: break-all;">{{ selectedEvent.url || '—' }}</a-typography-text></a-descriptions-item>
-        <a-descriptions-item label="Host">{{ selectedEvent.host || '—' }}</a-descriptions-item>
-        <a-descriptions-item label="Status">{{ selectedEvent.status ?? '—' }}</a-descriptions-item>
-        <a-descriptions-item label="Content Type">{{ selectedEvent.content_type || '—' }}</a-descriptions-item>
-        <a-descriptions-item label="Body Size">{{ formatBytes(selectedEvent.body_size) }}</a-descriptions-item>
-        <a-descriptions-item label="TLS Capture">{{ formatBytes(selectedEvent.captured_len) }} / {{ formatBytes(selectedEvent.original_len) }}</a-descriptions-item>
-        <a-descriptions-item label="Redaction"><a-tag :color="selectedEvent.redaction_state === 'sanitized' ? 'green' : 'default'">{{ selectedEvent.redaction_state || 'raw' }}</a-tag></a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.sse_event || selectedEvent.sse_data_digest" label="SSE">
-          <a-space wrap>
-            <a-tag v-if="selectedEvent.sse_event" color="cyan">{{ selectedEvent.sse_event }}</a-tag>
-            <a-typography-text v-if="selectedEvent.sse_data_digest" code>{{ selectedEvent.sse_data_digest }}</a-typography-text>
-          </a-space>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.vendor || selectedEvent.prompt_digest" label="LLM Metadata">
-          <a-space wrap>
-            <a-tag v-if="selectedEvent.vendor" color="purple">{{ selectedEvent.vendor }}</a-tag>
-            <a-tag v-if="selectedEvent.message_role" color="blue">{{ selectedEvent.message_role }}</a-tag>
-            <a-typography-text v-if="selectedEvent.prompt_digest" code>{{ selectedEvent.prompt_digest }}</a-typography-text>
-            <span v-if="selectedEvent.prompt_len">{{ selectedEvent.prompt_len }} chars</span>
-          </a-space>
-        </a-descriptions-item>
-        <a-descriptions-item label="Headers">
-          <pre class="tls-pre">{{ JSON.stringify(selectedEvent.headers || {}, null, 2) }}</pre>
-        </a-descriptions-item>
-        <a-descriptions-item label="Body">
-          <pre class="tls-pre tls-body">{{ selectedEvent.body || '—' }}</pre>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="selectedEvent.raw_hex_dump" label="Raw Hex Dump">
-          <pre class="tls-pre">{{ selectedEvent.raw_hex_dump }}</pre>
-        </a-descriptions-item>
+          <a-descriptions-item label="Timestamp">{{
+            formatTimestamp(selectedEvent.timestamp)
+          }}</a-descriptions-item>
+          <a-descriptions-item label="Packet"
+            ><a-tag :color="directionColor(selectedEvent.direction)">{{
+              directionLabel(selectedEvent.direction)
+            }}</a-tag></a-descriptions-item
+          >
+          <a-descriptions-item label="Library">{{
+            selectedEvent.lib || "—"
+          }}</a-descriptions-item>
+          <a-descriptions-item label="Function">{{
+            selectedEvent.function || "—"
+          }}</a-descriptions-item>
+          <a-descriptions-item label="Command">{{
+            selectedEvent.comm || "—"
+          }}</a-descriptions-item>
+          <a-descriptions-item label="PID">{{
+            selectedEvent.pid ?? "—"
+          }}</a-descriptions-item>
+          <a-descriptions-item label="TGID">{{
+            selectedEvent.tgid ?? "—"
+          }}</a-descriptions-item>
+          <a-descriptions-item label="Method">{{
+            selectedEvent.method || "—"
+          }}</a-descriptions-item>
+          <a-descriptions-item label="URL"
+            ><a-typography-text code style="word-break: break-all">{{
+              selectedEvent.url || "—"
+            }}</a-typography-text></a-descriptions-item
+          >
+          <a-descriptions-item label="Host">{{
+            selectedEvent.host || "—"
+          }}</a-descriptions-item>
+          <a-descriptions-item label="Status">{{
+            selectedEvent.status ?? "—"
+          }}</a-descriptions-item>
+          <a-descriptions-item label="Content Type">{{
+            selectedEvent.content_type || "—"
+          }}</a-descriptions-item>
+          <a-descriptions-item label="Body Size">{{
+            formatBytes(selectedEvent.body_size)
+          }}</a-descriptions-item>
+          <a-descriptions-item label="TLS Capture"
+            >{{ formatBytes(selectedEvent.captured_len) }} /
+            {{ formatBytes(selectedEvent.original_len) }}</a-descriptions-item
+          >
+          <a-descriptions-item label="Redaction"
+            ><a-tag
+              :color="
+                selectedEvent.redaction_state === 'sanitized'
+                  ? 'green'
+                  : 'default'
+              "
+              >{{ selectedEvent.redaction_state || "raw" }}</a-tag
+            ></a-descriptions-item
+          >
+          <a-descriptions-item
+            v-if="selectedEvent.sse_event || selectedEvent.sse_data_digest"
+            label="SSE"
+          >
+            <a-space wrap>
+              <a-tag v-if="selectedEvent.sse_event" color="cyan">{{
+                selectedEvent.sse_event
+              }}</a-tag>
+              <a-typography-text v-if="selectedEvent.sse_data_digest" code>{{
+                selectedEvent.sse_data_digest
+              }}</a-typography-text>
+            </a-space>
+          </a-descriptions-item>
+          <a-descriptions-item
+            v-if="selectedEvent.vendor || selectedEvent.prompt_digest"
+            label="LLM Metadata"
+          >
+            <a-space wrap>
+              <a-tag v-if="selectedEvent.vendor" color="purple">{{
+                selectedEvent.vendor
+              }}</a-tag>
+              <a-tag v-if="selectedEvent.message_role" color="blue">{{
+                selectedEvent.message_role
+              }}</a-tag>
+              <a-typography-text v-if="selectedEvent.prompt_digest" code>{{
+                selectedEvent.prompt_digest
+              }}</a-typography-text>
+              <span v-if="selectedEvent.prompt_len"
+                >{{ selectedEvent.prompt_len }} chars</span
+              >
+            </a-space>
+          </a-descriptions-item>
+          <a-descriptions-item label="Headers">
+            <pre class="tls-pre">{{
+              JSON.stringify(selectedEvent.headers || {}, null, 2)
+            }}</pre>
+          </a-descriptions-item>
+          <a-descriptions-item label="Body">
+            <pre class="tls-pre tls-body">{{ selectedEvent.body || "—" }}</pre>
+          </a-descriptions-item>
+          <a-descriptions-item
+            v-if="selectedEvent.raw_hex_dump"
+            label="Raw Hex Dump"
+          >
+            <pre class="tls-pre">{{ selectedEvent.raw_hex_dump }}</pre>
+          </a-descriptions-item>
         </a-descriptions>
       </template>
     </a-modal>
@@ -863,7 +1292,10 @@ onUnmounted(() => {
 
 .tls-rule-fields {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) minmax(260px, 1.6fr) repeat(3, minmax(140px, 1fr));
+  grid-template-columns: minmax(220px, 1.4fr) minmax(260px, 1.6fr) repeat(
+      3,
+      minmax(140px, 1fr)
+    );
   gap: 10px;
   align-items: end;
 }

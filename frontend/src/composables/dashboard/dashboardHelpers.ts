@@ -1,5 +1,11 @@
 import { pb } from "../../pb/tracker_pb.js";
-import { networkEventTypes, eventTypeLabelMap, eventTypeColorMap, syscallDisplayName, type AgentEvent } from "./dashboardConstants";
+import {
+  networkEventTypes,
+  eventTypeLabelMap,
+  eventTypeColorMap,
+  syscallDisplayName,
+  type AgentEvent,
+} from "./dashboardConstants";
 
 export const decodeIncomingEvents = (payload: Uint8Array): pb.IEvent[] => {
   if (payload[0] === 10) {
@@ -8,18 +14,25 @@ export const decodeIncomingEvents = (payload: Uint8Array): pb.IEvent[] => {
   return [pb.Event.decode(payload)];
 };
 
-
 export const extractEventType = (event: pb.IEvent) =>
-  Object.prototype.hasOwnProperty.call(event, 'eventType') && event.eventType !== null && event.eventType !== undefined
+  Object.prototype.hasOwnProperty.call(event, "eventType") &&
+  event.eventType !== null &&
+  event.eventType !== undefined
     ? Number(event.eventType)
     : undefined;
 
-
-export const isNetworkEvent = (eventType: number | undefined, type?: string) => {
+export const isNetworkEvent = (
+  eventType: number | undefined,
+  type?: string,
+) => {
   if (eventType !== undefined && networkEventTypes.has(eventType)) {
     return true;
   }
-  return type === 'accept' || type === 'accept4' || Boolean(type?.startsWith('network_'));
+  return (
+    type === "accept" ||
+    type === "accept4" ||
+    Boolean(type?.startsWith("network_"))
+  );
 };
 
 export const getTagColor = (eventType?: number, type?: string) => {
@@ -30,47 +43,56 @@ export const getTagColor = (eventType?: number, type?: string) => {
     .find(([, label]) => label === type)
     ?.at(0);
   if (fallback) {
-    return eventTypeColorMap[Number(fallback)] || 'default';
+    return eventTypeColorMap[Number(fallback)] || "default";
   }
-  return 'default';
+  return "default";
 };
-
 
 export const getCategoryColor = (tag: string) => {
   const colors: Record<string, string> = {
-    'AI Agent': 'magenta', 'Git': 'orange', 'Build Tool': 'cyan',
-    'Package Manager': 'green', 'Runtime': 'blue', 'System Tool': 'geekblue', 'Network Tool': 'purple',
-    'Security': 'red'
+    "AI Agent": "magenta",
+    Git: "orange",
+    "Build Tool": "cyan",
+    "Package Manager": "green",
+    Runtime: "blue",
+    "System Tool": "geekblue",
+    "Network Tool": "purple",
+    Security: "red",
   };
-  return colors[tag] || 'default';
+  return colors[tag] || "default";
 };
 
-
 export const toOptionalNumber = (value: unknown): number | undefined => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
-  if (typeof value === 'string' && value.trim() !== '') {
+  if (typeof value === "string" && value.trim() !== "") {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : undefined;
   }
-  if (typeof value === 'object' && value !== null && 'toNumber' in value && typeof (value as { toNumber?: () => number }).toNumber === 'function') {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toNumber" in value &&
+    typeof (value as { toNumber?: () => number }).toNumber === "function"
+  ) {
     const parsed = (value as { toNumber: () => number }).toNumber();
     return Number.isFinite(parsed) ? parsed : undefined;
   }
   return undefined;
 };
 
-
 export const toText = (value: unknown): string => {
   if (value === undefined || value === null) {
-    return '';
+    return "";
   }
-  return typeof value === 'string' ? value : String(value);
+  return typeof value === "string" ? value : String(value);
 };
 
-
-export const buildAgentEvent = (data: Record<string, unknown>, receivedAtMs: number): AgentEvent => {
+export const buildAgentEvent = (
+  data: Record<string, unknown>,
+  receivedAtMs: number,
+): AgentEvent => {
   const type = toText(data.type ?? data.Type);
   const path = toText(data.path ?? data.Path);
   const pid = toOptionalNumber(data.pid ?? data.Pid) ?? 0;
@@ -92,10 +114,18 @@ export const buildAgentEvent = (data: Record<string, unknown>, receivedAtMs: num
     tag,
     comm,
     path,
-    netDirection: networkEvent ? (toText(data.netDirection ?? data.net_direction) || undefined) : undefined,
-    netEndpoint: networkEvent ? (toText(data.netEndpoint ?? data.net_endpoint) || undefined) : undefined,
-    netFamily: networkEvent ? (toText(data.netFamily ?? data.net_family) || undefined) : undefined,
-    netBytes: networkEvent ? toOptionalNumber(data.netBytes ?? data.net_bytes) : undefined,
+    netDirection: networkEvent
+      ? toText(data.netDirection ?? data.net_direction) || undefined
+      : undefined,
+    netEndpoint: networkEvent
+      ? toText(data.netEndpoint ?? data.net_endpoint) || undefined
+      : undefined,
+    netFamily: networkEvent
+      ? toText(data.netFamily ?? data.net_family) || undefined
+      : undefined,
+    netBytes: networkEvent
+      ? toOptionalNumber(data.netBytes ?? data.net_bytes)
+      : undefined,
     retval: toOptionalNumber(data.retval ?? data.Retval),
     extraInfo: toText(data.extraInfo ?? data.extra_info) || undefined,
     extraPath: toText(data.extraPath ?? data.extra_path) || undefined,
@@ -106,29 +136,55 @@ export const buildAgentEvent = (data: Record<string, unknown>, receivedAtMs: num
     protocol: toOptionalNumber(data.protocol ?? data.Protocol),
     uidArg: toOptionalNumber(data.uidArg ?? data.uid_arg),
     gidArg: toOptionalNumber(data.gidArg ?? data.gid_arg),
-    durationNs: toOptionalNumber(data.durationNs ?? data.duration_ns ?? data.DurationNs),
-    schemaVersion: toText(data.schemaVersion ?? data.schema_version ?? data.SchemaVersion) || undefined,
-    cgroupId: toOptionalNumber(data.cgroupId ?? data.cgroup_id ?? data.CgroupId),
-    rootAgentPid: toOptionalNumber(data.rootAgentPid ?? data.root_agent_pid ?? data.RootAgentPid),
-    agentRunId: toText(data.agentRunId ?? data.agent_run_id ?? data.AgentRunId) || undefined,
-    conversationId: toText(data.conversationId ?? data.conversation_id ?? data.ConversationId) || undefined,
+    durationNs: toOptionalNumber(
+      data.durationNs ?? data.duration_ns ?? data.DurationNs,
+    ),
+    schemaVersion:
+      toText(data.schemaVersion ?? data.schema_version ?? data.SchemaVersion) ||
+      undefined,
+    cgroupId: toOptionalNumber(
+      data.cgroupId ?? data.cgroup_id ?? data.CgroupId,
+    ),
+    rootAgentPid: toOptionalNumber(
+      data.rootAgentPid ?? data.root_agent_pid ?? data.RootAgentPid,
+    ),
+    agentRunId:
+      toText(data.agentRunId ?? data.agent_run_id ?? data.AgentRunId) ||
+      undefined,
+    conversationId:
+      toText(
+        data.conversationId ?? data.conversation_id ?? data.ConversationId,
+      ) || undefined,
     turnId: toText(data.turnId ?? data.turn_id ?? data.TurnId) || undefined,
-    toolCallId: toText(data.toolCallId ?? data.tool_call_id ?? data.ToolCallId) || undefined,
-    toolName: toText(data.toolName ?? data.tool_name ?? data.ToolName) || undefined,
+    toolCallId:
+      toText(data.toolCallId ?? data.tool_call_id ?? data.ToolCallId) ||
+      undefined,
+    toolName:
+      toText(data.toolName ?? data.tool_name ?? data.ToolName) || undefined,
     traceId: toText(data.traceId ?? data.trace_id ?? data.TraceId) || undefined,
     spanId: toText(data.spanId ?? data.span_id ?? data.SpanId) || undefined,
     decision: toText(data.decision ?? data.Decision) || undefined,
-    riskScore: toOptionalNumber(data.riskScore ?? data.risk_score ?? data.RiskScore),
-    containerId: toText(data.containerId ?? data.container_id ?? data.ContainerId) || undefined,
-    argvDigest: toText(data.argvDigest ?? data.argv_digest ?? data.ArgvDigest) || undefined,
+    riskScore: toOptionalNumber(
+      data.riskScore ?? data.risk_score ?? data.RiskScore,
+    ),
+    containerId:
+      toText(data.containerId ?? data.container_id ?? data.ContainerId) ||
+      undefined,
+    argvDigest:
+      toText(data.argvDigest ?? data.argv_digest ?? data.ArgvDigest) ||
+      undefined,
     time: new Date(receivedAtMs).toLocaleTimeString(),
     receivedAtMs,
   };
 };
 
 const formatDurationNs = (durationNs?: number): string => {
-  if (durationNs === undefined || !Number.isFinite(durationNs) || durationNs < 0) {
-    return '';
+  if (
+    durationNs === undefined ||
+    !Number.isFinite(durationNs) ||
+    durationNs < 0
+  ) {
+    return "";
   }
   if (durationNs < 1_000) {
     return `${durationNs} ns`;
@@ -148,116 +204,122 @@ const formatDurationNs = (durationNs?: number): string => {
 const compactExtraInfo = (value?: string): string => {
   const trimmed = value?.trim();
   if (!trimmed) {
-    return '';
+    return "";
   }
-  return trimmed.replace(/\s+/g, ', ');
+  return trimmed.replace(/\s+/g, ", ");
 };
 
 const formatEventArgs = (event: AgentEvent): string[] => {
   const args: string[] = [];
 
   switch (event.type) {
-    case 'execve':
-    case 'execveat':
-    case 'open':
-    case 'openat':
-    case 'openat2':
-    case 'access':
-    case 'truncate':
-    case 'chdir':
-    case 'mkdir':
-    case 'mkdirat':
-    case 'rmdir':
-    case 'creat':
-    case 'unlink':
-    case 'unlinkat':
-    case 'readlink':
-    case 'readlinkat':
-    case 'chroot':
-    case 'umount2':
-    case 'swapon':
-    case 'swapoff':
-    case 'sethostname':
-    case 'setdomainname':
-    case 'setxattr':
-    case 'lsetxattr':
-    case 'getxattr':
-    case 'lgetxattr':
-    case 'listxattr':
-    case 'llistxattr':
-    case 'removexattr':
-    case 'lremovexattr':
-    case 'fsopen':
-    case 'memfd_create':
-    case 'open_tree':
+    case "execve":
+    case "execveat":
+    case "open":
+    case "openat":
+    case "openat2":
+    case "access":
+    case "truncate":
+    case "chdir":
+    case "mkdir":
+    case "mkdirat":
+    case "rmdir":
+    case "creat":
+    case "unlink":
+    case "unlinkat":
+    case "readlink":
+    case "readlinkat":
+    case "chroot":
+    case "umount2":
+    case "swapon":
+    case "swapoff":
+    case "sethostname":
+    case "setdomainname":
+    case "setxattr":
+    case "lsetxattr":
+    case "getxattr":
+    case "lgetxattr":
+    case "listxattr":
+    case "llistxattr":
+    case "removexattr":
+    case "lremovexattr":
+    case "fsopen":
+    case "memfd_create":
+    case "open_tree":
       if (event.path) args.push(JSON.stringify(event.path));
       if (event.extraPath) args.push(JSON.stringify(event.extraPath));
       if (event.extraInfo) args.push(compactExtraInfo(event.extraInfo));
       break;
-    case 'rename':
-    case 'renameat':
-    case 'renameat2':
-    case 'link':
-    case 'linkat':
-    case 'symlink':
-    case 'symlinkat':
-    case 'move_mount':
-    case 'pivot_root':
+    case "rename":
+    case "renameat":
+    case "renameat2":
+    case "link":
+    case "linkat":
+    case "symlink":
+    case "symlinkat":
+    case "move_mount":
+    case "pivot_root":
       if (event.path) args.push(JSON.stringify(event.path));
       if (event.extraPath) args.push(JSON.stringify(event.extraPath));
       break;
-    case 'read':
-    case 'write':
+    case "read":
+    case "write":
       if (event.extraInfo) args.push(compactExtraInfo(event.extraInfo));
       if (event.bytes !== undefined) args.push(`bytes=${event.bytes}`);
       break;
-    case 'chmod':
-    case 'fchmodat':
-    case 'fchmodat2':
+    case "chmod":
+    case "fchmodat":
+    case "fchmodat2":
       if (event.path) args.push(JSON.stringify(event.path));
       if (event.mode) args.push(`mode=${event.mode}`);
       break;
-    case 'mknod':
-    case 'mknodat':
+    case "mknod":
+    case "mknodat":
       if (event.path) args.push(JSON.stringify(event.path));
       if (event.extraInfo) args.push(compactExtraInfo(event.extraInfo));
       break;
-    case 'chown':
-    case 'fchownat':
+    case "chown":
+    case "fchownat":
       if (event.path) args.push(JSON.stringify(event.path));
       if (event.uidArg !== undefined) args.push(`uid=${event.uidArg}`);
       if (event.gidArg !== undefined) args.push(`gid=${event.gidArg}`);
       break;
-    case 'socket':
+    case "socket":
       if (event.domain) args.push(`domain=${event.domain}`);
       if (event.sockType) args.push(`type=${event.sockType}`);
       if (event.protocol !== undefined) args.push(`protocol=${event.protocol}`);
       break;
-    case 'connect':
-    case 'bind':
-    case 'sendto':
-    case 'recvfrom':
-    case 'accept':
-    case 'accept4':
-    case 'network_connect':
-    case 'network_bind':
-    case 'network_sendto':
-    case 'network_recvfrom':
+    case "connect":
+    case "bind":
+    case "sendto":
+    case "recvfrom":
+    case "accept":
+    case "accept4":
+    case "network_connect":
+    case "network_bind":
+    case "network_sendto":
+    case "network_recvfrom":
       if (event.path) {
         args.push(JSON.stringify(event.path));
       } else {
         if (event.netDirection) args.push(`direction=${event.netDirection}`);
-        if (event.netEndpoint) args.push(`endpoint=${JSON.stringify(event.netEndpoint)}`);
+        if (event.netEndpoint)
+          args.push(`endpoint=${JSON.stringify(event.netEndpoint)}`);
         if (event.netBytes !== undefined) args.push(`bytes=${event.netBytes}`);
       }
       break;
-    case 'syscall': {
+    case "syscall": {
       const syscallMatch = event.extraInfo?.match(/^(\w+)\((\d+)\)\s*(.*)$/);
       if (syscallMatch) {
         args.push(`nr=${syscallMatch[2]}`);
         const tail = syscallMatch[3].trim();
         if (tail) {
-          args.push(...tail.split(/\s+/).map((part) => part.trim()).filter(Boolean));
+          args.push(
+            ...tail
+              .split(/\s+/)
+              .map((part) => part.trim())
+              .filter(Boolean),
+          );
         }
       } else if (event.extraInfo) {
         args.push(compactExtraInfo(event.extraInfo));
@@ -271,33 +333,39 @@ const formatEventArgs = (event: AgentEvent): string[] => {
       break;
   }
 
-  return args.filter((part) => part !== '');
+  return args.filter((part) => part !== "");
 };
 
-export const formatTraceSummary = (event: AgentEvent | null | undefined): string => {
+export const formatTraceSummary = (
+  event: AgentEvent | null | undefined,
+): string => {
   if (!event) {
-    return '';
+    return "";
   }
 
-  const displayName = event.type === 'syscall'
-    ? (syscallDisplayName(event.extraInfo) || 'syscall')
-    : (event.type || 'event');
+  const displayName =
+    event.type === "syscall"
+      ? syscallDisplayName(event.extraInfo) || "syscall"
+      : event.type || "event";
   const args = formatEventArgs(event);
-  const call = `${displayName}(${args.join(', ')})`;
-  const retval = event.retval !== undefined ? ` = ${event.retval}` : '';
+  const call = `${displayName}(${args.join(", ")})`;
+  const retval = event.retval !== undefined ? ` = ${event.retval}` : "";
   const duration = formatDurationNs(event.durationNs);
-  const durationSuffix = duration ? ` [${duration}]` : '';
+  const durationSuffix = duration ? ` [${duration}]` : "";
   return `${call}${retval}${durationSuffix}`;
 };
 
-
 export const extractHistoryTimestampMs = (record: any): number => {
-  const rawValue = record?.timestamp ?? record?.Timestamp ?? record?.receivedAt ?? record?.ReceivedAt;
+  const rawValue =
+    record?.timestamp ??
+    record?.Timestamp ??
+    record?.receivedAt ??
+    record?.ReceivedAt;
   const parsed = toOptionalNumber(rawValue);
   if (parsed !== undefined) {
     return parsed;
   }
-  if (typeof rawValue === 'string') {
+  if (typeof rawValue === "string") {
     const dateParsed = Date.parse(rawValue);
     if (Number.isFinite(dateParsed)) {
       return dateParsed;
@@ -306,11 +374,13 @@ export const extractHistoryTimestampMs = (record: any): number => {
   return Date.now();
 };
 
-
 export const normalizeHistoryRecord = (record: any): AgentEvent | null => {
   const event = record?.event ?? record?.Event;
   if (!event) {
     return null;
   }
-  return buildAgentEvent(event as Record<string, unknown>, extractHistoryTimestampMs(record));
+  return buildAgentEvent(
+    event as Record<string, unknown>,
+    extractHistoryTimestampMs(record),
+  );
 };

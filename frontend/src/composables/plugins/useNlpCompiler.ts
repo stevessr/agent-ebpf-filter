@@ -30,7 +30,8 @@ export interface LlmCompileResult {
   error?: string;
 }
 
-const randomId = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 11)}`;
+const randomId = (prefix: string) =>
+  `${prefix}-${Math.random().toString(36).slice(2, 11)}`;
 
 const parseLeafCondition = (clause: string): VisualCondition => {
   const c = clause.toLowerCase().trim();
@@ -42,13 +43,26 @@ const parseLeafCondition = (clause: string): VisualCondition => {
     field = "port";
   } else if (c.includes("ip") || c.includes("address") || c.includes("地址")) {
     field = "ipv4";
-  } else if (c.includes("pid") || c.includes("进程号") || c.includes("进程id")) {
+  } else if (
+    c.includes("pid") ||
+    c.includes("进程号") ||
+    c.includes("进程id")
+  ) {
     field = "pid";
-  } else if (c.includes("uid") || c.includes("用户id") || c.includes("用户") || c.includes("root")) {
+  } else if (
+    c.includes("uid") ||
+    c.includes("用户id") ||
+    c.includes("用户") ||
+    c.includes("root")
+  ) {
     field = "uid";
   } else if (c.includes("gid") || c.includes("组id") || c.includes("用户组")) {
     field = "gid";
-  } else if (c.includes("文件名") || c.includes("文件") || c.includes("basename")) {
+  } else if (
+    c.includes("文件名") ||
+    c.includes("文件") ||
+    c.includes("basename")
+  ) {
     field = "basename";
   }
 
@@ -92,8 +106,20 @@ const parseLeafCondition = (clause: string): VisualCondition => {
       value = quoteMatch[1];
     } else {
       const comms = [
-        "python3", "busybox", "telnet", "python", "curl", "bash",
-        "wget", "ssh", "ping", "perl", "ruby", "gcc", "nc", "sh",
+        "python3",
+        "busybox",
+        "telnet",
+        "python",
+        "curl",
+        "bash",
+        "wget",
+        "ssh",
+        "ping",
+        "perl",
+        "ruby",
+        "gcc",
+        "nc",
+        "sh",
       ];
       const found = comms.find((item) => c.includes(item));
       if (found) {
@@ -102,11 +128,24 @@ const parseLeafCondition = (clause: string): VisualCondition => {
         const wordMatch = clause.match(/([a-zA-Z0-9_\-.]+)/g);
         if (wordMatch) {
           const keywords = [
-            "comm", "pid", "uid", "gid", "port", "ipv4", "basename",
-            "starts", "ends", "or", "and", "starts_with", "ends_with",
+            "comm",
+            "pid",
+            "uid",
+            "gid",
+            "port",
+            "ipv4",
+            "basename",
+            "starts",
+            "ends",
+            "or",
+            "and",
+            "starts_with",
+            "ends_with",
           ];
           const validWords = wordMatch.filter(
-            (word) => !keywords.includes(word.toLowerCase()) && Number.isNaN(Number(word))
+            (word) =>
+              !keywords.includes(word.toLowerCase()) &&
+              Number.isNaN(Number(word)),
           );
           if (validWords.length > 0) {
             value = validWords[validWords.length - 1];
@@ -164,22 +203,31 @@ const parseTextToGroup = (input: string): VisualLogicNode => {
     else if (depth === 0) {
       const rest = text.slice(i);
       if (
-        rest.startsWith("或者") || rest.startsWith(" or ") ||
-        rest.startsWith(" || ") || rest.startsWith(" 或 ")
+        rest.startsWith("或者") ||
+        rest.startsWith(" or ") ||
+        rest.startsWith(" || ") ||
+        rest.startsWith(" 或 ")
       ) {
         orIndices.push(i);
       } else if (
-        rest.startsWith("并且") || rest.startsWith(" and ") ||
-        rest.startsWith(" && ") || rest.startsWith(" 且 ") ||
-        rest.startsWith("，且") || rest.startsWith(",且") ||
-        rest.startsWith("，") || rest.startsWith(",")
+        rest.startsWith("并且") ||
+        rest.startsWith(" and ") ||
+        rest.startsWith(" && ") ||
+        rest.startsWith(" 且 ") ||
+        rest.startsWith("，且") ||
+        rest.startsWith(",且") ||
+        rest.startsWith("，") ||
+        rest.startsWith(",")
       ) {
         andIndices.push(i);
       }
     }
   }
 
-  const buildGroup = (indices: number[], type: "AND" | "OR"): VisualLogicGroup => {
+  const buildGroup = (
+    indices: number[],
+    type: "AND" | "OR",
+  ): VisualLogicGroup => {
     const children: VisualLogicNode[] = [];
     let current = 0;
     for (const idx of indices) {
@@ -222,7 +270,7 @@ const getParsedLogicTree = (text: string): VisualLogicGroup => {
   if (startMatch) conditionText = startMatch[1];
 
   const endMatch = conditionText.match(
-    /([\s\S]+?)(?:时|就|，则|，将|，直接|直接|即可|，即可|就直接|就强杀|则拦截|则告警)/
+    /([\s\S]+?)(?:时|就|，则|，将|，直接|直接|即可|，即可|就直接|就强杀|则拦截|则告警)/,
   );
   if (endMatch) conditionText = endMatch[1];
 
@@ -242,36 +290,69 @@ export const compilePromptLocally = (prompt: string): VisualBlocksPayload => {
   let mapLimit = 10;
 
   if (
-    p.includes("socket") || p.includes("网络") || p.includes("连接") ||
-    p.includes("外连") || p.includes("port") || p.includes("端口") ||
-    p.includes("ip") || p.includes("外发")
+    p.includes("socket") ||
+    p.includes("网络") ||
+    p.includes("连接") ||
+    p.includes("外连") ||
+    p.includes("port") ||
+    p.includes("端口") ||
+    p.includes("ip") ||
+    p.includes("外发")
   ) {
     trigger = "socket_connect";
-  } else if (p.includes("设备") || p.includes("mknod") || p.includes("分区") || p.includes("节点")) {
+  } else if (
+    p.includes("设备") ||
+    p.includes("mknod") ||
+    p.includes("分区") ||
+    p.includes("节点")
+  ) {
     trigger = "inode_mknod";
   } else if (
-    p.includes("内存") || p.includes("mprotect") || p.includes("执行权限") ||
-    p.includes("rwx") || p.includes("shellcode")
+    p.includes("内存") ||
+    p.includes("mprotect") ||
+    p.includes("执行权限") ||
+    p.includes("rwx") ||
+    p.includes("shellcode")
   ) {
     trigger = "file_mprotect";
-  } else if (p.includes("rename") || p.includes("重命名") || p.includes("改名") || p.includes("移动")) {
+  } else if (
+    p.includes("rename") ||
+    p.includes("重命名") ||
+    p.includes("改名") ||
+    p.includes("移动")
+  ) {
     trigger = "inode_rename";
-  } else if (p.includes("unlink") || p.includes("删除") || p.includes("销毁") || p.includes("rm ")) {
+  } else if (
+    p.includes("unlink") ||
+    p.includes("删除") ||
+    p.includes("销毁") ||
+    p.includes("rm ")
+  ) {
     trigger = "unlink";
-  } else if (p.includes("mkdir") || p.includes("创建文件夹") || p.includes("目录")) {
+  } else if (
+    p.includes("mkdir") ||
+    p.includes("创建文件夹") ||
+    p.includes("目录")
+  ) {
     trigger = "mkdir";
   } else if (p.includes("open") || p.includes("打开") || p.includes("读取")) {
     trigger = "file_open";
   }
 
   if (
-    p.includes("kill") || p.includes("杀死") || p.includes("终结") ||
-    p.includes("处死") || p.includes("强杀")
+    p.includes("kill") ||
+    p.includes("杀死") ||
+    p.includes("终结") ||
+    p.includes("处死") ||
+    p.includes("强杀")
   ) {
     action = "KILL";
   } else if (
-    p.includes("alert") || p.includes("告警") || p.includes("仅日志") ||
-    p.includes("审计") || p.includes("静默")
+    p.includes("alert") ||
+    p.includes("告警") ||
+    p.includes("仅日志") ||
+    p.includes("审计") ||
+    p.includes("静默")
   ) {
     action = "ALERT";
   }
@@ -281,25 +362,41 @@ export const compilePromptLocally = (prompt: string): VisualBlocksPayload => {
     conditions = {
       id: "root",
       type: "AND",
-      children: [{
-        id: "cond-init", type: "CONDITION",
-        field: "comm", operator: "==", value: "nc",
-      }],
+      children: [
+        {
+          id: "cond-init",
+          type: "CONDITION",
+          field: "comm",
+          operator: "==",
+          value: "nc",
+        },
+      ],
     };
   }
 
   if (
-    p.includes("限频") || p.includes("计数") || p.includes("频率") ||
-    p.includes("次数") || p.includes("counter") || p.includes("rate limit") || p.includes("累计")
+    p.includes("限频") ||
+    p.includes("计数") ||
+    p.includes("频率") ||
+    p.includes("次数") ||
+    p.includes("counter") ||
+    p.includes("rate limit") ||
+    p.includes("累计")
   ) {
     mapMode = "COUNTER";
-    const limitMatch = p.match(/(?:限制|最大|超过|阈值|threshold|次数)\s*([0-9]+)\s*(?:次)?/);
+    const limitMatch = p.match(
+      /(?:限制|最大|超过|阈值|threshold|次数)\s*([0-9]+)\s*(?:次)?/,
+    );
     mapLimit = limitMatch?.[1] ? parseInt(limitMatch[1], 10) : 5;
     if (p.includes("uid") || p.includes("用户")) mapKey = "uid";
     else if (p.includes("comm") || p.includes("进程名")) mapKey = "comm";
   } else if (
-    p.includes("黑名单") || p.includes("黑表") || p.includes("查表") ||
-    p.includes("blocklist") || p.includes("map查询") || p.includes("检索")
+    p.includes("黑名单") ||
+    p.includes("黑表") ||
+    p.includes("查表") ||
+    p.includes("blocklist") ||
+    p.includes("map查询") ||
+    p.includes("检索")
   ) {
     mapMode = "BLOCKLIST";
     if (p.includes("uid") || p.includes("用户")) mapKey = "uid";
@@ -309,8 +406,13 @@ export const compilePromptLocally = (prompt: string): VisualBlocksPayload => {
   return { trigger, action, conditions, mapMode, mapKey, mapLimit };
 };
 
-export const requestLLMBlocks = async (prompt: string): Promise<VisualLLMCompileResult> => {
-  const res = await axios.post<VisualLLMCompileResult>("/plugins/visual/llm-compile", { prompt });
+export const requestLLMBlocks = async (
+  prompt: string,
+): Promise<VisualLLMCompileResult> => {
+  const res = await axios.post<VisualLLMCompileResult>(
+    "/plugins/visual/llm-compile",
+    { prompt },
+  );
   return res.data;
 };
 
@@ -330,7 +432,9 @@ export function useNlpCompiler(emit: (payload: VisualBlocksPayload) => void) {
     if (!lastCompileResult.value) return "";
     const parts = [
       lastCompileResult.value.reasoning,
-      lastCompileResult.value.error ? `错误: ${lastCompileResult.value.error}` : "",
+      lastCompileResult.value.error
+        ? `错误: ${lastCompileResult.value.error}`
+        : "",
       ...(lastCompileResult.value.warnings || []),
     ].filter(Boolean);
     return parts.join("\n");
@@ -367,11 +471,13 @@ export function useNlpCompiler(emit: (payload: VisualBlocksPayload) => void) {
     } catch (err: any) {
       const fallback = compilePromptLocally(prompt);
       emitBlocks(fallback);
-      const error = err?.response?.data?.error || err?.message || "LLM 调用失败";
+      const error =
+        err?.response?.data?.error || err?.message || "LLM 调用失败";
       lastCompileResult.value = {
         mode: "fallback",
         error,
-        reasoning: "后端 LLM 不可用时，使用浏览器内置 NLP 规则保证工作台仍可继续编辑。",
+        reasoning:
+          "后端 LLM 不可用时，使用浏览器内置 NLP 规则保证工作台仍可继续编辑。",
       };
       message.warning(`LLM 不可用，已用本地规则兜底：${error}`);
     } finally {

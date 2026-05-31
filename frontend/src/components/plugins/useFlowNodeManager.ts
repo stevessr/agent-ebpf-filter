@@ -84,7 +84,10 @@ export const flowNodeDetails: Record<
   },
 };
 
-export const createDefaultNodeLayout = (): Record<VisualFlowNodeId, { x: number; y: number }> => ({
+export const createDefaultNodeLayout = (): Record<
+  VisualFlowNodeId,
+  { x: number; y: number }
+> => ({
   trigger: { x: 24, y: 38 },
   condition: { x: 196, y: 38 },
   map: { x: 368, y: 38 },
@@ -106,7 +109,7 @@ export const createDefaultWireStates = (): Record<VisualWireId, boolean> => ({
 export const createDefaultHiddenNodes = (): VisualHiddenNodeStates => ({});
 
 export const mergeWireStates = (
-  states?: VisualWireStates
+  states?: VisualWireStates,
 ): Record<VisualWireId, boolean> => {
   const merged = createDefaultWireStates();
   if (!states) return merged;
@@ -139,7 +142,7 @@ export function useFlowNodeManager(opts: UseFlowNodeManagerOptions) {
   const codeBlockRef = useTemplateRef<HTMLElement>("codeBlock");
 
   const selectedFlowNodeDetail = computed(
-    () => flowNodeDetails[opts.activeFlowNode.value]
+    () => flowNodeDetails[opts.activeFlowNode.value],
   );
 
   const nodeWireIds = (node: VisualFlowNodeId) =>
@@ -193,7 +196,7 @@ export function useFlowNodeManager(opts: UseFlowNodeManagerOptions) {
       opts.activeFlowNode.value = "trigger";
     }
     message.warning(
-      `已从画布删除 ${flowNodeDetails[node].label}，可从左侧节点类型库重新添加`
+      `已从画布删除 ${flowNodeDetails[node].label}，可从左侧节点类型库重新添加`,
     );
   };
 

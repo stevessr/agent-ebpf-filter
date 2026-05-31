@@ -57,9 +57,13 @@ const scoreEntry = (entry: LinuxReferenceEntry, query: string) => {
 
   let score = 0;
   if (entry.name.toLowerCase() === query) score += 1000;
-  if ((entry.aliases || []).some((alias) => alias.toLowerCase() === query)) score += 900;
+  if ((entry.aliases || []).some((alias) => alias.toLowerCase() === query))
+    score += 900;
   if (entry.name.toLowerCase().startsWith(query)) score += 700;
-  if ((entry.aliases || []).some((alias) => alias.toLowerCase().startsWith(query))) score += 650;
+  if (
+    (entry.aliases || []).some((alias) => alias.toLowerCase().startsWith(query))
+  )
+    score += 650;
   if (haystack.includes(query)) score += 300;
 
   for (const token of query.split(/[\s,]+/).filter(Boolean)) {
@@ -86,7 +90,8 @@ const sortedEntries = computed(() => {
         if (b.score !== a.score) return b.score - a.score;
       } else {
         const featuredDelta =
-          Number(featuredNames.has(b.entry.name)) - Number(featuredNames.has(a.entry.name));
+          Number(featuredNames.has(b.entry.name)) -
+          Number(featuredNames.has(a.entry.name));
         if (featuredDelta !== 0) return featuredDelta;
       }
 
@@ -127,12 +132,13 @@ const selectedEntry = computed(() => {
   );
 });
 
-const totalSyscalls = computed(() =>
-  linuxReferenceCatalog.filter((entry) => entry.kind === "syscall").length,
+const totalSyscalls = computed(
+  () =>
+    linuxReferenceCatalog.filter((entry) => entry.kind === "syscall").length,
 );
 
-const totalHelpers = computed(() =>
-  linuxReferenceCatalog.filter((entry) => entry.kind === "helper").length,
+const totalHelpers = computed(
+  () => linuxReferenceCatalog.filter((entry) => entry.kind === "helper").length,
 );
 
 const copyText = async (text: string) => {
@@ -201,16 +207,18 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
       <a-card title="Quick Reference Search" size="small">
         <template #extra>
           <a-tag color="gold">{{ releaseLabel }}</a-tag>
-          <a-tag color="blue" style="margin-left: 8px;">
+          <a-tag color="blue" style="margin-left: 8px">
             <BookOutlined /> {{ totalSyscalls }} syscalls
           </a-tag>
-          <a-tag color="green" style="margin-left: 8px;">{{ totalHelpers }} helpers</a-tag>
+          <a-tag color="green" style="margin-left: 8px"
+            >{{ totalHelpers }} helpers</a-tag
+          >
         </template>
 
         <a-alert
           type="info"
           show-icon
-          style="margin-bottom: 16px;"
+          style="margin-bottom: 16px"
           :message="`Search by syscall name, helper name, alias, or keyword. Select a row below, then open the popup preview for the rendered snapshot. Cached files live under /linux-docs/6.18.`"
         />
 
@@ -234,13 +242,13 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
               style="width: 100%"
             />
           </a-col>
-          <a-col :xs="24" :md="4" style="text-align: right;">
+          <a-col :xs="24" :md="4" style="text-align: right">
             <a-button @click="clearSearch">Reset</a-button>
           </a-col>
         </a-row>
 
-        <div style="margin-top: 16px;">
-          <div style="margin-bottom: 8px; color: #8c8c8c; font-size: 12px;">
+        <div style="margin-top: 16px">
+          <div style="margin-bottom: 8px; color: #8c8c8c; font-size: 12px">
             Quick picks
           </div>
           <a-space wrap>
@@ -267,7 +275,7 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
         <a-empty
           v-if="sortedEntries.length === 0"
           description="No cached snapshot matched the current filter. Try another quick pick or clear the filter."
-          style="padding: 40px 0;"
+          style="padding: 40px 0"
         />
 
         <a-table
@@ -282,15 +290,27 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
         >
           <a-table-column title="Reference" key="reference">
             <template #default="{ record }">
-              <div style="display: flex; flex-direction: column; gap: 4px;">
-                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                  <a-typography-text strong>{{ record.name }}</a-typography-text>
+              <div style="display: flex; flex-direction: column; gap: 4px">
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                  "
+                >
+                  <a-typography-text strong>{{
+                    record.name
+                  }}</a-typography-text>
                   <a-tag :color="record.kind === 'syscall' ? 'blue' : 'green'">
                     {{ record.kind === "syscall" ? "syscall" : "eBPF helper" }}
                   </a-tag>
                   <a-tag color="purple">{{ record.category }}</a-tag>
                 </div>
-                <div v-if="record.aliases?.length" style="color: #888; font-size: 12px;">
+                <div
+                  v-if="record.aliases?.length"
+                  style="color: #888; font-size: 12px"
+                >
                   Aliases: <code>{{ record.aliases.join(", ") }}</code>
                 </div>
               </div>
@@ -299,7 +319,7 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
 
           <a-table-column title="Summary" key="summary">
             <template #default="{ record }">
-              <div style="max-width: 100%; color: #444;">
+              <div style="max-width: 100%; color: #444">
                 {{ record.summary }}
               </div>
             </template>
@@ -307,20 +327,28 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
 
           <a-table-column title="Synopsis" key="synopsis">
             <template #default="{ record }">
-              <code style="white-space: normal;">{{ record.synopsis }}</code>
+              <code style="white-space: normal">{{ record.synopsis }}</code>
             </template>
           </a-table-column>
 
           <a-table-column title="Actions" key="actions" width="220px">
             <template #default="{ record }">
-              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap">
                 <a-button type="link" size="small" @click="openPreview(record)">
                   <EyeOutlined /> Preview
                 </a-button>
-                <a-button type="link" size="small" @click="openDocs(record.url)">
+                <a-button
+                  type="link"
+                  size="small"
+                  @click="openDocs(record.url)"
+                >
                   <LinkOutlined /> Source
                 </a-button>
-                <a-button type="link" size="small" @click="copyText(record.url)">
+                <a-button
+                  type="link"
+                  size="small"
+                  @click="copyText(record.url)"
+                >
                   <CopyOutlined /> Copy
                 </a-button>
               </div>
@@ -346,14 +374,18 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
         <a-empty
           v-if="!selectedEntry"
           description="Pick one entry from the index to inspect its metadata."
-          style="padding: 40px 0;"
+          style="padding: 40px 0"
         />
 
         <div v-else class="docs-selected-card__body">
           <div class="docs-selected-card__title-row">
             <div>
-              <div class="docs-selected-card__name">{{ selectedEntry.name }}</div>
-              <div class="docs-selected-card__summary">{{ selectedEntry.summary }}</div>
+              <div class="docs-selected-card__name">
+                {{ selectedEntry.name }}
+              </div>
+              <div class="docs-selected-card__summary">
+                {{ selectedEntry.summary }}
+              </div>
             </div>
             <a-tag :color="selectedEntry.kind === 'syscall' ? 'blue' : 'green'">
               {{ selectedEntry.kind === "syscall" ? "syscall" : "eBPF helper" }}

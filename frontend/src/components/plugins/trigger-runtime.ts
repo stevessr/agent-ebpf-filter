@@ -5,7 +5,7 @@ export const VISUAL_PROGRAM_NAME = "visual_custom_plugin";
 export const PSEUDO_PROGRAM_NAME = "pseudo_code_plugin";
 
 export const getAttachKindForTrigger = (
-  trigger: VisualTrigger
+  trigger: VisualTrigger,
 ): PluginAttachKind => (trigger === "unlink" ? "kprobe" : "lsm");
 
 export const getAttachTargetForTrigger = (trigger: VisualTrigger): string => {

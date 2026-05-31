@@ -11,11 +11,16 @@ const props = defineProps<{
   security: any;
 }>();
 
-const { currentConfig, generatedCode, updateMetadata } = useConfigVisualFilter();
+const { currentConfig, generatedCode, updateMetadata } =
+  useConfigVisualFilter();
 const { compileBpf, loadBpf, unloadBpf, fetchPlugins, plugins } = usePlugins();
 const visualEditorMode = ref("blocks");
-const loadBpfVoid = async (id: string) => { await loadBpf(id); };
-const unloadBpfVoid = async (id: string) => { await unloadBpf(id); };
+const loadBpfVoid = async (id: string) => {
+  await loadBpf(id);
+};
+const unloadBpfVoid = async (id: string) => {
+  await unloadBpf(id);
+};
 
 // Auto update metadata on state changes
 watch(
@@ -28,7 +33,7 @@ watch(
   () => {
     updateMetadata();
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 onMounted(async () => {

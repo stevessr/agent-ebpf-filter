@@ -13,7 +13,7 @@ export const ipToHex = (ip: string): string => {
 
 export const generateBpfCode = (
   snapshot: VisualWorkspaceSnapshot,
-  programName = "visual_custom_plugin"
+  programName = "visual_custom_plugin",
 ): string => {
   const { trigger, action, conditions, mapMode, mapKey, mapLimit } = snapshot;
   const safeProgramName =
@@ -27,8 +27,8 @@ export const generateBpfCode = (
   const logPrefix = isKill
     ? "Killed"
     : action === "BLOCK"
-    ? "Blocked"
-    : "Alert";
+      ? "Blocked"
+      : "Alert";
 
   let headers = `#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -152,19 +152,19 @@ int BPF_PROG(${safeProgramName}, struct file *file, int ret) {
       trigger === "mkdir"
         ? "lsm/inode_mkdir"
         : trigger === "file_create"
-        ? "lsm/inode_create"
-        : trigger === "rmdir"
-        ? "lsm/inode_rmdir"
-        : "lsm/inode_symlink";
+          ? "lsm/inode_create"
+          : trigger === "rmdir"
+            ? "lsm/inode_rmdir"
+            : "lsm/inode_symlink";
 
     const funcArgs =
       trigger === "mkdir"
         ? "struct inode *dir, struct dentry *dentry, umode_t mode"
         : trigger === "file_create"
-        ? "struct inode *dir, struct dentry *dentry, umode_t mode"
-        : trigger === "rmdir"
-        ? "struct inode *dir, struct dentry *dentry"
-        : "struct inode *dir, struct dentry *dentry, const char *old_name";
+          ? "struct inode *dir, struct dentry *dentry, umode_t mode"
+          : trigger === "rmdir"
+            ? "struct inode *dir, struct dentry *dentry"
+            : "struct inode *dir, struct dentry *dentry, const char *old_name";
 
     body = `
 SEC("${secName}")
@@ -359,7 +359,7 @@ int BPF_PROG(${safeProgramName}, struct pt_regs *ctx) {
         lines.push(
           `    u32 ${varName} = ${childVarNames
             .map((name) => `(${name})`)
-            .join(` ${op} `)};`
+            .join(` ${op} `)};`,
         );
       }
       return varName;

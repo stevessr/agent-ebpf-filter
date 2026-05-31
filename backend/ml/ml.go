@@ -101,13 +101,13 @@ func builtinModelDisplayName(t ModelType) (string, bool) {
 var builtinModelProfiles []builtinModelProfile
 
 type builtinModelProfile struct {
-	Type         ModelType
-	Base         ModelType
-	Label        string
-	Category     string
-	Description  string
-	Recommended  bool
-	Defaults     map[string]int
-	Tags         []string
-	Apply        func(MLConfig) MLConfig
+	Type        ModelType
+	Base        ModelType
+	Label       string
+	Category    string
+	Description string
+	Recommended bool
+	Defaults    map[string]int
+	Tags        []string
+	Apply       func(MLConfig) MLConfig
 }

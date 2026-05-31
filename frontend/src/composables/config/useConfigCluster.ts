@@ -1,13 +1,13 @@
-import { ref, computed } from 'vue';
-import axios from 'axios';
-import { message } from 'ant-design-vue';
+import { ref, computed } from "vue";
+import axios from "axios";
+import { message } from "ant-design-vue";
 import {
   getStoredClusterTarget,
   isLocalClusterTarget,
   normalizeClusterTarget,
   setStoredClusterTarget,
-} from '../../utils/requestContext';
-import type { ClusterNodeInfo, ClusterStateResponse } from '../../types/config';
+} from "../../utils/requestContext";
+import type { ClusterNodeInfo, ClusterStateResponse } from "../../types/config";
 
 export function useConfigCluster() {
   const clusterState = ref<ClusterStateResponse | null>(null);
@@ -16,16 +16,16 @@ export function useConfigCluster() {
 
   const fetchClusterState = async () => {
     try {
-      const res = await axios.get('/cluster/state');
+      const res = await axios.get("/cluster/state");
       clusterState.value = res.data as ClusterStateResponse;
     } catch (_) {
-      console.error('Failed to fetch cluster state');
+      console.error("Failed to fetch cluster state");
     }
   };
 
   const fetchClusterNodes = async () => {
     try {
-      const res = await axios.get('/cluster/nodes');
+      const res = await axios.get("/cluster/nodes");
       clusterNodes.value = (res.data?.nodes || []) as ClusterNodeInfo[];
       if (
         !clusterNodes.value.some(
@@ -33,11 +33,11 @@ export function useConfigCluster() {
         ) &&
         !isLocalClusterTarget(selectedClusterTarget.value)
       ) {
-        setStoredClusterTarget('local');
-        selectedClusterTarget.value = 'local';
+        setStoredClusterTarget("local");
+        selectedClusterTarget.value = "local";
       }
     } catch (_) {
-      console.error('Failed to fetch cluster nodes');
+      console.error("Failed to fetch cluster nodes");
     }
   };
 
@@ -50,21 +50,21 @@ export function useConfigCluster() {
     setStoredClusterTarget(normalized);
     selectedClusterTarget.value = normalized;
     message.success(
-      normalized === 'local'
-        ? 'Routed back to local master'
-        : 'Cluster target updated',
+      normalized === "local"
+        ? "Routed back to local master"
+        : "Cluster target updated",
     );
     window.location.reload();
   };
 
   const getClusterRowClass = (record: ClusterNodeInfo) => {
-    if (record.id === selectedClusterTarget.value) return 'cluster-row-active';
-    if (record.isLocal) return 'cluster-row-local';
-    return '';
+    if (record.id === selectedClusterTarget.value) return "cluster-row-active";
+    if (record.isLocal) return "cluster-row-local";
+    return "";
   };
 
   const clusterNodeOptions = computed(() => [
-    { label: 'Local master', value: 'local' },
+    { label: "Local master", value: "local" },
     ...clusterNodes.value
       .filter((node) => !node.isLocal)
       .map((node) => ({
@@ -74,19 +74,25 @@ export function useConfigCluster() {
   ]);
 
   const clusterRoleText = computed(() => {
-    if (!clusterState.value) return 'Unknown';
-    return clusterState.value.role === 'master' ? 'Master' : 'Slave';
+    if (!clusterState.value) return "Unknown";
+    return clusterState.value.role === "master" ? "Master" : "Slave";
   });
 
   const clusterRoleColor = computed(() =>
-    clusterState.value?.role === 'slave' ? 'orange' : 'green',
+    clusterState.value?.role === "slave" ? "orange" : "green",
   );
 
   return {
-    clusterState, clusterNodes, selectedClusterTarget,
-    fetchClusterState, fetchClusterNodes,
-    updateClusterTargetFromStorage, applyClusterTarget,
+    clusterState,
+    clusterNodes,
+    selectedClusterTarget,
+    fetchClusterState,
+    fetchClusterNodes,
+    updateClusterTargetFromStorage,
+    applyClusterTarget,
     getClusterRowClass,
-    clusterNodeOptions, clusterRoleText, clusterRoleColor,
+    clusterNodeOptions,
+    clusterRoleText,
+    clusterRoleColor,
   };
 }

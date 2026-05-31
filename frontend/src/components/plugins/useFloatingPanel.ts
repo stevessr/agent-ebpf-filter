@@ -77,8 +77,8 @@ export function useFloatingPanel(options: FloatingPanelOptions) {
           edgeMargin,
           window.innerHeight -
             Math.min(height, window.innerHeight - 128) -
-            edgeMargin
-        )
+            edgeMargin,
+        ),
       ),
     };
   }
@@ -86,14 +86,12 @@ export function useFloatingPanel(options: FloatingPanelOptions) {
   // --- Public API ---
 
   const dockLabel = computed(() =>
-    dock.value === "left" ? "吸附右侧" : "吸附左侧"
+    dock.value === "left" ? "吸附右侧" : "吸附左侧",
   );
 
   const hideArrow = computed(() => (dock.value === "left" ? "‹" : "›"));
 
-  const restoreArrow = computed(() =>
-    dock.value === "left" ? "›" : "‹"
-  );
+  const restoreArrow = computed(() => (dock.value === "left" ? "›" : "‹"));
 
   const panelStyle = computed(() => ({
     left: `${position.value.x}px`,
@@ -103,7 +101,7 @@ export function useFloatingPanel(options: FloatingPanelOptions) {
   const triggerStyle = computed(() => ({
     top: `${Math.max(
       88,
-      Math.min(position.value.y + 14, window.innerHeight - 120)
+      Math.min(position.value.y + 14, window.innerHeight - 120),
     )}px`,
   }));
 
@@ -123,7 +121,7 @@ export function useFloatingPanel(options: FloatingPanelOptions) {
         visible.value = false;
         hideTimer = null;
       },
-      wasAlreadyAtDock ? 0 : snapDelayMs
+      wasAlreadyAtDock ? 0 : snapDelayMs,
     );
   };
 
@@ -140,15 +138,17 @@ export function useFloatingPanel(options: FloatingPanelOptions) {
       x: clamp(
         dragging.value.originX + event.clientX - dragging.value.startX,
         margin,
-        Math.max(margin, window.innerWidth - width - margin)
+        Math.max(margin, window.innerWidth - width - margin),
       ),
       y: clamp(
         dragging.value.originY + event.clientY - dragging.value.startY,
         margin,
         Math.max(
           margin,
-          window.innerHeight - Math.min(height, window.innerHeight - 128) - margin
-        )
+          window.innerHeight -
+            Math.min(height, window.innerHeight - 128) -
+            margin,
+        ),
       ),
     };
   };
@@ -159,11 +159,16 @@ export function useFloatingPanel(options: FloatingPanelOptions) {
       const { width } = getPanelSize();
       if (position.value.x <= snapThreshold) {
         snapTo("left");
-      } else if (position.value.x + width >= window.innerWidth - snapThreshold) {
+      } else if (
+        position.value.x + width >=
+        window.innerWidth - snapThreshold
+      ) {
         snapTo("right");
       } else {
         dock.value =
-          position.value.x + width / 2 < window.innerWidth / 2 ? "left" : "right";
+          position.value.x + width / 2 < window.innerWidth / 2
+            ? "left"
+            : "right";
       }
     }
     dragging.value = null;

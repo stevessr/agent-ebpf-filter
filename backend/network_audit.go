@@ -11,14 +11,14 @@ type NetworkAuditFinding struct {
 }
 
 type NetworkAuditFlags struct {
-	SuspiciousPort  bool `json:"suspiciousPort"`
-	ReverseShell    bool `json:"reverseShell"`
-	DataExfil       bool `json:"dataExfil"`
-	DNSTunnel       bool `json:"dnsTunnel"`
-	ClearTextProto  bool `json:"clearTextProto"`
-	UnusualTarget   bool `json:"unusualTarget"`
-	PortScan        bool `json:"portScan"`
-	FirewallManip   bool `json:"firewallManip"`
+	SuspiciousPort bool `json:"suspiciousPort"`
+	ReverseShell   bool `json:"reverseShell"`
+	DataExfil      bool `json:"dataExfil"`
+	DNSTunnel      bool `json:"dnsTunnel"`
+	ClearTextProto bool `json:"clearTextProto"`
+	UnusualTarget  bool `json:"unusualTarget"`
+	PortScan       bool `json:"portScan"`
+	FirewallManip  bool `json:"firewallManip"`
 }
 
 type NetworkAuditResult struct {

@@ -350,16 +350,16 @@ func TestAnnotateTLSAgentMessageNoBody(t *testing.T) {
 
 func TestInferTLSVendor(t *testing.T) {
 	cases := map[string]string{
-		"api.openai.com":                   "openai",
-		"api.anthropic.com":                "anthropic",
+		"api.openai.com":                    "openai",
+		"api.anthropic.com":                 "anthropic",
 		"generativelanguage.googleapis.com": "google",
-		"ollama.local":                     "ollama",
-		"api.cohere.ai":                    "cohere",
-		"api.mistral.ai":                   "mistral",
-		"runtime.sagemaker.amazonaws.com":  "",
-		"bedrock.us-east-1.amazonaws.com":  "aws-bedrock",
-		"foo.azure.com":                    "azure",
-		"unrelated.example.com":            "",
+		"ollama.local":                      "ollama",
+		"api.cohere.ai":                     "cohere",
+		"api.mistral.ai":                    "mistral",
+		"runtime.sagemaker.amazonaws.com":   "",
+		"bedrock.us-east-1.amazonaws.com":   "aws-bedrock",
+		"foo.azure.com":                     "azure",
+		"unrelated.example.com":             "",
 	}
 	for host, want := range cases {
 		if got := inferTLSVendor(host, ""); got != want {

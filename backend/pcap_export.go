@@ -14,12 +14,12 @@ import (
 // ── Minimal PCAP writer (libpcap format) ──────────────────────────────
 
 const (
-	pcapMagicNumber   = 0xa1b2c3d4
-	pcapVersionMajor  = 2
-	pcapVersionMinor  = 4
-	pcapThisZone      = 0
-	pcapSigFigs       = 0
-	pcapSnapLen       = 65535
+	pcapMagicNumber      = 0xa1b2c3d4
+	pcapVersionMajor     = 2
+	pcapVersionMinor     = 4
+	pcapThisZone         = 0
+	pcapSigFigs          = 0
+	pcapSnapLen          = 65535
 	pcapLinkTypeEthernet = 1
 )
 
@@ -76,10 +76,10 @@ func buildSyntheticEthernetFrame(srcIP, dstIP string, srcPort, dstPort uint32, p
 	frame[13] = 0x00
 
 	// IPv4 header
-	frame[14] = 0x45                 // Version=4, IHL=5
-	frame[15] = 0x00                 // DSCP/ECN
+	frame[14] = 0x45                                                // Version=4, IHL=5
+	frame[15] = 0x00                                                // DSCP/ECN
 	binary.BigEndian.PutUint16(frame[16:18], uint16(len(frame)-14)) // Total length
-	frame[18] = 0x00                 // Identification
+	frame[18] = 0x00                                                // Identification
 	frame[19] = 0x01
 	frame[20] = 0x00 // Flags + Fragment
 	frame[21] = 0x00
@@ -187,7 +187,12 @@ func handlePCAPExport(c *gin.Context) {
 		for _, flow := range flows {
 			fmt.Fprintf(jsonlFile, `{"srcIp":"%s","dstIp":"%s","dstPort":%d,"dstDomain":"%s","ipScope":"%s","comm":"%s","bytesOut":%d,"riskScore":%.2f}`+"\n",
 				flow.SrcIP, flow.DstIP, flow.DstPort, flow.DstDomain, flow.IPScope,
-				func() string { if len(flow.ProcessComms) > 0 { return flow.ProcessComms[0] }; return "" }(),
+				func() string {
+					if len(flow.ProcessComms) > 0 {
+						return flow.ProcessComms[0]
+					}
+					return ""
+				}(),
 				flow.BytesOut, flow.RiskScore)
 		}
 		jsonlFile.Close()

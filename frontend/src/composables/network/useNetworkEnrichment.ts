@@ -1,5 +1,5 @@
-import { ref } from 'vue';
-import axios from 'axios';
+import { ref } from "vue";
+import axios from "axios";
 
 export interface NetworkFlow {
   flowId?: string;
@@ -84,17 +84,17 @@ export function useNetworkEnrichment(refreshMs = 5000) {
   const flows = ref<NetworkFlow[]>([]);
   const tcpConns = ref<TCPConnection[]>([]);
   const loading = ref(false);
-  const error = ref('');
+  const error = ref("");
   let timer: number | null = null;
 
   async function fetchFlows(params?: Record<string, string>) {
     try {
       loading.value = true;
-      const res = await axios.get('/network/flows', { params });
+      const res = await axios.get("/network/flows", { params });
       flows.value = res.data.flows || [];
-      error.value = '';
+      error.value = "";
     } catch (e: any) {
-      error.value = e.message || 'Failed to fetch flows';
+      error.value = e.message || "Failed to fetch flows";
     } finally {
       loading.value = false;
     }
@@ -102,17 +102,19 @@ export function useNetworkEnrichment(refreshMs = 5000) {
 
   async function fetchTCPState() {
     try {
-      const res = await axios.get('/network/tcp-state');
+      const res = await axios.get("/network/tcp-state");
       tcpConns.value = res.data.connections || [];
-      error.value = '';
+      error.value = "";
     } catch (e: any) {
-      error.value = e.message || 'Failed to fetch TCP state';
+      error.value = e.message || "Failed to fetch TCP state";
     }
   }
 
-  async function analyzeEndpoint(endpoint: string): Promise<EndpointAnalysis | null> {
+  async function analyzeEndpoint(
+    endpoint: string,
+  ): Promise<EndpointAnalysis | null> {
     try {
-      const res = await axios.get('/network/analyze', { params: { endpoint } });
+      const res = await axios.get("/network/analyze", { params: { endpoint } });
       return res.data;
     } catch {
       return null;
@@ -121,7 +123,7 @@ export function useNetworkEnrichment(refreshMs = 5000) {
 
   async function lookupGeoIP(ip: string): Promise<GeoIPRecord | null> {
     try {
-      const res = await axios.get('/network/geoip', { params: { ip } });
+      const res = await axios.get("/network/geoip", { params: { ip } });
       return res.data;
     } catch {
       return null;
@@ -146,9 +148,10 @@ export function useNetworkEnrichment(refreshMs = 5000) {
 
   const totalBytesOut = () => flows.value.reduce((s, f) => s + f.bytesOut, 0);
   const totalBytesIn = () => flows.value.reduce((s, f) => s + f.bytesIn, 0);
-  const suspiciousFlows = () => flows.value.filter(f => f.riskScore >= 0.7);
-  const publicFlows = () => flows.value.filter(f => f.ipScope === 'Public');
-  const establishedConns = () => tcpConns.value.filter(c => c.state === 'ESTABLISHED');
+  const suspiciousFlows = () => flows.value.filter((f) => f.riskScore >= 0.7);
+  const publicFlows = () => flows.value.filter((f) => f.ipScope === "Public");
+  const establishedConns = () =>
+    tcpConns.value.filter((c) => c.state === "ESTABLISHED");
 
   return {
     flows,

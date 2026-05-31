@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { WorkbenchTabState } from '../../types/navigation';
+import type { WorkbenchTabState } from "../../types/navigation";
 
 const props = defineProps<{
   tabs: WorkbenchTabState[];
@@ -8,24 +8,28 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   change: [key: string | number];
-  edit: [targetKey: string | number | MouseEvent, action: 'add' | 'remove'];
+  edit: [targetKey: string | number | MouseEvent, action: "add" | "remove"];
 }>();
 
 const handleChange = (key: string | number) => {
-  emit('change', key);
+  emit("change", key);
 };
 
-const handleEdit = (targetKey: string | number | MouseEvent, action: 'add' | 'remove') => {
-  emit('edit', targetKey, action);
+const handleEdit = (
+  targetKey: string | number | MouseEvent,
+  action: "add" | "remove",
+) => {
+  emit("edit", targetKey, action);
 };
 
 const routeTitle = (tab: WorkbenchTabState) => {
   const route = tab.lastRoute;
-  if (typeof route === 'string') return route;
-  if ('path' in route && route.path) return route.path;
-  const name = 'name' in route ? String(route.name || tab.title) : tab.title;
-  const params = 'params' in route && route.params ? JSON.stringify(route.params) : '';
-  return params === '{}' || !params ? name : `${name} ${params}`;
+  if (typeof route === "string") return route;
+  if ("path" in route && route.path) return route.path;
+  const name = "name" in route ? String(route.name || tab.title) : tab.title;
+  const params =
+    "params" in route && route.params ? JSON.stringify(route.params) : "";
+  return params === "{}" || !params ? name : `${name} ${params}`;
 };
 </script>
 
@@ -45,7 +49,9 @@ const routeTitle = (tab: WorkbenchTabState) => {
         :closable="tab.closable"
       >
         <template #tab>
-          <span class="app-workbench-tabs__label" :title="routeTitle(tab)">{{ tab.title }}</span>
+          <span class="app-workbench-tabs__label" :title="routeTitle(tab)">{{
+            tab.title
+          }}</span>
         </template>
       </a-tab-pane>
     </a-tabs>

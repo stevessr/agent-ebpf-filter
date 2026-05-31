@@ -570,4 +570,3 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive 
 		UserLabel:    userLabel,
 	}
 }
-

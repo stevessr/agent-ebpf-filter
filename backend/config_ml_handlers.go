@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	pb "agent-ebpf-filter/pb"
+	"github.com/gin-gonic/gin"
 )
 
 // ── ML classification handlers ──

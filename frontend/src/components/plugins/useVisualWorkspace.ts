@@ -53,7 +53,7 @@ export function useVisualWorkspace() {
   const pluginId = ref("visual-plugin-custom-block");
   const pluginName = ref("可视化流插件(custom-block)");
   const description = ref(
-    "利用图形化流式积木拼装自动生成的内核级 eBPF 拦截器。"
+    "利用图形化流式积木拼装自动生成的内核级 eBPF 拦截器。",
   );
 
   const isCompiled = ref(false);
@@ -91,7 +91,7 @@ export function useVisualWorkspace() {
   const nodeLayout = ref<VisualNodeLayout>(createDefaultNodeLayout());
   const wireStates = ref<VisualWireStates>(createDefaultWireStates());
   const hiddenFlowNodes = ref<VisualHiddenNodeStates>(
-    createDefaultHiddenNodes()
+    createDefaultHiddenNodes(),
   );
 
   const activeFlowNode = ref<VisualFlowNodeId>("trigger");
@@ -125,7 +125,7 @@ export function useVisualWorkspace() {
   });
 
   const cloneWorkspaceSnapshot = (
-    snapshot: VisualWorkspaceSnapshot
+    snapshot: VisualWorkspaceSnapshot,
   ): VisualWorkspaceSnapshot =>
     JSON.parse(JSON.stringify(snapshot)) as VisualWorkspaceSnapshot;
 
@@ -134,7 +134,7 @@ export function useVisualWorkspace() {
 
   const applyWorkspaceSnapshot = (snapshot: VisualWorkspaceSnapshot) => {
     const validTrigger = triggerOptions.some(
-      (item) => item.value === snapshot.trigger
+      (item) => item.value === snapshot.trigger,
     );
     if (!validTrigger) throw new Error(`不支持的挂载点: ${snapshot.trigger}`);
     if (!snapshot.conditions || !Array.isArray(snapshot.conditions.children)) {
@@ -144,7 +144,7 @@ export function useVisualWorkspace() {
     const conditionTotal = countConditions(snapshot.conditions);
     if (conditionTotal > 8) {
       throw new Error(
-        `条件数量 ${conditionTotal} 超过 eBPF Verifier 友好上限 8`
+        `条件数量 ${conditionTotal} 超过 eBPF Verifier 友好上限 8`,
       );
     }
     const visualMapModeSet = new Set<VisualMapMode>([
@@ -191,7 +191,7 @@ export function useVisualWorkspace() {
     }
     window.localStorage.setItem(
       workspaceStorageKey,
-      JSON.stringify(createWorkspaceSnapshot())
+      JSON.stringify(createWorkspaceSnapshot()),
     );
     autosaveLabel.value = `草稿已保存 ${getTimeLabel()}`;
     if (!silent) message.success("低代码积木草稿已保存到浏览器本地");
@@ -224,7 +224,7 @@ export function useVisualWorkspace() {
   // History stack
   const syncHistoryBaseline = () => {
     lastHistoryJson.value = serializeWorkspaceSnapshot(
-      createWorkspaceSnapshot()
+      createWorkspaceSnapshot(),
     );
   };
 
@@ -238,7 +238,7 @@ export function useVisualWorkspace() {
     }
     if (nextJson === lastHistoryJson.value) return;
     undoStack.value.push(
-      JSON.parse(lastHistoryJson.value) as VisualWorkspaceSnapshot
+      JSON.parse(lastHistoryJson.value) as VisualWorkspaceSnapshot,
     );
     if (undoStack.value.length > maxHistoryDepth) {
       undoStack.value.shift();
@@ -251,7 +251,7 @@ export function useVisualWorkspace() {
     isHistoryApplying.value = true;
     applyWorkspaceSnapshot(cloneWorkspaceSnapshot(snapshot));
     lastHistoryJson.value = serializeWorkspaceSnapshot(
-      createWorkspaceSnapshot()
+      createWorkspaceSnapshot(),
     );
     await nextTick();
     isHistoryApplying.value = false;
@@ -287,7 +287,7 @@ export function useVisualWorkspace() {
   const findNodeAndMutate = (
     root: VisualLogicGroup,
     targetId: string,
-    mutateFn: (parent: VisualLogicGroup, index: number) => void
+    mutateFn: (parent: VisualLogicGroup, index: number) => void,
   ): boolean => {
     if (root.id === targetId) return false;
     for (let i = 0; i < root.children.length; i++) {
@@ -306,7 +306,7 @@ export function useVisualWorkspace() {
 
   const findNodeById = (
     root: VisualLogicNode,
-    targetId: string
+    targetId: string,
   ): VisualLogicNode | null => {
     if (root.id === targetId) return root;
     if (root.type === "AND" || root.type === "OR") {
@@ -331,7 +331,7 @@ export function useVisualWorkspace() {
     const currentCount = countConditions(logicRoot.value);
     if (currentCount >= 8) {
       message.warning(
-        "为了防止 eBPF Verifier 复杂度过高而加载失败，图形化条件最多限制为 8 个"
+        "为了防止 eBPF Verifier 复杂度过高而加载失败，图形化条件最多限制为 8 个",
       );
       return;
     }
@@ -419,7 +419,7 @@ export function useVisualWorkspace() {
       const firstVal = leaves[0]?.value || "custom";
       let prefix = `visual-block-${trigger.value}-${firstVal.replace(
         /[^a-z0-9]/g,
-        "-"
+        "-",
       )}`.toLowerCase();
 
       // Ensure the generated plugin ID strictly complies with: 3-64 chars, lowercase, alphanumeric or hyphen, starts with alpha/num
@@ -436,11 +436,11 @@ export function useVisualWorkspace() {
       description.value = `由图形化积木拼装而成的内核 eBPF 过滤审计插件。入口: ${
         trigger.value
       }，Map状态: ${mapMode.value}，嵌套层数: ${getTreeDepth(
-        logicRoot.value
+        logicRoot.value,
       )}，动作: ${action.value}。`;
       isCompiled.value = false;
     },
-    { deep: true, immediate: true }
+    { deep: true, immediate: true },
   );
 
   watch(
@@ -462,7 +462,7 @@ export function useVisualWorkspace() {
       saveWorkspaceDraft(true);
       recordWorkspaceHistory();
     },
-    { deep: true }
+    { deep: true },
   );
 
   return {

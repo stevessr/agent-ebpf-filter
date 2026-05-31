@@ -11,10 +11,7 @@ import type {
 
 import { isVisualConditionField } from "./validation";
 import { triggerOptions } from "./constants";
-import {
-  visualFlowNodeIds,
-  flowNodeDetails,
-} from "./useFlowNodeManager";
+import { visualFlowNodeIds, flowNodeDetails } from "./useFlowNodeManager";
 
 export interface CanvasNodeTypeDropPayload {
   category: string;
@@ -78,7 +75,7 @@ export function useVisualTabHandlers(options: UseVisualTabHandlersOptions) {
   const setActionNodeType = (value: VisualAction) => {
     if (trigger.value === "unlink" && value === "BLOCK") {
       message.error(
-        "unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL"
+        "unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL",
       );
       return;
     }
@@ -88,21 +85,24 @@ export function useVisualTabHandlers(options: UseVisualTabHandlersOptions) {
   };
 
   // --- AI translate handler ---
-  const handleAiTranslate = (payload: {
-    trigger: VisualTrigger;
-    action: VisualAction;
-    conditions: import("./types").VisualLogicGroup;
-    mapMode: VisualMapMode;
-    mapKey: VisualMapKey;
-    mapLimit: number;
-  }, applyFn: (payload: {
-    trigger: VisualTrigger;
-    action: VisualAction;
-    conditions: import("./types").VisualLogicGroup;
-    mapMode: VisualMapMode;
-    mapKey: VisualMapKey;
-    mapLimit: number;
-  }) => void) => {
+  const handleAiTranslate = (
+    payload: {
+      trigger: VisualTrigger;
+      action: VisualAction;
+      conditions: import("./types").VisualLogicGroup;
+      mapMode: VisualMapMode;
+      mapKey: VisualMapKey;
+      mapLimit: number;
+    },
+    applyFn: (payload: {
+      trigger: VisualTrigger;
+      action: VisualAction;
+      conditions: import("./types").VisualLogicGroup;
+      mapMode: VisualMapMode;
+      mapKey: VisualMapKey;
+      mapLimit: number;
+    }) => void,
+  ) => {
     applyFn(payload);
   };
 
@@ -110,12 +110,16 @@ export function useVisualTabHandlers(options: UseVisualTabHandlersOptions) {
   const applyNodeTypeDrop = (
     category: string,
     value: string,
-    position?: { x: number; y: number }
+    position?: { x: number; y: number },
   ) => {
     let targetNode: VisualFlowNodeId | null = null;
     let statusText = "";
 
-    const visualMapModeSet = new Set<VisualMapMode>(["NONE", "COUNTER", "BLOCKLIST"]);
+    const visualMapModeSet = new Set<VisualMapMode>([
+      "NONE",
+      "COUNTER",
+      "BLOCKLIST",
+    ]);
     const visualActionSet = new Set<VisualAction>(["BLOCK", "ALERT", "KILL"]);
 
     if (category === "trigger") {
@@ -146,7 +150,7 @@ export function useVisualTabHandlers(options: UseVisualTabHandlersOptions) {
       if (!visualActionSet.has(value as VisualAction)) return;
       if (trigger.value === "unlink" && value === "BLOCK") {
         message.error(
-          "unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL"
+          "unlink (Kprobe) 挂载点不支持 BLOCK 动作，请选择 ALERT 或 KILL",
         );
         return;
       }
@@ -207,7 +211,7 @@ export function useVisualTabHandlers(options: UseVisualTabHandlersOptions) {
 
   const createHistoryShortcutHandler = (
     undoWorkspace: () => Promise<void>,
-    redoWorkspace: () => Promise<void>
+    redoWorkspace: () => Promise<void>,
   ) => {
     return (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();

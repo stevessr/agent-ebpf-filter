@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import AppSideNav from './components/layout/AppSideNav.vue';
-import AppWorkbenchTabs from './components/layout/AppWorkbenchTabs.vue';
-import { useWorkbenchNavigation } from './composables/navigation/useWorkbenchNavigation';
+import AppSideNav from "./components/layout/AppSideNav.vue";
+import AppWorkbenchTabs from "./components/layout/AppWorkbenchTabs.vue";
+import { useWorkbenchNavigation } from "./composables/navigation/useWorkbenchNavigation";
 
 const {
   navGroups,

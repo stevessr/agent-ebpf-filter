@@ -110,23 +110,23 @@ var globalBandwidthTracker = newBandwidthTracker()
 // ── Data exfiltration detection ───────────────────────────────────────
 
 type ExfilAlert struct {
-	FlowKey     string  `json:"flowKey"`
-	DstIP       string  `json:"dstIp"`
-	DstPort     uint32  `json:"dstPort"`
-	DstDomain   string  `json:"dstDomain,omitempty"`
-	BytesOut    uint64  `json:"bytesOut"`
-	Threshold   uint64  `json:"threshold"`
-	RiskScore   float64 `json:"riskScore"`
-	Reason      string  `json:"reason"`
-	Comm        string  `json:"comm"`
-	PID         uint32  `json:"pid"`
-	DetectedAt  string  `json:"detectedAt"`
+	FlowKey    string  `json:"flowKey"`
+	DstIP      string  `json:"dstIp"`
+	DstPort    uint32  `json:"dstPort"`
+	DstDomain  string  `json:"dstDomain,omitempty"`
+	BytesOut   uint64  `json:"bytesOut"`
+	Threshold  uint64  `json:"threshold"`
+	RiskScore  float64 `json:"riskScore"`
+	Reason     string  `json:"reason"`
+	Comm       string  `json:"comm"`
+	PID        uint32  `json:"pid"`
+	DetectedAt string  `json:"detectedAt"`
 }
 
 type exfilDetector struct {
 	mu sync.RWMutex
 	// Thresholds
-	volumeThresholdBytes uint64 // alert if a single flow exceeds this
+	volumeThresholdBytes uint64  // alert if a single flow exceeds this
 	rateThresholdBps     float64 // alert if sustained rate exceeds this
 	durationThresholdSec float64 // alert if flow duration exceeds this
 	// Cooldown to avoid duplicate alerts
@@ -137,8 +137,8 @@ type exfilDetector struct {
 func newExfilDetector() *exfilDetector {
 	return &exfilDetector{
 		volumeThresholdBytes: 10 * 1024 * 1024, // 10 MB
-		rateThresholdBps:     1 * 1024 * 1024,   // 1 MB/s
-		durationThresholdSec: 300,               // 5 minutes
+		rateThresholdBps:     1 * 1024 * 1024,  // 1 MB/s
+		durationThresholdSec: 300,              // 5 minutes
 		lastAlertByKey:       make(map[string]time.Time),
 		cooldown:             5 * time.Minute,
 	}

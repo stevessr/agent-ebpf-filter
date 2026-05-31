@@ -1,6 +1,6 @@
-import { computed } from 'vue';
-import type { Ref } from 'vue';
-import { mlModelCategoryColor } from '../../../data/mlModelCatalog';
+import { computed } from "vue";
+import type { Ref } from "vue";
+import { mlModelCategoryColor } from "../../../data/mlModelCatalog";
 
 interface BuiltinModelItem {
   value: string;
@@ -20,7 +20,11 @@ export interface ModelTuneCandidate {
   validationAccuracy?: number;
   trainAccuracy?: number;
   inferenceThroughput?: number;
-  hyperParams?: { numTrees?: number; maxDepth?: number; minSamplesLeaf?: number };
+  hyperParams?: {
+    numTrees?: number;
+    maxDepth?: number;
+    minSamplesLeaf?: number;
+  };
   error?: string;
   applied?: boolean;
 }
@@ -45,7 +49,7 @@ export function useModelTypeDisplay(
     ),
   );
   const modelTypeDescription = computed(
-    () => selectedBuiltinModel.value?.description || '本地模型配置',
+    () => selectedBuiltinModel.value?.description || "本地模型配置",
   );
   const modelBaseLabel = computed(
     () => selectedBuiltinModel.value?.base || modelType.value,
@@ -54,7 +58,7 @@ export function useModelTypeDisplay(
   const modelCatalogGroups = computed(() => {
     const groups = new Map<string, BuiltinModelItem[]>();
     for (const item of builtinModelCatalog.value) {
-      const key = item.category || '其他模型';
+      const key = item.category || "其他模型";
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)?.push(item);
     }
@@ -66,31 +70,39 @@ export function useModelTypeDisplay(
 
   const isTreeLikeModel = computed(
     () =>
-      modelBaseType.value === 'random_forest' ||
-      modelBaseType.value === 'extra_trees',
+      modelBaseType.value === "random_forest" ||
+      modelBaseType.value === "extra_trees",
   );
   const isLinearModel = computed(() =>
-    ['logistic', 'svm', 'perceptron', 'passive_aggressive'].includes(
+    ["logistic", "svm", "perceptron", "passive_aggressive"].includes(
       modelBaseType.value,
     ),
   );
   const isPrototypeModel = computed(
-    () => modelBaseType.value === 'nearest_centroid',
+    () => modelBaseType.value === "nearest_centroid",
   );
   const hasCompactParams = computed(() =>
-    ['naive_bayes', 'ridge', 'adaboost', 'ensemble'].includes(
+    ["naive_bayes", "ridge", "adaboost", "ensemble"].includes(
       modelBaseType.value,
     ),
   );
 
   const modelTuneColumns = [
-    { title: '模型', dataIndex: 'label', key: 'label' },
-    { title: '基础算法', dataIndex: 'base', key: 'base' },
-    { title: '验证准确率', dataIndex: 'validationAccuracy', key: 'validationAccuracy' },
-    { title: '训练准确率', dataIndex: 'trainAccuracy', key: 'trainAccuracy' },
-    { title: '推理速度', dataIndex: 'inferenceThroughput', key: 'inferenceThroughput' },
-    { title: '参数', dataIndex: 'hyperParams', key: 'hyperParams' },
-    { title: '状态', dataIndex: 'state', key: 'state' },
+    { title: "模型", dataIndex: "label", key: "label" },
+    { title: "基础算法", dataIndex: "base", key: "base" },
+    {
+      title: "验证准确率",
+      dataIndex: "validationAccuracy",
+      key: "validationAccuracy",
+    },
+    { title: "训练准确率", dataIndex: "trainAccuracy", key: "trainAccuracy" },
+    {
+      title: "推理速度",
+      dataIndex: "inferenceThroughput",
+      key: "inferenceThroughput",
+    },
+    { title: "参数", dataIndex: "hyperParams", key: "hyperParams" },
+    { title: "状态", dataIndex: "state", key: "state" },
   ];
 
   return {

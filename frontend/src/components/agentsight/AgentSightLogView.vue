@@ -1,34 +1,57 @@
 <script setup lang="ts">
-import { computed, shallowRef } from 'vue';
-import { SearchOutlined } from '@ant-design/icons-vue';
+import { computed, shallowRef } from "vue";
+import { SearchOutlined } from "@ant-design/icons-vue";
 
 import {
   filterProcessedEvents,
   type ProcessedAgentSightEvent,
-} from '../../utils/agentsight';
-import AgentSightEventDetails from './AgentSightEventDetails.vue';
+} from "../../utils/agentsight";
+import AgentSightEventDetails from "./AgentSightEventDetails.vue";
 
 const props = defineProps<{
   events: ProcessedAgentSightEvent[];
 }>();
 
-const searchTerm = shallowRef('');
+const searchTerm = shallowRef("");
 const selectedSource = shallowRef<string | undefined>();
 const selectedComm = shallowRef<string | undefined>();
 const selectedPid = shallowRef<string | undefined>();
 const selectedEvent = shallowRef<ProcessedAgentSightEvent | null>(null);
 const detailsOpen = shallowRef(false);
 
-const sourceOptions = computed(() => Array.from(new Set(props.events.map(event => event.source))).sort().map(value => ({ label: `${value} (${props.events.filter(event => event.source === value).length})`, value })));
-const commOptions = computed(() => Array.from(new Set(props.events.map(event => event.comm).filter(Boolean))).sort().map(value => ({ label: `${value} (${props.events.filter(event => event.comm === value).length})`, value })));
-const pidOptions = computed(() => Array.from(new Set(props.events.map(event => event.pid).filter(Boolean))).sort((a, b) => a - b).map(value => ({ label: `PID ${value} (${props.events.filter(event => event.pid === value).length})`, value: String(value) })));
+const sourceOptions = computed(() =>
+  Array.from(new Set(props.events.map((event) => event.source)))
+    .sort()
+    .map((value) => ({
+      label: `${value} (${props.events.filter((event) => event.source === value).length})`,
+      value,
+    })),
+);
+const commOptions = computed(() =>
+  Array.from(new Set(props.events.map((event) => event.comm).filter(Boolean)))
+    .sort()
+    .map((value) => ({
+      label: `${value} (${props.events.filter((event) => event.comm === value).length})`,
+      value,
+    })),
+);
+const pidOptions = computed(() =>
+  Array.from(new Set(props.events.map((event) => event.pid).filter(Boolean)))
+    .sort((a, b) => a - b)
+    .map((value) => ({
+      label: `PID ${value} (${props.events.filter((event) => event.pid === value).length})`,
+      value: String(value),
+    })),
+);
 
-const filteredEvents = computed(() => filterProcessedEvents(props.events, {
-  source: selectedSource.value,
-  comm: selectedComm.value,
-  pid: selectedPid.value,
-  searchTerm: searchTerm.value,
-}));
+const filteredEvents = computed(() =>
+  filterProcessedEvents(props.events, {
+    source: selectedSource.value,
+    comm: selectedComm.value,
+    pid: selectedPid.value,
+    searchTerm: searchTerm.value,
+  }),
+);
 
 const openDetails = (event: ProcessedAgentSightEvent) => {
   selectedEvent.value = event;
@@ -39,26 +62,65 @@ const openDetails = (event: ProcessedAgentSightEvent) => {
 <template>
   <div class="agentsight-log-view">
     <div class="log-filters">
-      <a-input v-model:value="searchTerm" allow-clear placeholder="Search events, payloads, IDs" class="search-input">
+      <a-input
+        v-model:value="searchTerm"
+        allow-clear
+        placeholder="Search events, payloads, IDs"
+        class="search-input"
+      >
         <template #prefix><SearchOutlined /></template>
       </a-input>
-      <a-select v-model:value="selectedSource" allow-clear placeholder="All sources" :options="sourceOptions" class="filter-select" />
-      <a-select v-model:value="selectedComm" allow-clear show-search placeholder="All processes" :options="commOptions" class="filter-select" />
-      <a-select v-model:value="selectedPid" allow-clear show-search placeholder="All PIDs" :options="pidOptions" class="filter-select small" />
-      <a-tag color="blue">{{ filteredEvents.length }} / {{ events.length }}</a-tag>
+      <a-select
+        v-model:value="selectedSource"
+        allow-clear
+        placeholder="All sources"
+        :options="sourceOptions"
+        class="filter-select"
+      />
+      <a-select
+        v-model:value="selectedComm"
+        allow-clear
+        show-search
+        placeholder="All processes"
+        :options="commOptions"
+        class="filter-select"
+      />
+      <a-select
+        v-model:value="selectedPid"
+        allow-clear
+        show-search
+        placeholder="All PIDs"
+        :options="pidOptions"
+        class="filter-select small"
+      />
+      <a-tag color="blue"
+        >{{ filteredEvents.length }} / {{ events.length }}</a-tag
+      >
     </div>
 
-    <a-empty v-if="filteredEvents.length === 0" description="No AgentSight events match the current filters" />
-    <a-list v-else class="log-list" :data-source="filteredEvents" item-layout="vertical">
+    <a-empty
+      v-if="filteredEvents.length === 0"
+      description="No AgentSight events match the current filters"
+    />
+    <a-list
+      v-else
+      class="log-list"
+      :data-source="filteredEvents"
+      item-layout="vertical"
+    >
       <template #renderItem="{ item }">
         <a-list-item class="log-row" @click="openDetails(item)">
           <div class="log-row-main">
             <div class="log-row-meta">
-              <a-typography-text code>{{ item.formattedTime }}</a-typography-text>
+              <a-typography-text code>{{
+                item.formattedTime
+              }}</a-typography-text>
               <a-tag :color="item.sourceColorClass">{{ item.source }}</a-tag>
               <a-tag color="geekblue">{{ item.eventType }}</a-tag>
-              <span class="process">{{ item.comm }}#{{ item.pid || '—' }}</span>
-              <a-tag v-if="item.redactionState" color="green">{{ item.redactionState }}</a-tag>
+              <span class="process">{{ item.comm }}#{{ item.pid || "—" }}</span>
+              <a-tag v-if="item.redactionState" color="green">{{
+                item.redactionState
+              }}</a-tag>
             </div>
             <div class="summary">{{ item.title }}</div>
             <div class="event-id">{{ item.id }}</div>
@@ -67,7 +129,11 @@ const openDetails = (event: ProcessedAgentSightEvent) => {
       </template>
     </a-list>
 
-    <AgentSightEventDetails :open="detailsOpen" :event="selectedEvent" @close="detailsOpen = false" />
+    <AgentSightEventDetails
+      :open="detailsOpen"
+      :event="selectedEvent"
+      @close="detailsOpen = false"
+    />
   </div>
 </template>
 
@@ -107,7 +173,9 @@ const openDetails = (event: ProcessedAgentSightEvent) => {
 
 .log-row {
   cursor: pointer;
-  transition: background 0.16s ease, transform 0.16s ease;
+  transition:
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .log-row:hover {

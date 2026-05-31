@@ -1,5 +1,5 @@
-import { ref, onUnmounted } from 'vue';
-import { buildWebSocketUrl } from '../../utils/requestContext';
+import { ref, onUnmounted } from "vue";
+import { buildWebSocketUrl } from "../../utils/requestContext";
 
 export function useMLStatusStream(onUpdate: (data: any) => void) {
   const isConnected = ref(false);
@@ -25,12 +25,18 @@ export function useMLStatusStream(onUpdate: (data: any) => void) {
   };
 
   const connect = () => {
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    if (
+      ws &&
+      (ws.readyState === WebSocket.OPEN ||
+        ws.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
     try {
-      ws = new WebSocket(buildWebSocketUrl('/ws/ml-status', { interval: 1000 }));
+      ws = new WebSocket(
+        buildWebSocketUrl("/ws/ml-status", { interval: 1000 }),
+      );
 
       ws.onopen = () => {
         isConnected.value = true;
