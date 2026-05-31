@@ -16,6 +16,7 @@ type AgentSightMessageKey =
   | 'log'
   | 'timeline'
   | 'processTree'
+  | 'flamegraph'
   | 'metrics'
   | 'refresh'
   | 'command'
@@ -39,7 +40,7 @@ const messages: Record<Locale, Record<AgentSightMessageKey, string>> = {
   en: {
     title: 'AgentSight',
     compatMessage: 'AgentSight compatibility view',
-    compatDescription: 'This page consumes unified EventEnvelope history and exposes Log, Timeline, Process Tree, and Metrics views for TLS, HTTP/SSE, process, policy, wrapper, hook, MCP, stdio, and system events.',
+    compatDescription: 'This page consumes unified EventEnvelope history and exposes Log, Timeline, Process Tree, Flamegraph, and Metrics views for TLS, HTTP/SSE, process, policy, wrapper, hook, MCP, stdio, and system events.',
     traceImport: 'Trace import',
     uploadTrace: 'Upload trace/log',
     importedRecords: 'imported records cached locally',
@@ -49,6 +50,7 @@ const messages: Record<Locale, Record<AgentSightMessageKey, string>> = {
     log: 'Log',
     timeline: 'Timeline',
     processTree: 'Process Tree',
+    flamegraph: 'Flamegraph',
     metrics: 'Metrics',
     refresh: 'Refresh',
     command: 'Command',
@@ -71,7 +73,7 @@ const messages: Record<Locale, Record<AgentSightMessageKey, string>> = {
   zh: {
     title: 'AgentSight',
     compatMessage: 'AgentSight 兼容视图',
-    compatDescription: '此页面消费统一 EventEnvelope 历史与实时流，提供 Log、Timeline、Process Tree、Metrics 视图，覆盖 TLS、HTTP/SSE、进程、策略、wrapper、hook、MCP、stdio 和 system 事件。',
+    compatDescription: '此页面消费统一 EventEnvelope 历史与实时流，提供 Log、Timeline、Process Tree、Flamegraph、Metrics 视图，覆盖 TLS、HTTP/SSE、进程、策略、wrapper、hook、MCP、stdio 和 system 事件。',
     traceImport: 'Trace 导入',
     uploadTrace: '上传 trace/log',
     importedRecords: '条导入记录已本地缓存',
@@ -81,6 +83,7 @@ const messages: Record<Locale, Record<AgentSightMessageKey, string>> = {
     log: '日志',
     timeline: '时间线',
     processTree: '进程树',
+    flamegraph: '火焰图',
     metrics: '指标',
     refresh: '刷新',
     command: '命令',

@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { ClusterOutlined, DeleteOutlined, DownloadOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
+import AgentSightFlamegraphView from './AgentSightFlamegraphView.vue';
 import AgentSightLogView from './AgentSightLogView.vue';
 import AgentSightMetricsView from './AgentSightMetricsView.vue';
 import AgentSightProcessTreeView from './AgentSightProcessTreeView.vue';
@@ -17,6 +18,7 @@ const pasteText = ref('');
 const tabs = [
   { key: 'process-tree', label: 'Process Tree' },
   { key: 'timeline', label: 'Timeline' },
+  { key: 'flamegraph', label: 'Flamegraph' },
   { key: 'log', label: 'Log' },
   { key: 'metrics', label: 'Metrics' },
 ];
@@ -161,6 +163,7 @@ const loadSampleDemo = async () => {
         <a-tab-pane v-for="tab in tabs" :key="tab.key" :tab="tab.label">
           <AgentSightProcessTreeView v-if="tab.key === 'process-tree'" :events="state.visibleEvents.value" />
           <AgentSightTimelineView v-else-if="tab.key === 'timeline'" :events="state.visibleProcessedEvents.value" />
+          <AgentSightFlamegraphView v-else-if="tab.key === 'flamegraph'" :events="state.visibleProcessedEvents.value" />
           <AgentSightLogView v-else-if="tab.key === 'log'" :events="state.visibleProcessedEvents.value" />
           <AgentSightMetricsView v-else :events="state.visibleEvents.value" />
         </a-tab-pane>
