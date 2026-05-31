@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"encoding/json"
@@ -7,15 +7,22 @@ import (
 	"strings"
 	"testing"
 
-	"agent-ebpf-filter/pb"
 	"github.com/gin-gonic/gin"
 )
 
+type captureStore struct {
+	events []Event
+}
+
+func (s *captureStore) HandleCaptureEvent(event Event) {
+	s.events = append(s.events, event)
+}
+
 func TestHandleCodexCaptureStoresSanitizedPlaintext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	store := NewTLSCaptureStore(10)
+	store := &captureStore{}
 	r := gin.New()
-	registerCodexCaptureRoutes(r.Group("/"), store, nil)
+	RegisterRoutes(r.Group("/"), store)
 
 	body := `{"phase":"request","direction":"send","method":"POST","url":"https://api.openai.com/v1/responses?api_key=secret","host":"api.openai.com","pid":4242,"comm":"codex","content_type":"application/json","headers":{"Authorization":"Bearer sk-secret","Content-Type":"application/json"},"body":"{\"model\":\"gpt-5\",\"messages\":[{\"role\":\"user\",\"content\":\"hello codex\"}],\"api_key\":\"secret\"}"}`
 	w := httptest.NewRecorder()
@@ -26,36 +33,31 @@ func TestHandleCodexCaptureStoresSanitizedPlaintext(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
 	}
-	events := store.Recent(1)
-	if len(events) != 1 {
-		t.Fatalf("events = %#v", events)
+	if len(store.events) != 1 {
+		t.Fatalf("events = %#v", store.events)
 	}
-	event := events[0]
+	event := store.events[0]
 	if event.Vendor != "codex" || event.Lib != "codex-reqwest" || event.PID != 4242 {
 		t.Fatalf("event identity = %#v", event)
 	}
-	if event.Headers["authorization"] != tlsRedactedValue {
+	if event.Headers["authorization"] != RedactedValue {
 		t.Fatalf("authorization not redacted: %#v", event.Headers)
 	}
 	if strings.Contains(event.URL, "secret") || !strings.Contains(event.URL, "api_key=") {
 		t.Fatalf("url not sanitized: %q", event.URL)
 	}
-	if strings.Contains(event.Body, "\"api_key\": \"secret\"") || !strings.Contains(event.Body, tlsRedactedValue) {
+	if strings.Contains(event.Body, "\"api_key\": \"secret\"") || !strings.Contains(event.Body, RedactedValue) {
 		t.Fatalf("body not sanitized: %q", event.Body)
 	}
 	if event.PromptDigest == "" || event.MessageRole != "user" || event.PromptLen == 0 {
 		t.Fatalf("prompt metadata missing: %#v", event)
-	}
-	protoEvent := convertTLSToProtoEvent(event)
-	if protoEvent == nil || protoEvent.GetEventType() != pb.EventType_TLS_PLAINTEXT || protoEvent.GetServiceName() != "codex" {
-		t.Fatalf("proto event = %#v", protoEvent)
 	}
 }
 
 func TestHandleCodexCaptureRejectsInvalidJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	registerCodexCaptureRoutes(r.Group("/"), NewTLSCaptureStore(10), nil)
+	RegisterRoutes(r.Group("/"), &captureStore{})
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/codex/capture", strings.NewReader(`{`))
@@ -68,7 +70,7 @@ func TestHandleCodexCaptureRejectsInvalidJSON(t *testing.T) {
 }
 
 func TestBuildCodexCaptureEventDefaultsWebsocketRequest(t *testing.T) {
-	event := buildCodexCaptureEvent(CodexCaptureRequest{
+	event := BuildEvent(CaptureRequest{
 		Phase: "websocket_request",
 		URL:   "wss://chatgpt.com/backend-api/codex/ws?token=secret",
 		Body:  `{"input":"hello"}`,
@@ -86,7 +88,7 @@ func TestBuildCodexCaptureEventDefaultsWebsocketRequest(t *testing.T) {
 }
 
 func TestCodexCaptureResponseShape(t *testing.T) {
-	event := buildCodexCaptureEvent(CodexCaptureRequest{Phase: "response", Status: 201, PID: 8})
+	event := BuildEvent(CaptureRequest{Phase: "response", Status: 201, PID: 8})
 	payload, err := json.Marshal(event)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)

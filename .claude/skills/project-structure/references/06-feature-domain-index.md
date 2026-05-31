@@ -147,7 +147,8 @@
 - `backend/tls_probe_manager.go`
 - `backend/tls_agent_stream.go`
 - `backend/tls_agent_stream_loop.go`
-- `backend/codex_capture_handlers.go`
+- `backend/codex/capture/handlers/handlers.go`
+- `backend/codex_capture_sink.go`
 - `backend/ebpf/agent_tls_capture.c`
 - `backend/ebpf/gen_tls.go`
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	codexhandlers "agent-ebpf-filter/codex/capture/handlers"
 	"os"
 	"path/filepath"
 
@@ -97,7 +98,7 @@ func registerAuthenticatedAPIRoutes(r *gin.Engine, tlsController *TLSCaptureCont
 		registerConfigRoutes(api.Group("/config"))
 		registerSystemRoutes(api.Group("/system"))
 		registerTLSCaptureRoutes(api, tlsController, tlsStore, tlsRules)
-		registerCodexCaptureRoutes(api, tlsStore, tlsBroadcaster)
+		codexhandlers.RegisterRoutes(api, codexCaptureSink{store: tlsStore, broadcaster: tlsBroadcaster})
 		registerAgentSightRoutes(api, tlsStore)
 		registerPluginRoutes(api.Group("/plugins"))
 
