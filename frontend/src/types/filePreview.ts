@@ -1,4 +1,4 @@
-export type FilePreviewType = 'text' | 'image' | 'pdf' | 'video' | 'binary' | 'directory';
+export type FilePreviewType = 'text' | 'image' | 'pdf' | 'video' | 'binary' | 'elf' | 'directory';
 
 export interface FilePreviewResponse {
   path: string;
@@ -16,6 +16,7 @@ export interface FilePreviewResponse {
   dataUrl: string;
   truncated: boolean;
   streamable?: boolean;
+  hexable?: boolean;
 }
 
 const previewableEventTypes = new Set(['execve', 'openat', 'mkdir', 'unlink', 'open', 'chmod', 'chown', 'rename', 'link', 'symlink', 'mknod']);

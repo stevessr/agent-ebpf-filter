@@ -152,6 +152,166 @@ func handleFilePreviewStream(c *gin.Context) {
 	}
 }
 
+func printableASCII(b byte) string {
+	if b >= 32 && b <= 126 && unicode.IsPrint(rune(b)) {
+		return string([]byte{b})
+	}
+	return "."
+}
+
+func handleFileHex(c *gin.Context) {
+	targetPath := strings.TrimSpace(c.Query("path"))
+	if targetPath == "" {
+		c.JSON(400, gin.H{"error": "path is required"})
+		return
+	}
+	offset, _ := strconv.ParseInt(c.DefaultQuery("offset", "0"), 10, 64)
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "4096"))
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 || limit > 64*1024 {
+		limit = 4096
+	}
+
+	absPath, err := filepath.Abs(filepath.Clean(targetPath))
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	info, err := os.Stat(absPath)
+	if err != nil || info.IsDir() {
+		c.JSON(404, gin.H{"error": "file not found"})
+		return
+	}
+	file, err := os.Open(absPath)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	defer file.Close()
+
+	buf := make([]byte, limit)
+	n, err := file.ReadAt(buf, offset)
+	if err != nil && err != io.EOF {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	buf = buf[:n]
+	rows := []gin.H{}
+	for i := 0; i < len(buf); i += 16 {
+		end := i + 16
+		if end > len(buf) {
+			end = len(buf)
+		}
+		chunk := buf[i:end]
+		hexCells := make([]string, 0, 16)
+		ascii := strings.Builder{}
+		for _, b := range chunk {
+			hexCells = append(hexCells, fmt.Sprintf("%02x", b))
+			ascii.WriteString(printableASCII(b))
+		}
+		rows = append(rows, gin.H{"offset": offset + int64(i), "hex": hexCells, "ascii": ascii.String()})
+	}
+	nextOffset := offset + int64(n)
+	c.JSON(200, gin.H{
+		"path":       absPath,
+		"size":       info.Size(),
+		"offset":     offset,
+		"limit":      limit,
+		"bytesRead":  n,
+		"nextOffset": nextOffset,
+		"eof":        nextOffset >= info.Size(),
+		"rows":       rows,
+	})
+}
+
+func handleFileELF(c *gin.Context) {
+	targetPath := strings.TrimSpace(c.Query("path"))
+	if targetPath == "" {
+		c.JSON(400, gin.H{"error": "path is required"})
+		return
+	}
+	absPath, err := filepath.Abs(filepath.Clean(targetPath))
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	info, err := os.Stat(absPath)
+	if err != nil || info.IsDir() {
+		c.JSON(404, gin.H{"error": "file not found"})
+		return
+	}
+	f, err := elf.Open(absPath)
+	if err != nil {
+		c.JSON(415, gin.H{"error": "not an ELF file"})
+		return
+	}
+	defer f.Close()
+
+	sections := []gin.H{}
+	for i, s := range f.Sections {
+		if i >= 128 {
+			break
+		}
+		sections = append(sections, gin.H{"name": s.Name, "type": s.Type.String(), "flags": s.Flags.String(), "addr": s.Addr, "offset": s.Offset, "size": s.Size})
+	}
+	programs := []gin.H{}
+	for i, p := range f.Progs {
+		if i >= 64 {
+			break
+		}
+		programs = append(programs, gin.H{"type": p.Type.String(), "flags": p.Flags.String(), "vaddr": p.Vaddr, "off": p.Off, "filesz": p.Filesz, "memsz": p.Memsz})
+	}
+	dynlibs, _ := f.DynString(elf.DT_NEEDED)
+	dynSyms, _ := f.DynamicSymbols()
+	staticSyms, _ := f.Symbols()
+	limitSymbols := func(in []elf.Symbol) []gin.H {
+		out := []gin.H{}
+		for i, s := range in {
+			if i >= 120 {
+				break
+			}
+			out = append(out, gin.H{"name": s.Name, "info": s.Info, "other": s.Other, "section": s.Section.String(), "value": s.Value, "size": s.Size})
+		}
+		return out
+	}
+
+	disassembly := ""
+	disassemblyError := ""
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "objdump", "-d", "--demangle", "--no-show-raw-insn", absPath)
+	if out, err := cmd.CombinedOutput(); err == nil {
+		lines := strings.Split(string(out), "\n")
+		if len(lines) > 240 {
+			lines = lines[:240]
+			disassemblyError = "Disassembly preview truncated to first 240 lines."
+		}
+		disassembly = strings.Join(lines, "\n")
+	} else {
+		disassemblyError = strings.TrimSpace(fmt.Sprintf("%v: %s", err, string(out)))
+	}
+
+	c.JSON(200, gin.H{
+		"path": absPath,
+		"size": info.Size(),
+		"header": gin.H{
+			"class": f.Class.String(), "data": f.Data.String(), "version": f.Version.String(), "osabi": f.OSABI.String(),
+			"abiVersion": f.ABIVersion, "type": f.Type.String(), "machine": f.Machine.String(), "entry": f.Entry,
+		},
+		"sections":           sections,
+		"programs":           programs,
+		"dynamicLibraries":   dynlibs,
+		"dynamicSymbols":     limitSymbols(dynSyms),
+		"staticSymbols":      limitSymbols(staticSyms),
+		"disassembly":        disassembly,
+		"disassemblyError":   disassemblyError,
+		"dynamicSymbolCount": len(dynSyms),
+		"staticSymbolCount":  len(staticSyms),
+	})
+}
+
 func handleSystemHome(c *gin.Context) {
 	c.JSON(200, gin.H{"path": getRealHomeDir()})
 }
@@ -386,6 +546,8 @@ func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/ls", handleSystemLs)
 	rg.GET("/file-preview", handleFilePreview)
 	rg.GET("/file-preview/stream", handleFilePreviewStream)
+	rg.GET("/file-hex", handleFileHex)
+	rg.GET("/file-elf", handleFileELF)
 	rg.GET("/home", handleSystemHome)
 	rg.GET("/download", handleDownload)
 	rg.POST("/upload", handleUpload)

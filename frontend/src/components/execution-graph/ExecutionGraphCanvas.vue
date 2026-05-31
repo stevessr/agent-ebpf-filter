@@ -51,6 +51,42 @@ let initialZoomApplied = false;
 let lastTopologyKey = '';
 let currentDisplayGraph: { nodes: ExecutionGraphNode[]; edges: ExecutionGraphEdge[] } = { nodes: [], edges: [] };
 
+type SavedNodePosition = { x: number; y: number };
+
+const nodePositionStorageKey = () => `${props.zoomStorageKey || 'agent-ebpf.execution-graph.zoom'}.node-positions`;
+
+const loadSavedNodePositions = () => {
+  const positions = new Map<string, SavedNodePosition>();
+  try {
+    const raw = localStorage.getItem(nodePositionStorageKey());
+    if (!raw) return positions;
+    const parsed = JSON.parse(raw) as Record<string, Partial<SavedNodePosition>>;
+    Object.entries(parsed).forEach(([id, value]) => {
+      const x = Number(value.x);
+      const y = Number(value.y);
+      if (id && Number.isFinite(x) && Number.isFinite(y)) {
+        positions.set(id, { x, y });
+      }
+    });
+  } catch {
+    // Ignore corrupted or unavailable storage; the graph can fall back to stable layout.
+  }
+  return positions;
+};
+
+const persistNodePosition = (node: ForceNode) => {
+  const x = Number(node.x ?? node.fx);
+  const y = Number(node.y ?? node.fy);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  try {
+    const positions = Object.fromEntries(loadSavedNodePositions());
+    positions[node.id] = { x, y };
+    localStorage.setItem(nodePositionStorageKey(), JSON.stringify(positions));
+  } catch {
+    // Ignore storage quota / privacy mode failures.
+  }
+};
+
 const loadPersistedZoom = (width: number, height: number) => {
   if (!props.zoomStorageKey) return d3.zoomIdentity;
   try {
@@ -192,6 +228,7 @@ const updateGraph = () => {
     existingForceNodes as ForceNode[],
     width,
     height,
+    loadSavedNodePositions(),
   );
   const links = currentDisplayGraph.edges.map((edge) => ({ ...edge })) as ForceLink[];
   applyProcessTreeLayout(nodes, links, width, height);
@@ -220,8 +257,12 @@ const updateGraph = () => {
     })
     .on('end', (event, node) => {
       if (!event.active) simulation?.alphaTarget(0);
-      node.fx = null;
-      node.fy = null;
+      node.fx = event.x;
+      node.fy = event.y;
+      node.x = event.x;
+      node.y = event.y;
+      node.positionLocked = true;
+      persistNodePosition(node);
     });
 
   const nodeSelection = nodeGroup

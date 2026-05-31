@@ -33,6 +33,38 @@ const STREAM_CHUNK_FLUSH_LINES = 80;
 const VIRTUAL_LINE_HEIGHT = 21;
 const VIRTUAL_OVERSCAN_LINES = 40;
 const VIRTUAL_DEFAULT_VIEWPORT_HEIGHT = 520;
+const HEX_PAGE_SIZE = 4096;
+
+type PreviewPanel = 'preview' | 'hex';
+
+interface HexRow {
+  offset: number;
+  hex: string[];
+  ascii: string;
+}
+
+interface HexResponse {
+  size: number;
+  offset: number;
+  limit: number;
+  bytesRead: number;
+  nextOffset: number;
+  eof: boolean;
+  rows: HexRow[];
+}
+
+interface ELFAnalysis {
+  header: Record<string, string | number>;
+  programs: Array<Record<string, string | number>>;
+  sections: Array<Record<string, string | number>>;
+  dynamicLibraries: string[];
+  dynamicSymbols: Array<Record<string, string | number>>;
+  staticSymbols: Array<Record<string, string | number>>;
+  dynamicSymbolCount: number;
+  staticSymbolCount: number;
+  disassembly: string;
+  disassemblyError: string;
+}
 
 const drawerOpen = computed({
   get: () => props.open,
@@ -47,6 +79,9 @@ const formatBytes = (bytes: number) => {
   return `${(bytes / Math.pow(base, index)).toFixed(index === 0 ? 0 : 2)} ${units[index]}`;
 };
 
+const formatHexOffset = (offset: number) => `0x${Math.max(0, offset).toString(16).padStart(8, '0')}`;
+const objectEntries = (value?: Record<string, string | number>) => Object.entries(value || {});
+
 const formattedModTime = computed(() => {
   if (!props.preview?.modTime) return '—';
   const date = new Date(props.preview.modTime);
@@ -56,6 +91,7 @@ const formattedModTime = computed(() => {
 const highlightedHtml = ref('');
 const highlightLoading = ref(false);
 const wordWrap = ref(true);
+const activePanel = ref<PreviewPanel>('preview');
 const streamLoading = ref(false);
 const streamError = ref('');
 const streamBytesLoaded = ref(0);
@@ -63,6 +99,13 @@ const streamLines = shallowRef<string[]>([]);
 const virtualScrollTop = ref(0);
 const virtualViewportHeight = ref(VIRTUAL_DEFAULT_VIEWPORT_HEIGHT);
 const virtualScrollerRef = ref<HTMLElement | null>(null);
+const hexLoading = ref(false);
+const hexError = ref('');
+const hexData = ref<HexResponse | null>(null);
+const hexOffsetInput = ref(0);
+const elfLoading = ref(false);
+const elfError = ref('');
+const elfData = ref<ELFAnalysis | null>(null);
 let streamAbortController: AbortController | null = null;
 let streamLineCarry = '';
 let pendingStreamLineCount = 0;
@@ -73,6 +116,8 @@ const isStreamingText = computed(() => (
   props.preview?.previewType === 'text' &&
   props.preview.streamable === true
 ));
+const canShowHex = computed(() => props.preview?.hexable === true && !props.preview?.isDir);
+const isHexPanel = computed(() => activePanel.value === 'hex');
 const streamProgressPercent = computed(() => {
   const size = props.preview?.size || 0;
   if (!size) return 0;
@@ -90,6 +135,8 @@ const virtualStatus = computed(() => {
   if (!virtualTotalLines.value) return streamLoading.value ? 'Loading first slice…' : 'No text loaded';
   return `Rendering lines ${virtualStartLine.value + 1}-${virtualEndLine.value} of ${virtualTotalLines.value}`;
 });
+const hexCanPrev = computed(() => (hexData.value?.offset || 0) > 0);
+const hexCanNext = computed(() => Boolean(hexData.value && !hexData.value.eof));
 
 const downloadUrl = computed(() => {
   if (!props.preview?.path) return '';
@@ -114,6 +161,19 @@ const resetStreamState = () => {
   pendingStreamLineCount = 0;
   virtualScrollTop.value = 0;
   streamLines.value = [];
+};
+
+const resetHexState = () => {
+  hexLoading.value = false;
+  hexError.value = '';
+  hexData.value = null;
+  hexOffsetInput.value = 0;
+};
+
+const resetElfState = () => {
+  elfLoading.value = false;
+  elfError.value = '';
+  elfData.value = null;
 };
 
 const syncVirtualViewport = async () => {
@@ -203,11 +263,59 @@ const streamTextPreview = async (path: string) => {
   }
 };
 
+const loadHexPage = async (offset = 0) => {
+  if (!props.preview?.path) return;
+  hexLoading.value = true;
+  hexError.value = '';
+  try {
+    const response = await fetch(`/system/file-hex?path=${encodeURIComponent(props.preview.path)}&offset=${Math.max(0, offset)}&limit=${HEX_PAGE_SIZE}`, {
+      headers: buildRequestHeaders(),
+    });
+    if (!response.ok) throw new Error(`Hex load failed: ${response.status}`);
+    const payload = await response.json() as HexResponse;
+    hexData.value = payload;
+    hexOffsetInput.value = payload.offset;
+  } catch (err) {
+    hexError.value = (err as Error).message || 'Failed to load hex view';
+  } finally {
+    hexLoading.value = false;
+  }
+};
+
+const loadELFAnalysis = async () => {
+  if (!props.preview?.path || props.preview.previewType !== 'elf') return;
+  elfLoading.value = true;
+  elfError.value = '';
+  try {
+    const response = await fetch(`/system/file-elf?path=${encodeURIComponent(props.preview.path)}`, {
+      headers: buildRequestHeaders(),
+    });
+    if (!response.ok) throw new Error(`ELF analysis failed: ${response.status}`);
+    elfData.value = await response.json() as ELFAnalysis;
+  } catch (err) {
+    elfError.value = (err as Error).message || 'Failed to analyze ELF file';
+  } finally {
+    elfLoading.value = false;
+  }
+};
+
+const showHexPanel = async () => {
+  activePanel.value = 'hex';
+  if (!hexData.value) await loadHexPage(0);
+};
+
+const showPreviewPanel = () => {
+  activePanel.value = 'preview';
+};
+
 watch(() => props.open, (isOpen) => {
   if (!isOpen) {
     highlightedHtml.value = '';
     highlightLoading.value = false;
     resetStreamState();
+    resetHexState();
+    resetElfState();
+    activePanel.value = 'preview';
     return;
   }
   void syncVirtualViewport();
@@ -216,11 +324,17 @@ watch(() => props.open, (isOpen) => {
 watch(
   () => [props.open, props.preview?.path, props.preview?.previewType, props.preview?.streamable] as const,
   ([isOpen, path, previewType, streamable]) => {
+    resetHexState();
+    resetElfState();
+    activePanel.value = 'preview';
     if (isOpen && path && previewType === 'text' && streamable) {
       void streamTextPreview(path);
       return;
     }
     resetStreamState();
+    if (isOpen && path && previewType === 'elf') {
+      void loadELFAnalysis();
+    }
   },
   { immediate: true },
 );
@@ -280,127 +394,155 @@ onBeforeUnmount(() => {
           <a-descriptions-item label="Type">
             <a-tag :color="preview.isDir ? 'blue' : 'default'">{{ preview.previewType.toUpperCase() }}</a-tag>
             <a-tag v-if="preview.mimeType">{{ preview.mimeType }}</a-tag>
+            <a-tag v-if="preview.encoding">{{ preview.encoding }}</a-tag>
             <a-tag v-if="preview.streamable" color="green">VIRTUAL STREAM</a-tag>
             <a-tag v-else-if="preview.truncated" color="orange">TRUNCATED</a-tag>
+            <a-tag v-if="preview.hexable" color="purple">16HEX</a-tag>
           </a-descriptions-item>
           <a-descriptions-item label="Size">{{ formatBytes(preview.size) }}</a-descriptions-item>
           <a-descriptions-item label="Mode">{{ preview.mode || '—' }}</a-descriptions-item>
           <a-descriptions-item label="Modified">{{ formattedModTime }}</a-descriptions-item>
         </a-descriptions>
 
-        <a-alert
-          v-if="preview.previewType === 'directory'"
-          type="info"
-          show-icon
-          message="Directory selected"
-          description="Directories can be jumped to, but not inline-previewed as file content."
-        />
-
-        <div v-else-if="preview.previewType === 'image'" class="file-preview-drawer__content">
-          <a-alert
-            v-if="!preview.dataUrl && preview.content"
-            type="info"
-            show-icon
-            :message="preview.content"
-          />
-          <img
-            v-else-if="preview.dataUrl"
-            :src="preview.dataUrl"
-            :alt="preview.name"
-            class="file-preview-drawer__image"
-          />
+        <div v-if="canShowHex" class="file-preview-drawer__mode-toolbar">
+          <a-radio-group v-model:value="activePanel" size="small">
+            <a-radio-button value="preview" @click="showPreviewPanel">Preview</a-radio-button>
+            <a-radio-button value="hex" @click="showHexPanel">16 Hex</a-radio-button>
+          </a-radio-group>
         </div>
 
-        <div v-else-if="preview.previewType === 'pdf'" class="file-preview-drawer__content">
-          <div class="file-preview-drawer__pdf-toolbar">
-            <a-button size="small" :href="downloadUrl" target="_blank" rel="noopener noreferrer">Open in new tab</a-button>
-            <a-button size="small" :href="downloadUrl" download>Download</a-button>
+        <div v-if="isHexPanel" class="file-preview-drawer__content">
+          <div class="file-preview-drawer__hex-toolbar">
+            <a-button size="small" :disabled="!hexCanPrev || hexLoading" @click="loadHexPage(Math.max(0, (hexData?.offset || 0) - HEX_PAGE_SIZE))">Prev</a-button>
+            <a-input-number v-model:value="hexOffsetInput" :min="0" :max="Math.max(0, preview.size - 1)" size="small" class="file-preview-drawer__hex-offset" />
+            <a-button size="small" :loading="hexLoading" @click="loadHexPage(hexOffsetInput)">Go</a-button>
+            <a-button size="small" :disabled="!hexCanNext || hexLoading" @click="loadHexPage(hexData?.nextOffset || 0)">Next</a-button>
+            <span v-if="hexData" class="file-preview-drawer__muted">{{ formatHexOffset(hexData.offset) }} · {{ hexData.bytesRead }} bytes</span>
           </div>
-          <iframe
-            class="file-preview-drawer__pdf"
-            :src="pdfUrl"
-            :title="preview.name"
-          />
-        </div>
-
-        <div v-else-if="preview.previewType === 'video'" class="file-preview-drawer__content">
-          <video
-            v-if="preview.mimeType.startsWith('video/')"
-            controls
-            autoplay
-            style="width: 100%; max-height: 70vh; border-radius: 8px; background: #000;"
-            :src="videoUrl">
-            Your browser does not support the video tag.
-          </video>
-          <div v-else-if="preview.mimeType.startsWith('audio/')" style="padding: 40px; background: #f0f2f5; border-radius: 8px; text-align: center;">
-            <div style="margin-bottom: 16px; font-size: 48px;">🎵</div>
-            <audio controls autoplay style="width: 100%;" :src="videoUrl">
-              Your browser does not support the audio element.
-            </audio>
-            <div style="margin-top: 12px; color: #666; font-size: 14px;">{{ preview.name }}</div>
-          </div>
-        </div>
-
-        <div v-else-if="preview.previewType === 'text'" class="file-preview-drawer__content">
-          <div class="file-preview-drawer__text-toolbar">
-            <span>Language: {{ preview.language || 'text' }}</span>
-            <template v-if="preview.streamable">
-              <span>{{ formatBytes(streamBytesLoaded) }} / {{ formatBytes(preview.size) }}</span>
-              <span>{{ virtualStatus }}</span>
-              <a-progress :percent="streamProgressPercent" size="small" class="file-preview-drawer__progress" />
-              <a-button v-if="streamLoading" size="small" @click="stopStreaming">Stop</a-button>
-            </template>
-            <a-checkbox v-if="!isStreamingText" v-model:checked="wordWrap" size="small">Word Wrap</a-checkbox>
-          </div>
-          <a-alert
-            v-if="isStreamingText"
-            type="info"
-            show-icon
-            message="Virtualized stream preview"
-            description="The file is sliced into lines and only the visible window is rendered into DOM. Word wrap is disabled for stable virtual scrolling."
-            style="margin-bottom: 12px;"
-          />
-          <a-alert
-            v-if="streamError"
-            type="error"
-            show-icon
-            :message="streamError"
-            style="margin-bottom: 12px;"
-          />
-          <div
-            v-if="isStreamingText"
-            ref="virtualScrollerRef"
-            class="file-preview-drawer__virtual-scroller"
-            @scroll="handleVirtualScroll"
-          >
-            <div class="file-preview-drawer__virtual-spacer" :style="{ height: `${virtualTotalHeight}px` }">
-              <pre
-                class="file-preview-drawer__virtual-pre"
-                :style="{ transform: `translateY(${virtualTopOffset}px)` }"
-              ><template v-for="(line, index) in virtualRenderedLines" :key="virtualStartLine + index">{{ line }}{{ '\n' }}</template></pre>
+          <a-alert v-if="hexError" type="error" show-icon :message="hexError" style="margin-bottom: 12px;" />
+          <a-spin :spinning="hexLoading">
+            <div class="file-preview-drawer__hex-table">
+              <div v-for="row in hexData?.rows || []" :key="row.offset" class="file-preview-drawer__hex-row">
+                <span class="file-preview-drawer__hex-address">{{ formatHexOffset(row.offset) }}</span>
+                <span class="file-preview-drawer__hex-bytes">
+                  <span v-for="(cell, index) in row.hex" :key="`${row.offset}-${index}`">{{ cell }}</span>
+                </span>
+                <span class="file-preview-drawer__hex-ascii">{{ row.ascii }}</span>
+              </div>
             </div>
-          </div>
-          <a-spin v-else :spinning="highlightLoading">
-            <div
-              v-if="highlightedHtml"
-              class="file-preview-drawer__shiki"
-              :class="{ 'is-wrapped': wordWrap }"
-              v-html="highlightedHtml">
-            </div>
-            <pre v-else class="file-preview-drawer__pre" :class="{ 'is-wrapped': wordWrap }">{{ preview.content }}</pre>
           </a-spin>
         </div>
 
-        <div v-else class="file-preview-drawer__content">
+        <template v-else>
           <a-alert
-            type="warning"
+            v-if="preview.previewType === 'directory'"
+            type="info"
             show-icon
-            message="Binary file preview"
-            description="Showing a limited hex dump."
-            style="margin-bottom: 12px;"
+            message="Directory selected"
+            description="Directories can be jumped to, but not inline-previewed as file content."
           />
-          <pre class="file-preview-drawer__pre">{{ preview.content || 'Binary preview unavailable.' }}</pre>
-        </div>
+
+          <div v-else-if="preview.previewType === 'image'" class="file-preview-drawer__content">
+            <a-alert v-if="!preview.dataUrl && preview.content" type="info" show-icon :message="preview.content" />
+            <img v-else-if="preview.dataUrl" :src="preview.dataUrl" :alt="preview.name" class="file-preview-drawer__image" />
+          </div>
+
+          <div v-else-if="preview.previewType === 'pdf'" class="file-preview-drawer__content">
+            <div class="file-preview-drawer__pdf-toolbar">
+              <a-button size="small" :href="downloadUrl" target="_blank" rel="noopener noreferrer">Open in new tab</a-button>
+              <a-button size="small" :href="downloadUrl" download>Download</a-button>
+            </div>
+            <iframe class="file-preview-drawer__pdf" :src="pdfUrl" :title="preview.name" />
+          </div>
+
+          <div v-else-if="preview.previewType === 'video'" class="file-preview-drawer__content">
+            <video v-if="preview.mimeType.startsWith('video/')" controls autoplay class="file-preview-drawer__video" :src="videoUrl">
+              Your browser does not support the video tag.
+            </video>
+            <div v-else-if="preview.mimeType.startsWith('audio/')" class="file-preview-drawer__audio">
+              <div class="file-preview-drawer__audio-icon">🎵</div>
+              <audio controls autoplay class="file-preview-drawer__audio-player" :src="videoUrl">
+                Your browser does not support the audio element.
+              </audio>
+              <div class="file-preview-drawer__audio-name">{{ preview.name }}</div>
+            </div>
+          </div>
+
+          <div v-else-if="preview.previewType === 'elf'" class="file-preview-drawer__content">
+            <a-alert type="info" show-icon message="ELF / shared object analysis" description="Read-only structural summary with limited objdump disassembly preview when objdump is available." style="margin-bottom: 12px;" />
+            <a-alert v-if="elfError" type="error" show-icon :message="elfError" style="margin-bottom: 12px;" />
+            <a-spin :spinning="elfLoading">
+              <template v-if="elfData">
+                <a-descriptions bordered size="small" :column="3" style="margin-bottom: 12px;">
+                  <a-descriptions-item v-for="[key, value] in objectEntries(elfData.header)" :key="key" :label="key">{{ value }}</a-descriptions-item>
+                </a-descriptions>
+                <div class="file-preview-drawer__elf-grid">
+                  <div class="file-preview-drawer__elf-card">
+                    <h4>Dynamic Libraries</h4>
+                    <a-tag v-for="lib in elfData.dynamicLibraries" :key="lib">{{ lib }}</a-tag>
+                    <a-empty v-if="!elfData.dynamicLibraries?.length" description="No DT_NEEDED entries" />
+                  </div>
+                  <div class="file-preview-drawer__elf-card">
+                    <h4>Symbols</h4>
+                    <p>Dynamic: {{ elfData.dynamicSymbolCount }} · Static: {{ elfData.staticSymbolCount }}</p>
+                  </div>
+                </div>
+                <h4>Program Headers</h4>
+                <div class="file-preview-drawer__table-scroll">
+                  <table class="file-preview-drawer__mini-table">
+                    <tbody>
+                      <tr v-for="(program, index) in elfData.programs" :key="index">
+                        <td v-for="[key, value] in objectEntries(program)" :key="key"><strong>{{ key }}</strong>: {{ value }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <h4>Sections</h4>
+                <div class="file-preview-drawer__table-scroll">
+                  <table class="file-preview-drawer__mini-table">
+                    <tbody>
+                      <tr v-for="section in elfData.sections" :key="`${section.name}-${section.offset}`">
+                        <td>{{ section.name }}</td><td>{{ section.type }}</td><td>{{ section.flags }}</td><td>{{ section.offset }}</td><td>{{ section.size }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <h4>Disassembly preview</h4>
+                <a-alert v-if="elfData.disassemblyError" type="warning" show-icon :message="elfData.disassemblyError" style="margin-bottom: 8px;" />
+                <pre class="file-preview-drawer__pre">{{ elfData.disassembly || 'No disassembly available.' }}</pre>
+              </template>
+            </a-spin>
+          </div>
+
+          <div v-else-if="preview.previewType === 'text'" class="file-preview-drawer__content">
+            <div class="file-preview-drawer__text-toolbar">
+              <span>Language: {{ preview.language || 'text' }}</span>
+              <template v-if="preview.streamable">
+                <span>{{ formatBytes(streamBytesLoaded) }} / {{ formatBytes(preview.size) }}</span>
+                <span>{{ virtualStatus }}</span>
+                <a-progress :percent="streamProgressPercent" size="small" class="file-preview-drawer__progress" />
+                <a-button v-if="streamLoading" size="small" @click="stopStreaming">Stop</a-button>
+              </template>
+              <a-checkbox v-if="!isStreamingText" v-model:checked="wordWrap" size="small">Word Wrap</a-checkbox>
+            </div>
+            <a-alert v-if="isStreamingText" type="info" show-icon message="Virtualized stream preview" description="The file is sliced into lines and only the visible window is rendered into DOM. Word wrap is disabled for stable virtual scrolling." style="margin-bottom: 12px;" />
+            <a-alert v-if="streamError" type="error" show-icon :message="streamError" style="margin-bottom: 12px;" />
+            <div v-if="isStreamingText" ref="virtualScrollerRef" class="file-preview-drawer__virtual-scroller" @scroll="handleVirtualScroll">
+              <div class="file-preview-drawer__virtual-spacer" :style="{ height: `${virtualTotalHeight}px` }">
+                <pre class="file-preview-drawer__virtual-pre" :style="{ transform: `translateY(${virtualTopOffset}px)` }"><template v-for="(line, index) in virtualRenderedLines" :key="virtualStartLine + index">{{ line }}{{ '\n' }}</template></pre>
+              </div>
+            </div>
+            <a-spin v-else :spinning="highlightLoading">
+              <div v-if="highlightedHtml" class="file-preview-drawer__shiki" :class="{ 'is-wrapped': wordWrap }" v-html="highlightedHtml" />
+              <pre v-else class="file-preview-drawer__pre" :class="{ 'is-wrapped': wordWrap }">{{ preview.content }}</pre>
+            </a-spin>
+          </div>
+
+          <div v-else class="file-preview-drawer__content">
+            <a-alert type="warning" show-icon message="Binary file preview" description="Showing a limited hex dump. Use the 16 Hex view for paged binary inspection." style="margin-bottom: 12px;" />
+            <pre class="file-preview-drawer__pre">{{ preview.content || 'Binary preview unavailable.' }}</pre>
+          </div>
+        </template>
       </template>
     </a-spin>
   </a-drawer>
@@ -411,7 +553,9 @@ onBeforeUnmount(() => {
   max-width: 100%;
 }
 
-.file-preview-drawer__text-toolbar {
+.file-preview-drawer__mode-toolbar,
+.file-preview-drawer__text-toolbar,
+.file-preview-drawer__hex-toolbar {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 8px;
@@ -424,6 +568,50 @@ onBeforeUnmount(() => {
 
 .file-preview-drawer__progress {
   width: 180px;
+}
+
+.file-preview-drawer__muted {
+  color: #64748b;
+}
+
+.file-preview-drawer__hex-offset {
+  width: 160px;
+}
+
+.file-preview-drawer__hex-table,
+.file-preview-drawer__pre,
+.file-preview-drawer__shiki :deep(pre) {
+  margin: 0;
+  padding: 16px;
+  max-height: calc(100vh - 280px);
+  overflow: auto;
+  border-radius: 8px;
+  background: #0f172a !important;
+  color: #e2e8f0;
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.file-preview-drawer__hex-row {
+  display: grid;
+  grid-template-columns: 110px minmax(420px, max-content) 180px;
+  gap: 16px;
+  white-space: pre;
+}
+
+.file-preview-drawer__hex-address {
+  color: #93c5fd;
+}
+
+.file-preview-drawer__hex-bytes {
+  display: grid;
+  grid-template-columns: repeat(16, 24px);
+  color: #e2e8f0;
+}
+
+.file-preview-drawer__hex-ascii {
+  color: #bbf7d0;
 }
 
 .file-preview-drawer__pdf-toolbar {
@@ -443,18 +631,67 @@ onBeforeUnmount(() => {
   background: #f8fafc;
 }
 
-.file-preview-drawer__pre,
-.file-preview-drawer__shiki :deep(pre) {
-  margin: 0;
-  padding: 16px;
-  max-height: calc(100vh - 280px);
-  overflow: auto;
+.file-preview-drawer__video {
+  width: 100%;
+  max-height: 70vh;
   border-radius: 8px;
-  background: #0f172a !important;
-  color: #e2e8f0;
+  background: #000;
+}
+
+.file-preview-drawer__audio {
+  padding: 40px;
+  background: #f0f2f5;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.file-preview-drawer__audio-icon {
+  margin-bottom: 16px;
+  font-size: 48px;
+}
+
+.file-preview-drawer__audio-player {
+  width: 100%;
+}
+
+.file-preview-drawer__audio-name {
+  margin-top: 12px;
+  color: #666;
+  font-size: 14px;
+}
+
+.file-preview-drawer__elf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.file-preview-drawer__elf-card {
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.file-preview-drawer__table-scroll {
+  max-height: 240px;
+  overflow: auto;
+  margin-bottom: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.file-preview-drawer__mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.file-preview-drawer__mini-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eef2f7;
   font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 .file-preview-drawer__virtual-scroller {
