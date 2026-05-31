@@ -295,6 +295,13 @@ func buildFilePreview(path string) (*FilePreviewResponse, error) {
 		mimeType = "application/octet-stream"
 	}
 	res.MimeType = mimeType
+	res.Hexable = true
+
+	if len(head) >= 4 && head[0] == 0x7f && head[1] == 'E' && head[2] == 'L' && head[3] == 'F' {
+		res.PreviewType = "elf"
+		res.MimeType = "application/x-elf"
+		return res, nil
+	}
 
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return nil, err

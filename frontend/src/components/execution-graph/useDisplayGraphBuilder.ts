@@ -7,7 +7,9 @@ import {
   processTreeEdgeKinds,
 } from './useExecutionGraphHelpers';
 
-export interface ForceNode extends d3.SimulationNodeDatum, ExecutionGraphNode {}
+export interface ForceNode extends d3.SimulationNodeDatum, ExecutionGraphNode {
+  positionLocked?: boolean;
+}
 export interface ForceLink extends d3.SimulationLinkDatum<ForceNode> {
   id: string;
   kind: string;
@@ -288,6 +290,7 @@ export const buildForceNodes = (
     const savedPosition = savedPositions.get(node.id);
     if (existing) {
       Object.assign(existing, node);
+      existing.positionLocked = Boolean(savedPosition);
       if (savedPosition) {
         existing.x = savedPosition.x;
         existing.y = savedPosition.y;
@@ -303,6 +306,7 @@ export const buildForceNodes = (
       y: savedPosition?.y ?? stablePosition.y,
       fx: savedPosition?.x,
       fy: savedPosition?.y,
+      positionLocked: Boolean(savedPosition),
     } as ForceNode;
   });
 };
@@ -317,6 +321,11 @@ export const applyProcessTreeLayout = (
   height: number,
 ) => {
   nodes.forEach((node) => {
+    if (node.positionLocked) {
+      node.fx = node.x ?? node.fx;
+      node.fy = node.y ?? node.fy;
+      return;
+    }
     node.fx = null;
     node.fy = null;
   });
@@ -420,7 +429,7 @@ export const applyProcessTreeLayout = (
     const node = nodeById.get(id);
     const level = levels.get(id);
     const slot = ySlots.get(id);
-    if (!node || level === undefined || slot === undefined) return;
+    if (!node || level === undefined || slot === undefined || node.positionLocked) return;
     node.fx = leftPadding + level * levelGap;
     node.fy = verticalOffset + slot * rowGap;
   });
