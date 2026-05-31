@@ -46,12 +46,28 @@ const focusedNode = computed(() => findAgentSightFlameNode(tree.value, focusedNo
 const selectedNode = computed(() => findAgentSightFlameNode(tree.value, selectedNodeId.value) || focusedNode.value);
 const breadcrumbs = computed(() => agentSightFlameBreadcrumbs(tree.value, focusedNode.value.id));
 const rects = computed(() => layoutAgentSightFlamegraph(focusedNode.value, metric.value));
-const nonRootRects = computed(() => rects.value.filter(rect => rect.node.level !== 'root'));
+const visibleRects = computed(() => rects.value.filter(rect => focusedNode.value.id !== 'root' || rect.node.level !== 'root'));
 const hasMetricValue = computed(() => agentSightFlameMetricValue(tree.value, metric.value) > 0);
-const maxDepth = computed(() => rects.value.reduce((max, rect) => Math.max(max, rect.node.depth - focusedNode.value.depth), 0));
-const svgHeight = computed(() => Math.max(96, (maxDepth.value + 1) * 30 + 8));
+const hasFocusedMetricValue = computed(() => agentSightFlameMetricValue(focusedNode.value, metric.value) > 0);
+const displayY = (rect: AgentSightFlameRect) => focusedNode.value.id === 'root' ? rect.y - 30 : rect.y;
+const svgHeight = computed(() => Math.max(96, visibleRects.value.reduce((max, rect) => Math.max(max, displayY(rect) + rect.height), 0) + 8));
 const eventCount = computed(() => props.events.length.toLocaleString());
 const currentMetricLabel = computed(() => metricOptions.find(option => option.value === metric.value)?.label || metric.value);
+const rootMetricValue = computed(() => agentSightFlameMetricValue(tree.value, metric.value));
+const focusedMetricValue = computed(() => agentSightFlameMetricValue(focusedNode.value, metric.value));
+const selectedMetricValue = computed(() => agentSightFlameMetricValue(selectedNode.value, metric.value));
+const selectedRootPercent = computed(() => rootMetricValue.value > 0 ? selectedMetricValue.value / rootMetricValue.value : 0);
+const selectedFocusPercent = computed(() => focusedMetricValue.value > 0 ? selectedMetricValue.value / focusedMetricValue.value : 0);
+const sourceLegend = computed(() => {
+  const sources = new Map<string, { source: string; color: string; count: number }>();
+  visibleRects.value.forEach(rect => {
+    if (rect.node.level === 'other' || !rect.node.dominantSource) return;
+    const current = sources.get(rect.node.dominantSource) || { source: rect.node.dominantSource, color: rect.node.dominantColor, count: 0 };
+    current.count += rect.node.eventCount;
+    sources.set(rect.node.dominantSource, current);
+  });
+  return Array.from(sources.values()).sort((a, b) => b.count - a.count).slice(0, 8);
+});
 
 const resetFocus = () => {
   focusedNodeId.value = 'root';
@@ -136,6 +152,18 @@ watch(metric, () => {
       class="flamegraph-note"
     />
 
+    <div class="flamegraph-overview">
+      <a-tag color="blue">Focused: {{ focusedNode.label }}</a-tag>
+      <a-tag>{{ currentMetricLabel }} {{ formatMetric(focusedMetricValue) }}</a-tag>
+      <a-tag>{{ focusedNode.eventCount.toLocaleString() }} events in focus</a-tag>
+      <span v-if="sourceLegend.length > 0" class="source-legend">
+        <span v-for="source in sourceLegend" :key="source.source" class="source-chip">
+          <span class="source-dot" :style="{ background: source.color }" />
+          {{ source.source }}
+        </span>
+      </span>
+    </div>
+
     <div v-if="breadcrumbs.length > 1" class="flamegraph-breadcrumbs">
       <a-breadcrumb>
         <a-breadcrumb-item v-for="node in breadcrumbs" :key="node.id">
@@ -146,15 +174,20 @@ watch(metric, () => {
 
     <a-empty v-if="events.length === 0" description="No AgentSight events match current filters" />
     <a-empty v-else-if="!hasMetricValue" :description="`No non-zero values for the selected metric: ${currentMetricLabel}`" />
+    <a-empty v-else-if="!hasFocusedMetricValue" :description="`The focused subtree has no non-zero ${currentMetricLabel} values`">
+      <template #extra>
+        <a-button size="small" @click="resetFocus">Reset Zoom</a-button>
+      </template>
+    </a-empty>
     <template v-else>
       <div class="flamegraph-canvas">
         <svg class="flamegraph-svg" :viewBox="`0 0 1200 ${svgHeight}`" preserveAspectRatio="none" role="img" aria-label="AgentSight flamegraph">
-          <g v-for="rect in nonRootRects" :key="rect.node.id">
+          <g v-for="rect in visibleRects" :key="rect.node.id">
             <rect
               class="flamegraph-rect"
               :class="{ selected: selectedNode.id === rect.node.id }"
               :x="rect.x"
-              :y="rect.y"
+              :y="displayY(rect)"
               :width="rect.width"
               :height="rect.height"
               rx="4"
@@ -168,8 +201,7 @@ watch(metric, () => {
               v-if="labelVisible(rect)"
               class="flamegraph-label"
               :x="rect.x + 7"
-              :y="rect.y + 16"
-              :clip-path="`inset(0 0 0 0)`"
+              :y="displayY(rect) + 16"
               @click="selectNode(rect.node)"
             >
               {{ rect.node.label }}
@@ -178,7 +210,7 @@ watch(metric, () => {
               v-if="valueVisible(rect)"
               class="flamegraph-value"
               :x="rect.x + rect.width - 7"
-              :y="rect.y + 16"
+              :y="displayY(rect) + 16"
               text-anchor="end"
               @click="selectNode(rect.node)"
             >
@@ -209,6 +241,14 @@ watch(metric, () => {
           <a-col :xs="12" :md="6"><a-statistic title="Duration" :value="formatMetric(selectedNode.metrics.duration, 'duration')" /></a-col>
           <a-col :xs="12" :md="6"><a-statistic title="Risk" :value="formatMetric(selectedNode.metrics.risk, 'risk')" /></a-col>
         </a-row>
+
+        <div class="node-meta">
+          <span>Selected {{ currentMetricLabel }}: <strong>{{ formatMetric(selectedMetricValue) }}</strong></span>
+          <span>Root share: <strong>{{ percentLabel(selectedRootPercent) }}</strong></span>
+          <span>Focused share: <strong>{{ percentLabel(selectedFocusPercent) }}</strong></span>
+          <span>Latest: <strong>{{ formatFullTime(selectedNode.latestTimestamp) }}</strong></span>
+          <span>Dominant source: <strong>{{ selectedNode.dominantSource || 'unknown' }}</strong></span>
+        </div>
 
         <a-list v-if="selectedNode.sampleEvents.length > 0" size="small" :data-source="selectedNode.sampleEvents" class="sample-list">
           <template #header>Sample events</template>
@@ -260,6 +300,34 @@ watch(metric, () => {
 
 .flamegraph-note {
   margin-bottom: 0;
+}
+
+.flamegraph-overview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.source-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.source-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
 }
 
 .flamegraph-breadcrumbs {
@@ -333,6 +401,22 @@ watch(metric, () => {
   color: #0f172a;
   font-size: 18px;
   font-weight: 700;
+}
+
+.node-meta {
+  display: flex;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+}
+
+.node-meta strong {
+  color: #0f172a;
 }
 
 .sample-list :deep(.ant-list-item) {

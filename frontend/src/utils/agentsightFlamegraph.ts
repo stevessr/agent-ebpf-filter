@@ -235,10 +235,11 @@ export function extractAgentSightFlameTarget(event: ProcessedAgentSightEvent) {
 }
 
 export function extractAgentSightFlameMetrics(event: ProcessedAgentSightEvent): AgentSightFlameMetrics {
-  const bytes = event.source === 'system' ? 0 : toNumber(firstNonEmpty(
-    readEventField(event, ['body_size', 'bodySize']),
-    readEventField(event, ['size', 'bytes', 'len', 'length', 'net_bytes', 'netBytes', 'bytes_in', 'bytesIn', 'bytes_out', 'bytesOut']),
-  ), 0);
+  const bodyBytes = toNumber(firstNonEmpty(readEventField(event, ['body_size', 'bodySize'])), 0);
+  const directBytes = toNumber(firstNonEmpty(readEventField(event, ['size', 'bytes', 'len', 'length', 'net_bytes', 'netBytes'])), 0);
+  const directionalBytes = toNumber(firstNonEmpty(readEventField(event, ['bytes_in', 'bytesIn'])), 0)
+    + toNumber(firstNonEmpty(readEventField(event, ['bytes_out', 'bytesOut'])), 0);
+  const bytes = event.source === 'system' ? 0 : bodyBytes || directionalBytes || directBytes;
   const durationMs = firstNonEmpty(readEventField(event, ['duration_ms', 'durationMs', 'duration']));
   const durationNs = firstNonEmpty(readEventField(event, ['duration_ns', 'durationNs']));
   const explicitRisk = toNumber(firstNonEmpty(readEventField(event, ['risk_score', 'riskScore', 'risk'])), 0);
@@ -438,7 +439,7 @@ export function layoutAgentSightFlamegraph(root: AgentSightFlameNode, metric: Ag
         height: barHeight,
         value: childValue,
         percentOfRoot: rootValue > 0 ? childValue / rootValue : 0,
-        percentOfParent: parentValue > 0 ? childValue / parentValue : 0,
+        percentOfParent: nodeValue > 0 ? childValue / nodeValue : 0,
       });
       if (child.children.length > 0 && child.level !== 'other') visit(child, offset, y + rowHeight, childWidth, childValue);
       offset += childWidth;
