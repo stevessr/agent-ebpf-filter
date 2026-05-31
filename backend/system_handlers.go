@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"mime"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -83,6 +85,67 @@ func handleFilePreview(c *gin.Context) {
 		return
 	}
 	c.JSON(200, preview)
+}
+
+func handleFilePreviewStream(c *gin.Context) {
+	targetPath := strings.TrimSpace(c.Query("path"))
+	if targetPath == "" {
+		c.JSON(400, gin.H{"error": "path is required"})
+		return
+	}
+
+	preview, err := buildFilePreview(targetPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.JSON(404, gin.H{"error": "path not found"})
+			return
+		}
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	if preview.IsDir || preview.PreviewType != "text" {
+		c.JSON(415, gin.H{"error": "only text files can be streamed"})
+		return
+	}
+
+	file, err := os.Open(preview.Path)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	defer file.Close()
+
+	c.Header("Content-Type", "text/plain; charset=utf-8")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Cache-Control", "no-store")
+	c.Header("X-File-Size", strconv.FormatInt(preview.Size, 10))
+	c.Status(http.StatusOK)
+
+	flusher, _ := c.Writer.(http.Flusher)
+	buf := make([]byte, 32*1024)
+	for {
+		select {
+		case <-c.Request.Context().Done():
+			return
+		default:
+		}
+
+		n, readErr := file.Read(buf)
+		if n > 0 {
+			if _, writeErr := c.Writer.Write(buf[:n]); writeErr != nil {
+				return
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+		if readErr == io.EOF {
+			return
+		}
+		if readErr != nil {
+			return
+		}
+	}
 }
 
 func handleSystemHome(c *gin.Context) {
@@ -318,6 +381,7 @@ func handleProcessMaps(c *gin.Context) {
 func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/ls", handleSystemLs)
 	rg.GET("/file-preview", handleFilePreview)
+	rg.GET("/file-preview/stream", handleFilePreviewStream)
 	rg.GET("/home", handleSystemHome)
 	rg.GET("/download", handleDownload)
 	rg.POST("/upload", handleUpload)

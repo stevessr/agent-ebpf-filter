@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
-import { PlayCircleOutlined } from '@ant-design/icons-vue';
+import { DeleteOutlined, PlayCircleOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
 import RemoteWrapperTerminal from '../../components/terminal/RemoteWrapperTerminal.vue';
@@ -80,13 +80,25 @@ const createShellSession = async (
   return session;
 };
 
-const { launchEnvRecord } = useLaunchEnv();
+const launchEnv = useLaunchEnv();
+const {
+  launchEnvRecord,
+  activeProfile,
+  newLaunchEnvKey,
+  newLaunchEnvValue,
+  launchEnvEntries,
+  launchEnvEntriesCount,
+  launchEnvColumns,
+  launchEnvPreview,
+  addLaunchEnvEntry,
+  removeLaunchEnvEntry,
+} = launchEnv;
 
 const {
   codingPreset, codingCustomCommand, codingExtraArgs,
   codingSessionName, codingWorkDir, codingUseTmux,
   codingLaunching, codingCommandPreview, launchCodingCli,
-} = useCodingLauncher(createShellSession, launchEnvRecord.value);
+} = useCodingLauncher(createShellSession, () => launchEnvRecord.value);
 
 const {
   scriptLanguage, scriptPath, scriptWorkDir, pythonVenv,
@@ -94,7 +106,7 @@ const {
   scriptCommandPreview, launchScript,
 } = useScriptLauncher(
   (payload, msg) => createShellSession(payload, msg, 'shell'),
-  launchEnvRecord.value,
+  () => launchEnvRecord.value,
 );
 
 // Path picker
@@ -256,23 +268,71 @@ const applyPickedPath = (path: string) => {
             </a-card>
           </a-col>
           <a-col :xs="24" :xl="14">
-            <a-card title="Runtime notes" :bordered="false">
-              <a-space direction="vertical" :size="12" style="width: 100%;">
-                <a-descriptions bordered size="small" :column="1">
-                  <a-descriptions-item label="Default environment"><span>System</span></a-descriptions-item>
-                  <a-descriptions-item label="Python interpreter"><span>{{ resolvePythonInterpreter(pythonVenv) }}</span></a-descriptions-item>
-                  <a-descriptions-item label="Current launch"><span>{{ scriptCommandPreview }}</span></a-descriptions-item>
-                  <a-descriptions-item label="Workdir fallback"><span>{{ scriptWorkDir.trim() || (scriptPath.trim() ? dirname(scriptPath) : 'script parent') }}</span></a-descriptions-item>
-                </a-descriptions>
-                <a-alert type="warning" show-icon message="Browse to the script file first, then optionally set a venv for Python." />
-                <a-alert type="info" show-icon message="The launched script session will show up in the Shell Manager tab for detach/reattach." />
-              </a-space>
-            </a-card>
+            <a-space direction="vertical" :size="16" style="width: 100%;">
+              <a-card title="Runtime notes" :bordered="false">
+                <a-space direction="vertical" :size="12" style="width: 100%;">
+                  <a-descriptions bordered size="small" :column="1">
+                    <a-descriptions-item label="Default environment"><span>System + launch env overrides</span></a-descriptions-item>
+                    <a-descriptions-item label="Python interpreter"><span>{{ resolvePythonInterpreter(pythonVenv) }}</span></a-descriptions-item>
+                    <a-descriptions-item label="Current launch"><span>{{ scriptCommandPreview }}</span></a-descriptions-item>
+                    <a-descriptions-item label="Workdir fallback"><span>{{ scriptWorkDir.trim() || (scriptPath.trim() ? dirname(scriptPath) : 'script parent') }}</span></a-descriptions-item>
+                    <a-descriptions-item label="Launch env"><span>{{ launchEnvPreview }}</span></a-descriptions-item>
+                  </a-descriptions>
+                  <a-alert type="warning" show-icon message="Browse to the script file first, then optionally set a venv for Python." />
+                  <a-alert type="info" show-icon message="The launched script session will show up in the Shell Manager tab for detach/reattach." />
+                </a-space>
+              </a-card>
+
+              <a-card :title="`Launch environment: ${activeProfile.name}`" :bordered="false">
+                <template #extra>
+                  <a-space :size="8">
+                    <a-tag color="green">{{ launchEnvEntriesCount }} active</a-tag>
+                    <SettingOutlined />
+                  </a-space>
+                </template>
+                <a-alert type="info" show-icon style="margin-bottom: 16px;"
+                  message="These variables are applied to scripts launched from this page."
+                  description="The full profile manager remains available in the Launch Env tab." />
+                <a-form layout="vertical">
+                  <a-row :gutter="12">
+                    <a-col :xs="24" :md="8">
+                      <a-form-item label="Key">
+                        <a-input v-model:value="newLaunchEnvKey" placeholder="FOO_BAR" @pressEnter="addLaunchEnvEntry" />
+                      </a-form-item>
+                    </a-col>
+                    <a-col :xs="24" :md="12">
+                      <a-form-item label="Value">
+                        <a-input v-model:value="newLaunchEnvValue" placeholder="value" @pressEnter="addLaunchEnvEntry" />
+                      </a-form-item>
+                    </a-col>
+                    <a-col :xs="24" :md="4" style="display: flex; align-items: flex-end;">
+                      <a-button type="primary" block @click="addLaunchEnvEntry">
+                        <template #icon><PlusOutlined /></template>
+                        Add
+                      </a-button>
+                    </a-col>
+                  </a-row>
+                </a-form>
+                <a-table :data-source="launchEnvEntries" :columns="launchEnvColumns" :pagination="false" size="small" row-key="id">
+                  <template #bodyCell="{ column, record }">
+                    <template v-if="column.key === 'enabled'"><a-switch v-model:checked="record.enabled" /></template>
+                    <template v-else-if="column.key === 'key'"><a-input v-model:value="record.key" placeholder="ENV_NAME" allow-clear /></template>
+                    <template v-else-if="column.key === 'value'"><a-input v-model:value="record.value" placeholder="value" allow-clear /></template>
+                    <template v-else-if="column.key === 'action'">
+                      <a-button size="small" danger @click="removeLaunchEnvEntry(record.id)">
+                        <template #icon><DeleteOutlined /></template>
+                        Delete
+                      </a-button>
+                    </template>
+                  </template>
+                </a-table>
+              </a-card>
+            </a-space>
           </a-col>
         </a-row>
       </a-tab-pane>
 
-      <ExecutorLaunchEnvTab />
+      <ExecutorLaunchEnvTab :launch-env="launchEnv" />
     </a-tabs>
 
     <PathNavigatorDrawer

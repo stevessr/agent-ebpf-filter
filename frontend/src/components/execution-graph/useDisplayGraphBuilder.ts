@@ -263,10 +263,12 @@ export const applyProcessTreeLayout = (
  * Create a string key that captures the current topology for change detection.
  */
 export const createTopologyKey = (
+  width: number,
   height: number,
   displayGraph: DisplayGraph,
 ) =>
   [
+    width,
     height,
     displayGraph.nodes
       .map((node) => `${node.id}:${node.kind}:${node.label}:${node.subtitle ?? ''}`)

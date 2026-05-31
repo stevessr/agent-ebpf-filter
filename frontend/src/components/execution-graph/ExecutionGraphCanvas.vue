@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as d3 from 'd3';
 
 import type { ExecutionGraphEdge, ExecutionGraphNode } from '../../types/executionGraph';
@@ -37,6 +37,7 @@ const emit = defineEmits<{
   (event: 'select-node', nodeId: string): void;
 }>();
 
+const containerRef = ref<HTMLDivElement | null>(null);
 const svgRef = ref<SVGSVGElement | null>(null);
 let simulation: d3.Simulation<ForceNode, ForceLink> | null = null;
 let rootGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
@@ -44,10 +45,13 @@ let linkGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
 let nodeGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
 let emptyGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
 let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
+let resizeObserver: ResizeObserver | null = null;
+let pendingRenderFrame = 0;
+let initialZoomApplied = false;
 let lastTopologyKey = '';
 let currentDisplayGraph: { nodes: ExecutionGraphNode[]; edges: ExecutionGraphEdge[] } = { nodes: [], edges: [] };
 
-const loadPersistedZoom = () => {
+const loadPersistedZoom = (width: number, height: number) => {
   if (!props.zoomStorageKey) return d3.zoomIdentity;
   try {
     const raw = localStorage.getItem(props.zoomStorageKey);
@@ -56,7 +60,20 @@ const loadPersistedZoom = () => {
     const x = Number(parsed.x);
     const y = Number(parsed.y);
     const k = Number(parsed.k);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(k) || k <= 0) {
+    const minVisibleX = -width * 1.8;
+    const maxVisibleX = width * 1.2;
+    const minVisibleY = -height * 1.8;
+    const maxVisibleY = height * 1.2;
+    if (
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(k) ||
+      k <= 0 ||
+      x < minVisibleX ||
+      x > maxVisibleX ||
+      y < minVisibleY ||
+      y > maxVisibleY
+    ) {
       return d3.zoomIdentity;
     }
     return d3.zoomIdentity.translate(x, y).scale(k);
@@ -77,28 +94,33 @@ const persistZoom = (transform: d3.ZoomTransform) => {
 const initializeCanvas = (svgElement: SVGSVGElement, width: number, height: number) => {
   const svg = d3.select(svgElement);
   svg.attr('viewBox', `0 0 ${width} ${height}`);
-  if (rootGroup && linkGroup && nodeGroup && emptyGroup && zoomBehavior) return;
 
-  rootGroup = svg.append('g');
-  linkGroup = rootGroup.append('g').attr('stroke', '#cbd5e1').attr('stroke-opacity', 0.75);
-  nodeGroup = rootGroup.append('g');
-  emptyGroup = rootGroup.append('g');
+  if (!rootGroup || !linkGroup || !nodeGroup || !emptyGroup || !zoomBehavior) {
+    rootGroup = svg.append('g');
+    linkGroup = rootGroup.append('g').attr('stroke', '#cbd5e1').attr('stroke-opacity', 0.75);
+    nodeGroup = rootGroup.append('g');
+    emptyGroup = rootGroup.append('g');
 
-  emptyGroup
-    .append('text')
-    .attr('text-anchor', 'middle')
-    .attr('fill', '#64748b')
-    .attr('font-size', 14)
-    .text('No graph data');
+    emptyGroup
+      .append('text')
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#64748b')
+      .attr('font-size', 14)
+      .text('No graph data');
 
-  zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
-    .scaleExtent([0.35, 2.5])
-    .on('zoom', (event) => {
-      rootGroup?.attr('transform', event.transform.toString());
-      persistZoom(event.transform);
-    });
-  svg.call(zoomBehavior);
-  svg.call(zoomBehavior.transform, loadPersistedZoom());
+    zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.35, 2.5])
+      .on('zoom', (event) => {
+        rootGroup?.attr('transform', event.transform.toString());
+        persistZoom(event.transform);
+      });
+    svg.call(zoomBehavior);
+  }
+
+  if (!initialZoomApplied && zoomBehavior) {
+    svg.call(zoomBehavior.transform, loadPersistedZoom(width, height));
+    initialZoomApplied = true;
+  }
 };
 
 const updateEmptyState = (width: number, height: number, hasNodes: boolean) => {
@@ -134,21 +156,33 @@ const updateSimulation = (nodes: ForceNode[], links: ForceLink[], width: number,
     .force('collision', d3.forceCollide<ForceNode>().radius((node) => nodeRadius(node) + 14));
 
   if (topologyChanged) {
-    simulation.alpha(0.35).restart();
+    simulation.alpha(0.55).restart();
   }
+};
+
+const requestGraphUpdate = () => {
+  if (pendingRenderFrame) return;
+  pendingRenderFrame = window.requestAnimationFrame(() => {
+    pendingRenderFrame = 0;
+    updateGraph();
+  });
 };
 
 const updateGraph = () => {
   const svgElement = svgRef.value;
-  if (!svgElement) return;
+  const containerElement = containerRef.value;
+  if (!svgElement || !containerElement) return;
 
-  const width = Math.max(svgElement.clientWidth || 960, 640);
+  const measuredWidth = containerElement.clientWidth || svgElement.clientWidth;
+  if (!measuredWidth) return;
+
+  const width = Math.max(measuredWidth, 640);
   const height = props.height;
   initializeCanvas(svgElement, width, height);
   if (!linkGroup || !nodeGroup) return;
 
   currentDisplayGraph = buildDisplayGraph(props.nodes, props.edges);
-  const topologyKey = createTopologyKey(height, currentDisplayGraph);
+  const topologyKey = createTopologyKey(width, height, currentDisplayGraph);
   const topologyChanged = topologyKey !== lastTopologyKey;
   lastTopologyKey = topologyKey;
   const existingForceNodes = simulation?.nodes() ?? [];
@@ -248,19 +282,32 @@ const updateGraph = () => {
 
 watch(
   () => [props.nodes, props.edges, props.selectedNodeId, props.height],
-  () => updateGraph(),
+  () => requestGraphUpdate(),
   { deep: true },
 );
 
-onMounted(() => updateGraph());
+onMounted(async () => {
+  await nextTick();
+  requestGraphUpdate();
+  if (typeof ResizeObserver !== 'undefined' && containerRef.value) {
+    resizeObserver = new ResizeObserver(() => requestGraphUpdate());
+    resizeObserver.observe(containerRef.value);
+  }
+});
 
 onBeforeUnmount(() => {
+  if (pendingRenderFrame) {
+    window.cancelAnimationFrame(pendingRenderFrame);
+    pendingRenderFrame = 0;
+  }
+  resizeObserver?.disconnect();
+  resizeObserver = null;
   simulation?.stop();
 });
 </script>
 
 <template>
-  <div class="execution-graph-canvas">
+  <div ref="containerRef" class="execution-graph-canvas">
     <svg ref="svgRef" class="execution-graph-svg" />
   </div>
 </template>

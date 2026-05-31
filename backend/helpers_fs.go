@@ -290,6 +290,7 @@ func buildFilePreview(path string) (*FilePreviewResponse, error) {
 		res.PreviewType = "text"
 		res.Language = detectLanguage(absPath)
 		res.Content = string(data)
+		res.Streamable = res.Truncated
 		return res, nil
 	}
 

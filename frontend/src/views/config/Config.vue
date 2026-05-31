@@ -84,19 +84,21 @@ watch(activeTabKey, (val) => {
 });
 
 // ── Initial Data Fetch ──
-onMounted(async () => {
+onMounted(() => {
   updateClusterTargetFromStorage();
-  await fetchClusterState();
-  await fetchClusterNodes();
-  await fetchRuntime();
-  fetchTags();
-  fetchTrackedComms();
-  fetchTrackedPaths();
-  fetchTrackedPrefixes();
-  fetchRules();
-  fetchDisabledEventTypes();
-  fetchCgroupSandboxStatus();
-  fetchLsmEnforcerStatus();
+  void Promise.allSettled([
+    fetchTags(),
+    fetchTrackedComms(),
+    fetchTrackedPaths(),
+    fetchTrackedPrefixes(),
+    fetchRules(),
+    fetchDisabledEventTypes(),
+    fetchCgroupSandboxStatus(),
+    fetchLsmEnforcerStatus(),
+    fetchClusterState(),
+    fetchClusterNodes(),
+    fetchRuntime(),
+  ]);
 });
 </script>
 

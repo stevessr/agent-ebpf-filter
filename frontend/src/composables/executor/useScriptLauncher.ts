@@ -94,7 +94,10 @@ export const resolveScriptLaunchPlan = (
   }
 };
 
-export function useScriptLauncher(createSession: (payload: ShellSessionCreateRequest, successMessage: string) => Promise<ShellSessionInfo | undefined>, launchEnvRecord: Record<string, string>) {
+export function useScriptLauncher(
+  createSession: (payload: ShellSessionCreateRequest, successMessage: string) => Promise<ShellSessionInfo | undefined>,
+  getLaunchEnvRecord: () => Record<string, string>,
+) {
   const scriptLanguage = ref<ScriptLanguage>('python');
   const scriptPath = ref('');
   const scriptWorkDir = ref('');
@@ -150,7 +153,7 @@ export function useScriptLauncher(createSession: (payload: ShellSessionCreateReq
         rows: 32,
         label: `${scriptLanguage.value}: ${basename(script)}`,
         kind: 'script',
-        env: launchEnvRecord,
+        env: getLaunchEnvRecord(),
       };
       await createSession(payload, `Launched ${scriptLanguage.value} script: ${basename(script)}`);
     } catch (err: any) {

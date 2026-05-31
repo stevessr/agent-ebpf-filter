@@ -14,7 +14,7 @@ export const CODING_PRESET_OPTIONS: Array<{ label: string; value: CodingPresetKe
 
 export function useCodingLauncher(
   createSession: (payload: ShellSessionCreateRequest, successMessage: string, manager: 'shell' | 'tmux') => Promise<ShellSessionInfo | undefined>,
-  launchEnvRecord: Record<string, string>,
+  getLaunchEnvRecord: () => Record<string, string>,
 ) {
   const codingPreset = ref<CodingPresetKey>('codex');
   const codingCustomCommand = ref('');
@@ -76,7 +76,7 @@ export function useCodingLauncher(
             rows: 32,
             label: `tmux: ${cliCommand}`,
             kind: 'tmux',
-            env: launchEnvRecord,
+            env: getLaunchEnvRecord(),
           }
         : {
             shell: cliCommand,
@@ -87,7 +87,7 @@ export function useCodingLauncher(
             rows: 32,
             label: `cli: ${cliCommand}`,
             kind: 'shell',
-            env: launchEnvRecord,
+            env: getLaunchEnvRecord(),
           };
 
       await createSession(payload, `Launched coding CLI: ${cliCommand}`, codingUseTmux.value ? 'tmux' : 'shell');

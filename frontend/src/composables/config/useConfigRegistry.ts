@@ -46,10 +46,12 @@ export function useConfigRegistry() {
   const fetchTags = async () => {
     try {
       const res = await axios.get('/config/tags');
-      tags.value = res.data;
+      const names = Array.isArray(res.data) ? res.data : res.data?.names;
+      tags.value = Array.isArray(names) ? names.filter((tag): tag is string => typeof tag === 'string' && tag.length > 0) : [];
       if (tags.value.length > 0) {
         if (!newCommTag.value) newCommTag.value = tags.value[0];
         if (!newPathTag.value) newPathTag.value = tags.value[0];
+        if (!newPrefixTag.value) newPrefixTag.value = tags.value[0];
       }
     } catch (_) {}
   };

@@ -14,6 +14,7 @@ export interface FilePreviewResponse {
   content: string;
   dataUrl: string;
   truncated: boolean;
+  streamable?: boolean;
 }
 
 const previewableEventTypes = new Set(['execve', 'openat', 'mkdir', 'unlink', 'open', 'chmod', 'chown', 'rename', 'link', 'symlink', 'mknod']);

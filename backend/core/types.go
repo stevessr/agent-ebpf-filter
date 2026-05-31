@@ -188,6 +188,7 @@ type FilePreviewResponse struct {
 	Content     string    `json:"content,omitempty"`
 	DataURL     string    `json:"dataUrl,omitempty"`
 	Truncated   bool      `json:"truncated,omitempty"`
+	Streamable  bool      `json:"streamable,omitempty"`
 }
 
 // TrackerMapSet holds references to the pinned eBPF maps.

@@ -3,7 +3,11 @@ import {
   PlusOutlined, SettingOutlined, EditOutlined, CopyOutlined,
   DeleteOutlined, ReloadOutlined,
 } from '@ant-design/icons-vue';
-import { useLaunchEnv } from '../../composables/executor/useLaunchEnv';
+import type { useLaunchEnv } from '../../composables/executor/useLaunchEnv';
+
+const props = defineProps<{
+  launchEnv: ReturnType<typeof useLaunchEnv>;
+}>();
 
 const {
   profiles, activeProfileId, activeProfile,
@@ -17,7 +21,7 @@ const {
   refreshDetectedLaunchEnvEntries, importAllDetectedLaunchEnvEntries,
   isLaunchEnvImported, importDetectedLaunchEnvEntry,
   profileRenameModalOpen, profileRenameValue, applyRename,
-} = useLaunchEnv();
+} = props.launchEnv;
 </script>
 
 <template>

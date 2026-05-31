@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch, watchEffect } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { createHighlighter, type Highlighter } from 'shiki';
 import type { FilePreviewResponse } from '../../types/filePreview';
+import { buildRequestHeaders } from '../../utils/requestContext';
 
 let highlighterInstance: Highlighter | null = null;
 const getHighlighter = async () => {
@@ -50,47 +51,144 @@ const formattedModTime = computed(() => {
 const highlightedHtml = ref('');
 const highlightLoading = ref(false);
 const wordWrap = ref(true);
+const streamedContent = ref('');
+const streamLoading = ref(false);
+const streamError = ref('');
+const streamBytesLoaded = ref(0);
+let streamAbortController: AbortController | null = null;
+let highlightRunId = 0;
+
+const isStreamingText = computed(() => (
+  props.open &&
+  props.preview?.previewType === 'text' &&
+  props.preview.streamable === true
+));
+const textContent = computed(() => (isStreamingText.value ? streamedContent.value : props.preview?.content || ''));
+const streamProgressPercent = computed(() => {
+  const size = props.preview?.size || 0;
+  if (!size) return 0;
+  return Math.min(100, Math.round((streamBytesLoaded.value / size) * 100));
+});
 
 const videoUrl = computed(() => {
   if (!props.preview?.path) return '';
   return `/system/download?path=${encodeURIComponent(props.preview.path)}`;
 });
 
+const stopStreaming = () => {
+  if (streamAbortController) {
+    streamAbortController.abort();
+    streamAbortController = null;
+  }
+  streamLoading.value = false;
+};
+
+const resetStreamState = () => {
+  stopStreaming();
+  streamedContent.value = '';
+  streamError.value = '';
+  streamBytesLoaded.value = 0;
+};
+
+const streamTextPreview = async (path: string) => {
+  resetStreamState();
+  const controller = new AbortController();
+  streamAbortController = controller;
+  streamLoading.value = true;
+
+  try {
+    const response = await fetch(`/system/file-preview/stream?path=${encodeURIComponent(path)}`, {
+      headers: buildRequestHeaders(),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Stream failed: ${response.status}`);
+    }
+    if (!response.body) {
+      throw new Error('Streaming is not supported by this browser');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      streamBytesLoaded.value += value.byteLength;
+      streamedContent.value += decoder.decode(value, { stream: true });
+    }
+    streamedContent.value += decoder.decode();
+  } catch (err) {
+    if ((err as Error).name !== 'AbortError') {
+      streamError.value = (err as Error).message || 'Failed to stream file preview';
+    }
+  } finally {
+    if (streamAbortController === controller) {
+      streamAbortController = null;
+      streamLoading.value = false;
+    }
+  }
+};
+
 watch(() => props.open, (isOpen) => {
   if (!isOpen) {
     highlightedHtml.value = '';
     highlightLoading.value = false;
+    resetStreamState();
   }
 });
 
-watchEffect(async () => {
-  if (props.preview?.previewType === 'text' && props.preview.content) {
-    highlightLoading.value = true;
-    try {
-      const lang = props.preview.language || 'text';
-      const hl = await getHighlighter();
-      
-      if (!hl.getLoadedLanguages().includes(lang)) {
-        try {
-          await hl.loadLanguage(lang as any);
-        } catch (e) {
-          console.warn(`Language ${lang} not supported by shiki`);
-        }
-      }
+watch(
+  () => [props.open, props.preview?.path, props.preview?.previewType, props.preview?.streamable] as const,
+  ([isOpen, path, previewType, streamable]) => {
+    if (isOpen && path && previewType === 'text' && streamable) {
+      void streamTextPreview(path);
+      return;
+    }
+    resetStreamState();
+  },
+  { immediate: true },
+);
 
-      highlightedHtml.value = hl.codeToHtml(props.preview.content, {
-        lang: hl.getLoadedLanguages().includes(lang) ? lang : 'text',
-        theme: 'github-dark',
-      });
-    } catch (err) {
-      console.error('Failed to highlight code', err);
+watch(
+  () => [props.preview?.path, props.preview?.previewType, props.preview?.language, props.preview?.content, props.preview?.streamable] as const,
+  async ([, previewType, language, content, streamable]) => {
+    const runId = ++highlightRunId;
+    if (previewType === 'text' && content && !streamable) {
+      highlightLoading.value = true;
+      try {
+        const lang = language || 'text';
+        const hl = await getHighlighter();
+
+        if (!hl.getLoadedLanguages().includes(lang)) {
+          try {
+            await hl.loadLanguage(lang as any);
+          } catch (e) {
+            console.warn(`Language ${lang} not supported by shiki`);
+          }
+        }
+
+        if (runId !== highlightRunId) return;
+        highlightedHtml.value = hl.codeToHtml(content, {
+          lang: hl.getLoadedLanguages().includes(lang) ? lang : 'text',
+          theme: 'github-dark',
+        });
+      } catch (err) {
+        console.error('Failed to highlight code', err);
+        if (runId === highlightRunId) highlightedHtml.value = '';
+      } finally {
+        if (runId === highlightRunId) highlightLoading.value = false;
+      }
+    } else {
       highlightedHtml.value = '';
-    } finally {
       highlightLoading.value = false;
     }
-  } else {
-    highlightedHtml.value = '';
-  }
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(() => {
+  resetStreamState();
 });
 </script>
 
@@ -107,7 +205,8 @@ watchEffect(async () => {
           <a-descriptions-item label="Type">
             <a-tag :color="preview.isDir ? 'blue' : 'default'">{{ preview.previewType.toUpperCase() }}</a-tag>
             <a-tag v-if="preview.mimeType">{{ preview.mimeType }}</a-tag>
-            <a-tag v-if="preview.truncated" color="orange">TRUNCATED</a-tag>
+            <a-tag v-if="preview.streamable" color="green">STREAMING</a-tag>
+            <a-tag v-else-if="preview.truncated" color="orange">TRUNCATED</a-tag>
           </a-descriptions-item>
           <a-descriptions-item label="Size">{{ formatBytes(preview.size) }}</a-descriptions-item>
           <a-descriptions-item label="Mode">{{ preview.mode || '—' }}</a-descriptions-item>
@@ -138,9 +237,9 @@ watchEffect(async () => {
         </div>
 
         <div v-else-if="preview.previewType === 'video'" class="file-preview-drawer__content">
-          <video 
+          <video
             v-if="preview.mimeType.startsWith('video/')"
-            controls 
+            controls
             autoplay
             style="width: 100%; max-height: 70vh; border-radius: 8px; background: #000;"
             :src="videoUrl">
@@ -156,18 +255,30 @@ watchEffect(async () => {
         </div>
 
         <div v-else-if="preview.previewType === 'text'" class="file-preview-drawer__content">
-          <div style="display: flex; justify-content: flex-end; margin-bottom: 8px; gap: 8px; align-items: center;">
-            <span style="font-size: 12px; color: #888;">Language: {{ preview.language }}</span>
+          <div class="file-preview-drawer__text-toolbar">
+            <span>Language: {{ preview.language || 'text' }}</span>
+            <template v-if="preview.streamable">
+              <span>{{ formatBytes(streamBytesLoaded) }} / {{ formatBytes(preview.size) }}</span>
+              <a-progress :percent="streamProgressPercent" size="small" class="file-preview-drawer__progress" />
+              <a-button v-if="streamLoading" size="small" @click="stopStreaming">Stop</a-button>
+            </template>
             <a-checkbox v-model:checked="wordWrap" size="small">Word Wrap</a-checkbox>
           </div>
-          <a-spin :spinning="highlightLoading">
-            <div 
-              v-if="highlightedHtml" 
-              class="file-preview-drawer__shiki" 
+          <a-alert
+            v-if="streamError"
+            type="error"
+            show-icon
+            :message="streamError"
+            style="margin-bottom: 12px;"
+          />
+          <a-spin :spinning="highlightLoading && !isStreamingText">
+            <div
+              v-if="highlightedHtml && !isStreamingText"
+              class="file-preview-drawer__shiki"
               :class="{ 'is-wrapped': wordWrap }"
               v-html="highlightedHtml">
             </div>
-            <pre v-else class="file-preview-drawer__pre" :class="{ 'is-wrapped': wordWrap }">{{ preview.content }}</pre>
+            <pre v-else class="file-preview-drawer__pre" :class="{ 'is-wrapped': wordWrap }">{{ textContent }}</pre>
           </a-spin>
         </div>
 
@@ -189,6 +300,21 @@ watchEffect(async () => {
 <style scoped>
 .file-preview-drawer__content {
   max-width: 100%;
+}
+
+.file-preview-drawer__text-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #888;
+}
+
+.file-preview-drawer__progress {
+  width: 180px;
 }
 
 .file-preview-drawer__pre,
