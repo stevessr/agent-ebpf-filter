@@ -300,6 +300,12 @@ func buildFilePreview(path string) (*FilePreviewResponse, error) {
 		return nil, err
 	}
 
+	if mimeType == "application/pdf" || strings.ToLower(filepath.Ext(absPath)) == ".pdf" {
+		res.PreviewType = "pdf"
+		res.MimeType = "application/pdf"
+		return res, nil
+	}
+
 	if strings.HasPrefix(mimeType, "image/") {
 		res.PreviewType = "image"
 		if info.Size() > imagePreviewLimitBytes {

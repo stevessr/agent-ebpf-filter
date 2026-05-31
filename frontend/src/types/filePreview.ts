@@ -1,4 +1,4 @@
-export type FilePreviewType = 'text' | 'image' | 'video' | 'binary' | 'directory';
+export type FilePreviewType = 'text' | 'image' | 'pdf' | 'video' | 'binary' | 'directory';
 
 export interface FilePreviewResponse {
   path: string;

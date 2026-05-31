@@ -91,10 +91,12 @@ const virtualStatus = computed(() => {
   return `Rendering lines ${virtualStartLine.value + 1}-${virtualEndLine.value} of ${virtualTotalLines.value}`;
 });
 
-const videoUrl = computed(() => {
+const downloadUrl = computed(() => {
   if (!props.preview?.path) return '';
   return `/system/download?path=${encodeURIComponent(props.preview.path)}`;
 });
+const pdfUrl = computed(() => (downloadUrl.value ? `${downloadUrl.value}#toolbar=1&navpanes=1` : ''));
+const videoUrl = computed(() => downloadUrl.value);
 
 const stopStreaming = () => {
   if (streamAbortController) {
@@ -135,7 +137,7 @@ const flushStreamLines = (force = false) => {
 
 const appendStreamText = (text: string) => {
   if (!text) return;
-  const parts = (streamLineCarry + text).split(/\r?\n/);
+  const parts = (streamLineCarry + text.replace(/^﻿/, '')).split(/\r?\n/);
   streamLineCarry = parts.pop() ?? '';
   if (!parts.length) return;
   streamLines.value.push(...parts);
@@ -309,6 +311,18 @@ onBeforeUnmount(() => {
           />
         </div>
 
+        <div v-else-if="preview.previewType === 'pdf'" class="file-preview-drawer__content">
+          <div class="file-preview-drawer__pdf-toolbar">
+            <a-button size="small" :href="downloadUrl" target="_blank" rel="noopener noreferrer">Open in new tab</a-button>
+            <a-button size="small" :href="downloadUrl" download>Download</a-button>
+          </div>
+          <iframe
+            class="file-preview-drawer__pdf"
+            :src="pdfUrl"
+            :title="preview.name"
+          />
+        </div>
+
         <div v-else-if="preview.previewType === 'video'" class="file-preview-drawer__content">
           <video
             v-if="preview.mimeType.startsWith('video/')"
@@ -410,6 +424,23 @@ onBeforeUnmount(() => {
 
 .file-preview-drawer__progress {
   width: 180px;
+}
+
+.file-preview-drawer__pdf-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.file-preview-drawer__pdf {
+  display: block;
+  width: 100%;
+  height: calc(100vh - 320px);
+  min-height: 520px;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background: #f8fafc;
 }
 
 .file-preview-drawer__pre,

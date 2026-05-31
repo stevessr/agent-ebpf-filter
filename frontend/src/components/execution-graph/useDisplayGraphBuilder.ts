@@ -21,6 +21,52 @@ export interface DisplayGraph {
   edges: ExecutionGraphEdge[];
 }
 
+const stableHash = (value: string) => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const kindColumnRatio = (kind: string) => {
+  switch (kind) {
+    case 'agent_run':
+      return 0.12;
+    case 'tool_call':
+      return 0.22;
+    case 'process':
+      return 0.28;
+    case 'syscall':
+    case 'wrapper_event':
+    case 'hook_event':
+      return 0.52;
+    case 'policy_alert':
+    case 'policy_decision':
+    case 'exit_status':
+      return 0.64;
+    case 'file':
+      return 0.78;
+    case 'network':
+      return 0.88;
+    default:
+      return 0.5;
+  }
+};
+
+const stableInitialPosition = (node: ExecutionGraphNode, width: number, height: number) => {
+  const hash = stableHash(`${node.kind}:${node.metadata?.sourceNodeId ?? node.id}:${node.label}`);
+  const columnJitter = ((hash & 0xff) / 255 - 0.5) * 64;
+  const rowRatio = ((hash >>> 8) % 1000) / 999;
+  const topPadding = 72;
+  const bottomPadding = 72;
+  return {
+    x: Math.max(48, Math.min(width - 48, width * kindColumnRatio(node.kind) + columnJitter)),
+    y: topPadding + rowRatio * Math.max(1, height - topPadding - bottomPadding),
+  };
+};
+
 const processPid = (node: ExecutionGraphNode) => {
   if (node.kind !== 'process') return '';
   const explicitPid = String(node.metadata?.pid ?? node.pid ?? '').trim();
@@ -32,6 +78,14 @@ const processPid = (node: ExecutionGraphNode) => {
 };
 
 const isPidOnlyProcessNode = (node: ExecutionGraphNode) => /^pid\s+\d+$/i.test(node.label.trim());
+
+const processProgramKey = (node: ExecutionGraphNode) => {
+  if (node.kind !== 'process' || isPidOnlyProcessNode(node)) return '';
+  const comm = node.metadata?.comm?.trim();
+  const label = node.label.trim().replace(/\s*\(\d+\)$/, '');
+  const key = (comm || label).trim().toLowerCase();
+  return key && key !== 'process' ? `program:${key}` : '';
+};
 
 const formatProcessNode = (node: ExecutionGraphNode): ExecutionGraphNode => {
   const pid = processPid(node);
@@ -74,26 +128,48 @@ const normalizeProcessNodes = (
   nodes: ExecutionGraphNode[],
   edges: ExecutionGraphEdge[],
 ): DisplayGraph => {
-  const processByPid = new Map<string, ExecutionGraphNode>();
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const processByProgram = new Map<string, ExecutionGraphNode>();
   const canonicalIdBySourceId = new Map<string, string>();
   const normalizedNodes: ExecutionGraphNode[] = [];
 
   nodes.forEach((node) => {
-    const pid = processPid(node);
-    if (!pid) {
+    if (node.kind !== 'process') {
       normalizedNodes.push(node);
       return;
     }
-    processByPid.set(pid, mergeProcessNode(processByPid.get(pid), node));
+    if (isPidOnlyProcessNode(node)) return;
+    const key = processProgramKey(node) || `pid:${processPid(node) || node.id}`;
+    const merged = mergeProcessNode(processByProgram.get(key), node);
+    processByProgram.set(key, merged);
   });
 
-  processByPid.forEach((node, pid) => {
-    canonicalIdBySourceId.set(`proc:${pid}`, node.id);
-    nodes.forEach((candidate) => {
-      if (processPid(candidate) === pid) canonicalIdBySourceId.set(candidate.id, node.id);
-    });
-    normalizedNodes.push(node);
+  nodes.forEach((node) => {
+    if (node.kind !== 'process' || isPidOnlyProcessNode(node)) return;
+    const key = processProgramKey(node) || `pid:${processPid(node) || node.id}`;
+    const canonical = processByProgram.get(key);
+    if (canonical) canonicalIdBySourceId.set(node.id, canonical.id);
   });
+
+  nodes.forEach((node) => {
+    if (node.kind !== 'process' || !isPidOnlyProcessNode(node)) return;
+    const adjacentProcessId = edges
+      .filter((edge) => edge.source === node.id || edge.target === node.id)
+      .map((edge) => (edge.source === node.id ? edge.target : edge.source))
+      .find((id) => {
+        const adjacent = nodeById.get(id);
+        return adjacent?.kind === 'process' && !isPidOnlyProcessNode(adjacent) && canonicalIdBySourceId.has(adjacent.id);
+      });
+    if (adjacentProcessId) {
+      canonicalIdBySourceId.set(node.id, canonicalIdBySourceId.get(adjacentProcessId) ?? adjacentProcessId);
+      return;
+    }
+    const fallback = formatProcessNode(node);
+    canonicalIdBySourceId.set(node.id, fallback.id);
+    processByProgram.set(`pid:${processPid(node) || node.id}`, fallback);
+  });
+
+  normalizedNodes.push(...processByProgram.values());
 
   const normalizedEdges = edges.map((edge) => {
     const source = canonicalIdBySourceId.get(edge.source) ?? edge.source;
@@ -204,24 +280,29 @@ export const buildForceNodes = (
   existingNodes: ForceNode[],
   width: number,
   height: number,
+  savedPositions: Map<string, { x: number; y: number }> = new Map(),
 ): ForceNode[] => {
   const existingById = new Map(existingNodes.map((node) => [node.id, node]));
   return displayNodes.map((node) => {
     const existing = existingById.get(node.id);
+    const savedPosition = savedPositions.get(node.id);
     if (existing) {
       Object.assign(existing, node);
+      if (savedPosition) {
+        existing.x = savedPosition.x;
+        existing.y = savedPosition.y;
+        existing.fx = savedPosition.x;
+        existing.fy = savedPosition.y;
+      }
       return existing;
     }
-    const relatedEdge = displayEdges.find(
-      (edge) => edge.source === node.id || edge.target === node.id,
-    );
-    const relatedId =
-      relatedEdge?.source === node.id ? relatedEdge.target : relatedEdge?.source;
-    const relatedNode = relatedId ? existingById.get(relatedId) : undefined;
+    const stablePosition = stableInitialPosition(node, width, height);
     return {
       ...node,
-      x: relatedNode?.x ?? width / 2 + (Math.random() - 0.5) * 80,
-      y: relatedNode?.y ?? height / 2 + (Math.random() - 0.5) * 80,
+      x: savedPosition?.x ?? stablePosition.x,
+      y: savedPosition?.y ?? stablePosition.y,
+      fx: savedPosition?.x,
+      fy: savedPosition?.y,
     } as ForceNode;
   });
 };
