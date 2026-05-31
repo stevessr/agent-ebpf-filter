@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf16"
 	"unicode/utf8"
 )
 
@@ -141,6 +142,61 @@ func isTextLikeMime(mimeType string) bool {
 		strings.Contains(mt, "x-go") ||
 		strings.Contains(mt, "x-rust") ||
 		strings.Contains(mt, "x-java")
+}
+
+func detectTextEncoding(data []byte) string {
+	if len(data) >= 2 {
+		if data[0] == 0xff && data[1] == 0xfe {
+			return "utf-16le"
+		}
+		if data[0] == 0xfe && data[1] == 0xff {
+			return "utf-16be"
+		}
+	}
+	if len(data) >= 16 {
+		evenNUL := 0
+		oddNUL := 0
+		for i, b := range data {
+			if b != 0 {
+				continue
+			}
+			if i%2 == 0 {
+				evenNUL++
+			} else {
+				oddNUL++
+			}
+		}
+		pairs := len(data) / 2
+		if pairs > 0 && oddNUL*2 > pairs {
+			return "utf-16le"
+		}
+		if pairs > 0 && evenNUL*2 > pairs {
+			return "utf-16be"
+		}
+	}
+	return "utf-8"
+}
+
+func decodeTextPreview(data []byte, encoding string) string {
+	if encoding != "utf-16le" && encoding != "utf-16be" {
+		return string(data)
+	}
+	start := 0
+	if len(data) >= 2 && ((data[0] == 0xff && data[1] == 0xfe) || (data[0] == 0xfe && data[1] == 0xff)) {
+		start = 2
+	}
+	if (len(data)-start)%2 != 0 {
+		data = data[:len(data)-1]
+	}
+	units := make([]uint16, 0, (len(data)-start)/2)
+	for i := start; i+1 < len(data); i += 2 {
+		if encoding == "utf-16le" {
+			units = append(units, uint16(data[i])|uint16(data[i+1])<<8)
+		} else {
+			units = append(units, uint16(data[i])<<8|uint16(data[i+1]))
+		}
+	}
+	return string(utf16.Decode(units))
 }
 
 func detectLanguage(path string) string {
@@ -286,10 +342,12 @@ func buildFilePreview(path string) (*FilePreviewResponse, error) {
 		res.Truncated = true
 	}
 
-	if isTextLikeMime(mimeType) || utf8.Valid(data) {
+	encoding := detectTextEncoding(data)
+	if isTextLikeMime(mimeType) || utf8.Valid(data) || encoding != "utf-8" {
 		res.PreviewType = "text"
 		res.Language = detectLanguage(absPath)
-		res.Content = string(data)
+		res.Encoding = encoding
+		res.Content = decodeTextPreview(data, encoding)
 		res.Streamable = res.Truncated
 		return res, nil
 	}

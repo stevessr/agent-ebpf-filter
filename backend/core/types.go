@@ -185,6 +185,7 @@ type FilePreviewResponse struct {
 	MimeType    string    `json:"mimeType,omitempty"`
 	PreviewType string    `json:"previewType"`
 	Language    string    `json:"language,omitempty"`
+	Encoding    string    `json:"encoding,omitempty"`
 	Content     string    `json:"content,omitempty"`
 	DataURL     string    `json:"dataUrl,omitempty"`
 	Truncated   bool      `json:"truncated,omitempty"`

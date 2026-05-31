@@ -11,6 +11,7 @@ export interface FilePreviewResponse {
   mimeType: string;
   previewType: FilePreviewType;
   language?: string;
+  encoding?: string;
   content: string;
   dataUrl: string;
   truncated: boolean;

@@ -21,6 +21,91 @@ export interface DisplayGraph {
   edges: ExecutionGraphEdge[];
 }
 
+const processPid = (node: ExecutionGraphNode) => {
+  if (node.kind !== 'process') return '';
+  const explicitPid = String(node.metadata?.pid ?? node.pid ?? '').trim();
+  if (explicitPid) return explicitPid;
+  const idMatch = /^proc:(\d+)$/.exec(node.id.trim());
+  if (idMatch) return idMatch[1];
+  const labelMatch = /^pid\s+(\d+)$/i.exec(node.label.trim());
+  return labelMatch?.[1] ?? '';
+};
+
+const isPidOnlyProcessNode = (node: ExecutionGraphNode) => /^pid\s+\d+$/i.test(node.label.trim());
+
+const formatProcessNode = (node: ExecutionGraphNode): ExecutionGraphNode => {
+  const pid = processPid(node);
+  const metadata = { ...(node.metadata ?? {}) };
+  if (pid) metadata.pid = pid;
+  return {
+    ...node,
+    label: processDisplayLabel({ ...node, metadata }) || node.label,
+    subtitle: node.subtitle || (pid ? `pid=${pid}` : node.subtitle),
+    metadata,
+  };
+};
+
+const mergeProcessNode = (current: ExecutionGraphNode | undefined, next: ExecutionGraphNode): ExecutionGraphNode => {
+  if (!current) return formatProcessNode({ ...next, metadata: next.metadata ? { ...next.metadata } : undefined });
+  const currentPidOnly = isPidOnlyProcessNode(current);
+  const nextPidOnly = isPidOnlyProcessNode(next);
+  const winner = currentPidOnly && !nextPidOnly ? next : current;
+  const fallback = winner === current ? next : current;
+  const pid = processPid(winner) || processPid(fallback);
+  const metadata = { ...(fallback.metadata ?? {}), ...(winner.metadata ?? {}) };
+  if (pid) metadata.pid = pid;
+  const subtitleParts = [winner.subtitle, fallback.subtitle]
+    .map((value) => value?.trim())
+    .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index);
+  const label = processDisplayLabel({ ...winner, metadata, pid: winner.pid || fallback.pid }) || winner.label;
+  return {
+    ...fallback,
+    ...winner,
+    id: winner.id,
+    label,
+    subtitle: subtitleParts[0] ?? (pid ? `pid=${pid}` : winner.subtitle),
+    pid: winner.pid || fallback.pid,
+    riskScore: Math.max(winner.riskScore ?? 0, fallback.riskScore ?? 0) || undefined,
+    metadata,
+  };
+};
+
+const normalizeProcessNodes = (
+  nodes: ExecutionGraphNode[],
+  edges: ExecutionGraphEdge[],
+): DisplayGraph => {
+  const processByPid = new Map<string, ExecutionGraphNode>();
+  const canonicalIdBySourceId = new Map<string, string>();
+  const normalizedNodes: ExecutionGraphNode[] = [];
+
+  nodes.forEach((node) => {
+    const pid = processPid(node);
+    if (!pid) {
+      normalizedNodes.push(node);
+      return;
+    }
+    processByPid.set(pid, mergeProcessNode(processByPid.get(pid), node));
+  });
+
+  processByPid.forEach((node, pid) => {
+    canonicalIdBySourceId.set(`proc:${pid}`, node.id);
+    nodes.forEach((candidate) => {
+      if (processPid(candidate) === pid) canonicalIdBySourceId.set(candidate.id, node.id);
+    });
+    normalizedNodes.push(node);
+  });
+
+  const normalizedEdges = edges.map((edge) => {
+    const source = canonicalIdBySourceId.get(edge.source) ?? edge.source;
+    const target = canonicalIdBySourceId.get(edge.target) ?? edge.target;
+    return source === edge.source && target === edge.target
+      ? edge
+      : { ...edge, id: `${source}->${target}:${edge.kind}`, source, target };
+  });
+
+  return { nodes: normalizedNodes, edges: normalizedEdges };
+};
+
 /**
  * Build the aggregated display graph from raw nodes and edges.
  * Groups events by process and type, merges duplicate edges.
@@ -29,9 +114,10 @@ export const buildDisplayGraph = (
   rawNodes: ExecutionGraphNode[],
   rawEdges: ExecutionGraphEdge[],
 ): DisplayGraph => {
-  const sourceNodes = new Map(rawNodes.map((node) => [node.id, node]));
+  const normalizedGraph = normalizeProcessNodes(rawNodes, rawEdges);
+  const sourceNodes = new Map(normalizedGraph.nodes.map((node) => [node.id, node]));
   const eventToProcess = new Map<string, string>();
-  rawEdges.forEach((edge) => {
+  normalizedGraph.edges.forEach((edge) => {
     if (!activityEdgeKinds.has(edge.kind)) return;
     const source = sourceNodes.get(edge.source);
     const target = sourceNodes.get(edge.target);
@@ -44,7 +130,7 @@ export const buildDisplayGraph = (
     { node: ExecutionGraphNode; eventIds: string[]; sourceIds: string[] }
   >();
   const aggregateIdByEventId = new Map<string, string>();
-  rawNodes.forEach((node) => {
+  normalizedGraph.nodes.forEach((node) => {
     const processId = eventToProcess.get(node.id);
     if (!processId) return;
     const processNode = sourceNodes.get(processId);
@@ -89,13 +175,13 @@ export const buildDisplayGraph = (
     };
   });
 
-  const displayNodes = rawNodes
+  const displayNodes = normalizedGraph.nodes
     .filter((node) => node.kind === 'process' || !aggregateIdByEventId.has(node.id))
     .concat([...aggregateByKey.values()].map((item) => item.node));
   const displayNodeIds = new Set(displayNodes.map((node) => node.id));
   const edgeById = new Map<string, ExecutionGraphEdge>();
 
-  rawEdges.forEach((edge) => {
+  normalizedGraph.edges.forEach((edge) => {
     const source = aggregateIdByEventId.get(edge.source) ?? edge.source;
     const target = aggregateIdByEventId.get(edge.target) ?? edge.target;
     if (!source || !target || source === target) return;

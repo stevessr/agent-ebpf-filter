@@ -93,5 +93,5 @@ export const processDisplayLabel = (node: ExecutionGraphNode | undefined) => {
   if (!node) return '';
   const pid = String(node.metadata?.pid ?? node.pid ?? '').trim();
   const label = /^pid \d+$/.test(node.label.trim()) ? 'process' : node.label;
-  return pid ? `${label} (${pid})` : label;
+  return pid && !label.endsWith(`(${pid})`) ? `${label} (${pid})` : label;
 };

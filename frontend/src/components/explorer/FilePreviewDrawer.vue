@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, triggerRef, watch } from 'vue';
 import { createHighlighter, type Highlighter } from 'shiki';
 import type { FilePreviewResponse } from '../../types/filePreview';
 import { buildRequestHeaders } from '../../utils/requestContext';
@@ -29,6 +29,11 @@ const emit = defineEmits<{
   (event: 'update:open', value: boolean): void;
 }>();
 
+const STREAM_CHUNK_FLUSH_LINES = 80;
+const VIRTUAL_LINE_HEIGHT = 21;
+const VIRTUAL_OVERSCAN_LINES = 40;
+const VIRTUAL_DEFAULT_VIEWPORT_HEIGHT = 520;
+
 const drawerOpen = computed({
   get: () => props.open,
   set: (value: boolean) => emit('update:open', value),
@@ -51,11 +56,16 @@ const formattedModTime = computed(() => {
 const highlightedHtml = ref('');
 const highlightLoading = ref(false);
 const wordWrap = ref(true);
-const streamedContent = ref('');
 const streamLoading = ref(false);
 const streamError = ref('');
 const streamBytesLoaded = ref(0);
+const streamLines = shallowRef<string[]>([]);
+const virtualScrollTop = ref(0);
+const virtualViewportHeight = ref(VIRTUAL_DEFAULT_VIEWPORT_HEIGHT);
+const virtualScrollerRef = ref<HTMLElement | null>(null);
 let streamAbortController: AbortController | null = null;
+let streamLineCarry = '';
+let pendingStreamLineCount = 0;
 let highlightRunId = 0;
 
 const isStreamingText = computed(() => (
@@ -63,11 +73,22 @@ const isStreamingText = computed(() => (
   props.preview?.previewType === 'text' &&
   props.preview.streamable === true
 ));
-const textContent = computed(() => (isStreamingText.value ? streamedContent.value : props.preview?.content || ''));
 const streamProgressPercent = computed(() => {
   const size = props.preview?.size || 0;
   if (!size) return 0;
   return Math.min(100, Math.round((streamBytesLoaded.value / size) * 100));
+});
+const virtualTotalLines = computed(() => streamLines.value.length);
+const virtualTotalHeight = computed(() => Math.max(virtualTotalLines.value * VIRTUAL_LINE_HEIGHT, virtualViewportHeight.value));
+const virtualStartLine = computed(() => Math.max(0, Math.floor(virtualScrollTop.value / VIRTUAL_LINE_HEIGHT) - VIRTUAL_OVERSCAN_LINES));
+const virtualVisibleLineCount = computed(() => Math.ceil(virtualViewportHeight.value / VIRTUAL_LINE_HEIGHT) + VIRTUAL_OVERSCAN_LINES * 2);
+const virtualEndLine = computed(() => Math.min(virtualTotalLines.value, virtualStartLine.value + virtualVisibleLineCount.value));
+const virtualTopOffset = computed(() => virtualStartLine.value * VIRTUAL_LINE_HEIGHT);
+const virtualRenderedLines = computed(() => streamLines.value.slice(virtualStartLine.value, virtualEndLine.value));
+const virtualStatus = computed(() => {
+  if (!isStreamingText.value) return '';
+  if (!virtualTotalLines.value) return streamLoading.value ? 'Loading first slice…' : 'No text loaded';
+  return `Rendering lines ${virtualStartLine.value + 1}-${virtualEndLine.value} of ${virtualTotalLines.value}`;
 });
 
 const videoUrl = computed(() => {
@@ -85,13 +106,62 @@ const stopStreaming = () => {
 
 const resetStreamState = () => {
   stopStreaming();
-  streamedContent.value = '';
   streamError.value = '';
   streamBytesLoaded.value = 0;
+  streamLineCarry = '';
+  pendingStreamLineCount = 0;
+  virtualScrollTop.value = 0;
+  streamLines.value = [];
 };
+
+const syncVirtualViewport = async () => {
+  await nextTick();
+  const el = virtualScrollerRef.value;
+  if (!el) return;
+  virtualViewportHeight.value = el.clientHeight || VIRTUAL_DEFAULT_VIEWPORT_HEIGHT;
+};
+
+const handleVirtualScroll = (event: Event) => {
+  const el = event.currentTarget as HTMLElement;
+  virtualScrollTop.value = el.scrollTop;
+  virtualViewportHeight.value = el.clientHeight || VIRTUAL_DEFAULT_VIEWPORT_HEIGHT;
+};
+
+const flushStreamLines = (force = false) => {
+  if (!force && pendingStreamLineCount < STREAM_CHUNK_FLUSH_LINES) return;
+  pendingStreamLineCount = 0;
+  triggerRef(streamLines);
+};
+
+const appendStreamText = (text: string) => {
+  if (!text) return;
+  const parts = (streamLineCarry + text).split(/\r?\n/);
+  streamLineCarry = parts.pop() ?? '';
+  if (!parts.length) return;
+  streamLines.value.push(...parts);
+  pendingStreamLineCount += parts.length;
+  flushStreamLines();
+};
+
+const finishStreamLines = () => {
+  if (streamLineCarry || !streamLines.value.length) {
+    streamLines.value.push(streamLineCarry.replace(/^﻿/, ''));
+  }
+  streamLineCarry = '';
+  flushStreamLines(true);
+};
+
+const normalizeTextEncoding = (encoding?: string) => {
+  const value = (encoding || 'utf-8').toLowerCase();
+  if (value === 'utf-16le' || value === 'utf-16be') return value;
+  return 'utf-8';
+};
+
+const streamDecoderEncoding = computed(() => normalizeTextEncoding(props.preview?.encoding));
 
 const streamTextPreview = async (path: string) => {
   resetStreamState();
+  void syncVirtualViewport();
   const controller = new AbortController();
   streamAbortController = controller;
   streamLoading.value = true;
@@ -109,15 +179,16 @@ const streamTextPreview = async (path: string) => {
     }
 
     const reader = response.body.getReader();
-    const decoder = new TextDecoder('utf-8');
+    const decoder = new TextDecoder(streamDecoderEncoding.value);
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       if (!value) continue;
       streamBytesLoaded.value += value.byteLength;
-      streamedContent.value += decoder.decode(value, { stream: true });
+      appendStreamText(decoder.decode(value, { stream: true }));
     }
-    streamedContent.value += decoder.decode();
+    appendStreamText(decoder.decode());
+    finishStreamLines();
   } catch (err) {
     if ((err as Error).name !== 'AbortError') {
       streamError.value = (err as Error).message || 'Failed to stream file preview';
@@ -135,7 +206,9 @@ watch(() => props.open, (isOpen) => {
     highlightedHtml.value = '';
     highlightLoading.value = false;
     resetStreamState();
+    return;
   }
+  void syncVirtualViewport();
 });
 
 watch(
@@ -205,7 +278,7 @@ onBeforeUnmount(() => {
           <a-descriptions-item label="Type">
             <a-tag :color="preview.isDir ? 'blue' : 'default'">{{ preview.previewType.toUpperCase() }}</a-tag>
             <a-tag v-if="preview.mimeType">{{ preview.mimeType }}</a-tag>
-            <a-tag v-if="preview.streamable" color="green">STREAMING</a-tag>
+            <a-tag v-if="preview.streamable" color="green">VIRTUAL STREAM</a-tag>
             <a-tag v-else-if="preview.truncated" color="orange">TRUNCATED</a-tag>
           </a-descriptions-item>
           <a-descriptions-item label="Size">{{ formatBytes(preview.size) }}</a-descriptions-item>
@@ -259,11 +332,20 @@ onBeforeUnmount(() => {
             <span>Language: {{ preview.language || 'text' }}</span>
             <template v-if="preview.streamable">
               <span>{{ formatBytes(streamBytesLoaded) }} / {{ formatBytes(preview.size) }}</span>
+              <span>{{ virtualStatus }}</span>
               <a-progress :percent="streamProgressPercent" size="small" class="file-preview-drawer__progress" />
               <a-button v-if="streamLoading" size="small" @click="stopStreaming">Stop</a-button>
             </template>
-            <a-checkbox v-model:checked="wordWrap" size="small">Word Wrap</a-checkbox>
+            <a-checkbox v-if="!isStreamingText" v-model:checked="wordWrap" size="small">Word Wrap</a-checkbox>
           </div>
+          <a-alert
+            v-if="isStreamingText"
+            type="info"
+            show-icon
+            message="Virtualized stream preview"
+            description="The file is sliced into lines and only the visible window is rendered into DOM. Word wrap is disabled for stable virtual scrolling."
+            style="margin-bottom: 12px;"
+          />
           <a-alert
             v-if="streamError"
             type="error"
@@ -271,14 +353,27 @@ onBeforeUnmount(() => {
             :message="streamError"
             style="margin-bottom: 12px;"
           />
-          <a-spin :spinning="highlightLoading && !isStreamingText">
+          <div
+            v-if="isStreamingText"
+            ref="virtualScrollerRef"
+            class="file-preview-drawer__virtual-scroller"
+            @scroll="handleVirtualScroll"
+          >
+            <div class="file-preview-drawer__virtual-spacer" :style="{ height: `${virtualTotalHeight}px` }">
+              <pre
+                class="file-preview-drawer__virtual-pre"
+                :style="{ transform: `translateY(${virtualTopOffset}px)` }"
+              ><template v-for="(line, index) in virtualRenderedLines" :key="virtualStartLine + index">{{ line }}{{ '\n' }}</template></pre>
+            </div>
+          </div>
+          <a-spin v-else :spinning="highlightLoading">
             <div
-              v-if="highlightedHtml && !isStreamingText"
+              v-if="highlightedHtml"
               class="file-preview-drawer__shiki"
               :class="{ 'is-wrapped': wordWrap }"
               v-html="highlightedHtml">
             </div>
-            <pre v-else class="file-preview-drawer__pre" :class="{ 'is-wrapped': wordWrap }">{{ textContent }}</pre>
+            <pre v-else class="file-preview-drawer__pre" :class="{ 'is-wrapped': wordWrap }">{{ preview.content }}</pre>
           </a-spin>
         </div>
 
@@ -329,6 +424,34 @@ onBeforeUnmount(() => {
   font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
   font-size: 13px;
   line-height: 1.6;
+}
+
+.file-preview-drawer__virtual-scroller {
+  height: calc(100vh - 330px);
+  min-height: 360px;
+  overflow: auto;
+  border-radius: 8px;
+  background: #0f172a;
+}
+
+.file-preview-drawer__virtual-spacer {
+  position: relative;
+  min-width: max-content;
+}
+
+.file-preview-drawer__virtual-pre {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 16px;
+  color: #e2e8f0;
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  line-height: 21px;
+  white-space: pre;
+  overflow: visible;
 }
 
 .file-preview-drawer__shiki :deep(.line) {

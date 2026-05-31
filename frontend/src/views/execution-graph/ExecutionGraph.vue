@@ -136,6 +136,46 @@ const nearestProcessNode = computed(() => {
 });
 const actionableComm = computed(() => nearestProcessNode.value?.metadata?.comm?.trim() || nearestProcessNode.value?.label.trim() || '');
 const replayAvailable = computed(() => !!(selectedNode.value?.metadata?.agentRunId || selectedNode.value?.metadata?.toolCallId || selectedNode.value?.metadata?.traceId));
+const hiddenGraphKinds = ref<Set<string>>(new Set());
+const graphKindLabels: Record<string, string> = {
+  agent_run: 'agent',
+  tool_call: 'tool',
+  process: 'process',
+  syscall: 'syscall',
+  wrapper_event: 'wrapper',
+  hook_event: 'hook',
+  file: 'file',
+  network: 'network',
+  policy_decision: 'policy',
+  policy_alert: 'alert',
+  exit_status: 'exit',
+};
+const graphKindOrder = ['process', 'syscall', 'tool_call', 'agent_run', 'network', 'file', 'policy_alert', 'policy_decision', 'wrapper_event', 'hook_event', 'exit_status'];
+const graphKindFilters = computed(() => {
+  const counts = new Map(Object.entries(graph.value.nodeCounts ?? {}));
+  graph.value.nodes.forEach((node) => {
+    if (!counts.has(node.kind)) counts.set(node.kind, 0);
+  });
+  return [...counts.entries()]
+    .sort(([left], [right]) => {
+      const leftIndex = graphKindOrder.indexOf(left);
+      const rightIndex = graphKindOrder.indexOf(right);
+      return (leftIndex === -1 ? graphKindOrder.length : leftIndex) - (rightIndex === -1 ? graphKindOrder.length : rightIndex) || left.localeCompare(right);
+    })
+    .map(([kind, count]) => ({
+      kind,
+      count,
+      label: graphKindLabels[kind] ?? kind,
+      color: kindTagColorMap[kind] ?? 'default',
+      hidden: hiddenGraphKinds.value.has(kind),
+    }));
+});
+const visibleGraphNodes = computed(() => graph.value.nodes.filter((node) => !hiddenGraphKinds.value.has(node.kind)));
+const visibleGraphEdges = computed(() => {
+  const visibleIds = new Set(visibleGraphNodes.value.map((node) => node.id));
+  return graph.value.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target));
+});
+const hasHiddenGraphKinds = computed(() => hiddenGraphKinds.value.size > 0);
 const activeTraceTab = computed<TraceTab>({
   get() {
     const tab = String(route.params.tab || 'topology');
@@ -148,6 +188,21 @@ const activeTraceTab = computed<TraceTab>({
 const renderNodeSubtitle = (node: ExecutionGraphNode) => node.subtitle?.trim() || node.metadata?.path || node.metadata?.endpoint || '—';
 // ── Event handlers ───────────────────────────────────────────────────
 const handleSelectNode = (id: string) => { selectedNodeId.value = id; };
+const toggleGraphKind = (kind: string) => {
+  const next = new Set(hiddenGraphKinds.value);
+  if (next.has(kind)) {
+    next.delete(kind);
+  } else {
+    next.add(kind);
+  }
+  hiddenGraphKinds.value = next;
+  if (selectedNode.value && next.has(selectedNode.value.kind)) {
+    selectedNodeId.value = graph.value.nodes.find((node) => !next.has(node.kind))?.id ?? '';
+  }
+};
+const resetGraphKindFilters = () => {
+  hiddenGraphKinds.value = new Set();
+};
 const handleProcessPicked = (p: ProcessInfo) => { void focusProcessBase(p.pid); };
 const focusRelatedTab = (tab: DetailTab) => { activeDetailTab.value = tab; };
 const focusProcessFromNode = async () => {
@@ -314,11 +369,19 @@ onUnmounted(() => {
             </template>
             <template #extra>
               <a-space wrap>
-                <a-tag color="green">process</a-tag>
-                <a-tag color="orange">syscall</a-tag>
-                <a-tag color="blue">tool</a-tag>
-                <a-tag color="red">network</a-tag>
-                <a-tag color="default">file</a-tag>
+                <a-tag
+                  v-for="item in graphKindFilters"
+                  :key="item.kind"
+                  :color="item.hidden ? 'default' : item.color"
+                  class="graph-kind-tag"
+                  :class="{ 'graph-kind-tag-hidden': item.hidden }"
+                  @click="toggleGraphKind(item.kind)"
+                >
+                  {{ item.hidden ? '显示' : '隐藏' }} {{ item.label }} · {{ item.count }}
+                </a-tag>
+                <a-button v-if="hasHiddenGraphKinds" size="small" type="link" @click="resetGraphKindFilters">
+                  全部显示
+                </a-button>
               </a-space>
             </template>
             <a-alert
@@ -337,8 +400,8 @@ onUnmounted(() => {
             />
             <a-spin :spinning="loading">
               <ExecutionGraphCanvas
-                :nodes="graph.nodes"
-                :edges="graph.edges"
+                :nodes="visibleGraphNodes"
+                :edges="visibleGraphEdges"
                 :selected-node-id="selectedNodeId"
                 zoom-storage-key="agent-ebpf.execution-graph.execution-topology.zoom"
                 @select-node="handleSelectNode"
