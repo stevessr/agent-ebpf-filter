@@ -45,7 +45,7 @@ const routes = [
     component: () => import('../views/explorer/Explorer.vue'),
   },
   {
-    path: '/executor/:tab?',
+    path: '/executor/:tab?/:subtab?',
     name: 'Executor',
     component: () => import('../views/executor/Executor.vue'),
   },

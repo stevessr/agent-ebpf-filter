@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
-import { DeleteOutlined, PlayCircleOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons-vue';
+import { PlayCircleOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
 import RemoteWrapperTerminal from '../../components/terminal/RemoteWrapperTerminal.vue';
@@ -15,7 +15,8 @@ import { useCodingLauncher, CODING_PRESET_OPTIONS } from '../../composables/exec
 import { useScriptLauncher, SCRIPT_LANGUAGE_OPTIONS } from '../../composables/executor/useScriptLauncher';
 import { dirname, resolvePythonInterpreter } from '../../composables/executor/useLauncherUtils';
 
-type ExecutorTabKey = 'shell' | 'remote' | 'tmux' | 'scripts' | 'launch-env';
+type ExecutorTabKey = 'shell' | 'remote' | 'tmux' | 'scripts';
+type ScriptTabKey = 'runner' | 'launch-env';
 type PathPickerTarget = 'coding-workdir' | 'script-path' | 'script-workdir' | 'python-venv';
 
 type LocalShellManagerExpose = {
@@ -30,15 +31,50 @@ const tmuxManagerRef = ref<LocalShellManagerExpose | null>(null);
 const route = useRoute();
 const router = useRouter();
 
-const activeTabKey = ref<ExecutorTabKey>(route.params.tab as ExecutorTabKey || 'shell');
+const normalizeMainTab = (tab: unknown): ExecutorTabKey => {
+  if (tab === 'remote' || tab === 'tmux' || tab === 'scripts') return tab;
+  if (tab === 'launch-env') return 'scripts';
+  return 'shell';
+};
 
-watch(() => route.params.tab, (val) => {
-  if (val) activeTabKey.value = val as ExecutorTabKey;
-});
+const normalizeScriptTab = (tab: unknown): ScriptTabKey => (
+  tab === 'launch-env' ? 'launch-env' : 'runner'
+);
+
+const activeTabKey = ref<ExecutorTabKey>(normalizeMainTab(route.params.tab));
+const scriptTabKey = ref<ScriptTabKey>(
+  route.params.tab === 'launch-env' ? 'launch-env' : normalizeScriptTab(route.params.subtab),
+);
+
+watch(
+  () => [route.params.tab, route.params.subtab],
+  ([tab, subtab]) => {
+    if (tab === 'launch-env') {
+      activeTabKey.value = 'scripts';
+      scriptTabKey.value = 'launch-env';
+      return;
+    }
+    activeTabKey.value = normalizeMainTab(tab);
+    if (activeTabKey.value === 'scripts') {
+      scriptTabKey.value = normalizeScriptTab(subtab);
+    }
+  },
+);
 
 watch(activeTabKey, (val) => {
   if (val !== route.params.tab) {
-    router.replace({ name: 'Executor', params: { tab: val } });
+    router.replace({
+      name: 'Executor',
+      params: { tab: val, subtab: val === 'scripts' && scriptTabKey.value !== 'runner' ? scriptTabKey.value : undefined },
+    });
+  }
+});
+
+watch(scriptTabKey, (val) => {
+  if (activeTabKey.value !== 'scripts') return;
+  const subtab = val === 'runner' ? undefined : val;
+  if (route.params.tab !== 'scripts' || route.params.subtab !== subtab) {
+    router.replace({ name: 'Executor', params: { tab: 'scripts', subtab } });
   }
 });
 
@@ -81,18 +117,7 @@ const createShellSession = async (
 };
 
 const launchEnv = useLaunchEnv();
-const {
-  launchEnvRecord,
-  activeProfile,
-  newLaunchEnvKey,
-  newLaunchEnvValue,
-  launchEnvEntries,
-  launchEnvEntriesCount,
-  launchEnvColumns,
-  launchEnvPreview,
-  addLaunchEnvEntry,
-  removeLaunchEnvEntry,
-} = launchEnv;
+const { launchEnvRecord, launchEnvPreview } = launchEnv;
 
 const {
   codingPreset, codingCustomCommand, codingExtraArgs,
@@ -235,104 +260,63 @@ const applyPickedPath = (path: string) => {
       </a-tab-pane>
 
       <a-tab-pane key="scripts" tab="Script Runner">
-        <a-row :gutter="[16, 16]">
-          <a-col :xs="24" :xl="10">
-            <a-card title="Launch script" :bordered="false">
-              <a-alert type="info" show-icon style="margin-bottom: 16px;"
-                message="This launcher starts Python, Node.js, Ruby, sh, pwsh, Deno, or Bun scripts in a dedicated backend shell session."
-                description="System environment is the default. For Python, you can optionally point at a venv directory and the launcher will use its interpreter."
-              />
-              <a-form layout="vertical">
-                <a-form-item label="Language">
-                  <a-select v-model:value="scriptLanguage" :options="SCRIPT_LANGUAGE_OPTIONS" />
-                </a-form-item>
-                <a-form-item label="Script file">
-                  <a-input-search v-model:value="scriptPath" placeholder="/path/to/script.py, app.js, script.rb, or script.ps1" enter-button="Browse" @search="setPathPickerTarget('script-path')" />
-                </a-form-item>
-                <a-form-item label="Workdir">
-                  <a-input-search v-model:value="scriptWorkDir" placeholder="defaults to script parent directory" enter-button="Browse" @search="setPathPickerTarget('script-workdir')" />
-                </a-form-item>
-                <a-form-item v-if="scriptLanguage === 'python'" label="Python venv directory">
-                  <a-input-search v-model:value="pythonVenv" placeholder="Leave empty for system Python" enter-button="Browse" @search="setPathPickerTarget('python-venv')" />
-                </a-form-item>
-                <a-form-item label="Script args">
-                  <a-input v-model:value="scriptArgs" :placeholder="scriptArgsPlaceholder" />
-                </a-form-item>
-                <a-alert v-if="scriptLanguage === 'deno'" type="info" show-icon style="margin-bottom: 16px;" message="For Deno, put runtime flags before `--`, then script arguments after `--`." />
-                <a-alert type="success" show-icon style="margin-bottom: 16px;" :message="scriptCommandPreview" />
-                <a-button type="primary" :loading="scriptLaunching" block @click="launchScript">
-                  <template #icon><PlayCircleOutlined /></template>
-                  Launch script
-                </a-button>
-              </a-form>
-            </a-card>
-          </a-col>
-          <a-col :xs="24" :xl="14">
-            <a-space direction="vertical" :size="16" style="width: 100%;">
-              <a-card title="Runtime notes" :bordered="false">
-                <a-space direction="vertical" :size="12" style="width: 100%;">
-                  <a-descriptions bordered size="small" :column="1">
-                    <a-descriptions-item label="Default environment"><span>System + launch env overrides</span></a-descriptions-item>
-                    <a-descriptions-item label="Python interpreter"><span>{{ resolvePythonInterpreter(pythonVenv) }}</span></a-descriptions-item>
-                    <a-descriptions-item label="Current launch"><span>{{ scriptCommandPreview }}</span></a-descriptions-item>
-                    <a-descriptions-item label="Workdir fallback"><span>{{ scriptWorkDir.trim() || (scriptPath.trim() ? dirname(scriptPath) : 'script parent') }}</span></a-descriptions-item>
-                    <a-descriptions-item label="Launch env"><span>{{ launchEnvPreview }}</span></a-descriptions-item>
-                  </a-descriptions>
-                  <a-alert type="warning" show-icon message="Browse to the script file first, then optionally set a venv for Python." />
-                  <a-alert type="info" show-icon message="The launched script session will show up in the Shell Manager tab for detach/reattach." />
-                </a-space>
-              </a-card>
-
-              <a-card :title="`Launch environment: ${activeProfile.name}`" :bordered="false">
-                <template #extra>
-                  <a-space :size="8">
-                    <a-tag color="green">{{ launchEnvEntriesCount }} active</a-tag>
-                    <SettingOutlined />
+        <a-tabs v-model:activeKey="scriptTabKey" size="small" :destroyInactiveTabPane="false">
+          <a-tab-pane key="runner" tab="Run Script">
+            <a-row :gutter="[16, 16]">
+              <a-col :xs="24" :xl="10">
+                <a-card title="Launch script" :bordered="false">
+                  <a-alert type="info" show-icon style="margin-bottom: 16px;"
+                    message="This launcher starts Python, Node.js, Ruby, sh, pwsh, Deno, or Bun scripts in a dedicated backend shell session."
+                    description="System environment is the default. For Python, you can optionally point at a venv directory and the launcher will use its interpreter."
+                  />
+                  <a-form layout="vertical">
+                    <a-form-item label="Language">
+                      <a-select v-model:value="scriptLanguage" :options="SCRIPT_LANGUAGE_OPTIONS" />
+                    </a-form-item>
+                    <a-form-item label="Script file">
+                      <a-input-search v-model:value="scriptPath" placeholder="/path/to/script.py, app.js, script.rb, or script.ps1" enter-button="Browse" @search="setPathPickerTarget('script-path')" />
+                    </a-form-item>
+                    <a-form-item label="Workdir">
+                      <a-input-search v-model:value="scriptWorkDir" placeholder="defaults to script parent directory" enter-button="Browse" @search="setPathPickerTarget('script-workdir')" />
+                    </a-form-item>
+                    <a-form-item v-if="scriptLanguage === 'python'" label="Python venv directory">
+                      <a-input-search v-model:value="pythonVenv" placeholder="Leave empty for system Python" enter-button="Browse" @search="setPathPickerTarget('python-venv')" />
+                    </a-form-item>
+                    <a-form-item label="Script args">
+                      <a-input v-model:value="scriptArgs" :placeholder="scriptArgsPlaceholder" />
+                    </a-form-item>
+                    <a-alert v-if="scriptLanguage === 'deno'" type="info" show-icon style="margin-bottom: 16px;" message="For Deno, put runtime flags before `--`, then script arguments after `--`." />
+                    <a-alert type="success" show-icon style="margin-bottom: 16px;" :message="scriptCommandPreview" />
+                    <a-button type="primary" :loading="scriptLaunching" block @click="launchScript">
+                      <template #icon><PlayCircleOutlined /></template>
+                      Launch script
+                    </a-button>
+                  </a-form>
+                </a-card>
+              </a-col>
+              <a-col :xs="24" :xl="14">
+                <a-card title="Runtime notes" :bordered="false">
+                  <a-space direction="vertical" :size="12" style="width: 100%;">
+                    <a-descriptions bordered size="small" :column="1">
+                      <a-descriptions-item label="Default environment"><span>System + launch env overrides</span></a-descriptions-item>
+                      <a-descriptions-item label="Python interpreter"><span>{{ resolvePythonInterpreter(pythonVenv) }}</span></a-descriptions-item>
+                      <a-descriptions-item label="Current launch"><span>{{ scriptCommandPreview }}</span></a-descriptions-item>
+                      <a-descriptions-item label="Workdir fallback"><span>{{ scriptWorkDir.trim() || (scriptPath.trim() ? dirname(scriptPath) : 'script parent') }}</span></a-descriptions-item>
+                      <a-descriptions-item label="Launch env"><span>{{ launchEnvPreview }}</span></a-descriptions-item>
+                    </a-descriptions>
+                    <a-alert type="warning" show-icon message="Browse to the script file first, then optionally set a venv for Python." />
+                    <a-alert type="info" show-icon message="The launched script session will show up in the Shell Manager tab for detach/reattach." />
                   </a-space>
-                </template>
-                <a-alert type="info" show-icon style="margin-bottom: 16px;"
-                  message="These variables are applied to scripts launched from this page."
-                  description="The full profile manager remains available in the Launch Env tab." />
-                <a-form layout="vertical">
-                  <a-row :gutter="12">
-                    <a-col :xs="24" :md="8">
-                      <a-form-item label="Key">
-                        <a-input v-model:value="newLaunchEnvKey" placeholder="FOO_BAR" @pressEnter="addLaunchEnvEntry" />
-                      </a-form-item>
-                    </a-col>
-                    <a-col :xs="24" :md="12">
-                      <a-form-item label="Value">
-                        <a-input v-model:value="newLaunchEnvValue" placeholder="value" @pressEnter="addLaunchEnvEntry" />
-                      </a-form-item>
-                    </a-col>
-                    <a-col :xs="24" :md="4" style="display: flex; align-items: flex-end;">
-                      <a-button type="primary" block @click="addLaunchEnvEntry">
-                        <template #icon><PlusOutlined /></template>
-                        Add
-                      </a-button>
-                    </a-col>
-                  </a-row>
-                </a-form>
-                <a-table :data-source="launchEnvEntries" :columns="launchEnvColumns" :pagination="false" size="small" row-key="id">
-                  <template #bodyCell="{ column, record }">
-                    <template v-if="column.key === 'enabled'"><a-switch v-model:checked="record.enabled" /></template>
-                    <template v-else-if="column.key === 'key'"><a-input v-model:value="record.key" placeholder="ENV_NAME" allow-clear /></template>
-                    <template v-else-if="column.key === 'value'"><a-input v-model:value="record.value" placeholder="value" allow-clear /></template>
-                    <template v-else-if="column.key === 'action'">
-                      <a-button size="small" danger @click="removeLaunchEnvEntry(record.id)">
-                        <template #icon><DeleteOutlined /></template>
-                        Delete
-                      </a-button>
-                    </template>
-                  </template>
-                </a-table>
-              </a-card>
-            </a-space>
-          </a-col>
-        </a-row>
-      </a-tab-pane>
+                </a-card>
+              </a-col>
+            </a-row>
+          </a-tab-pane>
 
-      <ExecutorLaunchEnvTab :launch-env="launchEnv" />
+          <a-tab-pane key="launch-env" tab="Launch Env">
+            <ExecutorLaunchEnvTab :launch-env="launchEnv" />
+          </a-tab-pane>
+        </a-tabs>
+      </a-tab-pane>
     </a-tabs>
 
     <PathNavigatorDrawer

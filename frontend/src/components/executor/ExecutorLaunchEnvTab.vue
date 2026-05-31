@@ -25,7 +25,7 @@ const {
 </script>
 
 <template>
-  <a-tab-pane key="launch-env" tab="Launch Env">
+  <div class="executor-launch-env-tab">
     <a-row :gutter="[16, 16]">
       <a-col :span="24">
         <a-card title="Profile Management" :bordered="false" style="margin-bottom: 16px;">
@@ -152,7 +152,7 @@ const {
         </a-card>
       </a-col>
     </a-row>
-  </a-tab-pane>
+  </div>
 
   <a-modal v-model:open="profileRenameModalOpen" title="Rename Profile" @ok="applyRename">
     <a-form layout="vertical">
