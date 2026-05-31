@@ -87,6 +87,7 @@ func registerTLSCaptureRoutes(router gin.IRouter, runtime tlsCaptureRuntime, sto
 	router.PUT("/tls-capture/rules", handleTLSCaptureRulesPut(rules))
 	router.POST("/tls-capture/library", handleTLSCaptureLibrary(runtime))
 	router.POST("/tls-capture/go-binary", handleTLSCaptureGoBinary(runtime))
+	router.POST("/tls-capture/executable", handleTLSCaptureExecutable(runtime))
 }
 
 func handleTLSCaptureRecent(store *TLSCaptureStore) gin.HandlerFunc {
@@ -275,5 +276,36 @@ func handleTLSCaptureGoBinary(runtime tlsCaptureRuntime) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "attached", "resolved": resolved})
+	}
+}
+
+func handleTLSCaptureExecutable(runtime tlsCaptureRuntime) gin.HandlerFunc {
+	type request struct {
+		Path    string `json:"path"`
+		PID     int    `json:"pid"`
+		Library string `json:"library"`
+	}
+	return func(c *gin.Context) {
+		var req request
+		if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Path) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
+			return
+		}
+		if runtime == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "TLS capture runtime is unavailable"})
+			return
+		}
+		manager, err := runtime.EnsureStarted()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "status": runtime.Status()})
+			return
+		}
+
+		result := manager.AttachExecutable(req.Path, req.PID, req.Library)
+		if result.Error != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": result.Error, "result": result})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "attached", "result": result})
 	}
 }

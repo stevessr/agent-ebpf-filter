@@ -247,6 +247,7 @@ Codex reqwest/WebSocket adapter -> POST /codex/capture -> TLSCaptureStore -> con
 
 - OpenSSL/GnuTLS/NSS 静态库通过 `link.OpenExecutable` 挂载 uprobe/uretprobe
 - Go `crypto/tls` 二进制通过 ELF 符号解析和自动 /proc 扫描挂载
+- 手动可执行文件挂载入口会解析 PATH、symlink 和 shebang 解释器，支持对 Claude Code 等 CLI bin 的底层 Go 二进制或解释器进程尝试挂载 TLS 符号
 - Codex adapter 是源码级、显式环境变量启用的上报路径，适配 rustls/reqwest，未配置时不发送任何捕获数据
 - 分片在 `FragmentAssembler` 中按 TGID+TimestampNS+Direction 拼装
 - HTTP 解析器和 Codex ingest 共用敏感 header、URL query、JSON/form/text body 脱敏，主 `pb.Event` 只携带 metadata/digest

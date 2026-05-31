@@ -90,6 +90,17 @@ type TLSProbeManager struct {
 	closed bool
 }
 
+type TLSExecutableAttachResult struct {
+	Resolved     ResolvedBinary     `json:"resolved"`
+	AttachPath   string             `json:"attachPath,omitempty"`
+	TargetKind   string             `json:"targetKind,omitempty"`
+	Library      string             `json:"library,omitempty"`
+	PID          int                `json:"pid,omitempty"`
+	StaticTLS    bool               `json:"staticTls,omitempty"`
+	LibraryPaths []TLSLibraryStatus `json:"libraryPaths,omitempty"`
+	Error        string             `json:"error,omitempty"`
+}
+
 func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *tlsCaptureBroadcaster, rules *TLSCaptureRuleStore) (*TLSProbeManager, error) {
 	objs := &bpf.AgentTlsCaptureObjects{}
 	if err := bpf.LoadAgentTlsCaptureObjects(objs, nil); err != nil {
@@ -255,6 +266,61 @@ func (m *TLSProbeManager) attachReturnProbe(executable *link.Executable, label, 
 	return l, nil
 }
 
+func executableTLSAttachPath(resolved ResolvedBinary) string {
+	if resolved.Shebang != "" {
+		if interpreter := resolveShebangInterpreter(resolved.Shebang); interpreter != "" {
+			return interpreter
+		}
+	}
+	if resolved.RealPath != "" {
+		return resolved.RealPath
+	}
+	return resolved.Path
+}
+
+func resolveShebangInterpreter(shebang string) string {
+	fields := strings.Fields(strings.TrimSpace(shebang))
+	if len(fields) == 0 {
+		return ""
+	}
+	command := fields[0]
+	if filepath.Base(command) == "env" {
+		for _, field := range fields[1:] {
+			if strings.HasPrefix(field, "-") || strings.Contains(field, "=") {
+				continue
+			}
+			command = field
+			break
+		}
+	}
+	if command == "" || filepath.Base(command) == "env" {
+		return ""
+	}
+	resolved := ResolveBinary(command, "")
+	if resolved.Error == "" {
+		if resolved.RealPath != "" {
+			return resolved.RealPath
+		}
+		return resolved.Path
+	}
+	if filepath.IsAbs(command) {
+		return command
+	}
+	return ""
+}
+
+func executableLibraryCandidates(libraryHint string) []tlsProbeTarget {
+	libraryHint = strings.TrimSpace(libraryHint)
+	if libraryHint == "" || strings.EqualFold(libraryHint, "auto") {
+		return staticTLSLibraries
+	}
+	target, err := resolveManualTLSProbeTarget("", libraryHint)
+	if err != nil {
+		return staticTLSLibraries
+	}
+	return []tlsProbeTarget{target}
+}
+
 func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
 	if m == nil {
 		return nil
@@ -299,7 +365,65 @@ func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
 		m.links = m.links[:startLinks]
 		return err
 	}
+	if m.store != nil {
+		m.store.SetLibraryStatus(TLSLibraryStatus{Name: "go", Path: binPath, Attached: true, Available: true})
+	}
 	return nil
+}
+
+func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint string) TLSExecutableAttachResult {
+	result := TLSExecutableAttachResult{PID: pid}
+	if m == nil {
+		result.Error = "TLS probe manager is unavailable"
+		return result
+	}
+	resolved := ResolveBinary(input, "")
+	result.Resolved = resolved
+	if resolved.Error != "" {
+		result.Error = resolved.Error
+		return result
+	}
+
+	attachPath := executableTLSAttachPath(resolved)
+	if attachPath == "" {
+		attachPath = resolved.RealPath
+	}
+	result.AttachPath = attachPath
+	result.StaticTLS = resolved.StaticTLS
+
+	if err := m.AttachGoUprobes(attachPath, pid); err == nil {
+		result.TargetKind = "go"
+		result.Library = "go"
+		return result
+	}
+
+	libraries := executableLibraryCandidates(libraryHint)
+	var errs []error
+	for _, target := range libraries {
+		if err := m.AttachLibrary(attachPath, target.name); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if m.store != nil {
+		for _, status := range m.store.LibraryStatuses() {
+			if status.Path == attachPath {
+				result.LibraryPaths = append(result.LibraryPaths, status)
+			}
+		}
+	}
+	for _, status := range result.LibraryPaths {
+		if status.Attached {
+			result.TargetKind = "executable"
+			result.Library = status.Name
+			return result
+		}
+	}
+	if err := errors.Join(errs...); err != nil {
+		result.Error = err.Error()
+	} else {
+		result.Error = fmt.Sprintf("no TLS probes attached for executable %s", attachPath)
+	}
+	return result
 }
 
 func (m *TLSProbeManager) ReadLoop() error {

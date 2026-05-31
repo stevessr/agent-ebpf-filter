@@ -21,7 +21,7 @@ const props = defineProps<{
   events: ProcessedAgentSightEvent[];
 }>();
 
-const metric = shallowRef<AgentSightFlameMetric>('count');
+const metric = shallowRef<AgentSightFlameMetric>('duration');
 const dimensionPreset = shallowRef<AgentSightFlameDimensionPreset>('execution');
 const focusedNodeId = shallowRef('root');
 const selectedNodeId = shallowRef('root');
@@ -29,9 +29,9 @@ const selectedEvent = shallowRef<ProcessedAgentSightEvent | null>(null);
 const detailsOpen = shallowRef(false);
 
 const metricOptions: Array<{ label: string; value: AgentSightFlameMetric }> = [
+  { label: 'Duration', value: 'duration' },
   { label: 'Count', value: 'count' },
   { label: 'Bytes', value: 'bytes' },
-  { label: 'Duration', value: 'duration' },
   { label: 'Risk', value: 'risk' },
 ];
 
@@ -58,6 +58,16 @@ const focusedMetricValue = computed(() => agentSightFlameMetricValue(focusedNode
 const selectedMetricValue = computed(() => agentSightFlameMetricValue(selectedNode.value, metric.value));
 const selectedRootPercent = computed(() => rootMetricValue.value > 0 ? selectedMetricValue.value / rootMetricValue.value : 0);
 const selectedFocusPercent = computed(() => focusedMetricValue.value > 0 ? selectedMetricValue.value / focusedMetricValue.value : 0);
+const rootExplicitDuration = computed(() => tree.value.metrics.explicitDuration);
+const rootInferredDuration = computed(() => tree.value.metrics.inferredDuration);
+const rootDuration = computed(() => tree.value.metrics.duration);
+const durationCoverage = computed(() => rootDuration.value > 0 ? rootExplicitDuration.value / rootDuration.value : 0);
+const selectedDurationSource = computed(() => {
+  if (selectedNode.value.metrics.explicitDuration > 0 && selectedNode.value.metrics.inferredDuration > 0) return 'mixed explicit + inferred';
+  if (selectedNode.value.metrics.explicitDuration > 0) return 'explicit duration fields';
+  if (selectedNode.value.metrics.inferredDuration > 0) return 'timestamp gap inferred';
+  return 'none';
+});
 const sourceLegend = computed(() => {
   const sources = new Map<string, { source: string; color: string; count: number }>();
   visibleRects.value.forEach(rect => {
@@ -113,6 +123,8 @@ const tooltipText = (rect: AgentSightFlameRect) => [
   `${rect.node.label}`,
   `Level: ${rect.node.level}`,
   `${currentMetricLabel.value}: ${formatMetric(rect.value)}`,
+  `Explicit duration: ${formatMetric(rect.node.metrics.explicitDuration, 'duration')}`,
+  `Inferred duration: ${formatMetric(rect.node.metrics.inferredDuration, 'duration')}`,
   `Root: ${percentLabel(rect.percentOfRoot)}`,
   `Parent: ${percentLabel(rect.percentOfParent)}`,
   `Events: ${rect.node.eventCount.toLocaleString()}`,
@@ -131,8 +143,8 @@ watch(metric, () => {
   <div class="flamegraph-view">
     <div class="flamegraph-toolbar">
       <div class="flamegraph-heading">
-        <strong>Flamegraph</strong>
-        <span>{{ eventCount }} events · hierarchical event aggregation, not CPU stack sampling</span>
+        <strong>真实火焰图</strong>
+        <span>{{ eventCount }} events · 默认按真实/推断耗时绘制，可切换事件数、字节和风险聚合</span>
       </div>
       <a-space wrap>
         <a-segmented v-model:value="metric" :options="metricOptions" />
@@ -145,16 +157,19 @@ watch(metric, () => {
     </div>
 
     <a-alert
-      type="info"
+      type="success"
       show-icon
-      message="事件层级火焰图"
-      description="宽度表示所选指标在层级路径中的聚合占比，不表示真实时间轴；CPU/perf 函数级火焰图需要单独的 stack 采集链路。"
+      message="真实耗时火焰图"
+      description="Duration 优先使用 duration_ns、duration_ms、OTEL latency_ms 等采集字段；缺失时按同一 trace / agent / PID 内相邻事件时间差推断，并在摘要中标注覆盖率。函数级 CPU/perf 火焰图仍需内核 stack 采集链路。"
       class="flamegraph-note"
     />
 
     <div class="flamegraph-overview">
       <a-tag color="blue">Focused: {{ focusedNode.label }}</a-tag>
       <a-tag>{{ currentMetricLabel }} {{ formatMetric(focusedMetricValue) }}</a-tag>
+      <a-tag color="green">explicit {{ formatMetric(rootExplicitDuration, 'duration') }}</a-tag>
+      <a-tag color="orange">inferred {{ formatMetric(rootInferredDuration, 'duration') }}</a-tag>
+      <a-tag color="cyan">coverage {{ percentLabel(durationCoverage) }}</a-tag>
       <a-tag>{{ focusedNode.eventCount.toLocaleString() }} events in focus</a-tag>
       <span v-if="sourceLegend.length > 0" class="source-legend">
         <span v-for="source in sourceLegend" :key="source.source" class="source-chip">
@@ -236,10 +251,12 @@ watch(metric, () => {
         </template>
 
         <a-row :gutter="[12, 12]">
-          <a-col :xs="12" :md="6"><a-statistic title="Count" :value="selectedNode.metrics.count" /></a-col>
-          <a-col :xs="12" :md="6"><a-statistic title="Bytes" :value="formatMetric(selectedNode.metrics.bytes, 'bytes')" /></a-col>
-          <a-col :xs="12" :md="6"><a-statistic title="Duration" :value="formatMetric(selectedNode.metrics.duration, 'duration')" /></a-col>
-          <a-col :xs="12" :md="6"><a-statistic title="Risk" :value="formatMetric(selectedNode.metrics.risk, 'risk')" /></a-col>
+          <a-col :xs="12" :md="4"><a-statistic title="Count" :value="selectedNode.metrics.count" /></a-col>
+          <a-col :xs="12" :md="4"><a-statistic title="Bytes" :value="formatMetric(selectedNode.metrics.bytes, 'bytes')" /></a-col>
+          <a-col :xs="12" :md="4"><a-statistic title="Duration" :value="formatMetric(selectedNode.metrics.duration, 'duration')" /></a-col>
+          <a-col :xs="12" :md="4"><a-statistic title="Explicit" :value="formatMetric(selectedNode.metrics.explicitDuration, 'duration')" /></a-col>
+          <a-col :xs="12" :md="4"><a-statistic title="Inferred" :value="formatMetric(selectedNode.metrics.inferredDuration, 'duration')" /></a-col>
+          <a-col :xs="12" :md="4"><a-statistic title="Risk" :value="formatMetric(selectedNode.metrics.risk, 'risk')" /></a-col>
         </a-row>
 
         <div class="node-meta">
@@ -247,6 +264,7 @@ watch(metric, () => {
           <span>Root share: <strong>{{ percentLabel(selectedRootPercent) }}</strong></span>
           <span>Focused share: <strong>{{ percentLabel(selectedFocusPercent) }}</strong></span>
           <span>Latest: <strong>{{ formatFullTime(selectedNode.latestTimestamp) }}</strong></span>
+          <span>Duration source: <strong>{{ selectedDurationSource }}</strong></span>
           <span>Dominant source: <strong>{{ selectedNode.dominantSource || 'unknown' }}</strong></span>
         </div>
 

@@ -7,6 +7,8 @@ export interface AgentSightFlameMetrics {
   count: number;
   bytes: number;
   duration: number;
+  explicitDuration: number;
+  inferredDuration: number;
   risk: number;
 }
 
@@ -65,7 +67,7 @@ const DEFAULT_GAP = 1;
 const DEFAULT_MIN_SEGMENT_PX = 1.2;
 const DEFAULT_MAX_CHILDREN = 80;
 
-const emptyMetrics = (): AgentSightFlameMetrics => ({ count: 0, bytes: 0, duration: 0, risk: 0 });
+const emptyMetrics = (): AgentSightFlameMetrics => ({ count: 0, bytes: 0, duration: 0, explicitDuration: 0, inferredDuration: 0, risk: 0 });
 
 function createNode(segment: AgentSightFlameSegment, depth: number, parentId: string): MutableAgentSightFlameNode {
   const id = parentId === ROOT_ID ? `${ROOT_ID}/${segment.key}` : `${parentId}/${segment.key}`;
@@ -128,6 +130,32 @@ function toNumber(value: unknown, fallback = 0) {
     if (typeof maybeLong.low === 'number') return maybeLong.low;
   }
   return fallback;
+}
+
+function positiveNumber(value: unknown) {
+  const parsed = toNumber(value, 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function readDurationMs(event: ProcessedAgentSightEvent) {
+  const durationNs = positiveNumber(firstNonEmpty(
+    readEventField(event, ['duration_ns', 'durationNs', 'DurationNs']),
+    readEventField(event, ['elapsed_ns', 'elapsedNs', 'latency_ns', 'latencyNs']),
+  ));
+  if (durationNs > 0) return durationNs / 1_000_000;
+
+  const latencyMs = positiveNumber(firstNonEmpty(
+    readEventField(event, ['latency_ms', 'latencyMs', 'LatencyMs']),
+    readEventField(event, ['duration_ms', 'durationMs', 'DurationMs', 'duration']),
+    readEventField(event, ['elapsed_ms', 'elapsedMs', 'ElapsedMs']),
+  ));
+  if (latencyMs > 0) return latencyMs;
+
+  const seconds = positiveNumber(firstNonEmpty(
+    readEventField(event, ['duration_s', 'durationSec', 'duration_seconds', 'durationSeconds']),
+    readEventField(event, ['elapsed_s', 'elapsedSec', 'elapsed_seconds', 'elapsedSeconds']),
+  ));
+  return seconds > 0 ? seconds * 1000 : 0;
 }
 
 function firstNonEmpty(...values: unknown[]) {
@@ -234,14 +262,14 @@ export function extractAgentSightFlameTarget(event: ProcessedAgentSightEvent) {
   return compactLabel(event.title || 'event', 96);
 }
 
-export function extractAgentSightFlameMetrics(event: ProcessedAgentSightEvent): AgentSightFlameMetrics {
+export function extractAgentSightFlameMetrics(event: ProcessedAgentSightEvent, inferredDurationMs = 0): AgentSightFlameMetrics {
   const bodyBytes = toNumber(firstNonEmpty(readEventField(event, ['body_size', 'bodySize'])), 0);
   const directBytes = toNumber(firstNonEmpty(readEventField(event, ['size', 'bytes', 'len', 'length', 'net_bytes', 'netBytes'])), 0);
   const directionalBytes = toNumber(firstNonEmpty(readEventField(event, ['bytes_in', 'bytesIn'])), 0)
     + toNumber(firstNonEmpty(readEventField(event, ['bytes_out', 'bytesOut'])), 0);
   const bytes = event.source === 'system' ? 0 : bodyBytes || directionalBytes || directBytes;
-  const durationMs = firstNonEmpty(readEventField(event, ['duration_ms', 'durationMs', 'duration']));
-  const durationNs = firstNonEmpty(readEventField(event, ['duration_ns', 'durationNs']));
+  const explicitDuration = readDurationMs(event);
+  const inferredDuration = explicitDuration > 0 ? 0 : Math.max(0, inferredDurationMs);
   const explicitRisk = toNumber(firstNonEmpty(readEventField(event, ['risk_score', 'riskScore', 'risk'])), 0);
   const decision = String(firstNonEmpty(readEventField(event, ['decision', 'Decision']), readEventField(event, ['type', 'event']), event.eventType)).toLowerCase();
   const risk = explicitRisk > 0
@@ -253,7 +281,9 @@ export function extractAgentSightFlameMetrics(event: ProcessedAgentSightEvent): 
   return {
     count: 1,
     bytes,
-    duration: durationNs ? toNumber(durationNs, 0) / 1_000_000 : toNumber(durationMs, 0),
+    duration: explicitDuration || inferredDuration,
+    explicitDuration,
+    inferredDuration,
     risk,
   };
 }
@@ -289,6 +319,8 @@ function addMetrics(target: AgentSightFlameMetrics, delta: AgentSightFlameMetric
   target.count += delta.count;
   target.bytes += delta.bytes;
   target.duration += delta.duration;
+  target.explicitDuration += delta.explicitDuration;
+  target.inferredDuration += delta.inferredDuration;
   target.risk += delta.risk;
 }
 
@@ -323,6 +355,40 @@ function finalizeNode(node: MutableAgentSightFlameNode): AgentSightFlameNode {
   return finalNode;
 }
 
+function eventDurationScope(event: ProcessedAgentSightEvent) {
+  return firstNonEmpty(
+    readEventField(event, ['agent_run_id', 'agentRunId', 'AgentRunId']),
+    readEventField(event, ['conversation_id', 'conversationId', 'ConversationId']),
+    event.traceId,
+    readEventField(event, ['trace_id', 'traceId', 'TraceId']),
+    event.pid ? `${event.comm || 'process'}#${event.pid}` : '',
+    event.comm,
+  ) || 'global';
+}
+
+function buildInferredDurationMap(events: ProcessedAgentSightEvent[]) {
+  const groups = new Map<string, ProcessedAgentSightEvent[]>();
+  events.forEach(event => {
+    if (!Number.isFinite(event.timestamp) || event.timestamp <= 0) return;
+    const key = eventDurationScope(event);
+    const group = groups.get(key) || [];
+    group.push(event);
+    groups.set(key, group);
+  });
+
+  const inferred = new Map<string, number>();
+  groups.forEach(group => {
+    const sorted = group.slice().sort((a, b) => a.timestamp - b.timestamp);
+    sorted.forEach((event, index) => {
+      const next = sorted[index + 1];
+      if (!next) return;
+      const delta = next.timestamp - event.timestamp;
+      if (delta > 0 && delta <= 30_000) inferred.set(event.id, delta);
+    });
+  });
+  return inferred;
+}
+
 export function buildAgentSightFlameTree(events: ProcessedAgentSightEvent[], preset: AgentSightFlameDimensionPreset): AgentSightFlameNode {
   const root: MutableAgentSightFlameNode = {
     id: ROOT_ID,
@@ -341,8 +407,9 @@ export function buildAgentSightFlameTree(events: ProcessedAgentSightEvent[], pre
     sourceWeights: new Map(),
   };
 
+  const inferredDurations = buildInferredDurationMap(events);
   events.forEach(event => {
-    const metrics = extractAgentSightFlameMetrics(event);
+    const metrics = extractAgentSightFlameMetrics(event, inferredDurations.get(event.id) || 0);
     updateNode(root, event, metrics);
     let current = root;
     buildAgentSightFlamePath(event, preset).forEach((pathSegment, index) => {

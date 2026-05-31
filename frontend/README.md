@@ -96,6 +96,7 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 - provides export / clear actions for the current dataset plus a full-command safety assessment panel that uses exact labeled samples as evidence
 - includes a curated catalog of classic OS-security datasets such as ADFA, CERT Insider Threat, LANL host/network, and DARPA IDS corpora for quick reference; those catalog entries point to reference/archival pages and must be downloaded or extracted before import
 - includes an OpenAI-compatible LLM scoring panel for post-training review, with configurable base URL, model, API key, timeout, temperature, max tokens, and validation split control; the panel now auto-saves changes to browser storage and silently syncs them back to the backend before scoring
+- `/execution-graph/:tab?` — 追踪工作台，包含执行拓扑、行为追踪和录制/回放；行为追踪默认打开真实火焰图，Duration 优先使用 `duration_ns` / `duration_ms` / OTEL `latency_ms`，缺失时按同一 trace、agent 或 PID 内相邻事件时间差推断
 - `/tls-capture` — TLS 明文日志，支持实时 WebSocket、进程/库/方向/域名过滤、body 搜索、body 和 curl 一键复制、库挂载状态侧栏
 
 ## Development

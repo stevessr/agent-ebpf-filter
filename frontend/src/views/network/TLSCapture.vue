@@ -92,14 +92,25 @@ const rulesLoading = ref(false);
 const attachLoading = ref(false);
 const manualHookLoading = ref(false);
 const hookManagementTab = ref('rules');
-const manualHookType = ref<'go' | 'openssl' | 'gnutls' | 'nss'>('go');
+const manualHookType = ref<'executable' | 'go' | 'openssl' | 'gnutls' | 'nss'>('executable');
 const manualHookPid = ref<number | null>(null);
+const executablePathInput = ref('');
+const executableLibraryHint = ref<'auto' | 'openssl' | 'gnutls' | 'nss'>('auto');
+const executableAttachResult = ref<any | null>(null);
 
 const manualHookOptions = [
+  { label: 'Executable / CLI bin', value: 'executable' },
   { label: 'Go TLS binary', value: 'go' },
   { label: 'OpenSSL libssl', value: 'openssl' },
   { label: 'GnuTLS library', value: 'gnutls' },
   { label: 'NSS / NSPR library', value: 'nss' },
+];
+
+const executableLibraryOptions = [
+  { label: 'Auto detect', value: 'auto' },
+  { label: 'OpenSSL', value: 'openssl' },
+  { label: 'GnuTLS', value: 'gnutls' },
+  { label: 'NSS / NSPR', value: 'nss' },
 ];
 
 let ws: WebSocket | null = null;
@@ -241,25 +252,49 @@ const attachDefaultLibraries = async (silent = false) => {
   }
 };
 
-const attachManualHook = async (entry: FileEntry) => {
-  if (entry.isDir) {
-    message.warning('Select a TLS library or Go binary file');
-    return;
-  }
+const attachHookPath = async (path: string, label: string) => {
   manualHookLoading.value = true;
+  executableAttachResult.value = null;
   try {
-    if (manualHookType.value === 'go') {
-      await axios.post('/tls-capture/go-binary', { path: entry.path, pid: manualHookPid.value || 0 });
+    if (manualHookType.value === 'executable') {
+      const response = await axios.post('/tls-capture/executable', {
+        path,
+        pid: manualHookPid.value || 0,
+        library: executableLibraryHint.value,
+      });
+      executableAttachResult.value = response.data?.result || null;
+    } else if (manualHookType.value === 'go') {
+      const response = await axios.post('/tls-capture/go-binary', { path, pid: manualHookPid.value || 0 });
+      executableAttachResult.value = response.data?.resolved ? { resolved: response.data.resolved } : null;
     } else {
-      await axios.post('/tls-capture/library', { path: entry.path, library: manualHookType.value });
+      await axios.post('/tls-capture/library', { path, library: manualHookType.value });
     }
-    message.success(`Hook attached for ${entry.name}`);
+    message.success(`Hook attached for ${label}`);
     await Promise.all([fetchStatus(), fetchLibraries()]);
   } catch (error: any) {
+    executableAttachResult.value = error?.response?.data?.result || null;
     message.error(error?.response?.data?.error || 'Failed to attach manual hook');
   } finally {
     manualHookLoading.value = false;
   }
+};
+
+const attachManualHook = async (entry: FileEntry) => {
+  if (entry.isDir) {
+    message.warning('Select a TLS library, Go binary, or executable file');
+    return;
+  }
+  executablePathInput.value = entry.path;
+  await attachHookPath(entry.path, entry.name);
+};
+
+const attachExecutableInput = async () => {
+  const path = executablePathInput.value.trim();
+  if (!path) {
+    message.warning('Enter a binary name or absolute executable path');
+    return;
+  }
+  await attachHookPath(path, path);
 };
 
 const fetchRules = async () => {
@@ -535,18 +570,51 @@ onUnmounted(() => {
               type="info"
               show-icon
               class="tls-manual-hint"
-              message="Select a local TLS library or Go TLS binary to attach manually"
-              description="Use this when the automatic default library discovery missed a libssl, GnuTLS, NSS/NSPR shared object, or a Go binary using crypto/tls."
+              message="Select a local TLS library, Go binary, or executable hook target"
+              description="Executable mode accepts a command name or binary path such as claude, /usr/local/bin/claude, node, or a symlink/shebang CLI wrapper. The backend resolves symlinks and #! interpreters before attaching TLS uprobes."
             />
             <a-space wrap class="tls-manual-controls">
               <span class="tls-manual-label">Target type</span>
-              <a-select v-model:value="manualHookType" size="small" style="width: 180px" :options="manualHookOptions" />
-              <template v-if="manualHookType === 'go'">
+              <a-select v-model:value="manualHookType" size="small" style="width: 190px" :options="manualHookOptions" />
+              <template v-if="manualHookType === 'executable'">
+                <span class="tls-manual-label">TLS symbols</span>
+                <a-select v-model:value="executableLibraryHint" size="small" style="width: 150px" :options="executableLibraryOptions" />
+              </template>
+              <template v-if="manualHookType === 'executable' || manualHookType === 'go'">
                 <span class="tls-manual-label">PID</span>
                 <a-input-number v-model:value="manualHookPid" size="small" :min="0" placeholder="0 = all" style="width: 120px" />
               </template>
               <a-tag v-if="manualHookLoading" color="blue">Attaching…</a-tag>
             </a-space>
+
+            <a-input-search
+              v-if="manualHookType === 'executable'"
+              v-model:value="executablePathInput"
+              class="tls-executable-input"
+              placeholder="claude, /usr/local/bin/claude, /usr/bin/node, or /proc/<pid>/exe"
+              enter-button="Hook executable"
+              :loading="manualHookLoading"
+              @search="attachExecutableInput"
+            />
+
+            <a-alert
+              v-if="executableAttachResult"
+              :type="executableAttachResult.error ? 'warning' : 'success'"
+              show-icon
+              class="tls-manual-hint"
+              :message="executableAttachResult.error ? 'Executable hook attach failed' : 'Executable hook target resolved'"
+            >
+              <template #description>
+                <a-descriptions size="small" :column="1" bordered>
+                  <a-descriptions-item label="Input">{{ executableAttachResult.resolved?.input || executablePathInput || '—' }}</a-descriptions-item>
+                  <a-descriptions-item label="Resolved path">{{ executableAttachResult.resolved?.realPath || executableAttachResult.resolved?.path || '—' }}</a-descriptions-item>
+                  <a-descriptions-item v-if="executableAttachResult.resolved?.shebang" label="Shebang">{{ executableAttachResult.resolved.shebang }}</a-descriptions-item>
+                  <a-descriptions-item label="Attach path">{{ executableAttachResult.attachPath || executableAttachResult.resolved?.realPath || '—' }}</a-descriptions-item>
+                  <a-descriptions-item label="Mode">{{ executableAttachResult.targetKind || executableAttachResult.library || 'resolved' }}</a-descriptions-item>
+                </a-descriptions>
+              </template>
+            </a-alert>
+
             <FileBrowserPanel
               action-type="emit"
               action-label="Hook"
@@ -748,7 +816,8 @@ onUnmounted(() => {
 }
 
 .tls-manual-hint,
-.tls-manual-controls {
+.tls-manual-controls,
+.tls-executable-input {
   margin-bottom: 12px;
 }
 

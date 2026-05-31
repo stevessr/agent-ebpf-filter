@@ -123,3 +123,17 @@ func TestForgetGoBinaryAttachAllowsRetryAfterFailure(t *testing.T) {
 		t.Fatalf("attach should be retried after failure cleanup")
 	}
 }
+
+func TestResolveShebangInterpreterUsesEnvArgument(t *testing.T) {
+	interpreter := resolveShebangInterpreter("/usr/bin/env sh -c echo")
+	if base := filepath.Base(interpreter); base != "sh" && base != "bash" {
+		t.Fatalf("interpreter = %q, want a shell executable", interpreter)
+	}
+}
+
+func TestResolveShebangInterpreterFallsBackToAbsoluteTarget(t *testing.T) {
+	interpreter := resolveShebangInterpreter("/does/not/exist -S node")
+	if interpreter != "/does/not/exist" {
+		t.Fatalf("interpreter = %q, want absolute shebang target", interpreter)
+	}
+}

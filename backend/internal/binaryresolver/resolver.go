@@ -136,8 +136,8 @@ func readBinaryShebang(path string) (string, string) {
 	if err != nil || n < 3 || !bytes.HasPrefix(buf[:n], []byte("#!")) {
 		return "", ""
 	}
-	line := strings.TrimSpace(strings.SplitN(string(buf[:n]), "\n", 2)[0])
-	fields := strings.Fields(strings.TrimPrefix(line, "#!"))
+	line := strings.TrimSpace(strings.TrimPrefix(strings.SplitN(string(buf[:n]), "\n", 2)[0], "#!"))
+	fields := strings.Fields(line)
 	if len(fields) == 0 {
 		return line, ""
 	}

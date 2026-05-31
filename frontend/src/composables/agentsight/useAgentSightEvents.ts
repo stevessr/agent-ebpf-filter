@@ -223,7 +223,7 @@ export function useAgentSightEvents() {
   const tlsLoading = shallowRef(false);
   const sampleLoading = shallowRef(false);
   const limit = shallowRef(AGENTSIGHT_DEFAULT_LIMIT);
-  const activeTab = shallowRef('process-tree');
+  const activeTab = shallowRef('flamegraph');
   const filters = ref<AgentSightFilters>(defaultFilters());
   const isEnvelopeConnected = shallowRef(false);
   const isTLSConnected = shallowRef(false);
