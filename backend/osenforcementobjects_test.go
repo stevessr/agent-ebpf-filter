@@ -438,9 +438,9 @@ func TestCgroupSandboxPortValidation(t *testing.T) {
 		t.Fatal("port 0 should be rejected")
 	}
 
-	data, err := os.ReadFile("cgroup_sandbox_control.go")
+	data, err := os.ReadFile(filepath.Join("cgroup", "sandbox", "handlers.go"))
 	if err != nil {
-		t.Fatalf("read cgroup_sandbox_control.go: %v", err)
+		t.Fatalf("read cgroup/sandbox/handlers.go: %v", err)
 	}
 	source := string(data)
 	for _, want := range []string{
@@ -519,7 +519,7 @@ func TestOSPolicyMapPinsAreRestrictive(t *testing.T) {
 }
 
 func TestOSEnforcementStartsWithoutDefaultBlockEntries(t *testing.T) {
-	for _, path := range []string{"main.go", "cgroup_sandbox_control.go", "lsm_enforcer_control.go"} {
+	for _, path := range []string{"main.go", filepath.Join("cgroup", "sandbox", "control.go"), filepath.Join("lsm", "enforcer", "control.go")} {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
@@ -531,9 +531,9 @@ func TestOSEnforcementStartsWithoutDefaultBlockEntries(t *testing.T) {
 }
 
 func TestOSEnforcementMutationRoutesArePolicyGated(t *testing.T) {
-	data, err := os.ReadFile("main.go")
+	data, err := os.ReadFile("routes.go")
 	if err != nil {
-		t.Fatalf("read main.go: %v", err)
+		t.Fatalf("read routes.go: %v", err)
 	}
 	source := string(data)
 	for _, route := range []string{
@@ -560,9 +560,9 @@ func TestOSEnforcementMutationRoutesArePolicyGated(t *testing.T) {
 }
 
 func TestOSEnforcementStatusRoutesRequireAuth(t *testing.T) {
-	data, err := os.ReadFile("main.go")
+	data, err := os.ReadFile("routes.go")
 	if err != nil {
-		t.Fatalf("read main.go: %v", err)
+		t.Fatalf("read routes.go: %v", err)
 	}
 	source := string(data)
 	for _, route := range []string{
@@ -691,29 +691,29 @@ func TestOSSecurityDocsDescribeCurrentKernelEnforcement(t *testing.T) {
 }
 
 func TestOSFrontendSecuritySurfaceWiresSandboxEndpoints(t *testing.T) {
-	composablePath := filepath.Join("..", "frontend", "src", "composables", "useConfigSecurity.ts")
+	composablePath := filepath.Join("..", "frontend", "src", "composables", "config", "useConfigSecurity.ts")
 	composableData, err := os.ReadFile(composablePath)
 	if err != nil {
 		t.Fatalf("read %s: %v", composablePath, err)
 	}
 	composable := string(composableData)
 	for _, want := range []string{
-		"axios.get('/sandbox/cgroup/status')",
-		"'/sandbox/cgroup/block-cgroup'",
-		"'/sandbox/cgroup/unblock-cgroup'",
-		"'/sandbox/cgroup/block-pid'",
-		"'/sandbox/cgroup/unblock-pid'",
-		"'/sandbox/cgroup/block-ip'",
-		"'/sandbox/cgroup/unblock-ip'",
-		"'/sandbox/cgroup/block-port'",
-		"'/sandbox/cgroup/unblock-port'",
-		"axios.get('/sandbox/lsm/status')",
-		"'/sandbox/lsm/block-exec-path'",
-		"'/sandbox/lsm/unblock-exec-path'",
-		"'/sandbox/lsm/block-exec-name'",
-		"'/sandbox/lsm/unblock-exec-name'",
-		"'/sandbox/lsm/block-file-name'",
-		"'/sandbox/lsm/unblock-file-name'",
+		"axios.get(\"/sandbox/cgroup/status\")",
+		"\"/sandbox/cgroup/block-cgroup\"",
+		"\"/sandbox/cgroup/unblock-cgroup\"",
+		"\"/sandbox/cgroup/block-pid\"",
+		"\"/sandbox/cgroup/unblock-pid\"",
+		"\"/sandbox/cgroup/block-ip\"",
+		"\"/sandbox/cgroup/unblock-ip\"",
+		"\"/sandbox/cgroup/block-port\"",
+		"\"/sandbox/cgroup/unblock-port\"",
+		"axios.get(\"/sandbox/lsm/status\")",
+		"\"/sandbox/lsm/block-exec-path\"",
+		"\"/sandbox/lsm/unblock-exec-path\"",
+		"\"/sandbox/lsm/block-exec-name\"",
+		"\"/sandbox/lsm/unblock-exec-name\"",
+		"\"/sandbox/lsm/block-file-name\"",
+		"\"/sandbox/lsm/unblock-file-name\"",
 		"blockedCgroups:",
 		"blockedIPs:",
 		"ip6Blocklist:",
@@ -786,7 +786,7 @@ func TestOSFrontendSecuritySurfaceWiresSandboxEndpoints(t *testing.T) {
 		}
 	}
 
-	viewPath := filepath.Join("..", "frontend", "src", "views", "Config.vue")
+	viewPath := filepath.Join("..", "frontend", "src", "views", "config", "Config.vue")
 	viewData, err := os.ReadFile(viewPath)
 	if err != nil {
 		t.Fatalf("read %s: %v", viewPath, err)
@@ -795,7 +795,7 @@ func TestOSFrontendSecuritySurfaceWiresSandboxEndpoints(t *testing.T) {
 	for _, want := range []string{
 		"fetchCgroupSandboxStatus",
 		"fetchLsmEnforcerStatus",
-		"onMounted(async () =>",
+		"onMounted(() =>",
 	} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("%s missing Config page sandbox startup hook %q", viewPath, want)
@@ -805,11 +805,11 @@ func TestOSFrontendSecuritySurfaceWiresSandboxEndpoints(t *testing.T) {
 
 func TestPinnedOSEnforcementPolicyIsPreservedOnReuseFailure(t *testing.T) {
 	checks := []struct {
-		path     string
+		paths    []string
 		required []string
 	}{
 		{
-			path: "cgroup_sandbox_control.go",
+			paths: []string{filepath.Join("cgroup", "sandbox", "control.go")},
 			required: []string{
 				"Preserve existing pinned policy maps",
 				"link.LoadPinnedLink",
@@ -819,7 +819,7 @@ func TestPinnedOSEnforcementPolicyIsPreservedOnReuseFailure(t *testing.T) {
 			},
 		},
 		{
-			path: "lsm_enforcer_control.go",
+			paths: []string{filepath.Join("lsm", "enforcer", "bootstrap.go")},
 			required: []string{
 				"Preserve pinned LSM policy maps",
 				"link.LoadPinnedLink",
@@ -829,29 +829,24 @@ func TestPinnedOSEnforcementPolicyIsPreservedOnReuseFailure(t *testing.T) {
 		},
 	}
 	for _, check := range checks {
-		data, err := os.ReadFile(check.path)
-		if err != nil {
-			t.Fatalf("read %s: %v", check.path, err)
-		}
-		source := string(data)
+		source := readSourceFiles(t, check.paths...)
 		if strings.Contains(source, "retrying fresh bootstrap") || strings.Contains(source, "fresh bootstrap:") {
-			t.Fatalf("%s can fresh-bootstrap after pinned-map reuse failure; this risks deleting explicit OS policy pins", check.path)
+			t.Fatalf("%s can fresh-bootstrap after pinned-map reuse failure; this risks deleting explicit OS policy pins", strings.Join(check.paths, ", "))
 		}
 		for _, want := range check.required {
 			if !strings.Contains(source, want) {
-				t.Fatalf("%s missing %q", check.path, want)
+				t.Fatalf("%s missing %q", strings.Join(check.paths, ", "), want)
 			}
 		}
 	}
 }
-
 func TestOSEnforcementAttachFailureCleansPartialPins(t *testing.T) {
 	checks := []struct {
-		path     string
+		paths    []string
 		required []string
 	}{
 		{
-			path: "cgroup_sandbox_control.go",
+			paths: []string{filepath.Join("cgroup", "sandbox", "control.go")},
 			required: []string{
 				"closeLinksAndRemovePins(links, pins)",
 				"func closeLinksAndRemovePins",
@@ -859,26 +854,21 @@ func TestOSEnforcementAttachFailureCleansPartialPins(t *testing.T) {
 			},
 		},
 		{
-			path: "lsm_enforcer_control.go",
+			paths: []string{filepath.Join("lsm", "enforcer", "bootstrap.go")},
 			required: []string{
 				"closeLinksAndRemovePins(links, pins)",
 			},
 		},
 	}
 	for _, check := range checks {
-		data, err := os.ReadFile(check.path)
-		if err != nil {
-			t.Fatalf("read %s: %v", check.path, err)
-		}
-		source := string(data)
+		source := readSourceFiles(t, check.paths...)
 		for _, want := range check.required {
 			if !strings.Contains(source, want) {
-				t.Fatalf("%s missing partial-attach cleanup %q", check.path, want)
+				t.Fatalf("%s missing partial-attach cleanup %q", strings.Join(check.paths, ", "), want)
 			}
 		}
 	}
 }
-
 func TestOSEnforcementUnblockIgnoresMissingMapKeys(t *testing.T) {
 	if err := ignoreMissingMapKey(ebpf.ErrKeyNotExist); err != nil {
 		t.Fatalf("missing map key should be idempotent: %v", err)
@@ -889,11 +879,11 @@ func TestOSEnforcementUnblockIgnoresMissingMapKeys(t *testing.T) {
 	}
 
 	checks := []struct {
-		path     string
+		paths    []string
 		required []string
 	}{
 		{
-			path: "cgroup_sandbox_control.go",
+			paths: []string{filepath.Join("cgroup", "sandbox", "ops.go")},
 			required: []string{
 				"ignoreMissingMapKey(snap.CgroupBlocklist.Delete",
 				"ignoreMissingMapKey(snap.IPBlocklist.Delete",
@@ -902,7 +892,7 @@ func TestOSEnforcementUnblockIgnoresMissingMapKeys(t *testing.T) {
 			},
 		},
 		{
-			path: "lsm_enforcer_control.go",
+			paths: []string{filepath.Join("lsm", "enforcer", "control.go")},
 			required: []string{
 				"ignoreMissingMapKey(snap.ExecPathBlocklist.Delete",
 				"ignoreMissingMapKey(snap.ExecNameBlocklist.Delete",
@@ -911,26 +901,25 @@ func TestOSEnforcementUnblockIgnoresMissingMapKeys(t *testing.T) {
 		},
 	}
 	for _, check := range checks {
-		data, err := os.ReadFile(check.path)
-		if err != nil {
-			t.Fatalf("read %s: %v", check.path, err)
-		}
-		source := string(data)
+		source := readSourceFiles(t, check.paths...)
 		for _, want := range check.required {
 			if !strings.Contains(source, want) {
-				t.Fatalf("%s missing idempotent unblock wrapper %q", check.path, want)
+				t.Fatalf("%s missing idempotent unblock wrapper %q", strings.Join(check.paths, ", "), want)
 			}
 		}
 	}
 }
-
 func TestOSEnforcementStatusUsesRuntimeSnapshots(t *testing.T) {
 	checks := []struct {
-		path     string
+		paths    []string
 		required []string
 	}{
 		{
-			path: "cgroup_sandbox_control.go",
+			paths: []string{
+				filepath.Join("cgroup", "sandbox", "control.go"),
+				filepath.Join("cgroup", "sandbox", "handlers.go"),
+				filepath.Join("cgroup", "sandbox", "ops.go"),
+			},
 			required: []string{
 				"sync.RWMutex",
 				"currentCgroupSandboxSnapshot",
@@ -942,7 +931,10 @@ func TestOSEnforcementStatusUsesRuntimeSnapshots(t *testing.T) {
 			},
 		},
 		{
-			path: "lsm_enforcer_control.go",
+			paths: []string{
+				filepath.Join("lsm", "enforcer", "types.go"),
+				filepath.Join("lsm", "enforcer", "control.go"),
+			},
 			required: []string{
 				"sync.RWMutex",
 				"currentLsmEnforcerSnapshot",
@@ -953,17 +945,26 @@ func TestOSEnforcementStatusUsesRuntimeSnapshots(t *testing.T) {
 		},
 	}
 	for _, check := range checks {
-		data, err := os.ReadFile(check.path)
-		if err != nil {
-			t.Fatalf("read %s: %v", check.path, err)
-		}
-		source := string(data)
+		source := readSourceFiles(t, check.paths...)
 		for _, want := range check.required {
 			if !strings.Contains(source, want) {
-				t.Fatalf("%s missing %q", check.path, want)
+				t.Fatalf("%s missing %q", strings.Join(check.paths, ", "), want)
 			}
 		}
 	}
+}
+func readSourceFiles(t *testing.T, paths ...string) string {
+	t.Helper()
+	var builder strings.Builder
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		builder.Write(data)
+		builder.WriteByte('\n')
+	}
+	return builder.String()
 }
 
 func assertProgramSpec(t *testing.T, spec *ebpf.CollectionSpec, name string, typ ebpf.ProgramType, attach ebpf.AttachType, section string) {
