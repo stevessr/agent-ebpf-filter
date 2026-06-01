@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"agent-ebpf-filter/internal/behavior"
 	pb "agent-ebpf-filter/pb"
 	"github.com/gin-gonic/gin"
 )
@@ -273,7 +274,7 @@ func handleMLSamplesPost(c *gin.Context) {
 		commandLine = joinCommandLine(comm, args)
 	}
 	// Build feature vector and classification for the sample
-	classification := ClassifyBehavior(comm, args)
+	classification := behavior.ClassifyBehavior(comm, args)
 	_, emb := globalEmbedder.ClassifyAndEmbed(comm, args)
 	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
 	features := globalFeatureExtractor.Extract(comm, args, "", 0)

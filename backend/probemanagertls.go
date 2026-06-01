@@ -11,6 +11,7 @@ import (
 	"time"
 
 	bpf "agent-ebpf-filter/ebpf"
+	"agent-ebpf-filter/internal/binaryresolver"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -91,14 +92,14 @@ type TLSProbeManager struct {
 }
 
 type TLSExecutableAttachResult struct {
-	Resolved     ResolvedBinary     `json:"resolved"`
-	AttachPath   string             `json:"attachPath,omitempty"`
-	TargetKind   string             `json:"targetKind,omitempty"`
-	Library      string             `json:"library,omitempty"`
-	PID          int                `json:"pid,omitempty"`
-	StaticTLS    bool               `json:"staticTls,omitempty"`
-	LibraryPaths []TLSLibraryStatus `json:"libraryPaths,omitempty"`
-	Error        string             `json:"error,omitempty"`
+	Resolved     binaryresolver.ResolvedBinary `json:"resolved"`
+	AttachPath   string                        `json:"attachPath,omitempty"`
+	TargetKind   string                        `json:"targetKind,omitempty"`
+	Library      string                        `json:"library,omitempty"`
+	PID          int                           `json:"pid,omitempty"`
+	StaticTLS    bool                          `json:"staticTls,omitempty"`
+	LibraryPaths []TLSLibraryStatus            `json:"libraryPaths,omitempty"`
+	Error        string                        `json:"error,omitempty"`
 }
 
 func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *tlsCaptureBroadcaster, rules *TLSCaptureRuleStore) (*TLSProbeManager, error) {
@@ -266,7 +267,7 @@ func (m *TLSProbeManager) attachReturnProbe(executable *link.Executable, label, 
 	return l, nil
 }
 
-func executableTLSAttachPath(resolved ResolvedBinary) string {
+func executableTLSAttachPath(resolved binaryresolver.ResolvedBinary) string {
 	if resolved.Shebang != "" {
 		if interpreter := resolveShebangInterpreter(resolved.Shebang); interpreter != "" {
 			return interpreter
@@ -296,7 +297,7 @@ func resolveShebangInterpreter(shebang string) string {
 	if command == "" || filepath.Base(command) == "env" {
 		return ""
 	}
-	resolved := ResolveBinary(command, "")
+	resolved := binaryresolver.ResolveBinary(command, "")
 	if resolved.Error == "" {
 		if resolved.RealPath != "" {
 			return resolved.RealPath
@@ -377,7 +378,7 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		result.Error = "TLS probe manager is unavailable"
 		return result
 	}
-	resolved := ResolveBinary(input, "")
+	resolved := binaryresolver.ResolveBinary(input, "")
 	result.Resolved = resolved
 	if resolved.Error != "" {
 		result.Error = resolved.Error

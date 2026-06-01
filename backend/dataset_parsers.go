@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"agent-ebpf-filter/internal/behavior"
 )
 
 func isBinary(data []byte) bool {
@@ -474,7 +476,7 @@ func buildRemoteDatasetRow(record remoteDatasetRecord, mode string, cleanSensiti
 
 	category := record.Category
 	if category == "" {
-		category = ClassifyBehavior(comm, args).PrimaryCategory
+		category = behavior.ClassifyBehavior(comm, args).PrimaryCategory
 	}
 	anomaly := record.Anomaly
 	if !record.HasAnomaly {
@@ -519,7 +521,7 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive 
 
 	category := row.Category
 	if category == "" {
-		category = ClassifyBehavior(comm, args).PrimaryCategory
+		category = behavior.ClassifyBehavior(comm, args).PrimaryCategory
 	}
 	anomaly := row.AnomalyScore
 	if !row.HasAnomaly {

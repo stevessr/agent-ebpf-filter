@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"agent-ebpf-filter/internal/behavior"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -150,7 +152,7 @@ func buildLLMProductionDatasetRow(index int, sample TrainingSample, systemPrompt
 
 	category := strings.TrimSpace(sample.Category)
 	if category == "" {
-		category = ClassifyBehavior(comm, args).PrimaryCategory
+		category = behavior.ClassifyBehavior(comm, args).PrimaryCategory
 	}
 
 	label := sampleLabelName(sample.Label)

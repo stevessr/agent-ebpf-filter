@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"agent-ebpf-filter/core"
+	"agent-ebpf-filter/internal/behavior"
 )
 
 // Feature vector design (128 dimensions) inspired by:
@@ -77,12 +78,14 @@ var globalFeatureExtractor = &FeatureExtractor{
 	history: newRecentHistoryBuffer(100),
 }
 
+var globalEmbedder = behavior.NewInstructionEmbedder()
+
 func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid uint32) [FeatureDim]float64 {
 	var f [FeatureDim]float64
 
 	// ── Group A: Command/Process Features [0-31] ──
 	// BehaviorCategory one-hot (15 dims, 0-14)
-	classification := ClassifyBehavior(comm, args)
+	classification := behavior.ClassifyBehavior(comm, args)
 	for _, cat := range classification.Categories {
 		if int(cat) < 15 {
 			f[int(cat)] = 1.0

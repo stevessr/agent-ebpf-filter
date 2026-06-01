@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/pb"
 )
 
@@ -353,7 +354,7 @@ func simulateWrapperDecision(req *pb.WrapperRequest) string {
 	if req == nil {
 		return ""
 	}
-	classification := ClassifyBehavior(req.GetComm(), req.GetArgs())
+	classification := behavior.ClassifyBehavior(req.GetComm(), req.GetArgs())
 	action, _ := resolveAction(req, "", 0, classification, 0, Prediction{}, DefaultMLConfig())
 	return actionLabel[int32(action)]
 }

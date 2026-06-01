@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 
+	"agent-ebpf-filter/internal/binaryresolver"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -266,7 +268,7 @@ func handleTLSCaptureGoBinary(runtime tlsCaptureRuntime) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "status": runtime.Status()})
 			return
 		}
-		resolved := ResolveBinary(req.Path, "")
+		resolved := binaryresolver.ResolveBinary(req.Path, "")
 		attachPath := req.Path
 		if resolved.Error == "" && resolved.RealPath != "" {
 			attachPath = resolved.RealPath

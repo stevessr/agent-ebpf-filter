@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/pb"
 )
 
@@ -285,7 +286,7 @@ func (e *benchmarkEngine) evaluateCase(bc benchmarkCase) benchmarkResult {
 	event := buildBenchmarkEvent(bc)
 
 	// Classify behavior
-	classification := ClassifyBehavior(bc.Comm, bc.Args)
+	classification := behavior.ClassifyBehavior(bc.Comm, bc.Args)
 
 	// Enrich with event context
 	event.Behavior = classification

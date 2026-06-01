@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/pb"
 	"github.com/gin-gonic/gin"
 )
@@ -178,7 +179,7 @@ func bindCommandSafetyRequest(c *gin.Context) (commandSafetyRequest, bool) {
 func assessCommandSafety(ctx context.Context, comm string, args []string, user string, pid uint32) gin.H {
 	commandLine := joinCommandLine(comm, args)
 
-	classification := ClassifyBehavior(comm, args)
+	classification := behavior.ClassifyBehavior(comm, args)
 	_, emb := globalEmbedder.ClassifyAndEmbed(comm, args)
 	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
 	features := globalFeatureExtractor.Extract(comm, args, user, pid)
@@ -349,7 +350,7 @@ func buildCommandTrainingSample(comm string, args []string, user string, pid uin
 		timestamp = time.Now()
 	}
 
-	classification := ClassifyBehavior(comm, args)
+	classification := behavior.ClassifyBehavior(comm, args)
 	_, emb := globalEmbedder.ClassifyAndEmbed(comm, args)
 	anomalyScore := globalEmbedder.ComputeAnomalyScore(emb)
 	features := globalFeatureExtractor.Extract(comm, args, user, pid)
