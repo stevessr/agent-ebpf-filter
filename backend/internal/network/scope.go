@@ -1,4 +1,4 @@
-package main
+package network
 
 import (
 	"net"
@@ -27,7 +27,7 @@ const (
 	ScopeUnknown       IPScope = "Unknown"
 )
 
-func classifyIPScope(ip net.IP) IPScope {
+func ClassifyIPScope(ip net.IP) IPScope {
 	if ip == nil {
 		return ScopeUnknown
 	}
@@ -192,7 +192,7 @@ func classifyIPv6Scope(ip net.IP) IPScope {
 	return ScopePublic
 }
 
-func ipScopeIsSuspicious(scope IPScope) bool {
+func IPScopeIsSuspicious(scope IPScope) bool {
 	switch scope {
 	case ScopeMulticast, ScopeBroadcast, ScopeReserved, ScopeDiscard, ScopeBenchmarking:
 		return true
@@ -201,7 +201,7 @@ func ipScopeIsSuspicious(scope IPScope) bool {
 	}
 }
 
-func ipScopeRiskScore(scope IPScope) float64 {
+func IPScopeRiskScore(scope IPScope) float64 {
 	switch scope {
 	case ScopeLoopback:
 		return 0.0

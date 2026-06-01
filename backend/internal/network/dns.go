@@ -1,4 +1,4 @@
-package main
+package network
 
 import (
 	"net"
@@ -18,13 +18,13 @@ type dnsEntry struct {
 	TTL        time.Duration
 }
 
-type dnsCache struct {
+type DNSCache struct {
 	mu       sync.RWMutex
 	entries  map[string]*dnsEntry // IP -> domain mapping
 	byDomain map[string]string    // domain -> IP reverse mapping
 }
 
-type dnsCacheSnapshotEntry struct {
+type DNSCacheSnapshotEntry struct {
 	Domain     string `json:"domain"`
 	IP         string `json:"ip"`
 	ResolvedAt int64  `json:"resolvedAt"`
@@ -32,18 +32,18 @@ type dnsCacheSnapshotEntry struct {
 	TTLSeconds int64  `json:"ttlSeconds"`
 }
 
-func newDNSCache() *dnsCache {
-	return &dnsCache{
+func NewDNSCache() *DNSCache {
+	return &DNSCache{
 		entries:  make(map[string]*dnsEntry),
 		byDomain: make(map[string]string),
 	}
 }
 
-func (c *dnsCache) Record(domain, ip string) {
+func (c *DNSCache) Record(domain, ip string) {
 	c.RecordWithTTL(domain, ip, 5*time.Minute)
 }
 
-func (c *dnsCache) RecordWithTTL(domain, ip string, ttl time.Duration) {
+func (c *DNSCache) RecordWithTTL(domain, ip string, ttl time.Duration) {
 	if c == nil || domain == "" || ip == "" {
 		return
 	}
@@ -65,7 +65,7 @@ func (c *dnsCache) RecordWithTTL(domain, ip string, ttl time.Duration) {
 	c.byDomain[domain] = ip
 }
 
-func (c *dnsCache) LookupIP(ip string) (string, bool) {
+func (c *DNSCache) LookupIP(ip string) (string, bool) {
 	if c == nil || ip == "" {
 		return "", false
 	}
@@ -82,7 +82,7 @@ func (c *dnsCache) LookupIP(ip string) (string, bool) {
 	return entry.Domain, true
 }
 
-func (c *dnsCache) LookupDomain(domain string) (string, bool) {
+func (c *DNSCache) LookupDomain(domain string) (string, bool) {
 	if c == nil || domain == "" {
 		return "", false
 	}
@@ -100,7 +100,7 @@ func (c *dnsCache) LookupDomain(domain string) (string, bool) {
 	return ip, true
 }
 
-func (c *dnsCache) EnrichEndpoint(endpoint string) string {
+func (c *DNSCache) EnrichEndpoint(endpoint string) string {
 	if c == nil || endpoint == "" {
 		return endpoint
 	}
@@ -118,7 +118,7 @@ func (c *dnsCache) EnrichEndpoint(endpoint string) string {
 	return endpoint
 }
 
-func (c *dnsCache) EvictExpired() {
+func (c *DNSCache) EvictExpired() {
 	if c == nil {
 		return
 	}
@@ -132,14 +132,14 @@ func (c *dnsCache) EvictExpired() {
 	}
 }
 
-func (c *dnsCache) Snapshot() []dnsCacheSnapshotEntry {
+func (c *DNSCache) Snapshot() []DNSCacheSnapshotEntry {
 	if c == nil {
 		return nil
 	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	now := time.Now()
-	entries := make([]dnsCacheSnapshotEntry, 0, len(c.entries))
+	entries := make([]DNSCacheSnapshotEntry, 0, len(c.entries))
 	for _, entry := range c.entries {
 		if entry == nil || entry.IP == "" || entry.Domain == "" {
 			continue
@@ -148,7 +148,7 @@ func (c *dnsCache) Snapshot() []dnsCacheSnapshotEntry {
 		if now.After(expiresAt) {
 			continue
 		}
-		entries = append(entries, dnsCacheSnapshotEntry{
+		entries = append(entries, DNSCacheSnapshotEntry{
 			Domain:     entry.Domain,
 			IP:         entry.IP,
 			ResolvedAt: entry.ResolvedAt.UnixMilli(),
@@ -159,32 +159,7 @@ func (c *dnsCache) Snapshot() []dnsCacheSnapshotEntry {
 	return entries
 }
 
-var dnsCorrelation = newDNSCache()
-
-func startDNSCacheGC() {
-	ticker := time.NewTicker(1 * time.Minute)
-	go func() {
-		for range ticker.C {
-			dnsCorrelation.EvictExpired()
-		}
-	}()
-}
-
-// Process a detected DNS query and record the domain
-func recordDNSQueryFromEvent(domain string) {
-	if domain == "" {
-		return
-	}
-	// Domain names from eBPF may be raw; perform basic validation
-	domain = strings.TrimSpace(strings.ToLower(domain))
-	if domain == "" || len(domain) > 253 {
-		return
-	}
-	dnsCorrelation.Record(domain, "") // IP will be filled from DNS response
-}
-
-// Correlate a DNS response with the query
-func correlateDNSResponse(srcIP string, rawData []byte) {
+func CorrelateDNSResponse(cache *DNSCache, rawData []byte) {
 	var parser dnsmessage.Parser
 	header, err := parser.Start(rawData)
 	if err != nil || !header.Response {
@@ -219,9 +194,9 @@ func correlateDNSResponse(srcIP string, rawData []byte) {
 		}
 		switch body := answer.Body.(type) {
 		case *dnsmessage.AResource:
-			dnsCorrelation.RecordWithTTL(domain, net.IP(body.A[:]).String(), ttl)
+			cache.RecordWithTTL(domain, net.IP(body.A[:]).String(), ttl)
 		case *dnsmessage.AAAAResource:
-			dnsCorrelation.RecordWithTTL(domain, net.IP(body.AAAA[:]).String(), ttl)
+			cache.RecordWithTTL(domain, net.IP(body.AAAA[:]).String(), ttl)
 		}
 	}
 }
@@ -263,17 +238,17 @@ var suspiciousPortServices = map[string]bool{
 	"Android-ADB": true, "ShellInABox": true,
 }
 
-func lookupService(port uint16) string {
+func LookupService(port uint16) string {
 	if name, ok := portToService[port]; ok {
 		return name
 	}
 	return ""
 }
 
-func lookupServiceByPort(port uint32) string {
-	return lookupService(uint16(port))
+func LookupServiceByPort(port uint32) string {
+	return LookupService(uint16(port))
 }
 
-func isSuspiciousPortService(serviceName string) bool {
+func IsSuspiciousPortService(serviceName string) bool {
 	return suspiciousPortServices[serviceName]
 }

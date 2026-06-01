@@ -1,4 +1,4 @@
-package main
+package network
 
 import (
 	"fmt"
@@ -43,7 +43,7 @@ var tcpStateDisplayNames = map[TCPState]string{
 	TCPStateClosed:      "CLOSED",
 }
 
-func tcpStateFromLinux(state uint8) TCPState {
+func TCPStateFromLinux(state uint8) TCPState {
 	switch state {
 	case 1:
 		return TCPStateEstablished
@@ -92,7 +92,7 @@ func (s TCPState) IsEstablished() bool {
 	return s == TCPStateEstablished
 }
 
-type tcpConnectionState struct {
+type TCPConnectionState struct {
 	SrcIP      string
 	DstIP      string
 	SrcPort    uint32
@@ -103,34 +103,38 @@ type tcpConnectionState struct {
 	Comm       string
 }
 
-type tcpStateTracker struct {
+type TCPStateTracker struct {
 	mu          sync.RWMutex
-	connections map[string]*tcpConnectionState
+	connections map[string]*TCPConnectionState
 }
 
-func newTCPStateTracker() *tcpStateTracker {
-	return &tcpStateTracker{
-		connections: make(map[string]*tcpConnectionState),
+func NewTCPStateTracker() *TCPStateTracker {
+	return &TCPStateTracker{
+		connections: make(map[string]*TCPConnectionState),
 	}
 }
 
-func (t *tcpStateTracker) connKey(srcIP, dstIP string, srcPort, dstPort uint32) string {
+func TCPConnKey(srcIP, dstIP string, srcPort, dstPort uint32) string {
 	return fmt.Sprintf("%s:%d->%s:%d", srcIP, srcPort, dstIP, dstPort)
 }
 
-func (t *tcpStateTracker) RecordStateChange(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string) {
+func (t *TCPStateTracker) ConnKey(srcIP, dstIP string, srcPort, dstPort uint32) string {
+	return TCPConnKey(srcIP, dstIP, srcPort, dstPort)
+}
+
+func (t *TCPStateTracker) RecordStateChange(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string) {
 	if t == nil {
 		return
 	}
-	key := t.connKey(srcIP, dstIP, srcPort, dstPort)
-	newTCPState := tcpStateFromLinux(newState)
+	key := t.ConnKey(srcIP, dstIP, srcPort, dstPort)
+	newTCPState := TCPStateFromLinux(newState)
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	conn, ok := t.connections[key]
 	if !ok {
-		conn = &tcpConnectionState{
+		conn = &TCPConnectionState{
 			SrcIP:   srcIP,
 			DstIP:   dstIP,
 			SrcPort: srcPort,
@@ -150,14 +154,14 @@ func (t *tcpStateTracker) RecordStateChange(srcIP, dstIP string, srcPort, dstPor
 	}
 }
 
-func (t *tcpStateTracker) RecordConnect(srcIP, dstIP string, srcPort, dstPort uint32, pid uint32, comm string) {
+func (t *TCPStateTracker) RecordConnect(srcIP, dstIP string, srcPort, dstPort uint32, pid uint32, comm string) {
 	if t == nil {
 		return
 	}
-	key := t.connKey(srcIP, dstIP, srcPort, dstPort)
+	key := t.ConnKey(srcIP, dstIP, srcPort, dstPort)
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.connections[key] = &tcpConnectionState{
+	t.connections[key] = &TCPConnectionState{
 		SrcIP:      srcIP,
 		DstIP:      dstIP,
 		SrcPort:    srcPort,
@@ -169,11 +173,11 @@ func (t *tcpStateTracker) RecordConnect(srcIP, dstIP string, srcPort, dstPort ui
 	}
 }
 
-func (t *tcpStateTracker) RecordClose(srcIP, dstIP string, srcPort, dstPort uint32) {
+func (t *TCPStateTracker) RecordClose(srcIP, dstIP string, srcPort, dstPort uint32) {
 	if t == nil {
 		return
 	}
-	key := t.connKey(srcIP, dstIP, srcPort, dstPort)
+	key := t.ConnKey(srcIP, dstIP, srcPort, dstPort)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if conn, ok := t.connections[key]; ok {
@@ -182,17 +186,23 @@ func (t *tcpStateTracker) RecordClose(srcIP, dstIP string, srcPort, dstPort uint
 	}
 }
 
-func (t *tcpStateTracker) Snapshot() []tcpConnectionState {
+func (t *TCPStateTracker) Snapshot() []TCPConnectionState {
+	if t == nil {
+		return nil
+	}
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	conns := make([]tcpConnectionState, 0, len(t.connections))
+	conns := make([]TCPConnectionState, 0, len(t.connections))
 	for _, conn := range t.connections {
 		conns = append(conns, *conn)
 	}
 	return conns
 }
 
-func (t *tcpStateTracker) EvictTerminalOlderThan(maxAge time.Duration) {
+func (t *TCPStateTracker) EvictTerminalOlderThan(maxAge time.Duration) {
+	if t == nil {
+		return
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cutoff := time.Now().UTC().Add(-maxAge)
@@ -203,20 +213,9 @@ func (t *tcpStateTracker) EvictTerminalOlderThan(maxAge time.Duration) {
 	}
 }
 
-var tcpTracker = newTCPStateTracker()
-
-func startTCPStateTrackerGC() {
-	ticker := time.NewTicker(30 * time.Second)
-	go func() {
-		for range ticker.C {
-			tcpTracker.EvictTerminalOlderThan(1 * time.Minute)
-		}
-	}()
-}
-
 // ── Application Protocol Hints ────────────────────────────────────────
 
-func detectAppProtocol(port uint32, domain string) string {
+func DetectAppProtocol(port uint32, domain string) string {
 	p := uint16(port)
 	switch p {
 	case 80:
@@ -249,7 +248,7 @@ func detectAppProtocol(port uint32, domain string) string {
 	case 6443:
 		return "Kubernetes"
 	default:
-		if service := lookupService(p); service != "" {
+		if service := LookupService(p); service != "" {
 			return service
 		}
 		return "Unknown"
