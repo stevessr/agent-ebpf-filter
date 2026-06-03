@@ -76,6 +76,21 @@ interface TLSCaptureStatus {
   libraries?: TLSLibraryStatus[];
 }
 
+interface TLSBuiltinExecutableTarget {
+  name: string;
+  command: string;
+  library: string;
+  description?: string;
+}
+
+interface TLSBuiltinExecutableAttachStatus {
+  target: TLSBuiltinExecutableTarget;
+  available?: boolean;
+  attached?: boolean;
+  result?: any;
+  error?: string;
+}
+
 interface FileEntry {
   name: string;
   isDir: boolean;
@@ -97,12 +112,14 @@ const showDetails = ref(false);
 const selectedEvent = ref<TLSPlaintextEvent | null>(null);
 const rulesLoading = ref(false);
 const attachLoading = ref(false);
+const builtinAttachLoading = ref(false);
 const manualHookLoading = ref(false);
 const hookManagementTab = ref("rules");
 const manualHookType = ref<"executable" | "go" | "openssl" | "gnutls" | "nss">(
   "executable",
 );
 const manualHookPid = ref<number | null>(null);
+const builtinAttachStatuses = ref<TLSBuiltinExecutableAttachStatus[]>([]);
 const executablePathInput = ref("");
 const executableLibraryHint = ref<"auto" | "openssl" | "gnutls" | "nss">(
   "auto",
@@ -313,6 +330,41 @@ const attachDefaultLibraries = async (silent = false) => {
   } finally {
     attachLoading.value = false;
   }
+};
+
+const attachBuiltinExecutables = async () => {
+  builtinAttachLoading.value = true;
+  try {
+    const response = await axios.post("/tls-capture/attach-builtins", {
+      pid: manualHookPid.value || 0,
+    });
+    captureStatus.value = response.data?.status || captureStatus.value;
+    builtinAttachStatuses.value = Array.isArray(response.data?.statuses)
+      ? response.data.statuses
+      : [];
+    const attached = builtinAttachStatuses.value.filter((item) => item.attached)
+      .length;
+    if (attached > 0) message.success(`Attached ${attached} built-in TLS target(s)`);
+    else message.warning(response.data?.error || "No built-in TLS targets attached");
+    await Promise.all([fetchStatus(), fetchLibraries()]);
+  } catch (error: any) {
+    const payload = error?.response?.data || {};
+    if (payload.status) captureStatus.value = payload.status;
+    builtinAttachStatuses.value = Array.isArray(payload.statuses)
+      ? payload.statuses
+      : [];
+    message.error(payload.error || "Failed to attach built-in TLS targets");
+    await fetchLibraries();
+  } finally {
+    builtinAttachLoading.value = false;
+  }
+};
+
+const attachBuiltinCommand = async (command: string) => {
+  manualHookType.value = "executable";
+  executableLibraryHint.value = "auto";
+  executablePathInput.value = command;
+  await attachHookPath(command, command);
 };
 
 const attachHookPath = async (path: string, label: string) => {
@@ -759,8 +811,53 @@ onUnmounted(() => {
               show-icon
               class="tls-manual-hint"
               message="Select a local TLS library, Go binary, or executable hook target"
-              description="Executable mode accepts a command name or binary path such as claude, /usr/local/bin/claude, node, or a symlink/shebang CLI wrapper. The backend resolves symlinks and #! interpreters before attaching TLS uprobes."
+              description="Executable mode accepts a command name or binary path such as claude, /usr/local/bin/claude, node, deno, bun, codex, or a symlink/shebang CLI wrapper. The backend resolves symlinks and #! interpreters before attaching TLS uprobes."
             />
+            <a-card size="small" class="tls-builtin-card">
+              <template #title>Built-in SSL client binaries</template>
+              <template #extra>
+                <a-button
+                  size="small"
+                  type="primary"
+                  :loading="builtinAttachLoading"
+                  @click="attachBuiltinExecutables"
+                  >Attach built-ins</a-button
+                >
+              </template>
+              <a-space wrap>
+                <a-button size="small" @click="attachBuiltinCommand('node')">node</a-button>
+                <a-button size="small" @click="attachBuiltinCommand('deno')">deno</a-button>
+                <a-button size="small" @click="attachBuiltinCommand('bun')">bun</a-button>
+                <a-button size="small" @click="attachBuiltinCommand('codex')">codex</a-button>
+                <a-button size="small" @click="attachBuiltinCommand('claude')">claude</a-button>
+                <a-button size="small" @click="attachBuiltinCommand('gemini')">gemini</a-button>
+              </a-space>
+              <a-list
+                v-if="builtinAttachStatuses.length"
+                :data-source="builtinAttachStatuses"
+                size="small"
+                class="tls-builtin-status-list"
+              >
+                <template #renderItem="{ item }">
+                  <a-list-item>
+                    <a-list-item-meta
+                      :title="`${item.target?.name || item.target?.command} (${item.target?.command})`"
+                      :description="
+                        item.result?.attachPath ||
+                        item.result?.resolved?.realPath ||
+                        item.error ||
+                        item.target?.description
+                      "
+                    />
+                    <template #actions>
+                      <a-tag :color="item.attached ? 'green' : item.available ? 'orange' : 'red'">
+                        {{ item.attached ? 'Attached' : item.available ? 'Available' : 'Missing' }}
+                      </a-tag>
+                    </template>
+                  </a-list-item>
+                </template>
+              </a-list>
+            </a-card>
             <a-space wrap class="tls-manual-controls">
               <span class="tls-manual-label">Target type</span>
               <a-select
@@ -1245,9 +1342,14 @@ onUnmounted(() => {
 }
 
 .tls-manual-hint,
+.tls-builtin-card,
 .tls-manual-controls,
 .tls-executable-input {
   margin-bottom: 12px;
+}
+
+.tls-builtin-status-list {
+  margin-top: 10px;
 }
 
 .tls-manual-label {

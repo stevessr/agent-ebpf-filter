@@ -94,6 +94,34 @@ func (c *TLSCaptureController) AttachLibrary(path, library string) error {
 	return nil
 }
 
+func (c *TLSCaptureController) AttachBuiltinExecutables(pid int) ([]TLSBuiltinExecutableAttachStatus, error) {
+	manager, err := c.EnsureStarted()
+	if err != nil {
+		return nil, err
+	}
+	statuses := manager.AttachBuiltinExecutables(pid)
+	attached := 0
+	var lastErr error
+	for _, status := range statuses {
+		if status.Attached {
+			attached++
+			continue
+		}
+		if status.Error != "" {
+			lastErr = errors.New(status.Error)
+		}
+	}
+	if attached > 0 {
+		c.setLastError(nil)
+		return statuses, nil
+	}
+	if lastErr == nil {
+		lastErr = errors.New("no built-in TLS executable targets were attached")
+	}
+	c.setLastError(lastErr)
+	return statuses, lastErr
+}
+
 func (c *TLSCaptureController) Status() map[string]any {
 	if c == nil {
 		return map[string]any{"enabled": false, "available": false, "error": "TLS capture controller is unavailable"}

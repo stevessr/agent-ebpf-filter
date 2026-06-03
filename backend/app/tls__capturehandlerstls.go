@@ -2,6 +2,7 @@ package app
 
 import (
 	"agent-ebpf-filter/internal/binaryresolver"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -71,6 +72,7 @@ func (b *tlsCaptureBroadcaster) Broadcast(event TLSPlaintextEvent) {
 
 type tlsCaptureRuntime interface {
 	AttachDefaults() error
+	AttachBuiltinExecutables(pid int) ([]TLSBuiltinExecutableAttachStatus, error)
 	AttachLibrary(path, library string) error
 	EnsureStarted() (*TLSProbeManager, error)
 	Status() map[string]any
@@ -86,6 +88,7 @@ func registerTLSCaptureRoutes(router gin.IRouter, runtime tlsCaptureRuntime, sto
 	router.GET("/tls-capture/status", handleTLSCaptureStatus(runtime, store))
 	router.POST("/tls-capture/start", handleTLSCaptureStart(runtime))
 	router.POST("/tls-capture/attach-defaults", handleTLSCaptureAttachDefaults(runtime))
+	router.POST("/tls-capture/attach-builtins", handleTLSCaptureAttachBuiltins(runtime))
 	router.GET("/tls-capture/rules", handleTLSCaptureRulesGet(rules))
 	router.PUT("/tls-capture/rules", handleTLSCaptureRulesPut(rules))
 	router.POST("/tls-capture/library", handleTLSCaptureLibrary(runtime))
@@ -197,6 +200,31 @@ func handleTLSCaptureAttachDefaults(runtime tlsCaptureRuntime) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, runtime.Status())
+	}
+}
+
+func handleTLSCaptureAttachBuiltins(runtime tlsCaptureRuntime) gin.HandlerFunc {
+	type request struct {
+		PID int `json:"pid"`
+	}
+	return func(c *gin.Context) {
+		var req request
+		if err := c.ShouldBindJSON(&req); err != nil && err != io.EOF {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if runtime == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "TLS capture runtime is unavailable"})
+			return
+		}
+		statuses, err := runtime.AttachBuiltinExecutables(req.PID)
+		payload := gin.H{"targets": builtinTLSExecutableTargetList(), "statuses": statuses, "status": runtime.Status()}
+		if err != nil {
+			payload["error"] = err.Error()
+			c.JSON(http.StatusBadRequest, payload)
+			return
+		}
+		c.JSON(http.StatusOK, payload)
 	}
 }
 

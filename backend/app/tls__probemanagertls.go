@@ -97,10 +97,35 @@ type TLSExecutableAttachResult struct {
 	AttachPath   string                        `json:"attachPath,omitempty"`
 	TargetKind   string                        `json:"targetKind,omitempty"`
 	Library      string                        `json:"library,omitempty"`
+	Preset       string                        `json:"preset,omitempty"`
 	PID          int                           `json:"pid,omitempty"`
 	StaticTLS    bool                          `json:"staticTls,omitempty"`
 	LibraryPaths []TLSLibraryStatus            `json:"libraryPaths,omitempty"`
 	Error        string                        `json:"error,omitempty"`
+}
+
+type TLSBuiltinExecutableTarget struct {
+	Name        string `json:"name"`
+	Command     string `json:"command"`
+	Library     string `json:"library"`
+	Description string `json:"description"`
+}
+
+type TLSBuiltinExecutableAttachStatus struct {
+	Target    TLSBuiltinExecutableTarget `json:"target"`
+	Available bool                       `json:"available"`
+	Attached  bool                       `json:"attached"`
+	Result    TLSExecutableAttachResult  `json:"result,omitempty"`
+	Error     string                     `json:"error,omitempty"`
+}
+
+var builtinTLSExecutableTargets = []TLSBuiltinExecutableTarget{
+	{Name: "Node.js", Command: "node", Library: "auto", Description: "Node.js embeds or links OpenSSL/BoringSSL TLS symbols."},
+	{Name: "Deno", Command: "deno", Library: "auto", Description: "Deno bundles its HTTPS client runtime inside the executable."},
+	{Name: "Bun", Command: "bun", Library: "auto", Description: "Bun ships its own JavaScript runtime and TLS stack."},
+	{Name: "Codex", Command: "codex", Library: "auto", Description: "Codex CLI may be a native binary or a shebang wrapper around another TLS-capable runtime."},
+	{Name: "Claude Code", Command: "claude", Library: "auto", Description: "Claude Code CLI wrapper; shebang targets are resolved before attaching."},
+	{Name: "Gemini CLI", Command: "gemini", Library: "auto", Description: "Gemini CLI wrapper; shebang targets are resolved before attaching."},
 }
 
 func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *tlsCaptureBroadcaster, rules *TLSCaptureRuleStore) (*TLSProbeManager, error) {
@@ -311,6 +336,12 @@ func resolveShebangInterpreter(shebang string) string {
 	return ""
 }
 
+func builtinTLSExecutableTargetList() []TLSBuiltinExecutableTarget {
+	out := make([]TLSBuiltinExecutableTarget, len(builtinTLSExecutableTargets))
+	copy(out, builtinTLSExecutableTargets)
+	return out
+}
+
 func executableLibraryCandidates(libraryHint string) []tlsProbeTarget {
 	libraryHint = strings.TrimSpace(libraryHint)
 	if libraryHint == "" || strings.EqualFold(libraryHint, "auto") {
@@ -386,6 +417,41 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		return result
 	}
 
+	return m.attachResolvedExecutable(resolved, pid, libraryHint)
+}
+
+func (m *TLSProbeManager) AttachBuiltinExecutables(pid int) []TLSBuiltinExecutableAttachStatus {
+	statuses := make([]TLSBuiltinExecutableAttachStatus, 0, len(builtinTLSExecutableTargets))
+	if m == nil {
+		for _, target := range builtinTLSExecutableTargets {
+			statuses = append(statuses, TLSBuiltinExecutableAttachStatus{Target: target, Error: "TLS probe manager is unavailable"})
+		}
+		return statuses
+	}
+
+	for _, target := range builtinTLSExecutableTargets {
+		status := TLSBuiltinExecutableAttachStatus{Target: target}
+		resolved := binaryresolver.ResolveBinary(target.Command, "")
+		if resolved.Error != "" {
+			status.Error = resolved.Error
+			statuses = append(statuses, status)
+			continue
+		}
+		status.Available = true
+		result := m.attachResolvedExecutable(resolved, pid, target.Library)
+		result.Preset = target.Command
+		status.Result = result
+		status.Attached = result.Error == ""
+		if result.Error != "" {
+			status.Error = result.Error
+		}
+		statuses = append(statuses, status)
+	}
+	return statuses
+}
+
+func (m *TLSProbeManager) attachResolvedExecutable(resolved binaryresolver.ResolvedBinary, pid int, libraryHint string) TLSExecutableAttachResult {
+	result := TLSExecutableAttachResult{Resolved: resolved, PID: pid}
 	attachPath := executableTLSAttachPath(resolved)
 	if attachPath == "" {
 		attachPath = resolved.RealPath

@@ -55,6 +55,34 @@ func TestHandleTLSCaptureGoBinaryRejectsMissingPath(t *testing.T) {
 	}
 }
 
+func TestHandleTLSCaptureAttachBuiltinsReturnsTargetsWhenRuntimeMissing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	registerTLSCaptureRoutes(r.Group("/"), nil, NewTLSCaptureStore(10), NewTLSCaptureRuleStore())
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/tls-capture/attach-builtins", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
+	}
+}
+
+func TestBuiltinTLSExecutableTargetListIncludesCommonSSLClients(t *testing.T) {
+	targets := builtinTLSExecutableTargetList()
+	seen := make(map[string]bool, len(targets))
+	for _, target := range targets {
+		seen[target.Command] = true
+	}
+	for _, command := range []string{"node", "deno", "bun", "codex"} {
+		if !seen[command] {
+			t.Fatalf("builtin TLS executable targets missing %q: %#v", command, targets)
+		}
+	}
+}
+
 func TestHandleTLSCaptureRulesRoundTrip(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rules := NewTLSCaptureRuleStore()
