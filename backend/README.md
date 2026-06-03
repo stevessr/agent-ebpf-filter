@@ -429,6 +429,13 @@ Build backend:
 go build -o agent-ebpf-filter
 ```
 
+Optional modules can be selected with feature tags. From the repo root,
+`AGENT_BUILD_FEATURES=all make backend` keeps the full default workbench,
+`AGENT_BUILD_FEATURES=core make backend` keeps only the core event/runtime
+surface, and comma-separated values such as `tls_capture,ml` expand to
+`agentfeat_tls_capture agentfeat_ml`. The manifest is exposed at
+`GET /system/features`; runtime gates and auth still control sensitive features.
+
 Or from the repo root:
 
 ```bash

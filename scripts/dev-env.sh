@@ -97,6 +97,9 @@ DEVCONTAINER_KEYS=(
 )
 
 TOOLING_KEYS=(
+  AGENT_BUILD_FEATURES
+  AGENT_BUILD_TAGS
+  AGENT_FRONTEND_BUILD_FEATURES
   CUDA_GO_TAGS
   OS_SMOKE_PRIVILEGE_CMD
   OS_SMOKE_BACKEND_CMD
@@ -278,6 +281,9 @@ default_for() {
     DEV_CONTAINER) printf '%s' "${DEV_CONTAINER:-agent-ebpf-filiter-dev}" ;;
     DEV_WORKSPACE) printf '%s' "${DEV_WORKSPACE:-/workspaces/agent-ebpf-filiter}" ;;
     DEVCONTAINER_POSTCREATE_INSTALL) printf '%s' "${DEVCONTAINER_POSTCREATE_INSTALL:-0}" ;;
+    AGENT_BUILD_FEATURES) printf '%s' "${AGENT_BUILD_FEATURES:-all}" ;;
+    AGENT_BUILD_TAGS) printf '%s' "${AGENT_BUILD_TAGS:-}" ;;
+    AGENT_FRONTEND_BUILD_FEATURES) printf '%s' "${AGENT_FRONTEND_BUILD_FEATURES:-${AGENT_BUILD_FEATURES:-all}}" ;;
     CUDA_GO_TAGS) printf '%s' "${CUDA_GO_TAGS:-$(cuda_default)}" ;;
     AGENT_LLM_TIMEOUT_SECONDS) printf '%s' "${AGENT_LLM_TIMEOUT_SECONDS:-}" ;;
     AGENT_LLM_TEMPERATURE) printf '%s' "${AGENT_LLM_TEMPERATURE:-}" ;;
@@ -378,6 +384,9 @@ label_for() {
     DEV_CONTAINER) printf 'Local devcontainer name' ;;
     DEV_WORKSPACE) printf 'Path inside devcontainer' ;;
     DEVCONTAINER_POSTCREATE_INSTALL) printf 'Allow online Dev Container post-create install' ;;
+    AGENT_BUILD_FEATURES) printf 'Backend build feature list' ;;
+    AGENT_BUILD_TAGS) printf 'Extra raw Go build tags' ;;
+    AGENT_FRONTEND_BUILD_FEATURES) printf 'Frontend build feature list' ;;
     CUDA_GO_TAGS) printf 'Go build tags for CUDA' ;;
     OS_SMOKE_PRIVILEGE_CMD) printf 'Privilege command for OS enforcement smoke tests' ;;
     OS_SMOKE_BACKEND_CMD) printf 'OS smoke backend command' ;;
@@ -443,6 +452,9 @@ hint_for() {
     DEV_IMAGE_TAG) printf 'Detected tag: ${tag:-unknown}. Leave unset for Makefile auto-detect.' ;;
     DEV_IMAGE) printf 'Usually unset so Makefile derives repository/tag.' ;;
     DEVCONTAINER_POSTCREATE_INSTALL) printf '0 keeps offline fail-fast behavior; 1 explicitly allows make predev online.' ;;
+    AGENT_BUILD_FEATURES) printf 'all, core, or comma-separated names such as tls_capture,ml,plugins.' ;;
+    AGENT_BUILD_TAGS) printf 'Advanced: extra Go build tags appended after feature and CUDA tags.' ;;
+    AGENT_FRONTEND_BUILD_FEATURES) printf 'Usually same as AGENT_BUILD_FEATURES; controls VITE_AGENT_BUILD_FEATURES.' ;;
     CUDA_GO_TAGS) printf 'Use cuda only when /opt/cuda has nvcc and runtime libs; - unsets.' ;;
     OS_SMOKE_PRIVILEGE_CMD) printf 'Example: sudo -E. Leave unset for normal root/passwordless-sudo detection.' ;;
     ML_SWEEP_MODE) printf 'quick, full, or comprehensive.' ;;

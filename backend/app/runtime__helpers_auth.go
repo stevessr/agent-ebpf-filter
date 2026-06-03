@@ -74,6 +74,16 @@ func runtimeToggleMiddleware(featureName string, enabled func(core.RuntimeSettin
 	}
 }
 
+func compiledOutFeatureMiddleware(feature FeatureID) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.AbortWithStatusJSON(http.StatusNotImplemented, gin.H{
+			"error":      string(feature) + " is not compiled into this build",
+			"feature":    feature,
+			"compiledIn": false,
+		})
+	}
+}
+
 func shellSessionsEnabledMiddleware() gin.HandlerFunc {
 	return runtimeToggleMiddleware("shell_sessions", func(settings core.RuntimeSettings) bool {
 		return settings.ShellSessionsEnabled

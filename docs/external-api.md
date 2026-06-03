@@ -35,6 +35,11 @@ optional 80/443 Host/SNI data-plane forwarder is enabled. Manage that forwarder
 through the authenticated root `/config/runtime` and inspect listener status at
 `/system/domain-forward/status`.
 
+`/api/v1/health.featureManifest` mirrors `GET /system/features` and reports each
+optional module's `compiledIn` and `runtimeEnabled` state. Use it to distinguish
+a build that omitted a feature from a build where the feature exists but its
+runtime gate is disabled.
+
 ## Event and graph APIs
 
 | Method | Path | Purpose |

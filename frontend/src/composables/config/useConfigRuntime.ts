@@ -2,6 +2,7 @@ import { ref, computed } from "vue";
 import axios from "axios";
 import { message } from "ant-design-vue";
 import { setStoredApiToken } from "../../utils/requestContext";
+import { useFeatureManifest } from "./useFeatureManifest";
 import type {
   RuntimeSettings,
   RuntimeConfigResponse,
@@ -59,6 +60,7 @@ const normalizeDomainForwardProxy = (
 };
 
 export function useConfigRuntime() {
+  const featureManifest = useFeatureManifest();
   const runtimeSettings = ref<RuntimeSettings>({
     logPersistenceEnabled: false,
     logFilePath: "",
@@ -183,14 +185,21 @@ export function useConfigRuntime() {
   };
 
   const fetchRuntime = async () => {
-    const [runtimeRes, bootstrapRes, collectorRes, otelRes, domainForwardRes] =
-      await Promise.allSettled([
-        axios.get("/config/runtime"),
-        axios.get("/system/bootstrap-health"),
-        axios.get("/system/collector-health"),
-        axios.get("/system/otel-health"),
-        axios.get("/system/domain-forward/status"),
-      ]);
+    const [
+      runtimeRes,
+      bootstrapRes,
+      collectorRes,
+      otelRes,
+      domainForwardRes,
+      featureRes,
+    ] = await Promise.allSettled([
+      axios.get("/config/runtime"),
+      axios.get("/system/bootstrap-health"),
+      axios.get("/system/collector-health"),
+      axios.get("/system/otel-health"),
+      axios.get("/system/domain-forward/status"),
+      featureManifest.fetchFeatureManifest(),
+    ]);
     if (runtimeRes.status === "fulfilled") {
       applyRuntimeResponse(runtimeRes.value.data as RuntimeConfigResponse);
     } else {
@@ -219,6 +228,9 @@ export function useConfigRuntime() {
     } else {
       console.error("Failed to fetch domain forward proxy status");
     }
+    if (featureRes.status === "rejected") {
+      console.error("Failed to fetch feature manifest");
+    }
   };
 
   const fetchCollectorHealth = async () => {
@@ -228,6 +240,7 @@ export function useConfigRuntime() {
         axios.get("/system/collector-health"),
         axios.get("/system/otel-health"),
         axios.get("/system/domain-forward/status"),
+        featureManifest.fetchFeatureManifest(),
       ]);
     if (bootstrapRes.status === "fulfilled") {
       bootstrapHealth.value = bootstrapRes.value
@@ -427,6 +440,7 @@ export function useConfigRuntime() {
     persistedEventLogAlive,
     bootstrapHealth,
     collectorHealth,
+    featureManifest,
     syncApiToken,
     applyRuntimeResponse,
     fetchRuntime,

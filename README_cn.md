@@ -27,3 +27,14 @@ make install
 `/usr/local/sbin/agent-ebpf-filter-service`。可用
 `INSTALL_METHOD=systemd|rc.local`、`INSTALL_START=0`、`INSTALL_ENABLE=0`
 调整行为；卸载用 `make uninstall`。
+
+## 编译期功能选择
+
+构建时可以通过 `AGENT_BUILD_FEATURES` 控制后端携带的功能模块，通过
+`AGENT_FRONTEND_BUILD_FEATURES` 控制前端构建声明的可见功能。默认值 `all`
+保持完整功能；`core` 只保留核心事件与运行时控制面；也可以使用
+`tls_capture,ml,plugins` 这类逗号列表，对应 Go build tag 会展开为
+`agentfeat_tls_capture` 等。编译期选择只决定“当前构建是否包含该模块”，危险
+能力仍必须经过 `/config/runtime` / `AGENT_RUNTIME_*` 运行时 gate 和 release
+mode access token 才能使用。后端通过 `GET /system/features` 暴露当前构建与
+运行时状态，前端会据此区分“未编译”“运行时关闭”和“可用”。

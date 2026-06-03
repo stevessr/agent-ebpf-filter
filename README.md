@@ -280,6 +280,14 @@ Bun; Node is only the runtime for `pbjs` / `pbts`.
 CUDA acceleration is optional: when `/opt/cuda/bin/nvcc` and CUDA runtime libs
 are absent, backend builds use the CPU-only CUDA stub instead of linking
 `libcudart` / `libcuda`.
+
+Build-time feature selection is available through `AGENT_BUILD_FEATURES` and
+`AGENT_FRONTEND_BUILD_FEATURES`. The default `all` preserves the full current
+workbench; `core` builds only the core event/runtime surface, and comma-separated
+values such as `tls_capture,ml,plugins` map to Go build tags like
+`agentfeat_tls_capture`. Runtime gates (`AGENT_RUNTIME_*`, `/config/runtime`) and
+release-mode auth still decide whether dangerous compiled-in capabilities can be
+used. The backend exposes the effective manifest at `GET /system/features`.
 The GHCR devcontainer image built by GitHub Actions also runs `make predev`
 during the image build and publishes a multi-arch manifest for `linux/amd64`
 and `linux/arm64` (aarch64). Its post-create hook and `make exec` seed missing

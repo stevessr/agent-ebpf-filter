@@ -34,10 +34,16 @@ func Main() {
 		log.Fatalf("failed to initialize eBPF components: %v", err)
 	}
 	settings := runtimeSettingsStore.Snapshot()
-	domainForwardProxyService.Activate()
-	applyRuntimeDomainForwardProxy(settings)
-	defer domainForwardProxyService.Close()
+	features := newFeatureRegistry()
+	if features.CompiledIn(FeatureDomainForward) {
+		domainForwardProxyService.Activate()
+		applyRuntimeDomainForwardProxy(settings)
+		defer domainForwardProxyService.Close()
+	}
 
+	if !features.CompiledIn(FeatureTLSCapture) {
+		settings.TlsCaptureEnabled = false
+	}
 	tlsRuntime := startTLSCaptureRuntime(settings)
 	defer tlsRuntime.controller.Close()
 
@@ -45,7 +51,7 @@ func Main() {
 	defer rd.Close()
 
 	startKernelEventReader(rd)
-	startRuntimeBackgroundJobs()
+	startRuntimeBackgroundJobs(features)
 
 	ApplySandbox()
 
@@ -56,15 +62,19 @@ func Main() {
 	defer cancel()
 	startArchiveEvictionLoop(ctx)
 
-	registerRoutes(r, tlsRuntime.broadcaster, tlsRuntime.controller, tlsRuntime.store, tlsRuntime.rules)
+	registerRoutes(r, features, tlsRuntime.broadcaster, tlsRuntime.controller, tlsRuntime.store, tlsRuntime.rules)
 
 	seedDefaultTrackedCommands()
 
 	actualPort := chooseBackendPort()
 	configureRuntimePort(actualPort)
 
-	startDeferredMLRuntime()
-	startDeferredPluginRuntime()
+	if features.CompiledIn(FeatureML) {
+		startDeferredMLRuntime()
+	}
+	if features.CompiledIn(FeaturePlugins) {
+		startDeferredPluginRuntime()
+	}
 
 	_ = r.Run(fmt.Sprintf(":%d", actualPort))
 }

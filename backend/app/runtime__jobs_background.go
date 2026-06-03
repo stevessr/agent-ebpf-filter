@@ -41,7 +41,7 @@ func startKernelEventReader(rd *ringbuf.Reader) {
 	}()
 }
 
-func startRuntimeBackgroundJobs() {
+func startRuntimeBackgroundJobs(features *FeatureRegistry) {
 	startEventBroadcaster()
 	go startUDSServer(broadcast)
 	startCgroupAttributionGC()
@@ -59,16 +59,20 @@ func startRuntimeBackgroundJobs() {
 			globalBandwidthTracker.EvictOlderThan(15 * time.Minute)
 		}
 	}()
-	go func() {
-		if err := ensureCgroupSandboxLoaded(); err != nil {
-			log.Printf("[CGROUP-SANDBOX] not available: %v", err)
-		}
-	}()
-	go func() {
-		if err := ensureLsmEnforcerLoaded(); err != nil {
-			log.Printf("[LSM-ENFORCER] not available: %v", err)
-		}
-	}()
+	if features.CompiledIn(FeatureSandboxCgroup) {
+		go func() {
+			if err := ensureCgroupSandboxLoaded(); err != nil {
+				log.Printf("[CGROUP-SANDBOX] not available: %v", err)
+			}
+		}()
+	}
+	if features.CompiledIn(FeatureSandboxLSM) {
+		go func() {
+			if err := ensureLsmEnforcerLoaded(); err != nil {
+				log.Printf("[LSM-ENFORCER] not available: %v", err)
+			}
+		}()
+	}
 }
 
 func startArchiveEvictionLoop(ctx context.Context) {

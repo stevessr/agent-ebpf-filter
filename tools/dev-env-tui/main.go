@@ -184,8 +184,11 @@ var groups = []envGroup{
 	{
 		ID:    "tooling",
 		Title: "Tooling",
-		Desc:  "CUDA, smoke tests, runtime replay, ML sweep",
+		Desc:  "Build features, CUDA, smoke tests, runtime replay, ML sweep",
 		Vars: []envVar{
+			{Key: "AGENT_BUILD_FEATURES", Label: "Backend features", Hint: "all, core, or comma-separated names such as tls_capture,ml,plugins."},
+			{Key: "AGENT_BUILD_TAGS", Label: "Extra Go tags", Hint: "Advanced: raw Go build tags appended after feature and CUDA tags."},
+			{Key: "AGENT_FRONTEND_BUILD_FEATURES", Label: "Frontend features", Hint: "Usually same as AGENT_BUILD_FEATURES; exported as VITE_AGENT_BUILD_FEATURES."},
 			{Key: "CUDA_GO_TAGS", Label: "CUDA Go tags", Hint: "Use cuda only when /opt/cuda has nvcc and runtime libs; blank unsets."},
 			{Key: "OS_SMOKE_PRIVILEGE_CMD", Label: "Smoke privilege cmd", Hint: "Example: sudo -E."},
 			{Key: "OS_SMOKE_BACKEND_CMD", Label: "Smoke backend cmd", Hint: "Override backend binary used by smoke script."},
@@ -304,6 +307,8 @@ func (m *model) applyRecommendedDefaults() {
 		"DISABLE_AUTH":                    "true",
 		"GIN_MODE":                        "debug",
 		"AGENT_EBPF_DEV_SESSION":          "agent-ebpf-dev",
+		"AGENT_BUILD_FEATURES":            "all",
+		"AGENT_FRONTEND_BUILD_FEATURES":   "all",
 		"DEV_CONTAINER":                   "agent-ebpf-filiter-dev",
 		"DEV_WORKSPACE":                   "/workspaces/agent-ebpf-filiter",
 		"DEVCONTAINER_POSTCREATE_INSTALL": "0",

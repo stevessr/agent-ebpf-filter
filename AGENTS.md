@@ -70,6 +70,12 @@ Debian `nodejs` / `npm`; keep dependency installation on Bun.
 CUDA acceleration is build-tagged: only build with the `cuda` tag when
 `/opt/cuda/bin/nvcc` and CUDA runtime libraries are present; otherwise keep the
 CPU-only stub as the default so devcontainers without CUDA still compile.
+Build feature selection is also tag-driven: `AGENT_BUILD_FEATURES=all` keeps the
+full workbench, `AGENT_BUILD_FEATURES=core` removes optional feature modules from
+the feature manifest/route startup, and comma-separated names such as
+`tls_capture,ml` map to `agentfeat_tls_capture agentfeat_ml`. Keep this separate
+from runtime gates: compiled-in dangerous features still require `/config/runtime`
+or `AGENT_RUNTIME_*` enablement plus release-mode auth.
 `make exec` and VS Code Dev Containers must mount container-local volumes over
 `frontend/node_modules` and `adapters/python/.venv` so the bind-mounted
 workspace stays writable without reusing host-only dependency trees.

@@ -544,7 +544,7 @@ func handleProcessMaps(c *gin.Context) {
 	c.JSON(200, gin.H{"maps": string(data)})
 }
 
-func registerSystemRoutes(rg *gin.RouterGroup) {
+func registerSystemRoutes(rg *gin.RouterGroup, features *FeatureRegistry) {
 	rg.GET("/ls", handleSystemLs)
 	rg.GET("/file-preview", handleFilePreview)
 	rg.GET("/file-preview/stream", handleFilePreviewStream)
@@ -554,13 +554,26 @@ func registerSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/download", handleDownload)
 	rg.POST("/upload", handleUpload)
 	rg.GET("/env", handleListLaunchEnvEntries)
+	rg.GET("/features", handleSystemFeatures)
 	rg.GET("/bootstrap-health", handleBootstrapHealth)
 	rg.GET("/collector-health", handleCollectorHealth)
 	rg.POST("/benchmark", handleRunBenchmark)
 	rg.GET("/benchmark", handleGetBenchmarkResults)
-	rg.GET("/otel-health", handleOTelHealth)
-	rg.GET("/domain-forward/status", handleDomainForwardProxyStatus)
-	rg.POST("/run", systemRunEnabledMiddleware(), handleRun)
+	if features.CompiledIn(FeatureOTLP) {
+		rg.GET("/otel-health", handleOTelHealth)
+	} else {
+		rg.GET("/otel-health", compiledOutFeatureMiddleware(FeatureOTLP))
+	}
+	if features.CompiledIn(FeatureDomainForward) {
+		rg.GET("/domain-forward/status", handleDomainForwardProxyStatus)
+	} else {
+		rg.GET("/domain-forward/status", compiledOutFeatureMiddleware(FeatureDomainForward))
+	}
+	if features.CompiledIn(FeatureSystemRun) {
+		rg.POST("/run", systemRunEnabledMiddleware(), handleRun)
+	} else {
+		rg.POST("/run", compiledOutFeatureMiddleware(FeatureSystemRun))
+	}
 	rg.GET("/systemd", handleSystemdServices)
 	rg.POST("/systemd/control", handleSystemdControl)
 	rg.GET("/systemd/logs", handleSystemdLogs)

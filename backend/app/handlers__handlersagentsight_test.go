@@ -83,6 +83,9 @@ func TestAgentSightEventsExportReferenceJSONL(t *testing.T) {
 }
 
 func TestAgentSightCompatibilityAndExternalRoutes(t *testing.T) {
+	if !newFeatureRegistry().CompiledIn(FeatureAgentSight) {
+		t.Skip("AgentSight feature is not compiled into this build")
+	}
 	gin.SetMode(gin.TestMode)
 	restoreAgentSightTestState(t)
 
@@ -145,6 +148,9 @@ func TestAgentSightCompatibilityAndExternalRoutes(t *testing.T) {
 }
 
 func TestAgentSightStatsRunnersAndAdvancedQuery(t *testing.T) {
+	if !newFeatureRegistry().CompiledIn(FeatureAgentSight) {
+		t.Skip("AgentSight feature is not compiled into this build")
+	}
 	gin.SetMode(gin.TestMode)
 	restoreAgentSightTestState(t)
 

@@ -29,7 +29,11 @@ const {
   copyText,
   mcpQueryEndpoint,
   mcpQueryEndpointTemplate,
+  featureManifest,
 } = props.runtime;
+
+const { mergedFeatures, isCompiledIn, featureStatusLabel, featureStatusColor } =
+  featureManifest;
 
 const schemeOptions = [
   { value: "https", label: "https" },
@@ -46,6 +50,24 @@ const schemeOptions = [
         message="Runtime configuration is now fully visual."
         description="Use the forms below to edit every exposed runtime switch, token, retention value, OTLP header, and domain-forward route without writing raw JSON. Save applies the current runtime snapshot."
       />
+    </a-col>
+
+    <a-col :span="24">
+      <a-card title="Build Feature Manifest" size="small">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <a-tag
+            v-for="feature in mergedFeatures"
+            :key="feature.id"
+            :color="featureStatusColor(feature.id)"
+          >
+            {{ feature.name }} · {{ featureStatusLabel(feature.id) }}
+          </a-tag>
+        </div>
+        <a-typography-text type="secondary">
+          compiled-out 表示当前二进制或前端构建未携带该模块；runtime-disabled
+          表示已编译但运行时 gate 未开启。
+        </a-typography-text>
+      </a-card>
     </a-col>
 
     <a-col :xs="24" :xl="12">
@@ -81,22 +103,44 @@ const schemeOptions = [
           </div>
           <a-divider style="margin: 4px 0" />
           <div style="display: flex; align-items: center; gap: 12px">
-            <a-switch v-model:checked="runtimeSettings.shellSessionsEnabled" />
+            <a-switch
+              v-model:checked="runtimeSettings.shellSessionsEnabled"
+              :disabled="!isCompiledIn('shell_sessions')"
+            />
             <span>Enable PTY / shell sessions</span>
+            <a-tag :color="featureStatusColor('shell_sessions')">
+              {{ featureStatusLabel("shell_sessions") }}
+            </a-tag>
           </div>
           <div style="display: flex; align-items: center; gap: 12px">
-            <a-switch v-model:checked="runtimeSettings.systemRunEnabled" />
+            <a-switch
+              v-model:checked="runtimeSettings.systemRunEnabled"
+              :disabled="!isCompiledIn('system_run')"
+            />
             <span>Enable /system/run command launch</span>
+            <a-tag :color="featureStatusColor('system_run')">
+              {{ featureStatusLabel("system_run") }}
+            </a-tag>
           </div>
           <div style="display: flex; align-items: center; gap: 12px">
-            <a-switch v-model:checked="runtimeSettings.hookManagementEnabled" />
+            <a-switch
+              v-model:checked="runtimeSettings.hookManagementEnabled"
+              :disabled="!isCompiledIn('hooks')"
+            />
             <span>Enable hook injection / config editing</span>
+            <a-tag :color="featureStatusColor('hooks')">
+              {{ featureStatusLabel("hooks") }}
+            </a-tag>
           </div>
           <div style="display: flex; align-items: center; gap: 12px">
             <a-switch
               v-model:checked="runtimeSettings.policyManagementEnabled"
+              :disabled="!isCompiledIn('policy_management')"
             />
             <span>Enable policy mutations (tags / comms / paths / rules)</span>
+            <a-tag :color="featureStatusColor('policy_management')">
+              {{ featureStatusLabel("policy_management") }}
+            </a-tag>
           </div>
           <a-alert
             type="warning"
@@ -230,11 +274,17 @@ const schemeOptions = [
       <a-card title="TLS Capture" size="small">
         <div style="display: flex; flex-direction: column; gap: 14px">
           <div style="display: flex; align-items: center; gap: 12px">
-            <a-switch v-model:checked="runtimeSettings.tlsCaptureEnabled" />
+            <a-switch
+              v-model:checked="runtimeSettings.tlsCaptureEnabled"
+              :disabled="!isCompiledIn('tls_capture')"
+            />
             <span
               >Enable TLS plaintext capture (eBPF uprobes on
               OpenSSL/GnuTLS/NSS/Go)</span
             >
+            <a-tag :color="featureStatusColor('tls_capture')">
+              {{ featureStatusLabel("tls_capture") }}
+            </a-tag>
           </div>
           <a-alert
             type="warning"
@@ -267,8 +317,14 @@ const schemeOptions = [
           <a-col :xs="24" :lg="10">
             <div style="display: flex; flex-direction: column; gap: 12px">
               <div style="display: flex; align-items: center; gap: 12px">
-                <a-switch v-model:checked="runtimeSettings.otlpEnabled" />
+                <a-switch
+                  v-model:checked="runtimeSettings.otlpEnabled"
+                  :disabled="!isCompiledIn('otlp')"
+                />
                 <span>Enable OTLP trace export</span>
+                <a-tag :color="featureStatusColor('otlp')">
+                  {{ featureStatusLabel("otlp") }}
+                </a-tag>
               </div>
               <a-input
                 v-model:value="runtimeSettings.otlpEndpoint"
@@ -314,10 +370,9 @@ const schemeOptions = [
                 :key="row.id"
                 style="
                   display: grid;
-                  grid-template-columns: minmax(160px, 1fr) minmax(
-                      180px,
-                      1fr
-                    ) auto;
+                  grid-template-columns:
+                    minmax(160px, 1fr) minmax(180px, 1fr)
+                    auto;
                   gap: 8px;
                   align-items: center;
                 "
@@ -349,8 +404,12 @@ const schemeOptions = [
               <div style="display: flex; align-items: center; gap: 12px">
                 <a-switch
                   v-model:checked="runtimeSettings.domainForwardProxy.enabled"
+                  :disabled="!isCompiledIn('domain_forward')"
                 />
                 <span>Enable Host/SNI-based HTTP and HTTPS forwarding</span>
+                <a-tag :color="featureStatusColor('domain_forward')">
+                  {{ featureStatusLabel("domain_forward") }}
+                </a-tag>
               </div>
               <div style="display: flex; gap: 12px; flex-wrap: wrap">
                 <div>

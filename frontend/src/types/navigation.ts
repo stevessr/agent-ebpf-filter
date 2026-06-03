@@ -1,4 +1,5 @@
 import type { Component } from "vue";
+import type { FeatureID } from "./feature";
 import type {
   RouteLocationNormalizedLoaded,
   RouteLocationRaw,
@@ -25,6 +26,7 @@ export type NavMenuLeaf = {
   defaultRoute: RouteLocationRaw;
   closable?: boolean;
   affix?: boolean;
+  feature?: FeatureID;
 };
 
 export type NavMenuGroup = {

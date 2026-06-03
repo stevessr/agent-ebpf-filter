@@ -304,6 +304,12 @@ In release mode, the runtime access token now protects:
 `/hooks/event` accepts either that token or a per-hook `X-Agent-Hook-Secret`.
 Dangerous features such as PTY sessions, `/system/run`, hook installation, and policy mutation are also runtime-gated and default to disabled until enabled in `/config/runtime`.
 
+## Build feature manifest
+
+The backend now has a lightweight feature registry in `backend/app/feature_manifest.go` and `backend/app/feature_registry.go`. Build-time selection comes from `AGENT_BUILD_FEATURES` / Go tags (`agentfeat_all`, `agentfeat_tls_capture`, `agentfeat_ml`, etc.) and is surfaced through `GET /system/features`. The manifest distinguishes `compiledIn` from `runtimeEnabled`, so the UI and external tools can tell the difference between a module omitted from the current build and a compiled-in module whose runtime gate is off.
+
+This is an in-process modularization step, not a full multi-process split: eBPF bootstrap, runtime state, auth, and event ingestion still live in the privileged backend. Future ML/plugin/AgentSight/hook services can attach behind the same manifest contract.
+
 Treat the app as a local workstation tool unless you also harden auth and deployment boundaries.
 
 ## Export model

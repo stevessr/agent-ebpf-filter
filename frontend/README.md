@@ -83,6 +83,7 @@ Vue 3 + TypeScript + Vite dashboard for the Agent eBPF Filter backend.
 - manages wrapper rules
 - manages master/slave cluster selection and node routing
 - exposes a dedicated Runtime Config tab for visual editing of runtime log persistence, feature gates, event retention, OTLP settings/headers, TLS capture, and 80/443 domain-forward routes/certificates
+- reads `/system/features` plus `VITE_AGENT_BUILD_FEATURES` so navigation and Runtime Config can distinguish compiled-out modules from runtime-disabled modules
 - generates / rotates the backend access token for `/config` and `/mcp`
 - documents MCP query auth URLs such as `/mcp?key=<token>`
 - exposes a System Health tab for collector, eBPF bootstrap, OTLP exporter, and domain-forward listener status

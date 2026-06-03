@@ -16,6 +16,7 @@ import type {
   RouteLocationNormalizedLoaded,
   RouteLocationRaw,
 } from "vue-router";
+import { filterFeaturesForFrontendBuild } from "./featureFlags";
 import type {
   NavMenuGroup,
   ResolvedWorkbench,
@@ -24,7 +25,7 @@ import type {
   WorkbenchTabState,
 } from "../types/navigation";
 
-export const NAV_GROUPS: NavMenuGroup[] = [
+const ALL_NAV_GROUPS: NavMenuGroup[] = [
   {
     key: "observability",
     title: "观测分析",
@@ -69,6 +70,7 @@ export const NAV_GROUPS: NavMenuGroup[] = [
         title: "Hook SSL",
         icon: SafetyCertificateOutlined,
         defaultRoute: { name: "TLSCapture" },
+        feature: "tls_capture",
       },
     ],
   },
@@ -87,12 +89,14 @@ export const NAV_GROUPS: NavMenuGroup[] = [
         title: "Executor",
         icon: PlaySquareOutlined,
         defaultRoute: { name: "Executor", params: { tab: "shell" } },
+        feature: "shell_sessions",
       },
       {
         key: "hooks",
         title: "Hooks",
         icon: LinkOutlined,
         defaultRoute: { name: "Hooks" },
+        feature: "hooks",
       },
     ],
   },
@@ -105,12 +109,14 @@ export const NAV_GROUPS: NavMenuGroup[] = [
         title: "ML",
         icon: ThunderboltOutlined,
         defaultRoute: { name: "ML", params: { subtab: "status" } },
+        feature: "ml",
       },
       {
         key: "plugins",
         title: "插件",
         icon: AppstoreOutlined,
         defaultRoute: { name: "Plugins", params: { tab: "list" } },
+        feature: "plugins",
       },
     ],
   },
@@ -127,6 +133,11 @@ export const NAV_GROUPS: NavMenuGroup[] = [
     ],
   },
 ];
+
+export const NAV_GROUPS: NavMenuGroup[] = ALL_NAV_GROUPS.map((group) => ({
+  ...group,
+  children: filterFeaturesForFrontendBuild(group.children),
+})).filter((group) => group.children.length > 0);
 
 export const WORKBENCH_REGISTRY = NAV_GROUPS.reduce<
   Record<WorkbenchKey, WorkbenchDefinition>
@@ -158,31 +169,60 @@ const routeNameMap: Record<string, WorkbenchKey> = {
   Config: "config",
 };
 
+const isAvailableWorkbenchKey = (key: WorkbenchKey) =>
+  key in WORKBENCH_REGISTRY;
+
+const fallbackWorkbenchKey = (): WorkbenchKey =>
+  isAvailableWorkbenchKey("dashboard")
+    ? "dashboard"
+    : (Object.keys(WORKBENCH_REGISTRY)[0] as WorkbenchKey);
+
 export const getWorkbenchDefaultRoute = (key: WorkbenchKey): RouteLocationRaw =>
-  WORKBENCH_REGISTRY[key].defaultRoute;
+  WORKBENCH_REGISTRY[key]?.defaultRoute ||
+  WORKBENCH_REGISTRY[fallbackWorkbenchKey()].defaultRoute;
 
 export const resolveWorkbenchKey = (
   route: RouteLocationNormalizedLoaded,
 ): WorkbenchKey => {
   const routeName = typeof route.name === "string" ? route.name : "";
   const mapped = routeNameMap[routeName];
-  if (mapped) return mapped;
+  if (mapped && isAvailableWorkbenchKey(mapped)) return mapped;
 
   const path = route.path;
-  if (path.startsWith("/agentsight") || path.startsWith("/execution-graph"))
+  if (
+    (path.startsWith("/agentsight") || path.startsWith("/execution-graph")) &&
+    isAvailableWorkbenchKey("execution-graph")
+  )
     return "execution-graph";
-  if (path.startsWith("/config/ml") || path.startsWith("/ml")) return "ml";
-  if (path.startsWith("/dashboard")) return "dashboard";
-  if (path.startsWith("/monitor")) return "monitor";
-  if (path.startsWith("/network-flow")) return "network-flow";
-  if (path.startsWith("/network")) return "network";
-  if (path.startsWith("/tls-capture")) return "tls-capture";
-  if (path.startsWith("/explorer")) return "explorer";
-  if (path.startsWith("/executor")) return "executor";
-  if (path.startsWith("/hooks")) return "hooks";
-  if (path.startsWith("/plugins")) return "plugins";
-  if (path.startsWith("/config")) return "config";
-  return "dashboard";
+  if (
+    (path.startsWith("/config/ml") || path.startsWith("/ml")) &&
+    isAvailableWorkbenchKey("ml")
+  )
+    return "ml";
+  if (path.startsWith("/dashboard") && isAvailableWorkbenchKey("dashboard"))
+    return "dashboard";
+  if (path.startsWith("/monitor") && isAvailableWorkbenchKey("monitor"))
+    return "monitor";
+  if (
+    path.startsWith("/network-flow") &&
+    isAvailableWorkbenchKey("network-flow")
+  )
+    return "network-flow";
+  if (path.startsWith("/network") && isAvailableWorkbenchKey("network"))
+    return "network";
+  if (path.startsWith("/tls-capture") && isAvailableWorkbenchKey("tls-capture"))
+    return "tls-capture";
+  if (path.startsWith("/explorer") && isAvailableWorkbenchKey("explorer"))
+    return "explorer";
+  if (path.startsWith("/executor") && isAvailableWorkbenchKey("executor"))
+    return "executor";
+  if (path.startsWith("/hooks") && isAvailableWorkbenchKey("hooks"))
+    return "hooks";
+  if (path.startsWith("/plugins") && isAvailableWorkbenchKey("plugins"))
+    return "plugins";
+  if (path.startsWith("/config") && isAvailableWorkbenchKey("config"))
+    return "config";
+  return fallbackWorkbenchKey();
 };
 
 export const resolveWorkbench = (
@@ -205,11 +245,12 @@ export const createWorkbenchTab = (
   key: WorkbenchKey,
   lastRoute?: RouteLocationRaw,
 ): WorkbenchTabState => {
-  const definition = WORKBENCH_REGISTRY[key];
+  const definition =
+    WORKBENCH_REGISTRY[key] || WORKBENCH_REGISTRY[fallbackWorkbenchKey()];
   return {
-    key,
+    key: definition.key,
     title: definition.title,
-    menuKey: key,
+    menuKey: definition.key,
     groupKey: definition.groupKey,
     lastRoute: lastRoute ?? definition.defaultRoute,
     closable: definition.closable ?? !definition.affix,

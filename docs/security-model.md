@@ -31,6 +31,13 @@ That means the current security posture depends heavily on:
   and mutated through authenticated policy APIs rather than direct
   unprivileged map writes
 
+Build-time feature selection is an additional exposure-reduction layer, not an
+authorization boundary. `AGENT_BUILD_FEATURES=core` or a comma-separated feature
+list can omit optional modules from route registration and startup, and
+`GET /system/features` reports `compiledIn=false` for those modules. If a
+sensitive feature is compiled in, it still remains disabled until the matching
+runtime gate and release-mode token checks allow it.
+
 ## Kernel-enforced policy paths
 
 The backend currently owns two explicit OS-level enforcement paths:
