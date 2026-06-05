@@ -81,6 +81,12 @@ func ModelName(t ModelType) string {
 		return "Passive-Aggressive"
 	case core.ModelEnsemble:
 		return "Ensemble"
+	case core.ModelEnsembleSoft:
+		return "Soft-vote Ensemble"
+	case core.ModelEnsembleHard:
+		return "Hard-vote Ensemble"
+	case core.ModelEnsembleStacked:
+		return "Risk-stacked Ensemble"
 	default:
 		return string(t)
 	}

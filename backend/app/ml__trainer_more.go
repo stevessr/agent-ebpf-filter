@@ -337,6 +337,7 @@ func (t *ModelTrainer) trainEnsemble(store *TrainingDataStore, cfg MLConfig) (Mo
 	if model == nil {
 		return nil, TrainResult{Error: "failed to build ensemble"}
 	}
+	model.Voting = normalizeEnsembleVoting(cfg.EnsembleVoting)
 
 	samples := toTrainSamples(labeled)
 	acc := evalModelSamples(model, samples)

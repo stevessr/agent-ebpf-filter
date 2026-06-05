@@ -18,6 +18,15 @@ export interface DomainForwardProxySettings {
   routes: DomainForwardRoute[];
 }
 
+export interface KernelRiskFeedbackSettings {
+  enabled: boolean;
+  minRiskScore: number;
+  enforceNetwork: boolean;
+  enforceFileNames: boolean;
+  enforceExec: boolean;
+  maxActionsPerMinute: number;
+}
+
 export interface RuntimeSettings {
   logPersistenceEnabled: boolean;
   logFilePath: string;
@@ -33,6 +42,7 @@ export interface RuntimeSettings {
   otlpServiceName: string;
   otlpHeaders: Record<string, string>;
   tlsCaptureEnabled: boolean;
+  kernelRiskFeedback: KernelRiskFeedbackSettings;
   domainForwardProxy: DomainForwardProxySettings;
   mlConfig?: {
     enabled?: boolean;
@@ -117,10 +127,21 @@ export interface CollectorHealthResponse {
   ringbufEventsTotal: number;
   ringbufDroppedTotal: number;
   ringbufReserveFailedTotal: number;
+  ringbufZeroCopyDecodeTotal: number;
+  ringbufCopyDecodeTotal: number;
   eventsByTypeTotal: Record<string, number>;
+  eventsByPidTotal?: Record<string, number>;
+  agentSightCountersTotal?: Record<string, number>;
   backendQueueLen: number;
   wsClients: number;
   persistAppendLatencyNs: number;
+  kernelRiskEvaluationsTotal: number;
+  kernelRiskAlertsTotal: number;
+  kernelRiskBlocksTotal: number;
+  kernelRiskLastEvalLatencyNs: number;
+  kernelRiskFeedbackApplied: number;
+  kernelRiskFeedbackDropped: number;
+  kernelRiskFeedbackLastError?: string;
   captureHealthy: boolean;
 }
 

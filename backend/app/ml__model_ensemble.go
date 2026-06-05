@@ -36,9 +36,7 @@ type ensembleManifest struct {
 }
 
 func NewEnsembleModel(models []Model, voting string, weights []float64) *EnsembleModel {
-	if voting == "" {
-		voting = "soft"
-	}
+	voting = normalizeEnsembleVoting(voting)
 	if len(weights) != len(models) {
 		weights = make([]float64, len(models))
 		for i := range weights {
@@ -49,8 +47,10 @@ func NewEnsembleModel(models []Model, voting string, weights []float64) *Ensembl
 	for _, w := range weights {
 		totalW += w
 	}
-	for i := range weights {
-		weights[i] /= totalW
+	if totalW > 0 {
+		for i := range weights {
+			weights[i] /= totalW
+		}
 	}
 	return &EnsembleModel{Models: models, Voting: voting, Weights: weights}
 }
@@ -62,10 +62,25 @@ func (m *EnsembleModel) Predict(features [FeatureDim]float64) Prediction {
 		return Prediction{Action: 0, Confidence: 0, AnomalyScore: 0.5}
 	}
 
-	if m.Voting == "hard" {
+	switch normalizeEnsembleVoting(m.Voting) {
+	case "hard":
 		return m.hardVote(features)
+	case "stacked":
+		return m.stackedVote(features)
+	default:
+		return m.softVote(features)
 	}
-	return m.softVote(features)
+}
+
+func normalizeEnsembleVoting(voting string) string {
+	switch strings.ToLower(strings.TrimSpace(voting)) {
+	case "hard":
+		return "hard"
+	case "stacked", "risk_stacked", "risk-stacked":
+		return "stacked"
+	default:
+		return "soft"
+	}
 }
 
 func (m *EnsembleModel) hardVote(features [FeatureDim]float64) Prediction {
@@ -123,6 +138,37 @@ func (m *EnsembleModel) softVote(features [FeatureDim]float64) Prediction {
 		}
 	}
 	return Prediction{Action: bestClass, Confidence: bestProb, AnomalyScore: 1 - bestProb}
+}
+
+func (m *EnsembleModel) stackedVote(features [FeatureDim]float64) Prediction {
+	soft := m.softVote(features)
+	bestRisk := soft
+	bestRiskWeight := 0.0
+	for i, model := range m.Models {
+		pred := model.Predict(features)
+		if pred.Action != 1 && pred.Action != 3 {
+			continue
+		}
+		weight := 1.0
+		if i < len(m.Weights) {
+			weight = m.Weights[i]
+		}
+		weightedConfidence := pred.Confidence * weight
+		if weightedConfidence > bestRiskWeight {
+			bestRisk = pred
+			bestRiskWeight = weightedConfidence
+		}
+	}
+	if bestRisk.Action == 1 || bestRisk.Action == 3 {
+		// Risk-stacked mode favours minority high-risk voters so rare BLOCK/ALERT
+		// labels are not drowned out by benign majority votes.
+		if bestRisk.Confidence < soft.Confidence && soft.Action == 0 {
+			bestRisk.Confidence = math.Max(bestRisk.Confidence, soft.Confidence*0.75)
+		}
+		bestRisk.AnomalyScore = math.Max(bestRisk.AnomalyScore, 1-bestRisk.Confidence)
+		return bestRisk
+	}
+	return soft
 }
 
 func (m *EnsembleModel) Serialize(path string) error {

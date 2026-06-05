@@ -72,6 +72,16 @@ const formatMaybeDate = (value?: string) => {
                 <strong>{{ collectorHealth.ringbufReserveFailedTotal }}</strong>
               </div>
               <div>
+                zero-copy decode:
+                <strong>{{
+                  collectorHealth.ringbufZeroCopyDecodeTotal
+                }}</strong>
+              </div>
+              <div>
+                copy fallback decode:
+                <strong>{{ collectorHealth.ringbufCopyDecodeTotal }}</strong>
+              </div>
+              <div>
                 backend queue len:
                 <strong>{{ collectorHealth.backendQueueLen }}</strong>
               </div>
@@ -111,6 +121,39 @@ const formatMaybeDate = (value?: string) => {
                 type="warning"
                 show-icon
                 message="Sampling may be incomplete because the kernel ringbuf dropped events."
+              />
+              <a-divider style="margin: 4px 0" />
+              <div style="font-weight: 600">Kernel-risk loop</div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap">
+                <a-tag color="purple">
+                  eval: {{ collectorHealth.kernelRiskEvaluationsTotal }}
+                </a-tag>
+                <a-tag color="orange">
+                  alert: {{ collectorHealth.kernelRiskAlertsTotal }}
+                </a-tag>
+                <a-tag color="red">
+                  block: {{ collectorHealth.kernelRiskBlocksTotal }}
+                </a-tag>
+                <a-tag color="geekblue">
+                  feedback applied:
+                  {{ collectorHealth.kernelRiskFeedbackApplied }}
+                </a-tag>
+                <a-tag color="default">
+                  feedback dropped:
+                  {{ collectorHealth.kernelRiskFeedbackDropped }}
+                </a-tag>
+              </div>
+              <div>
+                last risk eval latency:
+                <strong>{{
+                  formatLatencyMs(collectorHealth.kernelRiskLastEvalLatencyNs)
+                }}</strong>
+              </div>
+              <a-alert
+                v-if="collectorHealth.kernelRiskFeedbackLastError"
+                type="warning"
+                show-icon
+                :message="collectorHealth.kernelRiskFeedbackLastError"
               />
             </div>
           </a-col>

@@ -142,11 +142,90 @@ const schemeOptions = [
               {{ featureStatusLabel("policy_management") }}
             </a-tag>
           </div>
+          <a-divider style="margin: 4px 0" />
+          <div style="display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <a-switch
+                v-model:checked="runtimeSettings.kernelRiskFeedback.enabled"
+                :disabled="!isCompiledIn('policy_management')"
+              />
+              <span>Enable kernel-risk feedback into cgroup / BPF LSM maps</span>
+              <a-tag
+                :color="
+                  runtimeSettings.policyManagementEnabled ? 'blue' : 'orange'
+                "
+              >
+                requires policy gate
+              </a-tag>
+            </div>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap">
+              <div>
+                <div style="margin-bottom: 6px; font-weight: 600">
+                  Min risk score
+                </div>
+                <a-input-number
+                  v-model:value="
+                    runtimeSettings.kernelRiskFeedback.minRiskScore
+                  "
+                  :min="1"
+                  :max="100"
+                  :step="1"
+                  style="width: 140px"
+                />
+              </div>
+              <div>
+                <div style="margin-bottom: 6px; font-weight: 600">
+                  Max actions / minute
+                </div>
+                <a-input-number
+                  v-model:value="
+                    runtimeSettings.kernelRiskFeedback.maxActionsPerMinute
+                  "
+                  :min="1"
+                  :max="600"
+                  :step="5"
+                  style="width: 160px"
+                />
+              </div>
+            </div>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap">
+              <label style="display: flex; align-items: center; gap: 8px">
+                <a-switch
+                  v-model:checked="
+                    runtimeSettings.kernelRiskFeedback.enforceNetwork
+                  "
+                />
+                <span>Network IP / port</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px">
+                <a-switch
+                  v-model:checked="
+                    runtimeSettings.kernelRiskFeedback.enforceFileNames
+                  "
+                />
+                <span>Sensitive file basenames</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px">
+                <a-switch
+                  v-model:checked="
+                    runtimeSettings.kernelRiskFeedback.enforceExec
+                  "
+                />
+                <span>Suspicious exec paths / names</span>
+              </label>
+            </div>
+            <a-alert
+              type="info"
+              show-icon
+              message="Closed-loop enforcement remains opt-in and rate-limited."
+              description="High-risk kernel events are scored in user space; when both this switch and policy management are enabled, public network destinations can be written to exact IP/port cgroup maps, sensitive basenames to BPF LSM file maps, and suspicious executable paths/names to BPF LSM exec maps."
+            />
+          </div>
           <a-alert
             type="warning"
             show-icon
             message="High-risk capabilities stay disabled until explicitly enabled."
-            description="PTY sessions, /system/run, hook injection, and policy mutations can change host state."
+            description="PTY sessions, /system/run, hook injection, policy mutations, and kernel-risk feedback can change host state."
           />
           <a-button type="primary" @click="saveRuntime">
             <ReloadOutlined /> Save Runtime Gates

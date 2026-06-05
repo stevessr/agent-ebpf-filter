@@ -26,6 +26,7 @@ type FilePreviewResponse = core.FilePreviewResponse
 type trackerMapSet = core.TrackerMapSet
 type ModelType = core.ModelType
 type MLConfig = core.MLConfig
+type KernelRiskFeedbackSettings = core.KernelRiskFeedbackSettings
 type DomainForwardRoute = core.DomainForwardRoute
 type DomainForwardProxySettings = core.DomainForwardProxySettings
 

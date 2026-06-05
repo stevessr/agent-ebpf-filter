@@ -22,6 +22,10 @@ func handlePrometheusMetrics(c *gin.Context) {
 	writePrometheusSample(&b, "agent_ebpf_ringbuf_dropped_total", nil, float64(health.RingbufDroppedTotal))
 	writePrometheusHeader(&b, "agent_ebpf_ringbuf_reserve_failed_total", "counter", "Total ring buffer reserve failures.")
 	writePrometheusSample(&b, "agent_ebpf_ringbuf_reserve_failed_total", nil, float64(health.RingbufReserveFailedTotal))
+	writePrometheusHeader(&b, "agent_ebpf_ringbuf_zero_copy_decode_total", "counter", "Total eBPF ring buffer samples decoded through the zero-copy mmap-backed path.")
+	writePrometheusSample(&b, "agent_ebpf_ringbuf_zero_copy_decode_total", nil, float64(health.RingbufZeroCopyDecodeTotal))
+	writePrometheusHeader(&b, "agent_ebpf_ringbuf_copy_decode_total", "counter", "Total eBPF ring buffer samples decoded through the endian/alignment-safe copy fallback path.")
+	writePrometheusSample(&b, "agent_ebpf_ringbuf_copy_decode_total", nil, float64(health.RingbufCopyDecodeTotal))
 	writePrometheusHeader(&b, "agent_ebpf_backend_queue_len", "gauge", "Current backend event queue length.")
 	writePrometheusSample(&b, "agent_ebpf_backend_queue_len", nil, float64(health.BackendQueueLen))
 	writePrometheusHeader(&b, "agent_ebpf_ws_clients", "gauge", "Current number of event WebSocket clients across legacy and envelope streams.")
@@ -34,6 +38,18 @@ func handlePrometheusMetrics(c *gin.Context) {
 	} else {
 		writePrometheusSample(&b, "agent_ebpf_capture_healthy", nil, 0)
 	}
+	writePrometheusHeader(&b, "agent_ebpf_kernel_risk_evaluations_total", "counter", "Total low-latency kernel event risk evaluations run before event broadcast.")
+	writePrometheusSample(&b, "agent_ebpf_kernel_risk_evaluations_total", nil, float64(health.KernelRiskEvaluationsTotal))
+	writePrometheusHeader(&b, "agent_ebpf_kernel_risk_alerts_total", "counter", "Total kernel event risk evaluations that produced ALERT or OBSERVE decisions.")
+	writePrometheusSample(&b, "agent_ebpf_kernel_risk_alerts_total", nil, float64(health.KernelRiskAlertsTotal))
+	writePrometheusHeader(&b, "agent_ebpf_kernel_risk_blocks_total", "counter", "Total kernel event risk evaluations that produced BLOCK decisions.")
+	writePrometheusSample(&b, "agent_ebpf_kernel_risk_blocks_total", nil, float64(health.KernelRiskBlocksTotal))
+	writePrometheusHeader(&b, "agent_ebpf_kernel_risk_last_eval_latency_seconds", "gauge", "Latest kernel event risk evaluation latency in seconds.")
+	writePrometheusSample(&b, "agent_ebpf_kernel_risk_last_eval_latency_seconds", nil, float64(health.KernelRiskLastEvalLatencyNs)/1e9)
+	writePrometheusHeader(&b, "agent_ebpf_kernel_risk_feedback_applied_total", "counter", "Total user-space risk decisions fed back into kernel-enforced cgroup or LSM policy maps.")
+	writePrometheusSample(&b, "agent_ebpf_kernel_risk_feedback_applied_total", nil, float64(health.KernelRiskFeedbackApplied))
+	writePrometheusHeader(&b, "agent_ebpf_kernel_risk_feedback_dropped_total", "counter", "Total kernel-risk feedback actions skipped, rate-limited, queued out, or failed.")
+	writePrometheusSample(&b, "agent_ebpf_kernel_risk_feedback_dropped_total", nil, float64(health.KernelRiskFeedbackDropped))
 
 	typeKeys := make([]string, 0, len(raw.EventsByTypeTotal))
 	for key := range raw.EventsByTypeTotal {

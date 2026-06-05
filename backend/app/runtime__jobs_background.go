@@ -4,25 +4,62 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"log"
 	"os"
 	"time"
+	"unsafe"
 
 	"github.com/cilium/ebpf/ringbuf"
 )
 
 // ---- moved from backend/zz_merged_backend.go section jobs_background.go ----
 
+const (
+	bpfEventSampleSize  = int(unsafe.Sizeof(bpfEvent{}))
+	bpfEventSampleAlign = uintptr(unsafe.Alignof(bpfEvent{}))
+)
+
+var nativeLittleEndian = func() bool {
+	var value uint16 = 1
+	return *(*byte)(unsafe.Pointer(&value)) == 1
+}()
+
+// decodeBPFEventRecord returns a view over the ring-buffer sample when the host
+// layout matches the generated little-endian BPF object. The pointer must not be
+// retained after the caller finishes processing this record because RawSample is
+// backed by the ringbuf reader's mmap window. On non-native endian or unaligned
+// samples it falls back to the old binary.Read copy path.
+func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
+	if len(raw) < bpfEventSampleSize {
+		return nil, false, fmt.Errorf("short eBPF event sample: got %d bytes, want at least %d", len(raw), bpfEventSampleSize)
+	}
+
+	if nativeLittleEndian && len(raw) > 0 {
+		ptr := unsafe.Pointer(&raw[0])
+		if uintptr(ptr)%bpfEventSampleAlign == 0 {
+			return (*bpfEvent)(ptr), true, nil
+		}
+	}
+
+	event := new(bpfEvent)
+	if err := binary.Read(bytes.NewReader(raw[:bpfEventSampleSize]), binary.LittleEndian, event); err != nil {
+		return nil, false, err
+	}
+	return event, false, nil
+}
+
 func startKernelEventReader(rd *ringbuf.Reader) {
 	go func() {
-		var event bpfEvent
 		selfPid := uint32(os.Getpid())
 		for {
 			record, err := rd.Read()
 			if err != nil {
 				return
 			}
-			if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &event); err != nil {
+			event, zeroCopy, err := decodeBPFEventRecord(record.RawSample)
+			collectorMetricsStore.RecordRingbufDecode(zeroCopy)
+			if err != nil {
 				log.Printf("[WARN] failed to decode eBPF event: %v (sample len=%d)", err, len(record.RawSample))
 				continue
 			}
@@ -36,13 +73,14 @@ func startKernelEventReader(rd *ringbuf.Reader) {
 			if isEventTypeDisabled(event.Type) {
 				continue
 			}
-			broadcast <- buildKernelEvent(event)
+			broadcast <- buildKernelEventFromRaw(event)
 		}
 	}()
 }
 
 func startRuntimeBackgroundJobs(features *FeatureRegistry) {
 	startEventBroadcaster()
+	startKernelRiskFeedbackWorker()
 	go startUDSServer(broadcast)
 	startCgroupAttributionGC()
 	startDNSCacheGC()

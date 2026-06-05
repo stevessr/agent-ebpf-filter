@@ -79,7 +79,10 @@ var builtinModelProfiles = []builtinModelProfile{
 	p(ModelAdaBoostFast, ModelAdaBoost, "AdaBoost Fast", "Boosting/集成", "少估计器 AdaBoost，速度优先。", false, map[string]int{"numTrees": 25, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"boosting", "fast"}, nil),
 	p(ModelAdaBoostLarge, ModelAdaBoost, "AdaBoost Large", "Boosting/集成", "更多估计器 AdaBoost，容量对照。", false, map[string]int{"numTrees": 200, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"boosting", "large"}, nil),
 
-	p(ModelEnsemble, ModelEnsemble, "Soft-vote Ensemble", "Boosting/集成", "本地软投票集成，融合 RF/Logistic/NB/KNN/Centroid/LightRF。", true, map[string]int{"numTrees": 31, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"ensemble", "stable"}, nil),
+	p(ModelEnsemble, ModelEnsemble, "Soft-vote Ensemble", "Boosting/集成", "本地软投票集成，融合 RF/Logistic/NB/KNN/Centroid/LightRF。", true, map[string]int{"numTrees": 31, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"ensemble", "stable"}, func(c MLConfig) MLConfig { c.EnsembleVoting = "soft"; return c }),
+	p(ModelEnsembleSoft, ModelEnsemble, "Ensemble Soft", "Boosting/集成", "显式软投票 profile，按验证权重融合成员概率。", true, map[string]int{"numTrees": 31, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"ensemble", "soft-vote"}, func(c MLConfig) MLConfig { c.EnsembleVoting = "soft"; return c }),
+	p(ModelEnsembleHard, ModelEnsemble, "Ensemble Hard", "Boosting/集成", "硬投票 profile，适合观察多数模型一致性。", false, map[string]int{"numTrees": 21, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"ensemble", "hard-vote"}, func(c MLConfig) MLConfig { c.EnsembleVoting = "hard"; return c }),
+	p(ModelEnsembleStacked, ModelEnsemble, "Risk-stacked Ensemble", "Boosting/集成", "风险优先 stacked profile：少数高置信 BLOCK/ALERT 成员不会被多数 ALLOW 淹没。", true, map[string]int{"numTrees": 31, "maxDepth": 10, "minSamplesLeaf": 5}, []string{"ensemble", "risk-stacked", "minority-risk"}, func(c MLConfig) MLConfig { c.EnsembleVoting = "stacked"; return c }),
 }
 
 func p(t, base ModelType, label, category, description string, recommended bool, defaults map[string]int, tags []string, apply func(MLConfig) MLConfig) builtinModelProfile {

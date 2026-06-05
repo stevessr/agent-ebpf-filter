@@ -384,6 +384,36 @@ export const defaultMLBuiltinModelCatalog: MLBuiltinModelCatalogItem[] = [
     defaults: { numTrees: 31, maxDepth: 8, minSamplesLeaf: 5 },
     tags: ["ensemble", "stable"],
   },
+  {
+    value: "ensemble_soft",
+    label: "Ensemble Soft",
+    base: "ensemble",
+    category: "Boosting/集成",
+    description: "显式软投票 profile，按验证权重融合成员概率。",
+    recommended: true,
+    defaults: { numTrees: 31, maxDepth: 8, minSamplesLeaf: 5 },
+    tags: ["ensemble", "soft-vote"],
+  },
+  {
+    value: "ensemble_hard",
+    label: "Ensemble Hard",
+    base: "ensemble",
+    category: "Boosting/集成",
+    description: "硬投票 profile，适合观察多数模型一致性。",
+    defaults: { numTrees: 21, maxDepth: 8, minSamplesLeaf: 5 },
+    tags: ["ensemble", "hard-vote"],
+  },
+  {
+    value: "ensemble_stacked",
+    label: "Risk-stacked Ensemble",
+    base: "ensemble",
+    category: "Boosting/集成",
+    description:
+      "风险优先 stacked profile：少数高置信 BLOCK/ALERT 成员不会被多数 ALLOW 淹没。",
+    recommended: true,
+    defaults: { numTrees: 31, maxDepth: 10, minSamplesLeaf: 5 },
+    tags: ["ensemble", "risk-stacked", "minority-risk"],
+  },
 ];
 
 export const findMLBuiltinModel = (

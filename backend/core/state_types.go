@@ -27,7 +27,19 @@ type RuntimeSettings struct {
 	HookSecrets             map[string]string          `json:"hookSecrets,omitempty"`
 	MLConfig                MLConfig                   `json:"mlConfig,omitempty"`
 	TlsCaptureEnabled       bool                       `json:"tlsCaptureEnabled"`
+	KernelRiskFeedback      KernelRiskFeedbackSettings `json:"kernelRiskFeedback,omitempty"`
 	DomainForwardProxy      DomainForwardProxySettings `json:"domainForwardProxy"`
+}
+
+// KernelRiskFeedbackSettings controls the optional closed loop from user-space
+// kernel-event risk scoring back into kernel-enforced cgroup/LSM policy maps.
+type KernelRiskFeedbackSettings struct {
+	Enabled             bool    `json:"enabled"`
+	MinRiskScore        float64 `json:"minRiskScore"`
+	EnforceNetwork      bool    `json:"enforceNetwork"`
+	EnforceFileNames    bool    `json:"enforceFileNames"`
+	EnforceExec         bool    `json:"enforceExec"`
+	MaxActionsPerMinute int     `json:"maxActionsPerMinute"`
 }
 
 // ExportConfig is the JSON shape returned by GET /config/export.

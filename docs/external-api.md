@@ -40,6 +40,11 @@ optional module's `compiledIn` and `runtimeEnabled` state. Use it to distinguish
 a build that omitted a feature from a build where the feature exists but its
 runtime gate is disabled.
 
+`/api/v1/health.features.kernelRiskFeedbackEnabled` and the nested
+`collector.kernelRisk*` counters show whether the optional closed loop from
+zero-copy decoded kernel events into cgroup / BPF LSM policy maps is enabled and
+whether recent feedback actions were applied, dropped, or failed.
+
 ## Event and graph APIs
 
 | Method | Path | Purpose |
@@ -100,7 +105,11 @@ plus `POST /api/events/query` accept the same import/query payloads. The plain
 | `GET` | `/api/v1/sandbox/lsm/status` | BPF LSM status and active blocks. |
 
 Policy mutation routes are deterministic control-plane operations and also
-require `policyManagementEnabled` in `/config/runtime`.
+require `policyManagementEnabled` in `/config/runtime`. The optional
+kernel-risk feedback worker uses the same map mutation helpers after a scored
+event crosses `kernelRiskFeedback.minRiskScore`; it additionally requires
+`kernelRiskFeedback.enabled`, respects `enforceNetwork`, `enforceFileNames`,
+`enforceExec`, and rate-limits with `maxActionsPerMinute`.
 
 | Method | Path | Body |
 | --- | --- | --- |

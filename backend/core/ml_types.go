@@ -90,6 +90,7 @@ type MLConfig struct {
 	MinSamplesLeaf           int       `json:"minSamplesLeaf"`
 	ValidationSplitRatio     float64   `json:"validationSplitRatio"`
 	BalanceClasses           bool      `json:"balanceClasses"`
+	EnsembleVoting           string    `json:"ensembleVoting,omitempty"`
 	LlmEnabled               bool      `json:"llmEnabled"`
 	LlmBaseURL               string    `json:"llmBaseUrl"`
 	LlmAPIKey                string    `json:"llmApiKey,omitempty"`
@@ -120,6 +121,7 @@ func DefaultMLConfig() MLConfig {
 		MinSamplesLeaf:           4,
 		ValidationSplitRatio:     0.2,
 		BalanceClasses:           true,
+		EnsembleVoting:           "soft",
 		LlmEnabled:               false,
 		LlmTimeoutSeconds:        30,
 		LlmTemperature:           0.1,

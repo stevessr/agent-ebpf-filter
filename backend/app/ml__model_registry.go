@@ -20,7 +20,7 @@ func AllModelTypes() []ModelType {
 		ModelNaiveBayes, ModelNaiveBayesBalanced,
 		ModelRidge, ModelRidgeLight, ModelRidgeStrong,
 		ModelAdaBoost, ModelAdaBoostFast, ModelAdaBoostLarge,
-		ModelEnsemble,
+		ModelEnsemble, ModelEnsembleSoft, ModelEnsembleHard, ModelEnsembleStacked,
 	}
 }
 
@@ -84,6 +84,12 @@ func modelName(t ModelType) string {
 		return "Passive-Aggressive"
 	case ModelEnsemble:
 		return "Ensemble"
+	case ModelEnsembleSoft:
+		return "Soft-vote Ensemble"
+	case ModelEnsembleHard:
+		return "Hard-vote Ensemble"
+	case ModelEnsembleStacked:
+		return "Risk-stacked Ensemble"
 	default:
 		return string(t)
 	}

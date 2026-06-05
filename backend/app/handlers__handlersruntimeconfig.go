@@ -94,6 +94,10 @@ func handleConfigRuntimePut(c *gin.Context) {
 	if req.TlsCaptureEnabled != nil {
 		settings.TlsCaptureEnabled = *req.TlsCaptureEnabled
 	}
+	if req.KernelRiskFeedback != nil {
+		settings.KernelRiskFeedback = *req.KernelRiskFeedback
+		normalizeKernelRiskFeedbackSettings(&settings.KernelRiskFeedback)
+	}
 	applyMLConfigPatch(&settings.MLConfig, req.MLConfigPatch)
 	if req.DomainForwardProxy != nil {
 		settings.DomainForwardProxy = *req.DomainForwardProxy
@@ -124,6 +128,7 @@ type runtimeSettingsPatch struct {
 	OtlpServiceName         *string                     `json:"otlpServiceName,omitempty"`
 	OtlpHeaders             map[string]string           `json:"otlpHeaders,omitempty"`
 	TlsCaptureEnabled       *bool                       `json:"tlsCaptureEnabled,omitempty"`
+	KernelRiskFeedback      *KernelRiskFeedbackSettings `json:"kernelRiskFeedback,omitempty"`
 	DomainForwardProxy      *DomainForwardProxySettings `json:"domainForwardProxy,omitempty"`
 	MLConfigPatch
 }
@@ -147,6 +152,7 @@ type MLConfigPatch struct {
 	MinSamplesLeaf           *int     `json:"minSamplesLeaf,omitempty"`
 	ValidationSplitRatio     *float64 `json:"validationSplitRatio,omitempty"`
 	BalanceClasses           *bool    `json:"balanceClasses,omitempty"`
+	EnsembleVoting           *string  `json:"ensembleVoting,omitempty"`
 	LlmEnabled               *bool    `json:"llmEnabled,omitempty"`
 	LlmBaseURL               *string  `json:"llmBaseUrl,omitempty"`
 	LlmAPIKey                *string  `json:"llmApiKey,omitempty"`
@@ -215,6 +221,9 @@ func applyMLConfigPatch(dst *MLConfig, patch MLConfigPatch) {
 	}
 	if patch.BalanceClasses != nil {
 		dst.BalanceClasses = *patch.BalanceClasses
+	}
+	if patch.EnsembleVoting != nil {
+		dst.EnsembleVoting = normalizeEnsembleVoting(*patch.EnsembleVoting)
 	}
 	if patch.LlmEnabled != nil {
 		dst.LlmEnabled = *patch.LlmEnabled

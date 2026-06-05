@@ -14,6 +14,12 @@ func TestSeedRuntimeSettingsFromEnvAppliesLLMAndBehavior(t *testing.T) {
 	t.Setenv("AGENT_RUNTIME_TLS_CAPTURE_ENABLED", "true")
 	t.Setenv("AGENT_RUNTIME_OTLP_ENABLED", "true")
 	t.Setenv("AGENT_RUNTIME_OTLP_ENDPOINT", "http://127.0.0.1:4318/v1/traces")
+	t.Setenv("AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENABLED", "true")
+	t.Setenv("AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_MIN_SCORE", "92")
+	t.Setenv("AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_NETWORK", "true")
+	t.Setenv("AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_FILE_NAMES", "false")
+	t.Setenv("AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_EXEC", "true")
+	t.Setenv("AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_MAX_ACTIONS_PER_MINUTE", "12")
 	t.Setenv("AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED", "true")
 	t.Setenv("AGENT_RUNTIME_DOMAIN_HTTP_PORT", "18080")
 	t.Setenv("AGENT_RUNTIME_DOMAIN_HTTPS_PORT", "18443")
@@ -45,6 +51,12 @@ func TestSeedRuntimeSettingsFromEnvAppliesLLMAndBehavior(t *testing.T) {
 	}
 	if !settings.OtlpEnabled || settings.OtlpEndpoint != "http://127.0.0.1:4318/v1/traces" {
 		t.Fatalf("OTLP env seed mismatch: enabled=%v endpoint=%q", settings.OtlpEnabled, settings.OtlpEndpoint)
+	}
+	if !settings.KernelRiskFeedback.Enabled || settings.KernelRiskFeedback.MinRiskScore != 92 || settings.KernelRiskFeedback.MaxActionsPerMinute != 12 {
+		t.Fatalf("kernel risk feedback numeric env seed mismatch: %+v", settings.KernelRiskFeedback)
+	}
+	if !settings.KernelRiskFeedback.EnforceNetwork || settings.KernelRiskFeedback.EnforceFileNames || !settings.KernelRiskFeedback.EnforceExec {
+		t.Fatalf("kernel risk feedback scope env seed mismatch: %+v", settings.KernelRiskFeedback)
 	}
 	if !settings.DomainForwardProxy.Enabled || settings.DomainForwardProxy.HTTPPort != 18080 || settings.DomainForwardProxy.HTTPSPort != 18443 {
 		t.Fatalf("domain forward env seed mismatch: %+v", settings.DomainForwardProxy)

@@ -167,6 +167,13 @@ func sanitizeUTF8(b []byte) string {
 }
 
 func buildKernelEvent(event bpfEvent) *pb.Event {
+	return buildKernelEventFromRaw(&event)
+}
+
+func buildKernelEventFromRaw(event *bpfEvent) *pb.Event {
+	if event == nil {
+		return nil
+	}
 	comm := sanitizeUTF8(event.Comm[:])
 	path := sanitizeUTF8(event.Path[:])
 	extraPath := sanitizeUTF8(event.Extra4[:])
@@ -398,9 +405,10 @@ func buildKernelEvent(event bpfEvent) *pb.Event {
 			tcpTracker.RecordStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, out.Pid, out.Comm)
 		}
 		if (typeName == "network_sendto" || typeName == "network_recvfrom") && dstPort > 0 {
-			recordUDPFlowFromEvent(event, out)
+			recordUDPFlowFromEvent(*event, out)
 		}
 	}
 
+	applyKernelRiskDecision(event, out)
 	return out
 }

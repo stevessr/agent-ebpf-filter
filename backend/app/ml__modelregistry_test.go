@@ -407,6 +407,8 @@ func TestTrainerAllModelTypes(t *testing.T) {
 		{ModelNearestCentroidCosine, 31, 8, 5, false},
 		{ModelAdaBoostFast, 31, 8, 5, false},
 		{ModelEnsemble, 31, 8, 5, false},
+		{ModelEnsembleHard, 21, 8, 5, false},
+		{ModelEnsembleStacked, 31, 10, 5, false},
 	}
 
 	for _, tc := range models {

@@ -24,6 +24,7 @@ func handleExternalAPIHealth(c *gin.Context) {
 			"systemRunEnabled":          settings.SystemRunEnabled,
 			"hookManagementEnabled":     settings.HookManagementEnabled,
 			"policyManagementEnabled":   settings.PolicyManagementEnabled,
+			"kernelRiskFeedbackEnabled": settings.KernelRiskFeedback.Enabled,
 			"otlpEnabled":               settings.OtlpEnabled,
 			"tlsCaptureEnabled":         settings.TlsCaptureEnabled,
 			"domainForwardProxyEnabled": settings.DomainForwardProxy.Enabled,

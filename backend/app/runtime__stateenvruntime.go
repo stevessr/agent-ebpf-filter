@@ -53,6 +53,7 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 		settings.OtlpServiceName = "agent-ebpf-filter"
 	}
 	normalizeDomainForwardProxySettings(&settings.DomainForwardProxy)
+	normalizeKernelRiskFeedbackSettings(&settings.KernelRiskFeedback)
 	for _, hook := range availableHooks {
 		if strings.TrimSpace(settings.HookSecrets[hook.ID]) == "" {
 			token, err := generateAccessToken()
@@ -140,6 +141,12 @@ func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
 	applyRuntimeStringEnv(&settings.OtlpEndpoint, "AGENT_RUNTIME_OTLP_ENDPOINT")
 	applyRuntimeStringEnv(&settings.OtlpServiceName, "AGENT_RUNTIME_OTLP_SERVICE_NAME")
 	applyRuntimeBoolEnv(&settings.TlsCaptureEnabled, "AGENT_RUNTIME_TLS_CAPTURE_ENABLED")
+	applyRuntimeBoolEnv(&settings.KernelRiskFeedback.Enabled, "AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENABLED")
+	applyRuntimeFloatEnv(&settings.KernelRiskFeedback.MinRiskScore, "AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_MIN_SCORE")
+	applyRuntimeBoolEnv(&settings.KernelRiskFeedback.EnforceNetwork, "AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_NETWORK")
+	applyRuntimeBoolEnv(&settings.KernelRiskFeedback.EnforceFileNames, "AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_FILE_NAMES")
+	applyRuntimeBoolEnv(&settings.KernelRiskFeedback.EnforceExec, "AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_EXEC")
+	applyRuntimeIntEnv(&settings.KernelRiskFeedback.MaxActionsPerMinute, "AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_MAX_ACTIONS_PER_MINUTE")
 	applyRuntimeBoolEnv(&settings.DomainForwardProxy.Enabled, "AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED")
 	applyRuntimeIntEnv(&settings.DomainForwardProxy.HTTPPort, "AGENT_RUNTIME_DOMAIN_HTTP_PORT")
 	applyRuntimeIntEnv(&settings.DomainForwardProxy.HTTPSPort, "AGENT_RUNTIME_DOMAIN_HTTPS_PORT")
@@ -150,6 +157,29 @@ func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
 	applyRuntimeStringEnv(&settings.DomainForwardProxy.CertFile, "AGENT_RUNTIME_DOMAIN_CERT_FILE")
 	applyRuntimeStringEnv(&settings.DomainForwardProxy.KeyFile, "AGENT_RUNTIME_DOMAIN_KEY_FILE")
 	seedRuntimeMLConfigFromEnv(&settings.MLConfig)
+}
+
+func normalizeKernelRiskFeedbackSettings(settings *KernelRiskFeedbackSettings) {
+	if settings == nil {
+		return
+	}
+	if settings.MinRiskScore <= 0 {
+		settings.MinRiskScore = 85
+	}
+	if settings.MinRiskScore > 100 {
+		settings.MinRiskScore = 100
+	}
+	if settings.MaxActionsPerMinute <= 0 {
+		settings.MaxActionsPerMinute = 30
+	}
+	if settings.MaxActionsPerMinute > 600 {
+		settings.MaxActionsPerMinute = 600
+	}
+	if settings.Enabled && !settings.EnforceNetwork && !settings.EnforceFileNames && !settings.EnforceExec {
+		settings.EnforceNetwork = true
+		settings.EnforceFileNames = true
+		settings.EnforceExec = true
+	}
 }
 
 func seedRuntimeAccessTokenFromEnv(settings *RuntimeSettings) {

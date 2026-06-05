@@ -37,13 +37,13 @@ The kernel event payload now also carries syscall exit duration so the UI can re
 
 The runtime now auto-attaches the extended tracepoints compiled from `backend/ebpf/agent_tracker.c`; on kernels that do not expose a specific tracepoint, the backend skips that one and continues booting.
 
-Events are written to a ring buffer and consumed by the Go backend.
+Events are written to a ring buffer and consumed by the Go backend. The hot path now decodes aligned native-endian ringbuf samples through an mmap-backed zero-copy view, then annotates the protobuf event with a low-latency user-space kernel-risk score/decision before broadcast. A separate opt-in feedback loop can take high-scoring decisions and, only when both `policyManagementEnabled` and `kernelRiskFeedback.enabled` are true, write deduplicated / rate-limited block entries into the cgroup IP/port maps or BPF LSM file/exec maps.
 
 ### OS-level network interception
 
 The backend also loads `backend/ebpf/cgroup_sandbox.c` as cgroup/connect4 + connect6 plus cgroup/sendmsg4 + sendmsg6 eBPF programs. It attaches at the cgroup v2 root by default (`/sys/fs/cgroup`, or `AGENT_CGROUP_SANDBOX_PATH` when set) and pins maps/links under `/sys/fs/bpf/agent-ebpf/cgroup_sandbox`. Its policy maps are kept restrictive (`0600`) and should be mutated through the authenticated backend API rather than direct local map writes.
 
-Unlike wrapper or native CLI hooks, this path rejects matching TCP/UDP connects and UDP sends in the kernel before the matching operation completes. IPv4 destination blocks are also honored for IPv4-mapped IPv6 sockets such as `::ffff:127.0.0.1`, so AF_INET6 clients cannot bypass an IPv4 block for the same endpoint; mapped inputs normalize to the equivalent IPv4 key. It starts with empty policy maps; blocks are only added through the Security Policies UI/API (or existing pinned-map state from a previous privileged run), not by automatic default deny rules. The Configuration → Security Policies page exposes status, active block entries, counters, and controls for blocking/unblocking cgroup ids, a PID's current cgroup, IPv4/IPv6 destinations, and TCP/UDP destination ports. Mutating routes are protected by the same policy-management runtime gate as wrapper-rule edits.
+Unlike wrapper or native CLI hooks, this path rejects matching TCP/UDP connects and UDP sends in the kernel before the matching operation completes. IPv4 destination blocks are also honored for IPv4-mapped IPv6 sockets such as `::ffff:127.0.0.1`, so AF_INET6 clients cannot bypass an IPv4 block for the same endpoint; mapped inputs normalize to the equivalent IPv4 key. It starts with empty policy maps; blocks are only added through the Security Policies UI/API, existing pinned-map state from a previous privileged run, or the explicitly enabled kernel-risk feedback loop. There are no automatic default deny rules. The Configuration → Security Policies page exposes status, active block entries, counters, and controls for blocking/unblocking cgroup ids, a PID's current cgroup, IPv4/IPv6 destinations, and TCP/UDP destination ports. Mutating routes are protected by the same policy-management runtime gate as wrapper-rule edits.
 
 ### BPF LSM file and exec interception
 
@@ -58,7 +58,7 @@ When the running kernel supports BPF LSM, the backend also loads `backend/ebpf/l
 - `inode_create` / `inode_link` / `inode_symlink` / `inode_mkdir` / `inode_mknod` — reject configured basenames before creating files, hard links, symlinks, directories, FIFOs, or device nodes.
 - `inode_unlink` / `inode_rmdir` / `inode_rename` — reject configured file or directory basenames before delete/rmdir/rename succeeds.
 
-The maps/links are pinned under `/sys/fs/bpf/agent-ebpf/lsm_enforcer`; policy maps use restrictive (`0600`) permissions and are changed via the authenticated backend API. Like the cgroup sandbox, the LSM enforcer starts with empty policy maps unless a previous privileged run left pinned entries. The Configuration → Security Policies page exposes attach state, counters, active block entries, and controls for adding/removing executable-path, executable-name, and file/directory-name blocks. This is intentionally a fast deterministic kernel decision path; wrapper/hook and ML/LLM policy can suggest entries, but they are not in the synchronous LSM decision loop.
+The maps/links are pinned under `/sys/fs/bpf/agent-ebpf/lsm_enforcer`; policy maps use restrictive (`0600`) permissions and are changed via the authenticated backend API. Like the cgroup sandbox, the LSM enforcer starts with empty policy maps unless a previous privileged run left pinned entries or the explicit kernel-risk feedback loop writes a high-confidence entry. The Configuration → Security Policies page exposes attach state, counters, active block entries, and controls for adding/removing executable-path, executable-name, and file/directory-name blocks. This remains a fast deterministic kernel decision path: wrapper/hook and ML/LLM policy can suggest entries, and the feedback worker can install future kernel map entries, but the synchronous LSM hook itself only evaluates its exact maps.
 
 ### TLS 明文捕获
 
@@ -121,9 +121,9 @@ upstream，避免代理再次打回自身。
 - **Hook SSL（可选，默认关闭）**: TLS 明文日志，支持实时 WebSocket、进程/库/方向/域名过滤、HTTP/SSE 解析、LLM metadata / prompt digest、脱敏状态、body 搜索、body 和 curl 一键复制、库挂载状态查看，以及手动挂载 TLS 库、Go 二进制或 Claude Code 等 CLI 可执行文件
 - **Hooks**: install or edit native hook configs / wrapper aliases
 - **Plugins**: register custom eBPF plugins from templates, raw C source, or a low-code multi-block visual builder whose primary workspace is a Dify-style node workflow with a searchable draggable edge-snapping floating node-type library with animated edge hide/restore controls, draggable node types that can be dropped onto the canvas to create/restore Trigger / Condition / Map / Action / Code nodes, grid-snapped node movement, a manually resizable canvas, drag-to-connect ports, editable route/wire connections with disconnected-flow compile gates, undo/redo workspace history, animated wires, node-level inspectors for quick block editing, a draggable edge-snapping floating scenario-block recipe window with animated arrow hide/restore controls, a separate LLM-backed NLP Blocks Compiler tab for natural-language-to-block generation with local fallback, a separate Map / Blueprint tab for detailed condition-tree, state-map, action, and metadata editing, and a separate Generated eBPF C tab for generated source, compile logs, and load controls. A separate top-level TS pseudocode builder owns its own editor state, compile/register/load flow, and browser storage slot instead of syncing with the visual canvas. The visual builder still supports browser draft autosave/restore, JSON import/export, and compile-readiness validation.
-- **ML**: first-level ML Classification page for status / parameters / model management / LLM scoring / training-set management, including a 42-profile local built-in model catalog, native C runtime inference timing with CUDA / Intel iGPU capability detection, OpenAI-compatible LLM scoring that auto-saves to browser storage and syncs to the backend before scoring, validation split controls, square-grid auto parameter tuning with selectable granularity, live progress, and a heatmap preview
+- **ML**: first-level ML Classification page for status / parameters / model management / LLM scoring / training-set management, including a 45-profile local built-in model catalog with soft/hard/risk-stacked ensemble variants, native C runtime inference timing with CUDA / Intel iGPU capability detection, OpenAI-compatible LLM scoring that auto-saves to browser storage and syncs to the backend before scoring, validation split controls, square-grid auto parameter tuning with selectable granularity, live progress, and a heatmap preview
 - **ML**: the training-set manager includes synthetic expansion presets, batch import of downloadable internet datasets, and the LLM subtab can pull a cleaned production training set directly from the current training store and export it as OpenAI chat JSONL
-- **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, OS-level cgroup network blocking, BPF LSM exec/open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename blocking, Visual eBPF Filter low-code block editing plus quick core-map rule editing, a dedicated Runtime Config first-level tab for visual editing of runtime log persistence, access token, retention, OTLP headers, TLS capture, and optional 80/443 domain forwarding routes/certificates, a System Health tab for collector / eBPF bootstrap / OTLP / forwarder health, and a quick Linux 6.18 LTS syscall / eBPF docs popup preview backed by local snapshots
+- **Configuration**: manage tags, tracked commands, tracked paths, wrapper rules, OS-level cgroup network blocking, BPF LSM exec/open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename blocking, Visual eBPF Filter low-code block editing plus quick core-map rule editing, a dedicated Runtime Config first-level tab for visual editing of runtime log persistence, access token, retention, OTLP headers, TLS capture, optional zero-copy kernel-risk feedback gates, and optional 80/443 domain forwarding routes/certificates, a System Health tab for collector / zero-copy decode / kernel-risk feedback / eBPF bootstrap / OTLP / forwarder health, and a quick Linux 6.18 LTS syscall / eBPF docs popup preview backed by local snapshots
 - **Cluster control**: master/slave routing, node switching, and forwarded inspection requests through the master backend
 
 The backend can optionally persist captured events as JSONL under `~/.config/agent-ebpf-filter/events.jsonl`, now normalizes live events into versioned `EventEnvelope` records for REST / WebSocket / MCP consumers, exposes `/ws/envelopes` for protobuf envelope streaming, `/metrics` for Prometheus scraping, can export `agent.run` / `codex.task` / `tool.call` derived spans over OTLP HTTP, and provides an authenticated MCP SSE endpoint at `/mcp` using the runtime access token generated from the Configuration page. MCP clients may authenticate with `X-API-KEY`, `Authorization: Bearer`, or `?key=<token>`.
@@ -263,8 +263,8 @@ Makefile variables. It covers core dev settings, ML/LLM behavior
 (`AGENT_LLM_*` and OpenAI-compatible fallbacks), runtime app behavior toggles,
 sandbox/cluster settings, devcontainer image overrides, CUDA, smoke tests,
 replay, and ML sweep settings. On backend startup the runtime env overrides seed
-Runtime Config for ML/LLM, OTLP/TLS/domain-forwarding, shell/system/policy
-toggles, and retention. `make dev-env-doctor` prints the effective config with
+Runtime Config for ML/LLM, OTLP/TLS/domain-forwarding, kernel-risk feedback,
+shell/system/policy toggles, and retention. `make dev-env-doctor` prints the effective config with
 secrets redacted and checks common tools; direct shell sessions can inherit it
 with `set -a; . ./.env.dev; set +a`.
 
@@ -487,10 +487,10 @@ See `docs/external-api.md` for curl examples and `docs/kubernetes.md` plus
 - `POST /sandbox/lsm/block-exec-name` / `unblock-exec-name` — block or release an executable basename in `bprm_check_security`
 - `POST /sandbox/lsm/block-file-name` / `unblock-file-name` — block or release a file/directory basename in `file_open`, `file_permission`, `mmap_file`, `file_mprotect`, `inode_setattr`, `inode_create`, `inode_link`, `inode_symlink`, `inode_unlink`, `inode_mkdir`, `inode_rmdir`, `inode_mknod`, and `inode_rename`
 
-The cgroup and LSM maps are loaded empty on first boot; mutating API calls are required to install block entries and are protected by the runtime policy-management gate.
+The cgroup and LSM maps are loaded empty on first boot; mutating API calls or the optional kernel-risk feedback worker are required to install block entries, and both paths are protected by the runtime policy-management gate. Feedback is configured under `/config/runtime` as `kernelRiskFeedback` with `enabled`, `minRiskScore`, `enforceNetwork`, `enforceFileNames`, `enforceExec`, and `maxActionsPerMinute`.
 
 For validation, `rtk make os-enforcement-preflight` checks host prerequisites such as bpffs write access directly or through passwordless sudo / `OS_SMOKE_PRIVILEGE_CMD`, root/passwordless sudo or custom privilege command, cgroup v2, the selected cgroup attach path (including temporary cgroup creation when a privilege runner is available), BPF LSM visibility, compiled cgroup/LSM object sections, and smoke-test tools (`curl` / `python3`). `rtk make os-enforcement-check` runs rootless object/script checks. `rtk make os-enforcement-smoke` expects a privileged backend that is already running; `rtk make os-enforcement-smoke-start` builds and starts one with `DISABLE_AUTH=true` when root, passwordless sudo, or an explicit `OS_SMOKE_PRIVILEGE_CMD` command prefix is available. The live smoke covers LSM exec/open/existing-fd read-write/mmap/mprotect/ftruncate/fchmod/setattr/create/link/symlink/unlink/mkdir/rmdir/mknod/rename denial and cgroup/connect PID-cgroup, TCP destination-port, UDP connected-socket destination/port, existing connected UDP sends, UDP sendto/sendmsg destination/port, IPv4-destination, IPv4-mapped IPv6-destination, and IPv6-destination denial.
-- `GET /metrics` — Prometheus exposition for ringbuf / queue / WS / per-type / per-pid counters
+- `GET /metrics` — Prometheus exposition for ringbuf / zero-copy decode / kernel-risk decision and feedback / queue / WS / per-type / per-pid counters
 - `GET /system/otel-health` — OTLP exporter readiness / queue / active-span counters
 - `POST /register` — register a PID
 - `POST /unregister` — unregister a PID
@@ -538,6 +538,7 @@ Dangerous capabilities are also runtime-gated and default to **disabled** until 
 - `/system/run`
 - hook installation / raw hook writes
 - policy mutations (tags / comms / paths / prefixes / wrapper rules / cgroup sandbox maps / BPF LSM path/name maps for exec/open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename / config import)
+- kernel-risk feedback into cgroup IP/port maps and BPF LSM file/exec maps (`kernelRiskFeedback.enabled` also required)
 
 The domain forwarder itself accepts public HTTP/HTTPS traffic without the
 backend runtime token because it is a data-plane reverse proxy. Its
@@ -612,7 +613,7 @@ They still do **not** include raw native hook config files.
 - In release mode, the runtime access token protects config, system, WebSocket, shell-session, register / unregister, metrics, event-history / graph, network-inspection, and OS sandbox (`/sandbox/**`) routes.
 - `POST /hooks/event` accepts either that token or a per-hook secret.
 - The Runtime Config tab persists the token locally and appends it to WebSocket URLs via `?key=...`.
-- The System Health tab shows collector health, including ringbuf reserve-fail counters and per-event-type totals.
+- The System Health tab shows collector health, including ringbuf reserve-fail counters, zero-copy/copy decode counters, kernel-risk evaluation and feedback counters/latency, feedback errors, and per-event-type totals.
 
 For anything beyond local use, put the app behind a trusted reverse proxy and tighten auth coverage.
 

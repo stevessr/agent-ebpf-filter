@@ -8,6 +8,7 @@ It is responsible for:
 - loading / attaching cgroup/connect and cgroup/sendmsg eBPF programs for kernel-side network blocking,
 - loading / attaching BPF LSM programs for kernel-side file/exec blocking,
 - consuming ring-buffer events from the kernel,
+- annotating decoded kernel events with low-latency risk decisions and optionally feeding high-confidence decisions back into cgroup / BPF LSM policy maps,
 - serving HTTP and WebSocket APIs,
 - aggregating process / system telemetry,
 - managing wrapper rules,
@@ -22,6 +23,7 @@ It is responsible for:
 - `ebpf_runtime.go` — bootstrap / pin / privilege escalation flow; auto-attaches every tracepoint program compiled from `ebpf/agent_tracker.c` and skips tracepoints the running kernel does not expose
 - `cgroup_sandbox_control.go` — cgroup/connect + sendmsg map loading, attach lifecycle, status, and block/unblock API handlers
 - `lsm_enforcer_control.go` — BPF LSM map loading, attach lifecycle, status, and exec/open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename block/unblock API handlers
+- `app/events__kernel_risk.go` / `app/events__kernel_risk_feedback.go` — zero-copy decoded event risk annotation plus the optional, rate-limited feedback queue into cgroup IP/port and BPF LSM file/exec maps
 - `shell_sessions.go` — persistent PTY session manager
 - `domain_forward_proxy.go` — runtime-configurable HTTP/HTTPS reverse proxy for Host/SNI-based 80/443 forwarding
 - `privileges.go` — drop spawned commands back to the invoking user
@@ -116,7 +118,7 @@ Kernel-side network blocking APIs:
 - `POST /sandbox/cgroup/block-ip` / `unblock-ip` writes the IPv4 or IPv6 blocklist map.
 - `POST /sandbox/cgroup/block-port` / `unblock-port` writes the TCP/UDP destination-port blocklist map.
 
-The mutating routes use `policyManagementEnabledMiddleware()`. The eBPF program rejects matching connects in the kernel; wrapper/hook policy is not involved in that decision path. IPv4 block entries are also applied to IPv4-mapped IPv6 destinations such as `::ffff:127.0.0.1`; mapped inputs normalize to the equivalent IPv4 key. Fresh map loads do not auto-block high-risk ports; add explicit entries through the API/UI when that behavior is desired.
+The mutating routes use `policyManagementEnabledMiddleware()`. The eBPF program rejects matching connects in the kernel; wrapper/hook policy is not involved in that decision path. IPv4 block entries are also applied to IPv4-mapped IPv6 destinations such as `::ffff:127.0.0.1`; mapped inputs normalize to the equivalent IPv4 key. Fresh map loads do not auto-block high-risk ports; add explicit entries through the API/UI or enable `runtime.kernelRiskFeedback` when that behavior is desired.
 
 BPF LSM enforcement APIs:
 
@@ -125,7 +127,7 @@ BPF LSM enforcement APIs:
 - `POST /sandbox/lsm/block-exec-name` / `unblock-exec-name` writes the executable-basename blocklist used by `bprm_check_security`.
 - `POST /sandbox/lsm/block-file-name` / `unblock-file-name` writes the basename blocklist used by `file_open`, `file_permission`, `mmap_file`, `file_mprotect`, `inode_setattr`, `inode_create`, `inode_link`, `inode_symlink`, `inode_unlink`, `inode_mkdir`, `inode_rmdir`, `inode_mknod`, and `inode_rename`.
 
-The mutating routes also use `policyManagementEnabledMiddleware()`. The LSM program returns `-EACCES` for matches before the target exec/open/read-write/mmap/mprotect/ftruncate/fchmod/setattr/create/link/symlink/unlink/mkdir/rmdir/mknod/rename completes.
+The mutating routes also use `policyManagementEnabledMiddleware()`. The LSM program returns `-EACCES` for matches before the target exec/open/read-write/mmap/mprotect/ftruncate/fchmod/setattr/create/link/symlink/unlink/mkdir/rmdir/mknod/rename completes. The optional kernel-risk feedback worker uses the same backend helpers to add exact executable paths, executable basenames, or file basenames after a scored event crosses its configured threshold.
 
 Use `rtk make os-enforcement-preflight` to check host prerequisites such as
 bpffs write access directly or through passwordless sudo / `OS_SMOKE_PRIVILEGE_CMD`,
@@ -186,7 +188,7 @@ The runtime access token protects:
 - `GET /api/v1/health` / `GET /api/v1/openapi.json` — stable external API discovery endpoints
 - `/api/v1/events/*`, `/api/v1/agentsight/*`, `/api/v1/network/*`, `/api/v1/sandbox/*`, `/api/v1/policies/*`, `/api/v1/agents/*`, `/api/v1/config/export` — stable external aliases for automation and Kubernetes callers
 - `GET /ws/envelopes` — live `pb.EventEnvelopeBatch` stream for normalized event consumers
-- `GET /metrics` — Prometheus exposition for collector / queue / WS / per-type / per-pid counters
+- `GET /metrics` — Prometheus exposition for collector / ringbuf decode / kernel-risk decision and feedback / queue / WS / per-type / per-pid counters
 - `GET /system/bootstrap-health` — current kernel release plus tracepoint attach/skipped summary for the backend bootstrap
 - `GET /system/otel-health` — OTLP exporter readiness / queue / active span counts
 - `GET /system/domain-forward/status` — optional Host/SNI-based HTTP/HTTPS forwarding status
@@ -225,7 +227,7 @@ Config routes:
 - `/config/ml/existing-commands`, `/config/ml/import-existing`, `/config/ml/assess`
 - `/config/ml/llm/production-dataset/pull` — pull a cleaned OpenAI chat-style JSONL preview from the current training store for LLM fine-tuning
 - `/config/ml/datasets/pull`, `/config/ml/datasets/import`, `/config/ml/datasets/export`, `DELETE /config/ml/datasets`
-- the ML config also supports OpenAI-compatible LLM scoring and post-training review; the frontend persists the LLM base URL, model, API key, timeout, temperature, max tokens, and validation split ratio
+- the ML config also supports soft/hard/risk-stacked ensemble voting profiles, OpenAI-compatible LLM scoring, and post-training review; the frontend persists the LLM base URL, model, API key, timeout, temperature, max tokens, and validation split ratio
 - the dataset importer accepts raw HTTP/HTTPS payloads or local file uploads, and will recursively expand common archives / compressed payloads such as zip, tar, gzip, bzip2, and xz before parsing rows
 - the frontend also exposes a curated classic OS-security dataset catalog for reference; one-click presets carry their own import format/label mode, and archival pages still need you to download or extract the actual data first
 - `/plugins`, `/plugins/:id`, `/plugins/bpf/{templates,compile,load,unload}`, and `/plugins/visual/llm-compile` cover plugin CRUD, eBPF source build/load, and LLM natural-language-to-block compilation; mutating/plugin-load routes remain protected by `policyManagementEnabled`.
@@ -241,6 +243,7 @@ Runtime feature flags in `/config/runtime` default dangerous capabilities to off
 - `systemRunEnabled`
 - `hookManagementEnabled`
 - `policyManagementEnabled`
+- `kernelRiskFeedback` (`enabled`, `minRiskScore`, `enforceNetwork`, `enforceFileNames`, `enforceExec`, `maxActionsPerMinute`)
 
 `/config/runtime` also stores `domainForwardProxy`, which controls the optional
 data-plane reverse proxy. It is disabled by default and can bind HTTP/HTTPS
@@ -250,7 +253,7 @@ domain, use `{host}` in upstream URLs, optionally bypass local DNS with
 The proxy traffic itself is not protected by the backend API token; only the
 configuration and status endpoints are.
 
-That means shell sessions, `/system/run`, hook installation / raw hook writes, and policy mutations must be explicitly enabled before their mutating routes succeed.
+That means shell sessions, `/system/run`, hook installation / raw hook writes, policy mutations, and kernel-risk feedback must be explicitly enabled before their mutating routes or background actions succeed. The feedback loop can also be seeded from `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENABLED`, `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_MIN_SCORE`, `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_NETWORK`, `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_FILE_NAMES`, `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_EXEC`, and `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_MAX_ACTIONS_PER_MINUTE`.
 
 ### Domain forward data plane
 
@@ -312,7 +315,7 @@ Persistent event logs, when enabled from the Configuration page, are appended as
 
 - `~/.config/agent-ebpf-filter/events.jsonl`
 
-The collector health endpoint reports ringbuf event totals, reserve-fail / drop counts, backend queue length, event-stream WS client count, recent persisted-log append latency, and simple per-event-type counters so the frontend can warn when capture may be incomplete.
+The collector health endpoint reports ringbuf event totals, reserve-fail / drop counts, zero-copy vs copy decode counters, kernel-risk evaluation counters/latency, kernel-risk feedback applied/dropped counters and last feedback error, backend queue length, event-stream WS client count, recent persisted-log append latency, and simple per-event-type counters so the frontend can warn when capture may be incomplete.
 The OTLP health endpoint reports whether export is enabled / ready, the configured endpoint + service name, exporter queue length, active synthetic run / task / tool spans, total exported spans, dropped exporter events, and the last export error / timestamp.
 
 Offline replay coverage now lives in the repo-level runtime benchmark suite:

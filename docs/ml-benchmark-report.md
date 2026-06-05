@@ -21,7 +21,7 @@ We benchmarked the local ML pipeline behind `http://localhost:5173/config/ml` us
 The full matrix requested for **different test sets × different model IDs × every tunable parameter** has been executed with `--mode comprehensive --datasets all,label-balanced --points-per-param 1000 --workers 8 --repeats 1 --stability-top 1`.
 
 - **Datasets:** `all` (949 samples) and `label-balanced` (93 samples)
-- **Model IDs covered:** **42 / 42** local built-in IDs
+- **Model IDs covered:** **42 / 42** local built-in IDs at the time of this benchmark snapshot; newer builds add ensemble voting profiles beyond these historical sweep rows.
 - **Coverage entries:** **190 / 190 passed**
 - **Total grid rows:** **140,126**
 - **Numeric parameter rows:** **140,000** (`1000` points × `2` datasets for each numeric parameter/model ID)
@@ -45,7 +45,7 @@ Each directory contains `coverage.json`, `results.csv`, `best.json`, `stability-
 
 ## Local built-in model catalog update
 
-The runtime model selector has now been expanded from the original base algorithms into **42 first-class local built-in model IDs**. The selector and `/config/ml/status` expose the same catalog so the UI and backend stay aligned.
+The runtime model selector was expanded from the original base algorithms into **42 first-class local built-in model IDs** for this benchmark snapshot. Newer builds add soft/hard/risk-stacked ensemble voting profiles, and the selector plus `/config/ml/status` expose the same current catalog so the UI and backend stay aligned.
 
 Covered families:
 

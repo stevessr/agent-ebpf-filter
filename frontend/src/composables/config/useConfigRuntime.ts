@@ -10,6 +10,7 @@ import type {
   OTelHealthResponse,
   DomainForwardRoute,
   DomainForwardProxySettings,
+  KernelRiskFeedbackSettings,
   DomainForwardProxyStatus,
   TracepointBootstrapStatus,
 } from "../../types/config";
@@ -41,6 +42,15 @@ const defaultDomainForwardProxy = (): DomainForwardProxySettings => ({
   routes: [],
 });
 
+const defaultKernelRiskFeedback = (): KernelRiskFeedbackSettings => ({
+  enabled: false,
+  minRiskScore: 85,
+  enforceNetwork: true,
+  enforceFileNames: true,
+  enforceExec: true,
+  maxActionsPerMinute: 30,
+});
+
 const normalizeDomainForwardProxy = (
   value?: Partial<DomainForwardProxySettings>,
 ): DomainForwardProxySettings => {
@@ -56,6 +66,20 @@ const normalizeDomainForwardProxy = (
       value?.dialTimeoutSeconds || defaults.dialTimeoutSeconds,
     ),
     routes: Array.isArray(value?.routes) ? value.routes : [],
+  };
+};
+
+const normalizeKernelRiskFeedback = (
+  value?: Partial<KernelRiskFeedbackSettings>,
+): KernelRiskFeedbackSettings => {
+  const defaults = defaultKernelRiskFeedback();
+  return {
+    ...defaults,
+    ...value,
+    minRiskScore: Number(value?.minRiskScore || defaults.minRiskScore),
+    maxActionsPerMinute: Number(
+      value?.maxActionsPerMinute || defaults.maxActionsPerMinute,
+    ),
   };
 };
 
@@ -76,6 +100,7 @@ export function useConfigRuntime() {
     otlpServiceName: "agent-ebpf-filter",
     otlpHeaders: {},
     tlsCaptureEnabled: false,
+    kernelRiskFeedback: defaultKernelRiskFeedback(),
     domainForwardProxy: defaultDomainForwardProxy(),
   });
   const mcpEndpoint = ref("");
@@ -90,10 +115,20 @@ export function useConfigRuntime() {
     ringbufEventsTotal: 0,
     ringbufDroppedTotal: 0,
     ringbufReserveFailedTotal: 0,
+    ringbufZeroCopyDecodeTotal: 0,
+    ringbufCopyDecodeTotal: 0,
     eventsByTypeTotal: {},
+    eventsByPidTotal: {},
+    agentSightCountersTotal: {},
     backendQueueLen: 0,
     wsClients: 0,
     persistAppendLatencyNs: 0,
+    kernelRiskEvaluationsTotal: 0,
+    kernelRiskAlertsTotal: 0,
+    kernelRiskBlocksTotal: 0,
+    kernelRiskLastEvalLatencyNs: 0,
+    kernelRiskFeedbackApplied: 0,
+    kernelRiskFeedbackDropped: 0,
     captureHealthy: true,
   });
   const bootstrapHealth = ref<TracepointBootstrapStatus>({
@@ -156,6 +191,9 @@ export function useConfigRuntime() {
       otlpServiceName: data.runtime.otlpServiceName || "agent-ebpf-filter",
       otlpHeaders: { ...(data.runtime.otlpHeaders || {}) },
       tlsCaptureEnabled: Boolean(data.runtime.tlsCaptureEnabled),
+      kernelRiskFeedback: normalizeKernelRiskFeedback(
+        data.runtime.kernelRiskFeedback,
+      ),
       domainForwardProxy: normalizeDomainForwardProxy(
         data.runtime.domainForwardProxy,
       ),
@@ -347,6 +385,7 @@ export function useConfigRuntime() {
         otlpServiceName: runtimeSettings.value.otlpServiceName,
         otlpHeaders,
         tlsCaptureEnabled: runtimeSettings.value.tlsCaptureEnabled,
+        kernelRiskFeedback: runtimeSettings.value.kernelRiskFeedback,
         domainForwardProxy: {
           ...runtimeSettings.value.domainForwardProxy,
           routes: domainForwardRoutes,
