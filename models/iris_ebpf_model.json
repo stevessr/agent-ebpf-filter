@@ -1,0 +1,7656 @@
+{
+  "note": "Simplified model export - detailed tree structure not available",
+  "num_trees": 15,
+  "trees": [
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 0
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 1
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 2
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 3
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 4
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 5
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 6
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 7
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 8
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 9
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 10
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 11
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 12
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 13
+    },
+    {
+      "max_depth": 6,
+      "nodes": [
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 1,
+          "right_child": 2,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 3,
+          "right_child": 4,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 5,
+          "right_child": 6,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 7,
+          "right_child": 8,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 9,
+          "right_child": 10,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 11,
+          "right_child": 12,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 13,
+          "right_child": 14,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 15,
+          "right_child": 16,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 17,
+          "right_child": 18,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 19,
+          "right_child": 20,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 21,
+          "right_child": 22,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 23,
+          "right_child": 24,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 25,
+          "right_child": 26,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 27,
+          "right_child": 28,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 29,
+          "right_child": 30,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 31,
+          "right_child": 32,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 33,
+          "right_child": 34,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 35,
+          "right_child": 36,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 37,
+          "right_child": 38,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 39,
+          "right_child": 40,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 41,
+          "right_child": 42,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 43,
+          "right_child": 44,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 45,
+          "right_child": 46,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 47,
+          "right_child": 48,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 49,
+          "right_child": 50,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 51,
+          "right_child": 52,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 53,
+          "right_child": 54,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 55,
+          "right_child": 56,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": false,
+          "leaf_value": 1,
+          "left_child": 57,
+          "right_child": 58,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": false,
+          "leaf_value": 2,
+          "left_child": 59,
+          "right_child": 60,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": false,
+          "leaf_value": 0,
+          "left_child": 61,
+          "right_child": 62,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 3,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 0,
+          "is_leaf": true,
+          "leaf_value": 0,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 1,
+          "is_leaf": true,
+          "leaf_value": 1,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        },
+        {
+          "feature_idx": 2,
+          "is_leaf": true,
+          "leaf_value": 2,
+          "left_child": -1,
+          "right_child": -1,
+          "threshold": 0.5
+        }
+      ],
+      "tree_id": 14
+    }
+  ]
+}

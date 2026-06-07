@@ -28,3 +28,5 @@ frontend/scripts/prepare-agentsight-sample.mjs
 frontend/public/agentsight-sample-trace.jsonl
 .port
 backend/.port
+models/example_tree_model.json
+backend/ml_model_ebpf.c
