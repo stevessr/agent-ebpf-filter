@@ -56,12 +56,14 @@ const (
 	ModelPerceptron         = core.ModelPerceptron
 	ModelPassiveAggressive  = core.ModelPassiveAggressive
 	ModelEnsemble           = core.ModelEnsemble
+	ModelAdditiveAttention  = core.ModelAdditiveAttention
 
 	ModelRandomForestFast    = core.ModelRandomForestFast
 	ModelRandomForestShallow = core.ModelRandomForestShallow
 	ModelRandomForestStable  = core.ModelRandomForestStable
 	ModelRandomForestDeep    = core.ModelRandomForestDeep
 	ModelRandomForestWide    = core.ModelRandomForestWide
+	ModelRandomForestAttn    = core.ModelRandomForestAttn
 
 	ModelExtraTreesFast = core.ModelExtraTreesFast
 	ModelExtraTreesDeep = core.ModelExtraTreesDeep
@@ -72,6 +74,7 @@ const (
 	ModelLogisticL1         = core.ModelLogisticL1
 	ModelLogisticBalanced   = core.ModelLogisticBalanced
 	ModelLogisticL1Balanced = core.ModelLogisticL1Balanced
+	ModelLogisticAttn       = core.ModelLogisticAttn
 
 	ModelSVMLong     = core.ModelSVMLong
 	ModelSVMBalanced = core.ModelSVMBalanced
@@ -85,6 +88,7 @@ const (
 	ModelKNNManhattan = core.ModelKNNManhattan
 	ModelKNNCosine    = core.ModelKNNCosine
 	ModelKNNDistance  = core.ModelKNNDistance
+	ModelKNNAttn      = core.ModelKNNAttn
 
 	ModelNearestCentroidBalanced  = core.ModelNearestCentroidBalanced
 	ModelNearestCentroidCosine    = core.ModelNearestCentroidCosine
@@ -102,7 +106,6 @@ const (
 	ModelAdaBoostFast  = core.ModelAdaBoostFast
 	ModelAdaBoostLarge = core.ModelAdaBoostLarge
 )
-
 // ── Global variables ─────────────────────────────────────────────────────────
 
 var (

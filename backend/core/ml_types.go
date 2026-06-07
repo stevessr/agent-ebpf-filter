@@ -18,6 +18,15 @@ const (
 	ModelPerceptron         ModelType = "perceptron"
 	ModelPassiveAggressive  ModelType = "passive_aggressive"
 	ModelEnsemble           ModelType = "ensemble"
+	ModelAdditiveAttention ModelType = "additive_attention"
+	ModelRandomForestAttention ModelType = "random_forest_attention"
+	ModelLogisticAttention     ModelType = "logistic_attention"
+	ModelKNNAttention          ModelType = "knn_attention"
+
+	// Aliases for attention-enhanced models
+	ModelRandomForestAttn = ModelRandomForestAttention
+	ModelLogisticAttn     = ModelLogisticAttention
+	ModelKNNAttn          = ModelKNNAttention
 
 	// Local built-in profiles
 	ModelRandomForestFast    ModelType = "random_forest_fast"

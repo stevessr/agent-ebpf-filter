@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/core"
 	"fmt"
 )
 
@@ -9,18 +10,19 @@ import (
 // AllModelTypes returns all registered local built-in model IDs in UI order.
 func AllModelTypes() []ModelType {
 	return []ModelType{
-		ModelRandomForest, ModelRandomForestFast, ModelRandomForestShallow, ModelRandomForestStable, ModelRandomForestDeep, ModelRandomForestWide,
+		ModelRandomForest, ModelRandomForestFast, ModelRandomForestShallow, ModelRandomForestStable, ModelRandomForestDeep, ModelRandomForestWide, core.ModelRandomForestAttention,
 		ModelExtraTrees, ModelExtraTreesFast, ModelExtraTreesDeep, ModelExtraTreesWide,
-		ModelLogisticRegression, ModelLogisticFast, ModelLogisticNone, ModelLogisticL1, ModelLogisticBalanced, ModelLogisticL1Balanced,
+		ModelLogisticRegression, ModelLogisticFast, ModelLogisticNone, ModelLogisticL1, ModelLogisticBalanced, ModelLogisticL1Balanced, core.ModelLogisticAttention,
 		ModelSVM, ModelSVMLong, ModelSVMBalanced,
 		ModelPerceptron, ModelPerceptronLong, ModelPerceptronBalanced,
 		ModelPassiveAggressive, ModelPassiveAggressiveLong, ModelPassiveAggressiveBalanced,
-		ModelKNN, ModelKNNManhattan, ModelKNNCosine, ModelKNNDistance,
+		ModelKNN, ModelKNNManhattan, ModelKNNCosine, ModelKNNDistance, core.ModelKNNAttention,
 		ModelNearestCentroid, ModelNearestCentroidBalanced, ModelNearestCentroidCosine, ModelNearestCentroidManhattan,
 		ModelNaiveBayes, ModelNaiveBayesBalanced,
 		ModelRidge, ModelRidgeLight, ModelRidgeStrong,
 		ModelAdaBoost, ModelAdaBoostFast, ModelAdaBoostLarge,
 		ModelEnsemble, ModelEnsembleSoft, ModelEnsembleHard, ModelEnsembleStacked,
+		ModelAdditiveAttention,
 	}
 }
 
@@ -62,10 +64,16 @@ func modelName(t ModelType) string {
 	switch t {
 	case ModelRandomForest:
 		return "Random Forest"
+	case core.ModelRandomForestAttention:
+		return "Random Forest Attention"
 	case ModelKNN:
 		return "K-Nearest Neighbors"
+	case core.ModelKNNAttention:
+		return "KNN Attention"
 	case ModelLogisticRegression:
 		return "Logistic Regression"
+	case core.ModelLogisticAttention:
+		return "Logistic Attention"
 	case ModelNaiveBayes:
 		return "Naive Bayes"
 	case ModelNearestCentroid:
