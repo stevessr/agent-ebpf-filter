@@ -23,6 +23,7 @@ func AllModelTypes() []ModelType {
 		ModelAdaBoost, ModelAdaBoostFast, ModelAdaBoostLarge,
 		ModelEnsemble, ModelEnsembleSoft, ModelEnsembleHard, ModelEnsembleStacked,
 		ModelAdditiveAttention,
+		core.ModelNGramRandomForest, core.ModelNGramLogistic, core.ModelNGramKNN,
 	}
 }
 

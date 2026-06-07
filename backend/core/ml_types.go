@@ -6,22 +6,27 @@ package core
 type ModelType string
 
 const (
-	ModelRandomForest       ModelType = "random_forest"
-	ModelKNN                ModelType = "knn"
-	ModelLogisticRegression ModelType = "logistic"
-	ModelNaiveBayes         ModelType = "naive_bayes"
-	ModelNearestCentroid    ModelType = "nearest_centroid"
-	ModelExtraTrees         ModelType = "extra_trees"
-	ModelAdaBoost           ModelType = "adaboost"
-	ModelSVM                ModelType = "svm"
-	ModelRidge              ModelType = "ridge"
-	ModelPerceptron         ModelType = "perceptron"
-	ModelPassiveAggressive  ModelType = "passive_aggressive"
-	ModelEnsemble           ModelType = "ensemble"
-	ModelAdditiveAttention ModelType = "additive_attention"
+	ModelRandomForest          ModelType = "random_forest"
+	ModelKNN                   ModelType = "knn"
+	ModelLogisticRegression    ModelType = "logistic"
+	ModelNaiveBayes            ModelType = "naive_bayes"
+	ModelNearestCentroid       ModelType = "nearest_centroid"
+	ModelExtraTrees            ModelType = "extra_trees"
+	ModelAdaBoost              ModelType = "adaboost"
+	ModelSVM                   ModelType = "svm"
+	ModelRidge                 ModelType = "ridge"
+	ModelPerceptron            ModelType = "perceptron"
+	ModelPassiveAggressive     ModelType = "passive_aggressive"
+	ModelEnsemble              ModelType = "ensemble"
+	ModelAdditiveAttention     ModelType = "additive_attention"
 	ModelRandomForestAttention ModelType = "random_forest_attention"
 	ModelLogisticAttention     ModelType = "logistic_attention"
 	ModelKNNAttention          ModelType = "knn_attention"
+
+	// N-gram style sequence models
+	ModelNGramRandomForest ModelType = "ngram_random_forest"
+	ModelNGramLogistic     ModelType = "ngram_logistic"
+	ModelNGramKNN          ModelType = "ngram_knn"
 
 	// Aliases for attention-enhanced models
 	ModelRandomForestAttn = ModelRandomForestAttention
