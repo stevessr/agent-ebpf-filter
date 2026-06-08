@@ -13,6 +13,8 @@ import { message } from "ant-design-vue";
 
 import FileBrowserPanel from "../../components/explorer/FileBrowserPanel.vue";
 import { buildWebSocketUrl } from "../../utils/requestContext";
+import SanitizedFieldViewer from "../../components/common/SanitizedFieldViewer.vue";
+import RedactionBadge from "../../components/common/RedactionBadge.vue";
 
 interface TLSPlaintextEvent {
   key?: string;
@@ -598,6 +600,9 @@ onUnmounted(() => {
 
 <template>
   <div class="tls-capture-page">
+    <div class="tls-redaction-bar">
+      <RedactionBadge />
+    </div>
     <a-card :bordered="false" class="tls-card">
       <template #title>
         <span class="tls-title"><SafetyCertificateOutlined /> TLS Capture</span>
@@ -786,9 +791,9 @@ onUnmounted(() => {
                     <template #title>
                       <a-space>
                         <span>{{ item.name }}</span>
-                        <a-tag :color="item.attached ? 'green' : 'default'">{{
-                          item.attached ? "Attached" : "Not attached"
-                        }}</a-tag>
+                        <a-tag :color="item.attached ? 'green' : 'default'">
+                          {{ item.attached ? "Attached" : "Not attached" }}
+                        </a-tag>
                         <a-tag v-if="item.available === false" color="red"
                           >Unavailable</a-tag
                         >
@@ -915,16 +920,20 @@ onUnmounted(() => {
             >
               <template #description>
                 <a-descriptions size="small" :column="1" bordered>
-                  <a-descriptions-item label="Input">{{
-                    executableAttachResult.resolved?.input ||
-                    executablePathInput ||
-                    "—"
-                  }}</a-descriptions-item>
-                  <a-descriptions-item label="Resolved path">{{
-                    executableAttachResult.resolved?.realPath ||
-                    executableAttachResult.resolved?.path ||
-                    "—"
-                  }}</a-descriptions-item>
+                  <a-descriptions-item label="Input">
+                    <SanitizedFieldViewer
+                      :value="String(executableAttachResult.resolved?.input || executablePathInput || '—')"
+                      :isSanitized="false"
+                      field-name="input"
+                    />
+                  </a-descriptions-item>
+                  <a-descriptions-item label="Resolved path">
+                    <SanitizedFieldViewer
+                      :value="String(executableAttachResult.resolved?.realPath || executableAttachResult.resolved?.path || '—')"
+                      :isSanitized="false"
+                      field-name="resolved path"
+                    />
+                  </a-descriptions-item>
                   <a-descriptions-item
                     v-if="executableAttachResult.resolved?.shebang"
                     label="Shebang"
@@ -932,11 +941,13 @@ onUnmounted(() => {
                       executableAttachResult.resolved.shebang
                     }}</a-descriptions-item
                   >
-                  <a-descriptions-item label="Attach path">{{
-                    executableAttachResult.attachPath ||
-                    executableAttachResult.resolved?.realPath ||
-                    "—"
-                  }}</a-descriptions-item>
+                  <a-descriptions-item label="Attach path">
+                    <SanitizedFieldViewer
+                      :value="String(executableAttachResult.attachPath || executableAttachResult.resolved?.realPath || '—')"
+                      :isSanitized="false"
+                      field-name="attach path"
+                    />
+                  </a-descriptions-item>
                   <a-descriptions-item label="Mode">{{
                     executableAttachResult.targetKind ||
                     executableAttachResult.library ||
@@ -1199,49 +1210,95 @@ onUnmounted(() => {
           </a-button>
         </a-space>
         <a-descriptions bordered :column="1" size="small">
-          <a-descriptions-item label="Timestamp">{{
-            formatTimestamp(selectedEvent.timestamp)
-          }}</a-descriptions-item>
+          <a-descriptions-item label="Timestamp">
+            <SanitizedFieldViewer
+              :value="formatTimestamp(selectedEvent.timestamp)"
+              :isSanitized="false"
+              field-name="timestamp"
+            />
+          </a-descriptions-item>
           <a-descriptions-item label="Packet"
             ><a-tag :color="directionColor(selectedEvent.direction)">{{
               directionLabel(selectedEvent.direction)
             }}</a-tag></a-descriptions-item
           >
-          <a-descriptions-item label="Library">{{
-            selectedEvent.lib || "—"
-          }}</a-descriptions-item>
-          <a-descriptions-item label="Function">{{
-            selectedEvent.function || "—"
-          }}</a-descriptions-item>
-          <a-descriptions-item label="Command">{{
-            selectedEvent.comm || "—"
-          }}</a-descriptions-item>
-          <a-descriptions-item label="PID">{{
-            selectedEvent.pid ?? "—"
-          }}</a-descriptions-item>
-          <a-descriptions-item label="TGID">{{
-            selectedEvent.tgid ?? "—"
-          }}</a-descriptions-item>
-          <a-descriptions-item label="Method">{{
-            selectedEvent.method || "—"
-          }}</a-descriptions-item>
-          <a-descriptions-item label="URL"
-            ><a-typography-text code style="word-break: break-all">{{
-              selectedEvent.url || "—"
-            }}</a-typography-text></a-descriptions-item
-          >
-          <a-descriptions-item label="Host">{{
-            selectedEvent.host || "—"
-          }}</a-descriptions-item>
-          <a-descriptions-item label="Status">{{
-            selectedEvent.status ?? "—"
-          }}</a-descriptions-item>
-          <a-descriptions-item label="Content Type">{{
-            selectedEvent.content_type || "—"
-          }}</a-descriptions-item>
-          <a-descriptions-item label="Body Size">{{
-            formatBytes(selectedEvent.body_size)
-          }}</a-descriptions-item>
+          <a-descriptions-item label="Library">
+            <SanitizedFieldViewer
+              :value="selectedEvent.lib || '—'"
+              :isSanitized="false"
+              field-name="library"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item label="Function">
+            <SanitizedFieldViewer
+              :value="selectedEvent.function || '—'"
+              :isSanitized="false"
+              field-name="function"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item label="Command">
+            <SanitizedFieldViewer
+              :value="selectedEvent.comm || '—'"
+              :isSanitized="selectedEvent.redaction_state === 'sanitized'"
+              field-name="command"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item label="PID">
+            <SanitizedFieldViewer
+              :value="String(selectedEvent.pid ?? '—')"
+              :isSanitized="false"
+              field-name="pid"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item label="TGID">
+            <SanitizedFieldViewer
+              :value="String(selectedEvent.tgid ?? '—')"
+              :isSanitized="false"
+              field-name="tgid"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item label="Method">
+            <SanitizedFieldViewer
+              :value="selectedEvent.method || '—'"
+              :isSanitized="false"
+              field-name="method"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item label="URL">
+            <SanitizedFieldViewer
+              :value="selectedEvent.url || '—'"
+              :isSanitized="selectedEvent.redaction_state === 'sanitized'"
+              field-name="url"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item label="Host">
+            <SanitizedFieldViewer
+              :value="selectedEvent.host || '—'"
+              :isSanitized="selectedEvent.redaction_state === 'sanitized'"
+              field-name="host"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item label="Status">
+            <SanitizedFieldViewer
+              :value="String(selectedEvent.status ?? '—')"
+              :isSanitized="false"
+              field-name="status"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item label="Content Type">
+            <SanitizedFieldViewer
+              :value="selectedEvent.content_type || '—'"
+              :isSanitized="false"
+              field-name="content type"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item label="Body Size">
+            <SanitizedFieldViewer
+              :value="formatBytes(selectedEvent.body_size)"
+              :isSanitized="false"
+              field-name="body size"
+            />
+          </a-descriptions-item>
           <a-descriptions-item label="TLS Capture"
             >{{ formatBytes(selectedEvent.captured_len) }} /
             {{ formatBytes(selectedEvent.original_len) }}</a-descriptions-item
@@ -1289,9 +1346,9 @@ onUnmounted(() => {
             </a-space>
           </a-descriptions-item>
           <a-descriptions-item label="Headers">
-            <pre class="tls-pre">{{
-              JSON.stringify(selectedEvent.headers || {}, null, 2)
-            }}</pre>
+            <pre class="tls-pre">
+              {{ JSON.stringify(selectedEvent.headers || {}, null, 2) }}
+            </pre>
           </a-descriptions-item>
           <a-descriptions-item label="Body">
             <pre class="tls-pre tls-body">{{ selectedEvent.body || "—" }}</pre>
@@ -1311,6 +1368,12 @@ onUnmounted(() => {
 <style scoped>
 .tls-capture-page {
   padding: 0;
+}
+
+.tls-redaction-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 
 .tls-card {

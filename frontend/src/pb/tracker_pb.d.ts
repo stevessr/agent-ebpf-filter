@@ -698,6 +698,12 @@ export namespace pb {
 
         /** Event ipScope */
         ipScope?: (string|null);
+
+        /** Event redactionLevel */
+        redactionLevel?: (string|null);
+
+        /** Event sanitizedFields */
+        sanitizedFields?: (string[]|null);
     }
 
     /** Represents an Event. */
@@ -912,6 +918,12 @@ export namespace pb {
 
         /** Event ipScope. */
         public ipScope: string;
+
+        /** Event redactionLevel. */
+        public redactionLevel: string;
+
+        /** Event sanitizedFields. */
+        public sanitizedFields: string[];
 
         /**
          * Creates a new Event instance using the specified properties.
@@ -8401,145 +8413,435 @@ export namespace pb {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
-    /** Properties of a MLStatus. */
-    interface IMLStatus {
-
-        /** MLStatus modelLoaded */
-        modelLoaded?: (boolean|null);
-
-        /** MLStatus numTrees */
-        numTrees?: (number|null);
-
-        /** MLStatus numSamples */
-        numSamples?: (number|null);
-
-        /** MLStatus numLabeledSamples */
-        numLabeledSamples?: (number|null);
-
-        /** MLStatus lastTrained */
-        lastTrained?: (string|null);
-
-        /** MLStatus testAccuracy */
-        testAccuracy?: (number|null);
-
-        /** MLStatus modelPath */
-        modelPath?: (string|null);
-
-        /** MLStatus trainingInProgress */
-        trainingInProgress?: (boolean|null);
-
-        /** MLStatus trainingProgress */
-        trainingProgress?: (number|null);
+    /** Properties of a RedactionLevel. */
+    interface IRedactionLevel {
     }
 
-    /** Represents a MLStatus. */
-    class MLStatus implements IMLStatus {
+    /** Represents a RedactionLevel. */
+    class RedactionLevel implements IRedactionLevel {
 
         /**
-         * Constructs a new MLStatus.
+         * Constructs a new RedactionLevel.
          * @param [properties] Properties to set
          */
-        constructor(properties?: pb.IMLStatus);
-
-        /** MLStatus modelLoaded. */
-        public modelLoaded: boolean;
-
-        /** MLStatus numTrees. */
-        public numTrees: number;
-
-        /** MLStatus numSamples. */
-        public numSamples: number;
-
-        /** MLStatus numLabeledSamples. */
-        public numLabeledSamples: number;
-
-        /** MLStatus lastTrained. */
-        public lastTrained: string;
-
-        /** MLStatus testAccuracy. */
-        public testAccuracy: number;
-
-        /** MLStatus modelPath. */
-        public modelPath: string;
-
-        /** MLStatus trainingInProgress. */
-        public trainingInProgress: boolean;
-
-        /** MLStatus trainingProgress. */
-        public trainingProgress: number;
+        constructor(properties?: pb.IRedactionLevel);
 
         /**
-         * Creates a new MLStatus instance using the specified properties.
+         * Creates a new RedactionLevel instance using the specified properties.
          * @param [properties] Properties to set
-         * @returns MLStatus instance
+         * @returns RedactionLevel instance
          */
-        public static create(properties?: pb.IMLStatus): pb.MLStatus;
+        public static create(properties?: pb.IRedactionLevel): pb.RedactionLevel;
 
         /**
-         * Encodes the specified MLStatus message. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
-         * @param message MLStatus message or plain object to encode
+         * Encodes the specified RedactionLevel message. Does not implicitly {@link pb.RedactionLevel.verify|verify} messages.
+         * @param message RedactionLevel message or plain object to encode
          * @param [writer] Writer to encode to
          * @returns Writer
          */
-        public static encode(message: pb.IMLStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+        public static encode(message: pb.IRedactionLevel, writer?: $protobuf.Writer): $protobuf.Writer;
 
         /**
-         * Encodes the specified MLStatus message, length delimited. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
-         * @param message MLStatus message or plain object to encode
+         * Encodes the specified RedactionLevel message, length delimited. Does not implicitly {@link pb.RedactionLevel.verify|verify} messages.
+         * @param message RedactionLevel message or plain object to encode
          * @param [writer] Writer to encode to
          * @returns Writer
          */
-        public static encodeDelimited(message: pb.IMLStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+        public static encodeDelimited(message: pb.IRedactionLevel, writer?: $protobuf.Writer): $protobuf.Writer;
 
         /**
-         * Decodes a MLStatus message from the specified reader or buffer.
+         * Decodes a RedactionLevel message from the specified reader or buffer.
          * @param reader Reader or buffer to decode from
          * @param [length] Message length if known beforehand
-         * @returns MLStatus
+         * @returns RedactionLevel
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.MLStatus;
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.RedactionLevel;
 
         /**
-         * Decodes a MLStatus message from the specified reader or buffer, length delimited.
+         * Decodes a RedactionLevel message from the specified reader or buffer, length delimited.
          * @param reader Reader or buffer to decode from
-         * @returns MLStatus
+         * @returns RedactionLevel
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.MLStatus;
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.RedactionLevel;
 
         /**
-         * Verifies a MLStatus message.
+         * Verifies a RedactionLevel message.
          * @param message Plain object to verify
          * @returns `null` if valid, otherwise the reason why it is not
          */
         public static verify(message: { [k: string]: any }): (string|null);
 
         /**
-         * Creates a MLStatus message from a plain object. Also converts values to their respective internal types.
+         * Creates a RedactionLevel message from a plain object. Also converts values to their respective internal types.
          * @param object Plain object
-         * @returns MLStatus
+         * @returns RedactionLevel
          */
-        public static fromObject(object: { [k: string]: any }): pb.MLStatus;
+        public static fromObject(object: { [k: string]: any }): pb.RedactionLevel;
 
         /**
-         * Creates a plain object from a MLStatus message. Also converts values to other types if specified.
-         * @param message MLStatus
+         * Creates a plain object from a RedactionLevel message. Also converts values to other types if specified.
+         * @param message RedactionLevel
          * @param [options] Conversion options
          * @returns Plain object
          */
-        public static toObject(message: pb.MLStatus, options?: $protobuf.IConversionOptions): { [k: string]: any };
+        public static toObject(message: pb.RedactionLevel, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
         /**
-         * Converts this MLStatus to JSON.
+         * Converts this RedactionLevel to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for MLStatus
+         * Gets the default type url for RedactionLevel
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    namespace RedactionLevel {
+
+        /** Value enum. */
+        enum Value {
+            NONE = 0,
+            BASIC = 1,
+            STANDARD = 2,
+            STRICT = 3
+        }
+    }
+
+    /** Properties of a RedactionRule. */
+    interface IRedactionRule {
+
+        /** RedactionRule category */
+        category?: (string|null);
+
+        /** RedactionRule pattern */
+        pattern?: (string|null);
+
+        /** RedactionRule action */
+        action?: (string|null);
+
+        /** RedactionRule priority */
+        priority?: (number|null);
+    }
+
+    /** Represents a RedactionRule. */
+    class RedactionRule implements IRedactionRule {
+
+        /**
+         * Constructs a new RedactionRule.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IRedactionRule);
+
+        /** RedactionRule category. */
+        public category: string;
+
+        /** RedactionRule pattern. */
+        public pattern: string;
+
+        /** RedactionRule action. */
+        public action: string;
+
+        /** RedactionRule priority. */
+        public priority: number;
+
+        /**
+         * Creates a new RedactionRule instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns RedactionRule instance
+         */
+        public static create(properties?: pb.IRedactionRule): pb.RedactionRule;
+
+        /**
+         * Encodes the specified RedactionRule message. Does not implicitly {@link pb.RedactionRule.verify|verify} messages.
+         * @param message RedactionRule message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IRedactionRule, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified RedactionRule message, length delimited. Does not implicitly {@link pb.RedactionRule.verify|verify} messages.
+         * @param message RedactionRule message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IRedactionRule, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a RedactionRule message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns RedactionRule
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.RedactionRule;
+
+        /**
+         * Decodes a RedactionRule message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns RedactionRule
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.RedactionRule;
+
+        /**
+         * Verifies a RedactionRule message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a RedactionRule message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns RedactionRule
+         */
+        public static fromObject(object: { [k: string]: any }): pb.RedactionRule;
+
+        /**
+         * Creates a plain object from a RedactionRule message. Also converts values to other types if specified.
+         * @param message RedactionRule
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.RedactionRule, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this RedactionRule to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for RedactionRule
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a RedactionPolicy. */
+    interface IRedactionPolicy {
+
+        /** RedactionPolicy level */
+        level?: (pb.RedactionLevel.Value|null);
+
+        /** RedactionPolicy enabled */
+        enabled?: (boolean|null);
+
+        /** RedactionPolicy customRules */
+        customRules?: (pb.IRedactionRule[]|null);
+    }
+
+    /** Represents a RedactionPolicy. */
+    class RedactionPolicy implements IRedactionPolicy {
+
+        /**
+         * Constructs a new RedactionPolicy.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IRedactionPolicy);
+
+        /** RedactionPolicy level. */
+        public level: pb.RedactionLevel.Value;
+
+        /** RedactionPolicy enabled. */
+        public enabled: boolean;
+
+        /** RedactionPolicy customRules. */
+        public customRules: pb.IRedactionRule[];
+
+        /**
+         * Creates a new RedactionPolicy instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns RedactionPolicy instance
+         */
+        public static create(properties?: pb.IRedactionPolicy): pb.RedactionPolicy;
+
+        /**
+         * Encodes the specified RedactionPolicy message. Does not implicitly {@link pb.RedactionPolicy.verify|verify} messages.
+         * @param message RedactionPolicy message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IRedactionPolicy, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified RedactionPolicy message, length delimited. Does not implicitly {@link pb.RedactionPolicy.verify|verify} messages.
+         * @param message RedactionPolicy message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IRedactionPolicy, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a RedactionPolicy message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns RedactionPolicy
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.RedactionPolicy;
+
+        /**
+         * Decodes a RedactionPolicy message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns RedactionPolicy
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.RedactionPolicy;
+
+        /**
+         * Verifies a RedactionPolicy message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a RedactionPolicy message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns RedactionPolicy
+         */
+        public static fromObject(object: { [k: string]: any }): pb.RedactionPolicy;
+
+        /**
+         * Creates a plain object from a RedactionPolicy message. Also converts values to other types if specified.
+         * @param message RedactionPolicy
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.RedactionPolicy, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this RedactionPolicy to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for RedactionPolicy
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an OutputVisibilityConfig. */
+    interface IOutputVisibilityConfig {
+
+        /** OutputVisibilityConfig wsEnabled */
+        wsEnabled?: (boolean|null);
+
+        /** OutputVisibilityConfig jsonlEnabled */
+        jsonlEnabled?: (boolean|null);
+
+        /** OutputVisibilityConfig mcpEnabled */
+        mcpEnabled?: (boolean|null);
+    }
+
+    /** Represents an OutputVisibilityConfig. */
+    class OutputVisibilityConfig implements IOutputVisibilityConfig {
+
+        /**
+         * Constructs a new OutputVisibilityConfig.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IOutputVisibilityConfig);
+
+        /** OutputVisibilityConfig wsEnabled. */
+        public wsEnabled: boolean;
+
+        /** OutputVisibilityConfig jsonlEnabled. */
+        public jsonlEnabled: boolean;
+
+        /** OutputVisibilityConfig mcpEnabled. */
+        public mcpEnabled: boolean;
+
+        /**
+         * Creates a new OutputVisibilityConfig instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns OutputVisibilityConfig instance
+         */
+        public static create(properties?: pb.IOutputVisibilityConfig): pb.OutputVisibilityConfig;
+
+        /**
+         * Encodes the specified OutputVisibilityConfig message. Does not implicitly {@link pb.OutputVisibilityConfig.verify|verify} messages.
+         * @param message OutputVisibilityConfig message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IOutputVisibilityConfig, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified OutputVisibilityConfig message, length delimited. Does not implicitly {@link pb.OutputVisibilityConfig.verify|verify} messages.
+         * @param message OutputVisibilityConfig message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IOutputVisibilityConfig, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an OutputVisibilityConfig message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns OutputVisibilityConfig
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.OutputVisibilityConfig;
+
+        /**
+         * Decodes an OutputVisibilityConfig message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns OutputVisibilityConfig
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.OutputVisibilityConfig;
+
+        /**
+         * Verifies an OutputVisibilityConfig message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an OutputVisibilityConfig message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns OutputVisibilityConfig
+         */
+        public static fromObject(object: { [k: string]: any }): pb.OutputVisibilityConfig;
+
+        /**
+         * Creates a plain object from an OutputVisibilityConfig message. Also converts values to other types if specified.
+         * @param message OutputVisibilityConfig
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.OutputVisibilityConfig, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this OutputVisibilityConfig to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for OutputVisibilityConfig
          * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns The default type url
          */

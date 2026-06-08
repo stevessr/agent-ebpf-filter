@@ -106,14 +106,30 @@ message HookResponse {
   string message = 2;
 }
 
-message MLStatus {
-  bool model_loaded = 1;
-  int32 num_trees = 2;
-  int32 num_samples = 3;
-  int32 num_labeled_samples = 4;
-  string last_trained = 5;
-  double test_accuracy = 6;
-  string model_path = 7;
-  bool training_in_progress = 8;
-  double training_progress = 9;
+message RedactionLevel {
+  enum Value {
+    NONE = 0;
+    BASIC = 1;
+    STANDARD = 2;
+    STRICT = 3;
+  }
+}
+
+message RedactionRule {
+  string category = 1;
+  string pattern = 2;
+  string action = 3;
+  int32 priority = 4;
+}
+
+message RedactionPolicy {
+  RedactionLevel.Value level = 1;
+  bool enabled = 2;
+  repeated RedactionRule custom_rules = 3;
+}
+
+message OutputVisibilityConfig {
+  bool ws_enabled = 1;
+  bool jsonl_enabled = 2;
+  bool mcp_enabled = 3;
 }

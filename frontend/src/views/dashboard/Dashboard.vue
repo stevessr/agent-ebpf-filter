@@ -9,6 +9,8 @@ import FilePreviewDrawer from "../../components/explorer/FilePreviewDrawer.vue";
 import DashboardToolbar from "../../components/dashboard/DashboardToolbar.vue";
 import DashboardEventModal from "../../components/dashboard/DashboardEventModal.vue";
 import { useDashboard } from "../../composables/dashboard/useDashboard";
+import SanitizedFieldViewer from "../../components/common/SanitizedFieldViewer.vue";
+import RedactionBadge from "../../components/common/RedactionBadge.vue";
 
 const {
   events,
@@ -79,6 +81,10 @@ void tableWrapperRef;
 
 <template>
   <div class="dashboard-page">
+    <div class="dashboard-redaction-bar">
+      <RedactionBadge />
+    </div>
+
     <a-tabs
       :activeKey="activeTab"
       size="small"
@@ -326,7 +332,11 @@ void tableWrapperRef;
                 }"
                 @click="previewRecordPath(record)"
               >
-                {{ formatDetailValue(record.path) }}
+                <SanitizedFieldViewer
+                  :value="formatDetailValue(record.path)"
+                  :isSanitized="Boolean(record.redactionState || record.redacted)"
+                  field-name="path"
+                />
               </a-typography-text>
               <a-tooltip
                 v-if="canInteractWithPath(record)"
@@ -401,6 +411,12 @@ void tableWrapperRef;
   color: #1f2937;
   width: 100%;
   box-sizing: border-box;
+}
+
+.dashboard-redaction-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 
 .dashboard-tabs {

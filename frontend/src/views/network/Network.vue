@@ -13,6 +13,8 @@ import { pb } from "../../pb/tracker_pb.js";
 import { buildWebSocketUrl } from "../../utils/requestContext";
 import NetworkStatsCards from "../../components/network/NetworkStatsCards.vue";
 import NetworkEventModal from "../../components/network/NetworkEventModal.vue";
+import SanitizedFieldViewer from "../../components/common/SanitizedFieldViewer.vue";
+import RedactionBadge from "../../components/common/RedactionBadge.vue";
 
 interface NetworkEvent {
   key: string;
@@ -29,6 +31,8 @@ interface NetworkEvent {
   netFamily: string;
   netBytes: number;
   time: string;
+  redactionState?: string;
+  redacted?: boolean;
 }
 
 const eventTypeLabelMap: Record<number, string> = {
@@ -222,6 +226,8 @@ const fetchRecentEvents = async () => {
           netFamily: d.netFamily || "",
           netBytes: Number(d.netBytes || 0),
           time: new Date(r.Timestamp).toLocaleTimeString(),
+          redactionState: d.redactionState || d.redaction_state || "",
+          redacted: Boolean(d.redacted),
         };
       })
       .filter((e: any) => isNetworkEvent(e.eventType, e.type));
@@ -265,6 +271,8 @@ const connectWebSocket = () => {
           netFamily: d.netFamily || "",
           netBytes: Number(d.netBytes || 0),
           time: new Date().toLocaleTimeString(),
+          redactionState: d.redactionState || d.redaction_state || "",
+          redacted: Boolean(d.redacted),
         });
       });
     } catch (e) {
@@ -309,6 +317,9 @@ onUnmounted(() => {
 
 <template>
   <div class="network-page">
+    <div class="network-redaction-bar">
+      <RedactionBadge />
+    </div>
     <a-card :bordered="false">
       <template #title
         ><span><GlobalOutlined /> Network Monitor</span></template
@@ -353,15 +364,13 @@ onUnmounted(() => {
             {{ isPaused ? "Resume" : "Pause" }}
           </a-button>
           <a-button danger @click="clearNetworkEvents" size="small"
-            ><template #icon><DeleteOutlined /></template>Clear</a-button
-          >
+            ><template #icon><DeleteOutlined /></template>Clear</a-button>
           <a-select v-model:value="maxEvents" size="small" style="width: 100px">
             <a-select-option
               v-for="opt in maxEventsOptions"
               :key="opt"
               :value="Number(opt)"
-              >{{ opt }}</a-select-option
-            >
+              >{{ opt }}</a-select-option>
           </a-select>
         </a-space>
         <a-space>
@@ -422,13 +431,29 @@ onUnmounted(() => {
             }}</a-tag></template
           >
         </a-table-column>
-        <a-table-column title="Command" dataIndex="comm" key="comm" ellipsis />
+        <a-table-column title="Command" dataIndex="comm" key="comm" ellipsis>
+          <template #default="{ text, record }">
+            <SanitizedFieldViewer
+              :value="String(text || '—')"
+              :isSanitized="Boolean(record.redactionState || record.redacted)"
+              field-name="command"
+            />
+          </template>
+        </a-table-column>
         <a-table-column
           title="Endpoint"
           dataIndex="netEndpoint"
           key="netEndpoint"
           ellipsis
-        />
+        >
+          <template #default="{ text, record }">
+            <SanitizedFieldViewer
+              :value="String(text || '—')"
+              :isSanitized="Boolean(record.redactionState || record.redacted)"
+              field-name="endpoint"
+            />
+          </template>
+        </a-table-column>
         <a-table-column
           title="Bytes"
           dataIndex="netBytes"
@@ -469,6 +494,12 @@ onUnmounted(() => {
 <style scoped>
 .network-page {
   padding: 0;
+}
+
+.network-redaction-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 :deep(.ant-table-thead > tr > th) {
   background: #f9fafb;

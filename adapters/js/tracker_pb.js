@@ -1297,6 +1297,8 @@ $root.pb = (function() {
          * @property {string|null} [geoCountryCode] Event geoCountryCode
          * @property {number|null} [geoAsn] Event geoAsn
          * @property {string|null} [ipScope] Event ipScope
+         * @property {string|null} [redactionLevel] Event redactionLevel
+         * @property {Array.<string>|null} [sanitizedFields] Event sanitizedFields
          */
 
         /**
@@ -1308,6 +1310,7 @@ $root.pb = (function() {
          * @param {pb.IEvent=} [properties] Properties to set
          */
         function Event(properties) {
+            this.sanitizedFields = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -1859,6 +1862,22 @@ $root.pb = (function() {
         Event.prototype.ipScope = "";
 
         /**
+         * Event redactionLevel.
+         * @member {string} redactionLevel
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.redactionLevel = "";
+
+        /**
+         * Event sanitizedFields.
+         * @member {Array.<string>} sanitizedFields
+         * @memberof pb.Event
+         * @instance
+         */
+        Event.prototype.sanitizedFields = $util.emptyArray;
+
+        /**
          * Creates a new Event instance using the specified properties.
          * @function create
          * @memberof pb.Event
@@ -2018,6 +2037,11 @@ $root.pb = (function() {
                 writer.uint32(/* id 67, wireType 0 =*/536).uint32(message.geoAsn);
             if (message.ipScope != null && Object.hasOwnProperty.call(message, "ipScope"))
                 writer.uint32(/* id 68, wireType 2 =*/546).string(message.ipScope);
+            if (message.redactionLevel != null && Object.hasOwnProperty.call(message, "redactionLevel"))
+                writer.uint32(/* id 69, wireType 2 =*/554).string(message.redactionLevel);
+            if (message.sanitizedFields != null && message.sanitizedFields.length)
+                for (var i = 0; i < message.sanitizedFields.length; ++i)
+                    writer.uint32(/* id 70, wireType 2 =*/562).string(message.sanitizedFields[i]);
             return writer;
         };
 
@@ -2326,6 +2350,16 @@ $root.pb = (function() {
                         message.ipScope = reader.string();
                         break;
                     }
+                case 69: {
+                        message.redactionLevel = reader.string();
+                        break;
+                    }
+                case 70: {
+                        if (!(message.sanitizedFields && message.sanitizedFields.length))
+                            message.sanitizedFields = [];
+                        message.sanitizedFields.push(reader.string());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -2612,6 +2646,16 @@ $root.pb = (function() {
             if (message.ipScope != null && message.hasOwnProperty("ipScope"))
                 if (!$util.isString(message.ipScope))
                     return "ipScope: string expected";
+            if (message.redactionLevel != null && message.hasOwnProperty("redactionLevel"))
+                if (!$util.isString(message.redactionLevel))
+                    return "redactionLevel: string expected";
+            if (message.sanitizedFields != null && message.hasOwnProperty("sanitizedFields")) {
+                if (!Array.isArray(message.sanitizedFields))
+                    return "sanitizedFields: array expected";
+                for (var i = 0; i < message.sanitizedFields.length; ++i)
+                    if (!$util.isString(message.sanitizedFields[i]))
+                        return "sanitizedFields: string[] expected";
+            }
             return null;
         };
 
@@ -3010,6 +3054,15 @@ $root.pb = (function() {
                 message.geoAsn = object.geoAsn >>> 0;
             if (object.ipScope != null)
                 message.ipScope = String(object.ipScope);
+            if (object.redactionLevel != null)
+                message.redactionLevel = String(object.redactionLevel);
+            if (object.sanitizedFields) {
+                if (!Array.isArray(object.sanitizedFields))
+                    throw TypeError(".pb.Event.sanitizedFields: array expected");
+                message.sanitizedFields = [];
+                for (var i = 0; i < object.sanitizedFields.length; ++i)
+                    message.sanitizedFields[i] = String(object.sanitizedFields[i]);
+            }
             return message;
         };
 
@@ -3026,6 +3079,8 @@ $root.pb = (function() {
             if (!options)
                 options = {};
             var object = {};
+            if (options.arrays || options.defaults)
+                object.sanitizedFields = [];
             if (options.defaults) {
                 object.pid = 0;
                 object.ppid = 0;
@@ -3135,6 +3190,7 @@ $root.pb = (function() {
                 object.geoCountryCode = "";
                 object.geoAsn = 0;
                 object.ipScope = "";
+                object.redactionLevel = "";
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -3302,6 +3358,13 @@ $root.pb = (function() {
                 object.geoAsn = message.geoAsn;
             if (message.ipScope != null && message.hasOwnProperty("ipScope"))
                 object.ipScope = message.ipScope;
+            if (message.redactionLevel != null && message.hasOwnProperty("redactionLevel"))
+                object.redactionLevel = message.redactionLevel;
+            if (message.sanitizedFields && message.sanitizedFields.length) {
+                object.sanitizedFields = [];
+                for (var j = 0; j < message.sanitizedFields.length; ++j)
+                    object.sanitizedFields[j] = message.sanitizedFields[j];
+            }
             return object;
         };
 
@@ -23979,32 +24042,23 @@ $root.pb = (function() {
         return HookResponse;
     })();
 
-    pb.MLStatus = (function() {
+    pb.RedactionLevel = (function() {
 
         /**
-         * Properties of a MLStatus.
+         * Properties of a RedactionLevel.
          * @memberof pb
-         * @interface IMLStatus
-         * @property {boolean|null} [modelLoaded] MLStatus modelLoaded
-         * @property {number|null} [numTrees] MLStatus numTrees
-         * @property {number|null} [numSamples] MLStatus numSamples
-         * @property {number|null} [numLabeledSamples] MLStatus numLabeledSamples
-         * @property {string|null} [lastTrained] MLStatus lastTrained
-         * @property {number|null} [testAccuracy] MLStatus testAccuracy
-         * @property {string|null} [modelPath] MLStatus modelPath
-         * @property {boolean|null} [trainingInProgress] MLStatus trainingInProgress
-         * @property {number|null} [trainingProgress] MLStatus trainingProgress
+         * @interface IRedactionLevel
          */
 
         /**
-         * Constructs a new MLStatus.
+         * Constructs a new RedactionLevel.
          * @memberof pb
-         * @classdesc Represents a MLStatus.
-         * @implements IMLStatus
+         * @classdesc Represents a RedactionLevel.
+         * @implements IRedactionLevel
          * @constructor
-         * @param {pb.IMLStatus=} [properties] Properties to set
+         * @param {pb.IRedactionLevel=} [properties] Properties to set
          */
-        function MLStatus(properties) {
+        function RedactionLevel(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -24012,189 +24066,318 @@ $root.pb = (function() {
         }
 
         /**
-         * MLStatus modelLoaded.
-         * @member {boolean} modelLoaded
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.modelLoaded = false;
-
-        /**
-         * MLStatus numTrees.
-         * @member {number} numTrees
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.numTrees = 0;
-
-        /**
-         * MLStatus numSamples.
-         * @member {number} numSamples
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.numSamples = 0;
-
-        /**
-         * MLStatus numLabeledSamples.
-         * @member {number} numLabeledSamples
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.numLabeledSamples = 0;
-
-        /**
-         * MLStatus lastTrained.
-         * @member {string} lastTrained
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.lastTrained = "";
-
-        /**
-         * MLStatus testAccuracy.
-         * @member {number} testAccuracy
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.testAccuracy = 0;
-
-        /**
-         * MLStatus modelPath.
-         * @member {string} modelPath
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.modelPath = "";
-
-        /**
-         * MLStatus trainingInProgress.
-         * @member {boolean} trainingInProgress
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.trainingInProgress = false;
-
-        /**
-         * MLStatus trainingProgress.
-         * @member {number} trainingProgress
-         * @memberof pb.MLStatus
-         * @instance
-         */
-        MLStatus.prototype.trainingProgress = 0;
-
-        /**
-         * Creates a new MLStatus instance using the specified properties.
+         * Creates a new RedactionLevel instance using the specified properties.
          * @function create
-         * @memberof pb.MLStatus
+         * @memberof pb.RedactionLevel
          * @static
-         * @param {pb.IMLStatus=} [properties] Properties to set
-         * @returns {pb.MLStatus} MLStatus instance
+         * @param {pb.IRedactionLevel=} [properties] Properties to set
+         * @returns {pb.RedactionLevel} RedactionLevel instance
          */
-        MLStatus.create = function create(properties) {
-            return new MLStatus(properties);
+        RedactionLevel.create = function create(properties) {
+            return new RedactionLevel(properties);
         };
 
         /**
-         * Encodes the specified MLStatus message. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
+         * Encodes the specified RedactionLevel message. Does not implicitly {@link pb.RedactionLevel.verify|verify} messages.
          * @function encode
-         * @memberof pb.MLStatus
+         * @memberof pb.RedactionLevel
          * @static
-         * @param {pb.IMLStatus} message MLStatus message or plain object to encode
+         * @param {pb.IRedactionLevel} message RedactionLevel message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        MLStatus.encode = function encode(message, writer) {
+        RedactionLevel.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
-            if (message.modelLoaded != null && Object.hasOwnProperty.call(message, "modelLoaded"))
-                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.modelLoaded);
-            if (message.numTrees != null && Object.hasOwnProperty.call(message, "numTrees"))
-                writer.uint32(/* id 2, wireType 0 =*/16).int32(message.numTrees);
-            if (message.numSamples != null && Object.hasOwnProperty.call(message, "numSamples"))
-                writer.uint32(/* id 3, wireType 0 =*/24).int32(message.numSamples);
-            if (message.numLabeledSamples != null && Object.hasOwnProperty.call(message, "numLabeledSamples"))
-                writer.uint32(/* id 4, wireType 0 =*/32).int32(message.numLabeledSamples);
-            if (message.lastTrained != null && Object.hasOwnProperty.call(message, "lastTrained"))
-                writer.uint32(/* id 5, wireType 2 =*/42).string(message.lastTrained);
-            if (message.testAccuracy != null && Object.hasOwnProperty.call(message, "testAccuracy"))
-                writer.uint32(/* id 6, wireType 1 =*/49).double(message.testAccuracy);
-            if (message.modelPath != null && Object.hasOwnProperty.call(message, "modelPath"))
-                writer.uint32(/* id 7, wireType 2 =*/58).string(message.modelPath);
-            if (message.trainingInProgress != null && Object.hasOwnProperty.call(message, "trainingInProgress"))
-                writer.uint32(/* id 8, wireType 0 =*/64).bool(message.trainingInProgress);
-            if (message.trainingProgress != null && Object.hasOwnProperty.call(message, "trainingProgress"))
-                writer.uint32(/* id 9, wireType 1 =*/73).double(message.trainingProgress);
             return writer;
         };
 
         /**
-         * Encodes the specified MLStatus message, length delimited. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
+         * Encodes the specified RedactionLevel message, length delimited. Does not implicitly {@link pb.RedactionLevel.verify|verify} messages.
          * @function encodeDelimited
-         * @memberof pb.MLStatus
+         * @memberof pb.RedactionLevel
          * @static
-         * @param {pb.IMLStatus} message MLStatus message or plain object to encode
+         * @param {pb.IRedactionLevel} message RedactionLevel message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        MLStatus.encodeDelimited = function encodeDelimited(message, writer) {
+        RedactionLevel.encodeDelimited = function encodeDelimited(message, writer) {
             return this.encode(message, writer).ldelim();
         };
 
         /**
-         * Decodes a MLStatus message from the specified reader or buffer.
+         * Decodes a RedactionLevel message from the specified reader or buffer.
          * @function decode
-         * @memberof pb.MLStatus
+         * @memberof pb.RedactionLevel
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {pb.MLStatus} MLStatus
+         * @returns {pb.RedactionLevel} RedactionLevel
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        MLStatus.decode = function decode(reader, length, error) {
+        RedactionLevel.decode = function decode(reader, length, error) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.MLStatus();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RedactionLevel();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a RedactionLevel message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.RedactionLevel
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.RedactionLevel} RedactionLevel
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        RedactionLevel.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a RedactionLevel message.
+         * @function verify
+         * @memberof pb.RedactionLevel
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        RedactionLevel.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            return null;
+        };
+
+        /**
+         * Creates a RedactionLevel message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.RedactionLevel
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.RedactionLevel} RedactionLevel
+         */
+        RedactionLevel.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.RedactionLevel)
+                return object;
+            return new $root.pb.RedactionLevel();
+        };
+
+        /**
+         * Creates a plain object from a RedactionLevel message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.RedactionLevel
+         * @static
+         * @param {pb.RedactionLevel} message RedactionLevel
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        RedactionLevel.toObject = function toObject() {
+            return {};
+        };
+
+        /**
+         * Converts this RedactionLevel to JSON.
+         * @function toJSON
+         * @memberof pb.RedactionLevel
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        RedactionLevel.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for RedactionLevel
+         * @function getTypeUrl
+         * @memberof pb.RedactionLevel
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        RedactionLevel.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.RedactionLevel";
+        };
+
+        /**
+         * Value enum.
+         * @name pb.RedactionLevel.Value
+         * @enum {number}
+         * @property {number} NONE=0 NONE value
+         * @property {number} BASIC=1 BASIC value
+         * @property {number} STANDARD=2 STANDARD value
+         * @property {number} STRICT=3 STRICT value
+         */
+        RedactionLevel.Value = (function() {
+            var valuesById = {}, values = Object.create(valuesById);
+            values[valuesById[0] = "NONE"] = 0;
+            values[valuesById[1] = "BASIC"] = 1;
+            values[valuesById[2] = "STANDARD"] = 2;
+            values[valuesById[3] = "STRICT"] = 3;
+            return values;
+        })();
+
+        return RedactionLevel;
+    })();
+
+    pb.RedactionRule = (function() {
+
+        /**
+         * Properties of a RedactionRule.
+         * @memberof pb
+         * @interface IRedactionRule
+         * @property {string|null} [category] RedactionRule category
+         * @property {string|null} [pattern] RedactionRule pattern
+         * @property {string|null} [action] RedactionRule action
+         * @property {number|null} [priority] RedactionRule priority
+         */
+
+        /**
+         * Constructs a new RedactionRule.
+         * @memberof pb
+         * @classdesc Represents a RedactionRule.
+         * @implements IRedactionRule
+         * @constructor
+         * @param {pb.IRedactionRule=} [properties] Properties to set
+         */
+        function RedactionRule(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * RedactionRule category.
+         * @member {string} category
+         * @memberof pb.RedactionRule
+         * @instance
+         */
+        RedactionRule.prototype.category = "";
+
+        /**
+         * RedactionRule pattern.
+         * @member {string} pattern
+         * @memberof pb.RedactionRule
+         * @instance
+         */
+        RedactionRule.prototype.pattern = "";
+
+        /**
+         * RedactionRule action.
+         * @member {string} action
+         * @memberof pb.RedactionRule
+         * @instance
+         */
+        RedactionRule.prototype.action = "";
+
+        /**
+         * RedactionRule priority.
+         * @member {number} priority
+         * @memberof pb.RedactionRule
+         * @instance
+         */
+        RedactionRule.prototype.priority = 0;
+
+        /**
+         * Creates a new RedactionRule instance using the specified properties.
+         * @function create
+         * @memberof pb.RedactionRule
+         * @static
+         * @param {pb.IRedactionRule=} [properties] Properties to set
+         * @returns {pb.RedactionRule} RedactionRule instance
+         */
+        RedactionRule.create = function create(properties) {
+            return new RedactionRule(properties);
+        };
+
+        /**
+         * Encodes the specified RedactionRule message. Does not implicitly {@link pb.RedactionRule.verify|verify} messages.
+         * @function encode
+         * @memberof pb.RedactionRule
+         * @static
+         * @param {pb.IRedactionRule} message RedactionRule message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        RedactionRule.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.category != null && Object.hasOwnProperty.call(message, "category"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.category);
+            if (message.pattern != null && Object.hasOwnProperty.call(message, "pattern"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.pattern);
+            if (message.action != null && Object.hasOwnProperty.call(message, "action"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.action);
+            if (message.priority != null && Object.hasOwnProperty.call(message, "priority"))
+                writer.uint32(/* id 4, wireType 0 =*/32).int32(message.priority);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified RedactionRule message, length delimited. Does not implicitly {@link pb.RedactionRule.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.RedactionRule
+         * @static
+         * @param {pb.IRedactionRule} message RedactionRule message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        RedactionRule.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a RedactionRule message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.RedactionRule
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.RedactionRule} RedactionRule
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        RedactionRule.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RedactionRule();
             while (reader.pos < end) {
                 var tag = reader.uint32();
                 if (tag === error)
                     break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.modelLoaded = reader.bool();
+                        message.category = reader.string();
                         break;
                     }
                 case 2: {
-                        message.numTrees = reader.int32();
+                        message.pattern = reader.string();
                         break;
                     }
                 case 3: {
-                        message.numSamples = reader.int32();
+                        message.action = reader.string();
                         break;
                     }
                 case 4: {
-                        message.numLabeledSamples = reader.int32();
-                        break;
-                    }
-                case 5: {
-                        message.lastTrained = reader.string();
-                        break;
-                    }
-                case 6: {
-                        message.testAccuracy = reader.double();
-                        break;
-                    }
-                case 7: {
-                        message.modelPath = reader.string();
-                        break;
-                    }
-                case 8: {
-                        message.trainingInProgress = reader.bool();
-                        break;
-                    }
-                case 9: {
-                        message.trainingProgress = reader.double();
+                        message.priority = reader.int32();
                         break;
                     }
                 default:
@@ -24206,167 +24389,682 @@ $root.pb = (function() {
         };
 
         /**
-         * Decodes a MLStatus message from the specified reader or buffer, length delimited.
+         * Decodes a RedactionRule message from the specified reader or buffer, length delimited.
          * @function decodeDelimited
-         * @memberof pb.MLStatus
+         * @memberof pb.RedactionRule
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pb.MLStatus} MLStatus
+         * @returns {pb.RedactionRule} RedactionRule
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        MLStatus.decodeDelimited = function decodeDelimited(reader) {
+        RedactionRule.decodeDelimited = function decodeDelimited(reader) {
             if (!(reader instanceof $Reader))
                 reader = new $Reader(reader);
             return this.decode(reader, reader.uint32());
         };
 
         /**
-         * Verifies a MLStatus message.
+         * Verifies a RedactionRule message.
          * @function verify
-         * @memberof pb.MLStatus
+         * @memberof pb.RedactionRule
          * @static
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        MLStatus.verify = function verify(message) {
+        RedactionRule.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.modelLoaded != null && message.hasOwnProperty("modelLoaded"))
-                if (typeof message.modelLoaded !== "boolean")
-                    return "modelLoaded: boolean expected";
-            if (message.numTrees != null && message.hasOwnProperty("numTrees"))
-                if (!$util.isInteger(message.numTrees))
-                    return "numTrees: integer expected";
-            if (message.numSamples != null && message.hasOwnProperty("numSamples"))
-                if (!$util.isInteger(message.numSamples))
-                    return "numSamples: integer expected";
-            if (message.numLabeledSamples != null && message.hasOwnProperty("numLabeledSamples"))
-                if (!$util.isInteger(message.numLabeledSamples))
-                    return "numLabeledSamples: integer expected";
-            if (message.lastTrained != null && message.hasOwnProperty("lastTrained"))
-                if (!$util.isString(message.lastTrained))
-                    return "lastTrained: string expected";
-            if (message.testAccuracy != null && message.hasOwnProperty("testAccuracy"))
-                if (typeof message.testAccuracy !== "number")
-                    return "testAccuracy: number expected";
-            if (message.modelPath != null && message.hasOwnProperty("modelPath"))
-                if (!$util.isString(message.modelPath))
-                    return "modelPath: string expected";
-            if (message.trainingInProgress != null && message.hasOwnProperty("trainingInProgress"))
-                if (typeof message.trainingInProgress !== "boolean")
-                    return "trainingInProgress: boolean expected";
-            if (message.trainingProgress != null && message.hasOwnProperty("trainingProgress"))
-                if (typeof message.trainingProgress !== "number")
-                    return "trainingProgress: number expected";
+            if (message.category != null && message.hasOwnProperty("category"))
+                if (!$util.isString(message.category))
+                    return "category: string expected";
+            if (message.pattern != null && message.hasOwnProperty("pattern"))
+                if (!$util.isString(message.pattern))
+                    return "pattern: string expected";
+            if (message.action != null && message.hasOwnProperty("action"))
+                if (!$util.isString(message.action))
+                    return "action: string expected";
+            if (message.priority != null && message.hasOwnProperty("priority"))
+                if (!$util.isInteger(message.priority))
+                    return "priority: integer expected";
             return null;
         };
 
         /**
-         * Creates a MLStatus message from a plain object. Also converts values to their respective internal types.
+         * Creates a RedactionRule message from a plain object. Also converts values to their respective internal types.
          * @function fromObject
-         * @memberof pb.MLStatus
+         * @memberof pb.RedactionRule
          * @static
          * @param {Object.<string,*>} object Plain object
-         * @returns {pb.MLStatus} MLStatus
+         * @returns {pb.RedactionRule} RedactionRule
          */
-        MLStatus.fromObject = function fromObject(object) {
-            if (object instanceof $root.pb.MLStatus)
+        RedactionRule.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.RedactionRule)
                 return object;
-            var message = new $root.pb.MLStatus();
-            if (object.modelLoaded != null)
-                message.modelLoaded = Boolean(object.modelLoaded);
-            if (object.numTrees != null)
-                message.numTrees = object.numTrees | 0;
-            if (object.numSamples != null)
-                message.numSamples = object.numSamples | 0;
-            if (object.numLabeledSamples != null)
-                message.numLabeledSamples = object.numLabeledSamples | 0;
-            if (object.lastTrained != null)
-                message.lastTrained = String(object.lastTrained);
-            if (object.testAccuracy != null)
-                message.testAccuracy = Number(object.testAccuracy);
-            if (object.modelPath != null)
-                message.modelPath = String(object.modelPath);
-            if (object.trainingInProgress != null)
-                message.trainingInProgress = Boolean(object.trainingInProgress);
-            if (object.trainingProgress != null)
-                message.trainingProgress = Number(object.trainingProgress);
+            var message = new $root.pb.RedactionRule();
+            if (object.category != null)
+                message.category = String(object.category);
+            if (object.pattern != null)
+                message.pattern = String(object.pattern);
+            if (object.action != null)
+                message.action = String(object.action);
+            if (object.priority != null)
+                message.priority = object.priority | 0;
             return message;
         };
 
         /**
-         * Creates a plain object from a MLStatus message. Also converts values to other types if specified.
+         * Creates a plain object from a RedactionRule message. Also converts values to other types if specified.
          * @function toObject
-         * @memberof pb.MLStatus
+         * @memberof pb.RedactionRule
          * @static
-         * @param {pb.MLStatus} message MLStatus
+         * @param {pb.RedactionRule} message RedactionRule
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        MLStatus.toObject = function toObject(message, options) {
+        RedactionRule.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
             var object = {};
             if (options.defaults) {
-                object.modelLoaded = false;
-                object.numTrees = 0;
-                object.numSamples = 0;
-                object.numLabeledSamples = 0;
-                object.lastTrained = "";
-                object.testAccuracy = 0;
-                object.modelPath = "";
-                object.trainingInProgress = false;
-                object.trainingProgress = 0;
+                object.category = "";
+                object.pattern = "";
+                object.action = "";
+                object.priority = 0;
             }
-            if (message.modelLoaded != null && message.hasOwnProperty("modelLoaded"))
-                object.modelLoaded = message.modelLoaded;
-            if (message.numTrees != null && message.hasOwnProperty("numTrees"))
-                object.numTrees = message.numTrees;
-            if (message.numSamples != null && message.hasOwnProperty("numSamples"))
-                object.numSamples = message.numSamples;
-            if (message.numLabeledSamples != null && message.hasOwnProperty("numLabeledSamples"))
-                object.numLabeledSamples = message.numLabeledSamples;
-            if (message.lastTrained != null && message.hasOwnProperty("lastTrained"))
-                object.lastTrained = message.lastTrained;
-            if (message.testAccuracy != null && message.hasOwnProperty("testAccuracy"))
-                object.testAccuracy = options.json && !isFinite(message.testAccuracy) ? String(message.testAccuracy) : message.testAccuracy;
-            if (message.modelPath != null && message.hasOwnProperty("modelPath"))
-                object.modelPath = message.modelPath;
-            if (message.trainingInProgress != null && message.hasOwnProperty("trainingInProgress"))
-                object.trainingInProgress = message.trainingInProgress;
-            if (message.trainingProgress != null && message.hasOwnProperty("trainingProgress"))
-                object.trainingProgress = options.json && !isFinite(message.trainingProgress) ? String(message.trainingProgress) : message.trainingProgress;
+            if (message.category != null && message.hasOwnProperty("category"))
+                object.category = message.category;
+            if (message.pattern != null && message.hasOwnProperty("pattern"))
+                object.pattern = message.pattern;
+            if (message.action != null && message.hasOwnProperty("action"))
+                object.action = message.action;
+            if (message.priority != null && message.hasOwnProperty("priority"))
+                object.priority = message.priority;
             return object;
         };
 
         /**
-         * Converts this MLStatus to JSON.
+         * Converts this RedactionRule to JSON.
          * @function toJSON
-         * @memberof pb.MLStatus
+         * @memberof pb.RedactionRule
          * @instance
          * @returns {Object.<string,*>} JSON object
          */
-        MLStatus.prototype.toJSON = function toJSON() {
+        RedactionRule.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
         /**
-         * Gets the default type url for MLStatus
+         * Gets the default type url for RedactionRule
          * @function getTypeUrl
-         * @memberof pb.MLStatus
+         * @memberof pb.RedactionRule
          * @static
          * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns {string} The default type url
          */
-        MLStatus.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+        RedactionRule.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
             if (typeUrlPrefix === undefined) {
                 typeUrlPrefix = "type.googleapis.com";
             }
-            return typeUrlPrefix + "/pb.MLStatus";
+            return typeUrlPrefix + "/pb.RedactionRule";
         };
 
-        return MLStatus;
+        return RedactionRule;
+    })();
+
+    pb.RedactionPolicy = (function() {
+
+        /**
+         * Properties of a RedactionPolicy.
+         * @memberof pb
+         * @interface IRedactionPolicy
+         * @property {pb.RedactionLevel.Value|null} [level] RedactionPolicy level
+         * @property {boolean|null} [enabled] RedactionPolicy enabled
+         * @property {Array.<pb.IRedactionRule>|null} [customRules] RedactionPolicy customRules
+         */
+
+        /**
+         * Constructs a new RedactionPolicy.
+         * @memberof pb
+         * @classdesc Represents a RedactionPolicy.
+         * @implements IRedactionPolicy
+         * @constructor
+         * @param {pb.IRedactionPolicy=} [properties] Properties to set
+         */
+        function RedactionPolicy(properties) {
+            this.customRules = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * RedactionPolicy level.
+         * @member {pb.RedactionLevel.Value} level
+         * @memberof pb.RedactionPolicy
+         * @instance
+         */
+        RedactionPolicy.prototype.level = 0;
+
+        /**
+         * RedactionPolicy enabled.
+         * @member {boolean} enabled
+         * @memberof pb.RedactionPolicy
+         * @instance
+         */
+        RedactionPolicy.prototype.enabled = false;
+
+        /**
+         * RedactionPolicy customRules.
+         * @member {Array.<pb.IRedactionRule>} customRules
+         * @memberof pb.RedactionPolicy
+         * @instance
+         */
+        RedactionPolicy.prototype.customRules = $util.emptyArray;
+
+        /**
+         * Creates a new RedactionPolicy instance using the specified properties.
+         * @function create
+         * @memberof pb.RedactionPolicy
+         * @static
+         * @param {pb.IRedactionPolicy=} [properties] Properties to set
+         * @returns {pb.RedactionPolicy} RedactionPolicy instance
+         */
+        RedactionPolicy.create = function create(properties) {
+            return new RedactionPolicy(properties);
+        };
+
+        /**
+         * Encodes the specified RedactionPolicy message. Does not implicitly {@link pb.RedactionPolicy.verify|verify} messages.
+         * @function encode
+         * @memberof pb.RedactionPolicy
+         * @static
+         * @param {pb.IRedactionPolicy} message RedactionPolicy message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        RedactionPolicy.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.level != null && Object.hasOwnProperty.call(message, "level"))
+                writer.uint32(/* id 1, wireType 0 =*/8).int32(message.level);
+            if (message.enabled != null && Object.hasOwnProperty.call(message, "enabled"))
+                writer.uint32(/* id 2, wireType 0 =*/16).bool(message.enabled);
+            if (message.customRules != null && message.customRules.length)
+                for (var i = 0; i < message.customRules.length; ++i)
+                    $root.pb.RedactionRule.encode(message.customRules[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified RedactionPolicy message, length delimited. Does not implicitly {@link pb.RedactionPolicy.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.RedactionPolicy
+         * @static
+         * @param {pb.IRedactionPolicy} message RedactionPolicy message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        RedactionPolicy.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a RedactionPolicy message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.RedactionPolicy
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.RedactionPolicy} RedactionPolicy
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        RedactionPolicy.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.RedactionPolicy();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.level = reader.int32();
+                        break;
+                    }
+                case 2: {
+                        message.enabled = reader.bool();
+                        break;
+                    }
+                case 3: {
+                        if (!(message.customRules && message.customRules.length))
+                            message.customRules = [];
+                        message.customRules.push($root.pb.RedactionRule.decode(reader, reader.uint32()));
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a RedactionPolicy message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.RedactionPolicy
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.RedactionPolicy} RedactionPolicy
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        RedactionPolicy.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a RedactionPolicy message.
+         * @function verify
+         * @memberof pb.RedactionPolicy
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        RedactionPolicy.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.level != null && message.hasOwnProperty("level"))
+                switch (message.level) {
+                default:
+                    return "level: enum value expected";
+                case 0:
+                case 1:
+                case 2:
+                case 3:
+                    break;
+                }
+            if (message.enabled != null && message.hasOwnProperty("enabled"))
+                if (typeof message.enabled !== "boolean")
+                    return "enabled: boolean expected";
+            if (message.customRules != null && message.hasOwnProperty("customRules")) {
+                if (!Array.isArray(message.customRules))
+                    return "customRules: array expected";
+                for (var i = 0; i < message.customRules.length; ++i) {
+                    var error = $root.pb.RedactionRule.verify(message.customRules[i]);
+                    if (error)
+                        return "customRules." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates a RedactionPolicy message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.RedactionPolicy
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.RedactionPolicy} RedactionPolicy
+         */
+        RedactionPolicy.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.RedactionPolicy)
+                return object;
+            var message = new $root.pb.RedactionPolicy();
+            switch (object.level) {
+            default:
+                if (typeof object.level === "number") {
+                    message.level = object.level;
+                    break;
+                }
+                break;
+            case "NONE":
+            case 0:
+                message.level = 0;
+                break;
+            case "BASIC":
+            case 1:
+                message.level = 1;
+                break;
+            case "STANDARD":
+            case 2:
+                message.level = 2;
+                break;
+            case "STRICT":
+            case 3:
+                message.level = 3;
+                break;
+            }
+            if (object.enabled != null)
+                message.enabled = Boolean(object.enabled);
+            if (object.customRules) {
+                if (!Array.isArray(object.customRules))
+                    throw TypeError(".pb.RedactionPolicy.customRules: array expected");
+                message.customRules = [];
+                for (var i = 0; i < object.customRules.length; ++i) {
+                    if (typeof object.customRules[i] !== "object")
+                        throw TypeError(".pb.RedactionPolicy.customRules: object expected");
+                    message.customRules[i] = $root.pb.RedactionRule.fromObject(object.customRules[i]);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a RedactionPolicy message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.RedactionPolicy
+         * @static
+         * @param {pb.RedactionPolicy} message RedactionPolicy
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        RedactionPolicy.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.customRules = [];
+            if (options.defaults) {
+                object.level = options.enums === String ? "NONE" : 0;
+                object.enabled = false;
+            }
+            if (message.level != null && message.hasOwnProperty("level"))
+                object.level = options.enums === String ? $root.pb.RedactionLevel.Value[message.level] === undefined ? message.level : $root.pb.RedactionLevel.Value[message.level] : message.level;
+            if (message.enabled != null && message.hasOwnProperty("enabled"))
+                object.enabled = message.enabled;
+            if (message.customRules && message.customRules.length) {
+                object.customRules = [];
+                for (var j = 0; j < message.customRules.length; ++j)
+                    object.customRules[j] = $root.pb.RedactionRule.toObject(message.customRules[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this RedactionPolicy to JSON.
+         * @function toJSON
+         * @memberof pb.RedactionPolicy
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        RedactionPolicy.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for RedactionPolicy
+         * @function getTypeUrl
+         * @memberof pb.RedactionPolicy
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        RedactionPolicy.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.RedactionPolicy";
+        };
+
+        return RedactionPolicy;
+    })();
+
+    pb.OutputVisibilityConfig = (function() {
+
+        /**
+         * Properties of an OutputVisibilityConfig.
+         * @memberof pb
+         * @interface IOutputVisibilityConfig
+         * @property {boolean|null} [wsEnabled] OutputVisibilityConfig wsEnabled
+         * @property {boolean|null} [jsonlEnabled] OutputVisibilityConfig jsonlEnabled
+         * @property {boolean|null} [mcpEnabled] OutputVisibilityConfig mcpEnabled
+         */
+
+        /**
+         * Constructs a new OutputVisibilityConfig.
+         * @memberof pb
+         * @classdesc Represents an OutputVisibilityConfig.
+         * @implements IOutputVisibilityConfig
+         * @constructor
+         * @param {pb.IOutputVisibilityConfig=} [properties] Properties to set
+         */
+        function OutputVisibilityConfig(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * OutputVisibilityConfig wsEnabled.
+         * @member {boolean} wsEnabled
+         * @memberof pb.OutputVisibilityConfig
+         * @instance
+         */
+        OutputVisibilityConfig.prototype.wsEnabled = false;
+
+        /**
+         * OutputVisibilityConfig jsonlEnabled.
+         * @member {boolean} jsonlEnabled
+         * @memberof pb.OutputVisibilityConfig
+         * @instance
+         */
+        OutputVisibilityConfig.prototype.jsonlEnabled = false;
+
+        /**
+         * OutputVisibilityConfig mcpEnabled.
+         * @member {boolean} mcpEnabled
+         * @memberof pb.OutputVisibilityConfig
+         * @instance
+         */
+        OutputVisibilityConfig.prototype.mcpEnabled = false;
+
+        /**
+         * Creates a new OutputVisibilityConfig instance using the specified properties.
+         * @function create
+         * @memberof pb.OutputVisibilityConfig
+         * @static
+         * @param {pb.IOutputVisibilityConfig=} [properties] Properties to set
+         * @returns {pb.OutputVisibilityConfig} OutputVisibilityConfig instance
+         */
+        OutputVisibilityConfig.create = function create(properties) {
+            return new OutputVisibilityConfig(properties);
+        };
+
+        /**
+         * Encodes the specified OutputVisibilityConfig message. Does not implicitly {@link pb.OutputVisibilityConfig.verify|verify} messages.
+         * @function encode
+         * @memberof pb.OutputVisibilityConfig
+         * @static
+         * @param {pb.IOutputVisibilityConfig} message OutputVisibilityConfig message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        OutputVisibilityConfig.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.wsEnabled != null && Object.hasOwnProperty.call(message, "wsEnabled"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.wsEnabled);
+            if (message.jsonlEnabled != null && Object.hasOwnProperty.call(message, "jsonlEnabled"))
+                writer.uint32(/* id 2, wireType 0 =*/16).bool(message.jsonlEnabled);
+            if (message.mcpEnabled != null && Object.hasOwnProperty.call(message, "mcpEnabled"))
+                writer.uint32(/* id 3, wireType 0 =*/24).bool(message.mcpEnabled);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified OutputVisibilityConfig message, length delimited. Does not implicitly {@link pb.OutputVisibilityConfig.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.OutputVisibilityConfig
+         * @static
+         * @param {pb.IOutputVisibilityConfig} message OutputVisibilityConfig message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        OutputVisibilityConfig.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an OutputVisibilityConfig message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.OutputVisibilityConfig
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.OutputVisibilityConfig} OutputVisibilityConfig
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        OutputVisibilityConfig.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.OutputVisibilityConfig();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.wsEnabled = reader.bool();
+                        break;
+                    }
+                case 2: {
+                        message.jsonlEnabled = reader.bool();
+                        break;
+                    }
+                case 3: {
+                        message.mcpEnabled = reader.bool();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an OutputVisibilityConfig message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.OutputVisibilityConfig
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.OutputVisibilityConfig} OutputVisibilityConfig
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        OutputVisibilityConfig.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an OutputVisibilityConfig message.
+         * @function verify
+         * @memberof pb.OutputVisibilityConfig
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        OutputVisibilityConfig.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.wsEnabled != null && message.hasOwnProperty("wsEnabled"))
+                if (typeof message.wsEnabled !== "boolean")
+                    return "wsEnabled: boolean expected";
+            if (message.jsonlEnabled != null && message.hasOwnProperty("jsonlEnabled"))
+                if (typeof message.jsonlEnabled !== "boolean")
+                    return "jsonlEnabled: boolean expected";
+            if (message.mcpEnabled != null && message.hasOwnProperty("mcpEnabled"))
+                if (typeof message.mcpEnabled !== "boolean")
+                    return "mcpEnabled: boolean expected";
+            return null;
+        };
+
+        /**
+         * Creates an OutputVisibilityConfig message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.OutputVisibilityConfig
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.OutputVisibilityConfig} OutputVisibilityConfig
+         */
+        OutputVisibilityConfig.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.OutputVisibilityConfig)
+                return object;
+            var message = new $root.pb.OutputVisibilityConfig();
+            if (object.wsEnabled != null)
+                message.wsEnabled = Boolean(object.wsEnabled);
+            if (object.jsonlEnabled != null)
+                message.jsonlEnabled = Boolean(object.jsonlEnabled);
+            if (object.mcpEnabled != null)
+                message.mcpEnabled = Boolean(object.mcpEnabled);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an OutputVisibilityConfig message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.OutputVisibilityConfig
+         * @static
+         * @param {pb.OutputVisibilityConfig} message OutputVisibilityConfig
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        OutputVisibilityConfig.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.wsEnabled = false;
+                object.jsonlEnabled = false;
+                object.mcpEnabled = false;
+            }
+            if (message.wsEnabled != null && message.hasOwnProperty("wsEnabled"))
+                object.wsEnabled = message.wsEnabled;
+            if (message.jsonlEnabled != null && message.hasOwnProperty("jsonlEnabled"))
+                object.jsonlEnabled = message.jsonlEnabled;
+            if (message.mcpEnabled != null && message.hasOwnProperty("mcpEnabled"))
+                object.mcpEnabled = message.mcpEnabled;
+            return object;
+        };
+
+        /**
+         * Converts this OutputVisibilityConfig to JSON.
+         * @function toJSON
+         * @memberof pb.OutputVisibilityConfig
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        OutputVisibilityConfig.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for OutputVisibilityConfig
+         * @function getTypeUrl
+         * @memberof pb.OutputVisibilityConfig
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        OutputVisibilityConfig.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.OutputVisibilityConfig";
+        };
+
+        return OutputVisibilityConfig;
     })();
 
     pb.ShellSession = (function() {

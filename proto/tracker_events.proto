@@ -75,6 +75,8 @@ message Event {
   string geo_country_code = 66;
   uint32 geo_asn = 67;
   string ip_scope = 68;
+  string redaction_level = 69;
+  repeated string sanitized_fields = 70;
 }
 
 message ExecEvent {

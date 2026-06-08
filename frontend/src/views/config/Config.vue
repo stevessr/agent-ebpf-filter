@@ -9,6 +9,7 @@ import {
   ClusterOutlined,
   SettingOutlined,
   CodeOutlined,
+  LockOutlined,
 } from "@ant-design/icons-vue";
 import ConfigRegistryTab from "../../components/config/ConfigRegistryTab.vue";
 import ConfigSecurityTab from "../../components/config/ConfigSecurityTab.vue";
@@ -17,6 +18,7 @@ import ConfigSystemHealthTab from "../../components/config/ConfigSystemHealthTab
 import ConfigDocsTab from "../../components/config/ConfigDocsTab.vue";
 import ConfigClusterTab from "../../components/config/ConfigClusterTab.vue";
 import ConfigVisualFilterTab from "../../components/config/ConfigVisualFilterTab.vue";
+import ConfigRedactionTab from "../../components/config/ConfigRedactionTab.vue";
 import { useConfigRegistry } from "../../composables/config/useConfigRegistry";
 import { useConfigSecurity } from "../../composables/config/useConfigSecurity";
 import { useConfigRuntime } from "../../composables/config/useConfigRuntime";
@@ -51,6 +53,7 @@ const configTabKeys = new Set([
   "registry",
   "security",
   "visual-filter",
+  "redaction",
   "runtime",
   "system",
   "docs",
@@ -131,6 +134,13 @@ onMounted(() => {
           ><span><CodeOutlined /> Visual eBPF Filter</span></template
         >
         <ConfigVisualFilterTab :security="security" />
+      </a-tab-pane>
+
+      <a-tab-pane key="redaction">
+        <template #tab
+          ><span><LockOutlined /> Redaction</span></template
+        >
+        <ConfigRedactionTab />
       </a-tab-pane>
 
       <a-tab-pane key="runtime">

@@ -62,15 +62,49 @@ The maps/links are pinned under `/sys/fs/bpf/agent-ebpf/lsm_enforcer`; policy ma
 
 ### TLS 明文捕获
 
+### 数据脱敏机制
+
+agent-ebpf-filter 实现了完整的**四层数据脱敏架构**，保护从 eBPF 内核采集到前端展示的整个数据流中的敏感信息。
+
+**脱敏级别**：
+- **None**：无脱敏（仅开发环境）
+- **Basic**：脱敏明显的密码/token
+- **Standard**：脱敏常见敏感信息（默认，推荐生产使用）
+- **Strict**：最大化脱敏（高安全要求、合规审计）
+
+**脱敏内容**（Standard 级别）：
+- **路径**：用户主目录 → `~`，配置目录 → `<CONFIG>`
+- **命令参数**：password、token、api_key、bearer、authorization
+- **网络**：内网 IP → `<PRIVATE_IP>`，内部域名 → `<INTERNAL_DOMAIN>`
+- **凭证**：HTTP headers、query params、JSON body 中的敏感字段
+
+**架构设计**：
+```
+采集层 → 处理层 → 脱敏层 → 分发层
+  ↓        ↓        ↓        ↓
+eBPF → 归一化 → 脱敏引擎 → WS/JSONL/MCP/UI
+```
+
+**配置方式**：
+1. 前端 UI：访问 **Config → Redaction** 标签页
+2. 配置文件：编辑 `~/.config/agent-ebpf-filter/runtime.json`
+3. 环境变量：`AGENT_REDACTION_LEVEL=standard`
+
+详细文档：
+- 📖 [完整文档](docs/sanitization.md)（英文）
+- 📖 [使用指南](docs/sanitization_zh.md)（中文）
+
+### TLS 明文捕获
+
 TLS 明文捕获属于显式启用的高风险诊断能力，不是安全基线的一部分；本轮参赛实现只补齐安全的 hook 元数据、系统调用、网络元数据和用户态关联分析，不新增或强化加密库明文截获。
 
 当 Runtime Config 中 `tlsCaptureEnabled` 显式开启时，后端可以通过 eBPF uprobes 挂载 OpenSSL、GnuTLS、NSS 和手动注册的 Go TLS 二进制，在加密发送前或解密接收后捕获 HTTPS 明文片段。片段在 Go 后端拼装后解析 HTTP request/response，并通过 `GET /ws/tls-capture`、`GET /tls-capture/recent`（支持 `limit=all`/`0` 返回保留窗口内全部记录）、`GET /tls-capture/libraries` 暴露给前端。
 
 Go 进程可通过 `POST /tls-capture/go-binary` 手动注册；OpenSSL/GnuTLS/NSS 库路径可通过 `POST /tls-capture/library` 手动挂载。`POST /tls-capture/executable` 还支持传入可执行文件名或路径（例如 `claude`、`/usr/local/bin/claude`、`/proc/<pid>/exe`），后端会解析 PATH、symlink 和 shebang 解释器后尝试挂载 Go TLS 或 OpenSSL/GnuTLS/NSS 符号。只有在 `tlsCaptureEnabled=true` 时，后端才会每 60 秒自动扫描 `/proc` 发现的 Go TLS 进程。
 
-Codex 定制适配可在源码级请求发送前把已构造的 reqwest/WebSocket 请求 POST 到 `POST /codex/capture`。该入口走认证、复用同一套 TLS plaintext store、脱敏器、AgentSight/EventEnvelope 输出和 bounded body 截断，因此适合 rustls/reqwest 这类 uprobe 不稳定的本地观测场景。参考源码补丁通过 `AGENT_EBPF_CODEX_CAPTURE_URL` 和 `AGENT_API_KEY` 显式启用，未配置时不产生上报。
+Codex 定制适配可在源码级请求发送前把已构造的 reqwest/WebSocket 请求 POST 到 `POST /codex/capture`。该入口走认证、复用同一套 TLS plaintext store、**统一脱敏引擎**、AgentSight/EventEnvelope 输出和 bounded body 截断，因此适合 rustls/reqwest 这类 uprobe 不稳定的本地观测场景。参考源码补丁通过 `AGENT_EBPF_CODEX_CAPTURE_URL` 和 `AGENT_API_KEY` 显式启用，未配置时不产生上报。
 
-安全边界：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization、URL query token/key/secret/password、JSON/form/text body 中常见密钥模式在后端脱敏；body 截断至 16 KiB。TLS/HTTP/SSE/LLM 元数据会写入统一 `EventEnvelope`，并在 collector health 中累积 AgentSight parser/redaction counters。
+**安全边界**：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization、URL query token/key/secret/password、JSON/form/text body 中常见密钥模式通过**统一脱敏引擎**处理，支持 4 个脱敏级别和自定义规则；body 截断至 16 KiB。TLS/HTTP/SSE/LLM 元数据会写入统一 `EventEnvelope`，并在 collector health 中累积 AgentSight parser/redaction counters。
 
 ### 80/443 域名流量转发
 
