@@ -232,6 +232,10 @@ func sanitizeTLSURL(rawURL string) string {
 	if strings.TrimSpace(rawURL) == "" {
 		return rawURL
 	}
+
+	// First remove any embedded sensitive data (like API keys in URL)
+	rawURL = RemoveSensitiveStringFromTLS(rawURL)
+
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return sanitizeTLSInlineSecrets(rawURL)
@@ -256,6 +260,11 @@ func sanitizeTLSBody(body, contentType string) string {
 	if strings.TrimSpace(body) == "" {
 		return body
 	}
+
+	// FIRST: Remove PEM keys, certificates, SSH keys, AWS credentials, JWT tokens, etc.
+	body = RemoveSensitiveStringFromTLS(body)
+
+	// THEN: Apply existing JSON sanitization
 	if looksLikeTLSJSON(contentType, []byte(body)) {
 		var payload any
 		if err := json.Unmarshal([]byte(body), &payload); err == nil {
@@ -332,6 +341,10 @@ func isTLSSensitiveKey(key string) bool {
 }
 
 func sanitizeTLSInlineSecrets(value string) string {
+	// First apply our comprehensive key removal (PEM keys, SSH keys, JWT, AWS, etc.)
+	value = RemoveSensitiveStringFromTLS(value)
+
+	// Then apply the existing inline secret patterns
 	encodedRedactedValue := url.QueryEscape(tlsRedactedValue)
 	placeholder := "__TLS_REDACTED_VALUE__"
 	protected := strings.ReplaceAll(value, encodedRedactedValue, placeholder)

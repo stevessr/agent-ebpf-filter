@@ -94,7 +94,7 @@ eBPF → 归一化 → 脱敏引擎 → WS/JSONL/MCP/UI
 - 📖 [完整文档](docs/sanitization.md)（英文）
 - 📖 [使用指南](docs/sanitization_zh.md)（中文）
 
-### TLS 明文捕获
+### TLS 明文捕获与密钥移除
 
 TLS 明文捕获属于显式启用的高风险诊断能力，不是安全基线的一部分；本轮参赛实现只补齐安全的 hook 元数据、系统调用、网络元数据和用户态关联分析，不新增或强化加密库明文截获。
 
@@ -102,9 +102,47 @@ TLS 明文捕获属于显式启用的高风险诊断能力，不是安全基线�
 
 Go 进程可通过 `POST /tls-capture/go-binary` 手动注册；OpenSSL/GnuTLS/NSS 库路径可通过 `POST /tls-capture/library` 手动挂载。`POST /tls-capture/executable` 还支持传入可执行文件名或路径（例如 `claude`、`/usr/local/bin/claude`、`/proc/<pid>/exe`），后端会解析 PATH、symlink 和 shebang 解释器后尝试挂载 Go TLS 或 OpenSSL/GnuTLS/NSS 符号。只有在 `tlsCaptureEnabled=true` 时，后端才会每 60 秒自动扫描 `/proc` 发现的 Go TLS 进程。
 
-Codex 定制适配可在源码级请求发送前把已构造的 reqwest/WebSocket 请求 POST 到 `POST /codex/capture`。该入口走认证、复用同一套 TLS plaintext store、**统一脱敏引擎**、AgentSight/EventEnvelope 输出和 bounded body 截断，因此适合 rustls/reqwest 这类 uprobe 不稳定的本地观测场景。参考源码补丁通过 `AGENT_EBPF_CODEX_CAPTURE_URL` 和 `AGENT_API_KEY` 显式启用，未配置时不产生上报。
+Codex 定制适配可在源码级请求发送前把已构造的 reqwest/WebSocket 请求 POST 到 `POST /codex/capture`。该入口走认证、复用同一套 TLS plaintext store、**统一脱敏引擎**和**自动密钥移除机制**、AgentSight/EventEnvelope 输出和 bounded body 截断，因此适合 rustls/reqwest 这类 uprobe 不稳定的本地观测场景。参考源码补丁通过 `AGENT_EBPF_CODEX_CAPTURE_URL` 和 `AGENT_API_KEY` 显式启用，未配置时不产生上报。
 
-**安全边界**：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization、URL query token/key/secret/password、JSON/form/text body 中常见密钥模式通过**统一脱敏引擎**处理，支持 4 个脱敏级别和自定义规则；body 截断至 16 KiB。TLS/HTTP/SSE/LLM 元数据会写入统一 `EventEnvelope`，并在 collector health 中累积 AgentSight parser/redaction counters。
+#### 🔐 自动密钥移除机制
+
+**所有TLS捕获的数据都会自动经过密钥移除处理**，防止敏感数据泄漏：
+
+**移除内容**：
+- ✅ **PEM格式密钥**：RSA/EC/OpenSSH私钥、证书、公钥
+- ✅ **SSH密钥**：ssh-rsa、ssh-ed25519公钥
+- ✅ **AWS凭证**：Access Key、Secret Key
+- ✅ **JWT Token**：完整的JWT格式token
+- ✅ **API密钥**：各种格式的api_key、access_key、secret_key
+- ✅ **Bearer Token**：HTTP Authorization bearer
+- ✅ **密码**：password、passwd、pwd字段
+
+**处理示例**：
+```
+原始数据：
+{
+  "privateKey": "-----BEGIN RSA PRIVATE KEY-----\nMIIEpA...\n-----END RSA PRIVATE KEY-----",
+  "apiKey": "sk_test_1234567890abcdef",
+  "token": "eyJhbGci...完整JWT..."
+}
+
+自动处理后：
+{
+  "privateKey": "[PRIVATE_KEY_REMOVED]",
+  "apiKey": "apiKey=[API_KEY_REMOVED]",
+  "token": "[JWT_TOKEN_REMOVED]"
+}
+```
+
+**集成位置**：
+- URL解析前
+- HTTP body处理前  
+- Header sanitization前
+- 所有/codex/capture入口
+
+详细文档：📖 [SSL Hook密钥移除机制](docs/ssl_hook_key_removal.md)
+
+**安全边界**：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization、URL query token/key/secret/password、JSON/form/text body 中常见密钥模式通过**统一脱敏引擎**和**自动密钥移除机制**两层防护处理，支持 4 个脱敏级别和自定义规则；body 截断至 16 KiB。TLS/HTTP/SSE/LLM 元数据会写入统一 `EventEnvelope`，并在 collector health 中累积 AgentSight parser/redaction counters。
 
 ### 80/443 域名流量转发
 
