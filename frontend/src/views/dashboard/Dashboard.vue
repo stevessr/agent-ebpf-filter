@@ -303,9 +303,8 @@ void tableWrapperRef;
             <div class="excel-type-cell">
               <a-tag :color="getTagColor(record.eventType, record.type)">
                 {{
-                  record.type === "syscall" &&
-                  syscallDisplayName(record.extraInfo)
-                    ? syscallDisplayName(record.extraInfo)
+                  record.type === "syscall" && record.extraInfo
+                    ? (record.displayName || (record.displayName = syscallDisplayName(record.extraInfo)))
                     : record.type.toUpperCase()
                 }}
               </a-tag>

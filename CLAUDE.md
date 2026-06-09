@@ -58,6 +58,7 @@ agent-wrapper → UDS (/tmp/agent-ebpf.sock) → backend policy engine → ALLOW
 - `privileges.go` — drop privileges for spawned shells (SUDO_UID/SUDO_GID handling)
 - `runtime_state.go` — event archive (in-memory ring), JSONL persistence, access token management
 - `shell_sessions.go` — persistent PTY session manager with WebSocket attach/detach
+- `redaction/` — data sanitization engine: credential detection, path mapping, network address redaction, PII filtering (see `backend/redaction/README.md`)
 
 ### Frontend (`frontend/src/`)
 
@@ -104,7 +105,7 @@ When behavior changes, update the relevant docs:
 - `agents.md` — agent registration semantics
 - `AGENTS.md` — contributor gotchas and conventions
 - `docs/architecture.md` — component and data-flow architecture
-- Per-component READMEs (`backend/README.md`, `frontend/README.md`, `wrapper/README.md`, adapter READMEs)
+- Per-component READMEs (`backend/README.md`, `backend/redaction/README.md`, `frontend/README.md`, `wrapper/README.md`, adapter READMEs)
 
 ## Key runtime facts
 

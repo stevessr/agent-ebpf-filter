@@ -297,7 +297,7 @@ func ensurePinnedMapPermissions() error {
 	}
 	for _, name := range mapNames {
 		path := filepath.Join(ebpfPinMapsDir, name)
-		if err := os.Chmod(path, 0666); err != nil {
+		if err := os.Chmod(path, 0600); err != nil {
 			return fmt.Errorf("chmod map %s: %w", name, err)
 		}
 	}

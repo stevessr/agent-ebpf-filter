@@ -178,13 +178,31 @@ const networkFilteredEvents = computed(() => {
 
 const summaryStats = computed(() => {
   const fe = networkFilteredEvents.value;
-  return {
-    outgoing: fe.filter((e) => e.netDirection === "outgoing").length,
-    incoming: fe.filter((e) => e.netDirection === "incoming").length,
-    listening: fe.filter((e) => e.netDirection === "listening").length,
-    uniquePids: new Set(fe.map((e) => e.pid)).size,
-    uniqueEndpoints: new Set(fe.map((e) => e.netEndpoint).filter(Boolean)).size,
+  const stats = {
+    outgoing: 0,
+    incoming: 0,
+    listening: 0,
+    uniquePids: new Set<number>(),
+    uniqueEndpoints: new Set<string>(),
     totalBytes: cumulativeBytes.value,
+  };
+
+  for (const e of fe) {
+    if (e.netDirection === "outgoing") stats.outgoing++;
+    else if (e.netDirection === "incoming") stats.incoming++;
+    else if (e.netDirection === "listening") stats.listening++;
+
+    stats.uniquePids.add(e.pid);
+    if (e.netEndpoint) stats.uniqueEndpoints.add(e.netEndpoint);
+  }
+
+  return {
+    outgoing: stats.outgoing,
+    incoming: stats.incoming,
+    listening: stats.listening,
+    uniquePids: stats.uniquePids.size,
+    uniqueEndpoints: stats.uniqueEndpoints.size,
+    totalBytes: stats.totalBytes,
   };
 });
 
@@ -208,11 +226,12 @@ const formatDetailValue = (v: any) =>
 const fetchRecentEvents = async () => {
   try {
     const res = await axios.get("/events/recent?limit=400");
+    let eventCounter = 0;
     events.value = (res.data.events || [])
       .map((r: any) => {
         const d = r.Event;
         return {
-          key: `${d.pid}-${d.type}-${r.Timestamp}-${Math.random()}`,
+          key: `${d.pid}-${d.type}-${r.Timestamp}-${eventCounter++}`,
           pid: d.pid || 0,
           ppid: d.ppid || 0,
           uid: d.uid || 0,
@@ -245,6 +264,9 @@ const connectWebSocket = () => {
   ws = socket;
   socket.binaryType = "arraybuffer";
   socket.onopen = () => (isConnected.value = true);
+
+  let wsEventCounter = 0;
+
   socket.onmessage = (me) => {
     if (isPaused.value) return;
     try {
@@ -257,7 +279,7 @@ const connectWebSocket = () => {
         if (!isNetworkEvent(et, d.type || "")) return;
         cumulativeBytes.value += Number(d.netBytes || 0);
         netEventBuffer.push({
-          key: `${d.pid}-${d.type}-${Date.now()}-${Math.random()}`,
+          key: `${d.pid}-${d.type}-${Date.now()}-${wsEventCounter++}`,
           pid: d.pid || 0,
           ppid: d.ppid || 0,
           uid: d.uid || 0,

@@ -91,6 +91,7 @@ eBPF → 归一化 → 脱敏引擎 → WS/JSONL/MCP/UI
 3. 环境变量：`AGENT_REDACTION_LEVEL=standard`
 
 详细文档：
+- 📖 [Redaction 模块指南](backend/redaction/README.md)
 - 📖 [完整文档](docs/sanitization.md)（英文）
 - 📖 [使用指南](docs/sanitization_zh.md)（中文）
 

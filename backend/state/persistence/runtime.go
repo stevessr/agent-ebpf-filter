@@ -43,7 +43,7 @@ func (s *runtimeState) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	return writeFileAsRealUser(runtimeSettingsPath(), data, 0644)
+	return writeFileAsRealUser(runtimeSettingsPath(), data, 0600)
 }
 
 func (s *runtimeState) closeLogWriterLocked() {
@@ -65,7 +65,7 @@ func (s *runtimeState) applyLoggingLocked() error {
 	if err := mkdirAllAsRealUser(filepath.Dir(s.settings.LogFilePath), 0755); err != nil {
 		return err
 	}
-	file, err := os.OpenFile(s.settings.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	file, err := os.OpenFile(s.settings.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return err
 	}

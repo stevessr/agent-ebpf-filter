@@ -36,7 +36,6 @@ func main() {
 		}
 	}
 
-	fmt.Printf("[DEBUG] Dialing %s...\n", udsPath)
 	cwd, _ := os.Getwd()
 	conn, err := net.DialTimeout("unix", udsPath, 500*time.Millisecond)
 	if err == nil {
@@ -67,31 +66,19 @@ func main() {
 		req.ArgvDigest = buildArgvDigest(req.Comm, req.Args)
 
 		data, _ := proto.Marshal(req)
-		fmt.Printf("[DEBUG] Writing %d bytes to socket...\n", len(data))
 		_, err = conn.Write(data)
 		if err == nil {
-			fmt.Printf("[DEBUG] Waiting for response...\n")
 			buf := make([]byte, 4096)
 			n, err := conn.Read(buf)
 			if err == nil {
-				fmt.Printf("[DEBUG] Read %d bytes\n", n)
 				resp := &pb.WrapperResponse{}
 				if err := proto.Unmarshal(buf[:n], resp); err == nil {
 					handleDecision(resp, &cmdName, &cmdArgs)
-				} else {
-					fmt.Printf("[DEBUG] Unmarshal error: %v\n", err)
 				}
-			} else {
-				fmt.Printf("[DEBUG] Read error: %v\n", err)
 			}
-		} else {
-			fmt.Printf("[DEBUG] Write error: %v\n", err)
 		}
-	} else {
-		fmt.Printf("[DEBUG] Dial error: %v\n", err)
 	}
 
-	fmt.Printf("[DEBUG] Executing %s %v\n", cmdName, cmdArgs)
 	execute(cmdName, cmdArgs)
 }
 
@@ -116,7 +103,6 @@ func execute(name string, args []string) {
 		fmt.Printf("Error: command not found: %s\n", name)
 		os.Exit(127)
 	}
-	fmt.Printf("[DEBUG] Found path: %s\n", path)
 
 	env := os.Environ()
 	fullArgs := append([]string{name}, args...)

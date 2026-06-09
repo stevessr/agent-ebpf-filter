@@ -44,7 +44,7 @@ func buildDomainForwardProxyStatus(settings DomainForwardProxySettings) DomainFo
 
 func applyRuntimeDomainForwardProxy(settings RuntimeSettings) {
 	if err := domainForwardProxyService.Apply(settings.DomainForwardProxy); err != nil {
-		log.Printf("[DOMAIN-FORWARD] proxy configuration is not fully active: %v", err)
+		log.Printf("[DOMAIN-FORWARD] proxy configuration error")
 	}
 }
 
