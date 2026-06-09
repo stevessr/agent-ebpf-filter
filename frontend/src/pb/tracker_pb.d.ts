@@ -6639,6 +6639,151 @@ export namespace pb {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of a MLStatus. */
+    interface IMLStatus {
+
+        /** MLStatus modelLoaded */
+        modelLoaded?: (boolean|null);
+
+        /** MLStatus numTrees */
+        numTrees?: (number|null);
+
+        /** MLStatus numSamples */
+        numSamples?: (number|null);
+
+        /** MLStatus numLabeledSamples */
+        numLabeledSamples?: (number|null);
+
+        /** MLStatus lastTrained */
+        lastTrained?: (string|null);
+
+        /** MLStatus testAccuracy */
+        testAccuracy?: (number|null);
+
+        /** MLStatus modelPath */
+        modelPath?: (string|null);
+
+        /** MLStatus trainingInProgress */
+        trainingInProgress?: (boolean|null);
+
+        /** MLStatus trainingProgress */
+        trainingProgress?: (number|null);
+    }
+
+    /** Represents a MLStatus. */
+    class MLStatus implements IMLStatus {
+
+        /**
+         * Constructs a new MLStatus.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IMLStatus);
+
+        /** MLStatus modelLoaded. */
+        public modelLoaded: boolean;
+
+        /** MLStatus numTrees. */
+        public numTrees: number;
+
+        /** MLStatus numSamples. */
+        public numSamples: number;
+
+        /** MLStatus numLabeledSamples. */
+        public numLabeledSamples: number;
+
+        /** MLStatus lastTrained. */
+        public lastTrained: string;
+
+        /** MLStatus testAccuracy. */
+        public testAccuracy: number;
+
+        /** MLStatus modelPath. */
+        public modelPath: string;
+
+        /** MLStatus trainingInProgress. */
+        public trainingInProgress: boolean;
+
+        /** MLStatus trainingProgress. */
+        public trainingProgress: number;
+
+        /**
+         * Creates a new MLStatus instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns MLStatus instance
+         */
+        public static create(properties?: pb.IMLStatus): pb.MLStatus;
+
+        /**
+         * Encodes the specified MLStatus message. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
+         * @param message MLStatus message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IMLStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified MLStatus message, length delimited. Does not implicitly {@link pb.MLStatus.verify|verify} messages.
+         * @param message MLStatus message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IMLStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a MLStatus message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns MLStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.MLStatus;
+
+        /**
+         * Decodes a MLStatus message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns MLStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.MLStatus;
+
+        /**
+         * Verifies a MLStatus message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a MLStatus message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns MLStatus
+         */
+        public static fromObject(object: { [k: string]: any }): pb.MLStatus;
+
+        /**
+         * Creates a plain object from a MLStatus message. Also converts values to other types if specified.
+         * @param message MLStatus
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.MLStatus, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this MLStatus to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for MLStatus
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of a ConfigTag. */
     interface IConfigTag {
 
