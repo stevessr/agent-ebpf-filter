@@ -23,6 +23,14 @@ func AllModelTypes() []ModelType {
 		ModelAdaBoost, ModelAdaBoostFast, ModelAdaBoostLarge,
 		ModelEnsemble, ModelEnsembleSoft, ModelEnsembleHard, ModelEnsembleStacked,
 		ModelAdditiveAttention,
+		ModelScaledDotProductAttention,
+		ModelMultiHeadAttention,
+		ModelRWKVAttention,
+		ModelMambaAttention,
+		ModelRandomForestScaledDotProduct, ModelLogisticScaledDotProduct, ModelKNNScaledDotProduct,
+		ModelRandomForestMultiHead, ModelLogisticMultiHead, ModelKNNMultiHead,
+		ModelRandomForestRWKV, ModelLogisticRWKV, ModelKNNRWKV,
+		ModelRandomForestMamba, ModelLogisticMamba, ModelKNNMamba,
 		core.ModelNGramRandomForest, core.ModelNGramLogistic, core.ModelNGramKNN,
 	}
 }
@@ -99,6 +107,38 @@ func modelName(t ModelType) string {
 		return "Hard-vote Ensemble"
 	case ModelEnsembleStacked:
 		return "Risk-stacked Ensemble"
+	case ModelScaledDotProductAttention:
+		return "Scaled Dot-Product Attention"
+	case ModelMultiHeadAttention:
+		return "Multi-Head Attention"
+	case ModelRWKVAttention:
+		return "RWKV Attention"
+	case ModelMambaAttention:
+		return "Mamba Attention"
+	case ModelRandomForestScaledDotProduct:
+		return "Random Forest + Scaled Dot-Product"
+	case ModelLogisticScaledDotProduct:
+		return "Logistic + Scaled Dot-Product"
+	case ModelKNNScaledDotProduct:
+		return "KNN + Scaled Dot-Product"
+	case ModelRandomForestMultiHead:
+		return "Random Forest + Multi-Head"
+	case ModelLogisticMultiHead:
+		return "Logistic + Multi-Head"
+	case ModelKNNMultiHead:
+		return "KNN + Multi-Head"
+	case ModelRandomForestRWKV:
+		return "Random Forest + RWKV"
+	case ModelLogisticRWKV:
+		return "Logistic + RWKV"
+	case ModelKNNRWKV:
+		return "KNN + RWKV"
+	case ModelRandomForestMamba:
+		return "Random Forest + Mamba"
+	case ModelLogisticMamba:
+		return "Logistic + Mamba"
+	case ModelKNNMamba:
+		return "KNN + Mamba"
 	default:
 		return string(t)
 	}

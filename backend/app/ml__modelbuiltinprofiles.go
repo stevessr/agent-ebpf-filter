@@ -84,6 +84,32 @@ var builtinModelProfiles = []builtinModelProfile{
 	p(ModelEnsembleHard, ModelEnsemble, "Ensemble Hard", "Boosting/集成", "硬投票 profile，适合观察多数模型一致性。", false, map[string]int{"numTrees": 21, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"ensemble", "hard-vote"}, func(c MLConfig) MLConfig { c.EnsembleVoting = "hard"; return c }),
 	p(ModelEnsembleStacked, ModelEnsemble, "Risk-stacked Ensemble", "Boosting/集成", "风险优先 stacked profile：少数高置信 BLOCK/ALERT 成员不会被多数 ALLOW 淹没。", true, map[string]int{"numTrees": 31, "maxDepth": 10, "minSamplesLeaf": 5}, []string{"ensemble", "risk-stacked", "minority-risk"}, func(c MLConfig) MLConfig { c.EnsembleVoting = "stacked"; return c }),
 	p(ModelAdditiveAttention, ModelAdditiveAttention, "Additive Attention", "神经注意力", "Bahdanau additive attention baseline。", false, map[string]int{"numTrees": 1, "maxDepth": 1, "minSamplesLeaf": 1}, []string{"attention", "bahdanau"}, nil),
+
+	// Advanced attention mechanisms
+	p(ModelScaledDotProductAttention, ModelScaledDotProductAttention, "Scaled Dot-Product Attention", "神经注意力", "标准 Transformer 注意力机制，使用缩放点积计算注意力权重。", true, map[string]int{"numTrees": 1, "maxDepth": 1, "minSamplesLeaf": 1}, []string{"attention", "transformer", "scaled"}, nil),
+	p(ModelMultiHeadAttention, ModelMultiHeadAttention, "Multi-Head Attention", "神经注意力", "多头注意力机制 (4 heads)，捕捉不同子空间的特征关系。", true, map[string]int{"numTrees": 4, "maxDepth": 1, "minSamplesLeaf": 1}, []string{"attention", "transformer++", "multi-head"}, nil),
+	p(ModelRWKVAttention, ModelRWKVAttention, "RWKV Attention", "神经注意力", "RWKV 线性注意力，O(N) 复杂度，适合长序列处理。", true, map[string]int{"numTrees": 1, "maxDepth": 1, "minSamplesLeaf": 1}, []string{"attention", "rwkv", "linear"}, nil),
+	p(ModelMambaAttention, ModelMambaAttention, "Mamba Attention", "神经注意力", "Mamba 选择性状态空间模型，动态选择信息保留与遗忘。", true, map[string]int{"numTrees": 1, "maxDepth": 1, "minSamplesLeaf": 1}, []string{"attention", "mamba", "ssm", "selective"}, nil),
+
+	// Scaled Dot-Product enhanced models
+	p(ModelRandomForestScaledDotProduct, ModelRandomForest, "RF + Scaled Dot-Product", "注意力增强模型", "Random Forest 结合 Scaled Dot-Product Attention。", true, map[string]int{"numTrees": 31, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "transformer", "tree"}, nil),
+	p(ModelLogisticScaledDotProduct, ModelLogisticRegression, "Logistic + Scaled Dot-Product", "注意力增强模型", "Logistic Regression 结合 Scaled Dot-Product Attention。", false, map[string]int{"numTrees": 10, "maxDepth": 8, "minSamplesLeaf": 1000}, []string{"attention", "transformer", "linear"}, nil),
+	p(ModelKNNScaledDotProduct, ModelKNN, "KNN + Scaled Dot-Product", "注意力增强模型", "KNN 结合 Scaled Dot-Product Attention。", false, map[string]int{"numTrees": 5, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "transformer", "instance"}, nil),
+
+	// Multi-Head enhanced models
+	p(ModelRandomForestMultiHead, ModelRandomForest, "RF + Multi-Head", "注意力增强模型", "Random Forest 结合 Multi-Head Attention (4 heads)。", true, map[string]int{"numTrees": 31, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "transformer++", "tree", "multi-head"}, nil),
+	p(ModelLogisticMultiHead, ModelLogisticRegression, "Logistic + Multi-Head", "注意力增强模型", "Logistic Regression 结合 Multi-Head Attention。", false, map[string]int{"numTrees": 10, "maxDepth": 8, "minSamplesLeaf": 1000}, []string{"attention", "transformer++", "linear", "multi-head"}, nil),
+	p(ModelKNNMultiHead, ModelKNN, "KNN + Multi-Head", "注意力增强模型", "KNN 结合 Multi-Head Attention。", false, map[string]int{"numTrees": 5, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "transformer++", "instance", "multi-head"}, nil),
+
+	// RWKV enhanced models
+	p(ModelRandomForestRWKV, ModelRandomForest, "RF + RWKV", "注意力增强模型", "Random Forest 结合 RWKV 线性注意力。", true, map[string]int{"numTrees": 31, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "rwkv", "tree", "linear"}, nil),
+	p(ModelLogisticRWKV, ModelLogisticRegression, "Logistic + RWKV", "注意力增强模型", "Logistic Regression 结合 RWKV 线性注意力。", false, map[string]int{"numTrees": 10, "maxDepth": 8, "minSamplesLeaf": 1000}, []string{"attention", "rwkv", "linear"}, nil),
+	p(ModelKNNRWKV, ModelKNN, "KNN + RWKV", "注意力增强模型", "KNN 结合 RWKV 线性注意力。", false, map[string]int{"numTrees": 5, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "rwkv", "instance", "linear"}, nil),
+
+	// Mamba enhanced models
+	p(ModelRandomForestMamba, ModelRandomForest, "RF + Mamba", "注意力增强模型", "Random Forest 结合 Mamba 选择性状态空间模型。", true, map[string]int{"numTrees": 31, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "mamba", "tree", "ssm"}, nil),
+	p(ModelLogisticMamba, ModelLogisticRegression, "Logistic + Mamba", "注意力增强模型", "Logistic Regression 结合 Mamba SSM。", false, map[string]int{"numTrees": 10, "maxDepth": 8, "minSamplesLeaf": 1000}, []string{"attention", "mamba", "linear", "ssm"}, nil),
+	p(ModelKNNMamba, ModelKNN, "KNN + Mamba", "注意力增强模型", "KNN 结合 Mamba 选择性状态空间模型。", false, map[string]int{"numTrees": 5, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "mamba", "instance", "ssm"}, nil),
 }
 
 func p(t, base ModelType, label, category, description string, recommended bool, defaults map[string]int, tags []string, apply func(MLConfig) MLConfig) builtinModelProfile {

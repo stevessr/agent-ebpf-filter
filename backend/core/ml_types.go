@@ -23,6 +23,26 @@ const (
 	ModelLogisticAttention     ModelType = "logistic_attention"
 	ModelKNNAttention          ModelType = "knn_attention"
 
+	// Advanced attention mechanisms
+	ModelScaledDotProductAttention ModelType = "scaled_dot_product_attention"
+	ModelMultiHeadAttention        ModelType = "multi_head_attention"
+	ModelRWKVAttention             ModelType = "rwkv_attention"
+	ModelMambaAttention            ModelType = "mamba_attention"
+
+	// Attention-enhanced model variants
+	ModelRandomForestScaledDotProduct ModelType = "random_forest_scaled_dot_product"
+	ModelLogisticScaledDotProduct     ModelType = "logistic_scaled_dot_product"
+	ModelKNNScaledDotProduct          ModelType = "knn_scaled_dot_product"
+	ModelRandomForestMultiHead        ModelType = "random_forest_multi_head"
+	ModelLogisticMultiHead            ModelType = "logistic_multi_head"
+	ModelKNNMultiHead                 ModelType = "knn_multi_head"
+	ModelRandomForestRWKV             ModelType = "random_forest_rwkv"
+	ModelLogisticRWKV                 ModelType = "logistic_rwkv"
+	ModelKNNRWKV                      ModelType = "knn_rwkv"
+	ModelRandomForestMamba            ModelType = "random_forest_mamba"
+	ModelLogisticMamba                ModelType = "logistic_mamba"
+	ModelKNNMamba                     ModelType = "knn_mamba"
+
 	// N-gram style sequence models
 	ModelNGramRandomForest ModelType = "ngram_random_forest"
 	ModelNGramLogistic     ModelType = "ngram_logistic"

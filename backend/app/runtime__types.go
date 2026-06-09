@@ -58,6 +58,26 @@ const (
 	ModelEnsemble           = core.ModelEnsemble
 	ModelAdditiveAttention  = core.ModelAdditiveAttention
 
+	// Advanced attention mechanisms
+	ModelScaledDotProductAttention = core.ModelScaledDotProductAttention
+	ModelMultiHeadAttention        = core.ModelMultiHeadAttention
+	ModelRWKVAttention             = core.ModelRWKVAttention
+	ModelMambaAttention            = core.ModelMambaAttention
+
+	// Attention-enhanced model variants
+	ModelRandomForestScaledDotProduct = core.ModelRandomForestScaledDotProduct
+	ModelLogisticScaledDotProduct     = core.ModelLogisticScaledDotProduct
+	ModelKNNScaledDotProduct          = core.ModelKNNScaledDotProduct
+	ModelRandomForestMultiHead        = core.ModelRandomForestMultiHead
+	ModelLogisticMultiHead            = core.ModelLogisticMultiHead
+	ModelKNNMultiHead                 = core.ModelKNNMultiHead
+	ModelRandomForestRWKV             = core.ModelRandomForestRWKV
+	ModelLogisticRWKV                 = core.ModelLogisticRWKV
+	ModelKNNRWKV                      = core.ModelKNNRWKV
+	ModelRandomForestMamba            = core.ModelRandomForestMamba
+	ModelLogisticMamba                = core.ModelLogisticMamba
+	ModelKNNMamba                     = core.ModelKNNMamba
+
 	ModelRandomForestFast    = core.ModelRandomForestFast
 	ModelRandomForestShallow = core.ModelRandomForestShallow
 	ModelRandomForestStable  = core.ModelRandomForestStable
