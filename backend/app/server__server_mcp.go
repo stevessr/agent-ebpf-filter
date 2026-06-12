@@ -400,7 +400,7 @@ func buildMCPServer() *mcp.Server {
 }
 
 func buildMCPHandler() http.Handler {
-	return mcp.NewSSEHandler(func(*http.Request) *mcp.Server {
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return buildMCPServer()
 	}, nil)
 }

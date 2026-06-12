@@ -223,7 +223,7 @@ Avoid describing path tracking as recursive or policy-tree based unless you also
   - `/events/recent`
   - `/events/graph`
   - `/sandbox/**`
-  - `/mcp` — MCP SSE 端点，使用 `X-API-KEY`、`Authorization: Bearer` 或 `?key=<token>` 认证
+  - `/mcp` — MCP streamable HTTP 端点，使用 `X-API-KEY`、`Authorization: Bearer` 或 `?key=<token>` 认证
 - Dev mode disables auth by default.
 - `/hooks/event` accepts either the normal access token or a per-hook secret via `X-Agent-Hook-Secret`.
 - Shell sessions, `/system/run`, hook installation / raw hook writes, and policy mutations are runtime-gated and default to disabled until explicitly enabled in `/config/runtime`.
