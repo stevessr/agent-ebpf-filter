@@ -28,7 +28,7 @@ constexpr const char* kDefaultRequestPath = "/proc/ml_cuda_request";
 constexpr const char* kDefaultResultPath = "/proc/ml_cuda_result";
 constexpr const char* kDefaultModelPath = "/proc/ml_cuda_model";
 constexpr uint32_t kMaxTrees = NUM_TREES;
-constexpr uint32_t kMaxTreeNodes = 1U << 20;  // hard safety cap per model blob
+constexpr uint32_t kMaxTreeNodes = MAX_TREE_NODES;
 
 volatile sig_atomic_t g_stop = 0;
 
@@ -36,6 +36,8 @@ struct HostModel {
     uint32_t version = 0;
     uint32_t numTrees = 0;
     uint32_t featureDim = 0;
+    uint32_t numClasses = ML_DEFAULT_NUM_CLASSES;
+    uint32_t maxDepth = ML_DEFAULT_MAX_DEPTH;
     uint64_t generation = UINT64_MAX;
     std::vector<tree_node> nodes;
     std::vector<int32_t> offsets;
@@ -47,6 +49,8 @@ struct DeviceModel {
     int32_t* offsets = nullptr;
     int32_t* counts = nullptr;
     uint32_t numTrees = 0;
+    uint32_t numClasses = ML_DEFAULT_NUM_CLASSES;
+    uint32_t maxDepth = ML_DEFAULT_MAX_DEPTH;
 };
 
 void onSignal(int) { g_stop = 1; }
@@ -143,6 +147,20 @@ bool parseModelBlob(const std::vector<uint8_t>& raw, uint64_t generation, HostMo
         err = "model feature dimension mismatch";
         return false;
     }
+    if (next.version >= 2) {
+        if (!readScalar(raw, off, next.numClasses) || !readScalar(raw, off, next.maxDepth)) {
+            err = "truncated v2 model header";
+            return false;
+        }
+    }
+    if (next.numClasses == 0 || next.numClasses > ML_MAX_CLASSES) {
+        err = "model has invalid class count";
+        return false;
+    }
+    if (next.maxDepth == 0 || next.maxDepth > ML_MAX_TREE_DEPTH) {
+        err = "model has invalid max depth";
+        return false;
+    }
 
     next.offsets.reserve(next.numTrees);
     next.counts.reserve(next.numTrees);
@@ -203,6 +221,8 @@ bool uploadModel(const HostModel& host, DeviceModel& dev, std::string& err) {
     if (ce != cudaSuccess) { err = cudaGetErrorString(ce); freeDeviceModel(dev); return false; }
 
     dev.numTrees = host.numTrees;
+    dev.numClasses = host.numClasses;
+    dev.maxDepth = host.maxDepth;
     return true;
 }
 
@@ -219,20 +239,21 @@ bool loadAndUploadModel(const std::string& path, uint64_t generation, HostModel&
         return false;
     }
     std::fprintf(stderr,
-                 "kernel-ml-cuda: loaded model gen=%llu version=%u trees=%u nodes=%zu from %s\n",
+                 "kernel-ml-cuda: loaded model gen=%llu version=%u trees=%u nodes=%zu classes=%u max_depth=%u from %s\n",
                  static_cast<unsigned long long>(host.generation), host.version,
-                 host.numTrees, host.nodes.size(), path.c_str());
+                 host.numTrees, host.nodes.size(), host.numClasses, host.maxDepth, path.c_str());
     return true;
 }
 
-__device__ ml_action traverseDeviceTree(const tree_node* nodes, int32_t count, const feature_vector* fv) {
+__device__ int traverseDeviceTree(const tree_node* nodes, int32_t count, const feature_vector* fv, uint32_t maxDepth) {
     int32_t idx = 0;
-    int guard = count + 4;
-    while (idx >= 0 && idx < count && guard-- > 0) {
+    uint32_t depth = 0;
+    if (maxDepth == 0 || maxDepth > ML_MAX_TREE_DEPTH) maxDepth = ML_DEFAULT_MAX_DEPTH;
+    while (idx >= 0 && idx < count && depth++ < maxDepth) {
         const tree_node& node = nodes[idx];
         if (node.is_leaf) {
-            if (node.leaf_value >= ML_ACTION_ALLOW && node.leaf_value <= ML_ACTION_ALERT)
-                return static_cast<ml_action>(node.leaf_value);
+            if (node.leaf_value >= 0 && node.leaf_value < ML_MAX_CLASSES)
+                return node.leaf_value;
             return ML_ACTION_ALLOW;
         }
         if (node.feature_idx >= FEATURE_DIM) return ML_ACTION_ALLOW;
@@ -243,25 +264,28 @@ __device__ ml_action traverseDeviceTree(const tree_node* nodes, int32_t count, c
 }
 
 __global__ void rfPredictKernel(const tree_node* nodes, const int32_t* offsets, const int32_t* counts,
-                                uint32_t numTrees, const feature_vector* fv, int* outAction) {
-    __shared__ int votes[3];
-    if (threadIdx.x < 3) votes[threadIdx.x] = 0;
+                                uint32_t numTrees, uint32_t numClasses, uint32_t maxDepth,
+                                const feature_vector* fv, int* outAction) {
+    __shared__ int votes[ML_MAX_CLASSES];
+    if (threadIdx.x < ML_MAX_CLASSES) votes[threadIdx.x] = 0;
     __syncthreads();
+    if (numClasses == 0 || numClasses > ML_MAX_CLASSES) numClasses = ML_DEFAULT_NUM_CLASSES;
 
     int t = threadIdx.x;
     if (t < static_cast<int>(numTrees)) {
         int32_t base = offsets[t];
         int32_t count = counts[t];
-        ml_action action = traverseDeviceTree(nodes + base, count, fv);
-        if (action >= ML_ACTION_ALLOW && action <= ML_ACTION_ALERT)
-            atomicAdd(&votes[static_cast<int>(action)], 1);
+        int action = traverseDeviceTree(nodes + base, count, fv, maxDepth);
+        if (action >= 0 && action < static_cast<int>(numClasses))
+            atomicAdd(&votes[action], 1);
     }
     __syncthreads();
 
     if (threadIdx.x == 0) {
         int best = ML_ACTION_ALLOW;
-        if (votes[ML_ACTION_BLOCK] > votes[best]) best = ML_ACTION_BLOCK;
-        if (votes[ML_ACTION_ALERT] > votes[best]) best = ML_ACTION_ALERT;
+        for (uint32_t c = 1; c < numClasses; ++c) {
+            if (votes[c] > votes[best]) best = static_cast<int>(c);
+        }
         *outAction = best;
     }
 }
@@ -282,7 +306,9 @@ bool cudaPredict(const DeviceModel& dev, const feature_vector& fv, uint32_t& act
     if (ce != cudaSuccess) { err = cudaGetErrorString(ce); cudaFree(dFv); cudaFree(dAction); return false; }
 
     int threads = 32;
-    rfPredictKernel<<<1, threads>>>(dev.nodes, dev.offsets, dev.counts, dev.numTrees, dFv, dAction);
+    rfPredictKernel<<<1, threads>>>(dev.nodes, dev.offsets, dev.counts,
+                                    dev.numTrees, dev.numClasses, dev.maxDepth,
+                                    dFv, dAction);
     ce = cudaGetLastError();
     if (ce == cudaSuccess) ce = cudaDeviceSynchronize();
     int hostAction = ML_ACTION_ALLOW;
@@ -295,7 +321,7 @@ bool cudaPredict(const DeviceModel& dev, const feature_vector& fv, uint32_t& act
         err = cudaGetErrorString(ce);
         return false;
     }
-    if (hostAction < ML_ACTION_ALLOW || hostAction > ML_ACTION_ALERT) hostAction = ML_ACTION_ALLOW;
+    if (hostAction < 0 || hostAction >= static_cast<int>(dev.numClasses)) hostAction = ML_ACTION_ALLOW;
     action = static_cast<uint32_t>(hostAction);
     return true;
 }
@@ -303,7 +329,8 @@ bool cudaPredict(const DeviceModel& dev, const feature_vector& fv, uint32_t& act
 void usage(const char* argv0) {
     std::fprintf(stderr,
         "Usage: %s [--model model.bin] [--request /proc/ml_cuda_request] "
-        "[--result /proc/ml_cuda_result] [--proc-model /proc/ml_cuda_model] [--self-test]\n\n"
+        "[--result /proc/ml_cuda_result] [--proc-model /proc/ml_cuda_model] "
+        "[--self-test] [--oneshot]\n\n"
         "If --model is omitted, the helper mirrors the latest /proc/ml_load blob "
         "from --proc-model whenever request.model_generation changes.\n",
         argv0);
@@ -359,6 +386,7 @@ int main(int argc, char** argv) {
     std::string resultPath = kDefaultResultPath;
     std::string procModelPath = kDefaultModelPath;
     bool selfTest = false;
+    bool oneshot = false;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -374,6 +402,7 @@ int main(int argc, char** argv) {
         else if (arg == "--result") resultPath = needValue("--result");
         else if (arg == "--proc-model") procModelPath = needValue("--proc-model");
         else if (arg == "--self-test") selfTest = true;
+        else if (arg == "--oneshot") oneshot = true;
         else if (arg == "-h" || arg == "--help") { usage(argv[0]); return 0; }
         else { usage(argv[0]); return 2; }
     }
@@ -424,6 +453,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    bool processed = false;
     while (!g_stop) {
         ml_cuda_request req{};
         if (!readExactFD(reqFD, &req, sizeof(req))) {
@@ -462,10 +492,13 @@ int main(int argc, char** argv) {
             if (!g_stop) std::fprintf(stderr, "kernel-ml-cuda: failed to write CUDA result\n");
             break;
         }
+        processed = true;
+        if (oneshot)
+            break;
     }
 
     ::close(resFD);
     ::close(reqFD);
     freeDeviceModel(dev);
-    return g_stop ? 0 : 1;
+    return (g_stop || (oneshot && processed)) ? 0 : 1;
 }

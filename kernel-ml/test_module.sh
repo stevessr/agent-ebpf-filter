@@ -8,6 +8,7 @@ PROC_LOAD="/proc/ml_load"
 PROC_PREDICT="/proc/ml_predict"
 PROC_STATS="/proc/ml_stats"
 PROC_BACKEND="/proc/ml_backend"
+SYSFS_DIR="/sys/kernel/kernel_ml"
 
 echo "=== Kernel ML Module Test ==="
 echo
@@ -42,7 +43,17 @@ echo kernel | sudo tee "$PROC_BACKEND" >/dev/null
 grep -q '^backend=kernel' "$PROC_BACKEND"
 
 echo
-echo "6. Module info:"
+echo "6. Checking sysfs control plane..."
+test -d "$SYSFS_DIR"
+cat "$SYSFS_DIR/model_info"
+cat "$SYSFS_DIR/cache_stats"
+echo auto | sudo tee "$SYSFS_DIR/backend" >/dev/null
+grep -q '^auto$' "$SYSFS_DIR/backend"
+echo kernel | sudo tee "$SYSFS_DIR/backend" >/dev/null
+grep -q '^kernel$' "$SYSFS_DIR/backend"
+
+echo
+echo "7. Module info:"
 lsmod | grep kernel_ml
 
 echo

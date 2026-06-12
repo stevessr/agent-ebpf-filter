@@ -16,7 +16,11 @@ import struct
 import sys
 import pickle
 
+MODEL_FORMAT_VERSION = 2
 FEATURE_DIM = 128
+MAX_TREES = 64
+ML_DEFAULT_NUM_CLASSES = 3
+ML_MAX_CLASSES = 16
 FLOAT_SCALE = 1000
 TREE_NODE_FORMAT = '<IIqiiiB3x'
 TREE_NODE_SIZE = struct.calcsize(TREE_NODE_FORMAT)
@@ -90,10 +94,22 @@ def export_model(model, output_path):
     """Export RandomForest to kernel binary format"""
 
     num_trees = len(model.estimators_)
+    if num_trees > MAX_TREES:
+        raise ValueError(f"RandomForest has {num_trees} trees; kernel supports at most {MAX_TREES}")
     feature_dim = FEATURE_DIM
+    num_classes = len(getattr(model, 'classes_', [])) or ML_DEFAULT_NUM_CLASSES
+    if num_classes > ML_MAX_CLASSES:
+        raise ValueError(f"model has {num_classes} classes; kernel supports at most {ML_MAX_CLASSES}")
+    max_depth = 0
+    for tree_estimator in model.estimators_:
+        depth = getattr(tree_estimator.tree_, 'max_depth', 0)
+        max_depth = max(max_depth, int(depth))
+    if max_depth <= 0:
+        max_depth = 64
 
-    # Header
-    data = struct.pack('IIII', 1, num_trees, feature_dim, 0)  # version=1, total_nodes=0 (unused)
+    # v2 Header:
+    # [version, num_trees, feature_dim, total_nodes, num_classes, max_depth]
+    data = struct.pack('<IIIIII', MODEL_FORMAT_VERSION, num_trees, feature_dim, 0, num_classes, max_depth)
 
     # Each tree
     for tree_estimator in model.estimators_:
@@ -104,7 +120,7 @@ def export_model(model, output_path):
     with open(output_path, 'wb') as f:
         f.write(data)
 
-    print(f"Exported model: {num_trees} trees, {feature_dim} features -> {output_path}")
+    print(f"Exported model: {num_trees} trees, {feature_dim} features, {num_classes} classes, max_depth={max_depth} -> {output_path}")
     print(f"Binary size: {len(data)} bytes")
 
 if __name__ == '__main__':

@@ -39,4 +39,4 @@ KSYMTAB_FUNC(advanced_model_free, "_gpl", "");
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "0C66CFACE00E7D1FB3BD52B");
+MODULE_INFO(srcversion, "BB430232447797286B492C9");

@@ -30,8 +30,13 @@ typedef int64_t s64;
 
 /* Model parameters */
 #define FEATURE_DIM 128
-#define NUM_TREES 15
-#define MAX_TREE_NODES 127  /* Complete binary tree depth 7 */
+#define DEFAULT_NUM_TREES 15
+#define NUM_TREES 64
+#define MAX_TREE_NODES 4095
+#define ML_MAX_TREE_DEPTH 1024
+#define ML_MAX_CLASSES 16
+#define ML_DEFAULT_NUM_CLASSES 3
+#define ML_DEFAULT_MAX_DEPTH 64
 
 /* Fixed-point precision: 1000 = 0.001 resolution */
 #define FLOAT_SCALE 1000
@@ -82,6 +87,8 @@ struct ml_model {
 	u32 num_trees;
 	u32 feature_dim;
 	u32 total_nodes;
+	u32 num_classes;
+	u32 max_depth;
 	struct tree_node *trees[NUM_TREES];
 	size_t tree_sizes[NUM_TREES];
 };

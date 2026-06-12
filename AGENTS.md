@@ -74,7 +74,10 @@ The separate `kernel-ml` DKMS module must not link CUDA into kernel space. Its
 CUDA inference backend is a `/proc/ml_cuda_request` + `/proc/ml_cuda_result`
 userspace offload path served by `kernel-ml/kernel_ml_cuda_helper`, with
 `/proc/ml_backend` selecting `kernel`, `cuda`, or `auto` and kernel CPU fallback
-on helper/GPU failure.
+on helper/GPU failure. The module also exposes `/sys/kernel/kernel_ml/*`, v2
+model metadata (`model_generation`, dynamic tree count/depth, up to 16 classes),
+and a 64-entry exact-match LRU cache; keep `kernel-ml/README.md` in sync when
+changing those UAPI surfaces.
 Build feature selection is also tag-driven: `AGENT_BUILD_FEATURES=all` keeps the
 full workbench, `AGENT_BUILD_FEATURES=core` removes optional feature modules from
 the feature manifest/route startup, and comma-separated names such as
