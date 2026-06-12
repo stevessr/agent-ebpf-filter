@@ -201,6 +201,35 @@ upstream，避免代理再次打回自身。
 
 The backend can optionally persist captured events as JSONL under `~/.config/agent-ebpf-filter/events.jsonl`, now normalizes live events into versioned `EventEnvelope` records for REST / WebSocket / MCP consumers, exposes `/ws/envelopes` for protobuf envelope streaming, `/metrics` for Prometheus scraping, can export `agent.run` / `codex.task` / `tool.call` derived spans over OTLP HTTP, and provides an authenticated MCP SSE endpoint at `/mcp` using the runtime access token generated from the Configuration page. MCP clients may authenticate with `X-API-KEY`, `Authorization: Bearer`, or `?key=<token>`.
 
+### MCP 工具
+
+后端在 `/mcp` 端点暴露了以下 MCP 工具：
+
+| 工具名称 | 描述 | 参数 |
+|---------|------|------|
+| `tail_events` | 获取最近的捕获事件 | `limit` (可选，默认 50，最大 500) |
+| `config_snapshot` | 获取完整配置快照 | 无 |
+| `add_tracked_command` | 添加追踪命令 | `command`, `tag` |
+| `add_tracked_path` | 添加追踪路径 | `path`, `tag` |
+| `query_events` | 按条件查询事件 | `eventType`, `comm`, `pid`, `limit` |
+| `get_network_flows` | 获取网络流量摘要 | 无 |
+| `get_system_health` | 获取系统健康状态 | 无 |
+| `block_network_destination` | 阻止网络目标（IP/端口） | `ip` 或 `port` |
+| `block_process_cgroup` | 阻止进程 cgroup 的网络 | `pid` |
+| `block_file_access` | 使用 BPF LSM 阻止文件访问 | `path`, `basename`, `isExec` |
+
+**注意**：`block_*` 工具需要在 Runtime Config 中启用 `policyManagementEnabled` 标志。
+
+### Claude Code Skills
+
+项目提供了三个 skills 用于操作 MCP 服务：
+
+- **configure-security**: 配置安全策略（tracked commands/paths、wrapper 规则、网络/文件拦截）
+- **analyze-network**: 分析网络流量，识别异常连接
+- **monitor-process**: 深度监控特定进程的行为（文件访问、网络、子进程）
+
+使用方式：在 Claude Code 中直接调用这些 skills，它们会自动使用项目的 MCP 工具。
+
 For a rootless static check of the compiled enforcement objects and smoke script, run `rtk make os-enforcement-check`; to diagnose whether a host is ready for live kernel-deny validation, run `rtk make os-enforcement-preflight`. For a privileged live check of both OS-level enforcement paths, start the backend as root (for example with `rtk sudo -E env DISABLE_AUTH=true ./backend/agent-ebpf-filter`) and run `rtk make os-enforcement-smoke`; or set `OS_SMOKE_PRIVILEGE_CMD='sudo -E'` / another root command prefix and run `rtk make os-enforcement-smoke-start`. The smoke script verifies BPF LSM exec-path, exec-name, file-open, existing-fd read/write, mmap, mprotect, ftruncate/fchmod/setattr, create, link, symlink, unlink, mkdir, rmdir, mknod, and rename denial plus cgroup/connect PID-cgroup, IPv4/IPv6 destination, IPv4-mapped IPv6 destination, TCP destination-port, UDP connected-socket connect, existing connected UDP sends, and UDP sendto/sendmsg destination/port denial through the public APIs.
 
 ## Security and workflow docs

@@ -223,6 +223,7 @@ Avoid describing path tracking as recursive or policy-tree based unless you also
   - `/events/recent`
   - `/events/graph`
   - `/sandbox/**`
+  - `/mcp` — MCP SSE 端点，使用 `X-API-KEY`、`Authorization: Bearer` 或 `?key=<token>` 认证
 - Dev mode disables auth by default.
 - `/hooks/event` accepts either the normal access token or a per-hook secret via `X-Agent-Hook-Secret`.
 - Shell sessions, `/system/run`, hook installation / raw hook writes, and policy mutations are runtime-gated and default to disabled until explicitly enabled in `/config/runtime`.
@@ -231,6 +232,40 @@ Avoid describing path tracking as recursive or policy-tree based unless you also
   protected, but its config and `/system/domain-forward/status` are.
 
 If you change auth or deployment docs, keep this nuance accurate.
+
+### MCP 服务和 Skills
+
+后端在 `/mcp` 暴露了 MCP 工具，包括：
+
+**配置管理**：
+- `config_snapshot` — 获取完整配置快照
+- `add_tracked_command` — 添加追踪命令
+- `add_tracked_path` — 添加追踪路径
+
+**事件查询**：
+- `tail_events` — 获取最近事件
+- `query_events` — 按条件过滤事件（eventType、comm、pid）
+
+**监控**：
+- `get_network_flows` — 获取网络流量摘要
+- `get_system_health` — 获取系统健康状态（collector、bootstrap、OTLP、enforcement）
+
+**安全策略**（需要 `policyManagementEnabled=true`）：
+- `block_network_destination` — 阻止 IP/端口
+- `block_process_cgroup` — 阻止进程 cgroup 的网络
+- `block_file_access` — 使用 BPF LSM 阻止文件/执行
+
+项目提供三个 Claude Code skills：
+
+- **configure-security** — 配置安全策略（tracked commands/paths、wrapper 规则、网络/文件拦截）
+- **analyze-network** — 分析网络流量，识别异常连接
+- **monitor-process** — 深度监控进程行为（文件访问、网络、子进程）
+
+**重要**：修改 MCP 工具时：
+1. 更新 `backend/app/server__server_mcp.go`
+2. 确保所有工具都有正确的认证检查
+3. 同步更新 skills 和 README 文档
+4. 测试工具的返回值格式
 
 ## 6. Frontend conventions
 
