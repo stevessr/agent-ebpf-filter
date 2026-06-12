@@ -1,0 +1,4 @@
+0x00000000	ml_inference	kernel_ml	EXPORT_SYMBOL_GPL	
+0x00000000	ml_model_load	kernel_ml	EXPORT_SYMBOL_GPL	
+0x00000000	ml_model_free	kernel_ml	EXPORT_SYMBOL_GPL	
+0x00000000	extract_features	kernel_ml	EXPORT_SYMBOL_GPL	
