@@ -50,7 +50,7 @@ func main() {
 	ebpfCode := generateEBPFCode(forest)
 
 	// 写入文件
-	outputPath := "ml_model_ebpf.c"
+	outputPath := "../ebpf/_ml_model_ebpf.c"
 	if err := os.WriteFile(outputPath, []byte(ebpfCode), 0644); err != nil {
 		fmt.Printf("Error writing output: %v\n", err)
 		os.Exit(1)

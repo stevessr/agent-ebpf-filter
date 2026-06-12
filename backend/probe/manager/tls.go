@@ -371,6 +371,52 @@ func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
 	return nil
 }
 
+func (m *TLSProbeManager) AttachStaticSSLUprobes(binPath string, pid int) error {
+	if m == nil {
+		return nil
+	}
+	bin, err := link.OpenExecutable(binPath)
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed || m.objs == nil {
+		return fmt.Errorf("TLS probe manager is closed")
+	}
+	opts := &link.UprobeOptions{}
+	if pid > 0 {
+		opts.PID = pid
+	}
+	startLinks := len(m.links)
+	var errs []error
+	staticSymbols := []string{"SSL_write", "SSL_write_ex", "SSL_read", "SSL_read_ex"}
+	for _, sym := range staticSymbols {
+		if _, err := m.attachEntryProbe(bin, "static-openssl", sym, opts); err != nil {
+			errs = append(errs, err)
+		}
+		if _, ok := tlsReturnProgramForSymbol(sym); ok {
+			if _, err := m.attachReturnProbe(bin, "static-openssl", sym, opts); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	if err := errors.Join(errs...); err != nil {
+		for _, l := range m.links[startLinks:] {
+			if l != nil {
+				_ = l.Close()
+			}
+		}
+		m.links = m.links[:startLinks]
+		return err
+	}
+	if m.store != nil {
+		m.store.SetLibraryStatus(TLSLibraryStatus{Name: "static-openssl", Path: binPath, Attached: true, Available: true})
+	}
+	return nil
+}
+
 func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint string) TLSExecutableAttachResult {
 	result := TLSExecutableAttachResult{PID: pid}
 	if m == nil {
@@ -395,6 +441,14 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		result.TargetKind = "go"
 		result.Library = "go"
 		return result
+	}
+
+	if resolved.StaticTLS {
+		if err := m.AttachStaticSSLUprobes(attachPath, pid); err == nil {
+			result.TargetKind = "static-ssl"
+			result.Library = "static-openssl"
+			return result
+		}
 	}
 
 	libraries := executableLibraryCandidates(libraryHint)

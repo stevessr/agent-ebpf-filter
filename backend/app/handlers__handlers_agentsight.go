@@ -825,6 +825,9 @@ func agentSightEventFromTLSPlaintext(event TLSPlaintextEvent) agentSightExportEv
 	data["trace_id"] = event.TraceID
 	data["span_id"] = event.SpanID
 
+	// AI Tool 元数据富化
+	enrichTLSEventWithAIMetadata(data, event)
+
 	source := agentSightSourceFromTLS(event)
 	id := agentSightStableID("tls", timestamp.UnixMilli(), source, event.PID, event.Comm, event.Type, event.Method, event.URL, event.StatusCode, event.PromptDigest)
 	return agentSightExportEvent{

@@ -43,6 +43,23 @@ func (m *TLSProbeManager) shouldAttachGoBinary(binPath string, pid int) bool {
 	return true
 }
 
+func (m *TLSProbeManager) shouldAttachStaticSSL(binPath string, pid int) bool {
+	if m == nil {
+		return false
+	}
+	key := goAttachKey(binPath, pid)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.attachedGo == nil {
+		m.attachedGo = make(map[string]bool)
+	}
+	if m.attachedGo[key] {
+		return false
+	}
+	m.attachedGo[key] = true
+	return true
+}
+
 func (m *TLSProbeManager) forgetGoBinaryAttach(binPath string, pid int) {
 	if m == nil {
 		return
@@ -85,6 +102,83 @@ func (m *TLSProbeManager) DiscoverGoProcesses() {
 	}
 }
 
+func (m *TLSProbeManager) DiscoverNodeProcesses() {
+	if m == nil {
+		return
+	}
+	entries, err := filepath.Glob("/proc/[0-9]*/exe")
+	if err != nil {
+		return
+	}
+	for _, exeLink := range entries {
+		pid, ok := parseProcPID(exeLink)
+		if !ok {
+			continue
+		}
+		binPath, err := os.Readlink(exeLink)
+		if err != nil || binPath == "" {
+			continue
+		}
+
+		baseName := filepath.Base(binPath)
+		if baseName != "node" && baseName != "bun" && baseName != "deno" && baseName != "codex" {
+			continue
+		}
+
+		if !m.shouldAttachStaticSSL(binPath, pid) {
+			continue
+		}
+
+		cmdline, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+		cmdStr := string(cmdline)
+
+		isClaudeCode := strings.Contains(cmdStr, "claude-code") || strings.Contains(cmdStr, "@cometix")
+		isCodex := strings.Contains(cmdStr, "codex") || strings.Contains(cmdStr, "@openai") || baseName == "codex"
+
+		if !isClaudeCode && !isCodex {
+			m.forgetGoBinaryAttach(binPath, pid)
+			continue
+		}
+
+		if hasSSLSymbols(binPath) {
+			if err := m.AttachStaticSSLUprobes(binPath, pid); err != nil {
+				m.forgetGoBinaryAttach(binPath, pid)
+				if m.store != nil {
+					name := "Node.js"
+					if isCodex {
+						name = "Codex (Node.js)"
+					} else if isClaudeCode {
+						name = "Claude Code (Node.js)"
+					}
+					m.store.SetLibraryStatus(TLSLibraryStatus{Name: name, Path: binPath, Attached: false, Available: true, Error: err.Error()})
+				}
+			}
+		} else {
+			m.forgetGoBinaryAttach(binPath, pid)
+		}
+	}
+}
+
+func hasSSLSymbols(binPath string) bool {
+	exe, err := elf.Open(binPath)
+	if err != nil {
+		return false
+	}
+	defer exe.Close()
+
+	symbols, err := exe.Symbols()
+	if err != nil {
+		symbols, _ = exe.DynamicSymbols()
+	}
+
+	for _, sym := range symbols {
+		if sym.Name == "SSL_write" || sym.Name == "SSL_read" || sym.Name == "SSL_write_ex" || sym.Name == "SSL_read_ex" {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *TLSProbeManager) StartGoDiscoveryLoop(interval time.Duration) {
 	if m == nil {
 		return
@@ -94,6 +188,7 @@ func (m *TLSProbeManager) StartGoDiscoveryLoop(interval time.Duration) {
 	}
 	go func() {
 		m.DiscoverGoProcesses()
+		m.DiscoverNodeProcesses()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for range ticker.C {
@@ -104,6 +199,7 @@ func (m *TLSProbeManager) StartGoDiscoveryLoop(interval time.Duration) {
 				return
 			}
 			m.DiscoverGoProcesses()
+			m.DiscoverNodeProcesses()
 		}
 	}()
 }
