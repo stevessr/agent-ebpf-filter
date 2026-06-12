@@ -1,7 +1,6 @@
 package app
 
 import (
-	bpf "agent-ebpf-filter/ebpf"
 	"agent-ebpf-filter/internal/binaryresolver"
 	"bytes"
 	"encoding/binary"
@@ -12,12 +11,12 @@ import (
 	"sync"
 	"time"
 
+	bpf "agent-ebpf-filter/ebpf"
+
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 )
-
-// ---- moved from backend/zz_merged_backend.go section probemanagertls.go ----
 
 type tlsProbeTarget struct {
 	name        string
@@ -97,35 +96,10 @@ type TLSExecutableAttachResult struct {
 	AttachPath   string                        `json:"attachPath,omitempty"`
 	TargetKind   string                        `json:"targetKind,omitempty"`
 	Library      string                        `json:"library,omitempty"`
-	Preset       string                        `json:"preset,omitempty"`
 	PID          int                           `json:"pid,omitempty"`
 	StaticTLS    bool                          `json:"staticTls,omitempty"`
 	LibraryPaths []TLSLibraryStatus            `json:"libraryPaths,omitempty"`
-	Error        string                        `json:"error,omitempty"`
-}
-
-type TLSBuiltinExecutableTarget struct {
-	Name        string `json:"name"`
-	Command     string `json:"command"`
-	Library     string `json:"library"`
-	Description string `json:"description"`
-}
-
-type TLSBuiltinExecutableAttachStatus struct {
-	Target    TLSBuiltinExecutableTarget `json:"target"`
-	Available bool                       `json:"available"`
-	Attached  bool                       `json:"attached"`
-	Result    TLSExecutableAttachResult  `json:"result,omitempty"`
-	Error     string                     `json:"error,omitempty"`
-}
-
-var builtinTLSExecutableTargets = []TLSBuiltinExecutableTarget{
-	{Name: "Node.js", Command: "node", Library: "auto", Description: "Node.js embeds or links OpenSSL/BoringSSL TLS symbols."},
-	{Name: "Deno", Command: "deno", Library: "auto", Description: "Deno bundles its HTTPS client runtime inside the executable."},
-	{Name: "Bun", Command: "bun", Library: "auto", Description: "Bun ships its own JavaScript runtime and TLS stack."},
-	{Name: "Codex", Command: "codex", Library: "auto", Description: "Codex CLI may be a native binary or a shebang wrapper around another TLS-capable runtime."},
-	{Name: "Claude Code", Command: "claude", Library: "auto", Description: "Claude Code CLI wrapper; shebang targets are resolved before attaching."},
-	{Name: "Gemini CLI", Command: "gemini", Library: "auto", Description: "Gemini CLI wrapper; shebang targets are resolved before attaching."},
+	Error        string             `json:"error,omitempty"`
 }
 
 func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *tlsCaptureBroadcaster, rules *TLSCaptureRuleStore) (*TLSProbeManager, error) {
@@ -336,12 +310,6 @@ func resolveShebangInterpreter(shebang string) string {
 	return ""
 }
 
-func builtinTLSExecutableTargetList() []TLSBuiltinExecutableTarget {
-	out := make([]TLSBuiltinExecutableTarget, len(builtinTLSExecutableTargets))
-	copy(out, builtinTLSExecutableTargets)
-	return out
-}
-
 func executableLibraryCandidates(libraryHint string) []tlsProbeTarget {
 	libraryHint = strings.TrimSpace(libraryHint)
 	if libraryHint == "" || strings.EqualFold(libraryHint, "auto") {
@@ -404,6 +372,52 @@ func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
 	return nil
 }
 
+func (m *TLSProbeManager) AttachStaticSSLUprobes(binPath string, pid int) error {
+	if m == nil {
+		return nil
+	}
+	bin, err := link.OpenExecutable(binPath)
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed || m.objs == nil {
+		return fmt.Errorf("TLS probe manager is closed")
+	}
+	opts := &link.UprobeOptions{}
+	if pid > 0 {
+		opts.PID = pid
+	}
+	startLinks := len(m.links)
+	var errs []error
+	staticSymbols := []string{"SSL_write", "SSL_write_ex", "SSL_read", "SSL_read_ex"}
+	for _, sym := range staticSymbols {
+		if _, err := m.attachEntryProbe(bin, "static-openssl", sym, opts); err != nil {
+			errs = append(errs, err)
+		}
+		if _, ok := tlsReturnProgramForSymbol(sym); ok {
+			if _, err := m.attachReturnProbe(bin, "static-openssl", sym, opts); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	if err := errors.Join(errs...); err != nil {
+		for _, l := range m.links[startLinks:] {
+			if l != nil {
+				_ = l.Close()
+			}
+		}
+		m.links = m.links[:startLinks]
+		return err
+	}
+	if m.store != nil {
+		m.store.SetLibraryStatus(TLSLibraryStatus{Name: "static-openssl", Path: binPath, Attached: true, Available: true})
+	}
+	return nil
+}
+
 func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint string) TLSExecutableAttachResult {
 	result := TLSExecutableAttachResult{PID: pid}
 	if m == nil {
@@ -417,41 +431,6 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		return result
 	}
 
-	return m.attachResolvedExecutable(resolved, pid, libraryHint)
-}
-
-func (m *TLSProbeManager) AttachBuiltinExecutables(pid int) []TLSBuiltinExecutableAttachStatus {
-	statuses := make([]TLSBuiltinExecutableAttachStatus, 0, len(builtinTLSExecutableTargets))
-	if m == nil {
-		for _, target := range builtinTLSExecutableTargets {
-			statuses = append(statuses, TLSBuiltinExecutableAttachStatus{Target: target, Error: "TLS probe manager is unavailable"})
-		}
-		return statuses
-	}
-
-	for _, target := range builtinTLSExecutableTargets {
-		status := TLSBuiltinExecutableAttachStatus{Target: target}
-		resolved := binaryresolver.ResolveBinary(target.Command, "")
-		if resolved.Error != "" {
-			status.Error = resolved.Error
-			statuses = append(statuses, status)
-			continue
-		}
-		status.Available = true
-		result := m.attachResolvedExecutable(resolved, pid, target.Library)
-		result.Preset = target.Command
-		status.Result = result
-		status.Attached = result.Error == ""
-		if result.Error != "" {
-			status.Error = result.Error
-		}
-		statuses = append(statuses, status)
-	}
-	return statuses
-}
-
-func (m *TLSProbeManager) attachResolvedExecutable(resolved binaryresolver.ResolvedBinary, pid int, libraryHint string) TLSExecutableAttachResult {
-	result := TLSExecutableAttachResult{Resolved: resolved, PID: pid}
 	attachPath := executableTLSAttachPath(resolved)
 	if attachPath == "" {
 		attachPath = resolved.RealPath
@@ -463,6 +442,14 @@ func (m *TLSProbeManager) attachResolvedExecutable(resolved binaryresolver.Resol
 		result.TargetKind = "go"
 		result.Library = "go"
 		return result
+	}
+
+	if resolved.StaticTLS {
+		if err := m.AttachStaticSSLUprobes(attachPath, pid); err == nil {
+			result.TargetKind = "static-ssl"
+			result.Library = "static-openssl"
+			return result
+		}
 	}
 
 	libraries := executableLibraryCandidates(libraryHint)

@@ -140,21 +140,31 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 			continue
 		}
 
-		if hasSSLSymbols(binPath) {
-			if err := m.AttachStaticSSLUprobes(binPath, pid); err != nil {
-				m.forgetGoBinaryAttach(binPath, pid)
-				if m.store != nil {
-					name := "Node.js"
-					if isCodex {
-						name = "Codex (Node.js)"
-					} else if isClaudeCode {
-						name = "Claude Code (Node.js)"
+		// Node.js/Bun/Deno: 使用 OpenSSL 符号
+		if baseName == "node" || baseName == "bun" || baseName == "deno" {
+			if hasSSLSymbols(binPath) {
+				if err := m.AttachStaticSSLUprobes(binPath, pid); err != nil {
+					m.forgetGoBinaryAttach(binPath, pid)
+					if m.store != nil {
+						name := "Node.js"
+						if isClaudeCode {
+							name = "Claude Code (Node.js)"
+						}
+						m.store.SetLibraryStatus(TLSLibraryStatus{Name: name, Path: binPath, Attached: false, Available: true, Error: err.Error()})
 					}
-					m.store.SetLibraryStatus(TLSLibraryStatus{Name: name, Path: binPath, Attached: false, Available: true, Error: err.Error()})
 				}
 			}
-		} else {
-			m.forgetGoBinaryAttach(binPath, pid)
+			continue
+		}
+
+		// Codex: Rust 二进制，使用 rustls 偏移量
+		if isCodex {
+			if err := m.AttachRustlsUprobes(binPath, pid); err != nil {
+				m.forgetGoBinaryAttach(binPath, pid)
+				if m.store != nil {
+					m.store.SetLibraryStatus(TLSLibraryStatus{Name: "Codex (rustls)", Path: binPath, Attached: false, Available: true, Error: err.Error()})
+				}
+			}
 		}
 	}
 }
