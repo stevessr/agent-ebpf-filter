@@ -9,6 +9,8 @@
 - ✅ **定点数推理引擎**: 无浮点运算，纯整数
 - ✅ **Random Forest**: 15 棵决策树，128 特征维度
 - ✅ **Proc 接口**: `/proc/{ml_load, ml_predict, ml_stats}`
+- ✅ **CUDA GPU 后端**: DKMS 模块通过 `/proc/ml_cuda_request` / `/proc/ml_cuda_result`
+  offload 到 userspace `kernel_ml_cuda_helper`
 - ✅ **实时推理**: ~5-10 μs 延迟
 
 ---
@@ -29,6 +31,7 @@ Binary Format
 │  - ml_inference()    │  ← 定点数运算
 │  - traverse_tree()   │  ← O(log N)
 │  - majority_vote()   │  ← 15 棵树
+│  - CUDA offload ABI  │  ← /proc/ml_cuda_*
 └──────────────────────┘
      │
      ↓ write() to /proc/ml_predict
@@ -60,6 +63,12 @@ if (feature_val < node->threshold)  // 纯整数
 - 标准文件操作 (`cat`, `echo`)
 - 易于调试和监控
 
+#### 4. **CUDA 后端保持在用户态**
+
+CUDA runtime 不能被 DKMS 内核模块直接链接/调用，因此新增的是同步 offload
+ABI：内核模块负责排队、超时、回退和统计，`kernel_ml_cuda_helper` 负责
+`libcuda` / `libcudart`、模型镜像和 GPU kernel。
+
 ---
 
 ### 📁 文件结构
@@ -69,6 +78,7 @@ kernel-ml/
 ├── ml_inference.h        (62 行) - API 定义
 ├── ml_inference.c       (195 行) - 核心推理引擎
 ├── kernel_ml_main.c     (151 行) - 模块入口 + proc
+├── cuda_infer_helper.cu          - CUDA userspace helper
 ├── model_loader.py       (82 行) - sklearn → 二进制
 ├── Makefile              (19 行) - 构建脚本
 ├── dkms.conf              (7 行) - DKMS 配置
@@ -180,8 +190,8 @@ make CC=clang LD=ld.lld    # 297 KB kernel_ml.ko
 #### DKMS 安装
 ```bash
 sudo dkms add ./kernel-ml
-sudo dkms build kernel-ml/1.0
-sudo dkms install kernel-ml/1.0
+sudo dkms build kernel-ml/1.1
+sudo dkms install kernel-ml/1.1
 # 自动在内核更新时重新编译
 ```
 
@@ -201,6 +211,17 @@ write(fd, &fv, sizeof(fv));  // fd = open("/proc/ml_predict")
 
 # 查看统计
 cat /proc/ml_stats
+```
+
+#### CUDA 后端
+```bash
+make -C kernel-ml cuda-helper CUDA_HOME=/opt/cuda
+make -C kernel-ml cuda-helper-self-test CUDA_HOME=/opt/cuda
+sudo insmod kernel-ml/kernel_ml.ko backend=auto cuda_timeout_ms=50
+cat model.bin > /proc/ml_load
+sudo kernel-ml/kernel_ml_cuda_helper
+echo cuda > /proc/ml_backend   # 或 echo auto > /proc/ml_backend
+cat /proc/ml_stats             # 查看 CUDA Inferences / Fallbacks / Timeouts
 ```
 
 ---
@@ -235,7 +256,7 @@ cat /proc/ml_stats
 #### 低优先级
 - [ ] 多分类支持（>3 类）
 - [ ] 神经网络支持（推理优化）
-- [ ] GPU 加速（CUDA/OpenCL）
+- [x] GPU 加速（CUDA userspace offload；OpenCL 待扩展）
 
 ---
 
@@ -247,8 +268,9 @@ cat /proc/ml_stats
 2. ✅ DKMS 模块框架（自动构建）
 3. ✅ Proc 接口（加载模型 + 推理 + 统计）
 4. ✅ 模型转换工具（sklearn → 二进制）
-5. ✅ 完整文档（README + 架构说明）
-6. ✅ 编译通过（297 KB .ko 文件）
+5. ✅ CUDA helper 后端（userspace GPU 推理 + kernel fallback）
+6. ✅ 完整文档（README + 架构说明）
+7. ✅ 编译通过（297 KB .ko 文件）
 
 **代码量**: ~800 行  
 **开发时间**: 1 会话  

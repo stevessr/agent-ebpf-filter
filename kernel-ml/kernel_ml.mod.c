@@ -18,8 +18,25 @@ KSYMTAB_FUNC(ml_inference, "_gpl", "");
 KSYMTAB_FUNC(ml_model_load, "_gpl", "");
 KSYMTAB_FUNC(ml_model_free, "_gpl", "");
 KSYMTAB_FUNC(extract_features, "_gpl", "");
+KSYMTAB_FUNC(svm_inference, "_gpl", "");
+KSYMTAB_FUNC(svm_model_load, "_gpl", "");
+KSYMTAB_FUNC(lr_inference, "_gpl", "");
+KSYMTAB_FUNC(lr_model_load, "_gpl", "");
+KSYMTAB_FUNC(nn_inference, "_gpl", "");
+KSYMTAB_FUNC(nn_model_load, "_gpl", "");
+KSYMTAB_FUNC(unified_inference, "_gpl", "");
+KSYMTAB_FUNC(unified_model_load, "_gpl", "");
+KSYMTAB_FUNC(unified_model_free, "_gpl", "");
+KSYMTAB_FUNC(dt_inference, "_gpl", "");
+KSYMTAB_FUNC(knn_inference, "_gpl", "");
+KSYMTAB_FUNC(nb_inference, "_gpl", "");
+KSYMTAB_FUNC(gb_inference, "_gpl", "");
+KSYMTAB_FUNC(ensemble_inference, "_gpl", "");
+KSYMTAB_FUNC(advanced_inference, "_gpl", "");
+KSYMTAB_FUNC(advanced_model_load, "_gpl", "");
+KSYMTAB_FUNC(advanced_model_free, "_gpl", "");
 
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "4AF1BE0A8126EA3C6BE33E6");
+MODULE_INFO(srcversion, "0C66CFACE00E7D1FB3BD52B");

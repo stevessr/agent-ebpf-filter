@@ -17,6 +17,7 @@
 │  - 加载决策树模型                        │
 │  - 定点数推理引擎                        │
 │  - O(log N) 树遍历                       │
+│  - 可选 CUDA userspace offload           │
 └─────────────┬───────────────────────────┘
               │ /proc/ml_predict
               ↓
@@ -44,6 +45,23 @@
 - `/proc/ml_load` - 加载模型 (write-only)
 - `/proc/ml_predict` - 推理请求 (write-only)
 - `/proc/ml_stats` - 统计信息 (read-only)
+- `/proc/ml_backend` - 选择 `kernel` / `cuda` / `auto` 推理后端
+- `/proc/ml_cuda_request` - CUDA helper 阻塞读取推理请求
+- `/proc/ml_cuda_result` - CUDA helper 写回推理结果
+- `/proc/ml_cuda_model` - CUDA helper 镜像最新 `/proc/ml_load` 模型 blob
+
+### 4. CUDA GPU 后端
+
+Linux 内核模块不能直接链接或调用 NVIDIA CUDA runtime；因此 CUDA 支持采用
+**DKMS 内核模块 + userspace CUDA helper** 的安全分层：
+
+1. 内核模块仍通过 DKMS 构建并提供 `/proc/ml_predict` 同步入口。
+2. 选择 `cuda` 或 `auto` 后端时，模块把 `feature_vector` 发送到
+   `/proc/ml_cuda_request`。
+3. `kernel_ml_cuda_helper` 在用户态持有 `libcuda` / `libcudart`，自动从
+   `/proc/ml_cuda_model` 镜像最新 RandomForest 模型并在 GPU 上遍历森林。
+4. helper 将 `ALLOW` / `BLOCK` / `ALERT` 写回 `/proc/ml_cuda_result`。
+5. helper 不存在、超时或 GPU 报错时，模块自动回退到内核 CPU 推理路径。
 
 ## 编译
 
@@ -54,8 +72,14 @@ make CC=clang LD=ld.lld
 
 # 方法 2: DKMS 安装 (推荐)
 sudo dkms add .
-sudo dkms build kernel-ml/1.0
-sudo dkms install kernel-ml/1.0
+sudo dkms build kernel-ml/1.1
+sudo dkms install kernel-ml/1.1
+
+# 可选：构建 CUDA userspace helper（不会作为 DKMS 内核构建的一部分）
+make cuda-helper CUDA_HOME=/opt/cuda
+
+# 可选：验证 CUDA helper 的 GPU kernel（无需加载内核模块）
+make cuda-helper-self-test CUDA_HOME=/opt/cuda
 ```
 
 **注意**: 路径不能包含空格（内核构建系统限制）
@@ -91,7 +115,36 @@ cat model.bin > /proc/ml_load
 cat /proc/ml_stats  # 验证加载成功
 ```
 
-### 4. 推理
+### 4. 选择推理后端
+
+```bash
+# 默认纯内核 CPU 定点数后端
+echo kernel > /proc/ml_backend
+
+# CUDA 后端；helper 未运行或超时时会回退到 kernel 后端
+echo cuda > /proc/ml_backend
+
+# 自动模式；有 helper 时走 CUDA，否则走 kernel
+echo auto > /proc/ml_backend
+
+# 调整 CUDA 等待超时（毫秒，默认 50）
+echo timeout_ms=100 > /proc/ml_backend
+```
+
+### 5. 启动 CUDA helper
+
+```bash
+# helper 会从 /proc/ml_cuda_model 自动镜像最新 /proc/ml_load 模型
+sudo ./kernel_ml_cuda_helper
+
+# 或者显式加载同一个模型文件
+sudo ./kernel_ml_cuda_helper --model model.bin
+
+# 无 root 的 GPU kernel 自检
+./kernel_ml_cuda_helper --self-test
+```
+
+### 6. 推理
 ```c
 #include <fcntl.h>
 #include <unistd.h>
@@ -110,6 +163,7 @@ close(fd);
 ## 性能
 
 - **推理延迟**: ~5-10 μs (15 棵深度 7 的树)
+- **CUDA 后端**: 适合批量/高并发或更大模型；单条请求会包含用户态/GPU 往返开销
 - **内存占用**: ~300 KB 模块 + ~50 KB 模型
 - **吞吐量**: >100k 推理/秒 (单核)
 
@@ -119,13 +173,14 @@ close(fd);
 2. **树数量**: 最多 15 棵
 3. **树深度**: 建议 ≤ 10 (verifier 限制)
 4. **模型大小**: ≤ 10 MB
+5. **CUDA 分层**: CUDA runtime 只能在用户态 helper 中运行，内核模块通过 proc ABI 同步 offload
 
 ## DKMS 配置
 
 `dkms.conf`:
 ```ini
 PACKAGE_NAME="kernel-ml"
-PACKAGE_VERSION="1.0"
+PACKAGE_VERSION="1.1"
 CLEAN="make clean"
 MAKE[0]="make all KVERSION=$kernelver CC=clang LD=ld.lld"
 BUILT_MODULE_NAME[0]="kernel_ml"
@@ -140,6 +195,7 @@ kernel-ml/
 ├── ml_inference.h       - 推理引擎头文件
 ├── ml_inference.c       - 核心推理实现
 ├── kernel_ml_main.c     - 模块入口 + proc 接口
+├── cuda_infer_helper.cu - CUDA userspace 推理 helper
 ├── Makefile             - 构建脚本
 ├── dkms.conf            - DKMS 配置
 ├── model_loader.py      - 模型转换工具
@@ -195,7 +251,7 @@ cd /tmp/kernel-ml && make
 - [ ] 实现模型版本控制
 - [ ] 添加推理缓存（LRU）
 - [ ] 支持多分类（当前仅 3 类）
-- [ ] 集成 perf 性能分析
+- [ ] 集成 perf / Nsight 性能分析
 - [ ] 添加单元测试
 
 ## 许可证

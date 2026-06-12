@@ -18,6 +18,9 @@ import pickle
 
 FEATURE_DIM = 128
 FLOAT_SCALE = 1000
+TREE_NODE_FORMAT = '<IIqiiiB3x'
+TREE_NODE_SIZE = struct.calcsize(TREE_NODE_FORMAT)
+assert TREE_NODE_SIZE == 32
 
 def float_to_fixed(f):
     return int(f * FLOAT_SCALE)
@@ -67,10 +70,12 @@ def pack_tree(nodes):
     data = struct.pack('I', len(nodes))
 
     for node in nodes:
-        # struct tree_node: 32 bytes
+        # struct tree_node: fixed 32-byte little-endian UAPI layout:
+        # feature_idx, pad0, threshold, left, right, leaf_value, is_leaf, pad[3]
         packed = struct.pack(
-            'IqiiiB3x',  # feature_idx, threshold, left, right, leaf_value, is_leaf, padding
+            TREE_NODE_FORMAT,
             node['feature_idx'],
+            0,
             node['threshold'],
             node['left_child'],
             node['right_child'],

@@ -234,7 +234,8 @@ cat model_nn.bin > /proc/ml_load    # 切换到 NN
 - [ ] 集成学习 (Ensemble) - 组合多模型投票
 - [ ] 在线学习 (Online Learning) - 增量更新
 - [ ] 模型压缩 (Quantization) - INT8 量化
-- [ ] GPU 加速 (CUDA) - 矩阵并行
+- [x] GPU 加速 (CUDA) - DKMS RandomForest userspace offload 后端
+- [ ] GPU 扩展 - SVM/LR/NN 批量 CUDA kernel
 
 ---
 

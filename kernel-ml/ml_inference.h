@@ -15,7 +15,18 @@
 #ifndef _KERNEL_ML_INFERENCE_H
 #define _KERNEL_ML_INFERENCE_H
 
+#ifdef __KERNEL__
 #include <linux/types.h>
+#else
+#include <stddef.h>
+#include <stdint.h>
+typedef uint8_t u8;
+typedef uint32_t u32;
+typedef int32_t s32;
+typedef uint64_t u64;
+typedef int64_t s64;
+#define __user
+#endif
 
 /* Model parameters */
 #define FEATURE_DIM 128
@@ -33,9 +44,22 @@ enum ml_action {
 	ML_ACTION_ALERT = 2,
 };
 
-/* Tree node structure - 32 bytes aligned */
+/* Tree node structure - fixed 32-byte UAPI layout.
+ *
+ * Keep this layout synchronized with model_loader.py and cuda_infer_helper.cu:
+ *   u32 feature_idx
+ *   u32 _pad0          // aligns threshold and preserves the historical
+ *                      // Python native "IqiiiB3x" 32-byte encoding
+ *   s64 threshold
+ *   s32 left_child
+ *   s32 right_child
+ *   s32 leaf_value
+ *   u8  is_leaf
+ *   u8  _pad[3]
+ */
 struct tree_node {
 	u32 feature_idx;    /* Which feature to test */
+	u32 _pad0;
 	s64 threshold;      /* Fixed-point threshold */
 	s32 left_child;     /* -1 = leaf node */
 	s32 right_child;
@@ -61,6 +85,38 @@ struct ml_model {
 	struct tree_node *trees[NUM_TREES];
 	size_t tree_sizes[NUM_TREES];
 };
+
+/* Inference backend selection.
+ *
+ * CUDA is implemented as a kernel/userspace offload backend because Linux
+ * kernel modules cannot link against or call the NVIDIA CUDA runtime directly.
+ * The DKMS module exports a request/result ABI under /proc; the optional
+ * userspace helper owns libcuda/libcudart and mirrors the loaded model.
+ */
+enum ml_backend_type {
+	ML_BACKEND_KERNEL = 0,
+	ML_BACKEND_CUDA = 1,
+	ML_BACKEND_AUTO = 2,
+};
+
+#define ML_CUDA_REQUEST_VERSION 1
+#define ML_CUDA_DEFAULT_TIMEOUT_MS 50
+
+struct ml_cuda_request {
+	u32 version;
+	u32 reserved;
+	u64 request_id;
+	u64 model_generation;
+	struct feature_vector features;
+} __attribute__((packed));
+
+struct ml_cuda_result {
+	u32 version;
+	u32 status;      /* 0 = success, otherwise errno-style helper failure */
+	u64 request_id;
+	u32 action;      /* enum ml_action when status == 0 */
+	u32 reserved;
+} __attribute__((packed));
 
 /* Inference API */
 enum ml_action ml_inference(struct ml_model *model, struct feature_vector *fv);

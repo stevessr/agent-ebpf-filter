@@ -316,7 +316,8 @@ aea85a7 refactor: Optimize eBPF code for efficiency (-85%)
 - [ ] **在线学习**: 增量更新权重
 
 ### 低优先级
-- [ ] **GPU 加速**: CUDA 矩阵并行
+- [x] **GPU 加速**: DKMS 模块新增 CUDA userspace offload 后端（RandomForest）
+- [ ] **GPU 扩展**: 为 SVM/LR/NN 增加批量 CUDA kernel
 - [ ] **AutoML**: 自动模型选择
 - [ ] **联邦学习**: 分布式训练
 

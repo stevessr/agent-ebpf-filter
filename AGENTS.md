@@ -70,6 +70,11 @@ Debian `nodejs` / `npm`; keep dependency installation on Bun.
 CUDA acceleration is build-tagged: only build with the `cuda` tag when
 `/opt/cuda/bin/nvcc` and CUDA runtime libraries are present; otherwise keep the
 CPU-only stub as the default so devcontainers without CUDA still compile.
+The separate `kernel-ml` DKMS module must not link CUDA into kernel space. Its
+CUDA inference backend is a `/proc/ml_cuda_request` + `/proc/ml_cuda_result`
+userspace offload path served by `kernel-ml/kernel_ml_cuda_helper`, with
+`/proc/ml_backend` selecting `kernel`, `cuda`, or `auto` and kernel CPU fallback
+on helper/GPU failure.
 Build feature selection is also tag-driven: `AGENT_BUILD_FEATURES=all` keeps the
 full workbench, `AGENT_BUILD_FEATURES=core` removes optional feature modules from
 the feature manifest/route startup, and comma-separated names such as
