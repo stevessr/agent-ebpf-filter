@@ -32,6 +32,7 @@ interface NetworkEvent {
   netBytes: number;
   time: string;
   redactionState?: string;
+  redaction_state?: string;
   redacted?: boolean;
 }
 
@@ -293,8 +294,8 @@ const connectWebSocket = () => {
           netFamily: d.netFamily || "",
           netBytes: Number(d.netBytes || 0),
           time: new Date().toLocaleTimeString(),
-          redactionState: d.redactionState || d.redaction_state || "",
-          redacted: Boolean(d.redacted),
+          redactionState: d.redactionLevel || "",
+          redacted: Boolean(d.sanitizedFields && d.sanitizedFields.length > 0),
         });
       });
     } catch (e) {
@@ -340,7 +341,7 @@ onUnmounted(() => {
 <template>
   <div class="network-page">
     <div class="network-redaction-bar">
-      <RedactionBadge />
+      <RedactionBadge level="standard" />
     </div>
     <a-card :bordered="false">
       <template #title

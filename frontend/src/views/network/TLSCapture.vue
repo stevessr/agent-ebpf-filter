@@ -601,7 +601,7 @@ onUnmounted(() => {
 <template>
   <div class="tls-capture-page">
     <div class="tls-redaction-bar">
-      <RedactionBadge />
+      <RedactionBadge level="standard" />
     </div>
     <a-card :bordered="false" class="tls-card">
       <template #title>

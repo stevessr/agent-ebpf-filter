@@ -82,7 +82,7 @@ void tableWrapperRef;
 <template>
   <div class="dashboard-page">
     <div class="dashboard-redaction-bar">
-      <RedactionBadge />
+      <RedactionBadge level="standard" />
     </div>
 
     <a-tabs

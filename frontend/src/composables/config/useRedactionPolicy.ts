@@ -1,7 +1,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import axios from "axios";
 import { message } from "ant-design-vue";
-import type { RedactionLevel, RedactionPolicy, RedactionRule } from "../../../backend/redaction/types";
+import type { RedactionLevel, RedactionPolicy, RedactionRule } from "@/types/redaction";
 
 type RedactionPolicyResponse = {
   redactionPolicy?: RedactionPolicy;

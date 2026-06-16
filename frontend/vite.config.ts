@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath, URL } from "url";
 
 // Get backend port from shared file, or fallback to 8080
 let backendPort = 8080;
@@ -17,9 +18,19 @@ try {
 const backendUrl = `http://localhost:${backendPort}`;
 const backendWsUrl = `ws://localhost:${backendPort}`;
 
+const resolveAliases: Array<{ find: string | RegExp; replacement: string }> = [
+  {
+    find: "@",
+    replacement: fileURLToPath(new URL("./src", import.meta.url)),
+  },
+];
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
+  resolve: {
+    alias: resolveAliases,
+  },
   server: {
     proxy: {
       "/ws": {
