@@ -810,11 +810,18 @@ export function normalizeAgentSightEvent(
 }
 
 export function normalizeAgentSightEvents(values: any[]): AgentSightEvent[] {
+  if (!Array.isArray(values) || values.length === 0) return [];
+
   const seen = new Set<string>();
   const normalized: AgentSightEvent[] = [];
-  values.forEach((value, index) => {
-    const event = normalizeAgentSightEvent(value, index);
-    if (!event) return;
+
+  // Pre-allocate array if we know the size
+  normalized.length = 0;
+
+  for (let index = 0; index < values.length; index++) {
+    const event = normalizeAgentSightEvent(values[index], index);
+    if (!event) continue;
+
     const key =
       event.id ||
       stableID("dedupe", [
@@ -823,20 +830,33 @@ export function normalizeAgentSightEvents(values: any[]): AgentSightEvent[] {
         event.pid,
         event.title,
       ]);
-    if (seen.has(key)) return;
+
+    if (seen.has(key)) continue;
     seen.add(key);
     normalized.push(event);
-  });
+  }
+
+  // Use native sort for better performance
   return normalized.sort((a, b) => b.timestamp - a.timestamp);
 }
+
+// Memoization cache for processed events
+const processedEventsCache = new WeakMap<AgentSightEvent[], ProcessedAgentSightEvent[]>();
 
 export function processAgentSightEvents(
   events: AgentSightEvent[],
 ): ProcessedAgentSightEvent[] {
+  if (!Array.isArray(events) || events.length === 0) return [];
+
+  // Check cache first
+  const cached = processedEventsCache.get(events);
+  if (cached) return cached;
+
   const sourceColorMap = new Map<string, string>();
   const sourceClassMap = new Map<string, string>();
   let colorIndex = 0;
-  return events.map((event) => {
+
+  const processed = events.map((event) => {
     if (!sourceColorMap.has(event.source)) {
       sourceColorMap.set(
         event.source,
@@ -853,11 +873,14 @@ export function processAgentSightEvents(
       ...event,
       datetime,
       formattedTime: formatShortTime(event.timestamp),
-      sourceColor: sourceColorMap.get(event.source) || SOURCE_COLORS[0],
-      sourceColorClass:
-        sourceClassMap.get(event.source) || SOURCE_COLOR_CLASSES[0],
+      sourceColor: sourceColorMap.get(event.source)!,
+      sourceColorClass: sourceClassMap.get(event.source)!,
     };
   });
+
+  // Cache the result
+  processedEventsCache.set(events, processed);
+  return processed;
 }
 
 export function formatShortTime(timestamp: number) {
@@ -892,6 +915,7 @@ export function formatBytes(bytes: number) {
   return `${(value / Math.pow(1024, index)).toFixed(1)} ${units[index]}`;
 }
 
+// Optimize filterProcessedEvents with early returns and reduced iterations
 export function filterProcessedEvents(
   events: ProcessedAgentSightEvent[],
   filters: {
@@ -904,52 +928,64 @@ export function filterProcessedEvents(
     redactionState?: string;
   },
 ) {
-  let filtered = events;
-  if (filters.source)
-    filtered = filtered.filter(
-      (event) =>
-        event.source === filters.source || event.rawSource === filters.source,
-    );
-  if (filters.comm)
-    filtered = filtered.filter((event) =>
-      event.comm.toLowerCase().includes(filters.comm!.toLowerCase()),
-    );
-  if (filters.pid)
-    filtered = filtered.filter(
-      (event) => String(event.pid) === String(filters.pid),
-    );
-  if (filters.eventType)
-    filtered = filtered.filter(
-      (event) => event.eventType === filters.eventType,
-    );
-  if (filters.traceId)
-    filtered = filtered.filter((event) =>
-      event.traceId.includes(filters.traceId!),
-    );
-  if (filters.redactionState)
-    filtered = filtered.filter(
-      (event) => event.redactionState === filters.redactionState,
-    );
-  if (filters.searchTerm) {
-    const term = filters.searchTerm.toLowerCase();
-    filtered = filtered.filter((event) =>
-      [
-        event.source,
-        event.rawSource,
-        event.id,
-        event.comm,
-        String(event.pid),
-        event.eventType,
-        event.title,
-        JSON.stringify(event.data),
-      ].some((value) =>
-        String(value || "")
-          .toLowerCase()
-          .includes(term),
-      ),
-    );
+  // Early return if no filters applied
+  if (!filters || Object.values(filters).every(v => !v)) {
+    return events;
   }
-  return filtered;
+
+  // Prepare filter conditions once
+  const hasSourceFilter = !!filters.source;
+  const hasCommFilter = !!filters.comm;
+  const hasEventTypeFilter = !!filters.eventType;
+  const hasTraceIdFilter = !!filters.traceId;
+  const hasRedactionFilter = !!filters.redactionState;
+  const hasPidFilter = !!filters.pid;
+  const hasSearchFilter = !!filters.searchTerm;
+
+  const commLower = filters.comm?.toLowerCase();
+  const searchLower = filters.searchTerm?.toLowerCase();
+  const pidStr = String(filters.pid);
+
+  return events.filter((event) => {
+    // Quick checks first (most restrictive)
+    if (hasSourceFilter && event.source !== filters.source && event.rawSource !== filters.source) {
+      return false;
+    }
+    if (hasPidFilter && String(event.pid) !== pidStr) {
+      return false;
+    }
+    if (hasEventTypeFilter && event.eventType !== filters.eventType) {
+      return false;
+    }
+    if (hasRedactionFilter && event.redactionState !== filters.redactionState) {
+      return false;
+    }
+
+    // String contains checks (more expensive)
+    if (hasCommFilter && !event.comm.toLowerCase().includes(commLower!)) {
+      return false;
+    }
+    if (hasTraceIdFilter && !event.traceId.includes(filters.traceId!)) {
+      return false;
+    }
+
+    // Search term check (most expensive - done last)
+    if (hasSearchFilter) {
+      const searchableText = `${event.source} ${event.rawSource} ${event.id} ${event.comm} ${event.pid} ${event.eventType} ${event.title}`;
+      if (!searchableText.toLowerCase().includes(searchLower!)) {
+        // Fallback to JSON search if quick check fails
+        try {
+          if (!JSON.stringify(event.data).toLowerCase().includes(searchLower!)) {
+            return false;
+          }
+        } catch {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  });
 }
 
 function safeJsonParse(value: string): any | null {
@@ -1387,82 +1423,104 @@ function comparePrompts(oldPrompt: any, newPrompt: any) {
   };
 }
 
+// Optimized buildProcessTree with reduced allocations
 export function buildProcessTree(
   events: AgentSightEvent[],
 ): AgentSightProcessNode[] {
+  if (!Array.isArray(events) || events.length === 0) return [];
+
   const processMap = new Map<number, AgentSightProcessNode>();
   const eventsByPid = new Map<number, ParsedAgentSightEvent[]>();
   const promptHistoryByPid = new Map<number, ParsedAgentSightEvent[]>();
 
-  events
-    .slice()
-    .sort((a, b) => a.timestamp - b.timestamp)
-    .forEach((event) => {
-      if (event.source === "system" || event.pid === 0) return;
-      if (!processMap.has(event.pid)) {
-        processMap.set(event.pid, {
-          pid: event.pid,
-          ppid: event.ppid,
-          comm: event.comm || "unknown",
-          children: [],
-          events: [],
-          timeline: [],
-        });
-      }
-      const node = processMap.get(event.pid)!;
-      if (!node.ppid && event.ppid) node.ppid = event.ppid;
-      const parsed = parseAgentSightEvent(event);
-      if (!parsed) return;
-      if (parsed.type === "prompt") {
-        const history = promptHistoryByPid.get(event.pid) || [];
-        if (history.length > 0) {
-          const previous = history[history.length - 1];
-          parsed.promptDiff = {
-            ...comparePrompts(previous.metadata.raw, event.data),
-            previousPromptId: previous.id,
-          };
-        }
+  // Sort once at the beginning
+  const sortedEvents = events.slice().sort((a, b) => a.timestamp - b.timestamp);
+
+  // First pass: build process nodes and parse events
+  for (const event of sortedEvents) {
+    if (event.source === "system" || event.pid === 0) continue;
+
+    // Ensure process node exists
+    if (!processMap.has(event.pid)) {
+      processMap.set(event.pid, {
+        pid: event.pid,
+        ppid: event.ppid,
+        comm: event.comm || "unknown",
+        children: [],
+        events: [],
+        timeline: [],
+      });
+    }
+
+    const node = processMap.get(event.pid)!;
+    if (!node.ppid && event.ppid) node.ppid = event.ppid;
+
+    const parsed = parseAgentSightEvent(event);
+    if (!parsed) continue;
+
+    // Handle prompt diff
+    if (parsed.type === "prompt") {
+      const history = promptHistoryByPid.get(event.pid);
+      if (history && history.length > 0) {
+        const previous = history[history.length - 1];
+        parsed.promptDiff = {
+          ...comparePrompts(previous.metadata.raw, event.data),
+          previousPromptId: previous.id,
+        };
         history.push(parsed);
         if (history.length > 10) history.shift();
-        promptHistoryByPid.set(event.pid, history);
+      } else {
+        promptHistoryByPid.set(event.pid, [parsed]);
       }
-      if (!eventsByPid.has(event.pid)) eventsByPid.set(event.pid, []);
-      eventsByPid.get(event.pid)!.push(parsed);
-    });
+    }
 
-  eventsByPid.forEach((parsedEvents, pid) => {
+    // Group events by PID
+    if (!eventsByPid.has(event.pid)) {
+      eventsByPid.set(event.pid, []);
+    }
+    eventsByPid.get(event.pid)!.push(parsed);
+  }
+
+  // Second pass: assign events to processes (already sorted)
+  for (const [pid, parsedEvents] of eventsByPid) {
     const process = processMap.get(pid);
-    if (process)
-      process.events = parsedEvents.sort((a, b) => a.timestamp - b.timestamp);
-  });
+    if (process) {
+      process.events = parsedEvents;
+    }
+  }
 
+  // Third pass: build parent-child relationships
   const childProcesses = new Set<number>();
-  processMap.forEach((process, pid) => {
+  for (const [pid, process] of processMap) {
     if (process.ppid && processMap.has(process.ppid)) {
-      processMap.get(process.ppid)!.children.push(process);
+      const parent = processMap.get(process.ppid)!;
+      parent.children.push(process);
       childProcesses.add(pid);
     }
-  });
+  }
 
-  processMap.forEach((process) => {
-    const timeline: AgentSightTimelineItem[] = process.events.map((event) => ({
-      type: "event",
-      timestamp: event.timestamp,
-      event,
-    }));
-    process.children.forEach((child) =>
-      timeline.push({
-        type: "process",
+  // Fourth pass: build timelines
+  for (const process of processMap.values()) {
+    const timeline: AgentSightTimelineItem[] = [
+      ...process.events.map((event) => ({
+        type: "event" as const,
+        timestamp: event.timestamp,
+        event,
+      })),
+      ...process.children.map((child) => ({
+        type: "process" as const,
         timestamp: getEarliestTimestamp(child),
         process: child,
-      }),
-    );
+      })),
+    ];
     process.timeline = timeline.sort((a, b) => a.timestamp - b.timestamp);
-  });
+  }
 
-  return Array.from(processMap.values())
-    .filter((process) => !childProcesses.has(process.pid))
-    .sort((a, b) => getEarliestTimestamp(a) - getEarliestTimestamp(b));
+  // Return root processes sorted by earliest timestamp
+  const rootProcesses = Array.from(processMap.values()).filter(
+    (process) => !childProcesses.has(process.pid)
+  );
+  return rootProcesses.sort((a, b) => getEarliestTimestamp(a) - getEarliestTimestamp(b));
 }
 
 function getEarliestTimestamp(process: AgentSightProcessNode): number {
