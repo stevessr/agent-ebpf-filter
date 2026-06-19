@@ -60,3 +60,19 @@ Agent eBPF Filter 是面向 Linux 本地工作站、实验节点和开发环境�
 ::: tip 答辩准备
 优先阅读 [比赛答辩主线](/delivery/competition-defense)、[演示脚本](/delivery/demo-script)、[评测报告](/delivery/evaluation)。
 :::
+
+## 致谢
+
+本项目在架构设计和技术选型上受到 [AgentSight](https://github.com/eunomia-bpf/agentsight) 项目的启发。AgentSight 是由 eunomia-bpf 团队开发的开源 AI Agent 系统级追踪工具，验证了 eBPF + TLS capture 对 Agent 观测的可行性。
+
+Agent eBPF Filter 在以下方面进行了扩展和差异化：
+- **技术栈**: Go + Vue 3（vs Rust + Next.js）
+- **产品定位**: 观测 + 控制（vs 纯观测）
+- **控制能力**: wrapper / cgroup / BPF LSM enforcement
+- **安全模型**: TLS capture 默认关闭，作为高风险诊断能力
+- **目标场景**: 包含操作系统课程答辩交付
+
+详见 [AgentSight 项目致敬](/reference/agentsight-acknowledgment)。
+
+感谢 AgentSight 项目对开源社区的贡献！
+
