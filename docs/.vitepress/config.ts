@@ -122,6 +122,7 @@ export default withMermaid(defineConfig({
           text: '参考',
           items: [
             { text: '文档地图', link: '/reference/documentation-map' },
+            { text: '技术深度参考', link: '/reference/technical-depth' },
             { text: '代码入口索引', link: '/reference/code-entrypoints' },
             { text: '生成文件边界', link: '/reference/generated-files' },
             { text: '性能分析与数学模型', link: '/reference/performance-models' },
