@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import {
   ClusterOutlined,
   DeleteOutlined,
@@ -18,9 +18,42 @@ import AgentSightTimelineView from "./AgentSightTimelineView.vue";
 import { useAgentSightI18n } from "../../composables/agentsight/useAgentSightI18n";
 import { useAgentSightEvents } from "../../composables/agentsight/useAgentSightEvents";
 
-const state = useAgentSightEvents();
+const props = withDefaults(
+  defineProps<{
+    pid?: number | string | null;
+    comm?: string;
+  }>(),
+  {
+    pid: null,
+    comm: "",
+  },
+);
+
+const state = useAgentSightEvents({
+  initialPid: props.pid || undefined,
+  initialComm: props.comm || undefined,
+});
 const { locale, localeOptions, t, setLocale } = useAgentSightI18n();
 const pasteText = ref("");
+
+// 监听外部 props 变化并更新内部 filters
+watch(
+  () => props.pid,
+  (newPid) => {
+    if (newPid !== null && newPid !== undefined) {
+      state.filters.value.pid = String(newPid);
+    }
+  },
+);
+
+watch(
+  () => props.comm,
+  (newComm) => {
+    if (newComm) {
+      state.filters.value.comm = newComm;
+    }
+  },
+);
 
 const tabs = [
   { key: "process-tree", label: "Process Tree" },

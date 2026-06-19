@@ -37,6 +37,11 @@ const defaultFilters = (): AgentSightFilters => ({
   searchTerm: "",
 });
 
+export interface UseAgentSightEventsOptions {
+  initialPid?: string | number;
+  initialComm?: string;
+}
+
 function loadCachedAgentSightRecords(): AgentSightEventRecord[] {
   if (typeof window === "undefined") return [];
   try {
@@ -253,7 +258,7 @@ function agentSightLimitQuery(limit: number): string {
   return limit > AGENTSIGHT_UNLIMITED_LIMIT ? String(limit) : "all";
 }
 
-export function useAgentSightEvents() {
+export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   const liveRecords = ref<AgentSightEventRecord[]>([]);
   const tlsRecords = ref<AgentSightEventRecord[]>([]);
   const systemRecords = ref<AgentSightEventRecord[]>([]);
@@ -266,7 +271,14 @@ export function useAgentSightEvents() {
   const sampleLoading = shallowRef(false);
   const limit = shallowRef(AGENTSIGHT_DEFAULT_LIMIT);
   const activeTab = shallowRef("flamegraph");
-  const filters = ref<AgentSightFilters>(defaultFilters());
+  const initialFilters = defaultFilters();
+  if (options?.initialPid) {
+    initialFilters.pid = String(options.initialPid);
+  }
+  if (options?.initialComm) {
+    initialFilters.comm = options.initialComm;
+  }
+  const filters = ref<AgentSightFilters>(initialFilters);
   const isEnvelopeConnected = shallowRef(false);
   const isTLSConnected = shallowRef(false);
   const isSystemConnected = shallowRef(false);

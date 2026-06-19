@@ -966,7 +966,7 @@ onUnmounted(() => {
       </a-tab-pane>
 
       <a-tab-pane key="behavior" tab="行为追踪">
-        <AgentSightTracePanel />
+        <AgentSightTracePanel :pid="filters.pid" :comm="filters.comm" />
       </a-tab-pane>
 
       <a-tab-pane key="recording" tab="录制 / 回放">
