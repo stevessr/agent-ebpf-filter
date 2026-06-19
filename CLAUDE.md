@@ -126,3 +126,10 @@ When behavior changes, update the relevant docs:
 - `adapters/python/tracker_pb2.py`, `adapters/js/tracker_pb.js`
 - `frontend/src/pb/tracker_pb.js` and `.d.ts`
 - `backend/agent-ebpf-filter`, `agent-wrapper` (build outputs)
+
+## dependency management
+
+### npm
+
+- use bun to install 
+- use pnpm to run
