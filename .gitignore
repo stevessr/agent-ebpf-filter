@@ -33,3 +33,4 @@ backend/ml_model_ebpf.c
 kernel-ml/kernel_ml_cuda_helper
 docs/.vitepress/cache
 *_SUMMARY.md
+*_ANALYSIS.md

@@ -86,16 +86,15 @@ for (addr = text_start; addr < text_end; addr++) {
 graph TB
     Request[WrapperRequest] --> Risk[ML Risk Scorer]
     Risk --> Rules[Rule Matcher]
-    Rules --> Decision{Score > threshold?}
-    Decision -->|Yes| Block[BLOCK]
-    Decision -->|No| Action{Rule action?}
-    Action -->|REWRITE| Rewrite[REWRITE args]
-    Action -->|ALERT| Alert[ALERT + exec]
-    Action -->|None| Allow[ALLOW]
+    Rules --> Decision{"Score exceeds threshold?"}
+    Decision -- Yes --> Block[BLOCK]
+    Decision -- No --> Action{"Rule action?"}
+    Action -- REWRITE --> Rewrite[REWRITE args]
+    Action -- ALERT --> Alert[ALERT + exec]
+    Action -- None --> Allow[ALLOW]
 ```
 
 **风险评分公式**:
-<div>
 
 
 $$
@@ -103,7 +102,6 @@ R_{command} = \sum_{i=1}^{n} w_i \cdot f_i(c, a, m)
 $$
 
 
-</div>
 
 **相关文档**:
 - [Wrapper 命令策略](/integrations/wrapper)
@@ -143,7 +141,6 @@ message EventEnvelope {
 ### TCP 状态追踪
 
 **状态转移矩阵**:
-<div>
 
 
 $$
@@ -155,7 +152,6 @@ P = \begin{bmatrix}
 $$
 
 
-</div>
 
 状态：`{ACTIVE, IDLE, CLOSED}`
 
@@ -181,7 +177,6 @@ $$
 
 ### 贝叶斯信誉更新
 
-<div>
 
 
 $$
@@ -189,7 +184,6 @@ P_n(trustworthy) = \frac{\alpha + n_{safe}}{\alpha + \beta + n}
 $$
 
 
-</div>
 
 **参数**:
 - $\alpha = 8, \beta = 2$ (初始先验)

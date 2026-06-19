@@ -1,8 +1,7 @@
 import { defineConfig } from 'vitepress'
 import { withMermaid } from 'vitepress-plugin-mermaid'
-import mathjax3 from 'markdown-it-mathjax3'
 
-export default withMermaid(defineConfig({
+export default withMermaid({
   title: 'Agent eBPF Filter',
   description: 'Linux-first observability and control plane for AI agents and developer CLIs',
   lang: 'zh-CN',
@@ -123,9 +122,12 @@ export default withMermaid(defineConfig({
           items: [
             { text: '文档地图', link: '/reference/documentation-map' },
             { text: '技术深度参考', link: '/reference/technical-depth' },
+            { text: '代码实现模式与最佳实践', link: '/reference/implementation-patterns' },
+            { text: '技术对比与差异化', link: '/reference/technical-comparison' },
             { text: '代码入口索引', link: '/reference/code-entrypoints' },
             { text: '生成文件边界', link: '/reference/generated-files' },
             { text: '性能分析与数学模型', link: '/reference/performance-models' },
+            { text: '外部资源与最佳实践', link: '/reference/external-resources' },
             { text: 'VitePress 插件配置', link: '/reference/vitepress-plugins' },
             { text: 'AgentSight 项目致敬', link: '/reference/agentsight-acknowledgment' },
             { text: '维护检查清单', link: '/reference/maintenance-checklists' }
@@ -159,16 +161,9 @@ export default withMermaid(defineConfig({
       dark: 'github-dark'
     },
     lineNumbers: true,
-    config: (md) => {
-      md.use(mathjax3, {
-        tex: {
-          inlineMath: [['$', '$']],
-          displayMath: [['$$', '$$']]
-        }
-      })
-    }
+    math:true,
   },
   mermaid: {
     // Mermaid configuration options
   }
-}))
+})
