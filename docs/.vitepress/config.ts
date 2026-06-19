@@ -160,7 +160,12 @@ export default withMermaid(defineConfig({
     },
     lineNumbers: true,
     config: (md) => {
-      md.use(mathjax3)
+      md.use(mathjax3, {
+        tex: {
+          inlineMath: [['$', '$']],
+          displayMath: [['$$', '$$']]
+        }
+      })
     }
   },
   mermaid: {

@@ -95,9 +95,15 @@ graph TB
 ```
 
 **风险评分公式**:
+<div>
+
+
 $$
 R_{command} = \sum_{i=1}^{n} w_i \cdot f_i(c, a, m)
 $$
+
+
+</div>
 
 **相关文档**:
 - [Wrapper 命令策略](/integrations/wrapper)
@@ -137,6 +143,9 @@ message EventEnvelope {
 ### TCP 状态追踪
 
 **状态转移矩阵**:
+<div>
+
+
 $$
 P = \begin{bmatrix}
 0.9 & 0.08 & 0.02 \\
@@ -144,6 +153,9 @@ P = \begin{bmatrix}
 0 & 0 & 1
 \end{bmatrix}
 $$
+
+
+</div>
 
 状态：`{ACTIVE, IDLE, CLOSED}`
 
@@ -169,9 +181,15 @@ $$
 
 ### 贝叶斯信誉更新
 
+<div>
+
+
 $$
 P_n(trustworthy) = \frac{\alpha + n_{safe}}{\alpha + \beta + n}
 $$
+
+
+</div>
 
 **参数**:
 - $\alpha = 8, \beta = 2$ (初始先验)
