@@ -105,23 +105,119 @@ frontend/src/
 
 ## 总架构图
 
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│                          Linux Host                              │
-│                                                                  │
-│  AI CLI / Agent / Script                                         │
-│     │         │                 │                                │
-│     │         │                 ├─ native hook payload            │
-│     │         ├─ agent-wrapper  │                                │
-│     └─ PID registration         │                                │
-│               │                 ▼                                │
-│               │          Go backend / Gin                         │
-│               │        ┌─────────────────┐                       │
-│               └──────▶ │ UDS policy      │                       │
-│                        │ routes / auth   │ ◀──── Vue workbench    │
-│  eBPF tracepoints ───▶ │ event pipeline  │ ────▶ WS / REST / MCP  │
-│  cgroup eBPF     ◀───▶ │ runtime state   │ ────▶ OTLP / metrics   │
-│  BPF LSM         ◀───▶ │ archive / JSONL │                       │
-│                        └─────────────────┘                       │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph "Linux Host"
+        subgraph "User Space"
+            Agent["AI Agent / CLI / Script"]
+            Adapter["Adapters<br/>(Python/Node)"]
+            Wrapper["agent-wrapper"]
+            Hook["Native Hooks"]
+            
+            Agent -->|PID register| Adapter
+            Agent -->|command| Wrapper
+            Agent -->|tool payload| Hook
+        end
+        
+        subgraph "Go Backend"
+            UDS["UDS Policy Engine<br/>/tmp/agent-ebpf.sock"]
+            Routes["HTTP/WS Routes<br/>Gin + Auth"]
+            Pipeline["Event Pipeline<br/>Ringbuf Reader"]
+            Archive["Event Archive<br/>JSONL + Memory"]
+            Export["Export Layer<br/>OTLP/MCP/Prometheus"]
+            
+            Wrapper -->|WrapperRequest| UDS
+            Adapter -->|POST /register| Routes
+            Hook -->|POST /hooks/event| Routes
+            Pipeline --> Archive
+            Archive --> Export
+        end
+        
+        subgraph "Kernel Space"
+            Maps["Pinned BPF Maps<br/>agent_pids<br/>tracked_comms<br/>tracked_paths"]
+            Ringbuf["Ringbuf<br/>events"]
+            Tracker["eBPF Tracker<br/>tracepoints"]
+            Cgroup["cgroup eBPF<br/>connect/sendmsg"]
+            LSM["BPF LSM<br/>file/exec hooks"]
+            
+            Maps --> Tracker
+            Tracker --> Ringbuf
+            Ringbuf -->|zero-copy decode| Pipeline
+            Cgroup <-->|policy read/write| UDS
+            LSM <-->|policy read/write| UDS
+        end
+        
+        subgraph "Frontend"
+            Dashboard["Dashboard<br/>Events Stream"]
+            Network["Network<br/>Flow Analysis"]
+            Graph["Execution Graph<br/>Process/Tool/File"]
+            Config["Config<br/>Runtime/Security"]
+            
+            Routes -->|WebSocket| Dashboard
+            Routes -->|REST| Network
+            Routes -->|REST| Graph
+            Routes -->|REST| Config
+        end
+    end
+    
+    External["External<br/>OTLP Collector<br/>Prometheus<br/>MCP Client"] -->|query| Export
+    
+    style Agent fill:#f9f,stroke:#333,stroke-width:2px
+    style Tracker fill:#bbf,stroke:#333,stroke-width:2px
+    style Cgroup fill:#fbb,stroke:#333,stroke-width:2px
+    style LSM fill:#fbb,stroke:#333,stroke-width:2px
+    style Pipeline fill:#bfb,stroke:#333,stroke-width:2px
+    style Dashboard fill:#ffb,stroke:#333,stroke-width:2px
 ```
+
+## 分层视图
+
+```mermaid
+graph LR
+    subgraph "L0: 产品目标"
+        Goal["可观测<br/>可关联<br/>可约束<br/>可导出"]
+    end
+    
+    subgraph "L1: 运行时边界"
+        Kernel["内核采集<br/>内核控制"]
+        Backend["后端控制面"]
+        Command["命令策略"]
+        Semantic["Agent语义"]
+        Frontend["前端工作台"]
+        External["外部接口"]
+    end
+    
+    subgraph "L2: 协议事件"
+        Proto["proto/*.proto<br/>Event<br/>EventEnvelope"]
+    end
+    
+    subgraph "L3: 后端领域"
+        App["backend/app/<br/>启动/路由/事件/hooks"]
+        Core["backend/core/<br/>settings/state"]
+        eBPF["backend/ebpf/<br/>C programs"]
+    end
+    
+    subgraph "L4: 前端领域"
+        Views["views/<br/>页面容器"]
+        Comps["components/<br/>可复用UI"]
+        Composables["composables/<br/>API/WS/状态"]
+    end
+    
+    subgraph "L5: 工程交付"
+        Build["Makefile<br/>构建系统"]
+        Deploy["Kubernetes<br/>部署清单"]
+        Docs["VitePress<br/>文档站"]
+    end
+    
+    Goal --> Kernel
+    Goal --> Backend
+    Kernel --> Proto
+    Backend --> Proto
+    Proto --> App
+    Proto --> Views
+    App --> Build
+    Views --> Build
+    Build --> Deploy
+    Build --> Docs
+```
+

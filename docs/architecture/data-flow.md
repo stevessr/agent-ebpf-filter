@@ -4,18 +4,40 @@
 
 ## eBPF 事件流
 
-```text
-tracked PID / comm / path
-  → eBPF tracepoint / cgroup / LSM program
-  → pinned BPF maps + ringbuf
-  → Go backend ringbuf reader
-  → decodeBPFEventRecord()
-  → buildKernelEventFromRaw()
-  → broadcast channel
-  → startEventBroadcaster()
-  → pb.Event + EventEnvelope
-  → archive / JSONL / WS / OTLP / MCP / AgentSight
-  → Vue Dashboard / Network / ExecutionGraph / AgentSight
+```mermaid
+sequenceDiagram
+    participant Syscall as Linux Syscall
+    participant eBPF as eBPF Tracepoint
+    participant Maps as Pinned Maps
+    participant Ringbuf as Ringbuf
+    participant Reader as Go Ringbuf Reader
+    participant Decoder as decodeBPFEventRecord
+    participant Builder as buildKernelEventFromRaw
+    participant Broadcast as Broadcast Channel
+    participant Archive as Event Archive
+    participant WS as WebSocket /ws
+    participant Vue as Vue Dashboard
+    
+    Syscall->>eBPF: execve/openat/connect/...
+    eBPF->>Maps: check tracked_comms/paths/pids
+    Maps-->>eBPF: match result
+    eBPF->>Ringbuf: submit event (zero-copy)
+    Ringbuf->>Reader: RawSample available
+    Reader->>Decoder: decode(RawSample)
+    
+    alt native little-endian + aligned
+        Decoder->>Decoder: mmap-backed view (zero-copy)
+    else fallback
+        Decoder->>Decoder: binary.Read (copy)
+    end
+    
+    Decoder->>Builder: raw bpfEvent
+    Builder->>Builder: enrich process context
+    Builder->>Broadcast: pb.Event
+    Broadcast->>Archive: add to ring buffer
+    Broadcast->>WS: broadcast to clients
+    WS->>Vue: real-time event
+    Archive->>Archive: optional JSONL write
 ```
 
 关键文件：
@@ -31,69 +53,150 @@ tracked PID / comm / path
 
 后端 `decodeBPFEventRecord()` 会优先将 ringbuf RawSample 解释为 mmap-backed `bpfEvent` view：
 
-- 条件：host native little-endian 且样本地址满足 alignment；
-- 否则：使用 `binary.Read` copy path；
-- 记录指标：`collectorMetricsStore.RecordRingbufDecode(zeroCopy)`。
+```go
+// 伪代码示例
+func decodeBPFEventRecord(sample []byte) (*bpfEvent, error) {
+    if len(sample) < minEventSize {
+        return nil, ErrTooShort
+    }
+    
+    // 条件：native little-endian + alignment
+    if isNativeLittleEndian && isAligned(sample) {
+        // zero-copy: 直接构造 view
+        evt := (*bpfEvent)(unsafe.Pointer(&sample[0]))
+        collectorMetricsStore.RecordRingbufDecode(true)
+        return evt, nil
+    }
+    
+    // fallback: copy path
+    evt := &bpfEvent{}
+    if err := binary.Read(bytes.NewReader(sample), binary.LittleEndian, evt); err != nil {
+        return nil, err
+    }
+    collectorMetricsStore.RecordRingbufDecode(false)
+    return evt, nil
+}
+```
 
 这使热路径在常见 Linux x86_64 环境下减少复制成本，同时保留跨平台 fallback。
 
 ## Wrapper 策略流
 
-```text
-用户 / Executor / Agent
-  → agent-wrapper <command> [args]
-  → 清理空白 args
-  → 连接 /tmp/agent-ebpf.sock
-  → pb.WrapperRequest(pid, comm, args, metadata)
-  → backend policy engine
-  → pb.WrapperResponse(action)
-  → BLOCK / ALERT / REWRITE / ALLOW
-  → syscall.Exec(final command)
+```mermaid
+sequenceDiagram
+    participant User as User/Agent
+    participant Wrapper as agent-wrapper
+    participant UDS as /tmp/agent-ebpf.sock
+    participant Engine as Backend Policy Engine
+    participant Exec as syscall.Exec
+    
+    User->>Wrapper: agent-wrapper git push
+    Wrapper->>Wrapper: trim args, extract env metadata
+    Wrapper->>UDS: dial Unix socket
+    Wrapper->>Engine: WrapperRequest(pid, comm, args, metadata)
+    Engine->>Engine: evaluate rules + ML risk score
+    
+    alt ALLOW
+        Engine-->>Wrapper: WrapperResponse(ALLOW)
+        Wrapper->>Exec: exec git push
+    else BLOCK
+        Engine-->>Wrapper: WrapperResponse(BLOCK)
+        Wrapper->>User: ❌ Execution Blocked
+    else ALERT
+        Engine-->>Wrapper: WrapperResponse(ALERT)
+        Wrapper->>User: ⚠️ Security Alert
+        Wrapper->>Exec: exec git push
+    else REWRITE
+        Engine-->>Wrapper: WrapperResponse(REWRITE, new_args)
+        Wrapper->>Exec: exec <rewritten command>
+    end
 ```
 
 Wrapper 是命令 shim / policy layer。它不是完整 sandbox；它只覆盖经 wrapper 调用的命令路径。
 
 ## Native Hook 流
 
-```text
-AI CLI hook stdin payload
-  → generated relay script
-  → curl POST /hooks/event
-  → hookIngressAuthMiddleware()
-  → handleNativeHookEvent()
-  → normalize payload
-  → processContext enrichment
-  → native_hook event
-  → EventEnvelope / Dashboard / AgentSight / OTLP / persistence
+```mermaid
+sequenceDiagram
+    participant CLI as AI CLI (Claude/Gemini/Codex)
+    participant Hook as Hook System
+    participant Relay as Generated Relay Script
+    participant Backend as Backend /hooks/event
+    participant Normalize as Normalize Payload
+    participant Context as Process Context Store
+    participant Event as Event Pipeline
+    
+    CLI->>Hook: tool execution triggers hook
+    Hook->>Relay: stdin payload (JSON)
+    Relay->>Backend: curl POST /hooks/event
+    Backend->>Backend: hookIngressAuthMiddleware (token or hook secret)
+    Backend->>Normalize: raw JSON payload
+    Normalize->>Normalize: extract tool_name, target_path, phase
+    Normalize->>Context: enrichProcessContext
+    Context-->>Normalize: root_agent_pid, trace_id
+    Normalize->>Event: native_hook pb.Event
+    Event->>Event: wrap in EventEnvelope
+    Event->>Event: archive + broadcast + OTLP
 ```
 
 Hooks 的价值是提供 AI CLI 语义，例如工具名、目标路径、摘要、长度和 hook phase。eBPF 仍提供系统事实。
 
 ## PID Registration 流
 
-```text
-Python / Node agent
-  → adapter register current PID
-  → POST /register
-  → processContextStore.Set(pid, context)
-  → agent_pids BPF map seed
-  → fork/clone lineage + userspace parent fallback
-  → 后续 syscall event 获得 Agent context
+```mermaid
+sequenceDiagram
+    participant Agent as Python/Node Agent
+    participant Adapter as Adapter (register)
+    participant Backend as Backend /register
+    participant Store as processContextStore
+    participant BPFMap as agent_pids BPF Map
+    participant Tracker as eBPF Tracker
+    
+    Agent->>Adapter: import agent_tracker; register()
+    Adapter->>Adapter: collect PID, agent_run_id, trace_id
+    Adapter->>Backend: POST /register (pb.RegisterRequest)
+    Backend->>Store: Set(pid, ProcessContext)
+    Backend->>BPFMap: seed agent_pids[pid] = 1
+    Backend-->>Adapter: 200 OK
+    
+    Note over Agent,Tracker: 后续 Agent 进程执行系统调用
+    
+    Agent->>Tracker: execve/openat/connect/...
+    Tracker->>BPFMap: lookup agent_pids[current_pid]
+    BPFMap-->>Tracker: found (tracked)
+    Tracker->>Store: event with pid
+    Store->>Store: enrich with Agent context
+    Store->>Store: Event.agent_run_id = ctx.agent_run_id
 ```
 
 注册语义是 per-process。子进程关联依赖 fork/clone lineage 与 backend fallback，不应描述成 adapter 自动递归注册所有后代。
 
 ## 前端配置流
 
-```text
-Vue view
-  → domain composable
-  → HTTP / WebSocket API
-  → auth token / ?key=...
-  → backend handler
-  → runtimeSettingsStore / BPF map / policy store
-  → response / broadcast
-  → UI state refresh
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant View as Vue Config View
+    participant Composable as useConfigSecurity
+    participant API as Backend /config/runtime
+    participant Auth as authMiddleware
+    participant Store as runtimeSettingsStore
+    participant BPFMap as policy BPF Maps
+    participant WS as WebSocket Broadcast
+    
+    User->>View: 修改 cgroup block IP
+    View->>Composable: blockCgroupIP(ip)
+    Composable->>API: POST /sandbox/cgroup/block-ip
+    API->>Auth: check release token
+    Auth-->>API: authorized
+    API->>API: check policy_management gate
+    API->>BPFMap: write cgroup_blocked_ips[ip] = 1
+    BPFMap-->>API: success
+    API->>Store: update in-memory state
+    API->>WS: broadcast policy_change event
+    API-->>Composable: 200 OK
+    Composable->>View: refresh UI counters
+    WS->>View: real-time policy update
 ```
 
 示例：Config Security 页面操作 cgroup / LSM policy 时，需要：
@@ -105,6 +208,37 @@ Vue view
 5. UI 刷新 status / counters。
 
 ## 导出流
+
+```mermaid
+graph TB
+    subgraph "Event Sources"
+        Archive["Event Archive<br/>(memory ring)"]
+        Flows["Network Flows"]
+        Graph["Execution Graph"]
+        TLS["TLS/Codex Capture"]
+        Metrics["Collector Metrics"]
+    end
+    
+    subgraph "Export Targets"
+        JSONL["JSONL File<br/>~/.config/.../events.jsonl"]
+        Recording["Recording File<br/>browser/file replay"]
+        PCAP["PCAP Export"]
+        AgentSight["AgentSight JSON/CSV"]
+        OTLP["OTLP Collector<br/>spans"]
+        Prometheus["Prometheus<br/>/metrics"]
+        MCP["MCP Tools<br/>/mcp"]
+    end
+    
+    Archive -->|persistence enabled| JSONL
+    Archive -->|record session| Recording
+    Flows -->|export flows| PCAP
+    Graph -->|export graph| AgentSight
+    Archive -->|derive spans| OTLP
+    Metrics -->|scrape| Prometheus
+    Archive -->|tool: tail_events| MCP
+    Graph -->|tool: query_graph| MCP
+```
+
 
 | 导出 | 源 | 目标 |
 | --- | --- | --- |

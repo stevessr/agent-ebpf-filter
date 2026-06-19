@@ -171,7 +171,7 @@ exec: ## Start or attach to the mounted devcontainer shell
 	@$(CONTAINER_CLI) exec -w $(DEV_WORKSPACE) $(DEV_CONTAINER) bash .devcontainer/post-create.sh
 	$(CONTAINER_CLI) exec -it -w $(DEV_WORKSPACE) $(DEV_CONTAINER) fish
 
-all: proto backend frontend wrapper ## Build all components
+all: proto backend frontend wrapper docs## Build all components
 
 build: proto ## Parallel build of all components
 	@echo "Building all components in parallel..."
@@ -421,3 +421,20 @@ clean: ## Clean build artifacts
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | sed -e 's/:.*## /: /'
+
+docs: docs-install docs-build ## Generate/update project documentation (placeholder)
+	@echo "Documentation generated/updated."
+
+docs-build: docs-install ## Generate/update frontend documentation (placeholder)
+	@bun docs:build
+
+docs-dev:
+	@bun docs:dev
+
+docs-preview: docs-build 
+	@bun docs:preview
+
+docs-install:
+	if [ -d "node_modules" ]; then \
+		bun install; \
+	fi
