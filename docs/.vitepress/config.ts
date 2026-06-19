@@ -1,7 +1,6 @@
 import { defineConfig } from 'vitepress'
-import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default withMermaid({
+export default defineConfig({
   title: 'Agent eBPF Filter',
   description: 'Linux-first observability and control plane for AI agents and developer CLIs',
   lang: 'zh-CN',
@@ -162,8 +161,5 @@ export default withMermaid({
     },
     lineNumbers: true,
     math:true,
-  },
-  mermaid: {
-    // Mermaid configuration options
   }
 })

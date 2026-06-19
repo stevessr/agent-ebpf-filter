@@ -4,23 +4,48 @@
 
 ## 已安装插件
 
-### 1. vitepress-plugin-mermaid
+### 1. vitepress-mermaid-renderer
 
-**版本**: `^2.0.17`
+**版本**: `^1.1.27`
 
-**用途**: 渲染 Mermaid 图表（流程图、时序图、架构图）
+**用途**: 渲染交互式 Mermaid 图表（流程图、时序图、架构图）
 
-**配置位置**: `docs/.vitepress/config.ts`
+**特性**:
+- 平滑缩放和平移
+- 一键复制源代码
+- 全屏模式
+- 自适应明暗主题
+- 导出为 SVG/PNG/JPG
+
+**配置位置**: `docs/.vitepress/theme/index.ts`
 
 ```typescript
-import { withMermaid } from 'vitepress-plugin-mermaid'
+import { h, nextTick, watch } from 'vue'
+import type { Theme } from 'vitepress'
+import DefaultTheme from 'vitepress/theme'
+import { useData } from 'vitepress'
+import { createMermaidRenderer } from 'vitepress-mermaid-renderer'
 
-export default withMermaid(defineConfig({
-  // ...
-  mermaid: {
-    // Mermaid configuration options
-  }
-}))
+export default {
+  extends: DefaultTheme,
+  Layout: () => {
+    const { isDark } = useData()
+
+    const initMermaid = () => {
+      createMermaidRenderer({
+        theme: isDark.value ? 'dark' : 'default',
+      })
+    }
+
+    nextTick(() => initMermaid())
+    watch(
+      () => isDark.value,
+      () => initMermaid(),
+    )
+
+    return h(DefaultTheme.Layout)
+  },
+} satisfies Theme
 ```
 
 **使用方法**:
@@ -42,16 +67,16 @@ graph LR
 **配置位置**: `docs/.vitepress/config.ts`
 
 ```typescript
-import mathjax3 from 'markdown-it-mathjax3'
+import { defineConfig } from 'vitepress'
 
-export default withMermaid(defineConfig({
+export default defineConfig({
   // ...
   markdown: {
     config: (md) => {
       md.use(mathjax3)
     }
   }
-}))
+})
 ```
 
 **使用方法**:
@@ -178,9 +203,10 @@ $$
 
 ### Mermaid 图表不渲染
 
-1. 检查 `withMermaid` 是否正确包裹 `defineConfig`
-2. 检查 Mermaid 语法是否正确（使用 [Mermaid Live Editor](https://mermaid.live/) 验证）
-3. 确认代码块使用 ````mermaid` 标记
+1. 检查 `docs/.vitepress/theme/index.ts` 中是否正确配置了 `createMermaidRenderer`
+2. 确认主题是否正确扩展 `DefaultTheme`
+3. 检查 Mermaid 语法是否正确（使用 [Mermaid Live Editor](https://mermaid.live/) 验证）
+4. 确认代码块使用 ````mermaid` 标记
 
 ### LaTeX 公式不渲染
 
@@ -199,7 +225,7 @@ $$
 ### 更新插件
 
 ```bash
-bun update vitepress-plugin-mermaid markdown-it-mathjax3
+bun update vitepress-mermaid-renderer markdown-it-mathjax3
 ```
 
 ### 检查依赖版本
@@ -208,10 +234,27 @@ bun update vitepress-plugin-mermaid markdown-it-mathjax3
 bun pm ls | grep -E "vitepress|mermaid|mathjax"
 ```
 
+## 迁移历史
+
+### 2026-06-19: vitepress-plugin-mermaid → vitepress-mermaid-renderer
+
+**迁移原因**: 
+- 新插件提供更好的交互式功能（缩放、平移、全屏）
+- 支持导出图表为图片格式
+- 更好的主题自适应支持
+
+**迁移步骤**:
+1. 卸载旧插件：`bun remove vitepress-plugin-mermaid`
+2. 安装新插件：`bun add -d vitepress-mermaid-renderer`
+3. 移除 `config.ts` 中的 `withMermaid` 包装
+4. 创建 `docs/.vitepress/theme/index.ts` 并集成 `createMermaidRenderer`
+
+**兼容性**: 所有现有的 Mermaid 代码块无需修改，语法完全兼容。
+
 ## 参考
 
 - [VitePress 官方文档](https://vitepress.dev/)
-- [vitepress-plugin-mermaid](https://github.com/emersonbottero/vitepress-plugin-mermaid)
+- [vitepress-mermaid-renderer](https://github.com/sametcn99/vitepress-mermaid-renderer)
 - [markdown-it-mathjax3](https://github.com/tani/markdown-it-mathjax3)
 - [Mermaid 文档](https://mermaid.js.org/)
 - [MathJax 文档](https://docs.mathjax.org/)
