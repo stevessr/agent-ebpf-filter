@@ -31,3 +31,4 @@ backend/.port
 models/example_tree_model.json
 backend/ml_model_ebpf.c
 kernel-ml/kernel_ml_cuda_helper
+docs/.vitepress/cache
