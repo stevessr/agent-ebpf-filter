@@ -180,35 +180,27 @@ sudo bpftool prog show | grep ml_model
 ## 🚀 部署策略
 
 ### 方案 A: 纯内核态 (超低延迟)
-```
-eBPF 森林 (15 树) → 直接决策
-- 延迟: ~2 μs
-- 准确率: 94-96%
-- 适用: 高频事件 (>10K/s)
+```mermaid
+flowchart LR
+    Forest["eBPF 森林<br/>15 树"] --> Decision["直接决策"]
+    Decision --> Metrics["延迟：~2 μs<br/>准确率：94-96%<br/>适用：高频事件 (&gt;10K/s)"]
 ```
 
 ### 方案 B: 混合架构 (推荐)
-```
-Fast Path (eBPF): 简单决策树 (depth=6)
-  ↓ 置信度 >90%
-决策
-
-  ↓ 置信度 <90%
-Slow Path (用户态): 完整 RF+Attention
-  ↓
-决策
-
-- 平均延迟: ~12 μs
-- 准确率: 98%+
-- 适用: 大多数场景
+```mermaid
+flowchart TD
+    Fast["Fast Path (eBPF)<br/>简单决策树 (depth=6)"] -->|"置信度 &gt;90%"| FastDecision["决策"]
+    Fast -->|"置信度 &lt;90%"| Slow["Slow Path (用户态)<br/>完整 RF + Attention"]
+    Slow --> SlowDecision["决策"]
+    FastDecision --> Metrics["平均延迟：~12 μs<br/>准确率：98%+<br/>适用：大多数场景"]
+    SlowDecision --> Metrics
 ```
 
 ### 方案 C: 纯用户态 (最高准确率)
-```
-用户态 RF+Attention → 决策
-- 延迟: ~100 μs
-- 准确率: 99.77%
-- 适用: 低频关键事件
+```mermaid
+flowchart LR
+    UserModel["用户态 RF + Attention"] --> Decision["决策"]
+    Decision --> Metrics["延迟：~100 μs<br/>准确率：99.77%<br/>适用：低频关键事件"]
 ```
 
 ---

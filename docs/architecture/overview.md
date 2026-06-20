@@ -6,12 +6,12 @@ Agent eBPF Filter 的架构可以按 L0–L5 六层理解：从产品目标到�
 
 目标是为 AI Agent、开发者 CLI 和本地自动化脚本提供 **可观测、可关联、可约束、可导出** 的 OS 行为证据链。
 
-```text
-AI Agent / Developer CLI
-  → 实际命令、文件、网络、进程行为
-  → 关联 tool call / trace / run metadata
-  → 可视化与导出
-  → 用户态或内核态策略控制
+```mermaid
+flowchart TD
+    Agent["AI Agent / Developer CLI"] --> Behavior["实际命令、文件、网络、进程行为"]
+    Behavior --> Context["关联 tool call / trace / run metadata"]
+    Context --> Export["可视化与导出"]
+    Export --> Control["用户态或内核态策略控制"]
 ```
 
 ## L1：运行时边界层

@@ -4,39 +4,26 @@ This document describes the runtime architecture of **Agent eBPF Filter**.
 
 ## High-level view
 
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                           Linux host                               │
-│                                                                     │
-│  ┌────────────────────┐        ringbuf events       ┌────────────┐  │
-│  │ eBPF tracepoints   │ ─────────────────────────▶ │ Go backend │  │
-│  │ exec/open/connect  │                            │            │  │
-│  │ sendto/recvfrom    │ ◀──── pinned maps ───────▶ │            │  │
-│  │ mkdir/unlink/ioctl │                            └─────┬──────┘  │
-│  │ bind               │                                           │  │
-│  └────────────────────┘                                  │         │
-│                                                           │         │
-│                                WebSocket / HTTP           │         │
-│                                                           ▼         │
-│                                                   ┌──────────────┐  │
-│                                                   │ Vue frontend │  │
-│                                                   └──────────────┘  │
-│                                                                     │
-│  ┌────────────────────┐        UDS protobuf         ┌────────────┐  │
-│  │ agent-wrapper      │ ─────────────────────────▶ │ policy      │  │
-│  │ command shim       │ ◀───────────────────────── │ engine      │  │
-│  └────────────────────┘                            └────────────┘  │
-│                                                                     │
-│  ┌────────────────────┐        HTTP register         ┌────────────┐  │
-│  │ Python / Node      │ ───────────────────────────▶ │ agent_pids │  │
-│  │ adapters           │                              │ map        │  │
-│  └────────────────────┘                              └────────────┘  │
-│                                                                     │
-│  ┌────────────────────┐        HTTP hook callback    ┌────────────┐  │
-│  │ Claude / Gemini /  │ ───────────────────────────▶ │ hook event │  │
-│  │ Codex / Copilot    │                              │ ingest     │  │
-│  └────────────────────┘                              └────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Host["Linux host"]
+        EBPF["eBPF tracepoints<br/>exec/open/connect<br/>sendto/recvfrom<br/>mkdir/unlink/ioctl/bind"]
+        Backend["Go backend"]
+        Frontend["Vue frontend"]
+        Wrapper["agent-wrapper<br/>command shim"]
+        Policy["policy engine"]
+        Adapters["Python / Node<br/>adapters"]
+        AgentPids["agent_pids<br/>map"]
+        Hooks["Claude / Gemini /<br/>Codex / Copilot"]
+        HookIngest["hook event<br/>ingest"]
+    end
+
+    EBPF -->|ringbuf events| Backend
+    EBPF <-->|pinned maps| Backend
+    Backend -->|WebSocket / HTTP| Frontend
+    Wrapper <-->|UDS protobuf| Policy
+    Adapters -->|HTTP register| AgentPids
+    Hooks -->|HTTP hook callback| HookIngest
 ```
 
 ## Main components
@@ -147,91 +134,51 @@ Responsibilities:
 
 ### A. Kernel event flow
 
-```text
-tracked PID / command / path
-        │
-        ▼
-eBPF tracepoint handler
-        │
-        ▼
-ring buffer event
-        │
-        ▼
-Go backend reader
-        │
-        ▼
-protobuf pb.Event
-        │
-        ▼
-/ws
-        │
-        ▼
-Dashboard
+```mermaid
+flowchart TD
+    Tracked["tracked PID / command / path"] --> Handler["eBPF tracepoint handler"]
+    Handler --> Ringbuf["ring buffer event"]
+    Ringbuf --> Reader["Go backend reader"]
+    Reader --> Event["protobuf pb.Event"]
+    Event --> WS["/ws"]
+    WS --> Dashboard["Dashboard"]
 ```
 
 ### B. Wrapper policy flow
 
-```text
-user / frontend
-   │
-   ├─ POST /system/run
-   │
-   ▼
-backend starts agent-wrapper
-   │
-   ▼
-agent-wrapper → /tmp/agent-ebpf.sock
-   │
-   ▼
-backend rule lookup
-   │
-   ├─ ALLOW
-   ├─ BLOCK
-   ├─ ALERT
-   └─ REWRITE
-   │
-   ▼
-wrapper emits wrapper_intercept event
-   │
-   ▼
-command exec or block
+```mermaid
+flowchart TD
+    User["user / frontend"] -->|"POST /system/run"| Start["backend starts agent-wrapper"]
+    Start --> Wrapper["agent-wrapper"]
+    Wrapper -->|"/tmp/agent-ebpf.sock"| Lookup["backend rule lookup"]
+    Lookup --> Allow["ALLOW"]
+    Lookup --> Block["BLOCK"]
+    Lookup --> Alert["ALERT"]
+    Lookup --> Rewrite["REWRITE"]
+    Allow --> Emit["wrapper emits wrapper_intercept event"]
+    Block --> Emit
+    Alert --> Emit
+    Rewrite --> Emit
+    Emit --> Final["command exec or block"]
 ```
 
 ### C. Native AI CLI hook flow
 
-```text
-AI CLI hook payload on stdin
-        │
-        ▼
-CLI-aware relay script
-  (curl POST /hooks/event;
-   JSON stdout when required)
-        │
-        ▼
-backend normalizes payload
-        │
-        ▼
-pb.Event(type=native_hook)
-        │
-        ▼
-/ws
+```mermaid
+flowchart TD
+    Payload["AI CLI hook payload on stdin"] --> Relay["CLI-aware relay script<br/>curl POST /hooks/event<br/>JSON stdout when required"]
+    Relay --> Normalize["backend normalizes payload"]
+    Normalize --> NativeHook["pb.Event(type=native_hook)"]
+    NativeHook --> WS["/ws"]
 ```
 
 ### D. PTY shell flow
 
-```text
-frontend Executor
-   │
-   ├─ POST /shell-sessions
-   │
-   ▼
-backend creates PTY-backed shell
-   │
-   ├─ GET /shell-sessions
-   └─ GET /ws/shell?session_id=...
-       │
-       ▼
-interactive WebSocket terminal
+```mermaid
+flowchart TD
+    Executor["frontend Executor"] -->|"POST /shell-sessions"| Backend["backend creates PTY-backed shell"]
+    Backend -->|"GET /shell-sessions"| SessionList["shell session list"]
+    Backend -->|"GET /ws/shell?session_id=..."| Terminal["interactive WebSocket terminal"]
 ```
 
 ## TLS 明文捕获（可选高风险诊断）
@@ -240,9 +187,21 @@ interactive WebSocket terminal
 安全基线和 `.codex/plan/3.md` 的本轮实现不依赖新增 TLS 明文截获，而是使用
 native hook 的 digest/length 元数据、eBPF 系统调用事件和网络元数据做关联分析。
 
-```
-eBPF uprobes -> tls_events ringbuf -> TLSProbeManager -> FragmentAssembler -> HTTP parser -> TLSCaptureStore -> /ws/tls-capture -> Vue TLSCapture
-Codex reqwest/WebSocket adapter -> POST /codex/capture -> TLSCaptureStore -> convertTLSToProtoEvent -> EventEnvelope -> AgentSight/Dashboard/OTLP
+```mermaid
+flowchart LR
+    Uprobes["eBPF uprobes"] --> Ringbuf["tls_events ringbuf"]
+    Ringbuf --> Manager["TLSProbeManager"]
+    Manager --> Fragments["FragmentAssembler"]
+    Fragments --> Parser["HTTP parser"]
+    Parser --> Store["TLSCaptureStore"]
+    Store --> WSTLS["/ws/tls-capture"]
+    WSTLS --> VueTLS["Vue TLSCapture"]
+
+    Codex["Codex reqwest/WebSocket adapter"] --> Capture["POST /codex/capture"]
+    Capture --> Store
+    Store --> Proto["convertTLSToProtoEvent"]
+    Proto --> Envelope["EventEnvelope"]
+    Envelope --> Sinks["AgentSight / Dashboard / OTLP"]
 ```
 
 - OpenSSL/GnuTLS/NSS 静态库通过 `link.OpenExecutable` 挂载 uprobe/uretprobe

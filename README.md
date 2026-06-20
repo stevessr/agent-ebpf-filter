@@ -133,10 +133,11 @@ agent-ebpf-filter 实现了完整的**四层数据脱敏架构**，保护从 eBP
 - **凭证**：HTTP headers、query params、JSON body 中的敏感字段
 
 **架构设计**：
-```
-采集层 → 处理层 → 脱敏层 → 分发层
-  ↓        ↓        ↓        ↓
-eBPF → 归一化 → 脱敏引擎 → WS/JSONL/MCP/UI
+```mermaid
+flowchart LR
+    Collect["采集层<br/>eBPF"] --> Process["处理层<br/>归一化"]
+    Process --> Redact["脱敏层<br/>脱敏引擎"]
+    Redact --> Distribute["分发层<br/>WS / JSONL / MCP / UI"]
 ```
 
 **配置方式**：
@@ -348,35 +349,33 @@ When a master is selected in the web UI, it can forward supported requests to a 
 
 ## Repository layout
 
-```text
-.
-├── README.md
-├── AGENTS.md                  # contributor / coding-agent guide
-├── agents.md                  # runtime guide for agent registration and tracking
-├── Makefile
-├── proto/
-│   └── tracker.proto          # source of truth for protobuf messages
-├── backend/
-│   ├── main.go                # HTTP API, WS streams, hooks, wrapper UDS, config
-│   ├── ebpf_runtime.go        # pinned map/link bootstrap and privilege handoff
-│   ├── shell_sessions.go      # persistent PTY session manager
-│   ├── privileges.go          # privilege drop for spawned shells/commands
-│   ├── ebpf/
-│   │   ├── agent_tracker.c    # eBPF program
-│   │   └── gen.go             # bpf2go generation entrypoint
-│   └── pb/                    # generated Go protobufs
-├── wrapper/
-│   └── main.go                # agent-wrapper entrypoint
-├── adapters/
-│   ├── python/
-│   │   └── agent_tracker.py   # Python PID registration helper
-│   └── js/
-│       └── agentTracker.js    # Node.js PID registration helper
-└── frontend/
-    └── src/
-        ├── views/             # Dashboard / Monitor / Explorer / Executor / Hooks / Config
-        ├── components/        # shell terminal UI
-        └── pb/                # generated frontend protobuf bindings
+```mermaid
+flowchart TD
+    Root["agent-ebpf-filiter/"]
+    Root --> Readme["README.md"]
+    Root --> AgentsGuide["AGENTS.md<br/>contributor / coding-agent guide"]
+    Root --> AgentsRuntime["agents.md<br/>runtime guide for agent registration and tracking"]
+    Root --> Makefile["Makefile"]
+    Root --> Proto["proto/"]
+    Proto --> TrackerProto["tracker.proto<br/>source of truth for protobuf messages"]
+    Root --> Backend["backend/"]
+    Backend --> BackendMain["main.go<br/>HTTP API, WS streams, hooks, wrapper UDS, config"]
+    Backend --> EbpfRuntime["ebpf_runtime.go<br/>pinned map/link bootstrap and privilege handoff"]
+    Backend --> ShellSessions["shell_sessions.go<br/>persistent PTY session manager"]
+    Backend --> Privileges["privileges.go<br/>privilege drop for spawned shells/commands"]
+    Backend --> BackendEbpf["ebpf/"]
+    BackendEbpf --> AgentTrackerC["agent_tracker.c<br/>eBPF program"]
+    BackendEbpf --> GenGo["gen.go<br/>bpf2go generation entrypoint"]
+    Backend --> BackendPb["pb/<br/>generated Go protobufs"]
+    Root --> Wrapper["wrapper/"]
+    Wrapper --> WrapperMain["main.go<br/>agent-wrapper entrypoint"]
+    Root --> Adapters["adapters/"]
+    Adapters --> PyAdapter["python/agent_tracker.py<br/>Python PID registration helper"]
+    Adapters --> JsAdapter["js/agentTracker.js<br/>Node.js PID registration helper"]
+    Root --> Frontend["frontend/src/"]
+    Frontend --> Views["views/<br/>Dashboard / Monitor / Explorer / Executor / Hooks / Config"]
+    Frontend --> Components["components/<br/>shell terminal UI"]
+    Frontend --> FrontendPb["pb/<br/>generated frontend protobuf bindings"]
 ```
 
 ---

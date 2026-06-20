@@ -50,13 +50,13 @@ SSL_write_early_data
 4. **简单**: 复用现有 eBPF 基础设施
 
 ### 架构
-```
-Codex (stripped binary)
-    ↓ SSL_write (内部，无法 attach)
-    ↓ write() syscall
-    ↓ 【kprobe 拦截点】← 我们在这里捕获
-    ↓ 内核网络栈
-    ↓ TLS/TCP
+```mermaid
+flowchart TD
+    Codex["Codex (stripped binary)"] --> SSL["SSL_write<br/>内部，无法 attach"]
+    SSL --> Write["write() syscall"]
+    Write --> Kprobe["kprobe 拦截点<br/>在这里捕获"]
+    Kprobe --> KernelNet["内核网络栈"]
+    KernelNet --> TLS["TLS / TCP"]
 ```
 
 ---
@@ -201,24 +201,20 @@ static __always_inline bool is_tls_socket(int fd) {
 ## 📊 对比: Uprobe vs Kprobe
 
 ### Claude Code (Node.js)
-```
-✅ Uprobe 方案:
-   SSL_write() ← attach 这里
-      ↓
-   write()
-      ↓
-   syscall
+```mermaid
+flowchart TD
+    Uprobe["✅ Uprobe 方案"] --> SSL["SSL_write()<br/>attach 这里"]
+    SSL --> Write["write()"]
+    Write --> Syscall["syscall"]
 ```
 
 ### Codex (stripped)
-```
-❌ Uprobe 方案:
-   SSL_write() ← 无符号，无法 attach
-      ↓
-✅ Kprobe 方案:
-   write() ← attach 这里
-      ↓
-   syscall
+```mermaid
+flowchart TD
+    Uprobe["❌ Uprobe 方案"] --> SSL["SSL_write()<br/>无符号，无法 attach"]
+    SSL --> Kprobe["✅ Kprobe 方案"]
+    Kprobe --> Write["write()<br/>attach 这里"]
+    Write --> Syscall["syscall"]
 ```
 
 ---

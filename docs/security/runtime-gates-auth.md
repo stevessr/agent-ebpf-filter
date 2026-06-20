@@ -4,11 +4,11 @@
 
 ## 三层模型
 
-```text
-Build feature compiled in?
-  → Runtime setting enabled?
-    → Release mode auth passed?
-      → Handler executes
+```mermaid
+flowchart TD
+    Build{"Build feature compiled in?"} --> Runtime{"Runtime setting enabled?"}
+    Runtime --> Auth{"Release mode auth passed?"}
+    Auth --> Handler["Handler executes"]
 ```
 
 任何一层不满足，都可能导致功能不可用。

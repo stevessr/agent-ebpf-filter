@@ -15,10 +15,14 @@ agent-ebpf-filter 实现了**自动密钥移除机制**，在 SSL/TLS 明文捕�
 
 ### 数据流
 
-```
-eBPF uprobe → ringbuf → Go后端接收 → HTTP解析 → 密钥移除 → sanitization → 存储/广播
-                                          ↑
-                                   关键集成点
+```mermaid
+flowchart LR
+    Uprobe["eBPF uprobe"] --> Ringbuf["ringbuf"]
+    Ringbuf --> Backend["Go后端接收"]
+    Backend --> Parser["HTTP解析"]
+    Parser --> KeyRemoval["密钥移除<br/>关键集成点"]
+    KeyRemoval --> Sanitization["sanitization"]
+    Sanitization --> Store["存储 / 广播"]
 ```
 
 ### 集成位置
@@ -153,16 +157,22 @@ func RemoveSensitiveStringFromTLS(data string) string
 #### 3. TLS处理流程
 
 **现有流程**：
-```
-eBPF uprobe → TLS fragment → HTTP parse → sanitize headers/URL/body → store/broadcast
+```mermaid
+flowchart LR
+    Uprobe["eBPF uprobe"] --> Fragment["TLS fragment"]
+    Fragment --> Parser["HTTP parse"]
+    Parser --> Sanitize["sanitize headers / URL / body"]
+    Sanitize --> Store["store / broadcast"]
 ```
 
 **增强后**：
-```
-eBPF uprobe → TLS fragment → HTTP parse → 🔒密钥移除 → sanitize → store/broadcast
-                                              ↑
-                                        自动检测并移除
-                                    PEM密钥、证书、JWT等
+```mermaid
+flowchart LR
+    Uprobe["eBPF uprobe"] --> Fragment["TLS fragment"]
+    Fragment --> Parser["HTTP parse"]
+    Parser --> KeyRemoval["🔒 密钥移除<br/>自动检测并移除<br/>PEM密钥 / 证书 / JWT 等"]
+    KeyRemoval --> Sanitize["sanitize"]
+    Sanitize --> Store["store / broadcast"]
 ```
 
 ### 性能优化
@@ -311,22 +321,13 @@ curl -H "Authorization: Bearer sk_test_1234567890" \
 
 本SSL hook机制与整体脱敏机制的关系：
 
-```
-                    统一脱敏架构
-                          |
-          +---------------+---------------+
-          |                               |
-    SSL Hook密钥移除              通用脱敏引擎
-    (TLS明文特定)              (所有事件通用)
-          |                               |
-    - PEM密钥                      - 路径脱敏
-    - SSH密钥                      - 命令行脱敏
-    - JWT Token                    - 网络脱敏
-    - AWS凭证                      - 凭证脱敏
-          |                               |
-          +---------------+---------------+
-                          |
-                    最终安全输出
+```mermaid
+flowchart TD
+    Root["统一脱敏架构"]
+    Root --> SSL["SSL Hook密钥移除<br/>TLS明文特定<br/>PEM密钥<br/>SSH密钥<br/>JWT Token<br/>AWS凭证"]
+    Root --> General["通用脱敏引擎<br/>所有事件通用<br/>路径脱敏<br/>命令行脱敏<br/>网络脱敏<br/>凭证脱敏"]
+    SSL --> Output["最终安全输出"]
+    General --> Output
 ```
 
 **职责分工**：

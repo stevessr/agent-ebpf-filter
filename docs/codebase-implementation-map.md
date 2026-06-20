@@ -39,26 +39,26 @@
 
 启动顺序可概括为：
 
-```text
-backend/app.Main()
-  → bootstrap mode 检查
-  → ensureBackendPrivileges()
-  → runtimeSettingsStore.LoadOrCreate()
-  → killPreviousBackendProcesses()
-  → ensureTrackerMapsLoaded()
-  → newFeatureRegistry()
-  → domain forward / TLS runtime 初始化
-  → ringbuf.NewReader(trackerMaps.Events)
-  → startKernelEventReader()
-  → startRuntimeBackgroundJobs()
-  → ApplySandbox()
-  → gin.Default()
-  → registerRoutes()
-  → seedDefaultTrackedCommands()
-  → chooseBackendPort()
-  → configureRuntimePort()
-  → deferred ML / plugin runtime
-  → r.Run(:port)
+```mermaid
+flowchart TD
+    Main["backend/app.Main()"] --> Bootstrap["bootstrap mode 检查"]
+    Bootstrap --> Privileges["ensureBackendPrivileges()"]
+    Privileges --> Settings["runtimeSettingsStore.LoadOrCreate()"]
+    Settings --> KillOld["killPreviousBackendProcesses()"]
+    KillOld --> Maps["ensureTrackerMapsLoaded()"]
+    Maps --> Features["newFeatureRegistry()"]
+    Features --> DomainTLS["domain forward / TLS runtime 初始化"]
+    DomainTLS --> Ringbuf["ringbuf.NewReader(trackerMaps.Events)"]
+    Ringbuf --> KernelReader["startKernelEventReader()"]
+    KernelReader --> Background["startRuntimeBackgroundJobs()"]
+    Background --> Sandbox["ApplySandbox()"]
+    Sandbox --> Gin["gin.Default()"]
+    Gin --> Routes["registerRoutes()"]
+    Routes --> Defaults["seedDefaultTrackedCommands()"]
+    Defaults --> Port["chooseBackendPort()"]
+    Port --> Handoff["configureRuntimePort()"]
+    Handoff --> Deferred["deferred ML / plugin runtime"]
+    Deferred --> Run["r.Run(:port)"]
 ```
 
 这条链路体现了几个关键边界：
@@ -72,23 +72,22 @@ backend/app.Main()
 
 `backend/app/runtime__jobs_background.go` 负责把内核事件和后台服务串起来：
 
-```text
-startKernelEventReader(ringbuf.Reader)
-  → rd.Read()
-  → decodeBPFEventRecord()
-  → self PID / disabled comm / disabled event type 过滤
-  → buildKernelEventFromRaw()
-  → broadcast channel
+```mermaid
+flowchart TD
+    KernelReader["startKernelEventReader(ringbuf.Reader)"] --> Read["rd.Read()"]
+    Read --> Decode["decodeBPFEventRecord()"]
+    Decode --> Filters["self PID / disabled comm / disabled event type 过滤"]
+    Filters --> Build["buildKernelEventFromRaw()"]
+    Build --> Broadcast["broadcast channel"]
 
-startRuntimeBackgroundJobs(features)
-  → startEventBroadcaster()
-  → startKernelRiskFeedbackWorker()
-  → startUDSServer(broadcast)
-  → cgroup / DNS / TCP / flow GC
-  → exfil detection loop
-  → GeoIP init
-  → optional cgroup sandbox loader
-  → optional LSM enforcer loader
+    Background["startRuntimeBackgroundJobs(features)"] --> Broadcaster["startEventBroadcaster()"]
+    Broadcaster --> Risk["startKernelRiskFeedbackWorker()"]
+    Risk --> UDS["startUDSServer(broadcast)"]
+    UDS --> GC["cgroup / DNS / TCP / flow GC"]
+    GC --> Exfil["exfil detection loop"]
+    Exfil --> GeoIP["GeoIP init"]
+    GeoIP --> Cgroup["optional cgroup sandbox loader"]
+    Cgroup --> LSM["optional LSM enforcer loader"]
 ```
 
 这里的重点是：
@@ -106,17 +105,17 @@ startRuntimeBackgroundJobs(features)
 
 ### 3.1 路由注册顺序
 
-```text
-registerRoutes()
-  → registerWebSocketRoutes()
-  → registerShellSessionRoutes()
-  → registerEventRoutes()
-  → registerNetworkRoutes()
-  → registerSandboxRoutes()
-  → registerUtilityRoutes()
-  → registerAuthenticatedAPIRoutes()
-  → registerCompatibilityRoutes()
-  → registerStaticRoutes()
+```mermaid
+flowchart TD
+    Register["registerRoutes()"] --> WS["registerWebSocketRoutes()"]
+    WS --> Shell["registerShellSessionRoutes()"]
+    Shell --> Events["registerEventRoutes()"]
+    Events --> Network["registerNetworkRoutes()"]
+    Network --> Sandbox["registerSandboxRoutes()"]
+    Sandbox --> Utility["registerUtilityRoutes()"]
+    Utility --> AuthAPI["registerAuthenticatedAPIRoutes()"]
+    AuthAPI --> Compat["registerCompatibilityRoutes()"]
+    Compat --> Static["registerStaticRoutes()"]
 ```
 
 ### 3.2 主要路由域
@@ -165,14 +164,16 @@ registerRoutes()
 
 `backend/app/events__context_event.go` 维护 `processContext`，它把注册、wrapper、hook 中的上下文归一化到事件上：
 
-```text
-register payload / wrapper request / hook payload
-  → buildProcessContextFromRegister()
-  → buildProcessContextFromWrapperRequest()
-  → buildProcessContextFromHookPayload()
-  → normalizeProcessContext()
-  → enrichEventContext()
-  → pb.Event / EventEnvelope
+```mermaid
+flowchart TD
+    Inputs["register payload / wrapper request / hook payload"] --> RegisterCtx["buildProcessContextFromRegister()"]
+    Inputs --> WrapperCtx["buildProcessContextFromWrapperRequest()"]
+    Inputs --> HookCtx["buildProcessContextFromHookPayload()"]
+    RegisterCtx --> Normalize["normalizeProcessContext()"]
+    WrapperCtx --> Normalize
+    HookCtx --> Normalize
+    Normalize --> Enrich["enrichEventContext()"]
+    Enrich --> Event["pb.Event / EventEnvelope"]
 ```
 
 关键事实：
@@ -187,13 +188,13 @@ register payload / wrapper request / hook payload
 
 新增或修改事件字段时，不应只改一层：
 
-```text
-proto/tracker_events.proto
-  → make proto
-  → backend event construction / context enrichment
-  → network_events / execution_graph / AgentSight / OTLP
-  → frontend generated pb + types / filters / table / modal
-  → docs / tests
+```mermaid
+flowchart TD
+    Proto["proto/tracker_events.proto"] --> Make["make proto"]
+    Make --> Backend["backend event construction / context enrichment"]
+    Backend --> Domains["network_events / execution_graph / AgentSight / OTLP"]
+    Domains --> Frontend["frontend generated pb + types / filters / table / modal"]
+    Frontend --> DocsTests["docs / tests"]
 ```
 
 ---
@@ -281,16 +282,19 @@ proto/tracker_events.proto
 
 `wrapper/main.go` 的实际行为：
 
-```text
-agent-wrapper <command> [args...]
-  → 清理空白参数
-  → 连接 /tmp/agent-ebpf.sock，超时 500ms
-  → 发送 pb.WrapperRequest
-  → 等待 pb.WrapperResponse，deadline 2s
-  → BLOCK: 打印并退出 1
-  → ALERT: 打印告警后继续
-  → REWRITE: 替换 command / args
-  → syscall.Exec(final command)
+```mermaid
+flowchart TD
+    Wrapper["agent-wrapper &lt;command&gt; [args...]"] --> Trim["清理空白参数"]
+    Trim --> Connect["连接 /tmp/agent-ebpf.sock<br/>超时 500ms"]
+    Connect --> Request["发送 pb.WrapperRequest"]
+    Request --> Response["等待 pb.WrapperResponse<br/>deadline 2s"]
+    Response --> Block["BLOCK：打印并退出 1"]
+    Response --> Alert["ALERT：打印告警后继续"]
+    Response --> Rewrite["REWRITE：替换 command / args"]
+    Response --> Allow["ALLOW：继续"]
+    Alert --> Exec["syscall.Exec(final command)"]
+    Rewrite --> Exec
+    Allow --> Exec
 ```
 
 Wrapper 同时会把 Agent 语义环境变量写入 request：

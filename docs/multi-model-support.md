@@ -161,13 +161,14 @@ static inline int argmax(const s64 *values, int n) {
 
 ## 📁 新增文件
 
-```
-kernel-ml/
-├── ml_models.h              - 多模型头文件
-├── ml_models.c              - SVM/LR/NN 实现
-├── multi_model_exporter.py  - 多模型导出工具
-├── test_multi_models.py     - 自动化测试脚本
-└── kernel_ml.ko             - 339 KB (vs 297 KB 原版)
+```mermaid
+flowchart TD
+    Root["kernel-ml/"]
+    Root --> Header["ml_models.h<br/>多模型头文件"]
+    Root --> Impl["ml_models.c<br/>SVM / LR / NN 实现"]
+    Root --> Exporter["multi_model_exporter.py<br/>多模型导出工具"]
+    Root --> Tests["test_multi_models.py<br/>自动化测试脚本"]
+    Root --> Module["kernel_ml.ko<br/>339 KB (vs 297 KB 原版)"]
 ```
 
 ---
@@ -195,17 +196,19 @@ python3 test_multi_models.py
 
 ## 🎯 选择指南
 
-```
-                准确率
-                  ↑
-    Neural Net    │  Random Forest
-                  │
-                  │
-        SVM       │
-                  │
-    Logistic Reg  │
-                  └──────────────→ 速度
-                (快)            (慢)
+```mermaid
+quadrantChart
+    title 模型准确率 / 速度权衡
+    x-axis 快 --> 慢
+    y-axis 低准确率 --> 高准确率
+    quadrant-1 高准确率 / 慢
+    quadrant-2 高准确率 / 快
+    quadrant-3 低准确率 / 快
+    quadrant-4 低准确率 / 慢
+    Neural Net: [0.24, 0.82]
+    Random Forest: [0.78, 0.82]
+    SVM: [0.40, 0.42]
+    Logistic Reg: [0.24, 0.20]
 ```
 
 **场景推荐**:

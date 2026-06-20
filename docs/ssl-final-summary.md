@@ -71,37 +71,25 @@
 ## 🏗️ 架构设计
 
 ### 数据流
-```
-eBPF uprobe (SSL_write/read)
-    ↓
-TLS Fragment Assembler
-    ↓
-HTTP Stream Parser
-    ↓
-TLSPlaintextEvent
-    ↓
-enrichTLSEventWithAIMetadata() ← AI 工具识别
-    ↓
-agentSightEventFromTLSPlaintext()
-    ↓
-Agentsight API (带 AI 元数据)
+```mermaid
+flowchart TD
+    Uprobe["eBPF uprobe (SSL_write/read)"] --> Fragment["TLS Fragment Assembler"]
+    Fragment --> Parser["HTTP Stream Parser"]
+    Parser --> Event["TLSPlaintextEvent"]
+    Event --> Enrich["enrichTLSEventWithAIMetadata()<br/>AI 工具识别"]
+    Enrich --> Convert["agentSightEventFromTLSPlaintext()"]
+    Convert --> API["Agentsight API<br/>带 AI 元数据"]
 ```
 
 ### 自动发现流程
-```
-每分钟定时器
-    ↓
-扫描 /proc/[0-9]*/exe
-    ↓
-过滤二进制名 (node|codex|bun|deno)
-    ↓
-读取 /proc/[pid]/cmdline
-    ↓
-匹配关键字 (claude-code|codex|cursor|copilot)
-    ↓
-验证符号表 (hasSSLSymbols)
-    ↓
-AttachStaticSSLUprobes(pid)
+```mermaid
+flowchart TD
+    Timer["每分钟定时器"] --> Scan["扫描 /proc/[0-9]*/exe"]
+    Scan --> Binary["过滤二进制名<br/>node / codex / bun / deno"]
+    Binary --> Cmdline["读取 /proc/[pid]/cmdline"]
+    Cmdline --> Keyword["匹配关键字<br/>claude-code / codex / cursor / copilot"]
+    Keyword --> Symbols["验证符号表<br/>hasSSLSymbols"]
+    Symbols --> Attach["AttachStaticSSLUprobes(pid)"]
 ```
 
 ## 📊 支持矩阵

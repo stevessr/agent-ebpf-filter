@@ -15,50 +15,15 @@
 
 ## 多层结构
 
-```text
-L0 产品目标层
-  └─ Agent 行为观测、命令策略、安全开关、运行时可视化
-
-L1 运行时边界层
-  ├─ privileged Go backend
-  ├─ eBPF maps/links/ringbuf
-  ├─ Unix socket wrapper policy
-  ├─ HTTP / WebSocket / MCP
-  ├─ Vue frontend
-  └─ adapters / hooks / external API
-
-L2 协议与事件层
-  ├─ proto/*.proto
-  ├─ backend/pb/*.pb.go
-  ├─ frontend/src/pb/*
-  ├─ adapters/*/tracker_*
-  └─ EventEnvelope / execution graph / AgentSight aliases
-
-L3 后端领域层
-  ├─ routes + handlers
-  ├─ runtime state + auth + feature gates
-  ├─ event ingest/archive/persistence
-  ├─ network/TLS/Codex capture
-  ├─ shell sessions + wrapper UDS
-  ├─ hooks + MCP + external API
-  ├─ ML + plugins
-  └─ cgroup/LSM sandbox + eBPF bootstrap
-
-L4 前端领域层
-  ├─ views
-  ├─ components
-  ├─ composables
-  ├─ types/data/utils
-  ├─ router
-  └─ generated protobuf JS/TS
-
-L5 构建、测试、部署、文档层
-  ├─ Makefile
-  ├─ scripts/
-  ├─ tools/dev-env-tui/
-  ├─ deploy/
-  ├─ docs/
-  └─ README / AGENTS / component READMEs
+```mermaid
+flowchart TD
+    L0["L0 产品目标层<br/>Agent 行为观测<br/>命令策略<br/>安全开关<br/>运行时可视化"]
+    L1["L1 运行时边界层<br/>privileged Go backend<br/>eBPF maps/links/ringbuf<br/>Unix socket wrapper policy<br/>HTTP / WebSocket / MCP<br/>Vue frontend<br/>adapters / hooks / external API"]
+    L2["L2 协议与事件层<br/>proto/*.proto<br/>backend/pb/*.pb.go<br/>frontend/src/pb/*<br/>adapters/*/tracker_*<br/>EventEnvelope / execution graph / AgentSight aliases"]
+    L3["L3 后端领域层<br/>routes + handlers<br/>runtime state + auth + feature gates<br/>event ingest/archive/persistence<br/>network/TLS/Codex capture<br/>shell sessions + wrapper UDS<br/>hooks + MCP + external API<br/>ML + plugins<br/>cgroup/LSM sandbox + eBPF bootstrap"]
+    L4["L4 前端领域层<br/>views<br/>components<br/>composables<br/>types/data/utils<br/>router<br/>generated protobuf JS/TS"]
+    L5["L5 构建、测试、部署、文档层<br/>Makefile<br/>scripts/<br/>tools/dev-env-tui/<br/>deploy/<br/>docs/<br/>README / AGENTS / component READMEs"]
+    L0 --> L1 --> L2 --> L3 --> L4 --> L5
 ```
 
 ## 顶层目录职责
@@ -82,48 +47,48 @@ L5 构建、测试、部署、文档层
 
 ### eBPF 事件流
 
-```text
-tracked PID / comm / path
-  → eBPF tracepoint / LSM / cgroup program
-  → pinned BPF maps + ringbuf
-  → Go backend reader / decoder
-  → pb.Event / EventEnvelope
-  → archive / persistence / WebSocket / OTLP / AgentSight
-  → Vue Dashboard / Network / ExecutionGraph / AgentSight
+```mermaid
+flowchart TD
+    Tracked["tracked PID / comm / path"] --> Programs["eBPF tracepoint / LSM / cgroup program"]
+    Programs --> MapsRing["pinned BPF maps + ringbuf"]
+    MapsRing --> Backend["Go backend reader / decoder"]
+    Backend --> Event["pb.Event / EventEnvelope"]
+    Event --> Sinks["archive / persistence / WebSocket / OTLP / AgentSight"]
+    Sinks --> UI["Vue Dashboard / Network / ExecutionGraph / AgentSight"]
 ```
 
 ### Wrapper 策略流
 
-```text
-用户或前端触发命令
-  → agent-wrapper
-  → Unix socket /tmp/agent-ebpf.sock
-  → backend policy engine
-  → ALLOW / BLOCK / ALERT / REWRITE
-  → wrapper emits event
-  → 执行、阻断或改写命令
+```mermaid
+flowchart TD
+    Trigger["用户或前端触发命令"] --> Wrapper["agent-wrapper"]
+    Wrapper --> UDS["Unix socket<br/>/tmp/agent-ebpf.sock"]
+    UDS --> Policy["backend policy engine"]
+    Policy --> Decision["ALLOW / BLOCK / ALERT / REWRITE"]
+    Decision --> Event["wrapper emits event"]
+    Event --> Final["执行、阻断或改写命令"]
 ```
 
 ### Native hook 流
 
-```text
-AI CLI hook payload
-  → generated relay script
-  → curl POST /hooks/event
-  → backend normalize + auth/secret check
-  → native_hook event / EventEnvelope
-  → Dashboard / AgentSight / OTLP / persistence
+```mermaid
+flowchart TD
+    Payload["AI CLI hook payload"] --> Relay["generated relay script"]
+    Relay --> Curl["curl POST /hooks/event"]
+    Curl --> Auth["backend normalize + auth/secret check"]
+    Auth --> Event["native_hook event / EventEnvelope"]
+    Event --> Sinks["Dashboard / AgentSight / OTLP / persistence"]
 ```
 
 ### 前端配置流
 
-```text
-Vue view
-  → domain composable
-  → HTTP / WebSocket API
-  → backend handler
-  → runtime state / BPF map / feature gate / persistence
-  → UI state refresh
+```mermaid
+flowchart TD
+    View["Vue view"] --> Composable["domain composable"]
+    Composable --> API["HTTP / WebSocket API"]
+    API --> Handler["backend handler"]
+    Handler --> State["runtime state / BPF map / feature gate / persistence"]
+    State --> Refresh["UI state refresh"]
 ```
 
 ## 跨层同步规则

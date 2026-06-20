@@ -51,25 +51,19 @@ if tracker, err := NewCodexSyscallTracker(store); err == nil {
 ## 📊 架构对比
 
 ### Claude Code (Node.js) - Uprobe 方案
-```
-Node.js 进程
-    ↓
-SSL_write() ← [uprobe 附加点] 函数级精度
-    ↓
-write() syscall
-    ↓
-内核
+```mermaid
+flowchart TD
+    Node["Node.js 进程"] --> SSL["SSL_write()<br/>uprobe 附加点：函数级精度"]
+    SSL --> Write["write() syscall"]
+    Write --> Kernel["内核"]
 ```
 
 ### Codex (stripped) - Syscall 方案
-```
-Codex 进程 (stripped)
-    ↓
-SSL_write() ← 无符号，无法附加
-    ↓
-write() syscall ← [tracepoint 附加点] 系统调用级精度
-    ↓
-内核
+```mermaid
+flowchart TD
+    Codex["Codex 进程 (stripped)"] --> SSL["SSL_write()<br/>无符号，无法附加"]
+    SSL --> Write["write() syscall<br/>tracepoint 附加点：系统调用级精度"]
+    Write --> Kernel["内核"]
 ```
 
 ---

@@ -126,16 +126,13 @@ http://localhost:5173/execution-graph/behavior?pid=10159&limit=600&process_tree=
 
 ### 数据流
 
-```
-URL 参数 → ExecutionGraph filters
-              ↓
-        AgentSightTracePanel props
-              ↓
-        useAgentSightEvents initialFilters
-              ↓
-        内部 filters.value
-              ↓
-        /events/recent API 请求
+```mermaid
+flowchart TD
+    URL["URL 参数"] --> Filters["ExecutionGraph filters"]
+    Filters --> Props["AgentSightTracePanel props"]
+    Props --> Initial["useAgentSightEvents initialFilters"]
+    Initial --> Internal["内部 filters.value"]
+    Internal --> API["/events/recent API 请求"]
 ```
 
 ### 响应式更新

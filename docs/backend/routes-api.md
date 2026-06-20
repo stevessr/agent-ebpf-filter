@@ -4,17 +4,17 @@
 
 ## 注册顺序
 
-```text
-registerRoutes()
-  → registerWebSocketRoutes()
-  → registerShellSessionRoutes()
-  → registerEventRoutes()
-  → registerNetworkRoutes()
-  → registerSandboxRoutes()
-  → registerUtilityRoutes()
-  → registerAuthenticatedAPIRoutes()
-  → registerCompatibilityRoutes()
-  → registerStaticRoutes()
+```mermaid
+flowchart TD
+    Register["registerRoutes()"] --> WS["registerWebSocketRoutes()"]
+    WS --> Shell["registerShellSessionRoutes()"]
+    Shell --> Events["registerEventRoutes()"]
+    Events --> Network["registerNetworkRoutes()"]
+    Network --> Sandbox["registerSandboxRoutes()"]
+    Sandbox --> Utility["registerUtilityRoutes()"]
+    Utility --> AuthAPI["registerAuthenticatedAPIRoutes()"]
+    AuthAPI --> Compat["registerCompatibilityRoutes()"]
+    Compat --> Static["registerStaticRoutes()"]
 ```
 
 ## WebSocket routes

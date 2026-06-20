@@ -40,11 +40,16 @@ make proto
 
 ### Data flow
 
-```
-eBPF ringbuf → Go backend (main.go) → WebSocket (/ws) → Vue 3 frontend
-                                    → JSONL file (optional persistence)
-                                    → MCP SSE endpoint (/mcp)
-agent-wrapper → UDS (/tmp/agent-ebpf.sock) → backend policy engine → ALLOW/BLOCK/ALERT/REWRITE
+```mermaid
+flowchart LR
+    Ringbuf["eBPF ringbuf"] --> Backend["Go backend<br/>main.go"]
+    Backend --> WS["WebSocket<br/>/ws"]
+    WS --> Frontend["Vue 3 frontend"]
+    Backend --> JSONL["JSONL file<br/>optional persistence"]
+    Backend --> MCP["MCP SSE endpoint<br/>/mcp"]
+    Wrapper["agent-wrapper"] --> UDS["UDS<br/>/tmp/agent-ebpf.sock"]
+    UDS --> Policy["backend policy engine"]
+    Policy --> Decision["ALLOW / BLOCK / ALERT / REWRITE"]
 ```
 
 ### Backend (`backend/`)

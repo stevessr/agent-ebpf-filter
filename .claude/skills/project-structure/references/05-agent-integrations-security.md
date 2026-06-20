@@ -4,28 +4,12 @@
 
 ## Agent 集成总览
 
-```text
-Python / Node Agent
-  → adapters register PID
-  → backend agent_pids map
-  → eBPF event attribution
-
-AI CLI native hooks
-  → generated relay script
-  → /hooks/event
-  → native_hook event
-  → Dashboard / AgentSight / OTLP
-
-CLI command execution
-  → agent-wrapper
-  → /tmp/agent-ebpf.sock
-  → policy engine
-  → ALLOW/BLOCK/ALERT/REWRITE
-
-External tools
-  → /api/v1/** or /mcp
-  → authMiddleware
-  → event/config/query APIs
+```mermaid
+flowchart TD
+    Agent["Python / Node Agent"] --> Register["adapters register PID"] --> AgentMap["backend agent_pids map"] --> Attribution["eBPF event attribution"]
+    Hooks["AI CLI native hooks"] --> Relay["generated relay script"] --> HookEndpoint["/hooks/event"] --> NativeEvent["native_hook event"] --> HookSinks["Dashboard / AgentSight / OTLP"]
+    CLI["CLI command execution"] --> Wrapper["agent-wrapper"] --> UDS["/tmp/agent-ebpf.sock"] --> Policy["policy engine"] --> Decision["ALLOW / BLOCK / ALERT / REWRITE"]
+    External["External tools"] --> API["/api/v1/** or /mcp"] --> Auth["authMiddleware"] --> Query["event / config / query APIs"]
 ```
 
 ## Wrapper 集成
@@ -114,15 +98,15 @@ External tools
 
 链路：
 
-```text
-AI CLI hook stdin payload
-  → generated relay script
-  → curl POST /hooks/event
-  → hookIngressAuthMiddleware
-  → handleNativeHookEvent
-  → normalize payload
-  → pb.Event(type=native_hook)
-  → WebSocket / EventEnvelope / AgentSight / OTLP
+```mermaid
+flowchart TD
+    Payload["AI CLI hook stdin payload"] --> Relay["generated relay script"]
+    Relay --> Curl["curl POST /hooks/event"]
+    Curl --> Auth["hookIngressAuthMiddleware"]
+    Auth --> Handler["handleNativeHookEvent"]
+    Handler --> Normalize["normalize payload"]
+    Normalize --> Event["pb.Event(type=native_hook)"]
+    Event --> Sinks["WebSocket / EventEnvelope / AgentSight / OTLP"]
 ```
 
 安全与运行时事实：

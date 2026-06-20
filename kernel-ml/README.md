@@ -4,30 +4,11 @@
 
 ## 架构
 
-```
-┌─────────────────────────────────────────┐
-│  Userspace (Agent eBPF Filter)          │
-│  - 训练模型 (RandomForest)               │
-│  - 导出为二进制格式                      │
-└─────────────┬───────────────────────────┘
-              │ /proc/ml_load
-              ↓
-┌─────────────────────────────────────────┐
-│  Kernel Module (kernel_ml.ko)           │
-│  - 加载决策树模型                        │
-│  - 定点数推理引擎                        │
-│  - O(log N) 树遍历                       │
-│  - 可选 CUDA userspace offload           │
-└─────────────┬───────────────────────────┘
-              │ /proc/ml_predict
-              ↓
-┌─────────────────────────────────────────┐
-│  Classification Result                   │
-│  - ALLOW (0)                             │
-│  - BLOCK (1)                             │
-│  - ALERT (2)                             │
-│  - CLASS_N (3..15，可选多分类)             │
-└─────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Userspace["Userspace (Agent eBPF Filter)<br/>训练模型 (RandomForest)<br/>导出为二进制格式"]
+    Userspace -->|"/proc/ml_load"| Module["Kernel Module (kernel_ml.ko)<br/>加载决策树模型<br/>定点数推理引擎<br/>O(log N) 树遍历<br/>可选 CUDA userspace offload"]
+    Module -->|"/proc/ml_predict"| Result["Classification Result<br/>ALLOW (0)<br/>BLOCK (1)<br/>ALERT (2)<br/>CLASS_N (3..15，可选多分类)"]
 ```
 
 ## 核心特性
@@ -245,20 +226,21 @@ AUTOINSTALL="yes"
 
 ## 文件结构
 
-```
-kernel-ml/
-├── ml_inference.h       - 推理引擎头文件
-├── ml_inference.c       - 核心推理实现
-├── kernel_ml_main.c     - 模块入口 + proc 接口
-├── cuda_infer_helper.cu - CUDA userspace 推理 helper
-├── profile_inference.sh - perf / Nsight profiling helper
-├── Makefile             - 构建脚本
-├── dkms.conf            - DKMS 配置
-├── model_loader.py      - 模型转换工具
-├── test_model_format.py - UAPI / 模型格式单元测试
-├── test_cuda_helper_protocol.py - CUDA helper 协议测试
-├── test_module.sh       - 测试脚本
-└── README.md            - 本文件
+```mermaid
+flowchart TD
+    Root["kernel-ml/"]
+    Root --> Header["ml_inference.h<br/>推理引擎头文件"]
+    Root --> Core["ml_inference.c<br/>核心推理实现"]
+    Root --> Main["kernel_ml_main.c<br/>模块入口 + proc 接口"]
+    Root --> Cuda["cuda_infer_helper.cu<br/>CUDA userspace 推理 helper"]
+    Root --> Profile["profile_inference.sh<br/>perf / Nsight profiling helper"]
+    Root --> Makefile["Makefile<br/>构建脚本"]
+    Root --> DKMS["dkms.conf<br/>DKMS 配置"]
+    Root --> Loader["model_loader.py<br/>模型转换工具"]
+    Root --> FormatTest["test_model_format.py<br/>UAPI / 模型格式单元测试"]
+    Root --> CudaTest["test_cuda_helper_protocol.py<br/>CUDA helper 协议测试"]
+    Root --> Smoke["test_module.sh<br/>测试脚本"]
+    Root --> Readme["README.md<br/>本文件"]
 ```
 
 ## 与 eBPF 对比

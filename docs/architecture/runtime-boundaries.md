@@ -18,15 +18,16 @@ Agent eBPF Filter 有多层运行时边界。理解这些边界能避免把观�
 
 `AGENT_BUILD_FEATURES` 会影响 Go build tags：
 
-```text
-shell_sessions → agentfeat_shell_sessions
-system_run → agentfeat_system_run
-tls_capture → agentfeat_tls_capture
-ml → agentfeat_ml
-plugins → agentfeat_plugins
-sandbox_cgroup → agentfeat_sandbox_cgroup
-sandbox_lsm → agentfeat_sandbox_lsm
-...
+```mermaid
+flowchart LR
+    Shell["shell_sessions"] --> ShellTag["agentfeat_shell_sessions"]
+    SystemRun["system_run"] --> SystemTag["agentfeat_system_run"]
+    TLS["tls_capture"] --> TLSTag["agentfeat_tls_capture"]
+    ML["ml"] --> MLTag["agentfeat_ml"]
+    Plugins["plugins"] --> PluginsTag["agentfeat_plugins"]
+    Cgroup["sandbox_cgroup"] --> CgroupTag["agentfeat_sandbox_cgroup"]
+    LSM["sandbox_lsm"] --> LSMTag["agentfeat_sandbox_lsm"]
+    More["..."]
 ```
 
 默认 build 与 `agentfeat_all` 会启用全部 optional features。`core` 或逗号列表可裁剪能力。

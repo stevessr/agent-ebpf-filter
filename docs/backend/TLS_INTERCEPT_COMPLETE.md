@@ -186,65 +186,22 @@ ws.onmessage = (event) => {
 
 ## 系统架构图
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      用户空间进程                              │
-│  (curl, node, python, firefox, chrome, custom apps)          │
-└────────────┬────────────────────────────────────────────────┘
-             │ 调用 SSL_write/SSL_read
-             ↓
-┌─────────────────────────────────────────────────────────────┐
-│                  TLS 库 (libssl.so / libnss3.so)             │
-│  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐        │
-│  │  SSL_write  │  │  SSL_read   │  │  PR_Write    │        │
-│  │  (uprobe)   │  │  (uprobe+   │  │  (NSS)       │        │
-│  │             │  │  uretprobe) │  │              │        │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬───────┘        │
-└─────────┼─────────────────┼─────────────────┼───────────────┘
-          │                 │                 │
-          │  明文缓冲区地址   │  返回值 = 字节数 │
-          ↓                 ↓                 ↓
-┌─────────────────────────────────────────────────────────────┐
-│              eBPF Uprobe 程序 (内核态)                        │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  bpf_probe_read_user(buf, len, userspace_ptr)       │  │
-│  │  emit_tls_fragment() → tls_events ringbuffer        │  │
-│  └──────────────────────────────────────────────────────┘  │
-└────────────┬────────────────────────────────────────────────┘
-             │ ringbuffer (256KB 循环缓冲)
-             ↓
-┌─────────────────────────────────────────────────────────────┐
-│               Go 后端 (agent-ebpf-filter)                    │
-│  ┌──────────────────┐    ┌────────────────────┐            │
-│  │ TLSProbeManager  │───▶│ FragmentAssembler  │            │
-│  │ (uprobe 生命周期) │    │ (分片重组)          │            │
-│  └──────────────────┘    └─────────┬──────────┘            │
-│                                     │                        │
-│  ┌──────────────────────────────────▼──────────────┐        │
-│  │         TLSHTTPStreamAssembler                   │        │
-│  │  (HTTP 请求/响应解析与关联)                       │        │
-│  └──────────────────────────────────┬──────────────┘        │
-│                                     │                        │
-│  ┌──────────────────────────────────▼──────────────┐        │
-│  │           TLSCaptureStore                        │        │
-│  │  (环形缓冲区存储，最近 2000 个事件)                │        │
-│  └──────────────────────────────────┬──────────────┘        │
-│                                     │                        │
-│  ┌──────────────────────────────────▼──────────────┐        │
-│  │      tlsCaptureBroadcaster (WebSocket)          │        │
-│  └──────────────────────────────────────────────────┘        │
-└────────────┬────────────────────────────────────────────────┘
-             │ WebSocket (/ws/tls-capture)
-             ↓
-┌─────────────────────────────────────────────────────────────┐
-│                     Vue 3 前端                               │
-│  ┌────────────────────────────────────────────────┐         │
-│  │  Network.vue (TLS 明文标签页)                   │         │
-│  │  - 实时显示 HTTP 请求/响应                      │         │
-│  │  - 按 Host/方法/进程过滤                        │         │
-│  │  - 明文数据查看器                               │         │
-│  └────────────────────────────────────────────────┘         │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Process["用户空间进程<br/>curl / node / python / firefox / chrome / custom apps"]
+    Process -->|"调用 SSL_write / SSL_read"| TLSLib["TLS 库<br/>libssl.so / libnss3.so"]
+    TLSLib --> SSLWrite["SSL_write<br/>uprobe"]
+    TLSLib --> SSLRead["SSL_read<br/>uprobe + uretprobe"]
+    TLSLib --> PRWrite["PR_Write<br/>NSS"]
+    SSLWrite -->|"明文缓冲区地址"| Uprobe["eBPF Uprobe 程序 (内核态)<br/>bpf_probe_read_user(buf, len, userspace_ptr)<br/>emit_tls_fragment() → tls_events ringbuffer"]
+    SSLRead -->|"返回值 = 字节数"| Uprobe
+    PRWrite --> Uprobe
+    Uprobe -->|"ringbuffer (256KB 循环缓冲)"| Manager["TLSProbeManager<br/>uprobe 生命周期"]
+    Manager --> Fragments["FragmentAssembler<br/>分片重组"]
+    Fragments --> Stream["TLSHTTPStreamAssembler<br/>HTTP 请求/响应解析与关联"]
+    Stream --> Store["TLSCaptureStore<br/>环形缓冲区存储，最近 2000 个事件"]
+    Store --> Broadcaster["tlsCaptureBroadcaster<br/>WebSocket"]
+    Broadcaster -->|"/ws/tls-capture"| Frontend["Vue 3 前端<br/>Network.vue TLS 明文标签页<br/>实时显示 HTTP 请求/响应<br/>按 Host / 方法 / 进程过滤<br/>明文数据查看器"]
 ```
 
 ---

@@ -4,15 +4,15 @@ Native hooks 连接 Claude Code、Gemini、Codex、Copilot、Kiro、Cursor 等 A
 
 ## 链路
 
-```text
-AI CLI hook payload
-  → generated relay script
-  → curl POST /hooks/event
-  → hookIngressAuthMiddleware()
-  → handleNativeHookEvent()
-  → normalize payload
-  → native_hook pb.Event
-  → EventEnvelope / Dashboard / AgentSight / OTLP
+```mermaid
+flowchart TD
+    Payload["AI CLI hook payload"] --> Relay["generated relay script"]
+    Relay --> Curl["curl POST /hooks/event"]
+    Curl --> Auth["hookIngressAuthMiddleware()"]
+    Auth --> Handler["handleNativeHookEvent()"]
+    Handler --> Normalize["normalize payload"]
+    Normalize --> Event["native_hook pb.Event"]
+    Event --> Sinks["EventEnvelope / Dashboard / AgentSight / OTLP"]
 ```
 
 ## 源码入口

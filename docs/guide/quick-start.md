@@ -43,8 +43,11 @@ make all
 
 等价于：
 
-```text
-proto → backend → frontend → wrapper
+```mermaid
+flowchart LR
+    Proto["proto"] --> Backend["backend"]
+    Backend --> Frontend["frontend"]
+    Frontend --> Wrapper["wrapper"]
 ```
 
 常用分项：

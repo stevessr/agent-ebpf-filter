@@ -39,32 +39,12 @@ AI Agent 或自动化 CLI 往往会产生大量系统行为：执行 shell、读
 
 ## 当前实现主线
 
-```text
-AI Agent / CLI / script
-  ├─ adapters 注册 PID
-  ├─ native hooks 上报工具语义
-  ├─ agent-wrapper 请求命令策略
-  ↓
-Linux kernel
-  ├─ tracepoint 采集 syscall
-  ├─ cgroup eBPF 阻断网络目标
-  └─ BPF LSM 阻断文件 / 执行
-  ↓
-Go backend
-  ├─ ringbuf decode
-  ├─ Event / EventEnvelope 归一化
-  ├─ runtime config / auth / gates
-  ├─ archive / JSONL / recording
-  ├─ MCP / OTLP / Prometheus / external API
-  └─ WebSocket broadcast
-  ↓
-Vue workbench
-  ├─ Dashboard
-  ├─ Network / NetworkFlow
-  ├─ Execution Graph / AgentSight
-  ├─ Config / Security / Runtime
-  ├─ Executor / Hooks
-  └─ ML / Plugins
+```mermaid
+flowchart TD
+    Agent["AI Agent / CLI / script<br/>adapters 注册 PID<br/>native hooks 上报工具语义<br/>agent-wrapper 请求命令策略"]
+    Agent --> Kernel["Linux kernel<br/>tracepoint 采集 syscall<br/>cgroup eBPF 阻断网络目标<br/>BPF LSM 阻断文件 / 执行"]
+    Kernel --> Backend["Go backend<br/>ringbuf decode<br/>Event / EventEnvelope 归一化<br/>runtime config / auth / gates<br/>archive / JSONL / recording<br/>MCP / OTLP / Prometheus / external API<br/>WebSocket broadcast"]
+    Backend --> Workbench["Vue workbench<br/>Dashboard<br/>Network / NetworkFlow<br/>Execution Graph / AgentSight<br/>Config / Security / Runtime<br/>Executor / Hooks<br/>ML / Plugins"]
 ```
 
 ## 代码入口

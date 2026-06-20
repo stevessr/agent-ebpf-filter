@@ -18,26 +18,11 @@
 
 ### 📊 技术架构
 
-```
-用户空间                内核空间
-─────────────────────────────────────────
-RandomForest (sklearn)
-     │
-     ↓ model_loader.py
-Binary Format
-     │
-     ↓ cat > /proc/ml_load
-┌──────────────────────┐
-│  kernel_ml.ko        │
-│  - ml_inference()    │  ← 定点数运算
-│  - traverse_tree()   │  ← O(log N)
-│  - majority_vote()   │  ← 动态树数量 / 多分类
-│  - CUDA offload ABI  │  ← /proc/ml_cuda_*
-│  - sysfs controls    │  ← /sys/kernel/kernel_ml
-└──────────────────────┘
-     │
-     ↓ write() to /proc/ml_predict
-ALLOW / BLOCK / ALERT / CLASS_N
+```mermaid
+flowchart TD
+    RF["RandomForest (sklearn)"] -->|"model_loader.py"| Binary["Binary Format"]
+    Binary -->|"cat > /proc/ml_load"| Module["kernel_ml.ko<br/>ml_inference()：定点数运算<br/>traverse_tree()：O(log N)<br/>majority_vote()：动态树数量 / 多分类<br/>CUDA offload ABI：/proc/ml_cuda_*<br/>sysfs controls：/sys/kernel/kernel_ml"]
+    Module -->|"write() to /proc/ml_predict"| Result["ALLOW / BLOCK / ALERT / CLASS_N"]
 ```
 
 ---
@@ -81,21 +66,22 @@ v2 header 为 `[version, num_trees, feature_dim, total_nodes, num_classes, max_d
 
 ### 📁 文件结构
 
-```
-kernel-ml/
-├── ml_inference.h              - API / UAPI 定义
-├── ml_inference.c              - 核心推理引擎
-├── kernel_ml_main.c            - 模块入口 + proc/sysfs/cache/CUDA offload
-├── cuda_infer_helper.cu          - CUDA userspace helper
-├── model_loader.py             - sklearn → v2 二进制
-├── profile_inference.sh        - perf / Nsight profiling
-├── test_model_format.py        - UAPI / 模型格式测试
-├── test_cuda_helper_protocol.py - CUDA helper 协议测试
-├── Makefile                    - 构建脚本
-├── dkms.conf                   - DKMS 配置
-├── test_module.sh              - live 模块 smoke
-├── README.md                   - 完整文档
-└── kernel_ml.ko                - 编译产物
+```mermaid
+flowchart TD
+    Root["kernel-ml/"]
+    Root --> Header["ml_inference.h<br/>API / UAPI 定义"]
+    Root --> Core["ml_inference.c<br/>核心推理引擎"]
+    Root --> Main["kernel_ml_main.c<br/>模块入口 + proc/sysfs/cache/CUDA offload"]
+    Root --> Cuda["cuda_infer_helper.cu<br/>CUDA userspace helper"]
+    Root --> Loader["model_loader.py<br/>sklearn → v2 二进制"]
+    Root --> Profile["profile_inference.sh<br/>perf / Nsight profiling"]
+    Root --> FormatTest["test_model_format.py<br/>UAPI / 模型格式测试"]
+    Root --> CudaTest["test_cuda_helper_protocol.py<br/>CUDA helper 协议测试"]
+    Root --> Makefile["Makefile<br/>构建脚本"]
+    Root --> DKMS["dkms.conf<br/>DKMS 配置"]
+    Root --> Smoke["test_module.sh<br/>live 模块 smoke"]
+    Root --> Readme["README.md<br/>完整文档"]
+    Root --> KO["kernel_ml.ko<br/>编译产物"]
 ```
 
 **总计**: ~800 行代码 + 文档
@@ -301,14 +287,11 @@ cat /sys/kernel/kernel_ml/model_info
 4. 自动模型更新流程
 
 **架构**:
-```
-eBPF (数据捕获)
-   ↓ 提取特征
-Kernel ML Module (推理)
-   ↓ 分类结果
-eBPF (执行策略)
-   ↓
-BLOCK / ALLOW / ALERT
+```mermaid
+flowchart TD
+    Capture["eBPF（数据捕获）"] -->|"提取特征"| ML["Kernel ML Module（推理）"]
+    ML -->|"分类结果"| Enforce["eBPF（执行策略）"]
+    Enforce --> Result["BLOCK / ALLOW / ALERT"]
 ```
 
 ---

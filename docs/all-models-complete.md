@@ -100,19 +100,16 @@ return majority(votes);
 
 ## 📈 代码统计
 
-```
-文件                    行数
-────────────────────────────
-ml_inference.h          62
-ml_inference.c         195
-ml_models.h            150
-ml_models.c            334
-ml_advanced.h          180  🆕
-ml_advanced.c          420  🆕
-kernel_ml_main.c       151
-────────────────────────────
-总计                  1492 行
-```
+| 文件 | 行数 |
+| --- | ---: |
+| `ml_inference.h` | 62 |
+| `ml_inference.c` | 195 |
+| `ml_models.h` | 150 |
+| `ml_models.c` | 334 |
+| `ml_advanced.h` 🆕 | 180 |
+| `ml_advanced.c` 🆕 | 420 |
+| `kernel_ml_main.c` | 151 |
+| **总计** | **1492 行** |
 
 **模块大小**: 339 KB → **387 KB** (+48 KB, +14%)
 
@@ -137,19 +134,23 @@ kernel_ml_main.c       151
 
 ## 💡 选择指南
 
-```
-                    准确率
-                      ↑
-    Ensemble          │
-    GB                │  Neural Net
-                      │
-    KNN, NB           │  Random Forest
-                      │
-    Decision Tree     │  SVM
-                      │
-                      │  Logistic Reg
-                      └────────────────→ 速度
-                    (快)              (慢)
+```mermaid
+quadrantChart
+    title 模型准确率 / 速度权衡
+    x-axis 快 --> 慢
+    y-axis 低准确率 --> 高准确率
+    quadrant-1 高准确率 / 慢
+    quadrant-2 高准确率 / 快
+    quadrant-3 低准确率 / 快
+    quadrant-4 低准确率 / 慢
+    Ensemble: [0.18, 0.92]
+    GB: [0.24, 0.82]
+    KNN, NB: [0.28, 0.60]
+    Decision Tree: [0.34, 0.38]
+    Neural Net: [0.78, 0.82]
+    Random Forest: [0.72, 0.60]
+    SVM: [0.66, 0.38]
+    Logistic Reg: [0.84, 0.18]
 ```
 
 ### 场景推荐
@@ -220,12 +221,13 @@ for name, model in models.items():
 
 ## 📦 新增文件
 
-```
-kernel-ml/
-├── ml_advanced.h         (180 行) - 高级模型接口
-├── ml_advanced.c         (420 行) - DT/KNN/NB/GB/Ensemble
-├── Makefile              (更新) - 添加 ml_advanced.o
-└── kernel_ml.ko          (387 KB) - 包含 9 种模型
+```mermaid
+flowchart TD
+    Root["kernel-ml/"]
+    Root --> Header["ml_advanced.h<br/>180 行：高级模型接口"]
+    Root --> Impl["ml_advanced.c<br/>420 行：DT / KNN / NB / GB / Ensemble"]
+    Root --> Makefile["Makefile<br/>更新：添加 ml_advanced.o"]
+    Root --> Module["kernel_ml.ko<br/>387 KB：包含 9 种模型"]
 ```
 
 ---

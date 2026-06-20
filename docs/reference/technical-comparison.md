@@ -164,13 +164,15 @@ graph TB
 ### 事件管线
 
 **AgentSight**:
-```text
-eBPF → JSON stdout → Rust runners → analyzers → SQLite → HTTP API → Frontend
+```mermaid
+flowchart LR
+    EBPF["eBPF"] --> JSON["JSON stdout"] --> Runners["Rust runners"] --> Analyzers["analyzers"] --> SQLite["SQLite"] --> API["HTTP API"] --> Frontend["Frontend"]
 ```
 
 **Agent eBPF Filter**:
-```text
-eBPF → ringbuf → Go decoder → EventEnvelope → broadcast → [archive, WS, OTLP, MCP]
+```mermaid
+flowchart LR
+    EBPF["eBPF"] --> Ringbuf["ringbuf"] --> Decoder["Go decoder"] --> Envelope["EventEnvelope"] --> Broadcast["broadcast"] --> Sinks["archive / WS / OTLP / MCP"]
 ```
 
 **差异**:
@@ -185,13 +187,16 @@ eBPF → ringbuf → Go decoder → EventEnvelope → broadcast → [archive, WS
 ### 安全模型
 
 **AgentSight**:
-```text
-观测 → 记录 → 查询
+```mermaid
+flowchart LR
+    Observe["观测"] --> Record["记录"] --> Query["查询"]
 ```
 
 **Agent eBPF Filter**:
-```text
-观测 → [wrapper policy, cgroup block, LSM block] → 脱敏 → 记录 → 查询
+```mermaid
+flowchart LR
+    Observe["观测"] --> Control["wrapper policy / cgroup block / LSM block"]
+    Control --> Redact["脱敏"] --> Record["记录"] --> Query["查询"]
 ```
 
 **五层安全**:

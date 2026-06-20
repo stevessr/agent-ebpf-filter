@@ -24,10 +24,11 @@
 
 设计了**四层统一脱敏架构**：
 
-```
-采集层 → 处理层 → 脱敏层 → 分发层
-  ↓        ↓        ↓        ↓
-eBPF → 归一化 → 脱敏引擎 → WS/JSONL/MCP/UI
+```mermaid
+flowchart LR
+    Collect["采集层<br/>eBPF"] --> Process["处理层<br/>归一化"]
+    Process --> Redact["脱敏层<br/>脱敏引擎"]
+    Redact --> Distribute["分发层<br/>WS / JSONL / MCP / UI"]
 ```
 
 **核心原则**：
@@ -46,22 +47,23 @@ eBPF → 归一化 → 脱敏引擎 → WS/JSONL/MCP/UI
 ### 3. 后端实现（已完成）
 
 #### 新增文件（13个）
-```
-backend/redaction/
-├── types.go              # 类型定义
-├── engine.go             # 脱敏引擎核心
-├── cache.go              # 缓存层
-├── normalizer.go         # 事件归一化
-├── processing.go         # 字段处理
-├── distributor.go        # 分发器
-└── rules/
-    ├── registry.go       # 规则注册表
-    ├── path.go           # 路径脱敏 ✅
-    ├── command.go        # 命令行脱敏 ✅
-    ├── network.go        # 网络脱敏 ✅
-    ├── credential.go     # 凭证脱敏 ✅
-    ├── pseudonymizer.go  # 标识符假名化
-    └── custom.go         # 自定义规则
+```mermaid
+flowchart TD
+    Root["backend/redaction/"]
+    Root --> Types["types.go<br/>类型定义"]
+    Root --> Engine["engine.go<br/>脱敏引擎核心"]
+    Root --> Cache["cache.go<br/>缓存层"]
+    Root --> Normalizer["normalizer.go<br/>事件归一化"]
+    Root --> Processing["processing.go<br/>字段处理"]
+    Root --> Distributor["distributor.go<br/>分发器"]
+    Root --> Rules["rules/"]
+    Rules --> Registry["registry.go<br/>规则注册表"]
+    Rules --> PathRule["path.go<br/>路径脱敏 ✅"]
+    Rules --> CommandRule["command.go<br/>命令行脱敏 ✅"]
+    Rules --> NetworkRule["network.go<br/>网络脱敏 ✅"]
+    Rules --> CredentialRule["credential.go<br/>凭证脱敏 ✅"]
+    Rules --> Pseudonymizer["pseudonymizer.go<br/>标识符假名化"]
+    Rules --> CustomRule["custom.go<br/>自定义规则"]
 ```
 
 #### 修改的核心文件（4个）

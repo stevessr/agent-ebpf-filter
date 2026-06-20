@@ -10,9 +10,10 @@
 
 **PathMapper** 实现了双向路径映射引擎：
 
-```
-发送（Outgoing）: 真实路径 → 脱敏路径
-接收（Incoming）: 脱敏路径 → 真实路径
+```mermaid
+flowchart LR
+    RealOut["真实路径"] -->|"发送 / Outgoing"| MaskedOut["脱敏路径"]
+    MaskedIn["脱敏路径"] -->|"接收 / Incoming"| RealIn["真实路径"]
 ```
 
 ### 核心价值
@@ -524,22 +525,13 @@ pm.MapIncoming("/home/user/file.txt")
 
 ## 与现有功能的关系
 
-```
-                数据脱敏完整架构
-                        |
-        +---------------+---------------+
-        |                               |
-   路径映射                          通用脱敏
-  (双向可逆)                      (单向不可逆)
-        |                               |
-  - 发送时映射                    - PII移除
-  - 接收时逆映射                  - 凭证脱敏
-  - 用户自定义规则                - 网络脱敏
-  - 5种匹配模式                   - SSL Hook
-        |                               |
-        +---------------+---------------+
-                        |
-                  最终安全输出
+```mermaid
+flowchart TD
+    Root["数据脱敏完整架构"]
+    Root --> PathMap["路径映射<br/>双向可逆<br/>发送时映射<br/>接收时逆映射<br/>用户自定义规则<br/>5种匹配模式"]
+    Root --> General["通用脱敏<br/>单向不可逆<br/>PII移除<br/>凭证脱敏<br/>网络脱敏<br/>SSL Hook"]
+    PathMap --> Output["最终安全输出"]
+    General --> Output
 ```
 
 **职责分工**：

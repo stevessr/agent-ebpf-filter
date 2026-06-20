@@ -33,35 +33,35 @@ EventEnvelope 将不同来源的事件统一包装，用于：
 
 - `/ws/envelopes`；
 - `/events/graph`；
-- AgentSight import/export/query；
-- OTLP span derivation；
+- AgentSight import/export/query.
+- OTLP span derivation.
 - recording / replay；
-- external API compatibility。
+- external API compatibility.
 
 Envelope 语义上包含：
 
-- schema version；
+- schema version.
 - timestamp；
 - source；
-- event id；
-- legacy event；
-- typed payload oneof；
-- process / tool / trace context。
+- event id.
+- legacy event.
+- typed payload oneof.
+- process / tool / trace context.
 
 ## 字段同步链
 
 新增事件字段时必须同步：
 
-```text
-proto/tracker_events.proto
-  → make proto
-  → backend generated pb
-  → frontend generated pb
-  → adapters generated pb
-  → backend event construction
-  → EventEnvelope / Execution Graph / AgentSight / OTLP
-  → frontend filters / table / modal / types
-  → docs / tests
+```mermaid
+flowchart TD
+    Proto["proto/tracker_events.proto"] --> Make["make proto"]
+    Make --> BackendPb["backend generated pb"]
+    BackendPb --> FrontendPb["frontend generated pb"]
+    FrontendPb --> AdapterPb["adapters generated pb"]
+    AdapterPb --> Construction["backend event construction"]
+    Construction --> Envelopes["EventEnvelope / Execution Graph / AgentSight / OTLP"]
+    Envelopes --> Frontend["frontend filters / table / modal / types"]
+    Frontend --> DocsTests["docs / tests"]
 ```
 
 ## 兼容原则

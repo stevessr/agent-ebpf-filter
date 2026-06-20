@@ -6,14 +6,14 @@
 
 `backend/app/runtime__jobs_background.go` 中：
 
-```text
-startKernelEventReader(rd)
-  → rd.Read()
-  → decodeBPFEventRecord(record.RawSample)
-  → self PID 过滤
-  → disabled comm / event type 过滤
-  → buildKernelEventFromRaw(event)
-  → broadcast <- event
+```mermaid
+flowchart TD
+    Start["startKernelEventReader(rd)"] --> Read["rd.Read()"]
+    Read --> Decode["decodeBPFEventRecord(record.RawSample)"]
+    Decode --> SelfFilter["self PID 过滤"]
+    SelfFilter --> DisabledFilter["disabled comm / event type 过滤"]
+    DisabledFilter --> Build["buildKernelEventFromRaw(event)"]
+    Build --> Broadcast["broadcast &lt;- event"]
 ```
 
 ## 解码策略

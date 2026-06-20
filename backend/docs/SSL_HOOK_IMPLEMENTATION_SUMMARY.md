@@ -32,11 +32,14 @@
 
 ### 架构设计
 
-```
-eBPF uprobe → ringbuf → Go后端 → HTTP解析 → 🔒密钥移除 → sanitization → 存储/广播
-                                                  ↑
-                                          关键集成点
-                                     (3个sanitization函数)
+```mermaid
+flowchart LR
+    Uprobe["eBPF uprobe"] --> Ringbuf["ringbuf"]
+    Ringbuf --> Backend["Go后端"]
+    Backend --> Parser["HTTP解析"]
+    Parser --> KeyRemoval["🔒 密钥移除<br/>关键集成点：3个 sanitization 函数"]
+    KeyRemoval --> Sanitization["sanitization"]
+    Sanitization --> Store["存储 / 广播"]
 ```
 
 ## 技术实现
@@ -170,24 +173,14 @@ cd backend && go build ./app/...    # ✅ Success (除ML无关错误)
 
 ## 与数据脱敏机制的协同
 
-```
-                统一安全架构
-                      |
-      +---------------+---------------+
-      |                               |
-SSL Hook密钥移除              通用脱敏引擎
-(TLS明文专用)              (所有事件通用)
-      |                               |
-  - PEM密钥                      - 路径脱敏
-  - SSH密钥                      - 命令行脱敏
-  - JWT Token                    - 网络脱敏
-  - AWS凭证                      - 凭证脱敏
-      |                               |
-      +---------------+---------------+
-                      |
-                两层防护
-                      |
-              最终安全输出
+```mermaid
+flowchart TD
+    Root["统一安全架构"]
+    Root --> SSL["SSL Hook密钥移除<br/>TLS明文专用<br/>PEM密钥<br/>SSH密钥<br/>JWT Token<br/>AWS凭证"]
+    Root --> General["通用脱敏引擎<br/>所有事件通用<br/>路径脱敏<br/>命令行脱敏<br/>网络脱敏<br/>凭证脱敏"]
+    SSL --> Protection["两层防护"]
+    General --> Protection
+    Protection --> Output["最终安全输出"]
 ```
 
 **职责分工**：

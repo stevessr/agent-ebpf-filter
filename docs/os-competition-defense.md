@@ -48,38 +48,31 @@ Agent eBPF Filter 与该要求的契合点如下：
 
 ### 3.1 高层数据流
 
-```text
-AI Agent / CLI / 子进程
-        │
-        ├─ syscall：execve/openat/connect/sendto/recvfrom/...
-        │       │
-        │       ▼
-        │   eBPF tracepoints ── ringbuf ──▶ Go backend ── WebSocket / REST ──▶ Vue 前端
-        │       ▲                              │
-        │       │                              ├─ JSONL persistence / replay
-        │       │                              ├─ MCP endpoint
-        │       │                              ├─ OTLP / Prometheus export
-        │       │                              └─ EventEnvelope / AgentSight
-        │
-        ├─ 网络连接 / UDP 发送
-        │       │
-        │       ▼
-        │   cgroup/connect + cgroup/sendmsg：内核侧精确 IP / 端口 / cgroup 阻断
-        │
-        ├─ exec / open / read-write / mmap / rename / unlink / mkdir ...
-        │       │
-        │       ▼
-        │   BPF LSM：可执行路径、可执行名、文件 / 目录名阻断
-        │
-        ├─ CLI 命令执行
-        │       │
-        │       ▼
-        │   agent-wrapper ── UDS ──▶ backend policy engine：ALLOW / BLOCK / ALERT / REWRITE
-        │
-        └─ 原生 AI CLI hook
-                │
-                ▼
-            hook relay ──▶ /hooks/event：记录工具意图、digest、长度与元数据
+```mermaid
+flowchart TD
+    Agent["AI Agent / CLI / 子进程"]
+    Agent --> Syscall["syscall：execve / openat / connect / sendto / recvfrom / ..."]
+    Syscall --> Tracepoints["eBPF tracepoints"]
+    Tracepoints -->|"ringbuf"| Backend["Go backend"]
+    Backend -->|"WebSocket / REST"| Frontend["Vue 前端"]
+    Backend --> JSONL["JSONL persistence / replay"]
+    Backend --> MCP["MCP endpoint"]
+    Backend --> OTLP["OTLP / Prometheus export"]
+    Backend --> AgentSight["EventEnvelope / AgentSight"]
+
+    Agent --> Network["网络连接 / UDP 发送"]
+    Network --> Cgroup["cgroup/connect + cgroup/sendmsg<br/>内核侧精确 IP / 端口 / cgroup 阻断"]
+
+    Agent --> FileOps["exec / open / read-write / mmap / rename / unlink / mkdir ..."]
+    FileOps --> LSM["BPF LSM<br/>可执行路径、可执行名、文件 / 目录名阻断"]
+
+    Agent --> CLI["CLI 命令执行"]
+    CLI --> Wrapper["agent-wrapper"]
+    Wrapper -->|"UDS"| Policy["backend policy engine<br/>ALLOW / BLOCK / ALERT / REWRITE"]
+
+    Agent --> Hooks["原生 AI CLI hook"]
+    Hooks --> Relay["hook relay"]
+    Relay --> HookEvent["/hooks/event<br/>记录工具意图、digest、长度与元数据"]
 ```
 
 ### 3.2 核心组件
@@ -116,8 +109,12 @@ AI Agent / CLI / 子进程
 
 采集链路为：
 
-```text
-tracepoint handler → ringbuf event → Go zero-copy decode → protobuf Event → WebSocket / REST / JSONL / MCP
+```mermaid
+flowchart LR
+    Tracepoint["tracepoint handler"] --> Ringbuf["ringbuf event"]
+    Ringbuf --> Decode["Go zero-copy decode"]
+    Decode --> Event["protobuf Event"]
+    Event --> Sinks["WebSocket / REST / JSONL / MCP"]
 ```
 
 该方案的优势是：
@@ -468,12 +465,13 @@ make os-enforcement-smoke
 
 建议建立目录：
 
-```text
-docs/ai-usage/
-├── README.md
-├── 2026-xx-xx-claude-code-doc-draft.md
-├── 2026-xx-xx-code-review.md
-└── 2026-xx-xx-benchmark-analysis.md
+```mermaid
+flowchart TD
+    Root["docs/ai-usage/"]
+    Root --> Readme["README.md"]
+    Root --> Draft["2026-xx-xx-claude-code-doc-draft.md"]
+    Root --> Review["2026-xx-xx-code-review.md"]
+    Root --> Benchmark["2026-xx-xx-benchmark-analysis.md"]
 ```
 
 每次 AI 辅助记录包含：

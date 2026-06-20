@@ -57,13 +57,13 @@ SEC("uprobe/SSL_read_ex")
 ```
 
 #### 识别逻辑
-```
-1. 扫描 /proc/[0-9]*/exe
-2. 过滤文件名 (node|bun|deno|codex)
-3. 读取 /proc/[pid]/cmdline
-4. 检查关键字 (claude-code|@cometix|codex|@openai)
-5. 验证 SSL 符号表可用性
-6. Attach uprobe
+```mermaid
+flowchart TD
+    Scan["1. 扫描 /proc/[0-9]*/exe"] --> Filter["2. 过滤文件名<br/>node / bun / deno / codex"]
+    Filter --> Cmdline["3. 读取 /proc/[pid]/cmdline"]
+    Cmdline --> Keywords["4. 检查关键字<br/>claude-code / @cometix / codex / @openai"]
+    Keywords --> Symbols["5. 验证 SSL 符号表可用性"]
+    Symbols --> Attach["6. Attach uprobe"]
 ```
 
 ## 文件变更

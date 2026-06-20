@@ -25,12 +25,14 @@ AgentSight 提出了"系统级 AI Agent 可观测性"的理念：
 
 Agent eBPF Filter 借鉴了 AgentSight 的分层架构：
 
-```text
-AgentSight:
-  eBPF Programs (C) → Rust Collector → SQLite + HTTP Server → Frontend
-
-Agent eBPF Filter:
-  eBPF Programs (C) → Go Backend → Protobuf + WebSocket → Vue Frontend
+```mermaid
+flowchart LR
+    subgraph AgentSight["AgentSight"]
+        A1["eBPF Programs (C)"] --> A2["Rust Collector"] --> A3["SQLite + HTTP Server"] --> A4["Frontend"]
+    end
+    subgraph AgentEBPF["Agent eBPF Filter"]
+        B1["eBPF Programs (C)"] --> B2["Go Backend"] --> B3["Protobuf + WebSocket"] --> B4["Vue Frontend"]
+    end
 ```
 
 核心相似点：

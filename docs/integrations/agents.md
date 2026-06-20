@@ -9,14 +9,14 @@ Agents 通过 adapters 或外部调用注册当前进程 PID，使后续内核�
 
 ## 注册流程
 
-```text
-Agent process
-  → adapter register()
-  → POST /register
-  → backend handler
-  → processContextStore.Set(pid, context)
-  → agent_pids BPF map
-  → eBPF event attribution
+```mermaid
+flowchart TD
+    Agent["Agent process"] --> Adapter["adapter register()"]
+    Adapter --> Register["POST /register"]
+    Register --> Handler["backend handler"]
+    Handler --> Store["processContextStore.Set(pid, context)"]
+    Store --> Map["agent_pids BPF map"]
+    Map --> Attribution["eBPF event attribution"]
 ```
 
 ## 上下文字段

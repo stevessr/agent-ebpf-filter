@@ -20,32 +20,14 @@
 
 Agent eBPF Filter 采用**双层 ML 架构**：
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  用户态 (Userspace)                                      │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  47 种模型变体 (sklearn-based)                     │  │
-│  │  - 树模型: RF, ExtraTrees (18 种变体)             │  │
-│  │  - 线性: Logistic, SVM, Ridge (12 种)             │  │
-│  │  - 在线: Perceptron, PA (6 种)                    │  │
-│  │  - 近邻: KNN, Centroid (8 种)                     │  │
-│  │  - 其他: NaiveBayes, AdaBoost, Ensemble (3 种)   │  │
-│  └───────────────────────────────────────────────────┘  │
-│           ↓ 训练 & 导出                                  │
-└─────────────────────────────────────────────────────────┘
-           ↓ model.bin
-┌─────────────────────────────────────────────────────────┐
-│  内核态 (Kernel Module - DKMS)                           │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  4 种核心推理引擎                                   │  │
-│  │  1. Random Forest (决策树集成)                    │  │
-│  │  2. SVM (支持向量机)                              │  │
-│  │  3. Logistic Regression (逻辑回归)               │  │
-│  │  4. Neural Network (单层感知机)                  │  │
-│  └───────────────────────────────────────────────────┘  │
-│           ↓ 推理                                         │
-│  ALLOW / BLOCK / ALERT                                   │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph User["用户态 (Userspace)"]
+        Models["47 种模型变体 (sklearn-based)<br/>树模型：RF / ExtraTrees（18 种）<br/>线性：Logistic / SVM / Ridge（12 种）<br/>在线：Perceptron / PA（6 种）<br/>近邻：KNN / Centroid（8 种）<br/>其他：NaiveBayes / AdaBoost / Ensemble（3 种）"]
+    end
+    Models -->|"训练 & 导出"| ModelBin["model.bin"]
+    ModelBin --> Kernel["内核态 (Kernel Module - DKMS)<br/>4 种核心推理引擎<br/>1. Random Forest（决策树集成）<br/>2. SVM（支持向量机）<br/>3. Logistic Regression（逻辑回归）<br/>4. Neural Network（单层感知机）"]
+    Kernel --> Result["ALLOW / BLOCK / ALERT"]
 ```
 
 ### 核心特性
@@ -539,26 +521,22 @@ print(f"输出层偏置: {nn.intercepts_[1].shape}")  # (3,)
 ```
 
 **网络拓扑**:
-```
-输入层 (128)
-    ↓ [weights_input: 128×32=4,096 个权重]
-隐藏层 (32) + ReLU
-    ↓ [weights_output: 32×3=96 个权重]
-输出层 (3: ALLOW/BLOCK/ALERT)
-    ↓ Argmax
-最终预测
+```mermaid
+flowchart TD
+    Input["输入层 (128)"] -->|"weights_input: 128×32 = 4,096 个权重"| Hidden["隐藏层 (32) + ReLU"]
+    Hidden -->|"weights_output: 32×3 = 96 个权重"| Output["输出层 (3: ALLOW / BLOCK / ALERT)"]
+    Output -->|"Argmax"| Prediction["最终预测"]
 ```
 
 **二进制格式大小**:
-```
-Header:           16 bytes
-weights_input:    128×32×8 = 32,768 bytes
-bias_hidden:      32×8 = 256 bytes
-weights_output:   32×3×8 = 768 bytes
-bias_output:      3×8 = 24 bytes
-─────────────────────────────────────
-总计:             33,832 bytes ≈ 33 KB
-```
+| 字段 | 大小 |
+| --- | ---: |
+| Header | 16 bytes |
+| weights_input | 128×32×8 = 32,768 bytes |
+| bias_hidden | 32×8 = 256 bytes |
+| weights_output | 32×3×8 = 768 bytes |
+| bias_output | 3×8 = 24 bytes |
+| **总计** | **33,832 bytes ≈ 33 KB** |
 
 ### 示例 4: Feature Vector 结构
 
@@ -1003,24 +981,19 @@ int BPF_PROG(check_exec, struct linux_binprm *bprm, int ret) {
 
 ## 📊 模型选择决策树
 
-```
-                开始
-                 │
-                 ↓
-         需要微秒级延迟?
-         ├── 是 → 延迟 < 2μs?
-         │        ├── 是 → Logistic Regression
-         │        └── 否 → SVM
-         │
-         └── 否 → 内存 < 5KB?
-                  ├── 是 → Ridge/NB/Centroid
-                  │
-                  └── 否 → 需要最高准确率?
-                           ├── 是 → Ensemble/NN
-                           │
-                           └── 否 → 需要可解释?
-                                    ├── 是 → Logistic L1 / RF
-                                    └── 否 → Random Forest
+```mermaid
+flowchart TD
+    Start(["开始"]) --> Latency{"需要微秒级延迟?"}
+    Latency -->|"是"| UltraLow{"延迟 &lt; 2μs?"}
+    UltraLow -->|"是"| LR["Logistic Regression"]
+    UltraLow -->|"否"| SVM["SVM"]
+    Latency -->|"否"| Memory{"内存 &lt; 5KB?"}
+    Memory -->|"是"| Compact["Ridge / NB / Centroid"]
+    Memory -->|"否"| Accuracy{"需要最高准确率?"}
+    Accuracy -->|"是"| Ensemble["Ensemble / NN"]
+    Accuracy -->|"否"| Explain{"需要可解释?"}
+    Explain -->|"是"| Explainable["Logistic L1 / RF"]
+    Explain -->|"否"| RandomForest["Random Forest"]
 ```
 
 ---
@@ -1065,24 +1038,10 @@ enum ml_action {
 ### 3. CUDA 加速详解
 
 #### 架构
-```
-┌────────────────────────────────────────┐
-│  内核模块 (kernel_ml.ko)               │
-│  - 接收推理请求 (/proc/ml_predict)     │
-│  - 发送到 CUDA 请求队列                │
-│  - 等待结果 (timeout_ms)               │
-│  - 超时则回退到 CPU 推理               │
-└──────────┬─────────────────────────────┘
-           │ /proc/ml_cuda_request
-           │ /proc/ml_cuda_result
-           ↓
-┌────────────────────────────────────────┐
-│  CUDA Helper (userspace)               │
-│  - 从 /proc/ml_cuda_model 镜像模型     │
-│  - 在 GPU 上构建决策树                 │
-│  - 批量推理 (可选)                     │
-│  - 写回结果                            │
-└────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Kernel["内核模块 (kernel_ml.ko)<br/>接收推理请求 (/proc/ml_predict)<br/>发送到 CUDA 请求队列<br/>等待结果 (timeout_ms)<br/>超时则回退到 CPU 推理"]
+    Kernel -->|"/proc/ml_cuda_request<br/>/proc/ml_cuda_result"| Helper["CUDA Helper (userspace)<br/>从 /proc/ml_cuda_model 镜像模型<br/>在 GPU 上构建决策树<br/>批量推理（可选）<br/>写回结果"]
 ```
 
 #### 启动 CUDA Helper
@@ -1120,13 +1079,18 @@ sudo ./kernel-ml/profile_inference.sh perf 10000
 ```bash
 # 运行完整 ML sweep
 make runtime-benchmark
+```
 
-# 输出目录: reports/ml-sweep-YYYYMMDD-HHMMSS/
-#   ├── coverage.json         - 覆盖率统计
-#   ├── results.csv           - 逐行结果
-#   ├── best.json             - 最佳配置
-#   ├── stability-summary.csv - 稳定性分析
-#   └── index.html            - 可视化报告
+输出目录结构：
+
+```mermaid
+flowchart TD
+    Root["reports/ml-sweep-YYYYMMDD-HHMMSS/"]
+    Root --> Coverage["coverage.json<br/>覆盖率统计"]
+    Root --> Results["results.csv<br/>逐行结果"]
+    Root --> Best["best.json<br/>最佳配置"]
+    Root --> Stability["stability-summary.csv<br/>稳定性分析"]
+    Root --> Index["index.html<br/>可视化报告"]
 ```
 
 查看最佳模型:

@@ -427,29 +427,31 @@ accessToken := base64.URLEncoding.EncodeToString(token)
 ## 四、代码组织原则（7个）
 
 ### 1. **按功能域分包**
-```
-backend/app/
-├── main.go                    # 启动编排
-├── routes__routes.go          # 路由注册
-├── runtime__*.go              # eBPF 运行时
-├── handlers__*.go             # HTTP 处理器
-├── events__*.go               # 事件处理
-├── network__*.go              # 网络追踪
-├── ml__*.go                   # 机器学习
-└── lsm/enforcer/              # LSM 子系统
+```mermaid
+flowchart TD
+    Root["backend/app/"]
+    Root --> Main["main.go<br/>启动编排"]
+    Root --> Routes["routes__routes.go<br/>路由注册"]
+    Root --> Runtime["runtime__*.go<br/>eBPF 运行时"]
+    Root --> Handlers["handlers__*.go<br/>HTTP 处理器"]
+    Root --> Events["events__*.go<br/>事件处理"]
+    Root --> Network["network__*.go<br/>网络追踪"]
+    Root --> ML["ml__*.go<br/>机器学习"]
+    Root --> LSM["lsm/enforcer/<br/>LSM 子系统"]
 ```
 
 ### 2. **Composable 职责单一**
-```
-frontend/src/composables/
-├── dashboard/
-│   ├── useDashboard.ts        # UI 状态 + 过滤
-│   └── useDashboardStream.ts  # 流管理（无 UI 逻辑）
-├── executor/
-│   └── useShellSessions.ts    # PTY 会话管理
-└── config/
-    ├── useConfigRuntime.ts    # 运行时设置
-    └── useConfigSecurity.ts   # 安全策略
+```mermaid
+flowchart TD
+    Root["frontend/src/composables/"]
+    Root --> Dashboard["dashboard/"]
+    Dashboard --> UseDashboard["useDashboard.ts<br/>UI 状态 + 过滤"]
+    Dashboard --> UseDashboardStream["useDashboardStream.ts<br/>流管理（无 UI 逻辑）"]
+    Root --> Executor["executor/"]
+    Executor --> UseShellSessions["useShellSessions.ts<br/>PTY 会话管理"]
+    Root --> Config["config/"]
+    Config --> Runtime["useConfigRuntime.ts<br/>运行时设置"]
+    Config --> Security["useConfigSecurity.ts<br/>安全策略"]
 ```
 
 ### 3. **全局单例 vs 构造器注入**
@@ -510,16 +512,17 @@ except Exception as e:
 ```
 
 ### 7. **生成文件隔离**
-```
-backend/ebpf/
-├── agent_tracker_common.h     # 手写
-├── agent_tracker.c            # 手写
-├── agenttracker_bpfel.go      # 生成（勿编辑）
-└── agenttracker_bpfeb.go      # 生成（勿编辑）
+```mermaid
+flowchart TD
+    Ebpf["backend/ebpf/"]
+    Ebpf --> Common["agent_tracker_common.h<br/>手写"]
+    Ebpf --> TrackerC["agent_tracker.c<br/>手写"]
+    Ebpf --> Bpfel["agenttracker_bpfel.go<br/>生成（勿编辑）"]
+    Ebpf --> Bpfeb["agenttracker_bpfeb.go<br/>生成（勿编辑）"]
 
-proto/
-├── tracker.proto              # 手写
-└── *.pb.go / *.pb.js          # 生成（勿编辑）
+    Proto["proto/"]
+    Proto --> TrackerProto["tracker.proto<br/>手写"]
+    Proto --> Generated["*.pb.go / *.pb.js<br/>生成（勿编辑）"]
 ```
 
 ---

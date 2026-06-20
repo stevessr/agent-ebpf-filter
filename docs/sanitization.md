@@ -8,10 +8,11 @@ agent-ebpf-filter 实现了完整的数据脱敏机制，保护系统采集和�
 
 ### 四层架构
 
-```
-采集层 → 处理层 → 脱敏层 → 分发层
-  ↓        ↓        ↓        ↓
-eBPF → 归一化 → 脱敏引擎 → WS/JSONL/MCP/UI
+```mermaid
+flowchart LR
+    Collect["采集层<br/>eBPF"] --> Process["处理层<br/>归一化"]
+    Process --> Redact["脱敏层<br/>脱敏引擎"]
+    Redact --> Distribute["分发层<br/>WS / JSONL / MCP / UI"]
 ```
 
 #### 1. 采集层（SanitizationInputAdapters）
@@ -225,16 +226,11 @@ export AGENT_REDACTION_ENABLED=true
 ### 网络脱敏规则
 
 #### Standard 级别示例
-```
-原始：192.168.1.100:8080
-脱敏：<PRIVATE_IP>:8080
-
-原始：myapp.internal.corp:443
-脱敏：<INTERNAL_DOMAIN>:443
-
-原始：10.0.5.23 → api.internal
-脱敏：<PRIVATE_IP> → <INTERNAL_DOMAIN>
-```
+| 原始值 | 脱敏后 |
+| --- | --- |
+| `192.168.1.100:8080` | `<PRIVATE_IP>:8080` |
+| `myapp.internal.corp:443` | `<INTERNAL_DOMAIN>:443` |
+| `10.0.5.23 → api.internal` | `<PRIVATE_IP> → <INTERNAL_DOMAIN>` |
 
 #### Strict 级别示例
 ```
@@ -249,23 +245,16 @@ export AGENT_REDACTION_ENABLED=true
 
 所有级别（Basic+）都会脱敏以下内容：
 
-```
-HTTP Headers:
-  Authorization: Bearer xxx → Authorization: [REDACTED]
-  Cookie: session=xxx → Cookie: [REDACTED]
-  X-API-Key: xxx → X-API-Key: [REDACTED]
-  Set-Cookie: xxx → Set-Cookie: [REDACTED]
-
-URL Query Parameters:
-  ?token=xxx&key=yyy → ?token=[REDACTED]&key=[REDACTED]
-  
-JSON Body:
-  {"password": "xxx"} → {"password": "[REDACTED]"}
-  {"api_key": "xxx"} → {"api_key": "[REDACTED]"}
-
-Form Data:
-  password=xxx&token=yyy → password=[REDACTED]&token=[REDACTED]
-```
+| 类别 | 原始值 | 脱敏后 |
+| --- | --- | --- |
+| HTTP Header | `Authorization: Bearer xxx` | `Authorization: [REDACTED]` |
+| HTTP Header | `Cookie: session=xxx` | `Cookie: [REDACTED]` |
+| HTTP Header | `X-API-Key: xxx` | `X-API-Key: [REDACTED]` |
+| HTTP Header | `Set-Cookie: xxx` | `Set-Cookie: [REDACTED]` |
+| URL Query Parameters | `?token=xxx&key=yyy` | `?token=[REDACTED]&key=[REDACTED]` |
+| JSON Body | `{"password": "xxx"}` | `{"password": "[REDACTED]"}` |
+| JSON Body | `{"api_key": "xxx"}` | `{"api_key": "[REDACTED]"}` |
+| Form Data | `password=xxx&token=yyy` | `password=[REDACTED]&token=[REDACTED]` |
 
 ## 自定义规则
 
@@ -362,22 +351,23 @@ Form Data:
 ### 后端实现
 
 #### 目录结构
-```
-backend/redaction/
-├── types.go           # 类型定义
-├── engine.go          # 脱敏引擎核心
-├── cache.go           # 缓存层
-├── normalizer.go      # 事件归一化
-├── processing.go      # 字段处理
-├── distributor.go     # 分发器
-└── rules/
-    ├── registry.go    # 规则注册表
-    ├── path.go        # 路径脱敏
-    ├── command.go     # 命令行脱敏
-    ├── network.go     # 网络脱敏
-    ├── credential.go  # 凭证脱敏
-    ├── pseudonymizer.go # 标识符假名化
-    └── custom.go      # 自定义规则
+```mermaid
+flowchart TD
+    Root["backend/redaction/"]
+    Root --> Types["types.go<br/>类型定义"]
+    Root --> Engine["engine.go<br/>脱敏引擎核心"]
+    Root --> Cache["cache.go<br/>缓存层"]
+    Root --> Normalizer["normalizer.go<br/>事件归一化"]
+    Root --> Processing["processing.go<br/>字段处理"]
+    Root --> Distributor["distributor.go<br/>分发器"]
+    Root --> Rules["rules/"]
+    Rules --> Registry["registry.go<br/>规则注册表"]
+    Rules --> PathRule["path.go<br/>路径脱敏"]
+    Rules --> CommandRule["command.go<br/>命令行脱敏"]
+    Rules --> NetworkRule["network.go<br/>网络脱敏"]
+    Rules --> CredentialRule["credential.go<br/>凭证脱敏"]
+    Rules --> Pseudonymizer["pseudonymizer.go<br/>标识符假名化"]
+    Rules --> CustomRule["custom.go<br/>自定义规则"]
 ```
 
 #### 核心函数
@@ -420,15 +410,16 @@ masked := engine.ApplyRules(value, redaction.FieldCategoryPath)
 ### 前端实现
 
 #### 目录结构
-```
-frontend/src/
-├── composables/config/
-│   └── useRedactionPolicy.ts    # 脱敏策略管理
-├── components/config/
-│   └── ConfigRedactionTab.vue   # 配置页面
-└── components/common/
-    ├── RedactionBadge.vue        # 状态徽章
-    └── SanitizedFieldViewer.vue  # 字段查看器
+```mermaid
+flowchart TD
+    Root["frontend/src/"]
+    Root --> Composables["composables/config/"]
+    Composables --> Policy["useRedactionPolicy.ts<br/>脱敏策略管理"]
+    Root --> ConfigComponents["components/config/"]
+    ConfigComponents --> ConfigTab["ConfigRedactionTab.vue<br/>配置页面"]
+    Root --> CommonComponents["components/common/"]
+    CommonComponents --> Badge["RedactionBadge.vue<br/>状态徽章"]
+    CommonComponents --> Viewer["SanitizedFieldViewer.vue<br/>字段查看器"]
 ```
 
 #### 组合式 API

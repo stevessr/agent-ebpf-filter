@@ -17,27 +17,17 @@
 
 ## 架构
 
-```
-  ┌─────────────────────────────────────────────────────────────────┐
-  │                        Linux host                               │
-  │  ┌─────────────────────┐                                        │
-  │  │ uprobe handlers      │   tls_events ringbuf                  │
-  │  │ SSL_write / SSL_read │ ──────────────────────────────┐       │
-  │  │ tls.Write / tls.Read │                                │       │
-  │  │ gnutls_record_send   │                                ▼       │
-  │  │ PR_Write / PR_Read   │               ┌─────────────────────┐  │
-  │  └─────────────────────┘               │ Go TLS 拼装引擎      │  │
-  │                                        │ - 分片缓冲区          │  │
-  │  ┌─────────────────────┐               │ - HTTP/JSON 解析     │  │
-  │  │ tracepoint 处理器    │  events       │ - WebSocket 推送     │  │
-  │  │ (syscall 追踪)       │  ringbuf      └────────┬────────────┘  │
-  │  └─────────────────────┘                         │               │
-  │                                                  ▼               │
-  │                                        ┌─────────────────────┐  │
-  │                                        │ Vue 前端             │  │
-  │                                        │ TLSCapture.vue 新增 │  │
-  │                                        └─────────────────────┘  │
-  └─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Host["Linux host"]
+        Uprobes["uprobe handlers<br/>SSL_write / SSL_read<br/>tls.Write / tls.Read<br/>gnutls_record_send<br/>PR_Write / PR_Read"]
+        Tracepoints["tracepoint 处理器<br/>syscall 追踪"]
+        Engine["Go TLS 拼装引擎<br/>分片缓冲区<br/>HTTP / JSON 解析<br/>WebSocket 推送"]
+        Frontend["Vue 前端<br/>TLSCapture.vue 新增"]
+    end
+    Uprobes -->|"tls_events ringbuf"| Engine
+    Tracepoints -->|"events ringbuf"| Engine
+    Engine --> Frontend
 ```
 
 ## 组件详解
@@ -406,30 +396,14 @@ type TLSPlaintextEvent struct {
 
 #### 3.1 布局
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  TLS 明文日志                   [搜索...]  [过滤器 ▼]    │
-├─────────────────────────────────────────────────────────┤
-│  ◀ 自动滚动                                连接状态 ●    │
-│                                                         │
-│  ┌─ 15:30:01.234  claude  ▶ Send  Go   ──────────────┐  │
-│  │ POST /v1/messages → api.anthropic.com:443         │  │
-│  │ Body: {"model":"claude-opus-4-7",...}  2.0 KB     │  │
-│  │ [展开]  [复制 curl]  [复制 body]                   │  │
-│  └──────────────────────────────────────────────────┘  │
-│                                                         │
-│  ┌─ 15:30:03.567  claude  ◀ Recv  Go   ──────────────┐  │
-│  │ 200 OK  ← api.anthropic.com:443                    │  │
-│  │ Body: {"id":"msg_xxx",...}  5.2 KB                 │  │
-│  │ [展开]  [复制 body]                                │  │
-│  └──────────────────────────────────────────────────┘  │
-│                                                         │
-│  ┌─ 15:30:05.890  curl    ▶ Send  OpenSSL  ──────────┐  │
-│  │ POST /v1/chat/completions → api.openai.com:443     │  │
-│  │ Body: {"model":"gpt-4",...}  1.5 KB                │  │
-│  │ [展开]  [复制 curl]  [复制 body]                    │  │
-│  └──────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Toolbar["TLS 明文日志<br/>搜索框 + 过滤器"]
+    State["自动滚动开关<br/>连接状态指示"]
+    Event1["15:30:01.234 claude<br/>Send / Go<br/>POST /v1/messages → api.anthropic.com:443<br/>Body: {model: claude-opus-4-7, ...} 2.0 KB<br/>操作：展开 / 复制 curl / 复制 body"]
+    Event2["15:30:03.567 claude<br/>Recv / Go<br/>200 OK ← api.anthropic.com:443<br/>Body: {id: msg_xxx, ...} 5.2 KB<br/>操作：展开 / 复制 body"]
+    Event3["15:30:05.890 curl<br/>Send / OpenSSL<br/>POST /v1/chat/completions → api.openai.com:443<br/>Body: {model: gpt-4, ...} 1.5 KB<br/>操作：展开 / 复制 curl / 复制 body"]
+    Toolbar --> State --> Event1 --> Event2 --> Event3
 ```
 
 #### 3.2 功能

@@ -384,27 +384,28 @@ docs/architecture.md              # 架构
 
 最终提交建议包含：
 
-```text
-source tree
-├── LICENSE
-├── README.md / README_cn.md
-├── docs/
-│   ├── os-competition-defense.md
-│   ├── project-structure-deep-dive.md
-│   ├── project-roadmap.md
-│   ├── demo-script.md
-│   ├── evaluation-report.md
-│   ├── third-party-notices.md
-│   ├── development-timeline.md
-│   └── ai-usage/
-├── backend/
-├── frontend/
-├── wrapper/
-├── adapters/
-├── proto/
-├── kernel-ml/
-├── scripts/
-└── deploy/
+```mermaid
+flowchart TD
+    Root["source tree"]
+    Root --> License["LICENSE"]
+    Root --> Readmes["README.md / README_cn.md"]
+    Root --> Docs["docs/"]
+    Docs --> Defense["os-competition-defense.md"]
+    Docs --> DeepDive["project-structure-deep-dive.md"]
+    Docs --> Roadmap["project-roadmap.md"]
+    Docs --> Demo["demo-script.md"]
+    Docs --> Eval["evaluation-report.md"]
+    Docs --> Notices["third-party-notices.md"]
+    Docs --> Timeline["development-timeline.md"]
+    Docs --> AIUsage["ai-usage/"]
+    Root --> Backend["backend/"]
+    Root --> Frontend["frontend/"]
+    Root --> Wrapper["wrapper/"]
+    Root --> Adapters["adapters/"]
+    Root --> Proto["proto/"]
+    Root --> KernelML["kernel-ml/"]
+    Root --> Scripts["scripts/"]
+    Root --> Deploy["deploy/"]
 ```
 
 答辩现场材料建议包含：

@@ -35,12 +35,13 @@ Codex 是一个 Rust 编译的静态链接二进制（stripped），使用 rustl
 ## 技术细节
 
 ### 文件结构
-```
-backend/app/
-├── tls__probediscoveryrustls.go    # rustls 偏移定位器
-├── tls__probemanagerrustls.go      # rustls uprobe 附加
-├── tls__probediscoverytls.go       # 更新的发现逻辑
-└── tls__probemanager_builtin.go    # 兼容性存根
+```mermaid
+flowchart TD
+    Root["backend/app/"]
+    Root --> RustlsDiscovery["tls__probediscoveryrustls.go<br/>rustls 偏移定位器"]
+    Root --> RustlsManager["tls__probemanagerrustls.go<br/>rustls uprobe 附加"]
+    Root --> TLSDiscovery["tls__probediscoverytls.go<br/>更新的发现逻辑"]
+    Root --> Builtin["tls__probemanager_builtin.go<br/>兼容性存根"]
 ```
 
 ### Codex 二进制特征
