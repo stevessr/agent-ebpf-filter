@@ -1,114 +1,158 @@
-# 快速开始
+# 🚀 快速开始
 
-本页给出开发、运行、构建和文档站启动的最短路径。
+欢迎使用 **Agent eBPF Filter**。本篇指引将带你以最短路径完成开发环境配置、运行、构建以及文档站的启动。
 
-## 环境前提
+## 🛠️ 1. 环境前提
 
-Agent eBPF Filter 面向 Linux。完整能力需要：
+由于涉及 Linux 内核底层特性，完整运行该项目需要满足以下系统与工具链要求：
 
-- Linux kernel 支持 eBPF、BTF、cgroup v2、BPF LSM（视功能而定）；
-- Go、Bun、Python / uv、clang / LLVM；
-- 特权运行环境，用于加载 eBPF、pin maps/links、绑定可选 80/443；
-- 前端开发需要 Bun；
-- native hooks relay 依赖 host 安装 `curl`。
+### 核心系统与内核基架
 
-## 准备开发依赖
+* **Linux Kernel**：必须支持 **eBPF**、**BTF**、**cgroup v2** 以及 **BPF LSM**（部分高级拦截功能强依赖）。
+* **特权级运行环境**：加载 eBPF 程序、Pin Maps/Links 以及绑定可选的 `80`/`443` 端口需要 **Root 特权**。
+* **网络依赖**：Native Hooks Relay 机制依赖宿主机安装有 `curl`。
+
+### 编译与开发工具链
+
+* **后端与内核端**：Go、clang / LLVM
+* **前端与文档站**：Bun（Vite 运行环境）
+* **脚本与效能**：Python / uv
+
+
+## 💻 2. 核心开发流水线
+
+项目使用 `make` 自动化编排了复杂的并行的依赖下载与环境启动，请遵循以下顺序进行本地开发。
+
+### Step 1: 准备开发依赖
+
+在首次拉取代码或工具链更新时运行：
 
 ```bash
 make predev
+
 ```
 
-`make predev` 会并行准备 Go、Python、frontend 和 dev-env TUI 依赖，并处理不可写 GOPATH 的情况。
+> 💡 **原理解析**：`make predev` 会**并行**拉取并配置 Go、Python、Frontend 以及基础设施 TUI 依赖。同时，它已内建处理了常见的前端不可写 `GOPATH` 等权限痛点。
 
-## 启动开发环境
+### Step 2: 一键启动开发环境
+
+依赖就绪后，直接执行全栈热加载：
 
 ```bash
 make dev
+
 ```
 
-`make dev` 会启动后端热加载和前端 Vite dev server。后端会在 `8080..8089` 选择可用端口并写入 `backend/.port`，前端 dev proxy 和 adapters 可读取该端口。
+运行后，后端会自动在 `8080..8089` 范围内寻找可用端口，并将胜出端口写入 `backend/.port`。前端 Vite Dev Server 和各适配器（Adapters）会自动读取该文件实现**无感代理**。
 
-也可单独启动：
+**💡 专家提示：支持模块拆分启动**
+如果你只想专注于单一端的调试，可选择拆分命令：
 
-```bash
-make dev-backend
-make dev-frontend
-```
+* 仅调试后端：`make dev-backend`
+* 仅调试前端：`make dev-frontend`
 
-## 构建全部组件
+---
+
+## 📦 3. 组件编译与构建
+
+当你需要进行全量打包或验证交付物时，可以使用统一构建命令：
 
 ```bash
 make all
+
 ```
 
-等价于：
+项目的构建依赖关系及流水线如下所示：
 
 ```mermaid
 flowchart LR
-    Proto["proto"] --> Backend["backend"]
-    Backend --> Frontend["frontend"]
-    Frontend --> Wrapper["wrapper"]
+    Proto["1. proto (协议生成)"] --> Backend["2. backend (后端编译)"]
+    Backend --> Frontend["3. frontend (前端构建)"]
+    Frontend --> Wrapper["4. wrapper (打包封装)"]
+    
+    style Proto fill:#e1f5fe,stroke:#03a9f4
+    style Backend fill:#e8f5e9,stroke:#4caf50
+    style Frontend fill:#fff3e0,stroke:#ff9800
+    style Wrapper fill:#f3e5f5,stroke:#9c27b0
+
 ```
 
-常用分项：
+### 🔬 常用分项构建
+
+如果不需要整条流水线，可以直接构建目标组件：
 
 ```bash
-make proto
-make backend
-make frontend
-make wrapper
+make proto     # 仅生成 Protobuf 桩文件
+make backend   # 仅编译 Go 后端
+make frontend  # 仅打包前端 Vue 资源
+make wrapper   # 仅编译 Agent 包装器
+
 ```
 
-## 运行文档站
+---
 
-本站使用 VitePress。根目录脚本：
+## 🧪 4. 最小化快速验证手册
+
+为了在提交代码（PR）前确保没有破坏现有功能，请根据你的**改动类型**运行对应的最小化验证命令：
+
+| 改动影响范围 | 最小化验证命令 |
+| --- | --- |
+| **Markdown / 架构文档** | `bun run docs:build` |
+| **Go 后端核心业务** | `cd backend && go test ./...` |
+| **Wrapper 智能体包装器** | `cd wrapper && go test ./...` |
+| **Vue / TypeScript 前端** | `cd frontend && bun run build` |
+| **Proto 协议文件** | `make proto`，随后联合编译 backend/frontend 验证 |
+| **主 eBPF Tracker 采集器** | `cd backend/ebpf && go generate` <br>
+
+<br> `cd backend && go build ./...` |
+| **cgroup / LSM 拦截内核** | `make ebpf-cgroup` 或 `make ebpf-lsm` |
+
+---
+
+## 📖 5. 本地文档站运维
+
+项目文档站基于 **VitePress** 构建，文档源码均位于仓库内。
+
+### 本地实时预览
 
 ```bash
 bun install
 bun run docs:dev
+
 ```
 
-生产构建：
+### 生产环境仿真构建
 
 ```bash
-bun run docs:build
-bun run docs:preview
+bun run docs:build    # 执行静态化编译
+bun run docs:preview  # 本地启动静态服务器预览产物
+
 ```
 
-::: warning 依赖说明
-如果本地尚未安装 `vitepress`，请先运行 `bun install` 更新根目录依赖。当前仓库前端应用依赖位于 `frontend/package.json`，文档站依赖位于根目录 `package.json`。
-:::
-
-## 最小验证命令
-
-| 改动类型 | 最小验证 |
-| --- | --- |
-| Markdown / VitePress 文档 | `bun run docs:build` |
-| 后端 Go | `cd backend && go test ./...` |
-| wrapper | `cd wrapper && go test ./...` |
-| 前端 Vue / TS | `cd frontend && bun run build` |
-| proto | `make proto`，再 backend/frontend 验证 |
-| 主 eBPF tracker | `cd backend/ebpf && go generate` + `cd backend && go build ./...` |
-| cgroup / LSM | `make ebpf-cgroup` / `make ebpf-lsm` |
-
-## 安全提示
-
-以下操作具有外向或高风险效果，应在明确授权下执行：
-
-- `make install` 安装系统服务；
-- 启动特权 eBPF / cgroup / BPF LSM enforcement；
-- 修改 AI CLI hook 配置；
-- 启用 TLS 明文捕获；
-- 启用 80/443 domain forward；
-- 清空持久化事件；
-- 运行 `/system/run` 或交互式 shell sessions。
+> ⚠️ **依赖隔离说明**
+> 如果本地提示找不到 `vitepress`，请务必先在根目录下执行 `bun install`。
+> 请注意：**前端应用**的依赖位于 `frontend/package.json`，而**文档站**的依赖位于根目录 `package.json`，两者相互独立。
 
 ---
 
-## 相关导航
+## ⚠️ 安全与高风险操作提示
 
-- [项目是什么](what-is-agent-ebpf-filter.md)
-- [功能总览](capabilities.md)
-- [构建与运行](../operations/build-and-run.md)
-- [总体架构](../architecture/overview.md)
-- [阅读路线](reading-paths.md)
+> ❗ **重要告警**
+> 以下操作带有外向网络变更或高特权系统修改效果。在非隔离的生产/测试环境执行前，**必须获得明确授权**：
+
+* 💾 **系统集成**：`make install` 将会向系统注册并安装守护服务。
+* 🛡️ **内核防御**：启动具有特权的 eBPF / cgroup / BPF LSM 实时阻断与拦截（Enforcement）。
+* 🤖 **劫持配置**：修改 AI 终端的全局 CLI Hook 配置。
+* 🔓 **隐私捕获**：开启 **TLS 明文捕获**（可能涉及敏感凭据泄漏风险）。
+* 🌐 **流量重定向**：启用 `80`/`443` 端口的强行域名转发（Domain Forward）。
+* 🗑️ **数据操作**：清空持久化历史事件，或通过 `/system/run` 开启远程交互式 Shell 终端会话。
+
+---
+
+## 🔗 相关导航
+
+* 📘 [项目是什么](what-is-agent-ebpf-filter.md) —— 愿景、痛点与核心价值
+* 🎯 [功能总览](capabilities.md) —— 支持哪些语义审计与阻断策略
+* 🏗️ [构建与运行](../operations/build-and-run.md) —— 进阶部署与高级参数配置
+* 🗺️ [总体架构](../architecture/overview.md) —— 双轨内核态与 MCP 路径深度解密
+* 🧭 [阅读路线](reading-paths.md) —— 针对内核开发者与前端开发者的源码速查指南
