@@ -133,3 +133,7 @@ When behavior changes, update the relevant docs:
 
 - use bun to install 
 - use pnpm to run
+
+## tips
+
+put end reports in the repo/ DIR

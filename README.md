@@ -62,6 +62,60 @@ The maps/links are pinned under `/sys/fs/bpf/agent-ebpf/lsm_enforcer`; policy ma
 
 ### TLS 明文捕获
 
+**agent-ebpf-filter 内置工业级 TLS 明文拦截系统**，支持自动探索和附加多种加密库的 uprobe，实时捕获 HTTPS 流量的加密前/解密后明文。
+
+**核心特性**：
+- 🔍 **自动库探索**：启动时扫描并附加系统 TLS 库（OpenSSL/GnuTLS/NSS）
+- 🔄 **进程热检测**：每分钟扫描 `/proc` 自动发现新的 Go/Node.js 进程
+- 📚 **多库支持**：OpenSSL 1.1.x/3.x、BoringSSL、GnuTLS、NSS、Go 原生 TLS
+- 🌐 **HTTP 解析**：自动解析 HTTP/1.1 请求/响应，提取方法、URL、状态码
+- 📊 **实时流**：WebSocket 推送明文事件到前端
+- 🎯 **零配置**：无需修改目标程序或安装证书
+
+**支持的加密库和函数**：
+```c
+// OpenSSL (最广泛)
+SSL_write / SSL_write_ex    // 发送明文 (uprobe)
+SSL_read / SSL_read_ex       // 接收明文 (uprobe + uretprobe)
+
+// GnuTLS (QEMU/GnuPG)
+gnutls_record_send / gnutls_record_recv
+
+// NSS (Firefox/Thunderbird)
+PR_Write / PR_Read
+
+// Go 原生 TLS
+crypto/tls.Conn.Write / Read
+```
+
+**快速开始**：
+```bash
+# 1. 启动后端（自动附加系统库）
+cd backend && ./agent-ebpf-filter
+
+# 2. 执行 HTTPS 请求
+curl https://api.github.com/users/octocat
+
+# 3. 查看捕获的明文
+curl http://localhost:8080/api/tls-capture/recent | jq .
+
+# 4. 运行交互式演示
+./scripts/demo-tls-intercept.sh
+```
+
+**API 端点**：
+- `GET /api/tls-capture/recent?limit=100&filter=host:github.com` - 查询捕获事件
+- `GET /api/tls-capture/libraries` - 查看已附加的 TLS 库状态
+- `POST /api/tls-capture/start` - 启动 TLS 捕获
+- `POST /api/tls-capture/attach-defaults` - 附加默认库
+- `POST /api/tls-capture/library` - 手动附加自定义库
+- `POST /api/tls-capture/go-binary` - 附加 Go 程序
+- `GET /ws/tls-capture` - WebSocket 实时流
+
+**详细文档**：
+- 📖 [完整实现报告](docs/backend/TLS_INTERCEPT_COMPLETE.md) - 架构、API、性能分析
+- 🎬 [演示脚本](scripts/demo-tls-intercept.sh) - 5 个实战场景演示
+
 ### 数据脱敏机制
 
 agent-ebpf-filter 实现了完整的**四层数据脱敏架构**，保护从 eBPF 内核采集到前端展示的整个数据流中的敏感信息。
@@ -107,16 +161,16 @@ Codex 定制适配可在源码级请求发送前把已构造的 reqwest/WebSocke
 
 #### 🔐 自动密钥移除机制
 
-**所有TLS捕获的数据都会自动经过密钥移除处理**，防止敏感数据泄漏：
+**所有 TLS 捕获的数据都会自动经过密钥移除处理**，防止敏感数据泄漏：
 
 **移除内容**：
-- ✅ **PEM格式密钥**：RSA/EC/OpenSSH私钥、证书、公钥
-- ✅ **SSH密钥**：ssh-rsa、ssh-ed25519公钥
-- ✅ **AWS凭证**：Access Key、Secret Key
-- ✅ **JWT Token**：完整的JWT格式token
-- ✅ **API密钥**：各种格式的api_key、access_key、secret_key
+- ✅ **PEM 格式密钥**：RSA/EC/OpenSSH 私钥、证书、公钥
+- ✅ **SSH 密钥**：ssh-rsa、ssh-ed25519 公钥
+- ✅ **AWS 凭证**：Access Key、Secret Key
+- ✅ **JWT Token**：完整的 JWT 格式 token
+- ✅ **API 密钥**：各种格式的 api_key、access_key、secret_key
 - ✅ **Bearer Token**：HTTP Authorization bearer
-- ✅ **密码**：password、passwd、pwd字段
+- ✅ **密码**：password、passwd、pwd 字段
 
 **处理示例**：
 ```
@@ -136,12 +190,12 @@ Codex 定制适配可在源码级请求发送前把已构造的 reqwest/WebSocke
 ```
 
 **集成位置**：
-- URL解析前
-- HTTP body处理前  
-- Header sanitization前
-- 所有/codex/capture入口
+- URL 解析前
+- HTTP body 处理前  
+- Header sanitization 前
+- 所有/codex/capture 入口
 
-详细文档：📖 [SSL Hook密钥移除机制](docs/ssl_hook_key_removal.md)
+详细文档：📖 [SSL Hook 密钥移除机制](docs/ssl_hook_key_removal.md)
 
 **安全边界**：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization、URL query token/key/secret/password、JSON/form/text body 中常见密钥模式通过**统一脱敏引擎**和**自动密钥移除机制**两层防护处理，支持 4 个脱敏级别和自定义规则；body 截断至 16 KiB。TLS/HTTP/SSE/LLM 元数据会写入统一 `EventEnvelope`，并在 collector health 中累积 AgentSight parser/redaction counters。
 

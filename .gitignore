@@ -34,3 +34,5 @@ kernel-ml/kernel_ml_cuda_helper
 docs/.vitepress/cache
 *_SUMMARY.md
 *_ANALYSIS.md
+docs/backend/SWISS_ARMY_KNIFE_COMPLETION.md
+docs/backend/MISSION_ACCOMPLISHED.md
