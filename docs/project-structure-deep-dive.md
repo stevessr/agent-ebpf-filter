@@ -121,10 +121,10 @@ tracked PID / comm / path
 - `backend/ebpf/agent_tracker_common.h`
 - `backend/ebpf/cgroup_sandbox.c`
 - `backend/ebpf/lsm_enforcer.c`
-- `backend/ebpf_runtime.go`
-- `backend/network_events.go`
-- `backend/event_envelope.go`
-- `backend/execution_graph.go`
+- `backend/app/runtime__runtime_ebpf.go`
+- `backend/app/events__events_network.go`
+- `backend/app/runtime__envelope_event.go`
+- `backend/app/events__graph_execution.go`
 - `frontend/src/views/dashboard/Dashboard.vue`
 - `frontend/src/views/network/Network.vue`
 - `frontend/src/views/execution-graph/ExecutionGraph.vue`
@@ -230,7 +230,7 @@ backend/
 
 ### 5.3 路由分组
 
-`backend/routes.go` 中按领域注册：
+`backend/app/routes__routes.go` 中按领域注册：
 
 - WebSocket：`/ws`、`/ws/system`、`/ws/envelopes`、`/ws/events/graph`、`/ws/tls-capture` 等。
 - Shell：`/shell-sessions`、`/ws/shell`。

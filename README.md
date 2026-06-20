@@ -195,7 +195,7 @@ Codex 定制适配可在源码级请求发送前把已构造的 reqwest/WebSocke
 - Header sanitization 前
 - 所有/codex/capture 入口
 
-详细文档：📖 [SSL Hook 密钥移除机制](docs/ssl_hook_key_removal.md)
+详细文档：📖 [SSL Hook 密钥移除机制](backend/docs/ssl_hook_key_removal.md)
 
 **安全边界**：不做 MITM、不注入证书、不修改目标进程内存或控制流；Authorization、X-API-KEY、Cookie、Set-Cookie、Proxy-Authorization、URL query token/key/secret/password、JSON/form/text body 中常见密钥模式通过**统一脱敏引擎**和**自动密钥移除机制**两层防护处理，支持 4 个脱敏级别和自定义规则；body 截断至 16 KiB。TLS/HTTP/SSE/LLM 元数据会写入统一 `EventEnvelope`，并在 collector health 中累积 AgentSight parser/redaction counters。
 
@@ -326,7 +326,7 @@ When a master is selected in the web UI, it can forward supported requests to a 
    - Maps and links are pinned under `/sys/fs/bpf/agent-ebpf`.
 
 2. **Privileged backend**
-   - `backend/main.go` self-elevates through `sudo` / `pkexec` if needed.
+   - `backend/app/main.go` self-elevates through `sudo` / `pkexec` if needed, with privilege helpers in `backend/app/runtime__privileges.go`.
    - It opens pinned maps, consumes the ring buffer, and serves HTTP/WebSocket APIs.
 
 3. **Agent registration**

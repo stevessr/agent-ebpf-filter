@@ -21,6 +21,7 @@ export default defineConfig({
       { text: '安全模型', link: '/security/model' },
       { text: '集成', link: '/integrations/agents' },
       { text: '运维交付', link: '/operations/build-and-run' },
+      { text: '答辩交付', link: '/delivery/competition-defense' },
       { text: '参考', link: '/reference/documentation-map' }
     ],
     sidebar: {

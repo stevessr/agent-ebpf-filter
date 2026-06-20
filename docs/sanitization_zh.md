@@ -222,9 +222,9 @@ export AGENT_REDACTION_ENABLED=true
 ## 更多信息
 
 - 完整文档：[docs/sanitization.md](sanitization.md)
-- 架构设计：[docs/architecture.md](architecture.md)
-- API 参考：[docs/api.md](api.md)
-- 开发指南：[CONTRIBUTING.md](../CONTRIBUTING.md)
+- 架构设计：[总体架构](architecture/overview.md)
+- API 参考：[路由与 API](backend/routes-api.md)
+- 开发维护指南：[维护检查清单](reference/maintenance-checklists.md)
 
 ---
 

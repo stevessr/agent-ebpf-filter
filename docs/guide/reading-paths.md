@@ -48,3 +48,24 @@
 4. [演示脚本](/delivery/demo-script)
 5. [评测报告](/delivery/evaluation)
 6. [第三方与 AI 使用披露](/delivery/compliance)
+
+## 任务型阅读路线
+
+如果你不是“从头阅读”，而是在维护某个功能，按下面的影响链跳转。
+
+| 任务 | 推荐顺序 | 结束前检查 |
+| --- | --- | --- |
+| 新增 / 修改后端 API | [路由与 API](/backend/routes-api) → [Runtime Gates 与 Auth](/security/runtime-gates-auth) → [External API](../external-api.md) → [前端路由与功能页](/frontend/routes-and-pages) | 是否需要 auth、runtime gate、MCP / `/api/v1` alias、前端 composable |
+| 修改事件字段或 protobuf | [协议与事件模型](/architecture/protocol-events) → [事件管线](/backend/event-pipeline) → [生成文件边界](/reference/generated-files) → [组件与 Composables](/frontend/components-composables) | `make proto` 后 backend / frontend / adapters / docs 是否同步 |
+| 调整 cgroup / BPF LSM 策略 | [eBPF 与 OS Enforcement](/backend/ebpf-os-enforcement) → [策略语义](/security/policy-semantics) → [安全模型](/security/model) → [验证页](/operations/verification-benchmark) | exact key 语义、pin path、map permission、policy gate 是否仍准确 |
+| 调整 runtime gate / build feature | [Runtime Settings 与 Feature Manifest](/backend/runtime-settings-features) → [Runtime Gates 与 Auth](/security/runtime-gates-auth) → [前端 Feature Flags](/frontend/build-feature-flags) | 不要把“编译进来”写成“运行时已启用” |
+| 调整 ML / kernel risk feedback | [ML、Plugins 与扩展能力](/backend/ml-plugins) → [ML 模型完整指南](/backend/ml-models-complete-guide) → [内核 ML README](../../kernel-ml/README.md) → [评测报告](/delivery/evaluation) | 后端 registry、前端 catalog、kernel-ml UAPI / README / tests 是否一致 |
+| 调整 TLS / Codex capture / redaction | [脱敏与隐私](/security/redaction-privacy) → [Sanitization](../sanitization.md) → [TLS Quickstart](../backend/TLS_QUICKSTART.md) → [安全模型](/security/model) | 默认关闭、认证、脱敏、密钥移除、body 截断是否都写清楚 |
+| 只改文档 | [文档地图](/reference/documentation-map) → [维护检查清单](/reference/maintenance-checklists) → [验证页](/operations/verification-benchmark) | 页面是否进 sidebar、相对链接是否可点击、是否需要更新专项文档 |
+
+## 跨页校验习惯
+
+- 每读一条“能力说明”，顺手确认它是否能在 [代码入口索引](/reference/code-entrypoints) 找到当前源码入口。
+- 每读一条“安全 / 默认值说明”，顺手确认 [Runtime Gates 与 Auth](/security/runtime-gates-auth) 与 [策略语义](/security/policy-semantics) 是否一致。
+- 每读一条“构建 / 验证命令”，顺手确认 [验证、测试与 Benchmark](/operations/verification-benchmark) 是否有对应命令。
+- 每次文档改动后至少运行 `python3 scripts/check-doc-links.py`；导航、frontmatter 或 mermaid 变化再运行 `bun run docs:build`。

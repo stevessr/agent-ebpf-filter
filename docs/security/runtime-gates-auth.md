@@ -38,6 +38,29 @@ AGENT_BUILD_FEATURES=tls_capture,ml make backend
 - `AGENT_RUNTIME_TLS_CAPTURE_ENABLED`
 - `AGENT_RUNTIME_OTLP_ENABLED`
 - `AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED`
+- `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENABLED`
+- `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_MIN_SCORE`
+- `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_NETWORK`
+- `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_FILE_NAMES`
+- `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_EXEC`
+- `AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_MAX_ACTIONS_PER_MINUTE`
+
+常见 gate 与关联文档：
+
+| Gate / setting | 控制面 | 相关文档 |
+| --- | --- | --- |
+| `ShellSessionsEnabled` | `/shell-sessions*`、`/ws/shell*` | [前端工作台](/frontend/workbench)、[路由与 API](/backend/routes-api) |
+| `SystemRunEnabled` | `/system/run` | [安全模型](/security/model)、[路由与 API](/backend/routes-api) |
+| `HookManagementEnabled` | hook install / raw hook writes | [Native Hooks](/integrations/native-hooks) |
+| `PolicyManagementEnabled` | wrapper / cgroup / LSM policy mutation | [策略语义](/security/policy-semantics)、[eBPF 与 OS Enforcement](/backend/ebpf-os-enforcement) |
+| `TlsCaptureEnabled` | TLS / Codex capture | [脱敏与隐私](/security/redaction-privacy)、[TLS Quickstart](../backend/TLS_QUICKSTART.md) |
+| `OtlpEnabled` | OTLP export | [MCP、External API 与 OTLP](/integrations/mcp-external-otlp) |
+| `DomainForwardProxy.Enabled` | 80/443 Host/SNI forwarder | [部署与安装](/operations/deployment)、[README](../../README.md) |
+| `KernelRiskFeedback.Enabled` | 用户态风险评分写回 cgroup / LSM map | [ML、Plugins 与扩展能力](/backend/ml-plugins)、[安全模型](/security/model) |
+
+::: warning 双 gate 能力
+Kernel risk feedback 写内核策略时需要 `PolicyManagementEnabled=true` 且 `KernelRiskFeedback.Enabled=true`。只打开 ML 或只打开 policy management 都不应被描述为“自动写入内核阻断规则”。
+:::
 
 ## Auth
 
@@ -61,6 +84,22 @@ AGENT_ACCESS_TOKEN
 - `X-API-KEY`；
 - `Authorization: Bearer`；
 - `?key=`。
+
+release mode 下，敏感入口默认需要 token，包括：
+
+- `/config/**`
+- `/system/**`
+- `/ws*`
+- `/metrics`
+- `/register` / `/unregister`
+- `/agentsight/**`
+- `/api/**` 与 `/api/v1/**`
+- `/events/recent`、`/events/graph`
+- `/sandbox/**`
+- `/shell-sessions*`
+- `/mcp`
+
+修改这些范围时，同步 [路由与 API](/backend/routes-api)、[External API](../external-api.md)、[MCP、External API 与 OTLP](/integrations/mcp-external-otlp) 和 [文档地图](/reference/documentation-map)。
 
 ## Hooks 特例
 

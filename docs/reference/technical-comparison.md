@@ -265,7 +265,7 @@ eBPF → ringbuf → Go decoder → EventEnvelope → broadcast → [archive, WS
 
 ### Agent eBPF Filter 路线图
 
-见 [项目路线图](docs/project-roadmap.md)
+见 [项目路线图](../project-roadmap.md)
 
 **关键方向**:
 - Cluster mode 完善

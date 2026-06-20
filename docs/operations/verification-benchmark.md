@@ -4,7 +4,8 @@
 
 | 改动 | 命令 |
 | --- | --- |
-| Markdown / docs | `bun run docs:build` |
+| Markdown 链接 / 文档互链 | `python3 scripts/check-doc-links.py` |
+| VitePress 页面 / nav / mermaid | `bun run docs:build` |
 | backend Go | `cd backend && go test ./...` |
 | wrapper | `cd wrapper && go test ./...` |
 | frontend | `cd frontend && bun run build` |
@@ -36,6 +37,23 @@ OS_SMOKE_PRIVILEGE_CMD='sudo -E' make os-enforcement-smoke-start
 - `docs/ml-benchmark-report.md`
 - `benchmarks/`
 - `reports/runtime-replay-*`
+
+## 文档验证
+
+文档站同时包含 VitePress 页面、仓库组件 README、历史专题文档和外部参考快照。建议按两层验证：
+
+```bash
+# 轻量、仓库感知：检查本仓库 Markdown 链接和源码路径
+python3 scripts/check-doc-links.py
+
+# 可选：输出弱入链 / 弱出链页面，辅助补文档关系
+python3 scripts/check-doc-links.py --report
+
+# 渲染级：检查 VitePress frontmatter、sidebar、mermaid、代码块等
+bun run docs:build
+```
+
+`scripts/check-doc-links.py` 默认排除 `docs/ref/**`，因为其中包含外部快照和上游原始链接；需要审计参考快照时再显式使用 `--include-ref`。
 
 ## 报告规范
 

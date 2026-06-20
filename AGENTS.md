@@ -300,13 +300,13 @@ Important pages:
 
 ## 7. Backend conventions
 
-- Keep route additions near existing groups in `backend/main.go`.
+- Keep route additions near existing groups in `backend/app/routes__routes.go`.
 - Keep protobuf event naming aligned across:
   - eBPF event type mapping,
   - protobuf messages,
   - frontend filters/tables.
-- Shell-session logic belongs in `backend/shell_sessions.go`, not inlined into `main.go`, unless the change is tiny.
-- Privilege dropping for child commands belongs in `backend/privileges.go`.
+- Shell-session logic belongs in `backend/app/shell__*.go`, not inlined into `main.go`, unless the change is tiny.
+- Privilege dropping for child commands belongs in `backend/app/runtime__privileges.go`.
 
 ## 8. Documentation expectations
 

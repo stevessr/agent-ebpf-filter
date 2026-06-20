@@ -57,14 +57,14 @@ ML 与 Plugins 是增强层，服务于行为分类、风险评分、训练集�
 
 能力：
 
-- plugin registry；
-- raw C source plugin；
-- template plugin；
-- visual eBPF builder；
-- pseudocode builder；
-- LLM-backed NLP blocks compiler；
-- generated eBPF C preview；
-- compile / register / load controls。
+- plugin registry.
+- raw C source plugin.
+- template plugin.
+- visual eBPF builder.
+- pseudocode builder.
+- LLM-backed NLP blocks compiler.
+- generated eBPF C preview.
+- compile / register / load controls.
 
 ## attachKind 约束
 
@@ -80,3 +80,17 @@ ML 与 Plugins 在答辩中应作为增强点，而不是压过 eBPF / OS enforc
 - 可训练；
 - 可视化规则构建；
 - 与 runtime gates / auth / policy map 的边界。
+
+## 相关文档与同步点
+
+| 主题 | 应同步文档 / 源码 |
+| --- | --- |
+| ML 模型目录、内置 profile、前端 catalog | [ML 模型速查表](ml-models-summary.md)、[ML 模型完整指南](ml-models-complete-guide.md)、`frontend/src/data/mlModelCatalog.ts` |
+| kernel risk feedback | [事件管线](/backend/event-pipeline)、[策略语义](/security/policy-semantics)、[Runtime Gates 与 Auth](/security/runtime-gates-auth) |
+| kernel-ml DKMS / CUDA helper / v2 model format | [内核 ML 实现](../kernel-ml-implementation.md)、[kernel-ml/README](../../kernel-ml/README.md) |
+| Plugins routes / visual builder | [路由与 API](/backend/routes-api)、[前端路由与功能页](/frontend/routes-and-pages)、[代码入口索引](/reference/code-entrypoints) |
+| 性能或模型评测 | [验证、测试与 Benchmark](/operations/verification-benchmark)、[评测报告](/delivery/evaluation)、[ML benchmark](../ml-benchmark-report.md) |
+
+::: warning 不要混淆三条路径
+用户态 ML 打分、kernel risk feedback 写内核策略、`kernel-ml` DKMS 模块是三条不同路径：前者给事件打风险分，第二条在双 gate 下把高风险结果转成 cgroup / LSM map 条目，第三条是独立的 proc/sysfs 推理模块。改其中任一条时，要同步本页和对应专题文档，避免把能力边界写混。
+:::

@@ -331,7 +331,7 @@ export function useEventStream() {
 ## 开发记录索引
 
 详细的实现记录和历史决策见：
-- [开发文档索引](DEV_DOCS_INDEX.md)
+- [开发文档索引](../DEV_DOCS_INDEX.md)
 
 ---
 

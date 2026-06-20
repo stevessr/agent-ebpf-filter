@@ -67,5 +67,17 @@
 - [ ] 链接可点击；
 - [ ] 代码路径真实存在；
 - [ ] 旧路径已校正；
-- [ ] `bun run docs:build`；
-- [ ] 与专项文档互相索引。
+- [ ] `python3 scripts/check-doc-links.py`；
+- [ ] 若在做文档梳理 / 深化，查看 `python3 scripts/check-doc-links.py --report` 的弱入链和弱出链页面；
+- [ ] 需要渲染 / 导航验证时运行 `bun run docs:build`；
+- [ ] 与专项文档互相索引；
+- [ ] 新增页面已从 [文档地图](/reference/documentation-map) 或 [阅读路线](/guide/reading-paths) 反向链接；
+- [ ] 若文档描述 route、auth、runtime gate、eBPF map、protobuf 或 kernel-ml UAPI，同步更新对应专题页和组件 README。
+
+## 文档互链审计
+
+- [ ] `docs/ref/**` 是外部参考快照；默认不要求修复其内部断链，除非本次任务明确维护该快照。
+- [ ] VitePress 绝对路径（如 `/backend/event-pipeline`）能映射到 `docs/backend/event-pipeline.md`。
+- [ ] 仓库相对路径（如 `../../kernel-ml/README.md`）从当前 Markdown 文件所在目录解析后真实存在。
+- [ ] 历史实现记录中若保留旧路径，应注明“历史路径 / 当前入口见……”，不要让它冒充当前代码入口。
+- [ ] 重要专题至少有“上游概念页 → 当前专题页 → 源码入口 / 验证命令”的三段链路。

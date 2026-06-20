@@ -84,10 +84,10 @@ Important maps:
 
 Main files:
 
-- `backend/main.go`
-- `backend/ebpf_runtime.go`
-- `backend/shell_sessions.go`
-- `backend/privileges.go`
+- `backend/app/main.go`
+- `backend/app/runtime__runtime_ebpf.go`
+- `backend/app/shell__*.go`
+- `backend/app/runtime__privileges.go`
 
 Responsibilities:
 
