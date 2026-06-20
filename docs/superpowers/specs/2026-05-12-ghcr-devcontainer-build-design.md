@@ -59,3 +59,13 @@ Update repository documentation that describes the devcontainer workflow. The do
 Local validation should cover Makefile syntax and the generated image reference. Full end-to-end validation of pushing to GHCR requires GitHub Actions execution in the remote repository.
 
 Application build targets such as `make backend`, `make frontend`, `make wrapper`, and `make all` are out of scope.
+
+---
+
+## 相关导航
+
+- [GHCR devcontainer build plan](../plans/2026-05-12-ghcr-devcontainer-build.md)
+- [开发容器](../../operations/devcontainer.md)
+- [构建与运行](../../operations/build-and-run.md)
+- [部署与安装](../../operations/deployment.md)
+- [文档关系审计](../../reference/documentation-audit.md)

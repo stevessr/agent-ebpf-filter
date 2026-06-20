@@ -556,3 +556,13 @@ TLS 明文捕获是高风险诊断能力，不是默认安全基线：
 6. 修改 Vue 页面时保持 Composition API 与 `<script setup lang="ts">`。
 7. 修改行为边界时更新 `docs/security-model.md`、`docs/threat-model.md`、`docs/policy-semantics.md` 或本结构文档。
 8. 答辩材料引用性能数据前必须重新记录测试环境、命令和结果。
+
+---
+
+## 相关导航
+
+- [代码实现地图](codebase-implementation-map.md)
+- [代码入口索引](reference/code-entrypoints.md)
+- [文档地图](reference/documentation-map.md)
+- [维护检查清单](reference/maintenance-checklists.md)
+- [总体架构](architecture/overview.md)

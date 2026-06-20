@@ -99,3 +99,13 @@ That split is **not fully implemented yet**. This document should stay honest ab
 - in Kubernetes, keep the DaemonSet Service internal by default and restrict
   callers to trusted namespaces/controllers because the node-agent Pod is
   privileged and can mutate kernel enforcement policy when the runtime gate is enabled
+
+---
+
+## 相关导航
+
+- [安全模型](security/model.md)
+- [Runtime Gates 与 Auth](security/runtime-gates-auth.md)
+- [策略语义](security/policy-semantics.md)
+- [威胁模型](threat-model.md)
+- [脱敏与隐私](security/redaction-privacy.md)

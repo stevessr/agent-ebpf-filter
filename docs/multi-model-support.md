@@ -251,3 +251,13 @@ cat model_nn.bin > /proc/ml_load    # 切换到 NN
 **代码行数**: +350 行（SVM/LR/NN 实现）
 
 内核态 ML 推理引擎现已支持主流监督学习算法！🚀
+
+---
+
+## 相关导航
+
+- [ML、Plugins 与扩展能力](backend/ml-plugins.md)
+- [内核态多模型实现](multi-model-complete.md)
+- [全模型实现概览](all-models-complete.md)
+- [内核 ML 实现](kernel-ml-implementation.md)
+- [kernel-ml README](../kernel-ml/README.md)

@@ -21,7 +21,7 @@
 | Integrations | adapters、wrapper、hooks、MCP/API/OTLP | [Agents](/integrations/agents)、[Wrapper](/integrations/wrapper)、[Native Hooks](/integrations/native-hooks)、[MCP/External API/OTLP](/integrations/mcp-external-otlp) |
 | Operations | 构建运行、devcontainer、部署、验证 benchmark | [构建与运行](/operations/build-and-run)、[部署与安装](/operations/deployment)、[验证、测试与 Benchmark](/operations/verification-benchmark) |
 | Delivery | 答辩、演示、评测、合规 | [比赛答辩主线](/delivery/competition-defense)、[演示脚本](/delivery/demo-script)、[评测报告](/delivery/evaluation) |
-| Reference | 文档地图、代码入口、生成文件、检查清单 | [代码入口索引](/reference/code-entrypoints)、[生成文件边界](/reference/generated-files)、[维护检查清单](/reference/maintenance-checklists) |
+| Reference | 文档地图、关系审计、代码入口、生成文件、检查清单 | [文档关系审计](/reference/documentation-audit)、[代码入口索引](/reference/code-entrypoints)、[生成文件边界](/reference/generated-files)、[维护检查清单](/reference/maintenance-checklists) |
 
 ## 功能域互联矩阵
 
@@ -95,3 +95,4 @@
 3. 代码路径、route、feature gate、UAPI、构建命令变化时，同时更新 [代码入口索引](/reference/code-entrypoints)、[维护检查清单](/reference/maintenance-checklists) 和相关专题页。
 4. 文档变更最小验证：`python3 scripts/check-doc-links.py`；需要看弱互链页面时加 `--report`；若改 VitePress 配置、mermaid、frontmatter 或导航，再跑 `bun run docs:build`。
 5. 旧路径表述需要定期校正到当前代码；如必须保留历史路径，应明确标注“历史记录”而不是让读者误以为它是当前入口。
+6. 周期性复盘 [文档关系审计](documentation-audit.md)，把弱互链页面分成“入口页正常”“历史页由索引承接”“当前专题需补相关导航”三类处理。

@@ -301,3 +301,12 @@ graph TB
 | policy mutation | 阻断网络/文件/执行 | auth、runtime gate、restrictive maps |
 | domain forward | 80/443 public data plane | 默认关闭、auth-protected config |
 
+---
+
+## 相关导航
+
+- [Runtime Gates 与 Auth](runtime-gates-auth.md)
+- [策略语义](policy-semantics.md)
+- [脱敏与隐私](redaction-privacy.md)
+- [威胁模型](../threat-model.md)
+- [eBPF 与 OS Enforcement](../backend/ebpf-os-enforcement.md)

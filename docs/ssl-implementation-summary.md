@@ -182,3 +182,13 @@ http://localhost:8080/config
 - **Codex**: 基础设施就绪，等待符号表或偏移查找 ⚠️
 
 核心路径包括自动发现、附加并捕获 Claude Code 的 SSL/TLS 流量。
+
+---
+
+## 相关导航
+
+- [TLS Quickstart](backend/TLS_QUICKSTART.md)
+- [TLS 完整实现报告](backend/TLS_INTERCEPT_COMPLETE.md)
+- [SSL final summary](ssl-final-summary.md)
+- [Claude / Codex TLS 支持](ssl-claude-codex-support.md)
+- [脱敏与隐私](security/redaction-privacy.md)

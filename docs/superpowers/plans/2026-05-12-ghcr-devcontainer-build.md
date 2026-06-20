@@ -560,3 +560,13 @@ Tell the user:
 ```text
 Local Makefile and documentation checks passed. Full GHCR publishing still needs a GitHub Actions run after pushing the branch, because local verification cannot prove remote package permissions or GHCR push behavior.
 ```
+
+---
+
+## 相关导航
+
+- [GHCR devcontainer build design](../specs/2026-05-12-ghcr-devcontainer-build-design.md)
+- [开发容器](../../operations/devcontainer.md)
+- [构建与运行](../../operations/build-and-run.md)
+- [验证、测试与 Benchmark](../../operations/verification-benchmark.md)
+- [文档关系审计](../../reference/documentation-audit.md)

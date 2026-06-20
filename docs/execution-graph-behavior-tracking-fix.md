@@ -165,3 +165,13 @@ URL 参数 → ExecutionGraph filters
 - 进程树展开/折叠功能的同步
 - 时间范围过滤器的同步 (timePreset, since, until)
 - 其他执行图过滤器的同步 (traceId, toolCallId, agentRunId)
+
+---
+
+## 相关导航
+
+- [前端工作台](frontend/workbench.md)
+- [路由与功能页](frontend/routes-and-pages.md)
+- [事件管线](backend/event-pipeline.md)
+- [AgentSight 项目致谢](reference/agentsight-acknowledgment.md)
+- [AgentSight 优化总结](agentsight-optimization-summary.md)

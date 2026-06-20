@@ -59,3 +59,13 @@ meta: featureMeta('tls_capture')
 - 修改 Vue / TS：`cd frontend && bun run build`；
 - 修改 route / feature flags：测试 feature-unavailable 跳转；
 - 修改 API schema：同步 types / composables / backend docs。
+
+---
+
+## 相关导航
+
+- [前端工作台](workbench.md)
+- [路由与功能页](routes-and-pages.md)
+- [Runtime Settings 与 Feature Manifest](../backend/runtime-settings-features.md)
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+- [维护检查清单](../reference/maintenance-checklists.md)

@@ -125,3 +125,13 @@ codex: ELF 64-bit LSB pie executable, static-pie linked, stripped
 - [ ] 添加对 Bun 和 Deno 静态 TLS 的支持
 - [ ] 实现 TLS 内容的智能过滤和搜索
 - [ ] 添加 WebSocket 流量的特殊处理
+
+---
+
+## 相关导航
+
+- [Codex workflows](codex-workflows.md)
+- [Codex implementation complete](codex-implementation-complete.md)
+- [SSL implementation summary](ssl-implementation-summary.md)
+- [TLS Quickstart](backend/TLS_QUICKSTART.md)
+- [脱敏与隐私](security/redaction-privacy.md)

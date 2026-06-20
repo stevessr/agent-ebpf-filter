@@ -244,3 +244,13 @@ struct {
 - 内存占用: 符合 1MB 限制
 
 **开发时间**: 8-13 天
+
+---
+
+## 相关导航
+
+- [eBPF ML 实现说明](ebpf-ml-implementation.md)
+- [ML、Plugins 与扩展能力](backend/ml-plugins.md)
+- [eBPF 与 OS Enforcement](backend/ebpf-os-enforcement.md)
+- [内核 ML 实现](kernel-ml-implementation.md)
+- [kernel-ml README](../kernel-ml/README.md)

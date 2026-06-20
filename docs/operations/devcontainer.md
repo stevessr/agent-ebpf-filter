@@ -31,3 +31,13 @@ make exec
 - 不要把 host-only dependency tree 复用进 container；
 - VS Code Dev Containers 使用 image field；
 - Podman 场景注意 user namespace 与 `--pid=host` 组合限制。
+
+---
+
+## 相关导航
+
+- [构建与运行](build-and-run.md)
+- [部署与安装](deployment.md)
+- [验证、测试与 Benchmark](verification-benchmark.md)
+- [devcontainer README](../../.devcontainer/README.md)
+- [文档地图](../reference/documentation-map.md)

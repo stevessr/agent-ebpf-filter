@@ -130,3 +130,13 @@ registerRoutes()
 - 是否需要 frontend composable；
 - 是否需要 `docs/external-api.md`；
 - 是否涉及 security docs。
+
+---
+
+## 相关导航
+
+- [后端启动链路](runtime-startup.md)
+- [Runtime Settings 与 Feature Manifest](runtime-settings-features.md)
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+- [External API](../external-api.md)
+- [代码入口索引](../reference/code-entrypoints.md)

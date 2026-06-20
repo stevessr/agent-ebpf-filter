@@ -350,3 +350,13 @@ aea85a7 refactor: Optimize eBPF code for efficiency (-85%)
 **编译验证**: clang + LLVM 通过
 
 内核态 ML 推理引擎支持 **4 大主流监督学习算法**，覆盖从线性到非线性、从极速到高精度的场景。
+
+---
+
+## 相关导航
+
+- [多模型支持设计](multi-model-support.md)
+- [全模型实现概览](all-models-complete.md)
+- [内核 ML 实现](kernel-ml-implementation.md)
+- [ML、Plugins 与扩展能力](backend/ml-plugins.md)
+- [kernel-ml README](../kernel-ml/README.md)

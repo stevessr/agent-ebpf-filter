@@ -142,3 +142,13 @@
 - `docs/ml-benchmark-presentation.html`
 - `reports/ml-sweep-20260506-160249/`
 - `reports/ml-sweep-20260506-150507/`
+
+---
+
+## 相关导航
+
+- [ML benchmark](ml-benchmark-report.md)
+- [ML 实验框架](ml-experiments.md)
+- [ML、Plugins 与扩展能力](backend/ml-plugins.md)
+- [ML 模型完整指南](backend/ml-models-complete-guide.md)
+- [项目路线图](project-roadmap.md)

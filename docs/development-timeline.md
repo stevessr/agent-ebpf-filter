@@ -235,3 +235,13 @@ AI-Usage: drafted documentation outline; human reviewed and edited
 - [ ] 官方题目编号和题目名称；
 - [ ] AI 工具交互记录与具体 commit 的映射；
 - [ ] 如果参考往届作品或开源项目，补充基础版本、增量贡献和许可证。
+
+---
+
+## 相关导航
+
+- [项目文档索引](project-docs-index.md)
+- [AI 使用记录](ai-usage/README.md)
+- [第三方与 AI 使用披露](delivery/compliance.md)
+- [项目路线图](project-roadmap.md)
+- [文档关系审计](reference/documentation-audit.md)

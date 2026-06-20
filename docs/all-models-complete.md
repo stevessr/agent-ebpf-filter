@@ -303,3 +303,13 @@ s64 gaussian_pdf(s64 x, s64 mean, s64 std) {
 **覆盖率**: 监督学习主流算法 **100%**
 
 内核态机器学习推理引擎覆盖从线性到非线性、从单模型到集成、从快速到精确的 ML 算法场景。
+
+---
+
+## 相关导航
+
+- [ML、Plugins 与扩展能力](backend/ml-plugins.md)
+- [ML 模型速查表](backend/ml-models-summary.md)
+- [ML 模型完整指南](backend/ml-models-complete-guide.md)
+- [内核态多模型实现](multi-model-complete.md)
+- [kernel-ml README](../kernel-ml/README.md)

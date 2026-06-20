@@ -46,3 +46,13 @@ bun run docs:preview
 ## 端口模型
 
 后端监听 `8080..8089` 中第一个可用端口，并写入 `backend/.port`。Vite dev proxy、adapters 和 hook callback 推导会读取该端口。
+
+---
+
+## 相关导航
+
+- [开发容器](devcontainer.md)
+- [部署与安装](deployment.md)
+- [验证、测试与 Benchmark](verification-benchmark.md)
+- [后端启动链路](../backend/runtime-startup.md)
+- [生成文件边界](../reference/generated-files.md)

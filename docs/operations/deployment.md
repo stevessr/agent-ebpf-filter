@@ -41,3 +41,13 @@ deploy/kubernetes/
 - HTTPS 需要默认或 route-level cert/key；
 - data plane 不由 API token 保护；
 - config 和 status 受 auth 保护。
+
+---
+
+## 相关导航
+
+- [构建与运行](build-and-run.md)
+- [开发容器](devcontainer.md)
+- [Kubernetes](../kubernetes.md)
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+- [External API](../external-api.md)

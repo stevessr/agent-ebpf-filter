@@ -59,3 +59,13 @@ Use the replay suite to catch logic regressions in:
 - semantic alert generation
 - wrapper decision path latency
 - expected-vs-observed behavior classification
+
+---
+
+## 相关导航
+
+- [验证、测试与 Benchmark](operations/verification-benchmark.md)
+- [Runtime replay benchmark](operations/verification-benchmark.md#benchmark-文档)
+- [评测报告](delivery/evaluation.md)
+- [ML benchmark](ml-benchmark-report.md)
+- [构建与运行](operations/build-and-run.md)

@@ -52,3 +52,13 @@ AI-Usage: drafted documentation outline; human reviewed and edited
 ## 5. 当前已生成材料
 
 - `docs/os-competition-defense.md`：操作系统设计赛答辩项目文档草案，包含项目概述、架构、关键技术、演示流程、开源合规、AI 使用披露和答辩 PPT 结构。
+
+---
+
+## 相关导航
+
+- [合规披露](../delivery/compliance.md)
+- [OS competition defense 草案](../os-competition-defense.md)
+- [第三方声明草案](../third-party-notices.md)
+- [项目文档索引](../project-docs-index.md)
+- [文档关系审计](../reference/documentation-audit.md)

@@ -122,3 +122,13 @@ The roadmap still wants richer semantics such as:
 Those richer semantics are directionally planned, but only the exact
 cgroup/IP/port and LSM path/name map decisions described above are implemented
 today.
+
+---
+
+## 相关导航
+
+- [策略语义](security/policy-semantics.md)
+- [eBPF 与 OS Enforcement](backend/ebpf-os-enforcement.md)
+- [Wrapper 命令策略](integrations/wrapper.md)
+- [Runtime Gates 与 Auth](security/runtime-gates-auth.md)
+- [路由与 API](backend/routes-api.md)

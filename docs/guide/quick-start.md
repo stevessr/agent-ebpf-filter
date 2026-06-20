@@ -99,3 +99,13 @@ bun run docs:preview
 - 启用 80/443 domain forward；
 - 清空持久化事件；
 - 运行 `/system/run` 或交互式 shell sessions。
+
+---
+
+## 相关导航
+
+- [项目是什么](what-is-agent-ebpf-filter.md)
+- [功能总览](capabilities.md)
+- [构建与运行](../operations/build-and-run.md)
+- [总体架构](../architecture/overview.md)
+- [阅读路线](reading-paths.md)

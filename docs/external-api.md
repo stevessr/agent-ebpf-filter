@@ -152,3 +152,13 @@ curl -H "X-API-KEY: $AGENT_API_KEY" \
 For node-specific debugging, port-forward a selected DaemonSet Pod instead of
 using the Service, because a ClusterIP Service may load-balance to any node
 agent.
+
+---
+
+## 相关导航
+
+- [路由与 API](backend/routes-api.md)
+- [MCP、External API 与 OTLP](integrations/mcp-external-otlp.md)
+- [Kubernetes](kubernetes.md)
+- [Runtime Gates 与 Auth](security/runtime-gates-auth.md)
+- [部署与安装](operations/deployment.md)

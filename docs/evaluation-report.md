@@ -535,3 +535,13 @@ cd kernel-ml && make cuda-helper-self-test CUDA_HOME=/opt/cuda
 
 仍需注意：项目不防御 root 攻击者，不替代完整容器沙箱；TLS 明文捕获和 domain forward 属于默认关闭的高风险诊断能力；所有第三方依赖和 AI 使用记录已在文档中披露。
 ```
+
+---
+
+## 相关导航
+
+- [评测报告](delivery/evaluation.md)
+- [验证、测试与 Benchmark](operations/verification-benchmark.md)
+- [Benchmark](benchmark.md)
+- [Demo script 草案](demo-script.md)
+- [OS competition defense 草案](os-competition-defense.md)

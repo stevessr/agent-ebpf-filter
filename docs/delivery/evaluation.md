@@ -51,3 +51,13 @@ bun run docs:build
 - nav / sidebar 无断链；
 - 页面标题和 outline 正常；
 - 代码块高亮正常。
+
+---
+
+## 相关导航
+
+- [验证、测试与 Benchmark](../operations/verification-benchmark.md)
+- [Benchmark](../benchmark.md)
+- [演示脚本](demo-script.md)
+- [比赛答辩主线](competition-defense.md)
+- [OS competition defense 草案](../os-competition-defense.md)

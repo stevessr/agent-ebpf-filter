@@ -80,3 +80,13 @@ Vue workbench
 - 前端路由：`frontend/src/router/index.ts`
 - wrapper：`wrapper/main.go`
 - proto 事件：`proto/tracker_events.proto`
+
+---
+
+## 相关导航
+
+- [快速开始](quick-start.md)
+- [功能总览](capabilities.md)
+- [总体架构](../architecture/overview.md)
+- [安全模型](../security/model.md)
+- [阅读路线](reading-paths.md)

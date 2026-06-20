@@ -249,3 +249,13 @@ graph TB
 | OTLP | derived spans | OTLP HTTP endpoint |
 | Prometheus | collector/system metrics | `/metrics` |
 | MCP | config/event APIs | `/mcp` streamable HTTP |
+
+---
+
+## 相关导航
+
+- [总体架构](overview.md)
+- [事件管线](../backend/event-pipeline.md)
+- [协议与事件模型](protocol-events.md)
+- [前端工作台](../frontend/workbench.md)
+- [MCP、External API 与 OTLP](../integrations/mcp-external-otlp.md)

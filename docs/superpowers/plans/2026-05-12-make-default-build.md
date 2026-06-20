@@ -46,3 +46,13 @@ make -n docker
 ```
 
 Expected: output still shows the Docker/Podman image build commands for `.devcontainer/Dockerfile`.
+
+---
+
+## 相关导航
+
+- [构建与运行](../../operations/build-and-run.md)
+- [验证、测试与 Benchmark](../../operations/verification-benchmark.md)
+- [生成文件边界](../../reference/generated-files.md)
+- [维护检查清单](../../reference/maintenance-checklists.md)
+- [文档关系审计](../../reference/documentation-audit.md)

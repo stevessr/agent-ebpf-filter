@@ -430,4 +430,14 @@ curl -X POST http://localhost:8080/api/tls-capture/go-binary \
 
 **报告生成者**: Claude (Opus 4.8)  
 **审查代码库**: agent-ebpf-filter (commit: 8674d1f)  
-**文档版本**: 1.0  
+**文档版本**: 1.0
+
+---
+
+## 相关导航
+
+- [TLS Quickstart](TLS_QUICKSTART.md)
+- [TLS 瑞士军刀验证报告](MISSION_ACCOMPLISHED.md)
+- [脱敏与隐私](../security/redaction-privacy.md)
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+- [事件管线](event-pipeline.md)

@@ -83,3 +83,13 @@
 ## WebSocket cleanup
 
 任何 composable 创建 WebSocket、interval、event listener 时，都必须在 unmount 或 stop action 中 cleanup。
+
+---
+
+## 相关导航
+
+- [前端工作台](workbench.md)
+- [路由与功能页](routes-and-pages.md)
+- [构建与 Feature Flags](build-feature-flags.md)
+- [事件管线](../backend/event-pipeline.md)
+- [代码入口索引](../reference/code-entrypoints.md)

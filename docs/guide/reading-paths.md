@@ -61,7 +61,7 @@
 | 调整 runtime gate / build feature | [Runtime Settings 与 Feature Manifest](/backend/runtime-settings-features) → [Runtime Gates 与 Auth](/security/runtime-gates-auth) → [前端 Feature Flags](/frontend/build-feature-flags) | 不要把“编译进来”写成“运行时已启用” |
 | 调整 ML / kernel risk feedback | [ML、Plugins 与扩展能力](/backend/ml-plugins) → [ML 模型完整指南](/backend/ml-models-complete-guide) → [内核 ML README](../../kernel-ml/README.md) → [评测报告](/delivery/evaluation) | 后端 registry、前端 catalog、kernel-ml UAPI / README / tests 是否一致 |
 | 调整 TLS / Codex capture / redaction | [脱敏与隐私](/security/redaction-privacy) → [Sanitization](../sanitization.md) → [TLS Quickstart](../backend/TLS_QUICKSTART.md) → [安全模型](/security/model) | 默认关闭、认证、脱敏、密钥移除、body 截断是否都写清楚 |
-| 只改文档 | [文档地图](/reference/documentation-map) → [维护检查清单](/reference/maintenance-checklists) → [验证页](/operations/verification-benchmark) | 页面是否进 sidebar、相对链接是否可点击、是否需要更新专项文档 |
+| 只改文档 | [文档地图](/reference/documentation-map) → [文档关系审计](/reference/documentation-audit) → [维护检查清单](/reference/maintenance-checklists) → [验证页](/operations/verification-benchmark) | 页面是否进 sidebar、相对链接是否可点击、是否需要更新专项文档 |
 
 ## 跨页校验习惯
 

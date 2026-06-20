@@ -183,3 +183,12 @@ graph TB
 - policy mutation 需要 runtime gate；
 - wrapper 只覆盖经它启动的命令。
 
+---
+
+## 相关导航
+
+- [Agents、Adapters 与 PID 注册](agents.md)
+- [Native Hooks](native-hooks.md)
+- [事件管线](../backend/event-pipeline.md)
+- [策略语义](../security/policy-semantics.md)
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)

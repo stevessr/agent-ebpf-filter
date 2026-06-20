@@ -31,3 +31,13 @@ Agent eBPF Filter 适合作为操作系统设计赛项目，从“内核观测 +
 - wrapper 不是完整 sandbox；
 - release mode 需要 token；
 - 高风险能力需要 runtime gate。
+
+---
+
+## 相关导航
+
+- [OS competition defense 草案](../os-competition-defense.md)
+- [演示脚本](demo-script.md)
+- [评测报告](evaluation.md)
+- [第三方与 AI 使用披露](compliance.md)
+- [文档地图](../reference/documentation-map.md)

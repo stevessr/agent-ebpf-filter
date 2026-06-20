@@ -76,3 +76,13 @@ File / directory：
 3. runtime policy management enabled；
 4. 后端 API 写入 map / store；
 5. UI / status 可观测。
+
+---
+
+## 相关导航
+
+- [安全模型](model.md)
+- [Runtime Gates 与 Auth](runtime-gates-auth.md)
+- [eBPF 与 OS Enforcement](../backend/ebpf-os-enforcement.md)
+- [Wrapper 命令策略](../integrations/wrapper.md)
+- [路由与 API](../backend/routes-api.md)

@@ -336,3 +336,13 @@ Treat the app as a local workstation tool unless you also harden auth and deploy
   - first-alert / block latency
   - child-context correlation accuracy
 - Live collector metrics such as ringbuf drops still come from `/system/collector-health` and `/metrics`, not from the offline replay harness.
+
+---
+
+## 相关导航
+
+- [总体架构](architecture/overview.md)
+- [数据流](architecture/data-flow.md)
+- [运行时边界](architecture/runtime-boundaries.md)
+- [协议与事件模型](architecture/protocol-events.md)
+- [代码入口索引](reference/code-entrypoints.md)

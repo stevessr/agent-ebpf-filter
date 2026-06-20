@@ -270,3 +270,12 @@ func configureRuntimePort(port int) {
 }
 ```
 
+---
+
+## 相关导航
+
+- [构建与运行](../operations/build-and-run.md)
+- [运行时边界](../architecture/runtime-boundaries.md)
+- [Runtime Settings 与 Feature Manifest](runtime-settings-features.md)
+- [路由与 API](routes-api.md)
+- [代码入口索引](../reference/code-entrypoints.md)

@@ -40,3 +40,13 @@
 5. UI 子块放 `components/<domain>/`；
 6. 类型放 `types/`；
 7. 运行 `cd frontend && bun run build`。
+
+---
+
+## 相关导航
+
+- [前端工作台](workbench.md)
+- [组件与 Composables](components-composables.md)
+- [构建与 Feature Flags](build-feature-flags.md)
+- [路由与 API](../backend/routes-api.md)
+- [代码入口索引](../reference/code-entrypoints.md)

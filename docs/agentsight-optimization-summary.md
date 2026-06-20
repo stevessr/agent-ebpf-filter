@@ -411,3 +411,13 @@ console.log(`处理 10k events: ${end - start}ms`);
 ---
 
 **影响范围**: AgentSight 全模块
+
+---
+
+## 相关导航
+
+- [AgentSight 优化指南](agentsight-optimization-guide.md)
+- [AgentSight 项目致谢](reference/agentsight-acknowledgment.md)
+- [Execution Graph 行为追踪修复](execution-graph-behavior-tracking-fix.md)
+- [前端路由与功能页](frontend/routes-and-pages.md)
+- [评测报告](delivery/evaluation.md)

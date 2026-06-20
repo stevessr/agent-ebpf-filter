@@ -63,3 +63,13 @@
 | deploy | `deploy/kubernetes/` |
 | devcontainer | `.devcontainer/` |
 | docs site | `docs/.vitepress/config.ts` |
+
+---
+
+## 相关导航
+
+- [文档地图](documentation-map.md)
+- [维护检查清单](maintenance-checklists.md)
+- [生成文件边界](generated-files.md)
+- [代码实现模式与最佳实践](implementation-patterns.md)
+- [文档关系审计](documentation-audit.md)

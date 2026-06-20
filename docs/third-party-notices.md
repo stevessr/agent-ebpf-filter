@@ -307,3 +307,13 @@ AI 输出不应被描述为“未经人工确认的事实”。凡涉及赛事�
 - [ ] AI 使用披露记录已补充。
 - [ ] 所有外部图片、图标、截图、论文图在 PPT 中逐页标注来源。
 - [ ] 如存在第三方复制代码，在复制位置保留来源注释和许可证声明。
+
+---
+
+## 相关导航
+
+- [第三方与 AI 使用披露](delivery/compliance.md)
+- [外部资源与最佳实践](reference/external-resources.md)
+- [AI 使用记录](ai-usage/README.md)
+- [OS competition defense 草案](os-competition-defense.md)
+- [文档关系审计](reference/documentation-audit.md)

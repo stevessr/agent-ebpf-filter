@@ -504,3 +504,13 @@ ebpf-tls:
 4. Go 二进制符号解析 + 动态发现
 5. 前端 `TLSCapture.vue` + 路由
 6. 集成测试（模拟 HTTPS 请求验证端到端流程）
+
+---
+
+## 相关导航
+
+- [TLS plaintext capture implementation plan](../plans/2026-05-10-tls-plaintext-capture-implementation.md)
+- [TLS Quickstart](../../backend/TLS_QUICKSTART.md)
+- [eBPF 与 OS Enforcement](../../backend/ebpf-os-enforcement.md)
+- [Runtime Gates 与 Auth](../../security/runtime-gates-auth.md)
+- [文档关系审计](../../reference/documentation-audit.md)

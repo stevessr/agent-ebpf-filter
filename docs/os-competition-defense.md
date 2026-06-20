@@ -584,3 +584,14 @@ e4dee65 chore: Add eBPF optimization checklist
 Agent eBPF Filter 将 eBPF 观测、cgroup/LSM 内核阻断、AI CLI hook、命令 wrapper、行为图谱、数据脱敏、事件回放和可选内核态 ML 结合起来，形成一个面向 AI Agent 安全治理的操作系统级工具。它不仅满足功能挑战赛道对 OS 相关系统、调试工具、安全工具和软硬协同优化的要求，也具备较强的工程完整性和答辩展示性。
 
 在最终参赛提交中，应继续补齐官方赛事链接核验、许可证来源清单、AI 使用披露、交互记录和提交时间线，以满足公平性、规范性和开源合规要求。
+
+---
+
+## 相关导航
+
+- [比赛答辩主线](delivery/competition-defense.md)
+- [演示脚本](delivery/demo-script.md)
+- [评测报告](delivery/evaluation.md)
+- [第三方与 AI 使用披露](delivery/compliance.md)
+- [AI 使用记录](ai-usage/README.md)
+- [第三方声明草案](third-party-notices.md)

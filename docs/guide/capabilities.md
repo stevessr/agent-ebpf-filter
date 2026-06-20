@@ -91,3 +91,13 @@ TLS 明文捕获是可选高风险诊断能力，默认关闭。启用后支持 
 - benchmark / replay scripts；
 - 操作系统设计赛答辩文档；
 - AI 使用披露、第三方 notice、评测报告模板。
+
+---
+
+## 相关导航
+
+- [项目是什么](what-is-agent-ebpf-filter.md)
+- [快速开始](quick-start.md)
+- [阅读路线](reading-paths.md)
+- [总体架构](../architecture/overview.md)
+- [前端工作台](../frontend/workbench.md)

@@ -78,3 +78,13 @@ Unexpected:
 - offline replay benchmarks for benign / malicious / agentic scenarios
 
 The remaining roadmap still includes stronger cgroup / LSM enforcement and a real privileged-vs-unprivileged split.
+
+---
+
+## 相关导航
+
+- [Codex implementation complete](codex-implementation-complete.md)
+- [Codex rustls 修复](codex-rustls-fix.md)
+- [TLS Quickstart](backend/TLS_QUICKSTART.md)
+- [Native Hooks](integrations/native-hooks.md)
+- [事件管线](backend/event-pipeline.md)

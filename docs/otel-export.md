@@ -76,3 +76,13 @@ The response includes:
 - Prometheus metrics remain local at `GET /metrics`.
 - OTLP export is best-effort and asynchronous; exporter queue overflow increments `droppedEvents`.
 - The OTLP spans are **derived** from local runtime evidence. They preserve agent identifiers such as `agent_run_id`, `task_id`, `tool_call_id`, and the original `trace_id` as attributes even when the emitted OTel trace tree is synthesized locally.
+
+---
+
+## 相关导航
+
+- [MCP、External API 与 OTLP](integrations/mcp-external-otlp.md)
+- [事件管线](backend/event-pipeline.md)
+- [External API](external-api.md)
+- [验证、测试与 Benchmark](operations/verification-benchmark.md)
+- [Runtime Gates 与 Auth](security/runtime-gates-auth.md)

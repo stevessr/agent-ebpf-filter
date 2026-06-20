@@ -273,3 +273,12 @@ m.AttachCodexSyscallTracer(pid)
 **实现成本**: ~100 行 eBPF C 代码 + ~50 行 Go 代码
 
 **预期效果**: 可捕获 Codex 的所有 HTTPS 流量，精度略低于 uprobe 但完全可用。
+
+---
+
+## 相关导航
+
+- [Codex workflows](codex-workflows.md)
+- [Codex implementation complete](codex-implementation-complete.md)
+- [Codex rustls 修复](codex-rustls-fix.md)
+- [TLS / Codex 捕获与脱敏边界](security/redaction-privacy.md)

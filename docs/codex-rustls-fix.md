@@ -76,3 +76,13 @@ curl http://localhost:8080/tls-capture/libraries
 - 新增：4 个文件（rustls 支持）
 - 修改：7 个文件（集成和清理）
 - 净变化：-186 行（更简洁的实现）
+
+---
+
+## 相关导航
+
+- [Codex implementation complete](codex-implementation-complete.md)
+- [Codex stripped binary 分析](codex-stripped-analysis.md)
+- [TLS Quickstart](backend/TLS_QUICKSTART.md)
+- [Runtime Gates 与 Auth](security/runtime-gates-auth.md)
+- [事件管线](backend/event-pipeline.md)

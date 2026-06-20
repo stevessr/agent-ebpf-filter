@@ -45,3 +45,13 @@ Agent process
 - 子进程关联依赖 fork/clone lineage 和 userspace parent fallback；
 - adapter 不是自动递归注册所有后代的 daemon；
 - release mode 下 `/register` 和 `/unregister` 需要 auth。
+
+---
+
+## 相关导航
+
+- [Wrapper 命令策略](wrapper.md)
+- [Native Hooks](native-hooks.md)
+- [事件管线](../backend/event-pipeline.md)
+- [协议与事件模型](../architecture/protocol-events.md)
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)

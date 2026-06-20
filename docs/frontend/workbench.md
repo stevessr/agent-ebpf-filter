@@ -232,3 +232,12 @@ sequenceDiagram
     Comp->>View: filtered events
 ```
 
+---
+
+## 相关导航
+
+- [路由与功能页](routes-and-pages.md)
+- [组件与 Composables](components-composables.md)
+- [构建与 Feature Flags](build-feature-flags.md)
+- [事件管线](../backend/event-pipeline.md)
+- [前端 README](../../frontend/README.md)

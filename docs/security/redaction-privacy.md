@@ -52,3 +52,13 @@ TLS 明文捕获默认关闭。启用时也必须：
 - `docs/sanitization.md`
 - `docs/sanitization_zh.md`
 - `docs/SANITIZATION_IMPLEMENTATION_SUMMARY.md`
+
+---
+
+## 相关导航
+
+- [安全模型](model.md)
+- [Runtime Gates 与 Auth](runtime-gates-auth.md)
+- [Sanitization 完整文档](../sanitization.md)
+- [Sanitization 中文指南](../sanitization_zh.md)
+- [事件管线](../backend/event-pipeline.md)

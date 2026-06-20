@@ -146,3 +146,13 @@ Net: +1,043 insertions, -2,346 deletions
 3. **保持简单**: 优先选择低风险的优化
 
 下一步可以探索 TLS handler 合并和 LSM 优化，但收益递减且风险增加。
+
+---
+
+## 相关导航
+
+- [eBPF 与 OS Enforcement](backend/ebpf-os-enforcement.md)
+- [BTF 修复指南](btf-fix-guide.md)
+- [Kernel load manual](kernel-load-manual.md)
+- [验证、测试与 Benchmark](operations/verification-benchmark.md)
+- [代码入口索引](reference/code-entrypoints.md)

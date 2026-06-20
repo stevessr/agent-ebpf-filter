@@ -73,3 +73,13 @@ dev mode 默认关闭 auth；release mode 中敏感 API 需要 runtime access to
 | BPF LSM | exact exec path/name、file basename | 不是递归目录策略 |
 | runtime gates | 后端危险能力开关 | 不是内核级访问控制 |
 | hooks | AI CLI hook payload | 不保证覆盖未接入的 CLI |
+
+---
+
+## 相关导航
+
+- [总体架构](overview.md)
+- [数据流](data-flow.md)
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+- [安全模型](../security/model.md)
+- [Runtime Settings 与 Feature Manifest](../backend/runtime-settings-features.md)

@@ -366,3 +366,13 @@
 **本页面持续更新**
 
 有新的优秀资源推荐？欢迎提 PR 或 Issue！
+
+---
+
+## 相关导航
+
+- [文档地图](documentation-map.md)
+- [第三方与外部来源声明](../third-party-notices.md)
+- [合规披露](../delivery/compliance.md)
+- [技术对比与差异化](technical-comparison.md)
+- [AgentSight 项目致谢](agentsight-acknowledgment.md)

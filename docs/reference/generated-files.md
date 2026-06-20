@@ -65,3 +65,13 @@ make ebpf-tls
 - `tracker_*_pb2.py`
 
 优先判断为生成物，不直接编辑。
+
+---
+
+## 相关导航
+
+- [维护检查清单](maintenance-checklists.md)
+- [代码入口索引](code-entrypoints.md)
+- [协议与事件模型](../architecture/protocol-events.md)
+- [构建与运行](../operations/build-and-run.md)
+- [文档关系审计](documentation-audit.md)

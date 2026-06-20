@@ -62,3 +62,13 @@ OTLP export 用于把 Agent 行为转换为 tracing spans：
 ## Prometheus
 
 `GET /metrics` 暴露 Prometheus metrics。release mode 下需要 auth。
+
+---
+
+## 相关导航
+
+- [External API](../external-api.md)
+- [路由与 API](../backend/routes-api.md)
+- [OTLP export](../otel-export.md)
+- [MCP Skills 增强](../mcp-skills-enhancement.md)
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)

@@ -132,6 +132,7 @@ export default defineConfig({
           text: '参考',
           items: [
             { text: '文档地图', link: '/reference/documentation-map' },
+            { text: '文档关系审计', link: '/reference/documentation-audit' },
             { text: '技术深度参考', link: '/reference/technical-depth' },
             { text: '代码实现模式与最佳实践', link: '/reference/implementation-patterns' },
             { text: '技术对比与差异化', link: '/reference/technical-comparison' },

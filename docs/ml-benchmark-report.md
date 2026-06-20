@@ -334,3 +334,13 @@ Key output from that run:
 ```
 
 This is the current deployment recommendation until a larger repeat-count run supersedes it.
+
+---
+
+## 相关导航
+
+- [验证、测试与 Benchmark](operations/verification-benchmark.md)
+- [ML 模型完整指南](backend/ml-models-complete-guide.md)
+- [ML 实验框架](ml-experiments.md)
+- [评测报告](delivery/evaluation.md)
+- [ML opening report](ml-opening-report.md)

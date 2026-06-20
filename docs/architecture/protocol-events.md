@@ -71,3 +71,13 @@ proto/tracker_events.proto
 - JSONL persistence 应兼容旧数据；
 - generated files 不手改；
 - `tracker.proto` 保持聚合入口，不承载领域细节。
+
+---
+
+## 相关导航
+
+- [数据流](data-flow.md)
+- [事件管线](../backend/event-pipeline.md)
+- [生成文件边界](../reference/generated-files.md)
+- [前端组件与 Composables](../frontend/components-composables.md)
+- [代码入口索引](../reference/code-entrypoints.md)

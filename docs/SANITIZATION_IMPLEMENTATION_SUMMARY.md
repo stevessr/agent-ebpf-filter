@@ -370,3 +370,13 @@ backend/redaction/
 - 📚 **文档覆盖**：详细说明、示例和最佳实践
 
 用户可以立即开始使用脱敏功能，通过前端 Config → Redaction 页面进行配置。
+
+---
+
+## 相关导航
+
+- [Sanitization 完整文档](sanitization.md)
+- [Sanitization 中文指南](sanitization_zh.md)
+- [脱敏与隐私](security/redaction-privacy.md)
+- [Runtime Gates 与 Auth](security/runtime-gates-auth.md)
+- [事件管线](backend/event-pipeline.md)

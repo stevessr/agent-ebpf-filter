@@ -381,3 +381,13 @@ _ = loaded
 并提供了注意力增强模型包装器，将注意力层用于传统机器学习模型前的特征变换。整体实现更偏向轻量、可序列化、可嵌入现有推理流程的工程实践。
 
 后续若补充实验框架，可以将本页扩展为完整的模型评测文档，包括数据集、指标、超参数和结果图表。
+
+---
+
+## 相关导航
+
+- [ML、Plugins 与扩展能力](backend/ml-plugins.md)
+- [ML 模型完整指南](backend/ml-models-complete-guide.md)
+- [ML 实验框架](ml-experiments.md)
+- [ML benchmark](ml-benchmark-report.md)
+- [多模型支持设计](multi-model-support.md)

@@ -70,3 +70,13 @@ escape defenses.
 
 Those require broader sandboxing, kernel hardening, or external isolation layers
 beyond the current explicit OS-enforcement maps.
+
+---
+
+## 相关导航
+
+- [安全模型](security/model.md)
+- [历史版安全模型](security-model.md)
+- [Runtime Gates 与 Auth](security/runtime-gates-auth.md)
+- [策略语义](security/policy-semantics.md)
+- [第三方与 AI 使用披露](delivery/compliance.md)

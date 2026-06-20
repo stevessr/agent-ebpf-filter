@@ -257,3 +257,12 @@ cd backend && go build ./app
 - ✅ 代码改动最小（仅 1 行）
 
 MCP 服务使用更标准的 streamable HTTP 传输方式，同时保持对客户端的兼容。
+
+---
+
+## 相关导航
+
+- [MCP Streamable 迁移完成说明](mcp-migration-complete.md)
+- [MCP Streamable 验证](mcp-streamable-verification.md)
+- [MCP、External API 与 OTLP](integrations/mcp-external-otlp.md)
+- [路由与 API](backend/routes-api.md)

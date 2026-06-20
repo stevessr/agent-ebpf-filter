@@ -583,3 +583,13 @@ cgroup / LSM 同步阻断是确定性 map lookup。ML / LLM 可以用于风险�
 - 如安装了 hook，按 UI / 文档卸载；
 - 如加载了 kernel module，按需 `sudo rmmod kernel_ml`；
 - 保存录屏、截图和 benchmark summary 到 `reports/` 或答辩材料目录。
+
+---
+
+## 相关导航
+
+- [演示脚本](delivery/demo-script.md)
+- [比赛答辩主线](delivery/competition-defense.md)
+- [评测报告](delivery/evaluation.md)
+- [验证、测试与 Benchmark](operations/verification-benchmark.md)
+- [OS competition defense 草案](os-competition-defense.md)

@@ -310,3 +310,13 @@ eBPF (执行策略)
    ↓
 BLOCK / ALLOW / ALERT
 ```
+
+---
+
+## 相关导航
+
+- [kernel-ml README](../kernel-ml/README.md)
+- [ML、Plugins 与扩展能力](backend/ml-plugins.md)
+- [内核态多模型实现](multi-model-complete.md)
+- [eBPF 与 OS Enforcement](backend/ebpf-os-enforcement.md)
+- [验证、测试与 Benchmark](operations/verification-benchmark.md)

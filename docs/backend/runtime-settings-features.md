@@ -79,3 +79,13 @@ AGENT_BUILD_FEATURES=all make backend
 - 高风险功能应写明默认关闭；
 - release mode 敏感 API 必须写明 token；
 - feature route prefix 变更应同步安全文档和文档站。
+
+---
+
+## 相关导航
+
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+- [路由与 API](routes-api.md)
+- [前端 Feature Flags](../frontend/build-feature-flags.md)
+- [安全模型](../security/model.md)
+- [维护检查清单](../reference/maintenance-checklists.md)

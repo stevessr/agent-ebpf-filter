@@ -443,3 +443,13 @@ Python / JS adapters 的职责是注册当前进程 PID。文档中要准确说�
 - 是否需要同步 proto / backend / frontend / docs？
 - 是否提供了最小验证命令？
 - 是否明确说明验证结果或跳过原因？
+
+---
+
+## 相关导航
+
+- [代码入口索引](reference/code-entrypoints.md)
+- [文档地图](reference/documentation-map.md)
+- [项目结构深挖](project-structure-deep-dive.md)
+- [维护检查清单](reference/maintenance-checklists.md)
+- [文档关系审计](reference/documentation-audit.md)

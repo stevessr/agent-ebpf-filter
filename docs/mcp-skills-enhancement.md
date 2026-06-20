@@ -176,3 +176,13 @@ suspicious.forEach(f => {
 ## 能力概览
 
 MCP 服务新增 8 个工具，覆盖配置管理、事件查询、监控和安全策略；配套 3 个 Claude Code skills，提供安全配置、网络分析和进程监控的操作入口。
+
+---
+
+## 相关导航
+
+- [MCP、External API 与 OTLP](integrations/mcp-external-otlp.md)
+- [MCP Streamable 迁移完成说明](mcp-migration-complete.md)
+- [External API](external-api.md)
+- [Runtime Gates 与 Auth](security/runtime-gates-auth.md)
+- [Native Hooks](integrations/native-hooks.md)

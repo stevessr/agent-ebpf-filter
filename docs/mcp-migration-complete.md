@@ -268,3 +268,13 @@ mcp.NewStreamableHTTPHandler(getServer, nil)
 - **部署影响**: 无（向后兼容）
 - **性能影响**: 正面（更好的连接管理）
 - **维护影响**: 正面（更少自定义代码）
+
+---
+
+## 相关导航
+
+- [MCP SSE 到 Streamable HTTP 迁移](mcp-sse-to-streamable-migration.md)
+- [MCP Streamable 验证](mcp-streamable-verification.md)
+- [MCP Skills 增强](mcp-skills-enhancement.md)
+- [MCP、External API 与 OTLP](integrations/mcp-external-otlp.md)
+- [路由与 API](backend/routes-api.md)

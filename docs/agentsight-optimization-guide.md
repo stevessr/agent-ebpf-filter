@@ -189,3 +189,13 @@ Chrome DevTools Memory Profiler：
 - 🎯 **用户体验大幅改善**
 
 所有优化都保持了向后兼容，无需修改现有调用代码。
+
+---
+
+## 相关导航
+
+- [AgentSight 优化总结](agentsight-optimization-summary.md)
+- [AgentSight 项目致谢](reference/agentsight-acknowledgment.md)
+- [前端工作台](frontend/workbench.md)
+- [事件管线](backend/event-pipeline.md)
+- [路由与 API](backend/routes-api.md)

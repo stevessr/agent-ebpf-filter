@@ -43,3 +43,13 @@ AI CLI hook payload
 - docs / README；
 - per-hook secret；
 - failure rollback。
+
+---
+
+## 相关导航
+
+- [Agents、Adapters 与 PID 注册](agents.md)
+- [Wrapper 命令策略](wrapper.md)
+- [事件管线](../backend/event-pipeline.md)
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+- [代码入口索引](../reference/code-entrypoints.md)

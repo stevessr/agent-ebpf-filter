@@ -221,3 +221,12 @@ graph LR
     Build --> Docs
 ```
 
+---
+
+## 相关导航
+
+- [数据流](data-flow.md)
+- [运行时边界](runtime-boundaries.md)
+- [协议与事件模型](protocol-events.md)
+- [代码入口索引](../reference/code-entrypoints.md)
+- [项目结构深挖](../project-structure-deep-dive.md)

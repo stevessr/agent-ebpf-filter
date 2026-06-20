@@ -2293,3 +2293,13 @@ Invoke `superpowers:requesting-code-review` and ask for review of:
 - Security: sensitive headers are redacted in Go before storage/broadcast, body is capped to 16 KiB, endpoints are registered inside the existing authenticated group or route middleware.
 - Placeholder scan: no unresolved placeholder tokens are intentionally left for implementers.
 - Type consistency: backend uses `TLSPlaintextEvent`, `TLSCaptureStore`, `TLSProbeManager`, `FragmentAssembler`; frontend consumes the same JSON field names emitted by Go tags.
+
+---
+
+## 相关导航
+
+- [TLS plaintext capture design](../specs/2026-05-10-tls-plaintext-capture-design.md)
+- [TLS Quickstart](../../backend/TLS_QUICKSTART.md)
+- [TLS 完整实现报告](../../backend/TLS_INTERCEPT_COMPLETE.md)
+- [脱敏与隐私](../../security/redaction-privacy.md)
+- [文档关系审计](../../reference/documentation-audit.md)

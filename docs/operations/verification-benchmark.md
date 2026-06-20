@@ -66,3 +66,13 @@ bun run docs:build
 - runtime settings；
 - 样本规模；
 - 成功 / 失败 / 跳过原因。
+
+---
+
+## 相关导航
+
+- [构建与运行](build-and-run.md)
+- [部署与安装](deployment.md)
+- [Benchmark](../benchmark.md)
+- [评测报告](../delivery/evaluation.md)
+- [文档关系审计](../reference/documentation-audit.md)

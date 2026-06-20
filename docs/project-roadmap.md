@@ -447,3 +447,13 @@ source tree
 - 提交历史真实。
 
 按照本路线图推进后，Agent eBPF Filter 可以形成一套从源码、文档、演示、评测到合规披露都较完整的操作系统设计赛答辩材料。
+
+---
+
+## 相关导航
+
+- [项目文档索引](project-docs-index.md)
+- [比赛答辩主线](delivery/competition-defense.md)
+- [验证、测试与 Benchmark](operations/verification-benchmark.md)
+- [评测报告](delivery/evaluation.md)
+- [文档关系审计](reference/documentation-audit.md)

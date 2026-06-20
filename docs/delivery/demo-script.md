@@ -74,3 +74,13 @@ make dev
 - TLS capture 不启用：强调默认关闭并展示 metadata / digest；
 - 端口冲突：查看 `backend/.port`；
 - 权限失败：切换 devcontainer 或 sudo/pkexec 环境。
+
+---
+
+## 相关导航
+
+- [比赛答辩主线](competition-defense.md)
+- [评测报告](evaluation.md)
+- [第三方与 AI 使用披露](compliance.md)
+- [验证、测试与 Benchmark](../operations/verification-benchmark.md)
+- [OS competition defense 草案](../os-competition-defense.md)

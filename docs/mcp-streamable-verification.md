@@ -205,3 +205,12 @@ Tracked commands: 3
 - ✅ 代码更现代化
 
 MCP 服务现在使用更标准、更灵活的 streamable HTTP 传输，为未来扩展奠定了基础。
+
+---
+
+## 相关导航
+
+- [MCP SSE 到 Streamable HTTP 迁移](mcp-sse-to-streamable-migration.md)
+- [MCP Streamable 迁移完成说明](mcp-migration-complete.md)
+- [MCP、External API 与 OTLP](integrations/mcp-external-otlp.md)
+- [验证、测试与 Benchmark](operations/verification-benchmark.md)

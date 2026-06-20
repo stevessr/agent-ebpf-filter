@@ -124,3 +124,12 @@ sudo ./test_kernel_load_btf.sh
 ```
 
 脚本会自动处理所有问题！
+
+---
+
+## 相关导航
+
+- [eBPF 与 OS Enforcement](backend/ebpf-os-enforcement.md)
+- [Kernel load manual](kernel-load-manual.md)
+- [验证、测试与 Benchmark](operations/verification-benchmark.md)
+- [构建与运行](operations/build-and-run.md)
