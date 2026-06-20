@@ -1,0 +1,2088 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta content="text/html; charset=utf-8" http-equiv="content-type" />
+    <title>
+      AgentSight: System-Level Observability for AI Agents Using eBPF
+    </title>
+    <!--Generated on Fri Aug 15 11:43:13 2025 by LaTeXML (version 0.8.8) http://dlmf.nist.gov/LaTeXML/.-->
+    <meta
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+      name="viewport"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="/static/browse/0.3.4/css/ar5iv.0.8.2.min.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="/static/browse/0.3.4/css/ar5iv-fonts.0.8.2.min.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="/static/browse/0.3.4/css/latexml_styles.0.8.2.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.3/html2canvas.min.js"></script>
+    <script src="/static/browse/0.3.4/js/addons_new.js"></script>
+    <script src="/static/browse/0.3.4/js/feedbackOverlay.js"></script>
+    <base href="/html/2508.02736v2/" />
+  </head>
+  <body>
+    <nav class="ltx_page_navbar">
+      <nav class="ltx_TOC">
+        <ol class="ltx_toclist">
+          <li class="ltx_tocentry ltx_tocentry_section">
+            <a
+              class="ltx_ref"
+              href="https://arxiv.org/html/2508.02736v2#S1"
+              title="In AgentSight: System-Level Observability for AI Agents Using eBPF"
+              ><span class="ltx_text ltx_ref_title"
+                ><span class="ltx_tag ltx_tag_ref">1 </span>Introduction</span
+              ></a
+            >
+          </li>
+          <li class="ltx_tocentry ltx_tocentry_section">
+            <a
+              class="ltx_ref"
+              href="https://arxiv.org/html/2508.02736v2#S2"
+              title="In AgentSight: System-Level Observability for AI Agents Using eBPF"
+              ><span class="ltx_text ltx_ref_title"
+                ><span class="ltx_tag ltx_tag_ref">2 </span>Background and
+                Related Work</span
+              ></a
+            >
+            <ol class="ltx_toclist ltx_toclist_section">
+              <li class="ltx_tocentry ltx_tocentry_subsection">
+                <a
+                  class="ltx_ref"
+                  href="https://arxiv.org/html/2508.02736v2#S2.SS1"
+                  title="In 2. Background and Related Work ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                  ><span class="ltx_text ltx_ref_title"
+                    ><span class="ltx_tag ltx_tag_ref">2.1 </span>LLM Agent
+                    Architecture</span
+                  ></a
+                >
+              </li>
+              <li class="ltx_tocentry ltx_tocentry_subsection">
+                <a
+                  class="ltx_ref"
+                  href="https://arxiv.org/html/2508.02736v2#S2.SS2"
+                  title="In 2. Background and Related Work ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                  ><span class="ltx_text ltx_ref_title"
+                    ><span class="ltx_tag ltx_tag_ref">2.2 </span>Observability
+                    for LLM Agent</span
+                  ></a
+                >
+              </li>
+              <li class="ltx_tocentry ltx_tocentry_subsection">
+                <a
+                  class="ltx_ref"
+                  href="https://arxiv.org/html/2508.02736v2#S2.SS3"
+                  title="In 2. Background and Related Work ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                  ><span class="ltx_text ltx_ref_title"
+                    ><span class="ltx_tag ltx_tag_ref">2.3 </span>extended
+                    Berkeley Packet Filter (eBPF)</span
+                  ></a
+                >
+              </li>
+            </ol>
+          </li>
+          <li class="ltx_tocentry ltx_tocentry_section">
+            <a
+              class="ltx_ref"
+              href="https://arxiv.org/html/2508.02736v2#S3"
+              title="In AgentSight: System-Level Observability for AI Agents Using eBPF"
+              ><span class="ltx_text ltx_ref_title"
+                ><span class="ltx_tag ltx_tag_ref">3 </span>Design</span
+              ></a
+            >
+            <ol class="ltx_toclist ltx_toclist_section">
+              <li class="ltx_tocentry ltx_tocentry_subsection">
+                <a
+                  class="ltx_ref"
+                  href="https://arxiv.org/html/2508.02736v2#S3.SS1"
+                  title="In 3. Design ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                  ><span class="ltx_text ltx_ref_title"
+                    ><span class="ltx_tag ltx_tag_ref">3.1 </span
+                    >Challenges</span
+                  ></a
+                >
+              </li>
+              <li class="ltx_tocentry ltx_tocentry_subsection">
+                <a
+                  class="ltx_ref"
+                  href="https://arxiv.org/html/2508.02736v2#S3.SS2"
+                  title="In 3. Design ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                  ><span class="ltx_text ltx_ref_title"
+                    ><span class="ltx_tag ltx_tag_ref">3.2 </span>Boundary
+                    Tracing: A Principled Approach</span
+                  ></a
+                >
+              </li>
+              <li class="ltx_tocentry ltx_tocentry_subsection">
+                <a
+                  class="ltx_ref"
+                  href="https://arxiv.org/html/2508.02736v2#S3.SS3"
+                  title="In 3. Design ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                  ><span class="ltx_text ltx_ref_title"
+                    ><span class="ltx_tag ltx_tag_ref">3.3 </span>System
+                    Architecture: Observing the Boundaries</span
+                  ></a
+                >
+              </li>
+            </ol>
+          </li>
+          <li class="ltx_tocentry ltx_tocentry_section">
+            <a
+              class="ltx_ref"
+              href="https://arxiv.org/html/2508.02736v2#S4"
+              title="In AgentSight: System-Level Observability for AI Agents Using eBPF"
+              ><span class="ltx_text ltx_ref_title"
+                ><span class="ltx_tag ltx_tag_ref">4 </span>Implementation</span
+              ></a
+            >
+            <ol class="ltx_toclist ltx_toclist_section">
+              <li class="ltx_tocentry ltx_tocentry_subsection">
+                <a
+                  class="ltx_ref"
+                  href="https://arxiv.org/html/2508.02736v2#S4.SS1"
+                  title="In 4. Implementation ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                  ><span class="ltx_text ltx_ref_title"
+                    ><span class="ltx_tag ltx_tag_ref">4.1 </span>Data
+                    Collection at the Boundaries</span
+                  ></a
+                >
+              </li>
+              <li class="ltx_tocentry ltx_tocentry_subsection">
+                <a
+                  class="ltx_ref"
+                  href="https://arxiv.org/html/2508.02736v2#S4.SS2"
+                  title="In 4. Implementation ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                  ><span class="ltx_text ltx_ref_title"
+                    ><span class="ltx_tag ltx_tag_ref">4.2 </span>The Hybrid
+                    Correlation Engine</span
+                  ></a
+                >
+              </li>
+            </ol>
+          </li>
+          <li class="ltx_tocentry ltx_tocentry_section">
+            <a
+              class="ltx_ref"
+              href="https://arxiv.org/html/2508.02736v2#S5"
+              title="In AgentSight: System-Level Observability for AI Agents Using eBPF"
+              ><span class="ltx_text ltx_ref_title"
+                ><span class="ltx_tag ltx_tag_ref">5 </span>Evaluation</span
+              ></a
+            >
+            <ol class="ltx_toclist ltx_toclist_section">
+              <li class="ltx_tocentry ltx_tocentry_subsection">
+                <a
+                  class="ltx_ref"
+                  href="https://arxiv.org/html/2508.02736v2#S5.SS1"
+                  title="In 5. Evaluation ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                  ><span class="ltx_text ltx_ref_title"
+                    ><span class="ltx_tag ltx_tag_ref">5.1 </span>Performance
+                    Evaluation</span
+                  ></a
+                >
+              </li>
+              <li class="ltx_tocentry ltx_tocentry_subsection">
+                <a
+                  class="ltx_ref"
+                  href="https://arxiv.org/html/2508.02736v2#S5.SS2"
+                  title="In 5. Evaluation ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                  ><span class="ltx_text ltx_ref_title"
+                    ><span class="ltx_tag ltx_tag_ref">5.2 </span>Case
+                    Studies</span
+                  ></a
+                >
+                <ol class="ltx_toclist ltx_toclist_subsection">
+                  <li class="ltx_tocentry ltx_tocentry_subsubsection">
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#S5.SS2.SSS1"
+                      title="In 5.2. Case Studies ‣ 5. Evaluation ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                      ><span class="ltx_text ltx_ref_title"
+                        ><span class="ltx_tag ltx_tag_ref">5.2.1 </span>Case
+                        Study 1: Detecting Prompt Injection Attacks</span
+                      ></a
+                    >
+                  </li>
+                  <li class="ltx_tocentry ltx_tocentry_subsubsection">
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#S5.SS2.SSS2"
+                      title="In 5.2. Case Studies ‣ 5. Evaluation ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                      ><span class="ltx_text ltx_ref_title"
+                        ><span class="ltx_tag ltx_tag_ref">5.2.2 </span>Case
+                        Study 2: Reasoning Loop Detection</span
+                      ></a
+                    >
+                  </li>
+                  <li class="ltx_tocentry ltx_tocentry_subsubsection">
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#S5.SS2.SSS3"
+                      title="In 5.2. Case Studies ‣ 5. Evaluation ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                      ><span class="ltx_text ltx_ref_title"
+                        ><span class="ltx_tag ltx_tag_ref">5.2.3 </span>Case
+                        Study 3: Multi-Agent Coordination Monitoring</span
+                      ></a
+                    >
+                  </li>
+                </ol>
+              </li>
+            </ol>
+          </li>
+          <li class="ltx_tocentry ltx_tocentry_section">
+            <a
+              class="ltx_ref"
+              href="https://arxiv.org/html/2508.02736v2#S6"
+              title="In AgentSight: System-Level Observability for AI Agents Using eBPF"
+              ><span class="ltx_text ltx_ref_title"
+                ><span class="ltx_tag ltx_tag_ref">6 </span>Conclusion</span
+              ></a
+            >
+          </li>
+        </ol>
+      </nav>
+    </nav>
+    <div class="ltx_page_main">
+      <div class="ltx_page_content">
+        <article class="ltx_document ltx_authors_1line ltx_leqno" lang="en">
+          <h1 class="ltx_title ltx_title_document">
+            AgentSight: System-Level Observability for AI Agents Using eBPF
+          </h1>
+          <div class="ltx_authors">
+            <span class="ltx_creator ltx_role_author">
+              <span class="ltx_personname">Yusheng Zheng </span
+              ><span class="ltx_author_notes">
+                <span class="ltx_contact ltx_role_affiliation"
+                  ><span class="ltx_text ltx_affiliation_institution"
+                    >UC Santa Cruz</span
+                  ><span class="ltx_text ltx_affiliation_city">Santa Cruz</span
+                  ><span class="ltx_text ltx_affiliation_state">CA</span
+                  ><span class="ltx_text ltx_affiliation_country">USA</span>
+                </span>
+                <span class="ltx_contact ltx_role_email"
+                  ><a href="mailto:yzhen165@ucsc.edu">yzhen165@ucsc.edu</a>
+                </span></span
+              ></span
+            >
+            <span class="ltx_author_before">, </span
+            ><span class="ltx_creator ltx_role_author">
+              <span class="ltx_personname">Yanpeng Hu </span
+              ><span class="ltx_author_notes">
+                <span class="ltx_contact ltx_role_affiliation"
+                  ><span class="ltx_text ltx_affiliation_institution"
+                    >ShanghaiTech University</span
+                  ><span class="ltx_text ltx_affiliation_city">Shanghai</span
+                  ><span class="ltx_text ltx_affiliation_country">China</span>
+                </span>
+                <span class="ltx_contact ltx_role_email"
+                  ><a href="mailto:huyp@shanghaitech.edu.cn"
+                    >huyp@shanghaitech.edu.cn</a
+                  >
+                </span></span
+              ></span
+            >
+            <span class="ltx_author_before">, </span
+            ><span class="ltx_creator ltx_role_author">
+              <span class="ltx_personname">Tong Yu </span
+              ><span class="ltx_author_notes">
+                <span class="ltx_contact ltx_role_affiliation"
+                  ><span class="ltx_text ltx_affiliation_institution"
+                    >eunomia-bpf Community</span
+                  ><span class="ltx_text ltx_affiliation_country">China</span>
+                </span>
+                <span class="ltx_contact ltx_role_email"
+                  ><a href="mailto:yt.xyxx@gmail.com">yt.xyxx@gmail.com</a>
+                </span></span
+              ></span
+            >
+            <span class="ltx_author_before"> and </span
+            ><span class="ltx_creator ltx_role_author">
+              <span class="ltx_personname">Andi Quinn </span
+              ><span class="ltx_author_notes">
+                <span class="ltx_contact ltx_role_affiliation"
+                  ><span class="ltx_text ltx_affiliation_institution"
+                    >UC Santa Cruz</span
+                  ><span class="ltx_text ltx_affiliation_city">Santa Cruz</span
+                  ><span class="ltx_text ltx_affiliation_state">CA</span
+                  ><span class="ltx_text ltx_affiliation_country">USA</span>
+                </span>
+                <span class="ltx_contact ltx_role_email"
+                  ><a href="mailto:aquinn1@ucsc.edu">aquinn1@ucsc.edu</a>
+                </span></span
+              ></span
+            >
+          </div>
+          <div class="ltx_abstract">
+            <h6 class="ltx_title ltx_title_abstract">Abstract.</h6>
+            <p class="ltx_p">
+              Modern software infrastructure increasingly relies on LLM agents
+              for development and maintenance, such as Claude Code and
+              Gemini-cli. However, these AI agents differ fundamentally from
+              traditional deterministic software, posing a significant challenge
+              to conventional monitoring and debugging. This creates a critical
+              semantic gap: existing tools observe either an agent’s high-level
+              intent (via LLM prompts) or its low-level actions (e.g., system
+              calls), but cannot correlate these two views. This blindness makes
+              it difficult to distinguish between benign operations, malicious
+              attacks, and costly failures. We introduce AgentSight, an AgentOps
+              observability framework that bridges this semantic gap using a
+              hybrid approach. Our approach,
+              <em class="ltx_emph ltx_font_italic">boundary tracing</em>,
+              monitors agents from outside their application code at stable
+              system interfaces using eBPF. AgentSight intercepts TLS-encrypted
+              LLM traffic to extract semantic intent, monitors kernel events to
+              observe system-wide effects, and causally correlates these two
+              streams across process boundaries using a real-time engine and
+              secondary LLM analysis. This instrumentation-free technique is
+              framework-agnostic, resilient to rapid API changes, and incurs
+              less than 3% performance overhead. Our evaluation shows AgentSight
+              detects prompt injection attacks, identifies resource-wasting
+              reasoning loops, and reveals hidden coordination bottlenecks in
+              multi-agent systems. AgentSight is released as an open-source
+              project at
+              <a
+                class="ltx_ref ltx_url ltx_font_typewriter"
+                href="https://github.com/eunomia-bpf/agentsight"
+                title=""
+                >https://github.com/eunomia-bpf/agentsight</a
+              >.
+            </p>
+          </div>
+          <section class="ltx_section" id="S1">
+            <h2 class="ltx_title ltx_title_section">
+              <span class="ltx_tag ltx_tag_section">1. </span>Introduction
+            </h2>
+            <div class="ltx_para" id="S1.p1">
+              <p class="ltx_p">
+                The role of machine learning in systems is undergoing a
+                fundamental shift from optimizing well-defined tasks, such as
+                database query planning, to a new paradigm of
+                <em class="ltx_emph ltx_font_italic">agentic computing</em>.
+                From a systems perspective, an AI agent couples a Large Language
+                Model’s (LLM) reasoning with direct access to system tools,
+                granting it agency to perform operations like spawning
+                processes, modifying the filesystem, and executing commands.
+                This technology is being rapidly integrated into production
+                environments, powering autonomous developer tools like Claude
+                Code<cite class="ltx_cite ltx_citemacro_citep"
+                  >(Anthropic,
+                  <a
+                    class="ltx_ref"
+                    href="https://arxiv.org/html/2508.02736v2#bib.bib5"
+                    title=""
+                    >2025</a
+                  >)</cite
+                >, Cursor Agent<cite class="ltx_cite ltx_citemacro_citep"
+                  >(Anysphere Inc.,
+                  <a
+                    class="ltx_ref"
+                    href="https://arxiv.org/html/2508.02736v2#bib.bib6"
+                    title=""
+                    >2025</a
+                  >)</cite
+                >
+                and Gemini-CLI<cite class="ltx_cite ltx_citemacro_citep"
+                  >(Mullen and Salva,
+                  <a
+                    class="ltx_ref"
+                    href="https://arxiv.org/html/2508.02736v2#bib.bib25"
+                    title=""
+                    >2025</a
+                  >)</cite
+                >, which can independently handle complex software engineering
+                and system maintenance tasks. In essence, we are deploying
+                non-deterministic ML systems, creating an unprecedented class of
+                challenges for system reliability, security, and verification.
+              </p>
+            </div>
+            <div class="ltx_para" id="S1.p2">
+              <p class="ltx_p">
+                This paradigm shift creates a critical semantic gap: the chasm
+                between an agent’s high-level
+                <em class="ltx_emph ltx_font_italic">intent</em> and its
+                low-level
+                <em class="ltx_emph ltx_font_italic">system actions</em>. Unlike
+                traditional programs with predictable execution paths, agents
+                use LLMs and autonomous tools to dynamically generate code and
+                spawn arbitrary subprocesses. This makes it hard for existing
+                observability tools to distinguish benign operations from
+                catastrophic failures. Consider an agent tasked with code
+                refactoring that, due to a malicious prompt it reads from
+                external url in the search result when search for API documents,
+                instead injects a backdoor (indirect prompt injection)<cite
+                  class="ltx_cite ltx_citemacro_citep"
+                  >(Zhan et al.,
+                  <a
+                    class="ltx_ref"
+                    href="https://arxiv.org/html/2508.02736v2#bib.bib31"
+                    title=""
+                    >2024</a
+                  >)</cite
+                >. An application-level monitor might see a successful "execute
+                script" tool call, while a system monitor sees a
+                <span class="ltx_text ltx_font_typewriter">bash</span> process
+                writing to a file. Neither can bridge the gap to understand that
+                a benign intention has been twisted into a malicious action,
+                rendering them effectively blind.
+              </p>
+            </div>
+            <div class="ltx_para" id="S1.p3">
+              <p class="ltx_p">
+                Current approaches are trapped on one side of this semantic gap.
+                <em class="ltx_emph ltx_font_italic"
+                  >Application-level instrumentation</em
+                >, found in frameworks like LangChain <cite
+                  class="ltx_cite ltx_citemacro_citep"
+                  >(Chase,
+                  <a
+                    class="ltx_ref"
+                    href="https://arxiv.org/html/2508.02736v2#bib.bib9"
+                    title=""
+                    >2023</a
+                  >)</cite
+                >
+                and AutoGen <cite class="ltx_cite ltx_citemacro_citep"
+                  >(Wu et al.,
+                  <a
+                    class="ltx_ref"
+                    href="https://arxiv.org/html/2508.02736v2#bib.bib30"
+                    title=""
+                    >2023</a
+                  >)</cite
+                >, captures an agent’s reasoning and tool selection. While these
+                tools see the <em class="ltx_emph ltx_font_italic">intent</em>,
+                they are brittle, require constant API updates, and are easily
+                bypassed: a single shell command escapes their view, breaking
+                the chain of visibility under a flawed trust model. Conversely,
+                <em class="ltx_emph ltx_font_italic"
+                  >generic system-level monitoring</em
+                >
+                sees the <em class="ltx_emph ltx_font_italic">actions</em>,
+                tracking every system call and file access. However, it lacks
+                all semantic context. To such a tool, an agent writing a data
+                analysis script is indistinguishable from a compromised agent
+                writing a malicious payload. Without understanding the preceding
+                LLM instructions, the
+                <em class="ltx_emph ltx_font_italic">why</em> behind the
+                <em class="ltx_emph ltx_font_italic">what</em>, its stream of
+                low-level events is meaningless noise.
+              </p>
+            </div>
+            <div class="ltx_para" id="S1.p4">
+              <p class="ltx_p">
+                We propose boundary tracing as a novel observability method
+                designed specifically to bridge this semantic gap. Our key
+                insight is that while agent internals and frameworks are
+                volatile, the interfaces through which they interact with the
+                world (the kernel for system operations and the network for
+                communication) are stable and unavoidable. By monitoring from
+                outside the application at these boundaries, we can capture an
+                agent’s high-level intent and its low-level system effects. We
+                present <span class="ltx_text ltx_font_bold">AgentSight</span>,
+                a system that realizes boundary tracing using eBPF to intercept
+                TLS-encrypted LLM traffic for intent and monitor kernel events
+                for effects. Its core is a novel, two-stage correlation process:
+                a real-time engine links an LLM response to the system bahavior
+                it triggers, and a secondary "observer" LLM performs a deep
+                semantic analysis on the resulting trace to infer risks and
+                explain <em class="ltx_emph ltx_font_italic">why</em> a sequence
+                of events is suspicious. This instrumentation-free,
+                framework-agnostic technique incurs less than 3% overhead and
+                effectively detects prompt injection attacks, resource-wasting
+                reasoning loops, and multi-agent system bottlenecks.
+              </p>
+            </div>
+            <div class="ltx_para" id="S1.p5">
+              <p class="ltx_p">In summary, our contributions are:</p>
+            </div>
+            <div class="ltx_para" id="S1.p6">
+              <ol class="ltx_enumerate" id="S1.I1">
+                <li
+                  class="ltx_item"
+                  id="S1.I1.i1"
+                  style="list-style-type: none"
+                >
+                  <span class="ltx_tag ltx_tag_item">(1)</span>
+                  <div class="ltx_para" id="S1.I1.i1.p1">
+                    <p class="ltx_p">
+                      We introduce boundary tracing as a principled approach to
+                      AI agent observability that bridges the semantic gap by
+                      monitoring at stable system interfaces.
+                    </p>
+                  </div>
+                </li>
+                <li
+                  class="ltx_item"
+                  id="S1.I1.i2"
+                  style="list-style-type: none"
+                >
+                  <span class="ltx_tag ltx_tag_item">(2)</span>
+                  <div class="ltx_para" id="S1.I1.i2.p1">
+                    <p class="ltx_p">
+                      We present a novel engine that combines real-time,
+                      eBPF-based signal matching with LLM-based semantic
+                      analysis to provide deep, contextual understanding of
+                      agent behavior.
+                    </p>
+                  </div>
+                </li>
+                <li
+                  class="ltx_item"
+                  id="S1.I1.i3"
+                  style="list-style-type: none"
+                >
+                  <span class="ltx_tag ltx_tag_item">(3)</span>
+                  <div class="ltx_para" id="S1.I1.i3.p1">
+                    <p class="ltx_p">
+                      We demonstrate AgentSight’s effectiveness in detecting
+                      prompt injection attacks, reasoning loops, and multi-agent
+                      coordination failures with sub-3% overhead.
+                    </p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+          </section>
+          <section class="ltx_section" id="S2">
+            <h2 class="ltx_title ltx_title_section">
+              <span class="ltx_tag ltx_tag_section">2. </span>Background and
+              Related Work
+            </h2>
+            <div class="ltx_para" id="S2.p1">
+              <p class="ltx_p">
+                This section outlines LLM agent architecture, reviews existing
+                observability work to highlight the semantic gap, and introduces
+                eBPF as our foundational technology.
+              </p>
+            </div>
+            <section class="ltx_subsection" id="S2.SS1">
+              <h3 class="ltx_title ltx_title_subsection">
+                <span class="ltx_tag ltx_tag_subsection">2.1. </span>LLM Agent
+                Architecture
+              </h3>
+              <div class="ltx_para" id="S2.SS1.p1">
+                <p class="ltx_p">
+                  The agentic systems described in the introduction are
+                  typically implemented using a common architecture. These
+                  systems consist of three core components: (1) an LLM backend
+                  for reasoning, (2) a tool execution framework for system
+                  interactions, and (3) a control loop that orchestrates
+                  prompts, tool calls, and state management. Popular frameworks
+                  such as LangChain <cite class="ltx_cite ltx_citemacro_citep"
+                    >(Chase,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib9"
+                      title=""
+                      >2023</a
+                    >)</cite
+                  >, AutoGen <cite class="ltx_cite ltx_citemacro_citep"
+                    >(Wu et al.,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib30"
+                      title=""
+                      >2023</a
+                    >)</cite
+                  >, Cursor Agent<cite class="ltx_cite ltx_citemacro_citep"
+                    >(Anysphere Inc.,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib6"
+                      title=""
+                      >2025</a
+                    >)</cite
+                  >, Gemini-CLI<cite class="ltx_cite ltx_citemacro_citep"
+                    >(Mullen and Salva,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib25"
+                      title=""
+                      >2025</a
+                    >)</cite
+                  >
+                  and Claude Code<cite class="ltx_cite ltx_citemacro_citep"
+                    >(Anthropic,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib5"
+                      title=""
+                      >2025</a
+                    >)</cite
+                  >
+                  all implement variations of this model. This architecture is
+                  what enables agents to dynamically construct and execute
+                  complex plans (e.g., autonomously writing and running a script
+                  to analyze a dataset) based on high-level natural language
+                  objectives. Multi-agent LLM systems have also emerged for
+                  software development, collaborative task-solving, simulating
+                  social behaviors in virtual worlds, and other tasks <cite
+                    class="ltx_cite ltx_citemacro_citep"
+                    >(Guo et al.,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib16"
+                      title=""
+                      >2024</a
+                    >; Tran et al.,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib29"
+                      title=""
+                      >2025</a
+                    >)</cite
+                  >.
+                </p>
+              </div>
+            </section>
+            <section class="ltx_subsection" id="S2.SS2">
+              <h3 class="ltx_title ltx_title_subsection">
+                <span class="ltx_tag ltx_tag_subsection">2.2. </span
+                >Observability for LLM Agent
+              </h3>
+              <div class="ltx_para" id="S2.SS2.p1">
+                <p class="ltx_p">
+                  Existing approaches are siloed on one side of the semantic
+                  gap. Intent-side observability, supported by industry tools
+                  like Langfuse, LangSmith, and Datadog <cite
+                    class="ltx_cite ltx_citemacro_citep"
+                    >(Maierhöfer,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib22"
+                      title=""
+                      >2025</a
+                    >; Langfuse,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib20"
+                      title=""
+                      >2024</a
+                    >; LangChain,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib19"
+                      title=""
+                      >2023</a
+                    >; Datadog Inc.,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib11"
+                      title=""
+                      >[n. d.]</a
+                    >; Helicone,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib17"
+                      title=""
+                      >2023</a
+                    >)</cite
+                  >
+                  and is unifying by standards from the OpenTelemetry GenAI
+                  working group <cite class="ltx_cite ltx_citemacro_citep"
+                    >(Liu and Solomon,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib21"
+                      title=""
+                      >[n. d.]</a
+                    >; Bandurchin,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib8"
+                      title=""
+                      >[n. d.]</a
+                    >)</cite
+                  >
+                  and acadamics conceptual taxonomies <cite
+                    class="ltx_cite ltx_citemacro_citep"
+                    >(Dong et al.,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib12"
+                      title=""
+                      >2024</a
+                    >; Moshkovich and Zeltyn,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib24"
+                      title=""
+                      >2025</a
+                    >)</cite
+                  >
+                  under the AgentOps concept, excels at tracing
+                  application-level events but is fundamentally blind to
+                  out-of-process system
+                  <em class="ltx_emph ltx_font_italic">actions</em>. Conversely,
+                  action-side observability with tools like Falco and
+                  Tracee <cite class="ltx_cite ltx_citemacro_citep"
+                    >(Authors,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib7"
+                      title=""
+                      >2023</a
+                    >; Security,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib28"
+                      title=""
+                      >2023</a
+                    >)</cite
+                  >
+                  offers comprehensive visibility into system calls but lacks
+                  the semantic context to understand an agent’s
+                  <em class="ltx_emph ltx_font_italic">intent</em>, failing to
+                  distinguish a benign task from a malicious one. A parallel
+                  line of research into reasoning-level and interpretability
+                  aims to make the agent’s internal thought processes more
+                  transparent by reconstructing cognitive traces <cite
+                    class="ltx_cite ltx_citemacro_citep"
+                    >(Rombaut et al.,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib27"
+                      title=""
+                      >2025</a
+                    >)</cite
+                  >
+                  or enabling explanatory dialogues <cite
+                    class="ltx_cite ltx_citemacro_citep"
+                    >(Kim et al.,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib18"
+                      title=""
+                      >2025</a
+                    >)</cite
+                  >, but these work mainly focus on the llm itself, does not
+                  bridge the gap between the agent’s internal reasoning and its
+                  external, low-level effects on the system.
+                </p>
+              </div>
+            </section>
+            <section class="ltx_subsection" id="S2.SS3">
+              <h3 class="ltx_title ltx_title_subsection">
+                <span class="ltx_tag ltx_tag_subsection">2.3. </span>extended
+                Berkeley Packet Filter (eBPF)
+              </h3>
+              <div class="ltx_para" id="S2.SS3.p1">
+                <p class="ltx_p">
+                  To bridge the semantic gap, our approach requires a technology
+                  that can safely and efficiently observe both network
+                  communication and kernel activity. eBPF (extended Berkeley
+                  Packet Filter) is a fundamental advancement in kernel
+                  programmability that provides precisely this capability <cite
+                    class="ltx_cite ltx_citemacro_citep"
+                    >(Gregg,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib15"
+                      title=""
+                      >2019</a
+                    >)</cite
+                  >. Originally designed for packet filtering, eBPF has evolved
+                  into a general-purpose, in-kernel virtual machine that powers
+                  modern observability and security tools <cite
+                    class="ltx_cite ltx_citemacro_citep"
+                    >(eBPF Community,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib13"
+                      title=""
+                      >2023</a
+                    >; Project,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib26"
+                      title=""
+                      >2023</a
+                    >)</cite
+                  >, and not limited to Linux<cite
+                    class="ltx_cite ltx_citemacro_citep"
+                    >(Zheng et al.,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib33"
+                      title=""
+                      >2025</a
+                    >; microsoft,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib23"
+                      title=""
+                      >[n. d.]</a
+                    >)</cite
+                  >. For AI agent observability, eBPF is uniquely suited because
+                  it allows observation at the exact boundaries where agents
+                  interact with the world, enabling both TLS interception for
+                  semantic <em class="ltx_emph ltx_font_italic">intent</em> and
+                  syscall monitoring for system
+                  <em class="ltx_emph ltx_font_italic">actions</em> with minimal
+                  overhead. Critically, its kernel-enforced safety guarantees,
+                  including verified termination and memory safety, make it
+                  ideal for production environments and provide a stable
+                  foundation for our solution <cite
+                    class="ltx_cite ltx_citemacro_citep"
+                    >(Community,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib10"
+                      title=""
+                      >2023</a
+                    >)</cite
+                  >.
+                </p>
+              </div>
+            </section>
+          </section>
+          <section class="ltx_section" id="S3">
+            <h2 class="ltx_title ltx_title_section">
+              <span class="ltx_tag ltx_tag_section">3. </span>Design
+            </h2>
+            <div class="ltx_para" id="S3.p1">
+              <p class="ltx_p">
+                The design of AgentSight is guided by a single imperative: to
+                bridge the semantic gap between an agent’s intent and its
+                actions. We achieve this through a novel observability method,
+                boundary tracing, realized by a multi-signal correlation engine.
+              </p>
+            </div>
+            <section class="ltx_subsection" id="S3.SS1">
+              <h3 class="ltx_title ltx_title_subsection">
+                <span class="ltx_tag ltx_tag_subsection">3.1. </span>Challenges
+              </h3>
+              <div class="ltx_para" id="S3.SS1.p1">
+                <p class="ltx_p">
+                  The emergent and non-deterministic nature of AI agents
+                  fundamentally breaks traditional program observability
+                  paradigms, introducing two core challenges that original
+                  observability cannot address.
+                </p>
+              </div>
+              <div class="ltx_para" id="S3.SS1.p2">
+                <p class="ltx_p">
+                  <span class="ltx_text ltx_font_bold"
+                    >Bridging the Semantic Gap Between Intent and Action</span
+                  >
+                  The first and most significant challenge is bridging the vast
+                  semantic gap between an agent’s high-level
+                  <span class="ltx_text ltx_font_italic">intent</span> and its
+                  low-level system
+                  <span class="ltx_text ltx_font_italic">actions</span>. Unlike
+                  conventional software, where intent is encoded in predictable
+                  source code, an agent’s intent is expressed in natural
+                  language and interpreted by an LLM, creating dynamic "source
+                  code" that is generated at runtime. Consequently, it is
+                  impossible for a static analyzer to determine what an agent
+                  will do. For example, the intent "find and fix the bug in the
+                  authentication module" is semantically rich but operationally
+                  ambiguous, potentially resulting in a complex sequence of
+                  actions like reading files (<span
+                    class="ltx_text ltx_font_typewriter"
+                    >openat2</span
+                  >), compiling code (<span class="ltx_text ltx_font_typewriter"
+                    >execve</span
+                  >
+                  -&gt; <span class="ltx_text ltx_font_typewriter">gcc</span>),
+                  and running tests (<span class="ltx_text ltx_font_typewriter"
+                    >execve</span
+                  >
+                  -&gt;
+                  <span class="ltx_text ltx_font_typewriter">python</span>).
+                  This creates a critical observability problem: how can a
+                  monitoring system verify that the cascade of system calls is a
+                  legitimate fulfillment of the natural language intent? To
+                  solve this, an observer must move beyond simple pattern
+                  matching to gain a semantic understanding of the agent’s goal,
+                  necessitating a new, llm based approach to interpret the
+                  correlated traces.
+                </p>
+              </div>
+              <div class="ltx_para" id="S3.SS1.p3">
+                <p class="ltx_p">
+                  <span class="ltx_text ltx_font_bold"
+                    >Isolating the Causal Signal from High-Volume System
+                    Noise</span
+                  >
+                  The second challenge stems from the agent’s autonomy to use
+                  any tool necessary to achieve its goal, leading to an
+                  unpredictable and high-volume stream of system events. An
+                  agent might spawn shells, download scripts, or invoke
+                  compilers-processes that are not known ahead of time. This
+                  makes it exceedingly difficult to distinguish the agent’s
+                  specific activity (the "signal") from the background noise of
+                  the operating system. Static, pre-configured filters, for
+                  instance, a rule to only monitor
+                  <span class="ltx_text ltx_font_typewriter">git</span>
+                  commands, are inherently brittle and will fail the moment the
+                  agent uses
+                  <span class="ltx_text ltx_font_typewriter">curl</span> and
+                  <span class="ltx_text ltx_font_typewriter">bash</span> to
+                  achieve a similar outcome. Our design addresses this with an
+                  aggressive, dynamic in-kernel eBPF filter. By tracking process
+                  creation events (<span class="ltx_text ltx_font_typewriter"
+                    >fork</span
+                  >, <span class="ltx_text ltx_font_typewriter">execve</span>),
+                  the filter builds a complete lineage tree of the agent’s
+                  activity and dynamically applies rules in the kernel to only
+                  pass events from the agent or its descendants to userspace.
+                  This approach ensures that the entire causal chain is captured
+                  efficiently at the source, dramatically reducing overhead and
+                  providing a clean, high-fidelity signal for correlation and
+                  analysis.
+                </p>
+              </div>
+            </section>
+            <section class="ltx_subsection" id="S3.SS2">
+              <h3 class="ltx_title ltx_title_subsection">
+                <span class="ltx_tag ltx_tag_subsection">3.2. </span>Boundary
+                Tracing: A Principled Approach
+              </h3>
+              <div class="ltx_para" id="S3.SS2.p1">
+                <p class="ltx_p">
+                  Our key insight is that all agent interactions must traverse
+                  well-defined and stable system boundaries: the kernel for
+                  system operations and the network for external communications
+                  with LLM serving backends (Figure
+                  <a
+                    class="ltx_ref"
+                    href="https://arxiv.org/html/2508.02736v2#S3.F1"
+                    title="Figure 1 ‣ 3.2. Boundary Tracing: A Principled Approach ‣ 3. Design ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                    ><span class="ltx_text ltx_ref_tag">1</span></a
+                  >). By monitoring at these boundaries rather than within
+                  volatile agent code, we achieve comprehensive monitoring
+                  independent of implementation details. This approach enables
+                  Semantic Correlation, the ability to causally link high-level
+                  intentions with low-level system events. This is supported by
+                  two principles. First is Comprehensiveness, as kernel-level
+                  monitoring ensures no system action from process creation to
+                  file I/O goes unobserved, even across spawned subprocesses.
+                  Second is Stability, since system call ABIs and network
+                  protocols evolve far more slowly than agent frameworks,
+                  providing a durable, future-proof solution. This paradigm
+                  shifts the trust model from assuming a cooperative agent to
+                  enforcing observation at tamper-proof boundaries.
+                </p>
+              </div>
+              <figure class="ltx_figure" id="S3.F1">
+                <img
+                  alt="Refer to caption"
+                  class="ltx_graphics ltx_centering ltx_img_square"
+                  height="559"
+                  id="S3.F1.g1"
+                  src="figture/agent.png"
+                  width="598"
+                />
+                <figcaption class="ltx_caption ltx_centering">
+                  <span class="ltx_tag ltx_tag_figure">Figure 1. </span>Agent
+                  Framework Overview
+                </figcaption>
+              </figure>
+            </section>
+            <section class="ltx_subsection" id="S3.SS3">
+              <h3 class="ltx_title ltx_title_subsection">
+                <span class="ltx_tag ltx_tag_subsection">3.3. </span>System
+                Architecture: Observing the Boundaries
+              </h3>
+              <div class="ltx_para" id="S3.SS3.p1">
+                <p class="ltx_p">
+                  AgentSight’s architecture simultaneously taps into the two
+                  critical boundaries. As shown in Figure
+                  <a
+                    class="ltx_ref"
+                    href="https://arxiv.org/html/2508.02736v2#S3.F2"
+                    title="Figure 2 ‣ 3.3. System Architecture: Observing the Boundaries ‣ 3. Design ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                    ><span class="ltx_text ltx_ref_tag">2</span></a
+                  >, we use eBPF to place non-intrusive probes that capture a
+                  decrypted Intent Stream (LLM prompts/responses) from userspace
+                  SSL functions and an Action Stream (syscalls, process events)
+                  from the kernel. A userspace correlation engine then processes
+                  and joins these streams into a unified, causally-linked trace.
+                </p>
+              </div>
+              <figure class="ltx_figure" id="S3.F2">
+                <img
+                  alt="Refer to caption"
+                  class="ltx_graphics ltx_centering ltx_img_landscape"
+                  height="404"
+                  id="S3.F2.g1"
+                  src="figture/arch.png"
+                  width="598"
+                />
+                <figcaption class="ltx_caption ltx_centering">
+                  <span class="ltx_tag ltx_tag_figure">Figure 2. </span
+                  ><span class="ltx_text ltx_font_bold"
+                    >AgentSight System Architecture.</span
+                  >
+                </figcaption>
+              </figure>
+              <div class="ltx_para" id="S3.SS3.p2">
+                <p class="ltx_p">
+                  Several key components enable AgentSight to effectively bridge
+                  the semantic gap:
+                </p>
+              </div>
+              <div class="ltx_para" id="S3.SS3.p3">
+                <p class="ltx_p">
+                  <span class="ltx_text ltx_font_bold"
+                    >eBPF for Safe, Unified Probing:</span
+                  >
+                  We chose eBPF for its production safety, high performance, and
+                  unified ability to access both userspace and kernel data
+                  streams. Our design intercepts decrypted data from the agent’s
+                  interaction with LLM serving backend, which is more efficient
+                  and manageable than network-level packet capture or
+                  proxy-based solutions.
+                </p>
+              </div>
+              <div class="ltx_para" id="S3.SS3.p4">
+                <p class="ltx_p">
+                  <span class="ltx_text ltx_font_bold"
+                    >Multi-Signal Causal Correlation Engine:</span
+                  >
+                  The core of our design is a correlation strategy that
+                  establishes causality between intent and action. We designed a
+                  multi-signal engine that relies on three key mechanisms:
+                  Process Lineage, which builds a complete process tree by
+                  tracking
+                  <span class="ltx_text ltx_font_typewriter">fork</span> and
+                  <span class="ltx_text ltx_font_typewriter">execve</span>
+                  events to link actions in child processes back to the parent
+                  agent; Temporal Proximity, which associates actions that occur
+                  within a narrow time window immediately following an LLM
+                  response; and Argument Matching, which directly matches
+                  content from LLM responses, such as filenames, URLs, or
+                  commands, with the arguments of subsequent system calls.
+                  Together, these signals enable AgentSight to definitively
+                  establish causal relationships between high-level intentions
+                  and low-level system operations across process boundaries.
+                </p>
+              </div>
+              <div class="ltx_para" id="S3.SS3.p5">
+                <p class="ltx_p">
+                  <span class="ltx_text ltx_font_bold"
+                    >LLM-Powered Semantic Analysis:</span
+                  >
+                  To move beyond brittle, rule-based detection, we designed the
+                  system to use a secondary LLM as a reasoning engine. By
+                  prompting a powerful model with the correlated event trace, we
+                  leverage its ability to understand semantic nuance, infer
+                  causality in complex scenarios, and summarize findings in
+                  natural language. This "AI to watch AI" approach allows
+                  AgentSight to detect threats that do not match predefined
+                  patterns.
+                </p>
+              </div>
+            </section>
+          </section>
+          <section class="ltx_section" id="S4">
+            <h2 class="ltx_title ltx_title_section">
+              <span class="ltx_tag ltx_tag_section">4. </span>Implementation
+            </h2>
+            <div class="ltx_para" id="S4.p1">
+              <p class="ltx_p">
+                AgentSight is implemented as a userspace daemon (6000 lines of
+                Rust/C) orchestrating eBPF programs, with a TypeScript frontend
+                (3000 lines) for analysis. It is designed for high performance,
+                processing raw kernel event streams into correlated,
+                human-readable data.
+              </p>
+            </div>
+            <section class="ltx_subsection" id="S4.SS1">
+              <h3 class="ltx_title ltx_title_subsection">
+                <span class="ltx_tag ltx_tag_subsection">4.1. </span>Data
+                Collection at the Boundaries
+              </h3>
+              <div class="ltx_para" id="S4.SS1.p1">
+                <p class="ltx_p">
+                  Our eBPF probes capture the raw intent and action streams from
+                  the system. To capture semantic intent, an eBPF program with
+                  uprobes attaches to SSL_read/SSL_write in crypto libraries
+                  like OpenSSL to intercept decrypted LLM communications. Our
+                  userspace daemon implements a stateful reassembly mechanism to
+                  handle streaming protocols such as Server-Sent Events (SSE).
+                  To capture system actions, a second eBPF program uses stable
+                  tracepoints like sched_process_exec to build a process tree
+                  and kprobes to dynamically monitor relevant syscalls such as
+                  openat2, connect, and execve. To manage the high volume of
+                  kernel events without data loss, aggressive in-kernel
+                  filtering is applied to ensure only events from targeted agent
+                  processes are sent to userspace, minimizing overhead.
+                </p>
+              </div>
+            </section>
+            <section class="ltx_subsection" id="S4.SS2">
+              <h3 class="ltx_title ltx_title_subsection">
+                <span class="ltx_tag ltx_tag_subsection">4.2. </span>The Hybrid
+                Correlation Engine
+              </h3>
+              <div class="ltx_para" id="S4.SS2.p1">
+                <p class="ltx_p">
+                  The Rust-based userspace daemon houses our two-stage
+                  correlation engine. The first stage consumes events from eBPF
+                  ring buffers and performs real-time heuristic linking. This
+                  streaming pipeline enriches raw events with context like
+                  mapping a file descriptor to a full path, maintains a stateful
+                  process tree, and applies the causal linking logic described
+                  in our design, using a 100-500ms window for temporal
+                  correlation. Once a coherent trace is constructed, the second
+                  stage formats it into a structured log for semantic analysis.
+                  This log is used to construct a detailed prompt for a
+                  secondary LLM, instructing it to act as a security analyst.
+                  The LLM’s natural language analysis and confidence score
+                  become the final output of our system. A key challenge at this
+                  stage is managing the latency and cost of LLM analysis, which
+                  our system mitigates through asynchronous processing and
+                  robust prompt engineering.
+                </p>
+              </div>
+            </section>
+          </section>
+          <section class="ltx_section" id="S5">
+            <h2 class="ltx_title ltx_title_section">
+              <span class="ltx_tag ltx_tag_section">5. </span>Evaluation
+            </h2>
+            <div class="ltx_para" id="S5.p1">
+              <p class="ltx_p">
+                Our evaluation is guided by two research questions: First, what
+                is the performance overhead of AgentSight in realistic
+                workflows? Second, how effectively does it bridge the semantic
+                gap to detect critical security threats and performance
+                pathologies, while also revealing complex dynamics in
+                multi-agent systems?
+              </p>
+            </div>
+            <section class="ltx_subsection" id="S5.SS1">
+              <h3 class="ltx_title ltx_title_subsection">
+                <span class="ltx_tag ltx_tag_subsection">5.1. </span>Performance
+                Evaluation
+              </h3>
+              <figure class="ltx_table" id="S5.T1">
+                <figcaption class="ltx_caption ltx_centering">
+                  <span class="ltx_tag ltx_tag_table">Table 1. </span>Overhead
+                  Introduced by AgentSight
+                </figcaption>
+                <table
+                  class="ltx_tabular ltx_centering ltx_guessed_headers ltx_align_middle"
+                >
+                  <thead class="ltx_thead">
+                    <tr class="ltx_tr">
+                      <th
+                        class="ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_tt"
+                      >
+                        Task
+                      </th>
+                      <th
+                        class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_border_tt"
+                      >
+                        Baseline (s)
+                      </th>
+                      <th
+                        class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_border_tt"
+                      >
+                        AgentSight (s)
+                      </th>
+                      <th
+                        class="ltx_td ltx_align_right ltx_th ltx_th_column ltx_border_tt"
+                      >
+                        Overhead
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="ltx_tbody">
+                    <tr class="ltx_tr">
+                      <th
+                        class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_t"
+                      >
+                        Understand Repo
+                      </th>
+                      <td class="ltx_td ltx_align_right ltx_border_t">
+                        127.98
+                      </td>
+                      <td class="ltx_td ltx_align_right ltx_border_t">
+                        132.33
+                      </td>
+                      <td class="ltx_td ltx_align_right ltx_border_t">3.4%</td>
+                    </tr>
+                    <tr class="ltx_tr">
+                      <th class="ltx_td ltx_align_left ltx_th ltx_th_row">
+                        Code Writing
+                      </th>
+                      <td class="ltx_td ltx_align_right">22.54</td>
+                      <td class="ltx_td ltx_align_right">23.64</td>
+                      <td class="ltx_td ltx_align_right">4.9%</td>
+                    </tr>
+                    <tr class="ltx_tr">
+                      <th
+                        class="ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_bb"
+                      >
+                        Repo Compilation
+                      </th>
+                      <td class="ltx_td ltx_align_right ltx_border_bb">
+                        92.40
+                      </td>
+                      <td class="ltx_td ltx_align_right ltx_border_bb">
+                        92.72
+                      </td>
+                      <td class="ltx_td ltx_align_right ltx_border_bb">0.4%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </figure>
+              <div class="ltx_para" id="S5.SS1.p1">
+                <p class="ltx_p">
+                  We evaluated AgentSight on a server (Ubuntu 22.04, Linux
+                  6.14.0) using Claude Code 1.0.62<cite
+                    class="ltx_cite ltx_citemacro_citep"
+                    >(Anthropic,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib5"
+                      title=""
+                      >2025</a
+                    >)</cite
+                  >
+                  with claude 4 as the test agent. The benchmarks focused on
+                  three real-world developer workflows using a tutorial
+                  repo<cite class="ltx_cite ltx_citemacro_citep"
+                    >(eunomia-bpf,
+                    <a
+                      class="ltx_ref"
+                      href="https://arxiv.org/html/2508.02736v2#bib.bib14"
+                      title=""
+                      >2024</a
+                    >)</cite
+                  >: repository understanding with the
+                  <span class="ltx_text ltx_font_typewriter">/init</span>
+                  command, code generation for bpftrace scripts, and full
+                  repository compilation with parallel builds. Each experiment
+                  was run 3 times with and without AgentSight to measure runtime
+                  overhead. Table <a
+                    class="ltx_ref"
+                    href="https://arxiv.org/html/2508.02736v2#S5.T1"
+                    title="Table 1 ‣ 5.1. Performance Evaluation ‣ 5. Evaluation ‣ AgentSight: System-Level Observability for AI Agents Using eBPF"
+                    ><span class="ltx_text ltx_ref_tag">1</span></a
+                  >
+                  quantifies the runtime overhead of AgentSight across three
+                  developer workflows, with a average 2.9% overhead.
+                </p>
+              </div>
+            </section>
+            <section class="ltx_subsection" id="S5.SS2">
+              <h3 class="ltx_title ltx_title_subsection">
+                <span class="ltx_tag ltx_tag_subsection">5.2. </span>Case
+                Studies
+              </h3>
+              <div class="ltx_para" id="S5.SS2.p1">
+                <p class="ltx_p">
+                  We evaluated AgentSight’s effectiveness through case studies
+                  that demonstrate its ability to detect security threats,
+                  identify performance issues, and provide insights into complex
+                  multi-agent systems.
+                </p>
+              </div>
+              <section class="ltx_subsubsection" id="S5.SS2.SSS1">
+                <h4 class="ltx_title ltx_title_subsubsection">
+                  <span class="ltx_tag ltx_tag_subsubsection">5.2.1. </span>Case
+                  Study 1: Detecting Prompt Injection Attacks
+                </h4>
+                <div class="ltx_para" id="S5.SS2.SSS1.p1">
+                  <p class="ltx_p">
+                    We tested AgentSight’s ability to detect indirect prompt
+                    injection attacks<cite class="ltx_cite ltx_citemacro_citep"
+                      >(Zhan et al.,
+                      <a
+                        class="ltx_ref"
+                        href="https://arxiv.org/html/2508.02736v2#bib.bib31"
+                        title=""
+                        >2024</a
+                      >)</cite
+                    >. In our test, a software development agent is instructed
+                    to clone and build a C project. The project’s README file
+                    directed the agent to a URL serving HTML with a hidden
+                    prompt. This prompt made the agent read and send /etc/passwd
+                    to a collection server, using a command cleverly disguised
+                    as a necessary step in the build process. AgentSight
+                    captured the full correlated attack chain: from the initial
+                    URL fetch to the final network exfiltration, with 521 events
+                    and merged into 37 events by Correlation Engine. The
+                    observer LLM analyzed this trace, returned a high-confidence
+                    attack score, and concluded that the agent’s actions were
+                    logically inconsistent with its stated goal. This result
+                    demonstrates how causally linking intent to system-level
+                    actions provides effective, context-aware threat detection.
+                  </p>
+                </div>
+              </section>
+              <section class="ltx_subsubsection" id="S5.SS2.SSS2">
+                <h4 class="ltx_title ltx_title_subsubsection">
+                  <span class="ltx_tag ltx_tag_subsubsection">5.2.2. </span>Case
+                  Study 2: Reasoning Loop Detection
+                </h4>
+                <div class="ltx_para" id="S5.SS2.SSS2.p1">
+                  <p class="ltx_p">
+                    An agent attempting a complex task may enter an infinite
+                    loop due to a common tool usage error<cite
+                      class="ltx_cite ltx_citemacro_citep"
+                      >(Zhang et al.,
+                      <a
+                        class="ltx_ref"
+                        href="https://arxiv.org/html/2508.02736v2#bib.bib32"
+                        title=""
+                        >2024</a
+                      >)</cite
+                    >
+                    . We implement a research agent using crewai<cite
+                      class="ltx_cite ltx_citemacro_citep"
+                      >(cre,
+                      <a
+                        class="ltx_ref"
+                        href="https://arxiv.org/html/2508.02736v2#bib.bib3"
+                        title=""
+                        >2025</a
+                      >)</cite
+                    >
+                    with gpt-4o-mini<cite class="ltx_cite ltx_citemacro_citep"
+                      >(gpt,
+                      <a
+                        class="ltx_ref"
+                        href="https://arxiv.org/html/2508.02736v2#bib.bib2"
+                        title=""
+                        >2024</a
+                      >)</cite
+                    >, it repeatedly called a web search tool with incorrect
+                    arguments, received an error, but then failed to correct its
+                    mistake, retrying the exact same failing command.
+                    AgentSight’s real-time monitors detect this anomalous
+                    resource consumption from a trace of API calls and passed it
+                    to the observer LLM. The LLM identified the root cause as a
+                    persistent tool error, noting the agent was caught in a
+                    "try-fail-re-reason" loop; it executed the same failing
+                    command, passed the identical error back to the reasoning
+                    LLM, and failed to learn from the tool’s output.
+                  </p>
+                </div>
+              </section>
+              <section class="ltx_subsubsection" id="S5.SS2.SSS3">
+                <h4 class="ltx_title ltx_title_subsubsection">
+                  <span class="ltx_tag ltx_tag_subsubsection">5.2.3. </span>Case
+                  Study 3: Multi-Agent Coordination Monitoring
+                </h4>
+                <div class="ltx_para" id="S5.SS2.SSS3.p1">
+                  <p class="ltx_p">
+                    AgentSight monitored a team of 6 collaborating software
+                    development agents for our Github repo, using claude-code
+                    subagents<cite class="ltx_cite ltx_citemacro_citep"
+                      >(sub,
+                      <a
+                        class="ltx_ref"
+                        href="https://arxiv.org/html/2508.02736v2#bib.bib4"
+                        title=""
+                        >2025</a
+                      >)</cite
+                    >, captured 3153 total events after Correlation Engine. For
+                    instance, frontend agent and test agent sometimes are
+                    blocked by sequential dependencies and numerous retry cycles
+                    caused by file locking contention during parallel
+                    development and testing tasks. The analysis demonstrated
+                    that while the agents developed some emergent coordination,
+                    separating the roles more clear could reduce total runtime
+                    and token cost. This reveals how boundary tracing uniquely
+                    captures multi-agent system dynamics that application-level
+                    monitoring cannot observe across process boundaries.
+                  </p>
+                </div>
+              </section>
+            </section>
+          </section>
+          <section class="ltx_section" id="S6">
+            <h2 class="ltx_title ltx_title_section">
+              <span class="ltx_tag ltx_tag_section">6. </span>Conclusion
+            </h2>
+            <div class="ltx_para" id="S6.p1">
+              <p class="ltx_p">
+                This paper introduced AgentSight to bridge the critical semantic
+                gap between an AI agent’s intent and its system-level actions
+                using novel
+                <span class="ltx_text ltx_font_italic">boundary tracing</span>
+                approach. By leveraging eBPF, the system monitors network and
+                kernel events without instrumentation, causally linking LLM
+                communications to their system-wide effects via a hybrid
+                correlation engine. Our evaluation shows AgentSight effectively
+                detects prompt injection attacks, reasoning loops, and
+                multi-agent bottlenecks with under 3% performance overhead. This
+                "AI to watch AI" provides a foundational methodology for the
+                secure and reliable deployment of increasingly autonomous AI
+                systems.
+              </p>
+            </div>
+          </section>
+          <section class="ltx_bibliography" id="bib">
+            <h2 class="ltx_title ltx_title_bibliography">References</h2>
+            <ul class="ltx_biblist">
+              <li class="ltx_bibitem" id="bib.bib1">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">(1)</span>
+                <span class="ltx_bibblock"> </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib2">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >gpt (2024)</span
+                >
+                <span class="ltx_bibblock"> 2024. </span>
+                <span class="ltx_bibblock"
+                  >GPT-4o Mini: Advancing Cost-Efficient Intelligence.
+                </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://openai.com/index/gpt-4o-mini-advancing-cost-efficient-intelligence/"
+                    title=""
+                    >https://openai.com/index/gpt-4o-mini-advancing-cost-efficient-intelligence/</a
+                  >.
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock"
+                  >Blog post announcing GPT-4o mini.
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib3">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >cre (2025)</span
+                >
+                <span class="ltx_bibblock"> 2025. </span>
+                <span class="ltx_bibblock"
+                  >crewAI: Framework for Orchestrating Role Playing Autonomous
+                  AI Agents.
+                </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://github.com/crewAIInc/crewAI"
+                    title=""
+                    >https://github.com/crewAIInc/crewAI</a
+                  >.
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock"
+                  >GitHub repository, accessed 30 Jul 2025.
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib4">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >sub (2025)</span
+                >
+                <span class="ltx_bibblock"> 2025. </span>
+                <span class="ltx_bibblock">Subagents. </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://docs.anthropic.com/en/docs/claude-code/sub-agents"
+                    title=""
+                    >https://docs.anthropic.com/en/docs/claude-code/sub-agents</a
+                  >.
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock"
+                  >Claude Code documentation page describing custom AI sub
+                  agents.
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib5">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Anthropic (2025)</span
+                >
+                <span class="ltx_bibblock"> Anthropic. 2025. </span>
+                <span class="ltx_bibblock">Introducing Claude Code. </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://www.anthropic.com/news/claude-code"
+                    title=""
+                    >https://www.anthropic.com/news/claude-code</a
+                  >.
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock"
+                  >Agentic coding tool announcement, Anthropic blog.
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib6">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Anysphere Inc. (2025)</span
+                >
+                <span class="ltx_bibblock"> Anysphere Inc. 2025. </span>
+                <span class="ltx_bibblock"
+                  >Cursor: The AI powered Code Editor.
+                </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://cursor.com/"
+                    title=""
+                    >https://cursor.com/</a
+                  >.
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock"
+                  >AI assisted IDE with agent mode; latest release version 1.0
+                  on June 4, 2025.
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib7">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Authors (2023)</span
+                >
+                <span class="ltx_bibblock"> The Falco Authors. 2023. </span>
+                <span class="ltx_bibblock"
+                  >Falco: Cloud Native Runtime Security.
+                </span>
+                <span class="ltx_bibblock">
+                  <a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://falco.org/"
+                    title=""
+                    >https://falco.org/</a
+                  >
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib8">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Bandurchin ([n. d.])</span
+                >
+                <span class="ltx_bibblock">
+                  Alexandr Bandurchin. [n. d.].
+                </span>
+                <span class="ltx_bibblock"
+                  >AI Agent Observability Explained: Key Concepts and Standards.
+                </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://uptrace.dev/blog/ai-agent-observability"
+                    title=""
+                    >https://uptrace.dev/blog/ai-agent-observability</a
+                  >.
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock">Uptrace Blog, April 16, 2025. </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib9">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Chase (2023)</span
+                >
+                <span class="ltx_bibblock"> Harrison Chase. 2023. </span>
+                <span class="ltx_bibblock"
+                  >LangChain: Building applications with LLMs through
+                  composability.
+                </span>
+                <span class="ltx_bibblock">
+                  <a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://github.com/langchain-ai/langchain"
+                    title=""
+                    >https://github.com/langchain-ai/langchain</a
+                  >
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib10">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Community (2023)</span
+                >
+                <span class="ltx_bibblock">
+                  Linux Kernel Community. 2023.
+                </span>
+                <span class="ltx_bibblock"
+                  >BPF Documentation - The Linux Kernel.
+                </span>
+                <span class="ltx_bibblock">
+                  <a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://www.kernel.org/doc/html/latest/bpf/"
+                    title=""
+                    >https://www.kernel.org/doc/html/latest/bpf/</a
+                  >
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib11">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Datadog Inc. ([n. d.])</span
+                >
+                <span class="ltx_bibblock"> Datadog Inc. [n. d.]. </span>
+                <span class="ltx_bibblock"
+                  >Monitor, troubleshoot, and improve AI agents with Datadog.
+                </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://www.datadoghq.com/blog/monitor-ai-agents/"
+                    title=""
+                    >https://www.datadoghq.com/blog/monitor-ai-agents/</a
+                  >.
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock">Datadog Blog, 2023. </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib12">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Dong et al. (2024)</span
+                >
+                <span class="ltx_bibblock">
+                  Liming Dong, Qinghua Lu, and Liming Zhu. 2024.
+                </span>
+                <span class="ltx_bibblock"
+                  >AgentOps: Enabling Observability of LLM Agents.
+                </span>
+                <span class="ltx_bibblock"
+                  ><em class="ltx_emph ltx_font_italic"
+                    >arXiv preprint arXiv:2411.05285</em
+                  >
+                  (2024).
+                </span>
+                <span class="ltx_bibblock"> </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib13">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >eBPF Community (2023)</span
+                >
+                <span class="ltx_bibblock"> eBPF Community. 2023. </span>
+                <span class="ltx_bibblock">eBPF Documentation. </span>
+                <span class="ltx_bibblock">
+                  <a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://ebpf.io/"
+                    title=""
+                    >https://ebpf.io/</a
+                  >
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib14">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >eunomia-bpf (2024)</span
+                >
+                <span class="ltx_bibblock"> eunomia-bpf. 2024. </span>
+                <span class="ltx_bibblock">eBPF Developer Tutorial. </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://github.com/eunomia-bpf/bpf-developer-tutorial"
+                    title=""
+                    >https://github.com/eunomia-bpf/bpf-developer-tutorial</a
+                  >.
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock">Accessed: 2025-01-29. </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib15">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Gregg (2019)</span
+                >
+                <span class="ltx_bibblock"> Brendan Gregg. 2019. </span>
+                <span class="ltx_bibblock"
+                  ><em class="ltx_emph ltx_font_italic"
+                    >BPF Performance Tools</em
+                  >.
+                </span>
+                <span class="ltx_bibblock">Addison-Wesley Professional. </span>
+                <span class="ltx_bibblock"> </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib16">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Guo et al. (2024)</span
+                >
+                <span class="ltx_bibblock">
+                  Taicheng Guo, Xiuying Chen, Yaqi Wang, Ruidi Chang, Shichao
+                  Pei, Nitesh V. Chawla, Olaf Wiest, and Xiangliang Zhang. 2024.
+                </span>
+                <span class="ltx_bibblock"
+                  >Large Language Model based Multi-Agents: A Survey of Progress
+                  and Challenges.
+                </span>
+                <span class="ltx_bibblock"
+                  ><em class="ltx_emph ltx_font_italic"
+                    >arXiv preprint arXiv:2402.01680</em
+                  >
+                  (2024).
+                </span>
+                <span class="ltx_bibblock"> </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib17">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Helicone (2023)</span
+                >
+                <span class="ltx_bibblock"> Helicone. 2023. </span>
+                <span class="ltx_bibblock"
+                  >Helicone / LLM-Observability for Developers.
+                </span>
+                <span class="ltx_bibblock">
+                  <a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://www.helicone.ai/"
+                    title=""
+                    >https://www.helicone.ai/</a
+                  >
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib18">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Kim et al. (2025)</span
+                >
+                <span class="ltx_bibblock">
+                  Been Kim, John Hewitt, Neel Nanda, Noah Fiedel, and Oyvind
+                  Tafjord. 2025.
+                </span>
+                <span class="ltx_bibblock"
+                  >Because we have LLMs, we Can and Should Pursue Agentic
+                  Interpretability.
+                </span>
+                <span class="ltx_bibblock"
+                  ><em class="ltx_emph ltx_font_italic"
+                    >arXiv preprint arXiv:2506.12152</em
+                  >
+                  (2025).
+                </span>
+                <span class="ltx_bibblock"> </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib19">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >LangChain (2023)</span
+                >
+                <span class="ltx_bibblock"> LangChain. 2023. </span>
+                <span class="ltx_bibblock"
+                  >Observability Quick Start - LangSmith - LangChain.
+                </span>
+                <span class="ltx_bibblock">
+                  <a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://docs.smith.langchain.com/observability"
+                    title=""
+                    >https://docs.smith.langchain.com/observability</a
+                  >
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib20">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Langfuse (2024)</span
+                >
+                <span class="ltx_bibblock"> Langfuse. 2024. </span>
+                <span class="ltx_bibblock"
+                  >Langfuse - LLM Observability &amp; Application Tracing.
+                </span>
+                <span class="ltx_bibblock">
+                  <a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://langfuse.com/"
+                    title=""
+                    >https://langfuse.com/</a
+                  >
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib21">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Liu and Solomon ([n. d.])</span
+                >
+                <span class="ltx_bibblock">
+                  Guangya Liu and Sujay Solomon. [n. d.].
+                </span>
+                <span class="ltx_bibblock"
+                  >AI Agent Observability – Evolving Standards and Best
+                  Practices.
+                </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://opentelemetry.io/blog/2025/ai-agent-observability/"
+                    title=""
+                    >https://opentelemetry.io/blog/2025/ai-agent-observability/</a
+                  >.
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock"
+                  >OpenTelemetry Blog, March 6, 2025.
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib22">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Maierhöfer (2025)</span
+                >
+                <span class="ltx_bibblock"> Jannik Maierhöfer. 2025. </span>
+                <span class="ltx_bibblock"
+                  >AI Agent Observability with Langfuse.
+                </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://langfuse.com/blog/2024-07-ai-agent-observability-with-langfuse"
+                    title=""
+                    >https://langfuse.com/blog/2024-07-ai-agent-observability-with-langfuse</a
+                  >.
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock"
+                  >Langfuse Blog, March 16, 2025.
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib23">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >microsoft ([n. d.])</span
+                >
+                <span class="ltx_bibblock"> microsoft. [n. d.]. </span>
+                <span class="ltx_bibblock">eBPF for Windows. </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://github.com/microsoft/ebpf-for-windows"
+                    title=""
+                    >https://github.com/microsoft/ebpf-for-windows</a
+                  >.
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib24">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Moshkovich and Zeltyn (2025)</span
+                >
+                <span class="ltx_bibblock">
+                  Dany Moshkovich and Sergey Zeltyn. 2025.
+                </span>
+                <span class="ltx_bibblock"
+                  >Taming Uncertainty via Automation: Observing, Analyzing, and
+                  Optimizing Agentic AI Systems.
+                </span>
+                <span class="ltx_bibblock"
+                  ><em class="ltx_emph ltx_font_italic"
+                    >arXiv preprint arXiv:2507.11277</em
+                  >
+                  (2025).
+                </span>
+                <span class="ltx_bibblock"> </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib25">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Mullen and Salva (2025)</span
+                >
+                <span class="ltx_bibblock">
+                  Taylor Mullen and Ryan J. Salva. 2025.
+                </span>
+                <span class="ltx_bibblock"
+                  >Gemini CLI: Your Open Source AI Agent.
+                </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://blog.google/technology/developers/introducing-gemini-cli-open-source-ai-agent/"
+                    title=""
+                    >https://blog.google/technology/developers/introducing-gemini-cli-open-source-ai-agent/</a
+                  >.
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock"
+                  >Google Developers Blog, Jun 2025.
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib26">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Project (2023)</span
+                >
+                <span class="ltx_bibblock"> Cilium Project. 2023. </span>
+                <span class="ltx_bibblock"
+                  >eBPF-based Networking, Observability, and Security.
+                </span>
+                <span class="ltx_bibblock">
+                  <a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://cilium.io/"
+                    title=""
+                    >https://cilium.io/</a
+                  >
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib27">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Rombaut et al. (2025)</span
+                >
+                <span class="ltx_bibblock">
+                  Benjamin Rombaut, Sogol Masoumzadeh, Kirill Vasilevski, Dayi
+                  Lin, and Ahmed E. Hassan. 2025.
+                </span>
+                <span class="ltx_bibblock"
+                  >Watson: A Cognitive Observability Framework for the Reasoning
+                  of LLM-Powered Agents.
+                </span>
+                <span class="ltx_bibblock"
+                  ><em class="ltx_emph ltx_font_italic"
+                    >arXiv preprint arXiv:2411.03455</em
+                  >
+                  (2025).
+                </span>
+                <span class="ltx_bibblock"> </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib28">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Security (2023)</span
+                >
+                <span class="ltx_bibblock"> Aqua Security. 2023. </span>
+                <span class="ltx_bibblock"
+                  >Tracee: Runtime Security and Forensics using eBPF.
+                </span>
+                <span class="ltx_bibblock">
+                  <a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://github.com/aquasecurity/tracee"
+                    title=""
+                    >https://github.com/aquasecurity/tracee</a
+                  >
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib29">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Tran et al. (2025)</span
+                >
+                <span class="ltx_bibblock">
+                  Khanh-Tung Tran, Dung Dao, Minh-Duong Nguyen, Quoc-Viet Pham,
+                  Barry O’Sullivan, and Hoang D. Nguyen. 2025.
+                </span>
+                <span class="ltx_bibblock"
+                  >Multi-Agent Collaboration Mechanisms: A Survey of LLMs.
+                </span>
+                <span class="ltx_bibblock"
+                  ><em class="ltx_emph ltx_font_italic"
+                    >arXiv preprint arXiv:2501.06322</em
+                  >
+                  (2025).
+                </span>
+                <span class="ltx_bibblock"> </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib30">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Wu et al. (2023)</span
+                >
+                <span class="ltx_bibblock">
+                  Qingyun Wu, Gagan Bansal, Jieyu Zhang, Yiran Wu, Shaokun
+                  Zhang, Erkang Zhu, Beibin Li, Li Jiang, Xiaoyun Zhang, and Chi
+                  Wang. 2023.
+                </span>
+                <span class="ltx_bibblock"
+                  >AutoGen: Enable Next-Gen Large Language Model Applications.
+                </span>
+                <span class="ltx_bibblock">
+                  <a
+                    class="ltx_ref ltx_url ltx_font_typewriter"
+                    href="https://github.com/microsoft/autogen"
+                    title=""
+                    >https://github.com/microsoft/autogen</a
+                  >
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib31">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Zhan et al. (2024)</span
+                >
+                <span class="ltx_bibblock">
+                  Qiusi Zhan, Zhixiang Liang, Zifan Ying, and Daniel Kang. 2024.
+                </span>
+                <span class="ltx_bibblock"
+                  >InjecAgent: Benchmarking Indirect Prompt Injections in
+                  Tool-Integrated Large Language Model Agents. In
+                  <em class="ltx_emph ltx_font_italic"
+                    >Findings of the Association for Computational Linguistics
+                    (ACL Findings)</em
+                  >.
+                </span>
+                <span class="ltx_bibblock"
+                  ><a
+                    class="ltx_ref ltx_href"
+                    href="https://doi.org/10.48550/arXiv.2403.02691"
+                    title=""
+                    >doi:<span class="ltx_ref ltx_nolink"
+                      >10.48550/arXiv.2403.02691</span
+                    ></a
+                  >
+                </span>
+                <span class="ltx_bibblock">arXiv:2403.02691. </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib32">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Zhang et al. (2024)</span
+                >
+                <span class="ltx_bibblock">
+                  Boyang Zhang, Yicong Tan, Yun Shen, Ahmed Salem, Michael
+                  Backes, Savvas Zannettou, and Yang Zhang. 2024.
+                </span>
+                <span class="ltx_bibblock"
+                  >Breaking Agents: Compromising Autonomous LLM Agents Through
+                  Malfunction Amplification.
+                </span>
+                <span class="ltx_bibblock"
+                  ><em class="ltx_emph ltx_font_italic"
+                    >arXiv preprint arXiv:2407.20859</em
+                  >
+                  (2024).
+                </span>
+                <span class="ltx_bibblock"> </span>
+                <span class="ltx_bibblock"
+                  >Introduces an "infinite loop" attack that forces agents to
+                  repeat actions until max iteration..
+                </span>
+              </li>
+              <li class="ltx_bibitem" id="bib.bib33">
+                <span class="ltx_tag ltx_role_refnum ltx_tag_bibitem"
+                  >Zheng et al. (2025)</span
+                >
+                <span class="ltx_bibblock">
+                  Yusheng Zheng, Tong Yu, Yiwei Yang, Yanpeng Hu, Xiaozheng Lai,
+                  Dan Williams, and Andi Quinn. 2025.
+                </span>
+                <span class="ltx_bibblock"
+                  >Extending Applications Safely and Efficiently. In
+                  <em class="ltx_emph ltx_font_italic"
+                    >19th USENIX Symposium on Operating Systems Design and
+                    Implementation (OSDI 25)</em
+                  >. 557–574.
+                </span>
+                <span class="ltx_bibblock"> </span>
+              </li>
+            </ul>
+          </section>
+        </article>
+      </div>
+      <footer class="ltx_page_footer">
+        <div class="ltx_page_logo">
+          Generated on Fri Aug 15 11:43:13 2025 by
+          <a class="ltx_LaTeXML_logo" href="http://dlmf.nist.gov/LaTeXML/"
+            ><span style="letter-spacing: -0.2em; margin-right: 0.1em"
+              >L<span
+                class="ltx_font_smallcaps"
+                style="position: relative; bottom: 2.2pt"
+                >a</span
+              >T<span
+                class="ltx_font_smallcaps"
+                style="font-size: 120%; position: relative; bottom: -0.2ex"
+                >e</span
+              ></span
+            ><span style="font-size: 90%; position: relative; bottom: -0.2ex"
+              >XML</span
+            ><img
+              alt="Mascot Sammy"
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAYAAAD5YeaVAAAAAXNSR0IArs4c6QAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB9wKExQZLWTEaOUAAAAddEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIFRoZSBHSU1Q72QlbgAAAdpJREFUKM9tkL+L2nAARz9fPZNCKFapUn8kyI0e4iRHSR1Kb8ng0lJw6FYHFwv2LwhOpcWxTjeUunYqOmqd6hEoRDhtDWdA8ApRYsSUCDHNt5ul13vz4w0vWCgUnnEc975arX6ORqN3VqtVZbfbTQC4uEHANM3jSqXymFI6yWazP2KxWAXAL9zCUa1Wy2tXVxheKA9YNoR8Pt+aTqe4FVVVvz05O6MBhqUIBGk8Hn8HAOVy+T+XLJfLS4ZhTiRJgqIoVBRFIoric47jPnmeB1mW/9rr9ZpSSn3Lsmir1fJZlqWlUonKsvwWwD8ymc/nXwVBeLjf7xEKhdBut9Hr9WgmkyGEkJwsy5eHG5vN5g0AKIoCAEgkEkin0wQAfN9/cXPdheu6P33fBwB4ngcAcByHJpPJl+fn54mD3Gg0NrquXxeLRQAAwzAYj8cwTZPwPH9/sVg8PXweDAauqqr2cDjEer1GJBLBZDJBs9mE4zjwfZ85lAGg2+06hmGgXq+j3+/DsixYlgVN03a9Xu8jgCNCyIegIAgx13Vfd7vdu+FweG8YRkjXdWy329+dTgeSJD3ieZ7RNO0VAXAPwDEAO5VKndi2fWrb9jWl9Esul6PZbDY9Go1OZ7PZ9z/lyuD3OozU2wAAAABJRU5ErkJggg=="
+          /></a>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
