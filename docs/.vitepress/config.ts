@@ -66,9 +66,9 @@ export default defineConfig({
             { text: 'ML 模型速查表 ⚡', link: '/backend/ml-models-summary' },
             { text: 'ML 模型完整指南', link: '/backend/ml-models-complete-guide' },
             { text: 'ML 模型对比可视化 📊', link: '/backend/ml-models-visualization' },
-            { text: '内核态多模型实现', link: '/multi-model-complete' },
-            { text: '实验框架使用指南', link: '/ml-experiments' },
-            { text: '内核 ML 实现', link: '/kernel-ml-implementation' }
+            { text: '内核态多模型实现', link: '/backend/multi-model-complete' },
+            { text: '实验框架使用指南', link: '/backend/ml-experiments' },
+            { text: '内核 ML 实现', link: '/backend/kernel-ml-implementation' }
           ]
         }
       ],

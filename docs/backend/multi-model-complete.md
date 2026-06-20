@@ -326,7 +326,7 @@ aea85a7 refactor: Optimize eBPF code for efficiency (-85%)
 ## 📚 相关文档
 
 - `README.md` - 基础使用
-- `docs/kernel-ml-implementation.md` - 架构详解
+- `docs/backend/kernel-ml-implementation.md` - 架构详解
 - `docs/multi-model-support.md` - 本文档
 - `docs/ebpf-optimization-summary.md` - eBPF 优化
 
@@ -355,8 +355,8 @@ aea85a7 refactor: Optimize eBPF code for efficiency (-85%)
 
 ## 相关导航
 
-- [多模型支持设计](multi-model-support.md)
-- [全模型实现概览](all-models-complete.md)
-- [内核 ML 实现](kernel-ml-implementation.md)
-- [ML、Plugins 与扩展能力](backend/ml-plugins.md)
-- [kernel-ml README](../kernel-ml/README.md)
+- [多模型支持设计](/multi-model-support)
+- [全模型实现概览](/all-models-complete)
+- [内核 ML 实现](/backend/kernel-ml-implementation)
+- [ML、Plugins 与扩展能力](/backend/ml-plugins)
+- [kernel-ml README](../../kernel-ml/README.md)

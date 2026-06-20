@@ -58,9 +58,9 @@
 - **[ML 模型速查表](../backend/ml-models-summary.md)** ⚡ - 快速查找模型能力和适用场景
 - **[ML 模型完整指南](../backend/ml-models-complete-guide.md)** - 详细结构、示例、性能对比
 - **[ML 模型对比可视化](../backend/ml-models-visualization.md)** - 面向答辩和横向比较的图表材料
-- **[内核态多模型实现](../multi-model-complete.md)** - 内核态多模型实现细节
-- **[实验框架使用指南](../ml-experiments.md)** - 批量评估和参数扫描
-- **[内核 ML 实现](../kernel-ml-implementation.md)** 与 **[kernel-ml/README](../../kernel-ml/README.md)** - DKMS 模块、proc/sysfs UAPI、CUDA userspace helper
+- **[内核态多模型实现](/backend/multi-model-complete)** - 内核态多模型实现细节
+- **[实验框架使用指南](/backend/ml-experiments)** - 批量评估和参数扫描
+- **[内核 ML 实现](/backend/kernel-ml-implementation)** 与 **[kernel-ml/README](../../kernel-ml/README.md)** - DKMS 模块、proc/sysfs UAPI、CUDA userspace helper
 
 ## 仓库内专项文档
 

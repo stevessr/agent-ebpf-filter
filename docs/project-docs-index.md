@@ -46,7 +46,7 @@
 | [`docs/ebpf-ml-feasibility.md`](ebpf-ml-feasibility.md) | eBPF ML 可行性分析 |
 | [`docs/ebpf-ml-implementation.md`](ebpf-ml-implementation.md) | eBPF ML 实现说明 |
 | [`docs/kernel-load-manual.md`](kernel-load-manual.md) | 内核加载 / 手动操作说明 |
-| [`docs/kernel-ml-implementation.md`](kernel-ml-implementation.md) | DKMS 内核态 ML 推理模块实现总结 |
+| [`docs/backend/kernel-ml-implementation.md`](backend/kernel-ml-implementation.md) | DKMS 内核态 ML 推理模块实现总结 |
 | [`docs/btf-fix-guide.md`](btf-fix-guide.md) | BTF 相关问题修复指南 |
 | [`OPTIMIZATION_CHECKLIST.md`](../OPTIMIZATION_CHECKLIST.md) | 优化检查清单 |
 
@@ -92,12 +92,12 @@
 | --- | --- |
 | [`docs/ml-opening-report.md`](ml-opening-report.md) | ML 方向开题 / 规划材料 |
 | [`docs/ml-benchmark-report.md`](ml-benchmark-report.md) | ML benchmark 报告 |
-| [`docs/ml-experiments.md`](ml-experiments.md) | ML 实验记录 |
+| [`docs/backend/ml-experiments.md`](backend/ml-experiments.md) | ML 实验记录 |
 | [`docs/ml-attention.md`](ml-attention.md) | attention 模型相关说明 |
 | [`docs/multi-model-support.md`](multi-model-support.md) | 多模型支持设计 |
-| [`docs/multi-model-complete.md`](multi-model-complete.md) | 内核态多模型实现 |
+| [`docs/backend/multi-model-complete.md`](backend/multi-model-complete.md) | 内核态多模型实现 |
 | [`docs/all-models-complete.md`](all-models-complete.md) | 全模型实现概览 |
-| [`docs/kernel-ml-implementation.md`](kernel-ml-implementation.md) | 内核态 ML 推理模块实现 |
+| [`docs/backend/kernel-ml-implementation.md`](backend/kernel-ml-implementation.md) | 内核态 ML 推理模块实现 |
 
 相关代码入口：
 

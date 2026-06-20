@@ -374,7 +374,7 @@ make os-enforcement-check
 
 ### 8.1 能力范围
 
-`kernel-ml/README.md` 与 `docs/kernel-ml-implementation.md` 描述的能力包括：
+`kernel-ml/README.md` 与 `docs/backend/kernel-ml-implementation.md` 描述的能力包括：
 
 - DKMS 内核模块 `kernel_ml.ko`；
 - 定点数推理，无浮点；

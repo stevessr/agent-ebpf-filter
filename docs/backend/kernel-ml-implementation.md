@@ -111,8 +111,8 @@ flowchart TD
 
 **最佳实践**:
 - eBPF: 数据捕获 + 简单过滤
-- 内核模块: 复杂 ML 推理
-- 用户空间: 模型训练 + 更新
+- 内核模块：复杂 ML 推理
+- 用户空间：模型训练 + 更新
 
 ---
 
@@ -298,8 +298,8 @@ flowchart TD
 
 ## 相关导航
 
-- [kernel-ml README](../kernel-ml/README.md)
-- [ML、Plugins 与扩展能力](backend/ml-plugins.md)
-- [内核态多模型实现](multi-model-complete.md)
-- [eBPF 与 OS Enforcement](backend/ebpf-os-enforcement.md)
-- [验证、测试与 Benchmark](operations/verification-benchmark.md)
+- [kernel-ml README](../../kernel-ml/README.md)
+- [ML、Plugins 与扩展能力](/backend/ml-plugins)
+- [内核态多模型实现](/backend/multi-model-complete)
+- [eBPF 与 OS Enforcement](/backend/ebpf-os-enforcement)
+- [验证、测试与 Benchmark](/operations/verification-benchmark)

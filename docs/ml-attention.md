@@ -388,6 +388,6 @@ _ = loaded
 
 - [ML、Plugins 与扩展能力](backend/ml-plugins.md)
 - [ML 模型完整指南](backend/ml-models-complete-guide.md)
-- [ML 实验框架](ml-experiments.md)
+- [ML 实验框架](/backend/ml-experiments)
 - [ML benchmark](ml-benchmark-report.md)
 - [多模型支持设计](multi-model-support.md)

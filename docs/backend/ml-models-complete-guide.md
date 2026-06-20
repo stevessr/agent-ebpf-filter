@@ -1122,9 +1122,9 @@ cat reports/ml-sweep-*/best.json
 ## 📚 参考文档
 
 - `kernel-ml/README.md` - 内核模块详细文档
-- [docs/multi-model-complete.md](../multi-model-complete.md) - 内核态多模型实现
-- [docs/ml-experiments.md](../ml-experiments.md) - 实验框架使用指南
-- [docs/kernel-ml-implementation.md](../kernel-ml-implementation.md) - 内核 ML 架构
+- [docs/backend/multi-model-complete.md](/backend/multi-model-complete) - 内核态多模型实现
+- [docs/backend/ml-experiments.md](/backend/ml-experiments) - 实验框架使用指南
+- [docs/backend/kernel-ml-implementation.md](/backend/kernel-ml-implementation) - 内核 ML 架构
 - `frontend/src/data/mlModelCatalog.ts` - 前端模型目录
 
 ---

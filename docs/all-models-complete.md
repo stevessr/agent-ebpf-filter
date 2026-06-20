@@ -313,5 +313,5 @@ s64 gaussian_pdf(s64 x, s64 mean, s64 std) {
 - [ML、Plugins 与扩展能力](backend/ml-plugins.md)
 - [ML 模型速查表](backend/ml-models-summary.md)
 - [ML 模型完整指南](backend/ml-models-complete-guide.md)
-- [内核态多模型实现](multi-model-complete.md)
+- [内核态多模型实现](/backend/multi-model-complete)
 - [kernel-ml README](../kernel-ml/README.md)

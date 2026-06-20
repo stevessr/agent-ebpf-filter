@@ -284,7 +284,7 @@ docs/architecture.md              # 架构
 /docs/benchmark.md                # benchmark 与 replay
 /docs/external-api.md             # 外部 API
 /docs/kubernetes.md               # Kubernetes 部署
-/docs/kernel-ml-implementation.md # kernel-ml
+/docs/backend/kernel-ml-implementation.md # kernel-ml
 /docs/agentsight-*.md             # AgentSight 优化
 /docs/*ssl* / *codex*             # TLS / Codex capture
 ```

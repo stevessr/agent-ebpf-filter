@@ -148,7 +148,7 @@
 ## 相关导航
 
 - [ML benchmark](ml-benchmark-report.md)
-- [ML 实验框架](ml-experiments.md)
+- [ML 实验框架](/backend/ml-experiments)
 - [ML、Plugins 与扩展能力](backend/ml-plugins.md)
 - [ML 模型完整指南](backend/ml-models-complete-guide.md)
 - [项目路线图](project-roadmap.md)

@@ -260,7 +260,7 @@ cat model_nn.bin > /proc/ml_load    # 切换到 NN
 ## 相关导航
 
 - [ML、Plugins 与扩展能力](backend/ml-plugins.md)
-- [内核态多模型实现](multi-model-complete.md)
+- [内核态多模型实现](/backend/multi-model-complete)
 - [全模型实现概览](all-models-complete.md)
-- [内核 ML 实现](kernel-ml-implementation.md)
+- [内核 ML 实现](/backend/kernel-ml-implementation)
 - [kernel-ml README](../kernel-ml/README.md)

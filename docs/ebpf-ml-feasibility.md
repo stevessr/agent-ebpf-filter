@@ -252,5 +252,5 @@ struct {
 - [eBPF ML 实现说明](ebpf-ml-implementation.md)
 - [ML、Plugins 与扩展能力](backend/ml-plugins.md)
 - [eBPF 与 OS Enforcement](backend/ebpf-os-enforcement.md)
-- [内核 ML 实现](kernel-ml-implementation.md)
+- [内核 ML 实现](/backend/kernel-ml-implementation)
 - [kernel-ml README](../kernel-ml/README.md)

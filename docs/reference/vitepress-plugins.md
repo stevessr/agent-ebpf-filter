@@ -164,10 +164,10 @@ bun run docs:preview
 ### LaTeX 支持的语法
 
 **常用符号**:
-- 希腊字母: $\alpha, \beta, \gamma, \lambda, \mu, \sigma, \theta, \rho$
-- 运算符: $\sum, \prod, \int, \frac{a}{b}, \sqrt{x}, x^2, x_i$
-- 关系: $\leq, \geq, \approx, \in, \subset$
-- 逻辑: $\land, \lor, \neg, \forall, \exists$
+- 希腊字母：$\alpha, \beta, \gamma, \lambda, \mu, \sigma, \theta, \rho$
+- 运算符：$\sum, \prod, \int, \frac{a}{b}, \sqrt{x}, x^2, x_i$
+- 关系：$\leq, \geq, \approx, \in, \subset$
+- 逻辑：$\land, \lor, \neg, \forall, \exists$
 
 **矩阵**:
 ```latex

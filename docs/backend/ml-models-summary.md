@@ -234,9 +234,9 @@ sudo cat model_new.bin > /proc/ml_load
 ## 📚 相关文档
 
 - **[ML 模型完整指南](./ml-models-complete-guide.md)** - 详细结构、示例、API
-- **[内核态多模型实现](../multi-model-complete.md)** - 实现细节
-- **[实验框架使用](../ml-experiments.md)** - 批量评估
-- **[内核 ML 实现](../kernel-ml-implementation.md)** - 内核模块架构
+- **[内核态多模型实现](/backend/multi-model-complete)** - 实现细节
+- **[实验框架使用](/backend/ml-experiments)** - 批量评估
+- **[内核 ML 实现](/backend/kernel-ml-implementation)** - 内核模块架构
 
 ---
 

@@ -87,7 +87,7 @@ ML 与 Plugins 在答辩中应作为增强点，而不是压过 eBPF / OS enforc
 | --- | --- |
 | ML 模型目录、内置 profile、前端 catalog | [ML 模型速查表](ml-models-summary.md)、[ML 模型完整指南](ml-models-complete-guide.md)、`frontend/src/data/mlModelCatalog.ts` |
 | kernel risk feedback | [事件管线](/backend/event-pipeline)、[策略语义](/security/policy-semantics)、[Runtime Gates 与 Auth](/security/runtime-gates-auth) |
-| kernel-ml DKMS / CUDA helper / v2 model format | [内核 ML 实现](../kernel-ml-implementation.md)、[kernel-ml/README](../../kernel-ml/README.md) |
+| kernel-ml DKMS / CUDA helper / v2 model format | [内核 ML 实现](/backend/kernel-ml-implementation)、[kernel-ml/README](../../kernel-ml/README.md) |
 | Plugins routes / visual builder | [路由与 API](/backend/routes-api)、[前端路由与功能页](/frontend/routes-and-pages)、[代码入口索引](/reference/code-entrypoints) |
 | 性能或模型评测 | [验证、测试与 Benchmark](/operations/verification-benchmark)、[评测报告](/delivery/evaluation)、[ML benchmark](../ml-benchmark-report.md) |
 

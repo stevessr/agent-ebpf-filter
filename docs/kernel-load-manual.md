@@ -366,7 +366,7 @@ sudo dmesg | tail -50                           # 查看系统日志
 ## 相关导航
 
 - [eBPF 与 OS Enforcement](backend/ebpf-os-enforcement.md)
-- [内核 ML 实现](kernel-ml-implementation.md)
+- [内核 ML 实现](/backend/kernel-ml-implementation)
 - [kernel-ml README](../kernel-ml/README.md)
 - [验证、测试与 Benchmark](operations/verification-benchmark.md)
 - [策略语义](security/policy-semantics.md)

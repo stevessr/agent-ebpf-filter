@@ -231,6 +231,6 @@ flowchart LR
 
 - [eBPF ML 可行性分析](ebpf-ml-feasibility.md)
 - [ML、Plugins 与扩展能力](backend/ml-plugins.md)
-- [内核 ML 实现](kernel-ml-implementation.md)
+- [内核 ML 实现](/backend/kernel-ml-implementation)
 - [ML 模型完整指南](backend/ml-models-complete-guide.md)
 - [验证、测试与 Benchmark](operations/verification-benchmark.md)

@@ -355,4 +355,4 @@ graph TD
 
 - [ML 模型速查表](./ml-models-summary.md)
 - [ML 模型完整指南](./ml-models-complete-guide.md)
-- [内核态多模型实现](../multi-model-complete.md)
+- [内核态多模型实现](/backend/multi-model-complete)
