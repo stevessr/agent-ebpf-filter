@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <style>
+      .axis { stroke: #333; stroke-width: 2; }
+      .grid { stroke: #ddd; stroke-width: 1; stroke-dasharray: 5,5; }
+      .label { font-family: Arial, sans-serif; font-size: 14px; fill: #333; }
+      .title { font-family: Arial, sans-serif; font-size: 20px; font-weight: bold; fill: #333; }
+      .model-text { font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; fill: white; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <!-- 标题 -->
+  <text x="400" y="30" class="title" text-anchor="middle">ML 模型：准确率 vs 速度权衡</text>
+
+  <!-- 网格 -->
+  <line x1="100" y1="100" x2="100" y2="500" class="axis"/>
+  <line x1="100" y1="500" x2="700" y2="500" class="axis"/>
+
+  <line x1="100" y1="200" x2="700" y2="200" class="grid"/>
+  <line x1="100" y1="300" x2="700" y2="300" class="grid"/>
+  <line x1="100" y1="400" x2="700" y2="400" class="grid"/>
+
+  <line x1="250" y1="100" x2="250" y2="500" class="grid"/>
+  <line x1="400" y1="100" x2="400" y2="500" class="grid"/>
+  <line x1="550" y1="100" x2="550" y2="500" class="grid"/>
+
+  <!-- 坐标轴标签 -->
+  <text x="400" y="540" class="label" text-anchor="middle">推理速度 →</text>
+  <text x="50" y="300" class="label" text-anchor="middle" transform="rotate(-90 50 300)">准确率 ↑</text>
+  <text x="120" y="520" class="label" style="fill: #999;">(慢)</text>
+  <text x="680" y="520" class="label" style="fill: #999;">(快)</text>
+
+  <!-- Logistic Regression: 速度9, 准确率2 -->
+  <circle cx="640" cy="420" r="40" fill="#f39c12" opacity="0.8" stroke="white" stroke-width="3"/>
+  <text x="640" y="420" class="model-text" dy="0.3em">Logistic</text>
+  <text x="640" y="435" class="model-text" dy="0.3em">Regression</text>
+
+  <!-- SVM: 速度8, 准确率3 -->
+  <circle cx="580" cy="340" r="40" fill="#2ecc71" opacity="0.8" stroke="white" stroke-width="3"/>
+  <text x="580" y="345" class="model-text" dy="0.3em">SVM</text>
+
+  <!-- Random Forest: 速度5, 准确率5 -->
+  <circle cx="400" cy="180" r="40" fill="#3498db" opacity="0.8" stroke="white" stroke-width="3"/>
+  <text x="400" y="175" class="model-text" dy="0.3em">Random</text>
+  <text x="400" y="190" class="model-text" dy="0.3em">Forest</text>
+
+  <!-- Neural Network: 速度4, 准确率5 -->
+  <circle cx="340" cy="180" r="40" fill="#e74c3c" opacity="0.8" stroke="white" stroke-width="3"/>
+  <text x="340" y="175" class="model-text" dy="0.3em">Neural</text>
+  <text x="340" y="190" class="model-text" dy="0.3em">Network</text>
+
+  <!-- Ensemble: 速度3, 准确率4.5 -->
+  <circle cx="280" cy="196" r="40" fill="#9b59b6" opacity="0.8" stroke="white" stroke-width="3"/>
+  <text x="280" y="201" class="model-text" dy="0.3em">Ensemble</text>
+</svg>

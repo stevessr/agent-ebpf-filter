@@ -1,6 +1,6 @@
-# 🎉 Codex Syscall-Level Tracing 实现完成
+# Codex Syscall-Level Tracing 实现
 
-## ✅ 完成内容
+## 实现内容
 
 ### 1. eBPF 内核代码
 **文件**: `backend/ebpf/codex_syscall_tracker.c` (85 行)
@@ -218,14 +218,14 @@ backend/app/handlers__handlers_agentsight.go +3 行  AI 富化
 
 ---
 
-## 🎯 总结
+## 技术概览
 
-### 成就
-✅ **完整实现**: Claude Code + Codex 的 SSL 跟踪  
-✅ **通用方案**: 适用于所有 stripped binaries  
-✅ **生产就绪**: 完整的错误处理和集成  
-✅ **性能优异**: 极低开销 (~1%)  
-✅ **文档齐全**: 3 份详细技术文档  
+### 能力
+- Claude Code + Codex 的 SSL 跟踪
+- 适用于 stripped binaries 的 syscall tracing 方案
+- 错误处理和运行时集成
+- 低开销路径（约 1%）
+- 配套技术文档
 
 ### 技术突破
 - 解决了 stripped binary 的符号表问题
@@ -238,9 +238,3 @@ backend/app/handlers__handlers_agentsight.go +3 行  AI 富化
 - 高效: 内联过滤，零开销
 - 可维护: 清晰的分层架构
 - 可扩展: 易于添加新工具
-
----
-
-**项目状态**: ✅ 完全实现，生产就绪
-
-所有目标已达成！🎉

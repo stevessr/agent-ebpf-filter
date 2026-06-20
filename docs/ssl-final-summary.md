@@ -1,8 +1,8 @@
-# Claude Code & Codex SSL 跟踪 - 完整实现总结
+# Claude Code & Codex SSL 跟踪实现
 
-## 🎯 任务完成
+## 功能范围
 
-成功实现了针对 Claude Code 和 Codex AI CLI 工具的 SSL/TLS 流量捕获能力，并集成到 Agentsight 可观测性平台。
+该实现提供针对 Claude Code 和 Codex AI CLI 工具的 SSL/TLS 流量捕获能力，并集成到 Agentsight 可观测性平台。
 
 ## 📦 核心功能
 
@@ -235,17 +235,17 @@ curl -N http://localhost:8080/agentsight/events/stream
 - [ ] ML 驱动的异常检测
 - [ ] 自动 API 契约学习
 
-## 🎯 成果
+## 能力概览
 
-✅ **完全满足需求**: Claude Code 和 Codex 的 SSL 跟踪基础设施完整
+- Claude Code 和 Codex 的 SSL 跟踪基础设施
 
-✅ **超出预期**: 
+- 附加支持:
 - 额外支持 Cursor 和 GitHub Copilot
 - 集成 Agentsight 可观测性平台
 - AI 工具自动识别和标记
 - 实时流式传输支持
 
-✅ **生产就绪**: 
+- 运行特性:
 - 完整的错误处理
 - 自动发现和恢复
 - 性能优化

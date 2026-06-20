@@ -1,8 +1,8 @@
-# 内核态 ML 推理模块完成总结
+# 内核态 ML 推理模块实现
 
-## ✅ 任务完成：制作可动态加载进内核的 DKMS 用于内核态高效推理模型
+## 功能目标：可动态加载进内核的 DKMS 高效推理模型
 
-### 🎯 实现成果
+### 功能概览
 
 **核心功能**:
 - ✅ **DKMS 内核模块**: `kernel_ml.ko`
@@ -143,9 +143,9 @@ static enum ml_action traverse_tree(const struct tree_node *nodes,
         const struct tree_node *node = &nodes[idx];
         if (node->is_leaf)
             return node->leaf_value;  // ALLOW/BLOCK/ALERT
-        
+
         s64 feature_val = fv->features[node->feature_idx];
-        idx = (feature_val < node->threshold) ? 
+        idx = (feature_val < node->threshold) ?
               node->left_child : node->right_child;
     }
     return ML_ACTION_ALLOW;  // 默认安全
@@ -274,7 +274,7 @@ cat /sys/kernel/kernel_ml/model_info
 
 ---
 
-### 🎉 成果总结
+### 实现范围
 
 从零开始，在一个会话中实现了：
 
@@ -283,19 +283,18 @@ cat /sys/kernel/kernel_ml/model_info
 3. ✅ Proc 接口（加载模型 + 推理 + 统计）
 4. ✅ 模型转换工具（sklearn → 二进制）
 5. ✅ CUDA helper 后端（userspace GPU 推理 + kernel fallback）
-6. ✅ 完整文档（README + 架构说明）
+6. ✅ 使用文档（README + 架构说明）
 7. ✅ sysfs / v2 格式 / LRU cache / 多分类 / profiling / 单元测试
 8. ✅ 编译通过（当前内核生成 `kernel_ml.ko`）
 
-**代码量**: ~800 行  
-**开发时间**: 1 会话  
-**可用性**: 立即可测试（需 root）
+**代码规模**: ~800 行
+**运行要求**: 需 root 权限加载和测试
 
 ---
 
 ### 🔗 集成到 Agent eBPF Filter
 
-**下一步**:
+**后续集成方向**:
 1. 从 eBPF 调用内核模块推理 API
 2. 基于推理结果执行策略（BLOCK/ALERT）
 3. 训练模型（用户空间 sklearn）
@@ -311,5 +310,3 @@ eBPF (执行策略)
    ↓
 BLOCK / ALLOW / ALERT
 ```
-
-任务完成！🚀

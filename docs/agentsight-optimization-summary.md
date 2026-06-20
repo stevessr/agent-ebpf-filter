@@ -1,4 +1,4 @@
-# AgentSight 优化完成总结
+# AgentSight 优化说明
 
 ## 优化概述
 
@@ -410,7 +410,4 @@ console.log(`处理 10k events: ${end - start}ms`);
 
 ---
 
-**优化完成时间**: 2026-06-16  
-**优化作者**: Claude Code (Opus 4.8)  
-**影响范围**: AgentSight 全模块  
-**向后兼容**: ✅ 完全兼容
+**影响范围**: AgentSight 全模块

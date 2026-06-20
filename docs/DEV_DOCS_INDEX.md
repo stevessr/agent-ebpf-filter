@@ -41,7 +41,7 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [SANITIZATION_IMPLEMENTATION_SUMMARY.md](SANITIZATION_IMPLEMENTATION_SUMMARY.md) | 脱敏实现完整总结 |
+| [SANITIZATION_IMPLEMENTATION_SUMMARY.md](SANITIZATION_IMPLEMENTATION_SUMMARY.md) | 脱敏机制实现说明 |
 
 ### Execution Graph
 
@@ -61,7 +61,7 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [all-models-complete.md](all-models-complete.md) | 所有模型实现完成 |
+| [all-models-complete.md](all-models-complete.md) | 全模型实现概览 |
 
 ### 其他
 

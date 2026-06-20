@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
+  <defs>
+    <style>
+      .label { font-family: Arial, sans-serif; font-size: 14px; fill: #333; }
+      .title { font-family: Arial, sans-serif; font-size: 20px; font-weight: bold; fill: #333; }
+      .value { font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; fill: #333; }
+    </style>
+  </defs>
+
+  <text x="400" y="30" class="title" text-anchor="middle">内核态模型推理延迟对比</text>
+
+  <!-- Logistic Regression: 1 μs -->
+  <rect x="250" y="80" width="50" height="40" fill="#f39c12" opacity="0.8" stroke="white" stroke-width="2" rx="4"/>
+  <text x="150" y="105" class="label">Logistic Regression</text>
+  <text x="310" y="105" class="value">1 μs</text>
+
+  <!-- SVM: 2 μs -->
+  <rect x="250" y="150" width="100" height="40" fill="#2ecc71" opacity="0.8" stroke="white" stroke-width="2" rx="4"/>
+  <text x="150" y="175" class="label">SVM</text>
+  <text x="360" y="175" class="value">2 μs</text>
+
+  <!-- Neural Network: 5 μs -->
+  <rect x="250" y="220" width="250" height="40" fill="#e74c3c" opacity="0.8" stroke="white" stroke-width="2" rx="4"/>
+  <text x="150" y="245" class="label">Neural Network</text>
+  <text x="510" y="245" class="value">5 μs</text>
+
+  <!-- Random Forest: 10 μs -->
+  <rect x="250" y="290" width="500" height="40" fill="#3498db" opacity="0.8" stroke="white" stroke-width="2" rx="4"/>
+  <text x="150" y="315" class="label">Random Forest</text>
+  <text x="760" y="315" class="value">10 μs</text>
+
+  <!-- 坐标轴 -->
+  <line x1="250" y1="360" x2="750" y2="360" stroke="#333" stroke-width="2"/>
+  <text x="500" y="390" class="label" text-anchor="middle">推理延迟 (微秒)</text>
+
+  <!-- 刻度 -->
+  <line x1="250" y1="355" x2="250" y2="365" stroke="#333" stroke-width="2"/>
+  <text x="250" y="380" class="label" text-anchor="middle">0</text>
+
+  <line x1="500" y1="355" x2="500" y2="365" stroke="#333" stroke-width="2"/>
+  <text x="500" y="380" class="label" text-anchor="middle">5</text>
+
+  <line x1="750" y1="355" x2="750" y2="365" stroke="#333" stroke-width="2"/>
+  <text x="750" y="380" class="label" text-anchor="middle">10</text>
+</svg>

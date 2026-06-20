@@ -1,8 +1,8 @@
-# 内核态 ML 多模型实现 - 完成总结
+# 内核态 ML 多模型实现
 
-## ✅ 任务完成：完善内核模块支持各种模型
+## 模型支持概览
 
-### 🎯 实现成果
+### 支持范围
 
 从单一 Random Forest 扩展到 **4 种主流 ML 模型**：
 
@@ -30,7 +30,7 @@ ml_models.h                (150 行) - 模型接口定义
 ml_models.c                (334 行) - SVM/LR/NN 实现
 multi_model_exporter.py     (82 行) - 多模型导出工具
 test_multi_models.py        (55 行) - 自动化测试
-docs/multi-model-support.md (250 行) - 完整文档
+docs/multi-model-support.md (250 行) - 使用文档
 ```
 
 ---
@@ -332,9 +332,9 @@ aea85a7 refactor: Optimize eBPF code for efficiency (-85%)
 
 ---
 
-## 🎉 成果总结
+## 实现范围
 
-在一个会话中实现：
+当前实现包含：
 
 1. ✅ **Random Forest** - 决策树集成（原有）
 2. ✅ **SVM** - 线性分类器（新增）
@@ -343,10 +343,10 @@ aea85a7 refactor: Optimize eBPF code for efficiency (-85%)
 5. ✅ **统一接口** - 模型无关 API
 6. ✅ **导出工具** - sklearn → 内核二进制
 7. ✅ **自动化测试** - 训练 + 导出 + 验证
-8. ✅ **完整文档** - 架构 + API + 性能
+8. ✅ **使用文档** - 架构 + API + 性能
 
 **代码量**: +350 行核心实现 + 400 行工具/测试  
 **模块大小**: 339 KB (4 模型合一)  
-**编译状态**: ✅ 通过（clang + LLVM）
+**编译验证**: clang + LLVM 通过
 
-内核态 ML 推理引擎现已支持 **4 大主流监督学习算法**，覆盖从线性到非线性、从极速到高精度的全场景！🚀
+内核态 ML 推理引擎支持 **4 大主流监督学习算法**，覆盖从线性到非线性、从极速到高精度的场景。

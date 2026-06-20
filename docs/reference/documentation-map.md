@@ -2,6 +2,16 @@
 
 本站是项目网站入口，仓库中仍保留更细的专项文档。
 
+## 🎯 ML 模型文档
+
+机器学习模型的完整文档：
+
+- **[ML 模型速查表](../backend/ml-models-summary.md)** ⚡ - 快速查找 51 种模型
+- **[ML 模型完整指南](../backend/ml-models-complete-guide.md)** - 详细结构、示例、性能对比
+- **[内核态多模型实现](../multi-model-complete.md)** - 内核态 4 种模型实现细节
+- **[实验框架使用指南](../ml-experiments.md)** - 批量评估和参数扫描
+- **[内核 ML 实现](../kernel-ml-implementation.md)** - DKMS 模块架构
+
 ## 网站章节
 
 | 章节 | 用途 |

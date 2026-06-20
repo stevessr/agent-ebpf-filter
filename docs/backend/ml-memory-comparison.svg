@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
+  <defs>
+    <style>
+      .label { font-family: Arial, sans-serif; font-size: 14px; fill: #333; }
+      .title { font-family: Arial, sans-serif; font-size: 20px; font-weight: bold; fill: #333; }
+      .value { font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; fill: #333; }
+    </style>
+  </defs>
+
+  <text x="400" y="30" class="title" text-anchor="middle">内核态模型内存占用对比</text>
+
+  <!-- Logistic Regression: 1 KB -->
+  <rect x="250" y="80" width="10" height="40" fill="#f39c12" opacity="0.8" stroke="white" stroke-width="2" rx="2"/>
+  <text x="150" y="105" class="label">Logistic Regression</text>
+  <text x="270" y="105" class="value">1 KB</text>
+
+  <!-- SVM: 1 KB -->
+  <rect x="250" y="150" width="10" height="40" fill="#2ecc71" opacity="0.8" stroke="white" stroke-width="2" rx="2"/>
+  <text x="150" y="175" class="label">SVM</text>
+  <text x="270" y="175" class="value">1 KB</text>
+
+  <!-- Neural Network: 16 KB -->
+  <rect x="250" y="220" width="160" height="40" fill="#e74c3c" opacity="0.8" stroke="white" stroke-width="2" rx="2"/>
+  <text x="150" y="245" class="label">Neural Network</text>
+  <text x="420" y="245" class="value">16 KB</text>
+
+  <!-- Random Forest: 50 KB -->
+  <rect x="250" y="290" width="500" height="40" fill="#3498db" opacity="0.8" stroke="white" stroke-width="2" rx="2"/>
+  <text x="150" y="315" class="label">Random Forest</text>
+  <text x="760" y="315" class="value">50 KB</text>
+
+  <!-- 坐标轴 -->
+  <line x1="250" y1="360" x2="750" y2="360" stroke="#333" stroke-width="2"/>
+  <text x="500" y="390" class="label" text-anchor="middle">内存占用 (KB)</text>
+
+  <!-- 刻度 -->
+  <line x1="250" y1="355" x2="250" y2="365" stroke="#333" stroke-width="2"/>
+  <text x="250" y="380" class="label" text-anchor="middle">0</text>
+
+  <line x1="500" y1="355" x2="500" y2="365" stroke="#333" stroke-width="2"/>
+  <text x="500" y="380" class="label" text-anchor="middle">25</text>
+
+  <line x1="750" y1="355" x2="750" y2="365" stroke="#333" stroke-width="2"/>
+  <text x="750" y="380" class="label" text-anchor="middle">50</text>
+</svg>

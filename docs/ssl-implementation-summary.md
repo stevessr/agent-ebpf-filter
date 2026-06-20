@@ -1,7 +1,7 @@
-# 任务完成总结：Claude Code & Codex SSL 跟踪支持
+# Claude Code & Codex SSL 跟踪支持
 
 ## 目标
-✅ 完善 attach probe to Claude Code bin & Codex bin 的 SSL 捕获能力
+完善 attach probe to Claude Code bin & Codex bin 的 SSL 捕获能力
 
 ## 实现内容
 
@@ -36,13 +36,13 @@
 - **二进制**: Node.js (v24.11.1)
 - **路径**: `~/.local/share/fnm/node-versions/*/bin/node`
 - **SSL**: 静态链接 OpenSSL，**符号表可用** ✅
-- **状态**: **完全支持** ✅
+- **支持情况**: 完全支持
 
 #### Codex 原生二进制
 - **二进制**: Rust 编译的原生可执行文件
 - **路径**: `~/.local/share/pnpm/store/.../codex/vendor/x86_64-unknown-linux-musl/bin/codex`
 - **SSL**: 静态链接 OpenSSL，**符号表被 stripped** ⚠️
-- **状态**: **部分支持** - 需要符号表才能 attach
+- **支持情况**: 部分支持 - 需要符号表才能 attach
 
 ### 3. 技术细节
 
@@ -176,9 +176,9 @@ http://localhost:8080/config
 
 ## 结论
 
-✅ **目标已完成**：成功为 Claude Code (Node.js) 和 Codex 实现了 SSL 跟踪基础设施。
+该实现为 Claude Code (Node.js) 和 Codex 提供 SSL 跟踪基础设施。
 
 - **Claude Code**: 完全支持 ✅
 - **Codex**: 基础设施就绪，等待符号表或偏移查找 ⚠️
 
-所有核心功能已实现并测试通过。系统可以自动发现、附加并捕获 Claude Code 的 SSL/TLS 流量。
+核心路径包括自动发现、附加并捕获 Claude Code 的 SSL/TLS 流量。

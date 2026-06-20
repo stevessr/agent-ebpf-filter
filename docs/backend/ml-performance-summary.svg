@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600">
+  <defs>
+    <style>
+      .label { font-family: Arial, sans-serif; font-size: 13px; fill: #333; }
+      .title { font-family: Arial, sans-serif; font-size: 22px; font-weight: bold; fill: #333; }
+      .model-name { font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; fill: #333; }
+      .metric { font-family: Arial, sans-serif; font-size: 12px; fill: #666; }
+      .star { fill: #f39c12; }
+    </style>
+  </defs>
+
+  <text x="500" y="35" class="title" text-anchor="middle">ML 模型性能总览对比</text>
+
+  <!-- 表头 -->
+  <rect x="50" y="60" width="900" height="40" fill="#ecf0f1" rx="4"/>
+  <text x="150" y="85" class="label" text-anchor="middle" font-weight="bold">模型</text>
+  <text x="300" y="85" class="label" text-anchor="middle" font-weight="bold">推理延迟</text>
+  <text x="450" y="85" class="label" text-anchor="middle" font-weight="bold">内存占用</text>
+  <text x="600" y="85" class="label" text-anchor="middle" font-weight="bold">准确率</text>
+  <text x="750" y="85" class="label" text-anchor="middle" font-weight="bold">适用场景</text>
+
+  <!-- Logistic Regression -->
+  <rect x="50" y="110" width="900" height="80" fill="#fff9e6" rx="4"/>
+  <circle cx="100" cy="150" r="25" fill="#f39c12" opacity="0.8"/>
+  <text x="150" y="155" class="model-name">Logistic Regression</text>
+  <text x="300" y="145" class="metric" text-anchor="middle">~1 μs</text>
+  <text x="300" y="165" class="label" text-anchor="middle" style="fill:#2ecc71; font-weight:bold;">极速</text>
+  <text x="450" y="155" class="metric" text-anchor="middle">1 KB</text>
+  <text x="600" y="155" class="metric" text-anchor="middle">★★☆☆☆</text>
+  <text x="750" y="145" class="label" text-anchor="middle">极速响应</text>
+  <text x="750" y="165" class="label" text-anchor="middle">实时防御</text>
+
+  <!-- SVM -->
+  <rect x="50" y="200" width="900" height="80" fill="#e8f8f5" rx="4"/>
+  <circle cx="100" cy="240" r="25" fill="#2ecc71" opacity="0.8"/>
+  <text x="150" y="245" class="model-name">SVM</text>
+  <text x="300" y="235" class="metric" text-anchor="middle">~2 μs</text>
+  <text x="300" y="255" class="label" text-anchor="middle" style="fill:#2ecc71; font-weight:bold;">快速</text>
+  <text x="450" y="245" class="metric" text-anchor="middle">1 KB</text>
+  <text x="600" y="245" class="metric" text-anchor="middle">★★★☆☆</text>
+  <text x="750" y="235" class="label" text-anchor="middle">低延迟</text>
+  <text x="750" y="255" class="label" text-anchor="middle">边界清晰</text>
+
+  <!-- Neural Network -->
+  <rect x="50" y="290" width="900" height="80" fill="#fadbd8" rx="4"/>
+  <circle cx="100" cy="330" r="25" fill="#e74c3c" opacity="0.8"/>
+  <text x="150" y="335" class="model-name">Neural Network</text>
+  <text x="300" y="335" class="metric" text-anchor="middle">~5 μs</text>
+  <text x="450" y="335" class="metric" text-anchor="middle">16 KB</text>
+  <text x="600" y="335" class="metric" text-anchor="middle">★★★★★</text>
+  <text x="750" y="325" class="label" text-anchor="middle">高准确率</text>
+  <text x="750" y="345" class="label" text-anchor="middle">复杂模式</text>
+
+  <!-- Random Forest -->
+  <rect x="50" y="380" width="900" height="80" fill="#d6eaf8" rx="4"/>
+  <circle cx="100" cy="420" r="25" fill="#3498db" opacity="0.8"/>
+  <text x="150" y="425" class="model-name">Random Forest</text>
+  <text x="300" y="425" class="metric" text-anchor="middle">~10 μs</text>
+  <text x="450" y="425" class="metric" text-anchor="middle">50 KB</text>
+  <text x="600" y="425" class="metric" text-anchor="middle">★★★★☆</text>
+  <text x="750" y="415" class="label" text-anchor="middle">生产默认</text>
+  <text x="750" y="435" class="label" text-anchor="middle">稳健通用</text>
+
+  <!-- 图例 -->
+  <text x="100" y="520" class="label" style="font-weight:bold;">图例：</text>
+  <text x="100" y="545" class="metric">★ = 准确率评级 (5星最高)</text>
+  <circle cx="350" cy="535" r="8" fill="#2ecc71" opacity="0.8"/>
+  <text x="365" y="540" class="metric">= 速度优势</text>
+  <circle cx="550" cy="535" r="8" fill="#e74c3c" opacity="0.8"/>
+  <text x="565" y="540" class="metric">= 准确率优势</text>
+</svg>

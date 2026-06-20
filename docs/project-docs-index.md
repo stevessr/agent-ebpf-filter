@@ -95,9 +95,9 @@
 | `docs/ml-experiments.md` | ML 实验记录 |
 | `docs/ml-attention.md` | attention 模型相关说明 |
 | `docs/multi-model-support.md` | 多模型支持设计 |
-| `docs/multi-model-complete.md` | 多模型实现完成总结 |
-| `docs/all-models-complete.md` | 全模型实现完成说明 |
-| `docs/kernel-ml-implementation.md` | 内核态 ML 推理模块完成总结 |
+| `docs/multi-model-complete.md` | 内核态多模型实现 |
+| `docs/all-models-complete.md` | 全模型实现概览 |
+| `docs/kernel-ml-implementation.md` | 内核态 ML 推理模块实现 |
 
 相关代码入口：
 
@@ -115,12 +115,12 @@
 
 | 文档 | 主题 |
 | --- | --- |
-| `docs/ssl-implementation-summary.md` | SSL/TLS capture 实现总结 |
-| `docs/ssl-final-summary.md` | SSL/TLS capture 最终总结 |
+| `docs/ssl-implementation-summary.md` | SSL/TLS capture 实现说明 |
+| `docs/ssl-final-summary.md` | SSL/TLS capture 能力说明 |
 | `docs/ssl-claude-codex-support.md` | Claude Code / Codex TLS 支持 |
 | `docs/codex-workflows.md` | Codex workflow 说明 |
 | `docs/codex-stripped-analysis.md` | Codex stripped binary 分析 |
-| `docs/codex-implementation-complete.md` | Codex 实现完成总结 |
+| `docs/codex-implementation-complete.md` | Codex syscall-level tracing 实现 |
 | `docs/codex-rustls-fix.md` | Codex rustls 修复说明 |
 
 安全提醒：
@@ -139,7 +139,7 @@
 | --- | --- |
 | `docs/sanitization.md` | 英文脱敏文档 |
 | `docs/sanitization_zh.md` | 中文脱敏使用指南 |
-| `docs/SANITIZATION_IMPLEMENTATION_SUMMARY.md` | 脱敏实现总结 |
+| `docs/SANITIZATION_IMPLEMENTATION_SUMMARY.md` | 脱敏机制实现说明 |
 | `backend/redaction/README.md` | redaction 模块说明 |
 | `backend/redaction/docs/SANITIZATION_ENHANCEMENTS_v2.md` | redaction 增强说明 |
 
@@ -159,7 +159,7 @@
 | `docs/mcp-skills-enhancement.md` | MCP skills 增强 |
 | `docs/mcp-sse-to-streamable-migration.md` | MCP SSE 到 streamable migration |
 | `docs/mcp-streamable-verification.md` | MCP streamable 验证 |
-| `docs/mcp-migration-complete.md` | MCP migration 完成总结 |
+| `docs/mcp-migration-complete.md` | MCP Streamable HTTP 迁移说明 |
 | `docs/external-api.md` | 外部 API 文档 |
 
 相关代码入口：
