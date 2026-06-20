@@ -145,28 +145,43 @@ Hooks 的价值是提供 AI CLI 语义，例如工具名、目标路径、摘要
 
 ```mermaid
 sequenceDiagram
-    participant Agent as Python/Node Agent
+    participant Agent as Parent Agent
+    participant Child as Child Process
     participant Adapter as Adapter (register)
     participant Backend as Backend /register
     participant Store as processContextStore
     participant BPFMap as agent_pids BPF Map
     participant Tracker as eBPF Tracker
-    
-    Agent->>Adapter: import agent_tracker; register()
+
+    %% 阶段 1：明确的单进程注册
+    Note over Agent, BPFMap: 1. 显式 Per-Process 注册 (仅限当前进程)
+    Agent->>Adapter: import agent_tracker 并调用 register()
     Adapter->>Adapter: collect PID, agent_run_id, trace_id
     Adapter->>Backend: POST /register (pb.RegisterRequest)
     Backend->>Store: Set(pid, ProcessContext)
     Backend->>BPFMap: seed agent_pids[pid] = 1
     Backend-->>Adapter: 200 OK
+
+    %% 阶段 2：内核态的继承与谱系树建立
+    Note over Agent, Tracker: 2. 子进程衍生 (依赖 fork/clone 谱系，无 Adapter 参与)
+    Agent->>Tracker: fork 或 clone 系统调用
+    Tracker->>BPFMap: lookup agent_pids[parent_pid] (命中)
+    Tracker->>BPFMap: update agent_pids[child_pid] = 1 (内核态动态传播)
+    Tracker->>Store: 异步上报 fork/clone 事件 (parent_pid -> child_pid)
+    Store->>Store: 构建/更新进程树谱系 (Lineage)
+
+    %% 阶段 3：子进程事件触发与兜底富化
+    Note over Child, Store: 3. 子进程执行与 Backend Fallback 富化
+    Child->>Tracker: execve / openat / connect 等系统调用
+    Tracker->>BPFMap: lookup agent_pids[child_pid] -> found (已追踪)
+    Tracker->>Store: 上报业务事件 (携带 child_pid)
     
-    Note over Agent,Tracker: 后续 Agent 进程执行系统调用
-    
-    Agent->>Tracker: execve/openat/connect/...
-    Tracker->>BPFMap: lookup agent_pids[current_pid]
-    BPFMap-->>Tracker: found (tracked)
-    Tracker->>Store: event with pid
-    Store->>Store: enrich with Agent context
-    Store->>Store: Event.agent_run_id = ctx.agent_run_id
+    alt 直连上下文命中
+        Store->>Store: 直接富化当前进程 Context
+    else 触发 Backend Fallback (追溯谱系)
+        Store->>Store: 沿 Lineage 树向上追溯父进程
+        Store->>Store: 固定继承 ParentContext.agent_run_id
+    end
 ```
 
 注册语义是 per-process。子进程关联依赖 fork/clone lineage 与 backend fallback，不应描述成 adapter 自动递归注册所有后代。
