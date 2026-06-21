@@ -329,7 +329,10 @@ main() {
     mkdir -p "$OUT_DIR/raw_baseline"
     mkdir -p "$OUT_DIR/raw_ebpf"
 
-    clear
+    # Clear screen only if running in a terminal
+    if [ -t 1 ]; then
+        clear 2>/dev/null || true
+    fi
     log "═══════════════════════════════════════════════════════════════════"
     log "Extended eBPF Performance Overhead Benchmark"
     log "═══════════════════════════════════════════════════════════════════"
