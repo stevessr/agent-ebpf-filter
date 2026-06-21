@@ -313,6 +313,8 @@ jobs:
           script: |
             const fs = require('fs');
             const testMode = '${{ inputs.test_mode }}';
+            const concurrencyLevels = '${{ inputs.concurrency }}';
+            const cycles = '${{ inputs.cycles }}';
 
             let body = '';
 
@@ -348,8 +350,8 @@ jobs:
               body = `## 🔬 eBPF Concurrent Performance Benchmark Results
 
 **Test mode:** Concurrent
-**Concurrency levels:** ${{ inputs.concurrency }}
-**Cycles per level:** ${{ inputs.cycles }}
+**Concurrency levels:** ${concurrencyLevels}
+**Cycles per level:** ${cycles}
 
 **Results by Concurrency:**
 ${overheads.map(o => `- **C=${o.concurrency}**: ${o.avgOverhead}%`).join('\n')}
@@ -385,7 +387,7 @@ ${fs.readFileSync(reportPath, 'utf8').substring(0, 8000)}
 **Test mode:** Sequential
 **Average overhead:** ${avgOverhead}%
 **Syscalls tested:** ${summary.operations.length}
-**Test cycles:** ${{ inputs.cycles }}
+**Test cycles:** ${cycles}
 
 <details>
 <summary>View detailed results</summary>
