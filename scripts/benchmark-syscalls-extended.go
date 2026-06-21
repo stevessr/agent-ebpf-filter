@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -18,21 +19,24 @@ type BenchmarkResult struct {
 	MaxTimeUs  float64 `json:"max_time_us"`
 	StdDevUs   float64 `json:"stddev_us"`
 	Iterations int     `json:"iterations"`
+	Concurrency int    `json:"concurrency,omitempty"`
 }
 
 // BenchmarkReport contains all benchmark results
 type BenchmarkReport struct {
-	Timestamp  string            `json:"timestamp"`
-	Runs       int               `json:"runs"`
-	Warmup     int               `json:"warmup"`
-	Operations []BenchmarkResult `json:"operations"`
+	Timestamp   string            `json:"timestamp"`
+	Runs        int               `json:"runs"`
+	Warmup      int               `json:"warmup"`
+	Concurrency int               `json:"concurrency"`
+	Operations  []BenchmarkResult `json:"operations"`
 }
 
 var (
-	outputFile = flag.String("output", "", "Output JSON file")
-	runs       = flag.Int("runs", 5, "Number of runs per operation")
-	warmup     = flag.Int("warmup", 2, "Number of warmup runs")
-	iterations = flag.Int("iterations", 10000, "Iterations per run")
+	outputFile  = flag.String("output", "", "Output JSON file")
+	runs        = flag.Int("runs", 5, "Number of runs per operation")
+	warmup      = flag.Int("warmup", 2, "Number of warmup runs")
+	iterations  = flag.Int("iterations", 10000, "Iterations per run")
+	concurrency = flag.Int("concurrency", 1, "Number of concurrent goroutines (batch mode)")
 )
 
 func main() {
@@ -43,13 +47,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Running benchmark with %d runs, %d warmup, %d iterations per run\n", *runs, *warmup, *iterations)
+	if *concurrency < 1 {
+		fmt.Fprintf(os.Stderr, "Error: concurrency must be >= 1\n")
+		os.Exit(1)
+	}
+
+	fmt.Printf("Running benchmark with %d runs, %d warmup, %d iterations per run, %d concurrent workers\n",
+		*runs, *warmup, *iterations, *concurrency)
 
 	report := BenchmarkReport{
-		Timestamp:  time.Now().UTC().Format(time.RFC3339),
-		Runs:       *runs,
-		Warmup:     *warmup,
-		Operations: make([]BenchmarkResult, 0),
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
+		Runs:        *runs,
+		Warmup:      *warmup,
+		Concurrency: *concurrency,
+		Operations:  make([]BenchmarkResult, 0),
 	}
 
 	// Benchmark various syscalls that eBPF hooks might intercept
@@ -88,7 +99,7 @@ func main() {
 
 	for _, op := range operations {
 		fmt.Printf("Benchmarking %s...\n", op.name)
-		result := runBenchmark(op.name, op.fn, *runs, *warmup, *iterations)
+		result := runBenchmark(op.name, op.fn, *runs, *warmup, *iterations, *concurrency)
 		report.Operations = append(report.Operations, result)
 	}
 
@@ -107,24 +118,19 @@ func main() {
 	fmt.Printf("Results written to %s\n", *outputFile)
 }
 
-func runBenchmark(name string, fn func() error, runs, warmup, iterations int) BenchmarkResult {
+func runBenchmark(name string, fn func() error, runs, warmup, iterations, concurrency int) BenchmarkResult {
 	// Warmup
 	for i := 0; i < warmup; i++ {
-		for j := 0; j < iterations; j++ {
-			_ = fn()
-		}
+		runConcurrent(fn, iterations, concurrency)
 	}
 
 	// Actual runs
 	times := make([]float64, runs)
 	for i := 0; i < runs; i++ {
 		start := time.Now()
-		for j := 0; j < iterations; j++ {
-			if err := fn(); err != nil {
-				// Ignore errors for benchmarking purposes
-			}
-		}
+		runConcurrent(fn, iterations, concurrency)
 		elapsed := time.Since(start)
+		// Average time per operation across all concurrent workers
 		times[i] = float64(elapsed.Microseconds()) / float64(iterations)
 	}
 
@@ -132,13 +138,48 @@ func runBenchmark(name string, fn func() error, runs, warmup, iterations int) Be
 	avg, min, max, stddev := calculateStats(times)
 
 	return BenchmarkResult{
-		Name:       name,
-		AvgTimeUs:  avg,
-		MinTimeUs:  min,
-		MaxTimeUs:  max,
-		StdDevUs:   stddev,
-		Iterations: iterations * runs,
+		Name:        name,
+		AvgTimeUs:   avg,
+		MinTimeUs:   min,
+		MaxTimeUs:   max,
+		StdDevUs:    stddev,
+		Iterations:  iterations * runs,
+		Concurrency: concurrency,
 	}
+}
+
+// runConcurrent executes the benchmark function concurrently across multiple goroutines
+func runConcurrent(fn func() error, iterations, concurrency int) {
+	if concurrency == 1 {
+		// Fast path: no concurrency overhead
+		for j := 0; j < iterations; j++ {
+			_ = fn()
+		}
+		return
+	}
+
+	// Split iterations among workers
+	iterPerWorker := iterations / concurrency
+	remainder := iterations % concurrency
+
+	var wg sync.WaitGroup
+	wg.Add(concurrency)
+
+	for w := 0; w < concurrency; w++ {
+		workerIters := iterPerWorker
+		if w == 0 {
+			workerIters += remainder // First worker handles remainder
+		}
+
+		go func(iters int) {
+			defer wg.Done()
+			for j := 0; j < iters; j++ {
+				_ = fn()
+			}
+		}(workerIters)
+	}
+
+	wg.Wait()
 }
 
 func calculateStats(times []float64) (avg, min, max, stddev float64) {
