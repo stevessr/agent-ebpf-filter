@@ -419,10 +419,10 @@ make os-enforcement-smoke
 
 `frontend/public/linux-docs/6.18/` 存在 Linux 6.18 LTS syscall / eBPF helper 的本地 markdown 快照，用于前端 Config 页面快速预览。该目录的 README 写明：
 
-- Release：Linux 6.18 LTS
-- Snapshot date：2026-04-28
-- Syscall snapshots：61
-- eBPF helper snapshots：17
+- Release: Linux 6.18 LTS
+- Snapshot date: 2026-04-28
+- Syscall snapshots: 61
+- eBPF helper snapshots: 17
 
 最终提交前建议补充更明确的来源说明，例如来源为 Linux kernel 官方文档 / syscall man-page 对应资料，并在该目录 README 或附录中列出抓取来源 URL、用途和许可证。
 

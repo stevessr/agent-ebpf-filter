@@ -7,14 +7,16 @@ import (
 )
 
 func main() {
-	fmt.Println("=== 生成轻量级 eBPF 模型 ===\n")
+	fmt.Println("=== 生成轻量级 eBPF 模型 ===")
+	fmt.Println()
 
 	// 1. 创建轻量级随机森林 (适合 eBPF)
 	fmt.Println("🌲 创建轻量级随机森林...")
 	fmt.Println("配置：trees=15, depth=6, min_leaf=4")
 
 	forest := app.NewDecisionForest(15, 6, 4)
-	fmt.Println("✅ 模型创建成功\n")
+	fmt.Println("✅ 模型创建成功")
+	fmt.Println()
 
 	// 2. 分析模型大小
 	fmt.Println("📊 分析模型大小...")
@@ -35,7 +37,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("✅ 导出成功\n")
+	fmt.Println("✅ 导出成功")
+	fmt.Println()
 
 	// 4. 显示统计
 	fmt.Println("📋 模型统计：")

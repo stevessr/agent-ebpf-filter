@@ -15,7 +15,7 @@ fi
 # 检查程序是否加载
 if [ ! -e "/sys/fs/bpf/ml_model" ]; then
     echo "❌ eBPF 程序未加载"
-    echo "   请先运行: sudo ./test_kernel_load.sh"
+    echo "   请先运行：sudo ./test_kernel_load.sh"
     exit 1
 fi
 
@@ -28,7 +28,7 @@ echo "  这会拦截所有进程创建..."
 echo ""
 
 # 尝试附加
-echo "  执行: bpftool prog attach pinned /sys/fs/bpf/ml_model kprobe sys_execve"
+echo "  执行：bpftool prog attach pinned /sys/fs/bpf/ml_model kprobe sys_execve"
 
 if bpftool prog attach pinned /sys/fs/bpf/ml_model kprobe sys_execve 2>&1; then
     echo "  ✅ 附加成功"
@@ -47,16 +47,16 @@ echo ""
 
 # Step 2: 启动日志监控（后台）
 echo "📋 Step 2: 启动内核日志监控"
-echo "  日志位置: /sys/kernel/debug/tracing/trace_pipe"
+echo "  日志位置：/sys/kernel/debug/tracing/trace_pipe"
 echo ""
 
 LOG_FILE="/tmp/ebpf_test_$(date +%s).log"
-echo "  日志将保存到: $LOG_FILE"
+echo "  日志将保存到：$LOG_FILE"
 
 # 清空现有 trace
 echo > /sys/kernel/debug/tracing/trace
 
-# 启动监控（后台，5秒）
+# 启动监控（后台，5 秒）
 timeout 5 cat /sys/kernel/debug/tracing/trace_pipe > "$LOG_FILE" 2>&1 &
 MONITOR_PID=$!
 
@@ -98,7 +98,7 @@ if [ -s "$LOG_FILE" ]; then
     LINE_COUNT=$(wc -l < "$LOG_FILE")
     echo "  ✅ 捕获到 $LINE_COUNT 行日志"
     echo ""
-    echo "  日志内容预览:"
+    echo "  日志内容预览："
     echo "  ────────────────────────────────────"
     head -20 "$LOG_FILE" | while IFS= read -r line; do
         echo "  $line"
@@ -108,25 +108,25 @@ if [ -s "$LOG_FILE" ]; then
     # 检查是否有 ML 相关日志
     if grep -q "ML Model" "$LOG_FILE" 2>/dev/null; then
         echo ""
-        echo "  🎯 检测到 ML 模型输出:"
+        echo "  🎯 检测到 ML 模型输出："
         grep "ML Model" "$LOG_FILE" | head -5
     fi
 
     # 检查是否有 BLOCK 消息
     if grep -q "BLOCK" "$LOG_FILE" 2>/dev/null; then
         echo ""
-        echo "  ⚠️  检测到 BLOCK 动作:"
+        echo "  ⚠️  检测到 BLOCK 动作："
         grep "BLOCK" "$LOG_FILE"
     fi
 else
     echo "  ⚠️  未捕获到日志输出"
     echo ""
-    echo "  可能原因:"
+    echo "  可能原因："
     echo "    1. 程序未正确附加到 kprobe"
     echo "    2. bpf_printk 未启用"
     echo "    3. 日志缓冲区已满"
     echo ""
-    echo "  故障排查:"
+    echo "  故障排查："
     echo "    sudo dmesg | tail -20"
     echo "    sudo bpftool prog tracelog"
 fi
@@ -141,17 +141,17 @@ echo ""
 # Step 6: 清理
 echo "📋 Step 6: 清理"
 echo ""
-echo "  选项:"
-echo "    1. 保持加载继续测试: 什么都不做"
-echo "    2. 卸载程序: sudo rm /sys/fs/bpf/ml_model"
-echo "    3. 查看完整日志: cat $LOG_FILE"
+echo "  选项："
+echo "    1. 保持加载继续测试：什么都不做"
+echo "    2. 卸载程序：sudo rm /sys/fs/bpf/ml_model"
+echo "    3. 查看完整日志：cat $LOG_FILE"
 echo ""
 
 echo "✅ 测试完成！"
 echo ""
-echo "📊 总结:"
-echo "  - 程序ID: $(bpftool prog show pinned /sys/fs/bpf/ml_model | head -1 | cut -d: -f1)"
-echo "  - 日志文件: $LOG_FILE"
-echo "  - 测试事件: 5 次系统调用"
+echo "📊 总结："
+echo "  - 程序 ID: $(bpftool prog show pinned /sys/fs/bpf/ml_model | head -1 | cut -d: -f1)"
+echo "  - 日志文件：$LOG_FILE"
+echo "  - 测试事件：5 次系统调用"
 echo ""
 echo "🎉 eBPF ML 模型拦截功能测试完成"

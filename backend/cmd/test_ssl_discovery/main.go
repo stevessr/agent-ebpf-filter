@@ -10,7 +10,8 @@ import (
 )
 
 func main() {
-	fmt.Println("=== SSL Discovery Test ===\n")
+	fmt.Println("=== SSL Discovery Test ===")
+	fmt.Println()
 
 	// 测试 1: 检查 Node.js
 	nodePath := "/run/user/1000/fnm_multishells/15125_1781187621992/bin/node"

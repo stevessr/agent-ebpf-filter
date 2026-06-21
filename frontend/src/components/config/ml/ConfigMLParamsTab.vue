@@ -695,9 +695,9 @@ const modelTuneProgressTotal = computed(
               >
                 <template #message>
                   <span style="font-weight: 600">最佳参数：</span>
-                  树数={{ autoTuneBestCell.numTrees }}， 深度={{
+                  树数={{ autoTuneBestCell.numTrees }}，深度={{
                     autoTuneBestCell.maxDepth
-                  }}， 叶样本={{ autoTuneBestCell.minSamplesLeaf }}
+                  }}，叶样本={{ autoTuneBestCell.minSamplesLeaf }}
                   <span style="margin-left: 8px; color: #52c41a"
                     >{{ autoTuneMetricLabel(autoTuneMetric) }}={{
                       autoTuneMetricFormat(autoTuneScore(autoTuneBestCell))
@@ -999,7 +999,7 @@ const modelTuneProgressTotal = computed(
         <CheckCircleOutlined style="color: #52c41a; margin-right: 6px" />
         共评估 <b>{{ modelTuneResponse.candidates.length }}</b> 个候选模型，样本
         <b>{{ modelTuneResponse.sampleCount }}</b
-        >， 最佳模型
+        >，最佳模型
         <b>{{
           modelTuneResponse.best?.label ||
           modelTuneResponse.best?.modelType ||
@@ -1014,7 +1014,7 @@ const modelTuneProgressTotal = computed(
               )
             : "—"
         }}</b
-        >， 总用时 <b>{{ modelTuneResponse.totalDuration.toFixed(1) }}s</b>
+        >，总用时 <b>{{ modelTuneResponse.totalDuration.toFixed(1) }}s</b>
       </div>
       <div
         v-if="autoTuneMode === 'params' && autoTuneResponse"
@@ -1031,10 +1031,10 @@ const modelTuneProgressTotal = computed(
         共评估 <b>{{ autoTuneResponse.cells.length }}</b> 个参数组合（{{
           autoTuneResponse.gridSize
         }}×{{ autoTuneResponse.gridSize }} 方阵，颗粒度
-        {{ autoTuneGranularityLabel(autoTuneResponse.granularity) }}）， 样本
+        {{ autoTuneGranularityLabel(autoTuneResponse.granularity) }}），样本
         <b>{{ autoTuneResponse.sampleCount }}</b
         >，验证集 <b>{{ autoTuneResponse.validationCount }}</b
-        >， 总用时 <b>{{ autoTuneResponse.totalDuration.toFixed(1) }}s</b>
+        >，总用时 <b>{{ autoTuneResponse.totalDuration.toFixed(1) }}s</b>
       </div>
     </a-card>
   </a-col>

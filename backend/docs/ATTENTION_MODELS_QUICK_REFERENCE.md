@@ -2,7 +2,7 @@
 
 ## 模型选择指南
 
-### 独立注意力模型（4种）
+### 独立注意力模型（4 种）
 
 | 模型 | 适用场景 | 复杂度 | 特点 |
 |------|---------|--------|------|
@@ -11,7 +11,7 @@
 | **RWKV** | 长序列/高维特征 | O(d) 线性 | 高效，适合大规模 |
 | **Mamba** | 时序/状态依赖 | O(d) 状态 | 选择性记忆，序列建模 |
 
-### 注意力增强组合模型（12种）
+### 注意力增强组合模型（12 种）
 
 #### Random Forest 组合（推荐用于生产）
 - `ModelRandomForestScaledDotProduct` - RF + 标准 Transformer 注意力
@@ -20,7 +20,7 @@
 - `ModelRandomForestMamba` - RF + 状态空间模型 ⭐ **推荐**
 
 #### Logistic Regression 组合（轻量级）
-- `ModelLogisticScaledDotProduct` - 快速+可解释
+- `ModelLogisticScaledDotProduct` - 快速 + 可解释
 - `ModelLogisticMultiHead` - 多视角线性分类
 - `ModelLogisticRWKV` - 高效线性组合
 - `ModelLogisticMamba` - 状态感知线性模型
@@ -34,17 +34,17 @@
 ## 使用示例
 
 ```go
-// 方式1：通过类型创建
+// 方式 1：通过类型创建
 model, err := NewModel(ModelRandomForestMultiHead)
 if err != nil {
     log.Fatal(err)
 }
 
-// 方式2：直接创建注意力层
+// 方式 2：直接创建注意力层
 attention := NewMultiHeadAttention(4)
 output := attention.Forward(features)
 
-// 方式3：创建增强模型
+// 方式 3：创建增强模型
 base := NewDecisionForest(31, 8, 4)
 attn := NewRWKVAttention()
 enhanced := newAttentionEnhancedModelWithLayer(

@@ -9,14 +9,14 @@
 #### 1. 核心技术分类
 
 **匿名化 (Anonymization)**：
-- 永久移除或改变PII，使个人无法被识别
-- 匿名化后的数据不再被视为PII（GDPR）
+- 永久移除或改变 PII，使个人无法被识别
+- 匿名化后的数据不再被视为 PII（GDPR）
 - **不可逆**
 
 **假名化 (Pseudonymization)**：
 - 用人工标识符替换识别字段
 - 保持单独的映射表允许重新识别
-- 仍被视为PII（GDPR）
+- 仍被视为 PII（GDPR）
 - **可逆**
 
 #### 2. 主流技术
@@ -24,20 +24,20 @@
 | 技术 | 描述 | 用途 | 可逆性 |
 |------|------|------|--------|
 | **Data Masking** | 替换为真实但虚构的值 | 保持业务功能和数据结构 | 否 |
-| **Pseudonymization** | 可逆的token替换 | 需要追溯的场景 | 是 |
+| **Pseudonymization** | 可逆的 token 替换 | 需要追溯的场景 | 是 |
 | **Generalization** | 降低精度（生日→年份） | 保留统计意义 | 否 |
 | **Synthetic Data** | 生成结构真实的虚构记录 | 测试/训练数据 | 否 |
-| **Tokenization** | 用non-sensitive token替换 | 支付/凭证 | 是 |
+| **Tokenization** | 用 non-sensitive token 替换 | 支付/凭证 | 是 |
 | **Perturbation** | 轻微改变值保持模式 | 统计分析 | 否 |
 | **Aggregation** | 合并数据移除个体标识 | 报告/分析 | 否 |
-| **Suppression** | 直接移除PII字段 | 不需要的数据 | 否 |
+| **Suppression** | 直接移除 PII 字段 | 不需要的数据 | 否 |
 
-#### 3. 2026年重点趋势
+#### 3. 2026 年重点趋势
 
-**AI系统的PII处理**：
-- 覆盖AI系统的所有输出面：prompts、completions、logs、traces、audit trails
-- Legend开源库：在agentic loop的4个边界拦截PII
-- Microsoft Presidio + Docling：GenAI管道的自动化PII混淆
+**AI 系统的 PII 处理**：
+- 覆盖 AI 系统的所有输出面：prompts、completions、logs、traces、audit trails
+- Legend 开源库：在 agentic loop 的 4 个边界拦截 PII
+- Microsoft Presidio + Docling：GenAI 管道的自动化 PII 混淆
 
 **In-Place vs In-Flight**：
 - **In-Place Masking**：在存储/数据库中静态脱敏
@@ -46,17 +46,17 @@
 
 **数据中心安全**：
 - 传统边界安全不足
-- 通过masking和redaction实现数据中心安全是必要的
+- 通过 masking 和 redaction 实现数据中心安全是必要的
 
 ### 现有实现评估
 
 #### ✅ 已实现的功能
 
 1. **静态替换（Suppression + Data Masking）**
-   - PEM密钥、SSH密钥、JWT → 占位符
+   - PEM 密钥、SSH 密钥、JWT → 占位符
    - 符合业界的"数据移除"最佳实践
 
-2. **分级脱敏（4个级别）**
+2. **分级脱敏（4 个级别）**
    - None/Basic/Standard/Strict
    - 类似于业界的"风险分级"方法
 
@@ -73,7 +73,7 @@
 根据业界最佳实践，我们缺少以下关键功能：
 
 1. **假名化（Pseudonymization）** ❌
-   - 可逆的token替换
+   - 可逆的 token 替换
    - 保持映射表允许追溯
    - **用例**：需要审计追踪但保护隐私
 
@@ -102,10 +102,10 @@
 
 ## 改进建议
 
-### 优先级1：假名化（Pseudonymization）
+### 优先级 1：假名化（Pseudonymization）
 
 **为什么重要**：
-- GDPR明确区分匿名化和假名化
+- GDPR 明确区分匿名化和假名化
 - 支持审计追踪的同时保护隐私
 - 市场上大多数企业解决方案都包含此功能
 
@@ -116,7 +116,7 @@
 type PseudonymEngine struct {
     mappingStore map[string]string  // 原始值 → 假名
     cipher       cipher.Block        // 加密用于生成假名
-    hmacKey      []byte              // HMAC密钥
+    hmacKey      []byte              // HMAC 密钥
 }
 
 // 生成一致的假名
@@ -142,15 +142,15 @@ func (pe *PseudonymEngine) Depseudonymize(pseudonym string) (string, error) {
 ```
 
 **集成方式**：
-- 在Standard/Strict级别提供"假名化"选项
+- 在 Standard/Strict 级别提供"假名化"选项
 - 用户可选择：完全移除 vs 假名化
 - 假名化的数据可以用于审计追踪
 
-### 优先级2：泛化（Generalization）
+### 优先级 2：泛化（Generalization）
 
 **为什么重要**：
 - 保留数据分析价值
-- GDPR认可的技术
+- GDPR 认可的技术
 - 适合统计和报告场景
 
 **实现方案**：
@@ -161,7 +161,7 @@ type Generalizer struct {
     rules map[FieldCategory]GeneralizationRule
 }
 
-// IP地址泛化
+// IP 地址泛化
 func (g *Generalizer) GeneralizeIP(ip string) string {
     // 192.168.1.100 → 192.168.1.0/24
     // 保留网段，隐藏主机
@@ -189,7 +189,7 @@ func (g *Generalizer) GeneralizePath(path string) string {
 }
 ```
 
-### 优先级3：格式保留脱敏
+### 优先级 3：格式保留脱敏
 
 **为什么重要**：
 - 测试环境需要真实格式的数据
@@ -203,7 +203,7 @@ func FormatPreservingMask(value string, dataType DataType) string {
     switch dataType {
     case TypeEmail:
         // user@example.com → fake_abc123@example.com
-        // 保持email格式
+        // 保持 email 格式
         
     case TypePhone:
         // +1-234-567-8900 → +1-555-000-1234
@@ -211,19 +211,19 @@ func FormatPreservingMask(value string, dataType DataType) string {
         
     case TypeCreditCard:
         // 4532-1234-5678-9010 → 4532-****-****-1234
-        // 显示前4后4，中间mask
+        // 显示前 4 后 4，中间 mask
         
     case TypeSSN:
         // 123-45-6789 → ***-**-6789
-        // 保持SSN格式
+        // 保持 SSN 格式
     }
 }
 ```
 
-### 优先级4：一致性增强
+### 优先级 4：一致性增强
 
 **当前问题**：
-- 同一个API密钥在不同位置可能显示为不同的占位符
+- 同一个 API 密钥在不同位置可能显示为不同的占位符
 
 **改进方案**：
 
@@ -245,17 +245,17 @@ func (cr *ConsistentRedactor) RedactConsistently(value string) string {
 }
 ```
 
-### 优先级5：合规性标注
+### 优先级 5：合规性标注
 
 **实现方案**：
 
 ```go
 // 合规性映射
 type ComplianceMapping struct {
-    GDPR  bool  // 符合GDPR
-    CCPA  bool  // 符合CCPA
-    HIPAA bool  // 符合HIPAA
-    PCIDSS bool // 符合PCI DSS
+    GDPR  bool  // 符合 GDPR
+    CCPA  bool  // 符合 CCPA
+    HIPAA bool  // 符合 HIPAA
+    PCIDSS bool // 符合 PCI DSS
 }
 
 // 为每个脱敏级别标注合规性
@@ -267,16 +267,16 @@ var complianceMatrix = map[RedactionLevel]ComplianceMapping{
 }
 ```
 
-### 优先级6：NLP驱动的PII检测
+### 优先级 6：NLP 驱动的 PII 检测
 
 **业界趋势**：
-- 使用NER (Named Entity Recognition)
-- 上下文感知的PII检测
+- 使用 NER (Named Entity Recognition)
+- 上下文感知的 PII 检测
 
 **实现方案**：
 
 ```go
-// NLP驱动的检测器
+// NLP 驱动的检测器
 type NLPDetector struct {
     nerModel *ner.Model
 }
@@ -301,30 +301,30 @@ func (nd *NLPDetector) DetectPII(text string) []PIIEntity {
 
 ## 实施路线图
 
-### 阶段1：核心增强（1-2周）
+### 阶段 1：核心增强（1-2 周）
 
 1. ✅ 实现假名化引擎
 2. ✅ 实现泛化功能
 3. ✅ 增强一致性脱敏
 4. ✅ 添加格式保留脱敏
 
-### 阶段2：集成和配置（1周）
+### 阶段 2：集成和配置（1 周）
 
 1. 集成到现有脱敏流程
 2. 添加配置选项
-3. 更新前端UI支持新功能
-4. 更新Proto定义
+3. 更新前端 UI 支持新功能
+4. 更新 Proto 定义
 
-### 阶段3：合规和文档（1周）
+### 阶段 3：合规和文档（1 周）
 
 1. 添加合规性标注
 2. 完善文档
 3. 添加使用示例
 4. 创建合规性报告模板
 
-### 阶段4：高级功能（未来）
+### 阶段 4：高级功能（未来）
 
-1. NLP驱动的PII检测
+1. NLP 驱动的 PII 检测
 2. 机器学习模型集成
 3. 自定义脱敏策略
 4. 脱敏审计和报告
@@ -333,13 +333,13 @@ func (nd *NLPDetector) DetectPII(text string) []PIIEntity {
 
 ### 开源工具和框架
 
-1. **Legend (legend-pii)** - Python库，用于AI系统的PII假名化
+1. **Legend (legend-pii)** - Python 库，用于 AI 系统的 PII 假名化
    - [GitHub](https://github.com/legend-pii)
-   - 特点：agentic loop的4个边界拦截
+   - 特点：agentic loop 的 4 个边界拦截
 
-2. **Microsoft Presidio** - PII检测和匿名化
+2. **Microsoft Presidio** - PII 检测和匿名化
    - [GitHub](https://github.com/microsoft/presidio)
-   - 特点：NLP驱动、可扩展
+   - 特点：NLP 驱动、可扩展
 
 3. **ARX Data Anonymization Tool** - 企业级匿名化
    - [Website](https://arx.deidentifier.org/)

@@ -227,13 +227,13 @@ curl -N http://localhost:8080/agentsight/events/stream
 
 - Claude Code 和 Codex 的 SSL 跟踪基础设施
 
-- 附加支持:
+- 附加支持：
 - 额外支持 Cursor 和 GitHub Copilot
 - 集成 Agentsight 可观测性平台
 - AI 工具自动识别和标记
 - 实时流式传输支持
 
-- 运行特性:
+- 运行特性：
 - 完整的错误处理
 - 自动发现和恢复
 - 性能优化

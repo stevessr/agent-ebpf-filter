@@ -49,7 +49,7 @@ export function usePluginCompiler(opts: UsePluginCompilerOptions) {
     compileLogLocal.value = "正在将高阶规则积木块转译为标准的 BPF C 源码...\n";
     try {
       compileLogLocal.value += `正在注册插件 Manifest [${opts.pluginId()}] 至本地仓库...\n`;
-      compileLogLocal.value += `挂载方式: ${visualAttachKind()} / ${visualAttachTarget()} / program=${VISUAL_PROGRAM_NAME}\n`;
+      compileLogLocal.value += `挂载方式：${visualAttachKind()} / ${visualAttachTarget()} / program=${VISUAL_PROGRAM_NAME}\n`;
       await upsertPlugin({
         id: opts.pluginId(),
         name: opts.pluginName(),
@@ -77,7 +77,7 @@ export function usePluginCompiler(opts: UsePluginCompilerOptions) {
           "\n[ERROR] 编译失败，请排查过滤表达式是否在内核 Verifier 安全范围内。";
       }
     } catch (err: any) {
-      compileLogLocal.value += `\n[ERROR] 错误: ${err.message}`;
+      compileLogLocal.value += `\n[ERROR] 错误：${err.message}`;
     } finally {
       compiling.value = false;
     }

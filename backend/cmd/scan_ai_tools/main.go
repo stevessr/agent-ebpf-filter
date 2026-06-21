@@ -44,12 +44,12 @@ var knownAITools = []AIToolIdentifier{
 }
 
 type AIToolProcess struct {
-	Tool      AIToolIdentifier
-	PID       int
-	BinPath   string
-	Cmdline   string
-	HasSSL    bool
-	SSLType   string
+	Tool    AIToolIdentifier
+	PID     int
+	BinPath string
+	Cmdline string
+	HasSSL  bool
+	SSLType string
 }
 
 func identifyAIToolProcess(pid int, binPath, cmdline string) *AIToolProcess {
@@ -133,7 +133,8 @@ func scanForAITools() []AIToolProcess {
 }
 
 func main() {
-	fmt.Println("=== AI CLI Tools Scanner ===\n")
+	fmt.Println("=== AI CLI Tools Scanner ===")
+	fmt.Println()
 
 	tools := scanForAITools()
 	if len(tools) == 0 {

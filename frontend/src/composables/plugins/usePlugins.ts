@@ -104,7 +104,7 @@ export function usePlugins() {
       return res.data.plugin as PluginManifest;
     } catch (err: any) {
       message.error(
-        `保存失败: ${err?.response?.data?.error || err?.message || ""}`,
+        `保存失败：${err?.response?.data?.error || err?.message || ""}`,
       );
       return null;
     }
@@ -116,7 +116,7 @@ export function usePlugins() {
       message.success(`已删除 ${id}`);
       await fetchPlugins();
     } catch (err: any) {
-      message.error(`删除失败: ${err?.response?.data?.error || ""}`);
+      message.error(`删除失败：${err?.response?.data?.error || ""}`);
     }
   };
 
@@ -130,7 +130,7 @@ export function usePlugins() {
       return updated;
     } catch (err: any) {
       message.error(
-        `切换失败: ${err?.response?.data?.error || err?.message || ""}`,
+        `切换失败：${err?.response?.data?.error || err?.message || ""}`,
       );
       await fetchPlugins();
       return null;
@@ -153,7 +153,7 @@ export function usePlugins() {
         err?.message ||
         "";
       message.error(
-        `编译失败: ${err?.response?.data?.error || err?.message || ""}`,
+        `编译失败：${err?.response?.data?.error || err?.message || ""}`,
       );
       return false;
     }
@@ -167,7 +167,7 @@ export function usePlugins() {
       return true;
     } catch (err: any) {
       message.error(
-        `加载失败: ${err?.response?.data?.error || err?.message || ""}`,
+        `加载失败：${err?.response?.data?.error || err?.message || ""}`,
       );
       return false;
     }
@@ -181,7 +181,7 @@ export function usePlugins() {
       return true;
     } catch (err: any) {
       message.error(
-        `卸载失败: ${err?.response?.data?.error || err?.message || ""}`,
+        `卸载失败：${err?.response?.data?.error || err?.message || ""}`,
       );
       return false;
     }

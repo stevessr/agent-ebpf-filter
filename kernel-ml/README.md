@@ -266,13 +266,13 @@ flowchart TD
 
 ## 故障排除
 
-### 编译错误: "unrecognized emulation mode: llvm"
+### 编译错误："unrecognized emulation mode: llvm"
 ```bash
 # 使用 LLVM 链接器
 make CC=clang LD=ld.lld
 ```
 
-### 浮点数错误: "__muldf3 undefined"
+### 浮点数错误："__muldf3 undefined"
 ```bash
 # 检查代码中的浮点运算
 grep -r "\.0" *.c

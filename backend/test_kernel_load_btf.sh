@@ -21,7 +21,7 @@ echo ""
 echo "📋 Step 1: 环境检查"
 
 KERNEL_VERSION=$(uname -r)
-echo "  内核版本: $KERNEL_VERSION"
+echo "  内核版本：$KERNEL_VERSION"
 
 # 检查 BTF 支持
 if [ -f "/sys/kernel/btf/vmlinux" ]; then
@@ -42,7 +42,7 @@ if [ ! -f "ml_model_ebpf.o" ]; then
     echo "  ❌ ml_model_ebpf.o 不存在"
     exit 1
 fi
-echo "  ✅ 字节码文件: $(ls -lh ml_model_ebpf.o | awk '{print $5}')"
+echo "  ✅ 字节码文件：$(ls -lh ml_model_ebpf.o | awk '{print $5}')"
 echo ""
 
 # Step 2: 检查 BTF 信息
@@ -52,16 +52,16 @@ echo "📋 Step 2: 检查 BTF 信息"
 if bpftool btf dump file ml_model_ebpf.o &> /dev/null; then
     echo "  ✅ 字节码包含 BTF 信息"
     BTF_SIZE=$(bpftool btf dump file ml_model_ebpf.o | wc -l)
-    echo "  BTF 条目: $BTF_SIZE 行"
+    echo "  BTF 条目：$BTF_SIZE 行"
 else
     echo "  ⚠️  字节码缺少 BTF 信息"
-    echo "  解决方案: 使用 -g 标志重新编译"
+    echo "  解决方案：使用 -g 标志重新编译"
     echo ""
     echo "  重新编译..."
     if [ -f "ml_model_ebpf.c" ]; then
         clang -O2 -target bpf -g -c ml_model_ebpf.c -o ml_model_ebpf.o
         echo "  ✅ 重新编译完成"
-        echo "  新文件大小: $(ls -lh ml_model_ebpf.o | awk '{print $5}')"
+        echo "  新文件大小：$(ls -lh ml_model_ebpf.o | awk '{print $5}')"
     else
         echo "  ❌ ml_model_ebpf.c 不存在"
         exit 1
@@ -82,7 +82,7 @@ echo ""
 
 # Step 4: 加载程序
 echo "📋 Step 4: 加载 eBPF 程序到内核"
-echo "  执行: bpftool prog load ml_model_ebpf.o /sys/fs/bpf/ml_model"
+echo "  执行：bpftool prog load ml_model_ebpf.o /sys/fs/bpf/ml_model"
 echo ""
 
 # 尝试加载
@@ -101,10 +101,10 @@ else
     else
         echo "  ❌ 加载确实失败"
         echo ""
-        echo "  故障排查:"
+        echo "  故障排查："
         echo "    1. 检查 dmesg: sudo dmesg | tail -20"
-        echo "    2. 详细模式: bpftool -d prog load ml_model_ebpf.o /sys/fs/bpf/ml_model"
-        echo "    3. 验证器日志: 查看 dmesg 中的 BPF verifier 输出"
+        echo "    2. 详细模式：bpftool -d prog load ml_model_ebpf.o /sys/fs/bpf/ml_model"
+        echo "    3. 验证器日志：查看 dmesg 中的 BPF verifier 输出"
         exit 1
     fi
 fi
@@ -123,7 +123,7 @@ fi
 echo ""
 
 # 显示程序信息
-echo "  已加载的 BPF 程序:"
+echo "  已加载的 BPF 程序："
 bpftool prog show | tail -10
 echo ""
 
@@ -144,17 +144,17 @@ echo "📋 Step 8: 后续操作"
 echo ""
 echo "  ✅ 程序已成功加载到内核！"
 echo ""
-echo "  要启用拦截功能:"
+echo "  要启用拦截功能："
 echo "    1. 附加到 kprobe:"
 echo "       sudo bpftool prog attach pinned /sys/fs/bpf/ml_model kprobe sys_execve"
 echo ""
-echo "    2. 查看内核日志:"
+echo "    2. 查看内核日志："
 echo "       sudo cat /sys/kernel/debug/tracing/trace_pipe"
 echo ""
-echo "    3. 在另一个终端测试:"
+echo "    3. 在另一个终端测试："
 echo "       ls  # 会触发 execve 系统调用"
 echo ""
-echo "  清理程序:"
+echo "  清理程序："
 echo "    sudo rm /sys/fs/bpf/ml_model"
 echo ""
 

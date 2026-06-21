@@ -231,20 +231,20 @@ OS_SMOKE_PRIVILEGE_CMD='sudo -E' make os-enforcement-smoke-start
 
 应验证的能力：
 
-- BPF LSM exec-path denial；
-- BPF LSM exec-name denial；
-- file-open denial；
-- existing-fd read/write denial；
-- mmap / mprotect denial；
-- ftruncate / fchmod / setattr denial；
-- create / link / symlink denial；
-- unlink / mkdir / rmdir / mknod / rename denial；
-- cgroup PID-cgroup block；
-- IPv4 / IPv6 destination block；
-- IPv4-mapped IPv6 block；
-- TCP destination-port block；
-- UDP connected-socket connect / send block；
-- UDP sendto / sendmsg destination / port block。
+- BPF LSM exec-path denial.
+- BPF LSM exec-name denial.
+- file-open denial.
+- existing-fd read/write denial.
+- mmap / mprotect denial.
+- ftruncate / fchmod / setattr denial.
+- create / link / symlink denial.
+- unlink / mkdir / rmdir / mknod / rename denial.
+- cgroup PID-cgroup block.
+- IPv4 / IPv6 destination block.
+- IPv4-mapped IPv6 block.
+- TCP destination-port block.
+- UDP connected-socket connect / send block.
+- UDP sendto / sendmsg destination / port block.
 
 记录：TBD。
 
@@ -269,9 +269,9 @@ RUNTIME_REPLAY_OUT=../reports/runtime-replay-manual/summary.json go test ./... -
 
 根据 `docs/benchmark.md`，scenario catalog 包括：
 
-- benign flows：`git status`、`npm install`、`pip install`、`pytest`、`cargo build`、PR review read-only scans；
-- malicious flows：`curl|bash`、secret read、reverse shell、workspace escape、`chmod +x` then exec、suspicious SSH、hidden network egress、lightweight fork storm；
-- agentic flows：prompt-injection file exfiltration、malicious MCP tool、unexpected browser/network behavior、suspicious remote-devbox action、resource-wasting loop。
+- benign flows:`git status`、`npm install`、`pip install`、`pytest`、`cargo build`、PR review read-only scans；
+- malicious flows:`curl|bash`、secret read、reverse shell、workspace escape、`chmod +x` then exec, suspicious SSH, hidden network egress, lightweight fork storm.
+- agentic flows: prompt-injection file exfiltration, malicious MCP tool, unexpected browser/network behavior, suspicious remote-devbox action, resource-wasting loop.
 
 ### 5.3 指标记录
 

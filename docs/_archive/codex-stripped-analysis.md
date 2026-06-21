@@ -38,7 +38,7 @@ SSL_write_early_data
 
 ---
 
-## 💡 推荐方案: Syscall-Level Tracing
+## 💡 推荐方案：Syscall-Level Tracing
 
 ### 原理
 在系统调用层面拦截 Codex 的网络 I/O，无需符号表。
@@ -79,7 +79,7 @@ static __always_inline bool is_codex_process() {
 }
 
 static __always_inline bool is_https_socket(int fd) {
-    // 简化版: 检查 fd 是否指向 socket
+    // 简化版：检查 fd 是否指向 socket
     // 实际需要通过 bpf_probe_read 获取 socket 结构
     return true; // 占位
 }
@@ -133,7 +133,7 @@ int kprobe_codex_write(struct pt_regs *ctx) {
     char comm[16];
     bpf_get_current_comm(&comm, sizeof(comm));
     
-    // 快速路径: 首字符检查
+    // 快速路径：首字符检查
     if (comm[0] != 'c')
         return 0;
     
@@ -174,7 +174,7 @@ int kprobe_codex_read(struct pt_regs *ctx) {
 
 ### 方案 3: 端口过滤增强 (生产级)
 
-添加 socket 信息提取:
+添加 socket 信息提取：
 
 ```c
 // 从 fd 获取 socket 信息
@@ -198,7 +198,7 @@ static __always_inline bool is_tls_socket(int fd) {
 
 ---
 
-## 📊 对比: Uprobe vs Kprobe
+## 📊 对比：Uprobe vs Kprobe
 
 ### Claude Code (Node.js)
 ```mermaid

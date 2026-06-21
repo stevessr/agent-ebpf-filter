@@ -51,25 +51,25 @@ export function useVisualTabHandlers(options: UseVisualTabHandlersOptions) {
   const selectTriggerNodeType = (value: VisualTrigger) => {
     trigger.value = value;
     void focusFlowNode("trigger");
-    message.success(`已从节点类型库选择入口: ${value}`);
+    message.success(`已从节点类型库选择入口：${value}`);
   };
 
   const addConditionNodeType = (value: VisualConditionField) => {
     onAddRule("root", value);
     void focusFlowNode("condition");
-    message.success(`已从节点类型库添加条件: ${value}`);
+    message.success(`已从节点类型库添加条件：${value}`);
   };
 
   const addLogicNodeType = (value: "AND" | "OR") => {
     onAddGroup("root", value);
     void focusFlowNode("condition");
-    message.success(`已从节点类型库添加逻辑组: ${value}`);
+    message.success(`已从节点类型库添加逻辑组：${value}`);
   };
 
   const setMapNodeType = (value: VisualMapMode) => {
     mapMode.value = value;
     void focusFlowNode("map");
-    message.success(`已从节点类型库设置状态节点: ${value}`);
+    message.success(`已从节点类型库设置状态节点：${value}`);
   };
 
   const setActionNodeType = (value: VisualAction) => {
@@ -81,7 +81,7 @@ export function useVisualTabHandlers(options: UseVisualTabHandlersOptions) {
     }
     action.value = value;
     void focusFlowNode("action");
-    message.success(`已从节点类型库设置动作: ${value}`);
+    message.success(`已从节点类型库设置动作：${value}`);
   };
 
   // --- AI translate handler ---
@@ -127,25 +127,25 @@ export function useVisualTabHandlers(options: UseVisualTabHandlersOptions) {
       targetNode = "trigger";
       restoreFlowNode(targetNode);
       trigger.value = value as VisualTrigger;
-      statusText = `已切换事件挂载点为: ${value}`;
+      statusText = `已切换事件挂载点为：${value}`;
     } else if (category === "condition") {
       if (!isVisualConditionField(value)) return;
       targetNode = "condition";
       restoreFlowNode(targetNode);
       onAddRule("root", value);
-      statusText = `已拖动添加匹配过滤: ${value}`;
+      statusText = `已拖动添加匹配过滤：${value}`;
     } else if (category === "logic_group") {
       if (value !== "AND" && value !== "OR") return;
       targetNode = "condition";
       restoreFlowNode(targetNode);
       onAddGroup("root", value);
-      statusText = `已拖动添加逻辑运算组: ${value}`;
+      statusText = `已拖动添加逻辑运算组：${value}`;
     } else if (category === "map") {
       if (!visualMapModeSet.has(value as VisualMapMode)) return;
       targetNode = "map";
       restoreFlowNode(targetNode);
       mapMode.value = value as VisualMapMode;
-      statusText = `已配置 Map 状态存储为: ${value}`;
+      statusText = `已配置 Map 状态存储为：${value}`;
     } else if (category === "action") {
       if (!visualActionSet.has(value as VisualAction)) return;
       if (trigger.value === "unlink" && value === "BLOCK") {
@@ -157,12 +157,12 @@ export function useVisualTabHandlers(options: UseVisualTabHandlersOptions) {
       targetNode = "action";
       restoreFlowNode(targetNode);
       action.value = value as VisualAction;
-      statusText = `已更新拦截响应动作为: ${value}`;
+      statusText = `已更新拦截响应动作为：${value}`;
     } else if (category === "focus") {
       if (!visualFlowNodeIds.includes(value as VisualFlowNodeId)) return;
       targetNode = value as VisualFlowNodeId;
       restoreFlowNode(targetNode);
-      statusText = `已拖入并聚焦节点: ${flowNodeDetails[targetNode].label}`;
+      statusText = `已拖入并聚焦节点：${flowNodeDetails[targetNode].label}`;
     }
 
     if (!targetNode) return;

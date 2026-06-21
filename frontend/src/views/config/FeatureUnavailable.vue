@@ -29,7 +29,7 @@ const goToDashboard = () => {
       />
       <a-typography-paragraph>
         如果后端二进制也未编译该功能，对应 API 会返回 compiled-out
-        状态或不会注册路由。 若只是运行时关闭，请在 Runtime Config 中启用相应
+        状态或不会注册路由。若只是运行时关闭，请在 Runtime Config 中启用相应
         gate；若构建时裁剪了功能，需要使用
         <code>AGENT_BUILD_FEATURES</code> /
         <code>AGENT_FRONTEND_BUILD_FEATURES</code>

@@ -105,7 +105,7 @@ release mode 下，敏感入口默认需要 token，包括：
 
 `/hooks/event` 可使用：
 
-- runtime token；
+- runtime token.
 - per-hook `X-Agent-Hook-Secret`。
 
 这允许 hook relay script 使用 provider-specific secret，而不是暴露全局 token。

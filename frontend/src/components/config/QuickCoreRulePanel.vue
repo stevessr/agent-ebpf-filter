@@ -285,11 +285,11 @@ const handleLoadPlugin = async () => {
                 <code>{{ currentConfig.pluginId }}</code>
               </div>
               <div>
-                <strong>规则名:</strong>
+                <strong>规则名：</strong>
                 <span>{{ currentConfig.pluginName }}</span>
               </div>
               <div>
-                <strong>简介:</strong>
+                <strong>简介：</strong>
                 <span style="font-size: 12px; color: #666">{{
                   currentConfig.description
                 }}</span>

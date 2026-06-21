@@ -61,7 +61,7 @@ fi
 echo "" >> "${OUT}"
 echo "## 2. 内存占用分析" >> "${OUT}"
 echo "" >> "${OUT}"
-echo "| 模型 | 平均内存(MB) | 最小内存(MB) | 最大内存(MB) | 配置 |" >> "${OUT}"
+echo "| 模型 | 平均内存 (MB) | 最小内存 (MB) | 最大内存 (MB) | 配置 |" >> "${OUT}"
 echo "|:----|:------------:|:------------:|:------------:|:-----|" >> "${OUT}"
 
 STABLE="${REPORT_DIR}/stability-summary.csv"
@@ -75,7 +75,7 @@ if [ -f "${STABLE}" ]; then
     echo "" >> "${OUT}"
     echo "## 3. 稳定性分析（${ML_SWEEP_REPEATS:-3}次重复）" >> "${OUT}"
     echo "" >> "${OUT}"
-    echo "| 模型 | 配置 | 平均准确率 | 标准差 | 推理速度(μs) | 内存(MB) |" >> "${OUT}"
+    echo "| 模型 | 配置 | 平均准确率 | 标准差 | 推理速度 (μs) | 内存 (MB) |" >> "${OUT}"
     echo "|:----|:-----|:----------:|:-----:|:------------:|:--------:|" >> "${OUT}"
     
     tail -n +2 "${STABLE}" 2>/dev/null | awk -F',' '{
@@ -89,9 +89,9 @@ fi
 echo "" >> "${OUT}"
 echo "## 4. 全参数扫描数据" >> "${OUT}"
 echo "" >> "${OUT}"
-echo "完整CSV数据: ${CSV}" >> "${OUT}"
-echo "稳定性数据: ${STABLE}" >> "${OUT}"
-echo "HTML报告: ${REPORT_DIR}/index.html" >> "${OUT}"
+echo "完整 CSV 数据：${CSV}" >> "${OUT}"
+echo "稳定性数据：${STABLE}" >> "${OUT}"
+echo "HTML 报告：${REPORT_DIR}/index.html" >> "${OUT}"
 echo "" >> "${OUT}"
 echo "---" >> "${OUT}"
 echo "*报告生成于 $(date '+%Y-%m-%d %H:%M:%S')*" >> "${OUT}"

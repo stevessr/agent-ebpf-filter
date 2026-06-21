@@ -57,7 +57,7 @@ flowchart LR
   - `key=value`, `token=value`, `password=value`
 - 环境变量中的敏感值
 
-**不脱敏**：路径、IP地址、域名
+**不脱敏**：路径、IP 地址、域名
 
 ### Standard - 标准脱敏（默认）
 **适用场景**：生产环境、日常使用
@@ -101,7 +101,7 @@ flowchart LR
 
 ### 2. 命令字段
 - `command_line`, `args`, `argv_digest`
-- 命令行参数可能包含密码、token、API密钥
+- 命令行参数可能包含密码、token、API 密钥
 
 ### 3. 网络字段
 - `src_ip`, `dst_ip`, `host`, `url`, `dns_name`, `sni`, `http_host`
@@ -472,8 +472,8 @@ await updateRules([...rules.value, newRule])
 ### 已知限制
 
 1. **二进制数据**：当前不处理二进制协议（除 TLS/HTTP）
-2. **编码变体**：Base64/URL编码的敏感数据可能绕过检测
-3. **语义理解**：无法理解业务语义（如订单号、用户ID）
+2. **编码变体**：Base64/URL 编码的敏感数据可能绕过检测
+3. **语义理解**：无法理解业务语义（如订单号、用户 ID）
 4. **历史数据**：仅影响新采集数据，历史 JSONL 不会追溯脱敏
 
 ## 故障排查

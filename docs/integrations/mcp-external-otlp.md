@@ -4,7 +4,7 @@ Agent eBPF Filter 对外提供 MCP、External API v1、Prometheus 和 OTLP 四�
 
 ---
 
-## MCP（Model Context Protocol）
+## MCP (Model Context Protocol)
 
 ### 端点
 

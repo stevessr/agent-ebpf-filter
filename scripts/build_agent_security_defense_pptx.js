@@ -5,7 +5,7 @@ const pptxgen = require('pptxgenjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'proposal-output', 'agent-security-opening-defense.pptx');
-const OUT_CN = path.join(ROOT, 'proposal-output', 'Agent安全立项答辩.pptx');
+const OUT_CN = path.join(ROOT, 'proposal-output', 'Agent 安全立项答辩.pptx');
 const DOT_DIR = path.join(ROOT, 'proposal-output', 'graphviz', 'agent-security');
 const GRAPH_DIR = path.join(ROOT, 'proposal-output', 'images', 'agent-security-graphviz');
 const C = {

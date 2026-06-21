@@ -128,7 +128,7 @@ startProcessing();
 processEvents();
 endProcessing();
 
-console.log(`耗时: ${processingTime.value}ms`);
+console.log(`耗时：${processingTime.value}ms`);
 ```
 
 #### 错误处理

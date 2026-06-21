@@ -124,7 +124,7 @@ struct svm_model {
 enum ml_action svm_inference(struct svm_model *model, struct feature_vector *fv) {
     s64 decision = model->bias;
 
-    // 点积: decision = w·x + b
+    // 点积：decision = w·x + b
     for (int i = 0; i < model->feature_dim; i++)
         decision += (model->weights[i] * fv->features[i]) / FLOAT_SCALE;
 
@@ -153,7 +153,7 @@ struct lr_model {
     u32 feature_dim;
     s64 weights[FEATURE_DIM];
     s64 bias;
-    s64 thresholds[2];  // [ALLOW门限, BLOCK门限]
+    s64 thresholds[2];  // [ALLOW 门限，BLOCK 门限]
 };
 ```
 
@@ -289,9 +289,9 @@ static inline int argmax(const s64 *values, int n) {
 | `random_forest_wide` | 宽森林降方差 | trees=71, depth=8, leaf=3 | `wide` |
 
 **使用建议**:
-- 生产环境首选: `random_forest` 或 `random_forest_stable`
-- 低延迟场景: `random_forest_fast`
-- 防止过拟合: `random_forest_shallow`
+- 生产环境首选：`random_forest` 或 `random_forest_stable`
+- 低延迟场景：`random_forest_fast`
+- 防止过拟合：`random_forest_shallow`
 
 #### Extra Trees 系列 (4 种)
 
@@ -318,12 +318,12 @@ static inline int argmax(const s64 *values, int n) {
 | `logistic_none` | 无正则化 | penalty='none' | `ablation` |
 | `logistic_l1` | L1 稀疏特征 | L1, C=0.1 | `interpretable`, `sparse` |
 | `logistic_balanced` | 类别加权 | L2, class_weight='balanced' | `balanced` |
-| `logistic_l1_balanced` | L1+平衡 | L1, class_weight='balanced' | `balanced`, `sparse` |
+| `logistic_l1_balanced` | L1+ 平衡 | L1, class_weight='balanced' | `balanced`, `sparse` |
 
 **选择指南**:
-- 需要可解释性: `logistic_l1` (L1 产生稀疏权重)
-- 数据不平衡: `logistic_balanced`
-- 快速原型: `logistic_fast`
+- 需要可解释性：`logistic_l1` (L1 产生稀疏权重)
+- 数据不平衡：`logistic_balanced`
+- 快速原型：`logistic_fast`
 
 #### SVM 系列 (3 种)
 
@@ -440,7 +440,7 @@ rf = RandomForestClassifier(
 rf.fit(X_train, y_train)
 
 # 模型结构
-print(f"树数量: {len(rf.estimators_)}")
+print(f"树数量：{len(rf.estimators_)}")
 for i, tree in enumerate(rf.estimators_):
     print(f"树 {i}: {tree.tree_.node_count} 节点")
 ```
@@ -477,9 +477,9 @@ svm = LinearSVC(C=1.0, max_iter=1000)
 svm.fit(X_train, y_train)
 
 # 模型参数
-print(f"权重向量: {svm.coef_.shape}")      # (128,)
-print(f"偏置: {svm.intercept_}")           # scalar
-print(f"前 5 个权重: {svm.coef_[:5]}")
+print(f"权重向量：{svm.coef_.shape}")      # (128,)
+print(f"偏置：{svm.intercept_}")           # scalar
+print(f"前 5 个权重：{svm.coef_[:5]}")
 ```
 
 **二进制格式**:
@@ -514,10 +514,10 @@ nn = MLPClassifier(
 nn.fit(X_train, y_train)
 
 # 查看权重
-print(f"输入→隐藏权重: {nn.coefs_[0].shape}")  # (128, 32)
-print(f"隐藏→输出权重: {nn.coefs_[1].shape}")  # (32, 3)
-print(f"隐藏层偏置: {nn.intercepts_[0].shape}")  # (32,)
-print(f"输出层偏置: {nn.intercepts_[1].shape}")  # (3,)
+print(f"输入→隐藏权重：{nn.coefs_[0].shape}")  # (128, 32)
+print(f"隐藏→输出权重：{nn.coefs_[1].shape}")  # (32, 3)
+print(f"隐藏层偏置：{nn.intercepts_[0].shape}")  # (32,)
+print(f"输出层偏置：{nn.intercepts_[1].shape}")  # (3,)
 ```
 
 **网络拓扑**:
@@ -710,7 +710,7 @@ print(lr.class_weight_)  # {0: 1.0, 1: 3.5, 2: 2.8}
    ```python
    # 训练后查看重要特征
    important_features = np.where(np.abs(lr.coef_) > 0.1)[0]
-   print(f"重要特征: {important_features}")
+   print(f"重要特征：{important_features}")
    ```
 
 2. **备选**: `random_forest` (特征重要性)
@@ -777,7 +777,7 @@ import pickle
 
 # 准备数据
 X_train = np.random.randn(1000, 128)  # 1000 样本，128 特征
-y_train = np.random.randint(0, 3, 1000)  # 3 类: ALLOW/BLOCK/ALERT
+y_train = np.random.randint(0, 3, 1000)  # 3 类：ALLOW/BLOCK/ALERT
 
 # 训练 Random Forest
 print("Training Random Forest...")
@@ -1023,7 +1023,7 @@ rf.fit(X_train, y_train_5class)  # y ∈ {0,1,2,3,4}
 # 模型 header 中 num_classes=5
 ```
 
-内核推理结果:
+内核推理结果：
 ```c
 enum ml_action {
     ML_ACTION_ALLOW = 0,
@@ -1074,7 +1074,7 @@ sudo ./kernel-ml/profile_inference.sh perf 10000
 
 ### 4. 实验框架集成
 
-批量评估 47 种模型:
+批量评估 47 种模型：
 
 ```bash
 # 运行完整 ML sweep
@@ -1093,13 +1093,13 @@ flowchart TD
     Root --> Index["index.html<br/>可视化报告"]
 ```
 
-查看最佳模型:
+查看最佳模型：
 
 ```bash
 cat reports/ml-sweep-*/best.json
 ```
 
-示例输出:
+示例输出：
 ```json
 {
   "model_id": "random_forest_stable",

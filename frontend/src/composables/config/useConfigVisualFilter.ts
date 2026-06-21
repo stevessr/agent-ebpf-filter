@@ -25,7 +25,7 @@ export function useConfigVisualFilter() {
     operator: "==",
     action: "BLOCK",
     pluginId: "visual-process-nc-block",
-    pluginName: "可视化进程阻断(nc)",
+    pluginName: "可视化进程阻断 (nc)",
     description:
       "通过 eBPF LSM 拦截可执行文件 nc 的运行，返回 EACCES 阻断其执行。",
   });
@@ -330,7 +330,7 @@ int visual_port_filter(struct bpf_sock_addr *ctx) {
                 : type === "symlink"
                   ? "符号链接"
                   : type === "ip"
-                    ? "网络IP"
+                    ? "网络 IP"
                     : "网络端口"
     }${actionText}(${val})`;
 

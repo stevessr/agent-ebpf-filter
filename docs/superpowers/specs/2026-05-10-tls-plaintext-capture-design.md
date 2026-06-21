@@ -1,6 +1,6 @@
 # TLS 明文捕获 — 设计文档
 
-日期: 2026-05-10
+日期：2026-05-10
 
 ## 目标
 
@@ -142,7 +142,7 @@ int uretprobe_ssl_read(struct pt_regs *ctx) {
 
 **注意**：`SSL_read` 和其他读取函数的 buffer 在 uretprobe 时数据已经到达，
 但需要通过 enter-probe 保存 buffer 地址，exit-probe 读取数据。
-这和 syscall enter/exit 模式类似。er 数据保存方式:
+这和 syscall enter/exit 模式类似。er 数据保存方式：
 
 - sys_enter 时将 buffer 地址存入 per-CPU map
 - sys_exit/uretprobe 时从 per-CPU map 取出地址，读取数据
@@ -156,7 +156,7 @@ Go 使用自定义 ABI，函数签名为 `func (*Conn) Write(b []byte) (int, err
 SEC("uprobe/crypto_tls_Conn_Write")
 int uprobe_go_tls_write(struct pt_regs *ctx) {
     // Go ABI: AX=*Conn, BX=data.ptr, CX=data.len
-    // 在 Linux amd64 上通过 PT_REGS_PARM 系列不一定直接对得上,
+    // 在 Linux amd64 上通过 PT_REGS_PARM 系列不一定直接对得上，
     // 需要根据 Go 1.17+ register-based ABI 调整
     const void *buf = (const void *)PT_REGS_PARM3(ctx);  // data ptr
     u32 len = (u32)PT_REGS_PARM4(ctx);                    // data len
@@ -196,7 +196,7 @@ int uprobe_nss_write(struct pt_regs *ctx) {
 对于读取函数（SSL_read, tls.Read, gnutls_record_recv, PR_Read），
 需要在 uprobe 阶段保存传入的 buffer 指针，在 uretprobe 阶段读取数据。
 
-使用 per-CPU array map 传递 buffer 地址:
+使用 per-CPU array map 传递 buffer 地址：
 
 ```c
 struct retprobe_ctx {
@@ -411,7 +411,7 @@ flowchart TD
 - 实时 WebSocket 连接，自动滚动
 - 过滤器：进程名（comm）、库类型（checkbox）、方向（出站/入站）、域名模糊匹配
 - 搜索框：在 body/URL/headers 中全文搜索，高亮关键词
-- 展开：点击展开显示完整 body（JSON 格式化+语法高亮）
+- 展开：点击展开显示完整 body（JSON 格式化 + 语法高亮）
 - 复制 curl：从 request event 构造 `curl` 等价命令
 - 复制 body：一键复制 body 内容
 - 每条 event 显示字节数、耗时标签

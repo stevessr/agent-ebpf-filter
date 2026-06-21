@@ -51,7 +51,7 @@ export const getTreeDepth = (node: VisualLogicNode): number => {
 export const assertValidConditionTree = (node: VisualLogicNode) => {
   if (node.type === "CONDITION") {
     if (!isVisualConditionField(node.field)) {
-      throw new Error(`不支持的条件字段: ${String(node.field)}`);
+      throw new Error(`不支持的条件字段：${String(node.field)}`);
     }
     return;
   }
@@ -104,7 +104,7 @@ export const validateWorkspace = (
       id: "flow-node-deleted",
       severity: "error",
       title: "低代码流程节点已删除",
-      detail: `请从左侧节点类型库恢复: ${deletedNodes
+      detail: `请从左侧节点类型库恢复：${deletedNodes
         .map((id) => flowNodeDetails[id]?.label || id)
         .join("、")}。`,
     });
@@ -127,7 +127,7 @@ export const validateWorkspace = (
       id: "wire-flow-disconnected",
       severity: "error",
       title: "低代码流程线缆未闭合",
-      detail: `请在画布中重新连接: ${disconnectedWires
+      detail: `请在画布中重新连接：${disconnectedWires
         .map((id) => visualWireLabels[id] || id)
         .join("、")}。`,
     });

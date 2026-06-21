@@ -9,13 +9,16 @@ import (
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	fmt.Println("=== N-Gram 序列模型测试集评估 ===\n")
+	fmt.Println("=== N-Gram 序列模型测试集评估 ===")
+	fmt.Println()
 	fmt.Println("N-Gram 原理：将连续特征值离散化为 token 序列，提取 unigram/bigram/trigram 统计特征")
-	fmt.Println("配置：n=3 (trigram), bins=16\n")
+	fmt.Println("配置：n=3 (trigram), bins=16")
+	fmt.Println()
 
 	// Iris 数据集
 	fmt.Println("【数据集 1】Iris (150 样本，4 特征，3 类别)")
-	fmt.Println("训练集：120 | 测试集：30\n")
+	fmt.Println("训练集：120 | 测试集：30")
+	fmt.Println()
 
 	results1 := []struct {
 		Model          string
@@ -33,7 +36,8 @@ func main() {
 
 	// Wine 数据集
 	fmt.Println("\n【数据集 2】Wine (178 样本，13 特征，3 类别)")
-	fmt.Println("训练集：142 | 测试集：36\n")
+	fmt.Println("训练集：142 | 测试集：36")
+	fmt.Println()
 
 	results2 := []struct {
 		Model          string
@@ -51,7 +55,8 @@ func main() {
 
 	// Breast Cancer 数据集
 	fmt.Println("\n【数据集 3】Breast Cancer (569 样本，30 特征，2 类别)")
-	fmt.Println("训练集：455 | 测试集：114\n")
+	fmt.Println("训练集：455 | 测试集：114")
+	fmt.Println()
 
 	results3 := []struct {
 		Model          string
@@ -68,7 +73,8 @@ func main() {
 	printTable(results3)
 
 	// 总结
-	fmt.Println("\n=== N-Gram 特征提升分析 ===\n")
+	fmt.Println("\n=== N-Gram 特征提升分析 ===")
+	fmt.Println()
 
 	improvements := []struct {
 		Dataset, Model   string
@@ -108,7 +114,8 @@ func main() {
 	fmt.Printf("平均提升：%.2f%% | 有效提升：%d/%d\n",
 		totalImp/float64(len(improvements)), positiveCount, len(improvements))
 
-	fmt.Println("\n=== N-Gram vs Attention 对比 ===\n")
+	fmt.Println("\n=== N-Gram vs Attention 对比 ===")
+	fmt.Println()
 
 	comparison := []struct {
 		Approach string

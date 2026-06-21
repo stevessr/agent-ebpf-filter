@@ -145,7 +145,7 @@ const handleGroupDrop = (event: DragEvent, groupId: string) => {
         v-if="!node.children || node.children.length === 0"
         class="group-empty-placeholder"
       >
-        拖拽组件或点击 “+条件” 向此逻辑分组添加内容
+        拖拽组件或点击“+条件”向此逻辑分组添加内容
       </div>
       <div v-else class="children-list">
         <div

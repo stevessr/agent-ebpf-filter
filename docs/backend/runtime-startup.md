@@ -237,17 +237,17 @@ func startRuntimeBackgroundJobs(features FeatureRegistry) {
 }
 ```
 
-- event broadcaster；
-- kernel risk feedback worker；
-- UDS server；
-- cgroup attribution GC；
-- DNS cache GC；
-- TCP state tracker GC；
-- flow aggregator GC；
-- exfil detection loop；
-- GeoIP init；
-- optional cgroup sandbox loader；
-- optional LSM enforcer loader。
+- event broadcaster.
+- kernel risk feedback worker.
+- UDS server.
+- cgroup attribution GC.
+- DNS cache GC.
+- TCP state tracker GC.
+- flow aggregator GC.
+- exfil detection loop.
+- GeoIP init.
+- optional cgroup sandbox loader.
+- optional LSM enforcer loader.
 
 ## 端口选择
 

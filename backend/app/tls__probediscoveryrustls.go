@@ -178,7 +178,7 @@ func hasWriteSyscallNearby(data []byte, offset int) bool {
 
 	// 查找 writev/write 系统调用号或调用指令
 	for i := offset; i < end-8; i++ {
-		// syscall 指令: 0x0f 0x05
+		// syscall 指令：0x0f 0x05
 		if data[i] == 0x0f && data[i+1] == 0x05 {
 			// 检查之前是否设置了 rax（syscall number）
 			// write=1, writev=20

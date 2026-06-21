@@ -94,9 +94,9 @@
 ### 官方文档
 
 **eBPF.io**:
-- 官网: https://ebpf.io/
-- 本地镜像: `docs/ref/ebpf-docs/`
-- 内容: 入门指南、程序类型、Map 类型、Helper 函数
+- 官网：https://ebpf.io/
+- 本地镜像：`docs/ref/ebpf-docs/`
+- 内容：入门指南、程序类型、Map 类型、Helper 函数
 
 **Kernel 文档**:
 - BPF: https://docs.kernel.org/bpf/

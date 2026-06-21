@@ -46,17 +46,17 @@ const parseLeafCondition = (clause: string): VisualCondition => {
   } else if (
     c.includes("pid") ||
     c.includes("进程号") ||
-    c.includes("进程id")
+    c.includes("进程 id")
   ) {
     field = "pid";
   } else if (
     c.includes("uid") ||
-    c.includes("用户id") ||
+    c.includes("用户 id") ||
     c.includes("用户") ||
     c.includes("root")
   ) {
     field = "uid";
-  } else if (c.includes("gid") || c.includes("组id") || c.includes("用户组")) {
+  } else if (c.includes("gid") || c.includes("组 id") || c.includes("用户组")) {
     field = "gid";
   } else if (
     c.includes("文件名") ||
@@ -395,7 +395,7 @@ export const compilePromptLocally = (prompt: string): VisualBlocksPayload => {
     p.includes("黑表") ||
     p.includes("查表") ||
     p.includes("blocklist") ||
-    p.includes("map查询") ||
+    p.includes("map 查询") ||
     p.includes("检索")
   ) {
     mapMode = "BLOCKLIST";
@@ -433,7 +433,7 @@ export function useNlpCompiler(emit: (payload: VisualBlocksPayload) => void) {
     const parts = [
       lastCompileResult.value.reasoning,
       lastCompileResult.value.error
-        ? `错误: ${lastCompileResult.value.error}`
+        ? `错误：${lastCompileResult.value.error}`
         : "",
       ...(lastCompileResult.value.warnings || []),
     ].filter(Boolean);

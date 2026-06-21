@@ -2,7 +2,7 @@
 
 **面向 Linux 的 AI Agent 观测与控制平面**
 
-[![许可证: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
+[![许可证：GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![文档](https://img.shields.io/badge/docs-VitePress-green.svg)](docs/index.md)
 
 > Linux 工作站上 AI Agent 行为的实时监控、语义关联与内核级强制执行。

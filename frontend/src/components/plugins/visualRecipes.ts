@@ -239,7 +239,7 @@ export function useRecipeOperations(opts: RecipeOperationsOptions) {
       opts.applyWorkspaceSnapshot(snapshot);
       message.success("已导入积木工作台配置");
     } catch (err: any) {
-      message.error(`导入失败: ${err?.message || "JSON 格式错误"}`);
+      message.error(`导入失败：${err?.message || "JSON 格式错误"}`);
     }
   };
 

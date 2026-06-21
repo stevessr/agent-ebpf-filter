@@ -22,7 +22,7 @@ echo "📋 Step 1: 环境检查"
 
 # 检查内核版本
 KERNEL_VERSION=$(uname -r)
-echo "  内核版本: $KERNEL_VERSION"
+echo "  内核版本：$KERNEL_VERSION"
 
 KERNEL_MAJOR=$(echo $KERNEL_VERSION | cut -d. -f1)
 KERNEL_MINOR=$(echo $KERNEL_VERSION | cut -d. -f2)
@@ -45,7 +45,7 @@ if [ ! -f "ml_model_ebpf.o" ]; then
     echo "  ❌ ml_model_ebpf.o 不存在"
     exit 1
 fi
-echo "  ✅ 字节码文件: $(ls -lh ml_model_ebpf.o | awk '{print $5}')"
+echo "  ✅ 字节码文件：$(ls -lh ml_model_ebpf.o | awk '{print $5}')"
 echo ""
 
 # Step 2: 清理旧程序
@@ -61,7 +61,7 @@ echo ""
 
 # Step 3: 加载程序
 echo "📋 Step 3: 加载 eBPF 程序到内核"
-echo "  执行: bpftool prog load ml_model_ebpf.o /sys/fs/bpf/ml_model"
+echo "  执行：bpftool prog load ml_model_ebpf.o /sys/fs/bpf/ml_model"
 
 if bpftool prog load ml_model_ebpf.o /sys/fs/bpf/ml_model 2>&1; then
     echo "  ✅ 加载成功"
@@ -85,14 +85,14 @@ else
 fi
 
 # 显示程序信息
-echo "  程序列表:"
+echo "  程序列表："
 bpftool prog show | grep -A 5 "ml_predict" || bpftool prog show | tail -6
 echo ""
 
 # Step 5: 创建测试进程并拦截
 echo "📋 Step 5: 测试拦截功能"
 echo ""
-echo "  当前程序状态: 已加载但未附加"
+echo "  当前程序状态：已加载但未附加"
 echo "  要启用拦截，需要手动附加到 kprobe:"
 echo ""
 echo "    # 附加到 sys_execve (拦截所有进程创建)"
@@ -104,21 +104,21 @@ echo ""
 echo "    # 在另一个终端测试"
 echo "    ls  # 会触发 execve"
 echo ""
-echo "  ⚠️  注意: 附加后会影响所有进程创建，测试完记得卸载"
+echo "  ⚠️  注意：附加后会影响所有进程创建，测试完记得卸载"
 echo ""
 
 # Step 6: 提供清理命令
 echo "📋 Step 6: 清理命令"
-echo "  卸载程序:"
+echo "  卸载程序："
 echo "    sudo rm /sys/fs/bpf/ml_model"
 echo ""
-echo "  查看当前程序:"
+echo "  查看当前程序："
 echo "    sudo bpftool prog show"
 echo ""
 
 echo "✅ 程序加载完成！"
 echo ""
 echo "🎉 eBPF ML 模型已成功加载到内核"
-echo "   文件位置: /sys/fs/bpf/ml_model"
-echo "   程序类型: kprobe"
-echo "   入口函数: ml_predict_syscall"
+echo "   文件位置：/sys/fs/bpf/ml_model"
+echo "   程序类型：kprobe"
+echo "   入口函数：ml_predict_syscall"

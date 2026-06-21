@@ -160,7 +160,7 @@ const ws = new WebSocket('ws://localhost:8080/ws/tls-capture');
 ws.onmessage = (event) => {
   const tlsEvent = JSON.parse(event.data);
   console.log(`[${tlsEvent.comm}] ${tlsEvent.method} ${tlsEvent.url}`);
-  console.log('明文数据:', tlsEvent.plaintext);
+  console.log('明文数据：', tlsEvent.plaintext);
 };
 ```
 
@@ -326,7 +326,7 @@ curl -X POST http://localhost:8080/api/tls-capture/go-binary \
 - **分片重组延迟**：<1 ms (小于 18 片时)
 - **内存占用**：
   - eBPF ringbuffer: 256 KB
-  - Go 缓冲区: ~2 MB (2000 events × 1 KB)
+  - Go 缓冲区：~2 MB (2000 events × 1 KB)
 - **CPU 开销**：<1% (典型 Web 浏览负载)
 
 ### 限制

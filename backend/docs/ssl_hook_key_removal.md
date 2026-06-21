@@ -2,14 +2,14 @@
 
 ## 概述
 
-agent-ebpf-filter 实现了**自动密钥移除机制**，在 SSL/TLS 明文捕获过程中自动检测并移除敏感数据，防止私钥、证书、API密钥等敏感信息泄漏到日志、存储或网络传输中。
+agent-ebpf-filter 实现了**自动密钥移除机制**，在 SSL/TLS 明文捕获过程中自动检测并移除敏感数据，防止私钥、证书、API 密钥等敏感信息泄漏到日志、存储或网络传输中。
 
 ## 设计原则
 
-1. **默认安全**：所有TLS捕获的数据默认经过密钥移除处理
+1. **默认安全**：所有 TLS 捕获的数据默认经过密钥移除处理
 2. **性能优先**：使用编译缓存的正则表达式和快速检测
-3. **全面覆盖**：检测8类敏感数据，27+种模式
-4. **透明集成**：无需修改eBPF hook，在用户态自动处理
+3. **全面覆盖**：检测 8 类敏感数据，27+ 种模式
+4. **透明集成**：无需修改 eBPF hook，在用户态自动处理
 
 ## 架构设计
 
@@ -27,30 +27,30 @@ flowchart LR
 
 ### 集成位置
 
-密钥移除在以下3个关键点自动执行：
+密钥移除在以下 3 个关键点自动执行：
 
 1. **URL sanitization** (`sanitizeTLSURL`)
-   - 在URL解析前移除嵌入的API密钥
-   - 处理query参数中的敏感数据
+   - 在 URL 解析前移除嵌入的 API 密钥
+   - 处理 query 参数中的敏感数据
 
 2. **Body sanitization** (`sanitizeTLSBody`)
-   - 在JSON/form解析前移除PEM密钥、证书
-   - 处理请求/响应body中的敏感内容
+   - 在 JSON/form 解析前移除 PEM 密钥、证书
+   - 处理请求/响应 body 中的敏感内容
 
 3. **Inline secrets** (`sanitizeTLSInlineSecrets`)
-   - 移除文本中的bearer token、JWT、AWS密钥
+   - 移除文本中的 bearer token、JWT、AWS 密钥
    - 处理字符串值中的敏感模式
 
 ## 支持的敏感数据类型
 
-### 1. PEM格式密钥和证书（最高优先级）
+### 1. PEM 格式密钥和证书（最高优先级）
 
 | 类型 | 模式 | 替换文本 |
 |------|------|---------|
-| RSA私钥 | `-----BEGIN RSA PRIVATE KEY-----...` | `[PRIVATE_KEY_REMOVED]` |
+| RSA 私钥 | `-----BEGIN RSA PRIVATE KEY-----...` | `[PRIVATE_KEY_REMOVED]` |
 | 通用私钥 | `-----BEGIN PRIVATE KEY-----...` | `[PRIVATE_KEY_REMOVED]` |
-| OpenSSH私钥 | `-----BEGIN OPENSSH PRIVATE KEY-----...` | `[SSH_PRIVATE_KEY_REMOVED]` |
-| X.509证书 | `-----BEGIN CERTIFICATE-----...` | `[CERTIFICATE_REMOVED]` |
+| OpenSSH 私钥 | `-----BEGIN OPENSSH PRIVATE KEY-----...` | `[SSH_PRIVATE_KEY_REMOVED]` |
+| X.509 证书 | `-----BEGIN CERTIFICATE-----...` | `[CERTIFICATE_REMOVED]` |
 | 公钥 | `-----BEGIN PUBLIC KEY-----...` | `[PUBLIC_KEY_REMOVED]` |
 
 **示例**：
@@ -68,14 +68,14 @@ MIIEpAIBAAKCAQEA1234567890...
 }
 ```
 
-### 2. SSH密钥
+### 2. SSH 密钥
 
 | 类型 | 模式 | 替换文本 |
 |------|------|---------|
-| SSH RSA公钥 | `ssh-rsa AAAAB3Nza...` | `[SSH_RSA_KEY_REMOVED]` |
+| SSH RSA 公钥 | `ssh-rsa AAAAB3Nza...` | `[SSH_RSA_KEY_REMOVED]` |
 | SSH ED25519 | `ssh-ed25519 AAAAC3...` | `[SSH_ED25519_KEY_REMOVED]` |
 
-### 3. AWS凭证
+### 3. AWS 凭证
 
 | 类型 | 模式 | 替换文本 |
 |------|------|---------|
@@ -94,7 +94,7 @@ MIIEpAIBAAKCAQEA1234567890...
 处理后：Authorization: Bearer [JWT_TOKEN_REMOVED]
 ```
 
-### 5. API密钥
+### 5. API 密钥
 
 | 类型 | 模式 | 替换文本 |
 |------|------|---------|
@@ -130,7 +130,7 @@ MIIEpAIBAAKCAQEA1234567890...
 
 ```go
 type KeyRemover struct {
-    patterns []SensitivePattern  // 27+个预编译正则表达式
+    patterns []SensitivePattern  // 27+ 个预编译正则表达式
     enabled  bool                // 全局开关
 }
 
@@ -154,7 +154,7 @@ var globalKeyRemover *tls.KeyRemover
 func RemoveSensitiveStringFromTLS(data string) string
 ```
 
-#### 3. TLS处理流程
+#### 3. TLS 处理流程
 
 **现有流程**：
 ```mermaid
@@ -191,11 +191,11 @@ flowchart LR
 
 ### 自动集成（默认启用）
 
-密钥移除**自动集成**到所有TLS捕获路径：
+密钥移除**自动集成**到所有 TLS 捕获路径：
 
-1. **eBPF uprobes捕获** → 自动处理
+1. **eBPF uprobes 捕获** → 自动处理
 2. **Codex /codex/capture入口** → 自动处理
-3. **手动注册的Go TLS** → 自动处理
+3. **手动注册的 Go TLS** → 自动处理
 
 无需任何配置，开箱即用。
 
@@ -241,19 +241,19 @@ go test -v
 ```
 
 **测试覆盖**：
-- ✅ 28个测试用例
-- ✅ 覆盖8类敏感数据
+- ✅ 28 个测试用例
+- ✅ 覆盖 8 类敏感数据
 - ✅ 包含边界情况和性能基准
 
 ### 集成测试
 
-1. **启动TLS捕获**：
+1. **启动 TLS 捕获**：
 ```bash
 # 确保 tlsCaptureEnabled=true
 make run-backend
 ```
 
-2. **发送包含密钥的HTTPS请求**：
+2. **发送包含密钥的 HTTPS 请求**：
 ```bash
 curl -H "Authorization: Bearer sk_test_1234567890" \
      -H "X-API-Key: AKIAIOSFODNN7EXAMPLE" \
@@ -299,27 +299,27 @@ curl -H "Authorization: Bearer sk_test_1234567890" \
 ### ⚠️ 重要提醒
 
 1. **不可逆**：密钥移除后无法恢复原始数据
-2. **默认启用**：所有TLS捕获自动处理，无法关闭（安全设计）
-3. **性能影响**：< 5%延迟增加（可接受）
-4. **覆盖范围**：仅处理TLS明文，不影响加密传输
+2. **默认启用**：所有 TLS 捕获自动处理，无法关闭（安全设计）
+3. **性能影响**：< 5% 延迟增加（可接受）
+4. **覆盖范围**：仅处理 TLS 明文，不影响加密传输
 
 ### 已知限制
 
-1. **编码变体**：Base64编码的密钥可能需要先解码
+1. **编码变体**：Base64 编码的密钥可能需要先解码
 2. **自定义格式**：非标准格式的密钥可能绕过检测
 3. **二进制数据**：当前仅处理文本数据
 4. **性能权衡**：复杂正则表达式会增加延迟
 
 ### 最佳实践
 
-1. **定期审查**：检查TLS捕获日志，确认无敏感泄漏
+1. **定期审查**：检查 TLS 捕获日志，确认无敏感泄漏
 2. **测试验证**：部署前在测试环境验证密钥移除效果
-3. **监控统计**：使用 `/tls-capture/recent` 查看redaction计数
-4. **安全审计**：定期审计TLS捕获的存储和传输路径
+3. **监控统计**：使用 `/tls-capture/recent` 查看 redaction 计数
+4. **安全审计**：定期审计 TLS 捕获的存储和传输路径
 
 ## 与数据脱敏机制的关系
 
-本SSL hook机制与整体脱敏机制的关系：
+本 SSL hook 机制与整体脱敏机制的关系：
 
 ```mermaid
 flowchart TD
@@ -331,15 +331,15 @@ flowchart TD
 ```
 
 **职责分工**：
-- **SSL Hook**：专门处理TLS明文中的密钥、证书等加密材料
+- **SSL Hook**：专门处理 TLS 明文中的密钥、证书等加密材料
 - **通用脱敏**：处理所有事件中的路径、命令、网络等敏感字段
 
 **协同工作**：
-1. SSL Hook 先移除PEM密钥、SSH密钥、JWT等
-2. 通用脱敏再处理header、URL参数、JSON字段
+1. SSL Hook 先移除 PEM 密钥、SSH 密钥、JWT 等
+2. 通用脱敏再处理 header、URL 参数、JSON 字段
 3. 两层防护，确保无遗漏
 
-## API参考
+## API 参考
 
 ### KeyRemover 类型
 
@@ -394,9 +394,9 @@ type DetectionResult struct {
 
 ## 故障排查
 
-### 问题1：密钥未被移除
+### 问题 1：密钥未被移除
 
-**症状**：日志中仍能看到完整的PEM密钥
+**症状**：日志中仍能看到完整的 PEM 密钥
 
 **排查**：
 1. 检查密钥格式是否标准
@@ -413,21 +413,21 @@ for _, r := range result {
 }
 ```
 
-### 问题2：性能下降
+### 问题 2：性能下降
 
-**症状**：TLS捕获变慢
+**症状**：TLS 捕获变慢
 
 **排查**：
 1. 检查数据大小（> 100KB 会较慢）
 2. 查看正则表达式复杂度
-3. 监控CPU使用率
+3. 监控 CPU 使用率
 
 **解决**：
 - 减少捕获数据大小
 - 使用快速检测避免全扫描
 - 考虑并行处理
 
-### 问题3：误报
+### 问题 3：误报
 
 **症状**：正常数据被标记为敏感
 
@@ -437,16 +437,16 @@ for _, r := range result {
 
 ### v1.0.0 (2026-06-08)
 - ✅ 初始版本
-- ✅ 支持8类敏感数据，27+种模式
-- ✅ 自动集成到TLS捕获流程
-- ✅ 28个单元测试，100%覆盖核心逻辑
-- ✅ 性能优化：< 5%延迟增加
+- ✅ 支持 8 类敏感数据，27+ 种模式
+- ✅ 自动集成到 TLS 捕获流程
+- ✅ 28 个单元测试，100% 覆盖核心逻辑
+- ✅ 性能优化：< 5% 延迟增加
 
 ## 相关文档
 
 - [数据脱敏机制](sanitization.md) - 通用脱敏架构
-- [TLS捕获说明](README.md#tls-明文捕获) - TLS捕获概述
-- [API参考](api.md) - 完整API文档
+- [TLS 捕获说明](README.md#tls-明文捕获) - TLS 捕获概述
+- [API 参考](api.md) - 完整 API 文档
 
 ---
 

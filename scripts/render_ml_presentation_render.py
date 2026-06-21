@@ -900,7 +900,7 @@ def slide_conclusion(best: dict[str, Any], stability: list[dict[str, Any]], repo
           </ol>
           <div class="mini-table">
             {table(["文件", "用途"], [
-                ["docs/ml-benchmark-presentation.html", "PPTX风格 HTML 演示"],
+                ["docs/ml-benchmark-presentation.html", "PPTX 风格 HTML 演示"],
                 ["docs/ml-benchmark-report.md", "文字版研究结论"],
                 ["reports/ml-sweep-*/", "原始图表与 CSV 数据"],
             ], "compact")}

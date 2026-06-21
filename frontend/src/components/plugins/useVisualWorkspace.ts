@@ -51,7 +51,7 @@ export function useVisualWorkspace() {
 
   // Manifest metadata
   const pluginId = ref("visual-plugin-custom-block");
-  const pluginName = ref("可视化流插件(custom-block)");
+  const pluginName = ref("可视化流插件 (custom-block)");
   const description = ref(
     "利用图形化流式积木拼装自动生成的内核级 eBPF 拦截器。",
   );
@@ -136,7 +136,7 @@ export function useVisualWorkspace() {
     const validTrigger = triggerOptions.some(
       (item) => item.value === snapshot.trigger,
     );
-    if (!validTrigger) throw new Error(`不支持的挂载点: ${snapshot.trigger}`);
+    if (!validTrigger) throw new Error(`不支持的挂载点：${snapshot.trigger}`);
     if (!snapshot.conditions || !Array.isArray(snapshot.conditions.children)) {
       throw new Error("conditions 必须是包含 children 的逻辑根节点");
     }
@@ -153,7 +153,7 @@ export function useVisualWorkspace() {
       "BLOCKLIST",
     ]);
     if (!visualMapModeSet.has(snapshot.mapMode)) {
-      throw new Error(`不支持的 Map 模式: ${String(snapshot.mapMode)}`);
+      throw new Error(`不支持的 Map 模式：${String(snapshot.mapMode)}`);
     }
     const visualMapKeySet = new Set<VisualMapKey>(["uid", "pid", "comm"]);
     if (!visualMapKeySet.has(snapshot.mapKey)) {

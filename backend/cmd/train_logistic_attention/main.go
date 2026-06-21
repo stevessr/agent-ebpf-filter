@@ -16,7 +16,8 @@ type datasetSplit struct {
 }
 
 func main() {
-	fmt.Println("=== Wine 数据集 Logistic+Attention 训练对比 ===\n")
+	fmt.Println("=== Wine 数据集 Logistic+Attention 训练对比 ===")
+	fmt.Println()
 
 	ds, err := app.LoadClassicDataset("wine")
 	if err != nil {
@@ -24,11 +25,11 @@ func main() {
 	}
 
 	fmt.Printf("数据集: %s\n", ds.Name)
-	fmt.Printf("样本数: %d, 特征数: %d\n", len(ds.Features), len(ds.Features[0]))
-	fmt.Printf("类别数: %d\n\n", classCount(ds.Labels))
+	fmt.Printf("样本数：%d, 特征数：%d\n", len(ds.Features), len(ds.Features[0]))
+	fmt.Printf("类别数：%d\n\n", classCount(ds.Labels))
 
 	split := makeSplit(ds.Features, ds.Labels, 0.8)
-	fmt.Printf("数据划分: %d 训练 / %d 验证\n\n", len(split.trainX), len(split.valX))
+	fmt.Printf("数据划分：%d 训练 / %d 验证\n\n", len(split.trainX), len(split.valX))
 
 	logistic := app.NewLogisticModel(0.02, "l2", 800)
 	logistic.NumClasses = classCount(ds.Labels)
@@ -43,10 +44,10 @@ func main() {
 
 	attnTrainAcc, attnValAcc := evaluateAttentionModel(attnModel, split)
 
-	fmt.Println("模型对比:")
-	fmt.Printf("  %-18s 训练准确率: %6.2f%%  验证准确率: %6.2f%%\n", "Logistic", baseTrainAcc*100, baseValAcc*100)
-	fmt.Printf("  %-18s 训练准确率: %6.2f%%  验证准确率: %6.2f%%\n", "Logistic+Attention", attnTrainAcc*100, attnValAcc*100)
-	fmt.Printf("  %-18s 验证集提升: %+.2f%%\n\n", "Attention Gain", (attnValAcc-baseValAcc)*100)
+	fmt.Println("模型对比：")
+	fmt.Printf("  %-18s 训练准确率：%6.2f%%  验证准确率：%6.2f%%\n", "Logistic", baseTrainAcc*100, baseValAcc*100)
+	fmt.Printf("  %-18s 训练准确率：%6.2f%%  验证准确率：%6.2f%%\n", "Logistic+Attention", attnTrainAcc*100, attnValAcc*100)
+	fmt.Printf("  %-18s 验证集提升：%+.2f%%\n\n", "Attention Gain", (attnValAcc-baseValAcc)*100)
 
 	best := "Logistic"
 	bestAcc := baseValAcc
@@ -55,9 +56,9 @@ func main() {
 		bestAcc = attnValAcc
 	}
 
-	fmt.Println("总结:")
+	fmt.Println("总结：")
 	fmt.Printf("  最优模型: %s\n", best)
-	fmt.Printf("  最佳验证准确率: %.2f%%\n", bestAcc*100)
+	fmt.Printf("  最佳验证准确率：%.2f%%\n", bestAcc*100)
 }
 
 func classCount(labels []string) int {

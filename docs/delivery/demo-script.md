@@ -464,14 +464,14 @@ RUNTIME_REPLAY_OUT=../reports/runtime-replay-manual/summary.json go test ./... -
 
 展示 `reports/runtime-replay-*/summary.json`，重点包括：
 
-- scenario coverage；
-- pass count；
-- false positives / false negatives；
-- p50 / p95 / p99 replay-event latency；
-- p50 / p95 / p99 wrapper-decision latency；
-- p50 / p95 / p99 first-alert / block latency；
-- memory allocation delta；
-- trace-correlation accuracy。
+- scenario coverage.
+- pass count.
+- false positives / false negatives.
+- p50 / p95 / p99 replay-event latency.
+- p50 / p95 / p99 wrapper-decision latency.
+- p50 / p95 / p99 first-alert / block latency.
+- memory allocation delta.
+- trace-correlation accuracy.
 
 ### 11.3 讲解要点
 

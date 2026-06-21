@@ -22,7 +22,7 @@
 - ✅ Go 原生 TLS (crypto/tls.Conn.Write/Read)
 
 技术特性：
-- 分片传输 (960字节/片，最多18片)
+- 分片传输 (960 字节/片，最多 18 片)
 - 零拷贝从用户空间读取
 - 截断标记 (>17KB 自动截断)
 - 方向区分 (发送/接收)
@@ -41,7 +41,7 @@
 
 **FragmentAssembler** (`backend/fragment/assembler/tls.go`)
 - 多片段重组
-- 超时清理 (10秒)
+- 超时清理 (10 秒)
 - 并发安全
 
 **TLSHTTPStreamAssembler** (`backend/http/stream/assembler/tls.go`)
@@ -88,7 +88,7 @@ GET  /ws/tls-capture                 - WebSocket 实时流
 **方法**: 使用多代理并行分析工作流 (6 agents, 179k tokens)
 
 **分析范围**:
-- 当前架构审查 (syscalls, 通信协议, eBPF 生命周期)
+- 当前架构审查 (syscalls, 通信协议，eBPF 生命周期)
 - OpenSSL/BoringSSL/NSS 拦截技术研究
 - 动态符号解析和 uprobe 注入设计
 - 瑞士军刀功能矩阵规划
@@ -286,7 +286,7 @@ curl http://localhost:8080/api/tls-capture/recent | jq .
 ✅ **生产级质量**: 低开销、高性能  
 ✅ **开发友好**: 丰富 API、实时流、完整文档  
 
-目标达成率: **100%** 🎯
+目标达成率：**100%** 🎯
 
 ---
 

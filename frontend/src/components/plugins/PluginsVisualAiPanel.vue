@@ -73,19 +73,19 @@ const generateFromPrompt = () => handleAiGenerate(localPrompt.value);
           <a-tag
             @click="applyExample('阻止 nc 进程运行，并且直接杀死进程')"
             class="example-tag"
-            >阻断并杀死nc</a-tag
+            >阻断并杀死 nc</a-tag
           >
           <a-tag
             @click="
               applyExample('当外连端口为 4444 时强杀进程，并限频计数最多 5 次')
             "
             class="example-tag"
-            >外连4444强杀限频5次</a-tag
+            >外连 4444 强杀限频 5 次</a-tag
           >
           <a-tag
             @click="applyExample('拦截对 shadow 文件的重命名操作并发出警告')"
             class="example-tag"
-            >勒索shadow重命名保护</a-tag
+            >勒索 shadow 重命名保护</a-tag
           >
         </div>
         <a-button

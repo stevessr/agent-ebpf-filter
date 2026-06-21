@@ -67,7 +67,7 @@
 | `logistic_none` | 无正则 | penalty='none' | `ablation` |
 | `logistic_l1` ⭐ | L1 稀疏 | L1, C=0.1 | `interpretable`, `sparse` |
 | `logistic_balanced` | 类别加权 | class_weight='balanced' | `balanced` |
-| `logistic_l1_balanced` | L1+平衡 | L1, balanced | `balanced`, `sparse` |
+| `logistic_l1_balanced` | L1+ 平衡 | L1, balanced | `balanced`, `sparse` |
 
 ### SVM 系列 (3 种)
 

@@ -18,7 +18,7 @@ def generate_accuracy_vs_speed():
     """生成准确率 vs 速度散点图"""
     fig, ax = plt.subplots(figsize=(10, 8))
 
-    # 模型数据: (速度分数, 准确率分数, 名称, 颜色)
+    # 模型数据：(速度分数，准确率分数，名称，颜色)
     models = [
         (9, 2, 'Logistic\nRegression', '#f39c12'),
         (8, 3, 'SVM', '#2ecc71'),
@@ -54,7 +54,7 @@ def generate_accuracy_vs_speed():
 
     plt.tight_layout()
     plt.savefig('ml-accuracy-vs-speed.svg', dpi=150, bbox_inches='tight')
-    print("✓ 生成: ml-accuracy-vs-speed.svg")
+    print("✓ 生成：ml-accuracy-vs-speed.svg")
 
 
 def generate_latency_bars():
@@ -83,7 +83,7 @@ def generate_latency_bars():
 
     plt.tight_layout()
     plt.savefig('ml-latency-comparison.svg', dpi=150, bbox_inches='tight')
-    print("✓ 生成: ml-latency-comparison.svg")
+    print("✓ 生成：ml-latency-comparison.svg")
 
 
 def generate_memory_bars():
@@ -112,7 +112,7 @@ def generate_memory_bars():
 
     plt.tight_layout()
     plt.savefig('ml-memory-comparison.svg', dpi=150, bbox_inches='tight')
-    print("✓ 生成: ml-memory-comparison.svg")
+    print("✓ 生成：ml-memory-comparison.svg")
 
 
 def generate_model_comparison_radar():
@@ -162,7 +162,7 @@ def generate_model_comparison_radar():
 
     plt.tight_layout()
     plt.savefig('ml-radar-comparison.svg', dpi=150, bbox_inches='tight')
-    print("✓ 生成: ml-radar-comparison.svg")
+    print("✓ 生成：ml-radar-comparison.svg")
 
 
 def generate_performance_heatmap():
@@ -172,7 +172,7 @@ def generate_performance_heatmap():
     models = ['Logistic\nRegression', 'SVM', 'Neural\nNetwork', 'Random\nForest']
     metrics = ['推理延迟', '内存占用', '准确率', '可解释性', '训练速度']
 
-    # 数据矩阵 (5=最好, 1=最差)
+    # 数据矩阵 (5=最好，1=最差)
     data = np.array([
         [5, 5, 2, 4, 4],  # Logistic
         [4, 5, 3, 3, 3],  # SVM
@@ -205,7 +205,7 @@ def generate_performance_heatmap():
 
     plt.tight_layout()
     plt.savefig('ml-performance-heatmap.svg', dpi=150, bbox_inches='tight')
-    print("✓ 生成: ml-performance-heatmap.svg")
+    print("✓ 生成：ml-performance-heatmap.svg")
 
 
 def generate_model_family_tree():
@@ -221,7 +221,7 @@ def generate_model_family_tree():
     root_box = FancyBboxPatch((35, 85), 30, 8, boxstyle="round,pad=0.5",
                               edgecolor='#34495e', facecolor='#ecf0f1', linewidth=2)
     ax.add_patch(root_box)
-    ax.text(50, 89, 'ML 模型 (51种)', ha='center', va='center', fontsize=14, weight='bold')
+    ax.text(50, 89, 'ML 模型 (51 种)', ha='center', va='center', fontsize=14, weight='bold')
 
     # 第一层：内核态 vs 用户态
     kernel_box = FancyBboxPatch((5, 70), 20, 6, boxstyle="round,pad=0.3",
@@ -274,7 +274,7 @@ def generate_model_family_tree():
 
     plt.tight_layout()
     plt.savefig('ml-family-tree.svg', dpi=150, bbox_inches='tight')
-    print("✓ 生成: ml-family-tree.svg")
+    print("✓ 生成：ml-family-tree.svg")
 
 
 if __name__ == '__main__':
@@ -288,7 +288,7 @@ if __name__ == '__main__':
     generate_model_family_tree()
 
     print("\n✅ 所有图表生成完成！")
-    print("\n生成的 SVG 文件:")
+    print("\n生成的 SVG 文件：")
     print("  - ml-accuracy-vs-speed.svg       (准确率 vs 速度)")
     print("  - ml-latency-comparison.svg      (推理延迟对比)")
     print("  - ml-memory-comparison.svg       (内存占用对比)")

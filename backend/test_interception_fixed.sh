@@ -15,7 +15,7 @@ fi
 # 检查程序是否加载
 if [ ! -e "/sys/fs/bpf/ml_model" ]; then
     echo "❌ eBPF 程序未加载"
-    echo "   请先运行: sudo ./test_kernel_load.sh"
+    echo "   请先运行：sudo ./test_kernel_load.sh"
     exit 1
 fi
 
@@ -50,7 +50,7 @@ echo ""
 
 # 获取程序信息
 PROG_ID=$(bpftool prog show pinned /sys/fs/bpf/ml_model | head -1 | cut -d: -f1)
-echo "  程序ID: $PROG_ID"
+echo "  程序 ID: $PROG_ID"
 echo "  ✅ 准备就绪"
 echo ""
 
@@ -64,7 +64,7 @@ if [ ! -p "/sys/kernel/debug/tracing/trace_pipe" ]; then
 fi
 
 LOG_FILE="/tmp/ebpf_test_$(date +%s).log"
-echo "  日志将保存到: $LOG_FILE"
+echo "  日志将保存到：$LOG_FILE"
 
 # 清空现有 trace（如果可写）
 if [ -w "/sys/kernel/debug/tracing/trace" ]; then
@@ -74,8 +74,8 @@ else
     echo "  ⚠️  无法清空 trace 缓冲区（可能不影响测试）"
 fi
 
-# 启动监控（后台，5秒）
-echo "  启动监控（5秒）..."
+# 启动监控（后台，5 秒）
+echo "  启动监控（5 秒）..."
 timeout 5 cat /sys/kernel/debug/tracing/trace_pipe > "$LOG_FILE" 2>&1 &
 MONITOR_PID=$!
 
@@ -138,7 +138,7 @@ if [ -s "$LOG_FILE" ]; then
     echo ""
 
     if [ "$LINE_COUNT" -gt 0 ]; then
-        echo "  日志内容 (前20行):"
+        echo "  日志内容 (前 20 行):"
         echo "  ────────────────────────────────────"
         head -20 "$LOG_FILE" | sed 's/^/  /'
         echo "  ────────────────────────────────────"
@@ -146,19 +146,19 @@ if [ -s "$LOG_FILE" ]; then
 
         # 检查 ML 相关输出
         if grep -q "ML Model" "$LOG_FILE" 2>/dev/null; then
-            echo "  🎯 ML 模型输出:"
+            echo "  🎯 ML 模型输出："
             grep "ML Model" "$LOG_FILE" | sed 's/^/    /'
         fi
 
         if grep -q "BLOCK" "$LOG_FILE" 2>/dev/null; then
-            echo "  ⚠️  BLOCK 动作:"
+            echo "  ⚠️  BLOCK 动作："
             grep "BLOCK" "$LOG_FILE" | sed 's/^/    /'
         fi
     fi
 else
     echo "  ⚠️  未捕获到日志输出"
     echo ""
-    echo "  这是正常的，因为:"
+    echo "  这是正常的，因为："
     echo "    1. kprobe 程序需要通过特定方式附加"
     echo "    2. 我们的程序可能没有使用 bpf_printk"
     echo "    3. 或者没有被正确触发"
@@ -178,7 +178,7 @@ echo ""
 # 尝试查看程序的运行次数
 if echo "$PROG_INFO" | grep -q "run_cnt"; then
     RUN_CNT=$(echo "$PROG_INFO" | grep -o "run_cnt [0-9]*" | awk '{print $2}')
-    echo "  🎯 程序运行次数: $RUN_CNT"
+    echo "  🎯 程序运行次数：$RUN_CNT"
 
     if [ "$RUN_CNT" -gt 0 ]; then
         echo "  ✅ 程序已被触发执行！"
@@ -194,7 +194,7 @@ echo ""
 echo "📋 Step 6: 替代观察方法"
 echo ""
 
-echo "  由于 kprobe 程序的特殊性，我们可以尝试:"
+echo "  由于 kprobe 程序的特殊性，我们可以尝试："
 echo ""
 echo "  方法 A: 使用 bpftrace 直接观察"
 echo "    bpftrace -e 'kprobe:sys_execve { @[comm] = count(); }'"
@@ -216,10 +216,10 @@ echo ""
 # Step 7: 总结
 echo "📋 Step 7: 测试总结"
 echo ""
-echo "  程序状态: ✅ 已加载"
-echo "  程序类型: kprobe"
-echo "  日志文件: $LOG_FILE"
-echo "  测试事件: 5+ 次系统调用"
+echo "  程序状态：✅ 已加载"
+echo "  程序类型：kprobe"
+echo "  日志文件：$LOG_FILE"
+echo "  测试事件：5+ 次系统调用"
 echo ""
 
 if [ -s "$LOG_FILE" ] && [ "$(wc -l < "$LOG_FILE")" -gt 0 ]; then
@@ -227,7 +227,7 @@ if [ -s "$LOG_FILE" ] && [ "$(wc -l < "$LOG_FILE")" -gt 0 ]; then
     echo "  🎉 eBPF 程序正在运行并输出日志"
 else
     echo "  ℹ️  未捕获到日志输出，但这不意味着失败"
-    echo "  程序已加载到内核，可能:"
+    echo "  程序已加载到内核，可能："
     echo "    - 没有使用 bpf_trace_printk 输出"
     echo "    - 需要特殊方式附加到 kprobe"
     echo "    - 正在静默运行（这是正常的）"
@@ -235,8 +235,8 @@ fi
 echo ""
 
 echo "📚 进一步测试："
-echo "  1. 查看详细日志: cat $LOG_FILE"
-echo "  2. 实时监控: sudo cat /sys/kernel/debug/tracing/trace_pipe"
+echo "  1. 查看详细日志：cat $LOG_FILE"
+echo "  2. 实时监控：sudo cat /sys/kernel/debug/tracing/trace_pipe"
 echo "  3. 使用 bpftrace: sudo bpftrace -e 'kprobe:sys_execve { printf(\"Hit\\n\"); }'"
 echo "  4. 查看 dmesg: sudo dmesg | tail -20"
 echo ""

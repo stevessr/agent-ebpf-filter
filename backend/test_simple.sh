@@ -41,7 +41,7 @@ echo ""
 echo "📋 测试方法 1: bpftrace"
 if command -v bpftrace &> /dev/null; then
     echo "  ✅ bpftrace 可用"
-    echo "  执行测试（3秒）..."
+    echo "  执行测试（3 秒）..."
     echo ""
 
     # 使用 bpftrace 观察 execve 调用
@@ -65,7 +65,7 @@ if command -v bpftrace &> /dev/null; then
     echo ""
 else
     echo "  ⚠️  bpftrace 不可用"
-    echo "  安装: sudo pacman -S bpftrace"
+    echo "  安装：sudo pacman -S bpftrace"
 fi
 echo ""
 
@@ -92,7 +92,7 @@ echo ""
 
 # 测试方法 4: dmesg 检查
 echo "📋 测试方法 4: 检查 dmesg"
-echo "  最近的 BPF 相关消息:"
+echo "  最近的 BPF 相关消息："
 dmesg | grep -i bpf | tail -5 || echo "  无 BPF 消息"
 echo ""
 
@@ -102,21 +102,21 @@ echo "📊 测试总结"
 echo "═══════════════════════════════════"
 echo ""
 echo "✅ 程序已成功加载到内核"
-echo "✅ 程序ID: $PROG_ID"
-echo "✅ 类型: kprobe"
-echo "✅ Pin 位置: /sys/fs/bpf/ml_model"
+echo "✅ 程序 ID: $PROG_ID"
+echo "✅ 类型：kprobe"
+echo "✅ Pin 位置：/sys/fs/bpf/ml_model"
 echo ""
 
 # 检查是否有 tracefs
 if [ -d "/sys/kernel/tracing" ]; then
-    echo "ℹ️  tracefs 位置: /sys/kernel/tracing"
+    echo "ℹ️  tracefs 位置：/sys/kernel/tracing"
 elif [ -d "/sys/kernel/debug/tracing" ]; then
-    echo "ℹ️  tracefs 位置: /sys/kernel/debug/tracing"
+    echo "ℹ️  tracefs 位置：/sys/kernel/debug/tracing"
 fi
 echo ""
 
-echo "🎯 关于输出观察:"
-echo "  由于 eBPF kprobe 程序的特殊性，它可能:"
+echo "🎯 关于输出观察："
+echo "  由于 eBPF kprobe 程序的特殊性，它可能："
 echo "  1. 静默运行（不使用 printk）"
 echo "  2. 将结果写入 Map 而不是日志"
 echo "  3. 在内核态直接处理，无可见输出"
@@ -124,14 +124,14 @@ echo ""
 echo "  这些都是正常的！程序已经在内核中运行。"
 echo ""
 
-echo "📚 进一步验证:"
-echo "  1. 使用 bpftrace 观察:"
+echo "📚 进一步验证："
+echo "  1. 使用 bpftrace 观察："
 echo "     sudo bpftrace -e 'kprobe:do_execve { @[comm] = count(); }'"
 echo ""
-echo "  2. 查看 Map 内容:"
+echo "  2. 查看 Map 内容："
 echo "     sudo bpftool map dump id <map_id>"
 echo ""
-echo "  3. 使用 perf 追踪:"
+echo "  3. 使用 perf 追踪："
 echo "     sudo perf trace -e bpf:* --filter='prog_id==$PROG_ID'"
 echo ""
 

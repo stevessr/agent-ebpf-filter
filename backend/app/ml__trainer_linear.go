@@ -47,7 +47,7 @@ func (t *ModelTrainer) trainSVM(store *TrainingDataStore, cfg MLConfig) (Model, 
 		classWeights = computeClassWeights(labels, m.Classes)
 	}
 	trainSGD(m.Weights, m.Classes, labeled, lr, maxIter, m.C, "hinge", classWeights, t)
-	t.logf("SVM 训练完成: lr=%.4f, iter=%d", lr, maxIter)
+	t.logf("SVM 训练完成：lr=%.4f, iter=%d", lr, maxIter)
 
 	samples := toTrainSamples(labeled)
 	acc := evalLinearModel(m.Weights, m.Classes, samples)
@@ -81,7 +81,7 @@ func (t *ModelTrainer) trainRidge(store *TrainingDataStore, cfg MLConfig) (Model
 	m.Weights = make([][FeatureDim + 1]float64, m.Classes)
 	ridgeFit(m.Weights, m.Classes, labeled, alpha)
 
-	t.logf("Ridge 训练完成: alpha=%.4f", alpha)
+	t.logf("Ridge 训练完成：alpha=%.4f", alpha)
 	samples := toTrainSamples(labeled)
 	acc := evalLinearModel(m.Weights, m.Classes, samples)
 	t.finishMetrics(acc, acc, acc, len(labeled), len(samples), 0)
@@ -128,7 +128,7 @@ func (t *ModelTrainer) trainPerceptron(store *TrainingDataStore, cfg MLConfig) (
 		classWeights = computeClassWeights(labels, m.Classes)
 	}
 	trainSGD(m.Weights, m.Classes, labeled, lr, maxIter, 0, "perceptron", classWeights, t)
-	t.logf("Perceptron 训练完成: lr=%.4f, iter=%d", lr, maxIter)
+	t.logf("Perceptron 训练完成：lr=%.4f, iter=%d", lr, maxIter)
 
 	samples := toTrainSamples(labeled)
 	acc := evalLinearModel(m.Weights, m.Classes, samples)
@@ -176,7 +176,7 @@ func (t *ModelTrainer) trainPA(store *TrainingDataStore, cfg MLConfig) (Model, T
 		classWeights = computeClassWeights(labels, m.Classes)
 	}
 	trainSGD(m.Weights, m.Classes, labeled, 1.0, maxIter, C, "pa", classWeights, t)
-	t.logf("Passive-Aggressive 训练完成: C=%.2f, iter=%d", C, maxIter)
+	t.logf("Passive-Aggressive 训练完成：C=%.2f, iter=%d", C, maxIter)
 
 	samples := toTrainSamples(labeled)
 	acc := evalLinearModel(m.Weights, m.Classes, samples)

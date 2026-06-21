@@ -34,7 +34,7 @@ log_error() {
 check_backend() {
     log_info "检查后端状态..."
     if ! curl -s -f "${BACKEND_URL}/health" > /dev/null 2>&1; then
-        log_error "后端未运行，请先启动: cd backend && ./agent-ebpf-filter"
+        log_error "后端未运行，请先启动：cd backend && ./agent-ebpf-filter"
         exit 1
     fi
     log_success "后端运行正常"
@@ -73,7 +73,7 @@ list_libraries() {
 # 执行测试 HTTPS 请求
 test_https_request() {
     local url=$1
-    log_info "执行测试请求: ${url}"
+    log_info "执行测试请求：${url}"
     curl -s -o /dev/null "${url}"
     sleep 1  # 等待事件被捕获
     log_success "请求完成"
@@ -342,9 +342,9 @@ main() {
             monitor) monitor_mode ;;
             full) demo_basic_https; demo_process_filter; demo_full_plaintext ;;
             *)
-                echo "用法: $0 [command]"
+                echo "用法：$0 [command]"
                 echo ""
-                echo "命令:"
+                echo "命令："
                 echo "  status       - 检查 TLS 捕获状态"
                 echo "  start        - 启动 TLS 捕获"
                 echo "  libraries    - 列出已附加的库"

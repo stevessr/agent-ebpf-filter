@@ -185,14 +185,14 @@ graph LR
 
 危险能力默认关闭：
 
-- shell sessions；
+- shell sessions.
 - `/system/run`；
-- hook management；
-- policy management；
-- TLS capture；
-- OTLP export；
-- domain forward；
-- kernel risk feedback。
+- hook management.
+- policy management.
+- TLS capture.
+- OTLP export.
+- domain forward.
+- kernel risk feedback.
 
 ## 内核控制层
 

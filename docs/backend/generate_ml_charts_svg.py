@@ -37,33 +37,33 @@ def generate_accuracy_vs_speed_svg():
   <text x="120" y="520" class="label" style="fill: #999;">(慢)</text>
   <text x="680" y="520" class="label" style="fill: #999;">(快)</text>
 
-  <!-- Logistic Regression: 速度9, 准确率2 -->
+  <!-- Logistic Regression: 速度 9, 准确率 2 -->
   <circle cx="640" cy="420" r="40" fill="#f39c12" opacity="0.8" stroke="white" stroke-width="3"/>
   <text x="640" y="420" class="model-text" dy="0.3em">Logistic</text>
   <text x="640" y="435" class="model-text" dy="0.3em">Regression</text>
 
-  <!-- SVM: 速度8, 准确率3 -->
+  <!-- SVM: 速度 8, 准确率 3 -->
   <circle cx="580" cy="340" r="40" fill="#2ecc71" opacity="0.8" stroke="white" stroke-width="3"/>
   <text x="580" y="345" class="model-text" dy="0.3em">SVM</text>
 
-  <!-- Random Forest: 速度5, 准确率5 -->
+  <!-- Random Forest: 速度 5, 准确率 5 -->
   <circle cx="400" cy="180" r="40" fill="#3498db" opacity="0.8" stroke="white" stroke-width="3"/>
   <text x="400" y="175" class="model-text" dy="0.3em">Random</text>
   <text x="400" y="190" class="model-text" dy="0.3em">Forest</text>
 
-  <!-- Neural Network: 速度4, 准确率5 -->
+  <!-- Neural Network: 速度 4, 准确率 5 -->
   <circle cx="340" cy="180" r="40" fill="#e74c3c" opacity="0.8" stroke="white" stroke-width="3"/>
   <text x="340" y="175" class="model-text" dy="0.3em">Neural</text>
   <text x="340" y="190" class="model-text" dy="0.3em">Network</text>
 
-  <!-- Ensemble: 速度3, 准确率4.5 -->
+  <!-- Ensemble: 速度 3, 准确率 4.5 -->
   <circle cx="280" cy="196" r="40" fill="#9b59b6" opacity="0.8" stroke="white" stroke-width="3"/>
   <text x="280" y="201" class="model-text" dy="0.3em">Ensemble</text>
 </svg>'''
 
     with open('ml-accuracy-vs-speed.svg', 'w', encoding='utf-8') as f:
         f.write(svg)
-    print("✓ 生成: ml-accuracy-vs-speed.svg")
+    print("✓ 生成：ml-accuracy-vs-speed.svg")
 
 
 def generate_latency_bars_svg():
@@ -116,7 +116,7 @@ def generate_latency_bars_svg():
 
     with open('ml-latency-comparison.svg', 'w', encoding='utf-8') as f:
         f.write(svg)
-    print("✓ 生成: ml-latency-comparison.svg")
+    print("✓ 生成：ml-latency-comparison.svg")
 
 
 def generate_memory_bars_svg():
@@ -169,7 +169,7 @@ def generate_memory_bars_svg():
 
     with open('ml-memory-comparison.svg', 'w', encoding='utf-8') as f:
         f.write(svg)
-    print("✓ 生成: ml-memory-comparison.svg")
+    print("✓ 生成：ml-memory-comparison.svg")
 
 
 def generate_performance_summary_svg():
@@ -239,7 +239,7 @@ def generate_performance_summary_svg():
 
   <!-- 图例 -->
   <text x="100" y="520" class="label" style="font-weight:bold;">图例：</text>
-  <text x="100" y="545" class="metric">★ = 准确率评级 (5星最高)</text>
+  <text x="100" y="545" class="metric">★ = 准确率评级 (5 星最高)</text>
   <circle cx="350" cy="535" r="8" fill="#2ecc71" opacity="0.8"/>
   <text x="365" y="540" class="metric">= 速度优势</text>
   <circle cx="550" cy="535" r="8" fill="#e74c3c" opacity="0.8"/>
@@ -248,7 +248,7 @@ def generate_performance_summary_svg():
 
     with open('ml-performance-summary.svg', 'w', encoding='utf-8') as f:
         f.write(svg)
-    print("✓ 生成: ml-performance-summary.svg")
+    print("✓ 生成：ml-performance-summary.svg")
 
 
 if __name__ == '__main__':
@@ -260,7 +260,7 @@ if __name__ == '__main__':
     generate_performance_summary_svg()
 
     print("\n✅ 所有图表生成完成！")
-    print("\n生成的 SVG 文件:")
+    print("\n生成的 SVG 文件：")
     print("  - ml-accuracy-vs-speed.svg       (准确率 vs 速度散点图)")
     print("  - ml-latency-comparison.svg      (推理延迟条形图)")
     print("  - ml-memory-comparison.svg       (内存占用条形图)")

@@ -16,7 +16,7 @@
 
 ## 2. 支持的注意力类型
 
-### 2.1 Additive Attention（Bahdanau Attention）
+### 2.1 Additive Attention (Bahdanau Attention)
 
 文件：`/home/steve/文档/vibe coding/agent-ebpf-filiter/backend/app/ml__attention_additive attention (bahdanau).go`
 

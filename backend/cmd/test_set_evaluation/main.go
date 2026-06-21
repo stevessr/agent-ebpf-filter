@@ -11,13 +11,16 @@ import (
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	fmt.Println("=== 最佳参数下的测试集准确度对比 ===\n")
+	fmt.Println("=== 最佳参数下的测试集准确度对比 ===")
+	fmt.Println()
 	fmt.Println("测试集配置：从完整数据集中保留 20% 作为测试集")
-	fmt.Println("评估指标：测试准确率、精确率、召回率、F1-Score\n")
+	fmt.Println("评估指标：测试准确率、精确率、召回率、F1-Score")
+	fmt.Println()
 
 	// Iris 数据集 (150 样本 -> 30 样本测试集)
 	fmt.Println("【数据集 1】Iris (150 样本，4 特征，3 类别)")
-	fmt.Println("训练集：120 | 测试集：30\n")
+	fmt.Println("训练集：120 | 测试集：30")
+	fmt.Println()
 
 	results1 := []ModelResult{
 		{"RandomForest (trees=15, depth=10)", 100.0, 100.0, 100.0, 100.0},
@@ -34,7 +37,8 @@ func main() {
 
 	// Wine 数据集 (178 样本 -> 36 样本测试集)
 	fmt.Println("\n【数据集 2】Wine (178 样本，13 特征，3 类别)")
-	fmt.Println("训练集：142 | 测试集：36\n")
+	fmt.Println("训练集：142 | 测试集：36")
+	fmt.Println()
 
 	results2 := []ModelResult{
 		{"RandomForest (trees=31, depth=8)", 100.0, 100.0, 100.0, 100.0},
@@ -51,7 +55,8 @@ func main() {
 
 	// Breast Cancer 数据集 (569 样本 -> 114 样本测试集)
 	fmt.Println("\n【数据集 3】Breast Cancer (569 样本，30 特征，2 类别)")
-	fmt.Println("训练集：455 | 测试集：114\n")
+	fmt.Println("训练集：455 | 测试集：114")
+	fmt.Println()
 
 	results3 := []ModelResult{
 		{"RandomForest (trees=31, depth=10)", 98.2, 98.5, 98.0, 98.2},
@@ -67,7 +72,8 @@ func main() {
 	printResults(results3)
 
 	// 总体排名
-	fmt.Println("\n=== 跨数据集综合排名（按平均测试准确率）===\n")
+	fmt.Println("\n=== 跨数据集综合排名（按平均测试准确率）===")
+	fmt.Println()
 
 	overallRanking := []OverallResult{
 		{"RandomForest + Attention", 99.77, "所有数据集表现优异"},
@@ -85,7 +91,8 @@ func main() {
 	}
 
 	// 注意力机制效果统计
-	fmt.Println("\n=== 注意力机制提升统计 ===\n")
+	fmt.Println("\n=== 注意力机制提升统计 ===")
+	fmt.Println()
 
 	improvements := []Improvement{
 		{"Iris - RandomForest", 100.0, 100.0, 0.0, "已达最优"},

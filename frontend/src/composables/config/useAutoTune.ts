@@ -215,8 +215,8 @@ export function useAutoTune(deps: AutoTuneDeps) {
     if (mt === "naive_bayes" || mt === "ridge") {
       return [
         { value: "alpha", label: "平滑/正则化 (alpha)" },
-        { value: "numTrees", label: "变体参数1" },
-        { value: "maxDepth", label: "变体参数2" },
+        { value: "numTrees", label: "变体参数 1" },
+        { value: "maxDepth", label: "变体参数 2" },
       ];
     }
     if (mt === "adaboost") {
@@ -395,9 +395,9 @@ export function useAutoTune(deps: AutoTuneDeps) {
               <div>${yLabel}: <b>${cell.yValue}</b></div>
               <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee; font-size: 11px; color: #888;">
                 ${autoTuneMetricLabel(autoTuneMetric.value)}: <b style="color: #333;">${autoTuneMetricFormat(autoTuneScore(cell))}</b><br/>
-                验证集准确率: <b style="color: #333;">${(cell.validationAccuracy * 100).toFixed(1)}%</b><br/>
-                训练耗时: <b style="color: #333;">${cell.trainDuration.toFixed(2)}s</b><br/>
-                回测耗时: <b style="color: #333;">${cell.evalDuration.toFixed(2)}s</b>
+                验证集准确率：<b style="color: #333;">${(cell.validationAccuracy * 100).toFixed(1)}%</b><br/>
+                训练耗时：<b style="color: #333;">${cell.trainDuration.toFixed(2)}s</b><br/>
+                回测耗时：<b style="color: #333;">${cell.evalDuration.toFixed(2)}s</b>
               </div>
             </div>
           `;

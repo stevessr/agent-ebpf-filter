@@ -200,7 +200,7 @@ const handleCompileAndRegister = async () => {
       compileLogLocal.value += "\n\n[ERROR] Clang 编译失败，请查看输出。";
     }
   } catch (err: any) {
-    compileLogLocal.value += `\n[ERROR] 错误: ${err?.message || err}`;
+    compileLogLocal.value += `\n[ERROR] 错误：${err?.message || err}`;
   } finally {
     compiling.value = false;
   }

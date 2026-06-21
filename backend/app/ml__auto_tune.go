@@ -123,7 +123,7 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 	for yi, yValue := range yValues {
 		for xi, xValue := range xValues {
 			if globalTrainer.IsCancelled() {
-				globalTrainer.logf("自动调参已中止: %d/%d 格完成", done, totalCombos)
+				globalTrainer.logf("自动调参已中止：%d/%d 格完成", done, totalCombos)
 				return nil, errors.New("cancelled")
 			}
 			numTrees, maxDepth, minLeaf := baseNumTrees, baseMaxDepth, baseMinSamplesLeaf

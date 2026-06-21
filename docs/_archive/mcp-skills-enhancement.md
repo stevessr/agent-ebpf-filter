@@ -125,7 +125,7 @@ const events = mcp.call('query_events', {
 // 3. 分析文件访问模式
 events.forEach(e => {
   if (e.event.path.includes('.ssh')) {
-    console.warn('敏感文件访问:', e)
+    console.warn('敏感文件访问：', e)
   }
 })
 ```

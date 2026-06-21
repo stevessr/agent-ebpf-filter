@@ -25,7 +25,7 @@ def generate_bpftrace_script(binary_path):
 /*
  * Codex SSL Tracer
  * 跟踪 Codex 进程的 SSL_write/SSL_read 调用
- * 用法: sudo bpftrace codex_ssl_trace.bt
+ * 用法：sudo bpftrace codex_ssl_trace.bt
  */
 
 BEGIN {{

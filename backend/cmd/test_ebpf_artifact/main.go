@@ -7,7 +7,8 @@ import (
 )
 
 func main() {
-	fmt.Println("=== eBPF ML 模型编译产物测试 ===\n")
+	fmt.Println("=== eBPF ML 模型编译产物测试 ===")
+	fmt.Println()
 
 	// 测试 1: 文件存在性检查
 	fmt.Println("📋 Test 1: 文件存在性检查")
@@ -57,18 +58,18 @@ func main() {
 	if err != nil {
 		fmt.Println("  ⚠️  llvm-objdump 不可用，跳过结构分析")
 	} else {
-		fmt.Println("  ✅ 字节码结构:")
+		fmt.Println("  ✅ 字节码结构：")
 		if contains(string(output), ".text") {
-			fmt.Println("    - .text 段: ✅ (代码段)")
+			fmt.Println("    - .text 段：✅ (代码段)")
 		}
 		if contains(string(output), ".rodata") {
-			fmt.Println("    - .rodata 段: ✅ (只读数据)")
+			fmt.Println("    - .rodata 段：✅ (只读数据)")
 		}
 		if contains(string(output), ".maps") {
-			fmt.Println("    - .maps 段: ✅ (BPF Map)")
+			fmt.Println("    - .maps 段：✅ (BPF Map)")
 		}
 		if contains(string(output), "kprobe") {
-			fmt.Println("    - kprobe 段: ✅ (内核探针)")
+			fmt.Println("    - kprobe 段：✅ (内核探针)")
 		}
 	}
 	fmt.Println()
@@ -80,8 +81,8 @@ func main() {
 	sizeMB := sizeKB / 1024.0
 	percent := sizeMB * 100.0
 
-	fmt.Printf("  字节码大小: %.1f KB (%.3f MB)\n", sizeKB, sizeMB)
-	fmt.Printf("  1MB 限制使用: %.1f%%\n", percent)
+	fmt.Printf("  字节码大小：%.1f KB (%.3f MB)\n", sizeKB, sizeMB)
+	fmt.Printf("  1MB 限制使用：%.1f%%\n", percent)
 
 	if sizeKB < 1024 {
 		fmt.Printf("  ✅ 符合 1MB 限制 (剩余 %.1f KB)\n", 1024-sizeKB)
@@ -99,15 +100,15 @@ func main() {
 	} else {
 		symbolCount := 0
 		if contains(string(output), "ml_predict_syscall") {
-			fmt.Println("  ✅ 入口函数: ml_predict_syscall")
+			fmt.Println("  ✅ 入口函数：ml_predict_syscall")
 			symbolCount++
 		}
 		if contains(string(output), "predict_random_forest") {
-			fmt.Println("  ✅ 预测函数: predict_random_forest")
+			fmt.Println("  ✅ 预测函数：predict_random_forest")
 			symbolCount++
 		}
 		if contains(string(output), "evaluate_tree") {
-			fmt.Println("  ✅ 树评估函数: evaluate_tree")
+			fmt.Println("  ✅ 树评估函数：evaluate_tree")
 			symbolCount++
 		}
 		if contains(string(output), "feature_map") {
@@ -120,21 +121,21 @@ func main() {
 
 	// 测试 6: 内存估算
 	fmt.Println("📋 Test 6: 内存占用估算")
-	fmt.Println("  模型配置:")
-	fmt.Println("    - 树数量: 15")
-	fmt.Println("    - 树深度: 6")
-	fmt.Println("    - 节点数: 945")
-	fmt.Println("  内存估算:")
-	fmt.Println("    - 树节点: 945 × 28 = 26.5 KB")
+	fmt.Println("  模型配置：")
+	fmt.Println("    - 树数量：15")
+	fmt.Println("    - 树深度：6")
+	fmt.Println("    - 节点数：945")
+	fmt.Println("  内存估算：")
+	fmt.Println("    - 树节点：945 × 28 = 26.5 KB")
 	fmt.Println("    - 特征 Map: 128 × 8 = 1 KB (per-CPU)")
-	fmt.Println("    - 代码段: ~20 KB")
-	fmt.Println("    - 总计: ~48 KB")
+	fmt.Println("    - 代码段：~20 KB")
+	fmt.Println("    - 总计：~48 KB")
 	fmt.Println("  ✅ 运行时内存 <1 MB")
 	fmt.Println()
 
 	// 测试 7: 加载模拟 (干运行)
 	fmt.Println("📋 Test 7: 加载命令验证 (干运行)")
-	fmt.Println("  加载命令预览:")
+	fmt.Println("  加载命令预览：")
 	fmt.Println("    sudo bpftool prog load ml_model_ebpf.o /sys/fs/bpf/ml_model")
 	fmt.Println("  ✅ 命令格式正确")
 	fmt.Println()
@@ -149,11 +150,11 @@ func main() {
 	fmt.Println()
 	fmt.Println("🎉 编译产物测试通过！")
 	fmt.Println()
-	fmt.Println("📋 下一步操作:")
-	fmt.Println("  1. 在测试环境加载: sudo bpftool prog load ml_model_ebpf.o /sys/fs/bpf/ml_model")
-	fmt.Println("  2. 验证加载: sudo bpftool prog show")
+	fmt.Println("📋 下一步操作：")
+	fmt.Println("  1. 在测试环境加载：sudo bpftool prog load ml_model_ebpf.o /sys/fs/bpf/ml_model")
+	fmt.Println("  2. 验证加载：sudo bpftool prog show")
 	fmt.Println("  3. 附加到 hook: sudo bpftool prog attach ...")
-	fmt.Println("  4. 性能测试: 测量实际延迟和吞吐量")
+	fmt.Println("  4. 性能测试：测量实际延迟和吞吐量")
 }
 
 func contains(s, substr string) bool {

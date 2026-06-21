@@ -61,7 +61,7 @@ func buildMCPHandler() http.Handler {
 
 ## 📦 文件清单
 
-### 修改的文件（4个）
+### 修改的文件（4 个）
 ```
 backend/go.mod                        升级 MCP SDK 版本
 backend/app/server__server_mcp.go    替换 Handler (1 行)
@@ -69,7 +69,7 @@ README.md                             更新说明
 AGENTS.md                             更新说明
 ```
 
-### 新增的文件（4个）
+### 新增的文件（4 个）
 ```
 docs/mcp-sse-to-streamable-migration.md   迁移指南
 docs/mcp-streamable-verification.md       验证报告

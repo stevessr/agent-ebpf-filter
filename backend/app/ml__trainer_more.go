@@ -77,7 +77,7 @@ func (t *ModelTrainer) trainNaiveBayes(store *TrainingDataStore, cfg MLConfig) (
 		}
 	}
 
-	t.logf("Naive Bayes 训练完成: classes=%d", m.Classes)
+	t.logf("Naive Bayes 训练完成：classes=%d", m.Classes)
 	acc := evalModelLabeled(m, labeled)
 	t.finishMetrics(acc, acc, acc, len(labeled), len(labeled), 0)
 	t.setLastSplit(labeled, labeled)
@@ -193,7 +193,7 @@ func (t *ModelTrainer) trainExtraTrees(store *TrainingDataStore, cfg MLConfig) (
 	forest := buildExtraTrees(samples, nt, md, ml, time.Now().UnixNano())
 	m := &ExtraTreesModel{Forest: forest, NumTrees: nt, MaxDepth: md}
 
-	t.logf("Extra Trees 训练完成: trees=%d, depth=%d", nt, md)
+	t.logf("Extra Trees 训练完成：trees=%d, depth=%d", nt, md)
 	trainAcc := evalModelSamples(m, trainSet)
 	valAcc := evalModelSamples(m, valSet)
 	t.finishMetrics(valAcc, trainAcc, valAcc, len(labeled), len(trainSet), len(valSet))
@@ -311,7 +311,7 @@ func (t *ModelTrainer) trainAdaBoost(store *TrainingDataStore, cfg MLConfig) (Mo
 		m.Alphas = append(m.Alphas, alpha)
 	}
 
-	t.logf("AdaBoost 训练完成: estimators=%d", len(m.Stumps))
+	t.logf("AdaBoost 训练完成：estimators=%d", len(m.Stumps))
 	acc := evalModelSamples(m, samples)
 	t.finishMetrics(acc, acc, acc, len(labeled), len(samples), 0)
 	t.setLastSplit(labeled, labeled)

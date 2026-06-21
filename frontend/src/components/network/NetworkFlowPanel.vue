@@ -54,7 +54,7 @@ const validateFilter = (query: string) => {
         !allowedPrefixes.has(token.split(":", 1)[0].toLowerCase()),
     );
   if (invalid.length) {
-    return `未知过滤前缀: ${invalid.join(", ")}`;
+    return `未知过滤前缀：${invalid.join(", ")}`;
   }
   return "";
 };
@@ -262,7 +262,7 @@ const riskColor = (score: number) => {
               >
             </a-space>
             <div class="flow-filter-examples">
-              <span>快速过滤:</span>
+              <span>快速过滤：</span>
               <a-tag
                 v-for="example in filterExamples"
                 :key="example"
