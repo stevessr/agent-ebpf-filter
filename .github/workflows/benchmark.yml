@@ -1,0 +1,228 @@
+name: eBPF Performance Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      cycles:
+        description: 'Number of test cycles (default: 100)'
+        required: false
+        default: '100'
+      syscalls:
+        description: 'Syscall set (basic=10, extended=18)'
+        required: false
+        default: 'extended'
+        type: choice
+        options:
+          - basic
+          - extended
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            backend/go.sum
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            llvm \
+            libbpf-dev \
+            linux-headers-$(uname -r) \
+            python3 \
+            python3-pip \
+            make
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Cache benchmark tools
+        uses: actions/cache@v4
+        id: benchmark-cache
+        with:
+          path: |
+            scripts/benchmark-syscalls
+            scripts/benchmark-syscalls-extended
+          key: ${{ runner.os }}-benchmark-${{ hashFiles('scripts/benchmark-syscalls.go', 'scripts/benchmark-syscalls-extended.go') }}
+
+      - name: Build benchmark tools
+        if: steps.benchmark-cache.outputs.cache-hit != 'true'
+        run: |
+          cd scripts
+          go build -o benchmark-syscalls ./benchmark-syscalls.go
+          go build -o benchmark-syscalls-extended ./benchmark-syscalls-extended.go
+          chmod +x benchmark-syscalls benchmark-syscalls-extended
+
+      - name: Build eBPF programs
+        run: |
+          cd backend
+          go generate ./ebpf
+
+      - name: Build backend
+        run: |
+          cd backend
+          go build -o ../agent-ebpf-filter .
+
+      - name: Start backend in background
+        run: |
+          sudo ./agent-ebpf-filter &
+          BACKEND_PID=$!
+          echo "BACKEND_PID=$BACKEND_PID" >> $GITHUB_ENV
+
+          # Wait for backend to be ready
+          echo "Waiting for backend to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8080/system/bootstrap-health >/dev/null 2>&1; then
+              echo "Backend is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+
+          # Verify eBPF is loaded
+          curl -s http://localhost:8080/system/bootstrap-health | jq .
+
+      - name: Run benchmark
+        run: |
+          if [ "${{ inputs.syscalls }}" = "extended" ]; then
+            BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-extended-full.sh
+          else
+            BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-extended.sh
+          fi
+
+      - name: Generate reports
+        if: always()
+        run: |
+          LATEST=$(ls -td reports/ebpf-overhead-extended-* | head -1)
+          if [ -n "$LATEST" ]; then
+            echo "Generating reports for $LATEST"
+
+            # Generate visualizations
+            python3 scripts/visualize-benchmark.py "$LATEST/summary.json" > "$LATEST/report.txt"
+            python3 scripts/generate-charts.py "$LATEST/summary.json"
+
+            # Create summary for GitHub
+            echo "## eBPF Performance Benchmark Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Test Configuration:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Cycles: ${{ inputs.cycles }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Syscall set: ${{ inputs.syscalls }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Runner: ${{ runner.os }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Kernel: $(uname -r)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Extract key metrics
+            AVG_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | add / length' "$LATEST/summary.json")
+            MIN_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | min' "$LATEST/summary.json")
+            MAX_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | max' "$LATEST/summary.json")
+            SYSCALL_COUNT=$(jq -r '.operations | length' "$LATEST/summary.json")
+
+            echo "**Results:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Average overhead: ${AVG_OVERHEAD}%" >> $GITHUB_STEP_SUMMARY
+            echo "- Min overhead: ${MIN_OVERHEAD}%" >> $GITHUB_STEP_SUMMARY
+            echo "- Max overhead: ${MAX_OVERHEAD}%" >> $GITHUB_STEP_SUMMARY
+            echo "- Syscalls tested: ${SYSCALL_COUNT}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Add detailed chart
+            echo "<details>" >> $GITHUB_STEP_SUMMARY
+            echo "<summary>Detailed Results</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat "$LATEST/summary_chart.txt" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -n "$BACKEND_PID" ]; then
+            sudo kill $BACKEND_PID || true
+          fi
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ inputs.syscalls }}-${{ inputs.cycles }}-cycles
+          path: |
+            reports/ebpf-overhead-extended-*/
+            !reports/ebpf-overhead-extended-*/raw_*
+          retention-days: 90
+
+      - name: Upload benchmark charts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-charts-${{ inputs.syscalls }}-${{ inputs.cycles }}-cycles
+          path: |
+            reports/ebpf-overhead-extended-*/summary_chart.txt
+            reports/ebpf-overhead-extended-*/report.txt
+          retention-days: 90
+
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const latestDir = fs.readdirSync('reports')
+              .filter(f => f.startsWith('ebpf-overhead-extended-'))
+              .sort()
+              .reverse()[0];
+
+            if (!latestDir) return;
+
+            const summaryPath = `reports/${latestDir}/summary.json`;
+            if (!fs.existsSync(summaryPath)) return;
+
+            const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+            const avgOverhead = (summary.operations.reduce((sum, op) => sum + op.overhead_percent, 0) / summary.operations.length).toFixed(2);
+
+            const body = `## 🔬 eBPF Performance Benchmark Results
+
+            **Average overhead:** ${avgOverhead}%
+            **Syscalls tested:** ${summary.operations.length}
+            **Test cycles:** ${{ inputs.cycles }}
+
+            <details>
+            <summary>View detailed results</summary>
+
+            ${summary.operations.map(op =>
+              `- \`${op.name}\`: ${op.overhead_percent > 0 ? '+' : ''}${op.overhead_percent.toFixed(2)}% (${op.baseline_us.toFixed(3)} → ${op.ebpf_us.toFixed(3)} μs)`
+            ).join('\n')}
+
+            </details>
+
+            📊 Full reports available in workflow artifacts.
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
