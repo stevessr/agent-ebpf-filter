@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -39,19 +40,24 @@ func TestExternalAPIRoutesExposeHealthAndOpenAPI(t *testing.T) {
 	}
 }
 
-func TestExternalOpenAPISpecUsesLowercaseHTTPMethods(t *testing.T) {
-	paths, ok := buildExternalOpenAPISpec()["paths"].(gin.H)
-	if !ok {
-		t.Fatal("OpenAPI spec missing paths")
+func TestExternalOpenAPISpecValidatesWithLowercaseMethods(t *testing.T) {
+	spec := buildExternalOpenAPISpec()
+
+	// The kin-openapi typed model serializes HTTP methods in lowercase, and the
+	// /health path must carry a GET operation.
+	health := spec.Paths.Find("/health")
+	if health == nil || health.Get == nil {
+		t.Fatalf("OpenAPI spec missing GET /health: %+v", health)
 	}
-	health, ok := paths["/health"].(gin.H)
-	if !ok {
-		t.Fatal("OpenAPI spec missing /health")
+
+	// /agentsight/events carries both GET and POST on the same path item.
+	events := spec.Paths.Find("/agentsight/events")
+	if events == nil || events.Get == nil || events.Post == nil {
+		t.Fatalf("OpenAPI spec missing GET+POST /agentsight/events: %+v", events)
 	}
-	if _, ok := health["get"]; !ok {
-		t.Fatalf("expected lowercase get method, got %+v", health)
-	}
-	if _, ok := health["GET"]; ok {
-		t.Fatalf("OpenAPI method keys must be lowercase, got %+v", health)
+
+	// The whole document must satisfy the OpenAPI 3.0.3 schema.
+	if err := spec.Validate(context.Background()); err != nil {
+		t.Fatalf("OpenAPI spec failed validation: %v", err)
 	}
 }

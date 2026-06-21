@@ -19,6 +19,7 @@ func registerRoutes(r *gin.Engine, features *FeatureRegistry, tlsBroadcaster *tl
 	registerUtilityRoutes(r, features)
 	registerAuthenticatedAPIRoutes(r, features, tlsController, tlsStore, tlsRules, tlsBroadcaster)
 	registerCompatibilityRoutes(r, features, tlsStore)
+	registerDocsRoutes(r)
 	registerStaticRoutes(r)
 }
 

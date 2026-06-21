@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
 )
 
@@ -39,84 +40,120 @@ func handleExternalAPIOpenAPI(c *gin.Context) {
 	c.JSON(http.StatusOK, buildExternalOpenAPISpec())
 }
 
-func buildExternalOpenAPISpec() gin.H {
-	return gin.H{
-		"openapi": "3.0.3",
-		"info": gin.H{
-			"title":       "Agent eBPF Filter external API",
-			"version":     "v1",
-			"description": "Stable aliases for external automation, observability collectors, and Kubernetes in-cluster callers.",
+// buildExternalOpenAPISpec builds the external API description using the
+// kin-openapi typed model (github.com/getkin/kin-openapi/openapi3) so the
+// document is type-checked at compile time and can be validated with
+// (*openapi3.T).Validate. *openapi3.T marshals to a standards-compliant
+// OpenAPI 3.0.3 JSON document via its json.Marshaler implementation.
+func buildExternalOpenAPISpec() *openapi3.T {
+	paths := openapi3.NewPaths()
+
+	addOperation(paths, "/health", http.MethodGet, "Service health, collector counters, feature gates, and eBPF bootstrap status.")
+	addOperation(paths, "/events/recent", http.MethodGet, "Recent captured events. Query: limit, type, event_type, source, pid, comm, trace_id, span_id, since, until, redaction_state.")
+	addOperation(paths, "/events/graph", http.MethodGet, "Aggregated execution graph. Query: agent_run_id, tool_call_id, trace_id, pid, path, domain, risk_min, since, until.")
+	addOperation(paths, "/agentsight/events", http.MethodGet, "AgentSight-compatible merged event export. Query: limit, format=json|array|jsonl, include_tls, source, pid, comm, event_type, type, trace_id, span_id, since, until, filter.")
+	addOperation(paths, "/agentsight/events", http.MethodPost, "Import AgentSight JSON, JSON arrays, {\"events\":[...]}, or JSONL text into the compatibility store.")
+	addOperation(paths, "/agentsight/events.jsonl", http.MethodGet, "AgentSight-compatible JSONL export of merged retained events and TLS capture history.")
+	addOperation(paths, "/agentsight/events/stats", http.MethodGet, "AgentSight storage statistics by semantic source, event type, runner, and command.")
+	addOperation(paths, "/agentsight/events/runners/{id}/stats", http.MethodGet, "AgentSight event statistics for one logical runner.")
+	addOperation(paths, "/agentsight/events/query", http.MethodPost, "Advanced AgentSight query with JSON body filters for sources, event types, PIDs, runner, time range, and text search.")
+	addOperation(paths, "/agentsight/events/stream", http.MethodGet, "Server-sent AgentSight-compatible stream for clients that cannot use WebSockets.")
+	addOperation(paths, "/agentsight/runners", http.MethodGet, "List AgentSight logical runners and their status.")
+	addOperation(paths, "/agentsight/stream/merged", http.MethodGet, "Server-sent AgentSight-compatible merged stream from all logical runners.")
+	addOperation(paths, "/agentsight/stream/runner/{id}", http.MethodGet, "Server-sent AgentSight-compatible stream filtered to one logical runner.")
+	addOperation(paths, "/network/flows", http.MethodGet, "Attributed TCP/UDP flow summaries. Query: filter, sort, showHistoric, limit, cursor, pid, domain, service, scope.")
+	addOperation(paths, "/network/flows/{flowID}", http.MethodGet, "One network flow by stable flow id.")
+	addOperation(paths, "/network/dns-cache", http.MethodGet, "DNS correlation cache.")
+	addOperation(paths, "/network/interfaces", http.MethodGet, "Per-interface RX/TX counters, packets, errors, and drops.")
+	addOperation(paths, "/network/export/jsonl", http.MethodGet, "Metadata-only flow JSONL export.")
+	addOperation(paths, "/sandbox/cgroup/status", http.MethodGet, "cgroup/connect + sendmsg enforcement status, maps, counters, and active blocks.")
+	addOperation(paths, "/sandbox/lsm/status", http.MethodGet, "BPF LSM enforcement status, maps, counters, and active blocks.")
+	addOperation(paths, "/policies/network/block-ip", http.MethodPost, "Block an IPv4/IPv6 destination through the cgroup sandbox. Body: {\"ip\":\"203.0.113.10\"}.")
+	addOperation(paths, "/policies/network/unblock-ip", http.MethodPost, "Remove an IP destination block. Body: {\"ip\":\"203.0.113.10\"}.")
+	addOperation(paths, "/policies/network/block-port", http.MethodPost, "Block a TCP/UDP destination port. Body: {\"port\":4444}.")
+	addOperation(paths, "/policies/network/unblock-port", http.MethodPost, "Remove a TCP/UDP destination-port block. Body: {\"port\":4444}.")
+	addOperation(paths, "/policies/network/block-pid", http.MethodPost, "Resolve a PID's cgroup v2 inode id and block outbound networking for that cgroup. Body: {\"pid\":1234}.")
+	addOperation(paths, "/policies/network/unblock-pid", http.MethodPost, "Resolve a PID's cgroup v2 inode id and remove its cgroup network block. Body: {\"pid\":1234}.")
+	addOperation(paths, "/policies/lsm/block-exec-path", http.MethodPost, "Block an executable path with BPF LSM. Body: {\"path\":\"/usr/bin/nc\"}.")
+	addOperation(paths, "/policies/lsm/unblock-exec-path", http.MethodPost, "Remove an executable-path block. Body: {\"path\":\"/usr/bin/nc\"}.")
+	addOperation(paths, "/policies/lsm/block-exec-name", http.MethodPost, "Block executable basename with BPF LSM. Body: {\"name\":\"nc\"}.")
+	addOperation(paths, "/policies/lsm/unblock-exec-name", http.MethodPost, "Remove executable-basename block. Body: {\"name\":\"nc\"}.")
+	addOperation(paths, "/policies/lsm/block-file-name", http.MethodPost, "Block file/directory basename for open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename. Body: {\"name\":\"id_rsa\"}.")
+	addOperation(paths, "/policies/lsm/unblock-file-name", http.MethodPost, "Remove file/directory basename block. Body: {\"name\":\"id_rsa\"}.")
+	addOperation(paths, "/agents/register", http.MethodPost, "Register an agent PID and optional run/task/tool context. Body follows the root /register payload.")
+	addOperation(paths, "/agents/unregister", http.MethodPost, "Unregister an agent PID. Body: {\"pid\":1234}.")
+	addOperation(paths, "/config/export", http.MethodGet, "Export tags, tracked commands, tracked paths, wrapper rules, and runtime settings.")
+
+	return &openapi3.T{
+		OpenAPI: "3.0.3",
+		Info: &openapi3.Info{
+			Title:       "Agent eBPF Filter external API",
+			Version:     "v1",
+			Description: "Stable aliases for external automation, observability collectors, and Kubernetes in-cluster callers.",
 		},
-		"servers": []gin.H{{"url": "/api/v1"}},
-		"components": gin.H{
-			"securitySchemes": gin.H{
-				"ApiKeyAuth": gin.H{
-					"type": "apiKey",
-					"in":   "header",
-					"name": "X-API-KEY",
-				},
-				"BearerAuth": gin.H{
-					"type":   "http",
-					"scheme": "bearer",
-				},
-				"QueryKey": gin.H{
-					"type":        "apiKey",
-					"in":          "query",
-					"name":        "key",
-					"description": "Use only for WebSocket/SSE clients or tightly controlled automation where headers are unavailable.",
-				},
+		Servers: openapi3.Servers{{URL: "/api/v1"}},
+		Components: &openapi3.Components{
+			SecuritySchemes: openapi3.SecuritySchemes{
+				"ApiKeyAuth": &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
+					Type: "apiKey", In: "header", Name: "X-API-KEY",
+				}},
+				"BearerAuth": &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
+					Type: "http", Scheme: "bearer",
+				}},
+				"QueryKey": &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
+					Type: "apiKey", In: "query", Name: "key",
+					Description: "Use only for WebSocket/SSE clients or tightly controlled automation where headers are unavailable.",
+				}},
 			},
 		},
-		"security": []gin.H{{"ApiKeyAuth": []string{}}, {"BearerAuth": []string{}}, {"QueryKey": []string{}}},
-		"paths": gin.H{
-			"/health":        endpointSpec("GET", "Service health, collector counters, feature gates, and eBPF bootstrap status."),
-			"/events/recent": endpointSpec("GET", "Recent captured events. Query: limit, type, event_type, source, pid, comm, trace_id, span_id, since, until, redaction_state."),
-			"/events/graph":  endpointSpec("GET", "Aggregated execution graph. Query: agent_run_id, tool_call_id, trace_id, pid, path, domain, risk_min, since, until."),
-			"/agentsight/events": gin.H{
-				"get":  gin.H{"summary": "AgentSight-compatible merged event export. Query: limit, format=json|array|jsonl, include_tls, source, pid, comm, event_type, type, trace_id, span_id, since, until, filter.", "responses": gin.H{"200": gin.H{"description": "OK"}}},
-				"post": gin.H{"summary": "Import AgentSight JSON, JSON arrays, {\"events\":[...]}, or JSONL text into the compatibility store.", "responses": gin.H{"200": gin.H{"description": "OK"}}},
-			},
-			"/agentsight/events.jsonl":              endpointSpec("GET", "AgentSight-compatible JSONL export of merged retained events and TLS capture history."),
-			"/agentsight/events/stats":              endpointSpec("GET", "AgentSight storage statistics by semantic source, event type, runner, and command."),
-			"/agentsight/events/runners/{id}/stats": endpointSpec("GET", "AgentSight event statistics for one logical runner."),
-			"/agentsight/events/query":              endpointSpec("POST", "Advanced AgentSight query with JSON body filters for sources, event types, PIDs, runner, time range, and text search."),
-			"/agentsight/events/stream":             endpointSpec("GET", "Server-sent AgentSight-compatible stream for clients that cannot use WebSockets."),
-			"/agentsight/runners":                   endpointSpec("GET", "List AgentSight logical runners and their status."),
-			"/agentsight/stream/merged":             endpointSpec("GET", "Server-sent AgentSight-compatible merged stream from all logical runners."),
-			"/agentsight/stream/runner/{id}":        endpointSpec("GET", "Server-sent AgentSight-compatible stream filtered to one logical runner."),
-			"/network/flows":                        endpointSpec("GET", "Attributed TCP/UDP flow summaries. Query: filter, sort, showHistoric, limit, cursor, pid, domain, service, scope."),
-			"/network/flows/{flowID}":               endpointSpec("GET", "One network flow by stable flow id."),
-			"/network/dns-cache":                    endpointSpec("GET", "DNS correlation cache."),
-			"/network/interfaces":                   endpointSpec("GET", "Per-interface RX/TX counters, packets, errors, and drops."),
-			"/network/export/jsonl":                 endpointSpec("GET", "Metadata-only flow JSONL export."),
-			"/sandbox/cgroup/status":                endpointSpec("GET", "cgroup/connect + sendmsg enforcement status, maps, counters, and active blocks."),
-			"/sandbox/lsm/status":                   endpointSpec("GET", "BPF LSM enforcement status, maps, counters, and active blocks."),
-			"/policies/network/block-ip":            endpointSpec("POST", "Block an IPv4/IPv6 destination through the cgroup sandbox. Body: {\"ip\":\"203.0.113.10\"}."),
-			"/policies/network/unblock-ip":          endpointSpec("POST", "Remove an IP destination block. Body: {\"ip\":\"203.0.113.10\"}."),
-			"/policies/network/block-port":          endpointSpec("POST", "Block a TCP/UDP destination port. Body: {\"port\":4444}."),
-			"/policies/network/unblock-port":        endpointSpec("POST", "Remove a TCP/UDP destination-port block. Body: {\"port\":4444}."),
-			"/policies/network/block-pid":           endpointSpec("POST", "Resolve a PID's cgroup v2 inode id and block outbound networking for that cgroup. Body: {\"pid\":1234}."),
-			"/policies/network/unblock-pid":         endpointSpec("POST", "Resolve a PID's cgroup v2 inode id and remove its cgroup network block. Body: {\"pid\":1234}."),
-			"/policies/lsm/block-exec-path":         endpointSpec("POST", "Block an executable path with BPF LSM. Body: {\"path\":\"/usr/bin/nc\"}."),
-			"/policies/lsm/unblock-exec-path":       endpointSpec("POST", "Remove an executable-path block. Body: {\"path\":\"/usr/bin/nc\"}."),
-			"/policies/lsm/block-exec-name":         endpointSpec("POST", "Block executable basename with BPF LSM. Body: {\"name\":\"nc\"}."),
-			"/policies/lsm/unblock-exec-name":       endpointSpec("POST", "Remove executable-basename block. Body: {\"name\":\"nc\"}."),
-			"/policies/lsm/block-file-name":         endpointSpec("POST", "Block file/directory basename for open/read-write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename. Body: {\"name\":\"id_rsa\"}."),
-			"/policies/lsm/unblock-file-name":       endpointSpec("POST", "Remove file/directory basename block. Body: {\"name\":\"id_rsa\"}."),
-			"/agents/register":                      endpointSpec("POST", "Register an agent PID and optional run/task/tool context. Body follows the root /register payload."),
-			"/agents/unregister":                    endpointSpec("POST", "Unregister an agent PID. Body: {\"pid\":1234}."),
-			"/config/export":                        endpointSpec("GET", "Export tags, tracked commands, tracked paths, wrapper rules, and runtime settings."),
+		Security: openapi3.SecurityRequirements{
+			{"ApiKeyAuth": []string{}},
+			{"BearerAuth": []string{}},
+			{"QueryKey": []string{}},
 		},
+		Paths: paths,
 	}
 }
 
-func endpointSpec(method, summary string) gin.H {
-	return gin.H{
-		strings.ToLower(method): gin.H{
-			"summary":   summary,
-			"responses": gin.H{"200": gin.H{"description": "OK"}},
-		},
+// addOperation attaches a single-response (200 OK) operation for method on path,
+// creating the path item if it does not yet exist (so a path can carry both GET
+// and POST, as /agentsight/events does). Any {name} placeholders in the path are
+// declared as required string path parameters so the document passes validation.
+func addOperation(paths *openapi3.Paths, path, method, summary string) {
+	item := paths.Find(path)
+	if item == nil {
+		item = &openapi3.PathItem{}
+		paths.Set(path, item)
 	}
+	op := &openapi3.Operation{
+		Summary: summary,
+		Responses: openapi3.NewResponses(openapi3.WithStatus(http.StatusOK,
+			&openapi3.ResponseRef{Value: openapi3.NewResponse().WithDescription("OK")})),
+	}
+	for _, name := range pathParamNames(path) {
+		param := openapi3.NewPathParameter(name)
+		param.Schema = openapi3.NewStringSchema().NewRef()
+		op.AddParameter(param)
+	}
+	item.SetOperation(method, op)
+}
+
+// pathParamNames returns the names inside {…} placeholders of an OpenAPI path.
+func pathParamNames(path string) []string {
+	var names []string
+	for {
+		start := strings.IndexByte(path, '{')
+		if start < 0 {
+			break
+		}
+		end := strings.IndexByte(path[start:], '}')
+		if end < 0 {
+			break
+		}
+		names = append(names, path[start+1:start+end])
+		path = path[start+end+1:]
+	}
+	return names
 }
 
 func registerExternalAPIRoutes(rg *gin.RouterGroup, args ...any) {

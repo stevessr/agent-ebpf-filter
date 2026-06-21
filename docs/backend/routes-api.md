@@ -121,6 +121,16 @@ flowchart TD
 - `/api/**`：AgentSight compatibility；
 - `/api/v1/**`：external API。
 
+## API 文档 (Scalar)
+
+`registerDocsRoutes` 注册了人类可读的交互式 API 参考界面，**无需鉴权**（仅暴露端点结构，无敏感数据）：
+
+- `GET /docs`：基于 [Scalar](https://scalar.com/) 的交互式 API Reference。OpenAPI 文档由 `buildExternalOpenAPISpec()` 生成并**内联**进页面（而非让 Scalar 二次 fetch `/api/v1/openapi.json`），因此即使 release 模式开启 auth 也能正常渲染。
+- `GET /openapi.json`：未鉴权的 OpenAPI 3.0.3 文档（与 `/api/v1/openapi.json` 内容一致，供外部工具直接拉取）。
+
+修改 external API 端点后，记得同步更新 `buildExternalOpenAPISpec()`（`backend/app/api__api_external.go`），Scalar 页面会自动反映。
+
+
 ## 新增 API 检查表
 
 - 放入正确 register group；
