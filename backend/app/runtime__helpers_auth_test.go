@@ -14,7 +14,8 @@ func TestAuthMiddleware(t *testing.T) {
 
 	// Mock runtime settings store with a test token
 	testToken := "test-access-token-12345"
-	mockStore := &mockRuntimeSettingsStore{token: testToken}
+	mockStore := &runtimeState{}
+	mockStore.settings.AccessToken = testToken
 	originalStore := runtimeSettingsStore
 	runtimeSettingsStore = mockStore
 	defer func() { runtimeSettingsStore = originalStore }()
@@ -121,7 +122,8 @@ func TestAuthMiddleware_EmptyToken(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	defer gin.SetMode(gin.TestMode)
 
-	mockStore := &mockRuntimeSettingsStore{token: ""}
+	mockStore := &runtimeState{}
+	mockStore.settings.AccessToken = ""
 	originalStore := runtimeSettingsStore
 	runtimeSettingsStore = mockStore
 	defer func() { runtimeSettingsStore = originalStore }()

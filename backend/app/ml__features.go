@@ -25,6 +25,10 @@ type RecentWrapperEvent struct {
 	Action       string
 	AnomalyScore float64
 	Timestamp    time.Time
+	Pid          uint32
+	User         string
+	ArgsLen      int
+	ArgsCount    int
 }
 
 // RecentHistoryBuffer is a sliding window of recent wrapper intercept events
@@ -244,15 +248,26 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 
 	// ── Group D: Recent History Aggregates [96-111] ──
 	history := fe.history.Snapshot()
+	now := time.Now()
 	if len(history) > 0 {
 		// Frequency of this comm in window
 		commMatch := 0
 		blockCount, alertCount := 0, 0
 		var sumAnomaly, sumSqAnomaly float64
 		categorySet := make(map[string]struct{})
+		sensitiveCount := 0
+		netCount := 0
+		rootCount := 0
+		distinctComms := make(map[string]struct{})
+		distinctUsers := make(map[string]struct{})
+		var lastCommTime time.Time
+
 		for _, h := range history {
 			if h.Comm == comm {
 				commMatch++
+				if lastCommTime.IsZero() || h.Timestamp.After(lastCommTime) {
+					lastCommTime = h.Timestamp
+				}
 			}
 			switch h.Action {
 			case "BLOCK":
@@ -263,6 +278,20 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 			sumAnomaly += h.AnomalyScore
 			sumSqAnomaly += h.AnomalyScore * h.AnomalyScore
 			categorySet[h.Category] = struct{}{}
+
+			if h.Category == "SENSITIVE" || h.Category == "FILE_DELETE" || h.Category == "PROCESS_KILL" {
+				sensitiveCount++
+			}
+			if h.Category == "NETWORK" {
+				netCount++
+			}
+			if h.User == "root" {
+				rootCount++
+			}
+			distinctComms[h.Comm] = struct{}{}
+			if h.User != "" {
+				distinctUsers[h.User] = struct{}{}
+			}
 		}
 		n := float64(len(history))
 		f[96] = float64(commMatch) / n
@@ -323,16 +352,40 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 		if commMatch > 0 {
 			f[105] = float64(commAlerts) / float64(commMatch)
 		}
+
+		// New features on previously unassigned dimensions [106-111]
+		f[106] = float64(sensitiveCount) / n
+		f[107] = float64(netCount) / n
+		f[108] = float64(rootCount) / n
+		f[109] = float64(len(distinctComms)) / 20.0
+		if f[109] > 1.0 {
+			f[109] = 1.0
+		}
+		if !lastCommTime.IsZero() {
+			diff := now.Sub(lastCommTime).Seconds()
+			if diff < 0 {
+				diff = 0
+			}
+			f[110] = 1.0 / (1.0 + diff)
+		} else {
+			f[110] = 0.0
+		}
+		f[111] = float64(len(distinctUsers)) / 5.0
+		if f[111] > 1.0 {
+			f[111] = 1.0
+		}
 	}
 
 	// ── Group E: Event Rate Features [112-119] ──
-	now := time.Now()
 	recentCutoff := now.Add(-1 * time.Second)
 	recentCount := 0
 	distinctPids := make(map[uint32]struct{})
+	sumArgsLen := 0.0
 	for _, h := range history {
+		sumArgsLen += float64(h.ArgsLen)
 		if h.Timestamp.After(recentCutoff) {
 			recentCount++
+			distinctPids[h.Pid] = struct{}{}
 		}
 	}
 	f[112] = float64(recentCount) / 50.0 // events per second (cap at 50)
@@ -347,6 +400,20 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	// Timestamp features [114-115]
 	f[114] = float64(now.Hour()) / 24.0   // hour of day
 	f[115] = float64(now.Weekday()) / 7.0 // day of week
+
+	// New features on previously unassigned dimensions [116-119]
+	f[116] = math.Sin(2.0 * math.Pi * float64(now.Hour()) / 24.0)
+	f[117] = math.Cos(2.0 * math.Pi * float64(now.Hour()) / 24.0)
+	isWeekend := now.Weekday() == time.Saturday || now.Weekday() == time.Sunday
+	f[118] = boolToFloat(isWeekend)
+	if len(history) > 0 {
+		f[119] = (sumArgsLen / float64(len(history))) / 256.0
+		if f[119] > 1.0 {
+			f[119] = 1.0
+		}
+	} else {
+		f[119] = 0.0
+	}
 
 	// ── Group F: Network Audit Features [120-127] ──
 	cmdline := strings.Join(args, " ")
@@ -365,13 +432,17 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 }
 
 // AddHistory adds a wrapper event to the history buffer
-func (fe *FeatureExtractor) AddHistory(comm, category, action string, anomalyScore float64) {
+func (fe *FeatureExtractor) AddHistory(comm, category, action string, anomalyScore float64, pid uint32, user string, argsLen int, argsCount int) {
 	fe.history.Add(RecentWrapperEvent{
 		Comm:         comm,
 		Category:     category,
 		Action:       action,
 		AnomalyScore: anomalyScore,
 		Timestamp:    time.Now(),
+		Pid:          pid,
+		User:         user,
+		ArgsLen:      argsLen,
+		ArgsCount:    argsCount,
 	})
 }
 

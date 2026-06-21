@@ -136,6 +136,10 @@ func startUDSServer(broadcast chan *pb.Event) {
 					classification.PrimaryCategory,
 					actionLabel[mlPrediction.Action],
 					anomalyScore,
+					req.Pid,
+					req.User,
+					len(strings.Join(req.Args, " ")),
+					len(req.Args),
 				)
 
 				decision := actionLabel[int32(resolvedAction)]

@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	"agent-ebpf-filter/backend/app"
+	"agent-ebpf-filter/app"
 )
 
 func main() {

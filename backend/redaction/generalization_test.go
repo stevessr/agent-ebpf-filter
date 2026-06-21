@@ -1,6 +1,7 @@
 package redaction
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -365,5 +366,5 @@ func BenchmarkGeneralizePath(b *testing.B) {
 
 // Helper function
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || (len(s) > len(substr) && s[1:len(s)-1] != s[1:len(s)-1])))
+	return strings.Contains(s, substr)
 }

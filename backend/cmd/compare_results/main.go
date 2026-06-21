@@ -24,10 +24,10 @@ type resultRow struct {
 func main() {
 	root := mustRepoRoot()
 	scripts := []string{
-		"backend/cmd/train_baseline.go",
-		"backend/cmd/train_logistic_baseline.go",
-		"backend/cmd/train_attention.go",
-		"backend/cmd/train_logistic_attention.go",
+		"backend/cmd/train_baseline/main.go",
+		"backend/cmd/train_logistic_baseline/main.go",
+		"backend/cmd/train_attention/main.go",
+		"backend/cmd/train_logistic_attention/main.go",
 	}
 
 	rows := make([]resultRow, 0, len(scripts))

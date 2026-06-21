@@ -230,12 +230,12 @@ func TestContainsSensitiveData(t *testing.T) {
 		},
 		{
 			name:     "Contains SSH key",
-			input:    "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC1234567890abcdefghijklmnopqrstuvwxyz",
+			input:    "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz",
 			expected: true,
 		},
 		{
 			name:     "Contains JWT",
-			input:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc",
+			input:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnopqrstuvwxyz123456",
 			expected: true,
 		},
 		{

@@ -401,9 +401,16 @@ make runtime-benchmark
 
 ⚠️ **Dangerous capabilities require explicit opt-in:**
 - TLS plaintext capture (diagnostic tool only)
-- OS-level network/file blocking
+- OS-level network/file blocking (requires authentication for OS sandbox (`/sandbox/**`))
 - PTY session creation
 - Hook configuration editing
+
+### OS Sandbox Status & Enforcement
+
+The system monitors and exposes the sandbox status via the API:
+- `GET /sandbox/cgroup/status` returns the kernel state, active blocks, and decision counters as `checked` / `blocked` / `allowed`.
+- It supports legacy `connect*` aliases for backward compatibility.
+- It handles network filtering for IPv4-mapped IPv6-destination sockets and existing connected UDP sends.
 
 ### Threat Model
 

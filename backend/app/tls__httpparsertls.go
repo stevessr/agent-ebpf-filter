@@ -261,21 +261,20 @@ func sanitizeTLSBody(body, contentType string) string {
 		return body
 	}
 
-	// FIRST: Remove PEM keys, certificates, SSH keys, AWS credentials, JWT tokens, etc.
-	body = RemoveSensitiveStringFromTLS(body)
-
-	// THEN: Apply existing JSON sanitization
+	// FIRST: Check if it is JSON and sanitize it structural-wise to avoid raw regex corrupting quotes
 	if looksLikeTLSJSON(contentType, []byte(body)) {
 		var payload any
 		if err := json.Unmarshal([]byte(body), &payload); err == nil {
-			if sanitizeTLSJSONValue(&payload) {
-				collectorMetricsStore.RecordAgentSightCounter("tls.redaction.body")
-				if redacted, err := json.MarshalIndent(payload, "", "  "); err == nil {
-					return string(redacted)
-				}
+			// sanitizeTLSJSONValue will also run RemoveSensitiveStringFromTLS on every string value
+			sanitizeTLSJSONValue(&payload)
+			collectorMetricsStore.RecordAgentSightCounter("tls.redaction.body")
+			if redacted, err := json.MarshalIndent(payload, "", "  "); err == nil {
+				return string(redacted)
 			}
 		}
 	}
+
+	// For form urlencoded data
 	if strings.Contains(strings.ToLower(contentType), "x-www-form-urlencoded") {
 		if values, err := url.ParseQuery(body); err == nil {
 			changed := false
@@ -287,10 +286,14 @@ func sanitizeTLSBody(body, contentType string) string {
 			}
 			if changed {
 				collectorMetricsStore.RecordAgentSightCounter("tls.redaction.body")
-				return values.Encode()
+				encoded := values.Encode()
+				return RemoveSensitiveStringFromTLS(encoded)
 			}
 		}
 	}
+
+	// Otherwise, fallback to raw text key removal and inline secret sanitization
+	body = RemoveSensitiveStringFromTLS(body)
 	return sanitizeTLSInlineSecrets(body)
 }
 

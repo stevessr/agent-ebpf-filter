@@ -1,5 +1,7 @@
 package app
 
+import "agent-ebpf-filter/core"
+
 // ---- moved from backend/zz_merged_backend.go section modelbuiltinprofiles.go ----
 
 // BuiltinModelCatalogItem describes one local model/profile exposed to the UI.
@@ -110,6 +112,16 @@ var builtinModelProfiles = []builtinModelProfile{
 	p(ModelRandomForestMamba, ModelRandomForest, "RF + Mamba", "注意力增强模型", "Random Forest 结合 Mamba 选择性状态空间模型。", true, map[string]int{"numTrees": 31, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "mamba", "tree", "ssm"}, nil),
 	p(ModelLogisticMamba, ModelLogisticRegression, "Logistic + Mamba", "注意力增强模型", "Logistic Regression 结合 Mamba SSM。", false, map[string]int{"numTrees": 10, "maxDepth": 8, "minSamplesLeaf": 1000}, []string{"attention", "mamba", "linear", "ssm"}, nil),
 	p(ModelKNNMamba, ModelKNN, "KNN + Mamba", "注意力增强模型", "KNN 结合 Mamba 选择性状态空间模型。", false, map[string]int{"numTrees": 5, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "mamba", "instance", "ssm"}, nil),
+
+	// Additive Attention enhanced models
+	p(core.ModelRandomForestAttention, core.ModelRandomForestAttention, "RF + Additive Attention", "注意力增强模型", "Random Forest 结合 Additive Attention。", true, map[string]int{"numTrees": 31, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "tree"}, nil),
+	p(core.ModelLogisticAttention, core.ModelLogisticAttention, "Logistic + Additive Attention", "注意力增强模型", "Logistic Regression 结合 Additive Attention。", false, map[string]int{"numTrees": 10, "maxDepth": 8, "minSamplesLeaf": 1000}, []string{"attention", "linear"}, nil),
+	p(core.ModelKNNAttention, core.ModelKNNAttention, "KNN + Additive Attention", "注意力增强模型", "KNN 结合 Additive Attention。", false, map[string]int{"numTrees": 5, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"attention", "instance"}, nil),
+
+	// N-Gram models
+	p(core.ModelNGramRandomForest, core.ModelNGramRandomForest, "N-Gram Random Forest", "N-Gram 增强模型", "结合 N-Gram 特征的随机森林分类器。", true, map[string]int{"numTrees": 31, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"ngram", "tree"}, nil),
+	p(core.ModelNGramLogistic, core.ModelNGramLogistic, "N-Gram Logistic", "N-Gram 增强模型", "结合 N-Gram 特征的逻辑回归分类器。", false, map[string]int{"numTrees": 10, "maxDepth": 8, "minSamplesLeaf": 1000}, []string{"ngram", "linear"}, nil),
+	p(core.ModelNGramKNN, core.ModelNGramKNN, "N-Gram KNN", "N-Gram 增强模型", "结合 N-Gram 特征的 KNN 分类器。", false, map[string]int{"numTrees": 5, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"ngram", "instance"}, nil),
 }
 
 func p(t, base ModelType, label, category, description string, recommended bool, defaults map[string]int, tags []string, apply func(MLConfig) MLConfig) builtinModelProfile {

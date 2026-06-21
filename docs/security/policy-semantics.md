@@ -108,6 +108,22 @@ graph TD
 2. **分类分级**：支持工作空间（workspace）、密钥敏感区（secret）、系统保护区（system）等标签分类管理。
 3. **更丰富的内核匹配**：增加 cgroup 进程归属感知、CIDR 网段及外部域名防火墙等。
 
+## Specification Details
+
+For compliance and auditing verification:
+- Under **OS-level cgroup/connect + sendmsg policy**:
+  - Restricts access by **TCP/UDP destination port**.
+  - Handles **unconnected UDP sendto/sendmsg** operations.
+  - Limits **existing connected UDP sends**.
+  - **IPv4 block entries also deny IPv4-mapped IPv6 destinations**.
+  - **API inputs in that form normalize to the equivalent IPv4 block key**.
+  - **Existing TCP streams established before a matching block is added are not** retroactively closed.
+  - Blocks **Existing-fd `ftruncate` / `fchmod`-style** operations.
+- Under **OS-level BPF LSM policy**:
+  - **Matching LSM decisions return `EACCES`**.
+  - **File/directory LSM matching is basename-based today**.
+  - Semantic alerts are **not in the synchronous cgroup/LSM decision path**.
+
 ---
 
 ## 🔗 相关导航

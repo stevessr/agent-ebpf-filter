@@ -40,9 +40,9 @@ var (
 	sshED25519Pattern    = regexp.MustCompile(`ssh-ed25519\s+[A-Za-z0-9+/]{40,}={0,2}`)
 
 	// API key patterns
-	genericAPIKeyPattern = regexp.MustCompile(`(?i)(api[_-]?key|apikey|access[_-]?key|secret[_-]?key)[\s:=]+['\"]?([A-Za-z0-9_\-]{20,})['\"]?`)
+	genericAPIKeyPattern = regexp.MustCompile(`(?i)(?:['\"]?)(api[_-]?key|apikey|access[_-]?key|secret[_-]?key)(?:['\"]?)[\s:=]+['\"]?([A-Za-z0-9_\-]{20,})['\"]?`)
 	awsAccessKeyPattern  = regexp.MustCompile(`AKIA[0-9A-Z]{16}`)
-	awsSecretKeyPattern  = regexp.MustCompile(`(?i)aws[_-]?secret[_-]?access[_-]?key[\s:=]+['\"]?([A-Za-z0-9/+=]{40})['\"]?`)
+	awsSecretKeyPattern  = regexp.MustCompile(`(?i)(?:['\"]?)(aws[_-]?secret[_-]?access[_-]?key)(?:['\"]?)[\s:=]+['\"]?([A-Za-z0-9/+=]{40})['\"]?`)
 
 	// JWT token pattern
 	jwtPattern = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}`)
@@ -51,7 +51,7 @@ var (
 	bearerTokenPattern = regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9_\-\.]{20,}`)
 
 	// Password patterns
-	passwordPattern = regexp.MustCompile(`(?i)(password|passwd|pwd)[\s:=]+['\"]?([^\s'\"]{6,})['\"]?`)
+	passwordPattern = regexp.MustCompile(`(?i)(?:['\"]?)(password|passwd|pwd)(?:['\"]?)[\s:=]+['\"]?([^\s'\"]{6,})['\"]?`)
 )
 
 // DefaultSensitivePatterns returns the default set of patterns for detecting sensitive data.

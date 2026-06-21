@@ -14,13 +14,13 @@ export const safetyNetHighRiskPresets: TrainingPreset[] = [
   {
     comm: "git",
     args: "checkout -- file.txt",
-    label: "BLOCK",
+    label: "ALERT",
     desc: "git checkout -- 丢弃未提交更改",
   },
   {
     comm: "git",
     args: "checkout --force",
-    label: "BLOCK",
+    label: "ALERT",
     desc: "git checkout --force 强制覆盖",
   },
   {
@@ -32,7 +32,7 @@ export const safetyNetHighRiskPresets: TrainingPreset[] = [
   {
     comm: "git",
     args: "reset --merge",
-    label: "BLOCK",
+    label: "ALERT",
     desc: "git reset --merge 可能丢失未提交更改",
   },
   {
@@ -62,7 +62,7 @@ export const safetyNetHighRiskPresets: TrainingPreset[] = [
   {
     comm: "git",
     args: "stash clear",
-    label: "BLOCK",
+    label: "ALERT",
     desc: "git stash clear 删除所有暂存",
   },
   {
@@ -500,7 +500,7 @@ export const highRiskPresets: TrainingPreset[] = [
   {
     comm: "nmap",
     args: "-sS 192.168.1.0/24",
-    label: "BLOCK",
+    label: "ALERT",
     desc: "端口扫描",
   },
   { comm: "nc", args: "-lvp 4444", label: "BLOCK", desc: "监听后门端口" },
@@ -578,6 +578,24 @@ export const highRiskPresets: TrainingPreset[] = [
     args: "/tmp /bin/bash",
     label: "ALERT",
     desc: "切换根目录逃逸",
+  },
+  {
+    comm: "curl",
+    args: "http://169.254.169.254/latest/meta-data/",
+    label: "ALERT",
+    desc: "提取云平台元数据",
+  },
+  {
+    comm: "nc",
+    args: "-z -v -w5 192.168.1.1 22-80",
+    label: "ALERT",
+    desc: "端口存活扫描",
+  },
+  {
+    comm: "cat",
+    args: "/etc/hosts",
+    label: "ALERT",
+    desc: "读取本地主机配置",
   },
   { comm: "ls", args: "-la", label: "ALLOW", desc: "列出目录内容" },
   { comm: "cat", args: "README.md", label: "ALLOW", desc: "读取文档文件" },

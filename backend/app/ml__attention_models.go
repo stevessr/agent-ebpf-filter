@@ -9,6 +9,7 @@ func init() {
 	RegisterModel(core.ModelKNNAttention, func() Model { return newAttentionEnhancedModel(core.ModelKNNAttention, NewKNNModel(5, "euclidean", "uniform")) })
 
 	// Standalone attention mechanisms
+	RegisterModel(ModelAdditiveAttention, func() Model { return newStandaloneAttentionModel(ModelAdditiveAttention, NewAdditiveAttention()) })
 	RegisterModel(ModelScaledDotProductAttention, func() Model { return newStandaloneAttentionModel(ModelScaledDotProductAttention, NewScaledDotProductAttention()) })
 	RegisterModel(ModelMultiHeadAttention, func() Model { return newStandaloneAttentionModel(ModelMultiHeadAttention, NewMultiHeadAttention(4)) })
 	RegisterModel(ModelRWKVAttention, func() Model { return newStandaloneAttentionModel(ModelRWKVAttention, NewRWKVAttention()) })

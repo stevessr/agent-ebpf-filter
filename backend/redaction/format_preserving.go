@@ -37,10 +37,7 @@ func (fpm *FormatPreservingMasker) MaskEmail(email string) string {
 // MaskPhone masks a phone number while preserving format.
 // Example: +1-234-567-8900 → +1-555-000-1234
 func (fpm *FormatPreservingMasker) MaskPhone(phone string) string {
-	// Preserve format characters (-, +, spaces, parentheses)
-	format := extractFormat(phone)
 
-	// Replace digits with fake ones
 	masked := ""
 	digitCount := 0
 

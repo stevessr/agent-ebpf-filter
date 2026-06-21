@@ -298,7 +298,7 @@ func handleMLSamplesPost(c *gin.Context) {
 
 	// Also add to history buffer and cluster
 	globalEmbedder.AddToCluster(emb)
-	globalFeatureExtractor.AddHistory(comm, classification.PrimaryCategory, req.Label, anomalyScore)
+	globalFeatureExtractor.AddHistory(comm, classification.PrimaryCategory, req.Label, anomalyScore, 0, "", len(strings.Join(args, " ")), len(args))
 
 	total, labeled := globalTrainingStore.Status()
 	c.JSON(200, gin.H{

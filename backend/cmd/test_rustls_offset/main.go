@@ -1,6 +1,7 @@
 package main
 
 import (
+	"agent-ebpf-filter/app"
 	"fmt"
 	"log"
 	"os"
@@ -16,7 +17,7 @@ func main() {
 	fmt.Printf("Testing rustls offset detection for: %s\n", binPath)
 	fmt.Println("=" + string(make([]byte, 60)))
 
-	offsets, err := FindRustlsOffsets(binPath)
+	offsets, err := app.FindRustlsOffsets(binPath)
 	if err != nil {
 		log.Printf("Error finding rustls offsets: %v", err)
 		os.Exit(1)

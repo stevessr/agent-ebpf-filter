@@ -378,7 +378,7 @@ func recordCommandSampleSideEffects(sample TrainingSample) {
 	if action == "-" {
 		action = "UNLABELED"
 	}
-	globalFeatureExtractor.AddHistory(sample.Comm, sample.Category, action, sample.AnomalyScore)
+	globalFeatureExtractor.AddHistory(sample.Comm, sample.Category, action, sample.AnomalyScore, 0, "", len(strings.Join(sample.Args, " ")), len(sample.Args))
 }
 
 func normalizeCommandInput(commandLine string, comm string, args []string) (string, []string) {

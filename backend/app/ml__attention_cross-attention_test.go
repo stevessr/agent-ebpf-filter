@@ -35,8 +35,10 @@ func TestCrossAttentionForwardMatchesMath(t *testing.T) {
 	m0 := math.Max(s0, s1)
 	e0 := math.Exp(s0 - m0)
 	e1 := math.Exp(s1 - m0)
-	a0 := e0 / (e0 + e1)
-	a1 := e1 / (e0 + e1)
+	eRest := math.Exp(-m0) * float64(FeatureDim-2)
+	sum := e0 + e1 + eRest
+	a0 := e0 / sum
+	a1 := e1 / sum
 
 	if got, want := y[0], a0*v[0]; math.Abs(got-want) > 1e-9 {
 		t.Fatalf("y[0]=%v want %v", got, want)

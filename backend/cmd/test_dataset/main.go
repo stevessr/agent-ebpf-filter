@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"agent-ebpf-filter/backend/app"
+	"agent-ebpf-filter/app"
 )
 
 func main() {

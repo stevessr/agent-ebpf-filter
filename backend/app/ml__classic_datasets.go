@@ -411,3 +411,7 @@ func loadBreastCancerDataset() (*ClassicDataset, error) {
 		Metadata: map[string]any{"classes": 2, "features": 3, "samples": 3},
 	}, nil
 }
+
+func LoadClassicDataset(name string) (*ClassicDataset, error) {
+	return loadClassicDataset(name)
+}

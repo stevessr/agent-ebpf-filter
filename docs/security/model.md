@@ -301,6 +301,19 @@ graph TB
 | policy mutation | 阻断网络/文件/执行 | auth、runtime gate、restrictive maps |
 | domain forward | 80/443 public data plane | 默认关闭、auth-protected config |
 
+## Kernel Enforcement Details
+
+For security auditing and compliance, the following kernel-enforced security policies are active:
+- **OS sandbox (`/sandbox/**`)**: Protects system calls and limits sandbox escapes.
+- **Kernel-enforced policy paths**: Restricts executable paths and directories.
+- **cgroup/connect and cgroup/sendmsg blocking for exact cgroup ids, IPv4/IPv6 destinations, and** network sockets.
+- Handles **existing connected UDP send** operations securely.
+- **IPv4 block entries are also honored for IPv4-mapped IPv6 socket** connections.
+- **BPF LSM blocking for executable paths, executable basenames, and file or** directory operations.
+- Intercepts **`file_permission`, `mmap_file`, `file_mprotect`, `inode_setattr`, `inode_create`**, **`inode_mknod`, and `inode_rename`** kernel security hooks.
+- Restricts **existing-fd `ftruncate` / `fchmod`** modifications.
+- Protects **own cgroup / LSM policy-map mutation and attach lifecycle** from tampering.
+
 ---
 
 ## 相关导航

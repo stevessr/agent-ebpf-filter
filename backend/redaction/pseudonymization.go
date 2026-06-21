@@ -173,6 +173,12 @@ func (pe *PseudonymEngine) ClearMapping() {
 	defer pe.mu.Unlock()
 	pe.mapping = make(map[string]string)
 	pe.reverseMap = make(map[string]string)
+
+	// Regenerate hmacKey to ensure new pseudonyms are generated
+	newKey := make([]byte, 32)
+	if _, err := rand.Read(newKey); err == nil {
+		pe.hmacKey = newKey
+	}
 }
 
 // ExportMapping exports the mapping for backup/audit (requires secure storage).

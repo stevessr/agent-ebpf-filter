@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"agent-ebpf-filter/backend/app"
+	"agent-ebpf-filter/app"
 )
 
 const (

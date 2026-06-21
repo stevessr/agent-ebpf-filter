@@ -440,6 +440,8 @@ print('Registered!')
 
 ### Testing Network Blocking
 
+All mutating sandbox APIs under `/sandbox/**` require proper authentication using the access token.
+
 ```bash
 # Requires backend running as root
 

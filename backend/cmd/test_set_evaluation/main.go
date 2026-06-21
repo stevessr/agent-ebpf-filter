@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 )
 
@@ -157,12 +158,4 @@ func printResults(results []ModelResult) {
 		fmt.Printf("%-40s | %7.1f%% | %8.1f%% | %6.1f%% | %7.1f%%%s\n",
 			r.Model, r.Accuracy, r.Precision, r.Recall, r.F1Score, marker)
 	}
-}
-
-func strings.Repeat(s string, count int) string {
-	result := ""
-	for i := 0; i < count; i++ {
-		result += s
-	}
-	return result
 }

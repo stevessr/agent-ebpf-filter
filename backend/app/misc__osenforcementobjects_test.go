@@ -600,7 +600,7 @@ func TestOSSecurityDocsDescribeCurrentKernelEnforcement(t *testing.T) {
 		forbidden []string
 	}{
 		{
-			path: filepath.Join("..", "..", "docs", "threat-model.md"),
+			path: filepath.Join("..", "..", "docs", "security", "threat-model.md"),
 			required: []string{
 				"Current OS-level enforcement focus",
 				"cgroup/connect and cgroup/sendmsg programs can reject",
@@ -613,7 +613,7 @@ func TestOSSecurityDocsDescribeCurrentKernelEnforcement(t *testing.T) {
 			},
 		},
 		{
-			path: filepath.Join("..", "..", "docs", "security-model.md"),
+			path: filepath.Join("..", "..", "docs", "security", "model.md"),
 			required: []string{
 				"`/sandbox/**`",
 				"Kernel-enforced policy paths",
@@ -631,7 +631,7 @@ func TestOSSecurityDocsDescribeCurrentKernelEnforcement(t *testing.T) {
 			},
 		},
 		{
-			path: filepath.Join("..", "..", "docs", "policy-semantics.md"),
+			path: filepath.Join("..", "..", "docs", "security", "policy-semantics.md"),
 			required: []string{
 				"OS-level cgroup/connect + sendmsg policy",
 				"TCP/UDP destination port",
