@@ -65,6 +65,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
+      - name: Download Go dependencies
+        run: |
+          cd backend
+          echo "Downloading dependencies..."
+          go mod download -x
+          echo "Tidying modules..."
+          go mod tidy
+          echo "Verifying modules..."
+          go mod verify
+
       - name: Cache benchmark tools
         uses: actions/cache@v4
         id: benchmark-cache
@@ -94,11 +104,24 @@ jobs:
         run: |
           cd backend
           echo "Building backend..."
+          echo "Go version:"
+          go version
+          echo ""
           echo "Go modules:"
           go list -m all | head -20
           echo ""
+          echo "Checking for dependencies..."
+          go mod download
+          echo ""
           echo "Building with verbose output..."
-          go build -v -o ../agent-ebpf-filter . 2>&1 | tee build.log
+          go build -v -o ../agent-ebpf-filter . 2>&1 | tee build.log || {
+            echo "Build failed! Error log:"
+            cat build.log
+            echo ""
+            echo "Go environment:"
+            go env
+            exit 1
+          }
           ls -lh ../agent-ebpf-filter
           file ../agent-ebpf-filter
 
