@@ -15,6 +15,18 @@ on:
         options:
           - basic
           - extended
+      test_mode:
+        description: 'Test mode (sequential or concurrent)'
+        required: false
+        default: 'sequential'
+        type: choice
+        options:
+          - sequential
+          - concurrent
+      concurrency:
+        description: 'Concurrency levels for concurrent mode (space-separated, e.g., "1 4 8 16")'
+        required: false
+        default: '1 4 8 16 32'
 
 jobs:
   benchmark:
@@ -160,54 +172,107 @@ jobs:
 
       - name: Run benchmark
         run: |
-          if [ "${{ inputs.syscalls }}" = "extended" ]; then
-            BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-extended-full.sh
+          if [ "${{ inputs.test_mode }}" = "concurrent" ]; then
+            echo "Running concurrent benchmark..."
+            BENCH_CONCURRENCY="${{ inputs.concurrency }}" BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-concurrent.sh
           else
-            BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-extended.sh
+            echo "Running sequential benchmark..."
+            if [ "${{ inputs.syscalls }}" = "extended" ]; then
+              BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-extended-full.sh
+            else
+              BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-extended.sh
+            fi
           fi
 
       - name: Generate reports
         if: always()
         run: |
-          LATEST=$(ls -td reports/ebpf-overhead-extended-* | head -1)
-          if [ -n "$LATEST" ]; then
-            echo "Generating reports for $LATEST"
+          if [ "${{ inputs.test_mode }}" = "concurrent" ]; then
+            # Concurrent benchmark reports
+            LATEST=$(ls -td reports/ebpf-concurrent-* 2>/dev/null | head -1)
+            if [ -n "$LATEST" ]; then
+              echo "Generating concurrent benchmark report for $LATEST"
 
-            # Generate visualizations
-            python3 scripts/visualize-benchmark.py "$LATEST/summary.json" > "$LATEST/report.txt"
-            python3 scripts/generate-charts.py "$LATEST/summary.json"
+              # Create summary for GitHub
+              echo "## eBPF Concurrent Performance Benchmark Results" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Test Configuration:**" >> $GITHUB_STEP_SUMMARY
+              echo "- Test mode: Concurrent" >> $GITHUB_STEP_SUMMARY
+              echo "- Cycles per level: ${{ inputs.cycles }}" >> $GITHUB_STEP_SUMMARY
+              echo "- Concurrency levels: ${{ inputs.concurrency }}" >> $GITHUB_STEP_SUMMARY
+              echo "- Runner: ${{ runner.os }}" >> $GITHUB_STEP_SUMMARY
+              echo "- Kernel: $(uname -r)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
 
-            # Create summary for GitHub
-            echo "## eBPF Performance Benchmark Results" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Test Configuration:**" >> $GITHUB_STEP_SUMMARY
-            echo "- Cycles: ${{ inputs.cycles }}" >> $GITHUB_STEP_SUMMARY
-            echo "- Syscall set: ${{ inputs.syscalls }}" >> $GITHUB_STEP_SUMMARY
-            echo "- Runner: ${{ runner.os }}" >> $GITHUB_STEP_SUMMARY
-            echo "- Kernel: $(uname -r)" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+              # Extract metrics from each concurrency level
+              echo "**Results by Concurrency Level:**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              for summary_file in "$LATEST"/summary_c*.json; do
+                if [ -f "$summary_file" ]; then
+                  CONCURRENCY=$(jq -r '.concurrency' "$summary_file")
+                  AVG_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | add / length' "$summary_file")
+                  MIN_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | min' "$summary_file")
+                  MAX_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | max' "$summary_file")
 
-            # Extract key metrics
-            AVG_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | add / length' "$LATEST/summary.json")
-            MIN_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | min' "$LATEST/summary.json")
-            MAX_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | max' "$LATEST/summary.json")
-            SYSCALL_COUNT=$(jq -r '.operations | length' "$LATEST/summary.json")
+                  echo "- **C=${CONCURRENCY}**: Avg ${AVG_OVERHEAD}%, Range [${MIN_OVERHEAD}%, ${MAX_OVERHEAD}%]" >> $GITHUB_STEP_SUMMARY
+                fi
+              done
+              echo "" >> $GITHUB_STEP_SUMMARY
 
-            echo "**Results:**" >> $GITHUB_STEP_SUMMARY
-            echo "- Average overhead: ${AVG_OVERHEAD}%" >> $GITHUB_STEP_SUMMARY
-            echo "- Min overhead: ${MIN_OVERHEAD}%" >> $GITHUB_STEP_SUMMARY
-            echo "- Max overhead: ${MAX_OVERHEAD}%" >> $GITHUB_STEP_SUMMARY
-            echo "- Syscalls tested: ${SYSCALL_COUNT}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+              # Add full report
+              if [ -f "$LATEST/concurrent_report.txt" ]; then
+                echo "<details>" >> $GITHUB_STEP_SUMMARY
+                echo "<summary>Full Concurrent Benchmark Report</summary>" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo '```' >> $GITHUB_STEP_SUMMARY
+                cat "$LATEST/concurrent_report.txt" >> $GITHUB_STEP_SUMMARY
+                echo '```' >> $GITHUB_STEP_SUMMARY
+                echo "</details>" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          else
+            # Sequential benchmark reports
+            LATEST=$(ls -td reports/ebpf-overhead-extended-* 2>/dev/null | head -1)
+            if [ -n "$LATEST" ]; then
+              echo "Generating reports for $LATEST"
 
-            # Add detailed chart
-            echo "<details>" >> $GITHUB_STEP_SUMMARY
-            echo "<summary>Detailed Results</summary>" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat "$LATEST/summary_chart.txt" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "</details>" >> $GITHUB_STEP_SUMMARY
+              # Generate visualizations
+              python3 scripts/visualize-benchmark.py "$LATEST/summary.json" > "$LATEST/report.txt"
+              python3 scripts/generate-charts.py "$LATEST/summary.json"
+
+              # Create summary for GitHub
+              echo "## eBPF Performance Benchmark Results" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Test Configuration:**" >> $GITHUB_STEP_SUMMARY
+              echo "- Test mode: Sequential" >> $GITHUB_STEP_SUMMARY
+              echo "- Cycles: ${{ inputs.cycles }}" >> $GITHUB_STEP_SUMMARY
+              echo "- Syscall set: ${{ inputs.syscalls }}" >> $GITHUB_STEP_SUMMARY
+              echo "- Runner: ${{ runner.os }}" >> $GITHUB_STEP_SUMMARY
+              echo "- Kernel: $(uname -r)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+
+              # Extract key metrics
+              AVG_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | add / length' "$LATEST/summary.json")
+              MIN_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | min' "$LATEST/summary.json")
+              MAX_OVERHEAD=$(jq -r '[.operations[].overhead_percent] | max' "$LATEST/summary.json")
+              SYSCALL_COUNT=$(jq -r '.operations | length' "$LATEST/summary.json")
+
+              echo "**Results:**" >> $GITHUB_STEP_SUMMARY
+              echo "- Average overhead: ${AVG_OVERHEAD}%" >> $GITHUB_STEP_SUMMARY
+              echo "- Min overhead: ${MIN_OVERHEAD}%" >> $GITHUB_STEP_SUMMARY
+              echo "- Max overhead: ${MAX_OVERHEAD}%" >> $GITHUB_STEP_SUMMARY
+              echo "- Syscalls tested: ${SYSCALL_COUNT}" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+
+              # Add detailed chart
+              echo "<details>" >> $GITHUB_STEP_SUMMARY
+              echo "<summary>Detailed Results</summary>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              cat "$LATEST/summary_chart.txt" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "</details>" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
 
       - name: Stop backend
@@ -221,20 +286,24 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-results-${{ inputs.syscalls }}-${{ inputs.cycles }}-cycles
+          name: benchmark-results-${{ inputs.test_mode }}-${{ inputs.cycles }}-cycles
           path: |
             reports/ebpf-overhead-extended-*/
+            reports/ebpf-concurrent-*/
             !reports/ebpf-overhead-extended-*/raw_*
+            !reports/ebpf-concurrent-*/raw_*
           retention-days: 90
 
       - name: Upload benchmark charts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-charts-${{ inputs.syscalls }}-${{ inputs.cycles }}-cycles
+          name: benchmark-charts-${{ inputs.test_mode }}-${{ inputs.cycles }}-cycles
           path: |
             reports/ebpf-overhead-extended-*/summary_chart.txt
             reports/ebpf-overhead-extended-*/report.txt
+            reports/ebpf-concurrent-*/concurrent_report.txt
+            reports/ebpf-concurrent-*/summary_c*.json
           retention-days: 90
 
       - name: Comment on PR (if applicable)
@@ -243,36 +312,93 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const latestDir = fs.readdirSync('reports')
-              .filter(f => f.startsWith('ebpf-overhead-extended-'))
-              .sort()
-              .reverse()[0];
+            const testMode = '${{ inputs.test_mode }}';
 
-            if (!latestDir) return;
+            let body = '';
 
-            const summaryPath = `reports/${latestDir}/summary.json`;
-            if (!fs.existsSync(summaryPath)) return;
+            if (testMode === 'concurrent') {
+              // Concurrent mode PR comment
+              const dirs = fs.readdirSync('reports');
+              const latestDir = dirs
+                .filter(f => f.startsWith('ebpf-concurrent-'))
+                .sort()
+                .reverse()[0];
 
-            const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
-            const avgOverhead = (summary.operations.reduce((sum, op) => sum + op.overhead_percent, 0) / summary.operations.length).toFixed(2);
+              if (!latestDir) return;
 
-            const body = `## 🔬 eBPF Performance Benchmark Results
+              const reportPath = `reports/${latestDir}/concurrent_report.txt`;
+              if (!fs.existsSync(reportPath)) return;
 
-            **Average overhead:** ${avgOverhead}%
-            **Syscalls tested:** ${summary.operations.length}
-            **Test cycles:** ${{ inputs.cycles }}
+              // Parse summary files
+              const summaryFiles = fs.readdirSync(`reports/${latestDir}`)
+                .filter(f => f.startsWith('summary_c') && f.endsWith('.json'));
 
-            <details>
-            <summary>View detailed results</summary>
+              let overheads = [];
+              summaryFiles.forEach(file => {
+                const summary = JSON.parse(fs.readFileSync(`reports/${latestDir}/${file}`, 'utf8'));
+                const avgOverhead = summary.operations.reduce((sum, op) => sum + op.overhead_percent, 0) / summary.operations.length;
+                overheads.push({
+                  concurrency: summary.concurrency,
+                  avgOverhead: avgOverhead.toFixed(2)
+                });
+              });
 
-            ${summary.operations.map(op =>
-              `- \`${op.name}\`: ${op.overhead_percent > 0 ? '+' : ''}${op.overhead_percent.toFixed(2)}% (${op.baseline_us.toFixed(3)} → ${op.ebpf_us.toFixed(3)} μs)`
-            ).join('\n')}
+              overheads.sort((a, b) => a.concurrency - b.concurrency);
 
-            </details>
+              body = `## 🔬 eBPF Concurrent Performance Benchmark Results
 
-            📊 Full reports available in workflow artifacts.
-            `;
+**Test mode:** Concurrent
+**Concurrency levels:** ${{ inputs.concurrency }}
+**Cycles per level:** ${{ inputs.cycles }}
+
+**Results by Concurrency:**
+${overheads.map(o => `- **C=${o.concurrency}**: ${o.avgOverhead}%`).join('\n')}
+
+<details>
+<summary>View full concurrent report</summary>
+
+\`\`\`
+${fs.readFileSync(reportPath, 'utf8').substring(0, 8000)}
+\`\`\`
+
+</details>
+
+📊 Full reports available in workflow artifacts.
+`;
+            } else {
+              // Sequential mode PR comment
+              const latestDir = fs.readdirSync('reports')
+                .filter(f => f.startsWith('ebpf-overhead-extended-'))
+                .sort()
+                .reverse()[0];
+
+              if (!latestDir) return;
+
+              const summaryPath = `reports/${latestDir}/summary.json`;
+              if (!fs.existsSync(summaryPath)) return;
+
+              const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+              const avgOverhead = (summary.operations.reduce((sum, op) => sum + op.overhead_percent, 0) / summary.operations.length).toFixed(2);
+
+              body = `## 🔬 eBPF Performance Benchmark Results
+
+**Test mode:** Sequential
+**Average overhead:** ${avgOverhead}%
+**Syscalls tested:** ${summary.operations.length}
+**Test cycles:** ${{ inputs.cycles }}
+
+<details>
+<summary>View detailed results</summary>
+
+${summary.operations.map(op =>
+  `- \`${op.name}\`: ${op.overhead_percent > 0 ? '+' : ''}${op.overhead_percent.toFixed(2)}% (${op.baseline_us.toFixed(3)} → ${op.ebpf_us.toFixed(3)} μs)`
+).join('\n')}
+
+</details>
+
+📊 Full reports available in workflow artifacts.
+`;
+            }
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
