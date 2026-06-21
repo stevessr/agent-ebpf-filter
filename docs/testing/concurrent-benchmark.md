@@ -67,13 +67,10 @@ cat reports/ebpf-concurrent-*/concurrent_report.txt
 
 ```
 reports/ebpf-concurrent-<timestamp>/
-├── raw_baseline_c1/          # 并发=1 的 baseline 原始数据
-│   ├── cycle_1.json
-│   ├── cycle_2.json
-│   └── ...
-├── raw_ebpf_c1/             # 并发=1 的 eBPF 原始数据
-├── raw_baseline_c4/         # 并发=4 的 baseline 原始数据
-├── raw_ebpf_c4/
+├── raw_baseline_c1.jsonl    # 并发=1 的 baseline 原始数据，每个 cycle 一行
+├── raw_ebpf_c1.jsonl        # 并发=1 的 eBPF 原始数据，每个 cycle 一行
+├── raw_baseline_c4.jsonl    # 并发=4 的 baseline 原始数据
+├── raw_ebpf_c4.jsonl
 ├── ...
 ├── agg_baseline_c1.json     # 并发=1 的 baseline 聚合数据
 ├── agg_ebpf_c1.json
@@ -206,7 +203,17 @@ A: 检查：
 
 ## 与 CI/CD 集成
 
-可以将并发测试添加到 GitHub Actions：
+`.github/workflows/benchmark.yml` 已支持手动触发并发测试：
+
+- `test_mode=concurrent`：启用并发基准测试
+- `use_matrix=true`：将每个并发级别拆成独立 matrix job 并行运行
+- `concurrency_matrix='["1","4","8","16","32"]'`：matrix 模式下的并发级别列表
+- `matrix_max_parallel=5`：最多同时运行的 matrix job 数
+- `cycles=10`：每个并发级别的 cycle 数
+
+matrix 模式下，每个 job 只测试一个 concurrency level，并在同一 job 内完成该 level 的 baseline 和 eBPF 对比，避免把 `C=16` 的 eBPF 与其他 batch 的 baseline 混合比较。所有 matrix job 完成后，`combine-concurrent-results` 会下载各 job 的 `summary_c*.json` 并生成合并报告。
+
+也可以在自定义 workflow 中直接运行脚本：
 
 ```yaml
 - name: Run concurrent benchmark

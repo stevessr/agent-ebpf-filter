@@ -24,13 +24,32 @@ on:
           - sequential
           - concurrent
       concurrency:
-        description: 'Concurrency levels for concurrent mode (space-separated, e.g., "1 4 8 16")'
+        description: 'Concurrency levels for concurrent mode without matrix (space-separated, e.g., "1 4 8 16")'
         required: false
         default: '1 4 8 16 32'
+      use_matrix:
+        description: 'Run concurrent levels as parallel matrix jobs'
+        required: false
+        default: true
+        type: boolean
+      concurrency_matrix:
+        description: 'Concurrency levels for matrix mode as JSON array (e.g., ["1","4","8","16"])'
+        required: false
+        default: '["1","4","8","16","32"]'
+      matrix_max_parallel:
+        description: 'Maximum number of matrix jobs to run in parallel'
+        required: false
+        default: '5'
 
 jobs:
   benchmark:
+    name: benchmark (${{ inputs.test_mode }} / ${{ matrix.batch }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.matrix_max_parallel) }}
+      matrix:
+        batch: ${{ fromJSON(inputs.test_mode == 'concurrent' && (inputs.use_matrix == true || inputs.use_matrix == 'true') && inputs.concurrency_matrix || '["all"]') }}
 
     steps:
       - name: Checkout code
@@ -170,17 +189,34 @@ jobs:
           # Verify eBPF is loaded
           curl -s http://localhost:8080/system/bootstrap-health | jq .
 
+      - name: Resolve benchmark matrix
+        run: |
+          MATRIX_BATCH="${{ matrix.batch }}"
+          if [ "${{ inputs.test_mode }}" = "concurrent" ] && [ "$MATRIX_BATCH" != "all" ]; then
+            ACTIVE_CONCURRENCY="$MATRIX_BATCH"
+          else
+            ACTIVE_CONCURRENCY="${{ inputs.concurrency }}"
+          fi
+
+          echo "Matrix batch: $MATRIX_BATCH"
+          echo "Active concurrency: $ACTIVE_CONCURRENCY"
+          echo "MATRIX_BATCH=$MATRIX_BATCH" >> "$GITHUB_ENV"
+          echo "ACTIVE_CONCURRENCY=$ACTIVE_CONCURRENCY" >> "$GITHUB_ENV"
+
       - name: Run benchmark
         run: |
+          BENCH_STAMP="${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.batch }}"
+
           if [ "${{ inputs.test_mode }}" = "concurrent" ]; then
             echo "Running concurrent benchmark..."
-            BENCH_CONCURRENCY="${{ inputs.concurrency }}" BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-concurrent.sh
+            echo "Concurrency level(s): $ACTIVE_CONCURRENCY"
+            BENCH_STAMP="$BENCH_STAMP" BENCH_CONCURRENCY="$ACTIVE_CONCURRENCY" BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-concurrent.sh
           else
             echo "Running sequential benchmark..."
             if [ "${{ inputs.syscalls }}" = "extended" ]; then
-              BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-extended-full.sh
+              BENCH_STAMP="$BENCH_STAMP" BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-extended-full.sh
             else
-              BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-extended.sh
+              BENCH_STAMP="$BENCH_STAMP" BENCH_CYCLES=${{ inputs.cycles }} ./scripts/benchmark-extended.sh
             fi
           fi
 
@@ -199,7 +235,8 @@ jobs:
               echo "**Test Configuration:**" >> $GITHUB_STEP_SUMMARY
               echo "- Test mode: Concurrent" >> $GITHUB_STEP_SUMMARY
               echo "- Cycles per level: ${{ inputs.cycles }}" >> $GITHUB_STEP_SUMMARY
-              echo "- Concurrency levels: ${{ inputs.concurrency }}" >> $GITHUB_STEP_SUMMARY
+              echo "- Matrix batch: $MATRIX_BATCH" >> $GITHUB_STEP_SUMMARY
+              echo "- Concurrency level(s): $ACTIVE_CONCURRENCY" >> $GITHUB_STEP_SUMMARY
               echo "- Runner: ${{ runner.os }}" >> $GITHUB_STEP_SUMMARY
               echo "- Kernel: $(uname -r)" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
@@ -286,24 +323,26 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-results-${{ inputs.test_mode }}-${{ inputs.cycles }}-cycles
+          name: benchmark-results-${{ inputs.test_mode }}-${{ matrix.batch }}-${{ inputs.cycles }}-cycles
           path: |
             reports/ebpf-overhead-extended-*/
             reports/ebpf-concurrent-*/
             !reports/ebpf-overhead-extended-*/raw_*
             !reports/ebpf-concurrent-*/raw_*
+          if-no-files-found: warn
           retention-days: 90
 
       - name: Upload benchmark charts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-charts-${{ inputs.test_mode }}-${{ inputs.cycles }}-cycles
+          name: benchmark-charts-${{ inputs.test_mode }}-${{ matrix.batch }}-${{ inputs.cycles }}-cycles
           path: |
             reports/ebpf-overhead-extended-*/summary_chart.txt
             reports/ebpf-overhead-extended-*/report.txt
             reports/ebpf-concurrent-*/concurrent_report.txt
             reports/ebpf-concurrent-*/summary_c*.json
+          if-no-files-found: warn
           retention-days: 90
 
       - name: Comment on PR (if applicable)
@@ -313,7 +352,8 @@ jobs:
           script: |
             const fs = require('fs');
             const testMode = '${{ inputs.test_mode }}';
-            const concurrencyLevels = '${{ inputs.concurrency }}';
+            const matrixBatch = '${{ matrix.batch }}';
+            const concurrencyLevels = matrixBatch === 'all' ? '${{ inputs.concurrency }}' : matrixBatch;
             const cycles = '${{ inputs.cycles }}';
 
             let body = '';
@@ -416,3 +456,64 @@ jobs:
               repo: context.repo.repo,
               body: body
             });
+
+  combine-concurrent-results:
+    name: combine concurrent matrix results
+    needs: benchmark
+    if: ${{ always() && inputs.test_mode == 'concurrent' && (inputs.use_matrix == true || inputs.use_matrix == 'true') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Download matrix benchmark artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: benchmark-results-concurrent-*-${{ inputs.cycles }}-cycles
+          path: matrix-results
+          merge-multiple: true
+
+      - name: Generate combined concurrent report
+        run: |
+          mkdir -p reports/ebpf-concurrent-matrix
+
+          found=0
+          while IFS= read -r summary_file; do
+            cp "$summary_file" "reports/ebpf-concurrent-matrix/$(basename "$summary_file")"
+            found=1
+          done < <(find matrix-results -type f -name 'summary_c*.json' | sort)
+
+          if [ "$found" -eq 0 ]; then
+            echo "No matrix summary files found; skipping combined report."
+            exit 0
+          fi
+
+          python3 scripts/visualize-concurrent.py reports/ebpf-concurrent-matrix
+
+          echo "## eBPF Concurrent Matrix Combined Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Test Configuration:**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Test mode: Concurrent matrix" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cycles per level: ${{ inputs.cycles }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Matrix levels: ${{ inputs.concurrency_matrix }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "<details>" >> "$GITHUB_STEP_SUMMARY"
+          echo "<summary>Combined Concurrent Report</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat reports/ebpf-concurrent-matrix/concurrent_report.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload combined concurrent report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-concurrent-combined-${{ inputs.cycles }}-cycles
+          path: reports/ebpf-concurrent-matrix/
+          if-no-files-found: warn
+          retention-days: 90

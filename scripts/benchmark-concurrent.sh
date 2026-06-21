@@ -75,6 +75,37 @@ run_benchmark_for_concurrency() {
         2>&1 | sed 's/^/  /'
 }
 
+append_result_jsonl() {
+    local mode=$1
+    local concurrency=$2
+    local cycle=$3
+    local input_file=$4
+    local jsonl_file=$5
+
+    python3 - "$mode" "$concurrency" "$cycle" "$input_file" "$jsonl_file" << 'EOF'
+import sys
+import json
+
+mode = sys.argv[1]
+concurrency = int(sys.argv[2])
+cycle = int(sys.argv[3])
+input_file = sys.argv[4]
+jsonl_file = sys.argv[5]
+
+with open(input_file) as f:
+    current = json.load(f)
+
+current["mode"] = mode
+current["cycle"] = cycle
+current["concurrency"] = concurrency
+
+with open(jsonl_file, "a") as f:
+    f.write(json.dumps(current, separators=(",", ":")) + "\n")
+EOF
+
+    log "Appended cycle ${cycle} to $(basename "$jsonl_file")"
+}
+
 aggregate_results() {
     local mode=$1
     local concurrency=$2
@@ -146,6 +177,7 @@ compute_final_results() {
 import sys
 import json
 import math
+import os
 
 concurrency = sys.argv[1]
 output_file = sys.argv[2]
@@ -245,8 +277,12 @@ main() {
         log "========================================="
         echo ""
 
-        mkdir -p "$OUT_DIR/raw_baseline_c${concurrency}"
-        mkdir -p "$OUT_DIR/raw_ebpf_c${concurrency}"
+        baseline_jsonl="$OUT_DIR/raw_baseline_c${concurrency}.jsonl"
+        ebpf_jsonl="$OUT_DIR/raw_ebpf_c${concurrency}.jsonl"
+        baseline_current="$OUT_DIR/.current_baseline_c${concurrency}.json"
+        ebpf_current="$OUT_DIR/.current_ebpf_c${concurrency}.json"
+        : > "$baseline_jsonl"
+        : > "$ebpf_jsonl"
 
         # Run baseline tests
         log_warn "Phase 1: Baseline tests (concurrency=${concurrency})"
@@ -255,12 +291,15 @@ main() {
             run_benchmark_for_concurrency \
                 "$concurrency" \
                 "baseline" \
-                "$OUT_DIR/raw_baseline_c${concurrency}/cycle_${cycle}.json"
+                "$baseline_current"
 
+            append_result_jsonl "baseline" "$concurrency" "$cycle" \
+                "$baseline_current" "$baseline_jsonl"
             aggregate_results "baseline" "$concurrency" "$cycle" \
-                "$OUT_DIR/raw_baseline_c${concurrency}/cycle_${cycle}.json"
+                "$baseline_current"
         done
-        log_success "Baseline complete for concurrency=${concurrency}"
+        rm -f "$baseline_current"
+        log_success "Baseline complete for concurrency=${concurrency}; raw JSONL: $baseline_jsonl"
         echo ""
 
         # Run eBPF tests
@@ -276,12 +315,15 @@ main() {
             run_benchmark_for_concurrency \
                 "$concurrency" \
                 "ebpf" \
-                "$OUT_DIR/raw_ebpf_c${concurrency}/cycle_${cycle}.json"
+                "$ebpf_current"
 
+            append_result_jsonl "ebpf" "$concurrency" "$cycle" \
+                "$ebpf_current" "$ebpf_jsonl"
             aggregate_results "ebpf" "$concurrency" "$cycle" \
-                "$OUT_DIR/raw_ebpf_c${concurrency}/cycle_${cycle}.json"
+                "$ebpf_current"
         done
-        log_success "eBPF tests complete for concurrency=${concurrency}"
+        rm -f "$ebpf_current"
+        log_success "eBPF tests complete for concurrency=${concurrency}; raw JSONL: $ebpf_jsonl"
         echo ""
 
         # Compute final results
