@@ -438,3 +438,45 @@ docs-install:
 	if [ -d "node_modules" ]; then \
 		bun install; \
 	fi
+
+# ── Performance Benchmarking ──────────────────────────────────────────────────
+
+benchmark-tool: ## Build the syscall benchmark tool
+	@cd scripts && $(GO) build -o benchmark-syscalls ./benchmark-syscalls.go
+	@cd scripts && $(GO) build -o benchmark-syscalls-extended ./benchmark-syscalls-extended.go
+	@echo "Benchmark tools built: scripts/benchmark-syscalls, scripts/benchmark-syscalls-extended"
+
+benchmark-baseline: benchmark-tool ## Run baseline benchmark (no eBPF hooks)
+	@./scripts/run-benchmark-manual.sh
+
+benchmark-quick: benchmark-tool ## Interactive benchmark guide
+	@./scripts/benchmark-quickstart.sh
+
+benchmark-multi: benchmark-tool ## Run multi-cycle benchmark to reduce variance (requires running backend)
+	@./scripts/benchmark-multi-cycle.sh
+
+benchmark-extended: benchmark-tool ## Run extended benchmark with 100+ cycles for maximum reliability
+	@./scripts/benchmark-extended.sh
+
+benchmark-full: benchmark-tool ## Run full benchmark with 18 syscalls and 100 cycles (recommended)
+	@./scripts/benchmark-extended-full.sh
+
+benchmark-report: ## Generate charts and reports from latest benchmark
+	@LATEST=$$(ls -td reports/ebpf-overhead-extended-* | head -1); \
+	if [ -n "$$LATEST" ]; then \
+		echo "Generating reports for $$LATEST"; \
+		python3 scripts/visualize-benchmark.py "$$LATEST/summary.json"; \
+		python3 scripts/generate-charts.py "$$LATEST/summary.json"; \
+		echo ""; \
+		echo "Reports generated:"; \
+		echo "  - $$LATEST/summary_chart.txt"; \
+		echo "  - Terminal output above"; \
+	else \
+		echo "No benchmark results found"; \
+	fi
+
+benchmark-clean: ## Clean benchmark reports
+	@rm -rf reports/ebpf-overhead-*
+	@echo "Benchmark reports cleaned"
+
+.PHONY: benchmark-tool benchmark-baseline benchmark-quick benchmark-multi benchmark-extended benchmark-full benchmark-report benchmark-clean
