@@ -36,3 +36,7 @@ docs/.vitepress/cache
 *_ANALYSIS.md
 docs/backend/SWISS_ARMY_KNIFE_COMPLETION.md
 docs/backend/MISSION_ACCOMPLISHED.md
+scripts/benchmark-syscalls
+*_STATUS.md
+BENCHMARK_*.md
+scripts/benchmark-syscalls-extended
