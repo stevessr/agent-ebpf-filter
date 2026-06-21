@@ -526,7 +526,7 @@ TLS 明文捕获是高风险诊断能力，不是默认安全基线：
 ## 相关导航
 
 - [代码实现地图](codebase-implementation-map.md)
-- [代码入口索引](reference/code-entrypoints.md)
-- [文档地图](reference/documentation-map.md)
-- [维护检查清单](reference/maintenance-checklists.md)
-- [总体架构](architecture/overview.md)
+- [代码入口索引](code-entrypoints.md)
+- [文档地图](documentation-map.md)
+- [维护检查清单](maintenance-checklists.md)
+- [总体架构](../architecture/overview.md)

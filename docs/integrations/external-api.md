@@ -157,8 +157,9 @@ agent.
 
 ## 相关导航
 
-- [路由与 API](backend/routes-api.md)
-- [MCP、External API 与 OTLP](integrations/mcp-external-otlp.md)
-- [Kubernetes](kubernetes.md)
-- [Runtime Gates 与 Auth](security/runtime-gates-auth.md)
-- [部署与安装](operations/deployment.md)
+- [路由与 API](../backend/routes-api.md)
+- [MCP、External API 与 OTLP](mcp-external-otlp.md)
+- [Kubernetes](../operations/kubernetes.md)
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+- [部署与安装](../operations/deployment.md)
+

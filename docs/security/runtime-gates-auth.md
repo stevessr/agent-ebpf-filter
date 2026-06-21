@@ -99,7 +99,7 @@ release mode 下，敏感入口默认需要 token，包括：
 - `/shell-sessions*`
 - `/mcp`
 
-修改这些范围时，同步 [路由与 API](/backend/routes-api)、[External API](../external-api.md)、[MCP、External API 与 OTLP](/integrations/mcp-external-otlp) 和 [文档地图](/reference/documentation-map)。
+修改这些范围时，同步 [路由与 API](/backend/routes-api)、[External API](../integrations/external-api.md)、[MCP、External API 与 OTLP](/integrations/mcp-external-otlp) 和 [文档地图](/reference/documentation-map)。
 
 ## Hooks 特例
 

@@ -229,8 +229,9 @@ docker compose -f docs/agentsight-grafana-compose.yml up -d
 
 ## 相关导航
 
-- [External API 详细文档](../external-api.md)
+- [External API 详细文档](external-api.md)
 - [路由与 API](../backend/routes-api.md)
-- [OTLP 导出配置](../otel-export.md)
+- [OTLP 导出配置](otel-export.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
 - [Agents、Adapters 与 PID 注册](agents.md)
+

@@ -73,6 +73,7 @@ bun run docs:build
 
 - [构建与运行](build-and-run.md)
 - [部署与安装](deployment.md)
-- [Benchmark](../benchmark.md)
+- [Benchmark](runtime-replay-benchmark.md)
 - [评测报告](../delivery/evaluation.md)
 - [文档关系审计](../reference/documentation-audit.md)
+

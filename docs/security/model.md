@@ -308,5 +308,5 @@ graph TB
 - [Runtime Gates 与 Auth](runtime-gates-auth.md)
 - [策略语义](policy-semantics.md)
 - [脱敏与隐私](redaction-privacy.md)
-- [威胁模型](../threat-model.md)
+- [威胁模型](threat-model.md)
 - [eBPF 与 OS Enforcement](../backend/ebpf-os-enforcement.md)

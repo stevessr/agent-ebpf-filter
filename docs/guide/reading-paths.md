@@ -88,12 +88,12 @@ flowchart TD
 
 | 当前维护任务 | 💡 推荐阅读与跳转顺序 | 🏁 提测/结束前必查项 |
 | :--- | :--- | :--- |
-| **新增 / 修改后端 API** | [路由与 API](/backend/routes-api) <br> ⬇️ <br> [Runtime Gates 与 Auth](/security/runtime-gates-auth) <br> ⬇️ <br> [External API](../external-api.md) <br> ⬇️ <br> [前端路由与功能页](/frontend/routes-and-pages) | • 是否补齐了鉴权与 Gate 开关？<br> • 是否提供了 MCP 或 API Alias？<br> • 前端 Composable 订阅是否正常销毁？ |
+| **新增 / 修改后端 API** | [路由与 API](/backend/routes-api) <br> ⬇️ <br> [Runtime Gates 与 Auth](/security/runtime-gates-auth) <br> ⬇️ <br> [External API](../integrations/external-api.md) <br> ⬇️ <br> [前端路由与功能页](/frontend/routes-and-pages) | • 是否补齐了鉴权与 Gate 开关？<br> • 是否提供了 MCP 或 API Alias？<br> • 前端 Composable 订阅是否正常销毁？ |
 | **修改事件字段或 Protobuf** | [协议与事件模型](/architecture/protocol-events) <br> ⬇️ <br> [事件管线](/backend/event-pipeline) <br> ⬇️ <br> [生成文件边界](/reference/generated-files) <br> ⬇️ <br> [组件与 Composables](/frontend/components-composables) | • 运行 `make proto` 后，后端、前端和各适配器的 Struct 是否全部同步且编译通过？ |
 | **调整 cgroup / BPF LSM 策略** | [eBPF 与 OS Enforcement](/backend/ebpf-os-enforcement) <br> ⬇️ <br> [策略语义](/security/policy-semantics) <br> ⬇️ <br> [安全模型](/security/model) <br> ⬇️ <br> [验证页](/operations/verification-benchmark) | • 检查 Key 匹配语义、Pin Path 是否正确？<br> • Map 的读写权限是否收紧？<br> • Policy Gate 联动是否准确？ |
 | **调整 Runtime Gate 或编译 Feature** | [Runtime Settings 与 Feature Manifest](/backend/runtime-settings-features) <br> ⬇️ <br> [Runtime Gates 与 Auth](/security/runtime-gates-auth) <br> ⬇️ <br> [前端 Feature Flags](/frontend/build-feature-flags) | • **严禁**将“代码编译进来了”误写或等同于“该功能在运行时默认已启用”。 |
 | **调整 ML / 内核风险反馈回路** | [ML、Plugins 与扩展能力](/backend/ml-plugins) <br> ⬇️ <br> [ML 模型完整指南](/backend/ml-models-complete-guide) <br> ⬇️ <br> [内核 ML README](../../kernel-ml/README.md) <br> ⬇️ <br> [评测报告](/delivery/evaluation) | • 后端 Registry、前端 Catalog、kernel-ml UAPI 以及本地单元测试的演进版本必须保持绝对一致。 |
-| **调整 TLS / Codex 捕获与脱敏** | [脱敏与隐私](/security/redaction-privacy) <br> ⬇️ <br> [Sanitization](../sanitization.md) <br> ⬇️ <br> [TLS Quickstart](../backend/TLS_QUICKSTART.md) <br> ⬇️ <br> [安全模型](/security/model) | • 确认该功能默认保持关闭？<br> • 脱敏过滤器是否生效？<br> • Body 裁切长度是否在安全阈值内？ |
+| **调整 TLS / Codex 捕获与脱敏** | [脱敏与隐私](/security/redaction-privacy) <br> ⬇️ <br> [Sanitization](../security/sanitization.md) <br> ⬇️ <br> [TLS Quickstart](../backend/TLS_QUICKSTART.md) <br> ⬇️ <br> [安全模型](/security/model) | • 确认该功能默认保持关闭？<br> • 脱敏过滤器是否生效？<br> • Body 裁切长度是否在安全阈值内？ |
 | **仅对纯文档进行修订** | [文档地图](/reference/documentation-map) <br> ⬇️ <br> [文档关系审计](/reference/documentation-audit) <br> ⬇️ <br> [维护检查清单](/reference/maintenance-checklists) <br> ⬇️ <br> [验证页](/operations/verification-benchmark) | • 新页面是否正确配置进 Sidebar 目录？<br> • 相对链接是否打破？<br> • 是否有对应的 Mermaid 架构同步更新？ |
 
 

@@ -305,7 +305,7 @@ curl -X PUT http://localhost:8080/api/config/runtime \
 
 ## 下一步
 
-- 📖 阅读[完整实现报告](TLS_INTERCEPT_COMPLETE.md)了解架构细节
+- 📖 阅读[完整实现报告](../_archive/TLS_INTERCEPT_COMPLETE.md)了解架构细节
 - 🎯 查看[项目 README](../../README.md)了解其他功能
 - 🔧 探索前端 UI 的可视化界面
 - 🚀 尝试集成到 CI/CD 流程进行 HTTPS 流量审计
@@ -314,7 +314,7 @@ curl -X PUT http://localhost:8080/api/config/runtime \
 
 ## 相关文档
 
-- [完整 TLS 拦截报告](TLS_INTERCEPT_COMPLETE.md) - 架构、API、技术细节
+- [完整 TLS 拦截报告](../_archive/TLS_INTERCEPT_COMPLETE.md) - 架构、API、技术细节
 - [数据脱敏指南](../../backend/redaction/README.md) - 敏感信息保护
 - [eBPF 程序源码](../../backend/ebpf/agent_tls_capture.c) - uprobe 实现
 - [主项目文档](../../README.md) - 完整功能介绍

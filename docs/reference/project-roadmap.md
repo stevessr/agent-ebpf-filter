@@ -453,8 +453,8 @@ flowchart TD
 
 ## 相关导航
 
-- [项目文档索引](project-docs-index.md)
-- [比赛答辩主线](delivery/competition-defense.md)
-- [验证、测试与 Benchmark](operations/verification-benchmark.md)
-- [评测报告](delivery/evaluation.md)
-- [文档关系审计](reference/documentation-audit.md)
+- [项目文档索引](../_archive/project-docs-index.md)
+- [比赛答辩主线](../delivery/competition-defense.md)
+- [验证、测试与 Benchmark](../operations/verification-benchmark.md)
+- [评测报告](../delivery/evaluation.md)
+- [文档关系审计](documentation-audit.md)

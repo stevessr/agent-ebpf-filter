@@ -8,7 +8,7 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [architecture.md](architecture.md) | 早期架构设计文档 |
+| [architecture/overview.md](../architecture/overview.md) | 最新架构设计文档 |
 | [codebase-implementation-map.md](codebase-implementation-map.md) | 完整代码库实现地图 |
 | [project-structure-deep-dive.md](project-structure-deep-dive.md) | 项目结构深度分析 |
 
@@ -16,59 +16,59 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [agentsight-optimization-guide.md](agentsight-optimization-guide.md) | AgentSight 优化指南 |
-| [agentsight-optimization-summary.md](agentsight-optimization-summary.md) | 优化总结 |
+| [agentsight-optimization-guide.md](../_archive/agentsight-optimization-guide.md) | AgentSight 优化指南 |
+| [agentsight-optimization-summary.md](../_archive/agentsight-optimization-summary.md) | 优化总结 |
 
 ### eBPF 与内核
 
 | 文档 | 说明 |
 | --- | --- |
-| [ebpf-optimization-summary.md](ebpf-optimization-summary.md) | eBPF 性能优化总结 |
-| [ebpf-ml-feasibility.md](ebpf-ml-feasibility.md) | eBPF ML 可行性分析 |
-| [ebpf-ml-implementation.md](ebpf-ml-implementation.md) | ML 实现记录 |
-| [btf-fix-guide.md](btf-fix-guide.md) | BTF 问题修复指南 |
+| [ebpf-optimization-summary.md](../_archive/ebpf-optimization-summary.md) | eBPF 性能优化总结 |
+| [ebpf-ml-feasibility.md](../_archive/ebpf-ml-feasibility.md) | eBPF ML 可行性分析 |
+| [ebpf-ml-implementation.md](../_archive/ebpf-ml-implementation.md) | ML 实现记录 |
+| [btf-fix-guide.md](../_archive/btf-fix-guide.md) | BTF 问题修复指南 |
 
 ### TLS 与 Codex 捕获
 
 | 文档 | 说明 |
 | --- | --- |
-| [codex-implementation-complete.md](codex-implementation-complete.md) | Codex 捕获完整实现 |
-| [codex-rustls-fix.md](codex-rustls-fix.md) | RustLS 捕获修复 |
-| [codex-stripped-analysis.md](codex-stripped-analysis.md) | Stripped binary 分析 |
-| [codex-workflows.md](codex-workflows.md) | Codex 工作流 |
+| [codex-implementation-complete.md](../_archive/codex-implementation-complete.md) | Codex 捕获完整实现 |
+| [codex-rustls-fix.md](../_archive/codex-rustls-fix.md) | RustLS 捕获修复 |
+| [codex-stripped-analysis.md](../_archive/codex-stripped-analysis.md) | Stripped binary 分析 |
+| [codex-workflows.md](../_archive/codex-workflows.md) | Codex 工作流 |
 
 ### 安全与脱敏
 
 | 文档 | 说明 |
 | --- | --- |
-| [SANITIZATION_IMPLEMENTATION_SUMMARY.md](SANITIZATION_IMPLEMENTATION_SUMMARY.md) | 脱敏机制实现说明 |
+| [SANITIZATION_IMPLEMENTATION_SUMMARY.md](../_archive/SANITIZATION_IMPLEMENTATION_SUMMARY.md) | 脱敏机制实现说明 |
 
 ### Execution Graph
 
 | 文档 | 说明 |
 | --- | --- |
-| [execution-graph-behavior-tracking-fix.md](execution-graph-behavior-tracking-fix.md) | 行为追踪修复 |
+| [execution-graph-behavior-tracking-fix.md](../_archive/execution-graph-behavior-tracking-fix.md) | 行为追踪修复 |
 
 ### 测试与评估
 
 | 文档 | 说明 |
 | --- | --- |
-| [benchmark.md](benchmark.md) | 性能基准测试 |
-| [evaluation-report.md](evaluation-report.md) | 项目评估报告 |
-| [demo-script.md](demo-script.md) | 演示脚本 |
+| [runtime-replay-benchmark.md](../operations/runtime-replay-benchmark.md) | 性能基准测试 |
+| [evaluation.md](../delivery/evaluation.md) | 项目评估报告 |
+| [demo-script.md](../delivery/demo-script.md) | 演示脚本 |
 
 ### 模型与 ML
 
 | 文档 | 说明 |
 | --- | --- |
-| [all-models-complete.md](all-models-complete.md) | 全模型实现概览 |
+| [all-models-complete.md](../_archive/all-models-complete.md) | 全模型实现概览 |
 
 ### 其他
 
 | 文档 | 说明 |
 | --- | --- |
-| [development-timeline.md](development-timeline.md) | 开发时间线 |
-| [external-api.md](external-api.md) | External API 设计 |
+| [development-timeline.md](../_archive/development-timeline.md) | 开发时间线 |
+| [external-api.md](../integrations/external-api.md) | External API 设计 |
 
 ## 📌 与 VitePress 文档站的关系
 
@@ -123,13 +123,13 @@
 → 在上方分类表格中找到对应文档
 
 **想了解开发历程？**
-→ 查看 [development-timeline.md](development-timeline.md)
+→ 查看 [development-timeline.md](../_archive/development-timeline.md)
 
 **想了解性能表现？**
-→ 查看 [benchmark.md](benchmark.md) 和 [evaluation-report.md](evaluation-report.md)
+→ 查看 [runtime-replay-benchmark.md](../operations/runtime-replay-benchmark.md) 和 [evaluation.md](../delivery/evaluation.md)
 
 **想了解安全设计？**
-→ 查看 [SANITIZATION_IMPLEMENTATION_SUMMARY.md](SANITIZATION_IMPLEMENTATION_SUMMARY.md) 和 [安全模型](/security/model)
+→ 查看 [SANITIZATION_IMPLEMENTATION_SUMMARY.md](../_archive/SANITIZATION_IMPLEMENTATION_SUMMARY.md) 和 [安全模型](/security/model)
 
 ## 📝 维护建议
 

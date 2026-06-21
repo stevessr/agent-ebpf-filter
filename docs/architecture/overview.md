@@ -237,4 +237,4 @@ flowchart TD
 - 🧱 [运行时边界](runtime-boundaries.md) —— 详解各组件的安全防护隔离圈
 - 🧬 [协议与事件模型](protocol-events.md) —— 原生 Protobuf 序列化细节与事件封包定义
 - 📂 [代码入口索引](../reference/code-entrypoints.md) —— 快速核对文档中提及的底层核心函数
-- ⛏️ [项目结构深挖](../project-structure-deep-dive.md) —— 跨越 C、Go、TS 的多语言目录工程组织规范
+- ⛏️ [项目结构深挖](../reference/project-structure-deep-dive.md) —— 跨越 C、Go、TS 的多语言目录工程组织规范

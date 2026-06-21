@@ -609,10 +609,10 @@ message Event {
 
 ## 相关文档
 
-- [架构文档](architecture/overview.md) - 系统整体架构
-- [Runtime Gates 与 Auth](security/runtime-gates-auth.md) - 配置、环境变量与认证边界
-- [构建与运行](operations/build-and-run.md) - 开发者运行入口
-- [安全模型](security/model.md) - 安全最佳实践与边界
+- [架构文档](../architecture/overview.md) - 系统整体架构
+- [Runtime Gates 与 Auth](runtime-gates-auth.md) - 配置、环境变量与认证边界
+- [构建与运行](../operations/build-and-run.md) - 开发者运行入口
+- [安全模型](model.md) - 安全最佳实践与边界
 
 ## 更新日志
 

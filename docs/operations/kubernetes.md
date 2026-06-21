@@ -136,8 +136,9 @@ See `docs/external-api.md` for the stable `/api/v1` route list.
 
 ## 相关导航
 
-- [External API](external-api.md)
-- [部署与安装](operations/deployment.md)
-- [开发容器](operations/devcontainer.md)
-- [Runtime Gates 与 Auth](security/runtime-gates-auth.md)
-- [MCP、External API 与 OTLP](integrations/mcp-external-otlp.md)
+- [External API](../integrations/external-api.md)
+- [部署与安装](deployment.md)
+- [开发容器](devcontainer.md)
+- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+- [MCP、External API 与 OTLP](../integrations/mcp-external-otlp.md)
+

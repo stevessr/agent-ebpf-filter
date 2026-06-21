@@ -39,6 +39,9 @@ SKIP_PARTS = {
     ".vitepress/dist",
     "node_modules",
     "__pycache__",
+    "docs/_archive",
+    "docs/superpowers",
+    ".claude",
 }
 
 LOCAL_LINK_RE = re.compile(

@@ -128,7 +128,7 @@ flowchart TD
 - 是否需要 runtime gate；
 - 是否需要 build feature；
 - 是否需要 frontend composable；
-- 是否需要 `docs/external-api.md`；
+- 是否需要 `docs/integrations/external-api.md`；
 - 是否涉及 security docs。
 
 ---
@@ -138,5 +138,5 @@ flowchart TD
 - [后端启动链路](runtime-startup.md)
 - [Runtime Settings 与 Feature Manifest](runtime-settings-features.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
-- [External API](../external-api.md)
+- [External API](../integrations/external-api.md)
 - [代码入口索引](../reference/code-entrypoints.md)

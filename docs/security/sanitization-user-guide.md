@@ -221,10 +221,10 @@ export AGENT_REDACTION_ENABLED=true
 
 ## 更多信息
 
-- 完整文档：[docs/sanitization.md](sanitization.md)
-- 架构设计：[总体架构](architecture/overview.md)
-- API 参考：[路由与 API](backend/routes-api.md)
-- 开发维护指南：[维护检查清单](reference/maintenance-checklists.md)
+- 完整文档：[数据脱敏机制](sanitization.md)
+- 架构设计：[总体架构](../architecture/overview.md)
+- API 参考：[路由与 API](../backend/routes-api.md)
+- 开发维护指南：[维护检查清单](../reference/maintenance-checklists.md)
 
 ---
 

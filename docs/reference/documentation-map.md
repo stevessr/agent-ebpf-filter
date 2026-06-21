@@ -34,9 +34,9 @@
 | Agent、wrapper、hooks 如何把语义关联到 PID？ | [Agents、Adapters 与 PID 注册](/integrations/agents) | [Wrapper 命令策略](/integrations/wrapper)、[Native Hooks](/integrations/native-hooks)、[事件管线](/backend/event-pipeline) | `adapters/*/README.md`、`wrapper/README.md`、`backend/app/hooks__*.go` |
 | release mode 为什么 401/403？ | [Runtime Gates 与 Auth](/security/runtime-gates-auth) | [Runtime Settings 与 Feature Manifest](/backend/runtime-settings-features)、[路由与 API](/backend/routes-api) | `/config/runtime`、`backend/app/runtime__helpers_auth.go` |
 | ML、内核风险反馈、kernel-ml 怎样串起来？ | [ML、Plugins 与扩展能力](/backend/ml-plugins) | [ML 模型完整指南](/backend/ml-models-complete-guide)、[内核 ML README](../../kernel-ml/README.md)、[安全模型](/security/model) | `backend/app/events__kernel_risk*.go`、`backend/app/ml__*.go`、`kernel-ml/Makefile` |
-| TLS / Codex capture 与脱敏边界在哪里？ | [脱敏与隐私](/security/redaction-privacy) | [TLS Quickstart](../backend/TLS_QUICKSTART.md)、[Sanitization](../sanitization.md)、[Redaction 模块](../../backend/redaction/README.md) | `backend/app/tls_*`、`backend/codex/capture/` |
+| TLS / Codex capture 与脱敏边界在哪里？ | [脱敏与隐私](/security/redaction-privacy) | [TLS Quickstart](../backend/TLS_QUICKSTART.md)、[Sanitization](../security/sanitization.md)、[Redaction 模块](../../backend/redaction/README.md) | `backend/app/tls_*`、`backend/codex/capture/` |
 | 前端路由、页面和后端 API 如何对齐？ | [前端工作台](/frontend/workbench) | [路由与功能页](/frontend/routes-and-pages)、[组件与 Composables](/frontend/components-composables)、[路由与 API](/backend/routes-api) | `frontend/src/router/index.ts`、`frontend/src/composables/` |
-| Kubernetes / 外部 API / MCP 如何对外交付？ | [部署与安装](/operations/deployment) | [Kubernetes](../kubernetes.md)、[External API](../external-api.md)、[MCP/External API/OTLP](/integrations/mcp-external-otlp) | `deploy/kubernetes/`、`backend/app/api__api_external.go`、`backend/app/server__server_mcp.go` |
+| Kubernetes / 外部 API / MCP 如何对外交付？ | [部署与安装](/operations/deployment) | [Kubernetes](../operations/kubernetes.md)、[External API](../integrations/external-api.md)、[MCP/External API/OTLP](/integrations/mcp-external-otlp) | `deploy/kubernetes/`、`backend/app/api__api_external.go`、`backend/app/server__server_mcp.go` |
 | 答辩或评测材料如何复用技术页？ | [比赛答辩主线](/delivery/competition-defense) | [演示脚本](/delivery/demo-script)、[评测报告](/delivery/evaluation)、[合规披露](/delivery/compliance) | [验证、测试与 Benchmark](/operations/verification-benchmark) |
 
 ## 变更影响链
@@ -44,11 +44,11 @@
 | 如果你修改了…… | 必须同步检查 | 常见漏项 |
 | --- | --- | --- |
 | `proto/tracker.proto` 或事件字段 | [协议与事件模型](/architecture/protocol-events)、[事件管线](/backend/event-pipeline)、[生成文件边界](/reference/generated-files)、前端 `pb/` 使用点 | 只改 Go 结构，忘记前端过滤器、AgentSight / OTLP 投影和 adapters |
-| 后端 route、auth 或 compatibility alias | [路由与 API](/backend/routes-api)、[Runtime Gates 与 Auth](/security/runtime-gates-auth)、[External API](../external-api.md)、[MCP/External API/OTLP](/integrations/mcp-external-otlp) | `/api/**`、`/api/v1/**`、MCP tool 返回格式未同步 |
+| 后端 route、auth 或 compatibility alias | [路由与 API](/backend/routes-api)、[Runtime Gates 与 Auth](/security/runtime-gates-auth)、[External API](../integrations/external-api.md)、[MCP/External API/OTLP](/integrations/mcp-external-otlp) | `/api/**`、`/api/v1/**`、MCP tool 返回格式未同步 |
 | eBPF C 程序或 map key/value | [eBPF 与 OS Enforcement](/backend/ebpf-os-enforcement)、[策略语义](/security/policy-semantics)、[生成文件边界](/reference/generated-files)、[验证页](/operations/verification-benchmark) | 手改 generated 文件、忘记 pin path / permissions / exact-match 语义 |
 | runtime setting 或 build feature | [Runtime Settings 与 Feature Manifest](/backend/runtime-settings-features)、[安全模型](/security/model)、[前端 Feature Flags](/frontend/build-feature-flags)、[维护清单](/reference/maintenance-checklists) | 把 compiled-in 写成 runtime enabled，或漏掉 release-mode auth |
 | kernel risk feedback / ML catalog / kernel-ml UAPI | [ML、Plugins 与扩展能力](/backend/ml-plugins)、[ML 模型指南](/backend/ml-models-complete-guide)、[内核 ML README](../../kernel-ml/README.md)、[评测报告](/delivery/evaluation) | 后端模型 registry、前端 catalog、kernel-ml README / tests 不一致 |
-| TLS / Codex capture / redaction | [脱敏与隐私](/security/redaction-privacy)、[Sanitization](../sanitization.md)、[TLS Quickstart](../backend/TLS_QUICKSTART.md)、[安全模型](/security/model) | 忘记说明默认关闭、body 截断、密钥移除和 EventEnvelope 输出 |
+| TLS / Codex capture / redaction | [脱敏与隐私](/security/redaction-privacy)、[Sanitization](../security/sanitization.md)、[TLS Quickstart](../backend/TLS_QUICKSTART.md)、[安全模型](/security/model) | 忘记说明默认关闭、body 截断、密钥移除和 EventEnvelope 输出 |
 | 文档站页面或导航 | 本页、[阅读路线](/guide/reading-paths)、[维护检查清单](/reference/maintenance-checklists)、`docs/.vitepress/config.ts` | 页面存在但未进 sidebar；相对链接在仓库浏览时失效 |
 
 ## ML 模型文档
@@ -66,12 +66,12 @@
 
 这些文档不一定全部进入 VitePress sidebar，但应由本页或对应专题页反向索引：
 
-- [项目文档索引](../project-docs-index.md) — 旧版集中索引，覆盖比赛材料和历史专题；
-- [开发历史与实现记录](../DEV_DOCS_INDEX.md) — 开发过程、专项实现和历史决策索引；
-- [项目结构深挖](../project-structure-deep-dive.md) — 顶层目录、后端、前端、proto/eBPF、构建验证和安全边界；
-- [当前代码实现地图](../codebase-implementation-map.md) — 从当前代码出发的 backend/app、feature manifest、wrapper、前端路由和风险地图；
-- [历史版架构](../architecture.md)、[历史版安全模型](../security-model.md)、[威胁模型](../threat-model.md)、[历史版策略语义](../policy-semantics.md) — 可用于答辩和审查，但要与网站当前页交叉核验；
-- [External API](../external-api.md)、[Kubernetes](../kubernetes.md)、[OTLP export](../otel-export.md)、[Benchmark](../benchmark.md) — 外部接口、部署和评测；
+- [项目文档索引](../_archive/project-docs-index.md) — 旧版集中索引，覆盖比赛材料和历史专题；
+- [开发历史与实现记录](DEV_DOCS_INDEX.md) — 开发过程、专项实现和历史决策索引；
+- [项目结构深挖](project-structure-deep-dive.md) — 顶层目录、后端、前端、proto/eBPF、构建验证和安全边界；
+- [当前代码实现地图](codebase-implementation-map.md) — 从当前代码出发 of backend/app、feature manifest、wrapper、前端路由和风险地图；
+- [最新架构](../architecture/overview.md)、[安全模型](../security/model.md)、[威胁模型](../security/threat-model.md)、[策略语义](../security/policy-semantics.md) — 核心安全与设计参考；
+- [External API](../integrations/external-api.md)、[Kubernetes](../operations/kubernetes.md)、[OTLP export](../integrations/otel-export.md)、[Benchmark](../operations/runtime-replay-benchmark.md) — 外部接口、部署和评测；
 - [backend README](../../backend/README.md)、[frontend README](../../frontend/README.md)、[wrapper README](../../wrapper/README.md)、[Python adapter README](../../adapters/python/README.md)、[JS adapter README](../../adapters/js/README.md)、[kernel-ml README](../../kernel-ml/README.md) — 组件级 README；
 - `docs/ref/**` — 外部参考快照，默认不参与链接完整性扫描，除非用 `python3 scripts/check-doc-links.py --include-ref` 明确检查。
 
@@ -83,10 +83,10 @@
 
 | 主题 | 文档 |
 | --- | --- |
-| 比赛与合规 | [OS competition defense 草案](../os-competition-defense.md)、[第三方声明草案](../third-party-notices.md)、[AI 使用披露](../ai-usage/README.md)、[评测模板](../evaluation-report.md) |
-| ML / 模型 | [ML benchmark](../ml-benchmark-report.md) |
-| TLS / 脱敏 | [Sanitization](../sanitization.md)、[Sanitization 中文](../sanitization_zh.md) |
-| 深度分析 / 规划 | [Project roadmap](../project-roadmap.md)、[Demo script 草案](../demo-script.md) |
+| 比赛与合规 | [OS competition defense 草案](../delivery/competition-defense.md)、[第三方声明与合规](../delivery/compliance.md)、[AI 使用披露](../ai-usage/README.md)、[评测模板](../delivery/evaluation.md) |
+| ML / 模型 | [ML benchmark](../backend/ml-benchmark-report.md) |
+| TLS / 脱敏 | [Sanitization](../security/sanitization.md)、[Sanitization 中文](../security/sanitization-user-guide.md) |
+| 深度分析 / 规划 | [Project roadmap](project-roadmap.md)、[Demo script 草案](../delivery/demo-script.md) |
 | Superpowers 计划 / 规格历史 | [TLS plaintext capture design](../superpowers/specs/2026-05-10-tls-plaintext-capture-design.md)、[TLS plaintext capture plan](../superpowers/plans/2026-05-10-tls-plaintext-capture-implementation.md)、[GHCR devcontainer design](../superpowers/specs/2026-05-12-ghcr-devcontainer-build-design.md)、[GHCR devcontainer plan](../superpowers/plans/2026-05-12-ghcr-devcontainer-build.md)、[make default build plan](../superpowers/plans/2026-05-12-make-default-build.md) |
 
 ## 维护策略

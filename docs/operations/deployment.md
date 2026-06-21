@@ -90,7 +90,7 @@ kubectl port-forward svc/agent-ebpf-filter 8080:8080
 curl http://localhost:8080/api/v1/health
 ```
 
-详见 [External API](../external-api.md) 和 [Kubernetes 部署文档](../kubernetes.md)。
+详见 [External API](../integrations/external-api.md) 和 [Kubernetes 部署文档](kubernetes.md)。
 
 ---
 
@@ -153,6 +153,6 @@ curl http://localhost:8080/api/v1/health
 
 - [构建与运行](build-and-run.md)
 - [开发容器](devcontainer.md)
-- [Kubernetes](../kubernetes.md)
+- [Kubernetes](kubernetes.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
-- [External API](../external-api.md)
+- [External API](../integrations/external-api.md)

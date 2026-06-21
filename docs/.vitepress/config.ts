@@ -66,6 +66,7 @@ export default defineConfig({
             { text: 'ML 模型速查表 ⚡', link: '/backend/ml-models-summary' },
             { text: 'ML 模型完整指南', link: '/backend/ml-models-complete-guide' },
             { text: 'ML 模型对比可视化 📊', link: '/backend/ml-models-visualization' },
+            { text: 'ML 模型评测报告', link: '/backend/ml-benchmark-report' },
             { text: '内核态多模型实现', link: '/backend/multi-model-complete' },
             { text: '实验框架使用指南', link: '/backend/ml-experiments' },
             { text: '内核 ML 实现', link: '/backend/kernel-ml-implementation' }
@@ -79,7 +80,11 @@ export default defineConfig({
             { text: '工作台总览', link: '/frontend/workbench' },
             { text: '路由与功能页', link: '/frontend/routes-and-pages' },
             { text: '组件与 Composables', link: '/frontend/components-composables' },
-            { text: '构建与 Feature Flags', link: '/frontend/build-feature-flags' }
+            { text: '构建与 Feature Flags', link: '/frontend/build-feature-flags' },
+            { text: '事件流 Dashboard', link: '/frontend/dashboard' },
+            { text: '网络流量 Network', link: '/frontend/network' },
+            { text: '执行图谱 Execution Graph', link: '/frontend/execution-graph' },
+            { text: '策略中心 Config', link: '/frontend/configuration' }
           ]
         }
       ],
@@ -89,8 +94,11 @@ export default defineConfig({
           items: [
             { text: '安全模型', link: '/security/model' },
             { text: '策略语义', link: '/security/policy-semantics' },
+            { text: '威胁模型', link: '/security/threat-model' },
             { text: 'Runtime Gates 与 Auth', link: '/security/runtime-gates-auth' },
-            { text: '脱敏与隐私', link: '/security/redaction-privacy' }
+            { text: '脱敏与隐私', link: '/security/redaction-privacy' },
+            { text: '数据脱敏设计', link: '/security/sanitization' },
+            { text: '数据脱敏用户指南', link: '/security/sanitization-user-guide' }
           ]
         }
       ],
@@ -101,7 +109,9 @@ export default defineConfig({
             { text: 'Agents、Adapters 与 PID 注册', link: '/integrations/agents' },
             { text: 'Wrapper 命令策略', link: '/integrations/wrapper' },
             { text: 'Native Hooks', link: '/integrations/native-hooks' },
-            { text: 'MCP、External API 与 OTLP', link: '/integrations/mcp-external-otlp' }
+            { text: 'MCP、External API 与 OTLP', link: '/integrations/mcp-external-otlp' },
+            { text: 'OTLP 导出说明', link: '/integrations/otel-export' },
+            { text: '外部 REST API', link: '/integrations/external-api' }
           ]
         }
       ],
@@ -112,7 +122,10 @@ export default defineConfig({
             { text: '构建与运行', link: '/operations/build-and-run' },
             { text: '开发容器', link: '/operations/devcontainer' },
             { text: '部署与安装', link: '/operations/deployment' },
-            { text: '验证、测试与 Benchmark', link: '/operations/verification-benchmark' }
+            { text: 'Kubernetes 集群部署', link: '/operations/kubernetes' },
+            { text: '验证、测试与 Benchmark', link: '/operations/verification-benchmark' },
+            { text: '离线重放 Benchmark', link: '/operations/runtime-replay-benchmark' },
+            { text: '故障排查指南', link: '/operations/troubleshooting' }
           ]
         }
       ],
@@ -142,7 +155,11 @@ export default defineConfig({
             { text: '外部资源与最佳实践', link: '/reference/external-resources' },
             { text: 'VitePress 插件配置', link: '/reference/vitepress-plugins' },
             { text: 'AgentSight 项目致敬', link: '/reference/agentsight-acknowledgment' },
-            { text: '维护检查清单', link: '/reference/maintenance-checklists' }
+            { text: '维护检查清单', link: '/reference/maintenance-checklists' },
+            { text: '开发设计索引', link: '/reference/DEV_DOCS_INDEX' },
+            { text: '项目技术路线图', link: '/reference/project-roadmap' },
+            { text: '项目结构深挖', link: '/reference/project-structure-deep-dive' },
+            { text: '代码实现映射表', link: '/reference/codebase-implementation-map' }
           ]
         }
       ]

@@ -49,9 +49,9 @@ TLS 明文捕获默认关闭。启用时也必须：
 ## 文档链接
 
 - `backend/redaction/README.md`
-- `docs/sanitization.md`
-- `docs/sanitization_zh.md`
-- `docs/SANITIZATION_IMPLEMENTATION_SUMMARY.md`
+- `docs/security/sanitization.md`
+- `docs/security/sanitization-user-guide.md`
+- `docs/_archive/SANITIZATION_IMPLEMENTATION_SUMMARY.md`
 
 ---
 
@@ -59,6 +59,6 @@ TLS 明文捕获默认关闭。启用时也必须：
 
 - [安全模型](model.md)
 - [Runtime Gates 与 Auth](runtime-gates-auth.md)
-- [Sanitization 完整文档](../sanitization.md)
-- [Sanitization 中文指南](../sanitization_zh.md)
+- [Sanitization 完整文档](sanitization.md)
+- [Sanitization 中文指南](sanitization-user-guide.md)
 - [事件管线](../backend/event-pipeline.md)

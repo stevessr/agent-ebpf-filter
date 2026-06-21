@@ -355,7 +355,7 @@ rtk bash -lc 'cd backend && RUNTIME_REPLAY_OUT=../reports/runtime-replay-manual/
 ## 相关导航
 
 - [ML、Plugins 与扩展能力](/backend/ml-plugins)
-- [ML benchmark](/ml-benchmark-report)
+- [ML benchmark](/backend/ml-benchmark-report)
 - [ML 模型完整指南](/backend/ml-models-complete-guide)
-- [ML opening report](/ml-opening-report)
+- [ML opening report](../_archive/ml-opening-report.md)
 - [验证、测试与 Benchmark](/operations/verification-benchmark)
