@@ -347,26 +347,30 @@ jobs:
 
               overheads.sort((a, b) => a.concurrency - b.concurrency);
 
-              body = `## 🔬 eBPF Concurrent Performance Benchmark Results
+              const resultLines = overheads.map(o => `- **C=${o.concurrency}**: ${o.avgOverhead}%`).join('\n');
+              const reportContent = fs.readFileSync(reportPath, 'utf8').substring(0, 8000);
 
-**Test mode:** Concurrent
-**Concurrency levels:** ${concurrencyLevels}
-**Cycles per level:** ${cycles}
-
-**Results by Concurrency:**
-${overheads.map(o => `- **C=${o.concurrency}**: ${o.avgOverhead}%`).join('\n')}
-
-<details>
-<summary>View full concurrent report</summary>
-
-\`\`\`
-${fs.readFileSync(reportPath, 'utf8').substring(0, 8000)}
-\`\`\`
-
-</details>
-
-📊 Full reports available in workflow artifacts.
-`;
+              body = [
+                '## 🔬 eBPF Concurrent Performance Benchmark Results',
+                '',
+                '**Test mode:** Concurrent',
+                `**Concurrency levels:** ${concurrencyLevels}`,
+                `**Cycles per level:** ${cycles}`,
+                '',
+                '**Results by Concurrency:**',
+                resultLines,
+                '',
+                '<details>',
+                '<summary>View full concurrent report</summary>',
+                '',
+                '```',
+                reportContent,
+                '```',
+                '',
+                '</details>',
+                '',
+                '📊 Full reports available in workflow artifacts.'
+              ].join('\n');
             } else {
               // Sequential mode PR comment
               const latestDir = fs.readdirSync('reports')
@@ -382,24 +386,28 @@ ${fs.readFileSync(reportPath, 'utf8').substring(0, 8000)}
               const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
               const avgOverhead = (summary.operations.reduce((sum, op) => sum + op.overhead_percent, 0) / summary.operations.length).toFixed(2);
 
-              body = `## 🔬 eBPF Performance Benchmark Results
+              const detailLines = summary.operations.map(op => {
+                const sign = op.overhead_percent > 0 ? '+' : '';
+                return `- \`${op.name}\`: ${sign}${op.overhead_percent.toFixed(2)}% (${op.baseline_us.toFixed(3)} → ${op.ebpf_us.toFixed(3)} μs)`;
+              }).join('\n');
 
-**Test mode:** Sequential
-**Average overhead:** ${avgOverhead}%
-**Syscalls tested:** ${summary.operations.length}
-**Test cycles:** ${cycles}
-
-<details>
-<summary>View detailed results</summary>
-
-${summary.operations.map(op =>
-  `- \`${op.name}\`: ${op.overhead_percent > 0 ? '+' : ''}${op.overhead_percent.toFixed(2)}% (${op.baseline_us.toFixed(3)} → ${op.ebpf_us.toFixed(3)} μs)`
-).join('\n')}
-
-</details>
-
-📊 Full reports available in workflow artifacts.
-`;
+              body = [
+                '## 🔬 eBPF Performance Benchmark Results',
+                '',
+                '**Test mode:** Sequential',
+                `**Average overhead:** ${avgOverhead}%`,
+                `**Syscalls tested:** ${summary.operations.length}`,
+                `**Test cycles:** ${cycles}`,
+                '',
+                '<details>',
+                '<summary>View detailed results</summary>',
+                '',
+                detailLines,
+                '',
+                '</details>',
+                '',
+                '📊 Full reports available in workflow artifacts.'
+              ].join('\n');
             }
 
             github.rest.issues.createComment({
