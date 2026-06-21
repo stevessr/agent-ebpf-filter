@@ -77,15 +77,16 @@
 
 ### 历史 / 专项材料按主题入口
 
+::: tip 归档说明
+一次性开发总结、实现完成报告、迁移验证记录等文件已归档到 `docs/_archive/`，不再参与 VitePress 构建。如需查阅历史记录，请直接访问 `docs/_archive/` 目录。
+:::
+
 | 主题 | 文档 |
 | --- | --- |
-| 比赛与合规 | [OS competition defense 草案](../os-competition-defense.md)、[第三方声明草案](../third-party-notices.md)、[AI 使用披露](../ai-usage/README.md)、[开发时间线](../development-timeline.md)、[评测模板](../evaluation-report.md) |
-| eBPF / 内核 | [Kernel load manual](../kernel-load-manual.md)、[eBPF 优化总结](../ebpf-optimization-summary.md)、[BTF 修复指南](../btf-fix-guide.md)、[eBPF ML 可行性](../ebpf-ml-feasibility.md)、[eBPF ML 实现](../ebpf-ml-implementation.md) |
-| ML / 模型 | [ML opening report](../ml-opening-report.md)、[ML attention](../ml-attention.md)、[多模型支持设计](../multi-model-support.md)、[全模型实现概览](../all-models-complete.md)、[ML benchmark](../ml-benchmark-report.md) |
-| AgentSight / 图谱 | [AgentSight 优化指南](../agentsight-optimization-guide.md)、[AgentSight 优化总结](../agentsight-optimization-summary.md)、[Execution Graph 行为追踪修复](../execution-graph-behavior-tracking-fix.md) |
-| MCP / 外部工具 | [MCP skills 增强](../mcp-skills-enhancement.md)、[MCP SSE 迁移](../mcp-sse-to-streamable-migration.md)、[MCP streamable 验证](../mcp-streamable-verification.md)、[MCP migration complete](../mcp-migration-complete.md) |
-| TLS / Codex / 脱敏 | [SSL implementation summary](../ssl-implementation-summary.md)、[SSL final summary](../ssl-final-summary.md)、[Claude / Codex TLS 支持](../ssl-claude-codex-support.md)、[Codex workflows](../codex-workflows.md)、[TLS 瑞士军刀验证报告](../backend/MISSION_ACCOMPLISHED.md)、[Sanitization](../sanitization.md)、[Sanitization 中文](../sanitization_zh.md) |
-| 深度分析 / 规划 | [Deep code analysis](../DEEP_CODE_ANALYSIS.md)、[Project roadmap](../project-roadmap.md)、[Demo script 草案](../demo-script.md)、[devcontainer 运维页](/operations/devcontainer) |
+| 比赛与合规 | [OS competition defense 草案](../os-competition-defense.md)、[第三方声明草案](../third-party-notices.md)、[AI 使用披露](../ai-usage/README.md)、[评测模板](../evaluation-report.md) |
+| ML / 模型 | [ML benchmark](../ml-benchmark-report.md) |
+| TLS / 脱敏 | [Sanitization](../sanitization.md)、[Sanitization 中文](../sanitization_zh.md) |
+| 深度分析 / 规划 | [Project roadmap](../project-roadmap.md)、[Demo script 草案](../demo-script.md) |
 | Superpowers 计划 / 规格历史 | [TLS plaintext capture design](../superpowers/specs/2026-05-10-tls-plaintext-capture-design.md)、[TLS plaintext capture plan](../superpowers/plans/2026-05-10-tls-plaintext-capture-implementation.md)、[GHCR devcontainer design](../superpowers/specs/2026-05-12-ghcr-devcontainer-build-design.md)、[GHCR devcontainer plan](../superpowers/plans/2026-05-12-ghcr-devcontainer-build.md)、[make default build plan](../superpowers/plans/2026-05-12-make-default-build.md) |
 
 ## 维护策略

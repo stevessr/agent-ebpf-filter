@@ -7,7 +7,7 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   srcDir: '.',
-  srcExclude: ['ref/**'],
+  srcExclude: ['ref/**', '_archive/**'],
   ignoreDeadLinks: true,
   outDir: '.vitepress/dist',
   themeConfig: {

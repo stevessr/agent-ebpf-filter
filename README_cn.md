@@ -1,40 +1,152 @@
+# Agent eBPF Filter
+
+面向 Linux 本地工作站和实验环境的 **AI Agent 行为观测与安全控制系统**。
+
+---
+
 ## 项目简介
 
-  Agent eBPF Filter 是一个面向 Linux 本地开发与实验环境的 AI Agent 可观测与安全控制平台。项目通过 Go 后端 + eBPF 内核探针 + Vue 3 前端 + CLI Wrapper + 多语言适配器，实时
-  追踪 AI Agent、开发者 CLI 与子进程的文件访问、进程执行、网络连接和策略命中行为，并提供可视化分析、运行时配置与内核级阻断能力。
+Agent eBPF Filter 通过 Go 后端 + eBPF 内核探针 + Vue 3 前端 + CLI Wrapper + 多语言适配器，实时追踪 AI Agent、开发者 CLI 与子进程的文件访问、进程执行、网络连接和策略命中行为，并提供可视化分析、运行时配置与内核级阻断能力。
 
-  系统核心由特权 Go 后端加载并管理 eBPF 程序，利用 syscall tracepoint、cgroup/connect、UDP sendmsg 与 BPF LSM 等机制采集和拦截关键操作。前端仪表盘提供事件流、系统监控、执
-  行拓扑、网络流量、文件浏览、命令执行、Hook 管理、ML/LLM 风险评分和运行时配置等页面，帮助开发者直观看到 Agent 正在读取什么、执行什么、连接哪里，以及哪些行为触发了安全策
-  略。
+### 核心问题
 
-  项目支持 Python、Node 等适配器进行 PID 注册，也支持通过 agent-wrapper 和原生 AI CLI Hook 接入 Claude Code、Gemini CLI、Codex、GitHub Copilot 等工具链。除观测外，系统还
-  提供基于 cgroup 的精确 IP/端口阻断、基于 BPF LSM 的可执行文件与文件名策略阻断、TLS 明文片段捕获、Host/SNI 域名转发、事件记录回放、网络流富化、OTLP/Prometheus 导出和
-  Kubernetes 节点部署能力。
+当 AI Agent 或开发者 CLI 在本机执行任务时，系统如何回答：
 
-  该项目适用于 AI Agent 安全研究、开发者工具行为审计、本地沙箱实验、企业内网工具治理、CTF/攻防演练环境以及需要对自动化编码代理进行细粒度监控与约束的场景。它的目标不是简单
-  记录日志，而是构建一个可观测、可解释、可回放、可策略化控制的 AI Agent 运行时安全平面。
+- 它实际执行了什么命令？
+- 它打开、修改或删除了哪些文件？
+- 它连接了哪些网络目标？
+- 这些行为属于哪个 Agent run、哪个 tool call、哪个 trace？
+- 是否触发了 wrapper / cgroup / LSM / ML / semantic policy？
+- 高风险诊断数据是否经过脱敏？
 
-## 系统服务安装
+### 核心能力
+
+| 能力 | 描述 |
+| --- | --- |
+| **内核事实采集** | eBPF tracepoint 捕获 exec/open/connect/sendto/recvfrom 等 9 类 syscall |
+| **Agent 语义关联** | PID registration、native hooks、wrapper 提供 run_id / tool_call_id / trace_id |
+| **用户态 + 内核态控制** | wrapper (ALLOW/BLOCK/ALERT/REWRITE)、cgroup 网络阻断、BPF LSM 文件/执行阻断 |
+| **可视化工作台** | Dashboard、Network、Execution Graph、AgentSight、Config、ML、Plugins |
+| **安全默认值** | release-mode auth、runtime gates、四级脱敏、高风险能力默认关闭 |
+| **对外集成** | MCP、External API v1、OTLP span 导出、Prometheus metrics |
+
+---
+
+## 快速开始
+
+### 环境要求
+
+- Linux，支持 eBPF + BTF
+- Go 1.26.2+
+- Bun（前端构建）
+- clang / LLVM（eBPF 编译）
+- `sudo` 或 `pkexec`
+
+### 开发模式
 
 ```bash
-make install
+make predev          # 安装开发依赖
+make dev             # 启动后端 + 前端开发会话
 ```
 
-`make install` 会先构建后端、前端和 `agent-wrapper`，再把服务文件安装到
-`/opt/agent-ebpf-filter`，把公开二进制安装到 `/usr/local/bin`，并写入
-`/etc/agent-ebpf-filter/agent-ebpf-filter.env`。安装器优先注册 systemd
-服务；如果当前系统没有运行 systemd，则回落到 `/etc/rc.local` 托管块和
-`/usr/local/sbin/agent-ebpf-filter-service`。可用
-`INSTALL_METHOD=systemd|rc.local`、`INSTALL_START=0`、`INSTALL_ENABLE=0`
-调整行为；卸载用 `make uninstall`。
+### 生产模式
+
+```bash
+make run             # 构建并运行
+```
+
+### 系统服务安装
+
+```bash
+make install         # 安装为 systemd 服务（或 rc.local fallback）
+make uninstall       # 卸载
+```
+
+---
+
+## 系统架构
+
+```mermaid
+flowchart TD
+    Agent["AI Agent / CLI"] --> Syscall["syscall"]
+    Syscall --> eBPF["eBPF tracepoints"]
+    eBPF -->|"ringbuf"| Backend["Go 后端"]
+    Backend -->|"WebSocket"| Frontend["Vue 前端"]
+    
+    Agent --> Wrapper["agent-wrapper"]
+    Wrapper -->|"UDS"| Backend
+    
+    Agent --> Hook["AI CLI Hook"]
+    Hook --> Backend
+    
+    Backend --> Cgroup["cgroup 阻断"]
+    Backend --> LSM["BPF LSM 阻断"]
+    Backend --> Export["MCP / OTLP / Prometheus"]
+```
+
+---
 
 ## 编译期功能选择
 
-构建时可以通过 `AGENT_BUILD_FEATURES` 控制后端携带的功能模块，通过
-`AGENT_FRONTEND_BUILD_FEATURES` 控制前端构建声明的可见功能。默认值 `all`
-保持完整功能；`core` 只保留核心事件与运行时控制面；也可以使用
-`tls_capture,ml,plugins` 这类逗号列表，对应 Go build tag 会展开为
-`agentfeat_tls_capture` 等。编译期选择只决定“当前构建是否包含该模块”，危险
-能力仍必须经过 `/config/runtime` / `AGENT_RUNTIME_*` 运行时 gate 和 release
-mode access token 才能使用。后端通过 `GET /system/features` 暴露当前构建与
-运行时状态，前端会据此区分“未编译”“运行时关闭”和“可用”。
+```bash
+# 默认：完整功能
+AGENT_BUILD_FEATURES=all make backend
+
+# 仅核心模块
+AGENT_BUILD_FEATURES=core make backend
+
+# 选择性功能
+AGENT_BUILD_FEATURES=tls_capture,ml,plugins make backend
+```
+
+编译期选择只决定"当前构建是否包含该模块"，危险能力仍需 `/config/runtime` 运行时 gate 和 release mode access token 才能使用。后端通过 `GET /system/features` 暴露状态，前端据此区分"未编译""运行时关闭"和"可用"。
+
+---
+
+## 项目结构
+
+| 目录 | 说明 |
+| --- | --- |
+| `backend/` | Go 后端（HTTP/WS API、eBPF 加载、策略引擎） |
+| `backend/ebpf/` | eBPF 程序（tracker、cgroup sandbox、LSM enforcer） |
+| `frontend/` | Vue 3 + TypeScript + Vite 前端 |
+| `wrapper/` | agent-wrapper 命令拦截器 |
+| `adapters/` | Python / Node.js PID 注册适配器 |
+| `kernel-ml/` | 可选 DKMS 内核态 ML 推理模块 |
+| `proto/` | Protobuf 协议定义 |
+| `docs/` | VitePress 文档站 |
+| `deploy/` | Kubernetes 部署清单 |
+
+---
+
+## 文档
+
+项目提供完整的 [VitePress 文档站](docs/index.md)，按以下结构组织：
+
+- **[指南](docs/guide/what-is-agent-ebpf-filter.md)** — 项目介绍、快速开始、功能总览
+- **[架构](docs/architecture/overview.md)** — 总体架构、数据流、运行时边界
+- **[后端与内核](docs/backend/runtime-startup.md)** — 启动链路、路由 API、事件管线、ML
+- **[前端工作台](docs/frontend/workbench.md)** — 工作台总览、路由、组件
+- **[安全模型](docs/security/model.md)** — 安全模型、策略语义、Runtime Gates
+- **[集成](docs/integrations/agents.md)** — Agents、Wrapper、Native Hooks、MCP/OTLP
+- **[运维交付](docs/operations/build-and-run.md)** — 构建、部署、验证
+- **[答辩交付](docs/delivery/competition-defense.md)** — 答辩主线、演示脚本、评测报告
+
+本地预览文档站：
+
+```bash
+bun install
+bun run docs:dev
+```
+
+---
+
+## 许可证
+
+[GPL-3.0](LICENSE)
+
+---
+
+## 致谢
+
+本项目在架构设计和技术选型上受到 [AgentSight](https://github.com/eunomia-bpf/agentsight) 项目的启发。详见 [AgentSight 项目致敬](docs/reference/agentsight-acknowledgment.md)。
