@@ -48,7 +48,8 @@ jobs:
             make \
             pkg-config \
             libelf-dev \
-            zlib1g-dev
+            zlib1g-dev \
+            protobuf-compiler
 
       - name: Verify Go installation
         run: |
@@ -69,6 +70,9 @@ jobs:
         run: |
           echo "Using Go workspace..."
           cat go.work
+          echo ""
+          echo "Installing protoc-gen-go..."
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
           echo ""
           echo "Downloading dependencies..."
           go work sync
@@ -93,6 +97,21 @@ jobs:
           go build -o benchmark-syscalls ./benchmark-syscalls.go
           go build -o benchmark-syscalls-extended ./benchmark-syscalls-extended.go
           chmod +x benchmark-syscalls benchmark-syscalls-extended
+
+      - name: Generate protobuf files
+        run: |
+          echo "Generating protobuf Go bindings..."
+          mkdir -p backend/pb
+          protoc --go_out=backend/pb --go_opt=paths=source_relative \
+            -I proto \
+            proto/tracker_common.proto \
+            proto/tracker_events.proto \
+            proto/tracker_registration.proto \
+            proto/tracker_system.proto \
+            proto/tracker_config.proto \
+            proto/tracker_shell.proto
+          echo "Protobuf generation completed"
+          ls -la backend/pb/*.pb.go
 
       - name: Build eBPF programs
         run: |
