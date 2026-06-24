@@ -101,11 +101,98 @@ const thumbLeft = computed(
   () => scrollProgress.value * (100 - thumbWidth.value),
 );
 
-const eventPosition = (timestamp: number) =>
-  ((timestamp - visibleTimeRange.value.start) / visibleTimeRange.value.span) *
-  100;
-const minimapPosition = (timestamp: number) =>
-  ((timestamp - fullTimeRange.value.start) / fullTimeRange.value.span) * 100;
+// Density binning. Rendering one DOM node per event collapses into an
+// unreadable clump once a lane holds thousands of events (and is slow). Instead
+// we bucket events across the visible range and draw a compact activity
+// histogram: bucket height/opacity encode how many events fall in that slice,
+// normalized per lane so a sparse lane still shows crisp individual bars while a
+// dense lane reads as a smooth density band. Buckets span the *visible* range,
+// so zooming in naturally increases temporal resolution.
+const LANE_BUCKETS = 220;
+const MINIMAP_BUCKETS = 160;
+const LANE_TRACK_HEIGHT = 32;
+
+interface DensityBucket {
+  index: number;
+  leftPct: number;
+  count: number;
+  ratio: number;
+  color: string;
+  sample: ProcessedAgentSightEvent;
+}
+
+const bucketize = (
+  events: ProcessedAgentSightEvent[],
+  start: number,
+  span: number,
+  bucketCount: number,
+): DensityBucket[] => {
+  const map = new Map<number, DensityBucket>();
+  for (const event of events) {
+    const pos = ((event.timestamp - start) / span) * 100;
+    if (pos < 0 || pos > 100) continue;
+    const index = Math.min(
+      bucketCount - 1,
+      Math.max(0, Math.floor((pos / 100) * bucketCount)),
+    );
+    const existing = map.get(index);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      map.set(index, {
+        index,
+        leftPct: ((index + 0.5) / bucketCount) * 100,
+        count: 1,
+        ratio: 1,
+        color: event.sourceColor || "#64748b",
+        sample: event,
+      });
+    }
+  }
+  const buckets = Array.from(map.values()).sort((a, b) => a.index - b.index);
+  const max = buckets.reduce((m, b) => Math.max(m, b.count), 1);
+  for (const bucket of buckets) {
+    // sqrt keeps single-event buckets clearly visible instead of vanishing
+    // under one very dense slice.
+    bucket.ratio = Math.sqrt(bucket.count / max);
+  }
+  return buckets;
+};
+
+const laneDensities = computed(() =>
+  groupedEvents.value.map((group) => ({
+    source: group.source,
+    color: group.color,
+    total: group.events.length,
+    buckets: bucketize(
+      group.events,
+      visibleTimeRange.value.start,
+      visibleTimeRange.value.span,
+      LANE_BUCKETS,
+    ),
+  })),
+);
+
+const minimapDensities = computed(() =>
+  bucketize(
+    filteredEvents.value,
+    fullTimeRange.value.start,
+    fullTimeRange.value.span,
+    MINIMAP_BUCKETS,
+  ),
+);
+
+const barHeight = (ratio: number) => 8 + ratio * 18;
+const barTop = (ratio: number) => (LANE_TRACK_HEIGHT - barHeight(ratio)) / 2;
+const barOpacity = (ratio: number) => 0.5 + ratio * 0.5;
+
+const bucketTitle = (bucket: DensityBucket) => {
+  const { sample } = bucket;
+  if (bucket.count > 1) {
+    return `${bucket.count} events · around ${sample.formattedTime}`;
+  }
+  return `${sample.formattedTime} · ${sample.comm}#${sample.pid} · ${sample.title}`;
+};
 
 const zoomTo = (next: number) => {
   const current = zoomLevel.value;
@@ -288,12 +375,14 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 
       <div class="minimap" @click="jumpToMinimap">
         <span
-          v-for="event in filteredEvents"
-          :key="`mini-${event.id}`"
-          class="minimap-dot"
+          v-for="bucket in minimapDensities"
+          :key="`mini-${bucket.index}`"
+          class="minimap-bar"
           :style="{
-            left: `${minimapPosition(event.timestamp)}%`,
-            background: event.sourceColor,
+            left: `${bucket.leftPct}%`,
+            height: `${4 + bucket.ratio * 14}px`,
+            background: bucket.color,
+            opacity: 0.4 + bucket.ratio * 0.5,
           }"
         />
         <div
@@ -306,27 +395,26 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
       </div>
 
       <div class="lanes">
-        <div v-for="group in groupedEvents" :key="group.source" class="lane">
+        <div v-for="lane in laneDensities" :key="lane.source" class="lane">
           <div class="lane-label">
-            <span class="lane-dot" :style="{ background: group.color }" />
-            <strong>{{ group.source }}</strong>
-            <a-tag>{{ group.events.length }}</a-tag>
+            <span class="lane-dot" :style="{ background: lane.color }" />
+            <strong>{{ lane.source }}</strong>
+            <a-tag>{{ lane.total }}</a-tag>
           </div>
           <div class="lane-track">
             <button
-              v-for="event in group.events"
-              v-show="
-                eventPosition(event.timestamp) >= 0 &&
-                eventPosition(event.timestamp) <= 100
-              "
-              :key="event.id"
-              class="event-marker"
+              v-for="bucket in lane.buckets"
+              :key="`${lane.source}-${bucket.index}`"
+              class="density-bar"
               :style="{
-                left: `${eventPosition(event.timestamp)}%`,
-                background: group.color,
+                left: `${bucket.leftPct}%`,
+                top: `${barTop(bucket.ratio)}px`,
+                height: `${barHeight(bucket.ratio)}px`,
+                background: lane.color,
+                opacity: barOpacity(bucket.ratio),
               }"
-              :title="`${event.formattedTime} · ${event.comm}#${event.pid} · ${event.title}`"
-              @click="openDetails(event)"
+              :title="bucketTitle(bucket)"
+              @click="openDetails(bucket.sample)"
             />
           </div>
         </div>
@@ -451,13 +539,13 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
   overflow: hidden;
 }
 
-.minimap-dot {
+.minimap-bar {
   position: absolute;
-  top: 6px;
-  width: 3px;
-  height: 10px;
-  border-radius: 2px;
-  opacity: 0.75;
+  bottom: 2px;
+  width: 2px;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .minimap-window {
@@ -503,20 +591,22 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
   background: rgba(226, 232, 240, 0.6);
 }
 
-.event-marker {
+.density-bar {
   position: absolute;
-  top: 5px;
-  width: 8px;
-  height: 22px;
+  width: 4px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.24);
+  border-radius: 3px;
   cursor: pointer;
   transform: translateX(-50%);
+  transition:
+    filter 0.12s ease,
+    opacity 0.12s ease;
 }
 
-.event-marker:hover {
-  outline: 2px solid #0f172a;
+.density-bar:hover {
+  opacity: 1 !important;
+  filter: brightness(1.12) saturate(1.08);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.28);
 }
 </style>

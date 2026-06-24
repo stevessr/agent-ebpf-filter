@@ -118,24 +118,33 @@ const stats = computed(() => {
 
 const chartMax = computed(() => {
   if (filteredMetrics.value.length === 0) return 1;
-  if (metricType.value === "cpu")
-    return Math.max(
-      100,
+  if (metricType.value === "cpu") {
+    const maxCpu = Math.max(
       ...filteredMetrics.value.map((metric) => metric.cpuPercent),
     );
-  return (
-    Math.max(1, ...filteredMetrics.value.map((metric) => metric.memoryBytes)) *
-    1.1
+    return Math.max(100, Math.ceil(maxCpu * 1.1));
+  }
+  const maxMemory = Math.max(
+    1,
+    ...filteredMetrics.value.map((metric) => metric.memoryBytes),
   );
+  return maxMemory * 1.1;
 });
 
-const pointX = (index: number) =>
-  filteredMetrics.value.length <= 1
-    ? 0
-    : (index / (filteredMetrics.value.length - 1)) * 100;
-const pointY = (value: number) => 100 - (value / chartMax.value) * 100;
+const pointX = (index: number) => {
+  if (filteredMetrics.value.length === 0) return 50;
+  if (filteredMetrics.value.length === 1) return 50;
+  return (index / (filteredMetrics.value.length - 1)) * 100;
+};
+
+const pointY = (value: number) => {
+  if (chartMax.value === 0) return 100;
+  return Math.max(0, Math.min(100, 100 - (value / chartMax.value) * 100));
+};
+
 const metricValue = (metric: ResourceMetric) =>
   metricType.value === "cpu" ? metric.cpuPercent : metric.memoryBytes;
+
 const metricLabel = (value: number) =>
   metricType.value === "cpu" ? `${value.toFixed(2)}%` : formatBytes(value);
 </script>
@@ -201,13 +210,16 @@ const metricLabel = (value: number) =>
         :title="metricType === 'cpu' ? 'CPU over time' : 'Memory over time'"
       >
         <template #extra>{{ filteredMetrics.length }} data points</template>
-        <div class="chart">
+        <div v-if="filteredMetrics.length === 0" class="chart-empty">
+          <a-empty description="No data points available for the selected filters" />
+        </div>
+        <div v-else class="chart">
           <div class="y-axis">
             <span>{{ metricLabel(chartMax) }}</span>
             <span>{{ metricLabel(chartMax * 0.75) }}</span>
             <span>{{ metricLabel(chartMax * 0.5) }}</span>
             <span>{{ metricLabel(chartMax * 0.25) }}</span>
-            <span>{{ metricLabel(0) }}</span>
+            <span>0</span>
           </div>
           <svg
             class="chart-svg"
@@ -303,11 +315,19 @@ const metricLabel = (value: number) =>
   overflow: hidden;
 }
 
+.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
 .chart {
   display: grid;
   grid-template-columns: 95px 1fr;
   gap: 12px;
   height: 300px;
+  align-items: stretch;
 }
 
 .y-axis {
@@ -317,6 +337,7 @@ const metricLabel = (value: number) =>
   align-items: flex-end;
   color: #64748b;
   font-size: 12px;
+  padding-right: 8px;
 }
 
 .chart-svg {
@@ -336,6 +357,7 @@ const metricLabel = (value: number) =>
   stroke: #1677ff;
   stroke-width: 0.9;
   vector-effect: non-scaling-stroke;
+  fill: none;
 }
 
 .metric-line.alert {
@@ -344,9 +366,15 @@ const metricLabel = (value: number) =>
 
 .metric-point {
   fill: #1677ff;
+  cursor: pointer;
 }
 
 .metric-point.alert {
   fill: #ef4444;
+}
+
+.metric-point:hover {
+  r: 2;
+  filter: brightness(1.2);
 }
 </style>

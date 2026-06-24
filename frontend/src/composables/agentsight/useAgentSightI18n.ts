@@ -34,7 +34,10 @@ type AgentSightMessageKey =
   | "window"
   | "visible"
   | "lanes"
-  | "events";
+  | "events"
+  | "pause"
+  | "resume"
+  | "paused";
 
 const messages: Record<Locale, Record<AgentSightMessageKey, string>> = {
   en: {
@@ -71,6 +74,9 @@ const messages: Record<Locale, Record<AgentSightMessageKey, string>> = {
     visible: "visible",
     lanes: "lanes",
     events: "events",
+    pause: "Pause",
+    resume: "Resume",
+    paused: "Paused",
   },
   zh: {
     title: "AgentSight",
@@ -105,6 +111,9 @@ const messages: Record<Locale, Record<AgentSightMessageKey, string>> = {
     visible: "可见",
     lanes: "泳道",
     events: "事件",
+    pause: "暂停",
+    resume: "继续",
+    paused: "已暂停",
   },
 };
 

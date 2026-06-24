@@ -283,6 +283,11 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   const isTLSConnected = shallowRef(false);
   const isSystemConnected = shallowRef(false);
   const sampleAttempted = shallowRef(false);
+  // When paused, live feeds (envelope/TLS/system WebSockets + the periodic
+  // refresh) keep their connections open but stop mutating the record buffers,
+  // so the timeline and other views freeze for inspection. Manual Refresh still
+  // works as an explicit override.
+  const paused = shallowRef(false);
 
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
   let envelopeWS: WebSocket | null = null;
@@ -371,6 +376,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   };
 
   const mergeEnvelopeRecords = (incoming: Record<string, any>[]) => {
+    if (paused.value) return;
     if (incoming.length === 0) return;
     const records = incoming.map((envelope) => ({
       Envelope: envelope,
@@ -424,6 +430,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       isTLSConnected.value = true;
     };
     socket.onmessage = (event) => {
+      if (paused.value) return;
       try {
         const payload = JSON.parse(String(event.data));
         tlsRecords.value = applyAgentSightLimit(
@@ -456,6 +463,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
       isSystemConnected.value = true;
     };
     socket.onmessage = (event) => {
+      if (paused.value) return;
       try {
         const stats = pb.SystemStats.decode(new Uint8Array(event.data));
         const plain = JSON.parse(JSON.stringify(stats));
@@ -529,6 +537,13 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
 
   const clearFilters = () => {
     filters.value = defaultFilters();
+  };
+
+  const togglePaused = () => {
+    paused.value = !paused.value;
+    // Resuming pulls a fresh snapshot so the views immediately reflect whatever
+    // accumulated server-side while paused, instead of waiting for the next tick.
+    if (!paused.value) void fetchEvents();
   };
 
   const eventTypeOptions = computed(() =>
@@ -665,6 +680,7 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
   };
 
   watch(queryString, () => {
+    if (paused.value) return;
     void fetchEnvelopeEvents();
   });
 
@@ -673,7 +689,10 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     connectEnvelopeWebSocket();
     connectTLSWebSocket();
     connectSystemWebSocket();
-    refreshTimer = setInterval(fetchEvents, 10000);
+    refreshTimer = setInterval(() => {
+      if (paused.value) return;
+      void fetchEvents();
+    }, 10000);
   });
 
   onUnmounted(() => {
@@ -701,6 +720,8 @@ export function useAgentSightEvents(options?: UseAgentSightEventsOptions) {
     isEnvelopeConnected,
     isTLSConnected,
     isSystemConnected,
+    paused,
+    togglePaused,
     limit,
     filters,
     activeTab,

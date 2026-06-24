@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import {
+  CaretRightOutlined,
   ClusterOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  PauseOutlined,
   ReloadOutlined,
   SearchOutlined,
   UploadOutlined,
@@ -137,6 +139,18 @@ const loadSampleDemo = async () => {
           <a-tag color="purple"
             >{{ state.metrics.value.total }} {{ t.events }}</a-tag
           >
+          <a-button
+            size="small"
+            :type="state.paused.value ? 'primary' : 'default'"
+            :danger="state.paused.value"
+            @click="state.togglePaused"
+          >
+            <template #icon>
+              <CaretRightOutlined v-if="state.paused.value" />
+              <PauseOutlined v-else />
+            </template>
+            {{ state.paused.value ? t.resume : t.pause }}
+          </a-button>
           <a-button
             size="small"
             :loading="state.loading.value || state.tlsLoading.value"
