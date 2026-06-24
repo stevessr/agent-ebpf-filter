@@ -8,6 +8,8 @@ import {
 import type { useConfigML } from "../../../composables/config/useConfigML";
 import { useAutoTuneElapsed } from "./useAutoTuneElapsed";
 import { useModelTypeDisplay } from "./useModelTypeDisplay";
+import FeatureSerializationDetail from "./FeatureSerializationDetail.vue";
+
 const VueApexCharts = defineAsyncComponent(
   async () => (await import("vue3-apexcharts")).default as any,
 ) as any;
@@ -95,6 +97,15 @@ const modelTuneProgressTotal = computed(
       ? modelTuneSelectedTypes.value.length
       : autoTuneGridSize.value * autoTuneGridSize.value),
 );
+
+const numTreesMin = computed(() => modelBaseType.value === "graph_learning" ? 8 : 5);
+const numTreesMax = computed(() => modelBaseType.value === "graph_learning" ? 256 : 200);
+
+const maxDepthMin = computed(() => modelBaseType.value === "graph_learning" ? 1 : 3);
+const maxDepthMax = computed(() => modelBaseType.value === "graph_learning" ? 10 : 20);
+
+const minSamplesLeafMin = computed(() => modelBaseType.value === "graph_learning" ? 10 : 1);
+const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning" ? 500 : 50);
 </script>
 
 <template>
@@ -174,69 +185,89 @@ const modelTuneProgressTotal = computed(
       <template #extra>
         <a-tag color="geekblue">{{ modelTypeLabel }} 参数</a-tag>
       </template>
-      <!-- Random Forest params -->
+      <!-- Random Forest / GNN params -->
       <a-row v-if="isTreeLikeModel" :gutter="[24, 16]">
         <a-col :xs="24" :md="8">
           <span style="font-weight: 600">{{
             modelBaseType === "extra_trees"
               ? "Num Extra Trees (极随机树数量)"
+              : modelBaseType === "graph_learning"
+              ? "Hidden Dimension (图特征隐层维度)"
               : "Num Trees (树的数量)"
           }}</span>
           <a-slider
             v-model:value="hyperParams.numTrees"
-            :min="5"
-            :max="200"
+            :min="numTreesMin"
+            :max="numTreesMax"
             :step="1"
           />
           <a-input-number
             v-model:value="hyperParams.numTrees"
-            :min="5"
-            :max="200"
+            :min="numTreesMin"
+            :max="numTreesMax"
             size="small"
             style="width: 100%"
           />
           <div style="font-size: 11px; color: #999">
-            更多树 = 更高精度但更慢训练。推荐 31-101
+            {{
+              modelBaseType === "graph_learning"
+                ? "图卷积节点投影表示特征维度。推荐 32-128"
+                : "更多树 = 更高精度但更慢训练。推荐 31-101"
+            }}
           </div>
         </a-col>
         <a-col :xs="24" :md="8">
-          <span style="font-weight: 600">Max Depth (最大深度)</span>
+          <span style="font-weight: 600">{{
+            modelBaseType === "graph_learning"
+              ? "Num Layers (消息传递网络层数)"
+              : "Max Depth (最大深度)"
+          }}</span>
           <a-slider
             v-model:value="hyperParams.maxDepth"
-            :min="3"
-            :max="20"
+            :min="maxDepthMin"
+            :max="maxDepthMax"
             :step="1"
           />
           <a-input-number
             v-model:value="hyperParams.maxDepth"
-            :min="3"
-            :max="20"
+            :min="maxDepthMin"
+            :max="maxDepthMax"
             size="small"
             style="width: 100%"
           />
           <div style="font-size: 11px; color: #999">
-            更深的树 = 更复杂决策边界。推荐 6-12
+            {{
+              modelBaseType === "graph_learning"
+                ? "图神经网络的迭代步数/层数。推荐 2-4"
+                : "更深的树 = 更复杂决策边界。推荐 6-12"
+            }}
           </div>
         </a-col>
         <a-col :xs="24" :md="8">
-          <span style="font-weight: 600"
-            >Min Samples Leaf (叶节点最小样本)</span
-          >
+          <span style="font-weight: 600">{{
+            modelBaseType === "graph_learning"
+              ? "Epochs (网络迭代训练轮数)"
+              : "Min Samples Leaf (叶节点最小样本)"
+          }}</span>
           <a-slider
             v-model:value="hyperParams.minSamplesLeaf"
-            :min="1"
-            :max="50"
+            :min="minSamplesLeafMin"
+            :max="minSamplesLeafMax"
             :step="1"
           />
           <a-input-number
             v-model:value="hyperParams.minSamplesLeaf"
-            :min="1"
-            :max="50"
+            :min="minSamplesLeafMin"
+            :max="minSamplesLeafMax"
             size="small"
             style="width: 100%"
           />
           <div style="font-size: 11px; color: #999">
-            更大值防止过拟合。推荐 2-10
+            {{
+              modelBaseType === "graph_learning"
+                ? "GNN 训练完整数据集的轮数。推荐 100-300"
+                : "更大值防止过拟合。推荐 2-10"
+            }}
           </div>
         </a-col>
       </a-row>
@@ -1039,8 +1070,15 @@ const modelTuneProgressTotal = computed(
     </a-card>
   </a-col>
 
+  <!-- Feature Serialization (特征序列化展示) -->
+  <FeatureSerializationDetail
+    :model-base-type="modelBaseType"
+    :model-type-label="modelTypeLabel"
+  />
+
   <!-- Training / Validation Split -->
   <a-col :xs="24">
+
     <a-card title="Training / Validation Split" size="small">
       <template #extra
         ><a-tag color="purple"

@@ -414,6 +414,17 @@ export const defaultMLBuiltinModelCatalog: MLBuiltinModelCatalogItem[] = [
     defaults: { numTrees: 31, maxDepth: 10, minSamplesLeaf: 5 },
     tags: ["ensemble", "risk-stacked", "minority-risk"],
   },
+  {
+    value: "graph_learning",
+    label: "Graph Neural Network",
+    base: "graph_learning",
+    category: "图学习",
+    description:
+      "基于特征交互图（Feature Interaction Graph）与消息传递（Message Passing）的图神经网络分类器，自动学习复杂的关联特征。",
+    recommended: true,
+    defaults: { numTrees: 32, maxDepth: 2, minSamplesLeaf: 100 },
+    tags: ["graph", "gnn", "stable"],
+  },
 ];
 
 export const findMLBuiltinModel = (
@@ -430,5 +441,6 @@ export const mlModelCategoryColor = (category?: string, base?: string) => {
   if (category?.includes("概率")) return "gold";
   if (category?.includes("Boosting") || category?.includes("集成"))
     return "magenta";
+  if (category?.includes("图") || category?.includes("graph")) return "geekblue";
   return "purple";
 };

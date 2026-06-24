@@ -71,7 +71,8 @@ export function useModelTypeDisplay(
   const isTreeLikeModel = computed(
     () =>
       modelBaseType.value === "random_forest" ||
-      modelBaseType.value === "extra_trees",
+      modelBaseType.value === "extra_trees" ||
+      modelBaseType.value === "graph_learning",
   );
   const isLinearModel = computed(() =>
     ["logistic", "svm", "perceptron", "passive_aggressive"].includes(

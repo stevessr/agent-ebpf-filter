@@ -22,6 +22,7 @@ const (
 	ModelRandomForestAttention ModelType = "random_forest_attention"
 	ModelLogisticAttention     ModelType = "logistic_attention"
 	ModelKNNAttention          ModelType = "knn_attention"
+	ModelGraphLearning         ModelType = "graph_learning"
 
 	// Advanced attention mechanisms
 	ModelScaledDotProductAttention ModelType = "scaled_dot_product_attention"

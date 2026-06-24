@@ -87,6 +87,8 @@ func ModelName(t ModelType) string {
 		return "Hard-vote Ensemble"
 	case core.ModelEnsembleStacked:
 		return "Risk-stacked Ensemble"
+	case core.ModelGraphLearning:
+		return "Graph Neural Network"
 	default:
 		return string(t)
 	}

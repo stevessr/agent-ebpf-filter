@@ -85,6 +85,7 @@ var builtinModelProfiles = []builtinModelProfile{
 	p(ModelEnsembleSoft, ModelEnsemble, "Ensemble Soft", "Boosting/集成", "显式软投票 profile，按验证权重融合成员概率。", true, map[string]int{"numTrees": 31, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"ensemble", "soft-vote"}, func(c MLConfig) MLConfig { c.EnsembleVoting = "soft"; return c }),
 	p(ModelEnsembleHard, ModelEnsemble, "Ensemble Hard", "Boosting/集成", "硬投票 profile，适合观察多数模型一致性。", false, map[string]int{"numTrees": 21, "maxDepth": 8, "minSamplesLeaf": 5}, []string{"ensemble", "hard-vote"}, func(c MLConfig) MLConfig { c.EnsembleVoting = "hard"; return c }),
 	p(ModelEnsembleStacked, ModelEnsemble, "Risk-stacked Ensemble", "Boosting/集成", "风险优先 stacked profile：少数高置信 BLOCK/ALERT 成员不会被多数 ALLOW 淹没。", true, map[string]int{"numTrees": 31, "maxDepth": 10, "minSamplesLeaf": 5}, []string{"ensemble", "risk-stacked", "minority-risk"}, func(c MLConfig) MLConfig { c.EnsembleVoting = "stacked"; return c }),
+	p(core.ModelGraphLearning, core.ModelGraphLearning, "Graph Neural Network", "图学习", "基于特征交互图（Feature Interaction Graph）与消息传递（Message Passing）的图神经网络分类器，自动学习复杂的关联特征。", true, map[string]int{"numTrees": 32, "maxDepth": 2, "minSamplesLeaf": 100}, []string{"graph", "gnn", "stable"}, nil),
 	p(ModelAdditiveAttention, ModelAdditiveAttention, "Additive Attention", "神经注意力", "Bahdanau additive attention baseline.", false, map[string]int{"numTrees": 1, "maxDepth": 1, "minSamplesLeaf": 1}, []string{"attention", "bahdanau"}, nil),
 
 	// Advanced attention mechanisms

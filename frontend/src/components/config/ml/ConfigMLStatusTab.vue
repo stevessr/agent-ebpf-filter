@@ -20,6 +20,7 @@ const {
   mlStatus,
   modelType,
   selectedBuiltinModel,
+  modelBaseType,
   trainingLogs,
   trainingHistory,
   trainingChartOptions,
@@ -132,7 +133,7 @@ const modelTypeLabel = computed(
               align-items: center;
             "
           >
-            <a-statistic title="Trees" :value="mlStatus.num_trees || 0" />
+            <a-statistic :title="modelBaseType === 'graph_learning' ? 'Hidden Dim' : 'Trees'" :value="mlStatus.num_trees || 0" />
           </a-card>
         </a-col>
         <a-col :xs="12" :sm="8" :md="6">

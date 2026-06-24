@@ -124,6 +124,10 @@ func tryLoadModel(path string, t ModelType) Model {
 		if m, err := DeserializeEnsemble(path); err == nil {
 			loaded = m
 		}
+	case core.ModelGraphLearning:
+		if m, err := DeserializeGraphLearning(path); err == nil {
+			loaded = m
+		}
 	}
 	return wrapModelType(loaded, requested)
 }
@@ -318,6 +322,10 @@ func mlStatus() *pb.MLStatus {
 			status.NumTrees = int32(len(model.Stumps))
 		case *EnsembleModel:
 			status.NumTrees = int32(len(model.Models))
+		case *GraphLearningModel:
+			if model.Classifier != nil {
+				status.NumTrees = int32(model.Classifier.Config.HiddenDim)
+			}
 		}
 	}
 

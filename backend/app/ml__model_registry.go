@@ -22,6 +22,7 @@ func AllModelTypes() []ModelType {
 		ModelRidge, ModelRidgeLight, ModelRidgeStrong,
 		ModelAdaBoost, ModelAdaBoostFast, ModelAdaBoostLarge,
 		ModelEnsemble, ModelEnsembleSoft, ModelEnsembleHard, ModelEnsembleStacked,
+		core.ModelGraphLearning,
 		ModelAdditiveAttention,
 		ModelScaledDotProductAttention,
 		ModelMultiHeadAttention,
@@ -139,6 +140,8 @@ func modelName(t ModelType) string {
 		return "Logistic + Mamba"
 	case ModelKNNMamba:
 		return "KNN + Mamba"
+	case core.ModelGraphLearning:
+		return "Graph Neural Network"
 	default:
 		return string(t)
 	}

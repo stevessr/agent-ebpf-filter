@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/core"
 	"fmt"
 	"math"
 	"math/rand"
@@ -227,6 +228,8 @@ func (t *ModelTrainer) TrainWithConfig(store *TrainingDataStore, cfg MLConfig) (
 		model, result = t.trainPA(store, effectiveCfg)
 	case ModelEnsemble:
 		model, result = t.trainEnsemble(store, effectiveCfg)
+	case core.ModelGraphLearning:
+		model, result = t.trainGraph(store, effectiveCfg)
 	default:
 		model, result = t.Train(store, effectiveCfg.NumTrees, effectiveCfg.MaxDepth, effectiveCfg.MinSamplesLeaf)
 	}
