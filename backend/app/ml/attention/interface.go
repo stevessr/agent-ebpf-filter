@@ -1,4 +1,4 @@
-package app
+package attention
 
 // AttentionLayer is a unified interface for all attention mechanisms
 type AttentionLayer interface {
