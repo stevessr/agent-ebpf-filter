@@ -1,4 +1,5 @@
-static __always_inline int sys_enter_common_path(u32 pid, char *comm, char *path, u32 nr, u32 extra2, u32 extra3) {
+static __always_inline int sys_enter_common_path(u64 ptid, char *comm, char *path, u32 nr, u32 extra2, u32 extra3) {
+    u32 pid = (u32)(ptid >> 32);
     u32 tag_id = get_tag_id(pid, comm, path);
     if (tag_id == 0) return 0;
     struct exit_meta meta = {};
@@ -8,12 +9,12 @@ static __always_inline int sys_enter_common_path(u32 pid, char *comm, char *path
     meta.extra2 = extra2;
     meta.extra3 = extra3;
     meta.start_ns = bpf_ktime_get_ns();
-    u64 ptid = bpf_get_current_pid_tgid();
     store_exit_meta(ptid, &meta);
     return 1;
 }
 
-static __always_inline int sys_enter_common_nopath(u32 pid, char *comm, u32 nr, u32 extra2, u32 extra3) {
+static __always_inline int sys_enter_common_nopath(u64 ptid, char *comm, u32 nr, u32 extra2, u32 extra3) {
+    u32 pid = (u32)(ptid >> 32);
     u32 tag_id = get_tag_id(pid, comm, NULL);
     if (tag_id == 0) return 0;
     struct exit_meta meta = {};
@@ -23,7 +24,6 @@ static __always_inline int sys_enter_common_nopath(u32 pid, char *comm, u32 nr, 
     meta.extra2 = extra2;
     meta.extra3 = extra3;
     meta.start_ns = bpf_ktime_get_ns();
-    u64 ptid = bpf_get_current_pid_tgid();
     store_exit_meta(ptid, &meta);
     return 1;
 }
@@ -60,14 +60,14 @@ static __always_inline void sys_exit_common(struct trace_event_raw_sys_exit *ctx
 #define SYS_PATH0(name, nr) \
 SEC("tracepoint/syscalls/sys_enter_" #name) \
 int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
-    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    STORE_PID_TGID(); \
     char comm[TASK_COMM_LEN]; \
     bpf_get_current_comm(&comm, sizeof(comm)); \
     u32 zero = 0; \
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
-    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
     bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
     return 0; \
 } \
@@ -81,7 +81,7 @@ int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) 
 #define SYS_PATH01(name, nr) \
 SEC("tracepoint/syscalls/sys_enter_" #name) \
 int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
-    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    STORE_PID_TGID(); \
     char comm[TASK_COMM_LEN]; \
     bpf_get_current_comm(&comm, sizeof(comm)); \
     u32 zero = 0; \
@@ -89,7 +89,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
     bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[1]); \
-    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
     bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
     return 0; \
 } \
@@ -103,14 +103,14 @@ int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) 
 #define SYS_PATH1(name, nr) \
 SEC("tracepoint/syscalls/sys_enter_" #name) \
 int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
-    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    STORE_PID_TGID(); \
     char comm[TASK_COMM_LEN]; \
     bpf_get_current_comm(&comm, sizeof(comm)); \
     u32 zero = 0; \
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); \
-    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
     bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
     return 0; \
 } \
@@ -124,7 +124,7 @@ int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) 
 #define SYS_PATH13(name, nr) \
 SEC("tracepoint/syscalls/sys_enter_" #name) \
 int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
-    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    STORE_PID_TGID(); \
     char comm[TASK_COMM_LEN]; \
     bpf_get_current_comm(&comm, sizeof(comm)); \
     u32 zero = 0; \
@@ -132,7 +132,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[1]); \
     bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[3]); \
-    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
     bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
     return 0; \
 } \
@@ -146,7 +146,7 @@ int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) 
 #define SYS_PATH02(name, nr) \
 SEC("tracepoint/syscalls/sys_enter_" #name) \
 int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
-    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    STORE_PID_TGID(); \
     char comm[TASK_COMM_LEN]; \
     bpf_get_current_comm(&comm, sizeof(comm)); \
     u32 zero = 0; \
@@ -154,7 +154,7 @@ int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[0]); \
     bpf_probe_read_user_str(pd->extra4, MAX_PATH_LEN, (const char *)ctx->args[2]); \
-    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
     bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
     return 0; \
 } \
@@ -168,14 +168,14 @@ int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) 
 #define SYS_PATH4(name, nr) \
 SEC("tracepoint/syscalls/sys_enter_" #name) \
 int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
-    STORE_PID_TGID(); u32 pid = (u32)(ptid >> 32); \
+    STORE_PID_TGID(); \
     char comm[TASK_COMM_LEN]; \
     bpf_get_current_comm(&comm, sizeof(comm)); \
     u32 zero = 0; \
     struct exit_path_data *pd = bpf_map_lookup_elem(&exit_path_buf, &zero); \
     if (!pd) return 0; \
     bpf_probe_read_user_str(pd->path, MAX_PATH_LEN, (const char *)ctx->args[4]); \
-    if (!sys_enter_common_path(pid, comm, pd->path, nr, 0, 0)) return 0; \
+    if (!sys_enter_common_path(ptid, comm, pd->path, nr, 0, 0)) return 0; \
     bpf_map_update_elem(&exit_path_ctx, &ptid, pd, BPF_ANY); \
     return 0; \
 } \
@@ -189,10 +189,10 @@ int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) 
 #define SYS_NUM(name, nr, arg_idx) \
 SEC("tracepoint/syscalls/sys_enter_" #name) \
 int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
-    u32 pid = (u32)(bpf_get_current_pid_tgid() >> 32); \
+    u64 ptid = bpf_get_current_pid_tgid(); \
     char comm[TASK_COMM_LEN]; \
     bpf_get_current_comm(&comm, sizeof(comm)); \
-    sys_enter_common_nopath(pid, comm, nr, (u32)ctx->args[arg_idx], 0); \
+    sys_enter_common_nopath(ptid, comm, nr, (u32)ctx->args[arg_idx], 0); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \
@@ -205,10 +205,10 @@ int tracepoint__syscalls__sys_exit_##name(struct trace_event_raw_sys_exit *ctx) 
 #define SYS_NUM2(name, nr, a_idx, b_idx) \
 SEC("tracepoint/syscalls/sys_enter_" #name) \
 int tracepoint__syscalls__sys_enter_##name(struct trace_event_raw_sys_enter *ctx) { \
-    u32 pid = (u32)(bpf_get_current_pid_tgid() >> 32); \
+    u64 ptid = bpf_get_current_pid_tgid(); \
     char comm[TASK_COMM_LEN]; \
     bpf_get_current_comm(&comm, sizeof(comm)); \
-    sys_enter_common_nopath(pid, comm, nr, (u32)ctx->args[a_idx], (u32)ctx->args[b_idx]); \
+    sys_enter_common_nopath(ptid, comm, nr, (u32)ctx->args[a_idx], (u32)ctx->args[b_idx]); \
     return 0; \
 } \
 SEC("tracepoint/syscalls/sys_exit_" #name) \

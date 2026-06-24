@@ -75,6 +75,17 @@ static __always_inline int lsm_file_name_is_blocked(const unsigned char *name)
 	return blocked && *blocked;
 }
 
+static __always_inline int check_file_blocked(const unsigned char *name, struct lsm_enforcer_stats *stats)
+{
+	if (lsm_file_name_is_blocked(name)) {
+		if (stats) {
+			stats->file_blocked++;
+		}
+		return -EACCES;
+	}
+	return 0;
+}
+
 SEC("lsm/bprm_check_security")
 int BPF_PROG(lsm_enforce_bprm_check, struct linux_binprm *bprm, int ret)
 {
@@ -139,14 +150,7 @@ int BPF_PROG(lsm_enforce_file_open, struct file *file, int ret)
 	}
 
 	const unsigned char *name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-	if (lsm_file_name_is_blocked(name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(name, stats);
 }
 
 SEC("lsm/file_permission")
@@ -162,14 +166,7 @@ int BPF_PROG(lsm_enforce_file_permission, struct file *file, int mask, int ret)
 	}
 
 	const unsigned char *name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-	if (lsm_file_name_is_blocked(name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(name, stats);
 }
 
 SEC("lsm/mmap_file")
@@ -190,14 +187,7 @@ int BPF_PROG(lsm_enforce_mmap_file, struct file *file, unsigned long reqprot,
 	}
 
 	const unsigned char *name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-	if (lsm_file_name_is_blocked(name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(name, stats);
 }
 
 SEC("lsm/file_mprotect")
@@ -223,14 +213,7 @@ int BPF_PROG(lsm_enforce_file_mprotect, struct vm_area_struct *vma, unsigned lon
 	}
 
 	const unsigned char *name = BPF_CORE_READ(file, f_path.dentry, d_name.name);
-	if (lsm_file_name_is_blocked(name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(name, stats);
 }
 
 SEC("lsm/inode_setattr")
@@ -247,14 +230,7 @@ int BPF_PROG(lsm_enforce_inode_setattr, struct mnt_idmap *idmap, struct dentry *
 	}
 
 	const unsigned char *name = BPF_CORE_READ(dentry, d_name.name);
-	if (lsm_file_name_is_blocked(name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(name, stats);
 }
 
 SEC("lsm/inode_create")
@@ -270,14 +246,7 @@ int BPF_PROG(lsm_enforce_inode_create, struct inode *dir, struct dentry *dentry,
 	}
 
 	const unsigned char *name = BPF_CORE_READ(dentry, d_name.name);
-	if (lsm_file_name_is_blocked(name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(name, stats);
 }
 
 SEC("lsm/inode_link")
@@ -294,22 +263,11 @@ int BPF_PROG(lsm_enforce_inode_link, struct dentry *old_dentry, struct inode *di
 	}
 
 	const unsigned char *old_name = BPF_CORE_READ(old_dentry, d_name.name);
-	if (lsm_file_name_is_blocked(old_name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
+	int err = check_file_blocked(old_name, stats);
+	if (err) return err;
 
 	const unsigned char *new_name = BPF_CORE_READ(new_dentry, d_name.name);
-	if (lsm_file_name_is_blocked(new_name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(new_name, stats);
 }
 
 SEC("lsm/inode_unlink")
@@ -325,14 +283,7 @@ int BPF_PROG(lsm_enforce_inode_unlink, struct inode *dir, struct dentry *dentry,
 	}
 
 	const unsigned char *name = BPF_CORE_READ(dentry, d_name.name);
-	if (lsm_file_name_is_blocked(name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(name, stats);
 }
 
 SEC("lsm/inode_symlink")
@@ -349,14 +300,7 @@ int BPF_PROG(lsm_enforce_inode_symlink, struct inode *dir, struct dentry *dentry
 	}
 
 	const unsigned char *name = BPF_CORE_READ(dentry, d_name.name);
-	if (lsm_file_name_is_blocked(name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(name, stats);
 }
 
 SEC("lsm/inode_mkdir")
@@ -372,14 +316,7 @@ int BPF_PROG(lsm_enforce_inode_mkdir, struct inode *dir, struct dentry *dentry, 
 	}
 
 	const unsigned char *name = BPF_CORE_READ(dentry, d_name.name);
-	if (lsm_file_name_is_blocked(name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(name, stats);
 }
 
 SEC("lsm/inode_rmdir")
@@ -395,14 +332,7 @@ int BPF_PROG(lsm_enforce_inode_rmdir, struct inode *dir, struct dentry *dentry, 
 	}
 
 	const unsigned char *name = BPF_CORE_READ(dentry, d_name.name);
-	if (lsm_file_name_is_blocked(name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(name, stats);
 }
 
 SEC("lsm/inode_mknod")
@@ -419,14 +349,7 @@ int BPF_PROG(lsm_enforce_inode_mknod, struct inode *dir, struct dentry *dentry, 
 	}
 
 	const unsigned char *name = BPF_CORE_READ(dentry, d_name.name);
-	if (lsm_file_name_is_blocked(name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(name, stats);
 }
 
 SEC("lsm/inode_rename")
@@ -443,22 +366,11 @@ int BPF_PROG(lsm_enforce_inode_rename, struct inode *old_dir, struct dentry *old
 	}
 
 	const unsigned char *old_name = BPF_CORE_READ(old_dentry, d_name.name);
-	if (lsm_file_name_is_blocked(old_name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
+	int err = check_file_blocked(old_name, stats);
+	if (err) return err;
 
 	const unsigned char *new_name = BPF_CORE_READ(new_dentry, d_name.name);
-	if (lsm_file_name_is_blocked(new_name)) {
-		if (stats) {
-			stats->file_blocked++;
-		}
-		return -EACCES;
-	}
-
-	return 0;
+	return check_file_blocked(new_name, stats);
 }
 
 char LICENSE[] SEC("license") = "GPL";

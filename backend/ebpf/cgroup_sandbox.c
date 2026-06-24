@@ -61,6 +61,19 @@ struct {
     __type(value, struct cgroup_sandbox_stats);
 } cgroup_sandbox_stats SEC(".maps");
 
+static __always_inline void update_sandbox_stats(int blocked) {
+    u32 key = 0;
+    struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
+    if (s) {
+        s->connect_checked++;
+        if (blocked) {
+            s->connect_blocked++;
+        } else {
+            s->connect_allowed++;
+        }
+    }
+}
+
 static __always_inline int ipv6_is_v4_mapped(struct ip6_block_key *addr)
 {
     return addr->addr[0] == 0 && addr->addr[1] == 0 && addr->addr[2] == 0x0000ffff;
@@ -90,12 +103,7 @@ int cgroup_sandbox_connect4(struct bpf_sock_addr *ctx) {
     // Check cgroup blocklist
     u32 *blocked = bpf_map_lookup_elem(&cgroup_blocklist, &cgroup_id);
     if (blocked && *blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
@@ -103,12 +111,7 @@ int cgroup_sandbox_connect4(struct bpf_sock_addr *ctx) {
     u32 dst_ip = bpf_ntohl(ctx->user_ip4);
     u32 *ip_blocked = bpf_map_lookup_elem(&ip_blocklist, &dst_ip);
     if (ip_blocked && *ip_blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
@@ -116,22 +119,12 @@ int cgroup_sandbox_connect4(struct bpf_sock_addr *ctx) {
     u32 dst_port = bpf_ntohs(ctx->user_port);
     u32 *port_blocked = bpf_map_lookup_elem(&port_blocklist, &dst_port);
     if (port_blocked && *port_blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
     // Update allow stats
-    u32 zero = 0;
-    struct cgroup_sandbox_stats *stats = bpf_map_lookup_elem(&cgroup_sandbox_stats, &zero);
-    if (stats) {
-        stats->connect_checked++;
-        stats->connect_allowed++;
-    }
+    update_sandbox_stats(0);
 
     return 1; // allow
 }
@@ -149,12 +142,7 @@ int cgroup_sandbox_connect6(struct bpf_sock_addr *ctx) {
     // Check cgroup blocklist
     u32 *blocked = bpf_map_lookup_elem(&cgroup_blocklist, &cgroup_id);
     if (blocked && *blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
@@ -166,24 +154,14 @@ int cgroup_sandbox_connect6(struct bpf_sock_addr *ctx) {
     dst_ip6.addr[3] = bpf_ntohl(ctx->user_ip6[3]);
     u32 *ip6_blocked = bpf_map_lookup_elem(&ip6_blocklist, &dst_ip6);
     if (ip6_blocked && *ip6_blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
     // Also honor IPv4 block entries for IPv4-mapped IPv6 sockets
     // (::ffff:a.b.c.d), otherwise AF_INET6 clients can bypass IPv4-only
     // destination blocks for the same endpoint.
     if (mapped_v4_is_blocked(&dst_ip6)) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
@@ -191,21 +169,11 @@ int cgroup_sandbox_connect6(struct bpf_sock_addr *ctx) {
     u32 dst_port = bpf_ntohs(ctx->user_port);
     u32 *port_blocked = bpf_map_lookup_elem(&port_blocklist, &dst_port);
     if (port_blocked && *port_blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
-    u32 key = 0;
-    struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-    if (s) {
-        s->connect_checked++;
-        s->connect_allowed++;
-    }
+    update_sandbox_stats(0);
 
     return 1; // allow
 }
@@ -222,45 +190,25 @@ int cgroup_sandbox_sendmsg4(struct bpf_sock_addr *ctx) {
 
     u32 *blocked = bpf_map_lookup_elem(&cgroup_blocklist, &cgroup_id);
     if (blocked && *blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
     u32 dst_ip = bpf_ntohl(ctx->user_ip4);
     u32 *ip_blocked = bpf_map_lookup_elem(&ip_blocklist, &dst_ip);
     if (ip_blocked && *ip_blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
     u32 dst_port = bpf_ntohs(ctx->user_port);
     u32 *port_blocked = bpf_map_lookup_elem(&port_blocklist, &dst_port);
     if (port_blocked && *port_blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
-    u32 key = 0;
-    struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-    if (s) {
-        s->connect_checked++;
-        s->connect_allowed++;
-    }
+    update_sandbox_stats(0);
 
     return 1; // allow
 }
@@ -277,12 +225,7 @@ int cgroup_sandbox_sendmsg6(struct bpf_sock_addr *ctx) {
 
     u32 *blocked = bpf_map_lookup_elem(&cgroup_blocklist, &cgroup_id);
     if (blocked && *blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
@@ -293,43 +236,23 @@ int cgroup_sandbox_sendmsg6(struct bpf_sock_addr *ctx) {
     dst_ip6.addr[3] = bpf_ntohl(ctx->user_ip6[3]);
     u32 *ip6_blocked = bpf_map_lookup_elem(&ip6_blocklist, &dst_ip6);
     if (ip6_blocked && *ip6_blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
     // Also honor IPv4 block entries for IPv4-mapped IPv6 UDP destinations.
     if (mapped_v4_is_blocked(&dst_ip6)) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
     u32 dst_port = bpf_ntohs(ctx->user_port);
     u32 *port_blocked = bpf_map_lookup_elem(&port_blocklist, &dst_port);
     if (port_blocked && *port_blocked) {
-        u32 key = 0;
-        struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-        if (s) {
-            s->connect_checked++;
-            s->connect_blocked++;
-        }
+        update_sandbox_stats(1);
         return 0; // block
     }
 
-    u32 key = 0;
-    struct cgroup_sandbox_stats *s = bpf_map_lookup_elem(&cgroup_sandbox_stats, &key);
-    if (s) {
-        s->connect_checked++;
-        s->connect_allowed++;
-    }
+    update_sandbox_stats(0);
 
     return 1; // allow
 }
