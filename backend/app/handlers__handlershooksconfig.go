@@ -223,6 +223,11 @@ func registerConfigRoutes(rg *gin.RouterGroup, features *FeatureRegistry) {
 			ml.GET("/datasets/export", handleMLDatasetExportGet)
 			ml.DELETE("/datasets", handleMLDatasetClearDelete)
 			ml.POST("/backtest", handleMLBacktestPost)
+			ml.GET("/health/processes", handleMLHealthProcessesGet)
+			ml.GET("/health/generators", handleMLHealthGeneratorsGet)
+			ml.POST("/health/register", handleMLHealthRegisterPost)
+			ml.POST("/health/unregister", handleMLHealthUnregisterPost)
+			ml.POST("/health/run", handleMLHealthRunPost)
 		}
 	}
 

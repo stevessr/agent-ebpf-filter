@@ -79,11 +79,27 @@ func startUDSServer(broadcast chan *pb.Event) {
 					mlPrediction = mlEngine.Predict(features)
 				}
 
+				// ── Check if process is trusted health dataset generator ──
+				isHealthGenerator := false
+				if ctx, ok := trackedProcessContexts.Get(req.Pid); ok {
+					if _, isHealth := healthGeneratorPIDs.Load(ctx.RootAgentPid); isHealth {
+						isHealthGenerator = true
+					}
+				}
+				if _, isHealth := healthGeneratorPIDs.Load(req.Pid); isHealth {
+					isHealthGenerator = true
+				}
+
 				// ── Decision fusion ──
 				resolvedAction, reason := resolveAction(
 					req, ruleAction, rulePriority,
 					classification, anomalyScore, mlPrediction, mlConfig,
 				)
+
+				if isHealthGenerator {
+					resolvedAction = pb.WrapperResponse_ALLOW
+					reason = "Trusted health dataset generator process (ALLOW)"
+				}
 
 				// ── Apply REWRITE logic ──
 				resp := &pb.WrapperResponse{
@@ -118,15 +134,22 @@ func startUDSServer(broadcast chan *pb.Event) {
 
 				// ── Record to training store and history buffer ──
 				if mlEnabled && globalTrainingStore != nil {
+					labelVal := int32(-1) // unlabeled initially
+					userLabelVal := ""
+					if isHealthGenerator {
+						labelVal = 0 // ALLOW
+						userLabelVal = "health-generator"
+					}
 					sample := TrainingSample{
 						Features:     features,
-						Label:        -1, // unlabeled initially
+						Label:        labelVal,
 						CommandLine:  joinCommandLine(req.Comm, req.Args),
 						Comm:         req.Comm,
 						Args:         req.Args,
 						Category:     classification.PrimaryCategory,
 						AnomalyScore: anomalyScore,
 						Timestamp:    time.Now(),
+						UserLabel:    userLabelVal,
 					}
 					globalTrainingStore.Add(sample)
 				}

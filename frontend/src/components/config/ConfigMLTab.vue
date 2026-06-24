@@ -8,6 +8,8 @@ import ConfigMLParamsTab from "./ml/ConfigMLParamsTab.vue";
 import ConfigMLModelTab from "./ml/ConfigMLModelTab.vue";
 import ConfigMLLLMTab from "./ml/ConfigMLLLMTab.vue";
 import ConfigMLTrainingTab from "./ml/ConfigMLTrainingTab.vue";
+import ConfigMLGeneratorTab from "./ml/ConfigMLGeneratorTab.vue";
+
 
 const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 
@@ -24,6 +26,7 @@ const validMLSubTabs = new Set([
   "model",
   "llm",
   "training",
+  "generator",
 ]);
 const storedSubTab =
   localStorage.getItem("ml_subtab") ||
@@ -83,6 +86,7 @@ onUnmounted(() => {
     <a-tab-pane key="model" tab="模型管理"></a-tab-pane>
     <a-tab-pane key="llm" tab="LLM 打分"></a-tab-pane>
     <a-tab-pane key="training" tab="训练集管理"></a-tab-pane>
+    <a-tab-pane key="generator" tab="健康数据生成"></a-tab-pane>
   </a-tabs>
 
   <a-row :gutter="[24, 24]">
@@ -100,6 +104,9 @@ onUnmounted(() => {
     </template>
     <template v-if="mlSubTabKey === 'training'">
       <ConfigMLTrainingTab :ml="props.ml" />
+    </template>
+    <template v-if="mlSubTabKey === 'generator'">
+      <ConfigMLGeneratorTab :ml="props.ml" />
     </template>
   </a-row>
 </template>
