@@ -2,6 +2,7 @@ package app
 
 import (
 	bpf "agent-ebpf-filter/ebpf"
+	"agent-ebpf-filter/app/platform"
 	"errors"
 	"fmt"
 	"log"
@@ -24,7 +25,7 @@ func ensureLsmEnforcerLoaded() error {
 	}
 
 	if pinnedMaps, err := loadPinnedLsmEnforcerMaps(); err == nil {
-		closeMapHandles(pinnedMaps)
+		platform.CloseMapHandles(pinnedMaps)
 		if err := attachLsmEnforcerWithPinnedMaps(); err != nil {
 			// Preserve pinned LSM policy maps if a restarted backend cannot
 			// reattach. Losing explicit kernel-deny policy is worse than asking
@@ -77,16 +78,16 @@ func attachLsmEnforcerWithPinnedMaps() error {
 		return err
 	}
 	if err := ensureLsmEnforcerMapPermissions(); err != nil {
-		closeMapHandles(replacements)
+		platform.CloseMapHandles(replacements)
 		return err
 	}
 
 	var objs bpf.AgentLsmEnforcerObjects
 	if err := bpf.LoadAgentLsmEnforcerObjects(&objs, &ebpf.CollectionOptions{MapReplacements: replacements}); err != nil {
-		closeMapHandles(replacements)
+		platform.CloseMapHandles(replacements)
 		return fmt.Errorf("load BPF LSM enforcer programs with pinned maps: %w", err)
 	}
-	defer closeMapHandles(replacements)
+	defer platform.CloseMapHandles(replacements)
 	defer objs.Close()
 
 	links, pins, err := updatePinnedLsmEnforcerLinks(&objs)
@@ -135,7 +136,7 @@ func loadPinnedLsmEnforcerMaps() (map[string]*ebpf.Map, error) {
 	for _, name := range names {
 		m, err := ebpf.LoadPinnedMap(filepath.Join(lsmEnforcerMapsDir, name), nil)
 		if err != nil {
-			closeMapHandles(maps)
+			platform.CloseMapHandles(maps)
 			return nil, fmt.Errorf("load BPF LSM map %s: %w", name, err)
 		}
 		maps[name] = m

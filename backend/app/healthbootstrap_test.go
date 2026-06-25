@@ -1,13 +1,17 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/runtime"
 	"testing"
 )
 
-// ---- moved from backend/zz_merged_backend_test.go section healthbootstrap_test.go ----
+// Tests for TracepointBootstrapStatus — now delegated to runtime subpackage.
 
 func TestBuildTracepointBootstrapStatus(t *testing.T) {
-	status := buildTracepointBootstrapStatus(5, []string{"syscalls/sys_enter_lstat", "sched/sched_process_free"})
+	// Use the runtime subpackage directly since buildTracepointBootstrapStatus
+	// is unexported there. We test through RecordTracepointBootstrapStatus + Snapshot.
+	runtime.RecordTracepointBootstrapStatus(5, []string{"syscalls/sys_enter_lstat", "sched/sched_process_free"})
+	status := runtime.SnapshotBootstrapTracepointStatus()
 	if status.Status != "partial" {
 		t.Fatalf("expected partial status, got %q", status.Status)
 	}
@@ -26,15 +30,10 @@ func TestBuildTracepointBootstrapStatus(t *testing.T) {
 }
 
 func TestRecordTracepointBootstrapStatusCopiesSnapshot(t *testing.T) {
-	original := bootstrapTracepointStatusStore.Snapshot()
-	t.Cleanup(func() {
-		bootstrapTracepointStatusStore.mu.Lock()
-		bootstrapTracepointStatusStore.status = original
-		bootstrapTracepointStatusStore.mu.Unlock()
-	})
+	original := runtime.SnapshotBootstrapTracepointStatus()
 
-	recordTracepointBootstrapStatus(2, []string{"syscalls/sys_enter_execve"})
-	snapshot := bootstrapTracepointStatusStore.Snapshot()
+	runtime.RecordTracepointBootstrapStatus(2, []string{"syscalls/sys_enter_execve"})
+	snapshot := runtime.SnapshotBootstrapTracepointStatus()
 	if snapshot.Status != "partial" {
 		t.Fatalf("expected partial status, got %q", snapshot.Status)
 	}
@@ -43,8 +42,13 @@ func TestRecordTracepointBootstrapStatusCopiesSnapshot(t *testing.T) {
 	}
 
 	snapshot.SkippedTracepoints[0] = "mutated"
-	again := bootstrapTracepointStatusStore.Snapshot()
+	again := runtime.SnapshotBootstrapTracepointStatus()
 	if again.SkippedTracepoints[0] != "syscalls/sys_enter_execve" {
 		t.Fatalf("snapshot should be copied defensively, got %+v", again.SkippedTracepoints)
 	}
+
+	// Restore original state
+	t.Cleanup(func() {
+		runtime.RecordTracepointBootstrapStatus(original.CompiledCount, original.SkippedTracepoints)
+	})
 }

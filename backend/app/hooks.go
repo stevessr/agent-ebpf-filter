@@ -53,7 +53,7 @@ curl -fsS -X POST '%s' \
   "${event_header[@]}" \
   --data-binary "@$tmp_file" \
   >/dev/null 2>&1 || true
-`, resolveHookCallbackURL(), h.ID, hookSecret)
+`, platform.ResolveHookCallbackURL(), h.ID, hookSecret)
 }
 
 // installNativeHook injects a hook into the agent CLI's settings (JSON or TOML)

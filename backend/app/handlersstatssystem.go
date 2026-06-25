@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"fmt"
 	"math"
@@ -220,7 +221,7 @@ func emitSystemMetricEvent(pid, ppid int32, comm string, cpuPercent float64, mem
 		Comm:          comm,
 		ExtraInfo:     fmt.Sprintf("cpu_percent=%.2f memory_percent=%.2f memory_bytes=%d alert=%s", cpuPercent, memoryPercent, memoryBytes, alert),
 		Bytes:         memoryBytes,
-		RiskScore:     maxFloat64(cpuPercent/100, float64(memoryPercent)/100),
+		RiskScore:     platform.MaxFloat64(cpuPercent/100, float64(memoryPercent)/100),
 		Decision:      "ALERT",
 		SchemaVersion: eventSchemaVersion,
 	}

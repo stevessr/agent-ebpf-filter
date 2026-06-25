@@ -2,6 +2,7 @@ package app
 
 import (
 	bpf "agent-ebpf-filter/ebpf"
+	"agent-ebpf-filter/app/platform"
 	"errors"
 	"fmt"
 	"log"
@@ -60,7 +61,7 @@ func ensureCgroupSandboxLoaded() error {
 		return err
 	}
 	if pinnedMaps, err := loadPinnedCgroupSandboxMaps(); err == nil {
-		closeMapHandles(pinnedMaps)
+		platform.CloseMapHandles(pinnedMaps)
 		if err := attachCgroupSandboxWithPinnedMaps(cgroupPath); err != nil {
 			// Preserve existing pinned policy maps when reattach fails. Deleting
 			// them here would silently erase active OS-level block policy just
@@ -219,16 +220,16 @@ func attachCgroupSandboxWithPinnedMaps(cgroupPath string) error {
 		return err
 	}
 	if err := ensureCgroupSandboxMapPermissions(); err != nil {
-		closeMapHandles(replacements)
+		platform.CloseMapHandles(replacements)
 		return err
 	}
 
 	var objs bpf.AgentCgroupSandboxObjects
 	if err := bpf.LoadAgentCgroupSandboxObjects(&objs, &ebpf.CollectionOptions{MapReplacements: replacements}); err != nil {
-		closeMapHandles(replacements)
+		platform.CloseMapHandles(replacements)
 		return fmt.Errorf("load cgroup sandbox programs with pinned maps: %w", err)
 	}
-	defer closeMapHandles(replacements)
+	defer platform.CloseMapHandles(replacements)
 	defer objs.Close()
 
 	links, pins, err := updatePinnedCgroupSandboxLinks(&objs)
@@ -278,7 +279,7 @@ func loadPinnedCgroupSandboxMaps() (map[string]*ebpf.Map, error) {
 	for _, name := range names {
 		m, err := ebpf.LoadPinnedMap(filepath.Join(cgroupSandboxMapsDir, name), nil)
 		if err != nil {
-			closeMapHandles(maps)
+			platform.CloseMapHandles(maps)
 			return nil, fmt.Errorf("load cgroup sandbox map %s: %w", name, err)
 		}
 		maps[name] = m

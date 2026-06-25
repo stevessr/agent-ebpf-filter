@@ -2,6 +2,7 @@ package app
 
 import (
 	bpf "agent-ebpf-filter/ebpf"
+	"agent-ebpf-filter/app/platform"
 	"errors"
 	"fmt"
 	"log"
@@ -100,7 +101,7 @@ func bootstrapTrackerMaps() error {
 	if err != nil {
 		return err
 	}
-	defer closeMapHandles(maps)
+	defer platform.CloseMapHandles(maps)
 	return nil
 }
 
@@ -112,18 +113,18 @@ func doBootstrap() (map[string]*ebpf.Map, error) {
 			_ = os.RemoveAll(ebpfPinLinksDir)
 			_ = os.MkdirAll(ebpfPinLinksDir, 0755)
 			if err := pinLinks(&objs); err != nil {
-				closeMapHandles(replacements)
+				platform.CloseMapHandles(replacements)
 				return nil, err
 			}
 			if err := ensurePinnedMapPermissions(); err != nil {
-				closeMapHandles(replacements)
+				platform.CloseMapHandles(replacements)
 				return nil, err
 			}
 			return replacements, nil
 		}
 		// Preserve tracked data before closing old map handles
 		backup := extractTrackedData(replacements)
-		closeMapHandles(replacements)
+		platform.CloseMapHandles(replacements)
 		// Fall through to fresh bootstrap but restore backed-up data
 		defer restoreTrackedData(backup)
 	}
@@ -230,7 +231,7 @@ func ensureTrackerMapsLoaded() error {
 
 	loaded, err := toTrackerMapSet(maps)
 	if err != nil {
-		closeMapHandles(maps)
+		platform.CloseMapHandles(maps)
 		return err
 	}
 
@@ -260,7 +261,7 @@ func ensureBackendPrivileges() (bool, error) {
 	cmd.Env = os.Environ()
 
 	if realHome != "" {
-		cmd.Env = setEnvValue(cmd.Env, "AGENT_REAL_HOME", realHome)
+		cmd.Env = platform.SetEnvValue(cmd.Env, "AGENT_REAL_HOME", realHome)
 	}
 
 	if err := cmd.Run(); err != nil {
@@ -330,7 +331,7 @@ func privilegedCommand(priv, exe string, args ...string) *exec.Cmd {
 	for _, env := range os.Environ() {
 		parts := strings.SplitN(env, "=", 2)
 		if len(parts) == 2 && whitelist[parts[0]] {
-			inherited = setEnvValue(inherited, parts[0], parts[1])
+			inherited = platform.SetEnvValue(inherited, parts[0], parts[1])
 		}
 	}
 	cmd.Env = inherited
@@ -422,7 +423,7 @@ func restoreTrackedData(backup *trackedDataBackup) {
 	if err != nil {
 		return
 	}
-	defer closeMapHandles(maps)
+	defer platform.CloseMapHandles(maps)
 
 	if m, ok := maps["tracked_comms"]; ok && m != nil {
 		for k, v := range backup.Comms {
@@ -457,20 +458,12 @@ func loadPinnedMapHandles() (map[string]*ebpf.Map, error) {
 	for _, n := range mapNames {
 		m, err := ebpf.LoadPinnedMap(filepath.Join(ebpfPinMapsDir, n), nil)
 		if err != nil {
-			closeMapHandles(out)
+			platform.CloseMapHandles(out)
 			return nil, err
 		}
 		out[n] = m
 	}
 	return out, nil
-}
-
-func closeMapHandles(maps map[string]*ebpf.Map) {
-	for _, m := range maps {
-		if m != nil {
-			_ = m.Close()
-		}
-	}
 }
 
 func closeTrackerMapSet(set *trackerMapSet) {

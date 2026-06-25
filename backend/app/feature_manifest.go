@@ -9,9 +9,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type FeatureID = types.FeatureID
-type FeatureDangerLevel = types.FeatureDangerLevel
+// FeatureID, FeatureDangerLevel and their constants are aliased from the
+// types subpackage via typebridge.go — they are not re-defined here.
 
+// Feature ID constants — see types subpackage for canonical definitions.
+// These are re-declared here so that all code within the app package can
+// reference them without a types. prefix; they are interchangeable with
+// the types.FeatureID-typed constants.
 const (
 	FeatureShellSessions    = types.FeatureShellSessions
 	FeatureSystemRun        = types.FeatureSystemRun

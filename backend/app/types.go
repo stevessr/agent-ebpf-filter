@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/core"
 	"log"
 	"os/user"
@@ -33,9 +34,9 @@ type DomainForwardProxySettings = core.DomainForwardProxySettings
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const udsPath = core.UDSPATH
-const ebpfPinRoot = core.EBPFPinRoot
-const ebpfPinMapsDir = core.EBPFPinMapsDir
-const ebpfPinLinksDir = core.EBPFPinLinksDir
+const ebpfPinRoot = platform.EBPFPinRoot
+const ebpfPinMapsDir = platform.EBPFPinMapsDir
+const ebpfPinLinksDir = platform.EBPFPinLinksDir
 
 const HookTypeNative = core.HookTypeNative
 const HookTypeWrapper = core.HookTypeWrapper

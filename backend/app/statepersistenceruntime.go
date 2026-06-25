@@ -128,7 +128,7 @@ func (s *runtimeState) ExpectedToken() string {
 	if token != "" {
 		return token
 	}
-	if envToken, ok := firstRuntimeEnv("AGENT_API_KEY", "AGENT_ACCESS_TOKEN", "AGENT_EBPF_ACCESS_TOKEN"); ok {
+	if envToken, ok := platform.FirstEnv("AGENT_API_KEY", "AGENT_ACCESS_TOKEN", "AGENT_EBPF_ACCESS_TOKEN"); ok {
 		return envToken
 	}
 	return ""

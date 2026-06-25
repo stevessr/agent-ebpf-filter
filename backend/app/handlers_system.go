@@ -357,7 +357,7 @@ func handleRun(c *gin.Context) {
 		Args []string `json:"args"`
 	}
 	if err := c.ShouldBindJSON(&r); err == nil {
-		wb := resolveWrapperPath()
+		wb := platform.ResolveWrapperPath()
 		if wb == "" {
 			c.JSON(500, gin.H{"error": "wrapper not found"})
 			return

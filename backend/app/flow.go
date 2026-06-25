@@ -2,6 +2,7 @@ package app
 
 import (
 	netcore "agent-ebpf-filter/internal/network"
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"net"
 	"strconv"
@@ -155,7 +156,7 @@ func analyzeEndpoint(endpoint string) (scope IPScope, service string, domain str
 	if scope == ScopePublic {
 		if record, ok := geoipDB.Lookup(host); ok && record.CountryCode != "XX" {
 			if isHighRiskCountry(record.CountryCode) {
-				risk = maxFloat64(risk, 0.85)
+				risk = platform.MaxFloat64(risk, 0.85)
 			}
 		}
 	}
@@ -165,7 +166,7 @@ func analyzeEndpoint(endpoint string) (scope IPScope, service string, domain str
 		if p, err := strconv.Atoi(portStr); err == nil {
 			service = lookupService(uint16(p))
 			if isSuspiciousPortService(service) {
-				risk = maxFloat64(risk, 0.80)
+				risk = platform.MaxFloat64(risk, 0.80)
 			}
 		}
 	}

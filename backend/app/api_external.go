@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"net/http"
 	"strings"
 	"time"
@@ -17,7 +18,7 @@ func handleExternalAPIHealth(c *gin.Context) {
 		"status":     "ok",
 		"service":    "agent-ebpf-filter",
 		"apiVersion": "v1",
-		"port":       resolveBackendPort(),
+		"port":       platform.ResolveBackendPort(),
 		"timestamp":  time.Now().UTC().Format(time.RFC3339Nano),
 		"features": gin.H{
 			"logPersistenceEnabled":     settings.LogPersistenceEnabled,

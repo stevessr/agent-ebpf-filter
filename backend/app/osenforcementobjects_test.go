@@ -439,9 +439,9 @@ func TestCgroupSandboxPortValidation(t *testing.T) {
 		t.Fatal("port 0 should be rejected")
 	}
 
-	data, err := os.ReadFile("sandbox__cgroupsandboxhandlers.go")
+	data, err := os.ReadFile("cgroupsandboxhandlers.go")
 	if err != nil {
-		t.Fatalf("read cgroup/sandbox/handlers.go: %v", err)
+		t.Fatalf("read cgroupsandboxhandlers.go: %v", err)
 	}
 	source := string(data)
 	for _, want := range []string{
@@ -520,7 +520,7 @@ func TestOSPolicyMapPinsAreRestrictive(t *testing.T) {
 }
 
 func TestOSEnforcementStartsWithoutDefaultBlockEntries(t *testing.T) {
-	for _, path := range []string{filepath.Join("..", "main.go"), "sandbox__cgroupsandboxcontrol.go", "sandbox__lsmenforcercontrol.go"} {
+	for _, path := range []string{filepath.Join("..", "main.go"), "cgroupsandboxcontrol.go", "lsmenforcercontrol.go"} {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
@@ -532,9 +532,9 @@ func TestOSEnforcementStartsWithoutDefaultBlockEntries(t *testing.T) {
 }
 
 func TestOSEnforcementMutationRoutesArePolicyGated(t *testing.T) {
-	data, err := os.ReadFile("routes__routes.go")
+	data, err := os.ReadFile("routes.go")
 	if err != nil {
-		t.Fatalf("read routes__routes.go: %v", err)
+		t.Fatalf("read routes.go: %v", err)
 	}
 	source := string(data)
 	for _, route := range []string{
@@ -561,9 +561,9 @@ func TestOSEnforcementMutationRoutesArePolicyGated(t *testing.T) {
 }
 
 func TestOSEnforcementStatusRoutesRequireAuth(t *testing.T) {
-	data, err := os.ReadFile("routes__routes.go")
+	data, err := os.ReadFile("routes.go")
 	if err != nil {
-		t.Fatalf("read routes__routes.go: %v", err)
+		t.Fatalf("read routes.go: %v", err)
 	}
 	source := string(data)
 	for _, route := range []string{
@@ -810,7 +810,7 @@ func TestPinnedOSEnforcementPolicyIsPreservedOnReuseFailure(t *testing.T) {
 		required []string
 	}{
 		{
-			paths: []string{"sandbox__cgroupsandboxcontrol.go"},
+			paths: []string{"cgroupsandboxcontrol.go"},
 			required: []string{
 				"Preserve existing pinned policy maps",
 				"link.LoadPinnedLink",
@@ -820,7 +820,7 @@ func TestPinnedOSEnforcementPolicyIsPreservedOnReuseFailure(t *testing.T) {
 			},
 		},
 		{
-			paths: []string{"sandbox__lsmenforcerbootstrap.go"},
+			paths: []string{"lsmenforcerbootstrap.go"},
 			required: []string{
 				"Preserve pinned LSM policy maps",
 				"link.LoadPinnedLink",
@@ -847,7 +847,7 @@ func TestOSEnforcementAttachFailureCleansPartialPins(t *testing.T) {
 		required []string
 	}{
 		{
-			paths: []string{"sandbox__cgroupsandboxcontrol.go"},
+			paths: []string{"cgroupsandboxcontrol.go"},
 			required: []string{
 				"closeLinksAndRemovePins(links, pins)",
 				"func closeLinksAndRemovePins",
@@ -855,7 +855,7 @@ func TestOSEnforcementAttachFailureCleansPartialPins(t *testing.T) {
 			},
 		},
 		{
-			paths: []string{"sandbox__lsmenforcerbootstrap.go"},
+			paths: []string{"lsmenforcerbootstrap.go"},
 			required: []string{
 				"closeLinksAndRemovePins(links, pins)",
 			},
@@ -884,7 +884,7 @@ func TestOSEnforcementUnblockIgnoresMissingMapKeys(t *testing.T) {
 		required []string
 	}{
 		{
-			paths: []string{"sandbox__cgroupsandboxops.go"},
+			paths: []string{"cgroupsandboxops.go"},
 			required: []string{
 				"ignoreMissingMapKey(snap.CgroupBlocklist.Delete",
 				"ignoreMissingMapKey(snap.IPBlocklist.Delete",
@@ -893,7 +893,7 @@ func TestOSEnforcementUnblockIgnoresMissingMapKeys(t *testing.T) {
 			},
 		},
 		{
-			paths: []string{"sandbox__lsmenforcercontrol.go"},
+			paths: []string{"lsmenforcercontrol.go"},
 			required: []string{
 				"ignoreMissingMapKey(snap.ExecPathBlocklist.Delete",
 				"ignoreMissingMapKey(snap.ExecNameBlocklist.Delete",
@@ -917,9 +917,9 @@ func TestOSEnforcementStatusUsesRuntimeSnapshots(t *testing.T) {
 	}{
 		{
 			paths: []string{
-				"sandbox__cgroupsandboxcontrol.go",
-				"sandbox__cgroupsandboxhandlers.go",
-				"sandbox__cgroupsandboxops.go",
+				"cgroupsandboxcontrol.go",
+				"cgroupsandboxhandlers.go",
+				"cgroupsandboxops.go",
 			},
 			required: []string{
 				"sync.RWMutex",
@@ -933,8 +933,8 @@ func TestOSEnforcementStatusUsesRuntimeSnapshots(t *testing.T) {
 		},
 		{
 			paths: []string{
-				"sandbox__lsmenforcertypes.go",
-				"sandbox__lsmenforcercontrol.go",
+				"lsmenforcertypes.go",
+				"lsmenforcercontrol.go",
 			},
 			required: []string{
 				"sync.RWMutex",

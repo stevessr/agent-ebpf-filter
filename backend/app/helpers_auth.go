@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/core"
 	"crypto/subtle"
 	"fmt"
@@ -146,7 +147,7 @@ func buildRuntimeConfigResponseFromSettings(settings core.RuntimeSettings) core.
 	}
 	return core.RuntimeConfigResponse{
 		Runtime:                settings,
-		MCPEndpoint:            fmt.Sprintf("http://127.0.0.1:%d/mcp", resolveBackendPort()),
+		MCPEndpoint:            fmt.Sprintf("http://127.0.0.1:%d/mcp", platform.ResolveBackendPort()),
 		AuthHeaderName:         "X-API-KEY",
 		BearerAuthHeaderName:   "Authorization: Bearer",
 		PersistedEventLogPath:  logPath,

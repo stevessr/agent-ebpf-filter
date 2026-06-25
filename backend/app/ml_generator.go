@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"fmt"
 	"os"
 	"os/exec"
@@ -208,7 +209,7 @@ func handleMLHealthRunPost(c *gin.Context) {
 		return
 	}
 
-	wb := resolveWrapperPath()
+	wb := platform.ResolveWrapperPath()
 	if wb == "" {
 		c.JSON(500, gin.H{"error": "agent-wrapper executable not found"})
 		return

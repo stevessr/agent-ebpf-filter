@@ -2,7 +2,6 @@ package app
 
 import (
 	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/app/types"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -18,28 +17,8 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section plugins.go ----
 
-// PluginKind enumerates the plugin types supported by the registry.
-type PluginKind = types.PluginKind
-
-const (
-	PluginKindEBPF    = types.PluginKindEBPF    // user-authored eBPF program (built via online builder)
-	PluginKindWebhook = types.PluginKindWebhook // forwards selected events to an HTTP endpoint
-	PluginKindCommand = types.PluginKindCommand // wrapper rewrite rule expressed as a plugin
-)
-
-// PluginAttachKind describes how an eBPF plugin attaches to the kernel.
-type PluginAttachKind = types.PluginAttachKind
-
-const (
-	PluginAttachTracepoint = types.PluginAttachTracepoint
-	PluginAttachKprobe     = types.PluginAttachKprobe
-	PluginAttachKretprobe  = types.PluginAttachKretprobe
-	PluginAttachLSM        = types.PluginAttachLSM
-	PluginAttachNone       = types.PluginAttachNone
-)
-
-// PluginManifest is the on-disk descriptor for a registered plugin.
-type PluginManifest = types.PluginManifest
+// PluginKind, PluginAttachKind and PluginManifest are aliased from the
+// types subpackage via typebridge.go — they are not re-defined here.
 
 var pluginIDRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}$`)
 

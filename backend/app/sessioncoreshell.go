@@ -81,15 +81,15 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 
 	var launchPath string
 	if kind == shellSessionKindWrapper || shellReq == shellSessionKindWrapper || commandReq == "agent-wrapper" || launchReq == "agent-wrapper" {
-		launchPath = resolveWrapperPath()
+		launchPath = platform.ResolveWrapperPath()
 	} else {
-		launchPath = resolveShellPath(launchReq)
+		launchPath = platform.ResolveShellPath(launchReq)
 	}
 	if launchPath == "" {
 		return nil, fmt.Errorf("launcher not found")
 	}
 
-	workDir := resolveShellWorkDir()
+	workDir := platform.ResolveShellWorkDir()
 	if req.WorkDir != "" {
 		if info, err := os.Stat(req.WorkDir); err == nil && info.IsDir() {
 			workDir = req.WorkDir
@@ -109,7 +109,7 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 
 	cmd := exec.Command(launchPath, launchArgs...)
 	cmd.Dir = workDir
-	cmd.Env = setEnvValue(os.Environ(), "TERM", "xterm-256color")
+	cmd.Env = platform.SetEnvValue(os.Environ(), "TERM", "xterm-256color")
 
 	// Disable fish shell's query-terminal feature to prevent 10s wait warnings
 	ff := os.Getenv("fish_features")
@@ -118,12 +118,12 @@ func (m *shellSessionManager) Create(req ShellSessionCreateRequest) (*ShellSessi
 	} else if !strings.Contains(ff, "no-query-term") {
 		ff = ff + ",no-query-term"
 	}
-	cmd.Env = setEnvValue(cmd.Env, "fish_features", ff)
+	cmd.Env = platform.SetEnvValue(cmd.Env, "fish_features", ff)
 	for key, value := range req.Env {
 		if strings.TrimSpace(key) == "" {
 			continue
 		}
-		cmd.Env = setEnvValue(cmd.Env, key, value)
+		cmd.Env = platform.SetEnvValue(cmd.Env, key, value)
 	}
 
 	dropPrivileges(cmd)

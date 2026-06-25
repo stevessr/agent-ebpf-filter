@@ -89,12 +89,3 @@ func payloadFloat64(payload map[string]interface{}, keys ...string) float64 {
 
 
 
-func maxFloat64(values ...float64) float64 {
-	max := 0.0
-	for _, value := range values {
-		if value > max {
-			max = value
-		}
-	}
-	return max
-}

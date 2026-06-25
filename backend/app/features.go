@@ -1,6 +1,8 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/ml"
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/internal/behavior"
 	"math"
@@ -98,17 +100,17 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	}
 
 	// Binary flags [15-25]
-	f[15] = boolToFloat(isShell(comm))                                      // is_shell
-	f[16] = boolToFloat(isPackageManager(comm))                             // is_package_manager
-	f[17] = boolToFloat(isAgentCLI(comm))                                   // is_agent_cli
-	f[18] = boolToFloat(user == "root")                                     // is_root_user
-	f[19] = boolToFloat(hasNetworkArgs(args))                               // has_network_args
-	f[20] = boolToFloat(hasFileArgs(args))                                  // has_file_args
-	f[21] = boolToFloat(hasRedirect(args))                                  // has_redirection
-	f[22] = boolToFloat(hasPipeChain(args))                                 // has_pipe
-	f[23] = boolToFloat(len(args) > 10)                                     // many_args
-	f[24] = boolToFloat(strings.Contains(strings.Join(args, " "), "/dev/")) // dev_access
-	f[25] = boolToFloat(hasSudoInArgs(args))                                // sudo_in_args
+	f[15] = platform.BoolToFloat(ml.IsShell(comm))                                      // is_shell
+	f[16] = platform.BoolToFloat(ml.IsPackageManager(comm))                             // is_package_manager
+	f[17] = platform.BoolToFloat(ml.IsAgentCLI(comm))                                   // is_agent_cli
+	f[18] = platform.BoolToFloat(user == "root")                                     // is_root_user
+	f[19] = platform.BoolToFloat(ml.HasNetworkArgs(args))                               // has_network_args
+	f[20] = platform.BoolToFloat(ml.HasFileArgs(args))                                  // has_file_args
+	f[21] = platform.BoolToFloat(ml.HasRedirect(args))                                  // has_redirection
+	f[22] = platform.BoolToFloat(ml.HasPipeChain(args))                                 // has_pipe
+	f[23] = platform.BoolToFloat(len(args) > 10)                                     // many_args
+	f[24] = platform.BoolToFloat(strings.Contains(strings.Join(args, " "), "/dev/")) // dev_access
+	f[25] = platform.BoolToFloat(ml.HasSudoInArgs(args))                                // sudo_in_args
 
 	// Confidence encoding [26-27]
 	switch classification.Confidence {
@@ -151,7 +153,7 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 		if f[34] > 1.0 {
 			f[34] = 1.0
 		}
-		f[35] = shannonEntropy(strings.Join(args, "")) // path-like entropy
+		f[35] = platform.ShannonEntropy(strings.Join(args, "")) // path-like entropy
 	}
 
 	// Flag vs positional counts [36-37]
@@ -175,16 +177,16 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 
 	// Sensitive path flags [38-47]
 	allArgs := strings.Join(args, " ")
-	f[38] = boolToFloat(strings.Contains(allArgs, "/etc/"))
-	f[39] = boolToFloat(strings.Contains(allArgs, "/proc/"))
-	f[40] = boolToFloat(strings.Contains(allArgs, "/sys/"))
-	f[41] = boolToFloat(strings.Contains(allArgs, "/var/log/"))
-	f[42] = boolToFloat(strings.Contains(allArgs, "/root/"))
-	f[43] = boolToFloat(strings.Contains(allArgs, "/home/"))
-	f[44] = boolToFloat(strings.Contains(allArgs, "/tmp/"))
-	f[45] = boolToFloat(strings.Contains(allArgs, "~/.ssh"))
-	f[46] = boolToFloat(strings.Contains(allArgs, "~/.gnupg"))
-	f[47] = boolToFloat(strings.Contains(allArgs, "/boot/"))
+	f[38] = platform.BoolToFloat(strings.Contains(allArgs, "/etc/"))
+	f[39] = platform.BoolToFloat(strings.Contains(allArgs, "/proc/"))
+	f[40] = platform.BoolToFloat(strings.Contains(allArgs, "/sys/"))
+	f[41] = platform.BoolToFloat(strings.Contains(allArgs, "/var/log/"))
+	f[42] = platform.BoolToFloat(strings.Contains(allArgs, "/root/"))
+	f[43] = platform.BoolToFloat(strings.Contains(allArgs, "/home/"))
+	f[44] = platform.BoolToFloat(strings.Contains(allArgs, "/tmp/"))
+	f[45] = platform.BoolToFloat(strings.Contains(allArgs, "~/.ssh"))
+	f[46] = platform.BoolToFloat(strings.Contains(allArgs, "~/.gnupg"))
+	f[47] = platform.BoolToFloat(strings.Contains(allArgs, "/boot/"))
 
 	// File extension histogram top 10 [48-57]
 	extCounts := make(map[string]int)
@@ -205,8 +207,8 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	}
 
 	// URL/IP patterns in args [58-59]
-	f[58] = boolToFloat(hasURLPattern(allArgs))
-	f[59] = boolToFloat(hasIPPattern(allArgs))
+	f[58] = platform.BoolToFloat(ml.HasURLPattern(allArgs))
+	f[59] = platform.BoolToFloat(ml.HasIPPattern(allArgs))
 
 	// Redirection operators count [60-61]
 	redirectCount := 0
@@ -239,7 +241,7 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	if len(args) > 0 {
 		f[62] = float64(len(uniqueArgs)) / float64(len(args))
 	}
-	f[63] = boolToFloat(hasEnvironmentVar(args))
+	f[63] = platform.BoolToFloat(ml.HasEnvironmentVar(args))
 
 	// ── Group C: Embedding Projection [64-95] ──
 	_, emb := globalEmbedder.ClassifyAndEmbed(comm, args)
@@ -405,7 +407,7 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	f[116] = math.Sin(2.0 * math.Pi * float64(now.Hour()) / 24.0)
 	f[117] = math.Cos(2.0 * math.Pi * float64(now.Hour()) / 24.0)
 	isWeekend := now.Weekday() == time.Saturday || now.Weekday() == time.Sunday
-	f[118] = boolToFloat(isWeekend)
+	f[118] = platform.BoolToFloat(isWeekend)
 	if len(history) > 0 {
 		f[119] = (sumArgsLen / float64(len(history))) / 256.0
 		if f[119] > 1.0 {
@@ -419,13 +421,13 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	cmdline := strings.Join(args, " ")
 	netAudit := AuditNetworkBehavior(comm, cmdline)
 	f[120] = netAudit.RiskScore / 100.0 // normalized risk score
-	f[121] = boolToFloat(netAudit.Flags.SuspiciousPort)
-	f[122] = boolToFloat(netAudit.Flags.ReverseShell)
-	f[123] = boolToFloat(netAudit.Flags.DataExfil)
-	f[124] = boolToFloat(netAudit.Flags.DNSTunnel)
-	f[125] = boolToFloat(netAudit.Flags.ClearTextProto)
-	f[126] = boolToFloat(netAudit.Flags.UnusualTarget)
-	f[127] = boolToFloat(netAudit.Flags.PortScan)
+	f[121] = platform.BoolToFloat(netAudit.Flags.SuspiciousPort)
+	f[122] = platform.BoolToFloat(netAudit.Flags.ReverseShell)
+	f[123] = platform.BoolToFloat(netAudit.Flags.DataExfil)
+	f[124] = platform.BoolToFloat(netAudit.Flags.DNSTunnel)
+	f[125] = platform.BoolToFloat(netAudit.Flags.ClearTextProto)
+	f[126] = platform.BoolToFloat(netAudit.Flags.UnusualTarget)
+	f[127] = platform.BoolToFloat(netAudit.Flags.PortScan)
 
 	fe.updateStats(f)
 	return f

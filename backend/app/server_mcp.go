@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"bytes"
 	"context"
@@ -214,7 +215,7 @@ func buildMCPServer() *mcp.Server {
 			}
 			return nil, MCPConfigSnapshotOutput{
 				Runtime:                settings,
-				MCPEndpoint:            fmt.Sprintf("http://127.0.0.1:%d/mcp", resolveBackendPort()),
+				MCPEndpoint:            fmt.Sprintf("http://127.0.0.1:%d/mcp", platform.ResolveBackendPort()),
 				AuthHeaderName:         "X-API-KEY",
 				Tags:                   buildTagsSnapshot(),
 				TrackedCommands:        buildTrackedCommandsSnapshot(),

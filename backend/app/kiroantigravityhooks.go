@@ -43,7 +43,7 @@ func ensureKiroManagedAgentExists() error {
 	if cmd.Env == nil {
 		cmd.Env = os.Environ()
 	}
-	cmd.Env = setEnvValue(cmd.Env, "HOME", platform.GetRealHomeDir())
+	cmd.Env = platform.SetEnvValue(cmd.Env, "HOME", platform.GetRealHomeDir())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to create managed Kiro agent from kiro_default: %w (%s)", err, strings.TrimSpace(string(out)))
@@ -422,5 +422,5 @@ case "$hook_event" in
     printf '{}\n'
     ;;
 esac
-`, resolveHookCallbackURL(), hookSecret)
+`, platform.ResolveHookCallbackURL(), hookSecret)
 }

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -25,7 +26,7 @@ func serveShellWS(c *gin.Context) {
 }
 
 func serveLegacyShellWS(c *gin.Context) {
-	shellPath := resolveShellPath(c.DefaultQuery("shell", "auto"))
+	shellPath := platform.ResolveShellPath(c.DefaultQuery("shell", "auto"))
 	if shellPath == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "shell not found"})
 		return
@@ -40,8 +41,8 @@ func serveLegacyShellWS(c *gin.Context) {
 	}
 
 	cmd := exec.Command(shellPath)
-	cmd.Dir = resolveShellWorkDir()
-	cmd.Env = setEnvValue(os.Environ(), "TERM", "xterm-256color")
+	cmd.Dir = platform.ResolveShellWorkDir()
+	cmd.Env = platform.SetEnvValue(os.Environ(), "TERM", "xterm-256color")
 
 	// Disable fish shell's query-terminal feature to prevent 10s wait warnings
 	ff := os.Getenv("fish_features")
@@ -50,7 +51,7 @@ func serveLegacyShellWS(c *gin.Context) {
 	} else if !strings.Contains(ff, "no-query-term") {
 		ff = ff + ",no-query-term"
 	}
-	cmd.Env = setEnvValue(cmd.Env, "fish_features", ff)
+	cmd.Env = platform.SetEnvValue(cmd.Env, "fish_features", ff)
 
 	dropPrivileges(cmd)
 

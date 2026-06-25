@@ -32,9 +32,9 @@ func applyCredentialToCommand(cmd *exec.Cmd, uid, gid uint32, uidStr string) {
 		if cmd.Env == nil {
 			cmd.Env = os.Environ()
 		}
-		cmd.Env = setEnvValue(cmd.Env, "USER", u.Username)
-		cmd.Env = setEnvValue(cmd.Env, "LOGNAME", u.Username)
-		cmd.Env = setEnvValue(cmd.Env, "HOME", u.HomeDir)
+		cmd.Env = platform.SetEnvValue(cmd.Env, "USER", u.Username)
+		cmd.Env = platform.SetEnvValue(cmd.Env, "LOGNAME", u.Username)
+		cmd.Env = platform.SetEnvValue(cmd.Env, "HOME", u.HomeDir)
 	}
 }
 

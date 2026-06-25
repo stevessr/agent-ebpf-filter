@@ -167,7 +167,7 @@ func startUDSServer(broadcast chan *pb.Event) {
 				)
 
 				decision := actionLabel[int32(resolvedAction)]
-				riskScore := maxFloat64(anomalyScore, mlPrediction.Confidence)
+				riskScore := platform.MaxFloat64(anomalyScore, mlPrediction.Confidence)
 				ctx := buildProcessContextFromWrapperRequest(req, decision, riskScore)
 				trackedProcessContexts.Set(req.Pid, ctx)
 
