@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/gin-gonic/gin"
@@ -60,7 +61,7 @@ func Main() {
 	defer rd.Close()
 
 	startKernelEventReader(rd)
-	startRuntimeBackgroundJobs(features) // TODO: pass AppCtx
+	startRuntimeBackgroundJobs(features)
 
 	ApplySandbox()
 
@@ -69,7 +70,7 @@ func Main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	startArchiveEvictionLoop(ctx) // TODO: pass AppCtx
+	startArchiveEvictionLoop(ctx)
 
 	registerRoutes(r, AppCtx, features, tlsRuntime.broadcaster, tlsRuntime.controller, tlsRuntime.store, tlsRuntime.rules)
 
@@ -79,10 +80,22 @@ func Main() {
 	configureRuntimePort(actualPort)
 
 	if features.CompiledIn(FeatureML) {
-		startDeferredMLRuntime()
+		go func() {
+			time.Sleep(1 * time.Second)
+			settings := runtimeSettingsStore.Snapshot()
+			InitMLEngine(settings.MLConfig)
+			AppCtx.MLEngine = mlEngine
+			AppCtx.MLEnabled = mlEnabled
+			AppCtx.MLModelLoaded = mlModelLoaded
+			AppCtx.CurrentModelType = currentModelType
+			StartMLEngine()
+		}()
 	}
 	if features.CompiledIn(FeaturePlugins) {
-		startDeferredPluginRuntime()
+		go func() {
+			time.Sleep(2 * time.Second)
+			ReapplyEBPFPluginsOnBoot()
+		}()
 	}
 
 	_ = r.Run(fmt.Sprintf(":%d", actualPort))
