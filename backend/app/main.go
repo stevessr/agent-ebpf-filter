@@ -23,6 +23,11 @@ func Main() {
 	}
 
 	AppCtx = newAppContext()
+	AppCtx.RuntimeSettings = newRuntimeState()
+	AppCtx.CapturedEventArchive = newEventArchive(1500)
+	AppCtx.ShellSessions = shellSessions
+	AppCtx.PluginRegistry = pluginRegistry
+	AppCtx.NetworkFlowAggregator = networkFlowAggregator
 
 	refreshHooksPaths()
 	if _, err := AppCtx.RuntimeSettings.LoadOrCreate(); err != nil {
