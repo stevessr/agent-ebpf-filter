@@ -2,6 +2,7 @@ package app
 
 import (
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/app/types"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -18,58 +19,27 @@ import (
 // ---- moved from backend/zz_merged_backend.go section plugins.go ----
 
 // PluginKind enumerates the plugin types supported by the registry.
-type PluginKind string
+type PluginKind = types.PluginKind
 
 const (
-	PluginKindEBPF    PluginKind = "ebpf"    // user-authored eBPF program (built via online builder)
-	PluginKindWebhook PluginKind = "webhook" // forwards selected events to an HTTP endpoint
-	PluginKindCommand PluginKind = "command" // wrapper rewrite rule expressed as a plugin
+	PluginKindEBPF    = types.PluginKindEBPF    // user-authored eBPF program (built via online builder)
+	PluginKindWebhook = types.PluginKindWebhook // forwards selected events to an HTTP endpoint
+	PluginKindCommand = types.PluginKindCommand // wrapper rewrite rule expressed as a plugin
 )
 
 // PluginAttachKind describes how an eBPF plugin attaches to the kernel.
-type PluginAttachKind string
+type PluginAttachKind = types.PluginAttachKind
 
 const (
-	PluginAttachTracepoint PluginAttachKind = "tracepoint"
-	PluginAttachKprobe     PluginAttachKind = "kprobe"
-	PluginAttachKretprobe  PluginAttachKind = "kretprobe"
-	PluginAttachLSM        PluginAttachKind = "lsm"
-	PluginAttachNone       PluginAttachKind = "none"
+	PluginAttachTracepoint = types.PluginAttachTracepoint
+	PluginAttachKprobe     = types.PluginAttachKprobe
+	PluginAttachKretprobe  = types.PluginAttachKretprobe
+	PluginAttachLSM        = types.PluginAttachLSM
+	PluginAttachNone       = types.PluginAttachNone
 )
 
 // PluginManifest is the on-disk descriptor for a registered plugin.
-type PluginManifest struct {
-	ID          string     `json:"id"`
-	Name        string     `json:"name"`
-	Description string     `json:"description,omitempty"`
-	Author      string     `json:"author,omitempty"`
-	Version     string     `json:"version,omitempty"`
-	Kind        PluginKind `json:"kind"`
-	Enabled     bool       `json:"enabled"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   time.Time  `json:"updatedAt"`
-
-	// eBPF specific
-	SourceSHA256 string           `json:"sourceSha256,omitempty"`
-	ObjectSHA256 string           `json:"objectSha256,omitempty"`
-	AttachKind   PluginAttachKind `json:"attachKind,omitempty"`
-	AttachTarget string           `json:"attachTarget,omitempty"` // e.g. "syscalls/sys_enter_openat", "do_unlinkat", or "lsm/file_open"
-	ProgramName  string           `json:"programName,omitempty"`  // BPF program (section) name to attach
-
-	// Webhook specific
-	WebhookURL    string   `json:"webhookUrl,omitempty"`
-	WebhookEvents []string `json:"webhookEvents,omitempty"`
-
-	// Command specific
-	CommandComm    string   `json:"commandComm,omitempty"`
-	CommandArgs    []string `json:"commandArgs,omitempty"`
-	CommandRule    string   `json:"commandRule,omitempty"` // ALLOW / BLOCK / ALERT / REWRITE
-	CommandRewrite []string `json:"commandRewrite,omitempty"`
-
-	// Runtime state (not persisted, but populated when listing)
-	Loaded    bool   `json:"loaded,omitempty"`
-	LoadError string `json:"loadError,omitempty"`
-}
+type PluginManifest = types.PluginManifest
 
 var pluginIDRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}$`)
 
