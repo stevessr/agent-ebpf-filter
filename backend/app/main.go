@@ -22,8 +22,10 @@ func Main() {
 		return
 	}
 
+	AppCtx = newAppContext()
+
 	refreshHooksPaths()
-	if _, err := runtimeSettingsStore.LoadOrCreate(); err != nil {
+	if _, err := AppCtx.RuntimeSettings.LoadOrCreate(); err != nil {
 		log.Printf("[WARN] failed to load runtime settings: %v", err)
 	}
 	defer otelExporterStore.Close()
@@ -33,8 +35,10 @@ func Main() {
 	if err := ensureTrackerMapsLoaded(); err != nil {
 		log.Fatalf("failed to initialize eBPF components: %v", err)
 	}
-	settings := runtimeSettingsStore.Snapshot()
+	AppCtx.TrackerMaps = trackerMaps
+	settings := AppCtx.RuntimeSettings.Snapshot()
 	features := newFeatureRegistry()
+	AppCtx.FeatureRegistry = features
 	if features.CompiledIn(FeatureDomainForward) {
 		domainForwardProxyService.Activate()
 		applyRuntimeDomainForwardProxy(settings)
@@ -51,7 +55,7 @@ func Main() {
 	defer rd.Close()
 
 	startKernelEventReader(rd)
-	startRuntimeBackgroundJobs(features)
+	startRuntimeBackgroundJobs(features) // TODO: pass AppCtx
 
 	ApplySandbox()
 
@@ -60,9 +64,9 @@ func Main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	startArchiveEvictionLoop(ctx)
+	startArchiveEvictionLoop(ctx) // TODO: pass AppCtx
 
-	registerRoutes(r, features, tlsRuntime.broadcaster, tlsRuntime.controller, tlsRuntime.store, tlsRuntime.rules)
+	registerRoutes(r, AppCtx, features, tlsRuntime.broadcaster, tlsRuntime.controller, tlsRuntime.store, tlsRuntime.rules)
 
 	seedDefaultTrackedCommands()
 

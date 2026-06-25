@@ -10,20 +10,20 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section routes.go ----
 
-func registerRoutes(r *gin.Engine, features *FeatureRegistry, tlsBroadcaster *tlsCaptureBroadcaster, tlsController *TLSCaptureController, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore) {
-	registerWebSocketRoutes(r, features, tlsBroadcaster)
-	registerShellSessionRoutes(r, features)
-	registerEventRoutes(r)
-	registerNetworkRoutes(r, features)
-	registerSandboxRoutes(r, features)
-	registerUtilityRoutes(r, features)
-	registerAuthenticatedAPIRoutes(r, features, tlsController, tlsStore, tlsRules, tlsBroadcaster)
-	registerCompatibilityRoutes(r, features, tlsStore)
+func registerRoutes(r *gin.Engine, ac *AppContext, features *FeatureRegistry, tlsBroadcaster *tlsCaptureBroadcaster, tlsController *TLSCaptureController, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore) {
+	registerWebSocketRoutes(r, ac, features, tlsBroadcaster)
+	registerShellSessionRoutes(r, ac, features)
+	registerEventRoutes(r, ac)
+	registerNetworkRoutes(r, ac, features)
+	registerSandboxRoutes(r, ac, features)
+	registerUtilityRoutes(r, ac, features)
+	registerAuthenticatedAPIRoutes(r, ac, features, tlsController, tlsStore, tlsRules, tlsBroadcaster)
+	registerCompatibilityRoutes(r, ac, features, tlsStore)
 	registerDocsRoutes(r)
 	registerStaticRoutes(r)
 }
 
-func registerWebSocketRoutes(r gin.IRouter, features *FeatureRegistry, tlsBroadcaster *tlsCaptureBroadcaster) {
+func registerWebSocketRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegistry, tlsBroadcaster *tlsCaptureBroadcaster) {
 	r.GET("/ws", authMiddleware(), serveEventsWS)
 	r.GET("/ws/system", authMiddleware(), serveSystemStatsWS)
 	r.GET("/ws/camera", authMiddleware(), serveCameraWS)
@@ -39,7 +39,7 @@ func registerWebSocketRoutes(r gin.IRouter, features *FeatureRegistry, tlsBroadc
 	}
 }
 
-func registerShellSessionRoutes(r gin.IRouter, features *FeatureRegistry) {
+func registerShellSessionRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegistry) {
 	if !features.CompiledIn(FeatureShellSessions) {
 		return
 	}
@@ -51,7 +51,7 @@ func registerShellSessionRoutes(r gin.IRouter, features *FeatureRegistry) {
 	r.GET("/ws/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), serveShellSessionsWS)
 }
 
-func registerEventRoutes(r gin.IRouter) {
+func registerEventRoutes(r gin.IRouter, ac *AppContext) {
 	r.GET("/events/recent", authMiddleware(), handleRecentEvents)
 	r.GET("/events/graph", authMiddleware(), handleExecutionGraph)
 	r.GET("/events/recording", authMiddleware(), handleEventRecordingStatus)
@@ -61,7 +61,7 @@ func registerEventRoutes(r gin.IRouter) {
 	r.POST("/events/recording/browser/save", authMiddleware(), handleSaveBrowserRecording)
 }
 
-func registerNetworkRoutes(r gin.IRouter, features *FeatureRegistry) {
+func registerNetworkRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegistry) {
 	r.GET("/network/flows", authMiddleware(), handleNetworkFlows)
 	r.GET("/network/flows/:flowID", authMiddleware(), handleNetworkFlowByID)
 	r.GET("/network/tcp-state", authMiddleware(), handleTCPState)
@@ -76,18 +76,18 @@ func registerNetworkRoutes(r gin.IRouter, features *FeatureRegistry) {
 	r.GET("/network/geoip", authMiddleware(), handleGeoIPLookup)
 }
 
-func registerSandboxRoutes(r gin.IRouter, features *FeatureRegistry) {
+func registerSandboxRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegistry) {
 	if features.CompiledIn(FeatureSandboxCgroup) {
-		r.GET("/sandbox/cgroup/status", authMiddleware(), handleCgroupSandboxStatus)
+		r.GET("/sandbox/cgroup/status", authMiddleware(), ac.Sandbox.HandleCgroupSandboxStatus)
 		if features.CompiledIn(FeaturePolicyManagement) {
-			r.POST("/sandbox/cgroup/block-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockCgroup)
-			r.POST("/sandbox/cgroup/unblock-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockCgroup)
-			r.POST("/sandbox/cgroup/block-pid", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockPID)
-			r.POST("/sandbox/cgroup/unblock-pid", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockPID)
-			r.POST("/sandbox/cgroup/block-ip", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockIP)
-			r.POST("/sandbox/cgroup/unblock-ip", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockIP)
-			r.POST("/sandbox/cgroup/block-port", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxBlockPort)
-			r.POST("/sandbox/cgroup/unblock-port", authMiddleware(), policyManagementEnabledMiddleware(), handleCgroupSandboxUnblockPort)
+			r.POST("/sandbox/cgroup/block-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxBlockCgroup)
+			r.POST("/sandbox/cgroup/unblock-cgroup", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxUnblockCgroup)
+			r.POST("/sandbox/cgroup/block-pid", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxBlockPID)
+			r.POST("/sandbox/cgroup/unblock-pid", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxUnblockPID)
+			r.POST("/sandbox/cgroup/block-ip", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxBlockIP)
+			r.POST("/sandbox/cgroup/unblock-ip", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxUnblockIP)
+			r.POST("/sandbox/cgroup/block-port", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxBlockPort)
+			r.POST("/sandbox/cgroup/unblock-port", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleCgroupSandboxUnblockPort)
 		} else {
 			r.POST("/sandbox/cgroup/block-cgroup", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
 			r.POST("/sandbox/cgroup/unblock-cgroup", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
@@ -100,14 +100,14 @@ func registerSandboxRoutes(r gin.IRouter, features *FeatureRegistry) {
 		}
 	}
 	if features.CompiledIn(FeatureSandboxLSM) {
-		r.GET("/sandbox/lsm/status", authMiddleware(), handleLsmEnforcerStatus)
+		r.GET("/sandbox/lsm/status", authMiddleware(), ac.Sandbox.HandleLsmEnforcerStatus)
 		if features.CompiledIn(FeaturePolicyManagement) {
-			r.POST("/sandbox/lsm/block-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockExecPath)
-			r.POST("/sandbox/lsm/unblock-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockExecPath)
-			r.POST("/sandbox/lsm/block-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockExecName)
-			r.POST("/sandbox/lsm/unblock-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockExecName)
-			r.POST("/sandbox/lsm/block-file-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmBlockFileName)
-			r.POST("/sandbox/lsm/unblock-file-name", authMiddleware(), policyManagementEnabledMiddleware(), handleLsmUnblockFileName)
+			r.POST("/sandbox/lsm/block-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmBlockExecPath)
+			r.POST("/sandbox/lsm/unblock-exec-path", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmUnblockExecPath)
+			r.POST("/sandbox/lsm/block-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmBlockExecName)
+			r.POST("/sandbox/lsm/unblock-exec-name", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmUnblockExecName)
+			r.POST("/sandbox/lsm/block-file-name", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmBlockFileName)
+			r.POST("/sandbox/lsm/unblock-file-name", authMiddleware(), policyManagementEnabledMiddleware(), ac.Sandbox.HandleLsmUnblockFileName)
 		} else {
 			r.POST("/sandbox/lsm/block-exec-path", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
 			r.POST("/sandbox/lsm/unblock-exec-path", authMiddleware(), compiledOutFeatureMiddleware(FeaturePolicyManagement))
@@ -119,7 +119,7 @@ func registerSandboxRoutes(r gin.IRouter, features *FeatureRegistry) {
 	}
 }
 
-func registerUtilityRoutes(r gin.IRouter, features *FeatureRegistry) {
+func registerUtilityRoutes(r gin.IRouter, ac *AppContext, features *FeatureRegistry) {
 	r.GET("/metrics", authMiddleware(), handlePrometheusMetrics)
 	if features.CompiledIn(FeatureHooks) {
 		r.POST("/hooks/event", hookIngressAuthMiddleware(), handleNativeHookEvent)
@@ -130,7 +130,7 @@ func registerUtilityRoutes(r gin.IRouter, features *FeatureRegistry) {
 	r.POST("/cluster/register", clusterHeartbeatHandler)
 }
 
-func registerAuthenticatedAPIRoutes(r *gin.Engine, features *FeatureRegistry, tlsController *TLSCaptureController, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore, tlsBroadcaster *tlsCaptureBroadcaster) {
+func registerAuthenticatedAPIRoutes(r *gin.Engine, ac *AppContext, features *FeatureRegistry, tlsController *TLSCaptureController, tlsStore *TLSCaptureStore, tlsRules *TLSCaptureRuleStore, tlsBroadcaster *tlsCaptureBroadcaster) {
 	api := r.Group("/", authMiddleware())
 	{
 		registerConfigRoutes(api.Group("/config"), features)
@@ -164,7 +164,7 @@ func registerAuthenticatedAPIRoutes(r *gin.Engine, features *FeatureRegistry, tl
 	}
 }
 
-func registerCompatibilityRoutes(r *gin.Engine, features *FeatureRegistry, tlsStore *TLSCaptureStore) {
+func registerCompatibilityRoutes(r *gin.Engine, ac *AppContext, features *FeatureRegistry, tlsStore *TLSCaptureStore) {
 	if features.CompiledIn(FeatureAgentSight) {
 		registerAgentSightCompatibilityRoutes(r.Group("/api", authMiddleware()), tlsStore)
 	}
