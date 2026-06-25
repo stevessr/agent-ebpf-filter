@@ -107,7 +107,7 @@ func (b *bandwidthTracker) EvictOlderThan(maxAge time.Duration) {
 	}
 }
 
-var globalBandwidthTracker = newBandwidthTracker()
+var globalBandwidthTracker = newBandwidthTracker() // kept for backward compat; new code should use Manager
 
 // ── Data exfiltration detection ───────────────────────────────────────
 
@@ -217,11 +217,11 @@ func (d *exfilDetector) CheckFlow(flow flowBytes, key, dstIP, dstDomain string, 
 	}
 }
 
-func (d *exfilDetector) RunCheck() []ExfilAlert {
+func (d *exfilDetector) RunCheck(bw *bandwidthTracker, dns *dnsCache) []ExfilAlert {
 	if d == nil {
 		return nil
 	}
-	flows := globalBandwidthTracker.Snapshot()
+	flows := bw.Snapshot()
 	alerts := make([]ExfilAlert, 0)
 
 	for _, flow := range flows {
@@ -237,7 +237,7 @@ func (d *exfilDetector) RunCheck() []ExfilAlert {
 		}
 
 		// Enrich with DNS
-		dstDomain, _ := dnsCorrelation.LookupIP(dstIP)
+		dstDomain, _ := dns.LookupIP(dstIP)
 
 		alert := d.CheckFlow(flow, keyJoin(flow), dstIP, dstDomain, dstPort)
 		if alert != nil {
@@ -270,14 +270,14 @@ func parseUint32Str(s string) (uint32, error) {
 	return result, nil
 }
 
-var exfilDetectorInst = newExfilDetector()
+var exfilDetectorInst = newExfilDetector() // kept for backward compat; new code should use Manager
 
 // Start periodic exfiltration checks
-func startExfilDetectionLoop() {
+func startExfilDetectionLoop(bw *bandwidthTracker, dns *dnsCache, detector *exfilDetector) {
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
 		for range ticker.C {
-			alerts := exfilDetectorInst.RunCheck()
+			alerts := detector.RunCheck(bw, dns)
 			if len(alerts) > 0 {
 				logExfilAlerts(alerts)
 			}
@@ -347,7 +347,7 @@ func (a *connectionArchive) Snapshot() []archivedConnection {
 	return result
 }
 
-var connectionHistory = newConnectionArchive(5000)
+var connectionHistory = newConnectionArchive(5000) // kept for backward compat; new code should use Manager
 
 // ── Data volume anomaly score for semantic alerts ────────────────────
 

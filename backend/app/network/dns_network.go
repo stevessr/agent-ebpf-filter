@@ -16,19 +16,18 @@ func newDNSCache() *dnsCache {
 	return netcore.NewDNSCache()
 }
 
-var dnsCorrelation = newDNSCache()
-
-func startDNSCacheGC() {
+// startDNSCacheGC launches a background goroutine that evicts expired entries.
+func startDNSCacheGC(cache *dnsCache) {
 	ticker := time.NewTicker(1 * time.Minute)
 	go func() {
 		for range ticker.C {
-			dnsCorrelation.EvictExpired()
+			cache.EvictExpired()
 		}
 	}()
 }
 
-// Process a detected DNS query and record the domain
-func recordDNSQueryFromEvent(domain string) {
+// recordDNSQueryFromEvent records a detected DNS query domain for later correlation.
+func recordDNSQueryFromEvent(cache *dnsCache, domain string) {
 	if domain == "" {
 		return
 	}
@@ -37,12 +36,12 @@ func recordDNSQueryFromEvent(domain string) {
 	if domain == "" || len(domain) > 253 {
 		return
 	}
-	dnsCorrelation.Record(domain, "") // IP will be filled from DNS response
+	cache.Record(domain, "") // IP will be filled from DNS response
 }
 
-// Correlate a DNS response with the query
-func correlateDNSResponse(srcIP string, rawData []byte) {
-	netcore.CorrelateDNSResponse(dnsCorrelation, rawData)
+// correlateDNSResponse correlates a DNS response with the query
+func correlateDNSResponse(cache *dnsCache, srcIP string, rawData []byte) {
+	netcore.CorrelateDNSResponse(cache, rawData)
 }
 
 func lookupService(port uint16) string {

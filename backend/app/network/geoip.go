@@ -9,8 +9,6 @@ import (
 type geoipRecord = geoip.Record
 type geoipResolver = geoip.Resolver
 
-var geoipDB = geoip.NewResolver()
-
 func newGeoipResolver() *geoipResolver {
 	return geoip.NewResolver()
 }
@@ -23,6 +21,6 @@ func isHighRiskCountry(countryCode string) bool {
 	return geoip.IsHighRiskCountry(countryCode)
 }
 
-func enrichEndpointWithGeoIP(endpoint string) string {
-	return geoip.EnrichEndpointWithGeoIP(geoipDB, endpoint)
+func enrichEndpointWithGeoIP(resolver *geoipResolver, endpoint string) string {
+	return geoip.EnrichEndpointWithGeoIP(resolver, endpoint)
 }

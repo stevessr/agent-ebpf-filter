@@ -78,13 +78,13 @@ func (t *tcpStateTracker) EvictTerminalOlderThan(maxAge time.Duration) {
 	t.inner.EvictTerminalOlderThan(maxAge)
 }
 
-var tcpTracker = newTCPStateTracker()
+var tcpTracker = newTCPStateTracker() // kept for backward compat; new code should use Manager
 
-func startTCPStateTrackerGC() {
+func startTCPStateTrackerGC(tracker *tcpStateTracker) {
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
 		for range ticker.C {
-			tcpTracker.EvictTerminalOlderThan(1 * time.Minute)
+			tracker.EvictTerminalOlderThan(1 * time.Minute)
 		}
 	}()
 }
