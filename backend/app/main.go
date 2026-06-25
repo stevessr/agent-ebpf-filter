@@ -82,6 +82,7 @@ func Main() {
 
 	r := gin.Default()
 	r.Use(clusterGatewayMiddleware())
+	r.Use(ContextMiddleware(AppCtx))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

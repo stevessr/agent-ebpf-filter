@@ -32,8 +32,8 @@ type cgroupSandboxMaps struct {
 	LastError       string
 }
 
-var cgroupSandbox cgroupSandboxMaps // kept for backward compat; new code should use Manager
-var cgroupSandboxMu sync.RWMutex    // kept for backward compat; new code should use Manager
+var cgroupSandbox cgroupSandboxMaps // used internally by ensureCgroupSandboxLoaded etc.
+var cgroupSandboxMu sync.RWMutex    // used internally
 var errCgroupSandboxPinnedLinksMissing = errors.New("cgroup sandbox pinned links missing")
 
 const cgroupSandboxPinRoot = platform.EBPFPinRoot + "/cgroup_sandbox"

@@ -18,11 +18,13 @@ import (
 // ---- moved from backend/zz_merged_backend.go section ws_api.go ----
 
 func serveEventsWS(c *gin.Context) {
-	servePassiveProtoWS(c, AppCtx.Clients, &AppCtx.ClientsMu)
+	ac := Ctx(c)
+	servePassiveProtoWS(c, ac.Clients, &ac.ClientsMu)
 }
 
 func serveEventEnvelopesWS(c *gin.Context) {
-	servePassiveProtoWS(c, AppCtx.EnvelopeClients, &AppCtx.EnvelopeClientsMu)
+	ac := Ctx(c)
+	servePassiveProtoWS(c, ac.EnvelopeClients, &ac.EnvelopeClientsMu)
 }
 
 func servePassiveProtoWS(c *gin.Context, target map[*websocket.Conn]bool, mu *sync.Mutex) {

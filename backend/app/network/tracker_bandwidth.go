@@ -107,7 +107,7 @@ func (b *bandwidthTracker) EvictOlderThan(maxAge time.Duration) {
 	}
 }
 
-var globalBandwidthTracker = newBandwidthTracker() // kept for backward compat; new code should use Manager
+var globalBandwidthTracker = newBandwidthTracker() // used by Manager.NewManager
 
 // ── Data exfiltration detection ───────────────────────────────────────
 
@@ -270,7 +270,7 @@ func parseUint32Str(s string) (uint32, error) {
 	return result, nil
 }
 
-var exfilDetectorInst = newExfilDetector() // kept for backward compat; new code should use Manager
+var exfilDetectorInst = newExfilDetector() // used by Manager.NewManager
 
 // Start periodic exfiltration checks
 func startExfilDetectionLoop(bw *bandwidthTracker, dns *dnsCache, detector *exfilDetector) {
@@ -347,7 +347,7 @@ func (a *connectionArchive) Snapshot() []archivedConnection {
 	return result
 }
 
-var connectionHistory = newConnectionArchive(5000) // kept for backward compat; new code should use Manager
+var connectionHistory = newConnectionArchive(5000) // used by Manager.NewManager
 
 // ── Data volume anomaly score for semantic alerts ────────────────────
 

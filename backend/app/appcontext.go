@@ -8,6 +8,7 @@ import (
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
 
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
@@ -100,9 +101,27 @@ type AppContext struct {
 }
 
 // AppCtx is the application's dependency-injection container.
-// Set once in Main(); read by handler and helper code.
-// TODO(future): eliminate this singleton by passing *AppContext explicitly.
+// Deprecated: use ctx.From(c) in handlers instead.
 var AppCtx *AppContext
+
+// Ctx extracts the AppContext from a gin request context.
+// Deprecated: this is a thin wrapper for backward compat.
+// New code should import "agent-ebpf-filter/app/ctx" and use ctx.From(c).
+func Ctx(c *gin.Context) *AppContext {
+	if v, ok := c.Get("appctx"); ok {
+		return v.(*AppContext)
+	}
+	return AppCtx
+}
+
+// ContextMiddleware returns a gin middleware that stores the AppContext
+// on the request context, making it available via Ctx(c *gin.Context).
+func ContextMiddleware(ac *AppContext) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("appctx", ac)
+		c.Next()
+	}
+}
 
 // newAppContext creates and populates a new AppContext with default values.
 // Callers must set RuntimeSettings, CapturedEventArchive, TrackerMaps after creation.
