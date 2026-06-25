@@ -37,6 +37,13 @@ func Main() {
 	AppCtx.CollectorMetricsStore = collectorMetricsStore
 	AppCtx.OTelExporterStore = otelExporterStore
 	AppCtx.ClusterManager = clusterManagerStore
+	AppCtx.TrackedProcessContexts = trackedProcessContexts
+	AppCtx.CgroupAttribution = cgroupAttribution
+	AppCtx.ToolBaseline = toolBaseline
+	AppCtx.SemanticAlertsState = semanticAlertsState
+	AppCtx.ProtoCache = protoCache
+	AppCtx.AgentSightUploadedEvents = agentSightUploadedEvents
+	AppCtx.DomainForwardProxyService = domainForwardProxyService
 
 	refreshHooksPaths()
 	if _, err := AppCtx.RuntimeSettings.LoadOrCreate(); err != nil {

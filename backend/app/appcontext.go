@@ -64,7 +64,7 @@ type AppContext struct {
 	DisabledEventTypesMu sync.RWMutex
 	DisabledEventTypes   map[uint32]struct{}
 
-	// ── Flow analysis ───────────────────────────────────────────────
+	// ── Flow / network analysis ─────────────────────────────────────
 	NetworkFlowAggregator *flowAggregator
 
 	// ── Telemetry ────────────────────────────────────────────────────
@@ -74,6 +74,29 @@ type AppContext struct {
 
 	// ── Cluster ──────────────────────────────────────────────────────
 	ClusterManager *clusterManager
+
+	// ── Process / cgroup tracking ────────────────────────────────────
+	TrackedProcessContexts *processContextStore
+	CgroupAttribution      *cgroupAttributionStore
+	ToolBaseline           *toolBaselineStore
+
+	// ── Semantic alerts ──────────────────────────────────────────────
+	SemanticAlertsState *semanticAlertState
+
+	// ── ML training / prediction (stub interface) ────────────────────
+	GlobalTrainingStore interface{}
+	GlobalTrainer       interface{}
+	GlobalAutoTuneState interface{}
+	GlobalPredictionCache interface{}
+
+	// ── Protocol detection ───────────────────────────────────────────
+	ProtoCache *protoDetectionCache
+
+	// ── AgentSight ───────────────────────────────────────────────────
+	AgentSightUploadedEvents *agentSightEventStore
+
+	// ── Domain forward proxy ─────────────────────────────────────────
+	DomainForwardProxyService *domainForwardProxyRuntime
 }
 
 // AppCtx is the application's dependency-injection container.
