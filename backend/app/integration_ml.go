@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
 	"log"
@@ -296,7 +297,7 @@ func mlFlushLoop() {
 }
 
 func defaultMLModelPath() string {
-	return runtimeSettingsDir() + "/ml_model.bin"
+	return platform.RuntimeSettingsDir() + "/ml_model.bin"
 }
 
 // mlStatus builds the ML status protobuf for the API

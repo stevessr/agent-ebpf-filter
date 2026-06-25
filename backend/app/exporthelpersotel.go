@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"context"
 	"crypto/sha256"
@@ -195,15 +196,15 @@ func buildHierarchyAttributes(envelope *pb.EventEnvelope, level string) []attrib
 	}
 	switch level {
 	case "run":
-		if value := firstNonEmpty(envelope.GetAgentRunId(), otelRunKey(envelope)); value != "" {
+		if value := platform.FirstNonEmpty(envelope.GetAgentRunId(), otelRunKey(envelope)); value != "" {
 			attrs = append(attrs, attribute.String("agent.run_id", value))
 		}
 	case "task":
-		if value := firstNonEmpty(envelope.GetTaskId(), otelTaskKey(envelope, otelRunKey(envelope))); value != "" {
+		if value := platform.FirstNonEmpty(envelope.GetTaskId(), otelTaskKey(envelope, otelRunKey(envelope))); value != "" {
 			attrs = append(attrs, attribute.String("agent.task_id", value))
 		}
 	case "tool":
-		if value := firstNonEmpty(envelope.GetToolCallId(), otelToolKey(envelope, otelTaskKey(envelope, otelRunKey(envelope)), otelRunKey(envelope))); value != "" {
+		if value := platform.FirstNonEmpty(envelope.GetToolCallId(), otelToolKey(envelope, otelTaskKey(envelope, otelRunKey(envelope)), otelRunKey(envelope))); value != "" {
 			attrs = append(attrs, attribute.String("agent.tool_call_id", value))
 		}
 		if toolName := strings.TrimSpace(envelope.GetToolName()); toolName != "" {

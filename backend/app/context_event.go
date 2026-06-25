@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"crypto/sha256"
 	"encoding/hex"
@@ -159,7 +160,7 @@ func buildProcessContextFromWrapperRequest(req *pb.WrapperRequest, decision stri
 		ConversationID: req.ConversationId,
 		TurnID:         req.TurnId,
 		ToolCallID:     req.ToolCallId,
-		ToolName:       firstNonEmpty(req.ToolName, req.Comm),
+		ToolName:       platform.FirstNonEmpty(req.ToolName, req.Comm),
 		TraceID:        req.TraceId,
 		SpanID:         req.SpanId,
 		Decision:       decision,
@@ -202,7 +203,7 @@ func buildProcessContextFromHookPayload(payload map[string]interface{}, toolName
 		ConversationID: payloadString(payload, "conversation_id", "conversationId"),
 		TurnID:         payloadString(payload, "turn_id", "turnId"),
 		ToolCallID:     toolCallID,
-		ToolName:       firstNonEmpty(payloadString(payload, "tool_name", "toolName"), toolName),
+		ToolName:       platform.FirstNonEmpty(payloadString(payload, "tool_name", "toolName"), toolName),
 		TraceID:        payloadString(payload, "trace_id", "traceId"),
 		SpanID:         payloadString(payload, "span_id", "spanId"),
 		Decision:       payloadString(payload, "decision"),
@@ -229,7 +230,7 @@ func enrichEventContext(event *pb.Event) *pb.Event {
 	}
 
 	if event.Type == "process_exec" {
-		if oldPID := parseUintField(event.ExtraInfo, "old_pid"); oldPID > 0 && oldPID != event.Pid {
+		if oldPID := platform.ParseUintField(event.ExtraInfo, "old_pid"); oldPID > 0 && oldPID != event.Pid {
 			trackedProcessContexts.Move(oldPID, event.Pid)
 		}
 	}

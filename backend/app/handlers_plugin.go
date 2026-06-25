@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"net/http"
 	"strings"
 	"time"
@@ -86,7 +87,7 @@ func handlePluginUpsert(c *gin.Context) {
 
 	if req.Kind == PluginKindEBPF && strings.TrimSpace(req.Source) != "" {
 		manifest.SourceSHA256 = sha256Hex([]byte(req.Source))
-		if err := writePluginSource(req.ID, req.Source); err != nil {
+		if err := platform.WritePluginSource(req.ID, req.Source); err != nil {
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		}

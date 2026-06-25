@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
@@ -56,7 +57,7 @@ type TrainingDataStore struct {
 var globalTrainingStore *TrainingDataStore
 
 func newTrainingDataStore(maxSamples int) *TrainingDataStore {
-	dataDir := filepath.Join(getRealHomeDir(), ".config", "agent-ebpf-filter")
+	dataDir := filepath.Join(platform.GetRealHomeDir(), ".config", "agent-ebpf-filter")
 	return &TrainingDataStore{
 		samples:     make([]TrainingSample, maxSamples),
 		maxSamples:  maxSamples,
@@ -323,7 +324,7 @@ func (s *TrainingDataStore) Flush() error {
 }
 
 func (s *TrainingDataStore) persistLocked() error {
-	if err := mkdirAllAsRealUser(s.dataDir, 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(s.dataDir, 0755); err != nil {
 		return err
 	}
 
@@ -335,7 +336,7 @@ func (s *TrainingDataStore) persistLocked() error {
 	defer f.Close()
 	// Fix ownership if running as root
 	if os.Getuid() == 0 {
-		if uid, gid, ok := originalInvokerIDs(); ok {
+		if uid, gid, ok := platform.OriginalInvokerIDs(); ok {
 			_ = os.Chown(tmpPath, int(uid), int(gid))
 		}
 	}

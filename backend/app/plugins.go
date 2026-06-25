@@ -1,13 +1,13 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -81,25 +81,10 @@ type pluginStore struct {
 
 var pluginRegistry = &pluginStore{entries: make(map[string]*PluginManifest)}
 
-func pluginsRootDir() string {
-	return filepath.Join(runtimeSettingsDir(), "plugins")
-}
 
-func pluginDir(id string) string {
-	return filepath.Join(pluginsRootDir(), id)
-}
 
-func pluginManifestPath(id string) string {
-	return filepath.Join(pluginDir(id), "manifest.json")
-}
 
-func pluginSourcePath(id string) string {
-	return filepath.Join(pluginDir(id), "source.c")
-}
 
-func pluginObjectPath(id string) string {
-	return filepath.Join(pluginDir(id), "program.o")
-}
 
 func validatePluginID(id string) error {
 	if !pluginIDRegex.MatchString(id) {
@@ -119,10 +104,10 @@ func (s *pluginStore) ensureLoaded() error {
 	if s.loaded {
 		return nil
 	}
-	if err := mkdirAllAsRealUser(pluginsRootDir(), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(platform.PluginsRootDir(), 0755); err != nil {
 		return err
 	}
-	entries, err := os.ReadDir(pluginsRootDir())
+	entries, err := os.ReadDir(platform.PluginsRootDir())
 	if err != nil {
 		return err
 	}
@@ -131,7 +116,7 @@ func (s *pluginStore) ensureLoaded() error {
 			continue
 		}
 		id := entry.Name()
-		path := pluginManifestPath(id)
+		path := platform.PluginManifestPath(id)
 		data, err := os.ReadFile(path)
 		if err != nil {
 			continue
@@ -177,14 +162,14 @@ func (s *pluginStore) Get(id string) (PluginManifest, bool) {
 }
 
 func (s *pluginStore) saveLocked(m *PluginManifest) error {
-	if err := mkdirAllAsRealUser(pluginDir(m.ID), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(platform.PluginDir(m.ID), 0755); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
 	}
-	return writeFileAsRealUser(pluginManifestPath(m.ID), data, 0644)
+	return platform.WriteFileAsRealUser(platform.PluginManifestPath(m.ID), data, 0644)
 }
 
 func (s *pluginStore) Upsert(m *PluginManifest) error {
@@ -217,7 +202,7 @@ func (s *pluginStore) Delete(id string) error {
 		return fmt.Errorf("plugin %q not found", id)
 	}
 	delete(s.entries, id)
-	return os.RemoveAll(pluginDir(id))
+	return os.RemoveAll(platform.PluginDir(id))
 }
 
 func (s *pluginStore) SetEnabled(id string, enabled bool) (PluginManifest, error) {
@@ -241,7 +226,7 @@ func PluginSource(id string) (string, error) {
 	if err := validatePluginID(id); err != nil {
 		return "", err
 	}
-	data, err := os.ReadFile(pluginSourcePath(id))
+	data, err := os.ReadFile(platform.PluginSourcePath(id))
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
 	}
@@ -251,12 +236,6 @@ func PluginSource(id string) (string, error) {
 	return string(data), nil
 }
 
-func writePluginSource(id, source string) error {
-	if err := mkdirAllAsRealUser(pluginDir(id), 0755); err != nil {
-		return err
-	}
-	return writeFileAsRealUser(pluginSourcePath(id), []byte(source), 0644)
-}
 
 // PluginExportSummary is used when exporting/importing plugin manifests.
 func pluginExportPayload() map[string]any {

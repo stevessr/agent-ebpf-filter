@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"errors"
 	"fmt"
@@ -23,7 +24,7 @@ func startUDSServer(broadcast chan *pb.Event) {
 		return
 	}
 	_ = os.Chmod(udsPath, 0600)
-	if uid, gid, ok := originalInvokerIDs(); ok {
+	if uid, gid, ok := platform.OriginalInvokerIDs(); ok {
 		_ = os.Chown(udsPath, int(uid), int(gid))
 	}
 	defer l.Close()

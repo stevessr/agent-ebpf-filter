@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"fmt"
 	"net"
@@ -80,7 +81,7 @@ func evaluateKernelRiskDecision(raw *bpfEvent, event *pb.Event) kernelRiskDecisi
 
 	typeName := event.GetType()
 	comm := strings.ToLower(event.GetComm())
-	path := strings.ToLower(firstNonEmpty(event.GetPath(), event.GetExtraPath()))
+	path := strings.ToLower(platform.FirstNonEmpty(event.GetPath(), event.GetExtraPath()))
 	tag := strings.ToLower(event.GetTag())
 
 	if strings.Contains(tag, "agent") || strings.Contains(tag, "wrapper") {

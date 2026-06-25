@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"bytes"
 	"context"
 	"debug/elf"
@@ -315,7 +316,7 @@ func handleFileELF(c *gin.Context) {
 }
 
 func handleSystemHome(c *gin.Context) {
-	c.JSON(200, gin.H{"path": getRealHomeDir()})
+	c.JSON(200, gin.H{"path": platform.GetRealHomeDir()})
 }
 
 func handleDownload(c *gin.Context) {
@@ -335,7 +336,7 @@ func handleDownload(c *gin.Context) {
 func handleUpload(c *gin.Context) {
 	dir := c.Query("path")
 	if dir == "" {
-		dir = getRealHomeDir()
+		dir = platform.GetRealHomeDir()
 	}
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -380,7 +381,7 @@ func handleSystemdServices(c *gin.Context) {
 	}
 	cmd := exec.Command("systemctl", args...)
 	if scope == "user" {
-		if uid, _, ok := originalInvokerIDs(); ok {
+		if uid, _, ok := platform.OriginalInvokerIDs(); ok {
 			uidStr := strconv.FormatUint(uint64(uid), 10)
 			cmd.Env = append(os.Environ(),
 				"XDG_RUNTIME_DIR=/run/user/"+uidStr,
@@ -427,7 +428,7 @@ func handleSystemdControl(c *gin.Context) {
 	if req.Scope == "user" {
 		args = append([]string{"--user"}, args...)
 		cmd := exec.Command("systemctl", args...)
-		if uid, _, ok := originalInvokerIDs(); ok {
+		if uid, _, ok := platform.OriginalInvokerIDs(); ok {
 			uidStr := strconv.FormatUint(uint64(uid), 10)
 			cmd.Env = append(os.Environ(),
 				"XDG_RUNTIME_DIR=/run/user/"+uidStr,
@@ -467,7 +468,7 @@ func handleSystemdLogs(c *gin.Context) {
 	}
 	cmd := exec.Command("journalctl", args...)
 	if scope == "user" {
-		if uid, _, ok := originalInvokerIDs(); ok {
+		if uid, _, ok := platform.OriginalInvokerIDs(); ok {
 			uidStr := strconv.FormatUint(uint64(uid), 10)
 			cmd.Env = append(os.Environ(),
 				"XDG_RUNTIME_DIR=/run/user/"+uidStr,

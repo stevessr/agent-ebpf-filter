@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"crypto/sha256"
 	"encoding/hex"
@@ -239,7 +240,7 @@ func handleAgentSightEventsStats(tlsStore *TLSCaptureStore, runnerID string) gin
 	return func(c *gin.Context) {
 		query := agentSightQueryFromRequest(c)
 		query.Limit = agentSightMaxLimit
-		query.RunnerID = firstNonEmpty(runnerID, query.RunnerID)
+		query.RunnerID = platform.FirstNonEmpty(runnerID, query.RunnerID)
 		events, _, err := collectAgentSightEventsForQuery(query, tlsStore)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -315,10 +316,10 @@ func agentSightQueryFromRequest(c *gin.Context) agentSightEventQuery {
 	query := agentSightEventQuery{
 		Limit:      agentSightDefaultLimit,
 		Filters:    recentEventFiltersFromRequest(c),
-		Search:     firstNonEmpty(c.Query("filter"), c.Query("q"), c.Query("search")),
+		Search:     platform.FirstNonEmpty(c.Query("filter"), c.Query("q"), c.Query("search")),
 		IncludeTLS: true,
-		Sources:    splitAgentSightCSV(firstNonEmpty(c.Query("sources"), c.Query("source[]"))),
-		EventTypes: splitAgentSightCSV(firstNonEmpty(c.Query("event_types"), c.Query("eventTypes"), c.Query("event_type[]"))),
+		Sources:    splitAgentSightCSV(platform.FirstNonEmpty(c.Query("sources"), c.Query("source[]"))),
+		EventTypes: splitAgentSightCSV(platform.FirstNonEmpty(c.Query("event_types"), c.Query("eventTypes"), c.Query("event_type[]"))),
 		RunnerID:   strings.TrimSpace(c.Query("runner")),
 	}
 	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
@@ -387,20 +388,20 @@ func agentSightQueryFromJSONRequest(c *gin.Context) (agentSightEventQuery, error
 			query.Limit = agentSightMaxLimit
 		}
 	}
-	query.Search = firstNonEmpty(body.Filter, body.Search, body.Query, query.Search)
-	query.Filters.Source = firstNonEmpty(body.Source, query.Filters.Source)
+	query.Search = platform.FirstNonEmpty(body.Filter, body.Search, body.Query, query.Search)
+	query.Filters.Source = platform.FirstNonEmpty(body.Source, query.Filters.Source)
 	query.Sources = append(query.Sources, normalizeAgentSightTerms(body.Sources)...)
-	query.Filters.Type = firstNonEmpty(body.Type, query.Filters.Type)
-	query.Filters.EventType = firstNonEmpty(body.EventType, body.EventTypeCamel, query.Filters.EventType)
+	query.Filters.Type = platform.FirstNonEmpty(body.Type, query.Filters.Type)
+	query.Filters.EventType = platform.FirstNonEmpty(body.EventType, body.EventTypeCamel, query.Filters.EventType)
 	query.EventTypes = append(query.EventTypes, normalizeAgentSightTerms(body.EventTypes)...)
 	if body.PID != 0 {
 		query.Filters.PID = body.PID
 	}
 	query.PIDs = append(query.PIDs, body.PIDs...)
-	query.Filters.Comm = firstNonEmpty(body.Comm, query.Filters.Comm)
-	query.Filters.TraceID = firstNonEmpty(body.TraceID, body.TraceIDCamel, query.Filters.TraceID)
-	query.Filters.SpanID = firstNonEmpty(body.SpanID, body.SpanIDCamel, query.Filters.SpanID)
-	query.Filters.RedactionState = firstNonEmpty(body.RedactionState, query.Filters.RedactionState)
+	query.Filters.Comm = platform.FirstNonEmpty(body.Comm, query.Filters.Comm)
+	query.Filters.TraceID = platform.FirstNonEmpty(body.TraceID, body.TraceIDCamel, query.Filters.TraceID)
+	query.Filters.SpanID = platform.FirstNonEmpty(body.SpanID, body.SpanIDCamel, query.Filters.SpanID)
+	query.Filters.RedactionState = platform.FirstNonEmpty(body.RedactionState, query.Filters.RedactionState)
 	if parsed := parseAgentSightTimeAny(body.Since); !parsed.IsZero() {
 		query.Filters.Since = parsed
 	}
@@ -413,7 +414,7 @@ func agentSightQueryFromJSONRequest(c *gin.Context) (agentSightEventQuery, error
 	if body.IncludeTLSCamel != nil {
 		query.IncludeTLS = *body.IncludeTLSCamel
 	}
-	query.RunnerID = firstNonEmpty(body.Runner, body.RunnerID, query.RunnerID)
+	query.RunnerID = platform.FirstNonEmpty(body.Runner, body.RunnerID, query.RunnerID)
 	return query, nil
 }
 
@@ -558,7 +559,7 @@ func buildAgentSightEventsStats(events []agentSightExportEvent, limit int, runne
 		if event.Comm != "" {
 			stats.ByComm[event.Comm]++
 		}
-		if eventType := firstNonEmpty(stringFromMap(event.Data, "event_type"), stringFromMap(event.Data, "eventType"), stringFromMap(event.Data, "type")); eventType != "" {
+		if eventType := platform.FirstNonEmpty(stringFromMap(event.Data, "event_type"), stringFromMap(event.Data, "eventType"), stringFromMap(event.Data, "type")); eventType != "" {
 			stats.ByType[eventType]++
 		}
 		if event.Timestamp > 0 {
@@ -715,19 +716,19 @@ func agentSightEventFromDecodedPayload(decoded any, index int) (agentSightExport
 		}
 	}
 	timestamp := parseAgentSightTimestamp(firstNonNil(values["timestamp"], data["timestamp"]), time.Now().Add(time.Duration(index)*time.Millisecond).UnixMilli())
-	source := firstNonEmpty(stringFromMap(values, "source"), stringFromMap(data, "source"), "imported")
+	source := platform.FirstNonEmpty(stringFromMap(values, "source"), stringFromMap(data, "source"), "imported")
 	pid := uint32FromAny(firstNonNil(values["pid"], data["pid"]))
 	ppid := uint32FromAny(firstNonNil(values["ppid"], data["ppid"], data["parent_pid"], data["parentPid"]))
-	comm := firstNonEmpty(stringFromMap(values, "comm"), stringFromMap(data, "comm"), "imported")
-	traceID := firstNonEmpty(stringFromMap(values, "trace_id"), stringFromMap(values, "traceId"), stringFromMap(data, "trace_id"), stringFromMap(data, "traceId"))
-	spanID := firstNonEmpty(stringFromMap(values, "span_id"), stringFromMap(values, "spanId"), stringFromMap(data, "span_id"), stringFromMap(data, "spanId"))
+	comm := platform.FirstNonEmpty(stringFromMap(values, "comm"), stringFromMap(data, "comm"), "imported")
+	traceID := platform.FirstNonEmpty(stringFromMap(values, "trace_id"), stringFromMap(values, "traceId"), stringFromMap(data, "trace_id"), stringFromMap(data, "traceId"))
+	spanID := platform.FirstNonEmpty(stringFromMap(values, "span_id"), stringFromMap(values, "spanId"), stringFromMap(data, "span_id"), stringFromMap(data, "spanId"))
 	if data["event_type"] == nil && data["eventType"] != nil {
 		data["event_type"] = data["eventType"]
 	}
 	if data["runner"] == nil {
 		data["runner"] = "uploaded"
 	}
-	id := firstNonEmpty(stringFromMap(values, "id"), agentSightStableID("import", timestamp, source, pid, comm, data))
+	id := platform.FirstNonEmpty(stringFromMap(values, "id"), agentSightStableID("import", timestamp, source, pid, comm, data))
 	return agentSightExportEvent{
 		ID:        id,
 		Timestamp: timestamp,
@@ -769,10 +770,10 @@ func agentSightEventFromCapturedRecord(record CapturedEventRecord) agentSightExp
 
 	eventType := envelopeEventTypeName(envelope, event)
 	if eventType == "" {
-		eventType = firstNonEmpty(stringFromMap(data, "event_type"), stringFromMap(data, "eventType"), stringFromMap(data, "type"))
+		eventType = platform.FirstNonEmpty(stringFromMap(data, "event_type"), stringFromMap(data, "eventType"), stringFromMap(data, "type"))
 	}
 	data["event_type"] = eventType
-	data["type"] = firstNonEmpty(stringFromMap(data, "type"), eventType)
+	data["type"] = platform.FirstNonEmpty(stringFromMap(data, "type"), eventType)
 	data["payload"] = payloadKey
 	if len(eventMap) > 0 {
 		data["legacy_event"] = eventMap
@@ -784,9 +785,9 @@ func agentSightEventFromCapturedRecord(record CapturedEventRecord) agentSightExp
 	source := agentSightSourceFromEnvelope(envelope, event, payloadKey)
 	pid := uint32FromEnvelopeOrEvent(envelope, event, "pid")
 	ppid := uint32FromEnvelopeOrEvent(envelope, event, "ppid")
-	comm := firstNonEmpty(envelopeString(envelope, "comm"), event.GetComm(), stringFromMap(data, "comm"), "unknown")
-	traceID := firstNonEmpty(envelopeString(envelope, "trace_id"), event.GetTraceId(), stringFromMap(data, "trace_id"), stringFromMap(data, "traceId"))
-	spanID := firstNonEmpty(envelopeString(envelope, "span_id"), event.GetSpanId(), stringFromMap(data, "span_id"), stringFromMap(data, "spanId"))
+	comm := platform.FirstNonEmpty(envelopeString(envelope, "comm"), event.GetComm(), stringFromMap(data, "comm"), "unknown")
+	traceID := platform.FirstNonEmpty(envelopeString(envelope, "trace_id"), event.GetTraceId(), stringFromMap(data, "trace_id"), stringFromMap(data, "traceId"))
+	spanID := platform.FirstNonEmpty(envelopeString(envelope, "span_id"), event.GetSpanId(), stringFromMap(data, "span_id"), stringFromMap(data, "spanId"))
 
 	id := ""
 	if envelope != nil {
@@ -816,10 +817,10 @@ func agentSightEventFromTLSPlaintext(event TLSPlaintextEvent) agentSightExportEv
 	}
 	data := agentSightStructMap(event)
 	data["timestamp"] = timestamp.UnixMilli()
-	data["type"] = firstNonEmpty(event.Type, "tls_plaintext")
+	data["type"] = platform.FirstNonEmpty(event.Type, "tls_plaintext")
 	data["event_type"] = agentSightTLSEventType(event)
 	data["status_code"] = event.StatusCode
-	data["path"] = firstNonEmpty(event.URL, stringFromMap(data, "path"))
+	data["path"] = platform.FirstNonEmpty(event.URL, stringFromMap(data, "path"))
 	data["agent_run_id"] = event.AgentRunID
 	data["task_id"] = event.TaskID
 	data["trace_id"] = event.TraceID
@@ -835,7 +836,7 @@ func agentSightEventFromTLSPlaintext(event TLSPlaintextEvent) agentSightExportEv
 		Timestamp: timestamp.UnixMilli(),
 		Source:    source,
 		PID:       event.PID,
-		Comm:      firstNonEmpty(event.Comm, "tls"),
+		Comm:      platform.FirstNonEmpty(event.Comm, "tls"),
 		TraceID:   event.TraceID,
 		SpanID:    event.SpanID,
 		Data:      data,
@@ -870,7 +871,7 @@ func agentSightExportEventMatches(event agentSightExportEvent, query agentSightE
 	if query.Filters.Type != "" && !strings.EqualFold(stringFromMap(event.Data, "type"), query.Filters.Type) {
 		return false
 	}
-	eventType := firstNonEmpty(stringFromMap(event.Data, "event_type"), stringFromMap(event.Data, "eventType"), stringFromMap(event.Data, "type"))
+	eventType := platform.FirstNonEmpty(stringFromMap(event.Data, "event_type"), stringFromMap(event.Data, "eventType"), stringFromMap(event.Data, "type"))
 	if len(query.EventTypes) > 0 && !agentSightStringInList(eventType, query.EventTypes) {
 		return false
 	}
@@ -878,7 +879,7 @@ func agentSightExportEventMatches(event agentSightExportEvent, query agentSightE
 		return false
 	}
 	if query.Filters.RedactionState != "" {
-		redaction := firstNonEmpty(stringFromMap(event.Data, "redaction_state"), stringFromMap(event.Data, "redactionState"))
+		redaction := platform.FirstNonEmpty(stringFromMap(event.Data, "redaction_state"), stringFromMap(event.Data, "redactionState"))
 		if !strings.EqualFold(redaction, query.Filters.RedactionState) {
 			return false
 		}
@@ -915,7 +916,7 @@ func agentSightRunnerIDForEvent(event agentSightExportEvent) string {
 	case "process", "file", "network", "ebpf_ringbuf":
 		return "process"
 	default:
-		eventType := strings.ToLower(firstNonEmpty(stringFromMap(event.Data, "event_type"), stringFromMap(event.Data, "type")))
+		eventType := strings.ToLower(platform.FirstNonEmpty(stringFromMap(event.Data, "event_type"), stringFromMap(event.Data, "type")))
 		switch {
 		case strings.Contains(eventType, "tls") || strings.Contains(eventType, "http") || strings.Contains(eventType, "sse"):
 			return "tls"

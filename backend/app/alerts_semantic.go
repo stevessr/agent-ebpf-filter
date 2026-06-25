@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"fmt"
 	"strings"
@@ -263,10 +264,10 @@ func buildSemanticAlerts(event *pb.Event) []*pb.Event {
 
 	// Codex-specific workflow semantic checks
 	if reason, ok := detectPRReviewAnomaly(event); ok {
-		addAlert("SEMANTIC_MISMATCH", firstNonEmpty(event.GetToolCallId(), event.GetPath()), reason, 0.96)
+		addAlert("SEMANTIC_MISMATCH", platform.FirstNonEmpty(event.GetToolCallId(), event.GetPath()), reason, 0.96)
 	}
 	if reason, ok := detectBrowserTaskAnomaly(event); ok {
-		addAlert("TOOL_BEHAVIOR_DRIFT", firstNonEmpty(event.GetComm(), event.GetPath()), reason, 0.97)
+		addAlert("TOOL_BEHAVIOR_DRIFT", platform.FirstNonEmpty(event.GetComm(), event.GetPath()), reason, 0.97)
 	}
 	if reason, ok := detectIDEHandoffAnomaly(event); ok {
 		addAlert("SEMANTIC_MISMATCH", event.GetPath(), reason, 0.98)
@@ -278,7 +279,7 @@ func buildSemanticAlerts(event *pb.Event) []*pb.Event {
 	// Per-tool baseline drift detection
 	if event.GetToolName() != "" && event.GetComm() != "" {
 		if reason, ok := toolBaseline.detectDrift(event.GetToolName(), event.GetComm(), event.GetType()); ok {
-			addAlert("TOOL_BEHAVIOR_DRIFT", firstNonEmpty(event.GetComm(), event.GetPath()), reason, 0.91)
+			addAlert("TOOL_BEHAVIOR_DRIFT", platform.FirstNonEmpty(event.GetComm(), event.GetPath()), reason, 0.91)
 		}
 	}
 

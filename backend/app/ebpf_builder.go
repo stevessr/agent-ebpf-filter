@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"errors"
 	"fmt"
 	"os"
@@ -90,11 +91,11 @@ func CompileUserBPF(pluginID, source string) (string, []byte, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	if err := writePluginSource(pluginID, source); err != nil {
+	if err := platform.WritePluginSource(pluginID, source); err != nil {
 		return "", nil, err
 	}
-	src := pluginSourcePath(pluginID)
-	obj := pluginObjectPath(pluginID)
+	src := platform.PluginSourcePath(pluginID)
+	obj := platform.PluginObjectPath(pluginID)
 
 	args := []string{
 		"-O2", "-g", "-Wall",
@@ -115,7 +116,7 @@ func CompileUserBPF(pluginID, source string) (string, []byte, error) {
 		return "", out, fmt.Errorf("clang produced no object: %w", statErr)
 	}
 	if os.Getuid() == 0 {
-		if uid, gid, ok := originalInvokerIDs(); ok {
+		if uid, gid, ok := platform.OriginalInvokerIDs(); ok {
 			_ = os.Chown(obj, int(uid), int(gid))
 		}
 	}
@@ -133,7 +134,7 @@ func LoadEBPFPlugin(m *PluginManifest) error {
 	if strings.TrimSpace(m.ProgramName) == "" {
 		return errors.New("programName is required")
 	}
-	objPath := pluginObjectPath(m.ID)
+	objPath := platform.PluginObjectPath(m.ID)
 	if _, err := os.Stat(objPath); err != nil {
 		return fmt.Errorf("plugin object missing: %w", err)
 	}

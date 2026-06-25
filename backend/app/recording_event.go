@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"bufio"
 	"encoding/json"
 	"errors"
@@ -51,11 +52,11 @@ type eventRecordingState struct {
 var eventRecordingStore = &eventRecordingState{}
 
 func defaultEventRecordingPath() string {
-	return filepath.Join(runtimeSettingsDir(), "recordings", "events-"+time.Now().UTC().Format("20060102-150405")+".jsonl")
+	return filepath.Join(platform.RuntimeSettingsDir(), "recordings", "events-"+time.Now().UTC().Format("20060102-150405")+".jsonl")
 }
 
 func defaultBrowserRecordingPath() string {
-	return filepath.Join(runtimeSettingsDir(), "recordings", "browser-memory-"+time.Now().UTC().Format("20060102-150405")+".json")
+	return filepath.Join(platform.RuntimeSettingsDir(), "recordings", "browser-memory-"+time.Now().UTC().Format("20060102-150405")+".json")
 }
 
 func expandEventRecordingPath(raw string) string {
@@ -64,10 +65,10 @@ func expandEventRecordingPath(raw string) string {
 		return defaultEventRecordingPath()
 	}
 	if path == "~" {
-		return getRealHomeDir()
+		return platform.GetRealHomeDir()
 	}
 	if strings.HasPrefix(path, "~/") {
-		return filepath.Join(getRealHomeDir(), strings.TrimPrefix(path, "~/"))
+		return filepath.Join(platform.GetRealHomeDir(), strings.TrimPrefix(path, "~/"))
 	}
 	return path
 }
@@ -92,7 +93,7 @@ func (s *eventRecordingState) Start(path string, truncate bool) (eventRecordingS
 	if strings.TrimSpace(path) == "" {
 		return eventRecordingStatus{}, errors.New("recording path is empty")
 	}
-	if err := mkdirAllAsRealUser(filepath.Dir(path), 0o755); err != nil {
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(path), 0o755); err != nil {
 		return eventRecordingStatus{}, err
 	}
 	flags := os.O_CREATE | os.O_WRONLY | os.O_APPEND
@@ -105,7 +106,7 @@ func (s *eventRecordingState) Start(path string, truncate bool) (eventRecordingS
 	}
 	// Fix ownership if running as root
 	if os.Getuid() == 0 {
-		if uid, gid, ok := originalInvokerIDs(); ok {
+		if uid, gid, ok := platform.OriginalInvokerIDs(); ok {
 			_ = os.Chown(path, int(uid), int(gid))
 		}
 	}
@@ -238,10 +239,10 @@ func saveBrowserRecordingExport(path string, payload json.RawMessage) (string, i
 	if err != nil {
 		return "", 0, err
 	}
-	if err := mkdirAllAsRealUser(filepath.Dir(path), 0o755); err != nil {
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(path), 0o755); err != nil {
 		return "", 0, err
 	}
-	if err := writeFileAsRealUser(path, append(pretty, '\n'), 0o600); err != nil {
+	if err := platform.WriteFileAsRealUser(path, append(pretty, '\n'), 0o600); err != nil {
 		return "", 0, err
 	}
 	count := 0

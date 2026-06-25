@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"bytes"
 	"errors"
@@ -255,7 +256,7 @@ func (s *shellSession) emitStdioEvent(stream string, payload []byte) {
 		Type:          "stdio",
 		EventType:     pb.EventType_STDIO,
 		Tag:           "Shell Session",
-		Comm:          firstNonEmpty(s.label, s.kind, "shell"),
+		Comm:          platform.FirstNonEmpty(s.label, s.kind, "shell"),
 		Path:          stream,
 		Bytes:         uint64(len(payload)),
 		ExtraInfo:     fmt.Sprintf("session_id=%s stream=%s fd=%s size=%d", s.id, stream, fd, len(payload)),

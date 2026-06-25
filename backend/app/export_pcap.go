@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"encoding/binary"
 	"fmt"
 	"net/http"
@@ -129,7 +130,7 @@ func handlePCAPExport(c *gin.Context) {
 	flows := networkFlowAggregator.Snapshot()
 	tcpConns := tcpTracker.Snapshot()
 
-	exportDir := runtimeSettingsDir()
+	exportDir := platform.RuntimeSettingsDir()
 	exportPath := filepath.Join(exportDir, fmt.Sprintf("network-export-%s.pcap", time.Now().UTC().Format("20060102-150405")))
 
 	f, err := os.Create(exportPath)

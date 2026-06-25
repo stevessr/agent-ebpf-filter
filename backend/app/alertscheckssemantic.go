@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"fmt"
 	"path/filepath"
@@ -260,12 +261,12 @@ func (s *semanticAlertState) observeAgenticResourceLoop(event *pb.Event, now tim
 	}
 	if isAPILikeNetworkEvent(event) {
 		observation.APICalls++
-		observation.LastTarget = firstNonEmpty(event.GetNetEndpoint(), event.GetSni(), event.GetHttpHost(), event.GetDnsName(), event.GetPath())
+		observation.LastTarget = platform.FirstNonEmpty(event.GetNetEndpoint(), event.GetSni(), event.GetHttpHost(), event.GetDnsName(), event.GetPath())
 		changed = true
 	}
 	if isLowValueFileIOEvent(event) {
 		observation.FileOps++
-		if target := firstNonEmpty(event.GetPath(), event.GetExtraPath(), event.GetComm()); target != "" {
+		if target := platform.FirstNonEmpty(event.GetPath(), event.GetExtraPath(), event.GetComm()); target != "" {
 			observation.LastTarget = target
 		}
 		changed = true
@@ -282,7 +283,7 @@ func (s *semanticAlertState) observeAgenticResourceLoop(event *pb.Event, now tim
 		observation.FileOps >= semanticFileIOLoopThreshold {
 		observation.Alerted = true
 		s.agenticLoopWindows[key] = observation
-		target := firstNonEmpty(observation.LastTarget, observation.PromptDigest, key)
+		target := platform.FirstNonEmpty(observation.LastTarget, observation.PromptDigest, key)
 		reason := fmt.Sprintf("observed repeated prompt metadata (%d repeats) with %d API egress events and %d low-level file I/O events within %s",
 			observation.PromptRepeats, observation.APICalls, observation.FileOps, semanticAgenticLoopWindow)
 		return target, reason, true

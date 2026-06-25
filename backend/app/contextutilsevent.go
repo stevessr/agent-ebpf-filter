@@ -85,50 +85,9 @@ func payloadFloat64(payload map[string]interface{}, keys ...string) float64 {
 	return 0
 }
 
-func parseUintField(extraInfo, key string) uint32 {
-	needle := key + "="
-	for _, part := range strings.Fields(strings.ReplaceAll(extraInfo, ",", " ")) {
-		if strings.HasPrefix(part, needle) {
-			var parsed uint32
-			if _, err := fmt.Sscanf(strings.TrimPrefix(part, needle), "%d", &parsed); err == nil {
-				return parsed
-			}
-		}
-	}
-	return 0
-}
 
-func parseFloatField(extraInfo, key string) float64 {
-	needle := key + "="
-	for _, part := range strings.Fields(strings.ReplaceAll(extraInfo, ",", " ")) {
-		if strings.HasPrefix(part, needle) {
-			var parsed float64
-			if _, err := fmt.Sscanf(strings.TrimPrefix(part, needle), "%f", &parsed); err == nil {
-				return parsed
-			}
-		}
-	}
-	return 0
-}
 
-func parseStringField(extraInfo, key string) string {
-	needle := key + "="
-	for _, part := range strings.Fields(strings.ReplaceAll(extraInfo, ",", " ")) {
-		if strings.HasPrefix(part, needle) {
-			return strings.TrimSpace(strings.TrimPrefix(part, needle))
-		}
-	}
-	return ""
-}
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
 
 func maxFloat64(values ...float64) float64 {
 	max := 0.0

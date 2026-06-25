@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"fmt"
 	"path/filepath"
@@ -218,7 +219,7 @@ func isAPILikeNetworkEvent(event *pb.Event) bool {
 			return true
 		}
 	}
-	return event.GetDstPort() == 443 && firstNonEmpty(event.GetSni(), event.GetHttpHost(), event.GetDnsName()) != ""
+	return event.GetDstPort() == 443 && platform.FirstNonEmpty(event.GetSni(), event.GetHttpHost(), event.GetDnsName()) != ""
 }
 
 func semanticFileMutationPath(event *pb.Event) (string, bool) {
@@ -230,7 +231,7 @@ func semanticFileMutationPath(event *pb.Event) (string, bool) {
 	default:
 		return "", false
 	}
-	path := firstNonEmpty(event.GetPath(), event.GetExtraPath())
+	path := platform.FirstNonEmpty(event.GetPath(), event.GetExtraPath())
 	if path == "" {
 		return "", false
 	}
@@ -302,13 +303,13 @@ func detectSuspiciousShellTransport(event *pb.Event) (string, string, bool) {
 	switch {
 	case (strings.Contains(lower, "curl") || strings.Contains(lower, "wget")) &&
 		(strings.Contains(lower, "| sh") || strings.Contains(lower, "| bash")):
-		return firstNonEmpty(event.GetPath(), event.GetComm()), "observed a curl/wget pipeline into a shell", true
+		return platform.FirstNonEmpty(event.GetPath(), event.GetComm()), "observed a curl/wget pipeline into a shell", true
 	case strings.Contains(lower, "bash -i >& /dev/tcp") ||
 		strings.Contains(lower, "bash -i > /dev/tcp") ||
 		strings.Contains(lower, "nc -e") ||
 		strings.Contains(lower, "socat exec:") ||
 		strings.Contains(lower, "/dev/tcp/"):
-		return firstNonEmpty(event.GetPath(), event.GetComm()), "observed a reverse-shell-like shell transport pattern", true
+		return platform.FirstNonEmpty(event.GetPath(), event.GetComm()), "observed a reverse-shell-like shell transport pattern", true
 	default:
 		return "", "", false
 	}
@@ -325,10 +326,10 @@ func recentExecutableAfterChmod(event *pb.Event, now time.Time) (string, bool) {
 	switch event.GetType() {
 	case "chmod":
 		if modeLooksExecutable(event.GetMode()) {
-			semanticAlertsState.rememberExecutable(event, firstNonEmpty(event.GetPath(), event.GetExtraPath()), event.GetMode(), now)
+			semanticAlertsState.rememberExecutable(event, platform.FirstNonEmpty(event.GetPath(), event.GetExtraPath()), event.GetMode(), now)
 		}
 	case "execve", "process_exec":
-		if path := firstNonEmpty(event.GetPath(), event.GetExtraPath()); path != "" {
+		if path := platform.FirstNonEmpty(event.GetPath(), event.GetExtraPath()); path != "" {
 			if matchedPath, ok := semanticAlertsState.recentExecutablePath(contextKey, path, now); ok {
 				return matchedPath, true
 			}
@@ -355,7 +356,7 @@ func observeForkStorm(event *pb.Event, now time.Time) (string, bool) {
 		return "", false
 	}
 	if count := semanticAlertsState.incrementForkCount(event, now); count >= semanticForkStormThreshold {
-		return firstNonEmpty(event.GetToolCallId(), event.GetAgentRunId(), event.GetComm(), event.GetPath()), true
+		return platform.FirstNonEmpty(event.GetToolCallId(), event.GetAgentRunId(), event.GetComm(), event.GetPath()), true
 	}
 	return "", false
 }
@@ -387,5 +388,5 @@ func semanticAlertContextKey(event *pb.Event) string {
 	if event.GetPid() > 0 {
 		candidates = append(candidates, fmt.Sprintf("pid:%d", event.GetPid()))
 	}
-	return firstNonEmpty(candidates...)
+	return platform.FirstNonEmpty(candidates...)
 }

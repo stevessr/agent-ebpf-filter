@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -115,7 +116,7 @@ func runBenchmarkSuite() error {
 }
 
 func defaultExportPath() string {
-	path := runtimeSettingsDir()
+	path := platform.RuntimeSettingsDir()
 	return path + "/benchmark-results.json"
 }
 

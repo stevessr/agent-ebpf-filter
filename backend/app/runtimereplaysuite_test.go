@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/pb"
 	"encoding/json"
@@ -373,7 +374,7 @@ func contextMatchesSeed(envelope *pb.EventEnvelope, seed *pb.WrapperRequest) boo
 		envelope.GetTaskId() == seed.GetTaskId() &&
 		envelope.GetToolCallId() == seed.GetToolCallId() &&
 		envelope.GetTraceId() == seed.GetTraceId() &&
-		envelope.GetToolName() == firstNonEmpty(seed.GetToolName(), seed.GetComm()) &&
+		envelope.GetToolName() == platform.FirstNonEmpty(seed.GetToolName(), seed.GetComm()) &&
 		envelope.GetCwd() == seed.GetCwd()
 }
 

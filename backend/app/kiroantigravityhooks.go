@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,15 +16,15 @@ import (
 // ── Kiro-specific hook functions ──────────────────────────────────────
 
 func kiroSettingsPath() string {
-	return filepath.Join(getRealHomeDir(), ".kiro", "settings", "cli.json")
+	return filepath.Join(platform.GetRealHomeDir(), ".kiro", "settings", "cli.json")
 }
 
 func kiroHookStatePath() string {
-	return filepath.Join(getRealHomeDir(), ".kiro", "settings", "agent-ebpf-hook-state.json")
+	return filepath.Join(platform.GetRealHomeDir(), ".kiro", "settings", "agent-ebpf-hook-state.json")
 }
 
 func kiroManagedAgentPath() string {
-	return filepath.Join(getRealHomeDir(), ".kiro", "agents", kiroManagedAgent+".json")
+	return filepath.Join(platform.GetRealHomeDir(), ".kiro", "agents", kiroManagedAgent+".json")
 }
 
 func ensureKiroManagedAgentExists() error {
@@ -33,7 +34,7 @@ func ensureKiroManagedAgentExists() error {
 	}
 
 	agentsDir := filepath.Dir(agentPath)
-	if err := mkdirAllAsRealUser(agentsDir, 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(agentsDir, 0755); err != nil {
 		return err
 	}
 
@@ -42,7 +43,7 @@ func ensureKiroManagedAgentExists() error {
 	if cmd.Env == nil {
 		cmd.Env = os.Environ()
 	}
-	cmd.Env = setEnvValue(cmd.Env, "HOME", getRealHomeDir())
+	cmd.Env = setEnvValue(cmd.Env, "HOME", platform.GetRealHomeDir())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to create managed Kiro agent from kiro_default: %w (%s)", err, strings.TrimSpace(string(out)))
@@ -66,14 +67,14 @@ func readKiroHookState() (kiroHookState, error) {
 }
 
 func writeKiroHookState(state kiroHookState) error {
-	if err := mkdirAllAsRealUser(filepath.Dir(kiroHookStatePath()), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(kiroHookStatePath()), 0755); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return err
 	}
-	return writeFileAsRealUser(kiroHookStatePath(), b, 0644)
+	return platform.WriteFileAsRealUser(kiroHookStatePath(), b, 0644)
 }
 
 func isKiroManagedAgentSelected() bool {
@@ -229,7 +230,7 @@ func antigravityPluginManifestPath(h HookDef) string {
 
 func ensureAntigravityPluginManifest(h HookDef) error {
 	manifestPath := antigravityPluginManifestPath(h)
-	if err := mkdirAllAsRealUser(filepath.Dir(manifestPath), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(manifestPath), 0755); err != nil {
 		return err
 	}
 	if _, err := os.Stat(manifestPath); err == nil {
@@ -245,7 +246,7 @@ func ensureAntigravityPluginManifest(h HookDef) error {
 	if err != nil {
 		return err
 	}
-	return writeFileAsRealUser(manifestPath, data, 0644)
+	return platform.WriteFileAsRealUser(manifestPath, data, 0644)
 }
 
 func isAntigravityMatcherEvent(event string) bool {

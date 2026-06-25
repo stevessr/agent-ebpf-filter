@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"crypto/sha256"
 	"encoding/hex"
@@ -283,18 +284,18 @@ func buildOTelSpanEnvelopePayload(event *pb.Event) *pb.OtelSpanEvent {
 	if event == nil || event.GetType() != "otel_span" {
 		return nil
 	}
-	vendor := firstNonEmpty(event.GetServiceName(), parseStringField(event.GetExtraInfo(), "provider"))
+	vendor := platform.FirstNonEmpty(event.GetServiceName(), platform.ParseStringField(event.GetExtraInfo(), "provider"))
 	status := "ok"
 	if event.GetDecision() == "ALERT" {
 		status = "error"
 	}
 	return &pb.OtelSpanEvent{
-		Name:     firstNonEmpty(event.GetToolName(), vendor, "genai.request"),
+		Name:     platform.FirstNonEmpty(event.GetToolName(), vendor, "genai.request"),
 		Kind:     "client",
 		Status:   status,
 		Provider: vendor,
-		Model:    parseStringField(event.GetExtraInfo(), "model"),
-		Error:    parseStringField(event.GetExtraInfo(), "error"),
+		Model:    platform.ParseStringField(event.GetExtraInfo(), "model"),
+		Error:    platform.ParseStringField(event.GetExtraInfo(), "error"),
 	}
 }
 
@@ -302,21 +303,21 @@ func buildTLSEnvelopePayload(event *pb.Event) *pb.TLSEvent {
 	if event == nil || event.GetType() != "tls_plaintext" {
 		return nil
 	}
-	status := parseUintField(event.GetExtraInfo(), "status")
+	status := platform.ParseUintField(event.GetExtraInfo(), "status")
 	return &pb.TLSEvent{
 		Direction:      event.GetNetDirection(),
-		Library:        parseStringField(event.GetExtraInfo(), "lib"),
-		Host:           firstNonEmpty(event.GetHttpHost(), event.GetNetEndpoint()),
+		Library:        platform.ParseStringField(event.GetExtraInfo(), "lib"),
+		Host:           platform.FirstNonEmpty(event.GetHttpHost(), event.GetNetEndpoint()),
 		Method:         event.GetPath(),
 		Url:            event.GetExtraPath(),
 		Status:         status,
-		BodySize:       uint64(parseUintField(event.GetExtraInfo(), "body_size")),
+		BodySize:       uint64(platform.ParseUintField(event.GetExtraInfo(), "body_size")),
 		RedactionState: "sanitized",
 		RawAvailable:   false,
-		MessageRole:    parseStringField(event.GetExtraInfo(), "role"),
-		PromptDigest:   parseStringField(event.GetExtraInfo(), "prompt_digest"),
-		PromptLen:      uint64(parseUintField(event.GetExtraInfo(), "prompt_len")),
-		Vendor:         firstNonEmpty(event.GetServiceName(), parseStringField(event.GetExtraInfo(), "vendor")),
+		MessageRole:    platform.ParseStringField(event.GetExtraInfo(), "role"),
+		PromptDigest:   platform.ParseStringField(event.GetExtraInfo(), "prompt_digest"),
+		PromptLen:      uint64(platform.ParseUintField(event.GetExtraInfo(), "prompt_len")),
+		Vendor:         platform.FirstNonEmpty(event.GetServiceName(), platform.ParseStringField(event.GetExtraInfo(), "vendor")),
 	}
 }
 
@@ -324,9 +325,9 @@ func buildStdioEnvelopePayload(event *pb.Event) *pb.StdioEvent {
 	if event == nil || event.GetType() != "stdio" {
 		return nil
 	}
-	stream := firstNonEmpty(parseStringField(event.GetExtraInfo(), "stream"), event.GetPath())
+	stream := platform.FirstNonEmpty(platform.ParseStringField(event.GetExtraInfo(), "stream"), event.GetPath())
 	return &pb.StdioEvent{
-		Fd:             parseStringField(event.GetExtraInfo(), "fd"),
+		Fd:             platform.ParseStringField(event.GetExtraInfo(), "fd"),
 		Stream:         stream,
 		Size:           event.GetBytes(),
 		Truncated:      false,
@@ -340,10 +341,10 @@ func buildSystemMetricEnvelopePayload(event *pb.Event) *pb.SystemMetricEvent {
 		return nil
 	}
 	return &pb.SystemMetricEvent{
-		CpuPercent:   parseFloatField(event.GetExtraInfo(), "cpu_percent"),
+		CpuPercent:   platform.ParseFloatField(event.GetExtraInfo(), "cpu_percent"),
 		MemoryBytes:  event.GetBytes(),
-		ProcessState: parseStringField(event.GetExtraInfo(), "state"),
-		Alert:        parseStringField(event.GetExtraInfo(), "alert"),
+		ProcessState: platform.ParseStringField(event.GetExtraInfo(), "state"),
+		Alert:        platform.ParseStringField(event.GetExtraInfo(), "alert"),
 	}
 }
 
@@ -358,19 +359,19 @@ func buildProcessEnvelopePayload(event *pb.Event) *pb.ProcessEvent {
 	switch event.GetType() {
 	case "process_fork":
 		payload.Phase = "fork"
-		payload.ChildPid = parseUintField(event.GetExtraInfo(), "child_pid")
+		payload.ChildPid = platform.ParseUintField(event.GetExtraInfo(), "child_pid")
 	case "clone":
 		payload.Phase = "clone"
-		payload.ChildPid = parseUintField(event.GetExtraInfo(), "child_pid")
+		payload.ChildPid = platform.ParseUintField(event.GetExtraInfo(), "child_pid")
 	case "process_exec":
 		payload.Phase = "exec"
-		payload.OldPid = parseUintField(event.GetExtraInfo(), "old_pid")
+		payload.OldPid = platform.ParseUintField(event.GetExtraInfo(), "old_pid")
 	case "process_exit", "exit":
 		payload.Phase = "exit"
-		payload.ExitStatus = int32(parseUintField(event.GetExtraInfo(), "status"))
+		payload.ExitStatus = int32(platform.ParseUintField(event.GetExtraInfo(), "status"))
 	case "wait4":
 		payload.Phase = "wait4"
-		payload.TargetPid = parseUintField(event.GetExtraInfo(), "target_pid")
+		payload.TargetPid = platform.ParseUintField(event.GetExtraInfo(), "target_pid")
 	default:
 		return nil
 	}
@@ -385,7 +386,7 @@ func buildPolicyEnvelopePayload(event *pb.Event) *pb.PolicyEvent {
 		Decision:        event.GetDecision(),
 		RiskScore:       event.GetRiskScore(),
 		Reason:          event.GetExtraInfo(),
-		RelatedPath:     firstNonEmpty(event.GetPath(), event.GetExtraPath()),
+		RelatedPath:     platform.FirstNonEmpty(event.GetPath(), event.GetExtraPath()),
 		RelatedEndpoint: event.GetNetEndpoint(),
 	}
 }
@@ -424,7 +425,7 @@ func buildHookEnvelopePayload(event *pb.Event) *pb.HookEvent {
 	return &pb.HookEvent{
 		HookName:   strings.TrimSpace(hookName),
 		ToolName:   strings.TrimSpace(toolName),
-		TargetPath: firstNonEmpty(event.GetPath(), event.GetExtraPath()),
+		TargetPath: platform.FirstNonEmpty(event.GetPath(), event.GetExtraPath()),
 		ExtraInfo:  event.GetExtraInfo(),
 	}
 }
@@ -435,7 +436,7 @@ func buildMCPEnvelopePayload(event *pb.Event) *pb.McpEvent {
 	}
 	return &pb.McpEvent{
 		ToolName:  event.GetToolName(),
-		Endpoint:  firstNonEmpty(event.GetNetEndpoint(), event.GetPath()),
+		Endpoint:  platform.FirstNonEmpty(event.GetNetEndpoint(), event.GetPath()),
 		ExtraInfo: event.GetExtraInfo(),
 	}
 }

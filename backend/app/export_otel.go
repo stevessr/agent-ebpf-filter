@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"context"
 	"strings"
 	"sync"
@@ -196,7 +197,7 @@ func (s *otelExporterState) ApplySettings(settings RuntimeSettings) {
 		return
 	}
 	endpoint := strings.TrimSpace(settings.OtlpEndpoint)
-	serviceName := firstNonEmpty(settings.OtlpServiceName, "agent-ebpf-filter")
+	serviceName := platform.FirstNonEmpty(settings.OtlpServiceName, "agent-ebpf-filter")
 	headers := cloneStringMap(settings.OtlpHeaders)
 
 	if !settings.OtlpEnabled {

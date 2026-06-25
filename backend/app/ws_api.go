@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"log"
 	"net/http"
@@ -227,9 +228,9 @@ func recentEventRecordMatches(record CapturedEventRecord, filters recentEventFil
 		if pid == 0 {
 			pid = event.GetPid()
 		}
-		comm = firstNonEmpty(comm, event.GetComm())
-		traceID = firstNonEmpty(traceID, event.GetTraceId())
-		spanID = firstNonEmpty(spanID, event.GetSpanId())
+		comm = platform.FirstNonEmpty(comm, event.GetComm())
+		traceID = platform.FirstNonEmpty(traceID, event.GetTraceId())
+		spanID = platform.FirstNonEmpty(spanID, event.GetSpanId())
 	}
 	if filters.PID != 0 && pid != filters.PID {
 		return false

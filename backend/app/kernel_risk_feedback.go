@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"errors"
 	"fmt"
 	"net"
@@ -148,7 +149,7 @@ func kernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decisi
 		}
 	}
 
-	path := firstNonEmpty(event.GetPath(), event.GetExtraPath())
+	path := platform.FirstNonEmpty(event.GetPath(), event.GetExtraPath())
 	if feedback.EnforceFileNames && isKernelRiskFileEvent(event.GetType()) && (isSensitiveKernelRiskPath(strings.ToLower(path)) || isSecretKernelRiskPath(strings.ToLower(path))) {
 		if name := safeKernelRiskBasename(path); name != "" {
 			add(kernelRiskFeedbackKindLSMFileName, name, "risk_scored_file_basename")
@@ -159,7 +160,7 @@ func kernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decisi
 		if path != "" && filepath.IsAbs(path) && isTmpExecutableKernelRiskPath(strings.ToLower(path)) {
 			add(kernelRiskFeedbackKindLSMExecPath, path, "risk_scored_tmp_exec_path")
 		} else if decision.Score >= 95 {
-			if name := safeKernelRiskBasename(firstNonEmpty(event.GetComm(), path)); name != "" {
+			if name := safeKernelRiskBasename(platform.FirstNonEmpty(event.GetComm(), path)); name != "" {
 				add(kernelRiskFeedbackKindLSMExecName, name, "risk_scored_exec_name")
 			}
 		}

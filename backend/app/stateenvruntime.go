@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,24 +11,15 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section stateenvruntime.go ----
 
-func runtimeSettingsDir() string {
-	return filepath.Join(getRealHomeDir(), ".config", "agent-ebpf-filter")
-}
 
-func runtimeSettingsPath() string {
-	return filepath.Join(runtimeSettingsDir(), "runtime.json")
-}
 
-func defaultEventLogPath() string {
-	return filepath.Join(runtimeSettingsDir(), "events.jsonl")
-}
 
 func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings == nil {
 		return errors.New("runtime settings are nil")
 	}
 	if strings.TrimSpace(settings.LogFilePath) == "" {
-		settings.LogFilePath = defaultEventLogPath()
+		settings.LogFilePath = platform.DefaultEventLogPath()
 	}
 	if strings.TrimSpace(settings.AccessToken) == "" {
 		token, err := generateAccessToken()
@@ -95,7 +87,7 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 		settings.MLConfig.ModelType = ModelRandomForest
 	}
 	if settings.MLConfig.ModelPath == "" {
-		settings.MLConfig.ModelPath = filepath.Join(runtimeSettingsDir(), "ml_model.bin")
+		settings.MLConfig.ModelPath = filepath.Join(platform.RuntimeSettingsDir(), "ml_model.bin")
 	}
 	if settings.MLConfig.NumTrees == 0 {
 		settings.MLConfig.NumTrees = 31

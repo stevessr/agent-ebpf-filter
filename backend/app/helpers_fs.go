@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -9,11 +10,9 @@ import (
 	"mime"
 	"net/http"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"unicode/utf16"
 	"unicode/utf8"
 )
@@ -29,94 +28,15 @@ const (
 )
 
 var (
-	getRealHomeOnce sync.Once
-	getRealHomeVal  string
 )
 
 // writeFileAsRealUser writes a file with the real user's ownership instead of root
-func writeFileAsRealUser(path string, data []byte, perm os.FileMode) error {
-	if err := os.WriteFile(path, data, perm); err != nil {
-		return err
-	}
-	if os.Getuid() == 0 {
-		if uid, gid, ok := originalInvokerIDs(); ok {
-			_ = os.Chown(path, int(uid), int(gid))
-		}
-	}
-	return nil
-}
 
 // mkdirAllAsRealUser creates directories with the real user's ownership
-func mkdirAllAsRealUser(path string, perm os.FileMode) error {
-	if err := os.MkdirAll(path, perm); err != nil {
-		return err
-	}
-	if os.Getuid() == 0 {
-		if uid, gid, ok := originalInvokerIDs(); ok {
-			_ = os.Chown(path, int(uid), int(gid))
-		}
-	}
-	return nil
-}
 
-func getRealHomeDir() string {
-	getRealHomeOnce.Do(func() {
-		// 1. Check for our own environment variable (passed across sudo/pkexec)
-		if h := os.Getenv("AGENT_REAL_HOME"); h != "" {
-			getRealHomeVal = h
-			return
-		}
-		// 2. If we are root, try to find the real user who started us via standard envs
-		if os.Getuid() == 0 {
-			// Try sudo user
-			if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
-				if u, err := user.Lookup(sudoUser); err == nil {
-					getRealHomeVal = u.HomeDir
-					return
-				}
-			}
-			// Try pkexec user (PolicyKit)
-			if pkexecUid := os.Getenv("PKEXEC_UID"); pkexecUid != "" {
-				if u, err := user.LookupId(pkexecUid); err == nil {
-					getRealHomeVal = u.HomeDir
-					return
-				}
-			}
-			// Try preserved HOME if it's not /root
-			if home := os.Getenv("HOME"); home != "" && home != "/root" {
-				getRealHomeVal = home
-				return
-			}
-			// Try to find the first non-root user in /home
-			if entries, err := os.ReadDir("/home"); err == nil {
-				for _, entry := range entries {
-					if entry.IsDir() && entry.Name() != "lost+found" {
-						getRealHomeVal = filepath.Join("/home", entry.Name())
-						return
-					}
-				}
-			}
-		}
-		// Default to standard lookup
-		h, _ := os.UserHomeDir()
-		if h == "" || h == "/root" {
-			// Final fallback: check for any /home/xxx
-			if entries, err := os.ReadDir("/home"); err == nil && len(entries) > 0 {
-				for _, entry := range entries {
-					if entry.IsDir() && entry.Name() != "lost+found" {
-						getRealHomeVal = filepath.Join("/home", entry.Name())
-						return
-					}
-				}
-			}
-		}
-		getRealHomeVal = h
-	})
-	return getRealHomeVal
-}
 
 func getShellConfigPath() string {
-	home := getRealHomeDir()
+	home := platform.GetRealHomeDir()
 	shell := os.Getenv("SHELL")
 	if strings.Contains(shell, "zsh") {
 		return filepath.Join(home, ".zshrc")
@@ -404,7 +324,7 @@ func getZramStats() (used, total uint64) {
 }
 
 func refreshHooksPaths() {
-	home := getRealHomeDir()
+	home := platform.GetRealHomeDir()
 	log.Printf("[DEBUG] Resolving agent config paths for home: %s", home)
 	for i := range availableHooks {
 		if availableHooks[i].HookType == HookTypeNative {

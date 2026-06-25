@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"crypto/sha256"
 	"encoding/hex"
@@ -170,7 +171,7 @@ func buildTLSLoopAlertEvent(source *TLSPlaintextEvent, identity string, repeats 
 	if source == nil {
 		return nil
 	}
-	target := firstNonEmpty(source.Host, source.URL, identity)
+	target := platform.FirstNonEmpty(source.Host, source.URL, identity)
 	reason := fmt.Sprintf("observed %d repeated TLS prompt requests with digest %s within %s (identity=%s, vendor=%s)",
 		repeats, source.PromptDigest, window, identity, source.Vendor)
 	endpoint := strings.TrimSpace(source.Host)
@@ -291,7 +292,7 @@ func convertTLSToOTelSpanEvent(source TLSPlaintextEvent) *pb.Event {
 		EventType:      pb.EventType_OTEL_SPAN,
 		Tag:            "AgentSight OTEL",
 		Comm:           source.Comm,
-		Path:           firstNonEmpty(source.ToolName, source.Vendor, "genai.request"),
+		Path:           platform.FirstNonEmpty(source.ToolName, source.Vendor, "genai.request"),
 		ExtraInfo:      strings.Join(extra, " "),
 		SchemaVersion:  eventSchemaVersion,
 		RootAgentPid:   source.RootAgentPID,

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"bufio"
 	cryptorand "crypto/rand"
@@ -37,14 +38,14 @@ func generateAccessToken() (string, error) {
 }
 
 func (s *runtimeState) saveLocked() error {
-	if err := mkdirAllAsRealUser(runtimeSettingsDir(), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(platform.RuntimeSettingsDir(), 0755); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(s.settings, "", "  ")
 	if err != nil {
 		return err
 	}
-	return writeFileAsRealUser(runtimeSettingsPath(), data, 0644)
+	return platform.WriteFileAsRealUser(platform.RuntimeSettingsPath(), data, 0644)
 }
 
 func (s *runtimeState) closeLogWriterLocked() {
@@ -63,7 +64,7 @@ func (s *runtimeState) applyLoggingLocked() error {
 	if !s.settings.LogPersistenceEnabled {
 		return nil
 	}
-	if err := mkdirAllAsRealUser(filepath.Dir(s.settings.LogFilePath), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(s.settings.LogFilePath), 0755); err != nil {
 		return err
 	}
 	file, err := os.OpenFile(s.settings.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -81,17 +82,17 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 
 	settings := RuntimeSettings{
 		LogPersistenceEnabled: false,
-		LogFilePath:           defaultEventLogPath(),
+		LogFilePath:           platform.DefaultEventLogPath(),
 		MaxEventCount:         1500,
 		MaxEventAge:           "0",
 	}
 
-	if data, err := os.ReadFile(runtimeSettingsPath()); err == nil {
+	if data, err := os.ReadFile(platform.RuntimeSettingsPath()); err == nil {
 		if err := json.Unmarshal(data, &settings); err != nil {
 			log.Printf("[WARN] failed to parse runtime settings: %v", err)
 			settings = RuntimeSettings{
 				LogPersistenceEnabled: false,
-				LogFilePath:           defaultEventLogPath(),
+				LogFilePath:           platform.DefaultEventLogPath(),
 				MaxEventCount:         1500,
 				MaxEventAge:           "0",
 			}

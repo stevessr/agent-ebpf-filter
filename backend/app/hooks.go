@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,14 +15,14 @@ import (
 
 func ensureHookRelayScript(h HookDef) (string, error) {
 	scriptDir := filepath.Join(filepath.Dir(h.NativeConfigPath), "hooks")
-	if err := mkdirAllAsRealUser(scriptDir, 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(scriptDir, 0755); err != nil {
 		return "", err
 	}
 
 	scriptPath := hookRelayScriptPath(h)
 	scriptContent := buildHookRelayScript(h)
 
-	if err := writeFileAsRealUser(scriptPath, []byte(scriptContent), 0755); err != nil {
+	if err := platform.WriteFileAsRealUser(scriptPath, []byte(scriptContent), 0755); err != nil {
 		return "", err
 	}
 	return scriptPath, nil
@@ -74,7 +75,7 @@ func installNativeHook(h HookDef) error {
 	}
 
 	cfgPath := h.NativeConfigPath
-	if err := mkdirAllAsRealUser(filepath.Dir(cfgPath), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(cfgPath), 0755); err != nil {
 		return err
 	}
 
@@ -159,7 +160,7 @@ func installNativeHook(h HookDef) error {
 	if err != nil {
 		return err
 	}
-	return writeFileAsRealUser(cfgPath, b, 0644)
+	return platform.WriteFileAsRealUser(cfgPath, b, 0644)
 }
 
 // uninstallNativeHook removes the agent-ebpf hook from settings.
@@ -231,7 +232,7 @@ func uninstallNativeHook(h HookDef) error {
 	if err != nil {
 		return err
 	}
-	if err := writeFileAsRealUser(h.NativeConfigPath, out, 0644); err != nil {
+	if err := platform.WriteFileAsRealUser(h.NativeConfigPath, out, 0644); err != nil {
 		return err
 	}
 	_ = os.Remove(hookRelayScriptPath(h))

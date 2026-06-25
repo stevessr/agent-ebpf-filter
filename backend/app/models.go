@@ -1,4 +1,4 @@
-package attention
+package app
 
 import "agent-ebpf-filter/core"
 

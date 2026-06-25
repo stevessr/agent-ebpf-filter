@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/platform"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -75,7 +76,7 @@ func isHookInstalled(h HookDef) bool {
 }
 
 func ensureCodexHooksFeatureEnabled(cfgPath string) error {
-	if err := mkdirAllAsRealUser(filepath.Dir(cfgPath), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(cfgPath), 0755); err != nil {
 		return err
 	}
 
@@ -98,7 +99,7 @@ func ensureCodexHooksFeatureEnabled(cfgPath string) error {
 	if err != nil {
 		return err
 	}
-	return writeFileAsRealUser(cfgPath, out, 0644)
+	return platform.WriteFileAsRealUser(cfgPath, out, 0644)
 }
 
 func hookRelayScriptPath(h HookDef) string {
@@ -139,12 +140,12 @@ func readJSONObjectFile(path string) (map[string]interface{}, error) {
 }
 
 func writeJSONObjectFile(path string, cfg map[string]interface{}) error {
-	if err := mkdirAllAsRealUser(filepath.Dir(path), 0755); err != nil {
+	if err := platform.MkdirAllAsRealUser(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
-	return writeFileAsRealUser(path, b, 0644)
+	return platform.WriteFileAsRealUser(path, b, 0644)
 }
