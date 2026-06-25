@@ -15,12 +15,7 @@ import (
 //
 // This is an incremental step toward full dependency injection. A single
 // package-level var AppCtx holds the reference, set once in Main().
-// Future phases will:
-//  1. Eliminate var AppCtx by passing *AppContext explicitly to every handler
-//  2. Extract the struct into its own package with interface abstractions
-//
-// Until then, existing code reads globals through AppCtx.FieldName instead
-// of its own var declaration.
+// Future phases will eliminate var AppCtx by passing *AppContext explicitly.
 type AppContext struct {
 	// ── Subpackage managers ──────────────────────────────────────────
 	Network *network.Manager
@@ -71,6 +66,14 @@ type AppContext struct {
 
 	// ── Flow analysis ───────────────────────────────────────────────
 	NetworkFlowAggregator *flowAggregator
+
+	// ── Telemetry ────────────────────────────────────────────────────
+	OTelExporterStore     *otelExporterState
+	EventRecordingStore   *eventRecordingState
+	CollectorMetricsStore *collectorMetricsState
+
+	// ── Cluster ──────────────────────────────────────────────────────
+	ClusterManager *clusterManager
 }
 
 // AppCtx is the application's dependency-injection container.

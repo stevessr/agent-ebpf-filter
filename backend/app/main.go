@@ -33,6 +33,10 @@ func Main() {
 	AppCtx.ShellSessions = shellSessions
 	AppCtx.PluginRegistry = pluginRegistry
 	AppCtx.NetworkFlowAggregator = networkFlowAggregator
+	AppCtx.EventRecordingStore = eventRecordingStore
+	AppCtx.CollectorMetricsStore = collectorMetricsStore
+	AppCtx.OTelExporterStore = otelExporterStore
+	AppCtx.ClusterManager = clusterManagerStore
 
 	refreshHooksPaths()
 	if _, err := AppCtx.RuntimeSettings.LoadOrCreate(); err != nil {
