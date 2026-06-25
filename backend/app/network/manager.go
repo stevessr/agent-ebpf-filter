@@ -145,6 +145,11 @@ func (m *Manager) EnrichEndpointWithGeoIP(endpoint string) string {
 	return enrichEndpointWithGeoIP(m.geoipDB, endpoint)
 }
 
+// GeoIPLookup returns the geoip record for an IP address (zero value + false if not found).
+func (m *Manager) GeoIPLookup(ip string) (geoipRecord, bool) {
+	return m.geoipDB.Lookup(ip)
+}
+
 // LookupService is a stateless helper — exposed here for convenience.
 func LookupService(port uint16) string {
 	return lookupService(port)

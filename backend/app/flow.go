@@ -24,6 +24,9 @@ type flowAggregator struct {
 }
 
 func newFlowAggregator() *flowAggregator {
+	// dnsCorrelation is the package-level backward-compat global.
+	// Once AppCtx is fully wired at init, this delegates to:
+	//   AppCtx.Network.DNSCache()
 	return &flowAggregator{inner: netcore.NewFlowAggregator(dnsCorrelation)}
 }
 
@@ -147,15 +150,29 @@ func analyzeEndpoint(endpoint string) (scope IPScope, service string, domain str
 	scope = classifyIPScope(ip)
 	risk = ipScopeRiskScore(scope)
 
-	// DNS enrichment
-	if d, ok := dnsCorrelation.LookupIP(host); ok {
-		domain = d
+	// DNS enrichment via AppCtx
+	if AppCtx != nil && AppCtx.Network != nil {
+		if d, ok := AppCtx.Network.DNSLookupIP(host); ok {
+			domain = d
+		}
+	} else {
+		// fallback to package-level global (backward compat during init)
+		if d, ok := dnsCorrelation.LookupIP(host); ok {
+			domain = d
+		}
 	}
 
 	// GeoIP enrichment for public IPs
 	if scope == ScopePublic {
-		if record, ok := geoipDB.Lookup(host); ok && record.CountryCode != "XX" {
-			if isHighRiskCountry(record.CountryCode) {
+		var rec geoipRecord
+		var ok bool
+		if AppCtx != nil && AppCtx.Network != nil {
+			rec, ok = AppCtx.Network.GeoIPLookup(host)
+		} else {
+			rec, ok = geoipDB.Lookup(host)
+		}
+		if ok && rec.CountryCode != "XX" {
+			if isHighRiskCountry(rec.CountryCode) {
 				risk = platform.MaxFloat64(risk, 0.85)
 			}
 		}
