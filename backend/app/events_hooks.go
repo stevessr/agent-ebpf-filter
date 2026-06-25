@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/pb"
 	"crypto/sha256"
 	"encoding/hex"
@@ -157,7 +158,7 @@ func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolNam
 			fmt.Sprintf("response_len=%d", len([]rune(response))),
 		)
 	}
-	if sessionID := payloadString(payload, "session_id", "sessionId"); sessionID != "" {
+	if sessionID := events.PayloadString(payload, "session_id", "sessionId"); sessionID != "" {
 		parts = append(parts, "session_id="+sanitizeExtraInfoValue(sessionID))
 	}
 	return strings.Join(parts, " ")

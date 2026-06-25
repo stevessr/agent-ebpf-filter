@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"crypto/sha256"
@@ -181,36 +182,36 @@ func buildProcessContextFromHookPayload(payload map[string]interface{}, toolName
 			toolName, _ = toolCall["name"].(string)
 		}
 	}
-	toolCallID := payloadString(payload, "tool_call_id", "toolCallId")
+	toolCallID := events.PayloadString(payload, "tool_call_id", "toolCallId")
 	if toolCallID == "" {
 		if toolCall, _ := payload["toolCall"].(map[string]interface{}); toolCall != nil {
-			toolCallID = payloadString(toolCall, "id", "callId", "toolCallId")
+			toolCallID = events.PayloadString(toolCall, "id", "callId", "toolCallId")
 		}
 	}
-	cwd := payloadString(payload, "cwd", "working_directory", "workingDirectory")
+	cwd := events.PayloadString(payload, "cwd", "working_directory", "workingDirectory")
 	if cwd == "" {
 		if toolCall, _ := payload["toolCall"].(map[string]interface{}); toolCall != nil {
 			if args, _ := toolCall["args"].(map[string]interface{}); args != nil {
-				cwd = payloadString(args, "cwd", "Cwd", "working_directory", "workingDirectory")
+				cwd = events.PayloadString(args, "cwd", "Cwd", "working_directory", "workingDirectory")
 			}
 		}
 	}
-	pid := payloadUint32(payload, "pid", "process_id", "processId", "agent_pid", "agentPid")
+	pid := events.PayloadUint32(payload, "pid", "process_id", "processId", "agent_pid", "agentPid")
 	ctx := processContext{
-		RootAgentPid:   payloadUint32(payload, "root_agent_pid", "rootAgentPid"),
-		AgentRunID:     payloadString(payload, "agent_run_id", "agentRunId"),
-		TaskID:         payloadString(payload, "task_id", "taskId"),
-		ConversationID: payloadString(payload, "conversation_id", "conversationId"),
-		TurnID:         payloadString(payload, "turn_id", "turnId"),
+		RootAgentPid:   events.PayloadUint32(payload, "root_agent_pid", "rootAgentPid"),
+		AgentRunID:     events.PayloadString(payload, "agent_run_id", "agentRunId"),
+		TaskID:         events.PayloadString(payload, "task_id", "taskId"),
+		ConversationID: events.PayloadString(payload, "conversation_id", "conversationId"),
+		TurnID:         events.PayloadString(payload, "turn_id", "turnId"),
 		ToolCallID:     toolCallID,
-		ToolName:       platform.FirstNonEmpty(payloadString(payload, "tool_name", "toolName"), toolName),
-		TraceID:        payloadString(payload, "trace_id", "traceId"),
-		SpanID:         payloadString(payload, "span_id", "spanId"),
-		Decision:       payloadString(payload, "decision"),
-		ContainerID:    payloadString(payload, "container_id", "containerId"),
-		ArgvDigest:     payloadString(payload, "argv_digest", "argvDigest"),
+		ToolName:       platform.FirstNonEmpty(events.PayloadString(payload, "tool_name", "toolName"), toolName),
+		TraceID:        events.PayloadString(payload, "trace_id", "traceId"),
+		SpanID:         events.PayloadString(payload, "span_id", "spanId"),
+		Decision:       events.PayloadString(payload, "decision"),
+		ContainerID:    events.PayloadString(payload, "container_id", "containerId"),
+		ArgvDigest:     events.PayloadString(payload, "argv_digest", "argvDigest"),
 		Cwd:            cwd,
-		RiskScore:      payloadFloat64(payload, "risk_score", "riskScore"),
+		RiskScore:      events.PayloadFloat64(payload, "risk_score", "riskScore"),
 	}
 	if ctx.ArgvDigest == "" {
 		ctx.ArgvDigest = buildArgvDigest(ctx.ToolName, path, ctx.TaskID)

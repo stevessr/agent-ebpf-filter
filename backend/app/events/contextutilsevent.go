@@ -1,4 +1,4 @@
-package app
+package events
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section contextutilsevent.go ----
 
-func payloadString(payload map[string]interface{}, keys ...string) string {
+func PayloadString(payload map[string]interface{}, keys ...string) string {
 	for _, key := range keys {
 		if value, ok := payload[key]; ok {
 			switch typed := value.(type) {
@@ -33,7 +33,7 @@ func payloadString(payload map[string]interface{}, keys ...string) string {
 	return ""
 }
 
-func payloadUint32(payload map[string]interface{}, keys ...string) uint32 {
+func PayloadUint32(payload map[string]interface{}, keys ...string) uint32 {
 	for _, key := range keys {
 		if value, ok := payload[key]; ok {
 			switch typed := value.(type) {
@@ -62,7 +62,7 @@ func payloadUint32(payload map[string]interface{}, keys ...string) uint32 {
 	return 0
 }
 
-func payloadFloat64(payload map[string]interface{}, keys ...string) float64 {
+func PayloadFloat64(payload map[string]interface{}, keys ...string) float64 {
 	for _, key := range keys {
 		if value, ok := payload[key]; ok {
 			switch typed := value.(type) {
@@ -84,8 +84,3 @@ func payloadFloat64(payload map[string]interface{}, keys ...string) float64 {
 	}
 	return 0
 }
-
-
-
-
-
