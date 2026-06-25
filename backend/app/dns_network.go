@@ -2,8 +2,6 @@ package app
 
 import (
 	netcore "agent-ebpf-filter/internal/network"
-	"strings"
-	"time"
 )
 
 // ---- moved from backend/zz_merged_backend.go section dns_network.go ----
@@ -12,6 +10,8 @@ type dnsCache = netcore.DNSCache
 
 type dnsCacheSnapshotEntry = netcore.DNSCacheSnapshotEntry
 
+// Package-level global kept for backward compatibility (used by flow.go init).
+// New code should use AppCtx.Network.
 func newDNSCache() *dnsCache {
 	return netcore.NewDNSCache()
 }
@@ -19,25 +19,12 @@ func newDNSCache() *dnsCache {
 var dnsCorrelation = newDNSCache()
 
 func startDNSCacheGC() {
-	ticker := time.NewTicker(1 * time.Minute)
-	go func() {
-		for range ticker.C {
-			dnsCorrelation.EvictExpired()
-		}
-	}()
+	AppCtx.Network.StartDNSCacheGC()
 }
 
 // Process a detected DNS query and record the domain
 func recordDNSQueryFromEvent(domain string) {
-	if domain == "" {
-		return
-	}
-	// Domain names from eBPF may be raw; perform basic validation
-	domain = strings.TrimSpace(strings.ToLower(domain))
-	if domain == "" || len(domain) > 253 {
-		return
-	}
-	dnsCorrelation.Record(domain, "") // IP will be filled from DNS response
+	AppCtx.Network.RecordDNSQueryFromEvent(domain)
 }
 
 // Correlate a DNS response with the query

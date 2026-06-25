@@ -274,15 +274,7 @@ var exfilDetectorInst = newExfilDetector()
 
 // Start periodic exfiltration checks
 func startExfilDetectionLoop() {
-	ticker := time.NewTicker(30 * time.Second)
-	go func() {
-		for range ticker.C {
-			alerts := exfilDetectorInst.RunCheck()
-			if len(alerts) > 0 {
-				logExfilAlerts(alerts)
-			}
-		}
-	}()
+	AppCtx.Network.StartExfilDetectionLoop()
 }
 
 func logExfilAlerts(alerts []ExfilAlert) {

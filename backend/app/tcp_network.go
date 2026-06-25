@@ -78,6 +78,8 @@ func (t *tcpStateTracker) EvictTerminalOlderThan(maxAge time.Duration) {
 	t.inner.EvictTerminalOlderThan(maxAge)
 }
 
+// Keep package-level global for backward compatibility;
+// new code should use AppCtx.Network.
 var tcpTracker = newTCPStateTracker()
 
 func startTCPStateTrackerGC() {

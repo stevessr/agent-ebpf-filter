@@ -16,7 +16,7 @@ func newGeoipResolver() *geoipResolver {
 }
 
 func initGeoIPDatabase() {
-	geoip.InitDatabase()
+	AppCtx.Network.InitGeoIPDatabase()
 }
 
 func isHighRiskCountry(countryCode string) bool {
@@ -24,5 +24,5 @@ func isHighRiskCountry(countryCode string) bool {
 }
 
 func enrichEndpointWithGeoIP(endpoint string) string {
-	return geoip.EnrichEndpointWithGeoIP(geoipDB, endpoint)
+	return AppCtx.Network.EnrichEndpointWithGeoIP(endpoint)
 }

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"agent-ebpf-filter/internal/geoip"
+	netcore "agent-ebpf-filter/internal/network"
 )
 
 // Manager aggregates all network-tracking state previously held in package-level
@@ -51,12 +52,32 @@ func (m *Manager) DNSLookupIP(ip string) (string, bool) {
 	return m.dnsCorrelation.LookupIP(ip)
 }
 
+// DNSLookupDomain looks up IP by domain name from the DNS cache.
+func (m *Manager) DNSLookupDomain(domain string) (string, bool) {
+	return m.dnsCorrelation.LookupDomain(domain)
+}
+
 // DNSSnapshot returns a snapshot of the current DNS cache entries.
 func (m *Manager) DNSSnapshot() []dnsCacheSnapshotEntry {
 	return m.dnsCorrelation.Snapshot()
 }
 
+// DNSCache returns the underlying DNS cache (for injection into aggregators).
+func (m *Manager) DNSCache() *dnsCache {
+	return m.dnsCorrelation
+}
+
 // ── TCP state tracker methods ─────────────────────────────────────────────
+
+// TCPStateFromLinux converts a Linux TCP state value to a readable constant.
+func (m *Manager) TCPStateFromLinux(state uint8) TCPState {
+	return tcpStateFromLinux(state)
+}
+
+// TCPConnKey returns a canonical connection key string.
+func (m *Manager) TCPConnKey(srcIP, dstIP string, srcPort, dstPort uint32) string {
+	return netcore.TCPConnKey(srcIP, dstIP, srcPort, dstPort)
+}
 
 // StartTCPStateTrackerGC launches a background goroutine that evicts terminal TCP states.
 func (m *Manager) StartTCPStateTrackerGC() {
