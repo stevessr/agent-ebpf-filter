@@ -232,12 +232,12 @@ func (s *collectorMetricsState) Snapshot() CollectorHealthResponse {
 		eventsByPID[fmt.Sprintf("%d:%s", key.PID, key.Comm)] = raw.EventsByPIDTotal[key]
 	}
 
-	clientsMu.Lock()
-	legacyWSClients := len(clients)
-	clientsMu.Unlock()
-	envelopeClientsMu.Lock()
-	envelopeWSClients := len(envelopeClients)
-	envelopeClientsMu.Unlock()
+	AppCtx.ClientsMu.Lock()
+	legacyWSClients := len(AppCtx.Clients)
+	AppCtx.ClientsMu.Unlock()
+	AppCtx.EnvelopeClientsMu.Lock()
+	envelopeWSClients := len(AppCtx.EnvelopeClients)
+	AppCtx.EnvelopeClientsMu.Unlock()
 
 	agentSightCounters := make(map[string]uint64, len(raw.AgentSightCountersTotal))
 	agentSightKeys := make([]string, 0, len(raw.AgentSightCountersTotal))

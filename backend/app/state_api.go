@@ -11,6 +11,8 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section state_api.go ----
 
+// Package-level globals kept for backward compatibility.
+// New code should use AppCtx.Broadcast, AppCtx.Clients, etc.
 var (
 	clients           = make(map[*websocket.Conn]bool)
 	clientsMu         sync.Mutex

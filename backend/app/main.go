@@ -24,6 +24,10 @@ func Main() {
 	}
 
 	AppCtx = newAppContext()
+	AppCtx.Broadcast = broadcast
+	AppCtx.Clients = clients
+	AppCtx.EnvelopeClients = envelopeClients
+	AppCtx.Upgrader = upgrader
 	AppCtx.RuntimeSettings = newRuntimeState()
 	AppCtx.CapturedEventArchive = newEventArchive(1500)
 	AppCtx.ShellSessions = shellSessions

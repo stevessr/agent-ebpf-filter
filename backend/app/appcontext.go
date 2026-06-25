@@ -84,9 +84,6 @@ func newAppContext() *AppContext {
 	return &AppContext{
 		Network:  network.NewManager(),
 		Sandbox:  sandbox.NewManager(),
-		Broadcast: make(chan *pb.Event, 1000),
-		Clients:   make(map[*websocket.Conn]bool),
-		EnvelopeClients: make(map[*websocket.Conn]bool),
 		TagMap: map[uint32]string{
 			0: "Unknown", 1: "AI Agent", 2: "Git", 3: "Build Tool",
 			4: "System Pkg", 5: "Runtime", 6: "System Tool",

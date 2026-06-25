@@ -18,11 +18,11 @@ import (
 // ---- moved from backend/zz_merged_backend.go section ws_api.go ----
 
 func serveEventsWS(c *gin.Context) {
-	servePassiveProtoWS(c, clients, &clientsMu)
+	servePassiveProtoWS(c, AppCtx.Clients, &AppCtx.ClientsMu)
 }
 
 func serveEventEnvelopesWS(c *gin.Context) {
-	servePassiveProtoWS(c, envelopeClients, &envelopeClientsMu)
+	servePassiveProtoWS(c, AppCtx.EnvelopeClients, &AppCtx.EnvelopeClientsMu)
 }
 
 func servePassiveProtoWS(c *gin.Context, target map[*websocket.Conn]bool, mu *sync.Mutex) {
@@ -83,7 +83,7 @@ func startEventBroadcaster() {
 				if err != nil {
 					log.Printf("[ERROR] failed to marshal EventBatch: %v", err)
 				} else {
-					broadcastProtoMessage(clients, &clientsMu, data)
+					broadcastProtoMessage(AppCtx.Clients, &AppCtx.ClientsMu, data)
 				}
 			}
 			if len(envelopeBatch) > 0 {
@@ -95,7 +95,7 @@ func startEventBroadcaster() {
 				if err != nil {
 					log.Printf("[ERROR] failed to marshal EventEnvelopeBatch: %v", err)
 				} else {
-					broadcastProtoMessage(envelopeClients, &envelopeClientsMu, data)
+					broadcastProtoMessage(AppCtx.EnvelopeClients, &AppCtx.EnvelopeClientsMu, data)
 				}
 			}
 		}
@@ -111,7 +111,7 @@ func startEventBroadcaster() {
 
 		for {
 			select {
-			case event := <-broadcast:
+			case event := <-AppCtx.Broadcast:
 				event = enrichEventContext(event)
 				appendRecord(recordCapturedEvent(event))
 				for _, alert := range buildSemanticAlerts(event) {
