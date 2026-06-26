@@ -1,7 +1,7 @@
 package main
 
 import (
-	"agent-ebpf-filter/app"
+	"agent-ebpf-filter/app/tls"
 	"fmt"
 	"log"
 	"os"
@@ -17,7 +17,7 @@ func main() {
 	fmt.Printf("Testing rustls offset detection for: %s\n", binPath)
 	fmt.Println("=" + string(make([]byte, 60)))
 
-	offsets, err := app.FindRustlsOffsets(binPath)
+	offsets, err := tls.FindRustlsOffsets(binPath)
 	if err != nil {
 		log.Printf("Error finding rustls offsets: %v", err)
 		os.Exit(1)
