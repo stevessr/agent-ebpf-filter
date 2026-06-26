@@ -84,7 +84,7 @@ type AppContext struct {
 	ToolBaseline           *toolBaselineStore
 
 	// ── Semantic alerts ──────────────────────────────────────────────
-	SemanticAlertsState *semanticAlertState
+	SemanticAlertsState *events.SemanticAlertState
 
 	// ── ML training / prediction (stub interface) ────────────────────
 	GlobalTrainingStore interface{}

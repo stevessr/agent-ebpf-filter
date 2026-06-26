@@ -125,4 +125,9 @@ func init() {
 		})
 	}
 	events.Deps.ToolBaselineRecord = toolBaseline.Record
+
+	// Semantic alerts
+	events.Deps.SemanticAlertsState = semanticAlertsState
+	events.Deps.ToolBaselineDetectDrift = toolBaseline.detectDrift
+	events.Deps.EventSchemaVersion = eventSchemaVersion
 }
