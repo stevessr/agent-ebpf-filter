@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"agent-ebpf-filter/internal/binaryresolver"
@@ -18,7 +18,7 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 )
 
-type tlsProbeTarget struct {
+type ProbeTarget struct {
 	name        string
 	paths       []string
 	sendSymbols []string
@@ -26,7 +26,7 @@ type tlsProbeTarget struct {
 	libType     uint8
 }
 
-var staticTLSLibraries = []tlsProbeTarget{
+var staticTLSLibraries = []ProbeTarget{
 	{
 		name: "openssl",
 		paths: []string{
@@ -54,7 +54,7 @@ var staticTLSLibraries = []tlsProbeTarget{
 	},
 }
 
-func resolveManualTLSProbeTarget(path, library string) (tlsProbeTarget, error) {
+func resolveManualTLSProbeTarget(path, library string) (ProbeTarget, error) {
 	lookup := strings.ToLower(strings.TrimSpace(library))
 	if lookup == "" {
 		lookup = strings.ToLower(filepath.Base(strings.TrimSpace(path)))
@@ -73,7 +73,7 @@ func resolveManualTLSProbeTarget(path, library string) (tlsProbeTarget, error) {
 	if strings.Contains(lookup, "libnspr") || strings.Contains(lookup, "libnss") {
 		return staticTLSLibraries[2], nil
 	}
-	return tlsProbeTarget{}, fmt.Errorf("unsupported TLS library %q", lookup)
+	return ProbeTarget{}, fmt.Errorf("unsupported TLS library %q", lookup)
 }
 
 type TLSProbeManager struct {
@@ -83,7 +83,7 @@ type TLSProbeManager struct {
 	httpStreams    *TLSHTTPStreamAssembler
 	store          *TLSCaptureStore
 	rules          *TLSCaptureRuleStore
-	broadcaster    *tlsCaptureBroadcaster
+	broadcaster    *TLSBroadcaster
 	attachedStatic map[string]bool
 	attachedGo     map[string]bool
 
@@ -99,10 +99,10 @@ type TLSExecutableAttachResult struct {
 	PID          int                           `json:"pid,omitempty"`
 	StaticTLS    bool                          `json:"staticTls,omitempty"`
 	LibraryPaths []TLSLibraryStatus            `json:"libraryPaths,omitempty"`
-	Error        string             `json:"error,omitempty"`
+	Error        string                        `json:"error,omitempty"`
 }
 
-func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *tlsCaptureBroadcaster, rules *TLSCaptureRuleStore) (*TLSProbeManager, error) {
+func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *TLSBroadcaster, rules *TLSCaptureRuleStore) (*TLSProbeManager, error) {
 	objs := &bpf.AgentTlsCaptureObjects{}
 	if err := bpf.LoadAgentTlsCaptureObjects(objs, nil); err != nil {
 		return nil, err
@@ -111,7 +111,7 @@ func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *tlsCaptureBroadcast
 		store = NewTLSCaptureStore(1000)
 	}
 	if broadcaster == nil {
-		broadcaster = newTLSCaptureBroadcaster()
+		broadcaster = NewTLSCaptureBroadcaster()
 	}
 	if rules == nil {
 		rules = NewTLSCaptureRuleStore()
@@ -171,7 +171,7 @@ func (m *TLSProbeManager) AttachLibrary(path, library string) error {
 	return m.attachLibraryPathLocked(target, strings.TrimSpace(path), TLSLibraryStatus{Name: target.name, Path: strings.TrimSpace(path), Available: true})
 }
 
-func (m *TLSProbeManager) attachLibraryPathLocked(target tlsProbeTarget, path string, status TLSLibraryStatus) error {
+func (m *TLSProbeManager) attachLibraryPathLocked(target ProbeTarget, path string, status TLSLibraryStatus) error {
 	status.Available = true
 	attachKey := target.name + "\x00" + path
 	if m.attachedStatic[attachKey] {
@@ -195,7 +195,7 @@ func (m *TLSProbeManager) attachLibraryPathLocked(target tlsProbeTarget, path st
 	return err
 }
 
-func (m *TLSProbeManager) attachLibraryPath(target tlsProbeTarget, path string, status TLSLibraryStatus) (int, error) {
+func (m *TLSProbeManager) attachLibraryPath(target ProbeTarget, path string, status TLSLibraryStatus) (int, error) {
 	if m == nil || m.objs == nil {
 		return 0, nil
 	}
@@ -310,7 +310,7 @@ func resolveShebangInterpreter(shebang string) string {
 	return ""
 }
 
-func executableLibraryCandidates(libraryHint string) []tlsProbeTarget {
+func executableLibraryCandidates(libraryHint string) []ProbeTarget {
 	libraryHint = strings.TrimSpace(libraryHint)
 	if libraryHint == "" || strings.EqualFold(libraryHint, "auto") {
 		return staticTLSLibraries
@@ -319,7 +319,7 @@ func executableLibraryCandidates(libraryHint string) []tlsProbeTarget {
 	if err != nil {
 		return staticTLSLibraries
 	}
-	return []tlsProbeTarget{target}
+	return []ProbeTarget{target}
 }
 
 func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
@@ -523,7 +523,7 @@ func (m *TLSProbeManager) ReadLoop() error {
 			if m.rules != nil && !m.rules.Allows(event) {
 				continue
 			}
-			dispatchTLSAgentEvent(&event, tlsAgentLoopDetector, broadcast)
+			DispatchTLSAgentEvent(&event, tlsAgentLoopDetector, deps.Broadcast)
 			store.Add(event)
 			broadcaster.Broadcast(event)
 		}

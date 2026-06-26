@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"errors"
@@ -13,13 +13,13 @@ type TLSCaptureController struct {
 	manager            *TLSProbeManager
 	store              *TLSCaptureStore
 	rules              *TLSCaptureRuleStore
-	broadcaster        *tlsCaptureBroadcaster
+	broadcaster        *TLSBroadcaster
 	readStarted        bool
 	goDiscoveryStarted bool
 	lastError          string
 }
 
-func NewTLSCaptureController(store *TLSCaptureStore, rules *TLSCaptureRuleStore, broadcaster *tlsCaptureBroadcaster) *TLSCaptureController {
+func NewTLSCaptureController(store *TLSCaptureStore, rules *TLSCaptureRuleStore, broadcaster *TLSBroadcaster) *TLSCaptureController {
 	if store == nil {
 		store = NewTLSCaptureStore(2000)
 	}
@@ -27,7 +27,7 @@ func NewTLSCaptureController(store *TLSCaptureStore, rules *TLSCaptureRuleStore,
 		rules = NewTLSCaptureRuleStore()
 	}
 	if broadcaster == nil {
-		broadcaster = newTLSCaptureBroadcaster()
+		broadcaster = NewTLSCaptureBroadcaster()
 	}
 	return &TLSCaptureController{store: store, rules: rules, broadcaster: broadcaster}
 }

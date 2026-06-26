@@ -1,4 +1,4 @@
-package app
+package tls
 
 // AI Tool Detection and Metadata Enrichment
 // 为 TLS 事件自动添加 AI 工具识别标签
@@ -57,7 +57,7 @@ func detectAPIProviderFromHost(host string) string {
 
 // enrichTLSEventWithAIMetadata 为 TLS 事件添加 AI 工具标签
 // 在 agentSightEventFromTLSPlaintext 中调用
-func enrichTLSEventWithAIMetadata(data map[string]any, event TLSPlaintextEvent) {
+func EnrichTLSEventWithAIMetadata(data map[string]any, event TLSPlaintextEvent) {
 	var meta *aiToolMetadata
 
 	if event.Comm != "" {

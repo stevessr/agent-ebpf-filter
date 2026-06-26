@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/tls"
 	codexhandlers "agent-ebpf-filter/codex/capture/handlers"
 	"os"
 	"path/filepath"
@@ -136,8 +137,8 @@ func registerAuthenticatedAPIRoutes(r *gin.Engine, ac *AppContext, features *Fea
 		registerConfigRoutes(api.Group("/config"), features)
 		registerSystemRoutes(api.Group("/system"), features)
 		if features.CompiledIn(FeatureTLSCapture) {
-			registerTLSCaptureRoutes(api, tlsController, tlsStore, tlsRules)
-			codexhandlers.RegisterRoutes(api, codexCaptureSink{store: tlsStore, broadcaster: tlsBroadcaster})
+			tls.RegisterTLSCaptureRoutes(api, tlsController, tlsStore, tlsRules)
+			codexhandlers.RegisterRoutes(api, tls.NewCodexCaptureSink(tlsStore, tlsBroadcaster))
 		}
 		if features.CompiledIn(FeatureAgentSight) {
 			registerAgentSightRoutes(api, tlsStore)

@@ -1,4 +1,4 @@
-package app
+package tls
 
 // ---- moved from backend/zz_merged_backend.go section analyzers_agentsight.go ----
 
@@ -8,7 +8,7 @@ type AgentSightAnalyzer interface {
 
 type AgentSightTLSAnalyzer interface {
 	AgentSightAnalyzer
-	Analyze(fragment completedTLSFragment) TLSPlaintextEvent
+	Analyze(fragment CompletedTLSFragment) TLSPlaintextEvent
 }
 
 type AgentSightTLSFilter interface {
@@ -23,7 +23,7 @@ type AgentSightHTTPFilter struct{}
 func (AgentSightHTTPAnalyzer) Name() string { return "agentsight.http_parser" }
 func (AgentSightHTTPFilter) Name() string   { return "agentsight.http_filter" }
 
-func (AgentSightHTTPAnalyzer) Analyze(fragment completedTLSFragment) TLSPlaintextEvent {
+func (AgentSightHTTPAnalyzer) Analyze(fragment CompletedTLSFragment) TLSPlaintextEvent {
 	return parseTLSPlaintext(fragment)
 }
 

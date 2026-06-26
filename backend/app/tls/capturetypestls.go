@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"time"
@@ -47,7 +47,7 @@ type tlsFragment struct {
 	Data        [tlsFragmentSize]byte
 }
 
-type completedTLSFragment struct {
+type CompletedTLSFragment struct {
 	TimestampNS uint64
 	PID         uint32
 	TGID        uint32

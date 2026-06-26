@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"agent-ebpf-filter/pb"
@@ -151,7 +151,7 @@ func TestEnrichTLSEventFallsBackToTGID(t *testing.T) {
 }
 
 func TestTLSAgentLoopStateAlertsAfterRepeat(t *testing.T) {
-	state := newTLSAgentLoopState()
+	state := NewAgentLoopState()
 	state.limit = 3
 	clock := time.Unix(1700000000, 0).UTC()
 	state.now = func() time.Time { return clock }
@@ -195,7 +195,7 @@ func TestTLSAgentLoopStateAlertsAfterRepeat(t *testing.T) {
 }
 
 func TestTLSAgentLoopStateResetsOnDigestChange(t *testing.T) {
-	state := newTLSAgentLoopState()
+	state := NewAgentLoopState()
 	state.limit = 2
 	clock := time.Unix(1700000000, 0).UTC()
 	state.now = func() time.Time { return clock }
@@ -215,7 +215,7 @@ func TestTLSAgentLoopStateResetsOnDigestChange(t *testing.T) {
 }
 
 func TestTLSAgentLoopStateExpiresWindow(t *testing.T) {
-	state := newTLSAgentLoopState()
+	state := NewAgentLoopState()
 	state.limit = 2
 	clock := time.Unix(1700000000, 0).UTC()
 	state.now = func() time.Time { return clock }
@@ -280,7 +280,7 @@ func TestDispatchTLSAgentEventBridgesAndDetectsLoop(t *testing.T) {
 	trackedProcessContexts.Set(pid, processContext{AgentRunID: "run-disp", ToolName: "agent_tool"})
 	t.Cleanup(func() { trackedProcessContexts.Delete(pid) })
 
-	state := newTLSAgentLoopState()
+	state := NewAgentLoopState()
 	state.limit = 2
 	clock := time.Unix(1700000100, 0).UTC()
 	state.now = func() time.Time { return clock }
@@ -302,10 +302,10 @@ func TestDispatchTLSAgentEventBridgesAndDetectsLoop(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		ev := emit()
-		dispatchTLSAgentEvent(ev, state, bridge)
+		DispatchTLSAgentEvent(ev, state, bridge)
 	}
 	ev := emit()
-	dispatchTLSAgentEvent(ev, state, bridge)
+	DispatchTLSAgentEvent(ev, state, bridge)
 
 	var sawTLS, sawAlert bool
 	for {

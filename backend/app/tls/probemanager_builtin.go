@@ -1,4 +1,4 @@
-package app
+package tls
 
 // TLSBuiltinExecutableAttachStatus 内置可执行文件附加状态（已废弃，保留以兼容 API）
 type TLSBuiltinExecutableAttachStatus struct {

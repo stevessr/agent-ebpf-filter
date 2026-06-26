@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	codexhandlers "agent-ebpf-filter/codex/capture/handlers"
@@ -6,12 +6,16 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section capturesinkcodex.go ----
 
-type codexCaptureSink struct {
-	store       *TLSCaptureStore
-	broadcaster *tlsCaptureBroadcaster
+type CodexCaptureSink struct {
+	Store       *TLSCaptureStore
+	Broadcaster *TLSBroadcaster
 }
 
-func (s codexCaptureSink) HandleCaptureEvent(event codexhandlers.Event) {
+func NewCodexCaptureSink(store *TLSCaptureStore, broadcaster *TLSBroadcaster) CodexCaptureSink {
+	return CodexCaptureSink{Store: store, Broadcaster: broadcaster}
+}
+
+func (s CodexCaptureSink) HandleCaptureEvent(event codexhandlers.Event) {
 	tlsEvent := TLSPlaintextEvent{
 		Type:           event.Type,
 		Timestamp:      event.Timestamp,
@@ -52,11 +56,11 @@ func (s codexCaptureSink) HandleCaptureEvent(event codexhandlers.Event) {
 		Vendor:         event.Vendor,
 	}
 
-	dispatchTLSAgentEvent(&tlsEvent, tlsAgentLoopDetector, broadcast)
-	if s.store != nil {
-		s.store.Add(tlsEvent)
+	DispatchTLSAgentEvent(&tlsEvent, tlsAgentLoopDetector, deps.Broadcast)
+	if s.Store != nil {
+		s.Store.Add(tlsEvent)
 	}
-	if s.broadcaster != nil {
-		s.broadcaster.Broadcast(tlsEvent)
+	if s.Broadcaster != nil {
+		s.Broadcaster.Broadcast(tlsEvent)
 	}
 }

@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"bufio"
@@ -40,7 +40,7 @@ var tlsSensitiveQueryKeys = map[string]struct{}{
 var tlsBearerTokenPattern = regexp.MustCompile(`(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]+`)
 var tlsInlineSecretPattern = regexp.MustCompile(`(?i)(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|secret|token)=([^\s&]+)`)
 
-func parseTLSPlaintext(fragment completedTLSFragment) TLSPlaintextEvent {
+func parseTLSPlaintext(fragment CompletedTLSFragment) TLSPlaintextEvent {
 	capturedLen := len(fragment.Payload)
 	originalLen := int(fragment.OriginalLen)
 	if originalLen == 0 {
@@ -62,16 +62,16 @@ func parseTLSPlaintext(fragment completedTLSFragment) TLSPlaintextEvent {
 	}
 
 	if req, ok := parseTLSPlaintextHTTPRequest(fragment.Payload); ok {
-		collectorMetricsStore.RecordAgentSightCounter("tls.http_request.parsed")
+		deps.CollectorMetrics.RecordAgentSightCounter("tls.http_request.parsed")
 		return buildTLSPlaintextHTTPRequestEvent(event, req)
 	}
 	if resp, ok := parseTLSPlaintextHTTPResponse(fragment.Payload); ok {
-		collectorMetricsStore.RecordAgentSightCounter("tls.http_response.parsed")
+		deps.CollectorMetrics.RecordAgentSightCounter("tls.http_response.parsed")
 		return buildTLSPlaintextHTTPResponseEvent(event, resp)
 	}
 
 	event.RawHexDump = hexDump(fragment.Payload)
-	collectorMetricsStore.RecordAgentSightCounter("tls.raw")
+	deps.CollectorMetrics.RecordAgentSightCounter("tls.raw")
 	return event
 }
 
@@ -251,7 +251,7 @@ func sanitizeTLSURL(rawURL string) string {
 	if !changed {
 		return sanitizeTLSInlineSecrets(rawURL)
 	}
-	collectorMetricsStore.RecordAgentSightCounter("tls.redaction.url")
+	deps.CollectorMetrics.RecordAgentSightCounter("tls.redaction.url")
 	parsed.RawQuery = query.Encode()
 	return parsed.String()
 }
@@ -267,7 +267,7 @@ func sanitizeTLSBody(body, contentType string) string {
 		if err := json.Unmarshal([]byte(body), &payload); err == nil {
 			// sanitizeTLSJSONValue will also run RemoveSensitiveStringFromTLS on every string value
 			sanitizeTLSJSONValue(&payload)
-			collectorMetricsStore.RecordAgentSightCounter("tls.redaction.body")
+			deps.CollectorMetrics.RecordAgentSightCounter("tls.redaction.body")
 			if redacted, err := json.MarshalIndent(payload, "", "  "); err == nil {
 				return string(redacted)
 			}
@@ -285,7 +285,7 @@ func sanitizeTLSBody(body, contentType string) string {
 				}
 			}
 			if changed {
-				collectorMetricsStore.RecordAgentSightCounter("tls.redaction.body")
+				deps.CollectorMetrics.RecordAgentSightCounter("tls.redaction.body")
 				encoded := values.Encode()
 				return RemoveSensitiveStringFromTLS(encoded)
 			}
@@ -355,7 +355,7 @@ func sanitizeTLSInlineSecrets(value string) string {
 	redacted = tlsInlineSecretPattern.ReplaceAllString(redacted, `${1}=`+tlsRedactedValue)
 	redacted = strings.ReplaceAll(redacted, placeholder, encodedRedactedValue)
 	if redacted != value {
-		collectorMetricsStore.RecordAgentSightCounter("tls.redaction.inline")
+		deps.CollectorMetrics.RecordAgentSightCounter("tls.redaction.inline")
 	}
 	return redacted
 }
@@ -365,7 +365,7 @@ func annotateTLSSSEEvent(event *TLSPlaintextEvent) {
 		return
 	}
 	event.Type = "sse_message"
-	collectorMetricsStore.RecordAgentSightCounter("tls.sse.parsed")
+	deps.CollectorMetrics.RecordAgentSightCounter("tls.sse.parsed")
 	var dataParts []string
 	for _, line := range strings.Split(event.Body, "\n") {
 		trimmed := strings.TrimSpace(line)

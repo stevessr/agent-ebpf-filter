@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"agent-ebpf-filter/app/platform"
@@ -53,12 +53,12 @@ func inferTLSVendor(host, url string) string {
 	}
 }
 
-// tlsAgentLoopState tracks repeated prompt digests within a short window per
+// AgentLoopState tracks repeated prompt digests within a short window per
 // agent identity. Once the same digest repeats beyond the configured limit
 // it produces a synthetic RESOURCE_WASTING_LOOP semantic_alert event, so that
 // loops manifesting purely as encrypted API traffic (no fs/forks) still
 // surface.
-type tlsAgentLoopState struct {
+type AgentLoopState struct {
 	mu       sync.Mutex
 	tracker  map[string]*tlsAgentLoopWindow
 	now      func() time.Time
@@ -75,8 +75,8 @@ type tlsAgentLoopWindow struct {
 	Alerted      bool
 }
 
-func newTLSAgentLoopState() *tlsAgentLoopState {
-	return &tlsAgentLoopState{
+func NewAgentLoopState() *AgentLoopState {
+	return &AgentLoopState{
 		tracker:  make(map[string]*tlsAgentLoopWindow),
 		now:      time.Now,
 		window:   tlsAgentLoopDefaultWindow,
@@ -87,7 +87,7 @@ func newTLSAgentLoopState() *tlsAgentLoopState {
 
 // Observe records the digest emitted by a TLS event and returns an alert if
 // the repeat threshold has been crossed for this identity inside the window.
-func (s *tlsAgentLoopState) Observe(event *TLSPlaintextEvent) *pb.Event {
+func (s *AgentLoopState) Observe(event *TLSPlaintextEvent) *pb.Event {
 	if s == nil || event == nil || event.PromptDigest == "" {
 		return nil
 	}
@@ -125,7 +125,7 @@ func (s *tlsAgentLoopState) Observe(event *TLSPlaintextEvent) *pb.Event {
 	return buildTLSLoopAlertEvent(event, identity, state.Repeats, s.window)
 }
 
-func (s *tlsAgentLoopState) evictExpiredLocked(now time.Time) {
+func (s *AgentLoopState) evictExpiredLocked(now time.Time) {
 	for key, state := range s.tracker {
 		if state == nil || now.Sub(state.LastSeen) > s.window*2 {
 			delete(s.tracker, key)
@@ -133,7 +133,7 @@ func (s *tlsAgentLoopState) evictExpiredLocked(now time.Time) {
 	}
 }
 
-func (s *tlsAgentLoopState) reset() {
+func (s *AgentLoopState) reset() {
 	if s == nil {
 		return
 	}
@@ -308,11 +308,11 @@ func convertTLSToOTelSpanEvent(source TLSPlaintextEvent) *pb.Event {
 	}
 }
 
-// dispatchTLSAgentEvent enriches the TLS event with agent context, derives
+// DispatchTLSAgentEvent enriches the TLS event with agent context, derives
 // prompt metadata, fires loop detection, and bridges the result into the main
 // pb.Event pipeline. It is invoked from TLSProbeManager.ReadLoop after
 // parsing each completed plaintext fragment.
-func dispatchTLSAgentEvent(event *TLSPlaintextEvent, loopState *tlsAgentLoopState, bridge chan<- *pb.Event) {
+func DispatchTLSAgentEvent(event *TLSPlaintextEvent, loopState *AgentLoopState, bridge chan<- *pb.Event) {
 	if event == nil {
 		return
 	}
@@ -321,18 +321,18 @@ func dispatchTLSAgentEvent(event *TLSPlaintextEvent, loopState *tlsAgentLoopStat
 
 	if loopState != nil {
 		if alert := loopState.Observe(event); alert != nil && bridge != nil {
-			sendTLSBridge(bridge, alert)
+			SendTLSBridge(bridge, alert)
 		}
 	}
 	if proto := convertTLSToProtoEvent(*event); proto != nil && bridge != nil {
-		sendTLSBridge(bridge, proto)
+		SendTLSBridge(bridge, proto)
 		if otel := convertTLSToOTelSpanEvent(*event); otel != nil {
-			sendTLSBridge(bridge, otel)
+			SendTLSBridge(bridge, otel)
 		}
 	}
 }
 
-func sendTLSBridge(bridge chan<- *pb.Event, event *pb.Event) {
+func SendTLSBridge(bridge chan<- *pb.Event, event *pb.Event) {
 	if bridge == nil || event == nil {
 		return
 	}
@@ -342,4 +342,4 @@ func sendTLSBridge(bridge chan<- *pb.Event, event *pb.Event) {
 	}
 }
 
-var tlsAgentLoopDetector = newTLSAgentLoopState()
+var tlsAgentLoopDetector = NewAgentLoopState()

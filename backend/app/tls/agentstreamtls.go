@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"encoding/json"
@@ -48,16 +48,16 @@ func enrichTLSEventWithAgentContext(event *TLSPlaintextEvent) {
 	}
 }
 
-func lookupTLSProcessContext(pid, tgid uint32) (processContext, bool) {
-	if ctx, ok := trackedProcessContexts.Get(pid); ok {
+func lookupTLSProcessContext(pid, tgid uint32) (ProcessContext, bool) {
+	if ctx, ok := deps.TrackedProcessContexts.Get(pid); ok {
 		return ctx, true
 	}
 	if tgid != 0 && tgid != pid {
-		if ctx, ok := trackedProcessContexts.Get(tgid); ok {
+		if ctx, ok := deps.TrackedProcessContexts.Get(tgid); ok {
 			return ctx, true
 		}
 	}
-	return processContext{}, false
+	return ProcessContext{}, false
 }
 
 // annotateTLSAgentMessage populates the prompt digest / role / vendor fields

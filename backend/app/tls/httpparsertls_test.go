@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 
 // ---- moved from backend/zz_merged_backend_test.go section httpparsertls_test.go ----
 
-func testCompletedTLSFragment(payload string, direction uint8) completedTLSFragment {
-	return completedTLSFragment{
+func testCompletedTLSFragment(payload string, direction uint8) CompletedTLSFragment {
+	return CompletedTLSFragment{
 		TimestampNS: uint64(time.Date(2026, time.May, 10, 12, 0, 0, 0, time.UTC).UnixNano()),
 		PID:         4321,
 		TGID:        8765,
@@ -136,7 +136,7 @@ func TestParseTLSPlaintextHTTPResponse(t *testing.T) {
 }
 
 func TestParseTLSPlaintextNonHTTPUsesHexDump(t *testing.T) {
-	fragment := completedTLSFragment{
+	fragment := CompletedTLSFragment{
 		TimestampNS: uint64(time.Now().UnixNano()),
 		PID:         1,
 		TGID:        2,

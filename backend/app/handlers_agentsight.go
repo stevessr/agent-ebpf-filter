@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"crypto/sha256"
@@ -827,7 +828,7 @@ func agentSightEventFromTLSPlaintext(event TLSPlaintextEvent) agentSightExportEv
 	data["span_id"] = event.SpanID
 
 	// AI Tool 元数据富化
-	enrichTLSEventWithAIMetadata(data, event)
+	tls.EnrichTLSEventWithAIMetadata(data, event)
 
 	source := agentSightSourceFromTLS(event)
 	id := agentSightStableID("tls", timestamp.UnixMilli(), source, event.PID, event.Comm, event.Type, event.Method, event.URL, event.StatusCode, event.PromptDigest)

@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"agent-ebpf-filter/internal/binaryresolver"
@@ -14,13 +14,13 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section capturehandlerstls.go ----
 
-type tlsCaptureBroadcaster struct {
+type TLSBroadcaster struct {
 	mu      sync.Mutex
 	clients map[*websocket.Conn]*sync.Mutex
 }
 
-func (b *tlsCaptureBroadcaster) Serve(c *gin.Context) {
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+func (b *TLSBroadcaster) Serve(c *gin.Context) {
+	conn, err := deps.Upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
 	}
@@ -44,7 +44,7 @@ func (b *tlsCaptureBroadcaster) Serve(c *gin.Context) {
 	}
 }
 
-func (b *tlsCaptureBroadcaster) Broadcast(event TLSPlaintextEvent) {
+func (b *TLSBroadcaster) Broadcast(event TLSPlaintextEvent) {
 	type client struct {
 		conn    *websocket.Conn
 		writeMu *sync.Mutex
@@ -78,11 +78,11 @@ type tlsCaptureRuntime interface {
 	Status() map[string]any
 }
 
-func newTLSCaptureBroadcaster() *tlsCaptureBroadcaster {
-	return &tlsCaptureBroadcaster{clients: make(map[*websocket.Conn]*sync.Mutex)}
+func NewTLSCaptureBroadcaster() *TLSBroadcaster {
+	return &TLSBroadcaster{clients: make(map[*websocket.Conn]*sync.Mutex)}
 }
 
-func registerTLSCaptureRoutes(router gin.IRouter, runtime tlsCaptureRuntime, store *TLSCaptureStore, rules *TLSCaptureRuleStore) {
+func RegisterTLSCaptureRoutes(router gin.IRouter, runtime tlsCaptureRuntime, store *TLSCaptureStore, rules *TLSCaptureRuleStore) {
 	router.GET("/tls-capture/recent", handleTLSCaptureRecent(store))
 	router.GET("/tls-capture/libraries", handleTLSCaptureLibraries(store))
 	router.GET("/tls-capture/status", handleTLSCaptureStatus(runtime, store))

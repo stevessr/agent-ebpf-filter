@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"bytes"
@@ -263,7 +264,7 @@ func (s *shellSession) emitStdioEvent(stream string, payload []byte) {
 		SchemaVersion: eventSchemaVersion,
 		Cwd:           s.workDir,
 	}
-	sendTLSBridge(broadcast, event)
+	tls.SendTLSBridge(broadcast, event)
 }
 
 func (s *shellSession) forwardOutput(payload []byte) {

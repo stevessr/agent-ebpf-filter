@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"encoding/json"
@@ -116,7 +116,7 @@ func TestHandleTLSCaptureRulesRoundTrip(t *testing.T) {
 
 func TestTLSCaptureBroadcasterServeAndBroadcast(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	broadcaster := newTLSCaptureBroadcaster()
+	broadcaster := NewTLSCaptureBroadcaster()
 	r := gin.New()
 	r.GET("/ws/tls-capture", broadcaster.Serve)
 
@@ -145,7 +145,7 @@ func TestTLSCaptureBroadcasterServeAndBroadcast(t *testing.T) {
 
 func TestTLSCaptureBroadcasterConcurrentBroadcastsDeliverEvents(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	broadcaster := newTLSCaptureBroadcaster()
+	broadcaster := NewTLSCaptureBroadcaster()
 	r := gin.New()
 	r.GET("/ws/tls-capture", broadcaster.Serve)
 

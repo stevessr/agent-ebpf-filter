@@ -1,6 +1,6 @@
 //go:build agentfeat_tls_capture
 
-package app
+package tls
 
 func init() {
 	enableBuildFeature(FeatureTLSCapture)

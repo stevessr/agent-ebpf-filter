@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"fmt"
@@ -225,5 +226,5 @@ func emitSystemMetricEvent(pid, ppid int32, comm string, cpuPercent float64, mem
 		Decision:      "ALERT",
 		SchemaVersion: eventSchemaVersion,
 	}
-	sendTLSBridge(broadcast, event)
+	tls.SendTLSBridge(broadcast, event)
 }

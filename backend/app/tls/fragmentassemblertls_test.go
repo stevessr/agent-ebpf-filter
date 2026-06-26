@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	bpf "agent-ebpf-filter/ebpf"
@@ -42,7 +42,7 @@ func TestFragmentAssemblerReassemblesOutOfOrderFragments(t *testing.T) {
 		newTestTLSFragmentAt(2, 3, 12, "kl", timestamp),
 	}
 
-	var completed *completedTLSFragment
+	var completed *CompletedTLSFragment
 	var ok bool
 	for _, frag := range frags {
 		completed, ok = assembler.Add(frag)

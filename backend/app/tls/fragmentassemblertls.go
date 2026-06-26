@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"sync"
@@ -69,7 +69,7 @@ func sanitizeTLSComm(comm [16]byte) string {
 	return sanitizeUTF8(comm[:])
 }
 
-func (a *FragmentAssembler) Add(fragment tlsFragment) (*completedTLSFragment, bool) {
+func (a *FragmentAssembler) Add(fragment tlsFragment) (*CompletedTLSFragment, bool) {
 	if fragment.FragCount == 0 || fragment.FragIndex >= fragment.FragCount || fragment.TotalLen == 0 {
 		a.mu.Lock()
 		a.dropped++
@@ -142,7 +142,7 @@ func (a *FragmentAssembler) Add(fragment tlsFragment) (*completedTLSFragment, bo
 	}
 	delete(a.pending, key)
 
-	return &completedTLSFragment{
+	return &CompletedTLSFragment{
 		TimestampNS: fragment.TimestampNS,
 		PID:         fragment.PID,
 		TGID:        fragment.TGID,

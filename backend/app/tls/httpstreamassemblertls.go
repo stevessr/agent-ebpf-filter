@@ -1,4 +1,4 @@
-package app
+package tls
 
 import (
 	"bytes"
@@ -29,7 +29,7 @@ type tlsHTTPBufferKey struct {
 type pendingTLSHTTPStream struct {
 	firstSeen time.Time
 	lastSeen  time.Time
-	meta      completedTLSFragment
+	meta      CompletedTLSFragment
 	buffer    []byte
 	flags     uint8
 }
@@ -59,7 +59,7 @@ func NewTLSHTTPStreamAssembler(timeout time.Duration) *TLSHTTPStreamAssembler {
 	}
 }
 
-func (a *TLSHTTPStreamAssembler) Add(fragment completedTLSFragment) []TLSPlaintextEvent {
+func (a *TLSHTTPStreamAssembler) Add(fragment CompletedTLSFragment) []TLSPlaintextEvent {
 	if a == nil || len(fragment.Payload) == 0 {
 		return nil
 	}

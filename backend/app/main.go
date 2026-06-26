@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/tls"
 	"context"
 	"fmt"
 	"log"
@@ -69,8 +70,8 @@ func Main() {
 	if !features.CompiledIn(FeatureTLSCapture) {
 		settings.TlsCaptureEnabled = false
 	}
-	tlsRuntime := startTLSCaptureRuntime(settings)
-	defer tlsRuntime.controller.Close()
+	tlsRuntime := tls.StartTLSCaptureRuntime(settings)
+	defer tlsRuntime.Controller.Close()
 
 	rd, _ := ringbuf.NewReader(trackerMaps.Events)
 	defer rd.Close()
@@ -88,7 +89,7 @@ func Main() {
 	defer cancel()
 	startArchiveEvictionLoop(ctx)
 
-	registerRoutes(r, AppCtx, features, tlsRuntime.broadcaster, tlsRuntime.controller, tlsRuntime.store, tlsRuntime.rules)
+	registerRoutes(r, AppCtx, features, tlsRuntime.Broadcaster, tlsRuntime.Controller, tlsRuntime.Store, tlsRuntime.Rules)
 
 	seedDefaultTrackedCommands()
 
