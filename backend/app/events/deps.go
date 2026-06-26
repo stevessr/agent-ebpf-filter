@@ -1,10 +1,10 @@
 package events
 
 import (
-	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/pb"
-	"sync"
+	"strings"
 	"time"
+
+	"agent-ebpf-filter/pb"
 )
 
 // ── Deps: external dependencies injected by app/main.go via Init() ─────────
@@ -130,9 +130,11 @@ func sanitizeUTF8(b []byte) string {
 }
 
 func getTagName(tagID uint32) string {
-	return "AI Agent" // simplified; full logic stays in app package for now
+	// simplified; full tag map stays in app package. Will be wired via Deps.
+	return "AI Agent"
 }
 
 func classifyIPScope(ip any) string {
-	return "public" // simplified; full logic stays in app/network for now
+	// simplified; full logic stays in app/network for now
+	return "public"
 }
