@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/shell"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -9,71 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// ---- moved from backend/zz_merged_backend.go section sessionhandlersshell.go ----
-
-func (m *shellSessionManager) AttachWS(c *gin.Context) {
-	sessionID := stringsTrimToDefault(c.Query("session_id"), "")
-	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "session_id is required"})
-		return
-	}
-
-	session, ok := m.Get(sessionID)
-	if !ok {
-		c.JSON(http.StatusNotFound, gin.H{"error": "shell session not found"})
-		return
-	}
-
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		return
-	}
-
-	backlog, err := session.Attach(conn)
-	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
-		_ = conn.Close()
-		return
-	}
-	defer session.Detach(conn)
-
-	if len(backlog) > 0 {
-		session.writeMu.Lock()
-		if err := conn.WriteMessage(websocket.BinaryMessage, backlog); err != nil {
-			session.writeMu.Unlock()
-			return
-		}
-		session.writeMu.Unlock()
-	}
-
-	for {
-		messageType, data, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-
-		switch messageType {
-		case websocket.BinaryMessage:
-			if len(data) == 0 {
-				continue
-			}
-			if err := session.WriteInput(data); err != nil {
-				return
-			}
-		case websocket.TextMessage:
-			var ctrl shellControlMessage
-			if err := json.Unmarshal(data, &ctrl); err == nil && ctrl.Type == "resize" {
-				if ctrl.Cols > 0 && ctrl.Rows > 0 {
-					_ = session.Resize(ctrl.Cols, ctrl.Rows)
-				}
-				continue
-			}
-			if err := session.WriteInput(data); err != nil {
-				return
-			}
-		}
-	}
-}
+// ---- shell session HTTP handlers (delegate to shell.Manager) ----
 
 func serveShellSessionsWS(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -82,8 +19,8 @@ func serveShellSessionsWS(c *gin.Context) {
 	}
 	defer conn.Close()
 
-	notifyCh := shellSessions.subscribe()
-	defer shellSessions.unsubscribe(notifyCh)
+	notifyCh := shellSessions.Subscribe()
+	defer shellSessions.Unsubscribe(notifyCh)
 
 	done := make(chan struct{})
 	go func() {
@@ -119,12 +56,13 @@ func serveShellSessionsWS(c *gin.Context) {
 }
 
 func handleCreateShellSession(c *gin.Context) {
-	var req ShellSessionCreateRequest
+	var req shell.CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	session, err := shellSessions.Create(req)
+	deps := makeShellDeps()
+	session, err := shellSessions.NewSession(req, deps)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -151,7 +89,7 @@ func handleSendShellSessionInput(c *gin.Context) {
 		return
 	}
 
-	var req ShellSessionInputRequest
+	var req shell.InputRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -173,27 +111,4 @@ func handleSendShellSessionInput(c *gin.Context) {
 func handleShellSessionsCleanup(c *gin.Context) {
 	shellSessions.ClearClosed()
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
-}
-
-func stringsTrimToDefault(value, fallback string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return fallback
-	}
-	return value
-}
-
-func normalizeShellSessionKind(value string) string {
-	switch strings.TrimSpace(strings.ToLower(value)) {
-	case shellSessionKindTmux:
-		return shellSessionKindTmux
-	case shellSessionKindScript:
-		return shellSessionKindScript
-	case shellSessionKindWrapper:
-		return shellSessionKindWrapper
-	case "", shellSessionKindShell:
-		return shellSessionKindShell
-	default:
-		return shellSessionKindShell
-	}
 }
