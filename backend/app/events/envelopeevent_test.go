@@ -1,4 +1,4 @@
-package app
+package events
 
 import (
 	"agent-ebpf-filter/pb"
@@ -9,7 +9,7 @@ import (
 // ---- moved from backend/zz_merged_backend_test.go section envelopeevent_test.go ----
 
 func TestNormalizeCapturedEventRecordBuildsWrapperEnvelope(t *testing.T) {
-	record := normalizeCapturedEventRecord(CapturedEventRecord{
+	record := NormalizeCapturedEventRecord(CapturedEventRecord{
 		ReceivedAt: time.Unix(1710000000, 123).UTC(),
 		Event: &pb.Event{
 			Pid:        321,
@@ -60,7 +60,7 @@ func TestNormalizeCapturedEventRecordBuildsWrapperEnvelope(t *testing.T) {
 }
 
 func TestBuildCapturedEventJSONRecordsIncludesEnvelope(t *testing.T) {
-	records := buildCapturedEventJSONRecords([]CapturedEventRecord{{
+	records := BuildCapturedEventJSONRecords([]CapturedEventRecord{{
 		ReceivedAt: time.Unix(1710000001, 0).UTC(),
 		Event: &pb.Event{
 			Pid:        99,

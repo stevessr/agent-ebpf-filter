@@ -1,4 +1,4 @@
-package app
+package events
 
 import (
 	"agent-ebpf-filter/app/platform"
@@ -18,14 +18,14 @@ import (
 
 const eventEnvelopeSchemaVersion = "envelope.v1"
 
-var eventEnvelopeJSONMarshaller = protojson.MarshalOptions{
+var EnvelopeJSONMarshaller = protojson.MarshalOptions{
 	UseProtoNames:   true,
 	EmitUnpopulated: false,
 }
 
-func normalizeCapturedEventRecord(record CapturedEventRecord) CapturedEventRecord {
+func NormalizeCapturedEventRecord(record CapturedEventRecord) CapturedEventRecord {
 	if record.Event == nil && record.Envelope != nil && record.Envelope.GetLegacyEvent() != nil {
-		record.Event = cloneProtoEvent(record.Envelope.GetLegacyEvent())
+		record.Event = CloneProtoEvent(record.Envelope.GetLegacyEvent())
 	}
 	if record.Envelope == nil {
 		record.Envelope = buildEventEnvelope(record)
@@ -35,7 +35,7 @@ func normalizeCapturedEventRecord(record CapturedEventRecord) CapturedEventRecor
 	return record
 }
 
-func cloneProtoEvent(event *pb.Event) *pb.Event {
+func CloneProtoEvent(event *pb.Event) *pb.Event {
 	if event == nil {
 		return nil
 	}
@@ -55,7 +55,7 @@ func normalizeEventEnvelope(envelope *pb.EventEnvelope, record CapturedEventReco
 		cloned = envelope
 	}
 	if cloned.GetLegacyEvent() == nil && record.Event != nil {
-		cloned.LegacyEvent = cloneProtoEvent(record.Event)
+		cloned.LegacyEvent = CloneProtoEvent(record.Event)
 	}
 	if strings.TrimSpace(cloned.GetSchemaVersion()) == "" {
 		cloned.SchemaVersion = eventEnvelopeSchemaVersion
@@ -68,7 +68,7 @@ func normalizeEventEnvelope(envelope *pb.EventEnvelope, record CapturedEventReco
 		cloned.TimestampNs = uint64(timestamp.UnixNano())
 	}
 	if strings.TrimSpace(cloned.GetSource()) == "" {
-		cloned.Source = determineEventEnvelopeSource(record.Event)
+		cloned.Source = DetermineEnvelopeSource(record.Event)
 	}
 	if strings.TrimSpace(cloned.GetEventId()) == "" {
 		cloned.EventId = buildEventEnvelopeID(record, firstNonNilEvent(record.Event, cloned.GetLegacyEvent()))
@@ -90,7 +90,7 @@ func buildEventEnvelope(record CapturedEventRecord) *pb.EventEnvelope {
 	if event == nil {
 		return nil
 	}
-	event = cloneProtoEvent(event)
+	event = CloneProtoEvent(event)
 	timestamp := record.ReceivedAt.UTC()
 	if timestamp.IsZero() {
 		timestamp = time.Now().UTC()
@@ -98,7 +98,7 @@ func buildEventEnvelope(record CapturedEventRecord) *pb.EventEnvelope {
 	envelope := &pb.EventEnvelope{
 		SchemaVersion:  eventEnvelopeSchemaVersion,
 		TimestampNs:    uint64(timestamp.UnixNano()),
-		Source:         determineEventEnvelopeSource(event),
+		Source:         DetermineEnvelopeSource(event),
 		AgentRunId:     event.GetAgentRunId(),
 		TaskId:         event.GetTaskId(),
 		ConversationId: event.GetConversationId(),
@@ -154,7 +154,7 @@ func buildEventEnvelope(record CapturedEventRecord) *pb.EventEnvelope {
 	return envelope
 }
 
-func determineEventEnvelopeSource(event *pb.Event) string {
+func DetermineEnvelopeSource(event *pb.Event) string {
 	if event == nil {
 		return "unknown"
 	}
@@ -183,7 +183,7 @@ func buildEventEnvelopeID(record CapturedEventRecord, event *pb.Event) string {
 	}
 	parts := []string{
 		strconvFormatInt(timestamp.UnixNano()),
-		determineEventEnvelopeSource(event),
+		DetermineEnvelopeSource(event),
 		event.GetType(),
 		strconvFormatUint32(event.GetPid()),
 		strconvFormatUint32(event.GetPpid()),
@@ -448,24 +448,24 @@ func splitEnvelopeCommandLine(commandLine string) []string {
 	return strings.Fields(commandLine)
 }
 
-func buildCapturedEventJSONRecords(records []CapturedEventRecord) []map[string]any {
+func BuildCapturedEventJSONRecords(records []CapturedEventRecord) []map[string]any {
 	items := make([]map[string]any, 0, len(records))
 	for _, record := range records {
-		record = normalizeCapturedEventRecord(record)
+		record = NormalizeCapturedEventRecord(record)
 		items = append(items, map[string]any{
 			"Event":     record.Event,
 			"Timestamp": record.ReceivedAt.UnixMilli(),
-			"Envelope":  eventEnvelopeToJSONValue(record.Envelope),
+			"Envelope":  EnvelopeToJSONValue(record.Envelope),
 		})
 	}
 	return items
 }
 
-func eventEnvelopeToJSONValue(envelope *pb.EventEnvelope) map[string]any {
+func EnvelopeToJSONValue(envelope *pb.EventEnvelope) map[string]any {
 	if envelope == nil {
 		return nil
 	}
-	payload, err := eventEnvelopeJSONMarshaller.Marshal(envelope)
+	payload, err := EnvelopeJSONMarshaller.Marshal(envelope)
 	if err != nil {
 		return map[string]any{"error": err.Error()}
 	}

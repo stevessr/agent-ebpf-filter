@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
 )
 
@@ -14,6 +15,8 @@ type RuntimeSettingsStore interface {
 	HookSecret(id string) string
 	Snapshot() any
 }
+
+type ReadCapturedEventsFile func(path string, limit int) ([]CapturedEventRecord, error)
 
 type ProcessContextStore interface {
 	Get(pid uint32) (ProcessContext, bool)
@@ -90,10 +93,7 @@ type EventArchive interface {
 	Count() int
 }
 
-type CapturedEventRecord struct {
-	Event      *pb.Event
-	ReceivedAt time.Time
-}
+type CapturedEventRecord = core.CapturedEventRecord
 
 type Deps struct {
 	Broadcast             chan<- *pb.Event
@@ -111,6 +111,7 @@ type Deps struct {
 	DNSCorrelation        any
 	TCPTracker            any
 	Upgrader              any
+	ReadCapturedEvents    ReadCapturedEventsFile
 }
 
 var deps Deps
