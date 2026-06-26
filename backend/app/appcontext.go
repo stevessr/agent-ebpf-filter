@@ -9,6 +9,7 @@ import (
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
 
+	"agent-ebpf-filter/app/events"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -78,7 +79,7 @@ type AppContext struct {
 	ClusterManager *clusterManager
 
 	// ── Process / cgroup tracking ────────────────────────────────────
-	TrackedProcessContexts *processContextStore
+	TrackedProcessContexts *events.ProcessContextStore
 	CgroupAttribution      *cgroupAttributionStore
 	ToolBaseline           *toolBaselineStore
 

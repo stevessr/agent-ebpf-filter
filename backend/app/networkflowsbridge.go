@@ -110,4 +110,19 @@ func init() {
 	events.Deps.BlockLsmFileName = blockLsmFileName
 	events.Deps.BlockLsmExecPath = blockLsmExecPath
 	events.Deps.BlockLsmExecName = blockLsmExecName
+
+	// Process context / cgroup attribution (context_event.go)
+	events.Deps.ProcessContexts = trackedProcessContexts
+	events.Deps.CgroupAttributionEnrich = enrichEventWithCgroupContext
+	events.Deps.CgroupAttributionSet = func(cgroupID uint64, entry events.CgroupAttributionEntry) {
+		cgroupAttribution.Set(cgroupID, cgroupAttributionEntry{
+			CgroupID:     entry.CgroupID,
+			AgentRunID:   entry.AgentRunID,
+			TaskID:       entry.TaskID,
+			ToolCallID:   entry.ToolCallID,
+			RootAgentPID: entry.RootAgentPID,
+			CreatedAt:    entry.CreatedAt,
+		})
+	}
+	events.Deps.ToolBaselineRecord = toolBaseline.Record
 }

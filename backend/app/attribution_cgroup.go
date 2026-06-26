@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/events"
 	"fmt"
 	"sync"
 	"time"
@@ -71,7 +72,7 @@ func (s *cgroupAttributionStore) EvictOlderThan(maxAge time.Duration) {
 var cgroupAttribution = newCgroupAttributionStore()
 
 // attachCgroupToAgent associates a cgroup ID with the agent context from a register payload.
-func attachCgroupToAgent(cgroupID uint64, payload registerPayload) {
+func attachCgroupToAgent(cgroupID uint64, payload events.RegisterPayload) {
 	if cgroupID == 0 {
 		return
 	}

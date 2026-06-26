@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/events"
 	"github.com/gin-gonic/gin"
 )
 
@@ -11,7 +12,7 @@ func handleRegister(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "agent pid map not initialized"})
 		return
 	}
-	var req registerPayload
+	var req events.RegisterPayload
 	if err := c.ShouldBindJSON(&req); err != nil || req.PID == 0 {
 		c.JSON(400, gin.H{"error": "invalid pid"})
 		return

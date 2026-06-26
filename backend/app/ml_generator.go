@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/events"
 	"agent-ebpf-filter/app/platform"
 	"fmt"
 	"os"
@@ -168,7 +169,7 @@ func handleMLHealthRegisterPost(c *gin.Context) {
 	if nameBytes, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", req.PID)); err == nil {
 		name = strings.TrimSpace(string(nameBytes))
 	}
-	trackedProcessContexts.Set(req.PID, processContext{
+	trackedProcessContexts.Set(req.PID, events.ProcessContext{
 		RootAgentPid: req.PID,
 		ToolName:     name,
 		AgentRunID:   "health-generator-" + strconv.FormatUint(uint64(req.PID), 10),
@@ -233,7 +234,7 @@ func handleMLHealthRunPost(c *gin.Context) {
 	}
 
 	// Register in process context
-	trackedProcessContexts.Set(pid, processContext{
+	trackedProcessContexts.Set(pid, events.ProcessContext{
 		RootAgentPid: pid,
 		ToolName:     req.Comm,
 		AgentRunID:   "health-generator-" + strconv.FormatUint(uint64(pid), 10),

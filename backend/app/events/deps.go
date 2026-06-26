@@ -43,6 +43,16 @@ type ProtoDetectionEntry struct {
 	HTTPMethod  string
 }
 
+// CgroupAttributionEntry is used by context_event.go for cgroup-to-agent-run mapping.
+type CgroupAttributionEntry struct {
+	CgroupID     uint64
+	AgentRunID   string
+	TaskID       string
+	ToolCallID   string
+	RootAgentPID uint32
+	CreatedAt    time.Time
+}
+
 // CollectorMetricsStore provides metrics recording for the events subpackage.
 type CollectorMetricsStore interface {
 	RecordKernelRiskDecision(decision string, elapsed time.Duration)
@@ -88,4 +98,10 @@ var Deps struct {
 	BlockLsmFileName func(name string) error
 	BlockLsmExecPath func(path string) error
 	BlockLsmExecName func(name string) error
+
+	// Process context / cgroup attribution (used by context_event.go)
+	ProcessContexts        *ProcessContextStore
+	CgroupAttributionEnrich func(cgroupID uint64) (agentRunID, taskID, toolCallID string)
+	CgroupAttributionSet    func(cgroupID uint64, entry CgroupAttributionEntry)
+	ToolBaselineRecord      func(toolName, comm, eventType, path string)
 }
