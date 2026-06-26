@@ -35,7 +35,7 @@ func Main() {
 	AppCtx.PluginRegistry = pluginRegistry
 	AppCtx.NetworkFlowAggregator = networkFlowAggregator
 	AppCtx.EventRecordingStore = eventRecordingStore
-	AppCtx.CollectorMetricsStore = collectorMetricsStore
+	AppCtx.CollectorMetricsStore = &collectorMetricsStore
 	AppCtx.OTelExporterStore = otelExporterStore
 	AppCtx.ClusterManager = clusterManagerStore
 	AppCtx.TrackedProcessContexts = trackedProcessContexts

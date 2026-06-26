@@ -1,4 +1,4 @@
-package app
+package events
 
 import (
 	"agent-ebpf-filter/internal/executiongraph"
@@ -17,8 +17,8 @@ type ExecutionGraphEdge = executiongraph.Edge
 type ExecutionGraphResponse = executiongraph.Response
 type executionGraphFilters = executiongraph.Filters
 
-func handleExecutionGraph(c *gin.Context) {
-	graph, err := buildExecutionGraphFromRequest(c)
+func HandleExecutionGraph(c *gin.Context) {
+	graph, err := BuildExecutionGraphFromRequest(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -26,15 +26,15 @@ func handleExecutionGraph(c *gin.Context) {
 	c.JSON(http.StatusOK, graph)
 }
 
-func serveExecutionGraphWS(c *gin.Context) {
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+func ServeExecutionGraphWS(c *gin.Context) {
+	conn, err := Deps.Upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		c.Status(http.StatusBadRequest)
 		return
 	}
 	defer conn.Close()
 
-	interval := parseExecutionGraphInterval(c.Query("interval"))
+	interval := ParseExecutionGraphInterval(c.Query("interval"))
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	done := make(chan struct{})
@@ -48,7 +48,7 @@ func serveExecutionGraphWS(c *gin.Context) {
 	}()
 
 	writeGraph := func() bool {
-		graph, err := buildExecutionGraphFromRequest(c)
+		graph, err := BuildExecutionGraphFromRequest(c)
 		if err != nil {
 			_ = conn.WriteJSON(gin.H{"error": err.Error()})
 			return false
@@ -74,7 +74,7 @@ func serveExecutionGraphWS(c *gin.Context) {
 	}
 }
 
-func buildExecutionGraphFromRequest(c *gin.Context) (ExecutionGraphResponse, error) {
+func BuildExecutionGraphFromRequest(c *gin.Context) (ExecutionGraphResponse, error) {
 	limit := 200
 	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 2000 {
@@ -86,22 +86,22 @@ func buildExecutionGraphFromRequest(c *gin.Context) (ExecutionGraphResponse, err
 	var records []CapturedEventRecord
 	var err error
 	if replayPath := strings.TrimSpace(c.Query("replay_path")); replayPath != "" {
-		records, err = readCapturedEventsFile(replayPath, limit)
+		records, err = Deps.ReadCapturedEvents(replayPath, limit)
 		source = "replay_file"
 	} else {
-		records, source, err = runtimeSettingsStore.RecentEvents(limit)
+		records, source, err = Deps.RuntimeSettingsRecentEvents(limit)
 	}
 	if err != nil {
 		return ExecutionGraphResponse{}, err
 	}
 
-	filters := executionGraphFiltersFromRequest(c)
-	graph := buildExecutionGraph(records, filters)
+	filters := ExecutionGraphFiltersFromRequest(c)
+	graph := BuildExecutionGraph(records, filters)
 	graph.Source = source
 	return graph, nil
 }
 
-func buildExecutionGraph(records []CapturedEventRecord, filters executionGraphFilters) ExecutionGraphResponse {
+func BuildExecutionGraph(records []CapturedEventRecord, filters executionGraphFilters) ExecutionGraphResponse {
 	internalRecords := make([]executiongraph.Record, 0, len(records))
 	for _, record := range records {
 		internalRecords = append(internalRecords, executiongraph.Record{
@@ -112,7 +112,7 @@ func buildExecutionGraph(records []CapturedEventRecord, filters executionGraphFi
 	return executiongraph.Build(internalRecords, filters)
 }
 
-func executionGraphFiltersFromRequest(c *gin.Context) executionGraphFilters {
+func ExecutionGraphFiltersFromRequest(c *gin.Context) executionGraphFilters {
 	filters := executionGraphFilters{
 		AgentRunID:  strings.TrimSpace(c.Query("agent_run_id")),
 		ToolCallID:  strings.TrimSpace(c.Query("tool_call_id")),
@@ -122,7 +122,7 @@ func executionGraphFiltersFromRequest(c *gin.Context) executionGraphFilters {
 		Comm:        strings.TrimSpace(c.Query("comm")),
 		ToolName:    strings.TrimSpace(c.Query("tool_name")),
 		Decision:    strings.TrimSpace(c.Query("decision")),
-		ProcessTree: parseExecutionGraphBool(c.Query("process_tree")),
+		ProcessTree: ParseExecutionGraphBool(c.Query("process_tree")),
 	}
 	if rawPID := strings.TrimSpace(c.Query("pid")); rawPID != "" {
 		if parsed, err := strconv.ParseUint(rawPID, 10, 32); err == nil {
@@ -135,23 +135,23 @@ func executionGraphFiltersFromRequest(c *gin.Context) executionGraphFilters {
 			filters.RiskMin = parsed
 		}
 	}
-	if parsed, ok := parseExecutionGraphTime(c.Query("since")); ok {
+	if parsed, ok := ParseExecutionGraphTime(c.Query("since")); ok {
 		filters.Since = &parsed
 	}
-	if parsed, ok := parseExecutionGraphTime(c.Query("until")); ok {
+	if parsed, ok := ParseExecutionGraphTime(c.Query("until")); ok {
 		filters.Until = &parsed
 	}
 	return filters
 }
 
-func parseExecutionGraphBool(raw string) bool {
+func ParseExecutionGraphBool(raw string) bool {
 	return executiongraph.ParseBool(raw)
 }
 
-func parseExecutionGraphInterval(raw string) time.Duration {
+func ParseExecutionGraphInterval(raw string) time.Duration {
 	return executiongraph.ParseInterval(raw)
 }
 
-func parseExecutionGraphTime(raw string) (time.Time, bool) {
+func ParseExecutionGraphTime(raw string) (time.Time, bool) {
 	return executiongraph.ParseTime(raw)
 }

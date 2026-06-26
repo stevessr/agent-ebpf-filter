@@ -1,4 +1,4 @@
-package app
+package events
 
 import (
 	"agent-ebpf-filter/app/platform"
@@ -29,14 +29,14 @@ func (d kernelRiskDecision) reasonText() string {
 // applyKernelRiskDecision runs a low-latency user-space risk pass while the
 // eBPF ring-buffer sample is still being consumed. The event pointer is a
 // zero-copy view over the mmap-backed sample in the fast path; do not retain it.
-func applyKernelRiskDecision(raw *bpfEvent, event *pb.Event) {
+func ApplyKernelRiskDecision(raw *BpfEvent, event *pb.Event) {
 	if raw == nil || event == nil {
 		return
 	}
 
 	start := time.Now()
 	decision := evaluateKernelRiskDecision(raw, event)
-	collectorMetricsStore.RecordKernelRiskDecision(decision.Decision, time.Since(start))
+	Deps.CollectorMetrics.RecordKernelRiskDecision(decision.Decision, time.Since(start))
 	if decision.Score <= 0 {
 		return
 	}
@@ -48,7 +48,7 @@ func applyKernelRiskDecision(raw *bpfEvent, event *pb.Event) {
 		event.Decision = decision.Decision
 	}
 	if reason := decision.reasonText(); reason != "" {
-		riskInfo := fmt.Sprintf("kernel_risk score=%.0f decision=%s reasons=%s", decision.Score, stringsTrimDefault(decision.Decision, "OBSERVE"), reason)
+		riskInfo := fmt.Sprintf("kernel_risk score=%.0f decision=%s reasons=%s", decision.Score, Deps.StringsTrimDefault(decision.Decision, "OBSERVE"), reason)
 		if event.ExtraInfo == "" {
 			event.ExtraInfo = riskInfo
 		} else if !strings.Contains(event.ExtraInfo, "kernel_risk score=") {
@@ -58,7 +58,7 @@ func applyKernelRiskDecision(raw *bpfEvent, event *pb.Event) {
 	queueKernelRiskFeedback(event, decision)
 }
 
-func evaluateKernelRiskDecision(raw *bpfEvent, event *pb.Event) kernelRiskDecision {
+func evaluateKernelRiskDecision(raw *BpfEvent, event *pb.Event) kernelRiskDecision {
 	var out kernelRiskDecision
 	seenReasons := make(map[string]struct{}, 6)
 	add := func(points float64, reason string) {

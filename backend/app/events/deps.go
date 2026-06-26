@@ -1,141 +1,91 @@
 package events
 
 import (
-	"strings"
+	"agent-ebpf-filter/core"
+	"agent-ebpf-filter/internal/network"
+	"agent-ebpf-filter/internal/protocoldetect"
+	"agent-ebpf-filter/pb"
+	"net"
 	"time"
 
-	"agent-ebpf-filter/core"
-	"agent-ebpf-filter/pb"
+	"github.com/gorilla/websocket"
 )
 
-// ── Deps: external dependencies injected by app/main.go via Init() ─────────
+// ── Type re-exports (same aliases as the parent app package) ────────────
 
-type RuntimeSettingsStore interface {
-	RecentEvents(limit int) ([]CapturedEventRecord, string, error)
-	HookSecret(id string) string
-	Snapshot() any
+type BpfEvent = core.BpfEvent
+type IPScope = network.IPScope
+type FlowKey = network.FlowKey
+type AppProtocol = protocoldetect.AppProtocol
+type CapturedEventRecord = core.CapturedEventRecord
+type RuntimeSettings = core.RuntimeSettings
+type KernelRiskFeedbackSettings = core.KernelRiskFeedbackSettings
+
+const EventSchemaVersion = "event.v3"
+
+const (
+	AppProtoDNS  = protocoldetect.AppProtoDNS
+	AppProtomDNS = protocoldetect.AppProtomDNS
+)
+
+const (
+	TCPStateSynSent     = network.TCPStateSynSent
+	TCPStateEstablished = network.TCPStateEstablished
+)
+
+// ProtoDetectionEntry mirrors the protoDetectionEntry type in the parent app
+// package so the events subpackage does not need to import app.
+type ProtoDetectionEntry struct {
+	AppProtocol AppProtocol
+	SNI         string
+	ALPN        string
+	HTTPHost    string
+	HTTPMethod  string
 }
 
-type ReadCapturedEventsFile func(path string, limit int) ([]CapturedEventRecord, error)
-
-type ProcessContextStore interface {
-	Get(pid uint32) (ProcessContext, bool)
-	Set(pid uint32, ctx ProcessContext)
-	Delete(pid uint32)
-	Move(oldPID, newPID uint32) bool
-}
-
-type ProcessContext struct {
-	RootAgentPid   uint32
-	AgentRunID     string
-	TaskID         string
-	ConversationID string
-	TurnID         string
-	ToolCallID     string
-	ToolName       string
-	TraceID        string
-	SpanID         string
-	Decision       string
-	ContainerID    string
-	ArgvDigest     string
-	Cwd            string
-	RiskScore      float64
-}
-
-type CgroupAttributionStore interface {
-	Get(cgroupID uint64) (CgroupAttributionEntry, bool)
-	Set(cgroupID uint64, entry CgroupAttributionEntry)
-}
-
-type CgroupAttributionEntry struct {
-	AgentRunID   string
-	TaskID       string
-	ToolCallID   string
-	RootAgentPID uint32
-}
-
-type ToolBaselineStore interface {
-	Record(toolName, comm, eventType, path string)
-}
-
-type NetworkFlowAggregator interface {
-	ApplyProtocolMetadata(srcIP, dstIP string, srcPort, dstPort uint32, transport string, entry any)
-}
-
-type ProtoCacheStore interface {
-	Lookup(host string, port uint32) any
-}
-
-type SemanticAlertState interface {
-	RememberSecret(event *pb.Event, target string, now time.Time)
-	RecentSecretTarget(event *pb.Event, now time.Time) (string, bool)
-	RememberExecutable(event *pb.Event, path, mode string, now time.Time)
-	RecentExecutablePath(key, path string, now time.Time) (string, bool)
-	IncrementForkCount(event *pb.Event, now time.Time) int
-	ObserveAgenticResourceLoop(event *pb.Event, now time.Time) (string, bool)
-}
-
-type EventRecordingStore interface {
-	Status() any
-	StartRecording() error
-	StopRecording() error
-	Append(record any) error
-}
-
+// CollectorMetricsStore provides metrics recording for the events subpackage.
 type CollectorMetricsStore interface {
 	RecordKernelRiskDecision(decision string, elapsed time.Duration)
 	RecordKernelRiskFeedback(success bool, err error)
 }
 
-type EventArchive interface {
-	Add(record any)
-	Snapshot(limit int) []any
-	Count() int
-}
+// ── Dependency injection ───────────────────────────────────────────────
 
-type CapturedEventRecord = core.CapturedEventRecord
+// Deps holds all dependencies injected by the parent app package at init
+// time. Every field must be set before any event processing begins.
+var Deps struct {
+	// Network/event processing closures (used by events_network.go, event_flows.go)
+	GetTagName                           func(id uint32) string
+	SyscallName                          func(nr uint32) string
+	ApplyBestEffortProcessContextToEvent func(event *pb.Event)
+	RecordNetworkFlowContextFromEvent    func(srcIP, dstIP string, srcPort, dstPort uint32, event *pb.Event, state string)
+	DetectAndRecordProtocol              func(dstIP string, dstPort uint32, data []byte) *ProtoDetectionEntry
+	ApplyKernelRiskDecision              func(raw *BpfEvent, event *pb.Event)
+	MakeFlowKey                          func(srcIP, dstIP string, srcPort, dstPort uint32, protocol string) FlowKey
+	LookupServiceByPort                  func(port uint32) string
+	ClassifyIPScope                      func(ip net.IP) IPScope
+	DetectAppProtocol                    func(port uint32, domain string) string
 
-type Deps struct {
-	Broadcast             chan<- *pb.Event
-	RuntimeSettings       RuntimeSettingsStore
-	ProcessContexts       ProcessContextStore
-	CgroupAttribution     CgroupAttributionStore
-	ToolBaseline          ToolBaselineStore
-	NetworkFlowAggregator NetworkFlowAggregator
-	ProtoCache            ProtoCacheStore
-	SemanticAlerts        SemanticAlertState
-	EventRecording        EventRecordingStore
-	CollectorMetrics      CollectorMetricsStore
-	EventArchive          EventArchive
-	BandwidthTracker      any
-	DNSCorrelation        any
-	TCPTracker            any
-	Upgrader              any
-	ReadCapturedEvents    ReadCapturedEventsFile
-}
+	// Global-object method closures (bandwidth, TCP tracker, flow aggregator, DNS)
+	BandwidthTrackerRecordBytes              func(srcIP, dstIP string, dstPort uint32, protocol, direction string, bytes uint64, comm string, pid uint32)
+	TCPTrackerRecordConnect                  func(srcIP, dstIP string, srcPort, dstPort uint32, pid uint32, comm string)
+	TCPTrackerRecordClose                    func(srcIP, dstIP string, srcPort, dstPort uint32)
+	TCPTrackerRecordStateChange              func(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string)
+	FlowAggregatorApplyProtocolMetadata      func(srcIP, dstIP string, srcPort, dstPort uint32, protocol string, entry *ProtoDetectionEntry)
+	DNSCorrelationLookupIP                   func(ip string) (string, bool)
 
-var deps Deps
+	// Graph execution / envelope event dependencies
+	Upgrader                    *websocket.Upgrader
+	ReadCapturedEvents          func(path string, limit int) ([]CapturedEventRecord, error)
+	RuntimeSettingsRecentEvents func(limit int) ([]CapturedEventRecord, string, error)
+	RuntimeSettingsSnapshot     func() RuntimeSettings
+	CollectorMetrics            CollectorMetricsStore
+	StringsTrimDefault          func(value, fallback string) string
 
-func Init(d Deps) { deps = d }
-
-// ── Re-export types from app package ───────────────────────────────────────
-
-type CgroupAttribution = CgroupAttributionEntry
-
-// ── Utility functions (moved inline) ───────────────────────────────────────
-
-var eventSchemaVersion = "event.v3"
-
-func sanitizeUTF8(b []byte) string {
-	return strings.ToValidUTF8(strings.TrimRight(string(b), "\x00"), "")
-}
-
-func getTagName(tagID uint32) string {
-	// simplified; full tag map stays in app package. Will be wired via Deps.
-	return "AI Agent"
-}
-
-func classifyIPScope(ip any) string {
-	// simplified; full logic stays in app/network for now
-	return "public"
+	// Kernel-risk feedback enforcement closures
+	BlockIP          func(ipStr string) error
+	BlockPort        func(port uint16) error
+	BlockLsmFileName func(name string) error
+	BlockLsmExecPath func(path string) error
+	BlockLsmExecName func(name string) error
 }

@@ -1,4 +1,4 @@
-package app
+package events
 
 import (
 	"agent-ebpf-filter/app/platform"
@@ -14,7 +14,7 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-// ---- kernel-risk feedback loop ---------------------------------------------
+//
 
 const (
 	kernelRiskFeedbackKindNetworkIP   = "cgroup_ip"
@@ -47,24 +47,24 @@ type kernelRiskFeedbackState struct {
 	windowCount int
 }
 
-func startKernelRiskFeedbackWorker() {
+func StartKernelRiskFeedbackWorker() {
 	kernelRiskFeedbackWorkerOnce.Do(func() {
 		go func() {
 			for action := range kernelRiskFeedbackQueue {
-				settings := runtimeSettingsStore.Snapshot()
+				settings := Deps.RuntimeSettingsSnapshot()
 				if !settings.PolicyManagementEnabled || !settings.KernelRiskFeedback.Enabled {
-					collectorMetricsStore.RecordKernelRiskFeedback(false, errors.New("kernel risk feedback disabled or policy management gate closed"))
+					Deps.CollectorMetrics.RecordKernelRiskFeedback(false, errors.New("kernel risk feedback disabled or policy management gate closed"))
 					continue
 				}
 				if !kernelRiskFeedbackDedup.Allow(action, settings.KernelRiskFeedback, time.Now()) {
-					collectorMetricsStore.RecordKernelRiskFeedback(false, nil)
+					Deps.CollectorMetrics.RecordKernelRiskFeedback(false, nil)
 					continue
 				}
 				if err := applyKernelRiskFeedbackAction(action); err != nil {
-					collectorMetricsStore.RecordKernelRiskFeedback(false, err)
+					Deps.CollectorMetrics.RecordKernelRiskFeedback(false, err)
 					continue
 				}
-				collectorMetricsStore.RecordKernelRiskFeedback(true, nil)
+				Deps.CollectorMetrics.RecordKernelRiskFeedback(true, nil)
 			}
 		}()
 	})
@@ -101,13 +101,13 @@ func (s *kernelRiskFeedbackState) Allow(action kernelRiskFeedbackAction, setting
 }
 
 func queueKernelRiskFeedback(event *pb.Event, decision kernelRiskDecision) {
-	settings := runtimeSettingsStore.Snapshot()
+	settings := Deps.RuntimeSettingsSnapshot()
 	actions := kernelRiskFeedbackActions(settings, event, decision)
 	for _, action := range actions {
 		select {
 		case kernelRiskFeedbackQueue <- action:
 		default:
-			collectorMetricsStore.RecordKernelRiskFeedback(false, errors.New("kernel risk feedback queue full"))
+			Deps.CollectorMetrics.RecordKernelRiskFeedback(false, errors.New("kernel risk feedback queue full"))
 		}
 	}
 }
@@ -134,7 +134,7 @@ func kernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decisi
 			Kind:     kind,
 			Target:   target,
 			Score:    decision.Score,
-			Decision: stringsTrimDefault(decision.Decision, "OBSERVE"),
+			Decision: Deps.StringsTrimDefault(decision.Decision, "OBSERVE"),
 			Reason:   reason,
 		})
 	}
@@ -172,19 +172,19 @@ func kernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decisi
 func applyKernelRiskFeedbackAction(action kernelRiskFeedbackAction) error {
 	switch action.Kind {
 	case kernelRiskFeedbackKindNetworkIP:
-		return blockIP(action.Target)
+		return Deps.BlockIP(action.Target)
 	case kernelRiskFeedbackKindNetworkPort:
 		port, err := strconv.ParseUint(action.Target, 10, 16)
 		if err != nil || port == 0 {
 			return fmt.Errorf("invalid kernel-risk feedback port %q", action.Target)
 		}
-		return blockPort(uint16(port))
+		return Deps.BlockPort(uint16(port))
 	case kernelRiskFeedbackKindLSMFileName:
-		return blockLsmFileName(action.Target)
+		return Deps.BlockLsmFileName(action.Target)
 	case kernelRiskFeedbackKindLSMExecPath:
-		return blockLsmExecPath(action.Target)
+		return Deps.BlockLsmExecPath(action.Target)
 	case kernelRiskFeedbackKindLSMExecName:
-		return blockLsmExecName(action.Target)
+		return Deps.BlockLsmExecName(action.Target)
 	default:
 		return fmt.Errorf("unknown kernel-risk feedback action kind %q", action.Kind)
 	}

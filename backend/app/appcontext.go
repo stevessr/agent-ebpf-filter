@@ -5,6 +5,7 @@ import (
 
 	"agent-ebpf-filter/app/network"
 	"agent-ebpf-filter/app/sandbox"
+	"agent-ebpf-filter/app/shell"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
 
@@ -35,7 +36,7 @@ type AppContext struct {
 	CapturedEventArchive *eventArchive
 
 	// ── Shell ───────────────────────────────────────────────────────
-	ShellSessions *shellSessionManager
+	ShellSessions *shell.Manager
 
 	// ── ML engine ───────────────────────────────────────────────────
 	MLEngine         Model
@@ -71,7 +72,7 @@ type AppContext struct {
 	// ── Telemetry ────────────────────────────────────────────────────
 	OTelExporterStore     *otelExporterState
 	EventRecordingStore   *eventRecordingState
-	CollectorMetricsStore *collectorMetricsState
+	CollectorMetricsStore *metricsStoreBridge
 
 	// ── Cluster ──────────────────────────────────────────────────────
 	ClusterManager *clusterManager
