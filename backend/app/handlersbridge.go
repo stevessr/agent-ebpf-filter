@@ -592,6 +592,9 @@ func handleExternalAPIHealth(c *gin.Context) { handlers.HandleExternalAPIHealth(
 func handleExternalAPIOpenAPI(c *gin.Context) { handlers.HandleExternalAPIOpenAPI(c) }
 func buildExternalOpenAPISpec() *openapi3.T  { return handlers.BuildExternalOpenAPISpec() }
 
+// ML WebSocket bridge
+func serveMLStatusWS(c *gin.Context) { handlers.ServeMLStatusWS(c) }
+
 // Feature manifest bridge
 func handleSystemFeatures(c *gin.Context) { handlers.HandleSystemFeatures(c) }
 

@@ -4,10 +4,6 @@ import (
 	"agent-ebpf-filter/cuda"
 	"encoding/json"
 	"strings"
-	"time"
-
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 )
 
 // ---- moved from backend/zz_merged_backend.go section ws_ml.go ----
@@ -92,45 +88,4 @@ func buildMLStatusJSON() []byte {
 	return data
 }
 
-// serveMLStatusWS streams ML status updates via WebSocket using a ticker.
-func serveMLStatusWS(c *gin.Context) {
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	intervalStr := c.DefaultQuery("interval", "1000")
-	iv, _ := time.ParseDuration(intervalStr + "ms")
-	if iv < 500*time.Millisecond {
-		iv = 500 * time.Millisecond
-	}
-	ticker := time.NewTicker(iv)
-	defer ticker.Stop()
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				return
-			}
-		}
-	}()
-
-	// Send initial state immediately
-	if err := conn.WriteMessage(websocket.TextMessage, buildMLStatusJSON()); err != nil {
-		return
-	}
-
-	for {
-		select {
-		case <-ticker.C:
-			if err := conn.WriteMessage(websocket.TextMessage, buildMLStatusJSON()); err != nil {
-				return
-			}
-		case <-done:
-			return
-		}
-	}
-}
+// serveMLStatusWS moved to app/handlers/ml_ws.go
