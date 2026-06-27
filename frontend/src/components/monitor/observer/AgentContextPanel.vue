@@ -400,6 +400,20 @@ const firstTypeLabel = (g: MergedGroup): string => {
   return ev.type === "sse_message" ? "SSE Stream" : ev.type;
 };
 
+// Get display text for a content block — prefers formatted JSON for tool_use, pretty-prints any JSON, truncates raw
+const blockDisplayText = (b: ContentBlock): string => {
+  if (b.toolInput && typeof b.toolInput === "object") {
+    return formatJSON(b.toolInput, 4000);
+  }
+  const parsed = tryParseJSON(b.mergedText);
+  if (parsed && typeof parsed === "object") {
+    return formatJSON(parsed, 4000);
+  }
+  // Raw text — truncate
+  const raw = b.mergedText;
+  return raw.length > 4000 ? raw.slice(0, 4000) + "\n… [truncated]" : raw;
+};
+
 const formatBytes = (bytes: number): string => {
   if (!bytes) return "0 B";
   const u = ["B", "KB", "MB"];
@@ -463,7 +477,7 @@ const toggle = (id: string) => {
               <div v-if="g.contentBlocks.length" class="ac-blocks">
                 <div v-for="(b,bi) in g.contentBlocks" :key="bi" class="ac-block" :class="`ac-b-${b.type}`">
                   <div class="ac-b-head"><component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span></div>
-                  <div class="ac-b-body"><pre>{{ b.mergedText.slice(0,4000) }}{{ b.mergedText.length>4000?'\n… [truncated]':'' }}</pre></div>
+                  <div class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
                 </div>
               </div>
               <div v-else-if="g.rawMerged" class="ac-b-body"><pre>{{ g.rawMerged.slice(0,2000) }}</pre></div>
@@ -497,7 +511,7 @@ const toggle = (id: string) => {
               <div v-if="g.contentBlocks.length" class="ac-blocks">
                 <div v-for="(b,bi) in g.contentBlocks" :key="bi" class="ac-block" :class="`ac-b-${b.type}`">
                   <div class="ac-b-head"><component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span></div>
-                  <div class="ac-b-body"><pre>{{ b.mergedText.slice(0,4000) }}{{ b.mergedText.length>4000?'\n… [truncated]':'' }}</pre></div>
+                  <div class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
                 </div>
               </div>
               <div v-else-if="g.rawMerged" class="ac-b-body"><pre>{{ g.rawMerged.slice(0,2000) }}</pre></div>
