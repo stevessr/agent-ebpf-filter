@@ -3,11 +3,13 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/exec"
+	"os/user"
 	"strings"
 	"syscall"
 	"time"
@@ -19,13 +21,21 @@ import (
 const udsPath = "/tmp/agent-ebpf.sock"
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: agent-wrapper <command> [args...]")
+	var (
+		launchUser = flag.String("user", "", "run command as specified user")
+		launchCwd  = flag.String("cwd", "", "working directory for command")
+	)
+	flag.Parse()
+
+	// Remaining positional args are the command + its arguments
+	posArgs := flag.Args()
+	if len(posArgs) < 1 {
+		fmt.Println("Usage: agent-wrapper [--user <user>] [--cwd <path>] <command> [args...]")
 		os.Exit(1)
 	}
 
-	cmdName := os.Args[1]
-	rawArgs := os.Args[2:]
+	cmdName := posArgs[0]
+	rawArgs := posArgs[1:]
 
 	// Simple information cleaning: trim whitespace and remove empty args
 	cmdArgs := []string{}
@@ -48,7 +58,7 @@ func main() {
 			Pid:            uint32(os.Getpid()),
 			Comm:           cmdName,
 			Args:           cmdArgs,
-			User:           os.Getenv("USER"),
+			User:           firstNonEmpty(*launchUser, os.Getenv("USER")),
 			AgentRunId:     firstEnv("AGENT_EBPF_AGENT_RUN_ID", "AGENT_RUN_ID"),
 			TaskId:         firstEnv("AGENT_EBPF_TASK_ID", "AGENT_TASK_ID"),
 			ConversationId: firstEnv("AGENT_EBPF_CONVERSATION_ID", "AGENT_CONVERSATION_ID"),
@@ -61,7 +71,7 @@ func main() {
 			Decision:       strings.ToUpper(firstEnv("AGENT_EBPF_DECISION", "AGENT_DECISION")),
 			RiskScore:      parseEnvFloat64("AGENT_EBPF_RISK_SCORE", "AGENT_RISK_SCORE"),
 			ContainerId:    firstEnv("AGENT_EBPF_CONTAINER_ID", "CONTAINER_ID"),
-			Cwd:            firstNonEmpty(firstEnv("AGENT_EBPF_CWD", "PWD"), cwd),
+			Cwd:            firstNonEmpty(*launchCwd, firstEnv("AGENT_EBPF_CWD", "PWD"), cwd),
 		}
 		req.ArgvDigest = buildArgvDigest(req.Comm, req.Args)
 
@@ -79,7 +89,52 @@ func main() {
 		}
 	}
 
+	// Apply --cwd: change working directory before exec
+	if *launchCwd != "" {
+		if err := os.Chdir(*launchCwd); err != nil {
+			fmt.Printf("Warning: failed to chdir to %s: %v\n", *launchCwd, err)
+		}
+	}
+
+	// Apply --user: drop privileges to the specified user before exec
+	if *launchUser != "" {
+		if err := switchUser(*launchUser); err != nil {
+			fmt.Printf("Warning: %v\n", err)
+		}
+	}
+
 	execute(cmdName, cmdArgs)
+}
+
+// switchUser looks up a username and sets the process UID/GID accordingly.
+// Requires sufficient privileges (CAP_SETUID/CAP_SETGID or setuid root).
+func switchUser(username string) error {
+	u, err := user.Lookup(username)
+	if err != nil {
+		return fmt.Errorf("cannot resolve user %q: %w", username, err)
+	}
+
+	uid := atoi32(u.Uid)
+	gid := atoi32(u.Gid)
+
+	// Set GID then UID (order matters when dropping from root)
+	if gid > 0 {
+		if err := syscall.Setgid(gid); err != nil {
+			return fmt.Errorf("cannot setgid to %d: %w", gid, err)
+		}
+	}
+	if uid > 0 {
+		if err := syscall.Setuid(uid); err != nil {
+			return fmt.Errorf("cannot setuid to %d: %w", uid, err)
+		}
+	}
+	return nil
+}
+
+func atoi32(s string) int {
+	var n int
+	fmt.Sscanf(s, "%d", &n)
+	return n
 }
 
 func handleDecision(resp *pb.WrapperResponse, name *string, args *[]string) {
