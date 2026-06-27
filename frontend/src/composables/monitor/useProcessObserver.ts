@@ -57,6 +57,23 @@ export interface ObserverTLSEvent {
   raw_available?: boolean;
   body_size?: number;
   truncated?: boolean;
+  // Decrypted context (auto-context decryption)
+  body?: string;
+  headers?: Record<string, string>;
+  content_type?: string;
+  redaction_state?: string;
+  // Agent context
+  vendor?: string;
+  message_role?: string;
+  prompt_digest?: string;
+  agent_run_id?: string;
+  task_id?: string;
+  tool_call_id?: string;
+  tool_name?: string;
+  // SSE
+  sse_event?: string;
+  sse_data_digest?: string;
+  sse_data_count?: number;
 }
 
 export interface ProcessTreeNode {
@@ -389,6 +406,23 @@ export function useProcessObserver() {
             raw_available: ev.raw_available || false,
             body_size: ev.body_size || 0,
             truncated: ev.truncated || false,
+            // Decrypted context
+            body: ev.body || "",
+            headers: ev.headers || undefined,
+            content_type: ev.content_type || ev.contentType || "",
+            redaction_state: ev.redaction_state || ev.redactionState || "",
+            // Agent context
+            vendor: ev.vendor || "",
+            message_role: ev.message_role || ev.messageRole || "",
+            prompt_digest: ev.prompt_digest || ev.promptDigest || "",
+            agent_run_id: ev.agent_run_id || ev.agentRunId || "",
+            task_id: ev.task_id || ev.taskId || "",
+            tool_call_id: ev.tool_call_id || ev.toolCallId || "",
+            tool_name: ev.tool_name || ev.toolName || "",
+            // SSE
+            sse_event: ev.sse_event || ev.sseEvent || "",
+            sse_data_digest: ev.sse_data_digest || ev.sseDataDigest || "",
+            sse_data_count: ev.sse_data_count || ev.sseDataCount || 0,
           });
         }
         if (!tlsFlushTimer) {
@@ -466,6 +500,23 @@ export function useProcessObserver() {
           raw_available: ev.raw_available || false,
           body_size: ev.body_size || 0,
           truncated: ev.truncated || false,
+          // Decrypted context
+          body: ev.body || "",
+          headers: ev.headers || undefined,
+          content_type: ev.content_type || ev.contentType || "",
+          redaction_state: ev.redaction_state || ev.redactionState || "",
+          // Agent context
+          vendor: ev.vendor || "",
+          message_role: ev.message_role || ev.messageRole || "",
+          prompt_digest: ev.prompt_digest || ev.promptDigest || "",
+          agent_run_id: ev.agent_run_id || ev.agentRunId || "",
+          task_id: ev.task_id || ev.taskId || "",
+          tool_call_id: ev.tool_call_id || ev.toolCallId || "",
+          tool_name: ev.tool_name || ev.toolName || "",
+          // SSE
+          sse_event: ev.sse_event || ev.sseEvent || "",
+          sse_data_digest: ev.sse_data_digest || ev.sseDataDigest || "",
+          sse_data_count: ev.sse_data_count || ev.sseDataCount || 0,
         } as ObserverTLSEvent))
         .slice(0, MAX_TLS);
     } catch {

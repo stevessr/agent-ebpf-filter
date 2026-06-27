@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from "vue";
+import { ref, onMounted, onUnmounted, watch, computed, h } from "vue";
 import axios from "axios";
 import {
   SearchOutlined,
   ReloadOutlined,
   NodeIndexOutlined,
   CaretDownOutlined,
+  EyeOutlined,
 } from "@ant-design/icons-vue";
 import {
   useProcessObserver,
   type ProcessInfo,
   type ProcessTreeNode,
+  type ObserverTLSEvent,
 } from "../../composables/monitor/useProcessObserver";
 import ProcessPickerModal from "./ProcessPickerModal.vue";
 import ProcessTreeNodeDisplay from "./ProcessTreeNodeDisplay.vue";
@@ -18,6 +20,7 @@ import ObserverTimeline from "./observer/ObserverTimeline.vue";
 import ObserverFlamegraph from "./observer/ObserverFlamegraph.vue";
 import ObserverResources from "./observer/ObserverResources.vue";
 import FilePathBrowserModal from "./FilePathBrowserModal.vue";
+import SSLDecryptedEventModal from "./observer/SSLDecryptedEventModal.vue";
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -374,6 +377,101 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
 };
 
+// Format body preview for table display
+const formatTLSBodyPreview = (body: string | undefined, maxLen: number = 120): string => {
+  if (!body) return "";
+  const trimmed = body.replace(/\s+/g, " ").trim();
+  return trimmed.length > maxLen ? trimmed.slice(0, maxLen) + "…" : trimmed;
+};
+
+// Check if body looks like JSON
+const looksLikeJSON = (body: string | undefined): boolean => {
+  if (!body) return false;
+  const t = body.trim();
+  return (t.startsWith("{") || t.startsWith("[")) && t.length > 2;
+};
+
+// TLS event detail modal
+const tlsDetailOpen = ref(false);
+const tlsDetailEvent = ref<ObserverTLSEvent | null>(null);
+
+const openTLSDetail = (event: ObserverTLSEvent) => {
+  tlsDetailEvent.value = event;
+  tlsDetailOpen.value = true;
+};
+
+// Expanded row render for TLS events — shows decoded body + headers
+const expandedTLSRowRender = (record: ObserverTLSEvent) => {
+  const items: any[] = [];
+
+  // Headers section
+  if (record.headers && Object.keys(record.headers).length > 0) {
+    const headerTags = Object.entries(record.headers).map(([k, v]) => {
+      const isRedacted = v === "***REDACTED***";
+      return h("div", { class: "tls-header-row" }, [
+        h("span", { class: "tls-header-key" }, k),
+        h("span", { class: isRedacted ? "tls-header-val-redacted" : "tls-header-val" }, v),
+      ]);
+    });
+    items.push(
+      h("div", { class: "tls-expand-section" }, [
+        h("div", { class: "tls-expand-label" }, `Headers (${Object.keys(record.headers).length})`),
+        h("div", { class: "tls-headers-box" }, headerTags),
+      ]),
+    );
+  }
+
+  // Agent context section
+  if (record.vendor || record.agent_run_id || record.task_id || record.message_role) {
+    const ctxItems: any[] = [];
+    if (record.vendor) ctxItems.push(h("div", { class: "tls-ctx-row" }, [h("span", { class: "tls-ctx-key" }, "Vendor:"), h("a-tag", { color: "geekblue", size: "small" }, () => record.vendor)]));
+    if (record.message_role) ctxItems.push(h("div", { class: "tls-ctx-row" }, [h("span", { class: "tls-ctx-key" }, "Role:"), h("code", {}, record.message_role)]));
+    if (record.agent_run_id) ctxItems.push(h("div", { class: "tls-ctx-row" }, [h("span", { class: "tls-ctx-key" }, "Run:"), h("code", {}, record.agent_run_id)]));
+    if (record.task_id) ctxItems.push(h("div", { class: "tls-ctx-row" }, [h("span", { class: "tls-ctx-key" }, "Task:"), h("code", {}, record.task_id)]));
+    if (record.prompt_digest) ctxItems.push(h("div", { class: "tls-ctx-row" }, [h("span", { class: "tls-ctx-key" }, "Prompt:"), h("code", {}, record.prompt_digest.slice(0, 32) + "…")]));
+    items.push(
+      h("div", { class: "tls-expand-section" }, [
+        h("div", { class: "tls-expand-label" }, "Agent Context"),
+        ...ctxItems,
+      ]),
+    );
+  }
+
+  // Body section
+  if (record.body) {
+    const bodyContent = record.body.length > 3000
+      ? record.body.slice(0, 3000) + "\n… [truncated]"
+      : record.body;
+    const isJSON = looksLikeJSON(record.body);
+    items.push(
+      h("div", { class: "tls-expand-section" }, [
+        h("div", { class: "tls-expand-label" }, `Body (${record.body_size || record.body.length} bytes)${record.truncated ? ' — truncated' : ''}`),
+        h("pre", { class: isJSON ? "tls-body-json" : "tls-body-text" }, bodyContent),
+        h("a-button", {
+          size: "small", type: "link",
+          onClick: () => openTLSDetail(record),
+        }, { default: () => "View Full Detail" }),
+      ]),
+    );
+  }
+
+  // SSE info
+  if (record.sse_event || record.sse_data_count) {
+    items.push(
+      h("div", { class: "tls-expand-section" }, [
+        h("div", { class: "tls-expand-label" }, "SSE"),
+        h("div", { class: "tls-sse-info" }, [
+          record.sse_event ? h("span", {}, `Event: ${record.sse_event}`) : null,
+          record.sse_data_count ? h("span", { style: { marginLeft: "8px" } }, `Data parts: ${record.sse_data_count}`) : null,
+        ].filter(Boolean)),
+      ]),
+    );
+  }
+
+  if (items.length === 0) return null;
+  return h("div", { class: "tls-expand-content" }, items);
+};
+
 const collectAllPids = (nodes: ProcessTreeNode[]): number[] =>
   nodes.flatMap((n) => [n.pid, ...collectAllPids(n.children)]);
 
@@ -520,6 +618,7 @@ const tlsColumns = [
   { title: "Type", key: "evType", width: 95 },
   { title: "Host", dataIndex: "host", key: "host", width: 140, ellipsis: true },
   { title: "URL", dataIndex: "url", key: "url", ellipsis: true },
+  { title: "Body Preview", key: "bodyPreview", ellipsis: true },
   {
     title: "Size",
     dataIndex: "captured_len",
@@ -527,6 +626,7 @@ const tlsColumns = [
     width: 70,
     align: "right" as const,
   },
+  { title: "", key: "actions", width: 36 },
 ];
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -712,9 +812,11 @@ watch(
         <template #tab>Timeline</template>
         <ObserverTimeline
           :events="allEvents"
+          :tlsEvents="treeTLSEvents"
           :selectedPid="selectedPid"
           @clear="clearEvents()"
           @selectPid="(pid: number) => (selectedPid = pid)"
+          @viewTLSEvent="(e: ObserverTLSEvent) => openTLSDetail(e)"
         />
       </a-tab-pane>
 
@@ -937,6 +1039,7 @@ watch(
               row-key="key"
               size="small"
               :pagination="{ pageSize: 20, size: 'small' }"
+              :expandable="{ expandedRowRender: (r: ObserverTLSEvent) => expandedTLSRowRender(r), rowExpandable: (r: ObserverTLSEvent) => !!(r.body || (r.headers && Object.keys(r.headers).length > 0)) }"
             >
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'evType'">
@@ -950,8 +1053,28 @@ watch(
                     <span class="tls-hex-preview">{{ record.raw_hex_dump?.slice(0, 40) }}…</span>
                   </a-tooltip>
                 </template>
+                <template v-else-if="column.key === 'bodyPreview'">
+                  <span
+                    v-if="record.body"
+                    class="tls-body-preview"
+                    :class="{ 'tls-body-json': looksLikeJSON(record.body) }"
+                  >{{ formatTLSBodyPreview(record.body, 80) }}</span>
+                  <span v-else-if="record.raw_available" style="color: #94a3b8; font-size: 11px">[binary data]</span>
+                  <span v-else style="color: #ccc; font-size: 11px">—</span>
+                </template>
                 <template v-else-if="column.key === 'size'">
                   <span>{{ formatBytes(record.captured_len) }}</span>
+                </template>
+                <template v-else-if="column.key === 'actions'">
+                  <a-button
+                    v-if="record.body || (record.headers && Object.keys(record.headers).length > 0)"
+                    size="small"
+                    type="link"
+                    style="padding: 0"
+                    @click="openTLSDetail(record)"
+                  >
+                    <EyeOutlined />
+                  </a-button>
                 </template>
               </template>
             </a-table>
@@ -1071,6 +1194,13 @@ watch(
       :directory-only="browserTarget === 'cwd'"
       @update:open="browserOpen = $event"
       @select="onBrowserSelect"
+    />
+
+    <!-- TLS event detail modal -->
+    <SSLDecryptedEventModal
+      :open="tlsDetailOpen"
+      :event="tlsDetailEvent"
+      @close="tlsDetailOpen = false"
     />
   </div>
 </template>
@@ -1259,5 +1389,115 @@ watch(
   margin-bottom: 8px;
   font-size: 12px;
   color: #ff4d4f;
+}
+
+/* TLS expanded row styles */
+.tls-expand-content {
+  padding: 8px 16px;
+  max-width: 700px;
+}
+.tls-expand-section {
+  margin-bottom: 10px;
+}
+.tls-expand-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.tls-headers-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.tls-header-row {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.tls-header-key {
+  font-weight: 600;
+  color: #475569;
+  font-family: ui-monospace, monospace;
+  min-width: 120px;
+}
+.tls-header-val {
+  color: #334155;
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+}
+.tls-header-val-redacted {
+  color: #f59e0b;
+  font-family: ui-monospace, monospace;
+  font-style: italic;
+}
+.tls-body-json {
+  background: #0f172a;
+  color: #dbeafe;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.55;
+  max-height: 260px;
+  overflow: auto;
+  margin: 4px 0;
+  white-space: pre-wrap;
+}
+.tls-body-text {
+  background: #f1f5f9;
+  color: #1e293b;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 200px;
+  overflow: auto;
+  margin: 4px 0;
+  white-space: pre-wrap;
+}
+.tls-ctx-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.tls-ctx-key {
+  color: #64748b;
+  font-weight: 500;
+  min-width: 55px;
+}
+.tls-ctx-row code {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: #334155;
+  background: #f1f5f9;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.tls-sse-info {
+  font-size: 11px;
+  color: #64748b;
+  font-family: ui-monospace, monospace;
+}
+.tls-body-preview {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  display: inline-block;
+}
+.tls-body-preview.tls-body-json {
+  color: #2563eb;
 }
 </style>
