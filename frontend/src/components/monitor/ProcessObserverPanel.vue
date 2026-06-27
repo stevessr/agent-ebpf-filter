@@ -315,10 +315,17 @@ const doAttachBuiltins = async (pid: number) => {
   attachingPid.value = pid;
   attachError.value = "";
   try {
-    await axios.post("/tls-capture/attach-builtins", { pid });
-    await fetchAttachedPIDs();
+    const exePath = await getBinaryPath(pid);
+    if (!exePath) { attachError.value = "Cannot resolve binary path for PID " + pid; return; }
+    // Use executable API which auto-detects: Go uprobes → static SSL → library (openssl/gnutls)
+    const res = await axios.post("/tls-capture/executable", { path: exePath, pid, library: "" });
+    if (res.data.result?.error) {
+      attachError.value = res.data.result.error;
+    } else {
+      await fetchAttachedPIDs();
+    }
   } catch (e: any) {
-    attachError.value = e?.response?.data?.error || e?.message || "Attach failed";
+    attachError.value = e?.response?.data?.error || e?.message || "Auto-attach failed";
   } finally {
     attachingPid.value = null;
   }
