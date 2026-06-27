@@ -7,6 +7,7 @@ import (
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -69,6 +70,84 @@ func (a *handlerTrackerMapsAdapter) TrackedPrefixesDelete(key any) error {
 
 func (a *handlerTrackerMapsAdapter) CollectorStats() *ebpf.Map {
 	return a.set.CollectorStats
+}
+
+// ── Cgroup sandbox adapter ─────────────────────────────────────────
+
+// cgroupSandboxAdapter wraps app-level cgroup sandbox functions to implement handlers.CgroupSandboxOps.
+type cgroupSandboxAdapter struct{}
+
+func (a *cgroupSandboxAdapter) Snapshot() handlers.CgroupSandboxSnapshot {
+	snap := currentCgroupSandboxSnapshot()
+	return handlers.CgroupSandboxSnapshot{
+		Available:       snap.available(),
+		Attached:        snap.attached(),
+		CgroupPath:      snap.CgroupPath,
+		LinkCount:       snap.LinkCount,
+		LinkPins:        snap.LinkPins,
+		LastError:       snap.LastError,
+		CgroupBlocklist: snap.CgroupBlocklist,
+		IPBlocklist:     snap.IPBlocklist,
+		IP6Blocklist:    snap.IP6Blocklist,
+		PortBlocklist:   snap.PortBlocklist,
+		SandboxStats:    snap.SandboxStats,
+	}
+}
+
+func (a *cgroupSandboxAdapter) EnsureLoaded() error { return ensureCgroupSandboxLoaded() }
+
+func (a *cgroupSandboxAdapter) GetStats(statsMap any) (map[string]any, error) {
+	cgStats, err := getCgroupSandboxStats(statsMap.(*ebpf.Map))
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"connectChecked": cgStats.ConnectChecked,
+		"connectBlocked": cgStats.ConnectBlocked,
+		"connectAllowed": cgStats.ConnectAllowed,
+		"checked":        cgStats.Checked,
+		"blocked":        cgStats.Blocked,
+		"allowed":        cgStats.Allowed,
+	}, nil
+}
+
+func (a *cgroupSandboxAdapter) ListBlockedCgroups(blocklist any) []string {
+	return listBlockedCgroups(blocklist.(*ebpf.Map))
+}
+
+func (a *cgroupSandboxAdapter) ListBlockedIPs(ipBlocklist, ip6Blocklist any) []string {
+	return listBlockedIPs(ipBlocklist.(*ebpf.Map), ip6Blocklist.(*ebpf.Map))
+}
+
+func (a *cgroupSandboxAdapter) ListBlockedPorts(portBlocklist any) []uint16 {
+	return listBlockedPorts(portBlocklist.(*ebpf.Map))
+}
+
+func (a *cgroupSandboxAdapter) BlockCgroup(cgroupID uint64) error   { return blockCgroup(cgroupID) }
+func (a *cgroupSandboxAdapter) UnblockCgroup(cgroupID uint64) error { return unblockCgroup(cgroupID) }
+
+func (a *cgroupSandboxAdapter) CgroupIDForPID(pid int, cgroupPath string) (uint64, string, error) {
+	return cgroupIDForPID(pid, cgroupPath)
+}
+
+func (a *cgroupSandboxAdapter) ParseIP(ip string) (bool, string, error) {
+	_, ipText, err := parseCgroupSandboxIP(ip)
+	return false, ipText, err // first return is unused in handlers
+}
+
+func (a *cgroupSandboxAdapter) ParseCgroupID(raw string) (uint64, error) {
+	return parseCgroupIDStr(raw)
+}
+
+func (a *cgroupSandboxAdapter) ValidatePort(port uint16) error { return validateCgroupSandboxPort(port) }
+func (a *cgroupSandboxAdapter) BlockIP(ip string) error        { return blockIP(ip) }
+func (a *cgroupSandboxAdapter) UnblockIP(ip string) error      { return unblockIP(ip) }
+func (a *cgroupSandboxAdapter) BlockPort(port uint16) error    { return blockPort(port) }
+func (a *cgroupSandboxAdapter) UnblockPort(port uint16) error  { return unblockPort(port) }
+
+// parseCgroupIDStr wraps parseCgroupID which takes json.RawMessage.
+func parseCgroupIDStr(raw string) (uint64, error) {
+	return parseCgroupID(json.RawMessage(raw))
 }
 
 // ── AgentSight event store adapter ──────────────────────────────────
@@ -407,6 +486,9 @@ func init() {
 		handlers.Deps.ShellSessions = &shellManagerAdapter{mgr: shellSessions}
 		handlers.Deps.MakeShellDeps = func() any { return makeShellDeps() }
 
+	// Cgroup sandbox
+	handlers.Deps.CgroupSandbox = &cgroupSandboxAdapter{}
+
 		// AgentSight data pipeline
 		handlers.Deps.RecentEventFiltersFromRequest = func(c any) any {
 			return recentEventFiltersFromRequest(c.(*gin.Context))
@@ -601,6 +683,17 @@ func handleNetworkFlowJSONLExport(c *gin.Context)     { handlers.HandleNetworkFl
 func handleExternalAPIHealth(c *gin.Context) { handlers.HandleExternalAPIHealth(c) }
 func handleExternalAPIOpenAPI(c *gin.Context) { handlers.HandleExternalAPIOpenAPI(c) }
 func buildExternalOpenAPISpec() *openapi3.T  { return handlers.BuildExternalOpenAPISpec() }
+
+// Cgroup sandbox bridges
+func handleCgroupSandboxStatus(c *gin.Context)        { handlers.HandleCgroupSandboxStatus(c) }
+func handleCgroupSandboxBlockCgroup(c *gin.Context)    { handlers.HandleCgroupSandboxBlockCgroup(c) }
+func handleCgroupSandboxUnblockCgroup(c *gin.Context)  { handlers.HandleCgroupSandboxUnblockCgroup(c) }
+func handleCgroupSandboxBlockPID(c *gin.Context)       { handlers.HandleCgroupSandboxBlockPID(c) }
+func handleCgroupSandboxUnblockPID(c *gin.Context)     { handlers.HandleCgroupSandboxUnblockPID(c) }
+func handleCgroupSandboxBlockIP(c *gin.Context)        { handlers.HandleCgroupSandboxBlockIP(c) }
+func handleCgroupSandboxUnblockIP(c *gin.Context)      { handlers.HandleCgroupSandboxUnblockIP(c) }
+func handleCgroupSandboxBlockPort(c *gin.Context)      { handlers.HandleCgroupSandboxBlockPort(c) }
+func handleCgroupSandboxUnblockPort(c *gin.Context)    { handlers.HandleCgroupSandboxUnblockPort(c) }
 
 // Native hook bridge
 func handleNativeHookEvent(c *gin.Context) { handlers.HandleNativeHookEvent(c) }

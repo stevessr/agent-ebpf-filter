@@ -116,6 +116,9 @@ var Deps struct {
 		Add(events ...any)
 	}
 
+	// Cgroup sandbox (wired via adapter)
+	CgroupSandbox CgroupSandboxOps
+
 	// Native hook handler
 	BuildProcessContextFromHookPayload func(payload map[string]any, toolName, path string) (uint32, ProcessContext)
 
@@ -292,4 +295,41 @@ var Deps struct {
 		ClearClosed()
 	}
 	MakeShellDeps func() any
+}
+
+// ── Cgroup sandbox types and interface ──────────────────────────────
+
+// CgroupSandboxSnapshot holds the state of the cgroup sandbox for handler responses.
+type CgroupSandboxSnapshot struct {
+	Available       bool
+	Attached        bool
+	CgroupPath      string
+	LinkCount       int
+	LinkPins        []string
+	LastError       string
+	CgroupBlocklist any
+	IPBlocklist     any
+	IP6Blocklist    any
+	PortBlocklist   any
+	SandboxStats    any
+}
+
+// CgroupSandboxOps is the interface for cgroup sandbox operations.
+type CgroupSandboxOps interface {
+	Snapshot() CgroupSandboxSnapshot
+	EnsureLoaded() error
+	GetStats(statsMap any) (map[string]any, error)
+	ListBlockedCgroups(blocklist any) []string
+	ListBlockedIPs(ipBlocklist, ip6Blocklist any) []string
+	ListBlockedPorts(portBlocklist any) []uint16
+	BlockCgroup(cgroupID uint64) error
+	UnblockCgroup(cgroupID uint64) error
+	CgroupIDForPID(pid int, cgroupPath string) (uint64, string, error)
+	ParseIP(ip string) (bool, string, error)
+	ParseCgroupID(raw string) (uint64, error)
+	ValidatePort(port uint16) error
+	BlockIP(ip string) error
+	UnblockIP(ip string) error
+	BlockPort(port uint16) error
+	UnblockPort(port uint16) error
 }
