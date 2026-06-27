@@ -400,18 +400,18 @@ const firstTypeLabel = (g: MergedGroup): string => {
   return ev.type === "sse_message" ? "SSE Stream" : ev.type;
 };
 
-// Get display text for a content block — prefers formatted JSON for tool_use, pretty-prints any JSON, truncates raw
+// Get display text for a content block — no truncation for thinking/text, JSON formatted for tool_use
 const blockDisplayText = (b: ContentBlock): string => {
+  const MAX = 100_000; // effectively no truncation — CSS overflow:auto handles scrolling
   if (b.toolInput && typeof b.toolInput === "object") {
-    return formatJSON(b.toolInput, 4000);
+    return formatJSON(b.toolInput, MAX);
   }
   const parsed = tryParseJSON(b.mergedText);
   if (parsed && typeof parsed === "object") {
-    return formatJSON(parsed, 4000);
+    return formatJSON(parsed, MAX);
   }
-  // Raw text — truncate
-  const raw = b.mergedText;
-  return raw.length > 4000 ? raw.slice(0, 4000) + "\n… [truncated]" : raw;
+  // Raw text (thinking, text, etc.) — show full content
+  return b.mergedText;
 };
 
 const formatBytes = (bytes: number): string => {
@@ -561,5 +561,5 @@ const toggle = (id: string) => {
 .ac-tn{font-family:ui-monospace,monospace;font-weight:600;color:#d97706;font-size:11px}
 .ac-tid{font-family:ui-monospace,monospace;font-size:9px;color:#94a3b8}
 .ac-bsz{margin-left:auto;font-size:9px;color:#94a3b8}
-.ac-b-body pre{background:#0f172a;color:#dbeafe;padding:10px;border-radius:0;font-size:11px;line-height:1.55;max-height:300px;overflow:auto;margin:0;white-space:pre-wrap}
+.ac-b-body pre{background:#0f172a;color:#dbeafe;padding:10px;border-radius:0;font-size:11px;line-height:1.55;max-height:600px;overflow:auto;margin:0;white-space:pre-wrap}
 </style>
