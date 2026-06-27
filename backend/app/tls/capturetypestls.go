@@ -105,6 +105,14 @@ type TLSPlaintextEvent struct {
 	PromptLen    int    `json:"prompt_len,omitempty"`
 	Vendor       string `json:"vendor,omitempty"`
 	LoopAlert    bool   `json:"loop_alert,omitempty"`
+
+	// AgentSight-compatible fields (from sslsniff reference)
+	UID         uint32  `json:"uid,omitempty"`
+	TID         uint32  `json:"tid,omitempty"`
+	IsHandshake bool    `json:"is_handshake"`
+	LatencyMs   float64 `json:"latency_ms,omitempty"`
+	DataType    string  `json:"data_type,omitempty"`
+	DeltaNs     uint64  `json:"delta_ns,omitempty"`
 }
 
 type TLSLibraryStatus struct {

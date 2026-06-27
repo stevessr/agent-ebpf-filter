@@ -59,6 +59,9 @@ func parseTLSPlaintext(fragment CompletedTLSFragment) TLSPlaintextEvent {
 		OriginalLen:  originalLen,
 		Truncated:    fragment.Flags&tlsFlagTruncated != 0 || originalLen > capturedLen,
 		RawAvailable: false,
+		IsHandshake:  isTLSHandshakeFragment(fragment),
+		UID:          readProcessUID(fragment.PID),
+		TID:          fragment.PID,
 	}
 
 	if req, ok := parseTLSPlaintextHTTPRequest(fragment.Payload); ok {

@@ -58,6 +58,7 @@ func Main() {
 		log.Fatalf("failed to initialize eBPF components: %v", err)
 	}
 	AppCtx.TrackerMaps = trackerMaps
+	initObservability()
 	settings := AppCtx.RuntimeSettings.Snapshot()
 	features := newFeatureRegistry()
 	AppCtx.FeatureRegistry = features
