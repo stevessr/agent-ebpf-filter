@@ -47,7 +47,7 @@ type existingCommandCandidate struct {
 	eventTime   time.Time `json:"-"`
 }
 
-func handleMLAssessPost(c *gin.Context) {
+func cmdsafetyAssessPost(c *gin.Context) {
 	req, ok := bindCommandSafetyRequest(c)
 	if !ok {
 		return
@@ -60,7 +60,7 @@ func handleMLAssessPost(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func handleMLExistingCommandsGet(c *gin.Context) {
+func cmdsafetyExistingCommandsGet(c *gin.Context) {
 	limit := parseCommandDataLimit(c.Query("limit"))
 	candidates, source, err := existingCommandCandidates(limit)
 	if err != nil {
@@ -84,7 +84,7 @@ func handleMLExistingCommandsGet(c *gin.Context) {
 	})
 }
 
-func handleMLImportExistingPost(c *gin.Context) {
+func cmdsafetyImportExistingPost(c *gin.Context) {
 	var req struct {
 		Limit     int    `json:"limit"`
 		LabelMode string `json:"labelMode"`

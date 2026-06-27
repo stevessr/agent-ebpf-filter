@@ -242,8 +242,11 @@ var Deps struct {
 	MLPredict             func(comm string, args []string) MLPrediction
 	MLNetworkAudit        func(comm string, args []string) MLNetworkAuditResult
 	MLLLMAssessment       func(comm string, args []string) *MLLlmAssessment
-	MLExistingCommands    func() []string
-	MLImportResult        func() gin.H
+	MLExistingCommands      func() []string
+	MLImportResult          func() gin.H
+	MLAssessCommandSafety   func(c *gin.Context)
+	MLExistingCommandsGetFn func(c *gin.Context)
+	MLImportExistingFn      func(c *gin.Context)
 	MLTuneResult          func() gin.H
 	MLTuneModelsResult    func(models []string) gin.H
 	MLLLMScoreResult      func(cmdLine, comm string, args []string) gin.H

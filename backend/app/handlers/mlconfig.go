@@ -6,7 +6,6 @@ import (
 	"math"
 	"strings"
 
-	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/pb"
 
 	"github.com/gin-gonic/gin"
@@ -125,47 +124,9 @@ func HandleMLBacktestPost(c *gin.Context) {
 	HandleMLAssessPost(c)
 }
 
-func HandleMLAssessPost(c *gin.Context) {
-	var req struct {
-		Comm string   `json:"comm"`
-		Args []string `json:"args"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "invalid request"})
-		return
-	}
-	classification := behavior.ClassifyBehavior(req.Comm, req.Args)
-	_, emb := Deps.MLClassifyAndEmbed(req.Comm, req.Args)
-	anomalyScore := Deps.MLComputeAnomalyScore(emb)
-	prediction := Deps.MLPredict(req.Comm, req.Args)
-	netResult := Deps.MLNetworkAudit(req.Comm, req.Args)
-	llmAssess := Deps.MLLLMAssessment(req.Comm, req.Args)
-
-	score := computeRiskScore(classification, anomalyScore, prediction, netResult, llmAssess)
-	level := riskLevel(score)
-	action := "ALLOW"
-	if level == "CRITICAL" || level == "HIGH" {
-		action = "BLOCK"
-	} else if level == "MEDIUM" {
-		action = "ALERT"
-	}
-	c.JSON(200, gin.H{
-		"riskScore":      score,
-		"riskLevel":      level,
-		"recommended":    action,
-		"classification": classification,
-		"anomalyScore":   anomalyScore,
-		"llmAssessment":  llmAssess,
-	})
-}
-
-func HandleMLExistingCommandsGet(c *gin.Context) {
-	c.JSON(200, gin.H{"commands": Deps.MLExistingCommands()})
-}
-
-func HandleMLImportExistingPost(c *gin.Context) {
-	c.JSON(200, Deps.MLImportResult())
-}
+func HandleMLAssessPost(c *gin.Context)         { Deps.MLAssessCommandSafety(c) }
+func HandleMLExistingCommandsGet(c *gin.Context) { Deps.MLExistingCommandsGetFn(c) }
+func HandleMLImportExistingPost(c *gin.Context)  { Deps.MLImportExistingFn(c) }
 
 func HandleMLTunePost(c *gin.Context) {
 	c.JSON(200, Deps.MLTuneResult())

@@ -446,6 +446,9 @@ func initMLHandlersDeps() {
 	handlers.Deps.MLLLMAssessment = func(comm string, args []string) *handlers.MLLlmAssessment { return &handlers.MLLlmAssessment{} }
 	handlers.Deps.MLExistingCommands = func() []string { return []string{} }
 	handlers.Deps.MLImportResult = mlImportResult
+	handlers.Deps.MLAssessCommandSafety = func(c *gin.Context) { cmdsafetyAssessPost(c) }
+	handlers.Deps.MLExistingCommandsGetFn = func(c *gin.Context) { cmdsafetyExistingCommandsGet(c) }
+	handlers.Deps.MLImportExistingFn = func(c *gin.Context) { cmdsafetyImportExistingPost(c) }
 	handlers.Deps.MLTuneResult = mlTuneResult
 	handlers.Deps.MLTuneModelsResult = mlTuneModelsResult
 	handlers.Deps.MLLLMScoreResult = mlLLMScoreResult
@@ -548,6 +551,10 @@ func handleMLSampleDelete(c *gin.Context)               { handlers.HandleMLSampl
 func handleMLSampleAnomalyPut(c *gin.Context)           { handlers.HandleMLSampleAnomalyPut(c) }
 func handleMLSamplesPost(c *gin.Context)                { handlers.HandleMLSamplesPost(c) }
 func handleMLBacktestPost(c *gin.Context)               { handlers.HandleMLBacktestPost(c) }
+// Command safety bridges — delegate to fat-bridge Deps closures
+func handleMLAssessPost(c *gin.Context)          { handlers.Deps.MLAssessCommandSafety(c) }
+func handleMLExistingCommandsGet(c *gin.Context)  { handlers.Deps.MLExistingCommandsGetFn(c) }
+func handleMLImportExistingPost(c *gin.Context)   { handlers.Deps.MLImportExistingFn(c) }
 func handleConfigExportGet(c *gin.Context)             { handlers.HandleConfigExportGet(c) }
 func handleConfigImportPost(c *gin.Context)             { handlers.HandleConfigImportPost(c) }
 func handleConfigRuntimeGet(c *gin.Context)              { handlers.HandleConfigRuntimeGet(c) }
