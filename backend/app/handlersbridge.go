@@ -328,10 +328,17 @@ func init() {
 		rulesMu.Unlock()
 	}
 
-	initMLHandlersDeps()
-}
+		// Network enrichment handlers
+		handlers.Deps.NetworkFlowAggregator = networkFlowAggregator
+		handlers.Deps.TCPTracker = tcpTracker
+		handlers.Deps.DNSCorrelation = dnsCorrelation
+		handlers.Deps.GeoIPDB = geoipDB
+		handlers.Deps.AnalyzeEndpoint = analyzeEndpoint
 
-// ── ML handler wiring ──────────────────────────────────────────────
+		initMLHandlersDeps()
+	}
+
+	// ── ML handler wiring ──────────────────────────────────────────────
 
 func initMLHandlersDeps() {
 	handlers.Deps.MLStatus = mlStatus
@@ -487,3 +494,14 @@ func handleConfigHooksList(c *gin.Context)    { handlers.HandleConfigHooksList(c
 func handleConfigHooksInstall(c *gin.Context)  { handlers.HandleConfigHooksInstall(c) }
 func handleConfigHooksRawGet(c *gin.Context)   { handlers.HandleConfigHooksRawGet(c) }
 func handleConfigHooksRawPost(c *gin.Context)  { handlers.HandleConfigHooksRawPost(c) }
+
+// Network enrichment bridges
+func handleNetworkFlows(c *gin.Context)            { handlers.HandleNetworkFlows(c) }
+func handleNetworkFlowByID(c *gin.Context)          { handlers.HandleNetworkFlowByID(c) }
+func handleTCPState(c *gin.Context)                  { handlers.HandleTCPState(c) }
+func handleNetworkAnalyze(c *gin.Context)            { handlers.HandleNetworkAnalyze(c) }
+func handleGeoIPLookup(c *gin.Context)               { handlers.HandleGeoIPLookup(c) }
+func handleDNSLookup(c *gin.Context)                  { handlers.HandleDNSLookup(c) }
+func handleDNSCache(c *gin.Context)                   { handlers.HandleDNSCache(c) }
+func handleNetworkInterfaces(c *gin.Context)          { handlers.HandleNetworkInterfaces(c) }
+func handleNetworkFlowJSONLExport(c *gin.Context)     { handlers.HandleNetworkFlowJSONLExport(c) }

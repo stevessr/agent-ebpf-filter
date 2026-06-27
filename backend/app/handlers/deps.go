@@ -5,7 +5,8 @@ import (
 	"agent-ebpf-filter/app/observability"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/core"
-	"agent-ebpf-filter/internal/network"
+	"agent-ebpf-filter/internal/geoip"
+	netcore "agent-ebpf-filter/internal/network"
 	"agent-ebpf-filter/pb"
 	"context"
 	"os/exec"
@@ -27,7 +28,7 @@ type TLSCaptureController = tls.TLSCaptureController
 type tlsCaptureBroadcaster = tls.TLSBroadcaster
 type TLSCaptureRuleStore = tls.TLSCaptureRuleStore
 
-type IPScope = network.IPScope
+type IPScope = netcore.IPScope
 type FilePreviewResponse = core.FilePreviewResponse
 type VmFaultCounters = observability.VmFaultCounters
 type GpuInfo = observability.GpuInfo
@@ -153,19 +154,19 @@ var Deps struct {
 
 	// Network flow / TCP / DNS / bandwidth (enrichment handlers)
 	NetworkFlowAggregator interface {
-		Query(query any) any
-		Get(flowID string) (any, bool)
+		Query(query netcore.FlowQuery) netcore.FlowQueryResult
+		Get(flowID string) (netcore.NetworkFlowSummary, bool)
 	}
 	TCPTracker interface {
-		Snapshot() []any
+		Snapshot() []netcore.TCPConnectionState
 	}
 	DNSCorrelation interface {
 		LookupIP(ip string) (string, bool)
 		LookupDomain(domain string) (string, bool)
-		Snapshot() any
+		Snapshot() []netcore.DNSCacheSnapshotEntry
 	}
 	GeoIPDB interface {
-		Lookup(ip string) (any, bool)
+		Lookup(ip string) (geoip.Record, bool)
 	}
 
 	// Analyze endpoint helper
