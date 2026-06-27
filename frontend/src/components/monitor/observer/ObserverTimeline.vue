@@ -136,10 +136,28 @@ const tlsTypeColor = (e: ObserverTLSEvent): string => {
   }
 };
 
-const formatTLSBodyPreview = (body: string | undefined, maxLen: number = 200): string => {
-  if (!body) return "";
-  const trimmed = body.replace(/\s+/g, " ").trim();
-  return trimmed.length > maxLen ? trimmed.slice(0, maxLen) + "…" : trimmed;
+const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): string => {
+  // Use body if available
+  if (ev.body) {
+    const trimmed = ev.body.replace(/\s+/g, " ").trim();
+    return trimmed.length > maxLen ? trimmed.slice(0, maxLen) + "…" : trimmed;
+  }
+  // Decode raw hex dump as text
+  if (ev.raw_hex_dump) {
+    try {
+      const bytes: number[] = [];
+      for (let i = 0; i < ev.raw_hex_dump.length - 1; i += 2) {
+        const byte = parseInt(ev.raw_hex_dump.slice(i, i + 2), 16);
+        if (isNaN(byte)) break;
+        bytes.push(byte);
+      }
+      const text = bytes
+        .map((b) => (b >= 0x20 && b < 0x7f) || b === 0x0a || b === 0x0d ? String.fromCharCode(b) : ".")
+        .join("");
+      return text.length > maxLen ? text.slice(0, maxLen) + "…" : text;
+    } catch { return ""; }
+  }
+  return "";
 };
 </script>
 
@@ -210,10 +228,10 @@ const formatTLSBodyPreview = (body: string | undefined, maxLen: number = 200): s
           <div class="detail-row" v-if="e.status"><span class="dl">Status</span><span>{{ e.status }}</span></div>
           <div class="detail-row"><span class="dl">Dir</span><span>{{ e.direction }}</span></div>
           <div class="detail-row"><span class="dl">Lib</span><code>{{ e.lib }}</code></div>
-          <div class="detail-row" v-if="e.body">
+          <div class="detail-row" v-if="e.body || e.raw_hex_dump">
             <span class="dl">Body</span>
             <div class="tls-timeline-body">
-              <pre>{{ formatTLSBodyPreview(e.body, 200) }}</pre>
+              <pre>{{ formatTLSBodyPreview(e, 200) }}</pre>
             </div>
           </div>
           <div class="detail-row" v-if="e.redaction_state">
@@ -261,7 +279,7 @@ const formatTLSBodyPreview = (body: string | undefined, maxLen: number = 200): s
               <div v-if="expanded.has(item.tls.key)" class="event-detail">
                 <div class="detail-row" v-if="item.tls.host"><span class="dl">Host</span><code>{{ item.tls.host }}</code></div>
                 <div class="detail-row" v-if="item.tls.url"><span class="dl">URL</span><code>{{ item.tls.url }}</code></div>
-                <div class="detail-row" v-if="item.tls.body"><span class="dl">Body</span><div class="tls-timeline-body"><pre>{{ formatTLSBodyPreview(item.tls.body, 150) }}</pre></div></div>
+                <div class="detail-row" v-if="item.tls.body || item.tls.raw_hex_dump"><span class="dl">Body</span><div class="tls-timeline-body"><pre>{{ formatTLSBodyPreview(item.tls, 150) }}</pre></div></div>
                 <a-button size="small" type="link" style="padding:0;margin-top:4px" @click.stop="emit('viewTLSEvent', item.tls)"><EyeOutlined /> View Full Detail</a-button>
               </div>
             </div>

@@ -7,6 +7,7 @@ import {
   NodeIndexOutlined,
   CaretDownOutlined,
   EyeOutlined,
+  MergeCellsOutlined,
 } from "@ant-design/icons-vue";
 import {
   useProcessObserver,
@@ -19,6 +20,7 @@ import ProcessTreeNodeDisplay from "./ProcessTreeNodeDisplay.vue";
 import ObserverTimeline from "./observer/ObserverTimeline.vue";
 import ObserverFlamegraph from "./observer/ObserverFlamegraph.vue";
 import ObserverResources from "./observer/ObserverResources.vue";
+import AgentContextPanel from "./observer/AgentContextPanel.vue";
 import FilePathBrowserModal from "./FilePathBrowserModal.vue";
 import SSLDecryptedEventModal from "./observer/SSLDecryptedEventModal.vue";
 
@@ -43,6 +45,7 @@ const subTabKeys = [
   "file-access",
   "resources",
   "ssl",
+  "agent-context",
 ] as const;
 type SubTabKey = (typeof subTabKeys)[number];
 const TAB_STORAGE_KEY = "observe-active-tab";
@@ -382,6 +385,29 @@ const formatTLSBodyPreview = (body: string | undefined, maxLen: number = 120): s
   if (!body) return "";
   const trimmed = body.replace(/\s+/g, " ").trim();
   return trimmed.length > maxLen ? trimmed.slice(0, maxLen) + "…" : trimmed;
+};
+
+// Hex to text decoder for raw TLS events
+const hexToText = (hex: string, maxLen: number = 100): string => {
+  try {
+    const bytes: number[] = [];
+    for (let i = 0; i < hex.length - 1; i += 2) {
+      const byte = parseInt(hex.slice(i, i + 2), 16);
+      if (isNaN(byte)) break;
+      bytes.push(byte);
+    }
+    const text = bytes
+      .map((b) => (b >= 0x20 && b < 0x7f) || b === 0x0a || b === 0x0d ? String.fromCharCode(b) : ".")
+      .join("");
+    return text.length > maxLen ? text.slice(0, maxLen) + "…" : text;
+  } catch { return ""; }
+};
+
+// Best available preview from any TLS event (body first, then hex decode)
+const bestTLSPreview = (ev: ObserverTLSEvent, maxLen: number = 100): string => {
+  if (ev.body) return formatTLSBodyPreview(ev.body, maxLen);
+  if (ev.raw_hex_dump) return hexToText(ev.raw_hex_dump, maxLen);
+  return "";
 };
 
 // Check if body looks like JSON
@@ -1055,11 +1081,9 @@ watch(
                 </template>
                 <template v-else-if="column.key === 'bodyPreview'">
                   <span
-                    v-if="record.body"
+                    v-if="record.body || record.raw_hex_dump"
                     class="tls-body-preview"
-                    :class="{ 'tls-body-json': looksLikeJSON(record.body) }"
-                  >{{ formatTLSBodyPreview(record.body, 80) }}</span>
-                  <span v-else-if="record.raw_available" style="color: #94a3b8; font-size: 11px">[binary data]</span>
+                  >{{ bestTLSPreview(record, 80) }}</span>
                   <span v-else style="color: #ccc; font-size: 11px">—</span>
                 </template>
                 <template v-else-if="column.key === 'size'">
@@ -1175,6 +1199,20 @@ watch(
             </div>
           </div>
         </template>
+      </a-tab-pane>
+
+      <!-- 10. Agent Context (merged send/recv with SSE grouping) -->
+      <a-tab-pane key="agent-context">
+        <template #tab><MergeCellsOutlined /> Agent Context</template>
+        <a-empty
+          v-if="selectedPid === null"
+          description="Select a PID to view agent TLS context"
+        />
+        <AgentContextPanel
+          v-else
+          :events="treeTLSEvents"
+          @viewEvent="(e: ObserverTLSEvent) => openTLSDetail(e)"
+        />
       </a-tab-pane>
     </a-tabs>
 
