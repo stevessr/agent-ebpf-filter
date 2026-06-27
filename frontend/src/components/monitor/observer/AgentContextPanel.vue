@@ -170,6 +170,15 @@ interface MergedGroup {
 }
 
 // ── Content block merging (handles Anthropic + OpenAI + generic) ─────────
+// Normalize delta types to canonical block types
+const normalizeBlockType = (t: string): string => {
+  if (t === "thinking_delta") return "thinking";
+  if (t === "text_delta") return "text";
+  if (t === "input_json_delta" || t === "tool_use") return "tool_use";
+  if (t === "signature_delta") return "signature";
+  return t;
+};
+
 const mergeContentBlocks = (parsedEvents: SSEParsed[]): ContentBlock[] => {
   const blocks = new Map<string, ContentBlock>();
 
@@ -177,16 +186,14 @@ const mergeContentBlocks = (parsedEvents: SSEParsed[]): ContentBlock[] => {
     const evType = p.type;
     if (!evType || NOOP_TYPES.has(evType)) continue;
 
-    // message_start → metadata
-    if (evType === "message_start") continue;
-    if (evType === "message_delta") continue;
+    if (evType === "message_start" || evType === "message_delta") continue;
 
-    // content_block_start
+    // content_block_start — register block with canonical type
     if (evType === "content_block_start" && p.content_block) {
       const cb = p.content_block;
       const key = `cb-${p.index ?? blocks.size}`;
       blocks.set(key, {
-        type: cb.type || "unknown",
+        type: normalizeBlockType(cb.type || "unknown"),
         mergedText: cb.text || cb.thinking || "",
         toolName: cb.name, toolId: cb.id, toolInput: cb.input,
       });
@@ -208,14 +215,17 @@ const mergeContentBlocks = (parsedEvents: SSEParsed[]): ContentBlock[] => {
         }
         else if (delta.signature_delta) { /* ignore */ }
       } else {
+        // New block — use normalized type from delta
         const text = delta.text || delta.thinking ||
           delta.partial_json || delta.input_json_delta?.partial_json || "";
-        blocks.set(key, { type: delta.type || "text", mergedText: text });
+        blocks.set(key, {
+          type: normalizeBlockType(delta.type || "text"),
+          mergedText: text,
+        });
       }
       continue;
     }
 
-    // content_block_stop
     if (evType === "content_block_stop") continue;
 
     // OpenAI-style: {"choices":[{"delta":{"content":"..."}}]}
@@ -381,8 +391,13 @@ const firstTypeLabel = (g: MergedGroup): string => {
   if (!ev) return "?";
   if (ev.type === "http_request") return ev.method || "REQ";
   if (ev.type === "http_response") return `HTTP ${ev.status||""}`;
-  if (ev.type === "sse_message") return "SSE Stream";
-  return ev.type;
+  // For SSE streams (including raw events with SSE JSON), derive label from content blocks
+  if (g.contentBlocks.length > 0) {
+    const types = [...new Set(g.contentBlocks.map((b) => blockLabel(b.type)))];
+    if (types.length === 1) return types[0];
+    return types.join("+");
+  }
+  return ev.type === "sse_message" ? "SSE Stream" : ev.type;
 };
 
 const formatBytes = (bytes: number): string => {
@@ -426,7 +441,7 @@ const toggle = (id: string) => {
         <div class="ac-col-header"><ArrowUpOutlined style="color:#f59e0b" /><span>Upstream (Agent → Server)</span></div>
         <a-empty v-if="streamGroups.send.length===0" description="No upstream data" style="padding:24px" />
         <div v-else class="ac-list">
-          <div v-for="g in streamGroups.send" :key="g.id" class="ac-card" :class="{'ac-sse':g.events[0]?.type==='sse_message'}">
+          <div v-for="g in streamGroups.send" :key="g.id" class="ac-card" :class="{'ac-sse':g.events[0]?.type==='sse_message' || g.contentBlocks.length>1 || g.contentBlocks.some(b=>b.type==='thinking'||b.type==='tool_use')}">
             <!-- head -->
             <div class="ac-head" @click="toggle(g.id)">
               <span class="ac-h-icon"><CaretDownOutlined v-if="expanded.has(g.id)" /><CaretRightOutlined v-else /></span>
@@ -441,7 +456,7 @@ const toggle = (id: string) => {
               <span class="ac-h-time">{{ formatTimeRange(g.startTime,g.endTime) }}</span>
               <a-button size="small" type="link" class="ac-view" @click.stop="emit('viewEvent',g.events[0])"><EyeOutlined /></a-button>
             </div>
-            <div v-if="g.events.length>1 && g.events[0]?.type==='sse_message'" class="ac-merged"><MergeCellsOutlined /> {{ g.events.length }} SSE → {{ g.contentBlocks.length }} block{{g.contentBlocks.length!==1?'s':''}}</div>
+            <div v-if="g.events.length>1 && (g.events[0]?.type==='sse_message' || g.contentBlocks.length>0)" class="ac-merged"><MergeCellsOutlined /> {{ g.events.length }} SSE → {{ g.contentBlocks.length }} block{{g.contentBlocks.length!==1?'s':''}}</div>
             <!-- body -->
             <div v-if="expanded.has(g.id)" class="ac-body">
               <div v-if="g.messageId" class="ac-meta"><span class="ac-k">ID</span><code>{{ g.messageId }}</code></div>
@@ -462,7 +477,7 @@ const toggle = (id: string) => {
         <div class="ac-col-header"><ArrowDownOutlined style="color:#06b6d4" /><span>Downstream (Server → Agent)</span></div>
         <a-empty v-if="streamGroups.recv.length===0" description="No downstream data" style="padding:24px" />
         <div v-else class="ac-list">
-          <div v-for="g in streamGroups.recv" :key="g.id" class="ac-card" :class="{'ac-sse':g.events[0]?.type==='sse_message'}">
+          <div v-for="g in streamGroups.recv" :key="g.id" class="ac-card" :class="{'ac-sse':g.events[0]?.type==='sse_message' || g.contentBlocks.length>1 || g.contentBlocks.some(b=>b.type==='thinking'||b.type==='tool_use')}">
             <div class="ac-head" @click="toggle(g.id)">
               <span class="ac-h-icon"><CaretDownOutlined v-if="expanded.has(g.id)" /><CaretRightOutlined v-else /></span>
               <a-tag :color="blockColor(g.contentBlocks[0]?.type||'raw')" size="small">{{ firstTypeLabel(g) }}</a-tag>
@@ -476,7 +491,7 @@ const toggle = (id: string) => {
               <span class="ac-h-time">{{ formatTimeRange(g.startTime,g.endTime) }}</span>
               <a-button size="small" type="link" class="ac-view" @click.stop="emit('viewEvent',g.events[0])"><EyeOutlined /></a-button>
             </div>
-            <div v-if="g.events.length>1 && g.events[0]?.type==='sse_message'" class="ac-merged"><MergeCellsOutlined /> {{ g.events.length }} SSE → {{ g.contentBlocks.length }} block{{g.contentBlocks.length!==1?'s':''}}</div>
+            <div v-if="g.events.length>1 && (g.events[0]?.type==='sse_message' || g.contentBlocks.length>0)" class="ac-merged"><MergeCellsOutlined /> {{ g.events.length }} SSE → {{ g.contentBlocks.length }} block{{g.contentBlocks.length!==1?'s':''}}</div>
             <div v-if="expanded.has(g.id)" class="ac-body">
               <div v-if="g.messageId" class="ac-meta"><span class="ac-k">ID</span><code>{{ g.messageId }}</code></div>
               <div v-if="g.contentBlocks.length" class="ac-blocks">
