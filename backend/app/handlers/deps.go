@@ -116,6 +116,9 @@ var Deps struct {
 		Add(events ...any)
 	}
 
+	// Native hook handler
+	BuildProcessContextFromHookPayload func(payload map[string]any, toolName, path string) (uint32, ProcessContext)
+
 	// AgentSight data pipeline helpers (wired from app-level functions)
 	RecentEventFiltersFromRequest func(c any) any // *gin.Context -> recentEventFilters
 	FilterRecentEventRecords      func(records []CapturedEventRecord, filters any) []CapturedEventRecord

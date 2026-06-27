@@ -195,6 +195,9 @@ func init() {
 	handlers.Deps.GetZramStats = getZramStats
 	handlers.Deps.BroadcastCh = broadcast
 	handlers.Deps.EventSchemaVersion = eventSchemaVersion
+	handlers.Deps.BuildProcessContextFromHookPayload = func(payload map[string]any, toolName, path string) (uint32, handlers.ProcessContext) {
+		return buildProcessContextFromHookPayload(payload, toolName, path)
+	}
 	handlers.Deps.SendTLSBridge = tls.SendTLSBridge
 
 	// Export config
@@ -598,6 +601,9 @@ func handleNetworkFlowJSONLExport(c *gin.Context)     { handlers.HandleNetworkFl
 func handleExternalAPIHealth(c *gin.Context) { handlers.HandleExternalAPIHealth(c) }
 func handleExternalAPIOpenAPI(c *gin.Context) { handlers.HandleExternalAPIOpenAPI(c) }
 func buildExternalOpenAPISpec() *openapi3.T  { return handlers.BuildExternalOpenAPISpec() }
+
+// Native hook bridge
+func handleNativeHookEvent(c *gin.Context) { handlers.HandleNativeHookEvent(c) }
 
 // ML WebSocket bridge
 func serveMLStatusWS(c *gin.Context) { handlers.ServeMLStatusWS(c) }
