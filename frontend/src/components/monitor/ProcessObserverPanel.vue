@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed, h } from "vue";
+import { ref, reactive, onMounted, onUnmounted, watch, computed, h } from "vue";
 import axios from "axios";
 import {
   SearchOutlined,
@@ -299,8 +299,8 @@ const doLaunch = async () => {
 
 // ── Manual SSL attach ────────────────────────────────────────────────────
 
-const attachingPid = ref<number | null>(null);
-const attachError = ref("");
+const attachingPids = reactive(new Set<number>());
+const attachErrors = reactive<Record<number, string>>({});
 
 const getBinaryPath = async (pid: number): Promise<string> => {
   // Always resolve via /proc/PID/exe for the real binary, not cmdline
@@ -319,53 +319,61 @@ const getBinaryPath = async (pid: number): Promise<string> => {
 };
 
 const doAttachBuiltins = async (pid: number) => {
-  attachingPid.value = pid;
-  attachError.value = "";
+  if (attachingPids.has(pid)) return;
+  attachingPids.add(pid);
+  delete attachErrors[pid];
   try {
     const exePath = await getBinaryPath(pid);
-    if (!exePath) { attachError.value = "Cannot resolve binary path for PID " + pid; return; }
+    if (!exePath) { attachErrors[pid] = "Cannot resolve binary path for PID " + pid; return; }
     // Use executable API which auto-detects: Go uprobes → static SSL → library (openssl/gnutls)
     const res = await axios.post("/tls-capture/executable", { path: exePath, pid, library: "" });
     if (res.data.result?.error) {
-      attachError.value = res.data.result.error;
+      attachErrors[pid] = res.data.result.error;
     } else {
       await fetchAttachedPIDs();
     }
   } catch (e: any) {
-    attachError.value = e?.response?.data?.error || e?.message || "Auto-attach failed";
+    attachErrors[pid] = e?.response?.data?.error || e?.message || "Auto-attach failed";
   } finally {
-    attachingPid.value = null;
+    attachingPids.delete(pid);
   }
 };
 
 const doAttachGo = async (pid: number) => {
-  attachingPid.value = pid;
-  attachError.value = "";
+  if (attachingPids.has(pid)) return;
+  attachingPids.add(pid);
+  delete attachErrors[pid];
   try {
     const path = await getBinaryPath(pid);
-    if (!path) { attachError.value = "Cannot determine binary path for PID " + pid; return; }
+    if (!path) { attachErrors[pid] = "Cannot determine binary path for PID " + pid; return; }
     await axios.post("/tls-capture/go-binary", { path, pid });
     await fetchAttachedPIDs();
   } catch (e: any) {
-    attachError.value = e?.response?.data?.error || e?.message || "Go attach failed";
+    attachErrors[pid] = e?.response?.data?.error || e?.message || "Go attach failed";
   } finally {
-    attachingPid.value = null;
+    attachingPids.delete(pid);
   }
 };
 
 const doAttachLibrary = async (pid: number, library: string) => {
-  attachingPid.value = pid;
-  attachError.value = "";
+  if (attachingPids.has(pid)) return;
+  attachingPids.add(pid);
+  delete attachErrors[pid];
   try {
     const path = await getBinaryPath(pid);
-    if (!path) { attachError.value = "Cannot determine binary path for PID " + pid; return; }
+    if (!path) { attachErrors[pid] = "Cannot determine binary path for PID " + pid; return; }
     await axios.post("/tls-capture/executable", { path, pid, library });
     await fetchAttachedPIDs();
   } catch (e: any) {
-    attachError.value = e?.response?.data?.error || e?.message || "Library attach failed";
+    attachErrors[pid] = e?.response?.data?.error || e?.message || "Library attach failed";
   } finally {
-    attachingPid.value = null;
+    attachingPids.delete(pid);
   }
+};
+
+const doAttachAllBuiltins = async () => {
+  const pids = treeSSLPending.value.map((p) => p.pid);
+  await Promise.all(pids.map((pid) => doAttachBuiltins(pid)));
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -716,13 +724,13 @@ watch(
             >
               {{ selectedProcessLabel() }}
             </a-tag>
-            <span v-else style="color: #999; font-size: 12px">
+            <span v-else style="color: #6b7280; font-size: 12px">
               No PID selected
             </span>
           </div>
 
           <!-- Launch program via wrapper -->
-          <a-divider style="margin: 12px 0; font-size: 12px; color: #888">
+          <a-divider style="margin: 12px 0; font-size: 12px; color: #4b5563">
             Launch &amp; Observe
           </a-divider>
           <div class="launch-grid">
@@ -981,7 +989,7 @@ watch(
             <span v-else-if="column.key === 'path'">
               <span v-if="text" :title="text">{{ text }}</span>
               <span v-else-if="record.extraInfo" class="path-fallback" :title="record.extraInfo">{{ record.extraInfo }}</span>
-              <span v-else style="color: #ccc">—</span>
+              <span v-else style="color: #9ca3af">—</span>
             </span>
           </template>
         </a-table>
@@ -1022,7 +1030,7 @@ watch(
             <span v-else-if="column.key === 'path'">
               <span v-if="text" :title="text">{{ text }}</span>
               <span v-else-if="record.extraInfo" class="path-fallback" :title="record.extraInfo">{{ record.extraInfo }}</span>
-              <span v-else style="color: #ccc">—</span>
+              <span v-else style="color: #9ca3af">—</span>
             </span>
           </template>
         </a-table>
@@ -1094,7 +1102,7 @@ watch(
                     v-if="record.body || record.raw_hex_dump"
                     class="tls-body-preview"
                   >{{ bestTLSPreview(record, 80) }}</span>
-                  <span v-else style="color: #ccc; font-size: 11px">—</span>
+                  <span v-else style="color: #9ca3af; font-size: 11px">—</span>
                 </template>
                 <template v-else-if="column.key === 'size'">
                   <span>{{ formatBytes(record.captured_len) }}</span>
@@ -1114,7 +1122,7 @@ watch(
             </a-table>
           </div>
 
-          <a-divider style="margin: 16px 0 12px; font-size: 12px; color: #888">
+          <a-divider style="margin: 16px 0 12px; font-size: 12px; color: #4b5563">
             SSL Probe Attachment
           </a-divider>
 
@@ -1159,10 +1167,18 @@ watch(
               Not Attached
               <a-tag color="default" size="small">{{ treeSSLPending.length }}</a-tag>
             </div>
-            <div v-if="attachError" class="attach-error">
-              {{ attachError }}
-              <a-button size="small" type="link" @click="attachError = ''">Dismiss</a-button>
+            <div v-if="Object.keys(attachErrors).length > 0" class="attach-errors">
+              <div v-for="(err, pid) in attachErrors" :key="pid" class="attach-error">
+                <code>[{{ pid }}]</code> {{ err }}
+                <a-button size="small" type="link" @click="delete attachErrors[pid]">Dismiss</a-button>
+              </div>
             </div>
+            <div style="margin-bottom: 8px">
+                <a-button size="small" type="primary" ghost
+                  :loading="attachingPids.size > 0"
+                  @click="doAttachAllBuiltins()"
+                >Attach All ({{ treeSSLPending.length }})</a-button>
+              </div>
             <div class="ssl-pending-list">
               <div
                 v-for="p in treeSSLPending"
@@ -1178,7 +1194,7 @@ watch(
                   <a-button
                     size="small"
                     type="dashed"
-                    :loading="attachingPid === p.pid"
+                    :loading="attachingPids.has(p.pid)"
                     style="margin-left: auto; font-size: 11px"
                   >
                     Attach <CaretDownOutlined />
@@ -1290,7 +1306,7 @@ watch(
 
 .launch-label {
   font-size: 11px;
-  color: #888;
+  color: #4b5563;
   font-weight: 500;
 }
 
@@ -1302,7 +1318,7 @@ watch(
 
 .user-uid {
   font-size: 11px;
-  color: #aaa;
+  color: #6b7280;
   margin-left: 4px;
 }
 
@@ -1314,7 +1330,7 @@ watch(
 
 .recent-title {
   font-size: 11px;
-  color: #999;
+  color: #6b7280;
   font-weight: 500;
   margin-bottom: 6px;
 }
@@ -1348,7 +1364,7 @@ watch(
 .recent-args {
   font-family: ui-monospace, monospace;
   font-size: 10px;
-  color: #999;
+  color: #6b7280;
   margin-left: 4px;
 }
 
@@ -1375,7 +1391,7 @@ watch(
 }
 .sub-count {
   font-size: 11px;
-  color: #999;
+  color: #6b7280;
   font-weight: 400;
 }
 .ssl-attach-comm {
@@ -1416,7 +1432,7 @@ watch(
 }
 .ssl-pending-cmd {
   font-size: 11px;
-  color: #aaa;
+  color: #6b7280;
   font-family: ui-monospace, monospace;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1426,17 +1442,30 @@ watch(
 .attach-menu-item {
   font-size: 12px;
 }
+.attach-errors {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
 .attach-error {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 4px 10px;
   background: #fff2f0;
   border: 1px solid #ffccc7;
   border-radius: 4px;
-  margin-bottom: 8px;
-  font-size: 12px;
+  font-size: 11px;
   color: #ff4d4f;
+}
+.attach-error code {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: #cf1322;
+  background: #fff1f0;
+  padding: 0 3px;
+  border-radius: 2px;
 }
 
 /* TLS expanded row styles */
