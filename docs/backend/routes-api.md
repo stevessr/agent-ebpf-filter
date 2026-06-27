@@ -205,16 +205,27 @@ registerRoutes()
 
 ### 系统路由 (`/system`)
 
-| 方法 | 路径 | 用途 | 特性门控 |
-|------|------|------|---------|
-| `GET` | `/system/features` | 特性清单 | -- |
-| `GET` | `/system/sensors` | 传感器列表 | -- |
-| `GET` | `/system/benchmark` | 运行基准测试 | -- |
-| `GET` | `/system/benchmark/results` | 基准测试结果 | -- |
-| `POST` | `/system/run` | 运行系统命令 | `FeatureSystemRun` |
-| `GET` | `/system/otel-health` | OTel 导出健康状态 | `FeatureOTLP` |
-| `GET` | `/system/file/preview` | 文件预览 | -- |
-| `POST` | `/system/clear-events` | 清除全部事件 | -- |
+注册于 `handlers.RegisterSystemRoutes()`（位于 `backend/app/handlers/system.go`）：
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `GET` | `/system/ls` | 目录列表 |
+| `GET` | `/system/file-preview` | 文件预览 |
+| `GET` | `/system/file-preview/stream` | 文件预览流式输出 |
+| `GET` | `/system/file-hex` | 文件十六进制查看 |
+| `GET` | `/system/file-elf` | ELF 文件分析 |
+| `GET` | `/system/home` | 用户主目录 |
+| `GET` | `/system/download` | 文件下载 |
+| `POST` | `/system/upload` | 文件上传 |
+| `POST` | `/system/benchmark` | 运行基准测试 |
+| `GET` | `/system/benchmark` | 基准测试结果 |
+| `GET` | `/system/tracked-comms` | 已追踪命令列表 |
+| `POST` | `/system/process/signal` | 发送进程信号 |
+| `GET` | `/system/process/maps` | 进程内存映射 |
+| `GET` | `/system/sensors` | 传感器列表 |
+| `GET` | `/system/cameras` | 摄像头列表 |
+| `GET` | `/system/camera/snapshot` | 摄像头快照 |
+| `GET` | `/system/microphones` | 麦克风列表 |
 
 ### TLS 捕获路由 (`/tls-capture`)
 
@@ -258,13 +269,21 @@ registerRoutes()
 | 方法 | 路径 | 用途 |
 |------|------|------|
 | `GET` | `/plugins` | 插件列表 |
-| `POST` | `/plugins` | 创建/更新插件 |
+| `GET` | `/plugins/` | 插件列表 (别名) |
+| `POST` | `/plugins` | 创建插件 |
 | `GET` | `/plugins/:id` | 插件详情 |
+| `PUT` | `/plugins/:id` | 更新插件 |
 | `DELETE` | `/plugins/:id` | 删除插件 |
-| `POST` | `/plugins/:id/enable` | 启用插件 |
-| `POST` | `/plugins/:id/disable` | 禁用插件 |
-| `POST` | `/plugins/:id/reload` | 重新加载插件 |
-| `GET` | `/plugins/templates` | BPF 模板列表 |
+| `POST` | `/plugins/:id/toggle` | 切换插件启用状态 |
+
+BPF 模板子路由 (`/plugins/bpf`):
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `GET` | `/plugins/bpf/templates` | BPF 模板列表 |
+| `POST` | `/plugins/bpf/compile` | 编译用户 BPF 代码 |
+| `POST` | `/plugins/bpf/load` | 加载 BPF 程序 |
+| `POST` | `/plugins/bpf/unload` | 卸载 BPF 程序 |
 
 ### 数据管理 (`/data`)
 
