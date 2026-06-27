@@ -1,0 +1,175 @@
+package handlers
+
+import (
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+)
+
+// ---- moved from app/handlers_plugin.go ----
+
+// pluginUpsertRequest mirrors the request body for plugin upsert operations.
+type pluginUpsertRequest struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	Author       string `json:"author"`
+	Version      string `json:"version"`
+	Kind         string `json:"kind"`
+	Enabled      bool   `json:"enabled"`
+	Source       string `json:"source"`
+	AttachKind   string `json:"attachKind"`
+	AttachTarget string `json:"attachTarget"`
+	ProgramName  string `json:"programName"`
+	WebhookURL   string `json:"webhookUrl"`
+	WebhookEvents []string `json:"webhookEvents"`
+	CommandComm  string `json:"commandComm"`
+	CommandArgs  []string `json:"commandArgs"`
+	CommandRule  string `json:"commandRule"`
+	CommandRewrite []string `json:"commandRewrite"`
+}
+
+type bpfCompileRequest struct {
+	ID     string `json:"id"`
+	Source string `json:"source"`
+}
+
+type bpfLoadRequest struct {
+	ObjPath string `json:"objPath"`
+	Attach string `json:"attach"`
+	Target string `json:"target"`
+	ProgramName string `json:"programName"`
+}
+
+func HandlePluginsList(c *gin.Context) {
+	plugins := Deps.PluginList()
+	c.JSON(200, gin.H{"plugins": plugins})
+}
+
+func HandlePluginGet(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if err := Deps.PluginValidateID(id); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	plugin, ok := Deps.PluginGet(id)
+	if !ok {
+		c.JSON(404, gin.H{"error": "plugin not found"})
+		return
+	}
+	source, _ := Deps.PluginSource(id)
+	c.JSON(200, gin.H{"plugin": plugin, "source": source})
+}
+
+func HandlePluginUpsert(c *gin.Context) {
+	var req pluginUpsertRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	if err := Deps.PluginUpsert(req); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func HandlePluginDelete(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if err := Deps.PluginValidateID(id); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	if err := Deps.PluginDelete(id); err != nil {
+		c.JSON(404, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func HandlePluginToggle(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if err := Deps.PluginValidateID(id); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	result, err := Deps.PluginSetEnabled(id, req.Enabled)
+	if err != nil {
+		c.JSON(404, gin.H{"error": err.Error()})
+		return
+	}
+	if !req.Enabled {
+		Deps.PluginUnloadEBPF(id)
+	}
+	c.JSON(200, gin.H{"status": "ok", "plugin": result})
+}
+
+func HandleBPFTemplates(c *gin.Context) {
+	templates := Deps.BPFTemplates()
+	c.JSON(200, gin.H{"templates": templates})
+}
+
+func HandleBPFCompile(c *gin.Context) {
+	var req bpfCompileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	if err := Deps.PluginValidateID(req.ID); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	objPath, log, err := Deps.CompileUserBPF(req.ID, req.Source)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": err.Error(),
+			"log":   string(log),
+		})
+		return
+	}
+	c.JSON(200, gin.H{"objPath": objPath, "log": string(log)})
+}
+
+func HandleBPFLoad(c *gin.Context) {
+	var req bpfLoadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not yet implemented"})
+}
+
+func HandleBPFUnload(c *gin.Context) {
+	var req bpfLoadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not yet implemented"})
+}
+
+func RegisterPluginRoutes(rg *gin.RouterGroup) {
+	rg.GET("", HandlePluginsList)
+	rg.GET("/", HandlePluginsList)
+	rg.GET("/:id", HandlePluginGet)
+	rg.POST("", HandlePluginUpsert)
+	rg.PUT("/:id", HandlePluginUpsert)
+	rg.DELETE("/:id", HandlePluginDelete)
+	rg.POST("/:id/toggle", HandlePluginToggle)
+
+	bpf := rg.Group("/bpf")
+	{
+		bpf.GET("/templates", HandleBPFTemplates)
+		bpf.POST("/compile", HandleBPFCompile)
+		bpf.POST("/load", HandleBPFLoad)
+		bpf.POST("/unload", HandleBPFUnload)
+	}
+}
