@@ -297,6 +297,43 @@ const doLaunch = async () => {
   }
 };
 
+// ── Persistent SSL display / auto-attach toggles ────────────────────────
+
+const readStoredBool = (key: string, fallback: boolean): boolean => {
+  try {
+    const v = localStorage.getItem(key);
+    if (v === null) return fallback;
+    return v === "true";
+  } catch { return fallback; }
+};
+
+const SSL_SKIP_KEY = "observe-skip-ssl";
+const SSL_AUTO_ATTACH_KEY = "observe-auto-attach";
+
+const skipSSL = ref(readStoredBool(SSL_SKIP_KEY, false));
+const autoAttach = ref(readStoredBool(SSL_AUTO_ATTACH_KEY, false));
+
+watch(skipSSL, (v) => { try { localStorage.setItem(SSL_SKIP_KEY, String(v)); } catch {} });
+watch(autoAttach, (v) => { try { localStorage.setItem(SSL_AUTO_ATTACH_KEY, String(v)); } catch {} });
+
+// Filtered TLS events (respects skipSSL toggle)
+const visibleTLSEvents = computed(() =>
+  skipSSL.value ? [] : treeTLSEvents.value
+);
+
+// Auto-attach tracked PIDs that were already attempted (avoid infinite retry)
+const autoAttachSeen = new Set<number>();
+
+watch(treeSSLPending, (pending) => {
+  if (!autoAttach.value) return;
+  for (const p of pending) {
+    if (autoAttachSeen.has(p.pid)) continue;
+    autoAttachSeen.add(p.pid);
+    // Small stagger delay so we don't flood the backend
+    setTimeout(() => doAttachBuiltins(p.pid), 100 * autoAttachSeen.size);
+  }
+}, { deep: false });
+
 // ── Manual SSL attach ────────────────────────────────────────────────────
 
 const attachingPids = reactive(new Set<number>());
@@ -1050,6 +1087,22 @@ watch(
       <a-tab-pane key="ssl">
         <template #tab>SSL</template>
         <template #tabBarExtraContent>
+          <a-switch
+            v-model:checked="autoAttach"
+            size="small"
+            style="margin-right: 6px"
+          >
+            <template #checkedChildren>Auto</template>
+            <template #unCheckedChildren>Manual</template>
+          </a-switch>
+          <a-switch
+            v-model:checked="skipSSL"
+            size="small"
+            style="margin-right: 8px"
+          >
+            <template #checkedChildren>Skip</template>
+            <template #unCheckedChildren>Show</template>
+          </a-switch>
           <a-button
             size="small"
             type="link"
@@ -1075,10 +1128,10 @@ watch(
           <div class="sub-section">
             <div class="sub-title">
               Decrypted TLS Events
-              <span class="sub-count">{{ treeTLSEvents.length }}</span>
+              <span class="sub-count">{{ visibleTLSEvents.length }}</span>
             </div>
             <a-table
-              :dataSource="treeTLSEvents"
+              :dataSource="visibleTLSEvents"
               :columns="tlsColumns"
               row-key="key"
               size="small"
@@ -1236,7 +1289,7 @@ watch(
         />
         <AgentContextPanel
           v-else
-          :events="treeTLSEvents"
+          :events="visibleTLSEvents"
           @viewEvent="(e: ObserverTLSEvent) => openTLSDetail(e)"
         />
       </a-tab-pane>
