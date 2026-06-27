@@ -129,3 +129,22 @@ func HandleShellSessionsCleanup(c *gin.Context) {
 	Deps.ShellSessions.ClearClosed()
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
+
+// ServeShellWS upgrades to a WebSocket and attaches it to a shell session for PTY I/O.
+func ServeShellWS(c *gin.Context) {
+	sessionID := strings.TrimSpace(c.Query("session_id"))
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "session_id is required"})
+		return
+	}
+
+	conn, err := Deps.Upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+
+	if err := Deps.ShellSessions.AttachWebSocket(sessionID, conn); err != nil {
+		_ = conn.Close()
+		return
+	}
+}

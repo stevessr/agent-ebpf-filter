@@ -296,6 +296,8 @@ var Deps struct {
 		Delete(id string) error
 		SendInput(id string, data []byte) error
 		ClearClosed()
+		// AttachWebSocket attaches a WebSocket connection to a shell session for PTY I/O.
+		AttachWebSocket(id string, conn *websocket.Conn) error
 	}
 	MakeShellDeps func() any
 }

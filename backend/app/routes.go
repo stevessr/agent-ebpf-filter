@@ -48,7 +48,7 @@ func registerShellSessionRoutes(r gin.IRouter, ac *AppContext, features *Feature
 	r.GET("/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), handleListShellSessions)
 	r.DELETE("/shell-sessions/:id", authMiddleware(), shellSessionsEnabledMiddleware(), handleDeleteShellSession)
 	r.POST("/shell-sessions/:id/input", authMiddleware(), shellSessionsEnabledMiddleware(), handleSendShellSessionInput)
-	r.GET("/ws/shell", authMiddleware(), shellSessionsEnabledMiddleware(), serveShellSessionsWS)
+	r.GET("/ws/shell", authMiddleware(), shellSessionsEnabledMiddleware(), serveShellWS)
 	r.GET("/ws/shell-sessions", authMiddleware(), shellSessionsEnabledMiddleware(), serveShellSessionsWS)
 }
 
