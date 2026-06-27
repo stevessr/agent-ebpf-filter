@@ -482,16 +482,24 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		}
 	}
 	if m.store != nil {
-		for _, status := range m.store.LibraryStatuses() {
-			if status.Path == attachPath {
-				result.LibraryPaths = append(result.LibraryPaths, status)
-			}
-		}
+		result.LibraryPaths = m.store.LibraryStatuses()
 	}
 	for _, status := range result.LibraryPaths {
 		if status.Attached {
 			result.TargetKind = "executable"
 			result.Library = status.Name
+			return result
+		}
+	}
+	// Check PID-tracking map — library uprobe may have succeeded even if
+	// the store filter above didn't find it (library path ≠ executable path).
+	if pid > 0 {
+		m.mu.Lock()
+		lib, ok := m.attachedExec[pid]
+		m.mu.Unlock()
+		if ok {
+			result.TargetKind = "executable"
+			result.Library = lib
 			return result
 		}
 	}
