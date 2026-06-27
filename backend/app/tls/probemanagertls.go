@@ -18,7 +18,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
-	"github.com/cilium/ebpf/ringbuf"
+	"github.com/cilium/ebpf/perf"
 )
 
 type ProbeTarget struct {
@@ -604,10 +604,10 @@ func (m *TLSProbeManager) ReadLoop() error {
 	rules := m.rules
 	m.mu.Unlock()
 
-	log.Printf("[tls] ReadLoop: started, waiting for ringbuffer events...")
-	reader, err := ringbuf.NewReader(events)
+	log.Printf("[tls] ReadLoop: started, waiting for perf events...")
+	reader, err := perf.NewReader(events, os.Getpagesize()*64)
 	if err != nil {
-		log.Printf("[tls] ReadLoop: ringbuf.NewReader failed: %v", err)
+		log.Printf("[tls] ReadLoop: perf.NewReader failed: %v", err)
 		return err
 	}
 	defer reader.Close()
@@ -616,12 +616,12 @@ func (m *TLSProbeManager) ReadLoop() error {
 	for {
 		rec, err := reader.Read()
 		if err != nil {
-			if errors.Is(err, ringbuf.ErrClosed) {
-				log.Printf("[tls] ReadLoop: ringbuf closed, total=%d frags, %d dropped, %d completed, %d http, %d raw",
+			if errors.Is(err, perf.ErrClosed) {
+				log.Printf("[tls] ReadLoop: perf reader closed, total=%d frags, %d dropped, %d completed, %d http, %d raw",
 					totalFrags, droppedFrags, completedFrags, httpEvents, rawEvents)
 				return nil
 			}
-			log.Printf("[tls] ReadLoop: ringbuf read error: %v", err)
+			log.Printf("[tls] ReadLoop: perf read error: %v", err)
 			return err
 		}
 		totalFrags++
@@ -1301,7 +1301,7 @@ func (m *TLSProbeManager) AttachedPIDs() []AttachedPIDInfo {
 }
 
 // ProbeHitCounters reads the tls_probe_hits BPF map and returns per-function hit counts
-// plus diagnostic counters (ringbuf_reserve_fail, probe_read_fail, ringbuf_submit_ok).
+// plus diagnostic counters (perf_output_fail, probe_read_fail, perf_submit_ok).
 func (m *TLSProbeManager) ProbeHitCounters() map[string]uint64 {
 	result := make(map[string]uint64)
 	if m == nil || m.objs == nil || m.objs.TlsProbeHits == nil {
@@ -1315,7 +1315,7 @@ func (m *TLSProbeManager) ProbeHitCounters() map[string]uint64 {
 		}
 	}
 	// Diagnostic counters (indices 12-14 in BPF map)
-	diagLabels := map[uint32]string{12: "ringbuf_reserve_fail", 13: "probe_read_fail", 14: "ringbuf_submit_ok"}
+	diagLabels := map[uint32]string{12: "perf_output_fail", 13: "probe_read_fail", 14: "perf_submit_ok"}
 	for idx, label := range diagLabels {
 		var val uint64
 		if err := m.objs.TlsProbeHits.Lookup(&idx, &val); err == nil && val > 0 {

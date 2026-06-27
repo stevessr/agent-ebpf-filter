@@ -112,6 +112,7 @@ type AgentTlsCaptureMapSpecs struct {
 	RetprobeBuf  *ebpf.MapSpec `ebpf:"retprobe_buf"`
 	TlsEvents    *ebpf.MapSpec `ebpf:"tls_events"`
 	TlsProbeHits *ebpf.MapSpec `ebpf:"tls_probe_hits"`
+	TlsScratch   *ebpf.MapSpec `ebpf:"tls_scratch"`
 }
 
 // AgentTlsCaptureVariableSpecs contains global variables before they are loaded into the kernel.
@@ -144,6 +145,7 @@ type AgentTlsCaptureMaps struct {
 	RetprobeBuf  *ebpf.Map `ebpf:"retprobe_buf"`
 	TlsEvents    *ebpf.Map `ebpf:"tls_events"`
 	TlsProbeHits *ebpf.Map `ebpf:"tls_probe_hits"`
+	TlsScratch   *ebpf.Map `ebpf:"tls_scratch"`
 }
 
 func (m *AgentTlsCaptureMaps) Close() error {
@@ -151,6 +153,7 @@ func (m *AgentTlsCaptureMaps) Close() error {
 		m.RetprobeBuf,
 		m.TlsEvents,
 		m.TlsProbeHits,
+		m.TlsScratch,
 	)
 }
 
