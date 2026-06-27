@@ -51,16 +51,71 @@ const formatJSON = (obj: any, maxLen: number = 3000): string => {
   } catch { return String(obj); }
 };
 
-// ── SSE parser ───────────────────────────────────────────────────────────
-interface SSEParsed { event: string; dataJSON: any; dataRaw: string; }
-const parseSSE = (text: string): SSEParsed => {
-  let event = "", data = "";
+// ── SSE parser (handles both framed SSE and bare concatenated JSON) ──────
+interface SSEParsed { type: string; index?: number; data: any; delta?: any; content_block?: any; message?: any; }
+const NOOP_TYPES = new Set(["ping", "message_stop"]);
+
+// Split concatenated JSON objects: {"a":1}{"b":2} → [{"a":1}, {"b":2}]
+const splitConcatenatedJSON = (text: string): any[] => {
+  const results: any[] = [];
+  // Find all top-level { } objects
+  let depth = 0, start = -1;
+  let inString = false, escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        const obj = tryParseJSON(text.slice(start, i + 1));
+        if (obj) results.push(obj);
+        start = -1;
+      }
+    }
+  }
+  return results;
+};
+
+// Parse raw text from an event into SSE data objects
+// Handles: SSE-framed ("event:...\ndata:..."), bare concatenated JSON, or single JSON
+const parseRawSSE = (text: string): SSEParsed[] => {
+  const result: SSEParsed[] = [];
+
+  // Try SSE-framed first
+  let sseEvent = "", sseData = "";
   for (const line of text.split("\n")) {
     const t = line.trim();
-    if (t.startsWith("event:")) event = t.slice(6).trim();
-    else if (t.startsWith("data:")) data += t.slice(5).trim();
+    if (t.startsWith("event:")) sseEvent = t.slice(6).trim();
+    else if (t.startsWith("data:")) sseData += t.slice(5).trim();
   }
-  return { event, dataJSON: tryParseJSON(data), dataRaw: data };
+  if (sseData) {
+    // Could be single JSON or concatenated
+    const objs = splitConcatenatedJSON(sseData);
+    if (objs.length > 0) {
+      for (const obj of objs) {
+        const ev = sseEvent || obj.type || "";
+        result.push({ type: ev, index: obj.index, data: obj, delta: obj.delta, content_block: obj.content_block, message: obj.message });
+      }
+      return result;
+    }
+  }
+
+  // Try bare concatenated JSON (or single JSON)
+  const objs = splitConcatenatedJSON(text);
+  if (objs.length > 0) {
+    for (const obj of objs) {
+      result.push({ type: obj.type || "", index: obj.index, data: obj, delta: obj.delta, content_block: obj.content_block, message: obj.message });
+    }
+    return result;
+  }
+
+  return result;
 };
 
 // ── Content block ────────────────────────────────────────────────────────
@@ -75,66 +130,70 @@ interface MergedGroup {
   contentBlocks: ContentBlock[]; rawMerged: string;
 }
 
-// ── Content block merging (Anthropic SSE spec + generic) ─────────────────
+// ── Content block merging (handles Anthropic + OpenAI + generic) ─────────
 const mergeContentBlocks = (parsedEvents: SSEParsed[]): ContentBlock[] => {
   const blocks = new Map<string, ContentBlock>();
 
   for (const p of parsedEvents) {
-    const d = p.dataJSON;
-    if (p.event === "message_start" || p.event === "message_delta" ||
-        p.event === "message_stop" || p.event === "ping") continue;
+    const evType = p.type;
+    if (!evType || NOOP_TYPES.has(evType)) continue;
 
-    if (p.event === "content_block_start" && d?.content_block) {
-      const cb = d.content_block;
-      blocks.set(`cb-${d.index ?? blocks.size}`, {
+    // message_start → metadata
+    if (evType === "message_start") continue;
+    if (evType === "message_delta") continue;
+
+    // content_block_start
+    if (evType === "content_block_start" && p.content_block) {
+      const cb = p.content_block;
+      const key = `cb-${p.index ?? blocks.size}`;
+      blocks.set(key, {
         type: cb.type || "unknown",
-        mergedText: cb.text || "",
+        mergedText: cb.text || cb.thinking || "",
         toolName: cb.name, toolId: cb.id, toolInput: cb.input,
       });
       continue;
     }
 
-    if (p.event === "content_block_delta" && d?.delta) {
-      const key = `cb-${d.index ?? blocks.size}`;
+    // content_block_delta — accumulate text / thinking / partial_json / input_json_delta
+    if (evType === "content_block_delta" && p.delta) {
+      const key = `cb-${p.index ?? blocks.size}`;
       const existing = blocks.get(key);
-      const delta = d.delta;
+      const delta = p.delta;
       if (existing) {
         if (delta.text) existing.mergedText += delta.text;
         else if (delta.thinking) existing.mergedText += delta.thinking;
-        else if (delta.partial_json) { existing.mergedText += delta.partial_json; existing.toolInput = tryParseJSON(existing.mergedText); }
-        else if (delta.input_json) { existing.mergedText += delta.input_json; existing.toolInput = tryParseJSON(existing.mergedText); }
+        else if (delta.partial_json || delta.input_json_delta?.partial_json) {
+          const pj = delta.partial_json || delta.input_json_delta?.partial_json || "";
+          existing.mergedText += pj;
+          existing.toolInput = tryParseJSON(existing.mergedText);
+        }
+        else if (delta.signature_delta) { /* ignore */ }
       } else {
-        blocks.set(key, {
-          type: delta.type || "text",
-          mergedText: delta.text || delta.thinking || delta.partial_json || delta.input_json || "",
-        });
+        const text = delta.text || delta.thinking ||
+          delta.partial_json || delta.input_json_delta?.partial_json || "";
+        blocks.set(key, { type: delta.type || "text", mergedText: text });
       }
       continue;
     }
 
-    if (p.event === "content_block_stop") continue;
+    // content_block_stop
+    if (evType === "content_block_stop") continue;
 
-    // Generic/untyped SSE data
-    if (d) {
-      // Try OpenAI-style: {"choices":[{"delta":{"content":"..."}}]}
-      if (d.choices?.[0]?.delta?.content) {
-        const key = "text-choice-0";
-        const ex = blocks.get(key);
-        if (ex) ex.mergedText += d.choices[0].delta.content;
-        else blocks.set(key, { type: "text", mergedText: d.choices[0].delta.content });
-      } else {
-        const key = `data-${blocks.size}`;
-        const ex = blocks.get(key);
-        const text = formatJSON(d, 2000);
-        if (ex) ex.mergedText += "\n" + text;
-        else blocks.set(key, { type: "data", mergedText: text });
-      }
-    } else if (p.dataRaw) {
-      const key = `raw-${blocks.size}`;
+    // OpenAI-style: {"choices":[{"delta":{"content":"..."}}]}
+    if (p.data?.choices?.[0]?.delta?.content) {
+      const key = "text-delta";
       const ex = blocks.get(key);
-      if (ex) ex.mergedText += "\n" + p.dataRaw;
-      else blocks.set(key, { type: "data", mergedText: p.dataRaw });
+      if (ex) ex.mergedText += p.data.choices[0].delta.content;
+      else blocks.set(key, { type: "text", mergedText: p.data.choices[0].delta.content });
+      continue;
     }
+
+    // Unknown event type — store as raw data
+    const key = `other-${blocks.size}`;
+    const text = formatJSON(p.data, 2000);
+    const ex = blocks.get(key);
+    if (ex) ex.mergedText += "\n" + text;
+    else blocks.set(key, { type: "data", mergedText: text });
   }
 
   return Array.from(blocks.values());
@@ -142,11 +201,18 @@ const mergeContentBlocks = (parsedEvents: SSEParsed[]): ContentBlock[] => {
 
 const extractMessageMeta = (events: SSEParsed[]): { role?: string; model?: string; id?: string } => {
   for (const p of events) {
-    if (p.event === "message_start" && p.dataJSON?.message) {
-      return { role: p.dataJSON.message.role, model: p.dataJSON.message.model, id: p.dataJSON.message.id };
+    if (p.type === "message_start" && p.message) {
+      return { role: p.message.role, model: p.message.model, id: p.message.id };
     }
   }
   return {};
+};
+
+// ── Check if raw text looks like SSE JSON ───────────────────────────────
+const looksLikeSSEJSON = (text: string): boolean => {
+  const t = text.trim();
+  return t.startsWith('{"type":"') &&
+    /"(message_start|content_block|ping|message_delta|message_stop)"/.test(t.slice(0, 100));
 };
 
 // ── Build groups ─────────────────────────────────────────────────────────
@@ -201,28 +267,46 @@ const buildGroups = (events: ObserverTLSEvent[]): MergedGroup[] => {
       i++; continue;
     }
 
-    // SSE stream — merge consecutive, parse content blocks
-    if (ev.type === "sse_message") {
+    // SSE stream + raw events that look like SSE JSON — merge all together
+    if (ev.type === "sse_message" || (ev.type === "tls_plaintext" && looksLikeSSEJSON(getRawText(ev)))) {
       const batch: ObserverTLSEvent[] = [ev];
       let j = i + 1;
-      while (j < events.length && events[j].type === "sse_message") { batch.push(events[j]); j++; }
-      const parsed = batch.map((e) => parseSSE(getRawText(e)));
-      const meta = extractMessageMeta(parsed);
+      while (j < events.length) {
+        const next = events[j];
+        if (next.type === "sse_message" || (next.type === "tls_plaintext" && looksLikeSSEJSON(getRawText(next)))) {
+          batch.push(next); j++;
+        } else {
+          break;
+        }
+      }
+
+      // Parse all events into SSE data objects
+      const allParsed: SSEParsed[] = [];
+      for (const be of batch) {
+        const text = getRawText(be);
+        allParsed.push(...parseRawSSE(text));
+      }
+
+      const meta = extractMessageMeta(allParsed);
       groups.push({
         id: nextId(), events: batch,
         startTime: batch[0].timestamp, endTime: batch[batch.length - 1].timestamp,
         totalSize: batch.reduce((s, e) => s + (e.body_size || e.captured_len), 0),
         messageRole: meta.role, messageModel: meta.model, messageId: meta.id,
-        contentBlocks: mergeContentBlocks(parsed),
-        rawMerged: parsed.map((p) => p.dataRaw).join("\n"),
+        contentBlocks: allParsed.length > 0 ? mergeContentBlocks(allParsed) : [],
+        rawMerged: allParsed.length > 0 ? "" : batch.map(getRawText).join("\n"),
       });
       i = j; continue;
     }
 
-    // Raw — group consecutive
+    // Raw — group consecutive non-SSE raw events
     const batch: ObserverTLSEvent[] = [ev];
     let k = i + 1;
-    while (k < events.length && events[k].type === "tls_plaintext") { batch.push(events[k]); k++; }
+    while (k < events.length &&
+           events[k].type === "tls_plaintext" &&
+           !looksLikeSSEJSON(getRawText(events[k]))) {
+      batch.push(events[k]); k++;
+    }
     const rawBody = batch.map(getRawText).filter(Boolean).join("\n");
     groups.push({
       id: nextId(), events: batch,
