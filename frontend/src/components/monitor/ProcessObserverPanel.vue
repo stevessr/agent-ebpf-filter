@@ -340,6 +340,46 @@ const sslLibForPid = (pid: number): string => {
   return a ? a.library_name || "attached" : "";
 };
 
+// Classify SSL/TLS library by name
+const classifySSLLib = (libName: string): { type: string; color: string; tagColor: string } => {
+  const name = libName.toLowerCase();
+  if (name.includes("go-crypto") || name.includes("crypto/tls")) return { type: "Go crypto/tls", color: "#00ADD8", tagColor: "cyan" };
+  if (name.includes("openssl") || name.includes("libssl") || name.includes("libcrypto")) return { type: "OpenSSL", color: "#1677ff", tagColor: "blue" };
+  if (name.includes("gnutls")) return { type: "GnuTLS", color: "#10b981", tagColor: "green" };
+  if (name.includes("nss3") || name.includes("libnss")) return { type: "NSS", color: "#f59e0b", tagColor: "orange" };
+  if (name.includes("mbedtls")) return { type: "Mbed TLS", color: "#8b5cf6", tagColor: "purple" };
+  if (name.includes("wolfssl")) return { type: "WolfSSL", color: "#ef4444", tagColor: "red" };
+  if (name.includes("boringssl")) return { type: "BoringSSL", color: "#6366f1", tagColor: "geekblue" };
+  if (name) return { type: "SSL Library", color: "#64748b", tagColor: "default" };
+  return { type: "Detected", color: "#94a3b8", tagColor: "default" };
+};
+
+// SSL attachments filtered to current tree, enriched with process name
+const treeSSLAttachments = computed(() =>
+  attachedPIDs.value
+    .filter((a: any) => treePids.value.has(a.pid))
+    .map((a: any) => ({
+      ...a,
+      comm: treeProcessList.value.find((p) => p.pid === a.pid)?.name || "",
+    })),
+);
+
+// Tree processes missing SSL attachment
+const treeSSLPending = computed(() =>
+  treeProcessList.value.filter(
+    (p) => !sslAttachedSet.value.has(p.pid),
+  ),
+);
+
+const sslAttachmentColumns = [
+  { title: "PID", dataIndex: "pid", key: "pid", width: 65 },
+  { title: "Comm", key: "comm", width: 110, ellipsis: true },
+  { title: "Library Path", dataIndex: "library_name", key: "lib", ellipsis: true },
+  { title: "Type", key: "libType", width: 100 },
+  { title: "Binary", dataIndex: "binary_path", key: "bin", ellipsis: true },
+  { title: "Status", key: "status", width: 80 },
+];
+
 // ── Table columns ────────────────────────────────────────────────────────
 
 const networkFlowColumns = [
@@ -793,6 +833,13 @@ watch(
           <a-button
             size="small"
             type="link"
+            @click="fetchAttachedPIDs()"
+            style="padding: 0 4px; font-size: 11px"
+            >Refresh</a-button
+          >
+          <a-button
+            size="small"
+            type="link"
             danger
             @click="clearTLSEvents()"
             style="padding: 0 4px; font-size: 11px"
@@ -801,16 +848,82 @@ watch(
         </template>
         <a-empty
           v-if="selectedPid === null"
-          description="Select a PID to view decrypted TLS events"
+          description="Select a PID to view SSL/TLS data"
         />
-        <a-table
-          v-else
-          :dataSource="treeTLSEvents"
-          :columns="tlsColumns"
-          row-key="key"
-          size="small"
-          :pagination="{ pageSize: 20, size: 'small' }"
-        />
+        <template v-else>
+          <!-- Section 1: Uprobe captured TLS events -->
+          <div class="sub-section">
+            <div class="sub-title">
+              Decrypted TLS Events
+              <span class="sub-count">{{ treeTLSEvents.length }}</span>
+            </div>
+            <a-table
+              :dataSource="treeTLSEvents"
+              :columns="tlsColumns"
+              row-key="key"
+              size="small"
+              :pagination="{ pageSize: 20, size: 'small' }"
+            />
+          </div>
+
+          <a-divider style="margin: 16px 0 12px; font-size: 12px; color: #888">
+            SSL Probe Attachment
+          </a-divider>
+
+          <!-- Section 2: Attached probes -->
+          <div class="sub-section">
+            <div class="sub-title">
+              Active Probes
+              <a-tag color="green" size="small">{{ treeSSLAttachments.length }}</a-tag>
+            </div>
+            <a-empty
+              v-if="treeSSLAttachments.length === 0"
+              description="No SSL probes attached to tree processes"
+              style="padding: 12px"
+            />
+            <a-table
+              v-else
+              :dataSource="treeSSLAttachments"
+              :columns="sslAttachmentColumns"
+              row-key="pid"
+              size="small"
+              :pagination="false"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'comm'">
+                  <span class="ssl-attach-comm">{{ record.comm || '—' }}</span>
+                </template>
+                <template v-else-if="column.key === 'libType'">
+                  <a-tag :color="classifySSLLib(record.library_name || '').tagColor" size="small">
+                    {{ classifySSLLib(record.library_name || '').type }}
+                  </a-tag>
+                </template>
+                <template v-else-if="column.key === 'status'">
+                  <a-badge status="processing" color="green" text="Active" />
+                </template>
+              </template>
+            </a-table>
+          </div>
+
+          <!-- Section 3: Pending (not attached) processes -->
+          <div v-if="treeSSLPending.length > 0" class="sub-section">
+            <div class="sub-title">
+              Not Attached
+              <a-tag color="default" size="small">{{ treeSSLPending.length }}</a-tag>
+            </div>
+            <div class="ssl-pending-list">
+              <a-tag
+                v-for="p in treeSSLPending"
+                :key="p.pid"
+                color="default"
+                class="ssl-pending-tag"
+              >
+                <code>{{ p.pid }}</code>
+                {{ p.name }}
+              </a-tag>
+            </div>
+          </div>
+        </template>
       </a-tab-pane>
     </a-tabs>
 
@@ -950,5 +1063,32 @@ watch(
   margin-bottom: 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sub-count {
+  font-size: 11px;
+  color: #999;
+  font-weight: 400;
+}
+.ssl-attach-comm {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 500;
+}
+.ssl-pending-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ssl-pending-tag {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+.ssl-pending-tag code {
+  font-weight: 700;
+  color: #1677ff;
+  margin-right: 4px;
 }
 </style>
