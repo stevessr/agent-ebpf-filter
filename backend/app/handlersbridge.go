@@ -6,6 +6,7 @@ import (
 	"agent-ebpf-filter/app/shell"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/core"
+	"agent-ebpf-filter/internal/geoip"
 	"agent-ebpf-filter/pb"
 	"encoding/json"
 	"fmt"
@@ -521,7 +522,7 @@ func init() {
 		handlers.Deps.NetworkFlowAggregator = networkFlowAggregator
 		handlers.Deps.TCPTracker = tcpTracker
 		handlers.Deps.DNSCorrelation = dnsCorrelation
-		handlers.Deps.GeoIPDB = geoipDB
+		handlers.Deps.GeoIPDB = geoip.NewResolver()
 		handlers.Deps.AnalyzeEndpoint = analyzeEndpoint
 
 		// External API

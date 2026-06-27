@@ -6,6 +6,8 @@ import (
 	"math"
 	"sync"
 	"time"
+
+	netcore "agent-ebpf-filter/internal/network"
 )
 
 // ---- moved from backend/zz_merged_backend.go section tracker_bandwidth.go ----
@@ -374,7 +376,7 @@ func computeExfilRiskScore(bytesOut uint64, elapsedSec float64, dstScope string)
 	}
 
 	// Scope adjustment
-	if dstScope == string(ScopePublic) {
+	if dstScope == string(netcore.ScopePublic) {
 		risk = math.Min(risk*1.2, 0.99)
 	}
 

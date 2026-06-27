@@ -12,6 +12,7 @@ import (
 	"agent-ebpf-filter/pb"
 
 	"agent-ebpf-filter/app/events"
+	netcore "agent-ebpf-filter/internal/network"
 )
 
 // ── Bridge functions (called by remaining app-package code) ─────────────
@@ -49,7 +50,7 @@ func init() {
 	}
 	events.Deps.LookupServiceByPort = lookupServiceByPort
 	events.Deps.ClassifyIPScope = func(ip net.IP) events.IPScope {
-		return events.IPScope(classifyIPScope(ip))
+		return events.IPScope(netcore.ClassifyIPScope(ip))
 	}
 	events.Deps.DetectAppProtocol = func(port uint32, domain string) string {
 		return detectAppProtocol(port, domain)

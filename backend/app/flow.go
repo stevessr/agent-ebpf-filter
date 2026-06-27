@@ -2,6 +2,7 @@ package app
 
 import (
 	netcore "agent-ebpf-filter/internal/network"
+	"agent-ebpf-filter/internal/geoip"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/pb"
 	"net"
@@ -129,17 +130,17 @@ func enrichEndpointWithContext(endpoint string) string {
 	return endpoint
 }
 
-func classifyEndpointScope(endpoint string) IPScope {
+func classifyEndpointScope(endpoint string) netcore.IPScope {
 	host, _, err := net.SplitHostPort(endpoint)
 	if err != nil {
 		host = endpoint
 	}
 	ip := net.ParseIP(host)
-	return classifyIPScope(ip)
+	return netcore.ClassifyIPScope(ip)
 }
 
 // Parse a network endpoint string into IP scope, service, domain, GeoIP, and risk info
-func analyzeEndpoint(endpoint string) (scope IPScope, service string, domain string, risk float64) {
+func analyzeEndpoint(endpoint string) (scope netcore.IPScope, service string, domain string, risk float64) {
 	host, portStr, err := net.SplitHostPort(endpoint)
 	if err != nil {
 		host = endpoint
@@ -147,8 +148,8 @@ func analyzeEndpoint(endpoint string) (scope IPScope, service string, domain str
 
 	// Scope classification
 	ip := net.ParseIP(host)
-	scope = classifyIPScope(ip)
-	risk = ipScopeRiskScore(scope)
+	scope = netcore.ClassifyIPScope(ip)
+	risk = netcore.IPScopeRiskScore(scope)
 
 	// DNS enrichment via AppCtx
 	if AppCtx != nil && AppCtx.Network != nil {
@@ -163,16 +164,16 @@ func analyzeEndpoint(endpoint string) (scope IPScope, service string, domain str
 	}
 
 	// GeoIP enrichment for public IPs
-	if scope == ScopePublic {
-		var rec geoipRecord
+	if scope == netcore.ScopePublic {
+		var rec geoip.Record
 		var ok bool
 		if AppCtx != nil && AppCtx.Network != nil {
 			rec, ok = AppCtx.Network.GeoIPLookup(host)
 		} else {
-			rec, ok = geoipDB.Lookup(host)
+			resolver := geoip.NewResolver(); rec, ok = resolver.Lookup(host)
 		}
 		if ok && rec.CountryCode != "XX" {
-			if isHighRiskCountry(rec.CountryCode) {
+			if geoip.IsHighRiskCountry(rec.CountryCode) {
 				risk = platform.MaxFloat64(risk, 0.85)
 			}
 		}

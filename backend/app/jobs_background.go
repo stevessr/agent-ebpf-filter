@@ -126,7 +126,7 @@ func startRuntimeBackgroundJobs(features *FeatureRegistry) {
 	startExfilDetectionLoop()
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		initGeoIPDatabase()
+		AppCtx.Network.InitGeoIPDatabase()
 	}()
 	go func() {
 		ticker := time.NewTicker(3 * time.Minute)
