@@ -312,10 +312,7 @@ export function useProcessObserver() {
             timestamp: now,
           });
         }
-        allEvents.value = [...batch.reverse(), ...allEvents.value].slice(
-          0,
-          MAX_EVENTS,
-        );
+        allEvents.value = [...batch.reverse(), ...allEvents.value];
       } catch {
         /* skip malformed message */
       }
@@ -359,10 +356,7 @@ export function useProcessObserver() {
           host: ev.host || "",
           status: ev.status || 0,
         }));
-        tlsEvents.value = [...batch.reverse(), ...tlsEvents.value].slice(
-          0,
-          MAX_TLS,
-        );
+        tlsEvents.value = [...batch.reverse(), ...tlsEvents.value];
       } catch {
         /* skip malformed message */
       }
@@ -400,7 +394,7 @@ export function useProcessObserver() {
           };
         })
         .filter((e: ObserverEvent) => e.eventType >= 0);
-      allEvents.value = loaded.slice(0, MAX_EVENTS).reverse();
+      allEvents.value = loaded.reverse();
     } catch {
       /* silent */
     }
@@ -452,6 +446,22 @@ export function useProcessObserver() {
     } catch {
       /* silent */
     }
+  };
+
+
+  const clearEvents = () => { allEvents.value = []; };
+  const clearTLSEvents = () => { tlsEvents.value = []; };
+  const clearNetworkFlows = () => { networkFlows.value = []; };
+  const clearTCPConns = () => { tcpConns.value = []; };
+
+  // SSL attachment state
+  interface AttachedPID { pid: number; binary_path: string; library_name: string; }
+  const attachedPIDs = ref<AttachedPID[]>([]);
+  const fetchAttachedPIDs = async () => {
+    try {
+      const res = await axios.get("/tls-capture/attached-pids");
+      attachedPIDs.value = Array.isArray(res.data) ? res.data : [];
+    } catch { attachedPIDs.value = []; }
   };
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -529,5 +539,13 @@ export function useProcessObserver() {
     loadAllInitial,
     fetchNetworkFlows,
     fetchTCPState,
+    // Clear functions
+    clearEvents,
+    clearTLSEvents,
+    clearNetworkFlows,
+    clearTCPConns,
+    // SSL attachment
+    attachedPIDs,
+    fetchAttachedPIDs,
   };
 }

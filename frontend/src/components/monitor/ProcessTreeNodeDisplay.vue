@@ -11,6 +11,8 @@ const props = defineProps<{
   depth: number;
   highlightPid: number;
   expandedSet: Set<number>;
+  sslAttachedSet?: Set<number>;
+  sslLibForPid?: (pid: number) => string;
 }>();
 
 const emit = defineEmits<{
@@ -46,6 +48,11 @@ const isHighlighted = computed(() => props.node.pid === props.highlightPid);
       <span v-if="node.ppid && node.ppid !== node.pid" class="tree-ppid">
         ppid {{ node.ppid }}
       </span>
+      <span
+        v-if="sslAttachedSet?.has(node.pid)"
+        class="ssl-dot"
+        :title="'SSL: ' + (sslLibForPid?.(node.pid) || 'attached')"
+      >●</span>
       <span class="tree-usage">
         CPU {{ (node.cpu ?? 0).toFixed(1) }}% |
         Mem {{ (node.mem ?? 0).toFixed(1) }}%
@@ -106,5 +113,11 @@ const isHighlighted = computed(() => props.node.pid === props.highlightPid);
   margin-left: auto;
   color: #888;
   font-size: 11px;
+}
+.ssl-dot {
+  color: #10b981;
+  font-size: 8px;
+  margin-right: 4px;
+  cursor: help;
 }
 </style>

@@ -13,6 +13,8 @@ import {
 } from "../../composables/monitor/useProcessObserver";
 import ProcessPickerModal from "./ProcessPickerModal.vue";
 import ProcessTreeNodeDisplay from "./ProcessTreeNodeDisplay.vue";
+import ObserverTimeline from "./observer/ObserverTimeline.vue";
+import ObserverResources from "./observer/ObserverResources.vue";
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -55,6 +57,13 @@ const {
   connectAll,
   disconnectAll,
   loadAllInitial,
+  // Clear + SSL
+  clearEvents,
+  clearTLSEvents,
+  clearNetworkFlows,
+  clearTCPConns,
+  attachedPIDs,
+  fetchAttachedPIDs,
 } = obs;
 
 setProcesses(props.processes);
@@ -186,6 +195,14 @@ watch(selectedPid, (pid) => {
   }
 });
 
+
+// SSL attachment status per PID
+const sslAttachedSet = computed<Set<number>>(() => new Set(attachedPIDs.value.map((a: any) => a.pid)));
+const sslLibForPid = (pid: number): string => {
+  const a = attachedPIDs.value.find((x: any) => x.pid === pid);
+  return a ? (a.library_name || a.libraryName || "attached") : "";
+};
+
 // ── Table columns ────────────────────────────────────────────────────────
 
 const networkFlowColumns = [
@@ -225,14 +242,7 @@ const tlsColumns = [
   { title: "Status", dataIndex: "status", key: "status", width: 60, align: "right" as const },
 ];
 
-const resourceColumns = [
-  { title: "PID", dataIndex: "pid", key: "pid", width: 65, sorter: (a: ProcessInfo, b: ProcessInfo) => a.pid - b.pid },
-  { title: "Name", dataIndex: "name", key: "name", width: 140, ellipsis: true },
-  { title: "CPU %", dataIndex: "cpu", key: "cpu", width: 80, align: "right" as const, sorter: (a: ProcessInfo, b: ProcessInfo) => a.cpu - b.cpu },
-  { title: "Mem %", dataIndex: "mem", key: "mem", width: 80, align: "right" as const, sorter: (a: ProcessInfo, b: ProcessInfo) => a.mem - b.mem },
-  { title: "User", dataIndex: "user", key: "user", width: 95 },
-  { title: "Cmdline", dataIndex: "cmdline", key: "cmdline", ellipsis: true },
-];
+
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -240,6 +250,7 @@ onMounted(() => {
   if (props.isActive) {
     connectAll();
     loadAllInitial();
+    fetchAttachedPIDs();
   }
 });
 
@@ -253,6 +264,7 @@ watch(
     if (active) {
       connectAll();
       loadAllInitial();
+      fetchAttachedPIDs();
     } else {
       disconnectAll();
     }
@@ -346,7 +358,18 @@ watch(
         </div>
       </a-tab-pane>
 
-      <!-- 2. Process Tree -->
+      <!-- 2. Timeline (NEW) -->
+      <a-tab-pane key="timeline">
+        <template #tab>Timeline</template>
+        <ObserverTimeline
+          :events="allEvents"
+          :selectedPid="selectedPid"
+          @clear="clearEvents()"
+          @selectPid="(pid: number) => (selectedPid = pid)"
+        />
+      </a-tab-pane>
+
+      <!-- 3. Process Tree -->
       <a-tab-pane key="tree">
         <template #tab><NodeIndexOutlined /> Tree</template>
         <a-empty
@@ -377,13 +400,20 @@ watch(
             :depth="0"
             :highlight-pid="selectedPid ?? 0"
             :expanded-set="expandedNodes"
+            :ssl-attached-set="sslAttachedSet"
+            :ssl-lib-for-pid="sslLibForPid"
             @toggle="toggleExpand"
             @select="(pid: number) => (selectedPid = pid)"
           />
         </div>
       </a-tab-pane>
 
-      <!-- 3. Network -->
+      <!-- 4. Network -->
+      <a-tab-pane key="network">
+        <template #tab>Network</template>
+        <template #tabBarExtraContent>
+          <a-button size="small" type="link" danger @click="clearNetworkFlows(); clearTCPConns()" style="padding:0 4px;font-size:11px">Clear</a-button>
+        </template>
       <a-tab-pane key="network">
         <template #tab><ReloadOutlined /> Network</template>
         <a-empty
@@ -423,9 +453,12 @@ watch(
         </template>
       </a-tab-pane>
 
-      <!-- 4. Syscalls -->
+      <!-- 5. Syscalls -->
       <a-tab-pane key="syscalls">
         <template #tab>Syscalls</template>
+        <template #tabBarExtraContent>
+          <a-button size="small" type="link" danger @click="clearEvents()" style="padding:0 4px;font-size:11px">Clear</a-button>
+        </template>
         <a-empty
           v-if="selectedPid === null"
           description="Select a PID to view syscalls"
@@ -449,9 +482,12 @@ watch(
         </a-table>
       </a-tab-pane>
 
-      <!-- 5. File Access -->
+      <!-- 6. File Access -->
       <a-tab-pane key="file-access">
         <template #tab>File Access</template>
+        <template #tabBarExtraContent>
+          <a-button size="small" type="link" danger @click="clearEvents()" style="padding:0 4px;font-size:11px">Clear</a-button>
+        </template>
         <a-empty
           v-if="selectedPid === null"
           description="Select a PID to view file access events"
@@ -475,30 +511,26 @@ watch(
         </a-table>
       </a-tab-pane>
 
-      <!-- 6. Resource Usage -->
+      <!-- 7. Resources -->
       <a-tab-pane key="resources">
         <template #tab>Resources</template>
         <a-empty
           v-if="selectedPid === null"
           description="Select a PID to view resource usage"
         />
-        <template v-else>
-          <div class="sub-title">
-            {{ treeProcessList.length }} process(es) in tree
-          </div>
-          <a-table
-            :dataSource="treeProcessList"
-            :columns="resourceColumns"
-            row-key="pid"
-            size="small"
-            :pagination="{ pageSize: 20, size: 'small' }"
-          />
-        </template>
+        <ObserverResources
+          v-else
+          :processes="processes"
+          :treePids="treePids"
+        />
       </a-tab-pane>
 
-      <!-- 7. SSL Decrypt -->
+      <!-- 8. SSL -->
       <a-tab-pane key="ssl">
         <template #tab>SSL</template>
+        <template #tabBarExtraContent>
+          <a-button size="small" type="link" danger @click="clearTLSEvents()" style="padding:0 4px;font-size:11px">Clear</a-button>
+        </template>
         <a-empty
           v-if="selectedPid === null"
           description="Select a PID to view decrypted TLS events"

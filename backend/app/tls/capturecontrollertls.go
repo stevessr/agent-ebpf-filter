@@ -137,6 +137,13 @@ func (c *TLSCaptureController) Status() map[string]any {
 	}
 }
 
+func (c *TLSCaptureController) AttachedPIDs() []AttachedPIDInfo {
+	if c == nil || c.manager == nil {
+		return nil
+	}
+	return c.manager.AttachedPIDs()
+}
+
 func (c *TLSCaptureController) Close() error {
 	if c == nil {
 		return nil
