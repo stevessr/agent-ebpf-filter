@@ -978,6 +978,11 @@ watch(
             <span v-else-if="column.key === 'bytes'">
               {{ formatBytes(record.bytes) }}
             </span>
+            <span v-else-if="column.key === 'path'">
+              <span v-if="text" :title="text">{{ text }}</span>
+              <span v-else-if="record.extraInfo" class="path-fallback" :title="record.extraInfo">{{ record.extraInfo }}</span>
+              <span v-else style="color: #ccc">—</span>
+            </span>
           </template>
         </a-table>
       </a-tab-pane>
@@ -1013,6 +1018,11 @@ watch(
             </a-tag>
             <span v-else-if="column.key === 'bytes'">
               {{ formatBytes(record.bytes) }}
+            </span>
+            <span v-else-if="column.key === 'path'">
+              <span v-if="text" :title="text">{{ text }}</span>
+              <span v-else-if="record.extraInfo" class="path-fallback" :title="record.extraInfo">{{ record.extraInfo }}</span>
+              <span v-else style="color: #ccc">—</span>
             </span>
           </template>
         </a-table>
@@ -1537,5 +1547,17 @@ watch(
 }
 .tls-body-preview.tls-body-json {
   color: #2563eb;
+}
+
+/* Path fallback */
+.path-fallback {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: #94a3b8;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
 }
 </style>
