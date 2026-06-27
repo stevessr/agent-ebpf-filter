@@ -173,12 +173,13 @@ interface MergedGroup {
 }
 
 // ── Content block merging (handles Anthropic + OpenAI + generic) ─────────
-// Normalize delta types to canonical block types
+// Normalize delta types to canonical block types (per Anthropic SSE spec)
 const normalizeBlockType = (t: string): string => {
-  if (t === "thinking_delta") return "thinking";
-  if (t === "text_delta") return "text";
+  if (t === "thinking_delta" || t === "thinking") return "thinking";
+  if (t === "text_delta" || t === "text") return "text";
   if (t === "input_json_delta" || t === "tool_use") return "tool_use";
   if (t === "signature_delta") return "signature";
+  if (t === "citations_delta") return "citations";
   return t;
 };
 
@@ -216,13 +217,16 @@ const mergeContentBlocks = (parsedEvents: SSEParsed[]): ContentBlock[] => {
           existing.mergedText += pj;
           existing.toolInput = tryParseJSON(existing.mergedText);
         }
-        else if (delta.signature_delta) { /* ignore */ }
+        else if (delta.signature || delta.signature_delta) { /* signature — ignore */ }
+        else if (delta.citations || delta.citations_delta) { /* citations — ignore for now */ }
       } else {
-        // New block — use normalized type from delta
+        // New block — use normalized type from delta (skip signature/citations as no-ops)
+        const deltaType = delta.type || "text";
+        if (deltaType === "signature_delta" || deltaType === "citations_delta") continue;
         const text = delta.text || delta.thinking ||
           delta.partial_json || delta.input_json_delta?.partial_json || "";
         blocks.set(key, {
-          type: normalizeBlockType(delta.type || "text"),
+          type: normalizeBlockType(deltaType),
           mergedText: text,
         });
       }
@@ -251,18 +255,31 @@ const mergeContentBlocks = (parsedEvents: SSEParsed[]): ContentBlock[] => {
   return Array.from(blocks.values());
 };
 
+// Extract message metadata + merge usage from BOTH message_start and message_delta.
+// Per Anthropic SSE spec:
+//   message_start.message.usage → input_tokens, cache_*, initial output_tokens (usually 0)
+//   message_delta.usage → cumulative output_tokens (final, non-zero)
 const extractMessageMeta = (events: SSEParsed[]): { role?: string; model?: string; id?: string; usage?: any } => {
-  let meta: { role?: string; model?: string; id?: string; usage?: any } = {};
+  let meta: { role?: string; model?: string; id?: string; usage?: Record<string,number> } = {};
   for (const p of events) {
     if (p.type === "message_start" && p.message) {
       meta.role = p.message.role;
       meta.model = p.message.model;
       meta.id = p.message.id;
-      // DO NOT take usage from message_start — output_tokens is always 0
+      // Take input-side tokens from message_start (output_tokens here is always 0)
+      if (p.message.usage) {
+        meta.usage = { ...meta.usage };
+        for (const [k, v] of Object.entries(p.message.usage)) {
+          if (typeof v === "number") meta.usage[k] = v;
+        }
+      }
     }
-    // message_delta / message_stop carry FINAL usage with real output_tokens
+    // message_delta carries cumulative final output_tokens — overwrites the 0 from message_start
     if ((p.type === "message_delta" || p.type === "message_stop") && p.usage) {
-      meta.usage = p.usage;
+      meta.usage = { ...meta.usage };
+      for (const [k, v] of Object.entries(p.usage)) {
+        if (typeof v === "number") meta.usage[k] = v;
+      }
     }
   }
   return meta;
@@ -402,11 +419,11 @@ const blockIcon = (t: string) => {
   return CodeOutlined;
 };
 const blockLabel = (t: string) => {
-  const m: Record<string,string> = { text:"Text", tool_use:"Tool Use", thinking:"Thinking", request_body:"Request Body", response_body:"Response Body", raw:"Raw Data", data:"SSE Data" };
+  const m: Record<string,string> = { text:"Text", tool_use:"Tool Use", thinking:"Thinking", signature:"Signature", citations:"Citations", request_body:"Request Body", response_body:"Response Body", raw:"Raw Data", data:"SSE Data" };
   return m[t] || t;
 };
 const blockColor = (t: string) => {
-  const m: Record<string,string> = { text:"green", tool_use:"orange", thinking:"purple", request_body:"blue", response_body:"cyan" };
+  const m: Record<string,string> = { text:"green", tool_use:"orange", thinking:"purple", signature:"geekblue", citations:"cyan", request_body:"blue", response_body:"cyan" };
   return m[t] || "default";
 };
 const firstTypeLabel = (g: MergedGroup): string => {
@@ -458,11 +475,18 @@ const stats = computed(() => ({
 }));
 
 const expanded = ref<Set<string>>(new Set());
+const blockExpanded = ref<Set<string>>(new Set());
 const toggle = (id: string) => {
   const s = new Set(expanded.value);
   if (s.has(id)) s.delete(id); else s.add(id);
   expanded.value = s;
 };
+const toggleBlock = (blockId: string) => {
+  const s = new Set(blockExpanded.value);
+  if (s.has(blockId)) s.delete(blockId); else s.add(blockId);
+  blockExpanded.value = s;
+};
+const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
 </script>
 
 <template>
@@ -506,8 +530,11 @@ const toggle = (id: string) => {
               </div>
               <div v-if="g.contentBlocks.length" class="ac-blocks">
                 <div v-for="(b,bi) in g.contentBlocks" :key="bi" class="ac-block" :class="`ac-b-${b.type}`">
-                  <div class="ac-b-head"><component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span></div>
-                  <div class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
+                  <div class="ac-b-head" @click.stop="toggleBlock(blockId(g.id, bi))" style="cursor:pointer">
+                    <span class="ac-expand-icon"><CaretDownOutlined v-if="blockExpanded.has(blockId(g.id,bi))" /><CaretRightOutlined v-else /></span>
+                    <component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span>
+                  </div>
+                  <div v-if="blockExpanded.has(blockId(g.id,bi))" class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
                 </div>
               </div>
               <div v-else-if="g.rawMerged" class="ac-b-body"><pre>{{ g.rawMerged.slice(0,2000) }}</pre></div>
@@ -547,8 +574,11 @@ const toggle = (id: string) => {
               </div>
               <div v-if="g.contentBlocks.length" class="ac-blocks">
                 <div v-for="(b,bi) in g.contentBlocks" :key="bi" class="ac-block" :class="`ac-b-${b.type}`">
-                  <div class="ac-b-head"><component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span></div>
-                  <div class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
+                  <div class="ac-b-head" @click.stop="toggleBlock(blockId(g.id, bi))" style="cursor:pointer">
+                    <span class="ac-expand-icon"><CaretDownOutlined v-if="blockExpanded.has(blockId(g.id,bi))" /><CaretRightOutlined v-else /></span>
+                    <component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span>
+                  </div>
+                  <div v-if="blockExpanded.has(blockId(g.id,bi))" class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
                 </div>
               </div>
               <div v-else-if="g.rawMerged" class="ac-b-body"><pre>{{ g.rawMerged.slice(0,2000) }}</pre></div>
