@@ -5,6 +5,7 @@ import (
 	"agent-ebpf-filter/pb"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"regexp"
@@ -209,6 +210,38 @@ func startUDSServer(broadcast chan *pb.Event) {
 				}:
 				default:
 				}
+
+				// ── Async TLS attach for wrapper-registered PIDs ──
+				if tlsCaptureController != nil && req.Pid > 0 && resolvedAction != pb.WrapperResponse_BLOCK {
+					pid := req.Pid
+					comm := req.Comm
+					go func() {
+						// Give the target process time to exec (syscall.Exec replaces
+						// the wrapper binary with the actual command).
+						time.Sleep(500 * time.Millisecond)
+
+						// Resolve the actual binary path for the exec'd PID.
+						binPath, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
+						if err != nil || binPath == "" {
+							log.Printf("[tls] wrapper-attach: PID %d (%s): cannot read exe after exec: %v", pid, comm, err)
+							return
+						}
+
+						manager, err := tlsCaptureController.EnsureStarted()
+						if err != nil {
+							log.Printf("[tls] wrapper-attach: PID %d (%s): EnsureStarted failed: %v", pid, comm, err)
+							return
+						}
+
+						result := manager.AttachExecutable(binPath, int(pid), "")
+						if result.Error != "" {
+							log.Printf("[tls] wrapper-attach: PID %d (%s, %s): %s", pid, comm, binPath, result.Error)
+						} else {
+							log.Printf("[tls] wrapper-attach: PID %d (%s) attached via %s/%s (library=%s)", pid, comm, result.TargetKind, result.Library, binPath)
+						}
+					}()
+				}
+
 				out, _ := proto.Marshal(resp)
 				_, _ = c.Write(out)
 			}

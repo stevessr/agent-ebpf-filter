@@ -11,6 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// tlsCaptureController is exposed for UDS handler to trigger TLS attach
+// on newly registered wrapper PIDs (see server_uds.go).
+var tlsCaptureController *tls.TLSCaptureController
+
 func Main() {
 	if isBootstrapMode() {
 		if err := bootstrapTrackerMaps(); err != nil {
@@ -73,6 +77,7 @@ func Main() {
 	}
 	initTLS()
 	tlsRuntime := tls.StartTLSCaptureRuntime(settings)
+	tlsCaptureController = tlsRuntime.Controller // expose for UDS wrapper-triggered TLS attach
 	defer tlsRuntime.Controller.Close()
 
 	rd, _ := ringbuf.NewReader(trackerMaps.Events)
