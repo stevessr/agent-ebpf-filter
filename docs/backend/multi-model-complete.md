@@ -15,7 +15,7 @@
 
 ---
 
-## 📊 代码统计
+## 代码统计
 
 ### 总览
 | 指标 | 值 |
@@ -35,7 +35,7 @@ docs/multi-model-support.md (250 行) - 使用文档
 
 ---
 
-## 🔧 核心技术实现
+## 核心技术实现
 
 ### 1. **SVM (支持向量机)**
 ```c
@@ -105,7 +105,7 @@ return argmax(output);  // 0=ALLOW, 1=BLOCK, 2=ALERT
 
 ---
 
-## 🚀 性能对比
+## 性能对比
 
 ### 推理延迟
 ```
@@ -278,7 +278,7 @@ cat model_lr.bin > /proc/ml_load
 
 ---
 
-## 📈 提交历史
+## 提交历史
 
 ```
 27d5775 feat: Add multi-model support to kernel ML module
@@ -293,7 +293,7 @@ aea85a7 refactor: Optimize eBPF code for efficiency (-85%)
 
 ---
 
-## 🎯 设计原则
+## 设计原则
 
 1. **定点数优先**: 无浮点，内核安全
 2. **近似激活**: 精度换速度（<5% 误差）
@@ -323,7 +323,7 @@ aea85a7 refactor: Optimize eBPF code for efficiency (-85%)
 
 ---
 
-## 📚 相关文档
+## 相关文档
 
 - `README.md` - 基础使用
 - `docs/backend/kernel-ml-implementation.md` - 架构详解

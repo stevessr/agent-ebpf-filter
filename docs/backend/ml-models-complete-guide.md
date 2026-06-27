@@ -4,7 +4,7 @@
 
 ---
 
-## 📋 目录
+## 目录
 
 - [模型架构概览](#模型架构概览)
 - [内核态模型](#内核态模型)
@@ -16,7 +16,7 @@
 
 ---
 
-## 🏗️ 模型架构概览
+## 模型架构概览
 
 Agent eBPF Filter 采用**双层 ML 架构**：
 
@@ -40,7 +40,7 @@ flowchart TD
 
 ---
 
-## 🔧 内核态模型
+## 内核态模型
 
 内核态模型位于 `kernel-ml/` 目录，作为 DKMS 内核模块加载，提供微秒级实时推理。
 
@@ -271,7 +271,7 @@ static inline int argmax(const s64 *values, int n) {
 
 ---
 
-## 👥 用户态模型 (47 种变体)
+## 用户态模型 (47 种变体)
 
 用户态模型基于 scikit-learn，用于训练和评估。所有模型都可以导出为内核态二进制格式。
 
@@ -620,7 +620,7 @@ void extract_features(struct feature_vector *fv,
 
 ---
 
-## 🎯 使用指南
+## 使用指南
 
 ### 场景 1: 生产环境部署
 
@@ -979,7 +979,7 @@ int BPF_PROG(check_exec, struct linux_binprm *bprm, int ret) {
 
 ---
 
-## 📊 模型选择决策树
+## 模型选择决策树
 
 ```mermaid
 flowchart TD
@@ -1119,7 +1119,7 @@ cat reports/ml-sweep-*/best.json
 
 ---
 
-## 📚 参考文档
+## 参考文档
 
 - `kernel-ml/README.md` - 内核模块详细文档
 - [docs/backend/multi-model-complete.md](/backend/multi-model-complete) - 内核态多模型实现
@@ -1129,7 +1129,7 @@ cat reports/ml-sweep-*/best.json
 
 ---
 
-## 🎯 快速参考卡
+## 快速参考卡
 
 ### 内核态模型速查
 

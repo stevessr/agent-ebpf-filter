@@ -2,7 +2,7 @@
 
 本文档通过图表和可视化展示所有模型的性能特征。
 
-## 📊 模型分布图
+## 模型分布图
 
 ### 准确率 vs 推理速度
 
@@ -37,7 +37,7 @@ graph TD
     style LR fill:#f39c12,color:#fff
 ```
 
-## 🎯 模型选择决策树
+## 模型选择决策树
 
 ```mermaid
 flowchart TD
@@ -66,7 +66,7 @@ flowchart TD
     style DEFAULT fill:#3498db,color:#fff
 ```
 
-## 🏗️ 模型架构图谱
+## 模型架构图谱
 
 ### Random Forest 架构
 
@@ -137,7 +137,7 @@ graph TD
     style ALLOW fill:#2ecc71,color:#fff
 ```
 
-## 📈 性能矩阵热图
+## 性能矩阵热图
 
 ### 内核态模型性能比较
 
@@ -194,7 +194,7 @@ graph TD
     style LINEAR fill:#9b59b6,color:#fff
 ```
 
-## 🎯 使用场景地图
+## 使用场景地图
 
 ```mermaid
 mindmap
@@ -229,7 +229,7 @@ mindmap
       passive_aggressive
 ```
 
-## 📊 训练时间分布
+## 训练时间分布
 
 ```mermaid
 gantt
@@ -283,7 +283,7 @@ flowchart LR
     style RESULT fill:#2ecc71,color:#fff
 ```
 
-## 🚀 推理管线
+## 推理管线
 
 ```mermaid
 sequenceDiagram
@@ -351,7 +351,7 @@ graph TD
 
 ---
 
-## 📚 相关文档
+## 相关文档
 
 - [ML 模型速查表](./ml-models-summary.md)
 - [ML 模型完整指南](./ml-models-complete-guide.md)
