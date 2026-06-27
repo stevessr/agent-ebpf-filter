@@ -419,18 +419,46 @@ const buildGroups = (events: ObserverTLSEvent[], dir: "send" | "recv"): MergedGr
     const rawBody = batch.map(getRawText).filter(Boolean).join("\n");
     const blocks: ContentBlock[] = [];
 
-    // Upstream raw data: try parsing as JSON for display
-    if (dir === "send") {
-      const objs = splitConcatenatedJSON(rawBody);
-      if (objs.length > 0) {
-        for (const obj of objs) {
-          blocks.push({ type: "data", mergedText: formatJSON(obj) });
+    // Upstream raw data: comprehensive JSON extraction
+    if (dir === "send" && rawBody) {
+      // 1. Try complete JSON parse first (single POST body)
+      const parsed = tryParseJSON(rawBody);
+      if (parsed && typeof parsed === "object") {
+        const messages = parsed.messages;
+        if (Array.isArray(messages)) {
+          for (const msg of messages) {
+            const content = msg.content;
+            if (msg.role === "user" && Array.isArray(content)) {
+              for (const item of content) {
+                if (item.type === "tool_result") {
+                  const resultText = typeof item.content === "string"
+                    ? item.content
+                    : Array.isArray(item.content)
+                      ? item.content.map((c: any) => c.text || JSON.stringify(c)).join("\n")
+                      : formatJSON(item.content || item);
+                  blocks.push({ type: "tool_result", mergedText: resultText, toolId: item.tool_use_id });
+                }
+              }
+            }
+          }
         }
-      } else if (rawBody) {
-        blocks.push({ type: "raw", mergedText: rawBody });
+        if (blocks.length === 0) {
+          blocks.push({ type: "request_body", mergedText: formatJSON(parsed) });
+        }
+      } else {
+        // 2. Try split concatenated JSON (fragmented across BF captures)
+        const objs = splitConcatenatedJSON(rawBody);
+        if (objs.length > 0) {
+          for (const obj of objs) {
+            blocks.push({ type: "request_body", mergedText: formatJSON(obj) });
+          }
+        } else {
+          // 3. Fall back to raw text (non-JSON body)
+          blocks.push({ type: "raw", mergedText: rawBody });
+        }
       }
-    } else {
-      if (rawBody) blocks.push({ type: "raw", mergedText: rawBody });
+    } else if (rawBody) {
+      blocks.push({ type: "raw", mergedText: rawBody });
     }
 
     groups.push({
@@ -499,12 +527,30 @@ const formatTime = (ts: string): string => {
 const formatTimeRange = (s: string, e: string): string =>
   s === e ? formatTime(s) : `${formatTime(s)} → ${formatTime(e)}`;
 
+// ── Hide raw mode: only show context blocks + token counts ─────────────────
+const hideRaw = ref(false);
+const CONTEXT_BLOCK_TYPES = new Set(["text", "thinking", "tool_use", "tool_result", "request_body", "response_body", "signature", "citations"]);
+
+// Filter groups when hideRaw is on — keep groups with at least one context block
+const filteredSendGroups = computed(() => {
+  if (!hideRaw.value) return streamGroups.value.send;
+  return streamGroups.value.send.filter((g) => g.contentBlocks.some((b) => CONTEXT_BLOCK_TYPES.has(b.type)));
+});
+const filteredRecvGroups = computed(() => {
+  if (!hideRaw.value) return streamGroups.value.recv;
+  return streamGroups.value.recv.filter((g) => g.contentBlocks.some((b) => CONTEXT_BLOCK_TYPES.has(b.type)));
+});
+
 // ── Stats & state ────────────────────────────────────────────────────────
 const stats = computed(() => ({
   sendCount: streamGroups.value.send.length,
   recvCount: streamGroups.value.recv.length,
   sendBytes: streamGroups.value.send.reduce((s, g) => s + g.totalSize, 0),
   recvBytes: streamGroups.value.recv.reduce((s, g) => s + g.totalSize, 0),
+  filteredSendCount: filteredSendGroups.value.length,
+  filteredRecvCount: filteredRecvGroups.value.length,
+  allCount: streamGroups.value.send.length + streamGroups.value.recv.length,
+  filteredAllCount: filteredSendGroups.value.length + filteredRecvGroups.value.length,
 }));
 
 const expanded = ref<Set<string>>(new Set());
@@ -520,6 +566,10 @@ const toggleBlock = (blockId: string) => {
   blockExpanded.value = s;
 };
 const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
+
+// Determine if a block should be visible under hideRaw mode
+const blockVisible = (b: ContentBlock): boolean =>
+  !hideRaw.value || CONTEXT_BLOCK_TYPES.has(b.type);
 </script>
 
 <template>
@@ -527,15 +577,20 @@ const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
     <div class="ac-stats">
       <div class="ac-stat-item send"><ArrowUpOutlined /><span class="ac-stat-label">Upstream</span><span class="ac-stat-val">{{ stats.sendCount }} groups</span><span class="ac-stat-size">{{ formatBytes(stats.sendBytes) }}</span></div>
       <div class="ac-stat-item recv"><ArrowDownOutlined /><span class="ac-stat-label">Downstream</span><span class="ac-stat-val">{{ stats.recvCount }} groups</span><span class="ac-stat-size">{{ formatBytes(stats.recvBytes) }}</span></div>
+      <div class="ac-stat-item ac-hide-raw-toggle">
+        <a-switch v-model:checked="hideRaw" size="small" class="ac-hr-switch" />
+        <span class="ac-hr-label">Hide raw</span>
+        <span v-if="hideRaw && stats.filteredAllCount !== stats.allCount" class="ac-hr-filtered">{{ stats.filteredAllCount }}/{{ stats.allCount }}</span>
+      </div>
     </div>
 
     <div class="ac-columns">
       <!-- UPSTREAM -->
       <div class="ac-col ac-send-col">
         <div class="ac-col-header"><ArrowUpOutlined style="color:#f59e0b" /><span>Upstream (Agent → Server)</span></div>
-        <a-empty v-if="streamGroups.send.length===0" description="No upstream data" style="padding:24px" />
+        <a-empty v-if="filteredSendGroups.length===0" description="No upstream data" style="padding:24px" />
         <div v-else class="ac-list">
-          <div v-for="g in streamGroups.send" :key="g.id" class="ac-card" :class="{'ac-sse':g.events[0]?.type==='sse_message' || g.contentBlocks.length>1 || g.contentBlocks.some(b=>b.type==='thinking'||b.type==='tool_use')}">
+          <div v-for="g in filteredSendGroups" :key="g.id" class="ac-card" :class="{'ac-sse':g.events[0]?.type==='sse_message' || g.contentBlocks.length>1 || g.contentBlocks.some(b=>b.type==='thinking'||b.type==='tool_use')}">
             <!-- head -->
             <div class="ac-head" @click="toggle(g.id)">
               <span class="ac-h-icon"><CaretDownOutlined v-if="expanded.has(g.id)" /><CaretRightOutlined v-else /></span>
@@ -562,15 +617,17 @@ const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
                 </span>
               </div>
               <div v-if="g.contentBlocks.length" class="ac-blocks">
-                <div v-for="(b,bi) in g.contentBlocks" :key="bi" class="ac-block" :class="`ac-b-${b.type}`">
-                  <div class="ac-b-head" @click.stop="toggleBlock(blockId(g.id, bi))" style="cursor:pointer">
-                    <span class="ac-expand-icon"><CaretDownOutlined v-if="blockExpanded.has(blockId(g.id,bi))" /><CaretRightOutlined v-else /></span>
-                    <component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span>
+                <template v-for="(b,bi) in g.contentBlocks" :key="bi">
+                  <div v-if="blockVisible(b)" class="ac-block" :class="`ac-b-${b.type}`">
+                    <div class="ac-b-head" @click.stop="toggleBlock(blockId(g.id, bi))" style="cursor:pointer">
+                      <span class="ac-expand-icon"><CaretDownOutlined v-if="blockExpanded.has(blockId(g.id,bi))" /><CaretRightOutlined v-else /></span>
+                      <component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span>
+                    </div>
+                    <div v-if="blockExpanded.has(blockId(g.id,bi))" class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
                   </div>
-                  <div v-if="blockExpanded.has(blockId(g.id,bi))" class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
-                </div>
+                </template>
               </div>
-              <div v-else-if="g.rawMerged" class="ac-b-body"><pre>{{ g.rawMerged }}</pre></div>
+              <div v-else-if="g.rawMerged && !hideRaw" class="ac-b-body"><pre>{{ g.rawMerged }}</pre></div>
             </div>
           </div>
         </div>
@@ -579,9 +636,9 @@ const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
       <!-- DOWNSTREAM -->
       <div class="ac-col ac-recv-col">
         <div class="ac-col-header"><ArrowDownOutlined style="color:#06b6d4" /><span>Downstream (Server → Agent)</span></div>
-        <a-empty v-if="streamGroups.recv.length===0" description="No downstream data" style="padding:24px" />
+        <a-empty v-if="filteredRecvGroups.length===0" description="No downstream data" style="padding:24px" />
         <div v-else class="ac-list">
-          <div v-for="g in streamGroups.recv" :key="g.id" class="ac-card" :class="{'ac-sse':g.events[0]?.type==='sse_message' || g.contentBlocks.length>1 || g.contentBlocks.some(b=>b.type==='thinking'||b.type==='tool_use')}">
+          <div v-for="g in filteredRecvGroups" :key="g.id" class="ac-card" :class="{'ac-sse':g.events[0]?.type==='sse_message' || g.contentBlocks.length>1 || g.contentBlocks.some(b=>b.type==='thinking'||b.type==='tool_use')}">
             <div class="ac-head" @click="toggle(g.id)">
               <span class="ac-h-icon"><CaretDownOutlined v-if="expanded.has(g.id)" /><CaretRightOutlined v-else /></span>
               <a-tag :color="blockColor(g.contentBlocks[0]?.type||'raw')" size="small">{{ firstTypeLabel(g) }}</a-tag>
@@ -606,15 +663,17 @@ const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
                 </span>
               </div>
               <div v-if="g.contentBlocks.length" class="ac-blocks">
-                <div v-for="(b,bi) in g.contentBlocks" :key="bi" class="ac-block" :class="`ac-b-${b.type}`">
-                  <div class="ac-b-head" @click.stop="toggleBlock(blockId(g.id, bi))" style="cursor:pointer">
-                    <span class="ac-expand-icon"><CaretDownOutlined v-if="blockExpanded.has(blockId(g.id,bi))" /><CaretRightOutlined v-else /></span>
-                    <component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span>
+                <template v-for="(b,bi) in g.contentBlocks" :key="bi">
+                  <div v-if="blockVisible(b)" class="ac-block" :class="`ac-b-${b.type}`">
+                    <div class="ac-b-head" @click.stop="toggleBlock(blockId(g.id, bi))" style="cursor:pointer">
+                      <span class="ac-expand-icon"><CaretDownOutlined v-if="blockExpanded.has(blockId(g.id,bi))" /><CaretRightOutlined v-else /></span>
+                      <component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span>
+                    </div>
+                    <div v-if="blockExpanded.has(blockId(g.id,bi))" class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
                   </div>
-                  <div v-if="blockExpanded.has(blockId(g.id,bi))" class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
-                </div>
+                </template>
               </div>
-              <div v-else-if="g.rawMerged" class="ac-b-body"><pre>{{ g.rawMerged }}</pre></div>
+              <div v-else-if="g.rawMerged && !hideRaw" class="ac-b-body"><pre>{{ g.rawMerged }}</pre></div>
             </div>
           </div>
         </div>
@@ -630,6 +689,10 @@ const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
 .ac-stat-item.send{color:#d97706}.ac-stat-item.recv{color:#059669}
 .ac-stat-label{font-weight:600;color:#475569}.ac-stat-val{color:#64748b}
 .ac-stat-size{font-family:ui-monospace,monospace;font-weight:600;color:#334155}
+.ac-hide-raw-toggle{display:flex;align-items:center;gap:6px;margin-left:auto;padding-left:16px;border-left:1px solid #e2e8f0}
+.ac-hr-switch{transform:scale(.8)}
+.ac-hr-label{font-size:11px;color:#64748b;font-weight:500;user-select:none}
+.ac-hr-filtered{font-size:10px;color:#0891b2;font-family:ui-monospace,monospace;font-weight:600;background:#ecfeff;padding:0 4px;border-radius:3px}
 .ac-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .ac-col{display:flex;flex-direction:column;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;background:#fafafa}
 .ac-send-col{border-left:3px solid #f59e0b}.ac-recv-col{border-left:3px solid #06b6d4}

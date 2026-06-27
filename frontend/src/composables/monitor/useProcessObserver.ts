@@ -113,9 +113,10 @@ export interface TCPConnection {
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const MAX_EVENTS = 10000;
-const MAX_FLOWS = 500;
-const MAX_TLS = 2000;
+// Event caps raised to effectively never drop old messages during normal usage
+const MAX_EVENTS = 100_000;
+const MAX_FLOWS = 5_000;
+const MAX_TLS = 50_000;
 
 // Batching: flush events in batches to avoid excessive reactive updates
 let pendingEvents: ObserverEvent[] = [];
