@@ -46,6 +46,12 @@ interface TLSPlaintextEvent {
   prompt_digest?: string;
   prompt_len?: number;
   vendor?: string;
+	  uid?: number;
+	  tid?: number;
+	  is_handshake?: boolean;
+	  latency_ms?: number;
+	  data_type?: string;
+	  delta_ns?: number;
 }
 
 interface TLSLibraryStatus {
@@ -110,6 +116,7 @@ const commFilter = ref("");
 const hostFilter = ref("");
 const selectedLib = ref<string>("all");
 const selectedDirection = ref<string>("all");
+const sslFilterExpr = ref("");
 const showDetails = ref(false);
 const selectedEvent = ref<TLSPlaintextEvent | null>(null);
 const rulesLoading = ref(false);
@@ -235,6 +242,11 @@ const filteredEvents = computed(() => {
       ].some((value) => (value || "").toLowerCase().includes(q)),
     );
   }
+  if (sslFilterExpr.value.trim()) {
+    list = list.filter((event) =>
+      evaluateSSLFilter(sslFilterExpr.value.trim(), event),
+    );
+  }
 
   return list;
 });
@@ -255,6 +267,10 @@ const summaryStats = computed(() => {
     redacted: list.filter((event) => event.redaction_state === "sanitized")
       .length,
     attachedLibs: libraries.value.filter((item) => item.attached).length,
+	    handshakes: list.filter((event) => event.is_handshake).length,
+	    httpRequests: list.filter((event) => event.data_type === "http_request").length,
+	    jsonData: list.filter((event) => event.data_type === "json").length,
+	    sseData: list.filter((event) => event.data_type === "sse").length,
   };
 });
 
@@ -554,6 +570,91 @@ const clearFilters = () => {
   hostFilter.value = "";
   selectedLib.value = "all";
   selectedDirection.value = "all";
+  sslFilterExpr.value = "";
+};
+
+// SSL filter expression evaluator (lightweight frontend version matching backend tls.ParseSSLFilterExpr)
+const evaluateSSLFilter = (expr: string, event: TLSPlaintextEvent): boolean => {
+  if (!expr) return true;
+  // Support & (AND) and | (OR) at the top level
+  const orParts = splitFilterExpr(expr, "|");
+  if (orParts.length > 1) return orParts.some((p) => evaluateSSLFilter(p, event));
+  const andParts = splitFilterExpr(expr, "&");
+  if (andParts.length > 1) return andParts.every((p) => evaluateSSLFilter(p, event));
+
+  // Parse single condition: field operator value
+  const ops = [">=", "<=", "!=", "=", ">", "<", "~"];
+  for (const op of ops) {
+    const idx = expr.indexOf(op);
+    if (idx < 0) continue;
+    const field = expr.slice(0, idx).trim();
+    const value = unescapeSSLFilterValue(expr.slice(idx + op.length).trim());
+    const eventData: Record<string, unknown> = {
+      ...event,
+      data_type: event.data_type || detectFrontendDataType(event),
+      is_handshake: event.is_handshake || false,
+      truncated: event.truncated || false,
+    };
+    const fieldVal = eventData[field];
+    return cmpSSLFilterValue(fieldVal, op, value);
+  }
+  return false;
+};
+
+const splitFilterExpr = (expr: string, sep: string): string[] => {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of expr) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    if (ch === sep && depth === 0) {
+      parts.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+};
+
+const cmpSSLFilterValue = (
+  fieldVal: unknown,
+  op: string,
+  expected: string,
+): boolean => {
+  if (fieldVal === undefined || fieldVal === null) return false;
+  const numVal = Number(fieldVal);
+  const numExpected = Number(expected);
+  const useNum = !isNaN(numVal) && !isNaN(numExpected) && typeof fieldVal === "number";
+  switch (op) {
+    case "=": case "exact":
+      return useNum ? numVal === numExpected : String(fieldVal) === expected;
+    case "!=": case "not_equal":
+      return useNum ? numVal !== numExpected : String(fieldVal) !== expected;
+    case ">": case "gt": return numVal > numExpected;
+    case "<": case "lt": return numVal < numExpected;
+    case ">=": case "gte": return numVal >= numExpected;
+    case "<=": case "lte": return numVal <= numExpected;
+    case "~": case "contains":
+      return String(fieldVal).toLowerCase().includes(expected.toLowerCase());
+    default: return false;
+  }
+};
+
+const unescapeSSLFilterValue = (value: string): string =>
+  value.replace(/\\r/g, "\r").replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\\\/g, "\\").replace(/\\"/g, '"');
+
+const detectFrontendDataType = (event: TLSPlaintextEvent): string => {
+  const body = event.body || "";
+  if (!body) return event.data_type || "empty";
+  if (body.startsWith("HTTP/")) return "http_response";
+  if (/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS) /.test(body)) return "http_request";
+  if (body.startsWith("data:") || body.startsWith("event:")) return "sse";
+  const trimmed = body.trim();
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) return "json";
+  return "text";
 };
 
 const copyText = async (text: string, label: string) => {
@@ -1000,6 +1101,18 @@ onUnmounted(() => {
         <a-col :xs="12" :sm="6">
           <a-statistic title="Sanitized" :value="summaryStats.redacted" />
         </a-col>
+        <a-col :xs="12" :sm="6">
+          <a-statistic title="Handshake" :value="summaryStats.handshakes" />
+        </a-col>
+        <a-col :xs="12" :sm="6">
+          <a-statistic title="HTTP Req" :value="summaryStats.httpRequests" />
+        </a-col>
+        <a-col :xs="12" :sm="6">
+          <a-statistic title="JSON" :value="summaryStats.jsonData" />
+        </a-col>
+        <a-col :xs="12" :sm="6">
+          <a-statistic title="SSE" :value="summaryStats.sseData" />
+        </a-col>
       </a-row>
 
       <a-space wrap class="tls-toolbar">
@@ -1059,6 +1172,15 @@ onUnmounted(() => {
             { label: 'Recv', value: 'recv' },
           ]"
         />
+        <a-input
+          v-model:value="sslFilterExpr"
+          size="small"
+          placeholder="SSL filter: len>100&data_type=http_request"
+          allow-clear
+          style="width: 280px"
+        >
+          <template #prefix><SafetyCertificateOutlined /></template>
+        </a-input>
         <a-button size="small" @click="clearFilters">Clear Filters</a-button>
       </a-space>
 
@@ -1256,6 +1378,31 @@ onUnmounted(() => {
               :isSanitized="false"
               field-name="tgid"
             />
+          </a-descriptions-item>
+          <a-descriptions-item v-if="selectedEvent.uid" label="UID">
+            <SanitizedFieldViewer
+              :value="String(selectedEvent.uid)"
+              :isSanitized="false"
+              field-name="uid"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item v-if="selectedEvent.tid" label="TID">
+            <SanitizedFieldViewer
+              :value="String(selectedEvent.tid)"
+              :isSanitized="false"
+              field-name="tid"
+            />
+          </a-descriptions-item>
+          <a-descriptions-item v-if="selectedEvent.data_type" label="Data Type">
+            <a-tag :color="selectedEvent.data_type === 'http_request' || selectedEvent.data_type === 'http_response' ? 'blue' : selectedEvent.data_type === 'json' ? 'green' : selectedEvent.data_type === 'sse' ? 'purple' : 'default'">
+              {{ selectedEvent.data_type }}
+            </a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item v-if="selectedEvent.is_handshake" label="Handshake">
+            <a-tag color="orange">TLS Handshake</a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item v-if="selectedEvent.latency_ms" label="Latency">
+            {{ selectedEvent.latency_ms.toFixed(1) }} ms
           </a-descriptions-item>
           <a-descriptions-item label="Method">
             <SanitizedFieldViewer
