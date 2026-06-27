@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/network"
 	"agent-ebpf-filter/app/runtime"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/app/types"
@@ -57,3 +58,12 @@ type AgentSightAnalyzer = tls.AgentSightAnalyzer
 type AgentSightHTTPAnalyzer = tls.AgentSightHTTPAnalyzer
 type AgentSightHTTPFilter = tls.AgentSightHTTPFilter
 type codexCaptureSink = tls.CodexCaptureSink
+
+// ── Network subpackage type and function aliases ─────────────────────────
+type NetworkAuditResult = network.NetworkAuditResult
+type NetworkAuditFinding = network.NetworkAuditFinding
+type NetworkAuditFlags = network.NetworkAuditFlags
+
+func AuditNetworkBehavior(comm, cmdline string) NetworkAuditResult {
+	return network.AuditNetworkBehavior(comm, cmdline)
+}
