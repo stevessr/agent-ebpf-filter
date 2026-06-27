@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/cilium/ebpf"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
 )
 
@@ -335,6 +336,17 @@ func init() {
 		handlers.Deps.GeoIPDB = geoipDB
 		handlers.Deps.AnalyzeEndpoint = analyzeEndpoint
 
+		// External API
+		handlers.Deps.BuildFeatureManifest = func(settings core.RuntimeSettings) any {
+			return buildFeatureManifest(settings)
+		}
+		handlers.Deps.BootstrapTracepointStatus = func() any {
+			return bootstrapTracepointStatusStore.Snapshot()
+		}
+		handlers.Deps.CollectorHealth = func() any {
+			return collectorMetricsStore.Snapshot()
+		}
+
 		initMLHandlersDeps()
 	}
 
@@ -505,3 +517,8 @@ func handleDNSLookup(c *gin.Context)                  { handlers.HandleDNSLookup
 func handleDNSCache(c *gin.Context)                   { handlers.HandleDNSCache(c) }
 func handleNetworkInterfaces(c *gin.Context)          { handlers.HandleNetworkInterfaces(c) }
 func handleNetworkFlowJSONLExport(c *gin.Context)     { handlers.HandleNetworkFlowJSONLExport(c) }
+
+// External API bridges
+func handleExternalAPIHealth(c *gin.Context) { handlers.HandleExternalAPIHealth(c) }
+func handleExternalAPIOpenAPI(c *gin.Context) { handlers.HandleExternalAPIOpenAPI(c) }
+func buildExternalOpenAPISpec() *openapi3.T  { return handlers.BuildExternalOpenAPISpec() }

@@ -256,4 +256,9 @@ var Deps struct {
 	UninstallNativeHook          func(core.HookDef) error
 	GetShellConfigPath           func() string
 	EnsureKiroManagedAgentExists func() error
+
+	// External API / health handler closures
+	BuildFeatureManifest      func(settings core.RuntimeSettings) any
+	BootstrapTracepointStatus func() any
+	CollectorHealth           func() any
 }
