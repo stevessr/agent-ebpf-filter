@@ -91,9 +91,16 @@ export interface TCPConnection {
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const MAX_EVENTS = 2000;
+const MAX_EVENTS = 10000;
 const MAX_FLOWS = 500;
-const MAX_TLS = 500;
+const MAX_TLS = 2000;
+
+// Batching: flush events in batches to avoid excessive reactive updates
+let pendingEvents: ObserverEvent[] = [];
+let pendingTLSEvents: ObserverTLSEvent[] = [];
+let eventFlushTimer: ReturnType<typeof setTimeout> | null = null;
+let tlsFlushTimer: ReturnType<typeof setTimeout> | null = null;
+const FLUSH_INTERVAL = 200; // ms
 
 let _counter = 0;
 const nextKey = () => _counter++;
@@ -283,6 +290,12 @@ export function useProcessObserver() {
     eventWs = socket;
     socket.binaryType = "arraybuffer";
 
+    const flushEvents = () => {
+      if (pendingEvents.length === 0) return;
+      allEvents.value = [...pendingEvents.reverse(), ...allEvents.value].slice(0, MAX_EVENTS);
+      pendingEvents = [];
+    };
+
     socket.onmessage = (me) => {
       try {
         const raw = new Uint8Array(me.data);
@@ -292,11 +305,10 @@ export function useProcessObserver() {
             : [pb.Event.decode(raw)];
 
         const now = Date.now();
-        const batch: ObserverEvent[] = [];
         for (const d of incoming) {
           const et = extractEventType(d);
           if (et === undefined) continue;
-          batch.push({
+          pendingEvents.push({
             key: `ev-${Date.now()}-${nextKey()}`,
             pid: d.pid || 0,
             ppid: d.ppid || 0,
@@ -312,7 +324,12 @@ export function useProcessObserver() {
             timestamp: now,
           });
         }
-        allEvents.value = [...batch.reverse(), ...allEvents.value];
+        if (!eventFlushTimer) {
+          eventFlushTimer = setTimeout(() => {
+            eventFlushTimer = null;
+            flushEvents();
+          }, FLUSH_INTERVAL);
+        }
       } catch {
         /* skip malformed message */
       }
@@ -332,6 +349,12 @@ export function useProcessObserver() {
     const socket = new WebSocket(buildWebSocketUrl("/ws/tls-capture"));
     tlsWs = socket;
 
+    const flushTLSEvents = () => {
+      if (pendingTLSEvents.length === 0) return;
+      tlsEvents.value = [...pendingTLSEvents.reverse(), ...tlsEvents.value].slice(0, MAX_TLS);
+      pendingTLSEvents = [];
+    };
+
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(String(event.data));
@@ -340,23 +363,30 @@ export function useProcessObserver() {
           : payload.events
             ? payload.events
             : [payload];
-        const batch: ObserverTLSEvent[] = items.map((ev: any) => ({
-          key: `tls-${Date.now()}-${nextKey()}`,
-          timestamp: ev.timestamp || new Date().toISOString(),
-          pid: ev.pid || ev.tgid || 0,
-          tgid: ev.tgid || ev.pid || 0,
-          comm: ev.comm || "",
-          direction: ev.direction || "",
-          lib: ev.lib || "",
-          function: ev.function || "",
-          captured_len: ev.captured_len || 0,
-          original_len: ev.original_len || 0,
-          method: ev.method || "",
-          url: ev.url || "",
-          host: ev.host || "",
-          status: ev.status || 0,
-        }));
-        tlsEvents.value = [...batch.reverse(), ...tlsEvents.value];
+        for (const ev of items) {
+          pendingTLSEvents.push({
+            key: `tls-${Date.now()}-${nextKey()}`,
+            timestamp: ev.timestamp || new Date().toISOString(),
+            pid: ev.pid || ev.tgid || 0,
+            tgid: ev.tgid || ev.pid || 0,
+            comm: ev.comm || "",
+            direction: ev.direction || "",
+            lib: ev.lib || "",
+            function: ev.function || "",
+            captured_len: ev.captured_len || 0,
+            original_len: ev.original_len || 0,
+            method: ev.method || "",
+            url: ev.url || "",
+            host: ev.host || "",
+            status: ev.status || 0,
+          });
+        }
+        if (!tlsFlushTimer) {
+          tlsFlushTimer = setTimeout(() => {
+            tlsFlushTimer = null;
+            flushTLSEvents();
+          }, FLUSH_INTERVAL);
+        }
       } catch {
         /* skip malformed message */
       }
