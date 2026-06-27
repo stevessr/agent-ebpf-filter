@@ -25,7 +25,7 @@ const props = defineProps<{
   micLiveMode: boolean;
   micVolume: number;
   micListenBrowser: boolean;
-  micDevices: { id: string; name: string }[];
+  micDevices: { id: string; name: string; source_type?: string }[];
   selectedMic: string;
   micDataBuffer: Int16Array;
 }>();

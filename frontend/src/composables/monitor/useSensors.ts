@@ -275,7 +275,7 @@ export function useSensors() {
   });
 
   // Microphone state
-  const micDevices = ref<{ id: string; name: string }[]>([]);
+  const micDevices = ref<{ id: string; name: string; source_type?: string }[]>([]);
   const selectedMic = ref("default");
   const micLiveMode = ref(false);
   const micListenBrowser = ref(false);

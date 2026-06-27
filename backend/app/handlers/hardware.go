@@ -74,27 +74,74 @@ func HandleCameraSnapshot(c *gin.Context) {
 }
 
 func HandleMicrophones(c *gin.Context) {
+	devices := []gin.H{}
+	seen := make(map[string]bool)
+
+	// 1. ALSA hardware capture devices (arecord -l)
 	cmd := exec.Command("arecord", "-l")
 	out, _ := cmd.Output()
 	re := regexp.MustCompile(`card (\d+): .*? \[([^\]]+)\], device (\d+): .*? \[([^\]]+)\]`)
 	matches := re.FindAllStringSubmatch(string(out), -1)
-	devices := []gin.H{}
 	for _, m := range matches {
 		if len(m) >= 5 {
-			devices = append(devices, gin.H{"id": fmt.Sprintf("hw:%s,%s", m[1], m[3]), "name": fmt.Sprintf("%s (%s)", m[2], m[4])})
+			id := fmt.Sprintf("hw:%s,%s", m[1], m[3])
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			devices = append(devices, gin.H{
+				"id":          id,
+				"name":        fmt.Sprintf("%s (%s)", m[2], m[4]),
+				"source_type": "alsa",
+			})
 		}
 	}
+
+	// 2. PulseAudio / PipeWire sources (includes Bluetooth A2DP/HFP)
+	if pactlOut, err := exec.Command("pactl", "list", "sources", "short").Output(); err == nil {
+		// pactl output lines: <index>\t<name>\t<driver>\t<format>\t<state>
+		for _, line := range strings.Split(strings.TrimSpace(string(pactlOut)), "\n") {
+			fields := strings.Split(line, "\t")
+			if len(fields) < 2 {
+				continue
+			}
+			sourceName := fields[1]
+
+			// Skip monitor sources (output sinks, not input devices)
+			if strings.HasSuffix(sourceName, ".monitor") {
+				continue
+			}
+
+			if seen[sourceName] {
+				continue
+			}
+			seen[sourceName] = true
+
+			isBlueZ := strings.Contains(sourceName, "bluez") || strings.Contains(sourceName, "bluez_input")
+			name := sourceName
+			if isBlueZ {
+				name = "🎧 [BT] " + sourceName
+			} else {
+				name = "🎙 " + sourceName
+			}
+
+			devices = append(devices, gin.H{
+				"id":          sourceName,
+				"name":        name,
+				"source_type": "pulse",
+			})
+		}
+	}
+
 	if len(devices) == 0 {
-		devices = append(devices, gin.H{"id": "default", "name": "Default Input"})
+		devices = append(devices, gin.H{"id": "default", "name": "Default Input", "source_type": "alsa"})
 	}
 	c.JSON(200, devices)
 }
 
 func ServeMicrophoneWS(c *gin.Context) {
 	device := c.DefaultQuery("device", "default")
-	if strings.HasPrefix(device, "hw:") {
-		device = "plughw:" + device[3:]
-	}
+
 	conn, err := Deps.Upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
@@ -111,12 +158,31 @@ func ServeMicrophoneWS(c *gin.Context) {
 		}
 	}()
 
-	cmd := exec.Command("arecord", "-D", device, "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw")
+	// Choose recording backend based on device type
+	var cmd *exec.Cmd
+	if strings.HasPrefix(device, "hw:") {
+		// ALSA hardware device
+		cmd = exec.Command("arecord", "-D", "plughw:"+device[3:], "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw")
+	} else if device == "default" {
+		// ALSA default (routes through PulseAudio/PipeWire if available)
+		cmd = exec.Command("arecord", "-D", "default", "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw")
+	} else {
+		// PulseAudio / PipeWire source (Bluetooth, USB, etc.)
+		// Try parec first, fall back to arecord with the source name
+		if _, err := exec.LookPath("parec"); err == nil {
+			cmd = exec.Command("parec", "-d", device, "--format=s16le", "--rate=16000", "--channels=1")
+		} else {
+			// Fallback: try arecord with the device name as-is
+			cmd = exec.Command("arecord", "-D", device, "-f", "S16_LE", "-r", "16000", "-c", "1", "-t", "raw")
+		}
+	}
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return
 	}
 	if err := cmd.Start(); err != nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("Error: Failed to open microphone device"))
 		return
 	}
 
