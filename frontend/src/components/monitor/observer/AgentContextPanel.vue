@@ -23,7 +23,7 @@ const emit = defineEmits<{
 }>();
 
 // ── Hex decoder ──────────────────────────────────────────────────────────
-const hexToText = (hex: string, maxLen: number = 2000): string => {
+const hexToText = (hex: string, maxLen: number = 50000): string => {
   try {
     const bytes: number[] = [];
     for (let i = 0; i < hex.length - 1; i += 2) {
@@ -38,7 +38,7 @@ const hexToText = (hex: string, maxLen: number = 2000): string => {
 };
 
 const getRawText = (ev: ObserverTLSEvent): string =>
-  ev.body || (ev.raw_hex_dump ? hexToText(ev.raw_hex_dump, 4000) : "");
+  ev.body || (ev.raw_hex_dump ? hexToText(ev.raw_hex_dump, 50000) : "");
 
 // Strip HTTP chunked transfer encoding markers (standalone hex followed by \r\n)
 const stripChunkedEncoding = (text: string): string =>
@@ -48,11 +48,8 @@ const tryParseJSON = (text: string): any | null => {
   try { return JSON.parse(text); } catch { return null; }
 };
 
-const formatJSON = (obj: any, maxLen: number = 3000): string => {
-  try {
-    const s = JSON.stringify(obj, null, 2);
-    return s.length > maxLen ? s.slice(0, maxLen) + "\n… [truncated]" : s;
-  } catch { return String(obj); }
+const formatJSON = (obj: any): string => {
+  try { return JSON.stringify(obj, null, 2); } catch { return String(obj); }
 };
 
 // ── SSE parser (handles framed SSE + bare JSON + chunked + truncated) ────
@@ -246,7 +243,7 @@ const mergeContentBlocks = (parsedEvents: SSEParsed[]): ContentBlock[] => {
 
     // Unknown event type — store as raw data
     const key = `other-${blocks.size}`;
-    const text = formatJSON(p.data, 2000);
+    const text = formatJSON(p.data);
     const ex = blocks.get(key);
     if (ex) ex.mergedText += "\n" + text;
     else blocks.set(key, { type: "data", mergedText: text });
@@ -345,7 +342,7 @@ const buildGroups = (events: ObserverTLSEvent[], dir: "send" | "recv"): MergedGr
                     ? item.content
                     : Array.isArray(item.content)
                       ? item.content.map((c: any) => c.text || JSON.stringify(c)).join("\n")
-                      : formatJSON(item.content || item, 4000);
+                      : formatJSON(item.content || item);
                   blocks.push({
                     type: "tool_result",
                     mergedText: resultText,
@@ -357,10 +354,10 @@ const buildGroups = (events: ObserverTLSEvent[], dir: "send" | "recv"): MergedGr
           }
         }
         if (blocks.length === 0) {
-          blocks.push({ type: "request_body", mergedText: formatJSON(json, 4000) });
+          blocks.push({ type: "request_body", mergedText: formatJSON(json) });
         }
       } else if (raw) {
-        blocks.push({ type: "request_body", mergedText: raw.slice(0, 3000) });
+        blocks.push({ type: "request_body", mergedText: raw });
       }
 
       groups.push({
@@ -379,7 +376,7 @@ const buildGroups = (events: ObserverTLSEvent[], dir: "send" | "recv"): MergedGr
         id: nextId(), events: [ev],
         startTime: ev.timestamp, endTime: ev.timestamp,
         totalSize: ev.body_size || ev.captured_len,
-        contentBlocks: raw ? [{ type: "response_body", mergedText: raw.slice(0, 3000) }] : [],
+        contentBlocks: raw ? [{ type: "response_body", mergedText: raw }] : [],
         rawMerged: raw,
       });
       i++; continue;
@@ -428,13 +425,13 @@ const buildGroups = (events: ObserverTLSEvent[], dir: "send" | "recv"): MergedGr
       const objs = splitConcatenatedJSON(rawBody);
       if (objs.length > 0) {
         for (const obj of objs) {
-          blocks.push({ type: "data", mergedText: formatJSON(obj, 4000) });
+          blocks.push({ type: "data", mergedText: formatJSON(obj) });
         }
       } else if (rawBody) {
-        blocks.push({ type: "raw", mergedText: rawBody.slice(0, 3000) });
+        blocks.push({ type: "raw", mergedText: rawBody });
       }
     } else {
-      if (rawBody) blocks.push({ type: "raw", mergedText: rawBody.slice(0, 3000) });
+      if (rawBody) blocks.push({ type: "raw", mergedText: rawBody });
     }
 
     groups.push({
@@ -479,17 +476,15 @@ const firstTypeLabel = (g: MergedGroup): string => {
   return ev.type === "sse_message" ? "SSE Stream" : ev.type;
 };
 
-// Get display text for a content block — no truncation for thinking/text, JSON formatted for tool_use
+// Get display text for a content block — NO truncation, full content always shown
 const blockDisplayText = (b: ContentBlock): string => {
-  const MAX = 100_000; // effectively no truncation — CSS overflow:auto handles scrolling
   if (b.toolInput && typeof b.toolInput === "object") {
-    return formatJSON(b.toolInput, MAX);
+    return JSON.stringify(b.toolInput, null, 2);
   }
   const parsed = tryParseJSON(b.mergedText);
   if (parsed && typeof parsed === "object") {
-    return formatJSON(parsed, MAX);
+    return JSON.stringify(parsed, null, 2);
   }
-  // Raw text (thinking, text, etc.) — show full content
   return b.mergedText;
 };
 
@@ -576,7 +571,7 @@ const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
                   <div v-if="blockExpanded.has(blockId(g.id,bi))" class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
                 </div>
               </div>
-              <div v-else-if="g.rawMerged" class="ac-b-body"><pre>{{ g.rawMerged.slice(0,2000) }}</pre></div>
+              <div v-else-if="g.rawMerged" class="ac-b-body"><pre>{{ g.rawMerged }}</pre></div>
             </div>
           </div>
         </div>
@@ -620,7 +615,7 @@ const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
                   <div v-if="blockExpanded.has(blockId(g.id,bi))" class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
                 </div>
               </div>
-              <div v-else-if="g.rawMerged" class="ac-b-body"><pre>{{ g.rawMerged.slice(0,2000) }}</pre></div>
+              <div v-else-if="g.rawMerged" class="ac-b-body"><pre>{{ g.rawMerged }}</pre></div>
             </div>
           </div>
         </div>
@@ -636,7 +631,7 @@ const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
 .ac-stat-item.send{color:#d97706}.ac-stat-item.recv{color:#059669}
 .ac-stat-label{font-weight:600;color:#475569}.ac-stat-val{color:#64748b}
 .ac-stat-size{font-family:ui-monospace,monospace;font-weight:600;color:#334155}
-.ac-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-height:560px}
+.ac-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .ac-col{display:flex;flex-direction:column;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;background:#fafafa}
 .ac-send-col{border-left:3px solid #f59e0b}.ac-recv-col{border-left:3px solid #06b6d4}
 .ac-col-header{display:flex;align-items:center;gap:6px;padding:8px 12px;font-size:12px;font-weight:600;color:#334155;background:#fff;border-bottom:1px solid #e2e8f0;position:sticky;top:0;z-index:1}
@@ -673,5 +668,5 @@ const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
 .ac-tn{font-family:ui-monospace,monospace;font-weight:600;color:#d97706;font-size:11px}
 .ac-tid{font-family:ui-monospace,monospace;font-size:9px;color:#94a3b8}
 .ac-bsz{margin-left:auto;font-size:9px;color:#94a3b8}
-.ac-b-body pre{background:#0f172a;color:#dbeafe;padding:10px;border-radius:0;font-size:11px;line-height:1.55;max-height:600px;overflow:auto;margin:0;white-space:pre-wrap}
+.ac-b-body pre{background:#0f172a;color:#dbeafe;padding:10px;border-radius:0;font-size:11px;line-height:1.55;margin:0;white-space:pre-wrap}
 </style>
