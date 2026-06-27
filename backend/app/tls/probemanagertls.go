@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -86,6 +87,7 @@ type TLSProbeManager struct {
 	broadcaster    *TLSBroadcaster
 	attachedStatic map[string]bool
 	attachedGo     map[string]bool
+	attachedExec   map[int]string // PID → library name for executable/library attaches
 
 	mu     sync.Mutex
 	closed bool
@@ -125,6 +127,7 @@ func NewTLSProbeManager(store *TLSCaptureStore, broadcaster *TLSBroadcaster, rul
 		broadcaster:    broadcaster,
 		attachedStatic: make(map[string]bool),
 		attachedGo:     make(map[string]bool),
+		attachedExec:   make(map[int]string),
 	}, nil
 }
 
@@ -457,6 +460,13 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 	for _, target := range libraries {
 		if err := m.AttachLibrary(attachPath, target.name); err != nil {
 			errs = append(errs, err)
+		} else if pid > 0 {
+			m.mu.Lock()
+			if m.attachedExec == nil {
+				m.attachedExec = make(map[int]string)
+			}
+			m.attachedExec[pid] = target.name
+			m.mu.Unlock()
 		}
 	}
 	if m.store != nil {
@@ -597,12 +607,16 @@ type AttachedPIDInfo struct {
 }
 
 // AttachedPIDs returns the list of PIDs that currently have SSL/TLS uprobes
-// attached, derived from the attachedGo dedup map (keyed as "pid\x00binPath").
+// attached, derived from both attachedGo (Go uprobes) and attachedExec
+// (library/executable attaches).
 func (m *TLSProbeManager) AttachedPIDs() []AttachedPIDInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	seen := make(map[int]bool)
 	var result []AttachedPIDInfo
+
+	// Go crypto/tls uprobes
 	for key := range m.attachedGo {
 		parts := strings.SplitN(key, "\x00", 2)
 		if len(parts) != 2 {
@@ -610,7 +624,8 @@ func (m *TLSProbeManager) AttachedPIDs() []AttachedPIDInfo {
 		}
 		pid := 0
 		fmt.Sscanf(parts[0], "%d", &pid)
-		if pid > 0 {
+		if pid > 0 && !seen[pid] {
+			seen[pid] = true
 			lib := "go-crypto-tls"
 			if strings.Contains(parts[1], "node") || strings.Contains(parts[1], "bun") || strings.Contains(parts[1], "deno") {
 				lib = "openssl"
@@ -622,5 +637,23 @@ func (m *TLSProbeManager) AttachedPIDs() []AttachedPIDInfo {
 			})
 		}
 	}
+
+	// Library/executable attaches (openssl, gnutls, nss, etc.)
+	for pid, lib := range m.attachedExec {
+		if pid > 0 && !seen[pid] {
+			seen[pid] = true
+			// Get binary path from /proc
+			binPath := ""
+			if link, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)); err == nil {
+				binPath = link
+			}
+			result = append(result, AttachedPIDInfo{
+				PID:         pid,
+				BinaryPath:  binPath,
+				LibraryName: lib,
+			})
+		}
+	}
+
 	return result
 }
