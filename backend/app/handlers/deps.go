@@ -2,12 +2,18 @@ package handlers
 
 import (
 	"agent-ebpf-filter/app/events"
+	"agent-ebpf-filter/app/observability"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/internal/network"
+	"agent-ebpf-filter/pb"
+	"context"
+	"os/exec"
 
 	"github.com/cilium/ebpf"
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"google.golang.org/protobuf/proto"
 )
 
 // ── Type re-exports ────────────────────────────────────────────────
@@ -22,6 +28,38 @@ type tlsCaptureBroadcaster = tls.TLSBroadcaster
 type TLSCaptureRuleStore = tls.TLSCaptureRuleStore
 
 type IPScope = network.IPScope
+type FilePreviewResponse = core.FilePreviewResponse
+type VmFaultCounters = observability.VmFaultCounters
+type GpuInfo = observability.GpuInfo
+
+// WrapperRule is a rule for the agent-wrapper (mirrors core.WrapperRule).
+type WrapperRule struct {
+	Comm         string   `json:"comm"`
+	Action       string   `json:"action"`
+	RewrittenCmd []string `json:"rewritten_cmd,omitempty"`
+	Regex        string   `json:"regex,omitempty"`
+	Replacement  string   `json:"replacement,omitempty"`
+	Priority     int      `json:"priority,omitempty"`
+}
+
+// CameraStream is a live camera feed broadcast stream (struct-of-funcs bridge).
+type CameraStream struct {
+	SubscribeFn func() CameraSubscriber
+}
+
+// Subscribe delegates to the injected SubscribeFn.
+func (s *CameraStream) Subscribe() CameraSubscriber {
+	if s.SubscribeFn != nil {
+		return s.SubscribeFn()
+	}
+	return nil
+}
+
+// CameraSubscriber receives frames from a CameraStream.
+type CameraSubscriber interface {
+	NextFrame(ctx context.Context) ([]byte, error)
+	Unsubscribe()
+}
 
 // ── Narrow interfaces ──────────────────────────────────────────────
 
@@ -87,6 +125,17 @@ var Deps struct {
 	GetTagName      func(id uint32) string
 	SetWrapperRule  func(comm string, rule any)
 	DeleteWrapperRule func(comm string)
+	ConfigTagNames      func() []string
+	IsCommDisabled      func(comm string) bool
+	AddDisabledComm     func(comm string)
+	RemoveDisabledComm  func(comm string)
+	DeleteDisabledComm  func(comm string)
+	DisabledEventTypes       func() []uint32
+	AddDisabledEventType     func(et uint32)
+	RemoveDisabledEventType  func(et uint32)
+	ConfigRules              func() []*pb.WrapperRule
+	UpsertConfigRule         func(comm, action, rewrittenCmd, regex, replacement string, priority int32)
+	DeleteConfigRule         func(comm string)
 
 	// WebSocket upgrader
 	Upgrader *websocket.Upgrader
@@ -120,6 +169,29 @@ var Deps struct {
 	// Analyze endpoint helper
 	AnalyzeEndpoint func(endpoint string) (IPScope, string, string, float64)
 
-	// Write proto or JSON
-	WriteProtoOrJSON func(c interface{ SetJSON(int, any) }, status int, proto, fallback any)
+	// Camera stream access (hardware handlers)
+	GetCameraStream func(devName string) *CameraStream
+
+	// Write proto or JSON response (uses concrete gin.Context)
+	WriteProtoOrJSON func(c *gin.Context, code int, msg proto.Message, jsonData interface{})
+
+	// System / platform helper closures
+	GetRealHomeDir            func() string
+	ResolveWrapperPath         func() string
+	DropPrivileges             func(cmd *exec.Cmd)
+	ConfigureCommandForRealUser func(cmd *exec.Cmd)
+	OriginalInvokerIDs         func() (uid, gid uint32, ok bool)
+
+	// File preview
+	BuildFilePreview func(path string) (any, error)
+
+	// Stats / observability closures (system stats WS)
+	GetGPUMetrics       func() (map[int32]GpuInfo, []*pb.GPUStatus)
+	ReadVMFaultCounters func() (VmFaultCounters, error)
+	VMFaultCountersZero func() VmFaultCounters
+	GetCoreTypes        func() []pb.CPUInfo_Core_Type
+	GetZramStats        func() (used, total uint64)
+	BroadcastCh         chan<- *pb.Event
+	EventSchemaVersion  string
+	SendTLSBridge       func(bridge chan<- *pb.Event, event *pb.Event)
 }

@@ -25,6 +25,30 @@ var nativeLittleEndian = func() bool {
 	return *(*byte)(unsafe.Pointer(&value)) == 1
 }()
 
+// Pointers to filtering functions set at init time.
+var (
+	isCommDisabledFunc      func(comm string) bool
+	isEventTypeDisabledFunc func(et uint32) bool
+)
+
+// isCommDisabled checks whether a command name has been disabled via config.
+// Must only be called after startKernelEventReader has wired it.
+func isCommDisabled(comm string) bool {
+	if isCommDisabledFunc != nil {
+		return isCommDisabledFunc(comm)
+	}
+	return false
+}
+
+// isEventTypeDisabled checks whether an event type has been disabled via config.
+// Must only be called after startKernelEventReader has wired it.
+func isEventTypeDisabled(et uint32) bool {
+	if isEventTypeDisabledFunc != nil {
+		return isEventTypeDisabledFunc(et)
+	}
+	return false
+}
+
 // decodeBPFEventRecord returns a view over the ring-buffer sample when the host
 // layout matches the generated little-endian BPF object. The pointer must not be
 // retained after the caller finishes processing this record because RawSample is
@@ -50,6 +74,19 @@ func decodeBPFEventRecord(raw []byte) (*bpfEvent, bool, error) {
 }
 
 func startKernelEventReader(rd *ringbuf.Reader) {
+	// Wire config filter functions from the app-level globals.
+	isCommDisabledFunc = func(comm string) bool {
+		disabledCommsMu.RLock()
+		defer disabledCommsMu.RUnlock()
+		_, ok := disabledComms[comm]
+		return ok
+	}
+	isEventTypeDisabledFunc = func(et uint32) bool {
+		disabledEventTypesMu.RLock()
+		defer disabledEventTypesMu.RUnlock()
+		_, ok := disabledEventTypes[et]
+		return ok
+	}
 	go func() {
 		selfPid := uint32(os.Getpid())
 		for {
@@ -67,10 +104,10 @@ func startKernelEventReader(rd *ringbuf.Reader) {
 				continue
 			}
 			comm := sanitizeUTF8(event.Comm[:])
-			if isCommDisabled(comm) {
+			if isCommDisabledFunc(comm) {
 				continue
 			}
-			if isEventTypeDisabled(event.Type) {
+			if isEventTypeDisabledFunc(event.Type) {
 				continue
 			}
 			broadcast <- buildKernelEventFromRaw(event)

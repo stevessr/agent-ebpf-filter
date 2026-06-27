@@ -135,7 +135,7 @@ func registerAuthenticatedAPIRoutes(r *gin.Engine, ac *AppContext, features *Fea
 	api := r.Group("/", authMiddleware())
 	{
 		registerConfigRoutes(api.Group("/config"), features)
-		registerSystemRoutes(api.Group("/system"), features)
+		registerSystemRoutes(api.Group("/system"))
 		if features.CompiledIn(FeatureTLSCapture) {
 			tls.RegisterTLSCaptureRoutes(api, tlsController, tlsStore, tlsRules)
 			codexhandlers.RegisterRoutes(api, tls.NewCodexCaptureSink(tlsStore, tlsBroadcaster))

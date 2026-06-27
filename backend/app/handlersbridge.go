@@ -2,6 +2,9 @@ package app
 
 import (
 	"agent-ebpf-filter/app/handlers"
+	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/app/tls"
+	"agent-ebpf-filter/pb"
 	"fmt"
 
 	"github.com/cilium/ebpf"
@@ -109,6 +112,119 @@ func init() {
 	}
 	handlers.Deps.PluginDelete = func(id string) error { return pluginRegistry.Delete(id) }
 	handlers.Deps.PluginSetEnabled = func(id string, enabled bool) (any, error) { return pluginRegistry.SetEnabled(id, enabled) }
+
+	// System / platform handlers
+	handlers.Deps.GetRealHomeDir = platform.GetRealHomeDir
+	handlers.Deps.ResolveWrapperPath = platform.ResolveWrapperPath
+	handlers.Deps.DropPrivileges = dropPrivileges
+	handlers.Deps.ConfigureCommandForRealUser = configureCommandForRealUser
+	handlers.Deps.OriginalInvokerIDs = platform.OriginalInvokerIDs
+	handlers.Deps.BuildFilePreview = func(path string) (any, error) { return buildFilePreview(path) }
+
+	// Hardware handlers (camera, microphone, sensors)
+	handlers.Deps.Upgrader = &upgrader
+	handlers.Deps.WriteProtoOrJSON = writeProtoOrJSON
+	handlers.Deps.GetCameraStream = func(devName string) *handlers.CameraStream {
+		cs := getCameraStream(devName)
+		return &handlers.CameraStream{
+			SubscribeFn: func() handlers.CameraSubscriber { return cs.Subscribe() },
+		}
+	}
+
+	// Stats / observability (system stats WS)
+	handlers.Deps.GetGPUMetrics = getGPUMetrics
+	handlers.Deps.ReadVMFaultCounters = readVMFaultCounters
+	handlers.Deps.VMFaultCountersZero = func() handlers.VmFaultCounters { return vmFaultCounters{} }
+	handlers.Deps.GetCoreTypes = getCoreTypes
+	handlers.Deps.GetZramStats = getZramStats
+	handlers.Deps.BroadcastCh = broadcast
+	handlers.Deps.EventSchemaVersion = eventSchemaVersion
+	handlers.Deps.SendTLSBridge = tls.SendTLSBridge
+
+	// Config handlers
+	handlers.Deps.GetTagName = getTagName
+	handlers.Deps.ConfigTagNames = func() []string {
+		tagsMu.RLock()
+		defer tagsMu.RUnlock()
+		t := []string{}
+		for _, n := range tagMap {
+			t = append(t, n)
+		}
+		return t
+	}
+	handlers.Deps.IsCommDisabled = func(comm string) bool {
+		disabledCommsMu.RLock()
+		defer disabledCommsMu.RUnlock()
+		_, ok := disabledComms[comm]
+		return ok
+	}
+	handlers.Deps.AddDisabledComm = func(comm string) {
+		disabledCommsMu.Lock()
+		disabledComms[comm] = struct{}{}
+		disabledCommsMu.Unlock()
+	}
+	handlers.Deps.RemoveDisabledComm = func(comm string) {
+		disabledCommsMu.Lock()
+		delete(disabledComms, comm)
+		disabledCommsMu.Unlock()
+	}
+	handlers.Deps.DeleteDisabledComm = func(comm string) {
+		disabledCommsMu.Lock()
+		delete(disabledComms, comm)
+		disabledCommsMu.Unlock()
+	}
+	handlers.Deps.DisabledEventTypes = func() []uint32 {
+		disabledEventTypesMu.RLock()
+		defer disabledEventTypesMu.RUnlock()
+		disabled := make([]uint32, 0, len(disabledEventTypes))
+		for et := range disabledEventTypes {
+			disabled = append(disabled, et)
+		}
+		return disabled
+	}
+	handlers.Deps.AddDisabledEventType = func(et uint32) {
+		disabledEventTypesMu.Lock()
+		disabledEventTypes[et] = struct{}{}
+		disabledEventTypesMu.Unlock()
+	}
+	handlers.Deps.RemoveDisabledEventType = func(et uint32) {
+		disabledEventTypesMu.Lock()
+		delete(disabledEventTypes, et)
+		disabledEventTypesMu.Unlock()
+	}
+	handlers.Deps.ConfigRules = func() []*pb.WrapperRule {
+		rulesMu.RLock()
+		defer rulesMu.RUnlock()
+		result := make([]*pb.WrapperRule, 0, len(wrapperRules))
+		for _, r := range wrapperRules {
+			result = append(result, &pb.WrapperRule{
+				Comm:         r.Comm,
+				Action:       r.Action,
+				RewrittenCmd: r.RewrittenCmd,
+				Regex:        r.Regex,
+				Replacement:  r.Replacement,
+				Priority:     int32(r.Priority),
+			})
+		}
+		return result
+	}
+	handlers.Deps.UpsertConfigRule = func(comm, action, rewrittenCmd, regex, replacement string, priority int32) {
+		rulesMu.Lock()
+		wrapperRules[comm] = WrapperRule{
+			Comm:         comm,
+			Action:       action,
+			RewrittenCmd: []string{rewrittenCmd},
+			Regex:        regex,
+			Replacement:  replacement,
+			Priority:     int(priority),
+		}
+		rulesMu.Unlock()
+	}
+	handlers.Deps.DeleteConfigRule = func(comm string) {
+		rulesMu.Lock()
+		delete(wrapperRules, comm)
+		rulesMu.Unlock()
+	}
 }
 
 // ── Bridge functions (delegate to handlers/ subpackage) ─────────
@@ -136,3 +252,57 @@ func handleUnregister(c *gin.Context) { handlers.HandleUnregister(c) }
 func registerPluginRoutes(rg *gin.RouterGroup) {
 	handlers.RegisterPluginRoutes(rg)
 }
+
+// System handler bridges
+func handleSystemLs(c *gin.Context)          { handlers.HandleSystemLs(c) }
+func handleFilePreview(c *gin.Context)        { handlers.HandleFilePreview(c) }
+func handleFilePreviewStream(c *gin.Context)  { handlers.HandleFilePreviewStream(c) }
+func handleFileHex(c *gin.Context)            { handlers.HandleFileHex(c) }
+func handleFileELF(c *gin.Context)            { handlers.HandleFileELF(c) }
+func handleSystemHome(c *gin.Context)         { handlers.HandleSystemHome(c) }
+func handleDownload(c *gin.Context)           { handlers.HandleDownload(c) }
+func handleUpload(c *gin.Context)             { handlers.HandleUpload(c) }
+func handleRun(c *gin.Context)                { handlers.HandleRun(c) }
+func handleSystemdServices(c *gin.Context)    { handlers.HandleSystemdServices(c) }
+func handleSystemdControl(c *gin.Context)     { handlers.HandleSystemdControl(c) }
+func handleSystemdLogs(c *gin.Context)        { handlers.HandleSystemdLogs(c) }
+func handleTrackedComms(c *gin.Context)       { handlers.HandleTrackedComms(c) }
+func handleProcessSignal(c *gin.Context)      { handlers.HandleProcessSignal(c) }
+func handleProcessMaps(c *gin.Context)        { handlers.HandleProcessMaps(c) }
+
+// Config handler bridges
+func handleConfigTagsGet(c *gin.Context)            { handlers.HandleConfigTagsGet(c) }
+func handleConfigTagsPost(c *gin.Context)            { handlers.HandleConfigTagsPost(c) }
+func handleConfigCommsGet(c *gin.Context)            { handlers.HandleConfigCommsGet(c) }
+func handleConfigCommsPost(c *gin.Context)            { handlers.HandleConfigCommsPost(c) }
+func handleConfigCommsDelete(c *gin.Context)         { handlers.HandleConfigCommsDelete(c) }
+func handleConfigCommsDisable(c *gin.Context)        { handlers.HandleConfigCommsDisable(c) }
+func handleConfigCommsEnable(c *gin.Context)         { handlers.HandleConfigCommsEnable(c) }
+func handleConfigEventTypesGet(c *gin.Context)        { handlers.HandleConfigEventTypesGet(c) }
+func handleConfigEventTypeDisable(c *gin.Context)     { handlers.HandleConfigEventTypeDisable(c) }
+func handleConfigEventTypeEnable(c *gin.Context)      { handlers.HandleConfigEventTypeEnable(c) }
+func handleConfigPathsGet(c *gin.Context)             { handlers.HandleConfigPathsGet(c) }
+func handleConfigPathsPost(c *gin.Context)            { handlers.HandleConfigPathsPost(c) }
+func handleConfigPathsDelete(c *gin.Context)          { handlers.HandleConfigPathsDelete(c) }
+func handleConfigPrefixesGet(c *gin.Context)          { handlers.HandleConfigPrefixesGet(c) }
+func handleConfigPrefixesPost(c *gin.Context)          { handlers.HandleConfigPrefixesPost(c) }
+func handleConfigPrefixesDelete(c *gin.Context)       { handlers.HandleConfigPrefixesDelete(c) }
+func handleConfigRulesGet(c *gin.Context)             { handlers.HandleConfigRulesGet(c) }
+func handleConfigRulesPost(c *gin.Context)            { handlers.HandleConfigRulesPost(c) }
+func handleConfigRulesDelete(c *gin.Context)          { handlers.HandleConfigRulesDelete(c) }
+
+func registerSystemRoutes(rg *gin.RouterGroup) {
+	handlers.RegisterSystemRoutes(rg)
+}
+
+// Hardware handler bridges (camera, microphone, sensors)
+func handleSensors(c *gin.Context)           { handlers.HandleSensors(c) }
+func handleCameras(c *gin.Context)            { handlers.HandleCameras(c) }
+func handleCameraSnapshot(c *gin.Context)     { handlers.HandleCameraSnapshot(c) }
+func handleMicrophones(c *gin.Context)        { handlers.HandleMicrophones(c) }
+func serveCameraWS(c *gin.Context)            { handlers.ServeCameraWS(c) }
+func serveSensorsWS(c *gin.Context)           { handlers.ServeSensorsWS(c) }
+func serveMicrophoneWS(c *gin.Context)        { handlers.ServeMicrophoneWS(c) }
+
+// System stats bridge
+func serveSystemStatsWS(c *gin.Context) { handlers.ServeSystemStatsWS(c) }
