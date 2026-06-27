@@ -7,13 +7,14 @@ import {
   InfoCircleOutlined,
   PauseOutlined,
   PlayCircleOutlined,
+  CopyOutlined,
+  CheckOutlined,
 } from "@ant-design/icons-vue";
 
 import { pb } from "../../pb/tracker_pb.js";
 import { buildWebSocketUrl } from "../../utils/requestContext";
 import NetworkStatsCards from "../../components/network/NetworkStatsCards.vue";
 import NetworkEventModal from "../../components/network/NetworkEventModal.vue";
-import SanitizedFieldViewer from "../../components/common/SanitizedFieldViewer.vue";
 import RedactionBadge from "../../components/common/RedactionBadge.vue";
 
 interface NetworkEvent {
@@ -90,6 +91,19 @@ const showDetails = ref(false);
 const selectedEvent = ref<NetworkEvent | null>(null);
 const maxEvents = ref(5000);
 const maxEventsOptions = ["2000", "5000", "10000", "20000", "50000"];
+
+// Copy state for inline copy icons
+const copiedKey = ref<string | null>(null);
+const copyToClipboard = async (text: string, key: string) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    copiedKey.value = key;
+    setTimeout(() => { copiedKey.value = null; }, 1500);
+  } catch {}
+};
+
+// Column-level filter state
+const filteredInfo = ref<Record<string, string[]>>({});
 
 let ws: WebSocket | null = null;
 let reconnectTimer: any = null;
@@ -174,6 +188,12 @@ const networkFilteredEvents = computed(() => {
         String(e.pid).includes(q),
     );
   }
+  // Column-level filters
+  const fi = filteredInfo.value;
+  if (fi.dir?.length) list = list.filter((e) => fi.dir!.includes(e.netDirection));
+  if (fi.type?.length) list = list.filter((e) => fi.type!.includes(String(e.eventType)));
+  if (fi.comm?.length) list = list.filter((e) => fi.comm!.includes(e.comm));
+  if (fi.endpoint?.length) list = list.filter((e) => fi.endpoint!.includes(e.netEndpoint));
   return list;
 });
 
@@ -440,6 +460,13 @@ onUnmounted(() => {
           dataIndex="netDirection"
           key="netDirection"
           width="100"
+          filters={[
+            { text: 'Outgoing', value: 'outgoing' },
+            { text: 'Incoming', value: 'incoming' },
+            { text: 'Listening', value: 'listening' },
+          ]}
+          :filteredValue="filteredInfo.dir || null"
+          @filter="(vals: string[]) => filteredInfo = { ...filteredInfo, dir: vals }"
         >
           <template #default="{ text }"
             ><a-tag :color="directionColor(text)" size="small">{{
@@ -447,20 +474,44 @@ onUnmounted(() => {
             }}</a-tag></template
           >
         </a-table-column>
-        <a-table-column title="Type" dataIndex="type" key="type" width="140">
+        <a-table-column
+          title="Type"
+          dataIndex="type"
+          key="type"
+          width="140"
+          :filters="networkTypeTabs.filter(([et]) => et !== 'unknown').map(([et, label]) => ({ text: label, value: String(et) }))"
+          :filteredValue="filteredInfo.type || null"
+          @filter="(vals: string[]) => filteredInfo = { ...filteredInfo, type: vals }"
+        >
           <template #default="{ text, record }"
             ><a-tag :color="typeColor(record.eventType, text)" size="small">{{
               text.toUpperCase()
             }}</a-tag></template
           >
         </a-table-column>
-        <a-table-column title="Command" dataIndex="comm" key="comm" ellipsis>
+        <a-table-column
+          title="Command"
+          dataIndex="comm"
+          key="comm"
+          ellipsis
+          :filters="[...new Set(networkFilteredEvents.map(e => e.comm))].filter(Boolean).slice(0, 50).map(v => ({ text: v, value: v }))"
+          :filteredValue="filteredInfo.comm || null"
+          @filter="(vals: string[]) => filteredInfo = { ...filteredInfo, comm: vals }"
+        >
           <template #default="{ text, record }">
-            <SanitizedFieldViewer
-              :value="String(text || '—')"
-              :isSanitized="Boolean(record.redactionState || record.redacted)"
-              field-name="command"
-            />
+            <div class="field-cell">
+              <a-tag v-if="record.redactionState || record.redacted" color="warning" size="small" style="margin-right:4px">脱敏</a-tag>
+              <span class="field-text">{{ text || '—' }}</span>
+              <a-button
+                type="text"
+                size="small"
+                class="copy-icon-btn"
+                @click.stop="copyToClipboard(String(text || ''), 'cmd-' + record.key)"
+              >
+                <CheckOutlined v-if="copiedKey === 'cmd-' + record.key" style="color:#52c41a" />
+                <CopyOutlined v-else />
+              </a-button>
+            </div>
           </template>
         </a-table-column>
         <a-table-column
@@ -468,13 +519,24 @@ onUnmounted(() => {
           dataIndex="netEndpoint"
           key="netEndpoint"
           ellipsis
+          :filters="[...new Set(networkFilteredEvents.map(e => e.netEndpoint))].filter(Boolean).slice(0, 50).map(v => ({ text: v, value: v }))"
+          :filteredValue="filteredInfo.endpoint || null"
+          @filter="(vals: string[]) => filteredInfo = { ...filteredInfo, endpoint: vals }"
         >
           <template #default="{ text, record }">
-            <SanitizedFieldViewer
-              :value="String(text || '—')"
-              :isSanitized="Boolean(record.redactionState || record.redacted)"
-              field-name="endpoint"
-            />
+            <div class="field-cell">
+              <a-tag v-if="record.redactionState || record.redacted" color="warning" size="small" style="margin-right:4px">脱敏</a-tag>
+              <span class="field-text">{{ text || '—' }}</span>
+              <a-button
+                type="text"
+                size="small"
+                class="copy-icon-btn"
+                @click.stop="copyToClipboard(String(text || ''), 'ep-' + record.key)"
+              >
+                <CheckOutlined v-if="copiedKey === 'ep-' + record.key" style="color:#52c41a" />
+                <CopyOutlined v-else />
+              </a-button>
+            </div>
           </template>
         </a-table-column>
         <a-table-column
@@ -530,5 +592,33 @@ onUnmounted(() => {
 }
 :deep(.ant-tag) {
   margin-right: 0;
+}
+
+.field-cell {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.field-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.copy-icon-btn {
+  opacity: 0.4;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+  padding: 0 2px;
+  height: 20px;
+  min-width: 20px;
+}
+
+.copy-icon-btn:hover {
+  opacity: 1;
 }
 </style>
