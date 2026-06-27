@@ -641,20 +641,12 @@ const onCapChange = (v: number) => {
 };
 
 // Filter groups based on rawMode
-const filteredSendGroups = computed(() => {
-  const gs = streamGroups.value.send;
-  if (rawMode.value === "show") return gs;
-  // "skip": drop groups that are entirely raw (no context blocks)
-  if (rawMode.value === "skip") return gs.filter((g) => g.contentBlocks.some((b) => CONTEXT_BLOCK_TYPES.has(b.type)));
-  // "hide": show all groups, raw blocks hidden per-block via blockVisible
-  return gs;
-});
-const filteredRecvGroups = computed(() => {
-  const gs = streamGroups.value.recv;
-  if (rawMode.value === "show") return gs;
-  if (rawMode.value === "skip") return gs.filter((g) => g.contentBlocks.some((b) => CONTEXT_BLOCK_TYPES.has(b.type)));
-  return gs;
-});
+// "show" — all groups visible
+// "skip" / "hide" — all groups visible; raw blocks hidden per-block via blockVisible.
+//   Difference is at buffer level: skip prunes raw events after each conversation
+//   wave, hide caches them indefinitely. Display is identical.
+const filteredSendGroups = computed(() => streamGroups.value.send);
+const filteredRecvGroups = computed(() => streamGroups.value.recv);
 
 // ── Stats & state ────────────────────────────────────────────────────────
 const stats = computed(() => {
@@ -671,10 +663,6 @@ const stats = computed(() => {
     recvCount: streamGroups.value.recv.length,
     sendBytes: streamGroups.value.send.reduce((s, g) => s + g.totalSize, 0),
     recvBytes: streamGroups.value.recv.reduce((s, g) => s + g.totalSize, 0),
-    filteredSendCount: filteredSendGroups.value.length,
-    filteredRecvCount: filteredRecvGroups.value.length,
-    allCount: streamGroups.value.send.length + streamGroups.value.recv.length,
-    filteredAllCount: filteredSendGroups.value.length + filteredRecvGroups.value.length,
     // Debug: raw event counts
     sendRawN: sendRaw.length,
     recvRawN: recvRaw.length,
