@@ -10,6 +10,7 @@ import (
 	"agent-ebpf-filter/pb"
 	"context"
 	"os/exec"
+	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/gin-gonic/gin"
@@ -109,7 +110,19 @@ var Deps struct {
 	ProcessContexts ProcessContextStore
 
 	// AgentSight event store
-	AgentSightUploadedEvents interface{ Clear() }
+	AgentSightUploadedEvents interface {
+		Clear()
+		Recent(limit int) []any
+		Add(events ...any)
+	}
+
+	// AgentSight data pipeline helpers (wired from app-level functions)
+	RecentEventFiltersFromRequest func(c any) any // *gin.Context -> recentEventFilters
+	FilterRecentEventRecords      func(records []CapturedEventRecord, filters any) []CapturedEventRecord
+	NormalizeCapturedEventRecord func(record CapturedEventRecord) CapturedEventRecord
+	EventEnvelopeToJSONValue     func(envelope *pb.EventEnvelope) map[string]any
+	EnvelopeEventTypeName        func(envelope *pb.EventEnvelope, event *pb.Event) string
+	ParseRecentEventTime         func(raw string) time.Time
 
 	// Plugin handler closures
 	PluginList         func() []any

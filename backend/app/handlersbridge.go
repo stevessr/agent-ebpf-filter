@@ -71,6 +71,33 @@ func (a *handlerTrackerMapsAdapter) CollectorStats() *ebpf.Map {
 	return a.set.CollectorStats
 }
 
+// ── AgentSight event store adapter ──────────────────────────────────
+
+// agentSightStoreAdapter wraps *agentSightEventStore to implement the
+// handlers.Deps.AgentSightUploadedEvents interface using any.
+type agentSightStoreAdapter struct {
+	store *agentSightEventStore
+}
+
+func (a *agentSightStoreAdapter) Clear() { a.store.Clear() }
+
+func (a *agentSightStoreAdapter) Recent(limit int) []any {
+	events := a.store.Recent(limit)
+	out := make([]any, len(events))
+	for i, e := range events {
+		out[i] = e
+	}
+	return out
+}
+
+func (a *agentSightStoreAdapter) Add(events ...any) {
+	for _, e := range events {
+		if ev, ok := e.(agentSightExportEvent); ok {
+			a.store.Add(ev)
+		}
+	}
+}
+
 // ── Shell session adapter ──────────────────────────────────────────
 
 // shellManagerAdapter wraps *shell.Manager to implement the handlers.Deps.ShellSessions interface.
@@ -108,6 +135,7 @@ func init() {
 	// Event archive / data handlers
 	handlers.Deps.EventArchiveClear = capturedEventArchive.Clear
 	handlers.Deps.AgentSightEventsClear = agentSightUploadedEvents.Clear
+	handlers.Deps.AgentSightUploadedEvents = &agentSightStoreAdapter{store: agentSightUploadedEvents}
 	handlers.Deps.RuntimeSettingsTruncateLog = runtimeSettingsStore.TruncateEventLog
 
 	handlers.Deps.PluginValidateID = validatePluginID
@@ -376,6 +404,18 @@ func init() {
 		handlers.Deps.ShellSessions = &shellManagerAdapter{mgr: shellSessions}
 		handlers.Deps.MakeShellDeps = func() any { return makeShellDeps() }
 
+		// AgentSight data pipeline
+		handlers.Deps.RecentEventFiltersFromRequest = func(c any) any {
+			return recentEventFiltersFromRequest(c.(*gin.Context))
+		}
+		handlers.Deps.FilterRecentEventRecords = func(records []CapturedEventRecord, filters any) []CapturedEventRecord {
+			return filterRecentEventRecords(records, filters.(recentEventFilters))
+		}
+		handlers.Deps.NormalizeCapturedEventRecord = normalizeCapturedEventRecord
+		handlers.Deps.EventEnvelopeToJSONValue = eventEnvelopeToJSONValue
+		handlers.Deps.EnvelopeEventTypeName = envelopeEventTypeName
+		handlers.Deps.ParseRecentEventTime = parseRecentEventTime
+
 		initMLHandlersDeps()
 	}
 
@@ -562,3 +602,27 @@ func handleListShellSessions(c *gin.Context)       { handlers.HandleListShellSes
 func handleDeleteShellSession(c *gin.Context)      { handlers.HandleDeleteShellSession(c) }
 func handleSendShellSessionInput(c *gin.Context)   { handlers.HandleSendShellSessionInput(c) }
 func handleShellSessionsCleanup(c *gin.Context)    { handlers.HandleShellSessionsCleanup(c) }
+
+// AgentSight bridges
+func handleAgentSightEvents(tlsStore *TLSCaptureStore, forceJSONL bool) gin.HandlerFunc {
+	return handlers.HandleAgentSightEvents(tlsStore, forceJSONL)
+}
+func handleAgentSightEventsQuery(tlsStore *TLSCaptureStore) gin.HandlerFunc {
+	return handlers.HandleAgentSightEventsQuery(tlsStore)
+}
+func handleAgentSightEventsStream(tlsStore *TLSCaptureStore) gin.HandlerFunc {
+	return handlers.HandleAgentSightEventsStream(tlsStore)
+}
+func handleAgentSightRunnerStream(tlsStore *TLSCaptureStore) gin.HandlerFunc {
+	return handlers.HandleAgentSightRunnerStream(tlsStore)
+}
+func handleAgentSightEventsUpload(c *gin.Context)                { handlers.HandleAgentSightEventsUpload(c) }
+func handleAgentSightRunners(tlsStore *TLSCaptureStore) gin.HandlerFunc {
+	return handlers.HandleAgentSightRunners(tlsStore)
+}
+func handleAgentSightEventsStats(tlsStore *TLSCaptureStore, runnerID string) gin.HandlerFunc {
+	return handlers.HandleAgentSightEventsStats(tlsStore, runnerID)
+}
+func handleAgentSightRunnerStats(tlsStore *TLSCaptureStore) gin.HandlerFunc {
+	return handlers.HandleAgentSightRunnerStats(tlsStore)
+}
