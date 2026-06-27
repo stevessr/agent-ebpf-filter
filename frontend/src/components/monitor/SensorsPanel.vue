@@ -21,6 +21,7 @@ const props = defineProps<{
   cameraLiveMode: boolean;
   cameraStreamUrl: string;
   cameraLoading: boolean;
+  cameraError: string;
   // Mic
   micLiveMode: boolean;
   micVolume: number;
@@ -355,6 +356,15 @@ onUnmounted(() => {
             </div>
           </div>
         </a-card>
+        <a-alert
+          v-if="cameraError"
+          :message="cameraError"
+          type="error"
+          show-icon
+          closable
+          style="margin-top: 8px"
+          @close="emit('update:cameraLiveMode', false)"
+        />
       </a-tab-pane>
 
       <a-tab-pane key="mic" tab="Microphone">

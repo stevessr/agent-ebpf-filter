@@ -160,10 +160,12 @@ export function useSensors() {
 
   let cameraWs: WebSocket | null = null;
   let cameraReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let cameraReconnectAttempts = 0;
   let cameraFrameRaf: number | null = null;
   let pendingCameraFrame: ArrayBuffer | null = null;
   let lastCameraFrameAt = 0;
   const cameraFrameInterval = 66;
+  const cameraError = ref("");
 
   const clearCameraReconnect = () => {
     if (cameraReconnectTimer) {
@@ -222,16 +224,30 @@ export function useSensors() {
     cameraWs = socket;
     socket.binaryType = "arraybuffer";
     socket.onopen = () => {
-      if (cameraWs === socket) cameraLoading.value = false;
+      if (cameraWs === socket) {
+        cameraLoading.value = false;
+        cameraReconnectAttempts = 0;
+      }
     };
     socket.onmessage = (e) => {
-      if (cameraWs !== socket || typeof e.data === "string") return;
+      if (cameraWs !== socket) return;
+      if (typeof e.data === "string") {
+        // Server sent an error — stop reconnecting after max attempts
+        cameraReconnectAttempts++;
+        console.warn(`Camera error: ${e.data} (attempt ${cameraReconnectAttempts})`);
+        return;
+      }
       scheduleCameraFrame(e.data);
     };
     socket.onclose = () => {
       if (cameraWs === socket) cameraWs = null;
-      if (cameraLiveMode.value)
+      if (cameraLiveMode.value && cameraReconnectAttempts < 3)
         cameraReconnectTimer = setTimeout(connectCameraWS, 2000);
+      else if (cameraReconnectAttempts >= 3)
+        cameraError.value = `Failed to connect to camera after ${cameraReconnectAttempts} attempts`;
+    };
+    socket.onerror = () => {
+      cameraReconnectAttempts++;
     };
   };
 
@@ -239,6 +255,8 @@ export function useSensors() {
     clearCameraReconnect();
     closeWebSocket(cameraWs);
     cameraWs = null;
+    cameraReconnectAttempts = 0;
+    cameraError.value = "";
     clearCameraFrameRaf();
     pendingCameraFrame = null;
     if (cameraFrameUrl.value) {
@@ -378,6 +396,7 @@ export function useSensors() {
     cameraFrameUrl,
     cameraSnapshotUrl,
     cameraStreamUrl,
+    cameraError,
     fetchCameras,
     connectCameraWS,
     stopCameraWS,

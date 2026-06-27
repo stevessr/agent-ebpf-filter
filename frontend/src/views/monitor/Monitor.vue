@@ -72,6 +72,7 @@ const {
   cameraLiveMode,
   cameraLoading,
   cameraStreamUrl,
+  cameraError,
   fetchCameras,
   stopCameraWS,
   refreshCamera,
@@ -424,6 +425,7 @@ onUnmounted(() => {
           :cameraLiveMode="cameraLiveMode"
           :cameraStreamUrl="cameraStreamUrl"
           :cameraLoading="cameraLoading"
+          :cameraError="cameraError"
           :micLiveMode="micLiveMode"
           :micVolume="micVolume"
           :micListenBrowser="micListenBrowser"

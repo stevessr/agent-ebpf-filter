@@ -86,8 +86,23 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 			return nil
 		}
 
-		if err := cam.SetPixFormat(v4l2.PixFormat{PixelFormat: v4l2.PixelFmtMJPEG, Width: 640, Height: 480}); err != nil {
-			log.Printf("[WARN] MJPEG not supported on %s: %v", s.devName, err)
+		// Try pixel formats in order: MJPEG → YUYV (fallback)
+		setFormat := func(cam *device.Device) bool {
+			formats := []v4l2.PixFormat{
+				{PixelFormat: v4l2.PixelFmtMJPEG, Width: 640, Height: 480},
+				{PixelFormat: v4l2.PixelFmtYUYV, Width: 640, Height: 480},
+			}
+			for _, f := range formats {
+				if err := cam.SetPixFormat(f); err == nil {
+					return true
+				}
+				log.Printf("[WARN] pix format %#x not supported on %s: %v", f.PixelFormat, s.devName, err)
+			}
+			return false
+		}
+
+		if !setFormat(cam) {
+			log.Printf("[ERROR] no usable pixel format for %s", s.devName)
 			cam.Close()
 			atomic.AddInt32(&s.subscriberCount, -1)
 			return nil
