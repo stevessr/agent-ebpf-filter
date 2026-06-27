@@ -261,4 +261,16 @@ var Deps struct {
 	BuildFeatureManifest      func(settings core.RuntimeSettings) any
 	BootstrapTracepointStatus func() any
 	CollectorHealth           func() any
+
+	// Shell session manager (wired to *shell.Manager via adapter)
+	ShellSessions interface {
+		Subscribe() chan struct{}
+		Unsubscribe(ch chan struct{})
+		List() []any
+		NewSession(req any, deps any) (any, error)
+		Delete(id string) error
+		SendInput(id string, data []byte) error
+		ClearClosed()
+	}
+	MakeShellDeps func() any
 }

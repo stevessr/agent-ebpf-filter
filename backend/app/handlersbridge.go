@@ -3,6 +3,7 @@ package app
 import (
 	"agent-ebpf-filter/app/handlers"
 	"agent-ebpf-filter/app/platform"
+	"agent-ebpf-filter/app/shell"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
@@ -69,6 +70,30 @@ func (a *handlerTrackerMapsAdapter) TrackedPrefixesDelete(key any) error {
 func (a *handlerTrackerMapsAdapter) CollectorStats() *ebpf.Map {
 	return a.set.CollectorStats
 }
+
+// ── Shell session adapter ──────────────────────────────────────────
+
+// shellManagerAdapter wraps *shell.Manager to implement the handlers.Deps.ShellSessions interface.
+type shellManagerAdapter struct {
+	mgr *shell.Manager
+}
+
+func (a *shellManagerAdapter) Subscribe() chan struct{}  { return a.mgr.Subscribe() }
+func (a *shellManagerAdapter) Unsubscribe(ch chan struct{}) { a.mgr.Unsubscribe(ch) }
+func (a *shellManagerAdapter) List() []any {
+	list := a.mgr.List()
+	out := make([]any, len(list))
+	for i, v := range list {
+		out[i] = v
+	}
+	return out
+}
+func (a *shellManagerAdapter) NewSession(req any, deps any) (any, error) {
+	return a.mgr.NewSession(req.(shell.CreateRequest), deps.(shell.Deps))
+}
+func (a *shellManagerAdapter) Delete(id string) error          { return a.mgr.Delete(id) }
+func (a *shellManagerAdapter) SendInput(id string, data []byte) error { return a.mgr.SendInput(id, data) }
+func (a *shellManagerAdapter) ClearClosed()                     { a.mgr.ClearClosed() }
 
 // ── Handlers Dependency wiring ─────────────────────────────────────
 
@@ -347,6 +372,10 @@ func init() {
 			return collectorMetricsStore.Snapshot()
 		}
 
+		// Shell sessions
+		handlers.Deps.ShellSessions = &shellManagerAdapter{mgr: shellSessions}
+		handlers.Deps.MakeShellDeps = func() any { return makeShellDeps() }
+
 		initMLHandlersDeps()
 	}
 
@@ -522,3 +551,11 @@ func handleNetworkFlowJSONLExport(c *gin.Context)     { handlers.HandleNetworkFl
 func handleExternalAPIHealth(c *gin.Context) { handlers.HandleExternalAPIHealth(c) }
 func handleExternalAPIOpenAPI(c *gin.Context) { handlers.HandleExternalAPIOpenAPI(c) }
 func buildExternalOpenAPISpec() *openapi3.T  { return handlers.BuildExternalOpenAPISpec() }
+
+// Shell session bridges
+func serveShellSessionsWS(c *gin.Context)        { handlers.ServeShellSessionsWS(c) }
+func handleCreateShellSession(c *gin.Context)      { handlers.HandleCreateShellSession(c) }
+func handleListShellSessions(c *gin.Context)       { handlers.HandleListShellSessions(c) }
+func handleDeleteShellSession(c *gin.Context)      { handlers.HandleDeleteShellSession(c) }
+func handleSendShellSessionInput(c *gin.Context)   { handlers.HandleSendShellSessionInput(c) }
+func handleShellSessionsCleanup(c *gin.Context)    { handlers.HandleShellSessionsCleanup(c) }
