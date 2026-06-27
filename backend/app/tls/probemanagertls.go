@@ -92,8 +92,20 @@ type TLSProbeManager struct {
 	attachedGo     map[string]bool
 	attachedExec   map[int]string // PID → library name for executable/library attaches
 
+	// ReadLoop diagnostics (updated atomically)
+	readLoopStats ReadLoopStats
+
 	mu     sync.Mutex
 	closed bool
+}
+
+type ReadLoopStats struct {
+	TotalFrags     int64
+	DroppedFrags   int64
+	CompletedFrags int64
+	HTTPEvents     int64
+	RawEvents      int64
+	LastFragmentNS int64
 }
 
 type TLSExecutableAttachResult struct {
@@ -612,35 +624,34 @@ func (m *TLSProbeManager) ReadLoop() error {
 	}
 	defer reader.Close()
 
-	var totalFrags, droppedFrags, completedFrags, httpEvents, rawEvents int
 	for {
 		rec, err := reader.Read()
 		if err != nil {
 			if errors.Is(err, perf.ErrClosed) {
 				log.Printf("[tls] ReadLoop: perf reader closed, total=%d frags, %d dropped, %d completed, %d http, %d raw",
-					totalFrags, droppedFrags, completedFrags, httpEvents, rawEvents)
+					m.readLoopStats.TotalFrags, m.readLoopStats.DroppedFrags, m.readLoopStats.CompletedFrags, m.readLoopStats.HTTPEvents, m.readLoopStats.RawEvents)
 				return nil
 			}
 			log.Printf("[tls] ReadLoop: perf read error: %v", err)
 			return err
 		}
-		totalFrags++
-		if totalFrags <= 5 {
-			log.Printf("[tls] ReadLoop: GOT fragment #%d raw_len=%d", totalFrags, len(rec.RawSample))
+		m.readLoopStats.TotalFrags++
+		if m.readLoopStats.TotalFrags <= 5 {
+			log.Printf("[tls] ReadLoop: GOT fragment #%d raw_len=%d", m.readLoopStats.TotalFrags, len(rec.RawSample))
 		}
 		var fragment tlsFragment
 		if err := binary.Read(bytes.NewReader(rec.RawSample), binary.LittleEndian, &fragment); err != nil {
-			if totalFrags <= 5 {
-				log.Printf("[tls] ReadLoop: binary.Read FAIL on fragment #%d (raw_len=%d): %v", totalFrags, len(rec.RawSample), err)
+			if m.readLoopStats.TotalFrags <= 5 {
+				log.Printf("[tls] ReadLoop: binary.Read FAIL on fragment #%d (raw_len=%d): %v", m.readLoopStats.TotalFrags, len(rec.RawSample), err)
 			}
 			continue
 		}
 		completed, ok := assembler.Add(fragment)
 		if !ok || completed == nil {
-			droppedFrags++
+			m.readLoopStats.DroppedFrags++
 			continue
 		}
-		completedFrags++
+		m.readLoopStats.CompletedFrags++
 		parsedEvents := httpStreams.Add(*completed)
 		// If HTTP parser produced nothing (HTTP/2, non-HTTP protocol, etc.),
 		// still emit a raw event so the user sees captured data.
@@ -649,7 +660,7 @@ func (m *TLSProbeManager) ReadLoop() error {
 			if rules == nil || rules.Allows(raw) {
 				broadcaster.Broadcast(raw)
 				store.Add(raw)
-				rawEvents++
+				m.readLoopStats.RawEvents++
 			}
 		} else {
 			for _, event := range parsedEvents {
@@ -659,13 +670,13 @@ func (m *TLSProbeManager) ReadLoop() error {
 				DispatchTLSAgentEvent(&event, tlsAgentLoopDetector, deps.Broadcast)
 				store.Add(event)
 				broadcaster.Broadcast(event)
-				httpEvents++
+				m.readLoopStats.HTTPEvents++
 			}
 		}
 		// Periodic summary every 100 fragments
-		if totalFrags%100 == 0 {
+		if m.readLoopStats.TotalFrags%100 == 0 {
 			log.Printf("[tls] ReadLoop: %d frags, %d dropped, %d completed, %d http, %d raw",
-				totalFrags, droppedFrags, completedFrags, httpEvents, rawEvents)
+				m.readLoopStats.TotalFrags, m.readLoopStats.DroppedFrags, m.readLoopStats.CompletedFrags, m.readLoopStats.HTTPEvents, m.readLoopStats.RawEvents)
 		}
 	}
 }
@@ -1300,6 +1311,13 @@ func (m *TLSProbeManager) AttachedPIDs() []AttachedPIDInfo {
 	return result
 }
 
+// ReadLoopStatsSnapshot returns a copy of the current ReadLoop statistics.
+func (m *TLSProbeManager) ReadLoopStatsSnapshot() ReadLoopStats {
+	if m == nil {
+		return ReadLoopStats{}
+	}
+	return m.readLoopStats
+}
 // ProbeHitCounters reads the tls_probe_hits BPF map and returns per-function hit counts
 // plus diagnostic counters (perf_output_fail, probe_read_fail, perf_submit_ok).
 func (m *TLSProbeManager) ProbeHitCounters() map[string]uint64 {

@@ -150,6 +150,13 @@ func (c *TLSCaptureController) ProbeHitCounters() map[string]uint64 {
 	return c.manager.ProbeHitCounters()
 }
 
+func (c *TLSCaptureController) ReadLoopStatsSnapshot() ReadLoopStats {
+	if c == nil || c.manager == nil {
+		return ReadLoopStats{}
+	}
+	return c.manager.ReadLoopStatsSnapshot()
+}
+
 func (c *TLSCaptureController) Close() error {
 	if c == nil {
 		return nil

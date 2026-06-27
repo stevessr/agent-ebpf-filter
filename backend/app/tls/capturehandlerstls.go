@@ -78,6 +78,7 @@ type tlsCaptureRuntime interface {
 	Status() map[string]any
 	AttachedPIDs() []AttachedPIDInfo
 	ProbeHitCounters() map[string]uint64
+	ReadLoopStatsSnapshot() ReadLoopStats
 }
 
 func NewTLSCaptureBroadcaster() *TLSBroadcaster {
@@ -180,6 +181,7 @@ func handleTLSCaptureStatus(runtime tlsCaptureRuntime, store *TLSCaptureStore) g
 		if runtime != nil {
 			status = runtime.Status()
 			status["probe_hits"] = runtime.ProbeHitCounters()
+			status["readloop"] = runtime.ReadLoopStatsSnapshot()
 		}
 		status["libraries"] = store.LibraryStatuses()
 		c.JSON(http.StatusOK, status)
