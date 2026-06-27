@@ -471,11 +471,26 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		m.attachedExec[pid] = "static-openssl"
 		m.mu.Unlock()
 		return result
-	} else {
-		log.Printf("[tls] AttachExecutable: static SSL uprobes failed for %s: %v", attachPath, err)
-		// Dump binary symbols to help diagnose what TLS library it actually uses
-		dumpCandidateTLSSymbols(attachPath)
 	}
+	log.Printf("[tls] AttachExecutable: symbol-based static SSL failed for %s, trying BoringSSL byte-pattern detection...", attachPath)
+
+	// Try BoringSSL byte-pattern detection for stripped binaries
+	// (Node.js with BoringSSL, Bun, Claude CLI, etc.)
+	if err := m.AttachBoringSSLByOffsets(attachPath, pid); err == nil {
+		log.Printf("[tls] AttachExecutable: BoringSSL detected and attached by offset in %s (pid=%d)", attachPath, pid)
+		result.TargetKind = "static-ssl"
+		result.Library = "boringssl"
+		m.mu.Lock()
+		if m.attachedExec == nil {
+			m.attachedExec = make(map[int]string)
+		}
+		m.attachedExec[pid] = "boringssl"
+		m.mu.Unlock()
+		return result
+	}
+	log.Printf("[tls] AttachExecutable: BoringSSL detection also failed for %s", attachPath)
+	// Dump binary symbols for diagnosis
+	dumpCandidateTLSSymbols(attachPath)
 
 	// Find which SSL/TLS libraries this PID actually has loaded via /proc/PID/maps.
 	// Attaching to a .so file on disk is useless if the process never mmap'd it.
@@ -750,6 +765,158 @@ func findLoadedLibForTarget(loadedLibs []string, target ProbeTarget) (string, bo
 		}
 	}
 	return "", false
+}
+
+// BoringSSL function prologue byte patterns for stripped binaries.
+// Derived from AgentSight's bpf/sslsniff.c find_boringssl_offsets().
+var (
+	boringsslSSLReadPattern = []byte{
+		0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
+		0x53, 0x50, 0x48, 0x83, 0xbf, 0x98, 0x00, 0x00,
+		0x00, 0x00, 0x74,
+	}
+	boringsslSSLWritePattern = []byte{
+		0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
+		0x41, 0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec,
+		0x18, 0x41, 0x89, 0xd7, 0x49, 0x89, 0xf6, 0x48,
+		0x89, 0xfb,
+	}
+	boringsslHandshakePattern = []byte{
+		0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
+		0x41, 0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec,
+		0x28, 0x49, 0x89, 0xfc, 0x48, 0x8b, 0x47, 0x30,
+	}
+	// Relative offset from SSL_read to SSL_write (BoringSSL)
+	boringsslWriteReadDelta = uint64(0xCA0)
+	// Relative offset from SSL_read to SSL_do_handshake
+	boringsslReadHandshakeDelta = uint64(0x6F0)
+)
+
+// AttachBoringSSLByOffsets mirrors AgentSight's approach: search the binary for
+// BoringSSL function prologue byte patterns, then attach uprobes by offset.
+// This works for stripped statically-linked binaries (Node.js, Bun, Claude CLI)
+// where symbol-based attachment fails.
+func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) error {
+	if m == nil {
+		return fmt.Errorf("manager is nil")
+	}
+	data, err := os.ReadFile(binPath)
+	if err != nil {
+		return fmt.Errorf("read binary: %w", err)
+	}
+
+	// Find SSL_read (most distinctive pattern)
+	readOff := findBSPattern(data, boringsslSSLReadPattern)
+	if readOff < 0 {
+		return fmt.Errorf("BoringSSL SSL_read pattern not found")
+	}
+
+	// Validate SSL_write by checking near expected relative position
+	writeCenter := readOff + int64(boringsslWriteReadDelta)
+	writeOff := findBSPatternNear(data, boringsslSSLWritePattern, writeCenter, 0x10000)
+	if writeOff < 0 {
+		return fmt.Errorf("BoringSSL SSL_write pattern not found near SSL_read")
+	}
+
+	log.Printf("[tls] BoringSSL detected: SSL_read=%#x SSL_write=%#x in %s", readOff, writeOff, filepath.Base(binPath))
+
+	// Attach uprobes by offset
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed || m.objs == nil {
+		return fmt.Errorf("TLS probe manager is closed")
+	}
+
+	opts := &link.UprobeOptions{}
+	if pid > 0 {
+		opts.PID = pid
+	}
+
+	bin, err := link.OpenExecutable(binPath)
+	if err != nil {
+		return fmt.Errorf("open executable: %w", err)
+	}
+
+	startLinks := len(m.links)
+	var errs []error
+
+	// Attach SSL_write uprobe + uretprobe by offset
+	if err := attachOffsetProbe(bin, m, "uprobe_ssl_write", uint64(writeOff), false, opts); err != nil {
+		errs = append(errs, fmt.Errorf("SSL_write entry: %w", err))
+	}
+	if err := attachOffsetProbe(bin, m, "uretprobe_ssl_write", uint64(writeOff), true, opts); err != nil {
+		errs = append(errs, fmt.Errorf("SSL_write ret: %w", err))
+	}
+	// Attach SSL_read uprobe + uretprobe by offset
+	if err := attachOffsetProbe(bin, m, "uprobe_ssl_read", uint64(readOff), false, opts); err != nil {
+		errs = append(errs, fmt.Errorf("SSL_read entry: %w", err))
+	}
+	if err := attachOffsetProbe(bin, m, "uretprobe_ssl_read", uint64(readOff), true, opts); err != nil {
+		errs = append(errs, fmt.Errorf("SSL_read ret: %w", err))
+	}
+
+	if len(errs) > 0 {
+		for _, l := range m.links[startLinks:] {
+			if l != nil {
+				_ = l.Close()
+			}
+		}
+		m.links = m.links[:startLinks]
+		return fmt.Errorf("BoringSSL offset attach: %w", errors.Join(errs...))
+	}
+	return nil
+}
+
+// findBSPattern searches for byte pattern in data, returns offset or -1.
+func findBSPattern(data, pattern []byte) int64 {
+	if len(pattern) > len(data) {
+		return -1
+	}
+	for i := 0; i <= len(data)-len(pattern); i++ {
+		if bytes.Equal(data[i:i+len(pattern)], pattern) {
+			return int64(i)
+		}
+	}
+	return -1
+}
+
+// findBSPatternNear searches within ±range of center, returns offset or -1.
+func findBSPatternNear(data, pattern []byte, center int64, searchRange int64) int64 {
+	start := center - searchRange
+	if start < 0 {
+		start = 0
+	}
+	end := center + searchRange
+	if end > int64(len(data)) {
+		end = int64(len(data))
+	}
+	off := findBSPattern(data[start:end], pattern)
+	if off < 0 {
+		return -1
+	}
+	return start + off
+}
+
+// attachOffsetProbe attaches a uprobe/uretprobe at a file offset (no symbol lookup).
+func attachOffsetProbe(bin *link.Executable, m *TLSProbeManager, progName string, offset uint64, retprobe bool, baseOpts *link.UprobeOptions) error {
+	prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, progName)
+	if !ok || prog == nil {
+		return nil // Program not compiled into this eBPF object
+	}
+	opts := *baseOpts
+	opts.Offset = offset
+	var l link.Link
+	var err error
+	if retprobe {
+		l, err = bin.Uretprobe("", prog, &opts)
+	} else {
+		l, err = bin.Uprobe("", prog, &opts)
+	}
+	if err != nil {
+		return err
+	}
+	m.links = append(m.links, l)
+	return nil
 }
 
 // dumpCandidateTLSSymbols opens the binary ELF and logs any symbols that might
