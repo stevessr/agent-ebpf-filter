@@ -3,6 +3,7 @@ package tls
 import (
 	"agent-ebpf-filter/internal/binaryresolver"
 	"bytes"
+	"debug/elf"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -472,6 +473,8 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		return result
 	} else {
 		log.Printf("[tls] AttachExecutable: static SSL uprobes failed for %s: %v", attachPath, err)
+		// Dump binary symbols to help diagnose what TLS library it actually uses
+		dumpCandidateTLSSymbols(attachPath)
 	}
 
 	// Find which SSL/TLS libraries this PID actually has loaded via /proc/PID/maps.
@@ -684,12 +687,13 @@ func findLoadedSSLLibraries(pid int) []string {
 	}
 	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/maps", pid))
 	if err != nil {
+		log.Printf("[tls] PID %d: cannot read maps: %v", pid, err)
 		return nil
 	}
 	var libs []string
 	seen := make(map[string]bool)
+	allSos := []string{}
 	for _, line := range strings.Split(string(data), "\n") {
-		// Format: addr-perms offset dev inode pathname
 		fields := strings.Fields(line)
 		if len(fields) < 6 {
 			continue
@@ -698,9 +702,10 @@ func findLoadedSSLLibraries(pid int) []string {
 		if !strings.HasSuffix(path, ".so") && !strings.Contains(path, ".so.") {
 			continue
 		}
+		allSos = append(allSos, path)
 		base := filepath.Base(path)
 		// Match known SSL/TLS library names
-		for _, prefix := range []string{"libssl", "libcrypto", "libgnutls", "libnspr4", "libnss3", "libnssutil3"} {
+		for _, prefix := range []string{"libssl", "libcrypto", "libgnutls", "libnspr4", "libnss3", "libnssutil3", "libtls", "libbearssl"} {
 			if strings.HasPrefix(base, prefix) {
 				if !seen[path] {
 					seen[path] = true
@@ -709,6 +714,13 @@ func findLoadedSSLLibraries(pid int) []string {
 				}
 				break
 			}
+		}
+	}
+	// Dump ALL loaded .so files for diagnosis
+	if len(libs) == 0 {
+		log.Printf("[tls] PID %d: NO known SSL lib found among %d loaded .so files:", pid, len(allSos))
+		for _, so := range allSos {
+			log.Printf("[tls]   PID %d loaded: %s", pid, so)
 		}
 	}
 	return libs
@@ -738,6 +750,40 @@ func findLoadedLibForTarget(loadedLibs []string, target ProbeTarget) (string, bo
 		}
 	}
 	return "", false
+}
+
+// dumpCandidateTLSSymbols opens the binary ELF and logs any symbols that might
+// be TLS-related (containing "ssl", "tls", "crypto", "write", "read" etc.).
+func dumpCandidateTLSSymbols(binPath string) {
+	f, err := elf.Open(binPath)
+	if err != nil {
+		log.Printf("[tls]   cannot open ELF for symbol dump: %v", err)
+		return
+	}
+	defer f.Close()
+	syms, err := f.Symbols()
+	if err != nil {
+		syms, _ = f.DynamicSymbols()
+	}
+	candidates := []string{}
+	for _, s := range syms {
+		name := strings.ToLower(s.Name)
+		if strings.Contains(name, "ssl_") || strings.Contains(name, "tls_") ||
+			strings.Contains(name, "tls.") || strings.Contains(name, "write") ||
+			strings.Contains(name, "read") || strings.Contains(name, "send") ||
+			strings.Contains(name, "recv") || strings.Contains(name, "encrypt") ||
+			strings.Contains(name, "decrypt") || strings.Contains(name, "crypto") {
+			candidates = append(candidates, s.Name)
+		}
+	}
+	if len(candidates) > 0 {
+		log.Printf("[tls]   candidate TLS symbols in %s:", filepath.Base(binPath))
+		for _, name := range candidates {
+			log.Printf("[tls]     %s", name)
+		}
+	} else {
+		log.Printf("[tls]   no obvious TLS symbols found in %s (stripped or custom impl)", filepath.Base(binPath))
+	}
 }
 
 func tlsFuncName(fn uint8) string {
