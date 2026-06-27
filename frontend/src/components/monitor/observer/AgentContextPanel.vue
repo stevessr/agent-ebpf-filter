@@ -258,14 +258,26 @@ const extractMessageMeta = (events: SSEParsed[]): { role?: string; model?: strin
       meta.role = p.message.role;
       meta.model = p.message.model;
       meta.id = p.message.id;
-      if (p.message.usage) meta.usage = p.message.usage;
+      // DO NOT take usage from message_start — output_tokens is always 0
     }
-    // message_delta / message_stop may carry final usage
+    // message_delta / message_stop carry FINAL usage with real output_tokens
     if ((p.type === "message_delta" || p.type === "message_stop") && p.usage) {
       meta.usage = p.usage;
     }
   }
   return meta;
+};
+
+// Format usage object into displayable key-value pairs (camelCase→Title Case)
+const usageEntries = (u: any): { key: string; label: string; value: number }[] => {
+  if (!u || typeof u !== "object") return [];
+  return Object.entries(u)
+    .filter(([, v]) => typeof v === "number")
+    .map(([k, v]) => ({
+      key: k,
+      label: k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+      value: v as number,
+    }));
 };
 
 // ── Check if raw text looks like SSE JSON ───────────────────────────────
@@ -474,7 +486,7 @@ const toggle = (id: string) => {
               <span class="ac-h-meta">
                 <span v-if="g.messageRole" class="ac-role">{{ g.messageRole }}</span>
                 <span v-if="g.messageModel" class="ac-model">{{ g.messageModel }}</span>
-                <span v-if="g.usage?.output_tokens" class="ac-tok-inline">{{ (g.usage.output_tokens).toLocaleString() }} tok</span>
+                <span v-if="usageEntries(g.usage||{}).length" class="ac-tok-inline">{{ usageEntries(g.usage!).reduce((s,e) => s + e.value, 0).toLocaleString() }} tok</span>
                 <span v-if="g.contentBlocks.length>1" class="ac-cbc">{{ g.contentBlocks.length }} blocks</span>
               </span>
               <span class="ac-h-host" v-if="g.events[0]?.host">{{ g.events[0].host }}</span>
@@ -486,11 +498,11 @@ const toggle = (id: string) => {
             <!-- body -->
             <div v-if="expanded.has(g.id)" class="ac-body">
               <div v-if="g.messageId" class="ac-meta"><span class="ac-k">ID</span><code>{{ g.messageId }}</code></div>
-              <div v-if="g.usage" class="ac-tokens">
-                <span class="ac-tok"><span class="ac-tok-label">Input</span><span class="ac-tok-val">{{ (g.usage.input_tokens||0).toLocaleString() }}</span></span>
-                <span v-if="g.usage.cache_read_input_tokens" class="ac-tok ac-tok-cache"><span class="ac-tok-label">Cache Read</span><span class="ac-tok-val">{{ g.usage.cache_read_input_tokens.toLocaleString() }}</span></span>
-                <span v-if="g.usage.cache_creation_input_tokens" class="ac-tok ac-tok-cache"><span class="ac-tok-label">Cache Write</span><span class="ac-tok-val">{{ g.usage.cache_creation_input_tokens.toLocaleString() }}</span></span>
-                <span class="ac-tok"><span class="ac-tok-label">Output</span><span class="ac-tok-val">{{ (g.usage.output_tokens||0).toLocaleString() }}</span></span>
+              <div v-if="g.usage && usageEntries(g.usage).length" class="ac-tokens">
+                <span v-for="e in usageEntries(g.usage)" :key="e.key" class="ac-tok" :class="{ 'ac-tok-cache': e.key.includes('cache'), 'ac-tok-out': e.key.includes('output') }">
+                  <span class="ac-tok-label">{{ e.label }}</span>
+                  <span class="ac-tok-val">{{ e.value.toLocaleString() }}</span>
+                </span>
               </div>
               <div v-if="g.contentBlocks.length" class="ac-blocks">
                 <div v-for="(b,bi) in g.contentBlocks" :key="bi" class="ac-block" :class="`ac-b-${b.type}`">
@@ -516,7 +528,7 @@ const toggle = (id: string) => {
               <span class="ac-h-meta">
                 <span v-if="g.messageRole" class="ac-role">{{ g.messageRole }}</span>
                 <span v-if="g.messageModel" class="ac-model">{{ g.messageModel }}</span>
-                <span v-if="g.usage?.output_tokens" class="ac-tok-inline">{{ (g.usage.output_tokens).toLocaleString() }} tok</span>
+                <span v-if="usageEntries(g.usage||{}).length" class="ac-tok-inline">{{ usageEntries(g.usage!).reduce((s,e) => s + e.value, 0).toLocaleString() }} tok</span>
                 <span v-if="g.contentBlocks.length>1" class="ac-cbc">{{ g.contentBlocks.length }} blocks</span>
               </span>
               <span class="ac-h-host" v-if="g.events[0]?.host">{{ g.events[0].host }}</span>
@@ -527,11 +539,11 @@ const toggle = (id: string) => {
             <div v-if="g.events.length>1 && (g.events[0]?.type==='sse_message' || g.contentBlocks.length>0)" class="ac-merged"><MergeCellsOutlined /> {{ g.events.length }} SSE → {{ g.contentBlocks.length }} block{{g.contentBlocks.length!==1?'s':''}}</div>
             <div v-if="expanded.has(g.id)" class="ac-body">
               <div v-if="g.messageId" class="ac-meta"><span class="ac-k">ID</span><code>{{ g.messageId }}</code></div>
-              <div v-if="g.usage" class="ac-tokens">
-                <span class="ac-tok"><span class="ac-tok-label">Input</span><span class="ac-tok-val">{{ (g.usage.input_tokens||0).toLocaleString() }}</span></span>
-                <span v-if="g.usage.cache_read_input_tokens" class="ac-tok ac-tok-cache"><span class="ac-tok-label">Cache Read</span><span class="ac-tok-val">{{ g.usage.cache_read_input_tokens.toLocaleString() }}</span></span>
-                <span v-if="g.usage.cache_creation_input_tokens" class="ac-tok ac-tok-cache"><span class="ac-tok-label">Cache Write</span><span class="ac-tok-val">{{ g.usage.cache_creation_input_tokens.toLocaleString() }}</span></span>
-                <span class="ac-tok"><span class="ac-tok-label">Output</span><span class="ac-tok-val">{{ (g.usage.output_tokens||0).toLocaleString() }}</span></span>
+              <div v-if="g.usage && usageEntries(g.usage).length" class="ac-tokens">
+                <span v-for="e in usageEntries(g.usage)" :key="e.key" class="ac-tok" :class="{ 'ac-tok-cache': e.key.includes('cache'), 'ac-tok-out': e.key.includes('output') }">
+                  <span class="ac-tok-label">{{ e.label }}</span>
+                  <span class="ac-tok-val">{{ e.value.toLocaleString() }}</span>
+                </span>
               </div>
               <div v-if="g.contentBlocks.length" class="ac-blocks">
                 <div v-for="(b,bi) in g.contentBlocks" :key="bi" class="ac-block" :class="`ac-b-${b.type}`">
