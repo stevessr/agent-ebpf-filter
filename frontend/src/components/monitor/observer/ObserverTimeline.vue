@@ -12,10 +12,12 @@ import {
 } from "@ant-design/icons-vue";
 import type { ObserverEvent } from "../../../composables/monitor/useProcessObserver";
 
-const props = defineProps<{
-  events: ObserverEvent[];
+const props = withDefaults(defineProps<{
+  events?: ObserverEvent[];
   selectedPid: number | null;
-}>();
+}>(), {
+  events: () => [],
+});
 
 const emit = defineEmits<{
   clear: [];

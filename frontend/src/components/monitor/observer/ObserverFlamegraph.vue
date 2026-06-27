@@ -2,9 +2,11 @@
 import { computed, ref } from "vue";
 import type { ObserverEvent } from "../../../composables/monitor/useProcessObserver";
 
-const props = defineProps<{
-  events: ObserverEvent[];
-}>();
+const props = withDefaults(defineProps<{
+  events?: ObserverEvent[];
+}>(), {
+  events: () => [],
+});
 
 const metric = ref<"count" | "bytes">("count");
 

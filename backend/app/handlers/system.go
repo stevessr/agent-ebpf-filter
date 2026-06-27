@@ -402,6 +402,36 @@ func HandleUserInfo(c *gin.Context) {
 	c.JSON(200, gin.H{"username": u.Username, "home": u.HomeDir, "uid": u.Uid})
 }
 
+func HandleUsers(c *gin.Context) {
+	data, err := os.ReadFile("/etc/passwd")
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	users := []gin.H{}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, ":")
+		if len(parts) < 7 {
+			continue
+		}
+		uid, _ := strconv.Atoi(parts[2])
+		// Include real users (uid >= 1000) and root
+		if uid >= 1000 || uid == 0 {
+			users = append(users, gin.H{
+				"username": parts[0],
+				"uid":      uid,
+				"home":     parts[5],
+				"shell":    parts[6],
+			})
+		}
+	}
+	c.JSON(200, users)
+}
+
 func HandleProcessIO(c *gin.Context) {
 	pidStr := c.Query("pid")
 	if pidStr == "" {
@@ -621,5 +651,6 @@ func RegisterSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/microphones", HandleMicrophones)
 	rg.POST("/run", HandleRun)
 	rg.GET("/user-info", HandleUserInfo)
+	rg.GET("/users", HandleUsers)
 	rg.GET("/process/io", HandleProcessIO)
 }

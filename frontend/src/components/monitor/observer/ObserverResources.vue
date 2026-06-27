@@ -7,10 +7,12 @@ const VueApexCharts = defineAsyncComponent(
   async () => (await import("vue3-apexcharts")).default as any,
 ) as any;
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   processes: ProcessInfo[];
-  treePids: Set<number>;
-}>();
+  treePids?: Set<number>;
+}>(), {
+  treePids: () => new Set(),
+});
 
 // ── History for time-series ──────────────────────────────────────────────
 const MAX_HISTORY = 60;
@@ -34,8 +36,8 @@ const doSample = () => {
     history.series = series;
     history.time = now;
   };
-  update(cpuHistory, "cpu");
-  update(memHistory, "mem");
+  update(cpuHistory.value, "cpu");
+  update(memHistory.value, "mem");
 };
 
 watch(() => props.treePids, (pids) => {

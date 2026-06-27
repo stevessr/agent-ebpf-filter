@@ -16,6 +16,7 @@ import ProcessTreeNodeDisplay from "./ProcessTreeNodeDisplay.vue";
 import ObserverTimeline from "./observer/ObserverTimeline.vue";
 import ObserverFlamegraph from "./observer/ObserverFlamegraph.vue";
 import ObserverResources from "./observer/ObserverResources.vue";
+import FilePathBrowserModal from "./FilePathBrowserModal.vue";
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -39,7 +40,14 @@ const subTabKeys = [
   "ssl",
 ] as const;
 type SubTabKey = (typeof subTabKeys)[number];
-const activeSubTab = ref<SubTabKey>("selection");
+const TAB_STORAGE_KEY = "observe-active-tab";
+const activeSubTab = ref<SubTabKey>(
+  (localStorage.getItem(TAB_STORAGE_KEY) as SubTabKey) || "selection",
+);
+
+watch(activeSubTab, (tab) => {
+  try { localStorage.setItem(TAB_STORAGE_KEY, tab); } catch { /* ignore */ }
+});
 
 // ── Composable ───────────────────────────────────────────────────────────
 
@@ -49,6 +57,7 @@ const {
   showPicker,
   processTree,
   selectedProcessTree,
+  treePids,
   treeProcessList,
   treeNetworkEvents,
   treeSyscallEvents,
@@ -56,6 +65,8 @@ const {
   treeNetworkFlows,
   treeTCPConns,
   treeTLSEvents,
+  allEvents,
+  tlsEvents,
   setProcesses,
   connectAll,
   disconnectAll,
@@ -79,6 +90,33 @@ watch(
 
 const pidInput = ref("");
 const pidInvalid = ref(false);
+
+// Persist selected PID across page refreshes
+const PID_STORAGE_KEY = "observe-selected-pid";
+
+const restorePidFromStorage = () => {
+  try {
+    const raw = localStorage.getItem(PID_STORAGE_KEY);
+    if (raw !== null) {
+      const parsed = parseInt(raw, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        selectedPid.value = parsed;
+        return;
+      }
+    }
+  } catch { /* ignore */ }
+};
+restorePidFromStorage();
+
+watch(selectedPid, (pid) => {
+  try {
+    if (pid !== null) {
+      localStorage.setItem(PID_STORAGE_KEY, String(pid));
+    } else {
+      localStorage.removeItem(PID_STORAGE_KEY);
+    }
+  } catch { /* ignore */ }
+});
 
 const onPidSearch = () => {
   const val = parseInt(pidInput.value, 10);
@@ -113,22 +151,112 @@ const selectedProcessLabel = (): string => {
 
 const launchPath = ref("");
 const launchUser = ref("");
+const launchCwd = ref("");
 const launchArgs = ref("");
 const launching = ref(false);
 const launchError = ref("");
 
+// File/dir browser state
+type BrowseTarget = "program" | "cwd";
+const browserTarget = ref<BrowseTarget>("program");
+const browserOpen = ref(false);
+const browserStartPath = ref("/");
+
+// User list state
+interface SysUser {
+  username: string;
+  uid: number;
+  home: string;
+  shell: string;
+}
+const sysUsers = ref<SysUser[]>([]);
+const usersLoading = ref(false);
+
+// Recent launches (localStorage persistence)
+interface RecentLaunch {
+  program: string;
+  user: string;
+  cwd: string;
+  args: string;
+}
+const STORAGE_KEY = "observe-recent-launches";
+const MAX_RECENT = 10;
+
+const loadRecentLaunches = (): RecentLaunch[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+const recentLaunches = ref<RecentLaunch[]>(loadRecentLaunches());
+
+const saveRecentLaunch = (rl: RecentLaunch) => {
+  const existing = loadRecentLaunches().filter(
+    (r) => r.program !== rl.program || r.args !== rl.args,
+  );
+  existing.unshift(rl);
+  if (existing.length > MAX_RECENT) existing.length = MAX_RECENT;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+  recentLaunches.value = existing;
+};
+
+const applyRecent = (rl: RecentLaunch) => {
+  launchPath.value = rl.program;
+  launchUser.value = rl.user;
+  launchCwd.value = rl.cwd;
+  launchArgs.value = rl.args;
+};
+
 const fetchUserInfo = async () => {
   try {
     const res = await axios.get("/system/user-info");
-    launchPath.value = res.data.home || "/tmp";
+    launchCwd.value = res.data.home || "/tmp";
     launchUser.value = res.data.username || "";
   } catch {
-    launchPath.value = "/tmp";
+    launchCwd.value = "/tmp";
     launchUser.value = "";
   }
 };
 
+const fetchUsers = async () => {
+  usersLoading.value = true;
+  try {
+    const res = await axios.get("/system/users");
+    sysUsers.value = Array.isArray(res.data) ? res.data : [];
+  } catch {
+    sysUsers.value = [];
+  } finally {
+    usersLoading.value = false;
+  }
+};
+
 fetchUserInfo();
+fetchUsers();
+
+const openBrowser = (target: BrowseTarget) => {
+  browserTarget.value = target;
+  browserStartPath.value =
+    target === "program"
+      ? launchPath.value
+        ? launchPath.value.split("/").slice(0, -1).join("/") || "/"
+        : "/usr/bin"
+      : launchCwd.value || "/";
+  browserOpen.value = true;
+};
+
+const onBrowserSelect = (path: string) => {
+  if (browserTarget.value === "program") {
+    launchPath.value = path;
+    // Auto-fill cwd from program directory if cwd is empty
+    if (!launchCwd.value.trim()) {
+      launchCwd.value = path.split("/").slice(0, -1).join("/") || "/";
+    }
+  } else {
+    launchCwd.value = path;
+  }
+};
 
 const doLaunch = async () => {
   if (!launchPath.value.trim()) return;
@@ -140,11 +268,18 @@ const doLaunch = async () => {
       comm: launchPath.value.trim(),
       args,
       user: launchUser.value.trim() || undefined,
-      cwd: launchPath.value.trim().split("/").slice(0, -1).join("/") || "/",
+      cwd: launchCwd.value.trim() || undefined,
     });
     if (res.data.pid) {
       selectedPid.value = res.data.pid;
       pidInput.value = "";
+      // Persist to localStorage
+      saveRecentLaunch({
+        program: launchPath.value.trim(),
+        user: launchUser.value.trim(),
+        cwd: launchCwd.value.trim(),
+        args: launchArgs.value.trim(),
+      });
     }
   } catch (e: any) {
     launchError.value =
@@ -202,7 +337,7 @@ const sslAttachedSet = computed<Set<number>>(
 );
 const sslLibForPid = (pid: number): string => {
   const a = attachedPIDs.value.find((x: any) => x.pid === pid);
-  return a ? a.library_name || a.libraryName || "attached" : "";
+  return a ? a.library_name || "attached" : "";
 };
 
 // ── Table columns ────────────────────────────────────────────────────────
@@ -351,26 +486,66 @@ watch(
             Launch &amp; Observe
           </a-divider>
           <div class="launch-grid">
-            <div class="launch-field">
+            <!-- Program -->
+            <div class="launch-field" style="grid-column: span 2">
               <span class="launch-label">Program</span>
-              <a-input
-                v-model:value="launchPath"
-                placeholder="/usr/bin/..."
-                size="small"
-                spellcheck="false"
-              />
+              <div class="launch-row">
+                <a-input
+                  v-model:value="launchPath"
+                  placeholder="/usr/bin/python3"
+                  size="small"
+                  spellcheck="false"
+                  style="flex: 1"
+                />
+                <a-button size="small" @click="openBrowser('program')">
+                  Browse
+                </a-button>
+              </div>
             </div>
+            <!-- User -->
             <div class="launch-field">
               <span class="launch-label">User</span>
-              <a-input
+              <a-select
                 v-model:value="launchUser"
-                placeholder="username"
                 size="small"
-                style="width: 130px"
-              />
+                show-search
+                :filter-option="
+                  (input: string, option: any) =>
+                    option.value.toLowerCase().includes(input.toLowerCase())
+                "
+                :loading="usersLoading"
+                placeholder="Select user..."
+                style="width: 100%"
+              >
+                <a-select-option
+                  v-for="u in sysUsers"
+                  :key="u.username"
+                  :value="u.username"
+                >
+                  {{ u.username }}
+                  <span class="user-uid">({{ u.uid }})</span>
+                </a-select-option>
+              </a-select>
             </div>
+            <!-- Working Directory -->
+            <div class="launch-field">
+              <span class="launch-label">Working Directory</span>
+              <div class="launch-row">
+                <a-input
+                  v-model:value="launchCwd"
+                  placeholder="/home/..."
+                  size="small"
+                  spellcheck="false"
+                  style="flex: 1"
+                />
+                <a-button size="small" @click="openBrowser('cwd')">
+                  Browse
+                </a-button>
+              </div>
+            </div>
+            <!-- Args -->
             <div class="launch-field" style="grid-column: span 2">
-              <span class="launch-label">Args</span>
+              <span class="launch-label">Arguments</span>
               <a-input
                 v-model:value="launchArgs"
                 placeholder="--verbose --output /tmp/out"
@@ -397,6 +572,23 @@ watch(
             <span v-if="launchError" style="color: #ff4d4f; font-size: 12px">
               {{ launchError }}
             </span>
+          </div>
+
+          <!-- Recent launches -->
+          <div v-if="recentLaunches.length > 0" class="recent-section">
+            <div class="recent-title">Recent</div>
+            <div class="recent-chips">
+              <a-tag
+                v-for="(rl, i) in recentLaunches"
+                :key="i"
+                class="recent-chip"
+                color="default"
+                @click="applyRecent(rl)"
+              >
+                <span class="recent-prog">{{ rl.program.split('/').pop() || rl.program }}</span>
+                <span class="recent-args" v-if="rl.args">{{ rl.args.slice(0, 30) }}{{ rl.args.length > 30 ? '…' : '' }}</span>
+              </a-tag>
+            </div>
           </div>
         </div>
       </a-tab-pane>
@@ -630,6 +822,15 @@ watch(
       @update:open="showPicker = $event"
       @select="onPickerSelect"
     />
+
+    <!-- File/directory browser modal -->
+    <FilePathBrowserModal
+      :open="browserOpen"
+      :start-path="browserStartPath"
+      :directory-only="browserTarget === 'cwd'"
+      @update:open="browserOpen = $event"
+      @select="onBrowserSelect"
+    />
   </div>
 </template>
 
@@ -672,6 +873,64 @@ watch(
   font-size: 11px;
   color: #888;
   font-weight: 500;
+}
+
+.launch-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.user-uid {
+  font-size: 11px;
+  color: #aaa;
+  margin-left: 4px;
+}
+
+.recent-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #e8e8e8;
+}
+
+.recent-title {
+  font-size: 11px;
+  color: #999;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.recent-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.recent-chip {
+  cursor: pointer;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.recent-chip:hover {
+  border-color: #1677ff;
+  color: #1677ff;
+}
+
+.recent-prog {
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.recent-args {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: #999;
+  margin-left: 4px;
 }
 
 .tree-container {
