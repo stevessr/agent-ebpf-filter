@@ -567,4 +567,8 @@ func RegisterSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/tracked-comms", HandleTrackedComms)
 	rg.POST("/process/signal", HandleProcessSignal)
 	rg.GET("/process/maps", HandleProcessMaps)
+	rg.GET("/sensors", HandleSensors)
+	rg.GET("/cameras", HandleCameras)
+	rg.GET("/camera/snapshot", HandleCameraSnapshot)
+	rg.GET("/microphones", HandleMicrophones)
 }
