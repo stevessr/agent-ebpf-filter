@@ -570,6 +570,19 @@ const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
 // Determine if a block should be visible under hideRaw mode
 const blockVisible = (b: ContentBlock): boolean =>
   !hideRaw.value || CONTEXT_BLOCK_TYPES.has(b.type);
+
+// Token display helpers per block — show input/output at block level
+const formatTokens = (u: any): { input: number; output: number } => {
+  if (!u || typeof u !== "object") return { input: 0, output: 0 };
+  const input = (typeof u.input_tokens === "number" ? u.input_tokens : 0) +
+    (typeof u.cache_read_input_tokens === "number" ? u.cache_read_input_tokens : 0) +
+    (typeof u.cache_creation_input_tokens === "number" ? u.cache_creation_input_tokens : 0);
+  const output = typeof u.output_tokens === "number" ? u.output_tokens : 0;
+  return { input, output };
+};
+
+const blockTokens = (g: MergedGroup): { input: number; output: number } =>
+  formatTokens(g.usage);
 </script>
 
 <template>
@@ -621,7 +634,10 @@ const blockVisible = (b: ContentBlock): boolean =>
                   <div v-if="blockVisible(b)" class="ac-block" :class="`ac-b-${b.type}`">
                     <div class="ac-b-head" @click.stop="toggleBlock(blockId(g.id, bi))" style="cursor:pointer">
                       <span class="ac-expand-icon"><CaretDownOutlined v-if="blockExpanded.has(blockId(g.id,bi))" /><CaretRightOutlined v-else /></span>
-                      <component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span>
+                      <component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span>
+                      <span v-if="blockTokens(g).input" class="ac-b-tok ac-b-tok-in" title="Input tokens">{{ blockTokens(g).input.toLocaleString() }}&thinsp;in</span>
+                      <span v-if="blockTokens(g).output" class="ac-b-tok ac-b-tok-out" title="Output tokens">{{ blockTokens(g).output.toLocaleString() }}&thinsp;out</span>
+                      <span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span>
                     </div>
                     <div v-if="blockExpanded.has(blockId(g.id,bi))" class="ac-b-body"><pre>{{ blockDisplayText(b) }}</pre></div>
                   </div>
@@ -730,5 +746,8 @@ const blockVisible = (b: ContentBlock): boolean =>
 .ac-tn{font-family:ui-monospace,monospace;font-weight:600;color:#d97706;font-size:11px}
 .ac-tid{font-family:ui-monospace,monospace;font-size:9px;color:#94a3b8}
 .ac-bsz{margin-left:auto;font-size:9px;color:#94a3b8}
+.ac-b-tok{font-size:9px;font-family:ui-monospace,monospace;font-weight:600;padding:0 3px;border-radius:2px;white-space:nowrap}
+.ac-b-tok-in{color:#0f766e;background:#f0fdfa;border:1px solid #ccfbf1}
+.ac-b-tok-out{color:#0891b2;background:#ecfeff;border:1px solid #a5f3fc}
 .ac-b-body pre{background:#0f172a;color:#dbeafe;padding:10px;border-radius:0;font-size:11px;line-height:1.55;margin:0;white-space:pre-wrap}
 </style>
