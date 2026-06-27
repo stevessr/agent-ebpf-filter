@@ -31,6 +31,7 @@ type IPScope = network.IPScope
 type FilePreviewResponse = core.FilePreviewResponse
 type VmFaultCounters = observability.VmFaultCounters
 type GpuInfo = observability.GpuInfo
+type ExportConfig = core.ExportConfig
 
 // WrapperRule is a rule for the agent-wrapper (mirrors core.WrapperRule).
 type WrapperRule struct {
@@ -100,7 +101,8 @@ var Deps struct {
 	TrackerMaps TrackerMaps
 
 	// Runtime settings
-	RuntimeSettings RuntimeSettingsStore
+	RuntimeSettings           RuntimeSettingsStore
+	RuntimeSettingsReplace   func(s RuntimeSettings) (RuntimeSettings, error)
 
 	// Process context
 	ProcessContexts ProcessContextStore
@@ -194,4 +196,12 @@ var Deps struct {
 	BroadcastCh         chan<- *pb.Event
 	EventSchemaVersion  string
 	SendTLSBridge       func(bridge chan<- *pb.Event, event *pb.Event)
+
+	// Export config post-processing (wired from app-level)
+	ApplyRetentionConfig           func(settings RuntimeSettings)
+	ApplyRuntimeDomainForwardProxy func(settings RuntimeSettings)
+	BuildRuntimeConfigResponse         func() core.RuntimeConfigResponse
+	BuildRuntimeConfigResponseFromSettings func(s RuntimeSettings) core.RuntimeConfigResponse
+	RotateAccessToken              func(settings RuntimeSettings) RuntimeSettings
+	ApplyMLConfigPatch             func(dst *core.MLConfig, patch interface{})
 }

@@ -4,8 +4,10 @@ import (
 	"agent-ebpf-filter/app/handlers"
 	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/app/tls"
+	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
 	"fmt"
+	"strings"
 
 	"github.com/cilium/ebpf"
 	"github.com/gin-gonic/gin"
@@ -140,6 +142,106 @@ func init() {
 	handlers.Deps.BroadcastCh = broadcast
 	handlers.Deps.EventSchemaVersion = eventSchemaVersion
 	handlers.Deps.SendTLSBridge = tls.SendTLSBridge
+
+	// Export config
+	handlers.Deps.RuntimeSettingsReplace = runtimeSettingsStore.Replace
+	handlers.Deps.ApplyRetentionConfig = applyRetentionConfig
+	handlers.Deps.ApplyRuntimeDomainForwardProxy = applyRuntimeDomainForwardProxy
+	handlers.Deps.BuildRuntimeConfigResponse = buildRuntimeConfigResponse
+	handlers.Deps.BuildRuntimeConfigResponseFromSettings = buildRuntimeConfigResponseFromSettings
+	handlers.Deps.RotateAccessToken = func(s RuntimeSettings) RuntimeSettings {
+		settings, _ := runtimeSettingsStore.RotateAccessToken()
+		return settings
+	}
+	handlers.Deps.ApplyMLConfigPatch = func(dst *core.MLConfig, patch interface{}) {
+		if p, ok := patch.(handlers.MLConfigPatch); ok {
+			// applyMLConfigPatch was defined in app/handlersruntimeconfig.go
+			// and is now available through the MLConfigPatch dep
+			if p.Enabled != nil {
+				dst.Enabled = *p.Enabled
+			}
+			if p.BlockConfidenceThreshold != nil {
+				dst.BlockConfidenceThreshold = *p.BlockConfidenceThreshold
+			}
+			if p.MlMinConfidence != nil {
+				dst.MlMinConfidence = *p.MlMinConfidence
+			}
+			if p.LowAnomalyThreshold != nil {
+				dst.LowAnomalyThreshold = *p.LowAnomalyThreshold
+			}
+			if p.HighAnomalyThreshold != nil {
+				dst.HighAnomalyThreshold = *p.HighAnomalyThreshold
+			}
+			if p.RuleOverridePriority != nil {
+				dst.RuleOverridePriority = *p.RuleOverridePriority
+			}
+			if p.ModelType != nil {
+				dst.ModelType = core.ModelType(strings.TrimSpace(*p.ModelType))
+			}
+			if p.ModelPath != nil {
+				dst.ModelPath = strings.TrimSpace(*p.ModelPath)
+			}
+			if p.AutoTrain != nil {
+				dst.AutoTrain = *p.AutoTrain
+			}
+			if p.TrainInterval != nil {
+				dst.TrainInterval = strings.TrimSpace(*p.TrainInterval)
+			}
+			if p.MinSamplesForTraining != nil {
+				dst.MinSamplesForTraining = *p.MinSamplesForTraining
+			}
+			if p.ActiveLearningEnabled != nil {
+				dst.ActiveLearningEnabled = *p.ActiveLearningEnabled
+			}
+			if p.FeatureHistorySize != nil {
+				dst.FeatureHistorySize = *p.FeatureHistorySize
+			}
+			if p.NumTrees != nil {
+				dst.NumTrees = *p.NumTrees
+			}
+			if p.MaxDepth != nil {
+				dst.MaxDepth = *p.MaxDepth
+			}
+			if p.MinSamplesLeaf != nil {
+				dst.MinSamplesLeaf = *p.MinSamplesLeaf
+			}
+			if p.ValidationSplitRatio != nil {
+				dst.ValidationSplitRatio = *p.ValidationSplitRatio
+			}
+			if p.BalanceClasses != nil {
+				dst.BalanceClasses = *p.BalanceClasses
+			}
+			if p.EnsembleVoting != nil {
+				dst.EnsembleVoting = strings.TrimSpace(*p.EnsembleVoting)
+			}
+			if p.LlmEnabled != nil {
+				dst.LlmEnabled = *p.LlmEnabled
+			}
+			if p.LlmBaseURL != nil {
+				dst.LlmBaseURL = strings.TrimSpace(*p.LlmBaseURL)
+			}
+			if p.LlmAPIKey != nil {
+				if key := strings.TrimSpace(*p.LlmAPIKey); key != "" {
+					dst.LlmAPIKey = key
+				}
+			}
+			if p.LlmModel != nil {
+				dst.LlmModel = strings.TrimSpace(*p.LlmModel)
+			}
+			if p.LlmTimeoutSeconds != nil {
+				dst.LlmTimeoutSeconds = *p.LlmTimeoutSeconds
+			}
+			if p.LlmTemperature != nil {
+				dst.LlmTemperature = *p.LlmTemperature
+			}
+			if p.LlmMaxTokens != nil {
+				dst.LlmMaxTokens = *p.LlmMaxTokens
+			}
+			if p.LlmSystemPrompt != nil {
+				dst.LlmSystemPrompt = strings.TrimSpace(*p.LlmSystemPrompt)
+			}
+		}
+	}
 
 	// Config handlers
 	handlers.Deps.GetTagName = getTagName
@@ -290,6 +392,11 @@ func handleConfigPrefixesDelete(c *gin.Context)       { handlers.HandleConfigPre
 func handleConfigRulesGet(c *gin.Context)             { handlers.HandleConfigRulesGet(c) }
 func handleConfigRulesPost(c *gin.Context)            { handlers.HandleConfigRulesPost(c) }
 func handleConfigRulesDelete(c *gin.Context)          { handlers.HandleConfigRulesDelete(c) }
+func handleConfigExportGet(c *gin.Context)             { handlers.HandleConfigExportGet(c) }
+func handleConfigImportPost(c *gin.Context)             { handlers.HandleConfigImportPost(c) }
+func handleConfigRuntimeGet(c *gin.Context)              { handlers.HandleConfigRuntimeGet(c) }
+func handleConfigRuntimePut(c *gin.Context)              { handlers.HandleConfigRuntimePut(c) }
+func handleConfigAccessTokenPost(c *gin.Context)          { handlers.HandleConfigAccessTokenPost(c) }
 
 func registerSystemRoutes(rg *gin.RouterGroup) {
 	handlers.RegisterSystemRoutes(rg)
