@@ -36,7 +36,7 @@
 | ML、内核风险反馈、kernel-ml 怎样串起来？ | [ML、Plugins 与扩展能力](/backend/ml-plugins) | [ML 模型完整指南](/backend/ml-models-complete-guide)、[内核 ML README](../../kernel-ml/README.md)、[安全模型](/security/model) | `backend/app/events/kernel_risk*.go`、`backend/ml/*.go`、`kernel-ml/Makefile` |
 | TLS / Codex capture 与脱敏边界在哪里？ | [脱敏与隐私](/security/redaction-privacy) | [TLS Quickstart](../backend/TLS_QUICKSTART.md)、[Sanitization](../security/sanitization.md)、[Redaction 模块](../../backend/redaction/README.md) | `backend/app/tls_*`、`backend/codex/capture/` |
 | 前端路由、页面和后端 API 如何对齐？ | [前端工作台](/frontend/workbench) | [路由与功能页](/frontend/routes-and-pages)、[组件与 Composables](/frontend/components-composables)、[路由与 API](/backend/routes-api) | `frontend/src/router/index.ts`、`frontend/src/composables/` |
-| Kubernetes / 外部 API / MCP 如何对外交付？ | [部署与安装](/operations/deployment) | [Kubernetes](../operations/kubernetes.md)、[External API](../integrations/external-api.md)、[MCP/External API/OTLP](/integrations/mcp-external-otlp) | `deploy/kubernetes/`、`backend/app/api__api_external.go`、`backend/app/server__server_mcp.go` |
+| Kubernetes / 外部 API / MCP 如何对外交付？ | [部署与安装](/operations/deployment) | [Kubernetes](../operations/kubernetes.md)、[External API](../integrations/external-api.md)、[MCP/External API/OTLP](/integrations/mcp-external-otlp) | `deploy/kubernetes/`、`backend/app/api_external.go`、`backend/app/server_mcp.go` |
 | 答辩或评测材料如何复用技术页？ | [比赛答辩主线](/delivery/competition-defense) | [演示脚本](/delivery/demo-script)、[评测报告](/delivery/evaluation)、[合规披露](/delivery/compliance) | [验证、测试与 Benchmark](/operations/verification-benchmark) |
 
 ## 变更影响链

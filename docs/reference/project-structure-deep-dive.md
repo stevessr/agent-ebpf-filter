@@ -87,7 +87,7 @@ flowchart TD
 - `backend/ebpf/lsm_enforcer.c`
 - `backend/app/runtime_ebpf.go`
 - `backend/app/events/events_network.go`
-- `backend/app/envelope_event.go`
+- `backend/app/events/envelope_event.go`
 - `backend/app/events/graph_execution.go`
 - `frontend/src/views/dashboard/Dashboard.vue`
 - `frontend/src/views/network/Network.vue`
@@ -108,9 +108,9 @@ flowchart TD
 关键文件：
 
 - `wrapper/main.go`
-- `backend/uds_server.go`
-- `backend/behavior.go`
-- `backend/path_policy.go`
+- `backend/app/server_uds.go`
+- `backend/internal/behavior/classifier.go`
+- `backend/internal/pathpolicy/policy.go`
 - `frontend/src/views/executor/Executor.vue`
 - `frontend/src/components/terminal/RemoteWrapperTerminal.vue`
 
@@ -130,10 +130,10 @@ flowchart TD
 
 关键文件：
 
-- `backend/hooks.go`
-- `backend/hooks_detection.go`
-- `backend/hooks_events.go`
-- `backend/config_handlers_hooks.go`
+- `backend/app/hooks.go`
+- `backend/app/detection_hooks.go`
+- `backend/app/events_hooks.go`
+- `backend/app/handlers/hooksconfig.go`
 - `frontend/src/views/hooks/Hooks.vue`
 - `frontend/src/components/hooks/`
 - `frontend/src/data/hookCatalog.ts`

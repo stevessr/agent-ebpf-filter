@@ -241,8 +241,8 @@
 
 **从我们的代码学习**:
 - `backend/ebpf/agent_tracker.c` - 多 syscall 追踪
-- `backend/ebpf/agent_cgroupsandbox.c` - cgroup 网络控制
-- `backend/ebpf/agent_lsmenforcer.c` - LSM 文件控制
+- `backend/ebpf/cgroup_sandbox.c` - cgroup 网络控制
+- `backend/ebpf/lsm_enforcer.c` - LSM 文件控制
 
 **外部参考**:
 - Cilium/ebpf examples: https://github.com/cilium/ebpf/tree/main/examples

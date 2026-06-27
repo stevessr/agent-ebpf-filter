@@ -76,18 +76,16 @@ Agent eBPF Filter 在以下方面进行了扩展和差异化：
 | 文件 | 说明 |
 | --- | --- |
 | `backend/app/handlers/agentsight.go` | AgentSight 兼容 API 端点 |
-| `backend/app/api__api_external.go` | External API 兼容路由 |
-| `backend/app/agentsight__analyzers_agentsight.go` | AgentSight session 数据转换 |
-| `backend/app/handlers/agentsight/test.go` | 测试用例 |
+| `backend/app/api_external.go` | External API 兼容路由 |
+| `backend/app/tls/analyzers_agentsight.go` | AgentSight session 数据转换 |
 | `backend/app/feature_build_agentsight.go` | AgentSight feature build tag |
-| `backend/handlers/agentsight/test.go` | 旧 handler 测试（已迁移） |
 
 ### 2. TLS 流量处理
 
 | 文件 | 说明 |
 | --- | --- |
-| `backend/app/tls__httpparsertls.go` | HTTP/TLS parser（受 AgentSight HTTPParser 启发） |
-| `backend/app/tls__agentstreamlooptls.go` | TLS stream loop（受 AgentSight SSL runner 启发） |
+| `backend/app/tls/httpparsertls.go` | HTTP/TLS parser（受 AgentSight HTTPParser 启发） |
+| `backend/app/tls/agentstreamlooptls.go` | TLS stream loop（受 AgentSight SSL runner 启发） |
 | `backend/http/parser/tls.go` | TLS payload parser |
 | `backend/agent/stream/loop/tls.go` | Agent stream TLS loop |
 
@@ -97,7 +95,7 @@ Agent eBPF Filter 在以下方面进行了扩展和差异化：
 
 | 文件 | 说明 |
 | --- | --- |
-| `backend/app/observability__metrics_collector.go` | 系统指标收集（受 AgentSight system runner 启发） |
+| `backend/app/observability/metrics_collector.go` | 系统指标收集（受 AgentSight system runner 启发） |
 
 受 AgentSight `collector/src/framework/runners/system_runner.rs` 启发，但针对 Go 生态重新实现。
 

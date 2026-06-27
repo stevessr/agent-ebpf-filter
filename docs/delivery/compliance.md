@@ -70,18 +70,18 @@ Agent eBPF Filter 在架构设计和技术选型上受到 [AgentSight](https://g
 
 **AgentSight 兼容层**:
 - `backend/app/handlers/agentsight.go`
-- `backend/app/api__api_external.go`
-- `backend/app/agentsight__analyzers_agentsight.go`
+- `backend/app/api_external.go`
+- `backend/app/tls/analyzers_agentsight.go`
 - `backend/app/feature_build_agentsight.go`
 
 **TLS 流量处理**（受 AgentSight HTTPParser / SSE Processor 启发）:
-- `backend/app/tls__httpparsertls.go`
-- `backend/app/tls__agentstreamlooptls.go`
+- `backend/app/tls/httpparsertls.go`
+- `backend/app/tls/agentstreamlooptls.go`
 - `backend/http/parser/tls.go`
 - `backend/agent/stream/loop/tls.go`
 
 **指标收集**（受 AgentSight System Runner 启发）:
-- `backend/app/observability__metrics_collector.go`
+- `backend/app/observability/metrics_collector.go`
 
 ### 差异化说明
 

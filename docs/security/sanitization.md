@@ -388,7 +388,7 @@ masked := engine.ApplyRules(value, redaction.FieldCategoryPath)
 
 #### 集成点
 
-1. **事件封装**（`backend/app/envelope_event.go`）
+1. **事件封装**（`backend/app/events/envelope_event.go`）
    ```go
    envelope := buildEventEnvelope(record)
    envelope = applyRedaction(envelope)
@@ -401,7 +401,7 @@ masked := engine.ApplyRules(value, redaction.FieldCategoryPath)
    runtimeState.AppendEvent(record)
    ```
 
-3. **WebSocket 广播**（`backend/app/server__ws_api.go`）
+3. **WebSocket 广播**（`backend/app/ws_api.go`）
    ```go
    sanitizedRecord := applyRedaction(record)
    broadcast(sanitizedRecord)

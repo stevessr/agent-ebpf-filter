@@ -412,7 +412,7 @@ Python / JS adapters 的职责是注册当前进程 PID。文档中要准确说�
 
 ### 10.2 需要持续修正的文档风险
 
-1. **路径风险**：旧文档常写 `backend/main.go`、`backend/routes.go`；当前实现大量入口在 `backend/app/*.go`，需要逐步同步。
+1. **路径风险**：旧文档常写 `backend/main.go`、`backend/app/routes.go`；当前实现大量入口在 `backend/app/*.go`，需要逐步同步。
 2. **安全风险**：TLS capture、domain forward、system run、hook install 等高风险能力必须描述为默认关闭、显式启用。
 3. **策略语义风险**：不要把 exact matching 写成 recursive / CIDR / range。
 4. **生成物风险**：不要引导开发者手改 `backend/pb/`、`frontend/src/pb/`、adapter pb、BPF generated Go / object 文件。

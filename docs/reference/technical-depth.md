@@ -75,7 +75,7 @@ for (addr = text_start; addr < text_end; addr++) {
 - Chunked encoding 支持
 
 **相关文件**:
-- `backend/app/tls__httpparsertls.go`
+- `backend/app/tls/httpparsertls.go`
 - `backend/http/parser/tls.go`
 
 ## Wrapper 策略引擎
