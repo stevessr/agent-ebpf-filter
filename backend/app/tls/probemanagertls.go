@@ -753,7 +753,8 @@ func findLoadedLibForTarget(loadedLibs []string, target ProbeTarget) (string, bo
 }
 
 // dumpCandidateTLSSymbols opens the binary ELF and logs any symbols that might
-// be TLS-related (containing "ssl", "tls", "crypto", "write", "read" etc.).
+// be TLS-related. For Rust binaries (rustls), also dumps all exported symbols
+// since they may use mangled names.
 func dumpCandidateTLSSymbols(binPath string) {
 	f, err := elf.Open(binPath)
 	if err != nil {
@@ -765,24 +766,70 @@ func dumpCandidateTLSSymbols(binPath string) {
 	if err != nil {
 		syms, _ = f.DynamicSymbols()
 	}
+	if len(syms) == 0 {
+		log.Printf("[tls]   binary is fully stripped — 0 symbols in symtab")
+		// Try dynamic symbols as last resort
+		dynSyms, _ := f.DynamicSymbols()
+		if len(dynSyms) > 0 {
+			log.Printf("[tls]   dynamic symbols (%d):", len(dynSyms))
+			for _, s := range dynSyms {
+				log.Printf("[tls]     %s", s.Name)
+			}
+		}
+		return
+	}
+
+	// Look for TLS-related symbols with broader patterns
 	candidates := []string{}
+	rustlsCandidates := []string{}
+	httpCandidates := []string{}
+
+	tlsKeywords := []string{"ssl", "tls", "crypto", "encrypt", "decrypt"}
+	rustlsKeywords := []string{"rustls", "webpki", "ClientHello", "ServerHello", "TlsStream"}
+	httpKeywords := []string{"hyper", "reqwest", "h2", "http", "HttpRequest", "RequestBuilder"}
+
 	for _, s := range syms {
 		name := strings.ToLower(s.Name)
-		if strings.Contains(name, "ssl_") || strings.Contains(name, "tls_") ||
-			strings.Contains(name, "tls.") || strings.Contains(name, "write") ||
-			strings.Contains(name, "read") || strings.Contains(name, "send") ||
-			strings.Contains(name, "recv") || strings.Contains(name, "encrypt") ||
-			strings.Contains(name, "decrypt") || strings.Contains(name, "crypto") {
-			candidates = append(candidates, s.Name)
+		for _, kw := range tlsKeywords {
+			if strings.Contains(name, kw) {
+				candidates = append(candidates, s.Name)
+				break
+			}
+		}
+		for _, kw := range rustlsKeywords {
+			if strings.Contains(name, kw) {
+				rustlsCandidates = append(rustlsCandidates, s.Name)
+				break
+			}
+		}
+		for _, kw := range httpKeywords {
+			if strings.Contains(name, kw) {
+				httpCandidates = append(httpCandidates, s.Name)
+				break
+			}
 		}
 	}
+
 	if len(candidates) > 0 {
-		log.Printf("[tls]   candidate TLS symbols in %s:", filepath.Base(binPath))
+		log.Printf("[tls]   TLS symbols (%d):", len(candidates))
 		for _, name := range candidates {
 			log.Printf("[tls]     %s", name)
 		}
-	} else {
-		log.Printf("[tls]   no obvious TLS symbols found in %s (stripped or custom impl)", filepath.Base(binPath))
+	}
+	if len(rustlsCandidates) > 0 {
+		log.Printf("[tls]   rustls/webpki symbols (%d):", len(rustlsCandidates))
+		for _, name := range rustlsCandidates {
+			log.Printf("[tls]     %s", name)
+		}
+	}
+	if len(httpCandidates) > 0 {
+		log.Printf("[tls]   HTTP client symbols (%d):", len(httpCandidates))
+		for _, name := range httpCandidates {
+			log.Printf("[tls]     %s", name)
+		}
+	}
+	if len(candidates)+len(rustlsCandidates)+len(httpCandidates) == 0 {
+		log.Printf("[tls]   no TLS/HTTP symbols in symtab (%d total symbols — stripped debuginfo, try nm/objdump)", len(syms))
 	}
 }
 
