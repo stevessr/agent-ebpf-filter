@@ -542,18 +542,28 @@ const formatTime = (ts: string): string => {
 const formatTimeRange = (s: string, e: string): string =>
   s === e ? formatTime(s) : `${formatTime(s)} → ${formatTime(e)}`;
 
-// ── Hide raw mode (persisted) ────────────────────────────────────────────
-const HIDE_RAW_KEY = "observe-hide-raw";
-const hideRaw = ref(readStoredBool(HIDE_RAW_KEY, false));
-const CONTEXT_BLOCK_TYPES = new Set(["text", "thinking", "tool_use", "tool_result", "request_body", "response_body", "signature", "citations"]);
-
-const readStoredBool = (key: string, fallback: boolean): boolean => {
+// ── Persistence helpers (define BEFORE use — const arrows are not hoisted) ──
+function readStoredBool(key: string, fallback: boolean): boolean {
   try {
     const v = localStorage.getItem(key);
     if (v === null) return fallback;
     return v === "true" || v === "1";
   } catch { return fallback; }
-};
+}
+
+function readStoredCap(key: string, fallback: number): number {
+  try {
+    const v = localStorage.getItem(key);
+    if (v === null) return fallback;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+  } catch { return fallback; }
+}
+
+// ── Hide raw mode (persisted) ────────────────────────────────────────────
+const HIDE_RAW_KEY = "observe-hide-raw";
+const hideRaw = ref(readStoredBool(HIDE_RAW_KEY, false));
+const CONTEXT_BLOCK_TYPES = new Set(["text", "thinking", "tool_use", "tool_result", "request_body", "response_body", "signature", "citations"]);
 
 // Persist hideRaw
 watch(hideRaw, (v) => {
@@ -573,16 +583,6 @@ const onCapChange = (v: number) => {
   tlsCap.value = v;
   try { localStorage.setItem(TLS_CAP_KEY, String(v)); } catch { /* ignore */ }
 };
-
-// readStoredCap (same key format as composable)
-function readStoredCap(key: string, fallback: number): number {
-  try {
-    const v = localStorage.getItem(key);
-    if (v === null) return fallback;
-    const n = parseInt(v, 10);
-    return Number.isFinite(n) && n >= 0 ? n : fallback;
-  } catch { return fallback; }
-}
 
 // Filter groups when hideRaw is on — keep groups with at least one context block
 const filteredSendGroups = computed(() => {
