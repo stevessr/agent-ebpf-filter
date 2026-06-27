@@ -23,22 +23,21 @@ const emit = defineEmits<{
 }>();
 
 // ── Hex decoder ──────────────────────────────────────────────────────────
-const hexToText = (hex: string, maxLen: number = 50000): string => {
-  try {
-    const bytes: number[] = [];
-    for (let i = 0; i < hex.length - 1; i += 2) {
-      const byte = parseInt(hex.slice(i, i + 2), 16);
-      if (isNaN(byte)) break;
-      bytes.push(byte);
-    }
-    return bytes
-      .map((b) => (b >= 0x20 && b < 0x7f) || b === 0x0a || b === 0x0d ? String.fromCharCode(b) : ".")
-      .join("").slice(0, maxLen);
-  } catch { return ""; }
+const hexToText = (hex: string): string => {
+  // Robust hex decoder: strips whitespace, skips non-hex chars (don't break!)
+  const clean = hex.replace(/[^0-9a-fA-F]/g, "");
+  const bytes: number[] = [];
+  for (let i = 0; i < clean.length - 1; i += 2) {
+    const byte = parseInt(clean.slice(i, i + 2), 16);
+    if (!isNaN(byte)) bytes.push(byte);
+  }
+  return bytes
+    .map((b) => (b >= 0x20 && b < 0x7f) || b === 0x0a || b === 0x0d ? String.fromCharCode(b) : ".")
+    .join("");
 };
 
 const getRawText = (ev: ObserverTLSEvent): string =>
-  ev.body || (ev.raw_hex_dump ? hexToText(ev.raw_hex_dump, 50000) : "");
+  ev.body || (ev.raw_hex_dump ? hexToText(ev.raw_hex_dump) : "");
 
 // Strip HTTP chunked transfer encoding markers (standalone hex followed by \r\n)
 const stripChunkedEncoding = (text: string): string =>
@@ -478,12 +477,12 @@ const firstTypeLabel = (g: MergedGroup): string => {
 
 // Get display text for a content block — NO truncation, full content always shown
 const blockDisplayText = (b: ContentBlock): string => {
-  if (b.toolInput && typeof b.toolInput === "object") {
-    return JSON.stringify(b.toolInput, null, 2);
+  if (b.toolInput && typeof b.toolInput === "object" && Object.keys(b.toolInput).length > 0) {
+    try { return JSON.stringify(b.toolInput, null, 2); } catch { /* fall through */ }
   }
   const parsed = tryParseJSON(b.mergedText);
-  if (parsed && typeof parsed === "object") {
-    return JSON.stringify(parsed, null, 2);
+  if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+    try { return JSON.stringify(parsed, null, 2); } catch { /* fall through */ }
   }
   return b.mergedText;
 };
