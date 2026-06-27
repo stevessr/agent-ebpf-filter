@@ -591,14 +591,6 @@ const formatTimeRange = (s: string, e: string): string =>
   s === e ? formatTime(s) : `${formatTime(s)} → ${formatTime(e)}`;
 
 // ── Persistence helpers (define BEFORE use — const arrows are not hoisted) ──
-function readStoredBool(key: string, fallback: boolean): boolean {
-  try {
-    const v = localStorage.getItem(key);
-    if (v === null) return fallback;
-    return v === "true" || v === "1";
-  } catch { return fallback; }
-}
-
 function readStoredCap(key: string, fallback: number): number {
   try {
     const v = localStorage.getItem(key);
@@ -608,14 +600,30 @@ function readStoredCap(key: string, fallback: number): number {
   } catch { return fallback; }
 }
 
-// ── Hide raw mode (persisted) ────────────────────────────────────────────
-const HIDE_RAW_KEY = "observe-hide-raw";
-const hideRaw = ref(readStoredBool(HIDE_RAW_KEY, false));
+// ── Raw visibility mode (persisted) ───────────────────────────────────────
+// "show": show everything
+// "skip": skip groups that are ALL raw, hide raw blocks within context groups
+// "hide": show all groups, hide raw/data blocks within each
+const RAW_MODE_KEY = "observe-raw-mode";
+type RawMode = "show" | "skip" | "hide";
+const rawModeOptions = [
+  { value: "show" as RawMode, label: "Show all" },
+  { value: "skip" as RawMode, label: "Skip raw" },
+  { value: "hide" as RawMode, label: "Hide raw" },
+];
+function readStoredRawMode(key: string, fallback: RawMode): RawMode {
+  try {
+    const v = localStorage.getItem(key);
+    if (v === "show" || v === "skip" || v === "hide") return v;
+    return fallback;
+  } catch { return fallback; }
+}
+const rawMode = ref<RawMode>(readStoredRawMode(RAW_MODE_KEY, "skip"));
 const CONTEXT_BLOCK_TYPES = new Set(["text", "thinking", "tool_use", "tool_result", "request_body", "response_body", "signature", "citations"]);
 
-// Persist hideRaw
-watch(hideRaw, (v) => {
-  try { localStorage.setItem(HIDE_RAW_KEY, v ? "true" : "false"); } catch { /* ignore */ }
+// Persist rawMode
+watch(rawMode, (v) => {
+  try { localStorage.setItem(RAW_MODE_KEY, v); } catch { /* ignore */ }
 });
 
 // ── Scrollback cap (synced with composable via localStorage) ──────────────
@@ -632,14 +640,20 @@ const onCapChange = (v: number) => {
   try { localStorage.setItem(TLS_CAP_KEY, String(v)); } catch { /* ignore */ }
 };
 
-// Filter groups when hideRaw is on — keep groups with at least one context block
+// Filter groups based on rawMode
 const filteredSendGroups = computed(() => {
-  if (!hideRaw.value) return streamGroups.value.send;
-  return streamGroups.value.send.filter((g) => g.contentBlocks.some((b) => CONTEXT_BLOCK_TYPES.has(b.type)));
+  const gs = streamGroups.value.send;
+  if (rawMode.value === "show") return gs;
+  // "skip": drop groups that are entirely raw (no context blocks)
+  if (rawMode.value === "skip") return gs.filter((g) => g.contentBlocks.some((b) => CONTEXT_BLOCK_TYPES.has(b.type)));
+  // "hide": show all groups, raw blocks hidden per-block via blockVisible
+  return gs;
 });
 const filteredRecvGroups = computed(() => {
-  if (!hideRaw.value) return streamGroups.value.recv;
-  return streamGroups.value.recv.filter((g) => g.contentBlocks.some((b) => CONTEXT_BLOCK_TYPES.has(b.type)));
+  const gs = streamGroups.value.recv;
+  if (rawMode.value === "show") return gs;
+  if (rawMode.value === "skip") return gs.filter((g) => g.contentBlocks.some((b) => CONTEXT_BLOCK_TYPES.has(b.type)));
+  return gs;
 });
 
 // ── Stats & state ────────────────────────────────────────────────────────
@@ -685,9 +699,13 @@ const toggleBlock = (blockId: string) => {
 };
 const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
 
-// Determine if a block should be visible under hideRaw mode
+// Determine if a block should be visible under current rawMode
 const blockVisible = (b: ContentBlock): boolean =>
-  !hideRaw.value || CONTEXT_BLOCK_TYPES.has(b.type);
+  rawMode.value === "show" || CONTEXT_BLOCK_TYPES.has(b.type);
+
+// Should raw-only groups show the raw fallback body?
+const showRawFallback = (g: MergedGroup): boolean =>
+  rawMode.value === "show" || (rawMode.value === "hide" && !!g.rawMerged && g.contentBlocks.every((b) => !CONTEXT_BLOCK_TYPES.has(b.type)));
 
 // Token display helpers per block — show input/output at block level
 const formatTokens = (u: any): { input: number; output: number } => {
@@ -709,9 +727,7 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
       <div class="ac-stat-item send"><ArrowUpOutlined /><span class="ac-stat-label">Upstream</span><span class="ac-stat-val">{{ stats.sendCount }} groups</span><span class="ac-stat-size">{{ formatBytes(stats.sendBytes) }}</span><a-tooltip placement="bottom"><template #title><span style="font-family:monospace;font-size:11px">Raw events: {{ stats.sendRawN }} (body: {{ stats.sendWithBody }})<br/>{{ JSON.stringify(stats.sendTypes) }}</span></template><span class="ac-diag-dot" :class="stats.sendRawN>0?'ac-diag-ok':'ac-diag-warn'">●</span></a-tooltip></div>
       <div class="ac-stat-item recv"><ArrowDownOutlined /><span class="ac-stat-label">Downstream</span><span class="ac-stat-val">{{ stats.recvCount }} groups</span><span class="ac-stat-size">{{ formatBytes(stats.recvBytes) }}</span><a-tooltip placement="bottom"><template #title><span style="font-family:monospace;font-size:11px">Raw events: {{ stats.recvRawN }}<br/>{{ JSON.stringify(stats.recvTypes) }}</span></template><span class="ac-diag-dot" :class="stats.recvRawN>0?'ac-diag-ok':'ac-diag-warn'">●</span></a-tooltip></div>
       <div class="ac-stat-item ac-hide-raw-toggle">
-        <a-switch v-model:checked="hideRaw" size="small" class="ac-hr-switch" />
-        <span class="ac-hr-label">Hide raw</span>
-        <span v-if="hideRaw && stats.filteredAllCount !== stats.allCount" class="ac-hr-filtered">{{ stats.filteredAllCount }}/{{ stats.allCount }}</span>
+        <a-select v-model:value="rawMode" size="small" style="width:100px" :options="rawModeOptions" />
       </div>
       <div class="ac-stat-item ac-cap-ctl">
         <span class="ac-cap-label">Scrollback</span>
@@ -765,7 +781,7 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
                   </div>
                 </template>
               </div>
-              <div v-else-if="g.rawMerged && !hideRaw" class="ac-b-body"><pre>{{ g.rawMerged }}</pre></div>
+              <div v-else-if="g.rawMerged && showRawFallback(g)" class="ac-b-body"><pre>{{ g.rawMerged }}</pre></div>
             </div>
           </div>
         </div>
@@ -811,7 +827,7 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
                   </div>
                 </template>
               </div>
-              <div v-else-if="g.rawMerged && !hideRaw" class="ac-b-body"><pre>{{ g.rawMerged }}</pre></div>
+              <div v-else-if="g.rawMerged && showRawFallback(g)" class="ac-b-body"><pre>{{ g.rawMerged }}</pre></div>
             </div>
           </div>
         </div>
@@ -827,10 +843,7 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
 .ac-stat-item.send{color:#d97706}.ac-stat-item.recv{color:#059669}
 .ac-stat-label{font-weight:600;color:#475569}.ac-stat-val{color:#64748b}
 .ac-stat-size{font-family:ui-monospace,monospace;font-weight:600;color:#334155}
-.ac-hide-raw-toggle{display:flex;align-items:center;gap:6px;margin-left:auto;padding-left:16px;border-left:1px solid #e2e8f0}
-.ac-hr-switch{transform:scale(.8)}
-.ac-hr-label{font-size:11px;color:#64748b;font-weight:500;user-select:none}
-.ac-hr-filtered{font-size:10px;color:#0891b2;font-family:ui-monospace,monospace;font-weight:600;background:#ecfeff;padding:0 4px;border-radius:3px}
+.ac-hide-raw-toggle{display:flex;align-items:center;gap:4px;margin-left:auto;padding-left:12px;border-left:1px solid #e2e8f0}
 .ac-cap-ctl{display:flex;align-items:center;gap:4px;margin-left:auto}
 .ac-cap-label{font-size:10px;color:#94a3b8;font-weight:500;white-space:nowrap}
 .ac-diag-dot{font-size:8px;cursor:help;margin-left:2px}
