@@ -65,7 +65,7 @@ AI Agent / CLI  -->  捕获 OS 行为事实  -->  深度因果关联  -->  运�
 
 | 子包 | 路径 | 核心职责 |
 |------|------|---------|
-| `handlers/` | `backend/app/handlers/` (23 文件) | HTTP 路由 handler，按功能模块拆分 |
+| `handlers/` | `backend/app/handlers/` (24 文件) | HTTP 路由 handler，按功能模块拆分 |
 | `events/` | `backend/app/events/` | 事件归一化、语义告警、上下文组装、Kernel Risk |
 | `network/` | `backend/app/network/` | 网络流 TCP/DNS/GeoIP/带宽聚合与分析 |
 | `tls/` | `backend/app/tls/` | TLS 明文捕获、HTTP/SSE 解析、AI 元数据富化 |
@@ -89,6 +89,7 @@ backend/app/handlers/
   config.go            配置 CRUD (tags/comms/paths/rules)
   data.go              数据管理
   deps.go              依赖注入定义 (300+ 行接口与类型)
+  doc.go               包文档
   enrichment.go        网络流/TCP/DNS (9 handler)
   exportconfig.go      配置导入导出
   feature_manifest.go  特性清单

@@ -27,7 +27,7 @@ cd backend
 ### 步骤 2：验证 TLS 库状态
 
 ```bash
-curl -s http://localhost:8080/api/tls-capture/libraries | jq .
+curl -s http://localhost:8080/tls-capture/libraries | jq .
 ```
 
 **预期输出**：
@@ -54,7 +54,7 @@ curl -s https://httpbin.org/get > /dev/null
 ### 步骤 4：查看捕获的明文
 
 ```bash
-curl -s http://localhost:8080/api/tls-capture/recent?limit=5 | jq '.events[] | {
+curl -s http://localhost:8080/tls-capture/recent?limit=5 | jq '.events[] | {
   process: .comm,
   method: .method,
   url: .url,
@@ -84,8 +84,8 @@ curl -s http://localhost:8080/api/tls-capture/recent?limit=5 | jq '.events[] | {
 ### 步骤 5：查看完整明文数据
 
 ```bash
-curl -s http://localhost:8080/api/tls-capture/recent?limit=1 | \
-  jq -r '.events[0].plaintext'
+curl -s http://localhost:8080/tls-capture/recent?limit=1 | \
+  jq -r '.events[0].body // .events[0].raw_hex_dump'
 ```
 
 **预期输出**：
@@ -104,13 +104,13 @@ Accept: */*
 ### 过滤特定进程
 
 ```bash
-curl -s "http://localhost:8080/api/tls-capture/recent?filter=comm:curl" | jq .
+curl -s "http://localhost:8080/tls-capture/recent?filter=comm:curl" | jq .
 ```
 
 ### 过滤特定域名
 
 ```bash
-curl -s "http://localhost:8080/api/tls-capture/recent?filter=host:github.com" | jq .
+curl -s "http://localhost:8080/tls-capture/recent?filter=host:github.com" | jq .
 ```
 
 ### 实时监控 WebSocket
@@ -131,7 +131,7 @@ ws.onmessage = (event) => {
 ps aux | grep myapp
 
 # 附加 uprobe
-curl -X POST http://localhost:8080/api/tls-capture/go-binary \
+curl -X POST http://localhost:8080/tls-capture/go-binary \
   -H "Content-Type: application/json" \
   -d '{"path": "/usr/local/bin/myapp", "pid": 12345}'
 ```
@@ -139,7 +139,7 @@ curl -X POST http://localhost:8080/api/tls-capture/go-binary \
 ### 手动附加自定义 OpenSSL
 
 ```bash
-curl -X POST http://localhost:8080/api/tls-capture/library \
+curl -X POST http://localhost:8080/tls-capture/library \
   -H "Content-Type: application/json" \
   -d '{"path": "/opt/custom/libssl.so.1.1", "library": "openssl"}'
 ```
@@ -213,14 +213,14 @@ curl -X POST http://localhost:8080/api/tls-capture/library \
 **检查 1**: 确认 TLS 捕获已启用
 
 ```bash
-curl http://localhost:8080/api/tls-capture/status | jq .started
+curl http://localhost:8080/tls-capture/status | jq .started
 # 应该返回 true
 ```
 
 **检查 2**: 确认库已附加
 
 ```bash
-curl http://localhost:8080/api/tls-capture/libraries | jq '.libraries[] | select(.attached == true)'
+curl http://localhost:8080/tls-capture/libraries | jq '.libraries[] | select(.attached == true)'
 ```
 
 **检查 3**: 查看后端日志
@@ -241,7 +241,7 @@ curl http://localhost:8080/api/tls-capture/libraries | jq '.libraries[] | select
 readlink /proc/<PID>/exe
 
 # 手动附加
-curl -X POST http://localhost:8080/api/tls-capture/go-binary \
+curl -X POST http://localhost:8080/tls-capture/go-binary \
   -d '{"path": "/path/to/binary", "pid": <PID>}'
 ```
 
@@ -272,7 +272,7 @@ sudo setcap cap_bpf,cap_sys_admin=ep ./agent-ebpf-filter
 find /usr -name "libssl.so*" 2>/dev/null
 
 # 手动附加
-curl -X POST http://localhost:8080/api/tls-capture/library \
+curl -X POST http://localhost:8080/tls-capture/library \
   -d '{"path": "/path/to/libssl.so.3", "library": "openssl"}'
 ```
 

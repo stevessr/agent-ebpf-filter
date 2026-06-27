@@ -222,12 +222,17 @@ registerRoutes()
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
-| `GET` | `/tls-capture/status` | 捕获状态 |
-| `PUT` | `/tls-capture/status` | 启用/禁用捕获 |
-| `GET` | `/tls-capture/rules` | 规则列表 |
-| `POST` | `/tls-capture/rules` | 创建规则 |
-| `DELETE` | `/tls-capture/rules/:id` | 删除规则 |
-| `POST` | `/tls-capture/attach-executable` | 附加可执行文件 |
+| `GET` | `/tls-capture/recent` | 近期捕获的 TLS 明文事件 |
+| `GET` | `/tls-capture/libraries` | 已附加 TLS 库状态列表 |
+| `GET` | `/tls-capture/status` | 捕获运行时状态 |
+| `POST` | `/tls-capture/start` | 启动捕获并附加默认库 |
+| `POST` | `/tls-capture/attach-defaults` | 扫描并附加系统默认 TLS 库 |
+| `POST` | `/tls-capture/attach-builtins` | 附加内置 AI 工具可执行文件 |
+| `GET` | `/tls-capture/rules` | 捕获规则列表 |
+| `PUT` | `/tls-capture/rules` | 更新捕获规则 (批量) |
+| `POST` | `/tls-capture/library` | 手动附加自定义 TLS 库路径 |
+| `POST` | `/tls-capture/go-binary` | 手动附加 Go 编译的二进制文件 |
+| `POST` | `/tls-capture/executable` | 附加指定路径的可执行文件 |
 
 ### AgentSight 路由 (`/agentsight`)
 
