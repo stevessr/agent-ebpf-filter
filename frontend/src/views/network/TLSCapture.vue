@@ -8,6 +8,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
   CopyOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 
@@ -76,6 +77,20 @@ interface TLSCaptureRule {
   description?: string;
 }
 
+interface TLSIgnoreRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  comms?: string[];
+  hosts?: string[];
+  urls?: string[];
+  methods?: string[];
+  libraries?: string[];
+  directions?: string[];
+  statusCodes?: string[];
+  description?: string;
+}
+
 interface TLSCaptureStatus {
   enabled?: boolean;
   available?: boolean;
@@ -105,9 +120,30 @@ interface FileEntry {
   path: string;
 }
 
+const IGNORE_RULES_KEY = "agent-ebpf.tls.ignoreRules";
+
+const loadIgnoreRules = (): TLSIgnoreRule[] => {
+  try {
+    const raw = localStorage.getItem(IGNORE_RULES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveIgnoreRulesToStorage = (rules: TLSIgnoreRule[]) => {
+  try {
+    localStorage.setItem(IGNORE_RULES_KEY, JSON.stringify(rules));
+  } catch {
+    localStorage.removeItem(IGNORE_RULES_KEY);
+  }
+};
+
 const events = ref<TLSPlaintextEvent[]>([]);
 const libraries = ref<TLSLibraryStatus[]>([]);
 const rules = ref<TLSCaptureRule[]>([]);
+const ignoreRules = ref<TLSIgnoreRule[]>(loadIgnoreRules());
+const ignoreRulesLoading = ref(false);
 const captureStatus = ref<TLSCaptureStatus>({});
 const isConnected = ref(false);
 const isPaused = ref(false);
@@ -117,6 +153,7 @@ const hostFilter = ref("");
 const selectedLib = ref<string>("all");
 const selectedDirection = ref<string>("all");
 const sslFilterExpr = ref("");
+const ignoreFilter = ref("");
 const showDetails = ref(false);
 const selectedEvent = ref<TLSPlaintextEvent | null>(null);
 const rulesLoading = ref(false);
@@ -246,6 +283,32 @@ const filteredEvents = computed(() => {
     list = list.filter((event) =>
       evaluateSSLFilter(sslFilterExpr.value.trim(), event),
     );
+  }
+  if (ignoreFilter.value.trim()) {
+    const patterns = ignoreFilter.value
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    list = list.filter((event) => {
+      const fieldsToCheck = [
+        event.comm,
+        event.host,
+        event.url,
+        event.method,
+        String(event.status || ""),
+        event.lib,
+      ];
+      return !patterns.some((pattern) =>
+        fieldsToCheck.some(
+          (val) => val && val.toLowerCase().includes(pattern),
+        ),
+      );
+    });
+  }
+  // Apply structured ignore rules
+  const activeIgnoreRules = ignoreRules.value.filter((r) => r.enabled);
+  if (activeIgnoreRules.length > 0) {
+    list = list.filter((event) => !activeIgnoreRules.some((rule) => matchIgnoreRule(rule, event)));
   }
 
   return list;
@@ -493,6 +556,97 @@ const removeRule = (id: string) => {
   rules.value = rules.value.filter((rule) => rule.id !== id);
 };
 
+// ── Ignore rules CRUD ──
+const addIgnoreRule = () => {
+  const newRules = [
+    ...ignoreRules.value,
+    {
+      id: `ignore-${Date.now()}`,
+      name: "New ignore rule",
+      enabled: true,
+      comms: [] as string[],
+      hosts: [] as string[],
+      urls: [] as string[],
+      methods: [] as string[],
+      libraries: [] as string[],
+      directions: [] as string[],
+      statusCodes: [] as string[],
+    },
+  ];
+  ignoreRules.value = newRules;
+  saveIgnoreRulesToStorage(newRules);
+};
+
+const removeIgnoreRule = (id: string) => {
+  const newRules = ignoreRules.value.filter((r) => r.id !== id);
+  ignoreRules.value = newRules;
+  saveIgnoreRulesToStorage(newRules);
+};
+
+const saveIgnoreRules = () => {
+  ignoreRulesLoading.value = true;
+  try {
+    saveIgnoreRulesToStorage(ignoreRules.value);
+    message.success("Ignore rules saved (local storage)");
+  } catch (err: any) {
+    message.error("Failed to save ignore rules");
+  } finally {
+    ignoreRulesLoading.value = false;
+  }
+};
+
+type TLSIgnoreRuleListField =
+  | "comms" | "hosts" | "urls" | "methods" | "libraries" | "directions" | "statusCodes";
+
+const splitIgnoreRuleValues = (value: string) =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+const joinIgnoreRuleValues = (values?: string[]) => (values || []).join(", ");
+const updateIgnoreRuleValues = (
+  rule: TLSIgnoreRule,
+  field: TLSIgnoreRuleListField,
+  value: string,
+) => {
+  rule[field] = splitIgnoreRuleValues(value);
+  saveIgnoreRulesToStorage(ignoreRules.value);
+};
+const onIgnoreRuleValuesChange = (
+  rule: TLSIgnoreRule,
+  field: TLSIgnoreRuleListField,
+  event: Event,
+) => {
+  updateIgnoreRuleValues(rule, field, (event.target as HTMLInputElement).value);
+};
+
+const matchIgnoreRule = (rule: TLSIgnoreRule, event: TLSPlaintextEvent): boolean => {
+  if (!rule.enabled) return false;
+  if (rule.comms && rule.comms.length > 0) {
+    if (!rule.comms.some((c) => (event.comm || "").toLowerCase().includes(c.toLowerCase()))) return false;
+  }
+  if (rule.hosts && rule.hosts.length > 0) {
+    if (!rule.hosts.some((h) => (event.host || "").toLowerCase().includes(h.toLowerCase()))) return false;
+  }
+  if (rule.urls && rule.urls.length > 0) {
+    if (!rule.urls.some((u) => (event.url || "").toLowerCase().includes(u.toLowerCase()))) return false;
+  }
+  if (rule.methods && rule.methods.length > 0) {
+    if (!rule.methods.some((m) => (event.method || "").toLowerCase() === m.toLowerCase())) return false;
+  }
+  if (rule.libraries && rule.libraries.length > 0) {
+    if (!rule.libraries.some((l) => (event.lib || "").toLowerCase() === l.toLowerCase())) return false;
+  }
+  if (rule.directions && rule.directions.length > 0) {
+    if (!rule.directions.some((d) => (event.direction || "").toLowerCase() === d.toLowerCase())) return false;
+  }
+  if (rule.statusCodes && rule.statusCodes.length > 0) {
+    const statusStr = String(event.status || "");
+    if (!rule.statusCodes.some((s) => statusStr === s)) return false;
+  }
+  return true;
+};
+
 const splitRuleValues = (value: string) =>
   value
     .split(",")
@@ -571,6 +725,7 @@ const clearFilters = () => {
   selectedLib.value = "all";
   selectedDirection.value = "all";
   sslFilterExpr.value = "";
+  ignoreFilter.value = "";
 };
 
 // SSL filter expression evaluator (lightweight frontend version matching backend tls.ParseSSLFilterExpr)
@@ -1070,6 +1225,117 @@ onUnmounted(() => {
               @action="attachManualHook"
             />
           </a-tab-pane>
+          <a-tab-pane key="ignore" tab="Ignore">
+            <div class="tls-tab-actions">
+              <a-space>
+                <a-button size="small" @click="addIgnoreRule">Add Ignore Rule</a-button>
+                <a-button
+                  size="small"
+                  type="primary"
+                  :loading="ignoreRulesLoading"
+                  @click="saveIgnoreRules"
+                >Save Ignore Rules</a-button>
+              </a-space>
+            </div>
+            <a-list :data-source="ignoreRules" size="small" class="tls-rule-list">
+              <template #renderItem="{ item }">
+                <a-list-item class="tls-rule-item">
+                  <div class="tls-rule-card">
+                    <div class="tls-rule-header">
+                      <a-space wrap>
+                        <a-switch
+                          v-model:checked="item.enabled"
+                          checked-children="on"
+                          un-checked-children="off"
+                          @change="saveIgnoreRulesToStorage(ignoreRules)"
+                        />
+                        <a-input
+                          v-model:value="item.name"
+                          size="small"
+                          class="tls-rule-name"
+                          placeholder="Ignore rule name"
+                        />
+                      </a-space>
+                      <a-button
+                        size="small"
+                        danger
+                        ghost
+                        @click="removeIgnoreRule(item.id)"
+                      >Remove</a-button>
+                    </div>
+                    <div class="tls-ignore-rule-fields">
+                      <label class="tls-rule-field">
+                        <span>Commands</span>
+                        <a-input
+                          size="small"
+                          placeholder="node, claude, curl"
+                          :value="joinIgnoreRuleValues(item.comms)"
+                          @change="onIgnoreRuleValuesChange(item, 'comms', $event)"
+                        />
+                      </label>
+                      <label class="tls-rule-field">
+                        <span>Hosts</span>
+                        <a-input
+                          size="small"
+                          placeholder="localhost, 127.0.0.1"
+                          :value="joinIgnoreRuleValues(item.hosts)"
+                          @change="onIgnoreRuleValuesChange(item, 'hosts', $event)"
+                        />
+                      </label>
+                      <label class="tls-rule-field">
+                        <span>URLs</span>
+                        <a-input
+                          size="small"
+                          placeholder="/health, /ping"
+                          :value="joinIgnoreRuleValues(item.urls)"
+                          @change="onIgnoreRuleValuesChange(item, 'urls', $event)"
+                        />
+                      </label>
+                      <label class="tls-rule-field compact">
+                        <span>Methods</span>
+                        <a-input
+                          size="small"
+                          placeholder="OPTIONS, GET"
+                          :value="joinIgnoreRuleValues(item.methods)"
+                          @change="onIgnoreRuleValuesChange(item, 'methods', $event)"
+                        />
+                      </label>
+                      <label class="tls-rule-field compact">
+                        <span>Libraries</span>
+                        <a-input
+                          size="small"
+                          placeholder="openssl, gnutls"
+                          :value="joinIgnoreRuleValues(item.libraries)"
+                          @change="onIgnoreRuleValuesChange(item, 'libraries', $event)"
+                        />
+                      </label>
+                      <label class="tls-rule-field compact">
+                        <span>Directions</span>
+                        <a-input
+                          size="small"
+                          placeholder="send, recv"
+                          :value="joinIgnoreRuleValues(item.directions)"
+                          @change="onIgnoreRuleValuesChange(item, 'directions', $event)"
+                        />
+                      </label>
+                      <label class="tls-rule-field compact">
+                        <span>Status codes</span>
+                        <a-input
+                          size="small"
+                          placeholder="200, 404, 500"
+                          :value="joinIgnoreRuleValues(item.statusCodes)"
+                          @change="onIgnoreRuleValuesChange(item, 'statusCodes', $event)"
+                        />
+                      </label>
+                    </div>
+                    <a-typography-text type="secondary" class="tls-rule-help">
+                      {{ item.description || "All filled fields must match to exclude an event. Empty fields are ignored." }}
+                    </a-typography-text>
+                  </div>
+                </a-list-item>
+              </template>
+            </a-list>
+          </a-tab-pane>
         </a-tabs>
       </a-card>
 
@@ -1181,6 +1447,23 @@ onUnmounted(() => {
         >
           <template #prefix><SafetyCertificateOutlined /></template>
         </a-input>
+        <a-input
+          v-model:value="ignoreFilter"
+          size="small"
+          placeholder="Ignore: comm,host,url (反向排除)"
+          allow-clear
+          style="width: 240px"
+        >
+          <template #prefix><CloseCircleOutlined /></template>
+        </a-input>
+        <a-badge
+          v-if="ignoreFilter.trim()"
+          :count="`Ignore: ${ignoreFilter.split(',').filter(Boolean).length}`"
+          :overflow-count="99"
+          size="small"
+        >
+          <a-tag color="red">Active</a-tag>
+        </a-badge>
         <a-button size="small" @click="clearFilters">Clear Filters</a-button>
       </a-space>
 
@@ -1612,6 +1895,13 @@ onUnmounted(() => {
   align-items: end;
 }
 
+.tls-ignore-rule-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
 .tls-rule-field {
   display: flex;
   flex-direction: column;
@@ -1662,6 +1952,9 @@ onUnmounted(() => {
   .tls-rule-fields {
     grid-template-columns: repeat(2, minmax(220px, 1fr));
   }
+  .tls-ignore-rule-fields {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -1675,6 +1968,10 @@ onUnmounted(() => {
   }
 
   .tls-rule-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .tls-ignore-rule-fields {
     grid-template-columns: 1fr;
   }
 }
