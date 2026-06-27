@@ -195,7 +195,19 @@ const FILE_EVENT_TYPES = new Set<number>([
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+// Reverse map: type name string → EventType number (for fallback)
+const TYPE_NAME_MAP: Record<string, number> = {
+  execve: 0, openat: 1, network_connect: 2, mkdir: 3, unlink: 4,
+  ioctl: 5, network_bind: 6, network_sendto: 7, network_recvfrom: 8,
+  read: 9, write: 10, open: 11, chmod: 12, chown: 13, rename: 14,
+  link: 15, symlink: 16, mknod: 17, clone: 18, exit: 19,
+  socket: 20, accept: 21, accept4: 22, syscall: 25,
+  process_fork: 26, process_exec: 27, process_exit: 28, wait4: 29,
+  tcp_connect: 31, tcp_close: 32, tcp_state_change: 33, dns_query: 34,
+};
+
 const extractEventType = (event: pb.IEvent): number | undefined => {
+  // Path 1: explicit eventType field (binary proto → number, JSON → string name)
   if (
     Object.prototype.hasOwnProperty.call(event, "eventType") &&
     event.eventType !== null &&
@@ -203,7 +215,7 @@ const extractEventType = (event: pb.IEvent): number | undefined => {
   ) {
     const val = event.eventType as any;
     // Binary protobuf: numeric enum value (e.g., 0, 1, 2...)
-    if (typeof val === "number") return val;
+    if (typeof val === "number") return Number.isFinite(val) ? val : undefined;
     // JSON: string enum name (e.g., "EXECVE", "OPENAT"...) — map to number
     if (typeof val === "string") {
       const num = (pb.EventType as any)[val];
@@ -211,6 +223,16 @@ const extractEventType = (event: pb.IEvent): number | undefined => {
       const parsed = parseInt(val, 10);
       if (!isNaN(parsed)) return parsed;
     }
+  }
+  // Path 2: fallback via type string field (handles proto3 default-value omission
+  // where eventType=0/EXECVE is not serialised, or when event_type is unset)
+  if (event.type && typeof event.type === "string") {
+    const t = event.type.toLowerCase();
+    const mapped = TYPE_NAME_MAP[t];
+    if (typeof mapped === "number") return mapped;
+    // Also try via pb.EventType reverse lookup (e.g. "EXECVE" → 0)
+    const rev = (pb.EventType as any)[t.toUpperCase()] ?? (pb.EventType as any)[t];
+    if (typeof rev === "number") return rev;
   }
   return undefined;
 };

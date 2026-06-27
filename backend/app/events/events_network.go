@@ -161,8 +161,13 @@ func FormatNetworkSummary(direction, endpoint string, bytes uint32) string {
 
 // SanitizeUTF8 converts a raw byte slice from the kernel to a valid UTF-8 string,
 // replacing any invalid bytes with the Unicode replacement character.
+// eBPF tracepoints write paths into fixed-size buffers; trailing NUL padding is
+// trimmed first, then any embedded NUL bytes (from uninitialised buffer regions
+// or multi-field packing) are removed before the UTF‑8 safety pass.
 func SanitizeUTF8(b []byte) string {
-	return strings.ToValidUTF8(strings.TrimRight(string(b), "\x00"), "�")
+	cleaned := strings.TrimRight(string(b), "\x00")
+	cleaned = strings.ReplaceAll(cleaned, "\x00", "")
+	return strings.ToValidUTF8(cleaned, "�")
 }
 
 // ── Event builder ─────────────────────────────────────────────────────

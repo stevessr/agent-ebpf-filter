@@ -3,6 +3,7 @@ import { computed } from "vue";
 import {
   CaretDownOutlined,
   CaretRightOutlined,
+  AimOutlined,
 } from "@ant-design/icons-vue";
 import type { ProcessTreeNode } from "../../composables/monitor/useProcessObserver";
 
@@ -31,7 +32,6 @@ const isDead = computed(() => props.node.dead === true);
     <div
       class="tree-node-row"
       :class="{ highlighted: isHighlighted, dead: isDead }"
-      @click="emit('select', node.pid)"
     >
       <span
         v-if="hasChildren"
@@ -50,6 +50,14 @@ const isDead = computed(() => props.node.dead === true);
         ppid {{ node.ppid }}
       </span>
       <span v-if="isDead" class="tree-dead-tag">exited</span>
+      <span
+        v-if="!isDead && !isHighlighted"
+        class="tree-focus-btn"
+        title="Focus on this process"
+        @click.stop="emit('select', node.pid)"
+      >
+        <AimOutlined />
+      </span>
       <span
         v-if="sslAttachedSet?.has(node.pid)"
         class="ssl-dot"
@@ -84,7 +92,6 @@ const isDead = computed(() => props.node.dead === true);
   gap: 4px;
   padding: 2px 6px;
   border-radius: 3px;
-  cursor: pointer;
   transition: background 0.1s;
 }
 .tree-node-row:hover {
@@ -100,6 +107,7 @@ const isDead = computed(() => props.node.dead === true);
   flex-shrink: 0;
   color: #888;
   font-size: 10px;
+  cursor: pointer;
 }
 .tree-pid {
   color: #1677ff;
@@ -112,6 +120,21 @@ const isDead = computed(() => props.node.dead === true);
 .tree-ppid {
   color: #aaa;
   font-size: 11px;
+}
+.tree-focus-btn {
+  color: #1677ff;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.tree-node-row:hover .tree-focus-btn {
+  opacity: 0.7;
+}
+.tree-focus-btn:hover {
+  opacity: 1 !important;
+  color: #0958d9;
 }
 .tree-usage {
   margin-left: auto;
