@@ -316,7 +316,13 @@ func init() {
 	handlers.Deps.GetCameraStream = func(devName string) *handlers.CameraStream {
 		cs := getCameraStream(devName)
 		return &handlers.CameraStream{
-			SubscribeFn: func() handlers.CameraSubscriber { return cs.Subscribe() },
+			SubscribeFn: func() handlers.CameraSubscriber {
+				sub := cs.Subscribe()
+				if sub == nil {
+					return nil
+				}
+				return sub
+			},
 		}
 	}
 
