@@ -49,9 +49,10 @@ watch(() => props.treePids, (pids) => {
 
 onUnmounted(() => { if (sampleTimer) clearInterval(sampleTimer); });
 
-// ── I/O stats (on-demand only, no auto-fetch) ───────────────────────────────
+// ── I/O stats (auto-fetch on treePids change, with debounce) ───────────────
 const ioStats = ref<Record<number, Record<string, string>>>({});
 const ioLoading = ref(false);
+let ioAutoFetchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const fetchIO = async () => {
   if (ioLoading.value) return; // prevent concurrent fetches
@@ -68,6 +69,18 @@ const fetchIO = async () => {
   ioStats.value = stats;
   ioLoading.value = false;
 };
+
+// Auto-fetch I/O when treePids changes (debounced to avoid thundering herd)
+watch(() => props.treePids, (pids) => {
+  if (ioAutoFetchTimer) clearTimeout(ioAutoFetchTimer);
+  if (pids.size > 0) {
+    ioAutoFetchTimer = setTimeout(() => { fetchIO(); }, 500);
+  } else {
+    ioStats.value = {};
+  }
+}, { immediate: true });
+
+onUnmounted(() => { if (ioAutoFetchTimer) clearTimeout(ioAutoFetchTimer); });
 
 // ── Chart options ────────────────────────────────────────────────────────
 const cpuChartOptions = computed(() => makeLineOpts("CPU %"));

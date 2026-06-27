@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { ObserverEvent } from "../../../composables/monitor/useProcessObserver";
 
 const props = withDefaults(defineProps<{
@@ -8,10 +8,35 @@ const props = withDefaults(defineProps<{
   events: () => [],
 });
 
-// ── View state ──────────────────────────────────────────────────────────
-const metric = ref<"count" | "bytes" | "duration">("count");
-const scale = ref<"linear" | "log">("linear");
-const viewMode = ref<"flamegraph" | "barchart" | "donut">("flamegraph");
+// ── Persistent view state (localStorage backed) ─────────────────────────
+const readStored = <T>(key: string, fallback: T): T => {
+  try {
+    const v = localStorage.getItem(key);
+    return v !== null ? JSON.parse(v) as T : fallback;
+  } catch { return fallback; }
+};
+
+const writeStored = (key: string, value: unknown): void => {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+};
+
+const FLAMEGRAPH_METRIC_KEY = "flamegraph-metric";
+const FLAMEGRAPH_SCALE_KEY = "flamegraph-scale";
+const FLAMEGRAPH_VIEW_KEY = "flamegraph-view";
+
+const metric = ref<"count" | "bytes" | "duration">(
+  readStored<"count" | "bytes" | "duration">(FLAMEGRAPH_METRIC_KEY, "count")
+);
+const scale = ref<"linear" | "log">(
+  readStored<"linear" | "log">(FLAMEGRAPH_SCALE_KEY, "linear")
+);
+const viewMode = ref<"flamegraph" | "barchart" | "donut">(
+  readStored<"flamegraph" | "barchart" | "donut">(FLAMEGRAPH_VIEW_KEY, "flamegraph")
+);
+
+watch(metric, (v) => writeStored(FLAMEGRAPH_METRIC_KEY, v));
+watch(scale, (v) => writeStored(FLAMEGRAPH_SCALE_KEY, v));
+watch(viewMode, (v) => writeStored(FLAMEGRAPH_VIEW_KEY, v));
 
 // ── Constants ───────────────────────────────────────────────────────────
 const catColors: Record<string, string> = {

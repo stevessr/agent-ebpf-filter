@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  CopyOutlined,
   EyeOutlined,
   FolderOpenOutlined,
   InfoCircleOutlined,
@@ -9,7 +10,7 @@ import FilePreviewDrawer from "../../components/explorer/FilePreviewDrawer.vue";
 import DashboardToolbar from "../../components/dashboard/DashboardToolbar.vue";
 import DashboardEventModal from "../../components/dashboard/DashboardEventModal.vue";
 import { useDashboard } from "../../composables/dashboard/useDashboard";
-import SanitizedFieldViewer from "../../components/common/SanitizedFieldViewer.vue";
+
 import RedactionBadge from "../../components/common/RedactionBadge.vue";
 
 const {
@@ -75,6 +76,14 @@ const {
   exportEventsCSV,
   syscallDisplayName,
 } = useDashboard();
+
+const copyPath = async (path: string) => {
+  try {
+    await navigator.clipboard.writeText(path);
+  } catch {
+    // clipboard write failed
+  }
+};
 
 void tableWrapperRef;
 </script>
@@ -324,19 +333,21 @@ void tableWrapperRef;
           </template>
           <template v-if="column.key === 'path'">
             <div class="excel-path-cell">
-              <a-typography-text
+              <span
                 class="excel-path-text"
-                :style="{
-                  cursor: canInteractWithPath(record) ? 'pointer' : 'default',
-                }"
-                @click="previewRecordPath(record)"
-              >
-                <SanitizedFieldViewer
-                  :value="formatDetailValue(record.path)"
-                  :isSanitized="Boolean(record.redactionState || record.redacted)"
-                  field-name="path"
-                />
-              </a-typography-text>
+                :class="{ clickable: canInteractWithPath(record) }"
+                :title="formatDetailValue(record.path)"
+                @click="canInteractWithPath(record) && previewRecordPath(record)"
+              >{{ formatDetailValue(record.path) }}</span>
+              <a-tooltip title="Copy path">
+                <a-button
+                  type="link"
+                  size="small"
+                  @click.stop="copyPath(record.path)"
+                >
+                  <template #icon><CopyOutlined /></template>
+                </a-button>
+              </a-tooltip>
               <a-tooltip
                 v-if="canInteractWithPath(record)"
                 title="Preview file"
@@ -566,10 +577,17 @@ void tableWrapperRef;
 
 .excel-path-cell {
   display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
+}
+
+.excel-path-cell :deep(.ant-btn-link) {
+  flex-shrink: 0;
+  padding: 0 2px;
+  min-width: auto;
+  width: 22px;
+  height: 22px;
 }
 
 .excel-type-cell {
@@ -590,11 +608,20 @@ void tableWrapperRef;
   min-width: 0;
   display: block;
   color: #28402a;
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.excel-path-text.clickable {
+  cursor: pointer;
+}
+
+.excel-path-text.clickable:hover {
+  color: #1677ff;
+  text-decoration: underline;
 }
 
 .excel-table :deep(.ant-table-thead > tr > th:last-child),

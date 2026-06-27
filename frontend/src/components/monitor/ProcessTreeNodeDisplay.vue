@@ -23,13 +23,14 @@ const emit = defineEmits<{
 const expanded = computed(() => props.expandedSet.has(props.node.pid));
 const hasChildren = computed(() => props.node.children.length > 0);
 const isHighlighted = computed(() => props.node.pid === props.highlightPid);
+const isDead = computed(() => props.node.dead === true);
 </script>
 
 <template>
   <div class="tree-node" :style="{ marginLeft: depth * 22 + 'px' }">
     <div
       class="tree-node-row"
-      :class="{ highlighted: isHighlighted }"
+      :class="{ highlighted: isHighlighted, dead: isDead }"
       @click="emit('select', node.pid)"
     >
       <span
@@ -48,12 +49,13 @@ const isHighlighted = computed(() => props.node.pid === props.highlightPid);
       <span v-if="node.ppid && node.ppid !== node.pid" class="tree-ppid">
         ppid {{ node.ppid }}
       </span>
+      <span v-if="isDead" class="tree-dead-tag">exited</span>
       <span
         v-if="sslAttachedSet?.has(node.pid)"
         class="ssl-dot"
         :title="'SSL: ' + (sslLibForPid?.(node.pid) || 'attached')"
       >●</span>
-      <span class="tree-usage">
+      <span class="tree-usage" v-if="!isDead">
         CPU {{ (node.cpu ?? 0).toFixed(1) }}% |
         Mem {{ (node.mem ?? 0).toFixed(1) }}%
       </span>
@@ -66,6 +68,8 @@ const isHighlighted = computed(() => props.node.pid === props.highlightPid);
         :depth="depth + 1"
         :highlight-pid="highlightPid"
         :expanded-set="expandedSet"
+        :ssl-attached-set="sslAttachedSet"
+        :ssl-lib-for-pid="sslLibForPid"
         @toggle="emit('toggle', $event)"
         @select="emit('select', $event)"
       />
@@ -119,5 +123,33 @@ const isHighlighted = computed(() => props.node.pid === props.highlightPid);
   font-size: 8px;
   margin-right: 4px;
   cursor: help;
+}
+
+/* Dead / exited process */
+.tree-node-row.dead {
+  opacity: 0.55;
+}
+.tree-node-row.dead:hover {
+  background: #f5f5f5;
+}
+.tree-node-row.dead .tree-pid {
+  color: #999;
+}
+.tree-node-row.dead .tree-name {
+  color: #aaa;
+  font-style: italic;
+}
+.tree-node-row.dead .tree-ppid {
+  color: #ccc;
+}
+.tree-dead-tag {
+  font-size: 9px;
+  color: #b0b0b0;
+  background: #f0f0f0;
+  border: 1px solid #e0e0e0;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-weight: 500;
+  font-family: ui-monospace, monospace;
 }
 </style>
