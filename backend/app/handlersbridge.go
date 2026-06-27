@@ -269,6 +269,7 @@ func init() {
 	handlers.Deps.EventArchiveClear = capturedEventArchive.Clear
 	handlers.Deps.AgentSightEventsClear = agentSightUploadedEvents.Clear
 	handlers.Deps.AgentSightUploadedEvents = &agentSightStoreAdapter{store: agentSightUploadedEvents}
+	handlers.Deps.RuntimeSettings = runtimeSettingsStore
 	handlers.Deps.RuntimeSettingsTruncateLog = runtimeSettingsStore.TruncateEventLog
 
 	handlers.Deps.PluginValidateID = validatePluginID
