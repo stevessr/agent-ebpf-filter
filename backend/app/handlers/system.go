@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -359,22 +360,46 @@ func HandleRun(c *gin.Context) {
 	var r struct {
 		Comm string   `json:"comm"`
 		Args []string `json:"args"`
+		User string   `json:"user"`
+		Cwd  string   `json:"cwd"`
 	}
-	if err := c.ShouldBindJSON(&r); err == nil {
-		wb := Deps.ResolveWrapperPath()
-		if wb == "" {
-			c.JSON(500, gin.H{"error": "wrapper not found"})
-			return
-		}
-		cmd := exec.Command(wb, append([]string{r.Comm}, r.Args...)...)
-		cmd.Env = os.Environ()
-		Deps.DropPrivileges(cmd)
-		if err := cmd.Start(); err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(200, gin.H{"status": "started", "pid": cmd.Process.Pid})
+	if err := c.ShouldBindJSON(&r); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
 	}
+	wb := Deps.ResolveWrapperPath()
+	if wb == "" {
+		c.JSON(500, gin.H{"error": "wrapper not found"})
+		return
+	}
+
+	wrapperArgs := []string{}
+	if r.User != "" {
+		wrapperArgs = append(wrapperArgs, "--user", r.User)
+	}
+	if r.Cwd != "" {
+		wrapperArgs = append(wrapperArgs, "--cwd", r.Cwd)
+	}
+	wrapperArgs = append(wrapperArgs, r.Comm)
+	wrapperArgs = append(wrapperArgs, r.Args...)
+
+	cmd := exec.Command(wb, wrapperArgs...)
+	cmd.Env = os.Environ()
+	Deps.DropPrivileges(cmd)
+	if err := cmd.Start(); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"status": "started", "pid": cmd.Process.Pid})
+}
+
+func HandleUserInfo(c *gin.Context) {
+	u, err := user.Current()
+	if err != nil {
+		c.JSON(200, gin.H{"username": "unknown", "home": "/tmp", "uid": "0"})
+		return
+	}
+	c.JSON(200, gin.H{"username": u.Username, "home": u.HomeDir, "uid": u.Uid})
 }
 
 func HandleSystemdServices(c *gin.Context) {
@@ -571,4 +596,6 @@ func RegisterSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/cameras", HandleCameras)
 	rg.GET("/camera/snapshot", HandleCameraSnapshot)
 	rg.GET("/microphones", HandleMicrophones)
+	rg.POST("/run", HandleRun)
+	rg.GET("/user-info", HandleUserInfo)
 }

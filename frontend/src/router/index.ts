@@ -28,6 +28,11 @@ const routes = [
     component: () => import("../views/monitor/Monitor.vue"),
   },
   {
+    path: "/observe",
+    name: "Observe",
+    component: () => import("../views/observe/Observe.vue"),
+  },
+  {
     path: "/network",
     name: "Network",
     component: () => import("../views/network/Network.vue"),

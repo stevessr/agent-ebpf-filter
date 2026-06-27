@@ -7,7 +7,6 @@ import {
   DashboardOutlined,
   AppstoreOutlined,
   ApiOutlined,
-  ScanOutlined,
 } from "@ant-design/icons-vue";
 import { useMonitorData } from "../../composables/monitor/useMonitorData";
 import { useSensors } from "../../composables/monitor/useSensors";
@@ -22,7 +21,6 @@ import ProcessTable from "../../components/monitor/ProcessTable.vue";
 import SystemdPanel from "../../components/monitor/SystemdPanel.vue";
 import SensorsPanel from "../../components/monitor/SensorsPanel.vue";
 import TracingPanel from "../../components/monitor/TracingPanel.vue";
-import ProcessObserverPanel from "../../components/monitor/ProcessObserverPanel.vue";
 import HistoryChartModal from "../../components/monitor/HistoryChartModal.vue";
 
 // ── Composable instances ──
@@ -115,7 +113,6 @@ const monitorTabKeys = new Set([
   "systemd",
   "sensors",
   "tracing",
-  "observer",
 ]);
 const healthTabKeys = new Set(["cpu", "mem", "io", "faults", "gpu", "procmem"]);
 const sensorSubTabKeys = new Set(["hardware", "camera", "mic"]);
@@ -125,8 +122,7 @@ type MonitorTabKey =
   | "processes"
   | "systemd"
   | "sensors"
-  | "tracing"
-  | "observer";
+  | "tracing";
 type HealthTabKey = "cpu" | "mem" | "io" | "faults" | "gpu" | "procmem";
 type SensorSubTabKey = "hardware" | "camera" | "mic";
 
@@ -183,11 +179,6 @@ const syncTabsFromRoute = () => {
     return;
   }
 
-  if (tab === "observer") {
-    if (getRouteParam(route.params.tab) !== tab || subtab) navigate(tab);
-    return;
-  }
-
   if (getRouteParam(route.params.tab) !== tab || subtab) navigate(tab);
 };
 
@@ -200,7 +191,6 @@ const handleTabChange = (key: string) => {
   activeTab.value = tab;
   if (tab === "dashboard") navigate(tab, healthTab.value);
   else if (tab === "sensors") navigate(tab, sensorSubTab.value);
-  else if (tab === "observer") navigate(tab);
   else navigate(tab);
 };
 
@@ -470,17 +460,7 @@ onUnmounted(() => {
         />
       </a-tab-pane>
 
-      <!-- ── Process Observer ── -->
-      <a-tab-pane key="observer">
-        <template #tab
-          ><span><ScanOutlined /> Observer</span></template
-        >
-        <ProcessObserverPanel
-          :processes="processes"
-          :sendProcessSignal="onSendProcessSignal"
-          :isActive="activeTab === 'observer'"
-        />
-      </a-tab-pane>
+
     </a-tabs>
 
     <!-- ── Shared modals ── -->

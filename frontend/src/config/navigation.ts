@@ -8,6 +8,7 @@ import {
   GlobalOutlined,
   LinkOutlined,
   PlaySquareOutlined,
+  RadarChartOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
   ThunderboltOutlined,
@@ -71,6 +72,12 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
         icon: SafetyCertificateOutlined,
         defaultRoute: { name: "TLSCapture" },
         feature: "tls_capture",
+      },
+      {
+        key: "observe",
+        title: "观察分析",
+        icon: RadarChartOutlined,
+        defaultRoute: { name: "Observe" },
       },
     ],
   },
@@ -167,6 +174,7 @@ const routeNameMap: Record<string, WorkbenchKey> = {
   ML: "ml",
   Plugins: "plugins",
   Config: "config",
+  Observe: "observe",
 };
 
 const isAvailableWorkbenchKey = (key: WorkbenchKey) =>
@@ -222,6 +230,8 @@ export const resolveWorkbenchKey = (
     return "plugins";
   if (path.startsWith("/config") && isAvailableWorkbenchKey("config"))
     return "config";
+  if (path.startsWith("/observe") && isAvailableWorkbenchKey("observe"))
+    return "observe";
   return fallbackWorkbenchKey();
 };
 

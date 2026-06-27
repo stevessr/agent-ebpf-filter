@@ -96,6 +96,55 @@ const selectedProcessLabel = (): string => {
   return p ? `[${p.pid}] ${p.name}` : `PID ${selectedPid.value}`;
 };
 
+// ── Launch controls ──────────────────────────────────────────────────────
+
+import axios from "axios";
+
+const launchPath = ref("");
+const launchUser = ref("");
+const launchArgs = ref("");
+const launching = ref(false);
+const launchError = ref("");
+
+const fetchUserInfo = async () => {
+  try {
+    const res = await axios.get("/system/user-info");
+    launchPath.value = res.data.home || "/tmp";
+    launchUser.value = res.data.username || "";
+  } catch {
+    launchPath.value = "/tmp";
+    launchUser.value = "";
+  }
+};
+
+fetchUserInfo();
+
+const doLaunch = async () => {
+  if (!launchPath.value.trim()) return;
+  launching.value = true;
+  launchError.value = "";
+  try {
+    const args = launchArgs.value
+      .split(/\s+/)
+      .filter((a) => a.length > 0);
+    const res = await axios.post("/system/run", {
+      comm: launchPath.value.trim(),
+      args,
+      user: launchUser.value.trim() || undefined,
+      cwd: launchPath.value.trim().split("/").slice(0, -1).join("/") || "/",
+    });
+    if (res.data.pid) {
+      selectedPid.value = res.data.pid;
+      pidInput.value = "";
+    }
+  } catch (e: any) {
+    launchError.value =
+      e?.response?.data?.error || e?.message || "Launch failed";
+  } finally {
+    launching.value = false;
+  }
+};
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 const formatBytes = (bytes: number): string => {
