@@ -31,9 +31,10 @@ var staticTLSLibraries = []ProbeTarget{
 	{
 		name: "openssl",
 		paths: []string{
-			"/lib/x86_64-linux-gnu/libssl.so.3", "/lib/aarch64-linux-gnu/libssl.so.3", "/lib64/libssl.so.3", "/usr/lib64/libssl.so.3", "/usr/lib/x86_64-linux-gnu/libssl.so.3", "/usr/lib/aarch64-linux-gnu/libssl.so.3", "/usr/lib/libssl.so.3", "/usr/local/lib/libssl.so.3", "/usr/local/lib64/libssl.so.3",
-			"/lib/x86_64-linux-gnu/libssl.so.1.1", "/lib/aarch64-linux-gnu/libssl.so.1.1", "/lib64/libssl.so.1.1", "/usr/lib64/libssl.so.1.1", "/usr/lib/x86_64-linux-gnu/libssl.so.1.1", "/usr/lib/aarch64-linux-gnu/libssl.so.1.1", "/usr/lib/libssl.so.1.1", "/usr/local/lib/libssl.so.1.1", "/usr/local/lib64/libssl.so.1.1",
-			"/lib/x86_64-linux-gnu/libssl.so", "/lib/aarch64-linux-gnu/libssl.so", "/lib64/libssl.so", "/usr/lib64/libssl.so", "/usr/lib/x86_64-linux-gnu/libssl.so", "/usr/lib/aarch64-linux-gnu/libssl.so", "/usr/lib/libssl.so", "/usr/local/lib/libssl.so", "/usr/local/lib64/libssl.so",
+			"/usr/lib/libssl.so.3", "/usr/lib/libssl.so", "/usr/lib/libssl.so.1.1",
+			"/lib/x86_64-linux-gnu/libssl.so.3", "/lib/aarch64-linux-gnu/libssl.so.3", "/lib64/libssl.so.3", "/usr/lib64/libssl.so.3", "/usr/lib/x86_64-linux-gnu/libssl.so.3", "/usr/lib/aarch64-linux-gnu/libssl.so.3", "/usr/local/lib/libssl.so.3", "/usr/local/lib64/libssl.so.3",
+			"/lib/x86_64-linux-gnu/libssl.so.1.1", "/lib/aarch64-linux-gnu/libssl.so.1.1", "/lib64/libssl.so.1.1", "/usr/lib64/libssl.so.1.1", "/usr/lib/x86_64-linux-gnu/libssl.so.1.1", "/usr/lib/aarch64-linux-gnu/libssl.so.1.1", "/usr/local/lib/libssl.so.1.1", "/usr/local/lib64/libssl.so.1.1",
+			"/lib/x86_64-linux-gnu/libssl.so", "/lib/aarch64-linux-gnu/libssl.so", "/lib64/libssl.so", "/usr/lib64/libssl.so", "/usr/lib/x86_64-linux-gnu/libssl.so", "/usr/lib/aarch64-linux-gnu/libssl.so", "/usr/local/lib/libssl.so", "/usr/local/lib64/libssl.so",
 		},
 		sendSymbols: []string{"SSL_write", "SSL_write_ex"},
 		recvSymbols: []string{"SSL_read", "SSL_read_ex"},
@@ -458,14 +459,25 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 	libraries := executableLibraryCandidates(libraryHint)
 	var errs []error
 	for _, target := range libraries {
-		if err := m.AttachLibrary(attachPath, target.name); err != nil {
+		// Resolve the actual library .so path on the system, NOT the executable path.
+		libPath, libOk := findFirstExistingPath(target.paths...)
+		if !libOk {
+			errs = append(errs, fmt.Errorf("library %s not found on system", target.name))
+			continue
+		}
+		m.mu.Lock()
+		status := TLSLibraryStatus{Name: target.name, Path: libPath, Available: true}
+		err := m.attachLibraryPathLocked(target, libPath, status)
+		if err != nil {
+			m.mu.Unlock()
 			errs = append(errs, err)
-		} else if pid > 0 {
-			m.mu.Lock()
-			if m.attachedExec == nil {
-				m.attachedExec = make(map[int]string)
+		} else {
+			if pid > 0 {
+				if m.attachedExec == nil {
+					m.attachedExec = make(map[int]string)
+				}
+				m.attachedExec[pid] = target.name
 			}
-			m.attachedExec[pid] = target.name
 			m.mu.Unlock()
 		}
 	}
