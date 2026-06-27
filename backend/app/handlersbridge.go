@@ -771,6 +771,8 @@ func handleMLSampleLabelPut(c *gin.Context)             { handlers.HandleMLSampl
 func handleMLSampleDelete(c *gin.Context)               { handlers.HandleMLSampleDelete(c) }
 func handleMLSampleAnomalyPut(c *gin.Context)           { handlers.HandleMLSampleAnomalyPut(c) }
 func handleMLSamplesPost(c *gin.Context)                { handlers.HandleMLSamplesPost(c) }
+func handleMLTunePost(c *gin.Context)                 { autotuneTunePost(c) }
+func handleMLTuneModelsPost(c *gin.Context)          { autotuneTuneModelsPost(c) }
 func handleMLBacktestPost(c *gin.Context)               { handlers.HandleMLBacktestPost(c) }
 // Command safety bridges — delegate to fat-bridge Deps closures
 func handleMLAssessPost(c *gin.Context)          { handlers.Deps.MLAssessCommandSafety(c) }
