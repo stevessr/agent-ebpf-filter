@@ -227,10 +227,6 @@ func collectAgentSightEventsForQuery(query AgentSightEventQuery, tlsStore *tls.T
 	if err != nil {
 		return nil, "", err
 	}
-	archiveFilters := query.Filters
-	// AgentSight presents semantic sources; apply source filter after conversion.
-	records = Deps.FilterRecentEventRecords(records, archiveFilters)
-
 	tlsCount := 0
 	if tlsStore != nil {
 		tlsCount = tlsStore.Count()

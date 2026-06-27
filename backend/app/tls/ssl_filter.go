@@ -1,6 +1,7 @@
 package tls
 
 import (
+	"encoding/binary"
 	"strconv"
 	"strings"
 )
@@ -373,9 +374,12 @@ func DetectSSLDataType(data string) string {
 		(strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]")) {
 		return "json"
 	}
-	// gRPC / protobuf — binary with specific header
-	if len(data) >= 5 && data[0] == 0 && data[4]&0x80 == 0 {
-		return "grpc"
+	// gRPC / protobuf — 1-byte compression flag + 4-byte big-endian message length.
+	if len(data) >= 5 && (data[0] == 0 || data[0] == 1) {
+		messageLength := binary.BigEndian.Uint32([]byte(data[1:5]))
+		if messageLength <= 16*1024*1024 && (len(data) == 5 || int(messageLength) <= len(data)-5) {
+			return "grpc"
+		}
 	}
 	// Binary heuristics
 	if isBinaryData(data) {

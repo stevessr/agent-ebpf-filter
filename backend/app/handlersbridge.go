@@ -142,11 +142,13 @@ func (a *cgroupSandboxAdapter) ParseCgroupID(raw string) (uint64, error) {
 	return parseCgroupIDStr(raw)
 }
 
-func (a *cgroupSandboxAdapter) ValidatePort(port uint16) error { return validateCgroupSandboxPort(port) }
-func (a *cgroupSandboxAdapter) BlockIP(ip string) error        { return blockIP(ip) }
-func (a *cgroupSandboxAdapter) UnblockIP(ip string) error      { return unblockIP(ip) }
-func (a *cgroupSandboxAdapter) BlockPort(port uint16) error    { return blockPort(port) }
-func (a *cgroupSandboxAdapter) UnblockPort(port uint16) error  { return unblockPort(port) }
+func (a *cgroupSandboxAdapter) ValidatePort(port uint16) error {
+	return validateCgroupSandboxPort(port)
+}
+func (a *cgroupSandboxAdapter) BlockIP(ip string) error       { return blockIP(ip) }
+func (a *cgroupSandboxAdapter) UnblockIP(ip string) error     { return unblockIP(ip) }
+func (a *cgroupSandboxAdapter) BlockPort(port uint16) error   { return blockPort(port) }
+func (a *cgroupSandboxAdapter) UnblockPort(port uint16) error { return unblockPort(port) }
 
 // parseCgroupIDStr wraps parseCgroupID which takes json.RawMessage.
 func parseCgroupIDStr(raw string) (uint64, error) {
@@ -188,11 +190,21 @@ func (a *lsmEnforcerAdapter) GetStats(statsMap any) (map[string]any, error) {
 	}, nil
 }
 
-func (a *lsmEnforcerAdapter) ListExecPaths(blocklist any) []string  { return listLsmExecPaths(blocklist.(*ebpf.Map)) }
-func (a *lsmEnforcerAdapter) ListExecNames(blocklist any) []string  { return listLsmExecNames(blocklist.(*ebpf.Map)) }
-func (a *lsmEnforcerAdapter) ListFileNames(blocklist any) []string  { return listLsmFileNames(blocklist.(*ebpf.Map)) }
-func (a *lsmEnforcerAdapter) NormalizePath(path string) (string, error) { return normalizeLsmPathString(path) }
-func (a *lsmEnforcerAdapter) NormalizeName(name string) (string, error) { return normalizeLsmNameString(name) }
+func (a *lsmEnforcerAdapter) ListExecPaths(blocklist any) []string {
+	return listLsmExecPaths(blocklist.(*ebpf.Map))
+}
+func (a *lsmEnforcerAdapter) ListExecNames(blocklist any) []string {
+	return listLsmExecNames(blocklist.(*ebpf.Map))
+}
+func (a *lsmEnforcerAdapter) ListFileNames(blocklist any) []string {
+	return listLsmFileNames(blocklist.(*ebpf.Map))
+}
+func (a *lsmEnforcerAdapter) NormalizePath(path string) (string, error) {
+	return normalizeLsmPathString(path)
+}
+func (a *lsmEnforcerAdapter) NormalizeName(name string) (string, error) {
+	return normalizeLsmNameString(name)
+}
 
 func (a *lsmEnforcerAdapter) BlockExecPath(path string) error   { return blockLsmExecPath(path) }
 func (a *lsmEnforcerAdapter) UnblockExecPath(path string) error { return unblockLsmExecPath(path) }
@@ -240,7 +252,7 @@ type shellManagerAdapter struct {
 	mgr *shell.Manager
 }
 
-func (a *shellManagerAdapter) Subscribe() chan struct{}  { return a.mgr.Subscribe() }
+func (a *shellManagerAdapter) Subscribe() chan struct{}     { return a.mgr.Subscribe() }
 func (a *shellManagerAdapter) Unsubscribe(ch chan struct{}) { a.mgr.Unsubscribe(ch) }
 func (a *shellManagerAdapter) List() []any {
 	list := a.mgr.List()
@@ -291,9 +303,11 @@ func (a *shellManagerAdapter) readWebSocket(session *shell.Session, conn *websoc
 		_ = session.WriteInput(data)
 	}
 }
-func (a *shellManagerAdapter) Delete(id string) error          { return a.mgr.Delete(id) }
-func (a *shellManagerAdapter) SendInput(id string, data []byte) error { return a.mgr.SendInput(id, data) }
-func (a *shellManagerAdapter) ClearClosed()                     { a.mgr.ClearClosed() }
+func (a *shellManagerAdapter) Delete(id string) error { return a.mgr.Delete(id) }
+func (a *shellManagerAdapter) SendInput(id string, data []byte) error {
+	return a.mgr.SendInput(id, data)
+}
+func (a *shellManagerAdapter) ClearClosed() { a.mgr.ClearClosed() }
 
 // ── Handlers Dependency wiring ─────────────────────────────────────
 
@@ -565,27 +579,28 @@ func init() {
 		rulesMu.Unlock()
 	}
 
-		// Network enrichment handlers
-		handlers.Deps.NetworkFlowAggregator = networkFlowAggregator
-		handlers.Deps.TCPTracker = tcpTracker
-		handlers.Deps.DNSCorrelation = dnsCorrelation
-		handlers.Deps.GeoIPDB = geoip.NewResolver()
-		handlers.Deps.AnalyzeEndpoint = analyzeEndpoint
+	// Network enrichment handlers
+	handlers.Deps.NetworkFlowAggregator = networkFlowAggregator
+	handlers.Deps.TCPTracker = tcpTracker
+	handlers.Deps.DNSCorrelation = dnsCorrelation
+	handlers.Deps.GeoIPDB = geoip.NewResolver()
+	handlers.Deps.AnalyzeEndpoint = analyzeEndpoint
 
-		// External API
-		handlers.Deps.BuildFeatureManifest = func(settings core.RuntimeSettings) any {
-			return buildFeatureManifest(settings)
-		}
-		handlers.Deps.BootstrapTracepointStatus = func() any {
-			return bootstrapTracepointStatusStore.Snapshot()
-		}
-		handlers.Deps.CollectorHealth = func() any {
-			return collectorMetricsStore.Snapshot()
-		}
+	// External API
+	handlers.Deps.BuildFeatureManifest = func(settings core.RuntimeSettings) any {
+		manifest := buildFeatureManifest(settings)
+		return handlers.FeatureManifestWrapper{Features: manifest.Features}
+	}
+	handlers.Deps.BootstrapTracepointStatus = func() any {
+		return bootstrapTracepointStatusStore.Snapshot()
+	}
+	handlers.Deps.CollectorHealth = func() any {
+		return collectorMetricsStore.Snapshot()
+	}
 
-		// Shell sessions
-		handlers.Deps.ShellSessions = &shellManagerAdapter{mgr: shellSessions}
-		handlers.Deps.MakeShellDeps = func() any { return makeShellDeps() }
+	// Shell sessions
+	handlers.Deps.ShellSessions = &shellManagerAdapter{mgr: shellSessions}
+	handlers.Deps.MakeShellDeps = func() any { return makeShellDeps() }
 
 	// Cgroup sandbox
 	handlers.Deps.CgroupSandbox = &cgroupSandboxAdapter{}
@@ -593,22 +608,29 @@ func init() {
 	// LSM enforcer
 	handlers.Deps.LsmEnforcer = &lsmEnforcerAdapter{}
 
-		// AgentSight data pipeline
-		handlers.Deps.RecentEventFiltersFromRequest = func(c any) any {
-			return recentEventFiltersFromRequest(c.(*gin.Context))
-		}
-		handlers.Deps.FilterRecentEventRecords = func(records []CapturedEventRecord, filters any) []CapturedEventRecord {
-			return filterRecentEventRecords(records, filters.(recentEventFilters))
-		}
-		handlers.Deps.NormalizeCapturedEventRecord = normalizeCapturedEventRecord
-		handlers.Deps.EventEnvelopeToJSONValue = eventEnvelopeToJSONValue
-		handlers.Deps.EnvelopeEventTypeName = envelopeEventTypeName
-		handlers.Deps.ParseRecentEventTime = parseRecentEventTime
-
-		initMLHandlersDeps()
+	// AgentSight data pipeline
+	handlers.Deps.RecentEventFiltersFromRequest = func(c any) any {
+		return recentEventFiltersFromRequest(c.(*gin.Context))
 	}
+	handlers.Deps.FilterRecentEventRecords = func(records []CapturedEventRecord, filters any) []CapturedEventRecord {
+		if filters == nil {
+			return records
+		}
+		typed, ok := filters.(recentEventFilters)
+		if !ok {
+			return records
+		}
+		return filterRecentEventRecords(records, typed)
+	}
+	handlers.Deps.NormalizeCapturedEventRecord = normalizeCapturedEventRecord
+	handlers.Deps.EventEnvelopeToJSONValue = eventEnvelopeToJSONValue
+	handlers.Deps.EnvelopeEventTypeName = envelopeEventTypeName
+	handlers.Deps.ParseRecentEventTime = parseRecentEventTime
 
-	// ── ML handler wiring ──────────────────────────────────────────────
+	initMLHandlersDeps()
+}
+
+// ── ML handler wiring ──────────────────────────────────────────────
 
 func initMLHandlersDeps() {
 	handlers.Deps.MLStatus = mlStatus
@@ -699,12 +721,12 @@ func initMLHandlersDeps() {
 
 // ── Bridge functions (delegate to handlers/ subpackage) ─────────
 
-func handleClearEvents(c *gin.Context)         { handlers.HandleClearEvents(c) }
+func handleClearEvents(c *gin.Context)          { handlers.HandleClearEvents(c) }
 func handleClearEventsMemory(c *gin.Context)    { handlers.HandleClearEventsMemory(c) }
 func handleClearEventsPersisted(c *gin.Context) { handlers.HandleClearEventsPersisted(c) }
 
-func handleRunBenchmark(c *gin.Context)         { handlers.HandleRunBenchmark(c) }
-func handleGetBenchmarkResults(c *gin.Context)  { handlers.HandleGetBenchmarkResults(c) }
+func handleRunBenchmark(c *gin.Context)        { handlers.HandleRunBenchmark(c) }
+func handleGetBenchmarkResults(c *gin.Context) { handlers.HandleGetBenchmarkResults(c) }
 
 func handlePluginsList(c *gin.Context)  { handlers.HandlePluginsList(c) }
 func handlePluginGet(c *gin.Context)    { handlers.HandlePluginGet(c) }
@@ -714,7 +736,7 @@ func handlePluginToggle(c *gin.Context) { handlers.HandlePluginToggle(c) }
 func handleBPFTemplates(c *gin.Context) { handlers.HandleBPFTemplates(c) }
 func handleBPFCompile(c *gin.Context)   { handlers.HandleBPFCompile(c) }
 func handleBPFLoad(c *gin.Context)      { handlers.HandleBPFLoad(c) }
-func handleBPFUnload(c *gin.Context)     { handlers.HandleBPFUnload(c) }
+func handleBPFUnload(c *gin.Context)    { handlers.HandleBPFUnload(c) }
 
 func handleRegister(c *gin.Context)   { handlers.HandleRegister(c) }
 func handleUnregister(c *gin.Context) { handlers.HandleUnregister(c) }
@@ -725,125 +747,163 @@ func registerPluginRoutes(rg *gin.RouterGroup) {
 
 // System handler bridges
 func handleSystemLs(c *gin.Context)          { handlers.HandleSystemLs(c) }
-func handleFilePreview(c *gin.Context)        { handlers.HandleFilePreview(c) }
-func handleFilePreviewStream(c *gin.Context)  { handlers.HandleFilePreviewStream(c) }
-func handleFileHex(c *gin.Context)            { handlers.HandleFileHex(c) }
-func handleFileELF(c *gin.Context)            { handlers.HandleFileELF(c) }
-func handleSystemHome(c *gin.Context)         { handlers.HandleSystemHome(c) }
-func handleDownload(c *gin.Context)           { handlers.HandleDownload(c) }
-func handleUpload(c *gin.Context)             { handlers.HandleUpload(c) }
-func handleRun(c *gin.Context)                { handlers.HandleRun(c) }
-func handleSystemdServices(c *gin.Context)    { handlers.HandleSystemdServices(c) }
-func handleSystemdControl(c *gin.Context)     { handlers.HandleSystemdControl(c) }
-func handleSystemdLogs(c *gin.Context)        { handlers.HandleSystemdLogs(c) }
-func handleTrackedComms(c *gin.Context)       { handlers.HandleTrackedComms(c) }
-func handleProcessSignal(c *gin.Context)      { handlers.HandleProcessSignal(c) }
-func handleProcessMaps(c *gin.Context)        { handlers.HandleProcessMaps(c) }
+func handleFilePreview(c *gin.Context)       { handlers.HandleFilePreview(c) }
+func handleFilePreviewStream(c *gin.Context) { handlers.HandleFilePreviewStream(c) }
+func handleFileHex(c *gin.Context)           { handlers.HandleFileHex(c) }
+func handleFileELF(c *gin.Context)           { handlers.HandleFileELF(c) }
+func handleSystemHome(c *gin.Context)        { handlers.HandleSystemHome(c) }
+func handleDownload(c *gin.Context)          { handlers.HandleDownload(c) }
+func handleUpload(c *gin.Context)            { handlers.HandleUpload(c) }
+func handleRun(c *gin.Context)               { handlers.HandleRun(c) }
+func handleSystemdServices(c *gin.Context)   { handlers.HandleSystemdServices(c) }
+func handleSystemdControl(c *gin.Context)    { handlers.HandleSystemdControl(c) }
+func handleSystemdLogs(c *gin.Context)       { handlers.HandleSystemdLogs(c) }
+func handleTrackedComms(c *gin.Context)      { handlers.HandleTrackedComms(c) }
+func handleProcessSignal(c *gin.Context)     { handlers.HandleProcessSignal(c) }
+func handleProcessMaps(c *gin.Context)       { handlers.HandleProcessMaps(c) }
 
 // Config handler bridges
-func handleConfigTagsGet(c *gin.Context)            { handlers.HandleConfigTagsGet(c) }
-func handleConfigTagsPost(c *gin.Context)            { handlers.HandleConfigTagsPost(c) }
-func handleConfigCommsGet(c *gin.Context)            { handlers.HandleConfigCommsGet(c) }
-func handleConfigCommsPost(c *gin.Context)            { handlers.HandleConfigCommsPost(c) }
-func handleConfigCommsDelete(c *gin.Context)         { handlers.HandleConfigCommsDelete(c) }
-func handleConfigCommsDisable(c *gin.Context)        { handlers.HandleConfigCommsDisable(c) }
-func handleConfigCommsEnable(c *gin.Context)         { handlers.HandleConfigCommsEnable(c) }
-func handleConfigEventTypesGet(c *gin.Context)        { handlers.HandleConfigEventTypesGet(c) }
-func handleConfigEventTypeDisable(c *gin.Context)     { handlers.HandleConfigEventTypeDisable(c) }
-func handleConfigEventTypeEnable(c *gin.Context)      { handlers.HandleConfigEventTypeEnable(c) }
-func handleConfigPathsGet(c *gin.Context)             { handlers.HandleConfigPathsGet(c) }
-func handleConfigPathsPost(c *gin.Context)            { handlers.HandleConfigPathsPost(c) }
-func handleConfigPathsDelete(c *gin.Context)          { handlers.HandleConfigPathsDelete(c) }
-func handleConfigPrefixesGet(c *gin.Context)          { handlers.HandleConfigPrefixesGet(c) }
-func handleConfigPrefixesPost(c *gin.Context)          { handlers.HandleConfigPrefixesPost(c) }
-func handleConfigPrefixesDelete(c *gin.Context)       { handlers.HandleConfigPrefixesDelete(c) }
-func handleConfigRulesGet(c *gin.Context)             { handlers.HandleConfigRulesGet(c) }
-func handleConfigRulesPost(c *gin.Context)            { handlers.HandleConfigRulesPost(c) }
-func handleConfigRulesDelete(c *gin.Context)          { handlers.HandleConfigRulesDelete(c) }
-func handleMLStatusGet(c *gin.Context)                { handlers.HandleMLStatusGet(c) }
-func handleMLLogsGet(c *gin.Context)                   { handlers.HandleMLLogsGet(c) }
-func handleMLTrainCancelPost(c *gin.Context)           { handlers.HandleMLTrainCancelPost(c) }
-func handleMLHistoryGet(c *gin.Context)                 { handlers.HandleMLHistoryGet(c) }
-func handleMLTrainPost(c *gin.Context)                  { handlers.HandleMLTrainPost(c) }
-func handleMLFeedbackPost(c *gin.Context)               { handlers.HandleMLFeedbackPost(c) }
-func handleMLSamplesGet(c *gin.Context)                 { handlers.HandleMLSamplesGet(c) }
-func handleMLSampleLabelPut(c *gin.Context)             { handlers.HandleMLSampleLabelPut(c) }
-func handleMLSampleDelete(c *gin.Context)               { handlers.HandleMLSampleDelete(c) }
-func handleMLSampleAnomalyPut(c *gin.Context)           { handlers.HandleMLSampleAnomalyPut(c) }
-func handleMLSamplesPost(c *gin.Context)                { handlers.HandleMLSamplesPost(c) }
-func handleMLTunePost(c *gin.Context)                 { autotuneTunePost(c) }
-func handleMLTuneModelsPost(c *gin.Context)          { autotuneTuneModelsPost(c) }
-func handleMLBacktestPost(c *gin.Context)               { handlers.HandleMLBacktestPost(c) }
+func handleConfigTagsGet(c *gin.Context)          { handlers.HandleConfigTagsGet(c) }
+func handleConfigTagsPost(c *gin.Context)         { handlers.HandleConfigTagsPost(c) }
+func handleConfigCommsGet(c *gin.Context)         { handlers.HandleConfigCommsGet(c) }
+func handleConfigCommsPost(c *gin.Context)        { handlers.HandleConfigCommsPost(c) }
+func handleConfigCommsDelete(c *gin.Context)      { handlers.HandleConfigCommsDelete(c) }
+func handleConfigCommsDisable(c *gin.Context)     { handlers.HandleConfigCommsDisable(c) }
+func handleConfigCommsEnable(c *gin.Context)      { handlers.HandleConfigCommsEnable(c) }
+func handleConfigEventTypesGet(c *gin.Context)    { handlers.HandleConfigEventTypesGet(c) }
+func handleConfigEventTypeDisable(c *gin.Context) { handlers.HandleConfigEventTypeDisable(c) }
+func handleConfigEventTypeEnable(c *gin.Context)  { handlers.HandleConfigEventTypeEnable(c) }
+func handleConfigPathsGet(c *gin.Context)         { handlers.HandleConfigPathsGet(c) }
+func handleConfigPathsPost(c *gin.Context)        { handlers.HandleConfigPathsPost(c) }
+func handleConfigPathsDelete(c *gin.Context)      { handlers.HandleConfigPathsDelete(c) }
+func handleConfigPrefixesGet(c *gin.Context)      { handlers.HandleConfigPrefixesGet(c) }
+func handleConfigPrefixesPost(c *gin.Context)     { handlers.HandleConfigPrefixesPost(c) }
+func handleConfigPrefixesDelete(c *gin.Context)   { handlers.HandleConfigPrefixesDelete(c) }
+func handleConfigRulesGet(c *gin.Context)         { handlers.HandleConfigRulesGet(c) }
+func handleConfigRulesPost(c *gin.Context)        { handlers.HandleConfigRulesPost(c) }
+func handleConfigRulesDelete(c *gin.Context)      { handlers.HandleConfigRulesDelete(c) }
+func handleMLStatusGet(c *gin.Context)            { handlers.HandleMLStatusGet(c) }
+func handleMLLogsGet(c *gin.Context)              { handlers.HandleMLLogsGet(c) }
+func handleMLTrainCancelPost(c *gin.Context)      { handlers.HandleMLTrainCancelPost(c) }
+func handleMLHistoryGet(c *gin.Context)           { handlers.HandleMLHistoryGet(c) }
+func handleMLTrainPost(c *gin.Context)            { handlers.HandleMLTrainPost(c) }
+func handleMLFeedbackPost(c *gin.Context)         { handlers.HandleMLFeedbackPost(c) }
+func handleMLSamplesGet(c *gin.Context)           { handlers.HandleMLSamplesGet(c) }
+func handleMLSampleLabelPut(c *gin.Context)       { handlers.HandleMLSampleLabelPut(c) }
+func handleMLSampleDelete(c *gin.Context)         { handlers.HandleMLSampleDelete(c) }
+func handleMLSampleAnomalyPut(c *gin.Context)     { handlers.HandleMLSampleAnomalyPut(c) }
+func handleMLSamplesPost(c *gin.Context)          { handlers.HandleMLSamplesPost(c) }
+func handleMLTunePost(c *gin.Context)             { autotuneTunePost(c) }
+func handleMLTuneModelsPost(c *gin.Context)       { autotuneTuneModelsPost(c) }
+func handleMLBacktestPost(c *gin.Context)         { handlers.HandleMLBacktestPost(c) }
+
 // Command safety bridges — delegate to fat-bridge Deps closures
 func handleMLAssessPost(c *gin.Context)          { handlers.Deps.MLAssessCommandSafety(c) }
-func handleMLExistingCommandsGet(c *gin.Context)  { handlers.Deps.MLExistingCommandsGetFn(c) }
-func handleMLImportExistingPost(c *gin.Context)   { handlers.Deps.MLImportExistingFn(c) }
-func handleConfigExportGet(c *gin.Context)             { handlers.HandleConfigExportGet(c) }
-func handleConfigImportPost(c *gin.Context)             { handlers.HandleConfigImportPost(c) }
-func handleConfigRuntimeGet(c *gin.Context)              { handlers.HandleConfigRuntimeGet(c) }
-func handleConfigRuntimePut(c *gin.Context)              { handlers.HandleConfigRuntimePut(c) }
-func handleConfigAccessTokenPost(c *gin.Context)          { handlers.HandleConfigAccessTokenPost(c) }
+func handleMLExistingCommandsGet(c *gin.Context) { handlers.Deps.MLExistingCommandsGetFn(c) }
+func handleMLImportExistingPost(c *gin.Context)  { handlers.Deps.MLImportExistingFn(c) }
+func handleConfigExportGet(c *gin.Context)       { handlers.HandleConfigExportGet(c) }
+func handleConfigImportPost(c *gin.Context)      { handlers.HandleConfigImportPost(c) }
+func handleConfigRuntimeGet(c *gin.Context)      { handlers.HandleConfigRuntimeGet(c) }
+func handleConfigRuntimePut(c *gin.Context)      { handlers.HandleConfigRuntimePut(c) }
+func handleConfigAccessTokenPost(c *gin.Context) { handlers.HandleConfigAccessTokenPost(c) }
 
-func registerSystemRoutes(rg *gin.RouterGroup) {
+func registerSystemRoutes(rg *gin.RouterGroup, _ ...*FeatureRegistry) {
+	syncHandlerDeps()
 	handlers.RegisterSystemRoutes(rg)
+	rg.GET("/features", handleSystemFeatures)
 }
 
 // Hardware handler bridges (camera, microphone, sensors)
-func handleSensors(c *gin.Context)           { handlers.HandleSensors(c) }
-func handleCameras(c *gin.Context)            { handlers.HandleCameras(c) }
-func handleCameraSnapshot(c *gin.Context)     { handlers.HandleCameraSnapshot(c) }
-func handleMicrophones(c *gin.Context)        { handlers.HandleMicrophones(c) }
-func serveCameraWS(c *gin.Context)            { handlers.ServeCameraWS(c) }
-func serveSensorsWS(c *gin.Context)           { handlers.ServeSensorsWS(c) }
-func serveMicrophoneWS(c *gin.Context)        { handlers.ServeMicrophoneWS(c) }
+func handleSensors(c *gin.Context)        { handlers.HandleSensors(c) }
+func handleCameras(c *gin.Context)        { handlers.HandleCameras(c) }
+func handleCameraSnapshot(c *gin.Context) { handlers.HandleCameraSnapshot(c) }
+func handleMicrophones(c *gin.Context)    { handlers.HandleMicrophones(c) }
+func serveCameraWS(c *gin.Context)        { handlers.ServeCameraWS(c) }
+func serveSensorsWS(c *gin.Context)       { handlers.ServeSensorsWS(c) }
+func serveMicrophoneWS(c *gin.Context)    { handlers.ServeMicrophoneWS(c) }
 
 // System stats bridge
 func serveSystemStatsWS(c *gin.Context) { handlers.ServeSystemStatsWS(c) }
 
 // Hooks config bridges
 func handleConfigHooksList(c *gin.Context)    { handlers.HandleConfigHooksList(c) }
-func handleConfigHooksInstall(c *gin.Context)  { handlers.HandleConfigHooksInstall(c) }
-func handleConfigHooksRawGet(c *gin.Context)   { handlers.HandleConfigHooksRawGet(c) }
-func handleConfigHooksRawPost(c *gin.Context)  { handlers.HandleConfigHooksRawPost(c) }
+func handleConfigHooksInstall(c *gin.Context) { handlers.HandleConfigHooksInstall(c) }
+func handleConfigHooksRawGet(c *gin.Context)  { handlers.HandleConfigHooksRawGet(c) }
+func handleConfigHooksRawPost(c *gin.Context) { handlers.HandleConfigHooksRawPost(c) }
 
 // Network enrichment bridges
-func handleNetworkFlows(c *gin.Context)            { handlers.HandleNetworkFlows(c) }
-func handleNetworkFlowByID(c *gin.Context)          { handlers.HandleNetworkFlowByID(c) }
-func handleTCPState(c *gin.Context)                  { handlers.HandleTCPState(c) }
-func handleNetworkAnalyze(c *gin.Context)            { handlers.HandleNetworkAnalyze(c) }
-func handleGeoIPLookup(c *gin.Context)               { handlers.HandleGeoIPLookup(c) }
-func handleDNSLookup(c *gin.Context)                  { handlers.HandleDNSLookup(c) }
-func handleDNSCache(c *gin.Context)                   { handlers.HandleDNSCache(c) }
-func handleNetworkInterfaces(c *gin.Context)          { handlers.HandleNetworkInterfaces(c) }
-func handleNetworkFlowJSONLExport(c *gin.Context)     { handlers.HandleNetworkFlowJSONLExport(c) }
+func syncHandlerDeps() {
+	handlers.Deps.RuntimeSettings = runtimeSettingsStore
+	handlers.Deps.EventArchiveClear = capturedEventArchive.Clear
+	handlers.Deps.AgentSightEventsClear = agentSightUploadedEvents.Clear
+	handlers.Deps.AgentSightUploadedEvents = &agentSightStoreAdapter{store: agentSightUploadedEvents}
+	handlers.Deps.NetworkFlowAggregator = networkFlowAggregator
+	handlers.Deps.TCPTracker = tcpTracker
+	handlers.Deps.DNSCorrelation = dnsCorrelation
+}
+
+func handleNetworkFlows(c *gin.Context) {
+	syncHandlerDeps()
+	handlers.HandleNetworkFlows(c)
+}
+func handleNetworkFlowByID(c *gin.Context) {
+	syncHandlerDeps()
+	handlers.HandleNetworkFlowByID(c)
+}
+func handleTCPState(c *gin.Context)       { handlers.HandleTCPState(c) }
+func handleNetworkAnalyze(c *gin.Context) { handlers.HandleNetworkAnalyze(c) }
+func handleGeoIPLookup(c *gin.Context)    { handlers.HandleGeoIPLookup(c) }
+func handleDNSLookup(c *gin.Context) {
+	syncHandlerDeps()
+	handlers.HandleDNSLookup(c)
+}
+func handleDNSCache(c *gin.Context) {
+	syncHandlerDeps()
+	handlers.HandleDNSCache(c)
+}
+func handleNetworkInterfaces(c *gin.Context) { handlers.HandleNetworkInterfaces(c) }
+func handleNetworkFlowJSONLExport(c *gin.Context) {
+	syncHandlerDeps()
+	handlers.HandleNetworkFlowJSONLExport(c)
+}
 
 // External API bridges
-func handleExternalAPIHealth(c *gin.Context) { handlers.HandleExternalAPIHealth(c) }
+func handleExternalAPIHealth(c *gin.Context) {
+	syncHandlerDeps()
+	handlers.HandleExternalAPIHealth(c)
+}
 func handleExternalAPIOpenAPI(c *gin.Context) { handlers.HandleExternalAPIOpenAPI(c) }
-func buildExternalOpenAPISpec() *openapi3.T  { return handlers.BuildExternalOpenAPISpec() }
+func buildExternalOpenAPISpec() *openapi3.T   { return handlers.BuildExternalOpenAPISpec() }
 
 // LSM enforcer bridges
-func handleLsmEnforcerStatus(c *gin.Context)     { handlers.HandleLsmEnforcerStatus(c) }
-func handleLsmBlockExecPath(c *gin.Context)      { handlers.HandleLsmBlockExecPath(c) }
-func handleLsmUnblockExecPath(c *gin.Context)    { handlers.HandleLsmUnblockExecPath(c) }
-func handleLsmBlockExecName(c *gin.Context)      { handlers.HandleLsmBlockExecName(c) }
-func handleLsmUnblockExecName(c *gin.Context)    { handlers.HandleLsmUnblockExecName(c) }
-func handleLsmBlockFileName(c *gin.Context)      { handlers.HandleLsmBlockFileName(c) }
-func handleLsmUnblockFileName(c *gin.Context)    { handlers.HandleLsmUnblockFileName(c) }
+func handleLsmEnforcerStatus(c *gin.Context)  { handlers.HandleLsmEnforcerStatus(c) }
+func handleLsmBlockExecPath(c *gin.Context)   { handlers.HandleLsmBlockExecPath(c) }
+func handleLsmUnblockExecPath(c *gin.Context) { handlers.HandleLsmUnblockExecPath(c) }
+func handleLsmBlockExecName(c *gin.Context)   { handlers.HandleLsmBlockExecName(c) }
+func handleLsmUnblockExecName(c *gin.Context) { handlers.HandleLsmUnblockExecName(c) }
+func handleLsmBlockFileName(c *gin.Context)   { handlers.HandleLsmBlockFileName(c) }
+func handleLsmUnblockFileName(c *gin.Context) { handlers.HandleLsmUnblockFileName(c) }
 
 // Cgroup sandbox bridges
 func handleCgroupSandboxStatus(c *gin.Context)        { handlers.HandleCgroupSandboxStatus(c) }
-func handleCgroupSandboxBlockCgroup(c *gin.Context)    { handlers.HandleCgroupSandboxBlockCgroup(c) }
-func handleCgroupSandboxUnblockCgroup(c *gin.Context)  { handlers.HandleCgroupSandboxUnblockCgroup(c) }
-func handleCgroupSandboxBlockPID(c *gin.Context)       { handlers.HandleCgroupSandboxBlockPID(c) }
-func handleCgroupSandboxUnblockPID(c *gin.Context)     { handlers.HandleCgroupSandboxUnblockPID(c) }
-func handleCgroupSandboxBlockIP(c *gin.Context)        { handlers.HandleCgroupSandboxBlockIP(c) }
-func handleCgroupSandboxUnblockIP(c *gin.Context)      { handlers.HandleCgroupSandboxUnblockIP(c) }
-func handleCgroupSandboxBlockPort(c *gin.Context)      { handlers.HandleCgroupSandboxBlockPort(c) }
-func handleCgroupSandboxUnblockPort(c *gin.Context)    { handlers.HandleCgroupSandboxUnblockPort(c) }
+func handleCgroupSandboxBlockCgroup(c *gin.Context)   { handlers.HandleCgroupSandboxBlockCgroup(c) }
+func handleCgroupSandboxUnblockCgroup(c *gin.Context) { handlers.HandleCgroupSandboxUnblockCgroup(c) }
+func handleCgroupSandboxBlockPID(c *gin.Context)      { handlers.HandleCgroupSandboxBlockPID(c) }
+func handleCgroupSandboxUnblockPID(c *gin.Context)    { handlers.HandleCgroupSandboxUnblockPID(c) }
+func handleCgroupSandboxBlockIP(c *gin.Context)       { handlers.HandleCgroupSandboxBlockIP(c) }
+func handleCgroupSandboxUnblockIP(c *gin.Context)     { handlers.HandleCgroupSandboxUnblockIP(c) }
+func handleCgroupSandboxBlockPort(c *gin.Context)     { handlers.HandleCgroupSandboxBlockPort(c) }
+func handleCgroupSandboxUnblockPort(c *gin.Context)   { handlers.HandleCgroupSandboxUnblockPort(c) }
 
 // Native hook bridge
 func handleNativeHookEvent(c *gin.Context) { handlers.HandleNativeHookEvent(c) }
+func extractNativeHookPath(toolInput map[string]interface{}) string {
+	return handlers.ExtractNativeHookPath(toolInput)
+}
+func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolName string) string {
+	return handlers.BuildNativeHookExtraInfo(payload, hookEvent, toolName)
+}
+func digestHookText(text string) string { return handlers.DigestHookText(text) }
 
 // ML WebSocket bridge
 func serveMLStatusWS(c *gin.Context) { handlers.ServeMLStatusWS(c) }
@@ -854,32 +914,42 @@ func handleSystemFeatures(c *gin.Context) { handlers.HandleSystemFeatures(c) }
 // Shell session bridges
 func serveShellWS(c *gin.Context)                { handlers.ServeShellWS(c) }
 func serveShellSessionsWS(c *gin.Context)        { handlers.ServeShellSessionsWS(c) }
-func handleCreateShellSession(c *gin.Context)      { handlers.HandleCreateShellSession(c) }
-func handleListShellSessions(c *gin.Context)       { handlers.HandleListShellSessions(c) }
-func handleDeleteShellSession(c *gin.Context)      { handlers.HandleDeleteShellSession(c) }
-func handleSendShellSessionInput(c *gin.Context)   { handlers.HandleSendShellSessionInput(c) }
-func handleShellSessionsCleanup(c *gin.Context)    { handlers.HandleShellSessionsCleanup(c) }
+func handleCreateShellSession(c *gin.Context)    { handlers.HandleCreateShellSession(c) }
+func handleListShellSessions(c *gin.Context)     { handlers.HandleListShellSessions(c) }
+func handleDeleteShellSession(c *gin.Context)    { handlers.HandleDeleteShellSession(c) }
+func handleSendShellSessionInput(c *gin.Context) { handlers.HandleSendShellSessionInput(c) }
+func handleShellSessionsCleanup(c *gin.Context)  { handlers.HandleShellSessionsCleanup(c) }
 
 // AgentSight bridges
 func handleAgentSightEvents(tlsStore *TLSCaptureStore, forceJSONL bool) gin.HandlerFunc {
+	syncHandlerDeps()
 	return handlers.HandleAgentSightEvents(tlsStore, forceJSONL)
 }
 func handleAgentSightEventsQuery(tlsStore *TLSCaptureStore) gin.HandlerFunc {
+	syncHandlerDeps()
 	return handlers.HandleAgentSightEventsQuery(tlsStore)
 }
 func handleAgentSightEventsStream(tlsStore *TLSCaptureStore) gin.HandlerFunc {
+	syncHandlerDeps()
 	return handlers.HandleAgentSightEventsStream(tlsStore)
 }
 func handleAgentSightRunnerStream(tlsStore *TLSCaptureStore) gin.HandlerFunc {
+	syncHandlerDeps()
 	return handlers.HandleAgentSightRunnerStream(tlsStore)
 }
-func handleAgentSightEventsUpload(c *gin.Context)                { handlers.HandleAgentSightEventsUpload(c) }
+func handleAgentSightEventsUpload(c *gin.Context) {
+	syncHandlerDeps()
+	handlers.HandleAgentSightEventsUpload(c)
+}
 func handleAgentSightRunners(tlsStore *TLSCaptureStore) gin.HandlerFunc {
+	syncHandlerDeps()
 	return handlers.HandleAgentSightRunners(tlsStore)
 }
 func handleAgentSightEventsStats(tlsStore *TLSCaptureStore, runnerID string) gin.HandlerFunc {
+	syncHandlerDeps()
 	return handlers.HandleAgentSightEventsStats(tlsStore, runnerID)
 }
 func handleAgentSightRunnerStats(tlsStore *TLSCaptureStore) gin.HandlerFunc {
+	syncHandlerDeps()
 	return handlers.HandleAgentSightRunnerStats(tlsStore)
 }

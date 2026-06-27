@@ -11,6 +11,10 @@ type tlsProcessContextAdapter struct {
 	store *events.ProcessContextStore
 }
 
+func NewTLSCaptureStore(max int) *TLSCaptureStore {
+	return tls.NewTLSCaptureStore(max)
+}
+
 func (a *tlsProcessContextAdapter) Get(pid uint32) (tls.ProcessContext, bool) {
 	ctx, ok := a.store.Get(pid)
 	if !ok {
@@ -41,8 +45,8 @@ func (a *tlsProcessContextAdapter) Get(pid uint32) (tls.ProcessContext, bool) {
 func initTLS() {
 	tls.Init(tls.Deps{
 		Broadcast:              broadcast,
-		TrackedProcessContexts:  &tlsProcessContextAdapter{store: trackedProcessContexts},
-		CollectorMetrics:        &collectorMetricsStore,
-		Upgrader:                &upgrader,
+		TrackedProcessContexts: &tlsProcessContextAdapter{store: trackedProcessContexts},
+		CollectorMetrics:       &collectorMetricsStore,
+		Upgrader:               &upgrader,
 	})
 }

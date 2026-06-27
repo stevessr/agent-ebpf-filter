@@ -365,8 +365,11 @@ SEC("uprobe/crypto_tls_Conn_Write")
 int uprobe_crypto_tls_conn_write(struct pt_regs *ctx)
 {
 #if defined(__TARGET_ARCH_x86)
-	const void *buf = (const void *)PT_REGS_PARM2(ctx);
-	__u32 len = (__u32)PT_REGS_PARM3(ctx);
+	// Go internal register ABI (Go 1.17+):
+	//   PARM1=rax(rcvr), PARM2=rbx(slice.ptr), PARM3=rcx(slice.len)
+	// NOT the SysV ABI (rdi/rsi/rdx) used by PT_REGS_PARM* macros.
+	const void *buf = (const void *)ctx->bx;
+	__u32 len = (__u32)ctx->cx;
 #else
 	const void *buf = 0;
 	__u32 len = 0;
@@ -378,7 +381,8 @@ SEC("uprobe/crypto_tls_Conn_Read")
 int uprobe_crypto_tls_conn_read(struct pt_regs *ctx)
 {
 #if defined(__TARGET_ARCH_x86)
-	return save_retprobe_ctx((void *)PT_REGS_PARM2(ctx), 0, (__u32)PT_REGS_PARM3(ctx), TLS_LIB_GO, TLS_DIR_RECV, TLS_FUNC_GO_CONN_READ);
+	// Go internal register ABI: PARM2=rbx(buf.ptr), PARM3=rcx(buf.len)
+	return save_retprobe_ctx((void *)ctx->bx, 0, (__u32)ctx->cx, TLS_LIB_GO, TLS_DIR_RECV, TLS_FUNC_GO_CONN_READ);
 #else
 	return 0;
 #endif

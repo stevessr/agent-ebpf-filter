@@ -1,6 +1,7 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/handlers"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -15,18 +16,10 @@ const (
 	agentSightMaxLimit     = 5000
 )
 
-// agentSightExportEvent is kept in app/ for the store and adapter.
-type agentSightExportEvent struct {
-	ID        string         `json:"id,omitempty"`
-	Timestamp int64          `json:"timestamp"`
-	Source    string         `json:"source"`
-	PID       uint32         `json:"pid"`
-	PPID      uint32         `json:"ppid,omitempty"`
-	Comm      string         `json:"comm"`
-	TraceID   string         `json:"trace_id,omitempty"`
-	SpanID    string         `json:"span_id,omitempty"`
-	Data      map[string]any `json:"data"`
-}
+// Compatibility aliases kept in app/ for the store, adapters, and legacy tests.
+type agentSightExportEvent = handlers.AgentSightExportEvent
+type agentSightRunnerStatus = handlers.AgentSightRunnerStatus
+type agentSightEventsStats = handlers.AgentSightEventsStats
 
 var agentSightUploadedEvents = newAgentSightEventStore(2000)
 
@@ -87,6 +80,7 @@ func (s *agentSightEventStore) Clear() {
 // ── Route registration ──────────────────────────────────────────────
 
 func registerAgentSightRoutes(router gin.IRouter, tlsStore *TLSCaptureStore) {
+	syncHandlerDeps()
 	router.GET("/agentsight/runners", handleAgentSightRunners(tlsStore))
 	router.GET("/agentsight/events", handleAgentSightEvents(tlsStore, false))
 	router.POST("/agentsight/events", handleAgentSightEventsUpload)
@@ -100,6 +94,7 @@ func registerAgentSightRoutes(router gin.IRouter, tlsStore *TLSCaptureStore) {
 }
 
 func registerAgentSightCompatibilityRoutes(router gin.IRouter, tlsStore *TLSCaptureStore) {
+	syncHandlerDeps()
 	router.GET("/runners", handleAgentSightRunners(tlsStore))
 	router.GET("/events", handleAgentSightEvents(tlsStore, true))
 	router.POST("/events", handleAgentSightEventsUpload)

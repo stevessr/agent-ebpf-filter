@@ -19,6 +19,8 @@ type kernelRiskDecision struct {
 	Reasons  []string
 }
 
+type KernelRiskDecision = kernelRiskDecision
+
 func (d kernelRiskDecision) reasonText() string {
 	if len(d.Reasons) == 0 {
 		return ""

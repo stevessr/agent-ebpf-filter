@@ -24,6 +24,14 @@ const (
 	kernelRiskFeedbackKindLSMExecName = "lsm_exec_name"
 )
 
+const (
+	KernelRiskFeedbackKindNetworkIP   = kernelRiskFeedbackKindNetworkIP
+	KernelRiskFeedbackKindNetworkPort = kernelRiskFeedbackKindNetworkPort
+	KernelRiskFeedbackKindLSMFileName = kernelRiskFeedbackKindLSMFileName
+	KernelRiskFeedbackKindLSMExecPath = kernelRiskFeedbackKindLSMExecPath
+	KernelRiskFeedbackKindLSMExecName = kernelRiskFeedbackKindLSMExecName
+)
+
 type kernelRiskFeedbackAction struct {
 	Kind     string
 	Target   string
@@ -31,6 +39,8 @@ type kernelRiskFeedbackAction struct {
 	Decision string
 	Reason   string
 }
+
+type KernelRiskFeedbackAction = kernelRiskFeedbackAction
 
 var (
 	kernelRiskFeedbackQueue      = make(chan kernelRiskFeedbackAction, 256)
@@ -167,6 +177,10 @@ func kernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decisi
 	}
 
 	return actions
+}
+
+func KernelRiskFeedbackActions(settings RuntimeSettings, event *pb.Event, decision KernelRiskDecision) []KernelRiskFeedbackAction {
+	return kernelRiskFeedbackActions(settings, event, decision)
 }
 
 func applyKernelRiskFeedbackAction(action kernelRiskFeedbackAction) error {

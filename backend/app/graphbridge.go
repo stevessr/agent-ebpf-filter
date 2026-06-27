@@ -10,6 +10,11 @@ import (
 
 // ── Graph execution wrappers (migrated to app/events/) ─────────────────────
 
+type ExecutionGraphNode = executiongraph.Node
+type ExecutionGraphEdge = executiongraph.Edge
+type ExecutionGraphResponse = executiongraph.Response
+type executionGraphFilters = executiongraph.Filters
+
 func handleExecutionGraph(c *gin.Context) {
 	events.HandleExecutionGraph(c)
 }

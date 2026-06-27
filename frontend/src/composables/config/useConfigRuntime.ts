@@ -51,6 +51,55 @@ const defaultKernelRiskFeedback = (): KernelRiskFeedbackSettings => ({
   maxActionsPerMinute: 30,
 });
 
+const defaultTracepointBootstrapStatus = (): TracepointBootstrapStatus => ({
+  kernelRelease: "unknown",
+  compiledCount: 0,
+  attachedCount: 0,
+  skippedCount: 0,
+  skippedTracepoints: [],
+  status: "unknown",
+  message: "Tracepoint bootstrap has not been observed yet.",
+});
+
+const toFiniteNumber = (value: unknown, fallback: number) => {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : fallback;
+};
+
+const normalizeTracepointBootstrapStatus = (
+  value?: Partial<TracepointBootstrapStatus>,
+): TracepointBootstrapStatus => {
+  const defaults = defaultTracepointBootstrapStatus();
+  const skippedTracepoints = Array.isArray(value?.skippedTracepoints)
+    ? value.skippedTracepoints.filter(
+        (tracepoint): tracepoint is string => typeof tracepoint === "string",
+      )
+    : [];
+  const validStatuses: TracepointBootstrapStatus["status"][] = [
+    "unknown",
+    "ready",
+    "partial",
+    "error",
+  ];
+  const status = validStatuses.includes(
+    value?.status as TracepointBootstrapStatus["status"],
+  )
+    ? (value?.status as TracepointBootstrapStatus["status"])
+    : defaults.status;
+
+  return {
+    ...defaults,
+    ...value,
+    kernelRelease: value?.kernelRelease || defaults.kernelRelease,
+    compiledCount: toFiniteNumber(value?.compiledCount, defaults.compiledCount),
+    attachedCount: toFiniteNumber(value?.attachedCount, defaults.attachedCount),
+    skippedCount: toFiniteNumber(value?.skippedCount, skippedTracepoints.length),
+    skippedTracepoints,
+    status,
+    message: value?.message || defaults.message,
+  };
+};
+
 const normalizeDomainForwardProxy = (
   value?: Partial<DomainForwardProxySettings>,
 ): DomainForwardProxySettings => {
@@ -131,15 +180,9 @@ export function useConfigRuntime() {
     kernelRiskFeedbackDropped: 0,
     captureHealthy: true,
   });
-  const bootstrapHealth = ref<TracepointBootstrapStatus>({
-    kernelRelease: "unknown",
-    compiledCount: 0,
-    attachedCount: 0,
-    skippedCount: 0,
-    skippedTracepoints: [],
-    status: "unknown",
-    message: "Tracepoint bootstrap has not been observed yet.",
-  });
+  const bootstrapHealth = ref<TracepointBootstrapStatus>(
+    defaultTracepointBootstrapStatus(),
+  );
   const otelHealth = ref<OTelHealthResponse>({
     enabled: false,
     ready: false,
@@ -244,8 +287,9 @@ export function useConfigRuntime() {
       console.error("Failed to fetch runtime config");
     }
     if (bootstrapRes.status === "fulfilled") {
-      bootstrapHealth.value = bootstrapRes.value
-        .data as TracepointBootstrapStatus;
+      bootstrapHealth.value = normalizeTracepointBootstrapStatus(
+        bootstrapRes.value.data as Partial<TracepointBootstrapStatus>,
+      );
     } else {
       console.error("Failed to fetch bootstrap health");
     }
@@ -281,8 +325,9 @@ export function useConfigRuntime() {
         featureManifest.fetchFeatureManifest(),
       ]);
     if (bootstrapRes.status === "fulfilled") {
-      bootstrapHealth.value = bootstrapRes.value
-        .data as TracepointBootstrapStatus;
+      bootstrapHealth.value = normalizeTracepointBootstrapStatus(
+        bootstrapRes.value.data as Partial<TracepointBootstrapStatus>,
+      );
     } else {
       console.error("Failed to fetch bootstrap health");
     }

@@ -9,6 +9,7 @@ import (
 // Bridge functions in handlersbridge.go delegate to them.
 
 func registerExternalAPIRoutes(rg *gin.RouterGroup, args ...any) {
+	syncHandlerDeps()
 	features := newFeatureRegistry()
 	var tlsStore *TLSCaptureStore
 	for _, arg := range args {

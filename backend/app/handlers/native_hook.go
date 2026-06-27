@@ -141,6 +141,10 @@ func extractNativeHookPath(toolInput map[string]interface{}) string {
 	return ""
 }
 
+func ExtractNativeHookPath(toolInput map[string]interface{}) string {
+	return extractNativeHookPath(toolInput)
+}
+
 func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolName string) string {
 	parts := []string{}
 	if trimmed := strings.TrimSpace(hookEvent); trimmed != "" {
@@ -165,6 +169,10 @@ func buildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolNam
 		parts = append(parts, "session_id="+sanitizeExtraInfoValue(sessionID))
 	}
 	return strings.Join(parts, " ")
+}
+
+func BuildNativeHookExtraInfo(payload map[string]interface{}, hookEvent, toolName string) string {
+	return buildNativeHookExtraInfo(payload, hookEvent, toolName)
 }
 
 func extractHookPromptText(payload map[string]interface{}, hookEvent string) string {
@@ -229,6 +237,10 @@ func interfaceString(value interface{}) string {
 func digestHookText(text string) string {
 	sum := sha256.Sum256([]byte(text))
 	return "sha256:" + hex.EncodeToString(sum[:8])
+}
+
+func DigestHookText(text string) string {
+	return digestHookText(text)
 }
 
 func sanitizeExtraInfoValue(value string) string {

@@ -72,10 +72,18 @@ func init() {
 	}
 
 	// Global-object method wrappers
-	events.Deps.BandwidthTrackerRecordBytes = globalBandwidthTracker.RecordBytes
-	events.Deps.TCPTrackerRecordConnect = tcpTracker.RecordConnect
-	events.Deps.TCPTrackerRecordClose = tcpTracker.RecordClose
-	events.Deps.TCPTrackerRecordStateChange = tcpTracker.RecordStateChange
+	events.Deps.BandwidthTrackerRecordBytes = func(srcIP, dstIP string, dstPort uint32, protocol, direction string, byteCount uint64, comm string, pid uint32) {
+		globalBandwidthTracker.RecordBytes(srcIP, dstIP, dstPort, protocol, direction, byteCount, comm, pid)
+	}
+	events.Deps.TCPTrackerRecordConnect = func(srcIP, dstIP string, srcPort, dstPort uint32, pid uint32, comm string) {
+		tcpTracker.RecordConnect(srcIP, dstIP, srcPort, dstPort, pid, comm)
+	}
+	events.Deps.TCPTrackerRecordClose = func(srcIP, dstIP string, srcPort, dstPort uint32) {
+		tcpTracker.RecordClose(srcIP, dstIP, srcPort, dstPort)
+	}
+	events.Deps.TCPTrackerRecordStateChange = func(srcIP, dstIP string, srcPort, dstPort uint32, oldState, newState uint8, pid uint32, comm string) {
+		tcpTracker.RecordStateChange(srcIP, dstIP, srcPort, dstPort, oldState, newState, pid, comm)
+	}
 
 	// ApplyProtocolMetadata takes app's *protoDetectionEntry, not *events.ProtoDetectionEntry.
 	events.Deps.FlowAggregatorApplyProtocolMetadata = func(srcIP, dstIP string, srcPort, dstPort uint32, protocol string, entry *events.ProtoDetectionEntry) {
@@ -91,7 +99,9 @@ func init() {
 			HTTPMethod:  entry.HTTPMethod,
 		})
 	}
-	events.Deps.DNSCorrelationLookupIP = dnsCorrelation.LookupIP
+	events.Deps.DNSCorrelationLookupIP = func(ip string) (string, bool) {
+		return dnsCorrelation.LookupIP(ip)
+	}
 
 	// Graph execution / envelope event dependencies
 	events.Deps.Upgrader = &upgrader

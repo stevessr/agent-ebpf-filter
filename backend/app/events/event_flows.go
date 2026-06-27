@@ -1,6 +1,7 @@
 package events
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 
@@ -61,8 +62,8 @@ func RecordUDPFlowFromEvent(event BpfEvent, out *pb.Event) {
 	}
 	Deps.RecordNetworkFlowContextFromEvent(srcIP, dstIP, srcPort, dstPort, out, "")
 	PopulateEventFlowFields(out, srcIP, dstIP, srcPort, dstPort, "UDP")
-	if extraPath := SanitizeUTF8(event.Extra4[:]); len(extraPath) > 4 {
-		entry := Deps.DetectAndRecordProtocol(remote, dstPort, []byte(extraPath))
+	if payload := bytes.TrimRight(event.Extra4[:], "\x00"); len(payload) > 4 {
+		entry := Deps.DetectAndRecordProtocol(remote, dstPort, payload)
 		Deps.FlowAggregatorApplyProtocolMetadata(srcIP, dstIP, srcPort, dstPort, "UDP", entry)
 		ApplyProtocolMetadataToEvent(out, entry)
 	}

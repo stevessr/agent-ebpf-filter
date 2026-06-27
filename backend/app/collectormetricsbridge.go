@@ -19,6 +19,11 @@ type CollectorHealthResponse = observability.CollectorHealthResponse
 // collectorMetricsSnapshot is used by events__attribution_cgroup.go for
 // collector rate-limit hint computation.
 type collectorMetricsSnapshot = observability.CollectorMetricsSnapshot
+type collectorMetricsState = observability.CollectorMetricsState
+
+func newCollectorMetricsState() *collectorMetricsState {
+	return observability.NewCollectorMetricsState()
+}
 
 // stringsTrimDefault is used by kernel_risk.go and kernel_risk_feedback.go
 // in the app package. It is defined in observability/ but needed here.

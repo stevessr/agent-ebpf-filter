@@ -16,7 +16,7 @@ type TracepointBootstrapStatus struct {
 	CompiledCount      int       `json:"compiledCount"`
 	AttachedCount      int       `json:"attachedCount"`
 	SkippedCount       int       `json:"skippedCount"`
-	SkippedTracepoints []string  `json:"skippedTracepoints,omitempty"`
+	SkippedTracepoints []string  `json:"skippedTracepoints"`
 	Status             string    `json:"status"`
 	Message            string    `json:"message"`
 	ObservedAt         time.Time `json:"observedAt"`
@@ -29,7 +29,12 @@ type tracepointBootstrapState struct {
 
 func newTracepointBootstrapState() *tracepointBootstrapState {
 	return &tracepointBootstrapState{
-		status: TracepointBootstrapStatus{Status: "unknown", Message: "Tracepoint bootstrap has not been observed yet."},
+		status: TracepointBootstrapStatus{
+			KernelRelease:      currentKernelRelease(),
+			SkippedTracepoints: []string{},
+			Status:             "unknown",
+			Message:            "Tracepoint bootstrap has not been observed yet.",
+		},
 	}
 }
 
@@ -46,12 +51,13 @@ func currentKernelRelease() string {
 
 func buildTracepointBootstrapStatus(compiledCount int, skipped []string) TracepointBootstrapStatus {
 	status := TracepointBootstrapStatus{
-		KernelRelease: currentKernelRelease(),
-		CompiledCount: compiledCount,
-		AttachedCount: compiledCount - len(skipped),
-		SkippedCount:  len(skipped),
-		Status:        "ready",
-		ObservedAt:    time.Now().UTC(),
+		KernelRelease:      currentKernelRelease(),
+		CompiledCount:      compiledCount,
+		AttachedCount:      compiledCount - len(skipped),
+		SkippedCount:       len(skipped),
+		SkippedTracepoints: []string{},
+		Status:             "ready",
+		ObservedAt:         time.Now().UTC(),
 	}
 
 	if status.AttachedCount < 0 {
@@ -95,6 +101,11 @@ func SnapshotBootstrapTracepointStatus() TracepointBootstrapStatus {
 	status := bootstrapTracepointStatusStore.status
 	if len(status.SkippedTracepoints) > 0 {
 		status.SkippedTracepoints = append([]string(nil), status.SkippedTracepoints...)
+	} else {
+		status.SkippedTracepoints = []string{}
+	}
+	if status.KernelRelease == "" {
+		status.KernelRelease = currentKernelRelease()
 	}
 	return status
 }

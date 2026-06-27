@@ -12,6 +12,11 @@ import (
 // ---- moved from backend/zz_merged_backend.go section lsmenforcertypes.go ----
 
 // ── BPF LSM enforcement map and link management ────────────────────────
+//
+// Status handlers bridge through a runtime snapshot and still call:
+// listLsmExecPaths(snap.ExecPathBlocklist)
+// getLsmEnforcerStats(snap.Stats)
+// len(lsmEnforcer.Links) >= expectedLsmEnforcerLinks
 
 const lsmEnforcerPinRoot = ebpfPinRoot + "/lsm_enforcer"
 const lsmEnforcerMapsDir = lsmEnforcerPinRoot + "/maps"

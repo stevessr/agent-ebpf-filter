@@ -79,6 +79,8 @@ type collectorMetricsState struct {
 	kernelRiskFeedbackLastError string
 }
 
+type CollectorMetricsState = collectorMetricsState
+
 const maxCollectorPIDSeries = 512
 
 func newCollectorMetricsState() *collectorMetricsState {
@@ -87,6 +89,10 @@ func newCollectorMetricsState() *collectorMetricsState {
 		eventsByPIDTotal:        make(map[collectorPIDKey]uint64),
 		agentSightCountersTotal: make(map[string]uint64),
 	}
+}
+
+func NewCollectorMetricsState() *CollectorMetricsState {
+	return newCollectorMetricsState()
 }
 
 var collectorMetricsStore = newCollectorMetricsState()
@@ -158,6 +164,10 @@ func (s *collectorMetricsState) recordRingbufDecode(zeroCopy bool) {
 	s.mu.Unlock()
 }
 
+func (s *collectorMetricsState) RecordRingbufDecode(zeroCopy bool) {
+	s.recordRingbufDecode(zeroCopy)
+}
+
 func RecordKernelRiskDecision(decision string, duration time.Duration) {
 	collectorMetricsStore.recordKernelRiskDecision(decision, duration)
 }
@@ -173,6 +183,10 @@ func (s *collectorMetricsState) recordKernelRiskDecision(decision string, durati
 		s.kernelRiskBlocksTotal++
 	}
 	s.mu.Unlock()
+}
+
+func (s *collectorMetricsState) RecordKernelRiskDecision(decision string, duration time.Duration) {
+	s.recordKernelRiskDecision(decision, duration)
 }
 
 func RecordKernelRiskFeedback(applied bool, err error) {
@@ -191,6 +205,10 @@ func (s *collectorMetricsState) recordKernelRiskFeedback(applied bool, err error
 		}
 	}
 	s.mu.Unlock()
+}
+
+func (s *collectorMetricsState) RecordKernelRiskFeedback(applied bool, err error) {
+	s.recordKernelRiskFeedback(applied, err)
 }
 
 func (s *collectorMetricsState) rawSnapshot() CollectorMetricsSnapshot {
@@ -226,6 +244,10 @@ func (s *collectorMetricsState) rawSnapshot() CollectorMetricsSnapshot {
 	}
 }
 
+func (s *collectorMetricsState) Snapshot() CollectorMetricsSnapshot {
+	return s.rawSnapshot()
+}
+
 func GetCollectorHealthSnapshot() CollectorHealthResponse {
 	return collectorMetricsStore.snapshot()
 }
@@ -258,12 +280,22 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 		eventsByPID[fmt.Sprintf("%d:%s", key.PID, key.Comm)] = raw.EventsByPIDTotal[key]
 	}
 
-	deps.ClientsMu.Lock()
-	legacyWSClients := len(deps.Clients)
-	deps.ClientsMu.Unlock()
-	deps.EnvelopeClientsMu.Lock()
-	envelopeWSClients := len(deps.EnvelopeClients)
-	deps.EnvelopeClientsMu.Unlock()
+	legacyWSClients := 0
+	if deps.ClientsMu != nil {
+		deps.ClientsMu.Lock()
+		legacyWSClients = len(deps.Clients)
+		deps.ClientsMu.Unlock()
+	} else if deps.Clients != nil {
+		legacyWSClients = len(deps.Clients)
+	}
+	envelopeWSClients := 0
+	if deps.EnvelopeClientsMu != nil {
+		deps.EnvelopeClientsMu.Lock()
+		envelopeWSClients = len(deps.EnvelopeClients)
+		deps.EnvelopeClientsMu.Unlock()
+	} else if deps.EnvelopeClients != nil {
+		envelopeWSClients = len(deps.EnvelopeClients)
+	}
 
 	agentSightCounters := make(map[string]uint64, len(raw.AgentSightCountersTotal))
 	agentSightKeys := make([]string, 0, len(raw.AgentSightCountersTotal))
@@ -300,6 +332,9 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 }
 
 func loadCollectorStatsSnapshot() (bpfCollectorStats, bool) {
+	if deps.TrackerMaps == nil {
+		return bpfCollectorStats{}, false
+	}
 	collectorStatsMap := deps.TrackerMaps.GetCollectorStats()
 	if collectorStatsMap == nil {
 		return bpfCollectorStats{}, false
