@@ -113,10 +113,30 @@ export interface TCPConnection {
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-// Event caps raised to effectively never drop old messages during normal usage
-const MAX_EVENTS = 100_000;
+// ── Scrollback caps (persisted, 0 = unlimited) ──────────────────────────────
+const STORAGE_KEY_TLS_CAP = "observe-tls-cap";
+const STORAGE_KEY_EVENT_CAP = "observe-event-cap";
+
+const readStoredCap = (key: string, fallback: number): number => {
+  try {
+    const v = localStorage.getItem(key);
+    if (v === null) return fallback;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+  } catch { return fallback; }
+};
+
+const writeStoredCap = (key: string, value: number): void => {
+  try { localStorage.setItem(key, String(value)); } catch { /* ignore */ }
+};
+
+const maxTLS = ref(readStoredCap(STORAGE_KEY_TLS_CAP, 50_000));
+const maxEvents = ref(readStoredCap(STORAGE_KEY_EVENT_CAP, 100_000));
 const MAX_FLOWS = 5_000;
-const MAX_TLS = 50_000;
+
+// capSlice: slice to cap, 0 = unlimited (no slicing)
+const capSlice = <T>(arr: T[], cap: number): T[] =>
+  cap > 0 ? arr.slice(0, cap) : arr;
 
 // Batching: flush events in batches to avoid excessive reactive updates
 let pendingEvents: ObserverEvent[] = [];
@@ -315,7 +335,7 @@ export function useProcessObserver() {
 
     const flushEvents = () => {
       if (pendingEvents.length === 0) return;
-      allEvents.value = [...pendingEvents.reverse(), ...allEvents.value].slice(0, MAX_EVENTS);
+      allEvents.value = capSlice([...pendingEvents.reverse(), ...allEvents.value], maxEvents.value);
       pendingEvents = [];
     };
 
@@ -374,7 +394,7 @@ export function useProcessObserver() {
 
     const flushTLSEvents = () => {
       if (pendingTLSEvents.length === 0) return;
-      tlsEvents.value = [...pendingTLSEvents.reverse(), ...tlsEvents.value].slice(0, MAX_TLS);
+      tlsEvents.value = capSlice([...pendingTLSEvents.reverse(), ...tlsEvents.value], maxTLS.value);
       pendingTLSEvents = [];
     };
 
@@ -519,7 +539,7 @@ export function useProcessObserver() {
           sse_data_digest: ev.sse_data_digest || ev.sseDataDigest || "",
           sse_data_count: ev.sse_data_count || ev.sseDataCount || 0,
         } as ObserverTLSEvent))
-        .slice(0, MAX_TLS);
+        .slice(0, maxTLS.value || 50000);
     } catch {
       /* silent */
     }
@@ -644,5 +664,16 @@ export function useProcessObserver() {
     // SSL attachment
     attachedPIDs,
     fetchAttachedPIDs,
+    // Scrollback caps (0 = unlimited)
+    maxTLS,
+    maxEvents,
+    setTLSCap: (n: number) => {
+      maxTLS.value = n;
+      writeStoredCap(STORAGE_KEY_TLS_CAP, n);
+    },
+    setEventCap: (n: number) => {
+      maxEvents.value = n;
+      writeStoredCap(STORAGE_KEY_EVENT_CAP, n);
+    },
   };
 }

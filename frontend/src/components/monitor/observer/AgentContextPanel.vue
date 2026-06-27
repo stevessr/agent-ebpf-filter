@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   ArrowUpOutlined,
   ArrowDownOutlined,
@@ -305,9 +305,12 @@ const streamGroups = computed(() => {
   const sorted = [...props.events].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
   );
+  // Case-insensitive direction match (backend uses lowercase "send"/"recv")
+  const isSend = (e: ObserverTLSEvent) =>
+    e.direction?.toLowerCase() === "send";
   return {
-    send: buildGroups(sorted.filter((e) => e.direction === "send"), "send"),
-    recv: buildGroups(sorted.filter((e) => e.direction !== "send"), "recv"),
+    send: buildGroups(sorted.filter(isSend), "send"),
+    recv: buildGroups(sorted.filter((e) => !isSend(e)), "recv"),
   };
 });
 
@@ -357,6 +360,18 @@ const buildGroups = (events: ObserverTLSEvent[], dir: "send" | "recv"): MergedGr
         }
       } else if (raw) {
         blocks.push({ type: "request_body", mergedText: raw });
+      } else {
+        // No body available — show HTTP metadata summary
+        const meta = [`${ev.method || 'GET'} ${ev.url || '/'}`];
+        if (ev.host) meta.push(`Host: ${ev.host}`);
+        if (ev.headers && Object.keys(ev.headers).length) {
+          for (const [k, v] of Object.entries(ev.headers)) {
+            if (k !== "host") meta.push(`${k}: ${v}`);
+          }
+        }
+        if (meta.length > 1) {
+          blocks.push({ type: "request_body", mergedText: meta.join("\n") });
+        }
       }
 
       groups.push({
@@ -527,9 +542,47 @@ const formatTime = (ts: string): string => {
 const formatTimeRange = (s: string, e: string): string =>
   s === e ? formatTime(s) : `${formatTime(s)} → ${formatTime(e)}`;
 
-// ── Hide raw mode: only show context blocks + token counts ─────────────────
-const hideRaw = ref(false);
+// ── Hide raw mode (persisted) ────────────────────────────────────────────
+const HIDE_RAW_KEY = "observe-hide-raw";
+const hideRaw = ref(readStoredBool(HIDE_RAW_KEY, false));
 const CONTEXT_BLOCK_TYPES = new Set(["text", "thinking", "tool_use", "tool_result", "request_body", "response_body", "signature", "citations"]);
+
+const readStoredBool = (key: string, fallback: boolean): boolean => {
+  try {
+    const v = localStorage.getItem(key);
+    if (v === null) return fallback;
+    return v === "true" || v === "1";
+  } catch { return fallback; }
+};
+
+// Persist hideRaw
+watch(hideRaw, (v) => {
+  try { localStorage.setItem(HIDE_RAW_KEY, v ? "true" : "false"); } catch { /* ignore */ }
+});
+
+// ── Scrollback cap (synced with composable via localStorage) ──────────────
+const TLS_CAP_KEY = "observe-tls-cap";
+const capPresets = [1000, 5000, 10000, 50000, 0];
+const capOptions = capPresets.map((n) => ({
+  value: n,
+  label: n === 0 ? "∞" : n >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n),
+}));
+
+const tlsCap = ref(readStoredCap(TLS_CAP_KEY, 50000));
+const onCapChange = (v: number) => {
+  tlsCap.value = v;
+  try { localStorage.setItem(TLS_CAP_KEY, String(v)); } catch { /* ignore */ }
+};
+
+// readStoredCap (same key format as composable)
+function readStoredCap(key: string, fallback: number): number {
+  try {
+    const v = localStorage.getItem(key);
+    if (v === null) return fallback;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+  } catch { return fallback; }
+}
 
 // Filter groups when hideRaw is on — keep groups with at least one context block
 const filteredSendGroups = computed(() => {
@@ -594,6 +647,10 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
         <a-switch v-model:checked="hideRaw" size="small" class="ac-hr-switch" />
         <span class="ac-hr-label">Hide raw</span>
         <span v-if="hideRaw && stats.filteredAllCount !== stats.allCount" class="ac-hr-filtered">{{ stats.filteredAllCount }}/{{ stats.allCount }}</span>
+      </div>
+      <div class="ac-stat-item ac-cap-ctl">
+        <span class="ac-cap-label">Scrollback</span>
+        <a-select v-model:value="tlsCap" size="small" style="width:90px" :options="capOptions" @change="onCapChange" />
       </div>
     </div>
 
@@ -709,6 +766,8 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
 .ac-hr-switch{transform:scale(.8)}
 .ac-hr-label{font-size:11px;color:#64748b;font-weight:500;user-select:none}
 .ac-hr-filtered{font-size:10px;color:#0891b2;font-family:ui-monospace,monospace;font-weight:600;background:#ecfeff;padding:0 4px;border-radius:3px}
+.ac-cap-ctl{display:flex;align-items:center;gap:4px;margin-left:auto}
+.ac-cap-label{font-size:10px;color:#94a3b8;font-weight:500;white-space:nowrap}
 .ac-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .ac-col{display:flex;flex-direction:column;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;background:#fafafa}
 .ac-send-col{border-left:3px solid #f59e0b}.ac-recv-col{border-left:3px solid #06b6d4}
