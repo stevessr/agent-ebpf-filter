@@ -85,6 +85,7 @@ export interface ProcessTreeNode {
   user: string;
   cmdline: string;
   children: ProcessTreeNode[];
+  dead: boolean;
 }
 
 export interface NetworkFlow {
@@ -200,7 +201,16 @@ const extractEventType = (event: pb.IEvent): number | undefined => {
     event.eventType !== null &&
     event.eventType !== undefined
   ) {
-    return Number(event.eventType);
+    const val = event.eventType as any;
+    // Binary protobuf: numeric enum value (e.g., 0, 1, 2...)
+    if (typeof val === "number") return val;
+    // JSON: string enum name (e.g., "EXECVE", "OPENAT"...) — map to number
+    if (typeof val === "string") {
+      const num = (pb.EventType as any)[val];
+      if (typeof num === "number") return num;
+      const parsed = parseInt(val, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
   }
   return undefined;
 };
@@ -230,11 +240,31 @@ export function useProcessObserver() {
 
   // ── Process tree ────────────────────────────────────────────────────────
 
-  /** Maps ppid → children, built once from process list */
+  /** Retain snapshots of all PIDs ever seen so dead processes stay in the tree (grayed out). */
+  const staleProcessMap = new Map<number, ProcessInfo>();
+
+  /** Maps ppid → children, built from live + stale process data */
   const processTree = computed<ProcessTreeNode[]>(() => {
     const map = new Map<number, ProcessTreeNode>();
     const roots: ProcessTreeNode[] = [];
+    const livePids = new Set(processes.value.map((p) => p.pid));
 
+    // Seed from stale map (includes live processes, which get overwritten below)
+    for (const p of staleProcessMap.values()) {
+      map.set(p.pid, {
+        pid: p.pid,
+        ppid: p.ppid,
+        name: p.name,
+        cpu: livePids.has(p.pid) ? (p.cpu ?? 0) : 0,
+        mem: livePids.has(p.pid) ? (p.mem ?? 0) : 0,
+        user: p.user,
+        cmdline: p.cmdline,
+        children: [],
+        dead: !livePids.has(p.pid),
+      });
+    }
+
+    // Refresh live processes with current data (overwrites stale entry)
     for (const p of processes.value) {
       map.set(p.pid, {
         pid: p.pid,
@@ -244,10 +274,12 @@ export function useProcessObserver() {
         mem: p.mem ?? 0,
         user: p.user,
         cmdline: p.cmdline,
-        children: [],
+        children: [], // rebuilt below
+        dead: false,
       });
     }
 
+    // Wire up parent-child relationships
     for (const node of map.values()) {
       if (node.ppid && node.ppid !== node.pid && map.has(node.ppid)) {
         map.get(node.ppid)!.children.push(node);
@@ -285,10 +317,21 @@ export function useProcessObserver() {
     () => new Set(collectTreePids(selectedProcessTree.value)),
   );
 
-  /** Flat list of all processes in the selected tree */
-  const treeProcessList = computed<ProcessInfo[]>(() =>
-    processes.value.filter((p) => treePids.value.has(p.pid)),
-  );
+  /** Flat list of all processes in the selected tree (live + dead) */
+  const treeProcessList = computed<ProcessInfo[]>(() => {
+    const result: ProcessInfo[] = [];
+    const livePids = new Set(processes.value.map((p) => p.pid));
+    for (const pid of treePids.value) {
+      const live = processes.value.find((p) => p.pid === pid);
+      if (live) {
+        result.push(live);
+      } else {
+        const stale = staleProcessMap.get(pid);
+        if (stale) result.push(stale);
+      }
+    }
+    return result;
+  });
 
   // ── Filtered event views ─────────────────────────────────────────────────
 
@@ -649,6 +692,12 @@ export function useProcessObserver() {
     tcpConns,
     // Methods
     setProcesses: (p: ProcessInfo[]) => {
+      // Upsert into stale map so dead processes persist in the tree
+      for (const proc of p) {
+        staleProcessMap.set(proc.pid, { ...proc });
+      }
+      // Also remember PIDs that exist in the stale map but are NOT in the incoming list
+      // (they stay in staleProcessMap as-is so the tree can show them grayed out)
       processes.value = p;
     },
     connectAll,

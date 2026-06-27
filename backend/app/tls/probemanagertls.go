@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	bpf "agent-ebpf-filter/ebpf"
 
@@ -694,8 +695,33 @@ func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
 		dir = "send"
 	}
 
+	evType := "tls_plaintext"
+	body := ""
+	contentType := ""
+	hexDump := ""
+
+	// HTTP/2 detection: check for connection preface or frame header magic
+	if len(f.Payload) >= 24 {
+		if isTLSHTTP2Preface(f.Payload) {
+			evType = "http2_preface"
+			hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
+		} else if isTLSHTTP2Frame(f.Payload) {
+			evType = "http2_frame"
+			// Try to extract readable content from HTTP/2 frames
+			body = extractTLSHTTP2BodyText(f.Payload)
+			if body != "" {
+				contentType = "text/plain"
+			}
+			hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
+		}
+	}
+
+	if hexDump == "" && len(f.Payload) > 0 {
+		hexDump = fmt.Sprintf("%x", f.Payload[:min(len(f.Payload), 512)])
+	}
+
 	ev := TLSPlaintextEvent{
-		Type:        "tls_plaintext",
+		Type:        evType,
 		Timestamp:   now,
 		PID:         f.PID,
 		TGID:        f.TGID,
@@ -706,20 +732,106 @@ func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
 		CapturedLen: int(f.TotalLen),
 		OriginalLen: int(f.OriginalLen),
 		Truncated:   f.Flags&tlsFlagTruncated != 0,
-	}
-
-	// Preview first 256 bytes as hex dump
-	if len(f.Payload) > 0 {
-		preview := f.Payload
-		if len(preview) > 256 {
-			preview = preview[:256]
-		}
-		ev.RawHexDump = fmt.Sprintf("%x", preview)
-		ev.RawAvailable = true
-		ev.BodySize = len(f.Payload)
+		RawHexDump:  hexDump,
+		RawAvailable: len(hexDump) > 0,
+		BodySize:    len(f.Payload),
+		Body:        body,
+		ContentType: contentType,
 	}
 
 	return ev
+}
+
+// HTTP/2 connection preface: "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+func isTLSHTTP2Preface(data []byte) bool {
+	return len(data) >= 24 &&
+		data[0] == 0x50 && data[1] == 0x52 && data[2] == 0x49 && // "PRI"
+		data[3] == 0x20 && data[4] == 0x2a && data[5] == 0x20 && // " * "
+		data[6] == 0x48 && data[7] == 0x54 && data[8] == 0x54 && // "HTT"
+		data[9] == 0x50 && data[10] == 0x2f && data[11] == 0x32 // "P/2"
+}
+
+// HTTP/2 frame header: 3 bytes length + 1 byte type (0-9) + 1 byte flags + 4 bytes stream ID (MSB cleared)
+func isTLSHTTP2Frame(data []byte) bool {
+	if len(data) < 9 {
+		return false
+	}
+	// Frame type must be 0x00-0x09 (DATA through CONTINUATION)
+	frameType := data[3]
+	if frameType > 0x09 {
+		return false
+	}
+	// Stream ID top bit must be 0
+	if data[5]&0x80 != 0 {
+		return false
+	}
+	// Frame length should be plausible
+	frameLen := int(data[0])<<16 | int(data[1])<<8 | int(data[2])
+	if frameLen < 0 || frameLen > 16*1024*1024 {
+		return false
+	}
+	// Additional heuristic: if we have a full frame header + some payload,
+	// check that the length isn't wildly larger than the available data
+	if len(data) >= 9 && frameLen > 0 && len(data) < 9+frameLen {
+		// Partial frame — still valid HTTP/2
+		return true
+	}
+	return true
+}
+
+// extractTLSHTTP2BodyText tries to extract readable text from HTTP/2 frames
+// (primarily DATA frame payloads, skipping HEADERS frame HPACK encoding)
+func extractTLSHTTP2BodyText(data []byte) string {
+	if len(data) < 9 {
+		return ""
+	}
+	var textParts []string
+	offset := 0
+	maxFrames := 32 // safety limit
+
+	for frame := 0; frame < maxFrames && offset+9 <= len(data); frame++ {
+		frameLen := int(data[offset])<<16 | int(data[offset+1])<<8 | int(data[offset+2])
+		frameType := data[offset+3]
+		offset += 9
+
+		if offset+frameLen > len(data) {
+			break
+		}
+		if frameLen < 0 {
+			break
+		}
+
+		// DATA frame (0x00): extract payload if it looks like text/JSON
+		if frameType == 0x00 && frameLen > 0 {
+			payload := data[offset : offset+frameLen]
+			// Try as UTF-8 text
+			if utf8.Valid(payload) {
+				trimmed := bytes.TrimSpace(payload)
+				if len(trimmed) > 0 {
+					textParts = append(textParts, string(trimmed))
+				}
+			} else if looksLikeReadable(payload) {
+				textParts = append(textParts, string(payload))
+			}
+		}
+		offset += frameLen
+	}
+
+	return strings.Join(textParts, "\n")
+}
+
+// looksLikeReadable checks if data is mostly printable ASCII
+func looksLikeReadable(data []byte) bool {
+	if len(data) == 0 {
+		return false
+	}
+	printable := 0
+	for _, b := range data {
+		if (b >= 0x20 && b < 0x7f) || b == 0x0a || b == 0x0d || b == 0x09 {
+			printable++
+		}
+	}
+	return float64(printable)/float64(len(data)) > 0.7
 }
 
 func libTypeName(lib uint8) string {

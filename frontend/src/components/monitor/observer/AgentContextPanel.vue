@@ -383,6 +383,52 @@ const buildGroups = (events: ObserverTLSEvent[], dir: "send" | "recv"): MergedGr
       i++; continue;
     }
 
+    // HTTP/2 — connection preface or data frames (non-HTTP/1.1 protocol)
+    if (ev.type === "http2_preface" || ev.type === "http2_frame") {
+      const raw = getRawText(ev);
+      const blocks: ContentBlock[] = [];
+      // For HTTP/2 frames, the backend may have extracted DATA frame body text
+      if (ev.body) {
+        const json = tryParseJSON(ev.body);
+        if (json && typeof json === "object") {
+          const messages = json.messages;
+          if (Array.isArray(messages)) {
+            for (const msg of messages) {
+              const content = msg.content;
+              if (msg.role === "user" && Array.isArray(content)) {
+                for (const item of content) {
+                  if (item.type === "tool_result") {
+                    const resultText = typeof item.content === "string"
+                      ? item.content
+                      : Array.isArray(item.content)
+                        ? item.content.map((c: any) => c.text || JSON.stringify(c)).join("\n")
+                        : formatJSON(item.content || item);
+                    blocks.push({ type: "tool_result", mergedText: resultText, toolId: item.tool_use_id });
+                  }
+                }
+              }
+            }
+          }
+          if (blocks.length === 0) {
+            blocks.push({ type: "request_body", mergedText: formatJSON(json) });
+          }
+        } else if (ev.body) {
+          blocks.push({ type: "request_body", mergedText: ev.body });
+        } else if (raw) {
+          blocks.push({ type: "raw", mergedText: raw.includes("HTTP/2") ? raw : "[HTTP/2 binary — see hex]" });
+        }
+      } else if (raw) {
+        blocks.push({ type: "raw", mergedText: "[HTTP/2 binary — see hex]\n\nRaw hex decode:\n" + raw.slice(0, 500) });
+      }
+      groups.push({
+        id: nextId(), events: [ev],
+        startTime: ev.timestamp, endTime: ev.timestamp,
+        totalSize: ev.body_size || ev.captured_len,
+        contentBlocks: blocks, rawMerged: raw,
+      });
+      i++; continue;
+    }
+
     // HTTP response — individual
     if (ev.type === "http_response") {
       const raw = getRawText(ev);
@@ -497,7 +543,7 @@ const blockIcon = (t: string) => {
   return CodeOutlined;
 };
 const blockLabel = (t: string) => {
-  const m: Record<string,string> = { text:"Text", tool_use:"Tool Use", tool_result:"Tool Result", thinking:"Thinking", signature:"Signature", citations:"Citations", request_body:"Request Body", response_body:"Response Body", raw:"Raw Data", data:"SSE Data" };
+  const m: Record<string,string> = { text:"Text", tool_use:"Tool Use", tool_result:"Tool Result", thinking:"Thinking", signature:"Signature", citations:"Citations", request_body:"Request Body", response_body:"Response Body", raw:"Raw Data", data:"SSE Data", http2_frame:"HTTP/2 Frame", http2_preface:"HTTP/2 Preface" };
   return m[t] || t;
 };
 const blockColor = (t: string) => {
@@ -509,6 +555,8 @@ const firstTypeLabel = (g: MergedGroup): string => {
   if (!ev) return "?";
   if (ev.type === "http_request") return ev.method || "REQ";
   if (ev.type === "http_response") return `HTTP ${ev.status||""}`;
+  if (ev.type === "http2_preface") return "H2 Preface";
+  if (ev.type === "http2_frame") return "H2 Frame";
   // For SSE streams (including raw events with SSE JSON), derive label from content blocks
   if (g.contentBlocks.length > 0) {
     const types = [...new Set(g.contentBlocks.map((b) => blockLabel(b.type)))];
@@ -595,16 +643,33 @@ const filteredRecvGroups = computed(() => {
 });
 
 // ── Stats & state ────────────────────────────────────────────────────────
-const stats = computed(() => ({
-  sendCount: streamGroups.value.send.length,
-  recvCount: streamGroups.value.recv.length,
-  sendBytes: streamGroups.value.send.reduce((s, g) => s + g.totalSize, 0),
-  recvBytes: streamGroups.value.recv.reduce((s, g) => s + g.totalSize, 0),
-  filteredSendCount: filteredSendGroups.value.length,
-  filteredRecvCount: filteredRecvGroups.value.length,
-  allCount: streamGroups.value.send.length + streamGroups.value.recv.length,
-  filteredAllCount: filteredSendGroups.value.length + filteredRecvGroups.value.length,
-}));
+const stats = computed(() => {
+  const byDir = (dir: string) => props.events.filter((e) => e.direction?.toLowerCase() === dir);
+  const sendRaw = byDir("send");
+  const recvRaw = byDir("recv");
+  const countByType = (evs: ObserverTLSEvent[]) => {
+    const m: Record<string,number> = {};
+    for (const e of evs) { const t = e.type || "?"; m[t] = (m[t]||0)+1; }
+    return m;
+  };
+  return {
+    sendCount: streamGroups.value.send.length,
+    recvCount: streamGroups.value.recv.length,
+    sendBytes: streamGroups.value.send.reduce((s, g) => s + g.totalSize, 0),
+    recvBytes: streamGroups.value.recv.reduce((s, g) => s + g.totalSize, 0),
+    filteredSendCount: filteredSendGroups.value.length,
+    filteredRecvCount: filteredRecvGroups.value.length,
+    allCount: streamGroups.value.send.length + streamGroups.value.recv.length,
+    filteredAllCount: filteredSendGroups.value.length + filteredRecvGroups.value.length,
+    // Debug: raw event counts
+    sendRawN: sendRaw.length,
+    recvRawN: recvRaw.length,
+    sendTypes: countByType(sendRaw),
+    recvTypes: countByType(recvRaw),
+    sendWithBody: sendRaw.filter(e => e.body || e.raw_hex_dump).length,
+    sendBodySizes: sendRaw.map(e => e.body_size || e.body?.length || e.raw_hex_dump?.length || 0),
+  };
+});
 
 const expanded = ref<Set<string>>(new Set());
 const blockExpanded = ref<Set<string>>(new Set());
@@ -641,8 +706,8 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
 <template>
   <div class="ac-root">
     <div class="ac-stats">
-      <div class="ac-stat-item send"><ArrowUpOutlined /><span class="ac-stat-label">Upstream</span><span class="ac-stat-val">{{ stats.sendCount }} groups</span><span class="ac-stat-size">{{ formatBytes(stats.sendBytes) }}</span></div>
-      <div class="ac-stat-item recv"><ArrowDownOutlined /><span class="ac-stat-label">Downstream</span><span class="ac-stat-val">{{ stats.recvCount }} groups</span><span class="ac-stat-size">{{ formatBytes(stats.recvBytes) }}</span></div>
+      <div class="ac-stat-item send"><ArrowUpOutlined /><span class="ac-stat-label">Upstream</span><span class="ac-stat-val">{{ stats.sendCount }} groups</span><span class="ac-stat-size">{{ formatBytes(stats.sendBytes) }}</span><a-tooltip placement="bottom"><template #title><span style="font-family:monospace;font-size:11px">Raw events: {{ stats.sendRawN }} (body: {{ stats.sendWithBody }})<br/>{{ JSON.stringify(stats.sendTypes) }}</span></template><span class="ac-diag-dot" :class="stats.sendRawN>0?'ac-diag-ok':'ac-diag-warn'">●</span></a-tooltip></div>
+      <div class="ac-stat-item recv"><ArrowDownOutlined /><span class="ac-stat-label">Downstream</span><span class="ac-stat-val">{{ stats.recvCount }} groups</span><span class="ac-stat-size">{{ formatBytes(stats.recvBytes) }}</span><a-tooltip placement="bottom"><template #title><span style="font-family:monospace;font-size:11px">Raw events: {{ stats.recvRawN }}<br/>{{ JSON.stringify(stats.recvTypes) }}</span></template><span class="ac-diag-dot" :class="stats.recvRawN>0?'ac-diag-ok':'ac-diag-warn'">●</span></a-tooltip></div>
       <div class="ac-stat-item ac-hide-raw-toggle">
         <a-switch v-model:checked="hideRaw" size="small" class="ac-hr-switch" />
         <span class="ac-hr-label">Hide raw</span>
@@ -768,6 +833,8 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
 .ac-hr-filtered{font-size:10px;color:#0891b2;font-family:ui-monospace,monospace;font-weight:600;background:#ecfeff;padding:0 4px;border-radius:3px}
 .ac-cap-ctl{display:flex;align-items:center;gap:4px;margin-left:auto}
 .ac-cap-label{font-size:10px;color:#94a3b8;font-weight:500;white-space:nowrap}
+.ac-diag-dot{font-size:8px;cursor:help;margin-left:2px}
+.ac-diag-ok{color:#22c55e}.ac-diag-warn{color:#f97316}
 .ac-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .ac-col{display:flex;flex-direction:column;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;background:#fafafa}
 .ac-send-col{border-left:3px solid #f59e0b}.ac-recv-col{border-left:3px solid #06b6d4}
