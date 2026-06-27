@@ -14,6 +14,7 @@ import {
 import ProcessPickerModal from "./ProcessPickerModal.vue";
 import ProcessTreeNodeDisplay from "./ProcessTreeNodeDisplay.vue";
 import ObserverTimeline from "./observer/ObserverTimeline.vue";
+import ObserverFlamegraph from "./observer/ObserverFlamegraph.vue";
 import ObserverResources from "./observer/ObserverResources.vue";
 
 // ── Props ────────────────────────────────────────────────────────────────
@@ -28,6 +29,8 @@ const props = defineProps<{
 
 const subTabKeys = [
   "selection",
+  "timeline",
+  "flamegraph",
   "tree",
   "network",
   "syscalls",
@@ -369,7 +372,13 @@ watch(
         />
       </a-tab-pane>
 
-      <!-- 3. Process Tree -->
+      <!-- 3. Flamegraph -->
+      <a-tab-pane key="flamegraph">
+        <template #tab>Flamegraph</template>
+        <ObserverFlamegraph :events="allEvents" />
+      </a-tab-pane>
+
+      <!-- 4. Process Tree -->
       <a-tab-pane key="tree">
         <template #tab><NodeIndexOutlined /> Tree</template>
         <a-empty
@@ -408,7 +417,7 @@ watch(
         </div>
       </a-tab-pane>
 
-      <!-- 4. Network -->
+      <!-- 5. Network -->
       <a-tab-pane key="network">
         <template #tab>Network</template>
         <template #tabBarExtraContent>
@@ -453,7 +462,7 @@ watch(
         </template>
       </a-tab-pane>
 
-      <!-- 5. Syscalls -->
+      <!-- 6. Syscalls -->
       <a-tab-pane key="syscalls">
         <template #tab>Syscalls</template>
         <template #tabBarExtraContent>
@@ -482,7 +491,7 @@ watch(
         </a-table>
       </a-tab-pane>
 
-      <!-- 6. File Access -->
+      <!-- 7. File Access -->
       <a-tab-pane key="file-access">
         <template #tab>File Access</template>
         <template #tabBarExtraContent>
@@ -511,7 +520,7 @@ watch(
         </a-table>
       </a-tab-pane>
 
-      <!-- 7. Resources -->
+      <!-- 8. Resources -->
       <a-tab-pane key="resources">
         <template #tab>Resources</template>
         <a-empty
@@ -525,7 +534,7 @@ watch(
         />
       </a-tab-pane>
 
-      <!-- 8. SSL -->
+      <!-- 9. SSL -->
       <a-tab-pane key="ssl">
         <template #tab>SSL</template>
         <template #tabBarExtraContent>
