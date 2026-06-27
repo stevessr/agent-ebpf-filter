@@ -432,6 +432,20 @@ func HandleUsers(c *gin.Context) {
 	c.JSON(200, users)
 }
 
+func HandleProcessExe(c *gin.Context) {
+	pidStr := c.Query("pid")
+	if pidStr == "" {
+		c.JSON(400, gin.H{"error": "pid required"})
+		return
+	}
+	exePath, err := os.Readlink(fmt.Sprintf("/proc/%s/exe", pidStr))
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"path": exePath})
+}
+
 func HandleProcessIO(c *gin.Context) {
 	pidStr := c.Query("pid")
 	if pidStr == "" {
@@ -652,5 +666,6 @@ func RegisterSystemRoutes(rg *gin.RouterGroup) {
 	rg.POST("/run", HandleRun)
 	rg.GET("/user-info", HandleUserInfo)
 	rg.GET("/users", HandleUsers)
+	rg.GET("/process/exe", HandleProcessExe)
 	rg.GET("/process/io", HandleProcessIO)
 }

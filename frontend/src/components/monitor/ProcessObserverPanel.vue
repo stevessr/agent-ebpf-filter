@@ -295,15 +295,20 @@ const doLaunch = async () => {
 const attachingPid = ref<number | null>(null);
 const attachError = ref("");
 
-const getBinaryPath = (pid: number): string => {
-  const p = treeProcessList.value.find((x) => x.pid === pid);
-  if (p?.cmdline) {
-    // cmdline is space-separated, first token is the binary path
-    const parts = p.cmdline.split(/\s+/);
-    if (parts[0]) return parts[0];
+const getBinaryPath = async (pid: number): Promise<string> => {
+  // Always resolve via /proc/PID/exe for the real binary, not cmdline
+  try {
+    const res = await axios.get("/system/process/exe", { params: { pid } });
+    return res.data.path || "";
+  } catch {
+    // Fallback: try cmdline
+    const p = treeProcessList.value.find((x) => x.pid === pid);
+    if (p?.cmdline) {
+      const parts = p.cmdline.split(/\s+/);
+      if (parts[0]) return parts[0];
+    }
+    return "";
   }
-  // Fallback: try /proc/PID/exe via the process name
-  return "";
 };
 
 const doAttachBuiltins = async (pid: number) => {
@@ -320,11 +325,11 @@ const doAttachBuiltins = async (pid: number) => {
 };
 
 const doAttachGo = async (pid: number) => {
-  const path = getBinaryPath(pid);
-  if (!path) { attachError.value = "Cannot determine binary path for PID " + pid; return; }
   attachingPid.value = pid;
   attachError.value = "";
   try {
+    const path = await getBinaryPath(pid);
+    if (!path) { attachError.value = "Cannot determine binary path for PID " + pid; return; }
     await axios.post("/tls-capture/go-binary", { path, pid });
     await fetchAttachedPIDs();
   } catch (e: any) {
@@ -335,11 +340,11 @@ const doAttachGo = async (pid: number) => {
 };
 
 const doAttachLibrary = async (pid: number, library: string) => {
-  const path = getBinaryPath(pid);
-  if (!path) { attachError.value = "Cannot determine binary path for PID " + pid; return; }
   attachingPid.value = pid;
   attachError.value = "";
   try {
+    const path = await getBinaryPath(pid);
+    if (!path) { attachError.value = "Cannot determine binary path for PID " + pid; return; }
     await axios.post("/tls-capture/executable", { path, pid, library });
     await fetchAttachedPIDs();
   } catch (e: any) {
