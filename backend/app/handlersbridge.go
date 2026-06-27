@@ -552,6 +552,9 @@ func handleExternalAPIHealth(c *gin.Context) { handlers.HandleExternalAPIHealth(
 func handleExternalAPIOpenAPI(c *gin.Context) { handlers.HandleExternalAPIOpenAPI(c) }
 func buildExternalOpenAPISpec() *openapi3.T  { return handlers.BuildExternalOpenAPISpec() }
 
+// Feature manifest bridge
+func handleSystemFeatures(c *gin.Context) { handlers.HandleSystemFeatures(c) }
+
 // Shell session bridges
 func serveShellSessionsWS(c *gin.Context)        { handlers.ServeShellSessionsWS(c) }
 func handleCreateShellSession(c *gin.Context)      { handlers.HandleCreateShellSession(c) }

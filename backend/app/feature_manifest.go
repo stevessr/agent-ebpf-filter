@@ -1,12 +1,8 @@
 package app
 
 import (
-	"net/http"
-
 	"agent-ebpf-filter/app/types"
 	"agent-ebpf-filter/core"
-
-	"github.com/gin-gonic/gin"
 )
 
 // FeatureID, FeatureDangerLevel and their constants are aliased from the
@@ -236,9 +232,7 @@ func buildFeatureManifest(settings core.RuntimeSettings) FeatureManifestResponse
 	return FeatureManifestResponse{Features: features}
 }
 
-func handleSystemFeatures(c *gin.Context) {
-	c.JSON(http.StatusOK, buildFeatureManifest(runtimeSettingsStore.Snapshot()))
-}
+// handleSystemFeatures moved to app/handlers/feature_manifest.go
 
 func featureBuildTag(id FeatureID) string {
 	return "agentfeat_" + string(id)
