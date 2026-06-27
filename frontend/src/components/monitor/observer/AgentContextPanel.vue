@@ -703,9 +703,9 @@ const blockId = (gid: string, bi: number) => `${gid}-b${bi}`;
 const blockVisible = (b: ContentBlock): boolean =>
   rawMode.value === "show" || CONTEXT_BLOCK_TYPES.has(b.type);
 
-// Should raw-only groups show the raw fallback body?
+// Only "show" mode reveals raw fallback bodies — "hide" and "skip" suppress them
 const showRawFallback = (g: MergedGroup): boolean =>
-  rawMode.value === "show" || (rawMode.value === "hide" && !!g.rawMerged && g.contentBlocks.every((b) => !CONTEXT_BLOCK_TYPES.has(b.type)));
+  rawMode.value === "show" && !!g.rawMerged;
 
 // Token display helpers per block — show input/output at block level
 const formatTokens = (u: any): { input: number; output: number } => {
