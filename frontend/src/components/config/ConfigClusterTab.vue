@@ -182,7 +182,7 @@ const {
                     >
                       Route here
                     </a-button>
-                    <span v-else style="color: #999">—</span>
+                    <span v-else style="color: #6b7280">—</span>
                   </template>
                 </a-table-column>
               </a-table>

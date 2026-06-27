@@ -726,7 +726,7 @@ const formatRuntimeSpeedup = (value?: number) => {
               ><SearchOutlined /> 判断安全性</a-button
             >
           </a-space>
-          <div style="margin-top: 12px; font-size: 12px; color: #999">
+          <div style="margin-top: 12px; font-size: 12px; color: #6b7280">
             快速测试：
             <a
               v-for="(p, i) in highRiskPresets.slice(0, 5)"
@@ -782,7 +782,7 @@ const formatRuntimeSpeedup = (value?: number) => {
                 >
                   {{ backtestResult.riskScore?.toFixed(0) || 0 }}
                 </div>
-                <div style="font-size: 11px; color: #999">/ 100</div>
+                <div style="font-size: 11px; color: #6b7280">/ 100</div>
               </div>
             </div>
             <a-descriptions :column="3" size="small" bordered>
@@ -914,7 +914,7 @@ const formatRuntimeSpeedup = (value?: number) => {
                         (backtestResult.llmAssessment.signals || []).length ===
                         0
                       "
-                      style="color: #999"
+                      style="color: #6b7280"
                       >—</span
                     >
                   </a-space>
@@ -1011,7 +1011,7 @@ const formatRuntimeSpeedup = (value?: number) => {
                   "
                   >{{ backtestResult.networkAudit.riskLevel }}</a-tag
                 >
-                <span style="color: #999; font-size: 12px"
+                <span style="color: #6b7280; font-size: 12px"
                   >风险分：{{
                     backtestResult.networkAudit.riskScore?.toFixed(0)
                   }}</span
@@ -1052,7 +1052,7 @@ const formatRuntimeSpeedup = (value?: number) => {
               </a-list>
             </div>
           </div>
-          <div v-else style="color: #999; text-align: center; padding: 40px">
+          <div v-else style="color: #6b7280; text-align: center; padding: 40px">
             输入命令并点击"判断安全性"查看评估结果；若已有完全匹配的标注样本，会优先作为判断证据。
           </div>
         </a-col>

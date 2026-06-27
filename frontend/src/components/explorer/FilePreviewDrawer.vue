@@ -896,7 +896,7 @@ onBeforeUnmount(() => {
   align-items: center;
   flex-wrap: wrap;
   font-size: 12px;
-  color: #888;
+  color: #4b5563;
 }
 
 .file-preview-drawer__progress {

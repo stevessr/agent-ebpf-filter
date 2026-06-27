@@ -208,7 +208,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
             size="small"
             style="width: 100%"
           />
-          <div style="font-size: 11px; color: #999">
+          <div style="font-size: 11px; color: #6b7280">
             {{
               modelBaseType === "graph_learning"
                 ? "图卷积节点投影表示特征维度。推荐 32-128"
@@ -235,7 +235,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
             size="small"
             style="width: 100%"
           />
-          <div style="font-size: 11px; color: #999">
+          <div style="font-size: 11px; color: #6b7280">
             {{
               modelBaseType === "graph_learning"
                 ? "图神经网络的迭代步数/层数。推荐 2-4"
@@ -262,7 +262,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
             size="small"
             style="width: 100%"
           />
-          <div style="font-size: 11px; color: #999">
+          <div style="font-size: 11px; color: #6b7280">
             {{
               modelBaseType === "graph_learning"
                 ? "GNN 训练完整数据集的轮数。推荐 100-300"
@@ -288,7 +288,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
             size="small"
             style="width: 100%"
           />
-          <div style="font-size: 11px; color: #999">
+          <div style="font-size: 11px; color: #6b7280">
             较小的 K 对噪声敏感，较大的 K 决策边界更平滑。推荐 3-11
           </div>
         </a-col>
@@ -299,7 +299,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
             <a-select-option :value="12">Manhattan</a-select-option>
             <a-select-option :value="16">Cosine</a-select-option>
           </a-select>
-          <div style="font-size: 11px; color: #999; margin-top: 8px">
+          <div style="font-size: 11px; color: #6b7280; margin-top: 8px">
             Euclidean 适合连续特征，Manhattan 适合高维稀疏数据
           </div>
         </a-col>
@@ -327,7 +327,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
             :formatter="(v: number) => (v / 1000).toFixed(3)"
             :parser="(v: string) => parseFloat(v) * 1000"
           />
-          <div style="font-size: 11px; color: #999">
+          <div style="font-size: 11px; color: #6b7280">
             较小值收敛更稳定。推荐 0.005-0.05
           </div>
         </a-col>
@@ -338,7 +338,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
             <a-select-option :value="12">L1 (Lasso)</a-select-option>
             <a-select-option :value="4">None</a-select-option>
           </a-select>
-          <div style="font-size: 11px; color: #999; margin-top: 8px">
+          <div style="font-size: 11px; color: #6b7280; margin-top: 8px">
             L2 防止大权重，L1 产生稀疏特征选择
           </div>
         </a-col>
@@ -357,7 +357,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
             size="small"
             style="width: 100%"
           />
-          <div style="font-size: 11px; color: #999">
+          <div style="font-size: 11px; color: #6b7280">
             SGD 最大迭代数。推荐 500-2000
           </div>
         </a-col>
@@ -668,7 +668,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
                 </span>
                 <span
                   v-if="autoTuneLoading || autoTuneInProgress"
-                  style="font-size: 12px; color: #999"
+                  style="font-size: 12px; color: #6b7280"
                   >已用 {{ autoTuneElapsed }}</span
                 >
               </div>
@@ -741,7 +741,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
               v-if="autoTuneInProgress && trainingLogs.length > 0"
               style="margin-top: 4px"
             >
-              <summary style="cursor: pointer; font-size: 12px; color: #888">
+              <summary style="cursor: pointer; font-size: 12px; color: #4b5563">
                 查看调优日志 ({{ trainingLogs.length }})
               </summary>
               <div
@@ -769,7 +769,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
                         : '#d4d4d4',
                   }"
                 >
-                  <span style="color: #888">{{ log.time }}</span>
+                  <span style="color: #4b5563">{{ log.time }}</span>
                   {{ log.message }}
                 </div>
               </div>

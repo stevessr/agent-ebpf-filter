@@ -401,7 +401,7 @@ onBeforeUnmount(() => {
               </a-list-item>
             </template>
             <template v-if="recentCommands.length === 0" #header>
-              <div style="text-align: center; color: #999">
+              <div style="text-align: center; color: #6b7280">
                 No recent commands
               </div>
             </template>

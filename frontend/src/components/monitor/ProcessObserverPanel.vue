@@ -324,16 +324,6 @@ const visibleTLSEvents = computed(() =>
 // Auto-attach tracked PIDs that were already attempted (avoid infinite retry)
 const autoAttachSeen = new Set<number>();
 
-watch(treeSSLPending, (pending) => {
-  if (!autoAttach.value) return;
-  for (const p of pending) {
-    if (autoAttachSeen.has(p.pid)) continue;
-    autoAttachSeen.add(p.pid);
-    // Small stagger delay so we don't flood the backend
-    setTimeout(() => doAttachBuiltins(p.pid), 100 * autoAttachSeen.size);
-  }
-}, { deep: false });
-
 // ── Manual SSL attach ────────────────────────────────────────────────────
 
 const attachingPids = reactive(new Set<number>());
@@ -612,6 +602,17 @@ const treeSSLPending = computed(() =>
     (p) => !sslAttachedSet.value.has(p.pid),
   ),
 );
+
+// Auto-attach tracked PIDs that are pending SSL
+watch(treeSSLPending, (pending) => {
+  if (!autoAttach.value) return;
+  for (const p of pending) {
+    if (autoAttachSeen.has(p.pid)) continue;
+    autoAttachSeen.add(p.pid);
+    // Small stagger delay so we don't flood the backend
+    setTimeout(() => doAttachBuiltins(p.pid), 100 * autoAttachSeen.size);
+  }
+}, { deep: false });
 
 const sslAttachmentColumns = [
   { title: "PID", dataIndex: "pid", key: "pid", width: 65 },

@@ -309,7 +309,7 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
                 </div>
                 <div
                   v-if="record.aliases?.length"
-                  style="color: #888; font-size: 12px"
+                  style="color: #4b5563; font-size: 12px"
                 >
                   Aliases: <code>{{ record.aliases.join(", ") }}</code>
                 </div>

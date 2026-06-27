@@ -410,7 +410,7 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
                     size="small"
                     >{{ record.category }}</a-tag
                   >
-                  <span v-else style="color: #999">—</span>
+                  <span v-else style="color: #6b7280">—</span>
                 </template>
               </a-table-column>
               <a-table-column
@@ -549,7 +549,7 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
               size="small"
               >{{ record.category }}</a-tag
             >
-            <span v-else style="color: #999">—</span>
+            <span v-else style="color: #6b7280">—</span>
           </template>
         </a-table-column>
         <a-table-column title="Time" dataIndex="timestamp" :width="180">

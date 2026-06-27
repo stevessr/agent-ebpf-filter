@@ -133,7 +133,7 @@ onUnmounted(() => {
             style="display: flex; justify-content: flex-end; margin-bottom: 8px"
           >
             <a-space>
-              <span style="font-size: 12px; color: #888">Interval:</span>
+              <span style="font-size: 12px; color: #4b5563">Interval:</span>
               <a-select
                 :value="sensorInterval"
                 size="small"
@@ -381,7 +381,7 @@ onUnmounted(() => {
           ></template>
           <div style="display: flex; gap: 24px; align-items: center">
             <div style="flex: 1">
-              <div style="margin-bottom: 8px; font-size: 12px; color: #888">
+              <div style="margin-bottom: 8px; font-size: 12px; color: #4b5563">
                 Waveform
               </div>
               <VueApexCharts
@@ -397,7 +397,7 @@ onUnmounted(() => {
                   style="
                     margin-bottom: 8px;
                     font-size: 12px;
-                    color: #888;
+                    color: #4b5563;
                     display: flex;
                     justify-content: space-between;
                   "
@@ -422,7 +422,7 @@ onUnmounted(() => {
                   :stroke-color="micVolume > 80 ? '#ff4d4f' : '#52c41a'"
                 />
               </div>
-              <div style="font-size: 12px; color: #888; margin-bottom: 4px">
+              <div style="font-size: 12px; color: #4b5563; margin-bottom: 4px">
                 Device
               </div>
               <a-select

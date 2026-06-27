@@ -105,7 +105,7 @@ const isDead = computed(() => props.node.dead === true);
 .tree-toggle {
   width: 14px;
   flex-shrink: 0;
-  color: #888;
+  color: #4b5563;
   font-size: 10px;
   cursor: pointer;
 }
@@ -115,10 +115,10 @@ const isDead = computed(() => props.node.dead === true);
   min-width: 50px;
 }
 .tree-name {
-  color: #333;
+  color: #1f2937;
 }
 .tree-ppid {
-  color: #aaa;
+  color: #6b7280;
   font-size: 11px;
 }
 .tree-focus-btn {
@@ -138,7 +138,7 @@ const isDead = computed(() => props.node.dead === true);
 }
 .tree-usage {
   margin-left: auto;
-  color: #888;
+  color: #4b5563;
   font-size: 11px;
 }
 .ssl-dot {
@@ -156,19 +156,19 @@ const isDead = computed(() => props.node.dead === true);
   background: #f5f5f5;
 }
 .tree-node-row.dead .tree-pid {
-  color: #999;
+  color: #6b7280;
 }
 .tree-node-row.dead .tree-name {
-  color: #aaa;
+  color: #6b7280;
   font-style: italic;
 }
 .tree-node-row.dead .tree-ppid {
-  color: #ccc;
+  color: #9ca3af;
 }
 .tree-dead-tag {
   font-size: 9px;
-  color: #b0b0b0;
-  background: #f0f0f0;
+  color: #4b5563;
+  background: #e5e7eb;
   border: 1px solid #e0e0e0;
   border-radius: 3px;
   padding: 0 4px;

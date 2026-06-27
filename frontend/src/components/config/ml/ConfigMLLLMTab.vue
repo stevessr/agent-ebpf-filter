@@ -156,7 +156,7 @@ const productionPreviewRowKey = (record: any) =>
           >
           <span
             v-else-if="llmSaveStatus === 'idle'"
-            style="color: #999; font-size: 12px"
+            style="color: #6b7280; font-size: 12px"
             >修改后自动保存</span
           >
         </div>

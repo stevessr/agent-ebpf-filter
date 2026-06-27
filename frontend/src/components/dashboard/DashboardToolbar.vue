@@ -125,7 +125,7 @@ const emit = defineEmits<{
         </a-popover>
       </div>
       <div style="display: flex; gap: 8px; align-items: center">
-        <span style="font-size: 12px; color: #888">Max:</span>
+        <span style="font-size: 12px; color: #4b5563">Max:</span>
         <a-select
           :value="maxEvents"
           size="small"

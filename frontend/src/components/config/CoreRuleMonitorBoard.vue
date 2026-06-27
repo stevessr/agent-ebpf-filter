@@ -181,7 +181,7 @@ const emit = defineEmits<{
                 !security.cgroupSandboxStatus.value.blockedIPs?.length &&
                 !security.cgroupSandboxStatus.value.blockedPorts?.length
               "
-              style="padding: 32px; text-align: center; color: #999"
+              style="padding: 32px; text-align: center; color: #6b7280"
             >
               <InfoCircleOutlined /> 暂无活跃内核阻断规则。
             </div>
@@ -233,7 +233,7 @@ const emit = defineEmits<{
 
           <div
             v-if="!plugins.filter((p) => p.id.startsWith('visual-')).length"
-            style="padding: 32px; text-align: center; color: #999"
+            style="padding: 32px; text-align: center; color: #6b7280"
           >
             <InfoCircleOutlined /> 暂无自编译的高级过滤器插件。
           </div>

@@ -242,7 +242,7 @@ const pathBreadcrumbs = computed(() => {
   color: #1890ff;
 }
 .file-icon {
-  color: #888;
+  color: #4b5563;
 }
 .fpb-name {
   font-family: ui-monospace, monospace;
@@ -255,6 +255,6 @@ const pathBreadcrumbs = computed(() => {
 .fpb-hint {
   margin-left: auto;
   font-size: 11px;
-  color: #bbb;
+  color: #9ca3af;
 }
 </style>

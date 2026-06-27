@@ -127,7 +127,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
           >
             <div>
               <div style="font-weight: 600">典型规则快捷添加</div>
-              <div style="font-size: 12px; color: #999">
+              <div style="font-size: 12px; color: #6b7280">
                 参考 Gemini CLI / Codex / Hermes
                 的常见高风险命令，点击即可写入预设规则。
               </div>
@@ -185,7 +185,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
           >
             <div>
               <div style="font-weight: 600">外部规则一键获取</div>
-              <div style="font-size: 12px; color: #999">
+              <div style="font-size: 12px; color: #6b7280">
                 从社区维护的 AI
                 代理安全规则集中获取最新规则，支持预览后一键导入。
               </div>
@@ -207,7 +207,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
                 <div
                   style="
                     font-size: 11px;
-                    color: #999;
+                    color: #6b7280;
                     margin-bottom: 8px;
                     min-height: 32px;
                   "
@@ -333,7 +333,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
               </a-col>
             </template>
             <a-col v-else :xs="24" :md="12">
-              <span style="color: #999; font-size: 12px"
+              <span style="color: #6b7280; font-size: 12px"
                 >Intercepts and blocks or warns when the command is called via
                 agent-wrapper</span
               >
@@ -566,7 +566,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
               <a-descriptions-item label="Pinned links">
                 <span
                   v-if="!cgroupSandboxStatus.linkPins.length"
-                  style="color: #999"
+                  style="color: #6b7280"
                   >process-held or unavailable</span
                 >
                 <div v-for="pin in cgroupSandboxStatus.linkPins" :key="pin">
@@ -608,7 +608,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
                       !cgroupSandboxStatus.blockedIPs.length &&
                       !cgroupSandboxStatus.blockedPorts.length
                     "
-                    style="color: #999"
+                    style="color: #6b7280"
                   >
                     No active cgroup/connect or sendmsg blocks
                   </span>
@@ -897,7 +897,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
               <a-descriptions-item label="Pinned links">
                 <span
                   v-if="!lsmEnforcerStatus.linkPins.length"
-                  style="color: #999"
+                  style="color: #6b7280"
                   >process-held or unavailable</span
                 >
                 <div v-for="pin in lsmEnforcerStatus.linkPins" :key="pin">
@@ -1061,7 +1061,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
                       !lsmEnforcerStatus.blockedExecNames.length &&
                       !lsmEnforcerStatus.blockedFileNames.length
                     "
-                    style="color: #999"
+                    style="color: #6b7280"
                   >
                     No active BPF LSM block entries
                   </span>
@@ -1159,7 +1159,7 @@ const unblockCgroupPortFromTag = async (port: number) => {
                     <div
                       style="
                         font-size: 11px;
-                        color: #999;
+                        color: #6b7280;
                         white-space: nowrap;
                         overflow: hidden;
                         text-overflow: ellipsis;

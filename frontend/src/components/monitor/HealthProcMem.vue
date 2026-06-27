@@ -223,7 +223,7 @@ const tileTitle = (tile: ProcTile) =>
         <div style="font-weight: 600">
           Process Memory Blocks ({{ tiles.length }} unique)
         </div>
-        <div style="color: #888; font-size: 12px; margin-top: 4px">
+        <div style="color: #4b5563; font-size: 12px; margin-top: 4px">
           Size is log-scaled by estimated RSS from process mem% × total RAM.
         </div>
       </div>
@@ -386,17 +386,17 @@ const tileTitle = (tile: ProcTile) =>
         >
           <a-space direction="vertical" size="small" style="width: 100%">
             <div>
-              <span style="color: #888">PIDs:</span>
+              <span style="color: #4b5563">PIDs:</span>
               <span style="font-family: monospace">{{
                 selectedGroup.pids.join(", ")
               }}</span>
             </div>
             <div>
-              <span style="color: #888">Approx RSS:</span>
+              <span style="color: #4b5563">Approx RSS:</span>
               <b>{{ formatBytesWithUnit(selectedGroup.approxBytes) }}</b>
             </div>
             <div>
-              <span style="color: #888">Peak instance mem:</span>
+              <span style="color: #4b5563">Peak instance mem:</span>
               <b>{{ formatPercent(selectedGroup.instances[0]?.mem ?? 0) }}</b>
             </div>
           </a-space>
@@ -445,7 +445,7 @@ const tileTitle = (tile: ProcTile) =>
           </template>
         </a-table>
 
-        <div style="margin-top: 12px; color: #888; font-size: 12px">
+        <div style="margin-top: 12px; color: #4b5563; font-size: 12px">
           Started times are shown in local time when available.
         </div>
       </template>

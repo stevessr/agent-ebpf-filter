@@ -118,12 +118,12 @@ const columns = [
           @click="toggleComm(name)"
           >{{ name }}</a-tag
         >
-        <span v-if="trackedCommsNames.length === 0" style="color: #888"
+        <span v-if="trackedCommsNames.length === 0" style="color: #4b5563"
           >No tracked processes</span
         >
         <span
           v-if="hiddenComms.length > 0"
-          style="color: #999; font-size: 12px"
+          style="color: #6b7280; font-size: 12px"
         >
           ({{ hiddenComms.length }} hidden — click hidden tag to restore)
         </span>

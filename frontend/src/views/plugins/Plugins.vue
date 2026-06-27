@@ -170,7 +170,7 @@ onMounted(async () => {
                   </template>
                   <template #description>
                     <div>{{ item.description || "(no description)" }}</div>
-                    <div style="color: #999; font-size: 12px; margin-top: 4px">
+                    <div style="color: #6b7280; font-size: 12px; margin-top: 4px">
                       ID: <code>{{ item.id }}</code>
                       <span v-if="item.programName">
                         · Program: <code>{{ item.programName }}</code></span

@@ -87,7 +87,7 @@ const registryTabKey = ref("tags");
             </template>
             <div style="display: flex; flex-direction: column; gap: 16px">
               <div style="display: flex; gap: 8px; align-items: center">
-                <span style="color: #888; font-size: 13px; width: 80px"
+                <span style="color: #4b5563; font-size: 13px; width: 80px"
                   >Add Tag:</span
                 >
                 <div style="display: flex; width: 320px">
@@ -115,7 +115,7 @@ const registryTabKey = ref("tags");
               <div style="display: flex; gap: 8px; align-items: flex-start">
                 <span
                   style="
-                    color: #888;
+                    color: #4b5563;
                     font-size: 13px;
                     width: 80px;
                     margin-top: 4px;

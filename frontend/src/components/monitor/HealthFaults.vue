@@ -139,7 +139,7 @@ const emit = defineEmits<{
       >
         <template #extra>
           <a-space>
-            <span style="font-size: 12px; color: #888">Top:</span>
+            <span style="font-size: 12px; color: #4b5563">Top:</span>
             <a-select
               :value="faultTopN"
               size="small"
@@ -156,7 +156,7 @@ const emit = defineEmits<{
                 (e: any) =>
                   emit('update:mergeFaultProcesses', e?.target?.checked ?? e)
               "
-              style="font-size: 12px; color: #888"
+              style="font-size: 12px; color: #4b5563"
               >Merge by Name</a-checkbox
             >
           </a-space>

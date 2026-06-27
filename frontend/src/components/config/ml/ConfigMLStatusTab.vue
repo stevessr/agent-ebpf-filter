@@ -294,7 +294,7 @@ const modelTypeLabel = computed(
               align-items: center;
             "
           >
-            <div style="font-weight: 600; margin-bottom: 8px; color: #999">
+            <div style="font-weight: 600; margin-bottom: 8px; color: #6b7280">
               Training
             </div>
             <a-progress
@@ -310,7 +310,7 @@ const modelTypeLabel = computed(
         style="
           margin-top: 12px;
           font-size: 12px;
-          color: #999;
+          color: #6b7280;
           word-break: break-all;
         "
       >
@@ -346,7 +346,7 @@ const modelTypeLabel = computed(
             display: flex;
             justify-content: space-between;
             font-size: 12px;
-            color: #888;
+            color: #4b5563;
             margin-bottom: 4px;
           "
         >
@@ -407,7 +407,7 @@ const modelTypeLabel = computed(
             <span v-else style="color: #d4d4d4">{{ " " + line.message }}</span>
           </div>
         </template>
-        <div v-else style="color: #888; text-align: center; padding: 20px 0">
+        <div v-else style="color: #4b5563; text-align: center; padding: 20px 0">
           {{
             mlStatus.training_in_progress
               ? "等待训练开始..."
@@ -432,7 +432,7 @@ const modelTypeLabel = computed(
           :series="trainingChartSeries"
         />
         <template #fallback>
-          <div style="text-align: center; padding: 40px; color: #999">
+          <div style="text-align: center; padding: 40px; color: #6b7280">
             Loading chart...
           </div>
         </template>

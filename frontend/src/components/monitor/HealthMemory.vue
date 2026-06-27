@@ -176,7 +176,7 @@ defineProps<{
                 margin-bottom: 4px;
               "
             >
-              <span style="font-size: 12px; color: #888">System Swap</span>
+              <span style="font-size: 12px; color: #4b5563">System Swap</span>
               <span style="font-weight: bold"
                 >{{
                   systemStats.swapTotal > 0
@@ -234,7 +234,7 @@ defineProps<{
                 margin-bottom: 4px;
               "
             >
-              <span style="font-size: 12px; color: #888"
+              <span style="font-size: 12px; color: #4b5563"
                 >ZRAM (Compressed)</span
               >
               <span style="font-weight: bold"

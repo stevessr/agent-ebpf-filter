@@ -333,45 +333,48 @@ void tableWrapperRef;
           </template>
           <template v-if="column.key === 'path'">
             <div class="excel-path-cell">
-              <span
-                class="excel-path-text"
-                :class="{ clickable: canInteractWithPath(record) }"
-                :title="formatDetailValue(record.path)"
-                @click="canInteractWithPath(record) && previewRecordPath(record)"
-              >{{ formatDetailValue(record.path) }}</span>
-              <a-tooltip title="Copy path">
-                <a-button
-                  type="link"
-                  size="small"
-                  @click.stop="copyPath(record.path)"
+              <template v-if="record.path">
+                <span
+                  class="excel-path-text"
+                  :class="{ clickable: canInteractWithPath(record) }"
+                  :title="record.path"
+                  @click="canInteractWithPath(record) && previewRecordPath(record)"
+                >{{ record.path }}</span>
+                <a-tooltip title="Copy path">
+                  <a-button
+                    type="link"
+                    size="small"
+                    @click.stop="copyPath(record.path)"
+                  >
+                    <template #icon><CopyOutlined /></template>
+                  </a-button>
+                </a-tooltip>
+                <a-tooltip
+                  v-if="canInteractWithPath(record)"
+                  title="Preview file"
                 >
-                  <template #icon><CopyOutlined /></template>
-                </a-button>
-              </a-tooltip>
-              <a-tooltip
-                v-if="canInteractWithPath(record)"
-                title="Preview file"
-              >
-                <a-button
-                  type="link"
-                  size="small"
-                  @click.stop="previewRecordPath(record)"
+                  <a-button
+                    type="link"
+                    size="small"
+                    @click.stop="previewRecordPath(record)"
+                  >
+                    <template #icon><EyeOutlined /></template>
+                  </a-button>
+                </a-tooltip>
+                <a-tooltip
+                  v-if="canInteractWithPath(record)"
+                  title="Open in Explorer"
                 >
-                  <template #icon><EyeOutlined /></template>
-                </a-button>
-              </a-tooltip>
-              <a-tooltip
-                v-if="canInteractWithPath(record)"
-                title="Open in Explorer"
-              >
-                <a-button
-                  type="link"
-                  size="small"
-                  @click.stop="openInExplorer(record)"
-                >
-                  <template #icon><FolderOpenOutlined /></template>
-                </a-button>
-              </a-tooltip>
+                  <a-button
+                    type="link"
+                    size="small"
+                    @click.stop="openInExplorer(record)"
+                  >
+                    <template #icon><FolderOpenOutlined /></template>
+                  </a-button>
+                </a-tooltip>
+              </template>
+              <span v-else class="excel-path-text muted">—</span>
             </div>
           </template>
           <template v-if="column.key === 'action'">
@@ -622,6 +625,12 @@ void tableWrapperRef;
 .excel-path-text.clickable:hover {
   color: #1677ff;
   text-decoration: underline;
+}
+
+.excel-path-text.muted {
+  color: #6b7280;
+  cursor: default;
+  user-select: none;
 }
 
 .excel-table :deep(.ant-table-thead > tr > th:last-child),

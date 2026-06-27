@@ -37,7 +37,7 @@ const props = defineProps<{
             "
           >
             <span>Network Activity</span>
-            <span style="font-size: 11px; color: #888; font-weight: normal"
+            <span style="font-size: 11px; color: #4b5563; font-weight: normal"
               >(Total: ↓{{ formatBytesWithUnit(systemStats.totalNetRecv) }}/s
               ↑{{ formatBytesWithUnit(systemStats.totalNetSent) }}/s)</span
             >
@@ -89,7 +89,7 @@ const props = defineProps<{
                 style="
                   font-size: 11px;
                   font-weight: bold;
-                  color: #888;
+                  color: #4b5563;
                   margin: 8px 0 4px;
                 "
               >
@@ -160,7 +160,7 @@ const props = defineProps<{
             "
           >
             <span>Storage Activity</span>
-            <span style="font-size: 11px; color: #888; font-weight: normal"
+            <span style="font-size: 11px; color: #4b5563; font-weight: normal"
               >(Total: R:{{ formatBytesWithUnit(systemStats.totalDiskRead) }}/s
               W:{{ formatBytesWithUnit(systemStats.totalDiskWrite) }}/s)</span
             >

@@ -51,7 +51,7 @@ const wrapperOverride = computed({
           style="
             font-family: monospace;
             font-size: 12px;
-            color: #888;
+            color: #4b5563;
             margin-top: 4px;
           "
         >
@@ -102,7 +102,7 @@ const wrapperOverride = computed({
       style="margin-bottom: 12px"
     >
       <a-checkbox v-model:checked="wrapperOverride">
-        <span style="font-size: 12px; color: #888"
+        <span style="font-size: 12px; color: #4b5563"
           >Use wrapper alias instead</span
         >
       </a-checkbox>

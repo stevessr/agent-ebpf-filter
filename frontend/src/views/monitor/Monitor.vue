@@ -491,19 +491,19 @@ onUnmounted(() => {
           "
         >
           <div>
-            <span style="color: #888">User:</span>
+            <span style="color: #4b5563">User:</span>
             <b>{{ selectedProcessDetails.user }}</b>
           </div>
           <div>
-            <span style="color: #888">CPU:</span>
+            <span style="color: #4b5563">CPU:</span>
             <b>{{ (selectedProcessDetails.cpu ?? 0).toFixed(1) }}%</b>
           </div>
           <div>
-            <span style="color: #888">Mem:</span>
+            <span style="color: #4b5563">Mem:</span>
             <b>{{ (selectedProcessDetails.mem ?? 0).toFixed(1) }}%</b>
           </div>
           <div style="grid-column: span 3">
-            <span style="color: #888">Command:</span>
+            <span style="color: #4b5563">Command:</span>
             <code style="font-size: 11px">{{
               selectedProcessDetails.cmdline
             }}</code>

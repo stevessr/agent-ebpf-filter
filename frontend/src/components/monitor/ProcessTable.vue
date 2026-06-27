@@ -222,7 +222,7 @@ const onKill = (record: any) => {
           }}</a-select-option>
         </a-select>
       </a-space>
-      <span style="font-size: 12px; color: #888"
+      <span style="font-size: 12px; color: #4b5563"
         >Total: {{ processes.length }} processes</span
       >
     </div>
@@ -243,7 +243,7 @@ const onKill = (record: any) => {
               typeof record.key === 'string' &&
               record.key.startsWith('group-')
             "
-            style="color: #888"
+            style="color: #4b5563"
             >Multiple</span
           >
           <span v-else style="font-family: monospace">{{ text }}</span>
@@ -269,11 +269,11 @@ const onKill = (record: any) => {
         </template>
         <template v-if="column.key === 'gpuUtil'">
           <span v-if="text > 0">{{ text }}%</span>
-          <span v-else style="color: #ccc">-</span>
+          <span v-else style="color: #9ca3af">-</span>
         </template>
         <template v-if="column.key === 'gpuMem'">
           <span v-if="text > 0">{{ text }} MB</span>
-          <span v-else style="color: #ccc">-</span>
+          <span v-else style="color: #9ca3af">-</span>
         </template>
         <template v-if="column.key === 'action'">
           <a-space

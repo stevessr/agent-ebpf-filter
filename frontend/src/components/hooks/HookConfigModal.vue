@@ -226,7 +226,7 @@ const formatFieldLabel = (field: HookFieldDoc) =>
       "
     >
       <div>
-        <span style="font-size: 12px; color: #888">Config Path: </span>
+        <span style="font-size: 12px; color: #4b5563">Config Path: </span>
         <a-typography-text code>{{ configPath }}</a-typography-text>
       </div>
       <a-radio-group
@@ -296,7 +296,7 @@ const formatFieldLabel = (field: HookFieldDoc) =>
 
       <div
         v-if="Object.keys(parsedConfig.hooks || {}).length === 0"
-        style="text-align: center; padding: 40px; color: #999"
+        style="text-align: center; padding: 40px; color: #6b7280"
       >
         No hooks configured. Click below to add an event.
       </div>
@@ -355,7 +355,7 @@ const formatFieldLabel = (field: HookFieldDoc) =>
               style="
                 margin: 0;
                 padding-left: 18px;
-                color: #888;
+                color: #4b5563;
                 font-size: 12px;
               "
             >
@@ -385,7 +385,7 @@ const formatFieldLabel = (field: HookFieldDoc) =>
         <div style="padding: 16px">
           <div
             v-if="!matchers.length"
-            style="text-align: center; color: #ccc; font-size: 12px"
+            style="text-align: center; color: #9ca3af; font-size: 12px"
           >
             No matchers defined
           </div>
@@ -526,7 +526,7 @@ const formatFieldLabel = (field: HookFieldDoc) =>
         <div
           style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap"
         >
-          <span style="font-size: 12px; color: #888">New Event:</span>
+          <span style="font-size: 12px; color: #4b5563">New Event:</span>
           <a-select
             v-model:value="newEventName"
             size="small"
@@ -566,7 +566,7 @@ const formatFieldLabel = (field: HookFieldDoc) =>
           </div>
           <div
             v-if="selectedEventDoc.matcher"
-            style="font-size: 12px; color: #888"
+            style="font-size: 12px; color: #4b5563"
           >
             Matcher filters: {{ selectedEventDoc.matcher }}
           </div>
@@ -584,7 +584,7 @@ const formatFieldLabel = (field: HookFieldDoc) =>
           </div>
           <ul
             v-if="selectedEventDoc.notes?.length"
-            style="margin: 0; padding-left: 18px; color: #888; font-size: 12px"
+            style="margin: 0; padding-left: 18px; color: #4b5563; font-size: 12px"
           >
             <li v-for="note in selectedEventDoc.notes" :key="note">
               {{ note }}

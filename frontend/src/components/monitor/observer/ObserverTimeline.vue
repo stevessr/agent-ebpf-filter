@@ -384,7 +384,7 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
   margin-bottom: 6px; padding-bottom: 4px;
   border-bottom: 1px solid #f0f0f0;
 }
-.toolbar-count { font-size: 12px; color: #888; }
+.toolbar-count { font-size: 12px; color: #4b5563; }
 
 .timeline-list { display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow-y: auto; }
 
