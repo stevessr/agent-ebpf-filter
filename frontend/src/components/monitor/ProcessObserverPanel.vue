@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
+import axios from "axios";
 import {
   SearchOutlined,
   ReloadOutlined,
@@ -97,8 +98,6 @@ const selectedProcessLabel = (): string => {
 };
 
 // ── Launch controls ──────────────────────────────────────────────────────
-
-import axios from "axios";
 
 const launchPath = ref("");
 const launchUser = ref("");
@@ -272,29 +271,78 @@ watch(
       <!-- 1. Selection -->
       <a-tab-pane key="selection">
         <template #tab><SearchOutlined /> Selection</template>
-        <div class="selection-bar">
-          <a-input-search
-            v-model:value="pidInput"
-            placeholder="Enter PID..."
-            :status="pidInvalid ? 'error' : undefined"
-            style="width: 170px"
-            size="small"
-            @search="onPidSearch"
-          />
-          <a-button size="small" @click="showPicker = true">
-            Pick from list...
-          </a-button>
-          <a-tag
-            v-if="selectedPid !== null"
-            color="processing"
-            closable
-            @close="onClearSelection"
-          >
-            {{ selectedProcessLabel() }}
-          </a-tag>
-          <span v-else style="color: #999; font-size: 12px">
-            No process selected
-          </span>
+        <div class="selection-container">
+          <!-- Existing PID / picker row -->
+          <div class="selection-bar">
+            <a-input-search
+              v-model:value="pidInput"
+              placeholder="Enter PID..."
+              :status="pidInvalid ? 'error' : undefined"
+              style="width: 160px"
+              size="small"
+              @search="onPidSearch"
+            />
+            <a-button size="small" @click="showPicker = true">
+              Pick from list...
+            </a-button>
+            <a-tag
+              v-if="selectedPid !== null"
+              color="processing"
+              closable
+              @close="onClearSelection"
+            >
+              {{ selectedProcessLabel() }}
+            </a-tag>
+            <span v-else style="color: #999; font-size: 12px">
+              No PID selected
+            </span>
+          </div>
+
+          <!-- Launch program via wrapper -->
+          <a-divider style="margin: 12px 0; font-size: 12px; color: #888">
+            Launch &amp; Observe
+          </a-divider>
+          <div class="launch-grid">
+            <div class="launch-field">
+              <span class="launch-label">Program</span>
+              <a-input
+                v-model:value="launchPath"
+                placeholder="/usr/bin/..."
+                size="small"
+                spellcheck="false"
+              />
+            </div>
+            <div class="launch-field">
+              <span class="launch-label">User</span>
+              <a-input
+                v-model:value="launchUser"
+                placeholder="username"
+                size="small"
+                style="width: 130px"
+              />
+            </div>
+            <div class="launch-field" style="grid-column: span 2">
+              <span class="launch-label">Args</span>
+              <a-input
+                v-model:value="launchArgs"
+                placeholder="--verbose --output /tmp/out"
+                size="small"
+              />
+            </div>
+          </div>
+          <div style="margin-top: 8px; display: flex; align-items: center; gap: 10px">
+            <a-button
+              type="primary"
+              size="small"
+              :loading="launching"
+              @click="doLaunch"
+            >
+              Launch & Observe
+            </a-button>
+            <span v-if="launchError" style="color: #ff4d4f; font-size: 12px">
+              {{ launchError }}
+            </span>
+          </div>
         </div>
       </a-tab-pane>
 
@@ -488,11 +536,34 @@ watch(
   margin-bottom: 12px;
 }
 
+.selection-container {
+  display: flex;
+  flex-direction: column;
+}
+
 .selection-bar {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 4px 0;
+}
+
+.launch-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+
+.launch-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.launch-label {
+  font-size: 11px;
+  color: #888;
+  font-weight: 500;
 }
 
 .tree-container {
