@@ -474,11 +474,19 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		log.Printf("[tls] AttachExecutable: static SSL uprobes failed for %s: %v", attachPath, err)
 	}
 
+	// Find which SSL/TLS libraries this PID actually has loaded via /proc/PID/maps.
+	// Attaching to a .so file on disk is useless if the process never mmap'd it.
+	loadedLibs := findLoadedSSLLibraries(pid)
+
 	libraries := executableLibraryCandidates(libraryHint)
 	var errs []error
 	for _, target := range libraries {
-		// Resolve the actual library .so path on the system, NOT the executable path.
-		libPath, libOk := findFirstExistingPath(target.paths...)
+		// Prefer the actual loaded library path for this PID, fall back to
+		// the first existing path on the system (for system-wide attaches).
+		libPath, libOk := findLoadedLibForTarget(loadedLibs, target)
+		if !libOk {
+			libPath, libOk = findFirstExistingPath(target.paths...)
+		}
 		if !libOk {
 			errs = append(errs, fmt.Errorf("library %s not found on system", target.name))
 			continue
@@ -491,7 +499,7 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 			log.Printf("[tls] AttachExecutable: library %s (%s) attach failed: %v", target.name, libPath, err)
 			errs = append(errs, err)
 		} else {
-			log.Printf("[tls] AttachExecutable: library %s (%s) attached successfully", target.name, libPath)
+			log.Printf("[tls] AttachExecutable: library %s (%s) attached successfully (loaded=%v)", target.name, libPath, loadedLibs != nil)
 			if pid > 0 {
 				if m.attachedExec == nil {
 					m.attachedExec = make(map[int]string)
@@ -666,6 +674,70 @@ func libTypeName(lib uint8) string {
 	default:
 		return "unknown"
 	}
+}
+
+// findLoadedSSLLibraries reads /proc/<pid>/maps and returns paths of loaded
+// .so files that match known SSL/TLS library names (libssl, libgnutls, libnspr, etc.).
+func findLoadedSSLLibraries(pid int) []string {
+	if pid <= 0 {
+		return nil
+	}
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/maps", pid))
+	if err != nil {
+		return nil
+	}
+	var libs []string
+	seen := make(map[string]bool)
+	for _, line := range strings.Split(string(data), "\n") {
+		// Format: addr-perms offset dev inode pathname
+		fields := strings.Fields(line)
+		if len(fields) < 6 {
+			continue
+		}
+		path := fields[len(fields)-1]
+		if !strings.HasSuffix(path, ".so") && !strings.Contains(path, ".so.") {
+			continue
+		}
+		base := filepath.Base(path)
+		// Match known SSL/TLS library names
+		for _, prefix := range []string{"libssl", "libcrypto", "libgnutls", "libnspr4", "libnss3", "libnssutil3"} {
+			if strings.HasPrefix(base, prefix) {
+				if !seen[path] {
+					seen[path] = true
+					libs = append(libs, path)
+					log.Printf("[tls] PID %d loaded SSL lib: %s", pid, path)
+				}
+				break
+			}
+		}
+	}
+	return libs
+}
+
+// findLoadedLibForTarget checks if any of the loaded library paths match
+// the given ProbeTarget (by library name prefix).
+func findLoadedLibForTarget(loadedLibs []string, target ProbeTarget) (string, bool) {
+	if len(loadedLibs) == 0 {
+		return "", false
+	}
+	for _, lib := range loadedLibs {
+		base := strings.ToLower(filepath.Base(lib))
+		switch target.name {
+		case "openssl":
+			if strings.HasPrefix(base, "libssl") || strings.HasPrefix(base, "libcrypto") {
+				return lib, true
+			}
+		case "gnutls":
+			if strings.HasPrefix(base, "libgnutls") {
+				return lib, true
+			}
+		case "nss":
+			if strings.HasPrefix(base, "libnspr4") || strings.HasPrefix(base, "libnss3") || strings.HasPrefix(base, "libnssutil3") {
+				return lib, true
+			}
+		}
+	}
+	return "", false
 }
 
 func tlsFuncName(fn uint8) string {
