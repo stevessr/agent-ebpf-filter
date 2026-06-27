@@ -77,6 +77,7 @@ type tlsCaptureRuntime interface {
 	EnsureStarted() (*TLSProbeManager, error)
 	Status() map[string]any
 	AttachedPIDs() []AttachedPIDInfo
+	ProbeHitCounters() map[string]uint64
 }
 
 func NewTLSCaptureBroadcaster() *TLSBroadcaster {
@@ -178,6 +179,7 @@ func handleTLSCaptureStatus(runtime tlsCaptureRuntime, store *TLSCaptureStore) g
 		status := map[string]any{"enabled": false, "available": false, "error": "TLS capture manager is not started"}
 		if runtime != nil {
 			status = runtime.Status()
+			status["probe_hits"] = runtime.ProbeHitCounters()
 		}
 		status["libraries"] = store.LibraryStatuses()
 		c.JSON(http.StatusOK, status)

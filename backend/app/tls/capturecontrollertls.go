@@ -143,6 +143,12 @@ func (c *TLSCaptureController) AttachedPIDs() []AttachedPIDInfo {
 	}
 	return c.manager.AttachedPIDs()
 }
+func (c *TLSCaptureController) ProbeHitCounters() map[string]uint64 {
+	if c == nil || c.manager == nil {
+		return nil
+	}
+	return c.manager.ProbeHitCounters()
+}
 
 func (c *TLSCaptureController) Close() error {
 	if c == nil {

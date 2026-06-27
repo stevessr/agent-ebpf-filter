@@ -182,7 +182,7 @@ func hasSSLSymbols(binPath string) bool {
 	}
 
 	for _, sym := range symbols {
-		if sym.Name == "SSL_write" || sym.Name == "SSL_read" || sym.Name == "SSL_write_ex" || sym.Name == "SSL_read_ex" {
+		if sym.Name == "SSL_write" || sym.Name == "SSL_read" || sym.Name == "SSL_write_ex" || sym.Name == "SSL_read_ex" || sym.Name == "SSL_write_ex2" {
 			return true
 		}
 	}
@@ -289,6 +289,8 @@ func tlsProgramForSymbol(symbol string) (string, bool) {
 		return "uprobe_ssl_read", true
 	case "SSL_read_ex":
 		return "uprobe_ssl_read_ex", true
+	case "SSL_write_ex2":
+		return "uprobe_ssl_write_ex2", true
 	default:
 		return "", false
 	}
@@ -308,6 +310,8 @@ func tlsReturnProgramForSymbol(symbol string) (string, bool) {
 		return "uretprobe_pr_read", true
 	case "crypto/tls.(*Conn).Read":
 		return "uretprobe_crypto_tls_conn_read", true
+	case "SSL_write_ex2":
+		return "uretprobe_ssl_write_ex2", true
 	default:
 		return "", false
 	}

@@ -242,16 +242,24 @@ func (m *TLSProbeManager) attachLibraryPath(target ProbeTarget, path string, sta
 func (m *TLSProbeManager) attachEntryProbe(executable *link.Executable, label, symbol string, opts *link.UprobeOptions) (link.Link, error) {
 	programName, ok := tlsProgramForSymbol(symbol)
 	if !ok {
+		log.Printf("[tls] attachEntryProbe: SKIP symbol=%q label=%s — no program mapping", symbol, label)
 		return nil, nil
 	}
 	prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, programName)
 	if !ok || prog == nil {
+		log.Printf("[tls] attachEntryProbe: SKIP symbol=%q label=%s program=%q — program not found in loaded BPF object", symbol, label, programName)
 		return nil, nil
+	}
+	pidHint := ""
+	if opts != nil && opts.PID != 0 {
+		pidHint = fmt.Sprintf(" pid=%d", opts.PID)
 	}
 	l, err := executable.Uprobe(symbol, prog, opts)
 	if err != nil {
+		log.Printf("[tls] attachEntryProbe: FAIL symbol=%q label=%s program=%q%s: %v", symbol, label, programName, pidHint, err)
 		return nil, fmt.Errorf("attach %s uprobe %s: %w", label, symbol, err)
 	}
+	log.Printf("[tls] attachEntryProbe: OK symbol=%q label=%s program=%q%s", symbol, label, programName, pidHint)
 	m.links = append(m.links, l)
 	return l, nil
 }
@@ -259,16 +267,24 @@ func (m *TLSProbeManager) attachEntryProbe(executable *link.Executable, label, s
 func (m *TLSProbeManager) attachReturnProbe(executable *link.Executable, label, symbol string, opts *link.UprobeOptions) (link.Link, error) {
 	programName, ok := tlsReturnProgramForSymbol(symbol)
 	if !ok {
+		log.Printf("[tls] attachReturnProbe: SKIP symbol=%q label=%s — no return program mapping", symbol, label)
 		return nil, nil
 	}
 	prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, programName)
 	if !ok || prog == nil {
+		log.Printf("[tls] attachReturnProbe: SKIP symbol=%q label=%s program=%q — program not found in loaded BPF object", symbol, label, programName)
 		return nil, nil
+	}
+	pidHint := ""
+	if opts != nil && opts.PID != 0 {
+		pidHint = fmt.Sprintf(" pid=%d", opts.PID)
 	}
 	l, err := executable.Uretprobe(symbol, prog, opts)
 	if err != nil {
+		log.Printf("[tls] attachReturnProbe: FAIL symbol=%q label=%s program=%q%s: %v", symbol, label, programName, pidHint, err)
 		return nil, fmt.Errorf("attach %s uretprobe %s: %w", label, symbol, err)
 	}
+	log.Printf("[tls] attachReturnProbe: OK symbol=%q label=%s program=%q%s", symbol, label, programName, pidHint)
 	m.links = append(m.links, l)
 	return l, nil
 }
@@ -348,9 +364,8 @@ func (m *TLSProbeManager) AttachGoUprobes(binPath string, pid int) error {
 		return fmt.Errorf("TLS probe manager is closed")
 	}
 	opts := &link.UprobeOptions{}
-	if pid > 0 {
-		opts.PID = pid
-	}
+	// Kernel 7.1+ PID-specific uprobe workaround — see AttachStaticSSLUprobes.
+	_ = pid
 	startLinks := len(m.links)
 	var errs []error
 	for _, sym := range parsed {
@@ -393,22 +408,30 @@ func (m *TLSProbeManager) AttachStaticSSLUprobes(binPath string, pid int) error 
 		return fmt.Errorf("TLS probe manager is closed")
 	}
 	opts := &link.UprobeOptions{}
-	if pid > 0 {
-		opts.PID = pid
-	}
+	// Kernel 7.1+ appears to have issues with PID-specific uprobes.
+	// Use global uprobes (PID=0) as a workaround — the probe fires for
+	// all processes that map this binary, not just the target PID.
+	_ = pid // keep signature; TODO: re-enable PID filter when kernel compat is confirmed
 	startLinks := len(m.links)
 	var errs []error
-	staticSymbols := []string{"SSL_write", "SSL_write_ex", "SSL_read", "SSL_read_ex"}
+	staticSymbols := []string{"SSL_write", "SSL_write_ex", "SSL_read", "SSL_read_ex", "SSL_write_ex2"}
+	attachedCount := 0
 	for _, sym := range staticSymbols {
-		if _, err := m.attachEntryProbe(bin, "static-openssl", sym, opts); err != nil {
+		if l, err := m.attachEntryProbe(bin, "static-openssl", sym, opts); err != nil {
 			errs = append(errs, err)
+		} else if l != nil {
+			attachedCount++
 		}
 		if _, ok := tlsReturnProgramForSymbol(sym); ok {
-			if _, err := m.attachReturnProbe(bin, "static-openssl", sym, opts); err != nil {
+			if l, err := m.attachReturnProbe(bin, "static-openssl", sym, opts); err != nil {
 				errs = append(errs, err)
+			} else if l != nil {
+				attachedCount++
 			}
 		}
 	}
+	log.Printf("[tls] AttachStaticSSLUprobes: %d/%d probes attached for %s (pid=%d)",
+		attachedCount, len(staticSymbols)*2, binPath, pid)
 	if err := errors.Join(errs...); err != nil {
 		for _, l := range m.links[startLinks:] {
 			if l != nil {
@@ -417,6 +440,9 @@ func (m *TLSProbeManager) AttachStaticSSLUprobes(binPath string, pid int) error 
 		}
 		m.links = m.links[:startLinks]
 		return err
+	}
+	if attachedCount == 0 {
+		return fmt.Errorf("zero TLS probes attached to %s — symbols may exist but eBPF program lookup failed", binPath)
 	}
 	if m.store != nil {
 		m.store.SetLibraryStatus(TLSLibraryStatus{Name: "static-openssl", Path: binPath, Attached: true, Available: true})
@@ -599,8 +625,14 @@ func (m *TLSProbeManager) ReadLoop() error {
 			return err
 		}
 		totalFrags++
+		if totalFrags <= 5 {
+			log.Printf("[tls] ReadLoop: GOT fragment #%d raw_len=%d", totalFrags, len(rec.RawSample))
+		}
 		var fragment tlsFragment
 		if err := binary.Read(bytes.NewReader(rec.RawSample), binary.LittleEndian, &fragment); err != nil {
+			if totalFrags <= 5 {
+				log.Printf("[tls] ReadLoop: binary.Read FAIL on fragment #%d (raw_len=%d): %v", totalFrags, len(rec.RawSample), err)
+			}
 			continue
 		}
 		completed, ok := assembler.Add(fragment)
@@ -1141,6 +1173,8 @@ func tlsFuncName(fn uint8) string {
 		return "crypto/tls.Write"
 	case tlsFuncGoConnRead:
 		return "crypto/tls.Read"
+	case tlsFuncSSLWriteEx2:
+		return "SSL_write_ex2"
 	default:
 		return "unknown"
 	}
@@ -1194,6 +1228,8 @@ func programByName(programs *bpf.AgentTlsCapturePrograms, name string) (*ebpf.Pr
 		"uprobe_ssl_read_ex":             programs.UprobeSslReadEx,
 		"uprobe_ssl_write":               programs.UprobeSslWrite,
 		"uprobe_ssl_write_ex":            programs.UprobeSslWriteEx,
+		"uprobe_ssl_write_ex2":           programs.UprobeSslWriteEx2,
+		"uretprobe_ssl_write_ex2":        programs.UretprobeSslWriteEx2,
 		"uretprobe_crypto_tls_conn_read": programs.UretprobeCryptoTlsConnRead,
 		"uretprobe_gnutls_record_recv":   programs.UretprobeGnutlsRecordRecv,
 		"uretprobe_pr_read":              programs.UretprobePrRead,
@@ -1261,5 +1297,30 @@ func (m *TLSProbeManager) AttachedPIDs() []AttachedPIDInfo {
 		}
 	}
 
+	return result
+}
+
+// ProbeHitCounters reads the tls_probe_hits BPF map and returns per-function hit counts
+// plus diagnostic counters (ringbuf_reserve_fail, probe_read_fail, ringbuf_submit_ok).
+func (m *TLSProbeManager) ProbeHitCounters() map[string]uint64 {
+	result := make(map[string]uint64)
+	if m == nil || m.objs == nil || m.objs.TlsProbeHits == nil {
+		return result
+	}
+	for fn := uint8(1); fn <= 11; fn++ {
+		var idx uint32 = uint32(fn)
+		var val uint64
+		if err := m.objs.TlsProbeHits.Lookup(&idx, &val); err == nil && val > 0 {
+			result[tlsFuncName(fn)] = val
+		}
+	}
+	// Diagnostic counters (indices 12-14 in BPF map)
+	diagLabels := map[uint32]string{12: "ringbuf_reserve_fail", 13: "probe_read_fail", 14: "ringbuf_submit_ok"}
+	for idx, label := range diagLabels {
+		var val uint64
+		if err := m.objs.TlsProbeHits.Lookup(&idx, &val); err == nil && val > 0 {
+			result[label] = val
+		}
+	}
 	return result
 }

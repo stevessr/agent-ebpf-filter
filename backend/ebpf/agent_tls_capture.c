@@ -30,6 +30,7 @@ char LICENSE[] SEC("license") = "GPL";
 #define TLS_FUNC_PR_READ 8
 #define TLS_FUNC_GO_CONN_WRITE 9
 #define TLS_FUNC_GO_CONN_READ 10
+#define TLS_FUNC_SSL_WRITE_EX2 11
 
 struct tls_fragment {
 	__u64 timestamp_ns;
@@ -71,8 +72,30 @@ struct {
 	__type(value, struct retprobe_ctx);
 } retprobe_buf SEC(".maps");
 
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(max_entries, 16);
+	__type(key, __u32);
+	__type(value, __u64);
+} tls_probe_hits SEC(".maps");
+
+static __always_inline void inc_probe_hit(__u8 function) {
+	__u32 idx = (__u32)function;
+	__u64 *cnt = bpf_map_lookup_elem(&tls_probe_hits, &idx);
+	if (cnt) {
+		__sync_fetch_and_add(cnt, 1);
+	}
+}
+
 static __always_inline int emit_tls_fragment(const void *buf, __u32 original_len, __u8 lib, __u8 dir, __u8 function)
 {
+	__u32 diag_ringbuf_fail = 12;
+	__u32 diag_read_fail = 13;
+	__u32 diag_submit_ok = 14;
+
+	inc_probe_hit(function);
+	bpf_printk("tls: ENTER func=%u dir=%u len=%u buf=%llx", function, dir, original_len, (unsigned long long)buf);
+
 	if (!buf || original_len == 0) {
 		return 0;
 	}
@@ -95,6 +118,8 @@ static __always_inline int emit_tls_fragment(const void *buf, __u32 original_len
 
 		struct tls_fragment *f = bpf_ringbuf_reserve(&tls_events, sizeof(*f), 0);
 		if (!f) {
+			__u64 *cnt = bpf_map_lookup_elem(&tls_probe_hits, &diag_ringbuf_fail);
+			if (cnt) __sync_fetch_and_add(cnt, 1);
 			break;
 		}
 
@@ -119,10 +144,14 @@ static __always_inline int emit_tls_fragment(const void *buf, __u32 original_len
 		bpf_get_current_comm(&f->comm, sizeof(f->comm));
 
 		if (bpf_probe_read_user(f->data, chunk, (const char *)buf + offset) < 0) {
+			__u64 *cnt = bpf_map_lookup_elem(&tls_probe_hits, &diag_read_fail);
+			if (cnt) __sync_fetch_and_add(cnt, 1);
 			bpf_ringbuf_discard(f, 0);
 			break;
 		}
 		bpf_ringbuf_submit(f, 0);
+		__u64 *cnt = bpf_map_lookup_elem(&tls_probe_hits, &diag_submit_ok);
+		if (cnt) __sync_fetch_and_add(cnt, 1);
 	}
 
 	return 0;
@@ -130,6 +159,7 @@ static __always_inline int emit_tls_fragment(const void *buf, __u32 original_len
 
 static __always_inline int save_retprobe_ctx(void *buf, const void *len_ptr, __u32 len, __u8 lib, __u8 dir, __u8 function)
 {
+	inc_probe_hit(function);
 	__u64 pid_tgid = bpf_get_current_pid_tgid();
 	struct retprobe_ctx rc = {
 		.buf = (__u64)buf,
@@ -193,6 +223,38 @@ int uretprobe_ssl_write_ex(struct pt_regs *ctx)
 		return emit_tls_fragment((const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
 	}
 	return emit_tls_fragment((const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
+}
+
+SEC("uprobe/SSL_write_ex2")
+int uprobe_ssl_write_ex2(struct pt_regs *ctx)
+{
+#if defined(__TARGET_ARCH_x86)
+	const void *buf = (const void *)PT_REGS_PARM2(ctx);
+	__u32 len = (__u32)PT_REGS_PARM3(ctx);
+	const void *written = (const void *)PT_REGS_PARM4(ctx);
+	return save_retprobe_ctx((void *)buf, written, len, TLS_LIB_OPENSSL, TLS_DIR_SEND, TLS_FUNC_SSL_WRITE_EX2);
+#else
+	return 0;
+#endif
+}
+
+SEC("uretprobe/SSL_write_ex2")
+int uretprobe_ssl_write_ex2(struct pt_regs *ctx)
+{
+#if defined(__TARGET_ARCH_x86)
+	__s32 ret = (__s32)PT_REGS_RC(ctx);
+	struct retprobe_ctx rc = {};
+	if (!load_retprobe_ctx(&rc) || ret != 1) {
+		return 0;
+	}
+	__u64 written = 0;
+	if (rc.len_ptr && bpf_probe_read_user(&written, sizeof(written), (const void *)rc.len_ptr) == 0 && written > 0) {
+		return emit_tls_fragment((const void *)rc.buf, (__u32)written, rc.lib_type, rc.direction, rc.function);
+	}
+	return emit_tls_fragment((const void *)rc.buf, rc.len, rc.lib_type, rc.direction, rc.function);
+#else
+	return 0;
+#endif
 }
 
 SEC("uprobe/SSL_read")

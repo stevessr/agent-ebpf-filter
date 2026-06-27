@@ -29,6 +29,7 @@ const tlsFuncPRWrite = 7
 const tlsFuncPRRead = 8
 const tlsFuncGoConnWrite = 9
 const tlsFuncGoConnRead = 10
+const tlsFuncSSLWriteEx2 = 11
 
 type tlsFragment struct {
 	TimestampNS uint64
