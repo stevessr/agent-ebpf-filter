@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch, computed } from "vue";
 import axios from "axios";
 import {
   SearchOutlined,
@@ -135,9 +135,7 @@ const doLaunch = async () => {
   launching.value = true;
   launchError.value = "";
   try {
-    const args = launchArgs.value
-      .split(/\s+/)
-      .filter((a) => a.length > 0);
+    const args = launchArgs.value.split(/\s+/).filter((a) => a.length > 0);
     const res = await axios.post("/system/run", {
       comm: launchPath.value.trim(),
       args,
@@ -198,24 +196,49 @@ watch(selectedPid, (pid) => {
   }
 });
 
-
 // SSL attachment status per PID
-const sslAttachedSet = computed<Set<number>>(() => new Set(attachedPIDs.value.map((a: any) => a.pid)));
+const sslAttachedSet = computed<Set<number>>(
+  () => new Set(attachedPIDs.value.map((a: any) => a.pid)),
+);
 const sslLibForPid = (pid: number): string => {
   const a = attachedPIDs.value.find((x: any) => x.pid === pid);
-  return a ? (a.library_name || a.libraryName || "attached") : "";
+  return a ? a.library_name || a.libraryName || "attached" : "";
 };
 
 // ── Table columns ────────────────────────────────────────────────────────
 
 const networkFlowColumns = [
   { title: "Proto", dataIndex: "protocol", key: "protocol", width: 60 },
-  { title: "Src", dataIndex: "srcIp", key: "srcIp", width: 130, ellipsis: true },
-  { title: "Dst", dataIndex: "dstIp", key: "dstIp", width: 130, ellipsis: true },
+  {
+    title: "Src",
+    dataIndex: "srcIp",
+    key: "srcIp",
+    width: 130,
+    ellipsis: true,
+  },
+  {
+    title: "Dst",
+    dataIndex: "dstIp",
+    key: "dstIp",
+    width: 130,
+    ellipsis: true,
+  },
   { title: "Port", dataIndex: "dstPort", key: "dstPort", width: 65 },
   { title: "Svc", dataIndex: "dstService", key: "dstService", width: 90 },
-  { title: "In", dataIndex: "bytesIn", key: "bytesIn", width: 75, align: "right" as const },
-  { title: "Out", dataIndex: "bytesOut", key: "bytesOut", width: 75, align: "right" as const },
+  {
+    title: "In",
+    dataIndex: "bytesIn",
+    key: "bytesIn",
+    width: 75,
+    align: "right" as const,
+  },
+  {
+    title: "Out",
+    dataIndex: "bytesOut",
+    key: "bytesOut",
+    width: 75,
+    align: "right" as const,
+  },
 ];
 
 const tcpConnColumns = [
@@ -232,7 +255,13 @@ const eventColumns = [
   { title: "Comm", dataIndex: "comm", key: "comm", width: 100, ellipsis: true },
   { title: "Type", dataIndex: "type", key: "type", width: 95 },
   { title: "Path", dataIndex: "path", key: "path", ellipsis: true },
-  { title: "Bytes", dataIndex: "bytes", key: "bytes", width: 80, align: "right" as const },
+  {
+    title: "Bytes",
+    dataIndex: "bytes",
+    key: "bytes",
+    width: 80,
+    align: "right" as const,
+  },
 ];
 
 const tlsColumns = [
@@ -242,10 +271,14 @@ const tlsColumns = [
   { title: "Dir", dataIndex: "direction", key: "direction", width: 50 },
   { title: "Host", dataIndex: "host", key: "host", width: 160, ellipsis: true },
   { title: "URL", dataIndex: "url", key: "url", ellipsis: true },
-  { title: "Status", dataIndex: "status", key: "status", width: 60, align: "right" as const },
+  {
+    title: "Status",
+    dataIndex: "status",
+    key: "status",
+    width: 60,
+    align: "right" as const,
+  },
 ];
-
-
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -345,7 +378,14 @@ watch(
               />
             </div>
           </div>
-          <div style="margin-top: 8px; display: flex; align-items: center; gap: 10px">
+          <div
+            style="
+              margin-top: 8px;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            "
+          >
             <a-button
               type="primary"
               size="small"
@@ -390,7 +430,9 @@ watch(
             <a-button
               size="small"
               type="link"
-              @click="expandedNodes = new Set(collectAllPids(selectedProcessTree))"
+              @click="
+                expandedNodes = new Set(collectAllPids(selectedProcessTree))
+              "
             >
               Expand All
             </a-button>
@@ -419,12 +461,20 @@ watch(
 
       <!-- 5. Network -->
       <a-tab-pane key="network">
-        <template #tab>Network</template>
-        <template #tabBarExtraContent>
-          <a-button size="small" type="link" danger @click="clearNetworkFlows(); clearTCPConns()" style="padding:0 4px;font-size:11px">Clear</a-button>
-        </template>
-      <a-tab-pane key="network">
         <template #tab><ReloadOutlined /> Network</template>
+        <template #tabBarExtraContent>
+          <a-button
+            size="small"
+            type="link"
+            danger
+            @click="
+              clearNetworkFlows();
+              clearTCPConns();
+            "
+            style="padding: 0 4px; font-size: 11px"
+            >Clear</a-button
+          >
+        </template>
         <a-empty
           v-if="selectedPid === null"
           description="Select a PID to view network connections"
@@ -466,7 +516,14 @@ watch(
       <a-tab-pane key="syscalls">
         <template #tab>Syscalls</template>
         <template #tabBarExtraContent>
-          <a-button size="small" type="link" danger @click="clearEvents()" style="padding:0 4px;font-size:11px">Clear</a-button>
+          <a-button
+            size="small"
+            type="link"
+            danger
+            @click="clearEvents()"
+            style="padding: 0 4px; font-size: 11px"
+            >Clear</a-button
+          >
         </template>
         <a-empty
           v-if="selectedPid === null"
@@ -482,7 +539,7 @@ watch(
         >
           <template #bodyCell="{ column, text, record }">
             <a-tag v-if="column.key === 'type'" color="purple" size="small">
-              {{ text?.toUpperCase?.() || '—' }}
+              {{ text?.toUpperCase?.() || "—" }}
             </a-tag>
             <span v-else-if="column.key === 'bytes'">
               {{ formatBytes(record.bytes) }}
@@ -495,7 +552,14 @@ watch(
       <a-tab-pane key="file-access">
         <template #tab>File Access</template>
         <template #tabBarExtraContent>
-          <a-button size="small" type="link" danger @click="clearEvents()" style="padding:0 4px;font-size:11px">Clear</a-button>
+          <a-button
+            size="small"
+            type="link"
+            danger
+            @click="clearEvents()"
+            style="padding: 0 4px; font-size: 11px"
+            >Clear</a-button
+          >
         </template>
         <a-empty
           v-if="selectedPid === null"
@@ -511,7 +575,7 @@ watch(
         >
           <template #bodyCell="{ column, text, record }">
             <a-tag v-if="column.key === 'type'" color="blue" size="small">
-              {{ text?.toUpperCase?.() || '—' }}
+              {{ text?.toUpperCase?.() || "—" }}
             </a-tag>
             <span v-else-if="column.key === 'bytes'">
               {{ formatBytes(record.bytes) }}
@@ -527,18 +591,21 @@ watch(
           v-if="selectedPid === null"
           description="Select a PID to view resource usage"
         />
-        <ObserverResources
-          v-else
-          :processes="processes"
-          :treePids="treePids"
-        />
+        <ObserverResources v-else :processes="processes" :treePids="treePids" />
       </a-tab-pane>
 
       <!-- 9. SSL -->
       <a-tab-pane key="ssl">
         <template #tab>SSL</template>
         <template #tabBarExtraContent>
-          <a-button size="small" type="link" danger @click="clearTLSEvents()" style="padding:0 4px;font-size:11px">Clear</a-button>
+          <a-button
+            size="small"
+            type="link"
+            danger
+            @click="clearTLSEvents()"
+            style="padding: 0 4px; font-size: 11px"
+            >Clear</a-button
+          >
         </template>
         <a-empty
           v-if="selectedPid === null"
