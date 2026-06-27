@@ -56,7 +56,7 @@ const formatJSON = (obj: any, maxLen: number = 3000): string => {
 };
 
 // ── SSE parser (handles framed SSE + bare JSON + chunked + truncated) ────
-interface SSEParsed { type: string; index?: number; data: any; delta?: any; content_block?: any; message?: any; }
+interface SSEParsed { type: string; index?: number; data: any; delta?: any; content_block?: any; message?: any; usage?: any; }
 const NOOP_TYPES = new Set(["ping", "message_stop"]);
 
 // Depth-aware split of concatenated JSON: {a}{b} → [{a}, {b}]
@@ -99,6 +99,7 @@ const parseOneSSEData = (evType: string, data: string): SSEParsed[] => {
       delta: obj.delta,
       content_block: obj.content_block,
       message: obj.message,
+      usage: obj.usage || obj.message?.usage,
     }));
   }
   // Truncated JSON — try to salvage partial_json
@@ -149,6 +150,7 @@ const parseRawSSE = (text: string): SSEParsed[] => {
         type: obj.type || "", index: obj.index,
         data: obj, delta: obj.delta,
         content_block: obj.content_block, message: obj.message,
+        usage: obj.usage || obj.message?.usage,
       });
     }
     return result;
@@ -167,6 +169,7 @@ interface MergedGroup {
   startTime: string; endTime: string; totalSize: number;
   messageRole?: string; messageModel?: string; messageId?: string;
   contentBlocks: ContentBlock[]; rawMerged: string;
+  usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
 }
 
 // ── Content block merging (handles Anthropic + OpenAI + generic) ─────────
@@ -248,13 +251,21 @@ const mergeContentBlocks = (parsedEvents: SSEParsed[]): ContentBlock[] => {
   return Array.from(blocks.values());
 };
 
-const extractMessageMeta = (events: SSEParsed[]): { role?: string; model?: string; id?: string } => {
+const extractMessageMeta = (events: SSEParsed[]): { role?: string; model?: string; id?: string; usage?: any } => {
+  let meta: { role?: string; model?: string; id?: string; usage?: any } = {};
   for (const p of events) {
     if (p.type === "message_start" && p.message) {
-      return { role: p.message.role, model: p.message.model, id: p.message.id };
+      meta.role = p.message.role;
+      meta.model = p.message.model;
+      meta.id = p.message.id;
+      if (p.message.usage) meta.usage = p.message.usage;
+    }
+    // message_delta / message_stop may carry final usage
+    if ((p.type === "message_delta" || p.type === "message_stop") && p.usage) {
+      meta.usage = p.usage;
     }
   }
-  return {};
+  return meta;
 };
 
 // ── Check if raw text looks like SSE JSON ───────────────────────────────
@@ -341,7 +352,7 @@ const buildGroups = (events: ObserverTLSEvent[]): MergedGroup[] => {
         id: nextId(), events: batch,
         startTime: batch[0].timestamp, endTime: batch[batch.length - 1].timestamp,
         totalSize: batch.reduce((s, e) => s + (e.body_size || e.captured_len), 0),
-        messageRole: meta.role, messageModel: meta.model, messageId: meta.id,
+        messageRole: meta.role, messageModel: meta.model, messageId: meta.id, usage: meta.usage,
         contentBlocks: allParsed.length > 0 ? mergeContentBlocks(allParsed) : [],
         rawMerged: allParsed.length > 0 ? "" : batch.map(getRawText).join("\n"),
       });
@@ -463,6 +474,7 @@ const toggle = (id: string) => {
               <span class="ac-h-meta">
                 <span v-if="g.messageRole" class="ac-role">{{ g.messageRole }}</span>
                 <span v-if="g.messageModel" class="ac-model">{{ g.messageModel }}</span>
+                <span v-if="g.usage?.output_tokens" class="ac-tok-inline">{{ (g.usage.output_tokens).toLocaleString() }} tok</span>
                 <span v-if="g.contentBlocks.length>1" class="ac-cbc">{{ g.contentBlocks.length }} blocks</span>
               </span>
               <span class="ac-h-host" v-if="g.events[0]?.host">{{ g.events[0].host }}</span>
@@ -474,6 +486,12 @@ const toggle = (id: string) => {
             <!-- body -->
             <div v-if="expanded.has(g.id)" class="ac-body">
               <div v-if="g.messageId" class="ac-meta"><span class="ac-k">ID</span><code>{{ g.messageId }}</code></div>
+              <div v-if="g.usage" class="ac-tokens">
+                <span class="ac-tok"><span class="ac-tok-label">Input</span><span class="ac-tok-val">{{ (g.usage.input_tokens||0).toLocaleString() }}</span></span>
+                <span v-if="g.usage.cache_read_input_tokens" class="ac-tok ac-tok-cache"><span class="ac-tok-label">Cache Read</span><span class="ac-tok-val">{{ g.usage.cache_read_input_tokens.toLocaleString() }}</span></span>
+                <span v-if="g.usage.cache_creation_input_tokens" class="ac-tok ac-tok-cache"><span class="ac-tok-label">Cache Write</span><span class="ac-tok-val">{{ g.usage.cache_creation_input_tokens.toLocaleString() }}</span></span>
+                <span class="ac-tok"><span class="ac-tok-label">Output</span><span class="ac-tok-val">{{ (g.usage.output_tokens||0).toLocaleString() }}</span></span>
+              </div>
               <div v-if="g.contentBlocks.length" class="ac-blocks">
                 <div v-for="(b,bi) in g.contentBlocks" :key="bi" class="ac-block" :class="`ac-b-${b.type}`">
                   <div class="ac-b-head"><component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span></div>
@@ -498,6 +516,7 @@ const toggle = (id: string) => {
               <span class="ac-h-meta">
                 <span v-if="g.messageRole" class="ac-role">{{ g.messageRole }}</span>
                 <span v-if="g.messageModel" class="ac-model">{{ g.messageModel }}</span>
+                <span v-if="g.usage?.output_tokens" class="ac-tok-inline">{{ (g.usage.output_tokens).toLocaleString() }} tok</span>
                 <span v-if="g.contentBlocks.length>1" class="ac-cbc">{{ g.contentBlocks.length }} blocks</span>
               </span>
               <span class="ac-h-host" v-if="g.events[0]?.host">{{ g.events[0].host }}</span>
@@ -508,6 +527,12 @@ const toggle = (id: string) => {
             <div v-if="g.events.length>1 && (g.events[0]?.type==='sse_message' || g.contentBlocks.length>0)" class="ac-merged"><MergeCellsOutlined /> {{ g.events.length }} SSE → {{ g.contentBlocks.length }} block{{g.contentBlocks.length!==1?'s':''}}</div>
             <div v-if="expanded.has(g.id)" class="ac-body">
               <div v-if="g.messageId" class="ac-meta"><span class="ac-k">ID</span><code>{{ g.messageId }}</code></div>
+              <div v-if="g.usage" class="ac-tokens">
+                <span class="ac-tok"><span class="ac-tok-label">Input</span><span class="ac-tok-val">{{ (g.usage.input_tokens||0).toLocaleString() }}</span></span>
+                <span v-if="g.usage.cache_read_input_tokens" class="ac-tok ac-tok-cache"><span class="ac-tok-label">Cache Read</span><span class="ac-tok-val">{{ g.usage.cache_read_input_tokens.toLocaleString() }}</span></span>
+                <span v-if="g.usage.cache_creation_input_tokens" class="ac-tok ac-tok-cache"><span class="ac-tok-label">Cache Write</span><span class="ac-tok-val">{{ g.usage.cache_creation_input_tokens.toLocaleString() }}</span></span>
+                <span class="ac-tok"><span class="ac-tok-label">Output</span><span class="ac-tok-val">{{ (g.usage.output_tokens||0).toLocaleString() }}</span></span>
+              </div>
               <div v-if="g.contentBlocks.length" class="ac-blocks">
                 <div v-for="(b,bi) in g.contentBlocks" :key="bi" class="ac-block" :class="`ac-b-${b.type}`">
                   <div class="ac-b-head"><component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span></div>
@@ -543,6 +568,7 @@ const toggle = (id: string) => {
 .ac-h-meta{display:flex;align-items:center;gap:6px;flex:1;overflow:hidden}
 .ac-role{font-family:ui-monospace,monospace;font-size:11px;color:#7c3aed;font-weight:600}
 .ac-model{font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace}
+.ac-tok-inline{font-size:10px;color:#0891b2;font-family:ui-monospace,monospace;font-weight:600;background:#ecfeff;padding:0 4px;border-radius:3px;border:1px solid #a5f3fc}
 .ac-cbc{font-size:10px;color:#64748b}
 .ac-h-host{font-size:10px;color:#64748b;font-family:ui-monospace,monospace;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ac-h-size{font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace}
@@ -553,6 +579,11 @@ const toggle = (id: string) => {
 .ac-meta{display:flex;gap:6px;font-size:11px;margin-bottom:6px;align-items:baseline}
 .ac-k{color:#94a3b8;text-transform:uppercase;min-width:30px;font-size:10px}
 .ac-meta code{font-family:ui-monospace,monospace;font-size:10px;color:#0f172a;word-break:break-all}
+.ac-tokens{display:flex;gap:10px;padding:4px 8px;background:#f0fdfa;border-radius:4px;border:1px solid #ccfbf1;margin-bottom:6px;flex-wrap:wrap}
+.ac-tok{display:flex;align-items:center;gap:3px;font-size:11px}
+.ac-tok-label{color:#64748b;font-size:10px}
+.ac-tok-val{font-family:ui-monospace,monospace;font-weight:700;color:#0f766e;font-size:12px}
+.ac-tok-cache .ac-tok-val{color:#7c3aed}
 .ac-blocks{display:flex;flex-direction:column;gap:8px}
 .ac-block{border:1px solid #e2e8f0;border-radius:6px;overflow:hidden}
 .ac-b-text{border-color:#86efac}.ac-b-tool_use{border-color:#fdba74}.ac-b-thinking{border-color:#c4b5fd}.ac-b-request_body{border-color:#93c5fd}.ac-b-response_body{border-color:#67e8f9}
