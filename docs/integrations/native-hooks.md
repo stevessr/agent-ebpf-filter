@@ -156,9 +156,9 @@ curl -X POST \
 
 ## 源码入口
 
-- `backend/app/hooks__hooks.go` — hook 事件处理
-- `backend/app/hooks__kiroantigravityhooks.go` — Kiro / Antigravity 特殊处理
-- `backend/app/handlers__handlershooksconfig.go` — hook 配置管理 API
+- `backend/app/hooks.go` — hook 事件处理
+- `backend/app/kiroantigravityhooks.go` — Kiro / Antigravity 特殊处理
+- `backend/app/handlers/hooksconfig.go` — hook 配置管理 API
 - `frontend/src/views/hooks/Hooks.vue` — 前端 Hook 管理页面
 - `frontend/src/data/hookCatalog.ts` — hook 目标目录
 

@@ -6,7 +6,7 @@ ML 与 Plugins 是增强层，服务于行为分类、风险评分、训练集�
 
 主要代码：
 
-- `backend/app/ml__*.go`
+- `backend/app/ (ml flat files) and backend/ml/ (subpackage)`
 - `backend/ml/`
 - `frontend/src/views/ml/ML.vue`
 - `frontend/src/components/config/ml/*`
@@ -49,7 +49,7 @@ ML 与 Plugins 是增强层，服务于行为分类、风险评分、训练集�
 
 主要代码：
 
-- `backend/app/handlers__handlers_plugin.go`
+- `backend/app/handlers/plugin.go`
 - `backend/app/plugin*`
 - `frontend/src/views/plugins/Plugins.vue`
 - `frontend/src/components/plugins/*`

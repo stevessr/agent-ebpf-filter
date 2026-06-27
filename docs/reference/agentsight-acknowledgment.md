@@ -75,10 +75,10 @@ Agent eBPF Filter 在以下方面进行了扩展和差异化：
 
 | 文件 | 说明 |
 | --- | --- |
-| `backend/app/handlers__handlers_agentsight.go` | AgentSight 兼容 API 端点 |
+| `backend/app/handlers/agentsight.go` | AgentSight 兼容 API 端点 |
 | `backend/app/api__api_external.go` | External API 兼容路由 |
 | `backend/app/agentsight__analyzers_agentsight.go` | AgentSight session 数据转换 |
-| `backend/app/handlers__handlersagentsight_test.go` | 测试用例 |
+| `backend/app/handlers/agentsight/test.go` | 测试用例 |
 | `backend/app/feature_build_agentsight.go` | AgentSight feature build tag |
 | `backend/handlers/agentsight/test.go` | 旧 handler 测试（已迁移） |
 

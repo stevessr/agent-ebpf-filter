@@ -4,7 +4,7 @@
 
 ## 内核事件读取
 
-`backend/app/runtime__jobs_background.go` 中：
+`backend/app/jobs_background.go` 中：
 
 ```mermaid
 flowchart TD
@@ -27,7 +27,7 @@ flowchart TD
 
 ## Process context
 
-`backend/app/events__context_event.go` 将注册、wrapper 和 hook 的上下文归一化。
+`backend/app/events/context_event.go` 将注册、wrapper 和 hook 的上下文归一化。
 
 | 构造函数 | 来源 |
 | --- | --- |

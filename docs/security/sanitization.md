@@ -388,14 +388,14 @@ masked := engine.ApplyRules(value, redaction.FieldCategoryPath)
 
 #### 集成点
 
-1. **事件封装**（`backend/app/runtime__envelope_event.go`）
+1. **事件封装**（`backend/app/envelope_event.go`）
    ```go
    envelope := buildEventEnvelope(record)
    envelope = applyRedaction(envelope)
    return envelope
    ```
 
-2. **持久化**（`backend/app/runtime__statepersistenceruntime.go`）
+2. **持久化**（`backend/app/statepersistenceruntime.go`）
    ```go
    record = applyRedactionToRecord(record)
    runtimeState.AppendEvent(record)

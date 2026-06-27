@@ -11,9 +11,9 @@
 本次阅读覆盖以下代码与文档入口：
 
 - 构建与运行：`Makefile`、`CLAUDE.md`、`AGENTS.md`。
-- 后端启动与路由：`backend/app/main.go`、`backend/app/routes__routes.go`。
-- 后端运行时状态：`backend/core/state_types.go`、`backend/app/feature_manifest.go`、`backend/app/runtime__jobs_background.go`。
-- 事件上下文：`backend/app/events__context_event.go`、`proto/tracker_events.proto`。
+- 后端启动与路由：`backend/app/main.go`、`backend/app/routes.go`。
+- 后端运行时状态：`backend/core/state_types.go`、`backend/app/feature_manifest.go`、`backend/app/jobs_background.go`。
+- 事件上下文：`backend/app/events/context_event.go`、`proto/tracker_events.proto`。
 - 前端路由：`frontend/src/router/index.ts`。
 - wrapper：`wrapper/main.go`。
 - 项目级导航：`.claude/skills/project-structure/references/*.md`。
@@ -70,7 +70,7 @@ flowchart TD
 
 ### 2.2 后台任务链
 
-`backend/app/runtime__jobs_background.go` 负责把内核事件和后台服务串起来：
+`backend/app/jobs_background.go` 负责把内核事件和后台服务串起来：
 
 ```mermaid
 flowchart TD
@@ -101,7 +101,7 @@ flowchart TD
 
 ## 3. 路由与 API 分层
 
-当前路由总入口是 `backend/app/routes__routes.go`。
+当前路由总入口是 `backend/app/routes.go`。
 
 ### 3.1 路由注册顺序
 
@@ -162,7 +162,7 @@ flowchart TD
 
 ### 4.2 process context
 
-`backend/app/events__context_event.go` 维护 `processContext`，它把注册、wrapper、hook 中的上下文归一化到事件上：
+`backend/app/events/context_event.go` 维护 `processContext`，它把注册、wrapper、hook 中的上下文归一化到事件上：
 
 ```mermaid
 flowchart TD

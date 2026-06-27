@@ -15,7 +15,7 @@
 
 **Ringbuf 解码**:
 ```go
-// backend/app/runtime__jobs_background.go (伪代码)
+// backend/app/jobs_background.go (伪代码)
 func decodeBPFEventRecord(sample []byte) (*bpfEvent, error) {
     if isNativeLittleEndian && isAligned(sample) {
         // 零拷贝路径：直接构造指针视图

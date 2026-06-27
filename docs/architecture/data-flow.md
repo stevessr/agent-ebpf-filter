@@ -75,8 +75,8 @@ func decodeBPFEventRecord(sample []byte) (*bpfEvent, error) {
 #### 📌 关键源码入口
 
 - **内核探针端**：`backend/ebpf/agent_tracker.c`、`backend/ebpf/agent_tracker_common.h`
-- **常驻消费端**：`backend/app/runtime__jobs_background.go`
-- **上下文聚合**：`backend/app/events__context_event.go`、`backend/app/events__graph_execution.go`
+- **常驻消费端**：`backend/app/jobs_background.go`
+- **上下文聚合**：`backend/app/events/context_event.go`、`backend/app/events/graph_execution.go`
 - **协议描述符**：`proto/tracker_events.proto`
 
 ## 🛡️ 2. Wrapper 命令策略流 (同步安全阻断)

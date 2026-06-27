@@ -431,12 +431,12 @@ accessToken := base64.URLEncoding.EncodeToString(token)
 flowchart TD
     Root["backend/app/"]
     Root --> Main["main.go<br/>启动编排"]
-    Root --> Routes["routes__routes.go<br/>路由注册"]
-    Root --> Runtime["runtime__*.go<br/>eBPF 运行时"]
-    Root --> Handlers["handlers__*.go<br/>HTTP 处理器"]
-    Root --> Events["events__*.go<br/>事件处理"]
+    Root --> Routes["routes.go<br/>路由注册"]
+    Root --> Runtime["jobs_background.go 等<br/>eBPF 运行时"]
+    Root --> Handlers["handlers/*.go<br/>HTTP 处理器"]
+    Root --> Events["events/*.go<br/>事件处理"]
     Root --> Network["network__*.go<br/>网络追踪"]
-    Root --> ML["ml__*.go<br/>机器学习"]
+    Root --> ML["ml/*.go<br/>机器学习"]
     Root --> LSM["lsm/enforcer/<br/>LSM 子系统"]
 ```
 
@@ -684,8 +684,8 @@ func ensureBackendPrivileges() (bool, error) {
 
 ### Backend 核心
 - `/backend/app/main.go` - 启动流程
-- `/backend/app/routes__routes.go` - 路由注册
-- `/backend/app/runtime__runtime_ebpf.go` - eBPF 生命周期
+- `/backend/app/routes.go` - 路由注册
+- `/backend/app/runtime_ebpf.go` - eBPF 生命周期
 - `/backend/app/server__server_uds.go` - Wrapper 策略引擎
 - `/backend/ebpf/agent_tracker_common.h` - eBPF 核心逻辑
 

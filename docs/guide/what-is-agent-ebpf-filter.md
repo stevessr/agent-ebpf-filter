@@ -148,10 +148,10 @@ flowchart LR
 ## 代码入口
 
 - 后端启动：`backend/app/main.go`
-- 路由注册：`backend/app/routes__routes.go`
+- 路由注册：`backend/app/routes.go`
 - runtime settings：`backend/core/state_types.go`
 - feature manifest：`backend/app/feature_manifest.go`
-- 事件上下文：`backend/app/events__context_event.go`
+- 事件上下文：`backend/app/events/context_event.go`
 - 主 eBPF：`backend/ebpf/agent_tracker.c`
 - cgroup sandbox：`backend/ebpf/cgroup_sandbox.c`
 - BPF LSM：`backend/ebpf/lsm_enforcer.c`

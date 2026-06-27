@@ -5,30 +5,38 @@
 | 领域 | 入口 |
 | --- | --- |
 | 启动 | `backend/app/main.go` |
-| 路由 | `backend/app/routes__routes.go` |
+| 路由 | `backend/app/routes.go` |
+| 依赖注入容器 | `backend/app/appcontext.go` |
+| 桥接层 | `backend/app/handlersbridge.go`, `eventsbridge.go`, `networkflowsbridge.go`, `shellbridge.go` |
 | runtime settings | `backend/core/state_types.go` |
-| feature manifest | `backend/app/feature_manifest.go` |
-| ringbuf jobs | `backend/app/runtime__jobs_background.go` |
-| eBPF runtime | `backend/app/runtime__runtime_ebpf.go` |
-| event context | `backend/app/events__context_event.go` |
-| network events | `backend/app/events__events_network.go` |
-| network flows | `backend/app/events__event_flows.go` |
-| execution graph | `backend/app/events__graph_execution.go` |
-| hooks | `backend/app/hooks__hooks.go` |
-| registration | `backend/app/handlers__handlers_registration.go` |
-| config | `backend/app/handlers__handlers_config.go` |
-| system | `backend/app/handlers__handlers_system.go` |
-| ML | `backend/app/ml__*.go`、`backend/ml/` |
-| plugins | `backend/app/handlers__handlers_plugin.go` |
+| feature manifest | `backend/app/feature_manifest.go`, `backend/app/feature_registry.go` |
+| ringbuf jobs | `backend/app/jobs_background.go` |
+| 类型别名 | `backend/app/typebridge.go`, `backend/app/types.go` |
+| HTTP handlers | `backend/app/handlers/` (24 文件，按模块拆分) |
+| 事件处理 | `backend/app/events/` (事件归一化/语义告警/上下文组装/Kernel Risk) |
+| 网络分析 | `backend/app/network/` (TCP/DNS/GeoIP/带宽/流聚合) |
+| TLS 捕获 | `backend/app/tls/` (明文捕获/HTTP解析/SSL过滤器/AI元数据富化) |
+| 采集器指标 | `backend/app/observability/` |
+| Shell 会话 | `backend/app/shell/` |
+| 沙箱管控 | `backend/app/sandbox/` |
+| 平台抽象 | `backend/app/platform/` |
+| 运行时状态 | `backend/app/runtime/` |
+| 导出 | `backend/app/export/` |
+| AgentSight 兼容 | `backend/app/handlers/agentsight.go` |
+| 外部 API v1 | `backend/app/api_external.go` |
+| ML 引擎 | `backend/ml/` |
+| 数据脱敏 | `backend/redaction/` |
+| 网络核心算法 | `backend/internal/network/` (Flow/TCP/DNS/Scope) |
+| 行为分类 | `backend/internal/behavior/` |
+| GeoIP | `backend/internal/geoip/` |
+| 进程上下文 | `backend/app/ctx/` |
+| 插件系统 | `backend/app/handlers/plugin.go`, `backend/app/plugins.go` |
 
 ## eBPF
 
 | 领域 | 入口 |
 | --- | --- |
 | main tracker | `backend/ebpf/agent_tracker.c` |
-| common structs | `backend/ebpf/agent_tracker_common.h` |
-| syscall helpers | `backend/ebpf/agent_tracker_syscalls.h` |
-| tail calls | `backend/ebpf/agent_tracker_tail.h` |
 | cgroup sandbox | `backend/ebpf/cgroup_sandbox.c` |
 | BPF LSM | `backend/ebpf/lsm_enforcer.c` |
 | TLS capture | `backend/ebpf/agent_tls_capture.c` |
@@ -41,16 +49,17 @@
 | app bootstrap | `frontend/src/main.ts` |
 | shell | `frontend/src/App.vue` |
 | routes | `frontend/src/router/index.ts` |
-| dashboard | `frontend/src/views/dashboard/Dashboard.vue` |
-| monitor | `frontend/src/views/monitor/Monitor.vue` |
-| network | `frontend/src/views/network/*.vue` |
-| execution graph | `frontend/src/views/execution-graph/ExecutionGraph.vue` |
-| explorer | `frontend/src/views/explorer/Explorer.vue` |
-| executor | `frontend/src/views/executor/Executor.vue` |
-| hooks | `frontend/src/views/hooks/Hooks.vue` |
-| ML | `frontend/src/views/ml/ML.vue` |
-| plugins | `frontend/src/views/plugins/Plugins.vue` |
-| config | `frontend/src/views/config/Config.vue` |
+| dashboard | `frontend/src/views/dashboard/` |
+| monitor | `frontend/src/views/monitor/` |
+| network | `frontend/src/views/network/` (Network.vue, NetworkFlow.vue, TLSCapture.vue) |
+| execution graph | `frontend/src/views/execution-graph/` |
+| explorer | `frontend/src/views/explorer/` |
+| executor | `frontend/src/views/executor/` |
+| hooks | `frontend/src/views/hooks/` |
+| AgentSight | `frontend/src/views/agentsight/` |
+| config | `frontend/src/views/config/` |
+| ML | `frontend/src/views/ml/` |
+| plugins | `frontend/src/views/plugins/` |
 
 ## 集成
 
@@ -63,8 +72,6 @@
 | deploy | `deploy/kubernetes/` |
 | devcontainer | `.devcontainer/` |
 | docs site | `docs/.vitepress/config.ts` |
-
----
 
 ## 相关导航
 

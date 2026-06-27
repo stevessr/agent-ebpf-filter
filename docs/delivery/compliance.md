@@ -69,7 +69,7 @@ Agent eBPF Filter 在架构设计和技术选型上受到 [AgentSight](https://g
 以下文件的设计思路或算法受 AgentSight Rust 代码启发，但使用 Go 语言重写：
 
 **AgentSight 兼容层**:
-- `backend/app/handlers__handlers_agentsight.go`
+- `backend/app/handlers/agentsight.go`
 - `backend/app/api__api_external.go`
 - `backend/app/agentsight__analyzers_agentsight.go`
 - `backend/app/feature_build_agentsight.go`
