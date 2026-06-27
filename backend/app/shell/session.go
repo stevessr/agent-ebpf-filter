@@ -271,23 +271,33 @@ func (s *Session) finishRead(readErr error) {
 	}
 }
 
-// Attach attaches a WebSocket connection to the session, returning the backlog.
-func (s *Session) Attach(conn *websocket.Conn) ([]byte, error) {
+// Attach attaches a WebSocket connection to the session, sending the backlog first.
+func (s *Session) Attach(conn *websocket.Conn) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return nil, fmt.Errorf("shell session has been closed")
+		return fmt.Errorf("shell session has been closed")
 	}
 	if s.status != StatusRunning {
-		return nil, fmt.Errorf("shell session is not running")
+		return fmt.Errorf("shell session is not running")
 	}
 	if s.conn != nil {
-		return nil, fmt.Errorf("shell session is already attached")
+		return fmt.Errorf("shell session is already attached")
 	}
 	s.conn = conn
 	s.attached = true
 	s.updatedAt = time.Now()
-	return bytes.Clone(s.backlog), nil
+	if len(s.backlog) > 0 {
+		s.writeMu.Lock()
+		err := conn.WriteMessage(websocket.BinaryMessage, bytes.Clone(s.backlog))
+		s.writeMu.Unlock()
+		if err != nil {
+			s.conn = nil
+			s.attached = false
+			return fmt.Errorf("backlog write failed: %w", err)
+		}
+	}
+	return nil
 }
 
 // Detach removes a WebSocket connection from the session.

@@ -204,4 +204,47 @@ var Deps struct {
 	BuildRuntimeConfigResponseFromSettings func(s RuntimeSettings) core.RuntimeConfigResponse
 	RotateAccessToken              func(settings RuntimeSettings) RuntimeSettings
 	ApplyMLConfigPatch             func(dst *core.MLConfig, patch interface{})
+
+	// ML handler closures — all return gin.H or simple types to avoid type coupling
+	MLStatus              func() *pb.MLStatus
+	BuildMLStatusJSON     func() []byte
+	MLEnabled             func() bool
+	MLConfig              func() core.MLConfig
+	CurrentMLConfig       func() core.MLConfig
+	MLIsRunning           func() bool
+	MLLogTotal            func() int
+	MLGetLogsResponse     func() gin.H
+	MLCancelTraining      func()
+	MLGetHistoryResponse  func() gin.H
+	MLTrain               func(numTrees, maxDepth, minLeaf int) gin.H
+	MLFeedbackResult      func(comm, action string) gin.H
+	MLSamplesResponse     func() gin.H
+	MLSampleLabelResult   func(index int, label string) gin.H
+	MLRemoveSampleResult  func(index int) gin.H
+	MLSampleAnomalyResult func(index int, score float64) gin.H
+	MLAddSample           func(cmdLine, comm string, args []string, label string) gin.H
+	MLClassifyAndEmbed    func(comm string, args []string) (interface{}, []float64)
+	MLComputeAnomalyScore func(emb []float64) float64
+	MLPredict             func(comm string, args []string) MLPrediction
+	MLNetworkAudit        func(comm string, args []string) MLNetworkAuditResult
+	MLLLMAssessment       func(comm string, args []string) *MLLlmAssessment
+	MLExistingCommands    func() []string
+	MLImportResult        func() gin.H
+	MLTuneResult          func() gin.H
+	MLTuneModelsResult    func(models []string) gin.H
+	MLLLMScoreResult      func(cmdLine, comm string, args []string) gin.H
+	MLLLMBatchScoreResult func(samples []gin.H) gin.H
+	MLLlmProductionDatasetPullResult func() gin.H
+	MLClassicDatasetsList func() gin.H
+	MLClassicDatasetGetResult   func(name string) gin.H
+	MLClassicDatasetPreviewResult func(name string) gin.H
+	MLDatasetPullResult   func(url string) gin.H
+	MLDatasetImportResult func(name string) gin.H
+	MLDatasetExportResult func() gin.H
+	MLDatasetClear        func()
+	MLHealthProcesses     func() gin.H
+	MLHealthGenerators    func() gin.H
+	MLHealthRegister      func(id string)
+	MLHealthUnregister    func(id string)
+	MLHealthRun           func() gin.H
 }

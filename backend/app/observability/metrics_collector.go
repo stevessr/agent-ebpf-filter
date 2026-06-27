@@ -1,4 +1,4 @@
-package app
+package observability
 
 import (
 	"agent-ebpf-filter/pb"
@@ -13,8 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section metrics_collector.go ----
-
 type bpfCollectorStats struct {
 	RingbufEventsTotal        uint64
 	RingbufReserveFailedTotal uint64
@@ -25,7 +23,7 @@ type collectorPIDKey struct {
 	Comm string
 }
 
-type collectorMetricsSnapshot struct {
+type CollectorMetricsSnapshot struct {
 	EventsByTypeTotal           map[string]uint64
 	EventsByPIDTotal            map[collectorPIDKey]uint64
 	AgentSightCountersTotal     map[string]uint64
@@ -93,7 +91,11 @@ func newCollectorMetricsState() *collectorMetricsState {
 
 var collectorMetricsStore = newCollectorMetricsState()
 
-func (s *collectorMetricsState) RecordEvent(event *pb.Event) {
+func RecordEvent(event *pb.Event) {
+	collectorMetricsStore.recordEvent(event)
+}
+
+func (s *collectorMetricsState) recordEvent(event *pb.Event) {
 	if event == nil {
 		return
 	}
@@ -101,7 +103,7 @@ func (s *collectorMetricsState) RecordEvent(event *pb.Event) {
 	if typeKey == "" {
 		typeKey = "unknown"
 	}
-	pidKey := collectorPIDKey{PID: event.GetPid(), Comm: stringsTrimDefault(event.GetComm(), "unknown")}
+	pidKey := collectorPIDKey{PID: event.GetPid(), Comm: StringsTrimDefault(event.GetComm(), "unknown")}
 
 	s.mu.Lock()
 	s.eventsByTypeTotal[typeKey]++
@@ -113,7 +115,7 @@ func (s *collectorMetricsState) RecordEvent(event *pb.Event) {
 	s.mu.Unlock()
 }
 
-func stringsTrimDefault(value, fallback string) string {
+func StringsTrimDefault(value, fallback string) string {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return fallback
@@ -121,20 +123,32 @@ func stringsTrimDefault(value, fallback string) string {
 	return trimmed
 }
 
-func (s *collectorMetricsState) RecordAgentSightCounter(name string) {
-	name = stringsTrimDefault(name, "unknown")
+func RecordAgentSightCounter(name string) {
+	collectorMetricsStore.recordAgentSightCounter(name)
+}
+
+func (s *collectorMetricsState) recordAgentSightCounter(name string) {
+	name = StringsTrimDefault(name, "unknown")
 	s.mu.Lock()
 	s.agentSightCountersTotal[name]++
 	s.mu.Unlock()
 }
 
-func (s *collectorMetricsState) SetPersistAppendLatency(duration time.Duration) {
+func SetPersistAppendLatency(duration time.Duration) {
+	collectorMetricsStore.setPersistAppendLatency(duration)
+}
+
+func (s *collectorMetricsState) setPersistAppendLatency(duration time.Duration) {
 	s.mu.Lock()
 	s.persistAppendLatencyNs = uint64(duration.Nanoseconds())
 	s.mu.Unlock()
 }
 
-func (s *collectorMetricsState) RecordRingbufDecode(zeroCopy bool) {
+func RecordRingbufDecode(zeroCopy bool) {
+	collectorMetricsStore.recordRingbufDecode(zeroCopy)
+}
+
+func (s *collectorMetricsState) recordRingbufDecode(zeroCopy bool) {
 	s.mu.Lock()
 	if zeroCopy {
 		s.ringbufZeroCopyDecodeTotal++
@@ -144,7 +158,11 @@ func (s *collectorMetricsState) RecordRingbufDecode(zeroCopy bool) {
 	s.mu.Unlock()
 }
 
-func (s *collectorMetricsState) RecordKernelRiskDecision(decision string, duration time.Duration) {
+func RecordKernelRiskDecision(decision string, duration time.Duration) {
+	collectorMetricsStore.recordKernelRiskDecision(decision, duration)
+}
+
+func (s *collectorMetricsState) recordKernelRiskDecision(decision string, duration time.Duration) {
 	s.mu.Lock()
 	s.kernelRiskEvaluationsTotal++
 	s.kernelRiskLastEvalLatencyNs = uint64(duration.Nanoseconds())
@@ -157,7 +175,11 @@ func (s *collectorMetricsState) RecordKernelRiskDecision(decision string, durati
 	s.mu.Unlock()
 }
 
-func (s *collectorMetricsState) RecordKernelRiskFeedback(applied bool, err error) {
+func RecordKernelRiskFeedback(applied bool, err error) {
+	collectorMetricsStore.recordKernelRiskFeedback(applied, err)
+}
+
+func (s *collectorMetricsState) recordKernelRiskFeedback(applied bool, err error) {
 	s.mu.Lock()
 	if applied {
 		s.kernelRiskFeedbackApplied++
@@ -171,7 +193,7 @@ func (s *collectorMetricsState) RecordKernelRiskFeedback(applied bool, err error
 	s.mu.Unlock()
 }
 
-func (s *collectorMetricsState) rawSnapshot() collectorMetricsSnapshot {
+func (s *collectorMetricsState) rawSnapshot() CollectorMetricsSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -187,7 +209,7 @@ func (s *collectorMetricsState) rawSnapshot() collectorMetricsSnapshot {
 	for key, value := range s.agentSightCountersTotal {
 		agentSightCounters[key] = value
 	}
-	return collectorMetricsSnapshot{
+	return CollectorMetricsSnapshot{
 		EventsByTypeTotal:           eventsByType,
 		EventsByPIDTotal:            eventsByPID,
 		AgentSightCountersTotal:     agentSightCounters,
@@ -204,7 +226,11 @@ func (s *collectorMetricsState) rawSnapshot() collectorMetricsSnapshot {
 	}
 }
 
-func (s *collectorMetricsState) Snapshot() CollectorHealthResponse {
+func GetCollectorHealthSnapshot() CollectorHealthResponse {
+	return collectorMetricsStore.snapshot()
+}
+
+func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 	bpfStats, mapAvailable := loadCollectorStatsSnapshot()
 	raw := s.rawSnapshot()
 
@@ -232,12 +258,12 @@ func (s *collectorMetricsState) Snapshot() CollectorHealthResponse {
 		eventsByPID[fmt.Sprintf("%d:%s", key.PID, key.Comm)] = raw.EventsByPIDTotal[key]
 	}
 
-	AppCtx.ClientsMu.Lock()
-	legacyWSClients := len(AppCtx.Clients)
-	AppCtx.ClientsMu.Unlock()
-	AppCtx.EnvelopeClientsMu.Lock()
-	envelopeWSClients := len(AppCtx.EnvelopeClients)
-	AppCtx.EnvelopeClientsMu.Unlock()
+	deps.ClientsMu.Lock()
+	legacyWSClients := len(deps.Clients)
+	deps.ClientsMu.Unlock()
+	deps.EnvelopeClientsMu.Lock()
+	envelopeWSClients := len(deps.EnvelopeClients)
+	deps.EnvelopeClientsMu.Unlock()
 
 	agentSightCounters := make(map[string]uint64, len(raw.AgentSightCountersTotal))
 	agentSightKeys := make([]string, 0, len(raw.AgentSightCountersTotal))
@@ -259,7 +285,7 @@ func (s *collectorMetricsState) Snapshot() CollectorHealthResponse {
 		EventsByTypeTotal:           eventsByType,
 		EventsByPidTotal:            eventsByPID,
 		AgentSightCountersTotal:     agentSightCounters,
-		BackendQueueLen:             len(broadcast),
+		BackendQueueLen:             len(deps.Broadcast),
 		WsClients:                   legacyWSClients + envelopeWSClients,
 		PersistAppendLatencyNs:      raw.PersistAppendLatencyNs,
 		KernelRiskEvaluationsTotal:  raw.KernelRiskEvaluationsTotal,
@@ -274,7 +300,8 @@ func (s *collectorMetricsState) Snapshot() CollectorHealthResponse {
 }
 
 func loadCollectorStatsSnapshot() (bpfCollectorStats, bool) {
-	if trackerMaps.CollectorStats == nil {
+	collectorStatsMap := deps.TrackerMaps.GetCollectorStats()
+	if collectorStatsMap == nil {
 		return bpfCollectorStats{}, false
 	}
 
@@ -285,7 +312,7 @@ func loadCollectorStatsSnapshot() (bpfCollectorStats, bool) {
 
 	values := make([]bpfCollectorStats, cpuCount)
 	key := uint32(0)
-	if err := trackerMaps.CollectorStats.Lookup(&key, &values); err != nil {
+	if err := collectorStatsMap.Lookup(&key, &values); err != nil {
 		return bpfCollectorStats{}, false
 	}
 
@@ -297,6 +324,6 @@ func loadCollectorStatsSnapshot() (bpfCollectorStats, bool) {
 	return total, true
 }
 
-func handleCollectorHealth(c *gin.Context) {
-	c.JSON(http.StatusOK, collectorMetricsStore.Snapshot())
+func HandleCollectorHealth(c *gin.Context) {
+	c.JSON(http.StatusOK, GetCollectorHealthSnapshot())
 }

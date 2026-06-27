@@ -327,6 +327,54 @@ func init() {
 		delete(wrapperRules, comm)
 		rulesMu.Unlock()
 	}
+
+	initMLHandlersDeps()
+}
+
+// ── ML handler wiring ──────────────────────────────────────────────
+
+func initMLHandlersDeps() {
+	handlers.Deps.MLStatus = mlStatus
+	handlers.Deps.BuildMLStatusJSON = buildMLStatusJSON
+	handlers.Deps.MLEnabled = func() bool { return mlEnabled }
+	handlers.Deps.MLConfig = func() core.MLConfig { return mlConfig }
+	handlers.Deps.CurrentMLConfig = currentMLConfig
+	handlers.Deps.MLIsRunning = func() bool { return globalTrainer.isRunning }
+	handlers.Deps.MLLogTotal = func() int { return globalTrainer.logTotal }
+	handlers.Deps.MLGetLogsResponse = mlGetLogsResponse
+	handlers.Deps.MLCancelTraining = globalTrainer.CancelTraining
+	handlers.Deps.MLGetHistoryResponse = mlGetHistoryResponse
+	handlers.Deps.MLTrain = mlTrain
+	handlers.Deps.MLFeedbackResult = mlFeedbackResult
+	handlers.Deps.MLSamplesResponse = mlSamplesResponse
+	handlers.Deps.MLSampleLabelResult = mlSampleLabelResult
+	handlers.Deps.MLRemoveSampleResult = mlRemoveSampleResult
+	handlers.Deps.MLSampleAnomalyResult = mlSampleAnomalyResult
+	handlers.Deps.MLAddSample = mlAddSample
+	handlers.Deps.MLClassifyAndEmbed = func(comm string, args []string) (interface{}, []float64) { return nil, nil }
+	handlers.Deps.MLComputeAnomalyScore = func(emb []float64) float64 { return 0 }
+	handlers.Deps.MLPredict = func(comm string, args []string) handlers.MLPrediction { return handlers.MLPrediction{} }
+	handlers.Deps.MLNetworkAudit = func(comm string, args []string) handlers.MLNetworkAuditResult { return handlers.MLNetworkAuditResult{} }
+	handlers.Deps.MLLLMAssessment = func(comm string, args []string) *handlers.MLLlmAssessment { return &handlers.MLLlmAssessment{} }
+	handlers.Deps.MLExistingCommands = func() []string { return []string{} }
+	handlers.Deps.MLImportResult = mlImportResult
+	handlers.Deps.MLTuneResult = mlTuneResult
+	handlers.Deps.MLTuneModelsResult = mlTuneModelsResult
+	handlers.Deps.MLLLMScoreResult = mlLLMScoreResult
+	handlers.Deps.MLLLMBatchScoreResult = mlLLMBatchScoreResult
+	handlers.Deps.MLLlmProductionDatasetPullResult = mlLlmProductionDatasetPullResult
+	handlers.Deps.MLClassicDatasetsList = func() gin.H { return gin.H{"datasets": []string{}} }
+	handlers.Deps.MLClassicDatasetGetResult = mlClassicDatasetGetResult
+	handlers.Deps.MLClassicDatasetPreviewResult = mlClassicDatasetPreviewResult
+	handlers.Deps.MLDatasetPullResult = mlDatasetPullResult
+	handlers.Deps.MLDatasetImportResult = mlDatasetImportResult
+	handlers.Deps.MLDatasetExportResult = mlDatasetExportResult
+	handlers.Deps.MLDatasetClear = func() {}
+	handlers.Deps.MLHealthProcesses = func() gin.H { return gin.H{"processes": []string{}} }
+	handlers.Deps.MLHealthGenerators = func() gin.H { return gin.H{"generators": []string{}} }
+	handlers.Deps.MLHealthRegister = func(id string) {}
+	handlers.Deps.MLHealthUnregister = func(id string) {}
+	handlers.Deps.MLHealthRun = func() gin.H { return gin.H{"results": []string{}} }
 }
 
 // ── Bridge functions (delegate to handlers/ subpackage) ─────────
@@ -392,6 +440,18 @@ func handleConfigPrefixesDelete(c *gin.Context)       { handlers.HandleConfigPre
 func handleConfigRulesGet(c *gin.Context)             { handlers.HandleConfigRulesGet(c) }
 func handleConfigRulesPost(c *gin.Context)            { handlers.HandleConfigRulesPost(c) }
 func handleConfigRulesDelete(c *gin.Context)          { handlers.HandleConfigRulesDelete(c) }
+func handleMLStatusGet(c *gin.Context)                { handlers.HandleMLStatusGet(c) }
+func handleMLLogsGet(c *gin.Context)                   { handlers.HandleMLLogsGet(c) }
+func handleMLTrainCancelPost(c *gin.Context)           { handlers.HandleMLTrainCancelPost(c) }
+func handleMLHistoryGet(c *gin.Context)                 { handlers.HandleMLHistoryGet(c) }
+func handleMLTrainPost(c *gin.Context)                  { handlers.HandleMLTrainPost(c) }
+func handleMLFeedbackPost(c *gin.Context)               { handlers.HandleMLFeedbackPost(c) }
+func handleMLSamplesGet(c *gin.Context)                 { handlers.HandleMLSamplesGet(c) }
+func handleMLSampleLabelPut(c *gin.Context)             { handlers.HandleMLSampleLabelPut(c) }
+func handleMLSampleDelete(c *gin.Context)               { handlers.HandleMLSampleDelete(c) }
+func handleMLSampleAnomalyPut(c *gin.Context)           { handlers.HandleMLSampleAnomalyPut(c) }
+func handleMLSamplesPost(c *gin.Context)                { handlers.HandleMLSamplesPost(c) }
+func handleMLBacktestPost(c *gin.Context)               { handlers.HandleMLBacktestPost(c) }
 func handleConfigExportGet(c *gin.Context)             { handlers.HandleConfigExportGet(c) }
 func handleConfigImportPost(c *gin.Context)             { handlers.HandleConfigImportPost(c) }
 func handleConfigRuntimeGet(c *gin.Context)              { handlers.HandleConfigRuntimeGet(c) }

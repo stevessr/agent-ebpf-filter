@@ -85,7 +85,7 @@ func NewManager() *Manager {
 	}
 }
 
-func (m *Manager) subscribe() chan struct{} {
+func (m *Manager) Subscribe() chan struct{} {
 	ch := make(chan struct{}, 1)
 	m.subscribersMu.Lock()
 	m.subscribers[ch] = struct{}{}
@@ -93,7 +93,7 @@ func (m *Manager) subscribe() chan struct{} {
 	return ch
 }
 
-func (m *Manager) unsubscribe(ch chan struct{}) {
+func (m *Manager) Unsubscribe(ch chan struct{}) {
 	m.subscribersMu.Lock()
 	delete(m.subscribers, ch)
 	m.subscribersMu.Unlock()

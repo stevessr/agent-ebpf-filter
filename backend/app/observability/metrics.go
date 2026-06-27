@@ -1,4 +1,4 @@
-package app
+package observability
 
 import (
 	"agent-ebpf-filter/pb"
@@ -15,14 +15,12 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 )
 
-// ---- moved from backend/zz_merged_backend.go section metrics.go ----
-
-func getGPUMetrics() (map[int32]gpuInfo, []*pb.GPUStatus) {
-	procMap := make(map[int32]gpuInfo)
+func GetGPUMetrics() (map[int32]GpuInfo, []*pb.GPUStatus) {
+	procMap := make(map[int32]GpuInfo)
 	var globalStats []*pb.GPUStatus
 
 	// 1. NVIDIA (Native)
-	if nvmlInitialized {
+	if deps.NvmlInitialized {
 		count, _ := nvml.DeviceGetCount()
 		for i := 0; i < count; i++ {
 			device, _ := nvml.DeviceGetHandleByIndex(i)
@@ -36,7 +34,6 @@ func getGPUMetrics() (map[int32]gpuInfo, []*pb.GPUStatus) {
 				MemTotal: uint32(mInfo.Total / 1024 / 1024), MemUsed: uint32(mInfo.Used / 1024 / 1024), Temp: temp,
 			}
 
-			// Detailed NVIDIA engine stats
 			if encUtil, _, ret := device.GetEncoderUtilization(); ret == nvml.SUCCESS {
 				gs.EncUtil = encUtil
 			}
@@ -73,7 +70,7 @@ func getGPUMetrics() (map[int32]gpuInfo, []*pb.GPUStatus) {
 			procs, ret := device.GetComputeRunningProcesses()
 			if ret == nvml.SUCCESS {
 				for _, p := range procs {
-					procMap[int32(p.Pid)] = gpuInfo{Mem: uint32(p.UsedGpuMemory / 1024 / 1024), GPU: uint32(i), Util: 0}
+					procMap[int32(p.Pid)] = GpuInfo{Mem: uint32(p.UsedGpuMemory / 1024 / 1024), GPU: uint32(i), Util: 0}
 				}
 			}
 		}
@@ -85,13 +82,13 @@ func getGPUMetrics() (map[int32]gpuInfo, []*pb.GPUStatus) {
 	return procMap, globalStats
 }
 
-func readVMFaultCounters() (vmFaultCounters, error) {
+func ReadVMFaultCounters() (VmFaultCounters, error) {
 	data, err := os.ReadFile("/proc/vmstat")
 	if err != nil {
-		return vmFaultCounters{}, err
+		return VmFaultCounters{}, err
 	}
 
-	counters := vmFaultCounters{}
+	counters := VmFaultCounters{}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
@@ -117,20 +114,19 @@ func readVMFaultCounters() (vmFaultCounters, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return vmFaultCounters{}, err
+		return VmFaultCounters{}, err
 	}
 
 	return counters, nil
 }
 
-func scanFdinfo(procMap map[int32]gpuInfo, globalStats *[]*pb.GPUStatus) {
+func scanFdinfo(procMap map[int32]GpuInfo, globalStats *[]*pb.GPUStatus) {
 	now := time.Now()
-	fdinfoHistoryMu.Lock()
-	dt := now.Sub(fdinfoTime).Nanoseconds()
-	fdinfoTime = now
-	fdinfoHistoryMu.Unlock()
+	deps.FdinfoHistoryMu.Lock()
+	dt := now.Sub(*deps.FdinfoTime).Nanoseconds()
+	*deps.FdinfoTime = now
+	deps.FdinfoHistoryMu.Unlock()
 
-	// Track seen client IDs to avoid overcounting VRAM (some drivers provide drm-client-id)
 	type clientKey struct {
 		pid int
 		id  string
@@ -183,11 +179,10 @@ func scanFdinfo(procMap map[int32]gpuInfo, globalStats *[]*pb.GPUStatus) {
 			}
 			file.Close()
 
-			if driver == "" || (driver == "nvidia" && nvmlInitialized) {
+			if driver == "" || (driver == "nvidia" && deps.NvmlInitialized) {
 				continue
 			}
 
-			// Normalize driver name for UI
 			if driver == "i915" || driver == "xe" {
 				driver = "Intel Graphics"
 			}
@@ -195,21 +190,19 @@ func scanFdinfo(procMap map[int32]gpuInfo, globalStats *[]*pb.GPUStatus) {
 				driver = "AMD Radeon"
 			}
 
-			// Utilization calculation
 			histKey := fmt.Sprintf("%d:%s", pid, fd.Name())
 			util := uint32(0)
-			fdinfoHistoryMu.RLock()
-			prev, ok := fdinfoHistory[histKey]
-			fdinfoHistoryMu.RUnlock()
+			deps.FdinfoHistoryMu.RLock()
+			prev, ok := deps.FdinfoHistory[histKey]
+			deps.FdinfoHistoryMu.RUnlock()
 			if ok && dt > 0 {
 				diff := enginesNs - prev
 				util = uint32((diff * 100) / uint64(dt))
 			}
-			fdinfoHistoryMu.Lock()
-			fdinfoHistory[histKey] = enginesNs
-			fdinfoHistoryMu.Unlock()
+			deps.FdinfoHistoryMu.Lock()
+			deps.FdinfoHistory[histKey] = enginesNs
+			deps.FdinfoHistoryMu.Unlock()
 
-			// Aggregate per process
 			p := int32(pid)
 			ckey := clientKey{pid, clientId}
 
@@ -223,15 +216,14 @@ func scanFdinfo(procMap map[int32]gpuInfo, globalStats *[]*pb.GPUStatus) {
 			}
 			procMap[p] = cur
 
-			// Global aggregation
 			found := false
 			for _, gs := range *globalStats {
 				if gs.Name == driver {
-					gs.UtilGpu += util // Summing across all processes' engine usage is correct for global util.
+					gs.UtilGpu += util
 					if gs.UtilGpu > 100 {
 						gs.UtilGpu = 100
 					}
-					gs.MemUsed = cur.Mem // This is tricky. Let's just track drivers.
+					gs.MemUsed = cur.Mem
 					found = true
 					break
 				}
@@ -245,7 +237,7 @@ func scanFdinfo(procMap map[int32]gpuInfo, globalStats *[]*pb.GPUStatus) {
 	}
 }
 
-func getCoreTypes() []pb.CPUInfo_Core_Type {
+func GetCoreTypes() []pb.CPUInfo_Core_Type {
 	cores, _ := cpu.Counts(true)
 	types := make([]pb.CPUInfo_Core_Type, cores)
 	maxFreqs := make([]int64, cores)

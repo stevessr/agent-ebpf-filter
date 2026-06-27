@@ -1,4 +1,4 @@
-package app
+package observability
 
 import (
 	"fmt"
@@ -9,10 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- moved from backend/zz_merged_backend.go section metrics_prometheus.go ----
-
-func handlePrometheusMetrics(c *gin.Context) {
-	health := collectorMetricsStore.Snapshot()
+func HandlePrometheusMetrics(c *gin.Context) {
+	health := collectorMetricsStore.snapshot()
 	raw := collectorMetricsStore.rawSnapshot()
 
 	var b strings.Builder
