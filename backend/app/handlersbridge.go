@@ -6,6 +6,7 @@ import (
 	"agent-ebpf-filter/app/shell"
 	"agent-ebpf-filter/app/tls"
 	"agent-ebpf-filter/core"
+	"agent-ebpf-filter/internal/behavior"
 	"agent-ebpf-filter/internal/geoip"
 	"agent-ebpf-filter/pb"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 // ── TrackerMaps adapter ─────────────────────────────────────────────────────
@@ -260,6 +262,34 @@ func (a *shellManagerAdapter) NewSession(req any, deps any) (any, error) {
 		return nil, fmt.Errorf("unmarshal session request: %w", err)
 	}
 	return a.mgr.NewSession(cr, deps.(shell.Deps))
+}
+func (a *shellManagerAdapter) AttachWebSocket(id string, conn *websocket.Conn) error {
+	session, ok := a.mgr.Get(id)
+	if !ok {
+		return fmt.Errorf("shell session not found")
+	}
+	if err := session.Attach(conn); err != nil {
+		return err
+	}
+	go a.readWebSocket(session, conn)
+	return nil
+}
+func (a *shellManagerAdapter) readWebSocket(session *shell.Session, conn *websocket.Conn) {
+	defer session.Detach(conn)
+	for {
+		msgType, data, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		if msgType == websocket.TextMessage {
+			var ctrl shell.ControlMessage
+			if json.Unmarshal(data, &ctrl) == nil && ctrl.Type == "resize" {
+				_ = session.Resize(ctrl.Cols, ctrl.Rows)
+				continue
+			}
+		}
+		_ = session.WriteInput(data)
+	}
 }
 func (a *shellManagerAdapter) Delete(id string) error          { return a.mgr.Delete(id) }
 func (a *shellManagerAdapter) SendInput(id string, data []byte) error { return a.mgr.SendInput(id, data) }
@@ -598,12 +628,44 @@ func initMLHandlersDeps() {
 	handlers.Deps.MLRemoveSampleResult = mlRemoveSampleResult
 	handlers.Deps.MLSampleAnomalyResult = mlSampleAnomalyResult
 	handlers.Deps.MLAddSample = mlAddSample
-	handlers.Deps.MLClassifyAndEmbed = func(comm string, args []string) (interface{}, []float64) { return nil, nil }
-	handlers.Deps.MLComputeAnomalyScore = func(emb []float64) float64 { return 0 }
-	handlers.Deps.MLPredict = func(comm string, args []string) handlers.MLPrediction { return handlers.MLPrediction{} }
-	handlers.Deps.MLNetworkAudit = func(comm string, args []string) handlers.MLNetworkAuditResult { return handlers.MLNetworkAuditResult{} }
-	handlers.Deps.MLLLMAssessment = func(comm string, args []string) *handlers.MLLlmAssessment { return &handlers.MLLlmAssessment{} }
-	handlers.Deps.MLExistingCommands = func() []string { return []string{} }
+	handlers.Deps.MLClassifyAndEmbed = func(comm string, args []string) (interface{}, []float64) {
+		cls, emb := globalEmbedder.ClassifyAndEmbed(comm, args)
+		return cls, emb.Vector[:]
+	}
+	handlers.Deps.MLComputeAnomalyScore = func(emb []float64) float64 {
+		var vec [64]float64
+		copy(vec[:], emb)
+		return globalEmbedder.ComputeAnomalyScore(behavior.BehaviorEmbedding{Vector: vec})
+	}
+	handlers.Deps.MLPredict = func(comm string, args []string) handlers.MLPrediction {
+		features := globalFeatureExtractor.Extract(comm, args, "", 0)
+		pred := mlEngine.Predict(features)
+		return handlers.MLPrediction{
+			Action:     int(pred.Action),
+			Confidence: pred.Confidence,
+			Label:      actionLabel[pred.Action],
+		}
+	}
+	handlers.Deps.MLNetworkAudit = func(comm string, args []string) handlers.MLNetworkAuditResult {
+		result := AuditNetworkBehavior(comm, strings.Join(args, " "))
+		return handlers.MLNetworkAuditResult{RiskLevel: result.RiskLevel}
+	}
+	handlers.Deps.MLLLMAssessment = func(comm string, args []string) *handlers.MLLlmAssessment {
+		if !llmScoringConfigured() {
+			return &handlers.MLLlmAssessment{Error: "LLM scoring not configured"}
+		}
+		return &handlers.MLLlmAssessment{Error: "LLM assessment requires request context"}
+	}
+	handlers.Deps.MLExistingCommands = func() []string {
+		candidates, _, _ := existingCommandCandidates(200)
+		cmds := make([]string, 0, len(candidates))
+		for _, c := range candidates {
+			if c.Comm != "" {
+				cmds = append(cmds, c.Comm)
+			}
+		}
+		return cmds
+	}
 	handlers.Deps.MLImportResult = mlImportResult
 	handlers.Deps.MLAssessCommandSafety = func(c *gin.Context) { cmdsafetyAssessPost(c) }
 	handlers.Deps.MLExistingCommandsGetFn = func(c *gin.Context) { cmdsafetyExistingCommandsGet(c) }
@@ -788,6 +850,7 @@ func serveMLStatusWS(c *gin.Context) { handlers.ServeMLStatusWS(c) }
 func handleSystemFeatures(c *gin.Context) { handlers.HandleSystemFeatures(c) }
 
 // Shell session bridges
+func serveShellWS(c *gin.Context)                { handlers.ServeShellWS(c) }
 func serveShellSessionsWS(c *gin.Context)        { handlers.ServeShellSessionsWS(c) }
 func handleCreateShellSession(c *gin.Context)      { handlers.HandleCreateShellSession(c) }
 func handleListShellSessions(c *gin.Context)       { handlers.HandleListShellSessions(c) }
