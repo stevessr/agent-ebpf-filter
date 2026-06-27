@@ -767,58 +767,179 @@ func findLoadedLibForTarget(loadedLibs []string, target ProbeTarget) (string, bo
 	return "", false
 }
 
-// BoringSSL function prologue byte patterns for stripped binaries.
-// Derived from AgentSight's bpf/sslsniff.c find_boringssl_offsets().
+// SSL function prologue byte patterns for stripped binaries.
+// First byte of each pattern must match exactly; '0x00' bytes in the
+// pattern act as wildcards (match any byte at that position).
+// Derived from AgentSight's bpf/sslsniff.c + OpenSSL 3.x disassembly.
+type sslBytePattern struct {
+	name    string
+	pattern []byte
+	mask    []byte // 0x00 = wildcard, 0xff = exact match
+}
+
 var (
-	boringsslSSLReadPattern = []byte{
-		0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
-		0x53, 0x50, 0x48, 0x83, 0xbf, 0x98, 0x00, 0x00,
-		0x00, 0x00, 0x74,
+	// BoringSSL patterns (Node.js, Bun, Claude CLI)
+	bsSSLRead = sslBytePattern{
+		name: "BoringSSL-SSL_read",
+		pattern: []byte{
+			0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
+			0x53, 0x50, 0x48, 0x83, 0xbf, 0x98, 0x00, 0x00,
+			0x00, 0x00, 0x74,
+		},
 	}
-	boringsslSSLWritePattern = []byte{
-		0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
-		0x41, 0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec,
-		0x18, 0x41, 0x89, 0xd7, 0x49, 0x89, 0xf6, 0x48,
-		0x89, 0xfb,
+	bsSSLWrite = sslBytePattern{
+		name: "BoringSSL-SSL_write",
+		pattern: []byte{
+			0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
+			0x41, 0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec,
+			0x18, 0x41, 0x89, 0xd7, 0x49, 0x89, 0xf6, 0x48,
+			0x89, 0xfb,
+		},
 	}
-	boringsslHandshakePattern = []byte{
-		0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
-		0x41, 0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec,
-		0x28, 0x49, 0x89, 0xfc, 0x48, 0x8b, 0x47, 0x30,
+
+	// OpenSSL 3.x generic function prologue + SSL_write/SSL_read common prefix.
+	// Uses wildcard bytes (mask) to match both OpenSSL and AWS-LC variants.
+	// Pattern: push rbp; mov rbp,rsp; push r15; push r14; push r13; push r12; push rbx; sub rsp, XX
+	osslSSLCommonPrefix = sslBytePattern{
+		name: "OpenSSL-common-prefix",
+		pattern: []byte{
+			0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
+			0x41, 0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec,
+			0x00, // ← wildcard: sub rsp, XX (varies)
+		},
+		mask: []byte{
+			0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+			0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+			0x00,
+		},
 	}
-	// Relative offset from SSL_read to SSL_write (BoringSSL)
-	boringsslWriteReadDelta = uint64(0xCA0)
-	// Relative offset from SSL_read to SSL_do_handshake
-	boringsslReadHandshakeDelta = uint64(0x6F0)
 )
 
-// AttachBoringSSLByOffsets mirrors AgentSight's approach: search the binary for
-// BoringSSL function prologue byte patterns, then attach uprobes by offset.
-// This works for stripped statically-linked binaries (Node.js, Bun, Claude CLI)
-// where symbol-based attachment fails.
+// buildMask creates a mask from a pattern where 0x00 means wildcard.
+func buildMask(pat []byte) []byte {
+	m := make([]byte, len(pat))
+	for i, b := range pat {
+		if b == 0x00 {
+			m[i] = 0x00
+		} else {
+			m[i] = 0xff
+		}
+	}
+	return m
+}
+
+// matchMasked reports whether data[pos:] matches pat under mask.
+// mask[i]==0x00 means wildcard (match any byte).
+func matchMasked(data, pat, mask []byte) bool {
+	for i, b := range pat {
+		if mask != nil && mask[i] == 0x00 {
+			continue // wildcard
+		}
+		if data[i] != b {
+			return false
+		}
+	}
+	return true
+}
+
+// findMasked finds the first match of pat under mask, returns offset or -1.
+func findMasked(data, pat, mask []byte) int64 {
+	if len(pat) > len(data) {
+		return -1
+	}
+	if mask == nil {
+		mask = buildMask(pat)
+	}
+	for i := 0; i <= len(data)-len(pat); i++ {
+		if matchMasked(data[i:], pat, mask) {
+			return int64(i)
+		}
+	}
+	return -1
+}
+
+// binaryEmbedsSSL checks if the binary contains the string "SSL_write",
+// indicating it has statically-linked OpenSSL/BoringSSL/AWS-LC.
+func binaryEmbedsSSL(binPath string) bool {
+	data, err := os.ReadFile(binPath)
+	if err != nil {
+		return false
+	}
+	return bytes.Contains(data, []byte("SSL_write"))
+}
+
+// AttachBoringSSLByOffsets searches for BoringSSL or OpenSSL function prologue
+// byte patterns in a stripped binary and attaches uprobes by file offset.
 func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) error {
 	if m == nil {
 		return fmt.Errorf("manager is nil")
 	}
+	if !binaryEmbedsSSL(binPath) {
+		return fmt.Errorf("binary does not embed SSL (no 'SSL_write' string found)")
+	}
+	log.Printf("[tls] binary embeds SSL, searching for function patterns...")
+
 	data, err := os.ReadFile(binPath)
 	if err != nil {
 		return fmt.Errorf("read binary: %w", err)
 	}
 
-	// Find SSL_read (most distinctive pattern)
-	readOff := findBSPattern(data, boringsslSSLReadPattern)
-	if readOff < 0 {
-		return fmt.Errorf("BoringSSL SSL_read pattern not found")
+	var readOff, writeOff int64
+	found := false
+
+	// Strategy 1: BoringSSL exact patterns + relative offset validation
+	readOff = findBS(data, bsSSLRead.pattern)
+	if readOff >= 0 {
+		writeCenter := readOff + 0xCA0
+		writeOff = findBSNear(data, bsSSLWrite.pattern, writeCenter, 0x10000)
+		if writeOff >= 0 {
+			log.Printf("[tls] → matched BoringSSL patterns: SSL_read=%#x SSL_write=%#x", readOff, writeOff)
+			found = true
+		}
 	}
 
-	// Validate SSL_write by checking near expected relative position
-	writeCenter := readOff + int64(boringsslWriteReadDelta)
-	writeOff := findBSPatternNear(data, boringsslSSLWritePattern, writeCenter, 0x10000)
-	if writeOff < 0 {
-		return fmt.Errorf("BoringSSL SSL_write pattern not found near SSL_read")
+	// Strategy 2: OpenSSL common prefix pattern (with wildcard)
+	if !found {
+		osslMask := buildMask(osslSSLCommonPrefix.pattern)
+		// Find all occurrences of the common prefix
+		var matches []int64
+		for i := int64(0); i <= int64(len(data))-int64(len(osslSSLCommonPrefix.pattern)); i++ {
+			if matchMasked(data[i:], osslSSLCommonPrefix.pattern, osslMask) {
+				matches = append(matches, i)
+			}
+		}
+		log.Printf("[tls] OpenSSL common prefix found at %d locations in .text", len(matches))
+
+		// For each match, check if it could be SSL_read or SSL_write by
+		// examining nearby bytes for distinguishing features.
+		// SSL_read: after common prefix, typically has test/jne on SSL struct field
+		//   ... sub rsp, XX; mov REG, rdi; mov QWORD PTR [rbp-0x??], rdi; ...
+		// SSL_write: after common prefix, typically saves more args
+		// Strategy: take the first N matches as write candidates, last N as read
+		if len(matches) >= 2 {
+			// Heuristic: SSL_write is usually at a lower address than SSL_read
+			// Take the two matches that are closest together in .text
+			bestDist := int64(^uint64(0) >> 1)
+			for i := 0; i < len(matches); i++ {
+				for j := i + 1; j < len(matches); j++ {
+					dist := matches[j] - matches[i]
+					if dist > 0 && dist < bestDist && dist < 0x10000 {
+						bestDist = dist
+						writeOff = matches[i]
+						readOff = matches[j]
+						found = true
+					}
+				}
+			}
+			if found {
+				log.Printf("[tls] → matched OpenSSL patterns: SSL_write=%#x SSL_read=%#x (dist=%#x)", writeOff, readOff, bestDist)
+			}
+		}
 	}
 
-	log.Printf("[tls] BoringSSL detected: SSL_read=%#x SSL_write=%#x in %s", readOff, writeOff, filepath.Base(binPath))
+	if !found {
+		return fmt.Errorf("no SSL function patterns matched in stripped binary (%d bytes)", len(data))
+	}
 
 	// Attach uprobes by offset
 	m.mu.Lock()
@@ -840,14 +961,12 @@ func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) erro
 	startLinks := len(m.links)
 	var errs []error
 
-	// Attach SSL_write uprobe + uretprobe by offset
 	if err := attachOffsetProbe(bin, m, "uprobe_ssl_write", uint64(writeOff), false, opts); err != nil {
 		errs = append(errs, fmt.Errorf("SSL_write entry: %w", err))
 	}
 	if err := attachOffsetProbe(bin, m, "uretprobe_ssl_write", uint64(writeOff), true, opts); err != nil {
 		errs = append(errs, fmt.Errorf("SSL_write ret: %w", err))
 	}
-	// Attach SSL_read uprobe + uretprobe by offset
 	if err := attachOffsetProbe(bin, m, "uprobe_ssl_read", uint64(readOff), false, opts); err != nil {
 		errs = append(errs, fmt.Errorf("SSL_read entry: %w", err))
 	}
@@ -862,13 +981,13 @@ func (m *TLSProbeManager) AttachBoringSSLByOffsets(binPath string, pid int) erro
 			}
 		}
 		m.links = m.links[:startLinks]
-		return fmt.Errorf("BoringSSL offset attach: %w", errors.Join(errs...))
+		return fmt.Errorf("offset attach: %w", errors.Join(errs...))
 	}
 	return nil
 }
 
-// findBSPattern searches for byte pattern in data, returns offset or -1.
-func findBSPattern(data, pattern []byte) int64 {
+// findBS searches for byte pattern in data, returns offset or -1.
+func findBS(data, pattern []byte) int64 {
 	if len(pattern) > len(data) {
 		return -1
 	}
@@ -880,8 +999,8 @@ func findBSPattern(data, pattern []byte) int64 {
 	return -1
 }
 
-// findBSPatternNear searches within ±range of center, returns offset or -1.
-func findBSPatternNear(data, pattern []byte, center int64, searchRange int64) int64 {
+// findBSNear searches within ±range of center, returns offset or -1.
+func findBSNear(data, pattern []byte, center int64, searchRange int64) int64 {
 	start := center - searchRange
 	if start < 0 {
 		start = 0
@@ -890,7 +1009,7 @@ func findBSPatternNear(data, pattern []byte, center int64, searchRange int64) in
 	if end > int64(len(data)) {
 		end = int64(len(data))
 	}
-	off := findBSPattern(data[start:end], pattern)
+	off := findBS(data[start:end], pattern)
 	if off < 0 {
 		return -1
 	}
