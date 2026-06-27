@@ -249,7 +249,17 @@ func (a *shellManagerAdapter) List() []any {
 	return out
 }
 func (a *shellManagerAdapter) NewSession(req any, deps any) (any, error) {
-	return a.mgr.NewSession(req.(shell.CreateRequest), deps.(shell.Deps))
+	// Convert through JSON to support the handler's anonymous request struct
+	// which is structurally identical to shell.CreateRequest.
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal session request: %w", err)
+	}
+	var cr shell.CreateRequest
+	if err := json.Unmarshal(data, &cr); err != nil {
+		return nil, fmt.Errorf("unmarshal session request: %w", err)
+	}
+	return a.mgr.NewSession(cr, deps.(shell.Deps))
 }
 func (a *shellManagerAdapter) Delete(id string) error          { return a.mgr.Delete(id) }
 func (a *shellManagerAdapter) SendInput(id string, data []byte) error { return a.mgr.SendInput(id, data) }
