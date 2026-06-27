@@ -5,6 +5,7 @@ import {
   SearchOutlined,
   ReloadOutlined,
   NodeIndexOutlined,
+  CaretDownOutlined,
 } from "@ant-design/icons-vue";
 import {
   useProcessObserver,
@@ -286,6 +287,65 @@ const doLaunch = async () => {
       e?.response?.data?.error || e?.message || "Launch failed";
   } finally {
     launching.value = false;
+  }
+};
+
+// ── Manual SSL attach ────────────────────────────────────────────────────
+
+const attachingPid = ref<number | null>(null);
+const attachError = ref("");
+
+const getBinaryPath = (pid: number): string => {
+  const p = treeProcessList.value.find((x) => x.pid === pid);
+  if (p?.cmdline) {
+    // cmdline is space-separated, first token is the binary path
+    const parts = p.cmdline.split(/\s+/);
+    if (parts[0]) return parts[0];
+  }
+  // Fallback: try /proc/PID/exe via the process name
+  return "";
+};
+
+const doAttachBuiltins = async (pid: number) => {
+  attachingPid.value = pid;
+  attachError.value = "";
+  try {
+    await axios.post("/tls-capture/attach-builtins", { pid });
+    await fetchAttachedPIDs();
+  } catch (e: any) {
+    attachError.value = e?.response?.data?.error || e?.message || "Attach failed";
+  } finally {
+    attachingPid.value = null;
+  }
+};
+
+const doAttachGo = async (pid: number) => {
+  const path = getBinaryPath(pid);
+  if (!path) { attachError.value = "Cannot determine binary path for PID " + pid; return; }
+  attachingPid.value = pid;
+  attachError.value = "";
+  try {
+    await axios.post("/tls-capture/go-binary", { path, pid });
+    await fetchAttachedPIDs();
+  } catch (e: any) {
+    attachError.value = e?.response?.data?.error || e?.message || "Go attach failed";
+  } finally {
+    attachingPid.value = null;
+  }
+};
+
+const doAttachLibrary = async (pid: number, library: string) => {
+  const path = getBinaryPath(pid);
+  if (!path) { attachError.value = "Cannot determine binary path for PID " + pid; return; }
+  attachingPid.value = pid;
+  attachError.value = "";
+  try {
+    await axios.post("/tls-capture/executable", { path, pid, library });
+    await fetchAttachedPIDs();
+  } catch (e: any) {
+    attachError.value = e?.response?.data?.error || e?.message || "Library attach failed";
+  } finally {
+    attachingPid.value = null;
   }
 };
 
@@ -911,16 +971,53 @@ watch(
               Not Attached
               <a-tag color="default" size="small">{{ treeSSLPending.length }}</a-tag>
             </div>
+            <div v-if="attachError" class="attach-error">
+              {{ attachError }}
+              <a-button size="small" type="link" @click="attachError = ''">Dismiss</a-button>
+            </div>
             <div class="ssl-pending-list">
-              <a-tag
+              <div
                 v-for="p in treeSSLPending"
                 :key="p.pid"
-                color="default"
-                class="ssl-pending-tag"
+                class="ssl-pending-row"
               >
-                <code>{{ p.pid }}</code>
-                {{ p.name }}
-              </a-tag>
+                <code class="ssl-pending-pid">{{ p.pid }}</code>
+                <span class="ssl-pending-name">{{ p.name }}</span>
+                <span class="ssl-pending-cmd" v-if="p.cmdline" :title="p.cmdline">
+                  {{ p.cmdline.split(/\s+/)[0]?.split('/').pop() || p.cmdline.slice(0, 40) }}
+                </span>
+                <a-dropdown :trigger="['click']" placement="bottomRight">
+                  <a-button
+                    size="small"
+                    type="dashed"
+                    :loading="attachingPid === p.pid"
+                    style="margin-left: auto; font-size: 11px"
+                  >
+                    Attach <CaretDownOutlined />
+                  </a-button>
+                  <template #overlay>
+                    <a-menu @click="({ key }: { key: string }) => {
+                      if (key === 'builtins') doAttachBuiltins(p.pid);
+                      else if (key === 'go') doAttachGo(p.pid);
+                      else if (key.startsWith('lib:')) doAttachLibrary(p.pid, key.slice(4));
+                    }">
+                      <a-menu-item key="builtins">
+                        <span class="attach-menu-item">🔍 Auto-detect (builtins)</span>
+                      </a-menu-item>
+                      <a-menu-divider />
+                      <a-menu-item key="go">
+                        <span class="attach-menu-item">🔷 Go crypto/tls</span>
+                      </a-menu-item>
+                      <a-menu-item key="lib:openssl">
+                        <span class="attach-menu-item">🔒 OpenSSL</span>
+                      </a-menu-item>
+                      <a-menu-item key="lib:gnutls">
+                        <span class="attach-menu-item">🛡️ GnuTLS</span>
+                      </a-menu-item>
+                    </a-menu>
+                  </template>
+                </a-dropdown>
+              </div>
             </div>
           </div>
         </template>
@@ -1079,16 +1176,57 @@ watch(
 }
 .ssl-pending-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
 }
-.ssl-pending-tag {
+.ssl-pending-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.ssl-pending-row:hover {
+  background: #f5f5f5;
+}
+.ssl-pending-pid {
   font-family: ui-monospace, monospace;
-  font-size: 12px;
-}
-.ssl-pending-tag code {
   font-weight: 700;
   color: #1677ff;
-  margin-right: 4px;
+  font-size: 12px;
+  min-width: 50px;
+}
+.ssl-pending-name {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1f2937;
+}
+.ssl-pending-cmd {
+  font-size: 11px;
+  color: #aaa;
+  font-family: ui-monospace, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+.attach-menu-item {
+  font-size: 12px;
+}
+.attach-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #ff4d4f;
 }
 </style>
