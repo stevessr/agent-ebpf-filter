@@ -19,7 +19,7 @@ const MAX_HISTORY = 60;
 const cpuHistory = ref<{ time: number; series: { name: string; data: [number, number][] }[] }>({ time: 0, series: [] });
 const memHistory = ref<{ time: number; series: { name: string; data: [number, number][] }[] }>({ time: 0, series: [] });
 
-// Sample CPU/Mem every 2 seconds
+// Sample CPU/Mem every 3 seconds (avoid excessive reactivity churn)
 let sampleTimer: ReturnType<typeof setInterval> | null = null;
 const doSample = () => {
   const now = Date.now();
@@ -42,29 +42,30 @@ const doSample = () => {
 
 watch(() => props.treePids, (pids) => {
   if (sampleTimer) clearInterval(sampleTimer);
-  if (pids.size > 0) { doSample(); sampleTimer = setInterval(doSample, 2000); }
+  if (pids.size > 0) { doSample(); sampleTimer = setInterval(doSample, 3000); }
 }, { immediate: true });
 
 onUnmounted(() => { if (sampleTimer) clearInterval(sampleTimer); });
 
-// ── I/O stats ────────────────────────────────────────────────────────────
+// ── I/O stats (on-demand only, no auto-fetch) ───────────────────────────────
 const ioStats = ref<Record<number, Record<string, string>>>({});
 const ioLoading = ref(false);
 
 const fetchIO = async () => {
+  if (ioLoading.value) return; // prevent concurrent fetches
   ioLoading.value = true;
   const stats: Record<number, Record<string, string>> = {};
-  for (const pid of props.treePids) {
+  const pids = [...props.treePids];
+  // Fetch in parallel with Promise.all, not sequentially
+  await Promise.all(pids.map(async (pid) => {
     try {
       const res = await axios.get(`/system/process/io`, { params: { pid } });
       stats[pid] = res.data;
     } catch {}
-  }
+  }));
   ioStats.value = stats;
   ioLoading.value = false;
 };
-
-watch(() => props.treePids, (pids) => { if (pids.size > 0) fetchIO(); });
 
 // ── Chart options ────────────────────────────────────────────────────────
 const cpuChartOptions = computed(() => makeLineOpts("CPU %"));
