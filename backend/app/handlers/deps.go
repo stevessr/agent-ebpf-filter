@@ -119,6 +119,9 @@ var Deps struct {
 	// Cgroup sandbox (wired via adapter)
 	CgroupSandbox CgroupSandboxOps
 
+	// LSM enforcer (wired via adapter)
+	LsmEnforcer LsmEnforcerOps
+
 	// Native hook handler
 	BuildProcessContextFromHookPayload func(payload map[string]any, toolName, path string) (uint32, ProcessContext)
 
@@ -312,6 +315,37 @@ type CgroupSandboxSnapshot struct {
 	IP6Blocklist    any
 	PortBlocklist   any
 	SandboxStats    any
+}
+
+// LsmEnforcerSnapshot holds the state of the LSM enforcer for handler responses.
+type LsmEnforcerSnapshot struct {
+	Available         bool
+	Attached          bool
+	LinkCount         int
+	LinkPins          []string
+	LastError         string
+	ExecPathBlocklist any
+	ExecNameBlocklist any
+	FileNameBlocklist any
+	Stats             any
+}
+
+// LsmEnforcerOps is the interface for LSM enforcer operations.
+type LsmEnforcerOps interface {
+	Snapshot() LsmEnforcerSnapshot
+	EnsureLoaded() error
+	GetStats(statsMap any) (map[string]any, error)
+	ListExecPaths(blocklist any) []string
+	ListExecNames(blocklist any) []string
+	ListFileNames(blocklist any) []string
+	NormalizePath(path string) (string, error)
+	NormalizeName(name string) (string, error)
+	BlockExecPath(path string) error
+	UnblockExecPath(path string) error
+	BlockExecName(name string) error
+	UnblockExecName(name string) error
+	BlockFileName(name string) error
+	UnblockFileName(name string) error
 }
 
 // CgroupSandboxOps is the interface for cgroup sandbox operations.

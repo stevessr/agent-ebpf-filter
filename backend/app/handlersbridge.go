@@ -150,6 +150,59 @@ func parseCgroupIDStr(raw string) (uint64, error) {
 	return parseCgroupID(json.RawMessage(raw))
 }
 
+// ── LSM enforcer adapter ────────────────────────────────────────────
+
+// lsmEnforcerAdapter wraps app-level LSM enforcer functions to implement handlers.LsmEnforcerOps.
+type lsmEnforcerAdapter struct{}
+
+func (a *lsmEnforcerAdapter) Snapshot() handlers.LsmEnforcerSnapshot {
+	snap := currentLsmEnforcerSnapshot()
+	return handlers.LsmEnforcerSnapshot{
+		Available:         snap.available(),
+		Attached:          snap.attached(),
+		LinkCount:         snap.LinkCount,
+		LinkPins:          snap.LinkPins,
+		LastError:         snap.LastError,
+		ExecPathBlocklist: snap.ExecPathBlocklist,
+		ExecNameBlocklist: snap.ExecNameBlocklist,
+		FileNameBlocklist: snap.FileNameBlocklist,
+		Stats:             snap.Stats,
+	}
+}
+
+func (a *lsmEnforcerAdapter) EnsureLoaded() error { return ensureLsmEnforcerLoaded() }
+
+func (a *lsmEnforcerAdapter) GetStats(statsMap any) (map[string]any, error) {
+	lsmStats, err := getLsmEnforcerStats(statsMap.(*ebpf.Map))
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"execChecked": lsmStats.ExecChecked,
+		"execBlocked": lsmStats.ExecBlocked,
+		"fileChecked": lsmStats.FileChecked,
+		"fileBlocked": lsmStats.FileBlocked,
+	}, nil
+}
+
+func (a *lsmEnforcerAdapter) ListExecPaths(blocklist any) []string  { return listLsmExecPaths(blocklist.(*ebpf.Map)) }
+func (a *lsmEnforcerAdapter) ListExecNames(blocklist any) []string  { return listLsmExecNames(blocklist.(*ebpf.Map)) }
+func (a *lsmEnforcerAdapter) ListFileNames(blocklist any) []string  { return listLsmFileNames(blocklist.(*ebpf.Map)) }
+func (a *lsmEnforcerAdapter) NormalizePath(path string) (string, error) { return normalizeLsmPathString(path) }
+func (a *lsmEnforcerAdapter) NormalizeName(name string) (string, error) { return normalizeLsmNameString(name) }
+
+func (a *lsmEnforcerAdapter) BlockExecPath(path string) error   { return blockLsmExecPath(path) }
+func (a *lsmEnforcerAdapter) UnblockExecPath(path string) error { return unblockLsmExecPath(path) }
+func (a *lsmEnforcerAdapter) BlockExecName(name string) error   { return blockLsmExecName(name) }
+func (a *lsmEnforcerAdapter) UnblockExecName(name string) error { return unblockLsmExecName(name) }
+func (a *lsmEnforcerAdapter) BlockFileName(name string) error   { return blockLsmFileName(name) }
+func (a *lsmEnforcerAdapter) UnblockFileName(name string) error { return unblockLsmFileName(name) }
+
+// normalizeLsmNameString is a thin wrapper for the 2-arg version.
+func normalizeLsmNameString(name string) (string, error) {
+	return normalizeLsmNameStringWithLabel(name, "name")
+}
+
 // ── AgentSight event store adapter ──────────────────────────────────
 
 // agentSightStoreAdapter wraps *agentSightEventStore to implement the
@@ -489,6 +542,9 @@ func init() {
 	// Cgroup sandbox
 	handlers.Deps.CgroupSandbox = &cgroupSandboxAdapter{}
 
+	// LSM enforcer
+	handlers.Deps.LsmEnforcer = &lsmEnforcerAdapter{}
+
 		// AgentSight data pipeline
 		handlers.Deps.RecentEventFiltersFromRequest = func(c any) any {
 			return recentEventFiltersFromRequest(c.(*gin.Context))
@@ -683,6 +739,15 @@ func handleNetworkFlowJSONLExport(c *gin.Context)     { handlers.HandleNetworkFl
 func handleExternalAPIHealth(c *gin.Context) { handlers.HandleExternalAPIHealth(c) }
 func handleExternalAPIOpenAPI(c *gin.Context) { handlers.HandleExternalAPIOpenAPI(c) }
 func buildExternalOpenAPISpec() *openapi3.T  { return handlers.BuildExternalOpenAPISpec() }
+
+// LSM enforcer bridges
+func handleLsmEnforcerStatus(c *gin.Context)     { handlers.HandleLsmEnforcerStatus(c) }
+func handleLsmBlockExecPath(c *gin.Context)      { handlers.HandleLsmBlockExecPath(c) }
+func handleLsmUnblockExecPath(c *gin.Context)    { handlers.HandleLsmUnblockExecPath(c) }
+func handleLsmBlockExecName(c *gin.Context)      { handlers.HandleLsmBlockExecName(c) }
+func handleLsmUnblockExecName(c *gin.Context)    { handlers.HandleLsmUnblockExecName(c) }
+func handleLsmBlockFileName(c *gin.Context)      { handlers.HandleLsmBlockFileName(c) }
+func handleLsmUnblockFileName(c *gin.Context)    { handlers.HandleLsmUnblockFileName(c) }
 
 // Cgroup sandbox bridges
 func handleCgroupSandboxStatus(c *gin.Context)        { handlers.HandleCgroupSandboxStatus(c) }
