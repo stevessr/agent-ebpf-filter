@@ -194,11 +194,15 @@ curl -X POST http://localhost:8080/api/tls-capture/library \
 **Network → TLS Capture** 标签页
 
 功能：
-- 📊 实时事件流（WebSocket 推送）
-- 🔍 按进程/域名/方法过滤
-- 📝 查看完整 HTTP 请求/响应明文
-- 📈 库状态监控
-- ⚙️ 启动/停止捕获控制
+- 实时事件流（WebSocket 推送）
+- 按进程/域名/方法过滤
+- SSL 过滤器表达式搜索（支持 `len>100&data_type=http_request` 语法）
+- 数据类型自动分类（HTTP Request/Response, JSON, SSE, gRPC, Binary, Text）
+- TLS 握手检测与标记
+- UID/TID 进程归属展示
+- 查看完整 HTTP 请求/响应明文
+- 库状态监控
+- 启动/停止捕获控制
 
 ---
 
@@ -303,18 +307,92 @@ curl -X PUT http://localhost:8080/api/config/runtime \
 
 ---
 
+
+## SSL 过滤器表达式
+
+前端工具栏和 `app/tls/ssl_filter.go` 支持 AgentSight 兼容的 SSL 过滤表达式语法。
+
+### 语法
+
+```
+expression := condition | expression & expression | expression | expression
+condition  := field operator value
+```
+
+### 支持字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `is_handshake` | bool | TLS 握手记录 |
+| `truncated` | bool | 数据被截断 |
+| `len` | number | 捕获长度 |
+| `pid` | number | 进程 ID |
+| `tid` | number | 线程 ID |
+| `uid` | number | 用户 ID |
+| `timestamp_ns` | number | 时间戳 (纳秒) |
+| `latency_ms` | number | 延迟 (毫秒) |
+| `data_type` | string | 自动检测类型 (http_request/http_response/json/sse/grpc/binary/text) |
+| `direction` | string | 方向 (send/recv) |
+| `lib` | string | TLS 库 (openssl/go/gnutls/nss) |
+| `function` | string | 函数名 (READ/RECV, WRITE/SEND) |
+| `comm` | string | 进程名 |
+| `method` | string | HTTP 方法 |
+| `url` | string | URL 路径 |
+| `host` | string | 主机名 |
+
+### 运算符
+
+| 运算符 | 别名 | 说明 |
+|--------|------|------|
+| `=` | exact | 精确匹配 |
+| `!=` | not_equal | 不等于 |
+| `>` | gt | 大于 |
+| `<` | lt | 小于 |
+| `>=` | gte | 大于等于 |
+| `<=` | lte | 小于等于 |
+| `~` | contains | 包含子串 |
+
+### 示例
+
+```
+# 大于 100 字节的 HTTP 请求
+len>100&data_type=http_request
+
+# chunked 编码的读取数据
+data~chunked|function=READ/RECV
+
+# TLS 握手记录
+is_handshake=true
+
+# 来自特定进程的发送数据
+comm=curl&direction=send
+
+# JSON 格式的响应数据
+data_type=json&direction=recv
+```
+
+### 数据类型自动检测
+
+`DetectSSLDataType()` 函数对 TLS 明文进行自动分类:
+
+| 检测类型 | 匹配规则 |
+|---------|---------|
+| `http_request` | 以 GET/POST/PUT/DELETE/PATCH/HEAD/OPTIONS/CONNECT/TRACE 开头 |
+| `http_response` | 以 HTTP/ 开头 |
+| `sse` | 以 data:/event:/id:/retry: 开头 |
+| `json` | 以 { } 或 [ ] 包裹的有效 JSON |
+| `grpc` | gRPC 帧头 (第5字节 0x80 标志) |
+| `binary` | 包含空字节或不可打印字符 >25% |
+| `text` | 其他可打印文本 |
+
 ## 下一步
 
-- 📖 阅读[完整实现报告](../_archive/TLS_INTERCEPT_COMPLETE.md)了解架构细节
-- 🎯 查看[项目 README](../../README.md)了解其他功能
-- 🔧 探索前端 UI 的可视化界面
-- 🚀 尝试集成到 CI/CD 流程进行 HTTPS 流量审计
-
----
+- 阅读[总体架构](../architecture/overview.md)了解系统设计
+- 查看[路由 API 参考](routes-api.md)了解完整 API 索引
 
 ## 相关文档
 
-- [完整 TLS 拦截报告](../_archive/TLS_INTERCEPT_COMPLETE.md) - 架构、API、技术细节
-- [数据脱敏指南](../../backend/redaction/README.md) - 敏感信息保护
-- [eBPF 程序源码](../../backend/ebpf/agent_tls_capture.c) - uprobe 实现
-- [主项目文档](../../README.md) - 完整功能介绍
+- [后端 API 路由参考](routes-api.md)
+- [eBPF 程序源码](../../backend/ebpf/agent_tls_capture.c)
+- [TLS 明文解析源码](../../backend/app/tls/httpparsertls.go)
+- [SSL 过滤器源码](../../backend/app/tls/ssl_filter.go)
