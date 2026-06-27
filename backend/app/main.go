@@ -71,6 +71,7 @@ func Main() {
 	if !features.CompiledIn(FeatureTLSCapture) {
 		settings.TlsCaptureEnabled = false
 	}
+	initTLS()
 	tlsRuntime := tls.StartTLSCaptureRuntime(settings)
 	defer tlsRuntime.Controller.Close()
 
