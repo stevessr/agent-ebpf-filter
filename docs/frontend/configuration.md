@@ -36,7 +36,7 @@ Configuration 页面是 **Agent eBPF Filter** 的中央控制台，负责对后�
 
 ---
 
-## 🔗 相关导航
+## 相关导航
 
 - [🎨 前端工作台总览](workbench.md) —— 整体架构与微服务划分
 - [🛡️ 安全模型](../security/model.md) —— Runtime Gate 五层控制原理

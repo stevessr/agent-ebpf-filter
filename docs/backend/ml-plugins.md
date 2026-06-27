@@ -72,18 +72,14 @@ ML 与 Plugins 是增强层，服务于行为分类、风险评分、训练集�
 - 仅 `unlink` / `do_unlinkat` 流程使用 `attachKind: "kprobe"`；
 - 不要为非 unlink visual plugins 序列化 `attachKind: "none"`。
 
-## 文档建议
-
-ML 与 Plugins 在答辩中应作为增强点，而不是压过 eBPF / OS enforcement 主线。应突出：
+## ML 与 Plugins 在答辩中应作为增强点，而不是压过 eBPF / OS enforcement 主线。应突出：
 
 - 可扩展；
 - 可训练；
 - 可视化规则构建；
 - 与 runtime gates / auth / policy map 的边界。
 
-## 相关文档与同步点
-
-| 主题 | 应同步文档 / 源码 |
+## | 主题 | 应同步文档 / 源码 |
 | --- | --- |
 | ML 模型目录、内置 profile、前端 catalog | [ML 模型速查表](ml-models-summary.md)、[ML 模型完整指南](ml-models-complete-guide.md)、`frontend/src/data/mlModelCatalog.ts` |
 | kernel risk feedback | [事件管线](/backend/event-pipeline)、[策略语义](/security/policy-semantics)、[Runtime Gates 与 Auth](/security/runtime-gates-auth) |

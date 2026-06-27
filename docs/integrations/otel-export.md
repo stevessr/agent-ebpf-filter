@@ -79,9 +79,7 @@ The response includes:
 
 ---
 
-## 相关导航
-
-- [MCP、External API 与 OTLP](mcp-external-otlp.md)
+## - [MCP、External API 与 OTLP](mcp-external-otlp.md)
 - [事件管线](../backend/event-pipeline.md)
 - [External API](external-api.md)
 - [验证、测试与 Benchmark](../operations/verification-benchmark.md)

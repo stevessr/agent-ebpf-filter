@@ -2,9 +2,7 @@
 
 本文档通过图表和可视化展示所有模型的性能特征。
 
-## 模型分布图
-
-### 准确率 vs 推理速度
+## ### vs 推理速度
 
 ```mermaid
 graph TD
@@ -37,9 +35,7 @@ graph TD
     style LR fill:#f39c12,color:#fff
 ```
 
-## 模型选择决策树
-
-```mermaid
+## ```mermaid
 flowchart TD
     START([开始选择模型])
 
@@ -66,9 +62,7 @@ flowchart TD
     style DEFAULT fill:#3498db,color:#fff
 ```
 
-## 模型架构图谱
-
-### Random Forest 架构
+## ### Random Forest 架构
 
 ```mermaid
 graph LR
@@ -137,11 +131,7 @@ graph TD
     style ALLOW fill:#2ecc71,color:#fff
 ```
 
-## 性能矩阵热图
-
-### 内核态模型性能比较
-
-| 指标 / 模型 | Logistic | SVM | NN | Random Forest |
+## ### | 指标 / 模型 | Logistic | SVM | NN | Random Forest |
 |-----------|---------|-----|----|--------------|
 | **推理延迟** | 🟢🟢🟢🟢🟢 | 🟢🟢🟢🟢⚪ | 🟢🟢🟢⚪⚪ | 🟢🟢⚪⚪⚪ |
 | **内存占用** | 🟢🟢🟢🟢🟢 | 🟢🟢🟢🟢🟢 | 🟢🟢🟢⚪⚪ | 🟢⚪⚪⚪⚪ |
@@ -151,7 +141,7 @@ graph TD
 
 图例：🟢 好 | ⚪ 中
 
-## 🔄 模型家族谱系
+## 模型家族谱系
 
 ```mermaid
 graph TD
@@ -194,9 +184,7 @@ graph TD
     style LINEAR fill:#9b59b6,color:#fff
 ```
 
-## 使用场景地图
-
-```mermaid
+## ```mermaid
 mindmap
   root((ML模型<br/>使用场景))
     生产环境
@@ -229,9 +217,7 @@ mindmap
       passive_aggressive
 ```
 
-## 训练时间分布
-
-```mermaid
+## ```mermaid
 gantt
     title 模型训练时间对比 (1000 样本)
     dateFormat X
@@ -259,7 +245,7 @@ gantt
     Ensemble         :0, 400
 ```
 
-## 🔬 特征工程流程
+## 特征工程流程
 
 ```mermaid
 flowchart LR
@@ -283,9 +269,7 @@ flowchart LR
     style RESULT fill:#2ecc71,color:#fff
 ```
 
-## 推理管线
-
-```mermaid
+## ```mermaid
 sequenceDiagram
     participant User as 用户空间进程
     participant eBPF as eBPF 程序
@@ -315,7 +299,7 @@ sequenceDiagram
     end
 ```
 
-## 📦 模型文件格式
+## 模型文件格式
 
 ```mermaid
 graph TD
@@ -351,8 +335,6 @@ graph TD
 
 ---
 
-## 相关文档
-
-- [ML 模型速查表](./ml-models-summary.md)
+## - [ML 模型速查表](./ml-models-summary.md)
 - [ML 模型完整指南](./ml-models-complete-guide.md)
 - [内核态多模型实现](/backend/multi-model-complete)

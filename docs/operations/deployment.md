@@ -2,15 +2,11 @@
 
 ---
 
-## 本机系统服务安装
-
-```bash
+## ```bash
 make install
 ```
 
-### 安装行为
-
-`make install` 执行以下步骤：
+### `make install` 执行以下步骤：
 
 1. **Production build**：编译 backend、frontend、wrapper
 2. **安装服务文件**：复制到 `/opt/agent-ebpf-filter`
@@ -18,9 +14,7 @@ make install
 4. **写入环境文件**：`/etc/agent-ebpf-filter/agent-ebpf-filter.env`
 5. **注册系统服务**：systemd 优先，无 systemd 时 rc.local fallback
 
-### 环境文件
-
-安装器自动配置：
+### 安装器自动配置：
 
 | 变量 | 值 | 说明 |
 | --- | --- | --- |
@@ -37,18 +31,14 @@ Runtime 配置持久化在：`~/.config/agent-ebpf-filter/runtime.json`
 | systemd | 当前系统有运行中的 systemd manager | `systemctl start/stop/restart agent-ebpf-filter` |
 | rc.local | 无 systemd | `/usr/local/sbin/agent-ebpf-filter-service start/stop` |
 
-### 安装参数
-
-```bash
+### ```bash
 make install INSTALL_METHOD=systemd      # 强制 systemd
 make install INSTALL_METHOD=rc.local     # 强制 rc.local
 make install INSTALL_START=0             # 安装但不立即启动
 make install INSTALL_ENABLE=0            # 安装但不设置开机启动
 ```
 
-### 卸载
-
-```bash
+### ```bash
 make uninstall
 ```
 
@@ -62,17 +52,13 @@ make uninstall
 
 部署清单位于 `deploy/kubernetes/`。
 
-### 典型场景
-
-节点级 DaemonSet，每个节点运行一个 Agent eBPF Filter 实例：
+### 节点级 DaemonSet，每个节点运行一个 Agent eBPF Filter 实例：
 
 ```bash
 kubectl apply -f deploy/kubernetes/agent-ebpf-filter.yaml
 ```
 
-### 权限要求
-
-因为需要 eBPF、bpffs、cgroup 和可能的 BPF LSM，Pod 需要：
+### 因为需要 eBPF、bpffs、cgroup 和可能的 BPF LSM，Pod 需要：
 
 - `privileged: true` 或精细的 `capabilities`（`CAP_BPF`、`CAP_SYS_ADMIN`）
 - 挂载 `/sys/fs/bpf`
@@ -98,9 +84,7 @@ curl http://localhost:8080/api/v1/health
 
 可选的 Host/SNI-based HTTP/HTTPS 反向转发，**默认关闭**。
 
-### 启用方式
-
-通过 Runtime Config（`/config/runtime`）配置 `domainForwardProxy`：
+### 通过 Runtime Config（`/config/runtime`）配置 `domainForwardProxy`：
 
 ```json
 {
@@ -120,16 +104,12 @@ curl http://localhost:8080/api/v1/health
 }
 ```
 
-### 工作方式
-
-| 协议 | 行为 |
+### | 协议 | 行为 |
 | --- | --- |
 | HTTP | 按 `Host` header 路由 |
 | HTTPS | 先用默认/路由级证书终止 TLS，再按解密后的 `Host` 路由 |
 
-### 注意事项
-
-- 监听 80/443 需要 root 或 `CAP_NET_BIND_SERVICE`
+### - 监听 80/443 需要 root 或 `CAP_NET_BIND_SERVICE`
 - HTTPS 需要至少一个默认证书/私钥或路由级证书/私钥
 - `host` 支持精确域名和 `*.example.com` 通配
 - 转发器使用直接 outbound dial，不继承 `HTTP_PROXY`/`HTTPS_PROXY`
@@ -138,9 +118,7 @@ curl http://localhost:8080/api/v1/health
 
 ---
 
-## 安全注意事项
-
-::: warning
+## ::: warning
 - 系统服务以 root 运行，请确保环境受信
 - Release mode 下所有敏感 API 需要 runtime access token
 - 高风险能力（PTY / system run / policy mutation / TLS capture）需要 runtime gate 显式启用
@@ -149,9 +127,7 @@ curl http://localhost:8080/api/v1/health
 
 ---
 
-## 相关导航
-
-- [构建与运行](build-and-run.md)
+## - [构建与运行](build-and-run.md)
 - [开发容器](devcontainer.md)
 - [Kubernetes](kubernetes.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)

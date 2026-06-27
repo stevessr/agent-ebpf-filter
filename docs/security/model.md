@@ -57,18 +57,14 @@ graph TB
     style Digest fill:#bfb
 ```
 
-## 安全目标
-
-- 只在授权环境中加载和管理 eBPF；
+## - 只在授权环境中加载和管理 eBPF；
 - release mode 保护敏感 API；
 - 高风险能力默认关闭；
 - policy mutation 通过认证后端 API；
 - 避免普通事件流泄漏 secrets / TLS plaintext；
 - 将观测、诊断、控制的边界说清楚。
 
-## 权限层
-
-```mermaid
+## ```mermaid
 sequenceDiagram
     participant User as User
     participant Main as Backend Main
@@ -194,9 +190,7 @@ graph LR
 - domain forward.
 - kernel risk feedback.
 
-## 内核控制层
-
-```mermaid
+## ```mermaid
 graph TB
     subgraph "Wrapper (用户态)"
         WrapperReq[WrapperRequest] --> PolicyEngine[Policy Engine]
@@ -244,9 +238,7 @@ graph TB
 | BPF LSM | exact exec path/name、file basename | 不是递归目录策略 |
 | wrapper | command shim | 只覆盖经 wrapper 执行的命令 |
 
-## 数据保护层
-
-```mermaid
+## ```mermaid
 graph TB
     Event[Raw Event] --> HasArgv{has argv?}
     HasArgv -->|Yes| DigestArgv[argv_digest = sha256]
@@ -290,9 +282,7 @@ graph TB
 - sanitized_fields；
 - secrets / tokens / headers / query / JSON body redaction。
 
-## 高风险能力清单
-
-| 能力 | 风险 | 防护 |
+## | 能力 | 风险 | 防护 |
 | --- | --- | --- |
 | TLS capture | 明文敏感数据 | 默认关闭、auth、runtime gate、redaction |
 | system run | 任意命令执行 | critical feature、auth、runtime gate |
@@ -316,9 +306,7 @@ For security auditing and compliance, the following kernel-enforced security pol
 
 ---
 
-## 相关导航
-
-- [Runtime Gates 与 Auth](runtime-gates-auth.md)
+## - [Runtime Gates 与 Auth](runtime-gates-auth.md)
 - [策略语义](policy-semantics.md)
 - [脱敏与隐私](redaction-privacy.md)
 - [威胁模型](threat-model.md)

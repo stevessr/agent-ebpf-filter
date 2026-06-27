@@ -402,6 +402,29 @@ func HandleUserInfo(c *gin.Context) {
 	c.JSON(200, gin.H{"username": u.Username, "home": u.HomeDir, "uid": u.Uid})
 }
 
+func HandleProcessIO(c *gin.Context) {
+	pidStr := c.Query("pid")
+	if pidStr == "" {
+		c.JSON(400, gin.H{"error": "pid required"})
+		return
+	}
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%s/io", pidStr))
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	info := gin.H{}
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+			info[key] = val
+		}
+	}
+	c.JSON(200, info)
+}
+
 func HandleSystemdServices(c *gin.Context) {
 	scope := c.DefaultQuery("scope", "system")
 	args := []string{"list-units", "--type=service", "--all", "--no-legend", "--no-pager"}
@@ -598,4 +621,5 @@ func RegisterSystemRoutes(rg *gin.RouterGroup) {
 	rg.GET("/microphones", HandleMicrophones)
 	rg.POST("/run", HandleRun)
 	rg.GET("/user-info", HandleUserInfo)
+	rg.GET("/process/io", HandleProcessIO)
 }

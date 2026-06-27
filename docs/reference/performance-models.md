@@ -4,9 +4,7 @@
 
 ## eBPF 事件处理性能
 
-### 零拷贝优化收益
-
-ringbuf 解码在满足条件时使用零拷贝：
+### ringbuf 解码在满足条件时使用零拷贝：
 
 
 
@@ -74,9 +72,7 @@ $$
 
 ## ML 风险评分模型
 
-### 命令风险评分
-
-wrapper policy engine 使用加权多因子模型：
+### wrapper policy engine 使用加权多因子模型：
 
 
 
@@ -100,9 +96,7 @@ $$
 | Agent 历史 | 0.2 | Bayesian update |
 | 上下文异常 | 0.1 | Isolation Forest score |
 
-### 阈值决策
-
-策略决策使用分段阈值：
+### 策略决策使用分段阈值：
 
 
 
@@ -118,7 +112,7 @@ $$
 
 默认阈值：$\theta_{alert} = 0.5$，$\theta_{block} = 0.8$。
 
-### 贝叶斯 Agent 信誉更新
+### Agent 信誉更新
 
 Agent 历史信誉使用贝叶斯更新：
 
@@ -147,9 +141,7 @@ $$
 - $n_{safe}$：安全行为次数
 - $n$：总观测次数
 
-## 网络流聚合
-
-### Flow 超时与状态机
+## ### Flow 超时与状态机
 
 TCP flow 状态转移概率：
 
@@ -261,9 +253,7 @@ $$
 
 
 
-## 性能基准
-
-### Ringbuf 吞吐量
+## ### Ringbuf 吞吐量
 
 测试结果（10 万事件 replay）：
 
@@ -313,9 +303,7 @@ $$
 
 
 
-## 参考
-
-- [事件管线](/backend/event-pipeline)
+## - [事件管线](/backend/event-pipeline)
 - [Runtime Settings](/backend/runtime-settings-features)
 - [Wrapper 命令策略](/integrations/wrapper)
 - [验证与 Benchmark](/operations/verification-benchmark)

@@ -588,3 +588,39 @@ func programByName(programs *bpf.AgentTlsCapturePrograms, name string) (*ebpf.Pr
 	prog, ok := programsByName[name]
 	return prog, ok
 }
+
+// AttachedPIDInfo describes a process that has an active SSL/TLS uprobe.
+type AttachedPIDInfo struct {
+	PID         int    `json:"pid"`
+	BinaryPath  string `json:"binary_path"`
+	LibraryName string `json:"library_name"`
+}
+
+// AttachedPIDs returns the list of PIDs that currently have SSL/TLS uprobes
+// attached, derived from the attachedGo dedup map (keyed as "pid\x00binPath").
+func (m *TLSProbeManager) AttachedPIDs() []AttachedPIDInfo {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var result []AttachedPIDInfo
+	for key := range m.attachedGo {
+		parts := strings.SplitN(key, "\x00", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		pid := 0
+		fmt.Sscanf(parts[0], "%d", &pid)
+		if pid > 0 {
+			lib := "go-crypto-tls"
+			if strings.Contains(parts[1], "node") || strings.Contains(parts[1], "bun") || strings.Contains(parts[1], "deno") {
+				lib = "openssl"
+			}
+			result = append(result, AttachedPIDInfo{
+				PID:         pid,
+				BinaryPath:  parts[1],
+				LibraryName: lib,
+			})
+		}
+	}
+	return result
+}

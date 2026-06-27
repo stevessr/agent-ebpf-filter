@@ -6,17 +6,13 @@ Agent eBPF Filter 对外提供 MCP、External API v1、Prometheus 和 OTLP 四�
 
 ## MCP (Model Context Protocol)
 
-### 端点
-
-```text
+### ```text
 /mcp
 ```
 
 MCP 使用 Streamable HTTP 传输，认证方式与后端 config API 一致。
 
-### 认证方式
-
-```bash
+### ```bash
 # Header 方式
 curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/mcp
 
@@ -62,9 +58,7 @@ curl "http://127.0.0.1:8080/mcp?key=<token>"
 
 外部自动化应优先使用 `/api/v1` 下的版本化别名，认证方式与 MCP 一致。
 
-### 服务发现
-
-```bash
+### ```bash
 # 健康检查
 curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/api/v1/health
 
@@ -72,9 +66,7 @@ curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/api/v1/health
 curl http://127.0.0.1:8080/api/v1/openapi.json
 ```
 
-### 事件查询
-
-```bash
+### ```bash
 # 最近事件
 curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/api/v1/events/recent?limit=50
 
@@ -82,9 +74,7 @@ curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/api/v1/events/recent?limit=50
 curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/api/v1/events/graph
 ```
 
-### 网络流
-
-```bash
+### ```bash
 # 网络流列表
 curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/api/v1/network/flows
 
@@ -108,7 +98,7 @@ curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/api/v1/sandbox/cgroup/status
 curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/api/v1/sandbox/lsm/status
 ```
 
-### 策略变更（需要 policyManagementEnabled）
+### policyManagementEnabled）
 
 ```bash
 # 阻止 IP
@@ -164,9 +154,7 @@ OTLP export 将 Agent 行为转换为 OpenTelemetry tracing spans：
 | `mcp.call` | MCP 调用 |
 | 子 spans | 子进程 / 文件 / 网络 / 策略派生 |
 
-### 配置
-
-通过 Runtime Config（`/config/runtime`）或环境变量配置：
+### 通过 Runtime Config（`/config/runtime`）或环境变量配置：
 
 | 配置项 | 环境变量 | 说明 |
 | --- | --- | --- |
@@ -175,7 +163,7 @@ OTLP export 将 Agent 行为转换为 OpenTelemetry tracing spans：
 | `OtlpServiceName` | `AGENT_RUNTIME_OTLP_SERVICE_NAME` | 服务名称 |
 | `OtlpHeaders` | `AGENT_RUNTIME_OTLP_HEADERS` | 自定义 HTTP headers |
 
-### 与 Jaeger / Grafana 集成
+### Jaeger / Grafana 集成
 
 ```bash
 # 启动 Jaeger all-in-one
@@ -190,9 +178,7 @@ docker run -d --name jaeger \
 # OtlpServiceName: agent-ebpf-filter
 ```
 
-### 健康检查
-
-```bash
+### ```bash
 curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/system/otel-health
 ```
 
@@ -204,9 +190,7 @@ curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/system/otel-health
 
 `GET /metrics` 暴露 Prometheus 格式指标，release mode 下需要认证。
 
-### 关键指标
-
-| 指标 | 描述 |
+### | 指标 | 描述 |
 | --- | --- |
 | `agent_ebpf_ringbuf_events_total` | ringbuf 事件总数 |
 | `agent_ebpf_ringbuf_reserve_fail` | ringbuf 预留失败次数 |
@@ -215,7 +199,7 @@ curl -H "X-API-KEY: <token>" http://127.0.0.1:8080/system/otel-health
 | `agent_ebpf_ws_clients` | WebSocket 客户端数 |
 | `agent_ebpf_events_by_type` | 按类型的事件计数 |
 
-### 与 Grafana 集成
+### Grafana 集成
 
 项目提供现成的 AgentSight Grafana 配置：
 
@@ -227,9 +211,7 @@ docker compose -f docs/agentsight-grafana-compose.yml up -d
 
 ---
 
-## 相关导航
-
-- [External API 详细文档](external-api.md)
+## - [External API 详细文档](external-api.md)
 - [路由与 API](../backend/routes-api.md)
 - [OTLP 导出配置](otel-export.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)

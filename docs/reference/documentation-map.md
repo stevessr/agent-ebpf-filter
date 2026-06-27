@@ -2,16 +2,12 @@
 
 本站是项目网站入口，仓库中还保留了组件 README、专项实现记录、比赛交付材料和第三方参考快照。本文档用于把这些材料串起来：先告诉读者该从哪里进入，再说明改动某个功能时要同步哪些页面。
 
-## 本轮扫描摘要
-
-- 扫描对象：根 README、`docs/**/*.md`（默认排除 `docs/ref/**` 参考快照）、组件 README、`kernel-ml/README.md`、devcontainer 与 dev-env 文档。
+## - 扫描对象：根 README、`docs/**/*.md`（默认排除 `docs/ref/**` 参考快照）、组件 README、`kernel-ml/README.md`、devcontainer 与 dev-env 文档。
 - 链接守卫：新增 [`scripts/check-doc-links.py`](../../scripts/check-doc-links.py)，用于检查仓库内 Markdown 链接、VitePress 绝对路径和指向源码的相对路径。
 - 使用方式：`python3 scripts/check-doc-links.py`；该脚本不替代 `bun run docs:build`，而是补上 VitePress `ignoreDeadLinks` 对仓库外源码链接不敏感的问题。
 - 权威性原则：当前代码和 [`AGENTS.md`](../../AGENTS.md) 优先；网站页负责稳定入口；历史/专项文档必须通过本页或 `DEV_DOCS_INDEX.md` 标注它与当前实现的关系。
 
-## 网站章节
-
-| 章节 | 用途 | 常用入口 |
+## | 章节 | 用途 | 常用入口 |
 | --- | --- | --- |
 | Guide | 项目定位、快速开始、功能总览、阅读路线 | [项目是什么](/guide/what-is-agent-ebpf-filter)、[快速开始](/guide/quick-start)、[阅读路线](/guide/reading-paths) |
 | Architecture | 总体架构、数据流、运行时边界、协议事件 | [总体架构](/architecture/overview)、[数据流](/architecture/data-flow)、[协议与事件模型](/architecture/protocol-events) |
@@ -23,9 +19,7 @@
 | Delivery | 答辩、演示、评测、合规 | [比赛答辩主线](/delivery/competition-defense)、[演示脚本](/delivery/demo-script)、[评测报告](/delivery/evaluation) |
 | Reference | 文档地图、关系审计、代码入口、生成文件、检查清单 | [文档关系审计](/reference/documentation-audit)、[代码入口索引](/reference/code-entrypoints)、[生成文件边界](/reference/generated-files)、[维护检查清单](/reference/maintenance-checklists) |
 
-## 功能域互联矩阵
-
-| 读者问题 | 先读 | 深入 / 权威页 | 验证或源码入口 |
+## | 读者问题 | 先读 | 深入 / 权威页 | 验证或源码入口 |
 | --- | --- | --- | --- |
 | 项目整体如何工作？ | [项目是什么](/guide/what-is-agent-ebpf-filter) | [总体架构](/architecture/overview)、[数据流](/architecture/data-flow) | [代码入口索引](/reference/code-entrypoints) |
 | 如何启动后端、理解自提权和端口 handoff？ | [构建与运行](/operations/build-and-run) | [后端启动链路](/backend/runtime-startup)、[运行时边界](/architecture/runtime-boundaries) | `backend/app/main.go`、`backend/.port` |
@@ -39,9 +33,7 @@
 | Kubernetes / 外部 API / MCP 如何对外交付？ | [部署与安装](/operations/deployment) | [Kubernetes](../operations/kubernetes.md)、[External API](../integrations/external-api.md)、[MCP/External API/OTLP](/integrations/mcp-external-otlp) | `deploy/kubernetes/`、`backend/app/api_external.go`、`backend/app/server_mcp.go` |
 | 答辩或评测材料如何复用技术页？ | [比赛答辩主线](/delivery/competition-defense) | [演示脚本](/delivery/demo-script)、[评测报告](/delivery/evaluation)、[合规披露](/delivery/compliance) | [验证、测试与 Benchmark](/operations/verification-benchmark) |
 
-## 变更影响链
-
-| 如果你修改了…… | 必须同步检查 | 常见漏项 |
+## | 如果你修改了…… | 必须同步检查 | 常见漏项 |
 | --- | --- | --- |
 | `proto/tracker.proto` 或事件字段 | [协议与事件模型](/architecture/protocol-events)、[事件管线](/backend/event-pipeline)、[生成文件边界](/reference/generated-files)、前端 `pb/` 使用点 | 只改 Go 结构，忘记前端过滤器、AgentSight / OTLP 投影和 adapters |
 | 后端 route、auth 或 compatibility alias | [路由与 API](/backend/routes-api)、[Runtime Gates 与 Auth](/security/runtime-gates-auth)、[External API](../integrations/external-api.md)、[MCP/External API/OTLP](/integrations/mcp-external-otlp) | `/api/**`、`/api/v1/**`、MCP tool 返回格式未同步 |
@@ -62,9 +54,7 @@
 - **[实验框架使用指南](/backend/ml-experiments)** - 批量评估和参数扫描
 - **[内核 ML 实现](/backend/kernel-ml-implementation)** 与 **[kernel-ml/README](../../kernel-ml/README.md)** - DKMS 模块、proc/sysfs UAPI、CUDA userspace helper
 
-## 仓库内专项文档
-
-这些文档不一定全部进入 VitePress sidebar，但应由本页或对应专题页反向索引：
+## 这些文档不一定全部进入 VitePress sidebar，但应由本页或对应专题页反向索引：
 
 - [项目文档索引](../_archive/project-docs-index.md) — 旧版集中索引，覆盖比赛材料和历史专题；
 - [开发历史与实现记录](DEV_DOCS_INDEX.md) — 开发过程、专项实现和历史决策索引；
@@ -75,7 +65,7 @@
 - [backend README](../../backend/README.md)、[frontend README](../../frontend/README.md)、[wrapper README](../../wrapper/README.md)、[Python adapter README](../../adapters/python/README.md)、[JS adapter README](../../adapters/js/README.md)、[kernel-ml README](../../kernel-ml/README.md) — 组件级 README；
 - `docs/ref/**` — 外部参考快照，默认不参与链接完整性扫描，除非用 `python3 scripts/check-doc-links.py --include-ref` 明确检查。
 
-### 历史 / 专项材料按主题入口
+### / 专项材料按主题入口
 
 ::: tip 归档说明
 一次性开发总结、实现完成报告、迁移验证记录等文件已归档到 `docs/_archive/`，不再参与 VitePress 构建。如需查阅历史记录，请直接访问 `docs/_archive/` 目录。
@@ -89,9 +79,7 @@
 | 深度分析 / 规划 | [Project roadmap](project-roadmap.md)、[Demo script 草案](../delivery/demo-script.md) |
 | Superpowers 计划 / 规格历史 | [TLS plaintext capture design](../superpowers/specs/2026-05-10-tls-plaintext-capture-design.md)、[TLS plaintext capture plan](../superpowers/plans/2026-05-10-tls-plaintext-capture-implementation.md)、[GHCR devcontainer design](../superpowers/specs/2026-05-12-ghcr-devcontainer-build-design.md)、[GHCR devcontainer plan](../superpowers/plans/2026-05-12-ghcr-devcontainer-build.md)、[make default build plan](../superpowers/plans/2026-05-12-make-default-build.md) |
 
-## 维护策略
-
-1. 网站页面提供稳定入口，专项文档保留详细实验 / 设计 / 历史记录。
+## 1. 网站页面提供稳定入口，专项文档保留详细实验 / 设计 / 历史记录。
 2. 行为变化优先同步网站对应页面、组件 README 和专项源文档；不要只改总结页。
 3. 代码路径、route、feature gate、UAPI、构建命令变化时，同时更新 [代码入口索引](/reference/code-entrypoints)、[维护检查清单](/reference/maintenance-checklists) 和相关专题页。
 4. 文档变更最小验证：`python3 scripts/check-doc-links.py`；需要看弱互链页面时加 `--report`；若改 VitePress 配置、mermaid、frontmatter 或导航，再跑 `bun run docs:build`。

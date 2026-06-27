@@ -1,8 +1,6 @@
 # 维护检查清单
 
-## 新功能
-
-- [ ] 属于哪个领域？
+## - [ ] 属于哪个领域？
 - [ ] 是否需要 API route？
 - [ ] 是否需要 protobuf 字段？
 - [ ] 是否需要 build feature？
@@ -13,7 +11,7 @@
 - [ ] 是否影响 docs / website？
 - [ ] 是否有最小验证？
 
-## 后端 API
+## API
 
 - [ ] route group 正确；
 - [ ] authMiddleware；
@@ -22,9 +20,7 @@
 - [ ] external API docs；
 - [ ] tests。
 
-## 前端
-
-- [ ] `<script setup lang="ts">`；
+## - [ ] `<script setup lang="ts">`；
 - [ ] API / WS 逻辑在 composable；
 - [ ] UI 拆组件；
 - [ ] shared type 放 types；
@@ -51,9 +47,7 @@
 - [ ] pin path / permissions；
 - [ ] security docs。
 
-## 安全
-
-- [ ] 默认关闭高风险能力；
+## - [ ] 默认关闭高风险能力；
 - [ ] release mode auth；
 - [ ] runtime gate；
 - [ ] 不泄漏 secrets / TLS plaintext；
@@ -61,9 +55,7 @@
 - [ ] exact matching 没写成 recursive / CIDR / range；
 - [ ] 更新 security-model / threat-model / policy-semantics。
 
-## 文档站
-
-- [ ] 新页面加入 nav / sidebar；
+## - [ ] 新页面加入 nav / sidebar；
 - [ ] 链接可点击；
 - [ ] 代码路径真实存在；
 - [ ] 旧路径已校正；
@@ -74,9 +66,7 @@
 - [ ] 新增页面已从 [文档地图](/reference/documentation-map) 或 [阅读路线](/guide/reading-paths) 反向链接；
 - [ ] 若文档描述 route、auth、runtime gate、eBPF map、protobuf 或 kernel-ml UAPI，同步更新对应专题页和组件 README。
 
-## 文档互链审计
-
-- [ ] `docs/ref/**` 是外部参考快照；默认不要求修复其内部断链，除非本次任务明确维护该快照。
+## - [ ] `docs/ref/**` 是外部参考快照；默认不要求修复其内部断链，除非本次任务明确维护该快照。
 - [ ] VitePress 绝对路径（如 `/backend/event-pipeline`）能映射到 `docs/backend/event-pipeline.md`。
 - [ ] 仓库相对路径（如 `../../kernel-ml/README.md`）从当前 Markdown 文件所在目录解析后真实存在。
 - [ ] 历史实现记录中若保留旧路径，应注明“历史路径 / 当前入口见……”，不要让它冒充当前代码入口。

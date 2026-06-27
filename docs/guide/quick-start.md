@@ -6,15 +6,11 @@
 
 由于涉及 Linux 内核底层特性，完整运行该项目需要满足以下系统与工具链要求：
 
-### 核心系统与内核基架
-
-* **Linux Kernel**：必须支持 **eBPF**、**BTF**、**cgroup v2** 以及 **BPF LSM**（部分高级拦截功能强依赖）。
+### * **Linux Kernel**：必须支持 **eBPF**、**BTF**、**cgroup v2** 以及 **BPF LSM**（部分高级拦截功能强依赖）。
 * **特权级运行环境**：加载 eBPF 程序、Pin Maps/Links 以及绑定可选的 `80`/`443` 端口需要 **Root 特权**。
 * **网络依赖**：Native Hooks Relay 机制依赖宿主机安装有 `curl`。
 
-### 编译与开发工具链
-
-* **后端与内核端**：Go、clang / LLVM
+### * **后端与内核端**：Go、clang / LLVM
 * **前端与文档站**：Bun（Vite 运行环境）
 * **脚本与效能**：Python / uv
 
@@ -77,7 +73,7 @@ flowchart LR
 
 ```
 
-### 🔬 常用分项构建
+### 常用分项构建
 
 如果不需要整条流水线，可以直接构建目标组件：
 
@@ -113,17 +109,13 @@ make wrapper   # 仅编译 Agent 包装器
 
 项目文档站基于 **VitePress** 构建，文档源码均位于仓库内。
 
-### 本地实时预览
-
-```bash
+### ```bash
 bun install
 bun run docs:dev
 
 ```
 
-### 生产环境仿真构建
-
-```bash
+### ```bash
 bun run docs:build    # 执行静态化编译
 bun run docs:preview  # 本地启动静态服务器预览产物
 
@@ -135,9 +127,7 @@ bun run docs:preview  # 本地启动静态服务器预览产物
 
 ---
 
-##  安全与高风险操作提示
-
-> ❗ **重要告警**
+##  > ❗ **重要告警**
 > 以下操作带有外向网络变更或高特权系统修改效果。在非隔离的生产/测试环境执行前，**必须获得明确授权**：
 
 *  **系统集成**：`make install` 将会向系统注册并安装守护服务。
@@ -149,9 +139,7 @@ bun run docs:preview  # 本地启动静态服务器预览产物
 
 ---
 
-##  相关导航
-
-*  [项目是什么](what-is-agent-ebpf-filter.md) —— 愿景、痛点与核心价值
+##  *  [项目是什么](what-is-agent-ebpf-filter.md) —— 愿景、痛点与核心价值
 *  [功能总览](capabilities.md) —— 支持哪些语义审计与阻断策略
 *  [构建与运行](../operations/build-and-run.md) —— 进阶部署与高级参数配置
 *  [总体架构](../architecture/overview.md) —— 双轨内核态与 MCP 路径深度解密

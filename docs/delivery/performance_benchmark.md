@@ -1,12 +1,8 @@
 # eBPF Performance Overhead Benchmark - 交付文档
 
-## 项目概述
+## 本项目为 agent-ebpf-filter 添加了完整的性能基准测试框架，用于量化 eBPF hook 引入的性能开销。
 
-本项目为 agent-ebpf-filter 添加了完整的性能基准测试框架，用于量化 eBPF hook 引入的性能开销。
-
-## 已完成的工作
-
-### 1. 核心基准测试工具
+## ### 1. 核心基准测试工具
 
 #### `scripts/benchmark-syscalls.go`
 - **功能**: 精确测量系统调用执行时间
@@ -78,9 +74,7 @@ make benchmark-quick     # 运行交互式向导
 make benchmark-clean     # 清理测试报告
 ```
 
-## 已完成的测试结果
-
-### 基线测试（无 eBPF）
+## ### eBPF）
 
 ✅ 已成功完成，结果保存在：`reports/ebpf-overhead-20260621-034100/baseline.json`
 
@@ -99,15 +93,11 @@ make benchmark-clean     # 清理测试报告
 | getuid | 0.135 | 中 |
 | access | 0.263 | 低 |
 
-### 待完成：eBPF 测试
+### eBPF 测试
 
 由于需要 sudo 权限启动后端，eBPF 测试需要用户手动完成。
 
-## 使用指南
-
-### 快速开始（推荐）
-
-```bash
+## ### ```bash
 # 运行交互式向导
 ./scripts/benchmark-quickstart.sh
 ```
@@ -118,9 +108,7 @@ make benchmark-clean     # 清理测试报告
 3. 提示何时启动/停止后端
 4. 自动生成完整报告
 
-### 手动运行（完整流程）
-
-#### 步骤 1: 运行基线测试
+### #### 步骤 1: 运行基线测试
 
 ```bash
 # 确保后端未运行
@@ -164,7 +152,7 @@ python3 scripts/visualize-benchmark.py \
     --csv overhead.csv
 ```
 
-### 使用 Makefile
+### Makefile
 
 ```bash
 # 构建工具
@@ -180,26 +168,18 @@ make benchmark-quick
 make benchmark-clean
 ```
 
-## 输出文件结构
-
-```
+## ```
 reports/ebpf-overhead-<timestamp>/
 ├── baseline.json      # 无 eBPF 的测试结果
 ├── ebpf.json         # 有 eBPF 的测试结果
 └── summary.json      # 对比摘要（包含开销百分比）
 ```
 
-## 结果解读
-
-### 开销分类
-
-- **<10% 开销**: 🟢 极佳，可忽略不计
+## ### - **<10% 开销**: 🟢 极佳，可忽略不计
 - **10-30% 开销**: 🟡 良好，可接受范围
 - **>30% 开销**: 🔴 需要注意
 
-### 系统调用分类
-
-1. **极快速调用** (<0.1μs)
+### 1. **极快速调用** (<0.1μs)
    - 例如：getpid, getuid
    - 预期：20-100% 开销（绝对值仍很小）
 
@@ -211,22 +191,14 @@ reports/ebpf-overhead-<timestamp>/
    - 例如：open, socket, read/write
    - 预期：2-10% 开销
 
-### 平均开销预期
+### 基于典型 eBPF tracepoint 实现：**10-30%**
 
-基于典型 eBPF tracepoint 实现：**10-30%**
-
-## 技术细节
-
-### 基准测试方法
-
-1. **预热**: 2 次迭代，避免冷启动影响
+## ### 1. **预热**: 2 次迭代，避免冷启动影响
 2. **主测试**: 5 次运行，每次 10,000 迭代
 3. **统计**: 计算平均值、最小值、最大值、标准差
 4. **对比**: 计算百分比开销和绝对时间差
 
-### 测试精度
-
-- 时间精度：微秒级 (μs)
+### - 时间精度：微秒级 (μs)
 - 迭代次数：50,000 次/操作
 - 统计样本：5 次运行
 
@@ -238,9 +210,7 @@ reports/ebpf-overhead-<timestamp>/
 2. 检查 `/sys/fs/bpf/agent-ebpf/links` 目录
 3. 检查后端进程是否运行
 
-## 故障排除
-
-### 问题：需要 sudo 密码
+## ### sudo 密码
 
 **原因**: 启动 eBPF 后端需要 root 权限
 
@@ -248,7 +218,7 @@ reports/ebpf-overhead-<timestamp>/
 1. 手动在另一个终端启动后端
 2. 或配置 passwordless sudo
 
-### 问题：benchmark-syscalls 未找到
+### benchmark-syscalls 未找到
 
 **解决方案**:
 ```bash
@@ -256,9 +226,7 @@ cd scripts
 go build -o benchmark-syscalls ./benchmark-syscalls.go
 ```
 
-### 问题：后端无法启动
-
-**检查**:
+### **检查**:
 ```bash
 # 检查内核支持
 cat /sys/kernel/btf/vmlinux | head
@@ -270,11 +238,7 @@ mount | grep bpf
 ls -la backend/ebpf/*.o
 ```
 
-## 未来增强
-
-### 建议的改进
-
-1. **更多系统调用**: 添加 execve, clone, connect 等
+## ### 1. **更多系统调用**: 添加 execve, clone, connect 等
 2. **压力测试**: 并发测试多进程/多线程场景
 3. **长时间测试**: 测试长期运行的性能衰减
 4. **不同负载**: CPU 密集、I/O 密集、网络密集
@@ -282,18 +246,14 @@ ls -la backend/ebpf/*.o
 6. **CI 集成**: 自动化回归检测
 7. **对比多版本**: 跟踪不同版本的性能变化
 
-### 可选的自动化
-
-如果配置了 passwordless sudo，可以完全自动化：
+### 如果配置了 passwordless sudo，可以完全自动化：
 
 ```bash
 # 一键完成所有测试
 sudo ./scripts/ebpf-overhead-benchmark.sh
 ```
 
-## 总结
-
-✅ **已完成**:
+##  **已完成**:
 - 完整的基准测试框架
 - 10 种系统调用的测试覆盖
 - 自动化和手动测试模式

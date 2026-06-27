@@ -4,9 +4,7 @@ Native hooks 连接 Claude Code、Gemini CLI、Codex、GitHub Copilot、Kiro、A
 
 ---
 
-## 工作原理
-
-```mermaid
+## ```mermaid
 flowchart TD
     CLI["AI CLI (Claude/Gemini/Codex/...)"] --> Hook["CLI hook 机制"]
     Hook --> Relay["generated relay script"]
@@ -22,7 +20,7 @@ flowchart TD
 
 ---
 
-## 支持的 Hook 目标
+## Hook 目标
 
 | CLI | 配置文件路径 | 安装方式 |
 | --- | --- | --- |
@@ -37,23 +35,19 @@ flowchart TD
 
 ---
 
-## 安装与卸载
-
-### 通过前端 UI
+## ### UI
 
 1. 进入 **Hooks** 页面
 2. 选择目标 CLI
 3. 点击 **安装** / **卸载**
 
-### 安装行为
-
-安装 native hook 时，后端会：
+### 安装 native hook 时，后端会：
 
 1. 在目标 CLI 配置目录的 `hooks/` 子目录下生成 relay script
 2. 修改目标 CLI 的配置文件，注入 hook 入口
 3. 为每个 hook 生成唯一的 per-hook secret
 
-### 各 CLI 特殊行为
+### CLI 特殊行为
 
 **Codex**：除写入 `~/.codex/hooks.json` 外，还会在 `~/.codex/config.toml` 中启用：
 
@@ -70,9 +64,7 @@ codex_hooks = true
 
 ---
 
-## 认证机制
-
-### Release Mode 认证
+## ### Release Mode 认证
 
 `/hooks/event` 接受两种认证方式：
 
@@ -106,9 +98,7 @@ curl -X POST \
 4. POST 到 `http://127.0.0.1:<port>/hooks/event`
 5. 回调 URL 从 `AGENT_HOOK_ENDPOINT`（如设置）或 `backend/.port` 推导
 
-### 安全数据处理
-
-当 CLI 提供 user prompt 或 response 字段时，后端**仅存储安全元数据**：
+### 当 CLI 提供 user prompt 或 response 字段时，后端**仅存储安全元数据**：
 
 - `sha256` digest
 - 字符长度
@@ -133,9 +123,7 @@ curl -X POST \
 
 ---
 
-## 故障排查
-
-### Hook 安装后无事件到达
+## ### Hook 安装后无事件到达
 
 1. **检查 CLI 是否读取了正确的配置文件**：确认 CLI 版本和配置路径
 2. **检查 `curl` 是否可用**：relay script 依赖 host `curl`
@@ -154,9 +142,7 @@ curl -X POST \
 
 ---
 
-## 源码入口
-
-- `backend/app/hooks.go` — hook 事件处理
+## - `backend/app/hooks.go` — hook 事件处理
 - `backend/app/kiroantigravityhooks.go` — Kiro / Antigravity 特殊处理
 - `backend/app/handlers/hooksconfig.go` — hook 配置管理 API
 - `frontend/src/views/hooks/Hooks.vue` — 前端 Hook 管理页面
@@ -164,9 +150,7 @@ curl -X POST \
 
 ---
 
-## 相关导航
-
-- [Agents、Adapters 与 PID 注册](agents.md)
+## - [Agents、Adapters 与 PID 注册](agents.md)
 - [Wrapper 命令策略](wrapper.md)
 - [事件管线](../backend/event-pipeline.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)

@@ -1,8 +1,6 @@
 # 代码入口索引
 
-## 后端
-
-| 领域 | 入口 |
+## | 领域 | 入口 |
 | --- | --- |
 | 启动 | `backend/app/main.go` |
 | 路由 | `backend/app/routes.go` |
@@ -42,9 +40,7 @@
 | TLS capture | `backend/ebpf/agent_tls_capture.c` |
 | go generate | `backend/ebpf/gen*.go` |
 
-## 前端
-
-| 领域 | 入口 |
+## | 领域 | 入口 |
 | --- | --- |
 | app bootstrap | `frontend/src/main.ts` |
 | shell | `frontend/src/App.vue` |
@@ -61,9 +57,7 @@
 | ML | `frontend/src/views/ml/` |
 | plugins | `frontend/src/views/plugins/` |
 
-## 集成
-
-| 领域 | 入口 |
+## | 领域 | 入口 |
 | --- | --- |
 | wrapper | `wrapper/main.go` |
 | Python adapter | `adapters/python/agent_tracker.py` |
@@ -73,9 +67,7 @@
 | devcontainer | `.devcontainer/` |
 | docs site | `docs/.vitepress/config.ts` |
 
-## 相关导航
-
-- [文档地图](documentation-map.md)
+## - [文档地图](documentation-map.md)
 - [维护检查清单](maintenance-checklists.md)
 - [生成文件边界](generated-files.md)
 - [代码实现模式与最佳实践](implementation-patterns.md)

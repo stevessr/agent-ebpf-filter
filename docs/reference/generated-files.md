@@ -52,9 +52,7 @@ make ebpf-tls
 - `frontend/dist/`
 - `docs/.vitepress/dist/`
 
-## 规则
-
-如果看到：
+## 如果看到：
 
 - `_bpfel.go`
 - `_bpfeb.go`
@@ -68,9 +66,7 @@ make ebpf-tls
 
 ---
 
-## 相关导航
-
-- [维护检查清单](maintenance-checklists.md)
+## - [维护检查清单](maintenance-checklists.md)
 - [代码入口索引](code-entrypoints.md)
 - [协议与事件模型](../architecture/protocol-events.md)
 - [构建与运行](../operations/build-and-run.md)

@@ -33,7 +33,7 @@ Network Flow 页面用于可视化展示 AI Agent 的所有网络行为。由于
 
 ---
 
-## 🔗 相关导航
+## 相关导航
 
 - [🎨 前端工作台总览](workbench.md) —— 前端技术栈与组件分层
 - [📊 Dashboard 事件流](dashboard.md) —— 系统事件流瀑布

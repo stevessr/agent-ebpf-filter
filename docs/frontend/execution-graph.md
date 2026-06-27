@@ -45,7 +45,7 @@ graph TD
 
 ---
 
-## 🔗 相关导航
+## 相关导航
 
 - [🎨 前端工作台总览](workbench.md) —— 前端设计模式与原则
 - [📊 Dashboard 事件流](dashboard.md) —— 事件数据源头

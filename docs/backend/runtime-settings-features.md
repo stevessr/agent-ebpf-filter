@@ -42,7 +42,7 @@
 - `buildTag`
 - `compatibilityAliases`
 
-## 关键 feature
+## feature
 
 | ID | Danger | Runtime gate | 说明 |
 | --- | --- | --- | --- |
@@ -72,9 +72,7 @@ AGENT_BUILD_FEATURES=tls_capture,ml make backend
 AGENT_BUILD_FEATURES=all make backend
 ```
 
-## 文档表达规范
-
-- “编译进来”不等于“运行时启用”；
+## - “编译进来”不等于“运行时启用”；
 - “运行时启用”不等于“无需认证”；
 - 高风险功能应写明默认关闭；
 - release mode 敏感 API 必须写明 token；
@@ -82,9 +80,7 @@ AGENT_BUILD_FEATURES=all make backend
 
 ---
 
-## 相关导航
-
-- [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
+## - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)
 - [路由与 API](routes-api.md)
 - [前端 Feature Flags](../frontend/build-feature-flags.md)
 - [安全模型](../security/model.md)

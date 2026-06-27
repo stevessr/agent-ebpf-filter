@@ -80,9 +80,9 @@ flowchart TB
 
 
 
-## 📥 1. 采集能力 (Telemetry & Capture)
+## 1. 采集能力 (Telemetry & Capture)
 
-### 🪟 Syscall 级别运行时观测
+### Syscall 级别运行时观测
 
 主 eBPF Tracker 深度覆盖以下核心系统调用（Syscall Tracepoints），构建确定性的行为审计轨：
 
@@ -93,7 +93,7 @@ flowchart TB
 
 > 💡 **性能黑科技**：底层事件通过 Linux Kernel `ringbuf` 异步推送至 Go 后端。后端默认采用 **Mmap-backed Zero-copy View** 机制，针对内存对齐的 Native-endian 样本进行免拷贝高能解码；在极端或错位场景下，自动无缝回退至标准 Copy Path，确保绝对稳定性。
 
-### 🌐 全栈网络流拓扑 (Network Flow)
+### 全栈网络流拓扑 (Network Flow)
 
 在 Syscall 事件链的基础上，网络层具备深度的 L4/L7 协议解析与上下文聚合能力：
 
@@ -102,7 +102,7 @@ flowchart TB
 * **网络画像与状态**：支持网络接口实时流量图（Traffic Charts）、死流/历史流（Stale/Historic Flow）标记、TCP 状态机跟踪及边缘协议侦测（Protocol Detection）。
 * **地理与导出**：内建 GeoIP 归属地解析，支持一键导出标准 JSONL 或 PCAP 原始报文。
 
-### 🔑 TLS / Codex 明文捕获 (敏感诊断)
+### TLS / Codex 明文捕获 (敏感诊断)
 
 > ⚠️ **高风险审计警示**
 > TLS 明文捕获作为可选的深层诊断能力，**默认保持关闭**。
@@ -113,7 +113,7 @@ flowchart TB
 > 
 
 
-## 🔗 2. 关联能力 (Context Aggregation)
+## 2. 关联能力 (Context Aggregation)
 
 通过将“用户态语义”与“内核态事件”进行多维碰撞，实现完整的行为因果链追踪：
 
@@ -126,22 +126,22 @@ flowchart TB
 | **执行图谱 (Execution Graph)** | 动态构建 `Agent -> Process -> Tool -> Syscall -> File / Network -> Policy` 的网状拓扑因果图。 |
 
 
-## 🖥️ 3. 展示能力 (Vue Workbench UI Component Ecosystem)
+## 3. 展示能力 (Vue Workbench UI Component Ecosystem)
 
 前端控制台（Vue Workbench）采用模块化微视窗设计，提供极富科技感的多维立体观测体验：
 
-### 📊 基础监控与看板
+### 基础监控与看板
 
 * **Dashboard**：提供实时高频事件流瀑布、多维复合过滤、详尽的系统调用详情模态框（Modal）以及人类可读的 Strace-style 行为摘要。
 * **Monitor**：深度监控宿主机的 CPU、Memory、GPU 状态、磁盘 IO、Page Fault（缺页中断）、传感器温度（Sensor）以及 Systemd 服务和 Tracing 拓扑。
 * **Network**：提供直观的网络事件流、Flows 列表、全景网络拓扑图（Network Graph）以及实时流量图表。
 
-### 🗺️ 拓扑与全景透视
+### 拓扑与全景透视
 
 * **Execution Graph**：动态渲染进程树、工具调用链、受控文件系统与网络策略相互作用的宏观因果图谱。
 * **AgentSight**：面向 AI 执行流的集成式全景复盘工具，提供 Log、时间轴（Timeline）、进程树（Process Tree）、多维指标（Metrics）交叉复盘，并支持快照导入与导出。
 
-### ⚙️ 运维、控制与扩展
+### 运维、控制与扩展
 
 * **Explorer & Executor**：内建底层文件浏览器（支持安全预览与受控路径一键标记）；集成标准 PTY Web 终端、Tmux 视窗及 Launcher 启动器。
 * **Hooks & Config**：AI CLI 自动化钩子的状态检测、一键安装、可视化配置；运行时控制门控（Runtime Gates）、注册表（Registry）以及系统健康度看板。
@@ -149,7 +149,7 @@ flowchart TB
 * **Plugins (插件中心)**：允许开发者通过低代码/无代码可视化构建器（Visual/Pseudocode Builder）或自定义 eBPF 插件无缝扩展过滤器的边界。
 
 
-## 🛡️ 4. 控制能力 (Multi-Layer Enforcement)
+## 4. 控制能力 (Multi-Layer Enforcement)
 
 过滤器提供从用户态到内核态的“纵深防御体系”，执行毫秒级的实时阻断与重写：
 
@@ -162,7 +162,7 @@ flowchart TB
 | **Release Auth** | 统一生成的 Runtime Access Token | 强力保护敏感控制 API、WebSocket 广播流、MCP 端点以及外部 API 的越权访问 |
 
 
-## 📤 5. 导出能力 (Integration & Data Persistence)
+## 5. 导出能力 (Integration & Data Persistence)
 
 * **📄 结构化日志落盘 (JSONL Persistence)**：支持按需将全量或过滤后的事件实时固化写入用户目录 `~/.config/agent-ebpf-filter/events.jsonl`。
 * **📼 录制与回放 (Recording & Replay)**：支持对高危历史行为或执行拓扑图谱进行“帧级快照录制”，便于离线审计与红蓝对抗回放。
@@ -179,7 +179,7 @@ flowchart TB
 
 
 
-## 📦 6. 交付能力 (Shipment & Artifacts)
+## 6. 交付能力 (Shipment & Artifacts)
 
 项目致力于提供“开箱即用”的高集成度完整产物：
 
@@ -190,7 +190,7 @@ flowchart TB
 * **🎓 学术与合规物料**：内含专为“全国计算机系统能力挑战赛（操作系统设计赛）”准备的完整答辩文档、AI 工具使用透明度披露指引、第三方开源授权告示（Notice）以及详尽的性能评测报告模板。
 
 
-## 🔗 相关导航
+## 相关导航
 
 * [项目是什么](what-is-agent-ebpf-filter.md)
 * [快速开始](quick-start.md)

@@ -55,9 +55,7 @@ AI-Usage: drafted documentation outline; human reviewed and edited
 
 ---
 
-## 相关导航
-
-- [合规披露](../delivery/compliance.md)
+## - [合规披露](../delivery/compliance.md)
 - [OS competition defense 草案](../delivery/competition-defense.md)
 - [项目文档索引](../_archive/project-docs-index.md)
 - [文档关系审计](../reference/documentation-audit.md)

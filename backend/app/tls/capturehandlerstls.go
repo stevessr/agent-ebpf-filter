@@ -76,6 +76,7 @@ type tlsCaptureRuntime interface {
 	AttachLibrary(path, library string) error
 	EnsureStarted() (*TLSProbeManager, error)
 	Status() map[string]any
+	AttachedPIDs() []AttachedPIDInfo
 }
 
 func NewTLSCaptureBroadcaster() *TLSBroadcaster {
@@ -94,6 +95,14 @@ func RegisterTLSCaptureRoutes(router gin.IRouter, runtime tlsCaptureRuntime, sto
 	router.POST("/tls-capture/library", handleTLSCaptureLibrary(runtime))
 	router.POST("/tls-capture/go-binary", handleTLSCaptureGoBinary(runtime))
 	router.POST("/tls-capture/executable", handleTLSCaptureExecutable(runtime))
+	router.GET("/tls-capture/attached-pids", handleTLSCaptureAttachedPIDs(runtime))
+}
+
+func handleTLSCaptureAttachedPIDs(runtime tlsCaptureRuntime) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		pids := runtime.AttachedPIDs()
+		c.JSON(http.StatusOK, pids)
+	}
 }
 
 func handleTLSCaptureRecent(store *TLSCaptureStore) gin.HandlerFunc {

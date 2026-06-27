@@ -86,9 +86,7 @@
 
 ---
 
-## 相关导航
-
-- [前端工作台](workbench.md)
+## - [前端工作台](workbench.md)
 - [路由与功能页](routes-and-pages.md)
 - [构建与 Feature Flags](build-feature-flags.md)
 - [事件管线](../backend/event-pipeline.md)

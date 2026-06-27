@@ -62,9 +62,7 @@ Use the replay suite to catch logic regressions in:
 
 ---
 
-## 相关导航
-
-- [验证、测试与 Benchmark](verification-benchmark.md)
+## - [验证、测试与 Benchmark](verification-benchmark.md)
 - [Runtime replay benchmark](verification-benchmark.md#benchmark-文档)
 - [评测报告](../delivery/evaluation.md)
 - [ML benchmark](../backend/ml-benchmark-report.md)

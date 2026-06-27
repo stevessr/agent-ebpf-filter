@@ -1,8 +1,6 @@
 # 验证、测试与 Benchmark
 
-## 最小验证表
-
-| 改动 | 命令 |
+## | 改动 | 命令 |
 | --- | --- |
 | Markdown 链接 / 文档互链 | `python3 scripts/check-doc-links.py` |
 | VitePress 页面 / nav / mermaid | `bun run docs:build` |
@@ -38,9 +36,7 @@ OS_SMOKE_PRIVILEGE_CMD='sudo -E' make os-enforcement-smoke-start
 - `benchmarks/`
 - `reports/runtime-replay-*`
 
-## 文档验证
-
-文档站同时包含 VitePress 页面、仓库组件 README、历史专题文档和外部参考快照。建议按两层验证：
+## 文档站同时包含 VitePress 页面、仓库组件 README、历史专题文档和外部参考快照。建议按两层验证：
 
 ```bash
 # 轻量、仓库感知：检查本仓库 Markdown 链接和源码路径
@@ -55,9 +51,7 @@ bun run docs:build
 
 `scripts/check-doc-links.py` 默认排除 `docs/ref/**`，因为其中包含外部快照和上游原始链接；需要审计参考快照时再显式使用 `--include-ref`。
 
-## 报告规范
-
-引用性能数据时必须记录：
+## 引用性能数据时必须记录：
 
 - 日期；
 - 机器 / kernel / CPU / RAM；
@@ -69,9 +63,7 @@ bun run docs:build
 
 ---
 
-## 相关导航
-
-- [构建与运行](build-and-run.md)
+## - [构建与运行](build-and-run.md)
 - [部署与安装](deployment.md)
 - [Benchmark](runtime-replay-benchmark.md)
 - [评测报告](../delivery/evaluation.md)

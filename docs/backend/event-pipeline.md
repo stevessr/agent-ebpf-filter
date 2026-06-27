@@ -2,9 +2,7 @@
 
 事件管线负责把内核、wrapper、hooks、TLS、policy、system metrics 等不同来源统一成 `pb.Event` 与 `EventEnvelope`。
 
-## 内核事件读取
-
-`backend/app/jobs_background.go` 中：
+## `backend/app/jobs_background.go` 中：
 
 ```mermaid
 flowchart TD
@@ -16,9 +14,7 @@ flowchart TD
     Build --> Broadcast["broadcast &lt;- event"]
 ```
 
-## 解码策略
-
-`decodeBPFEventRecord()`：
+## `decodeBPFEventRecord()`：
 
 - 如果 RawSample 长度不足，返回错误；
 - 如果 native little-endian 且内存对齐，则直接构造 `*bpfEvent` view；
@@ -63,9 +59,7 @@ flowchart TD
 
 当前 `eventSchemaVersion` 是 `event.v3`。事件字段变化时必须同步 proto、生成物、后端构造、前端显示、图谱、AgentSight、OTLP 和 docs。
 
-## 跨文档影响
-
-事件管线是多条文档路线的交汇点：
+## 事件管线是多条文档路线的交汇点：
 
 | 变化 | 同步阅读 / 更新 |
 | --- | --- |

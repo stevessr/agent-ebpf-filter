@@ -2,9 +2,7 @@
 
 路由总入口为 `backend/app/routes.go` 中的 `registerRoutes()` 函数。路由注册按功能分组，各组由独立的 `register*Routes` 函数负责。
 
-## 注册顺序
-
-```
+## ```
 registerRoutes()
   registerWebSocketRoutes()
   registerShellSessionRoutes()
@@ -48,7 +46,7 @@ registerRoutes()
 | `POST` | `/shell-sessions/:id/input` | `handleSendShellSessionInput` |
 | `POST` | `/shell-sessions/cleanup` | `handleShellSessionsCleanup` |
 
-## 事件路由 (`/events`)
+## (`/events`)
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
@@ -60,7 +58,7 @@ registerRoutes()
 | `POST` | `/events/recording/replay` | 回放录制 |
 | `POST` | `/events/recording/browser/save` | 保存浏览器录制 |
 
-## 网络路由 (`/network`)
+## (`/network`)
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
@@ -75,7 +73,7 @@ registerRoutes()
 | `POST` | `/network/export-pcap` | PCAP 导出 (FeatureNetworkExport) |
 | `GET` | `/network/geoip` | GeoIP 查询 (IP -> 国家/ASN) |
 
-## 沙箱路由 (`/sandbox`)
+## (`/sandbox`)
 
 ### Cgroup 沙箱 (`/sandbox/cgroup`)
 
@@ -107,9 +105,7 @@ registerRoutes()
 | `POST` | `/sandbox/lsm/block-file-name` | 阻断文件/目录 basename (open/read/write/mmap/mprotect/setattr/create/link/symlink/delete/mkdir/rmdir/mknod/rename) |
 | `POST` | `/sandbox/lsm/unblock-file-name` | 解除文件 basename 阻断 |
 
-## 工具路由
-
-| 方法 | 路径 | 用途 | 特性门控 |
+## | 方法 | 路径 | 用途 | 特性门控 |
 |------|------|------|---------|
 | `GET` | `/metrics` | Prometheus 指标 | -- |
 | `POST` | `/hooks/event` | 原生钩子事件上报 | `FeatureHooks` |
@@ -118,11 +114,11 @@ registerRoutes()
 | `POST` | `/cluster/heartbeat` | 集群心跳 | -- |
 | `POST` | `/cluster/register` | 集群注册 | -- |
 
-## 认证 API 路由
+## API 路由
 
 以下路由在 `/` 前缀下注册，需要 `authMiddleware()`:
 
-### 配置路由 (`/config`)
+### (`/config`)
 
 注册于 `registerConfigRoutes()`（位于 `handlershooksconfig.go`）:
 
@@ -203,7 +199,7 @@ registerRoutes()
 | `GET` | `/config/hooks/:id/raw` | 读取原始配置 |
 | `POST` | `/config/hooks/:id/raw` | 写入原始配置 |
 
-### 系统路由 (`/system`)
+### (`/system`)
 
 注册于 `handlers.RegisterSystemRoutes()`（位于 `backend/app/handlers/system.go`）：
 
@@ -262,7 +258,7 @@ registerRoutes()
 | `GET` | `/agentsight/stream/merged` | 合并 SSE 流 |
 | `GET` | `/agentsight/stream/runner/:id` | 单 Runner SSE 流 |
 
-### 插件路由 (`/plugins`)
+### (`/plugins`)
 
 需要 `FeaturePlugins` 编译特性:
 
@@ -285,7 +281,7 @@ BPF 模板子路由 (`/plugins/bpf`):
 | `POST` | `/plugins/bpf/load` | 加载 BPF 程序 |
 | `POST` | `/plugins/bpf/unload` | 卸载 BPF 程序 |
 
-### 数据管理 (`/data`)
+### (`/data`)
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
@@ -293,7 +289,7 @@ BPF 模板子路由 (`/plugins/bpf`):
 | `POST` | `/data/clear-events-memory` | 清除内存事件 |
 | `POST` | `/data/clear-events-persisted` | 清除持久化事件 |
 
-### 集群路由 (`/cluster`)
+### (`/cluster`)
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
@@ -306,7 +302,7 @@ BPF 模板子路由 (`/plugins/bpf`):
 |------|------|------|
 | `ANY` | `/mcp` | MCP 协议端点 |
 
-## 兼容性路由 (`/api`)
+## (`/api`)
 
 ### AgentSight 兼容 (`/api`)
 
@@ -324,7 +320,7 @@ BPF 模板子路由 (`/plugins/bpf`):
 | `GET` | `/api/stream/merged` | 合并流 |
 | `GET` | `/api/stream/runner/:id` | Runner 流 |
 
-## 外部 API v1 (`/api/v1`)
+## API v1 (`/api/v1`)
 
 | 方法 | 路径 | 用途 |
 |------|------|------|

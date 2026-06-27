@@ -32,8 +32,7 @@ make dev
 ```
 启动成功后，浏览器打开前端控制台：`http://localhost:5173`。
 
-### 讲解要点：
-> “评委老师好，现在我已启动了 Agent eBPF Filter 系统。大家可以看到前端大屏目前事件瀑布流处于静默监控状态。我们的 eBPF kprobes、tracepoints 甚至用于解密 HTTPS 流量的 uprobes 都已经以**非侵入式**的方法在操作系统后台挂载完毕。”
+### > “评委老师好，现在我已启动了 Agent eBPF Filter 系统。大家可以看到前端大屏目前事件瀑布流处于静默监控状态。我们的 eBPF kprobes、tracepoints 甚至用于解密 HTTPS 流量的 uprobes 都已经以**非侵入式**的方法在操作系统后台挂载完毕。”
 
 ---
 

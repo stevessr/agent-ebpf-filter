@@ -4,9 +4,7 @@
 
 ---
 
-## 快速开始
-
-```bash
+## ```bash
 make dev-image    # 打印当前分支的 GHCR 镜像引用
 make docker       # 拉取 GHCR 镜像（pull-only，不做本地构建）
 make exec         # 启动或附加到特权容器 shell
@@ -14,9 +12,7 @@ make exec         # 启动或附加到特权容器 shell
 
 ---
 
-## 容器特性
-
-| 配置项 | 说明 |
+## | 配置项 | 说明 |
 | --- | --- |
 | `privileged` | 启用特权模式（eBPF attach 需要） |
 | Host PID | `--pid=host`（进程关联） |
@@ -44,9 +40,7 @@ ghcr.io/<owner>/<repo>/devcontainer:<branch-slug>-<branch-hash>
 - `branch-hash` = branch 名称 SHA-256 的前 12 位 hex
 - 发布 `linux/amd64` 和 `linux/arm64` 多架构 manifest
 
-### 构建流程
-
-1. GitHub Actions devcontainer image workflow 构建镜像
+### 1. GitHub Actions devcontainer image workflow 构建镜像
 2. 镜像中预运行 `make predev`，依赖缓存在 `/opt/agent-ebpf-predev`
 3. Post-create hook 从缓存种子并运行 `make predev-check`（仅验证，不联网安装）
 
@@ -73,14 +67,12 @@ DEV_IMAGE=ghcr.io/owner/repo/devcontainer:custom make exec
 
 `.devcontainer/devcontainer.json` 使用 `image` 字段直接引用 GHCR 镜像。
 
-### 配置要点
-
-- **使用 image 字段**，不使用 Dockerfile 构建
+### - **使用 image 字段**，不使用 Dockerfile 构建
 - `.devcontainer/Dockerfile` 仅作为 GitHub Actions 构建输入
 - `updateRemoteUserUID` **禁用**，避免生成 `updateUID.Dockerfile`
 - Container UID/GID: `1001:1001`
 
-### 分支/Fork 开发
+### /Fork 开发
 
 使用 Make targets 获取正确的镜像引用：
 
@@ -109,9 +101,7 @@ code .
 
 ---
 
-## 依赖隔离
-
-`make exec` 和 VS Code Dev Containers 挂载 container-local volumes：
+## `make exec` 和 VS Code Dev Containers 挂载 container-local volumes：
 
 - `frontend/node_modules`
 - `adapters/python/.venv`
@@ -134,17 +124,13 @@ DEVCONTAINER_POSTCREATE_INSTALL=1
 
 ---
 
-## 注意事项
-
-- 不要把 host-only dependency tree 复用进 container
+## - 不要把 host-only dependency tree 复用进 container
 - Git config 只读挂载，不挂载凭据和 SSH key
 - 如果 post-create 报告缺少依赖，重建或拉取最新镜像
 
 ---
 
-## 相关导航
-
-- [构建与运行](build-and-run.md)
+## - [构建与运行](build-and-run.md)
 - [部署与安装](deployment.md)
 - [验证、测试与 Benchmark](verification-benchmark.md)
 - [文档地图](../reference/documentation-map.md)

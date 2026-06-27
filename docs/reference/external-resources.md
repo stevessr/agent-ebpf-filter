@@ -2,9 +2,7 @@
 
 本页面汇总 eBPF、AI Agent 监控、安全控制等领域的优秀项目、文档和最佳实践，为深入学习提供参考。
 
-## 相关项目
-
-### AgentSight
+## ### AgentSight
 
 **系统级 AI Agent 追踪与监控**
 
@@ -91,9 +89,7 @@
 
 ## eBPF 学习资源
 
-### 官方文档
-
-**eBPF.io**:
+### **eBPF.io**:
 - 官网：https://ebpf.io/
 - 本地镜像：`docs/ref/ebpf-docs/`
 - 内容：入门指南、程序类型、Map 类型、Helper 函数
@@ -103,9 +99,7 @@
 - LSM BPF: https://docs.kernel.org/bpf/prog_lsm.html
 - Cgroup BPF: https://docs.kernel.org/bpf/prog_cgroup_sysctl.html
 
-### 书籍推荐
-
-**《BPF Performance Tools》** - Brendan Gregg
+### **《BPF Performance Tools》** - Brendan Gregg
 - 系统性能分析
 - eBPF 工具集
 - 生产环境实践
@@ -115,9 +109,7 @@
 - libbpf 编程
 - 可观测性模式
 
-### 在线课程
-
-**Linux Foundation**:
+### **Linux Foundation**:
 - eBPF Fundamentals
 - Advanced BPF Programming
 
@@ -159,9 +151,7 @@
 
 **价值**: Agent 标准化接口
 
-## 安全框架与标准
-
-### OWASP Top 10 for LLM Applications
+## ### OWASP Top 10 for LLM Applications
 
 - **官网**: https://owasp.org/www-project-top-10-for-large-language-model-applications/
 - **内容**: LLM 应用安全风险
@@ -180,9 +170,7 @@
 
 - **官网**: https://www.cisecurity.org/cis-benchmarks
 
-## 技术博客与论文
-
-### eBPF 技术
+## ### eBPF 技术
 
 **Brendan Gregg's Blog**:
 - http://www.brendangregg.com/blog/
@@ -202,42 +190,26 @@
 - AI 安全论文
 - Agent 行为研究
 
-## 开源工具
-
-### 性能分析
-
-- **perf**: Linux 性能分析工具
+## ### - **perf**: Linux 性能分析工具
 - **flamegraph**: 火焰图生成
 - **bcc**: BPF Compiler Collection
 
-### 监控与可观测性
-
-- **Prometheus**: 指标收集（我们已集成）
+### - **Prometheus**: 指标收集（我们已集成）
 - **Grafana**: 可视化
 - **OpenTelemetry**: 追踪标准（我们已支持）
 
-### 容器安全
-
-- **Tetragon**: eBPF 运行时安全（Cilium 项目）
+### - **Tetragon**: eBPF 运行时安全（Cilium 项目）
 - **Kubearmor**: Kubernetes 安全策略
 
-## 会议与社区
-
-### 会议
-
-- **eBPF Summit**: 年度 eBPF 大会
+## ### - **eBPF Summit**: 年度 eBPF 大会
 - **KubeCon + CloudNativeCon**: CNCF 旗舰会议
 - **Black Hat / DEF CON**: 安全会议
 
-### 社区
-
-- **eBPF Slack**: https://ebpf.io/slack
+### - **eBPF Slack**: https://ebpf.io/slack
 - **Cilium Slack**: https://cilium.io/slack
 - **LangChain Discord**: AI Agent 开发社区
 
-## 最佳实践参考
-
-### eBPF 编程
+## ### eBPF 编程
 
 **从我们的代码学习**:
 - `backend/ebpf/agent_tracker.c` - 多 syscall 追踪
@@ -272,9 +244,7 @@
 - Composables 分层
 - Protobuf 集成
 
-### 安全设计
-
-**参考标准**:
+### **参考标准**:
 - OWASP ASVS (Application Security Verification Standard)
 - CWE Top 25 (Common Weakness Enumeration)
 - MITRE ATT&CK (Agent 相关 TTPs)
@@ -285,11 +255,7 @@
 - 多层防御（wrapper + cgroup + LSM）
 - 数据脱敏分级
 
-## 学习路径建议
-
-### 初学者
-
-1. **eBPF 基础**: 
+## ### 1. **eBPF 基础**: 
    - 阅读 ebpf.io 入门指南
    - 运行 bcc 工具示例
    - 理解 Map 和 Helper 函数
@@ -304,9 +270,7 @@
    - Composition API 文档
    - TypeScript 基础
 
-### 中级开发者
-
-1. **深入 eBPF**:
+### 1. **深入 eBPF**:
    - CO-RE (Compile Once, Run Everywhere)
    - BTF (BPF Type Format)
    - 性能优化技巧
@@ -321,9 +285,7 @@
    - cgroup 策略设计
    - 脱敏算法实现
 
-### 高级研究者
-
-1. **论文阅读**:
+### 1. **论文阅读**:
    - AgentSight 论文
    - eBPF 相关学术论文
    - AI 安全研究
@@ -338,9 +300,7 @@
    - 监控告警
    - 故障恢复
 
-## 贡献回馈
-
-我们从开源社区学到很多，也鼓励贡献回馈：
+## 我们从开源社区学到很多，也鼓励贡献回馈：
 
 - **Bug 报告**: GitHub Issues
 - **功能建议**: Discussions
@@ -348,9 +308,7 @@
 - **文档改进**: 文档站 PR
 - **经验分享**: 技术博客、会议演讲
 
-## 保持更新
-
-**订阅资源**:
+## **订阅资源**:
 - eBPF Newsletter
 - Cilium Newsletter
 - LangChain Blog
@@ -369,9 +327,7 @@
 
 ---
 
-## 相关导航
-
-- [文档地图](documentation-map.md)
+## - [文档地图](documentation-map.md)
 - [合规披露](../delivery/compliance.md)
 - [技术对比与差异化](technical-comparison.md)
 - [AgentSight 项目致谢](agentsight-acknowledgment.md)

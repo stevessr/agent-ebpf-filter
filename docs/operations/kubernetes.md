@@ -134,9 +134,7 @@ See `docs/external-api.md` for the stable `/api/v1` route list.
 
 ---
 
-## 相关导航
-
-- [External API](../integrations/external-api.md)
+## - [External API](../integrations/external-api.md)
 - [部署与安装](deployment.md)
 - [开发容器](devcontainer.md)
 - [Runtime Gates 与 Auth](../security/runtime-gates-auth.md)

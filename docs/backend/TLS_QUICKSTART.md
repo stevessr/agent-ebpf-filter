@@ -2,13 +2,11 @@
 
 ## 5 分钟上手 TLS 明文捕获
 
-### 前置要求
-
-- Linux 内核 5.8+ (支持 uprobe)
+### - Linux 内核 5.8+ (支持 uprobe)
 - 后端已构建：`make backend`
 - curl 或其他 HTTPS 客户端
 
-### 步骤 1：启动后端
+### 1：启动后端
 
 ```bash
 cd backend
@@ -24,7 +22,7 @@ cd backend
 [INFO] Server listening on :8080
 ```
 
-### 步骤 2：验证 TLS 库状态
+### 2：验证 TLS 库状态
 
 ```bash
 curl -s http://localhost:8080/tls-capture/libraries | jq .
@@ -45,13 +43,13 @@ curl -s http://localhost:8080/tls-capture/libraries | jq .
 }
 ```
 
-### 步骤 3：执行测试请求
+### 3：执行测试请求
 
 ```bash
 curl -s https://httpbin.org/get > /dev/null
 ```
 
-### 步骤 4：查看捕获的明文
+### 4：查看捕获的明文
 
 ```bash
 curl -s http://localhost:8080/tls-capture/recent?limit=5 | jq '.events[] | {
@@ -81,7 +79,7 @@ curl -s http://localhost:8080/tls-capture/recent?limit=5 | jq '.events[] | {
 }
 ```
 
-### 步骤 5：查看完整明文数据
+### 5：查看完整明文数据
 
 ```bash
 curl -s http://localhost:8080/tls-capture/recent?limit=1 | \
@@ -99,21 +97,15 @@ Accept: */*
 
 ---
 
-## 进阶使用
-
-### 过滤特定进程
-
-```bash
+## ### ```bash
 curl -s "http://localhost:8080/tls-capture/recent?filter=comm:curl" | jq .
 ```
 
-### 过滤特定域名
-
-```bash
+### ```bash
 curl -s "http://localhost:8080/tls-capture/recent?filter=host:github.com" | jq .
 ```
 
-### 实时监控 WebSocket
+### WebSocket
 
 ```javascript
 const ws = new WebSocket('ws://localhost:8080/ws/tls-capture');
@@ -124,7 +116,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-### 手动附加 Go 程序
+### Go 程序
 
 ```bash
 # 查找 Go 程序 PID
@@ -136,7 +128,7 @@ curl -X POST http://localhost:8080/tls-capture/go-binary \
   -d '{"path": "/usr/local/bin/myapp", "pid": 12345}'
 ```
 
-### 手动附加自定义 OpenSSL
+### OpenSSL
 
 ```bash
 curl -X POST http://localhost:8080/tls-capture/library \
@@ -146,9 +138,7 @@ curl -X POST http://localhost:8080/tls-capture/library \
 
 ---
 
-## 交互式演示
-
-运行完整演示脚本（包含 5 个场景）：
+## 运行完整演示脚本（包含 5 个场景）：
 
 ```bash
 ./scripts/demo-tls-intercept.sh
@@ -166,9 +156,7 @@ curl -X POST http://localhost:8080/tls-capture/library \
 9. 查看最近事件
 10. 实时监控模式
 
-### 命令行快速模式
-
-```bash
+### ```bash
 # 运行所有演示
 ./scripts/demo-tls-intercept.sh full
 
@@ -187,7 +175,7 @@ curl -X POST http://localhost:8080/tls-capture/library \
 
 ---
 
-## 前端 UI
+## UI
 
 访问 `http://localhost:8080` 并导航到：
 
@@ -206,11 +194,7 @@ curl -X POST http://localhost:8080/tls-capture/library \
 
 ---
 
-## 故障排查
-
-### 问题：没有捕获到事件
-
-**检查 1**: 确认 TLS 捕获已启用
+## ### **检查 1**: 确认 TLS 捕获已启用
 
 ```bash
 curl http://localhost:8080/tls-capture/status | jq .started
@@ -230,7 +214,7 @@ curl http://localhost:8080/tls-capture/libraries | jq '.libraries[] | select(.at
 # [TLS] Attached 12 uprobes to libssl.so.3
 ```
 
-### 问题：Go 程序未自动发现
+### Go 程序未自动发现
 
 **原因**: 自动发现循环每分钟运行一次
 
@@ -245,9 +229,7 @@ curl -X POST http://localhost:8080/tls-capture/go-binary \
   -d '{"path": "/path/to/binary", "pid": <PID>}'
 ```
 
-### 问题：权限错误
-
-**错误**: `failed to attach uprobe: operation not permitted`
+### **错误**: `failed to attach uprobe: operation not permitted`
 
 **原因**: 需要 `CAP_BPF` 或 root 权限
 
@@ -259,7 +241,7 @@ sudo ./agent-ebpf-filter
 sudo setcap cap_bpf,cap_sys_admin=ep ./agent-ebpf-filter
 ```
 
-### 问题：找不到 libssl.so
+### libssl.so
 
 **错误**: `library not found`
 
@@ -278,18 +260,14 @@ curl -X POST http://localhost:8080/tls-capture/library \
 
 ---
 
-## 性能影响
-
-- **CPU 开销**: <1% (典型负载)
+## - **CPU 开销**: <1% (典型负载)
 - **内存开销**: ~2 MB (缓冲区)
 - **延迟影响**: <100 μs/请求
 - **最大捕获**: 17 KB/请求 (自动截断)
 
 ---
 
-## 安全注意事项
-
-⚠️ **TLS 明文捕获是高风险功能**
+## ️ **TLS 明文捕获是高风险功能**
 
 1. **仅用于开发/调试环境**
 2. **捕获的明文包含敏感信息**（密码、token、cookies）
@@ -312,16 +290,12 @@ curl -X PUT http://localhost:8080/api/config/runtime \
 
 前端工具栏和 `app/tls/ssl_filter.go` 支持 AgentSight 兼容的 SSL 过滤表达式语法。
 
-### 语法
-
-```
+### ```
 expression := condition | expression & expression | expression | expression
 condition  := field operator value
 ```
 
-### 支持字段
-
-| 字段 | 类型 | 说明 |
+### | 字段 | 类型 | 说明 |
 |------|------|------|
 | `is_handshake` | bool | TLS 握手记录 |
 | `truncated` | bool | 数据被截断 |
@@ -340,9 +314,7 @@ condition  := field operator value
 | `url` | string | URL 路径 |
 | `host` | string | 主机名 |
 
-### 运算符
-
-| 运算符 | 别名 | 说明 |
+### | 运算符 | 别名 | 说明 |
 |--------|------|------|
 | `=` | exact | 精确匹配 |
 | `!=` | not_equal | 不等于 |
@@ -352,9 +324,7 @@ condition  := field operator value
 | `<=` | lte | 小于等于 |
 | `~` | contains | 包含子串 |
 
-### 示例
-
-```
+### ```
 # 大于 100 字节的 HTTP 请求
 len>100&data_type=http_request
 
@@ -371,9 +341,7 @@ comm=curl&direction=send
 data_type=json&direction=recv
 ```
 
-### 数据类型自动检测
-
-`DetectSSLDataType()` 函数对 TLS 明文进行自动分类:
+### `DetectSSLDataType()` 函数对 TLS 明文进行自动分类:
 
 | 检测类型 | 匹配规则 |
 |---------|---------|
@@ -385,14 +353,10 @@ data_type=json&direction=recv
 | `binary` | 包含空字节或不可打印字符 >25% |
 | `text` | 其他可打印文本 |
 
-## 下一步
-
-- 阅读[总体架构](../architecture/overview.md)了解系统设计
+## - 阅读[总体架构](../architecture/overview.md)了解系统设计
 - 查看[路由 API 参考](routes-api.md)了解完整 API 索引
 
-## 相关文档
-
-- [后端 API 路由参考](routes-api.md)
+## - [后端 API 路由参考](routes-api.md)
 - [eBPF 程序源码](../../backend/ebpf/agent_tls_capture.c)
 - [TLS 明文解析源码](../../backend/app/tls/httpparsertls.go)
 - [SSL 过滤器源码](../../backend/app/tls/ssl_filter.go)

@@ -46,7 +46,7 @@ Dashboard 是 **Agent eBPF Filter** 的核心行为观测面板，提供高并�
 
 ---
 
-## 🔗 相关导航
+## 相关导航
 
 - [🎨 前端工作台总览](workbench.md) —— 整体前端技术架构
 - [🛣️ 路由与功能页](routes-and-pages.md) —— 前端页面路由表
