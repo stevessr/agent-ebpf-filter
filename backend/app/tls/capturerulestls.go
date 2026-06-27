@@ -31,20 +31,12 @@ func NewTLSCaptureRuleStore() *TLSCaptureRuleStore {
 }
 
 func defaultTLSCaptureRules() []TLSCaptureRule {
-	return []TLSCaptureRule{
-		{
-			ID:          "agent-cli-tag",
-			Name:        "Agent CLI tag",
-			Enabled:     true,
-			Scope:       "agent_cli_tag",
-			Description: "Default Hook SSL rule: keep TLS plaintext only for processes registered by agent CLI hooks or wrappers.",
-		},
-	}
+	return nil
 }
 
 func (s *TLSCaptureRuleStore) List() []TLSCaptureRule {
 	if s == nil {
-		return defaultTLSCaptureRules()
+		return nil
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -66,6 +58,9 @@ func (s *TLSCaptureRuleStore) Replace(rules []TLSCaptureRule) []TLSCaptureRule {
 
 func (s *TLSCaptureRuleStore) Allows(event TLSPlaintextEvent) bool {
 	rules := s.List()
+	if len(rules) == 0 {
+		return true // No rules configured — allow all events
+	}
 	for _, rule := range rules {
 		if tlsCaptureRuleMatches(rule, event) {
 			return true
@@ -76,7 +71,7 @@ func (s *TLSCaptureRuleStore) Allows(event TLSPlaintextEvent) bool {
 
 func normalizeTLSCaptureRules(rules []TLSCaptureRule) []TLSCaptureRule {
 	if len(rules) == 0 {
-		return defaultTLSCaptureRules()
+		return nil
 	}
 	out := make([]TLSCaptureRule, 0, len(rules))
 	seen := make(map[string]struct{}, len(rules))

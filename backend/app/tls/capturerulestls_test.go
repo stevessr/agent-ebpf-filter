@@ -6,17 +6,15 @@ import (
 
 // ---- moved from backend/zz_merged_backend_test.go section capturerulestls_test.go ----
 
-func TestDefaultTLSCaptureRuleAllowsAgentContextOnly(t *testing.T) {
+func TestDefaultTLSCaptureRuleAllowsAllWhenEmpty(t *testing.T) {
 	rules := NewTLSCaptureRuleStore()
-	pid := uint32(4242)
-	trackedProcessContexts.Set(pid, processContext{AgentRunID: "run-ssl"})
-	t.Cleanup(func() { trackedProcessContexts.Delete(pid) })
 
-	if !rules.Allows(TLSPlaintextEvent{PID: pid, TGID: pid, Comm: "claude"}) {
-		t.Fatal("default rule should allow agent CLI tagged process")
+	// With no rules, all events are allowed
+	if !rules.Allows(TLSPlaintextEvent{PID: 4242, TGID: 4242, Comm: "claude"}) {
+		t.Fatal("empty rules should allow all events (claude)")
 	}
-	if rules.Allows(TLSPlaintextEvent{PID: 9999, TGID: 9999, Comm: "curl"}) {
-		t.Fatal("default rule should reject untagged process")
+	if !rules.Allows(TLSPlaintextEvent{PID: 9999, TGID: 9999, Comm: "curl"}) {
+		t.Fatal("empty rules should allow all events (curl)")
 	}
 }
 
