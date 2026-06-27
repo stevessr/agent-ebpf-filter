@@ -445,15 +445,29 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 	if err := m.AttachGoUprobes(attachPath, pid); err == nil {
 		result.TargetKind = "go"
 		result.Library = "go"
+		// Track PID for Go uprobes (already done by shouldAttachGoBinary, but ensure)
+		m.mu.Lock()
+		if m.attachedExec == nil {
+			m.attachedExec = make(map[int]string)
+		}
+		m.attachedExec[pid] = "go-crypto-tls"
+		m.mu.Unlock()
 		return result
 	}
 
-	if resolved.StaticTLS {
-		if err := m.AttachStaticSSLUprobes(attachPath, pid); err == nil {
-			result.TargetKind = "static-ssl"
-			result.Library = "static-openssl"
-			return result
+	// Always try static SSL uprobes on the executable itself — this handles
+	// statically-linked SSL (Node.js/BoringSSL, Python, etc.) where no
+	// dynamic libssl.so is loaded.
+	if err := m.AttachStaticSSLUprobes(attachPath, pid); err == nil {
+		result.TargetKind = "static-ssl"
+		result.Library = "static-openssl"
+		m.mu.Lock()
+		if m.attachedExec == nil {
+			m.attachedExec = make(map[int]string)
 		}
+		m.attachedExec[pid] = "static-openssl"
+		m.mu.Unlock()
+		return result
 	}
 
 	libraries := executableLibraryCandidates(libraryHint)
