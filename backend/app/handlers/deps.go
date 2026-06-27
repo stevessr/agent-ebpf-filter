@@ -247,4 +247,12 @@ var Deps struct {
 	MLHealthRegister      func(id string)
 	MLHealthUnregister    func(id string)
 	MLHealthRun           func() gin.H
+
+	// Hooks config closures
+	AvailableHooks               func() []core.HookDef
+	IsHookInstalled              func(core.HookDef) bool
+	InstallNativeHook            func(core.HookDef) error
+	UninstallNativeHook          func(core.HookDef) error
+	GetShellConfigPath           func() string
+	EnsureKiroManagedAgentExists func() error
 }

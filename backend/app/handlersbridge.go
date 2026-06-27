@@ -375,6 +375,14 @@ func initMLHandlersDeps() {
 	handlers.Deps.MLHealthRegister = func(id string) {}
 	handlers.Deps.MLHealthUnregister = func(id string) {}
 	handlers.Deps.MLHealthRun = func() gin.H { return gin.H{"results": []string{}} }
+
+	// Hooks config wiring
+	handlers.Deps.AvailableHooks = func() []core.HookDef { return availableHooks }
+	handlers.Deps.IsHookInstalled = isHookInstalled
+	handlers.Deps.InstallNativeHook = installNativeHook
+	handlers.Deps.UninstallNativeHook = uninstallNativeHook
+	handlers.Deps.GetShellConfigPath = getShellConfigPath
+	handlers.Deps.EnsureKiroManagedAgentExists = ensureKiroManagedAgentExists
 }
 
 // ── Bridge functions (delegate to handlers/ subpackage) ─────────
@@ -473,3 +481,9 @@ func serveMicrophoneWS(c *gin.Context)        { handlers.ServeMicrophoneWS(c) }
 
 // System stats bridge
 func serveSystemStatsWS(c *gin.Context) { handlers.ServeSystemStatsWS(c) }
+
+// Hooks config bridges
+func handleConfigHooksList(c *gin.Context)    { handlers.HandleConfigHooksList(c) }
+func handleConfigHooksInstall(c *gin.Context)  { handlers.HandleConfigHooksInstall(c) }
+func handleConfigHooksRawGet(c *gin.Context)   { handlers.HandleConfigHooksRawGet(c) }
+func handleConfigHooksRawPost(c *gin.Context)  { handlers.HandleConfigHooksRawPost(c) }
