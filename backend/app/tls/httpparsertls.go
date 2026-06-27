@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"time"
 )
 
 // ---- moved from backend/zz_merged_backend.go section httpparsertls.go ----
@@ -48,7 +47,7 @@ func parseTLSPlaintext(fragment CompletedTLSFragment) TLSPlaintextEvent {
 	}
 	event := TLSPlaintextEvent{
 		Type:         "raw",
-		Timestamp:    time.Unix(0, int64(fragment.TimestampNS)).UTC(),
+		Timestamp:    bpfKtimeToWallClock(fragment.TimestampNS),
 		PID:          fragment.PID,
 		TGID:         fragment.TGID,
 		Comm:         fragment.Comm,

@@ -528,6 +528,22 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		return result
 	}
 	log.Printf("[tls] AttachExecutable: BoringSSL detection also failed for %s", attachPath)
+
+	// Try rustls offset detection for Rust binaries (Codex, Cursor, etc.)
+	if err := m.AttachRustlsUprobes(attachPath, pid); err == nil {
+		log.Printf("[tls] AttachExecutable: rustls uprobes attached to %s (pid=%d)", attachPath, pid)
+		result.TargetKind = "static-ssl"
+		result.Library = "rustls"
+		m.mu.Lock()
+		if m.attachedExec == nil {
+			m.attachedExec = make(map[int]string)
+		}
+		m.attachedExec[pid] = "rustls"
+		m.mu.Unlock()
+		return result
+	}
+	log.Printf("[tls] AttachExecutable: rustls not found in %s (non-Rust binary or unrecognized pattern)", attachPath)
+
 	// Dump binary symbols for diagnosis
 	dumpCandidateTLSSymbols(attachPath)
 
@@ -686,10 +702,7 @@ func (m *TLSProbeManager) ReadLoop() error {
 // TLSPlaintextEvent without HTTP parsing. This ensures non-HTTP protocols
 // (HTTP/2, gRPC, WebSocket, proprietary) still produce visible events.
 func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
-	now := time.Unix(0, int64(f.TimestampNS))
-	if now.IsZero() {
-		now = time.Now()
-	}
+	now := bpfKtimeToWallClock(f.TimestampNS)
 	dir := "recv"
 	if f.Direction == tlsDirectionSend {
 		dir = "send"

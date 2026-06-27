@@ -132,3 +132,19 @@ type TLSCaptureStats struct {
 	Libraries      []TLSLibraryStatus `json:"libraries,omitempty"`
 	LastFragmentNS uint64             `json:"lastFragmentNs,omitempty"`
 }
+
+// bpfKtimeToWallClock converts a bpf_ktime_get_ns() timestamp (monotonic
+// nanoseconds since system boot) to wall clock time. eBPF TLS uprobes use
+// bpf_ktime_get_ns() which returns monotonic time since boot, not Unix epoch
+// time. A direct time.Unix(0, ns) conversion would produce dates near 1970.
+// This function detects that case and falls back to the current wall clock.
+func bpfKtimeToWallClock(monoNS uint64) time.Time {
+	t := time.Unix(0, int64(monoNS))
+	// bpf_ktime_get_ns() is monotonic — its absolute value corresponds to a
+	// date near boot time (1970 + uptime). Real wall-clock timestamps from
+	// other sources will be >= 2020 for production data.
+	if t.Year() < 2020 {
+		return time.Now()
+	}
+	return t.UTC()
+}
