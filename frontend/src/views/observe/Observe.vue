@@ -5,6 +5,7 @@ import ProcessObserverPanel from "../../components/monitor/ProcessObserverPanel.
 
 const {
   processes,
+  systemStats,
   setup,
   teardown,
   sendProcessSignal,
@@ -32,6 +33,7 @@ const onSendProcessSignal = async (pid: number, signal: string) => {
       :processes="processes"
       :sendProcessSignal="onSendProcessSignal"
       :isActive="true"
+      :mem-total="systemStats.memTotal"
     />
   </div>
 </template>
