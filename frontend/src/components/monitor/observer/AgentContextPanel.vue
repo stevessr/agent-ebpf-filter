@@ -38,7 +38,11 @@ const hexToText = (hex: string, maxLen: number = 2000): string => {
 };
 
 const getRawText = (ev: ObserverTLSEvent): string =>
-  ev.body || (ev.raw_hex_dump ? hexToText(ev.raw_hex_dump, 2000) : "");
+  ev.body || (ev.raw_hex_dump ? hexToText(ev.raw_hex_dump, 4000) : "");
+
+// Strip HTTP chunked transfer encoding markers (standalone hex followed by \r\n)
+const stripChunkedEncoding = (text: string): string =>
+  text.replace(/^[0-9a-fA-F]{1,8}\s*$/gm, "").replace(/\n{3,}/g, "\n\n");
 
 const tryParseJSON = (text: string): any | null => {
   try { return JSON.parse(text); } catch { return null; }
@@ -51,26 +55,22 @@ const formatJSON = (obj: any, maxLen: number = 3000): string => {
   } catch { return String(obj); }
 };
 
-// ── SSE parser (handles both framed SSE and bare concatenated JSON) ──────
+// ── SSE parser (handles framed SSE + bare JSON + chunked + truncated) ────
 interface SSEParsed { type: string; index?: number; data: any; delta?: any; content_block?: any; message?: any; }
 const NOOP_TYPES = new Set(["ping", "message_stop"]);
 
-// Split concatenated JSON objects: {"a":1}{"b":2} → [{"a":1}, {"b":2}]
+// Depth-aware split of concatenated JSON: {a}{b} → [{a}, {b}]
 const splitConcatenatedJSON = (text: string): any[] => {
   const results: any[] = [];
-  // Find all top-level { } objects
-  let depth = 0, start = -1;
-  let inString = false, escaped = false;
+  let depth = 0, start = -1, inString = false, escaped = false;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (escaped) { escaped = false; continue; }
     if (ch === '\\') { escaped = true; continue; }
     if (ch === '"') { inString = !inString; continue; }
     if (inString) continue;
-    if (ch === '{') {
-      if (depth === 0) start = i;
-      depth++;
-    } else if (ch === '}') {
+    if (ch === '{') { if (depth === 0) start = i; depth++; }
+    else if (ch === '}') {
       depth--;
       if (depth === 0 && start >= 0) {
         const obj = tryParseJSON(text.slice(start, i + 1));
@@ -82,35 +82,74 @@ const splitConcatenatedJSON = (text: string): any[] => {
   return results;
 };
 
-// Parse raw text from an event into SSE data objects
-// Handles: SSE-framed ("event:...\ndata:..."), bare concatenated JSON, or single JSON
+// Try to extract partial_json value from truncated JSON via regex
+const extractPartialJSON = (text: string): string | null => {
+  const m = text.match(/"partial_json"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  return m ? JSON.parse(`"${m[1]}"`) : null; // unescape via JSON.parse
+};
+
+// Parse one SSE event's data field into SSEParsed objects
+const parseOneSSEData = (evType: string, data: string): SSEParsed[] => {
+  const objs = splitConcatenatedJSON(data);
+  if (objs.length > 0) {
+    return objs.map((obj) => ({
+      type: evType || obj.type || "",
+      index: obj.index,
+      data: obj,
+      delta: obj.delta,
+      content_block: obj.content_block,
+      message: obj.message,
+    }));
+  }
+  // Truncated JSON — try to salvage partial_json
+  const pj = extractPartialJSON(data);
+  if (pj) {
+    return [{
+      type: evType || "content_block_delta",
+      data: {},
+      delta: { type: "input_json_delta", partial_json: pj },
+    }];
+  }
+  return [];
+};
+
+// Main parser: handles both SSE-framed text and bare concatenated JSON
 const parseRawSSE = (text: string): SSEParsed[] => {
+  const clean = stripChunkedEncoding(text);
   const result: SSEParsed[] = [];
 
-  // Try SSE-framed first
-  let sseEvent = "", sseData = "";
-  for (const line of text.split("\n")) {
-    const t = line.trim();
-    if (t.startsWith("event:")) sseEvent = t.slice(6).trim();
-    else if (t.startsWith("data:")) sseData += t.slice(5).trim();
-  }
-  if (sseData) {
-    // Could be single JSON or concatenated
-    const objs = splitConcatenatedJSON(sseData);
-    if (objs.length > 0) {
-      for (const obj of objs) {
-        const ev = sseEvent || obj.type || "";
-        result.push({ type: ev, index: obj.index, data: obj, delta: obj.delta, content_block: obj.content_block, message: obj.message });
+  // Strategy 1: split by SSE "event:" boundaries
+  const eventSections = clean.split(/^event:\s*/m).filter(Boolean);
+  if (eventSections.length > 0 && clean.includes("event:")) {
+    for (const section of eventSections) {
+      const lines = section.split("\n");
+      let evType = "";
+      let data = "";
+      for (const line of lines) {
+        const t = line.trim();
+        if (!evType && t.length > 0 && !t.startsWith("data:")) {
+          // First non-empty, non-data line after "event:" split IS the event type
+          evType = t;
+        } else if (t.startsWith("data:")) {
+          data += t.slice(5).trim();
+        }
       }
-      return result;
+      if (data) {
+        result.push(...parseOneSSEData(evType, data));
+      }
     }
+    if (result.length > 0) return result;
   }
 
-  // Try bare concatenated JSON (or single JSON)
-  const objs = splitConcatenatedJSON(text);
+  // Strategy 2: bare concatenated JSON
+  const objs = splitConcatenatedJSON(clean);
   if (objs.length > 0) {
     for (const obj of objs) {
-      result.push({ type: obj.type || "", index: obj.index, data: obj, delta: obj.delta, content_block: obj.content_block, message: obj.message });
+      result.push({
+        type: obj.type || "", index: obj.index,
+        data: obj, delta: obj.delta,
+        content_block: obj.content_block, message: obj.message,
+      });
     }
     return result;
   }
