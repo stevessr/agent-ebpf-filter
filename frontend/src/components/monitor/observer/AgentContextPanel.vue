@@ -310,15 +310,15 @@ const streamGroups = computed(() => {
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
   );
   return {
-    send: buildGroups(sorted.filter((e) => e.direction === "send")),
-    recv: buildGroups(sorted.filter((e) => e.direction !== "send")),
+    send: buildGroups(sorted.filter((e) => e.direction === "send"), "send"),
+    recv: buildGroups(sorted.filter((e) => e.direction !== "send"), "recv"),
   };
 });
 
 let _gid = 0;
 const nextId = () => `g${_gid++}`;
 
-const buildGroups = (events: ObserverTLSEvent[]): MergedGroup[] => {
+const buildGroups = (events: ObserverTLSEvent[], dir: "send" | "recv"): MergedGroup[] => {
   _gid = 0;
   if (events.length === 0) return [];
   const groups: MergedGroup[] = [];
@@ -327,18 +327,47 @@ const buildGroups = (events: ObserverTLSEvent[]): MergedGroup[] => {
   while (i < events.length) {
     const ev = events[i];
 
-    // HTTP request — individual with parsed body
+    // HTTP request — parse body, extract tool_results from messages array
     if (ev.type === "http_request") {
       const raw = getRawText(ev);
       const json = tryParseJSON(raw);
+      const blocks: ContentBlock[] = [];
+
+      if (json) {
+        const messages = json.messages;
+        if (Array.isArray(messages)) {
+          for (const msg of messages) {
+            const content = msg.content;
+            if (msg.role === "user" && Array.isArray(content)) {
+              for (const item of content) {
+                if (item.type === "tool_result") {
+                  const resultText = typeof item.content === "string"
+                    ? item.content
+                    : Array.isArray(item.content)
+                      ? item.content.map((c: any) => c.text || JSON.stringify(c)).join("\n")
+                      : formatJSON(item.content || item, 4000);
+                  blocks.push({
+                    type: "tool_result",
+                    mergedText: resultText,
+                    toolId: item.tool_use_id,
+                  });
+                }
+              }
+            }
+          }
+        }
+        if (blocks.length === 0) {
+          blocks.push({ type: "request_body", mergedText: formatJSON(json, 4000) });
+        }
+      } else if (raw) {
+        blocks.push({ type: "request_body", mergedText: raw.slice(0, 3000) });
+      }
+
       groups.push({
         id: nextId(), events: [ev],
         startTime: ev.timestamp, endTime: ev.timestamp,
         totalSize: ev.body_size || ev.captured_len,
-        contentBlocks: json
-          ? [{ type: "request_body", mergedText: formatJSON(json, 4000) }]
-          : raw ? [{ type: "request_body", mergedText: raw.slice(0, 3000) }] : [],
-        rawMerged: raw,
+        contentBlocks: blocks, rawMerged: raw,
       });
       i++; continue;
     }
@@ -356,26 +385,18 @@ const buildGroups = (events: ObserverTLSEvent[]): MergedGroup[] => {
       i++; continue;
     }
 
-    // SSE stream + raw events that look like SSE JSON — merge all together
-    if (ev.type === "sse_message" || (ev.type === "tls_plaintext" && looksLikeSSEJSON(getRawText(ev)))) {
+    // DOWNSTREAM only: SSE stream merging (SSE is server→client protocol)
+    if (dir === "recv" && (ev.type === "sse_message" || (ev.type === "tls_plaintext" && looksLikeSSEJSON(getRawText(ev))))) {
       const batch: ObserverTLSEvent[] = [ev];
       let j = i + 1;
       while (j < events.length) {
         const next = events[j];
         if (next.type === "sse_message" || (next.type === "tls_plaintext" && looksLikeSSEJSON(getRawText(next)))) {
           batch.push(next); j++;
-        } else {
-          break;
-        }
+        } else break;
       }
-
-      // Parse all events into SSE data objects
       const allParsed: SSEParsed[] = [];
-      for (const be of batch) {
-        const text = getRawText(be);
-        allParsed.push(...parseRawSSE(text));
-      }
-
+      for (const be of batch) allParsed.push(...parseRawSSE(getRawText(be)));
       const meta = extractMessageMeta(allParsed);
       groups.push({
         id: nextId(), events: batch,
@@ -391,18 +412,36 @@ const buildGroups = (events: ObserverTLSEvent[]): MergedGroup[] => {
     // Raw — group consecutive non-SSE raw events
     const batch: ObserverTLSEvent[] = [ev];
     let k = i + 1;
-    while (k < events.length &&
-           events[k].type === "tls_plaintext" &&
-           !looksLikeSSEJSON(getRawText(events[k]))) {
+    while (k < events.length && events[k].type === "tls_plaintext") {
+      // For upstream: merge all consecutive raw (may be fragmented HTTP body)
+      // For downstream: only merge if NOT SSE-looking
+      if (dir === "recv" && looksLikeSSEJSON(getRawText(events[k]))) break;
       batch.push(events[k]); k++;
     }
+
+    // Try to extract structured content from raw text
     const rawBody = batch.map(getRawText).filter(Boolean).join("\n");
+    const blocks: ContentBlock[] = [];
+
+    // Upstream raw data: try parsing as JSON for display
+    if (dir === "send") {
+      const objs = splitConcatenatedJSON(rawBody);
+      if (objs.length > 0) {
+        for (const obj of objs) {
+          blocks.push({ type: "data", mergedText: formatJSON(obj, 4000) });
+        }
+      } else if (rawBody) {
+        blocks.push({ type: "raw", mergedText: rawBody.slice(0, 3000) });
+      }
+    } else {
+      if (rawBody) blocks.push({ type: "raw", mergedText: rawBody.slice(0, 3000) });
+    }
+
     groups.push({
       id: nextId(), events: batch,
       startTime: batch[0].timestamp, endTime: batch[batch.length - 1].timestamp,
       totalSize: batch.reduce((s, e) => s + (e.body_size || e.captured_len), 0),
-      contentBlocks: rawBody ? [{ type: "raw", mergedText: rawBody.slice(0, 3000) }] : [],
-      rawMerged: rawBody,
+      contentBlocks: blocks, rawMerged: rawBody,
     });
     i = k;
   }
@@ -419,11 +458,11 @@ const blockIcon = (t: string) => {
   return CodeOutlined;
 };
 const blockLabel = (t: string) => {
-  const m: Record<string,string> = { text:"Text", tool_use:"Tool Use", thinking:"Thinking", signature:"Signature", citations:"Citations", request_body:"Request Body", response_body:"Response Body", raw:"Raw Data", data:"SSE Data" };
+  const m: Record<string,string> = { text:"Text", tool_use:"Tool Use", tool_result:"Tool Result", thinking:"Thinking", signature:"Signature", citations:"Citations", request_body:"Request Body", response_body:"Response Body", raw:"Raw Data", data:"SSE Data" };
   return m[t] || t;
 };
 const blockColor = (t: string) => {
-  const m: Record<string,string> = { text:"green", tool_use:"orange", thinking:"purple", signature:"geekblue", citations:"cyan", request_body:"blue", response_body:"cyan" };
+  const m: Record<string,string> = { text:"green", tool_use:"orange", tool_result:"volcano", thinking:"purple", signature:"geekblue", citations:"cyan", request_body:"blue", response_body:"cyan" };
   return m[t] || "default";
 };
 const firstTypeLabel = (g: MergedGroup): string => {
