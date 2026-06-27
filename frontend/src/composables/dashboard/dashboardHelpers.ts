@@ -86,7 +86,10 @@ export const toText = (value: unknown): string => {
   if (value === undefined || value === null) {
     return "";
   }
-  return typeof value === "string" ? value : String(value);
+  const raw = typeof value === "string" ? value : String(value);
+  // eBPF tracepoints write paths into fixed-size buffers padded with NUL bytes;
+  // strip them so the UI doesn't render ugly gaps.
+  return raw.replace(/\0/g, "").trim();
 };
 
 export const buildAgentEvent = (

@@ -460,11 +460,11 @@ onUnmounted(() => {
           dataIndex="netDirection"
           key="netDirection"
           width="100"
-          filters="{[
+          :filters="[
             { text: 'Outgoing', value: 'outgoing' },
             { text: 'Incoming', value: 'incoming' },
             { text: 'Listening', value: 'listening' },
-          ]}"
+          ]"
           :filteredValue="filteredInfo.dir || null"
           @filter="(vals: string[]) => filteredInfo = { ...filteredInfo, dir: vals }"
         >
