@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -459,6 +460,7 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 	// statically-linked SSL (Node.js/BoringSSL, Python, etc.) where no
 	// dynamic libssl.so is loaded.
 	if err := m.AttachStaticSSLUprobes(attachPath, pid); err == nil {
+		log.Printf("[tls] AttachExecutable: static SSL uprobes attached to %s (pid=%d)", attachPath, pid)
 		result.TargetKind = "static-ssl"
 		result.Library = "static-openssl"
 		m.mu.Lock()
@@ -468,6 +470,8 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		m.attachedExec[pid] = "static-openssl"
 		m.mu.Unlock()
 		return result
+	} else {
+		log.Printf("[tls] AttachExecutable: static SSL uprobes failed for %s: %v", attachPath, err)
 	}
 
 	libraries := executableLibraryCandidates(libraryHint)
@@ -484,8 +488,10 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		err := m.attachLibraryPathLocked(target, libPath, status)
 		if err != nil {
 			m.mu.Unlock()
+			log.Printf("[tls] AttachExecutable: library %s (%s) attach failed: %v", target.name, libPath, err)
 			errs = append(errs, err)
 		} else {
+			log.Printf("[tls] AttachExecutable: library %s (%s) attached successfully", target.name, libPath)
 			if pid > 0 {
 				if m.attachedExec == nil {
 					m.attachedExec = make(map[int]string)
@@ -527,10 +533,14 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 
 func (m *TLSProbeManager) ReadLoop() error {
 	if m == nil {
+		log.Printf("[tls] ReadLoop: manager is nil")
 		return nil
 	}
 	m.mu.Lock()
 	if m.closed || m.objs == nil || m.objs.TlsEvents == nil || m.assembler == nil || m.httpStreams == nil || m.store == nil || m.broadcaster == nil {
+		log.Printf("[tls] ReadLoop: component nil — closed=%v objs=%v events=%v asm=%v http=%v store=%v bcast=%v",
+			m.closed, m.objs != nil, m.objs != nil && m.objs.TlsEvents != nil,
+			m.assembler != nil, m.httpStreams != nil, m.store != nil, m.broadcaster != nil)
 		m.mu.Unlock()
 		return nil
 	}
@@ -539,48 +549,65 @@ func (m *TLSProbeManager) ReadLoop() error {
 	httpStreams := m.httpStreams
 	store := m.store
 	broadcaster := m.broadcaster
+	rules := m.rules
 	m.mu.Unlock()
 
+	log.Printf("[tls] ReadLoop: started, waiting for ringbuffer events...")
 	reader, err := ringbuf.NewReader(events)
 	if err != nil {
+		log.Printf("[tls] ReadLoop: ringbuf.NewReader failed: %v", err)
 		return err
 	}
 	defer reader.Close()
 
+	var totalFrags, droppedFrags, completedFrags, httpEvents, rawEvents int
 	for {
 		rec, err := reader.Read()
 		if err != nil {
 			if errors.Is(err, ringbuf.ErrClosed) {
+				log.Printf("[tls] ReadLoop: ringbuf closed, total=%d frags, %d dropped, %d completed, %d http, %d raw",
+					totalFrags, droppedFrags, completedFrags, httpEvents, rawEvents)
 				return nil
 			}
+			log.Printf("[tls] ReadLoop: ringbuf read error: %v", err)
 			return err
 		}
+		totalFrags++
 		var fragment tlsFragment
 		if err := binary.Read(bytes.NewReader(rec.RawSample), binary.LittleEndian, &fragment); err != nil {
 			continue
 		}
 		completed, ok := assembler.Add(fragment)
 		if !ok || completed == nil {
+			droppedFrags++
 			continue
 		}
-		events := httpStreams.Add(*completed)
+		completedFrags++
+		parsedEvents := httpStreams.Add(*completed)
 		// If HTTP parser produced nothing (HTTP/2, non-HTTP protocol, etc.),
 		// still emit a raw event so the user sees captured data.
-		if len(events) == 0 {
+		if len(parsedEvents) == 0 {
 			raw := completedToPlaintextEvent(*completed)
-			if m.rules == nil || m.rules.Allows(raw) {
+			if rules == nil || rules.Allows(raw) {
 				broadcaster.Broadcast(raw)
 				store.Add(raw)
+				rawEvents++
 			}
 		} else {
-			for _, event := range events {
-				if m.rules != nil && !m.rules.Allows(event) {
+			for _, event := range parsedEvents {
+				if rules != nil && !rules.Allows(event) {
 					continue
 				}
 				DispatchTLSAgentEvent(&event, tlsAgentLoopDetector, deps.Broadcast)
 				store.Add(event)
 				broadcaster.Broadcast(event)
+				httpEvents++
 			}
+		}
+		// Periodic summary every 100 fragments
+		if totalFrags%100 == 0 {
+			log.Printf("[tls] ReadLoop: %d frags, %d dropped, %d completed, %d http, %d raw",
+				totalFrags, droppedFrags, completedFrags, httpEvents, rawEvents)
 		}
 	}
 }
