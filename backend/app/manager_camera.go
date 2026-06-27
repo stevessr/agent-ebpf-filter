@@ -67,6 +67,18 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 		s.stopTimer = nil
 	}
 
+	// failSubscribe cleans up on failure: decrement refcount and remove
+	// dead stream from activeStreams so subsequent attempts start fresh.
+	failSubscribe := func() *CameraSubscriber {
+		count := atomic.AddInt32(&s.subscriberCount, -1)
+		if count <= 0 {
+			streamsMu.Lock()
+			delete(activeStreams, s.devName)
+			streamsMu.Unlock()
+		}
+		return nil
+	}
+
 	if !s.running {
 		var cam *device.Device
 		var err error
@@ -82,30 +94,25 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 
 		if err != nil {
 			log.Printf("[ERROR] failed to open camera %s: %v", s.devName, err)
-			atomic.AddInt32(&s.subscriberCount, -1)
-			return nil
+			return failSubscribe()
 		}
 
-		// Try pixel formats in order: MJPEG → YUYV (fallback)
-		setFormat := func(cam *device.Device) bool {
-			formats := []v4l2.PixFormat{
-				{PixelFormat: v4l2.PixelFmtMJPEG, Width: 640, Height: 480},
-				{PixelFormat: v4l2.PixelFmtYUYV, Width: 640, Height: 480},
-			}
-			for _, f := range formats {
-				if err := cam.SetPixFormat(f); err == nil {
-					return true
-				}
-				log.Printf("[WARN] pix format %#x not supported on %s: %v", f.PixelFormat, s.devName, err)
-			}
-			return false
+		// Try pixel formats in order: MJPEG → YUYV; fall back to device default
+		formats := []v4l2.PixFormat{
+			{PixelFormat: v4l2.PixelFmtMJPEG, Width: 640, Height: 480},
+			{PixelFormat: v4l2.PixelFmtYUYV, Width: 640, Height: 480},
 		}
-
-		if !setFormat(cam) {
-			log.Printf("[ERROR] no usable pixel format for %s", s.devName)
-			cam.Close()
-			atomic.AddInt32(&s.subscriberCount, -1)
-			return nil
+		formatOK := false
+		for _, f := range formats {
+			if fmtErr := cam.SetPixFormat(f); fmtErr == nil {
+				formatOK = true
+				break
+			} else {
+				log.Printf("[WARN] pix format %#x not supported on %s: %v", f.PixelFormat, s.devName, fmtErr)
+			}
+		}
+		if !formatOK {
+			log.Printf("[WARN] explicit formats failed for %s, trying device default", s.devName)
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -113,8 +120,7 @@ func (s *CameraStream) Subscribe() *CameraSubscriber {
 			log.Printf("[ERROR] failed to start camera stream %s: %v", s.devName, err)
 			cancel()
 			cam.Close()
-			atomic.AddInt32(&s.subscriberCount, -1)
-			return nil
+			return failSubscribe()
 		}
 
 		s.cam = cam
