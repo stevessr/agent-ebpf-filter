@@ -48,10 +48,15 @@ export interface ObserverTLSEvent {
   function: string;
   captured_len: number;
   original_len: number;
+  type: string;
   method: string;
   url: string;
   host: string;
   status: number;
+  raw_hex_dump?: string;
+  raw_available?: boolean;
+  body_size?: number;
+  truncated?: boolean;
 }
 
 export interface ProcessTreeNode {
@@ -375,10 +380,15 @@ export function useProcessObserver() {
             function: ev.function || "",
             captured_len: ev.captured_len || 0,
             original_len: ev.original_len || 0,
+            type: ev.type || "",
             method: ev.method || "",
             url: ev.url || "",
             host: ev.host || "",
             status: ev.status || 0,
+            raw_hex_dump: ev.raw_hex_dump || "",
+            raw_available: ev.raw_available || false,
+            body_size: ev.body_size || 0,
+            truncated: ev.truncated || false,
           });
         }
         if (!tlsFlushTimer) {
@@ -447,10 +457,15 @@ export function useProcessObserver() {
           function: ev.function || "",
           captured_len: ev.captured_len || 0,
           original_len: ev.original_len || 0,
+          type: ev.type || "",
           method: ev.method || "",
           url: ev.url || "",
           host: ev.host || "",
           status: ev.status || 0,
+          raw_hex_dump: ev.raw_hex_dump || "",
+          raw_available: ev.raw_available || false,
+          body_size: ev.body_size || 0,
+          truncated: ev.truncated || false,
         } as ObserverTLSEvent))
         .slice(0, MAX_TLS);
     } catch {

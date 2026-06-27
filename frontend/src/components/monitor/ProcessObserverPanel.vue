@@ -25,6 +25,7 @@ const props = defineProps<{
   processes: ProcessInfo[];
   sendProcessSignal: (pid: number, signal: string) => void;
   isActive: boolean;
+  memTotal?: number;
 }>();
 
 // ── Sub-tab state ────────────────────────────────────────────────────────
@@ -516,13 +517,14 @@ const tlsColumns = [
   { title: "PID", dataIndex: "pid", key: "pid", width: 60 },
   { title: "Comm", dataIndex: "comm", key: "comm", width: 90, ellipsis: true },
   { title: "Dir", dataIndex: "direction", key: "direction", width: 50 },
-  { title: "Host", dataIndex: "host", key: "host", width: 160, ellipsis: true },
+  { title: "Type", key: "evType", width: 95 },
+  { title: "Host", dataIndex: "host", key: "host", width: 140, ellipsis: true },
   { title: "URL", dataIndex: "url", key: "url", ellipsis: true },
   {
-    title: "Status",
-    dataIndex: "status",
-    key: "status",
-    width: 60,
+    title: "Size",
+    dataIndex: "captured_len",
+    key: "size",
+    width: 70,
     align: "right" as const,
   },
 ];
@@ -895,7 +897,7 @@ watch(
           v-if="selectedPid === null"
           description="Select a PID to view resource usage"
         />
-        <ObserverResources v-else :processes="processes" :treePids="treePids" />
+        <ObserverResources v-else :processes="processes" :treePids="treePids" :mem-total="memTotal" />
       </a-tab-pane>
 
       <!-- 9. SSL -->
@@ -935,7 +937,24 @@ watch(
               row-key="key"
               size="small"
               :pagination="{ pageSize: 20, size: 'small' }"
-            />
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'evType'">
+                  <a-tag v-if="record.type === 'http_request'" color="blue" size="small">REQ</a-tag>
+                  <a-tag v-else-if="record.type === 'http_response'" color="green" size="small">RESP</a-tag>
+                  <a-tag v-else-if="record.type === 'sse_message'" color="purple" size="small">SSE</a-tag>
+                  <a-tag v-else color="default" size="small">{{ record.type || 'raw' }}</a-tag>
+                </template>
+                <template v-else-if="column.key === 'url' && record.type === 'tls_plaintext'">
+                  <a-tooltip :title="record.raw_hex_dump?.slice(0, 200)">
+                    <span class="tls-hex-preview">{{ record.raw_hex_dump?.slice(0, 40) }}…</span>
+                  </a-tooltip>
+                </template>
+                <template v-else-if="column.key === 'size'">
+                  <span>{{ formatBytes(record.captured_len) }}</span>
+                </template>
+              </template>
+            </a-table>
           </div>
 
           <a-divider style="margin: 16px 0 12px; font-size: 12px; color: #888">

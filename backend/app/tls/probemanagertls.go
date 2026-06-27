@@ -563,14 +563,108 @@ func (m *TLSProbeManager) ReadLoop() error {
 		if !ok || completed == nil {
 			continue
 		}
-		for _, event := range httpStreams.Add(*completed) {
-			if m.rules != nil && !m.rules.Allows(event) {
-				continue
+		events := httpStreams.Add(*completed)
+		// If HTTP parser produced nothing (HTTP/2, non-HTTP protocol, etc.),
+		// still emit a raw event so the user sees captured data.
+		if len(events) == 0 {
+			raw := completedToPlaintextEvent(*completed)
+			if m.rules == nil || m.rules.Allows(raw) {
+				broadcaster.Broadcast(raw)
+				store.Add(raw)
 			}
-			DispatchTLSAgentEvent(&event, tlsAgentLoopDetector, deps.Broadcast)
-			store.Add(event)
-			broadcaster.Broadcast(event)
+		} else {
+			for _, event := range events {
+				if m.rules != nil && !m.rules.Allows(event) {
+					continue
+				}
+				DispatchTLSAgentEvent(&event, tlsAgentLoopDetector, deps.Broadcast)
+				store.Add(event)
+				broadcaster.Broadcast(event)
+			}
 		}
+	}
+}
+
+// completedToPlaintextEvent converts a reassembled TLS fragment into a raw
+// TLSPlaintextEvent without HTTP parsing. This ensures non-HTTP protocols
+// (HTTP/2, gRPC, WebSocket, proprietary) still produce visible events.
+func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
+	now := time.Unix(0, int64(f.TimestampNS))
+	if now.IsZero() {
+		now = time.Now()
+	}
+	dir := "recv"
+	if f.Direction == tlsDirectionSend {
+		dir = "send"
+	}
+
+	ev := TLSPlaintextEvent{
+		Type:        "tls_plaintext",
+		Timestamp:   now,
+		PID:         f.PID,
+		TGID:        f.TGID,
+		Comm:        f.Comm,
+		Direction:   dir,
+		Lib:         libTypeName(f.LibType),
+		Function:    tlsFuncName(f.Function),
+		CapturedLen: int(f.TotalLen),
+		OriginalLen: int(f.OriginalLen),
+		Truncated:   f.Flags&tlsFlagTruncated != 0,
+	}
+
+	// Preview first 256 bytes as hex dump
+	if len(f.Payload) > 0 {
+		preview := f.Payload
+		if len(preview) > 256 {
+			preview = preview[:256]
+		}
+		ev.RawHexDump = fmt.Sprintf("%x", preview)
+		ev.RawAvailable = true
+		ev.BodySize = len(f.Payload)
+	}
+
+	return ev
+}
+
+func libTypeName(lib uint8) string {
+	switch lib {
+	case tlsLibOpenSSL:
+		return "openssl"
+	case tlsLibGo:
+		return "go"
+	case tlsLibGnuTLS:
+		return "gnutls"
+	case tlsLibNSS:
+		return "nss"
+	default:
+		return "unknown"
+	}
+}
+
+func tlsFuncName(fn uint8) string {
+	switch fn {
+	case tlsFuncSSLWrite:
+		return "SSL_write"
+	case tlsFuncSSLRead:
+		return "SSL_read"
+	case tlsFuncSSLWriteEx:
+		return "SSL_write_ex"
+	case tlsFuncSSLReadEx:
+		return "SSL_read_ex"
+	case tlsFuncGnuTLSRecordSend:
+		return "gnutls_record_send"
+	case tlsFuncGnuTLSRecordRecv:
+		return "gnutls_record_recv"
+	case tlsFuncPRWrite:
+		return "PR_Write"
+	case tlsFuncPRRead:
+		return "PR_Read"
+	case tlsFuncGoConnWrite:
+		return "crypto/tls.Write"
+	case tlsFuncGoConnRead:
+		return "crypto/tls.Read"
+	default:
+		return "unknown"
 	}
 }
 
