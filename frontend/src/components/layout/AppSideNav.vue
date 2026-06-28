@@ -95,4 +95,36 @@ const handleSelect = ({ key }: { key: string | number }) => {
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* 浅色主题覆盖 — 侧边栏灰底黑字 */
+.app-side-nav:deep(.ant-layout-sider-children),
+.app-side-nav:deep(.ant-menu),
+.app-side-nav:deep(.ant-menu-sub) {
+  background: #f0f2f5 !important;
+  color: #000 !important;
+}
+
+.app-side-nav:deep(.ant-menu-item),
+.app-side-nav:deep(.ant-menu-submenu-title) {
+  color: #000 !important;
+}
+
+.app-side-nav:deep(.ant-menu-item-selected) {
+  background: #e6f0ff !important;
+  color: #1677ff !important;
+}
+
+.app-side-nav:deep(.ant-menu-item-active),
+.app-side-nav:deep(.ant-menu-submenu-title:hover) {
+  color: #1677ff !important;
+  background: rgba(22, 119, 255, 0.06) !important;
+}
+
+.app-side-nav:deep(.ant-menu-item-selected .ant-menu-item-icon) {
+  color: #1677ff !important;
+}
+
+.app-side-nav:deep(.ant-menu-submenu-arrow) {
+  color: #000 !important;
+}
 </style>
