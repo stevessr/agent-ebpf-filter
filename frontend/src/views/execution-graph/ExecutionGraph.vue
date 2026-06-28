@@ -335,8 +335,9 @@ const toggleGraphKind = (kind: string) => {
 const resetGraphKindFilters = () => {
   hiddenGraphKinds.value = new Set();
 };
-const handleProcessPicked = (p: ProcessInfo) => {
-  void focusProcessBase(p.pid);
+const handleProcessPicked = (processes: ProcessInfo[]) => {
+  const p = processes[0];
+  if (p) void focusProcessBase(p.pid);
 };
 const focusRelatedTab = (tab: DetailTab) => {
   activeDetailTab.value = tab;
@@ -534,10 +535,10 @@ onUnmounted(() => {
         <ProcessPickerModal
           v-model:open="processPickerOpen"
           :processes="processList"
-          :selected-pid="selectedProcessPid"
+          :selected-pids="selectedProcessPid != null ? [selectedProcessPid] : []"
           :loading="processLoading"
           title="选择要监听的进程"
-          @select="handleProcessPicked"
+          @select="(ps: ProcessInfo[]) => handleProcessPicked(ps)"
         />
 
         <a-card :bordered="false" class="filter-card">

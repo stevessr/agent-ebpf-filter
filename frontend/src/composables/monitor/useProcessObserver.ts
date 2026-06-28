@@ -2,6 +2,7 @@ import { ref, computed, watch, onUnmounted } from "vue";
 import axios from "axios";
 import { buildWebSocketUrl } from "../../utils/requestContext";
 import { pb } from "../../pb/tracker_pb.js";
+import router from "../../router";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -504,7 +505,7 @@ export function useProcessObserver() {
             if (router.currentRoute.value.name !== "Observe") {
               router.push({ name: "Observe", query: { pid: String(d.pid) } });
             } else {
-              selectedPid.value = d.pid;
+              selectedPids.value = new Set([d.pid]);
             }
             continue; // don't display as a regular event
           }

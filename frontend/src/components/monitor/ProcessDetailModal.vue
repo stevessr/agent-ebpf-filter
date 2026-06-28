@@ -197,7 +197,7 @@ const ancestorChain = computed<string>(() => {
             Send Signal
           </a-button>
           <template #overlay>
-            <a-menu @click="({ key }: { key: string }) => emit('signal', process.pid, key)">
+            <a-menu @click="({ key }: { key: string }) => { if (process) emit('signal', (process as NonNullable<typeof process>).pid, key); }">
               <a-menu-item key="SIGTERM">SIGTERM (graceful)</a-menu-item>
               <a-menu-item key="SIGKILL">SIGKILL (force)</a-menu-item>
               <a-menu-item key="SIGSTOP">SIGSTOP (pause)</a-menu-item>
