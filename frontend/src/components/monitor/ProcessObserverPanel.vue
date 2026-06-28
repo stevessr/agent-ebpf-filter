@@ -8,6 +8,7 @@ import {
   CaretDownOutlined,
   EyeOutlined,
   MergeCellsOutlined,
+  PlayCircleOutlined,
 } from "@ant-design/icons-vue";
 import {
   useProcessObserver,
@@ -24,6 +25,7 @@ import ObserverResources from "./observer/ObserverResources.vue";
 import AgentContextPanel from "./observer/AgentContextPanel.vue";
 import FilePathBrowserModal from "./FilePathBrowserModal.vue";
 import SSLDecryptedEventModal from "./observer/SSLDecryptedEventModal.vue";
+import LaunchProgramModal from "./observer/LaunchProgramModal.vue";
 import { useRoute, useRouter } from "vue-router";
 
 // ── Props ────────────────────────────────────────────────────────────────
@@ -56,7 +58,7 @@ const route = useRoute();
 const router = useRouter();
 
 const getRouteParam = (param: unknown): string | undefined =>
-  Array.isArray(param) ? param[0] : (param ?? undefined);
+  Array.isArray(param) ? String(param[0] ?? "") || undefined : (typeof param === "string" ? param : undefined);
 
 const normalizeObserveTab = (tab: unknown): SubTabKey => {
   if (typeof tab === "string" && (subTabKeys as readonly string[]).includes(tab)) {
@@ -214,6 +216,8 @@ const selectedLabels = computed(() => {
 });
 
 // ── Launch controls ──────────────────────────────────────────────────────
+
+const launchModalOpen = ref(false);
 
 const launchPath = ref("");
 const launchUser = ref("");
@@ -856,114 +860,22 @@ watch(
             </a-tag>
           </div>
 
-          <!-- Launch program via wrapper -->
+          <!-- Launch program via wrapper — button opens modal -->
           <a-divider style="margin: 12px 0; font-size: 12px; color: #4b5563">
             Launch &amp; Observe
           </a-divider>
-          <div class="launch-grid">
-            <!-- Program -->
-            <div class="launch-field" style="grid-column: span 2">
-              <span class="launch-label">Program</span>
-              <div class="launch-row">
-                <a-input
-                  v-model:value="launchPath"
-                  placeholder="/usr/bin/python3"
-                  size="small"
-                  spellcheck="false"
-                  style="flex: 1"
-                />
-                <a-button size="small" @click="openBrowser('program')">
-                  Browse
-                </a-button>
-              </div>
-            </div>
-            <!-- User -->
-            <div class="launch-field">
-              <span class="launch-label">User</span>
-              <a-select
-                v-model:value="launchUser"
-                size="small"
-                show-search
-                :filter-option="
-                  (input: string, option: any) =>
-                    option.value.toLowerCase().includes(input.toLowerCase())
-                "
-                :loading="usersLoading"
-                placeholder="Select user..."
-                style="width: 100%"
-              >
-                <a-select-option
-                  v-for="u in sysUsers"
-                  :key="u.username"
-                  :value="u.username"
-                >
-                  {{ u.username }}
-                  <span class="user-uid">({{ u.uid }})</span>
-                </a-select-option>
-              </a-select>
-            </div>
-            <!-- Working Directory -->
-            <div class="launch-field">
-              <span class="launch-label">Working Directory</span>
-              <div class="launch-row">
-                <a-input
-                  v-model:value="launchCwd"
-                  placeholder="/home/..."
-                  size="small"
-                  spellcheck="false"
-                  style="flex: 1"
-                />
-                <a-button size="small" @click="openBrowser('cwd')">
-                  Browse
-                </a-button>
-              </div>
-            </div>
-            <!-- Args -->
-            <div class="launch-field" style="grid-column: span 2">
-              <span class="launch-label">Arguments</span>
-              <a-input
-                v-model:value="launchArgs"
-                placeholder="--verbose --output /tmp/out"
-                size="small"
-              />
-            </div>
-          </div>
-          <div
-            style="
-              margin-top: 8px;
-              display: flex;
-              align-items: center;
-              gap: 10px;
-            "
-          >
+          <div style="display: flex; align-items: center; gap: 8px">
             <a-button
               type="primary"
               size="small"
-              :loading="launching"
-              @click="doLaunch"
+              @click="launchModalOpen = true"
             >
-              Launch & Observe
+              <template #icon><PlayCircleOutlined /></template>
+              Launch Program
             </a-button>
-            <span v-if="launchError" style="color: #ff4d4f; font-size: 12px">
-              {{ launchError }}
+            <span style="font-size: 12px; color: #6b7280">
+              Launch a new process and observe it
             </span>
-          </div>
-
-          <!-- Recent launches -->
-          <div v-if="recentLaunches.length > 0" class="recent-section">
-            <div class="recent-title">Recent</div>
-            <div class="recent-chips">
-              <a-tag
-                v-for="(rl, i) in recentLaunches"
-                :key="i"
-                class="recent-chip"
-                color="default"
-                @click="applyRecent(rl)"
-              >
-                <span class="recent-prog">{{ rl.program.split('/').pop() || rl.program }}</span>
-                <span class="recent-args" v-if="rl.args">{{ rl.args.slice(0, 30) }}{{ rl.args.length > 30 ? '…' : '' }}</span>
-              </a-tag>
-            </div>
           </div>
         </div>
       </a-tab-pane>
@@ -975,9 +887,13 @@ watch(
           :events="allEvents"
           :tlsEvents="treeTLSEvents"
           :selectedPid="selectedPids.size > 0 ? [...selectedPids][0] : null"
+          :ignoreRules="ignoreRules"
           @clear="clearEvents()"
           @selectPid="(pid: number) => togglePid(pid)"
           @viewTLSEvent="(e: ObserverTLSEvent) => openTLSDetail(e)"
+          @toggleIgnoreRule="toggleTimelineIgnoreRule"
+          @removeIgnoreRule="removeTimelineIgnoreRule"
+          @resetIgnoreRules="resetTimelineIgnoreRules"
         />
       </a-tab-pane>
 
@@ -1420,6 +1336,28 @@ watch(
       @select-pid="(pid: number) => togglePid(pid)"
       @signal="(pid: number, signal: string) => props.sendProcessSignal(pid, signal)"
     />
+
+    <!-- Launch program modal -->
+    <LaunchProgramModal
+      :open="launchModalOpen"
+      :launch-path="launchPath"
+      :launch-user="launchUser"
+      :launch-cwd="launchCwd"
+      :launch-args="launchArgs"
+      :launching="launching"
+      :launch-error="launchError"
+      :sys-users="sysUsers"
+      :users-loading="usersLoading"
+      :recent-launches="recentLaunches"
+      @update:open="launchModalOpen = $event"
+      @update:launch-path="launchPath = $event"
+      @update:launch-user="launchUser = $event"
+      @update:launch-cwd="launchCwd = $event"
+      @update:launch-args="launchArgs = $event"
+      @launch="doLaunch"
+      @browse="openBrowser"
+      @apply-recent="applyRecent"
+    />
   </div>
 </template>
 
@@ -1457,81 +1395,10 @@ watch(
   border-radius: 6px;
 }
 
-.launch-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 16px;
-}
-
-.launch-field {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.launch-label {
-  font-size: 11px;
-  color: #4b5563;
-  font-weight: 500;
-}
-
-.launch-row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.user-uid {
-  font-size: 11px;
-  color: #6b7280;
-  margin-left: 4px;
-}
-
-.recent-section {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px dashed #e8e8e8;
-}
-
-.recent-title {
-  font-size: 11px;
-  color: #6b7280;
-  font-weight: 500;
-  margin-bottom: 6px;
-}
-
-.recent-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.recent-chip {
-  cursor: pointer;
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-
-.recent-chip:hover {
-  border-color: #1677ff;
-  color: #1677ff;
-}
-
-.recent-prog {
-  font-family: ui-monospace, monospace;
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.recent-args {
-  font-family: ui-monospace, monospace;
-  font-size: 10px;
-  color: #6b7280;
-  margin-left: 4px;
-}
+	.launch-error {
+	  font-size: 11px;
+	  color: #ff4d4f;
+	}
 
 .tree-container {
   max-height: 500px;
