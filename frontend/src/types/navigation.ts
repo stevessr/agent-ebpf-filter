@@ -33,6 +33,7 @@ export type NavMenuLeaf = {
 export type NavMenuGroup = {
   key: string;
   title: string;
+  icon: Component;
   children: NavMenuLeaf[];
 };
 

@@ -47,7 +47,10 @@ const handleSelect = ({ key }: { key: string | number }) => {
       @click="handleSelect"
     >
       <a-sub-menu v-for="group in props.navGroups" :key="group.key">
-        <template #title>{{ group.title }}</template>
+        <template #title>
+          <component :is="group.icon" />
+          <span>{{ group.title }}</span>
+        </template>
         <a-menu-item v-for="item in group.children" :key="item.key">
           <template #icon><component :is="item.icon" /></template>
           {{ item.title }}

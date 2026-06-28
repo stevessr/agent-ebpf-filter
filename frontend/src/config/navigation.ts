@@ -1,9 +1,11 @@
 import {
   AppstoreOutlined,
   BarChartOutlined,
+  BulbOutlined,
   ClusterOutlined,
   DashboardOutlined,
   DeploymentUnitOutlined,
+  EyeOutlined,
   FolderOpenOutlined,
   GlobalOutlined,
   LinkOutlined,
@@ -12,6 +14,7 @@ import {
   SafetyCertificateOutlined,
   SettingOutlined,
   ThunderboltOutlined,
+  ToolOutlined,
 } from "@ant-design/icons-vue";
 import type {
   RouteLocationNormalizedLoaded,
@@ -30,6 +33,7 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
   {
     key: "observability",
     title: "观测分析",
+    icon: EyeOutlined,
     children: [
       {
         key: "dashboard",
@@ -84,6 +88,7 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
   {
     key: "tools",
     title: "执行与工具",
+    icon: ToolOutlined,
     children: [
       {
         key: "explorer",
@@ -110,6 +115,7 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
   {
     key: "intelligence",
     title: "智能与扩展",
+    icon: BulbOutlined,
     children: [
       {
         key: "ml",
@@ -130,6 +136,7 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
   {
     key: "system",
     title: "系统配置",
+    icon: SettingOutlined,
     children: [
       {
         key: "config",
