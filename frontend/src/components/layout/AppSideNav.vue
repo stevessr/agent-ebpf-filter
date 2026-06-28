@@ -30,7 +30,6 @@ const handleSelect = ({ key }: { key: string | number }) => {
 <template>
   <a-layout-sider
     class="app-side-nav"
-    theme="dark"
     collapsible
     :collapsed="props.collapsed"
     @collapse="handleCollapse"
@@ -41,7 +40,6 @@ const handleSelect = ({ key }: { key: string | number }) => {
     </div>
 
     <a-menu
-      theme="dark"
       mode="inline"
       :selectedKeys="props.selectedKeys"
       :openKeys="props.collapsed ? [] : props.openKeys"
@@ -89,7 +87,7 @@ const handleSelect = ({ key }: { key: string | number }) => {
 
 .app-side-nav__title {
   min-width: 0;
-  color: #fff;
+  color: #000;
   font-size: 16px;
   font-weight: 700;
   white-space: nowrap;
