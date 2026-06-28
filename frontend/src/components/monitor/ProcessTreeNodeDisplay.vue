@@ -10,7 +10,7 @@ import type { ProcessTreeNode } from "../../composables/monitor/useProcessObserv
 const props = defineProps<{
   node: ProcessTreeNode;
   depth: number;
-  highlightPid: number;
+  highlightPids: Set<number>;
   expandedSet: Set<number>;
   sslAttachedSet?: Set<number>;
   sslLibForPid?: (pid: number) => string;
@@ -23,7 +23,7 @@ const emit = defineEmits<{
 
 const expanded = computed(() => props.expandedSet.has(props.node.pid));
 const hasChildren = computed(() => props.node.children.length > 0);
-const isHighlighted = computed(() => props.node.pid === props.highlightPid);
+const isHighlighted = computed(() => props.highlightPids.has(props.node.pid));
 const isDead = computed(() => props.node.dead === true);
 </script>
 
@@ -74,7 +74,7 @@ const isDead = computed(() => props.node.dead === true);
         :key="child.pid"
         :node="child"
         :depth="depth + 1"
-        :highlight-pid="highlightPid"
+        :highlight-pids="highlightPids"
         :expanded-set="expandedSet"
         :ssl-attached-set="sslAttachedSet"
         :ssl-lib-for-pid="sslLibForPid"

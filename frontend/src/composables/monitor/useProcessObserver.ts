@@ -240,9 +240,28 @@ const extractEventType = (event: pb.IEvent): number | undefined => {
 // ── Main composable ─────────────────────────────────────────────────────────
 
 export function useProcessObserver() {
-  // ---- Selection state ----
-  const selectedPid = ref<number | null>(null);
+  // ---- Selection state (multi-select) ----
+  const selectedPids = ref<Set<number>>(new Set());
   const showPicker = ref(false);
+
+  const addPid = (pid: number) => {
+    if (pid <= 0) return;
+    selectedPids.value = new Set([...selectedPids.value, pid]);
+  };
+  const removePid = (pid: number) => {
+    const s = new Set(selectedPids.value);
+    s.delete(pid);
+    selectedPids.value = s;
+  };
+  const togglePid = (pid: number) => {
+    if (pid <= 0) return;
+    const s = new Set(selectedPids.value);
+    if (s.has(pid)) s.delete(pid);
+    else s.add(pid);
+    selectedPids.value = s;
+  };
+  const clearPids = () => { selectedPids.value = new Set(); };
+  const hasPid = (pid: number): boolean => selectedPids.value.has(pid);
 
   // ---- Input: processes fed from parent ----
   const processes = ref<ProcessInfo[]>([]);
@@ -312,9 +331,9 @@ export function useProcessObserver() {
     return roots;
   });
 
-  /** Find the subtree rooted at selectedPid */
+  /** Find the subtrees rooted at each selected PID */
   const selectedProcessTree = computed<ProcessTreeNode[]>(() => {
-    if (selectedPid.value === null) return [];
+    if (selectedPids.value.size === 0) return [];
     const findSubtree = (
       nodes: ProcessTreeNode[],
       targetPid: number,
@@ -326,8 +345,12 @@ export function useProcessObserver() {
       }
       return null;
     };
-    const subtree = findSubtree(processTree.value, selectedPid.value);
-    return subtree ? [subtree] : [];
+    const result: ProcessTreeNode[] = [];
+    for (const pid of selectedPids.value) {
+      const subtree = findSubtree(processTree.value, pid);
+      if (subtree) result.push(subtree);
+    }
+    return result;
   });
 
   /** Recursively collect all PIDs in a list of tree nodes */
@@ -612,8 +635,10 @@ export function useProcessObserver() {
 
   const fetchNetworkFlows = async () => {
     try {
-      const params: Record<string, number> = {};
-      if (selectedPid.value !== null) params.pid = selectedPid.value;
+      const params: Record<string, any> = {};
+      if (selectedPids.value.size > 0) {
+        params.pids = [...selectedPids.value].join(",");
+      }
       const res = await axios.get("/network/flows", { params });
       networkFlows.value = (res.data.flows || []).slice(0, MAX_FLOWS);
     } catch {
@@ -681,20 +706,26 @@ export function useProcessObserver() {
     fetchTCPState();
   };
 
-  // Refresh network data when selected PID changes
-  watch(selectedPid, (pid) => {
-    if (pid !== null) {
+  // Refresh network data when selected PIDs change
+  watch(selectedPids, (pids) => {
+    if (pids.size > 0) {
       fetchNetworkFlows();
       fetchTCPState();
     }
-  });
+  }, { deep: true });
 
   // ── Public API ───────────────────────────────────────────────────────────
 
   return {
     // State
-    selectedPid,
+    selectedPids,
     showPicker,
+    // Multi-select helpers
+    addPid,
+    removePid,
+    togglePid,
+    clearPids,
+    hasPid,
     // Tree
     processTree,
     selectedProcessTree,

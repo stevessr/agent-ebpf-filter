@@ -61,7 +61,7 @@ watch(activeSubTab, (tab) => {
 
 const obs = useProcessObserver();
 const {
-  selectedPid,
+  selectedPids,
   showPicker,
   processTree,
   selectedProcessTree,
@@ -79,6 +79,12 @@ const {
   connectAll,
   disconnectAll,
   loadAllInitial,
+  // Multi-select helpers
+  addPid,
+  removePid,
+  togglePid,
+  clearPids,
+  hasPid,
   // Clear + SSL
   clearEvents,
   clearTLSEvents,
@@ -99,38 +105,52 @@ watch(
 const pidInput = ref("");
 const pidInvalid = ref(false);
 
-// Persist selected PID across page refreshes
-const PID_STORAGE_KEY = "observe-selected-pid";
+// Persist selected PIDs across page refreshes
+const PIDS_STORAGE_KEY = "observe-selected-pids";
 
-const restorePidFromStorage = () => {
+const restorePidsFromStorage = () => {
   try {
-    const raw = localStorage.getItem(PID_STORAGE_KEY);
-    if (raw !== null) {
+    const raw = localStorage.getItem(PIDS_STORAGE_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        const restored = arr.filter((n: any) => typeof n === "number" && n > 0);
+        if (restored.length > 0) {
+          selectedPids.value = new Set(restored);
+          return;
+        }
+      }
+    }
+  } catch { /* ignore */ }
+  // Migration: old single-PID storage
+  try {
+    const raw = localStorage.getItem("observe-selected-pid");
+    if (raw) {
       const parsed = parseInt(raw, 10);
       if (!isNaN(parsed) && parsed > 0) {
-        selectedPid.value = parsed;
-        return;
+        selectedPids.value = new Set([parsed]);
+        localStorage.removeItem("observe-selected-pid");
       }
     }
   } catch { /* ignore */ }
 };
-restorePidFromStorage();
+restorePidsFromStorage();
 
-watch(selectedPid, (pid) => {
+watch(selectedPids, (pids) => {
   try {
-    if (pid !== null) {
-      localStorage.setItem(PID_STORAGE_KEY, String(pid));
+    if (pids.size > 0) {
+      localStorage.setItem(PIDS_STORAGE_KEY, JSON.stringify([...pids]));
     } else {
-      localStorage.removeItem(PID_STORAGE_KEY);
+      localStorage.removeItem(PIDS_STORAGE_KEY);
     }
   } catch { /* ignore */ }
-});
+}, { deep: true });
 
 const onPidSearch = () => {
   const val = parseInt(pidInput.value, 10);
   if (!isNaN(val) && val > 0) {
     pidInvalid.value = false;
-    selectedPid.value = val;
+    addPid(val);
     pidInput.value = "";
   } else if (pidInput.value.trim()) {
     pidInvalid.value = true;
@@ -138,22 +158,19 @@ const onPidSearch = () => {
 };
 
 const onClearSelection = () => {
-  selectedPid.value = null;
+  clearPids();
   pidInput.value = "";
   pidInvalid.value = false;
 };
 
-const onPickerSelect = (proc: ProcessInfo) => {
-  selectedPid.value = proc.pid;
-  pidInput.value = "";
-  pidInvalid.value = false;
-};
-
-const selectedProcessLabel = (): string => {
-  if (selectedPid.value === null) return "";
-  const p = props.processes.find((x) => x.pid === selectedPid.value);
-  return p ? `[${p.pid}] ${p.name}` : `PID ${selectedPid.value}`;
-};
+const selectedLabels = computed(() => {
+  const labels: string[] = [];
+  for (const pid of selectedPids.value) {
+    const p = props.processes.find((x) => x.pid === pid);
+    labels.push(p ? `[${p.pid}] ${p.name}` : `PID ${pid}`);
+  }
+  return labels;
+});
 
 // ── Launch controls ──────────────────────────────────────────────────────
 
@@ -279,7 +296,7 @@ const doLaunch = async () => {
       cwd: launchCwd.value.trim() || undefined,
     });
     if (res.data.pid) {
-      selectedPid.value = res.data.pid;
+      addPid(res.data.pid);
       pidInput.value = "";
       // Persist to localStorage
       saveRecentLaunch({
@@ -547,9 +564,9 @@ const toggleExpand = (pid: number) => {
   expandedNodes.value = s;
 };
 
-// Auto-expand ancestors of selected PID
-watch(selectedPid, (pid) => {
-  if (pid !== null) {
+// Auto-expand ancestors of all selected PIDs
+watch(selectedPids, (pids) => {
+  if (pids.size > 0) {
     const expandTo = (nodes: ProcessTreeNode[], target: number): boolean => {
       for (const n of nodes) {
         if (n.pid === target || expandTo(n.children, target)) {
@@ -559,9 +576,11 @@ watch(selectedPid, (pid) => {
       }
       return false;
     };
-    expandTo(processTree.value, pid);
+    for (const pid of pids) {
+      expandTo(processTree.value, pid);
+    }
   }
-});
+}, { deep: true });
 
 // SSL attachment status per PID
 const sslAttachedSet = computed<Set<number>>(
@@ -754,17 +773,31 @@ watch(
             <a-button size="small" @click="showPicker = true">
               Pick from list...
             </a-button>
-            <a-tag
-              v-if="selectedPid !== null"
-              color="processing"
-              closable
-              @close="onClearSelection"
+            <a-button
+              v-if="selectedPids.size > 0"
+              size="small"
+              danger
+              type="link"
+              @click="onClearSelection"
             >
-              {{ selectedProcessLabel() }}
-            </a-tag>
-            <span v-else style="color: #6b7280; font-size: 12px">
+              Clear All
+            </a-button>
+            <span v-if="selectedPids.size === 0" style="color: #6b7280; font-size: 12px">
               No PID selected
             </span>
+          </div>
+
+          <!-- Selected PIDs as tags -->
+          <div v-if="selectedPids.size > 0" class="multi-pid-tags">
+            <a-tag
+              v-for="label in selectedLabels"
+              :key="label"
+              color="processing"
+              closable
+              @close="removePid(parseInt(label.match(/\[?(\d+)\]?/)?.[1] || '0'))"
+            >
+              {{ label }}
+            </a-tag>
           </div>
 
           <!-- Launch program via wrapper -->
@@ -885,9 +918,9 @@ watch(
         <ObserverTimeline
           :events="allEvents"
           :tlsEvents="treeTLSEvents"
-          :selectedPid="selectedPid"
+          :selectedPid="selectedPids.size > 0 ? [...selectedPids][0] : null"
           @clear="clearEvents()"
-          @selectPid="(pid: number) => (selectedPid = pid)"
+          @selectPid="(pid: number) => togglePid(pid)"
           @viewTLSEvent="(e: ObserverTLSEvent) => openTLSDetail(e)"
         />
       </a-tab-pane>
@@ -902,7 +935,7 @@ watch(
       <a-tab-pane key="tree">
         <template #tab><NodeIndexOutlined /> Tree</template>
         <a-empty
-          v-if="selectedPid === null"
+          v-if="selectedPids.size === 0"
           description="Select a PID to view its process tree"
         />
         <div v-else class="tree-container">
@@ -929,12 +962,12 @@ watch(
             :key="node.pid"
             :node="node"
             :depth="0"
-            :highlight-pid="selectedPid ?? 0"
+            :highlight-pids="selectedPids"
             :expanded-set="expandedNodes"
             :ssl-attached-set="sslAttachedSet"
             :ssl-lib-for-pid="sslLibForPid"
             @toggle="toggleExpand"
-            @select="(pid: number) => (selectedPid = pid)"
+            @select="(pid: number) => togglePid(pid)"
           />
         </div>
       </a-tab-pane>
@@ -956,7 +989,7 @@ watch(
           >
         </template>
         <a-empty
-          v-if="selectedPid === null"
+          v-if="selectedPids.size === 0"
           description="Select a PID to view network connections"
         />
         <template v-else>
@@ -1006,7 +1039,7 @@ watch(
           >
         </template>
         <a-empty
-          v-if="selectedPid === null"
+          v-if="selectedPids.size === 0"
           description="Select a PID to view syscalls"
         />
         <a-table
@@ -1047,7 +1080,7 @@ watch(
           >
         </template>
         <a-empty
-          v-if="selectedPid === null"
+          v-if="selectedPids.size === 0"
           description="Select a PID to view file access events"
         />
         <a-table
@@ -1078,7 +1111,7 @@ watch(
       <a-tab-pane key="resources">
         <template #tab>Resources</template>
         <a-empty
-          v-if="selectedPid === null"
+          v-if="selectedPids.size === 0"
           description="Select a PID to view resource usage"
         />
         <ObserverResources v-else :processes="processes" :treePids="treePids" :mem-total="memTotal" />
@@ -1121,7 +1154,7 @@ watch(
           >
         </template>
         <a-empty
-          v-if="selectedPid === null"
+          v-if="selectedPids.size === 0"
           description="Select a PID to view SSL/TLS data"
         />
         <template v-else>
@@ -1285,7 +1318,7 @@ watch(
       <a-tab-pane key="agent-context">
         <template #tab><MergeCellsOutlined /> Agent Context</template>
         <a-empty
-          v-if="selectedPid === null"
+          v-if="selectedPids.size === 0"
           description="Select a PID to view agent TLS context"
         />
         <AgentContextPanel
@@ -1300,9 +1333,9 @@ watch(
     <ProcessPickerModal
       :open="showPicker"
       :processes="processes"
-      :selected-pid="selectedPid"
+      :selected-pids="[...selectedPids]"
       @update:open="showPicker = $event"
-      @select="onPickerSelect"
+      @select="(procs: any) => { procs.forEach((p: ProcessInfo) => addPid(p.pid)) }"
     />
 
     <!-- File/directory browser modal -->
@@ -1344,6 +1377,17 @@ watch(
   align-items: center;
   gap: 10px;
   padding: 4px 0;
+}
+
+.multi-pid-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
 }
 
 .launch-grid {

@@ -11,12 +11,12 @@ const props = withDefaults(
   defineProps<{
     open: boolean;
     processes: ProcessInfo[];
-    selectedPid?: number | null;
+    selectedPids?: number[];
     loading?: boolean;
     title?: string;
   }>(),
   {
-    selectedPid: null,
+    selectedPids: () => [],
     loading: false,
     title: "选择进程",
   },
@@ -24,7 +24,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (event: "update:open", value: boolean): void;
-  (event: "select", process: ProcessInfo): void;
+  (event: "select", processes: ProcessInfo[]): void;
 }>();
 
 const processSearch = ref("");
@@ -77,7 +77,6 @@ const columns = [
       (a.user || "").localeCompare(b.user || ""),
   },
   { title: "Command Line", dataIndex: "cmdline", key: "cmdline" },
-  { title: "Action", key: "action", width: 96, align: "right" as const },
 ];
 
 const baseRows = computed<ProcessRow[]>(() =>
@@ -127,12 +126,32 @@ const tableRows = computed<ProcessRow[]>(() => {
   return roots;
 });
 
+// Row selection state (local copy of selected PIDs)
+const selectedRowKeys = ref<number[]>([...props.selectedPids]);
+
+// Sync from props when modal opens
+const syncSelectedFromProps = () => {
+  selectedRowKeys.value = [...props.selectedPids];
+};
+
+// Row selection config for a-table
+const rowSelection = computed(() => ({
+  selectedRowKeys: selectedRowKeys.value,
+  onChange: (keys: any[]) => {
+    selectedRowKeys.value = keys.map(Number);
+  },
+}));
+
 const close = () => {
   emit("update:open", false);
 };
 
-const selectProcess = (process: ProcessInfo) => {
-  emit("select", process);
+const confirmSelection = () => {
+  // Find ProcessInfo for each selected key
+  const selected = selectedRowKeys.value
+    .map((pid) => props.processes.find((p) => p.pid === pid))
+    .filter((p): p is ProcessInfo => p !== undefined);
+  emit("select", selected);
   close();
 };
 </script>
@@ -145,6 +164,7 @@ const selectProcess = (process: ProcessInfo) => {
     :footer="null"
     destroy-on-close
     @cancel="close"
+    @after-open-change="(visible: boolean) => { if (visible) syncSelectedFromProps() }"
   >
     <a-space direction="vertical" size="middle" style="width: 100%">
       <div class="process-picker-toolbar">
@@ -165,8 +185,8 @@ const selectProcess = (process: ProcessInfo) => {
           />
         </a-space>
         <a-space>
-          <a-tag v-if="selectedPid" color="processing"
-            >当前 PID {{ selectedPid }}</a-tag
+          <a-tag color="processing"
+            >已选 {{ selectedRowKeys.length }} 个 PID</a-tag
           >
           <a-tag
             >{{ filteredRows.length }} / {{ processes.length }} processes</a-tag
@@ -178,6 +198,7 @@ const selectProcess = (process: ProcessInfo) => {
         :data-source="tableRows"
         :columns="columns"
         :loading="loading"
+        :row-selection="rowSelection"
         size="small"
         row-key="pid"
         :pagination="{
@@ -186,10 +207,6 @@ const selectProcess = (process: ProcessInfo) => {
           pageSizeOptions: ['12', '25', '50', '100'],
         }"
         :scroll="{ y: 520, x: 980 }"
-        :row-class-name="
-          (record: ProcessRow) =>
-            record.pid === selectedPid ? 'process-picker-row-selected' : ''
-        "
       >
         <template #bodyCell="{ column, record, text }">
           <template v-if="column.key === 'pid'">
@@ -200,7 +217,6 @@ const selectProcess = (process: ProcessInfo) => {
               type="link"
               size="small"
               style="padding: 0"
-              @click="selectProcess(record)"
             >
               {{ text || "process" }}
             </a-button>
@@ -216,13 +232,20 @@ const selectProcess = (process: ProcessInfo) => {
               {{ text || "—" }}
             </a-typography-text>
           </template>
-          <template v-else-if="column.key === 'action'">
-            <a-button type="primary" size="small" @click="selectProcess(record)"
-              >选择</a-button
-            >
-          </template>
         </template>
       </a-table>
+
+      <div class="process-picker-footer">
+        <span class="footer-hint">
+          勾选需要观察的进程，点击确认
+        </span>
+        <a-space>
+          <a-button @click="close">取消</a-button>
+          <a-button type="primary" @click="confirmSelection">
+            确认 ({{ selectedRowKeys.length }})
+          </a-button>
+        </a-space>
+      </div>
     </a-space>
   </a-modal>
 </template>
@@ -244,7 +267,16 @@ const selectProcess = (process: ProcessInfo) => {
   white-space: nowrap;
 }
 
-:deep(.process-picker-row-selected) > td {
-  background: #e6f4ff !important;
+.process-picker-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.footer-hint {
+  font-size: 12px;
+  color: #6b7280;
 }
 </style>
