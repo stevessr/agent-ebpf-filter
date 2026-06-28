@@ -17,12 +17,14 @@ import {
 } from "../../composables/monitor/useProcessObserver";
 import ProcessPickerModal from "./ProcessPickerModal.vue";
 import ProcessTreeNodeDisplay from "./ProcessTreeNodeDisplay.vue";
+import ProcessDetailModal from "./ProcessDetailModal.vue";
 import ObserverTimeline from "./observer/ObserverTimeline.vue";
 import ObserverFlamegraph from "./observer/ObserverFlamegraph.vue";
 import ObserverResources from "./observer/ObserverResources.vue";
 import AgentContextPanel from "./observer/AgentContextPanel.vue";
 import FilePathBrowserModal from "./FilePathBrowserModal.vue";
 import SSLDecryptedEventModal from "./observer/SSLDecryptedEventModal.vue";
+import { useRoute, useRouter } from "vue-router";
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -33,7 +35,7 @@ const props = defineProps<{
   memTotal?: number;
 }>();
 
-// ── Sub-tab state ────────────────────────────────────────────────────────
+// ── Sub-tab state with URL routing ────────────────────────────────────────
 
 const subTabKeys = [
   "selection",
@@ -48,13 +50,52 @@ const subTabKeys = [
   "agent-context",
 ] as const;
 type SubTabKey = (typeof subTabKeys)[number];
-const TAB_STORAGE_KEY = "observe-active-tab";
-const activeSubTab = ref<SubTabKey>(
-  (localStorage.getItem(TAB_STORAGE_KEY) as SubTabKey) || "selection",
-);
 
-watch(activeSubTab, (tab) => {
+const TAB_STORAGE_KEY = "observe-active-tab";
+const route = useRoute();
+const router = useRouter();
+
+const getRouteParam = (param: unknown): string | undefined =>
+  Array.isArray(param) ? param[0] : (param ?? undefined);
+
+const normalizeObserveTab = (tab: unknown): SubTabKey => {
+  if (typeof tab === "string" && (subTabKeys as readonly string[]).includes(tab)) {
+    return tab as SubTabKey;
+  }
+  // Fallback: localStorage → default
+  try {
+    const stored = localStorage.getItem(TAB_STORAGE_KEY) as SubTabKey | null;
+    if (stored && (subTabKeys as readonly string[]).includes(stored)) {
+      return stored as SubTabKey;
+    }
+  } catch { /* ignore */ }
+  return "selection";
+};
+
+// Initialize from URL param, falling back to localStorage → "selection"
+const urlTab = getRouteParam(route.params.tab);
+const initialTab = normalizeObserveTab(urlTab);
+const activeSubTab = ref<SubTabKey>(initialTab);
+
+// If URL is missing or invalid, rewrite it with the resolved tab
+if (!urlTab || normalizeObserveTab(urlTab) !== initialTab) {
+  router.replace({ name: "Observe", params: { tab: initialTab } });
+}
+
+// Tab change handler – syncs to URL + localStorage
+const handleTabChange = (key: string) => {
+  const tab = normalizeObserveTab(key);
+  activeSubTab.value = tab;
+  router.replace({ name: "Observe", params: { tab } });
   try { localStorage.setItem(TAB_STORAGE_KEY, tab); } catch { /* ignore */ }
+};
+
+// Back/forward navigation – sync tab from URL
+watch(() => route.params.tab, (param) => {
+  const tab = normalizeObserveTab(getRouteParam(param));
+  if (tab !== activeSubTab.value) {
+    activeSubTab.value = tab;
+  }
 });
 
 // ── Composable ───────────────────────────────────────────────────────────
@@ -553,6 +594,20 @@ const expandedTLSRowRender = (record: ObserverTLSEvent) => {
 const collectAllPids = (nodes: ProcessTreeNode[]): number[] =>
   nodes.flatMap((n) => [n.pid, ...collectAllPids(n.children)]);
 
+// ── Process detail modal state ──────────────────────────────────────────────
+
+const detailModalOpen = ref(false);
+const detailModalProcess = ref<ProcessInfo | null>(null);
+
+const openProcessDetail = (node: ProcessTreeNode) => {
+  // Look up full ProcessInfo from the processes list
+  const info = props.processes.find((p) => p.pid === node.pid)
+    || treeProcessList.value.find((p) => p.pid === node.pid)
+    || null;
+  detailModalProcess.value = info;
+  detailModalOpen.value = true;
+};
+
 // ── Recursive tree state ─────────────────────────────────────────────────
 
 const expandedNodes = ref<Set<number>>(new Set());
@@ -751,7 +806,8 @@ watch(
 <template>
   <div class="observer-panel">
     <a-tabs
-      v-model:activeKey="activeSubTab"
+      :activeKey="activeSubTab"
+      @change="handleTabChange"
       size="small"
       type="card"
       class="observer-tabs"
@@ -968,6 +1024,7 @@ watch(
             :ssl-lib-for-pid="sslLibForPid"
             @toggle="toggleExpand"
             @select="(pid: number) => togglePid(pid)"
+            @show-detail="openProcessDetail"
           />
         </div>
       </a-tab-pane>
@@ -1352,6 +1409,16 @@ watch(
       :open="tlsDetailOpen"
       :event="tlsDetailEvent"
       @close="tlsDetailOpen = false"
+    />
+
+    <!-- Process detail modal -->
+    <ProcessDetailModal
+      :open="detailModalOpen"
+      :process="detailModalProcess"
+      :process-list="treeProcessList"
+      @update:open="detailModalOpen = $event"
+      @select-pid="(pid: number) => togglePid(pid)"
+      @signal="(pid: number, signal: string) => props.sendProcessSignal(pid, signal)"
     />
   </div>
 </template>

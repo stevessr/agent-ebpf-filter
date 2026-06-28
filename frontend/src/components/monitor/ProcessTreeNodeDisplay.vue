@@ -19,6 +19,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggle: [pid: number];
   select: [pid: number];
+  showDetail: [node: ProcessTreeNode];
 }>();
 
 const expanded = computed(() => props.expandedSet.has(props.node.pid));
@@ -32,6 +33,8 @@ const isDead = computed(() => props.node.dead === true);
     <div
       class="tree-node-row"
       :class="{ highlighted: isHighlighted, dead: isDead }"
+      @click.stop="emit('showDetail', node)"
+      style="cursor: pointer"
     >
       <span
         v-if="hasChildren"
@@ -80,6 +83,7 @@ const isDead = computed(() => props.node.dead === true);
         :ssl-lib-for-pid="sslLibForPid"
         @toggle="emit('toggle', $event)"
         @select="emit('select', $event)"
+        @show-detail="emit('showDetail', $event)"
       />
     </template>
   </div>
