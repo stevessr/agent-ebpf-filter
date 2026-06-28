@@ -22,15 +22,16 @@ const udsPath = "/tmp/agent-ebpf.sock"
 
 func main() {
 	var (
-		launchUser = flag.String("user", "", "run command as specified user")
-		launchCwd  = flag.String("cwd", "", "working directory for command")
+		launchUser   = flag.String("user", "", "run command as specified user")
+		launchCwd    = flag.String("cwd", "", "working directory for command")
+		observerMode = flag.Bool("observer", false, "auto-open observe page for this command")
 	)
 	flag.Parse()
 
 	// Remaining positional args are the command + its arguments
 	posArgs := flag.Args()
 	if len(posArgs) < 1 {
-		fmt.Println("Usage: agent-wrapper [--user <user>] [--cwd <path>] <command> [args...]")
+		fmt.Println("Usage: agent-wrapper [--user <user>] [--cwd <path>] [--observer] <command> [args...]")
 		os.Exit(1)
 	}
 
@@ -77,6 +78,7 @@ func main() {
 			ContainerId:    firstEnv("AGENT_EBPF_CONTAINER_ID", "CONTAINER_ID"),
 			Cwd:            firstNonEmpty(*launchCwd, firstEnv("AGENT_EBPF_CWD", "PWD"), cwd),
 				BinaryPath:     binPath,
+				Observer:       *observerMode,
 		}
 		req.ArgvDigest = buildArgvDigest(req.Comm, req.Args)
 

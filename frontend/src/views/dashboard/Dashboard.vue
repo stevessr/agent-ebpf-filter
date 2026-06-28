@@ -9,6 +9,7 @@ import {
 import FilePreviewDrawer from "../../components/explorer/FilePreviewDrawer.vue";
 import DashboardToolbar from "../../components/dashboard/DashboardToolbar.vue";
 import DashboardEventModal from "../../components/dashboard/DashboardEventModal.vue";
+import DashboardFilterPanel from "../../components/dashboard/DashboardFilterPanel.vue";
 import { useDashboard } from "../../composables/dashboard/useDashboard";
 
 import RedactionBadge from "../../components/common/RedactionBadge.vue";
@@ -75,6 +76,7 @@ const {
   exportEvents,
   exportEventsCSV,
   syscallDisplayName,
+  clearAllFilters,
 } = useDashboard();
 
 const copyPath = async (path: string) => {
@@ -102,6 +104,46 @@ void tableWrapperRef;
     >
       <a-tab-pane v-for="tab in categoryTabs" :key="tab.key" :tab="tab.label" />
     </a-tabs>
+
+    <!-- Filter panel shown only in "条件过滤" tab -->
+    <DashboardFilterPanel
+      v-if="activeTab === 'filter'"
+      :selected-tags="selectedTags"
+      :selected-types="selectedTypes"
+      :time-filter="timeFilter"
+      :pid-filter="pidFilter"
+      :command-filter="commandFilter"
+      :path-filter="pathFilter"
+      :is-deduplicated="isDeduplicated"
+      :hide-unknown="hideUnknown"
+      :net-dir-filter="netDirFilter"
+      :syscall-cat-filter="syscallCatFilter"
+      :tag-options="tagOptions"
+      :event-type-options="eventTypeOptions"
+      :network-dir-stats="networkDirStats"
+      :syscall-cat-stats="syscallCatStats"
+      :syscall-cat-labels="syscallCatLabels"
+      :syscall-cat-colors="syscallCatColors"
+      :builtin-filter-rules="builtinFilterRules"
+      :builtin-filter-state="builtinFilterState"
+      :builtin-filter-summary="builtinFilterSummary"
+      :set-builtin-filters-enabled="setBuiltinFiltersEnabled"
+      :get-filter-popup-container="getFilterPopupContainer"
+      @update:selected-tags="selectedTags = $event"
+      @update:selected-types="selectedTypes = $event"
+      @update:time-filter="timeFilter = $event"
+      @update:pid-filter="pidFilter = $event"
+      @update:command-filter="commandFilter = $event"
+      @update:path-filter="pathFilter = $event"
+      @update:is-deduplicated="isDeduplicated = $event"
+      @update:hide-unknown="hideUnknown = $event"
+      @update:net-dir-filter="netDirFilter = $event"
+      @update:syscall-cat-filter="syscallCatFilter = $event"
+      @update:builtin-filter-state="
+        (id: string, enabled: boolean) => (builtinFilterState[id] = enabled)
+      "
+      @clear-all="clearAllFilters"
+    />
 
     <DashboardToolbar
       :is-connected="isConnected"

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from "vue";
+import { useRoute } from "vue-router";
 import { useMonitorData } from "../../composables/monitor/useMonitorData";
 import ProcessObserverPanel from "../../components/monitor/ProcessObserverPanel.vue";
+
+const route = useRoute();
 
 const {
   processes,
@@ -13,6 +16,19 @@ const {
 
 onMounted(() => {
   setup();
+
+  // If the route has a ?pid=XXX query param, pre-select it.
+  // The observer composable reads from localStorage; we write it here
+  // so ProcessObserverPanel picks it up on mount.
+  const pidParam = route.query.pid;
+  if (pidParam) {
+    const parsed = parseInt(String(pidParam), 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      try {
+        localStorage.setItem("observe-selected-pid", String(parsed));
+      } catch { /* ignore */ }
+    }
+  }
 });
 
 onUnmounted(() => {

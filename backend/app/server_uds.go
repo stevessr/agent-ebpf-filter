@@ -249,7 +249,27 @@ func startUDSServer(broadcast chan *pb.Event) {
 					}()
 				}
 
-				out, _ := proto.Marshal(resp)
+				// ── Observer mode: tell the frontend to navigate to the observe page ──
+	if req.Observer && req.Pid > 0 {
+		select {
+		case broadcast <- &pb.Event{
+			Pid:           req.Pid,
+			Comm:          req.Comm,
+			Type:          "wrapper_intercept",
+			EventType:     pb.EventType_OBSERVE_NAVIGATE,
+			Tag:           "Observer",
+			Path:          req.Comm,
+			ExtraInfo:     fmt.Sprintf("auto-observe pid=%d", req.Pid),
+			SchemaVersion: eventSchemaVersion,
+			RootAgentPid:  ctx.RootAgentPid,
+			AgentRunId:    ctx.AgentRunID,
+			TaskId:        ctx.TaskID,
+		}:
+		default:
+		}
+	}
+
+	out, _ := proto.Marshal(resp)
 				_, _ = c.Write(out)
 			}
 		}(conn)

@@ -62,6 +62,7 @@ export const pb = $root.pb = (() => {
      * @property {number} SYSTEM_METRIC=39 SYSTEM_METRIC value
      * @property {number} OTEL_SPAN=40 OTEL_SPAN value
      * @property {number} AGENTSIGHT_ALERT=41 AGENTSIGHT_ALERT value
+     * @property {number} OBSERVE_NAVIGATE=42 OBSERVE_NAVIGATE value
      */
     pb.EventType = (function() {
         const valuesById = {}, values = Object.create(valuesById);
@@ -107,6 +108,7 @@ export const pb = $root.pb = (() => {
         values[valuesById[39] = "SYSTEM_METRIC"] = 39;
         values[valuesById[40] = "OTEL_SPAN"] = 40;
         values[valuesById[41] = "AGENTSIGHT_ALERT"] = 41;
+        values[valuesById[42] = "OBSERVE_NAVIGATE"] = 42;
         return values;
     })();
 
@@ -2502,6 +2504,7 @@ export const pb = $root.pb = (() => {
                 case 39:
                 case 40:
                 case 41:
+                case 42:
                     break;
                 }
             if (message.behavior != null && message.hasOwnProperty("behavior")) {
@@ -2899,6 +2902,10 @@ export const pb = $root.pb = (() => {
             case "AGENTSIGHT_ALERT":
             case 41:
                 message.eventType = 41;
+                break;
+            case "OBSERVE_NAVIGATE":
+            case 42:
+                message.eventType = 42;
                 break;
             }
             if (object.behavior != null) {
@@ -10344,6 +10351,7 @@ export const pb = $root.pb = (() => {
                 case 39:
                 case 40:
                 case 41:
+                case 42:
                     break;
                 }
             if (message.legacyEvent != null && message.hasOwnProperty("legacyEvent")) {
@@ -10750,6 +10758,10 @@ export const pb = $root.pb = (() => {
             case "AGENTSIGHT_ALERT":
             case 41:
                 message.eventType = 41;
+                break;
+            case "OBSERVE_NAVIGATE":
+            case 42:
+                message.eventType = 42;
                 break;
             }
             if (object.legacyEvent != null) {
@@ -13266,6 +13278,7 @@ export const pb = $root.pb = (() => {
          * @property {string|null} [taskId] WrapperRequest taskId
          * @property {string|null} [cwd] WrapperRequest cwd
          * @property {string|null} [binaryPath] WrapperRequest binaryPath
+         * @property {boolean|null} [observer] WrapperRequest observer
          */
 
         /**
@@ -13437,6 +13450,14 @@ export const pb = $root.pb = (() => {
         WrapperRequest.prototype.binaryPath = "";
 
         /**
+         * WrapperRequest observer.
+         * @member {boolean} observer
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.observer = false;
+
+        /**
          * Creates a new WrapperRequest instance using the specified properties.
          * @function create
          * @memberof pb.WrapperRequest
@@ -13499,6 +13520,8 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 18, wireType 2 =*/146).string(message.cwd);
             if (message.binaryPath != null && Object.hasOwnProperty.call(message, "binaryPath"))
                 writer.uint32(/* id 19, wireType 2 =*/154).string(message.binaryPath);
+            if (message.observer != null && Object.hasOwnProperty.call(message, "observer"))
+                writer.uint32(/* id 20, wireType 0 =*/160).bool(message.observer);
             return writer;
         };
 
@@ -13613,6 +13636,10 @@ export const pb = $root.pb = (() => {
                         message.binaryPath = reader.string();
                         break;
                     }
+                case 20: {
+                        message.observer = reader.bool();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -13709,6 +13736,9 @@ export const pb = $root.pb = (() => {
             if (message.binaryPath != null && message.hasOwnProperty("binaryPath"))
                 if (!$util.isString(message.binaryPath))
                     return "binaryPath: string expected";
+            if (message.observer != null && message.hasOwnProperty("observer"))
+                if (typeof message.observer !== "boolean")
+                    return "observer: boolean expected";
             return null;
         };
 
@@ -13767,6 +13797,8 @@ export const pb = $root.pb = (() => {
                 message.cwd = String(object.cwd);
             if (object.binaryPath != null)
                 message.binaryPath = String(object.binaryPath);
+            if (object.observer != null)
+                message.observer = Boolean(object.observer);
             return message;
         };
 
@@ -13804,6 +13836,7 @@ export const pb = $root.pb = (() => {
                 object.taskId = "";
                 object.cwd = "";
                 object.binaryPath = "";
+                object.observer = false;
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -13846,6 +13879,8 @@ export const pb = $root.pb = (() => {
                 object.cwd = message.cwd;
             if (message.binaryPath != null && message.hasOwnProperty("binaryPath"))
                 object.binaryPath = message.binaryPath;
+            if (message.observer != null && message.hasOwnProperty("observer"))
+                object.observer = message.observer;
             return object;
         };
 

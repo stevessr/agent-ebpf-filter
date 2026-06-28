@@ -312,7 +312,8 @@ export function useDashboard() {
         return true;
       });
     }
-    if (activeTab.value !== "all") {
+    // Category filtering: skip for "all" and "filter" tabs
+    if (activeTab.value !== "all" && activeTab.value !== "filter") {
       const categorySet = eventCategories[activeTab.value];
       if (categorySet) {
         result = result.filter(
@@ -327,12 +328,14 @@ export function useDashboard() {
   // Full filtered events including sub-filters
   const filteredEvents = computed(() => {
     let result = tabFilteredEvents.value;
-    if (activeTab.value === "network" && netDirFilter.value !== "all") {
+    // In "filter" tab or the tab-specific tab, apply sub-filters
+    const isFilterTab = activeTab.value === "filter";
+    if ((isFilterTab || activeTab.value === "network") && netDirFilter.value !== "all") {
       result = result.filter(
         (e) => (e.netDirection || "unknown") === netDirFilter.value,
       );
     }
-    if (activeTab.value === "syscall" && syscallCatFilter.value !== "all") {
+    if ((isFilterTab || activeTab.value === "syscall") && syscallCatFilter.value !== "all") {
       result = result.filter(
         (e) =>
           syscallCategory(parseSyscallNr(e.extraInfo)) ===
@@ -414,7 +417,9 @@ export function useDashboard() {
 
   // Stats use tabFilteredEvents (pre-sub-filter) to avoid zeroing out
   const networkDirStats = computed(() => {
-    const list = activeTab.value === "network" ? tabFilteredEvents.value : [];
+    const isNetworkOrFilter =
+      activeTab.value === "network" || activeTab.value === "filter";
+    const list = isNetworkOrFilter ? tabFilteredEvents.value : [];
     const dirs = { outgoing: 0, incoming: 0, listening: 0, unknown: 0 };
     for (const e of list) {
       const d = e.netDirection || "unknown";
@@ -425,7 +430,9 @@ export function useDashboard() {
   });
 
   const syscallCatStats = computed(() => {
-    const list = activeTab.value === "syscall" ? tabFilteredEvents.value : [];
+    const isSyscallOrFilter =
+      activeTab.value === "syscall" || activeTab.value === "filter";
+    const list = isSyscallOrFilter ? tabFilteredEvents.value : [];
     const cats: Record<string, number> = {};
     for (const e of list) {
       const cat = syscallCategory(parseSyscallNr(e.extraInfo));
@@ -617,6 +624,20 @@ export function useDashboard() {
         pathFilter.value = "";
         break;
     }
+  };
+
+  const clearAllFilters = () => {
+    selectedTags.value = [];
+    selectedTypes.value = [];
+    timeFilter.value = "";
+    pidFilter.value = "";
+    commandFilter.value = "";
+    pathFilter.value = "";
+    isDeduplicated.value = false;
+    hideUnknown.value = true;
+    netDirFilter.value = "all";
+    syscallCatFilter.value = "all";
+    builtinFilterState.value = createDefaultBuiltinFilterState();
   };
 
   watch(
@@ -873,5 +894,7 @@ export function useDashboard() {
     exportEvents,
     exportEventsCSV,
     syscallDisplayName,
+    clearAllFilters,
+    filterTabEvents: tabFilteredEvents,
   };
 }

@@ -62,6 +62,7 @@ message WrapperRequest {
   string task_id = 17;
   string cwd = 18;
   string binary_path = 19;  // resolved by wrapper before exec.LookPath
+  bool observer = 20;       // if true, backend triggers a frontend navigation to the observe page
 }
 
 message WrapperResponse {

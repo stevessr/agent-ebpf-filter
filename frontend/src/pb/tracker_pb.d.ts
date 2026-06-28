@@ -46,7 +46,8 @@ export namespace pb {
         STDIO = 38,
         SYSTEM_METRIC = 39,
         OTEL_SPAN = 40,
-        AGENTSIGHT_ALERT = 41
+        AGENTSIGHT_ALERT = 41,
+        OBSERVE_NAVIGATE = 42
     }
 
     /** BehaviorCategory enum. */
@@ -4455,6 +4456,9 @@ export namespace pb {
 
         /** WrapperRequest binaryPath */
         binaryPath?: (string|null);
+
+        /** WrapperRequest observer */
+        observer?: (boolean|null);
     }
 
     /** Represents a WrapperRequest. */
@@ -4522,6 +4526,9 @@ export namespace pb {
 
         /** WrapperRequest binaryPath. */
         public binaryPath: string;
+
+        /** WrapperRequest observer. */
+        public observer: boolean;
 
         /**
          * Creates a new WrapperRequest instance using the specified properties.

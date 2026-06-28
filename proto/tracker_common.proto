@@ -47,6 +47,7 @@ enum EventType {
   SYSTEM_METRIC = 39;
   OTEL_SPAN = 40;
   AGENTSIGHT_ALERT = 41;
+  OBSERVE_NAVIGATE = 42;
 }
 
 enum BehaviorCategory {

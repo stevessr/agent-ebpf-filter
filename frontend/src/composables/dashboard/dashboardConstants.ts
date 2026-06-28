@@ -273,6 +273,7 @@ export const categoryTabs = [
   { key: "hook", label: "钩子" },
   { key: "alert", label: "警报" },
   { key: "syscall", label: "系统调用" },
+  { key: "filter", label: "条件过滤" },
 ] as const;
 
 export const syscallCatLabels: Record<string, string> = {

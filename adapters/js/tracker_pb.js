@@ -64,6 +64,7 @@ $root.pb = (function() {
      * @property {number} SYSTEM_METRIC=39 SYSTEM_METRIC value
      * @property {number} OTEL_SPAN=40 OTEL_SPAN value
      * @property {number} AGENTSIGHT_ALERT=41 AGENTSIGHT_ALERT value
+     * @property {number} OBSERVE_NAVIGATE=42 OBSERVE_NAVIGATE value
      */
     pb.EventType = (function() {
         var valuesById = {}, values = Object.create(valuesById);
@@ -109,6 +110,7 @@ $root.pb = (function() {
         values[valuesById[39] = "SYSTEM_METRIC"] = 39;
         values[valuesById[40] = "OTEL_SPAN"] = 40;
         values[valuesById[41] = "AGENTSIGHT_ALERT"] = 41;
+        values[valuesById[42] = "OBSERVE_NAVIGATE"] = 42;
         return values;
     })();
 
@@ -2504,6 +2506,7 @@ $root.pb = (function() {
                 case 39:
                 case 40:
                 case 41:
+                case 42:
                     break;
                 }
             if (message.behavior != null && message.hasOwnProperty("behavior")) {
@@ -2901,6 +2904,10 @@ $root.pb = (function() {
             case "AGENTSIGHT_ALERT":
             case 41:
                 message.eventType = 41;
+                break;
+            case "OBSERVE_NAVIGATE":
+            case 42:
+                message.eventType = 42;
                 break;
             }
             if (object.behavior != null) {
@@ -10346,6 +10353,7 @@ $root.pb = (function() {
                 case 39:
                 case 40:
                 case 41:
+                case 42:
                     break;
                 }
             if (message.legacyEvent != null && message.hasOwnProperty("legacyEvent")) {
@@ -10752,6 +10760,10 @@ $root.pb = (function() {
             case "AGENTSIGHT_ALERT":
             case 41:
                 message.eventType = 41;
+                break;
+            case "OBSERVE_NAVIGATE":
+            case 42:
+                message.eventType = 42;
                 break;
             }
             if (object.legacyEvent != null) {
@@ -13268,6 +13280,7 @@ $root.pb = (function() {
          * @property {string|null} [taskId] WrapperRequest taskId
          * @property {string|null} [cwd] WrapperRequest cwd
          * @property {string|null} [binaryPath] WrapperRequest binaryPath
+         * @property {boolean|null} [observer] WrapperRequest observer
          */
 
         /**
@@ -13439,6 +13452,14 @@ $root.pb = (function() {
         WrapperRequest.prototype.binaryPath = "";
 
         /**
+         * WrapperRequest observer.
+         * @member {boolean} observer
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.observer = false;
+
+        /**
          * Creates a new WrapperRequest instance using the specified properties.
          * @function create
          * @memberof pb.WrapperRequest
@@ -13501,6 +13522,8 @@ $root.pb = (function() {
                 writer.uint32(/* id 18, wireType 2 =*/146).string(message.cwd);
             if (message.binaryPath != null && Object.hasOwnProperty.call(message, "binaryPath"))
                 writer.uint32(/* id 19, wireType 2 =*/154).string(message.binaryPath);
+            if (message.observer != null && Object.hasOwnProperty.call(message, "observer"))
+                writer.uint32(/* id 20, wireType 0 =*/160).bool(message.observer);
             return writer;
         };
 
@@ -13615,6 +13638,10 @@ $root.pb = (function() {
                         message.binaryPath = reader.string();
                         break;
                     }
+                case 20: {
+                        message.observer = reader.bool();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -13711,6 +13738,9 @@ $root.pb = (function() {
             if (message.binaryPath != null && message.hasOwnProperty("binaryPath"))
                 if (!$util.isString(message.binaryPath))
                     return "binaryPath: string expected";
+            if (message.observer != null && message.hasOwnProperty("observer"))
+                if (typeof message.observer !== "boolean")
+                    return "observer: boolean expected";
             return null;
         };
 
@@ -13769,6 +13799,8 @@ $root.pb = (function() {
                 message.cwd = String(object.cwd);
             if (object.binaryPath != null)
                 message.binaryPath = String(object.binaryPath);
+            if (object.observer != null)
+                message.observer = Boolean(object.observer);
             return message;
         };
 
@@ -13806,6 +13838,7 @@ $root.pb = (function() {
                 object.taskId = "";
                 object.cwd = "";
                 object.binaryPath = "";
+                object.observer = false;
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -13848,6 +13881,8 @@ $root.pb = (function() {
                 object.cwd = message.cwd;
             if (message.binaryPath != null && message.hasOwnProperty("binaryPath"))
                 object.binaryPath = message.binaryPath;
+            if (message.observer != null && message.hasOwnProperty("observer"))
+                object.observer = message.observer;
             return object;
         };
 

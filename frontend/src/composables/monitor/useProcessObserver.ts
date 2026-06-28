@@ -439,6 +439,20 @@ export function useProcessObserver() {
         for (const d of incoming) {
           const et = extractEventType(d);
           if (et === undefined) continue;
+
+          // ── Auto-navigate to observe page when backend sends OBSERVE_NAVIGATE ──
+          if (et === pb.EventType.OBSERVE_NAVIGATE && d.pid) {
+            try {
+              localStorage.setItem("observe-selected-pid", String(d.pid));
+            } catch { /* ignore */ }
+            if (router.currentRoute.value.name !== "Observe") {
+              router.push({ name: "Observe", query: { pid: String(d.pid) } });
+            } else {
+              selectedPid.value = d.pid;
+            }
+            continue; // don't display as a regular event
+          }
+
           pendingEvents.push({
             key: `ev-${Date.now()}-${nextKey()}`,
             pid: d.pid || 0,
