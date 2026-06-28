@@ -13265,6 +13265,7 @@ export const pb = $root.pb = (() => {
          * @property {string|null} [argvDigest] WrapperRequest argvDigest
          * @property {string|null} [taskId] WrapperRequest taskId
          * @property {string|null} [cwd] WrapperRequest cwd
+         * @property {string|null} [binaryPath] WrapperRequest binaryPath
          */
 
         /**
@@ -13428,6 +13429,14 @@ export const pb = $root.pb = (() => {
         WrapperRequest.prototype.cwd = "";
 
         /**
+         * WrapperRequest binaryPath.
+         * @member {string} binaryPath
+         * @memberof pb.WrapperRequest
+         * @instance
+         */
+        WrapperRequest.prototype.binaryPath = "";
+
+        /**
          * Creates a new WrapperRequest instance using the specified properties.
          * @function create
          * @memberof pb.WrapperRequest
@@ -13488,6 +13497,8 @@ export const pb = $root.pb = (() => {
                 writer.uint32(/* id 17, wireType 2 =*/138).string(message.taskId);
             if (message.cwd != null && Object.hasOwnProperty.call(message, "cwd"))
                 writer.uint32(/* id 18, wireType 2 =*/146).string(message.cwd);
+            if (message.binaryPath != null && Object.hasOwnProperty.call(message, "binaryPath"))
+                writer.uint32(/* id 19, wireType 2 =*/154).string(message.binaryPath);
             return writer;
         };
 
@@ -13598,6 +13609,10 @@ export const pb = $root.pb = (() => {
                         message.cwd = reader.string();
                         break;
                     }
+                case 19: {
+                        message.binaryPath = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -13691,6 +13706,9 @@ export const pb = $root.pb = (() => {
             if (message.cwd != null && message.hasOwnProperty("cwd"))
                 if (!$util.isString(message.cwd))
                     return "cwd: string expected";
+            if (message.binaryPath != null && message.hasOwnProperty("binaryPath"))
+                if (!$util.isString(message.binaryPath))
+                    return "binaryPath: string expected";
             return null;
         };
 
@@ -13747,6 +13765,8 @@ export const pb = $root.pb = (() => {
                 message.taskId = String(object.taskId);
             if (object.cwd != null)
                 message.cwd = String(object.cwd);
+            if (object.binaryPath != null)
+                message.binaryPath = String(object.binaryPath);
             return message;
         };
 
@@ -13783,6 +13803,7 @@ export const pb = $root.pb = (() => {
                 object.argvDigest = "";
                 object.taskId = "";
                 object.cwd = "";
+                object.binaryPath = "";
             }
             if (message.pid != null && message.hasOwnProperty("pid"))
                 object.pid = message.pid;
@@ -13823,6 +13844,8 @@ export const pb = $root.pb = (() => {
                 object.taskId = message.taskId;
             if (message.cwd != null && message.hasOwnProperty("cwd"))
                 object.cwd = message.cwd;
+            if (message.binaryPath != null && message.hasOwnProperty("binaryPath"))
+                object.binaryPath = message.binaryPath;
             return object;
         };
 

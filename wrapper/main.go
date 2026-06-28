@@ -47,6 +47,10 @@ func main() {
 	}
 
 	cwd, _ := os.Getwd()
+
+	// Resolve binary path before connecting and before exec.LookPath
+	binPath, _ := exec.LookPath(cmdName)
+
 	conn, err := net.DialTimeout("unix", udsPath, 500*time.Millisecond)
 	if err == nil {
 		defer conn.Close()
@@ -72,6 +76,7 @@ func main() {
 			RiskScore:      parseEnvFloat64("AGENT_EBPF_RISK_SCORE", "AGENT_RISK_SCORE"),
 			ContainerId:    firstEnv("AGENT_EBPF_CONTAINER_ID", "CONTAINER_ID"),
 			Cwd:            firstNonEmpty(*launchCwd, firstEnv("AGENT_EBPF_CWD", "PWD"), cwd),
+				BinaryPath:     binPath,
 		}
 		req.ArgvDigest = buildArgvDigest(req.Comm, req.Args)
 

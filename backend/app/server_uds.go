@@ -215,16 +215,23 @@ func startUDSServer(broadcast chan *pb.Event) {
 				if tlsCaptureController != nil && req.Pid > 0 && resolvedAction != pb.WrapperResponse_BLOCK {
 					pid := req.Pid
 					comm := req.Comm
+					reqBinPath := req.BinaryPath // wrapper may know the path before exec
 					go func() {
-						// Give the target process time to exec (syscall.Exec replaces
-						// the wrapper binary with the actual command).
-						time.Sleep(500 * time.Millisecond)
+						// Use the binary path supplied by the wrapper (if available)
+						// so we can start attach immediately without waiting for exec.
+						binPath := strings.TrimSpace(reqBinPath)
+						if binPath == "" {
+							// Fall back: give the target process time to exec
+							// (syscall.Exec replaces the wrapper binary
+							// with the actual command).
+							time.Sleep(500 * time.Millisecond)
 
-						// Resolve the actual binary path for the exec'd PID.
-						binPath, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
-						if err != nil || binPath == "" {
-							log.Printf("[tls] wrapper-attach: PID %d (%s): cannot read exe after exec: %v", pid, comm, err)
-							return
+							var err error
+							binPath, err = os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
+							if err != nil || binPath == "" {
+								log.Printf("[tls] wrapper-attach: PID %d (%s): cannot read exe after exec: %v", pid, comm, err)
+								return
+							}
 						}
 
 						manager, err := tlsCaptureController.EnsureStarted()

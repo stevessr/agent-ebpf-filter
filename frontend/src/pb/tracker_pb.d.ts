@@ -4452,6 +4452,9 @@ export namespace pb {
 
         /** WrapperRequest cwd */
         cwd?: (string|null);
+
+        /** WrapperRequest binaryPath */
+        binaryPath?: (string|null);
     }
 
     /** Represents a WrapperRequest. */
@@ -4516,6 +4519,9 @@ export namespace pb {
 
         /** WrapperRequest cwd. */
         public cwd: string;
+
+        /** WrapperRequest binaryPath. */
+        public binaryPath: string;
 
         /**
          * Creates a new WrapperRequest instance using the specified properties.

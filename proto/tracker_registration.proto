@@ -61,6 +61,7 @@ message WrapperRequest {
   string argv_digest = 16;
   string task_id = 17;
   string cwd = 18;
+  string binary_path = 19;  // resolved by wrapper before exec.LookPath
 }
 
 message WrapperResponse {
