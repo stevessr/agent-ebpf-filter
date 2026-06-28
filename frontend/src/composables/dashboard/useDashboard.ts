@@ -895,6 +895,5 @@ export function useDashboard() {
     exportEventsCSV,
     syscallDisplayName,
     clearAllFilters,
-    filterTabEvents: tabFilteredEvents,
   };
 }

@@ -26,19 +26,19 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "update:selectedTags", value: string[]): void;
-  (e: "update:selectedTypes", value: number[]): void;
-  (e: "update:timeFilter", value: string): void;
-  (e: "update:pidFilter", value: string): void;
-  (e: "update:commandFilter", value: string): void;
-  (e: "update:pathFilter", value: string): void;
-  (e: "update:isDeduplicated", value: boolean): void;
-  (e: "update:hideUnknown", value: boolean): void;
-  (e: "update:netDirFilter", value: string): void;
-  (e: "update:syscallCatFilter", value: string): void;
-  (e: "update:builtinFilterState", id: string, enabled: boolean): void;
-  (e: "clearAll"): void;
-}">();
+  "update:selectedTags": [value: string[]];
+  "update:selectedTypes": [value: number[]];
+  "update:timeFilter": [value: string];
+  "update:pidFilter": [value: string];
+  "update:commandFilter": [value: string];
+  "update:pathFilter": [value: string];
+  "update:isDeduplicated": [value: boolean];
+  "update:hideUnknown": [value: boolean];
+  "update:netDirFilter": [value: string];
+  "update:syscallCatFilter": [value: string];
+  "update:builtinFilterState": [id: string, enabled: boolean];
+  clearAll: [];
+}>();
 
 const clearAll = () => emit("clearAll");
 </script>
