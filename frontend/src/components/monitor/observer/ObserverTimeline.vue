@@ -10,22 +10,35 @@ import {
   LockOutlined,
   ClearOutlined,
   EyeOutlined,
+  SettingOutlined,
+  FilterOutlined,
 } from "@ant-design/icons-vue";
-import type { ObserverEvent, ObserverTLSEvent } from "../../../composables/monitor/useProcessObserver";
+import type {
+  ObserverEvent,
+  ObserverTLSEvent,
+  EventIgnoreRule,
+} from "../../../composables/monitor/useProcessObserver";
+import { isEventIgnored } from "../../../composables/monitor/useProcessObserver";
 
 const props = withDefaults(defineProps<{
   events?: ObserverEvent[];
   tlsEvents?: ObserverTLSEvent[];
   selectedPid: number | null;
+  ignoreRules: EventIgnoreRule[];
 }>(), {
   events: () => [],
   tlsEvents: () => [],
+  ignoreRules: () => [],
 });
 
 const emit = defineEmits<{
   clear: [];
   selectPid: [pid: number];
   viewTLSEvent: [event: ObserverTLSEvent];
+  toggleIgnoreRule: [id: string];
+  addIgnoreRule: [rule: EventIgnoreRule];
+  removeIgnoreRule: [id: string];
+  resetIgnoreRules: [];
 }>();
 
 // Category filter
@@ -40,13 +53,25 @@ const categories: { key: Category; label: string; color: string; border: string;
   { key: "ssl", label: "SSL/TLS", color: "green", border: "#10b981", bg: "linear-gradient(90deg,#ecfdf5,#f0fdfa)", icon: LockOutlined },
 ];
 
+// ── Better classify function with type-name merging ──
+const EVENT_CATEGORY_MAP: Record<string, Category> = {
+  execve: "process", sched_process_exec: "process", sched_process_fork: "process",
+  sched_process_exit: "process", clone: "process", exit: "process", wait4: "process",
+  openat: "file", open: "file", read: "file", write: "file",
+  mkdir: "file", unlink: "file", chmod: "file", chown: "file",
+  rename: "file", link: "file", symlink: "file", mknod: "file",
+  network_connect: "network", network_bind: "network", network_sendto: "network",
+  network_recvfrom: "network", socket: "network", accept: "network", accept4: "network",
+  tcp_connect: "network", tcp_close: "network", tcp_state_change: "network", dns_query: "network",
+  tls_plaintext: "ssl", http_message: "ssl", sse_message: "ssl",
+  wrapper_intercept: "syscall", semantic_alert: "syscall", native_hook: "syscall",
+  generic_syscall: "syscall", ioctl: "syscall",
+  stdio: "file", system_metric: "syscall", agentsight_alert: "syscall",
+};
+
 const classify = (e: ObserverEvent): Category => {
   const t = (e.type || "").toLowerCase();
-  if (t.includes("exec")||t.includes("fork")||t.includes("clone")||t.includes("exit")) return "process";
-  if (t.includes("open")||t.includes("read")||t.includes("write")||t.includes("mkdir")||t.includes("unlink")||t.includes("chmod")||t.includes("chown")||t.includes("rename")||t.includes("link")||t.includes("symlink")||t.includes("mknod")) return "file";
-  if (t.includes("connect")||t.includes("bind")||t.includes("send")||t.includes("recv")||t.includes("socket")||t.includes("accept")||t.includes("dns")) return "network";
-  if (t.includes("tls")||t.includes("ssl")||t.includes("http")) return "ssl";
-  return "syscall";
+  return EVENT_CATEGORY_MAP[t] || "syscall";
 };
 
 const expanded = ref<Set<string>>(new Set());
@@ -56,9 +81,14 @@ const toggle = (key: string) => {
   expanded.value = s;
 };
 
-// Filtered events, newest first
+// Ignore rules panel toggle
+const showIgnorePanel = ref(false);
+
+// Filtered events (apply ignore rules first), newest first
 const filteredEvents = computed(() => {
   let list = [...props.events];
+  // Apply ignore rules
+  list = list.filter((e) => !isEventIgnored(e, props.ignoreRules));
   if (activeCat.value !== "all" && activeCat.value !== "ssl") {
     list = list.filter((e) => classify(e) === activeCat.value);
   }
@@ -94,9 +124,12 @@ const combinedList = computed(() => {
 
 // Counts per category for badges
 const catCounts = computed(() => {
-  const c: Record<string, number> = { all: props.events.length + (props.tlsEvents?.length || 0) };
-  for (const e of props.events) { const k = classify(e); c[k] = (c[k] || 0) + 1; }
+  const totalIgnored = props.events.filter((e) => isEventIgnored(e, props.ignoreRules)).length;
+  const active = props.events.filter((e) => !isEventIgnored(e, props.ignoreRules));
+  const c: Record<string, number> = { all: active.length + (props.tlsEvents?.length || 0) };
+  for (const e of active) { const k = classify(e); c[k] = (c[k] || 0) + 1; }
   c["ssl"] = (c["ssl"] || 0) + (props.tlsEvents?.length || 0);
+  c["_ignored"] = totalIgnored;
   return c;
 });
 
@@ -137,12 +170,10 @@ const tlsTypeColor = (e: ObserverTLSEvent): string => {
 };
 
 const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): string => {
-  // Use body if available
   if (ev.body) {
     const trimmed = ev.body.replace(/\s+/g, " ").trim();
     return trimmed.length > maxLen ? trimmed.slice(0, maxLen) + "…" : trimmed;
   }
-  // Decode raw hex dump as text
   if (ev.raw_hex_dump) {
     try {
       const bytes: number[] = [];
@@ -181,10 +212,44 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
     <div class="timeline-toolbar">
       <span class="toolbar-count">
         {{ activeCat === 'ssl' ? filteredTLSEvents.length : activeCat === 'all' ? combinedList.length : filteredEvents.length }} events
+        <span v-if="catCounts['_ignored'] > 0" class="ignored-badge" title="Events hidden by ignore rules">
+          <FilterOutlined /> {{ catCounts['_ignored'] }} ignored
+        </span>
       </span>
-      <a-button size="small" type="link" danger @click="emit('clear')">
-        <ClearOutlined /> Clear All
-      </a-button>
+      <div class="toolbar-actions">
+        <a-button size="small" type="link" @click="showIgnorePanel = !showIgnorePanel">
+          <SettingOutlined /> Ignore Rules
+        </a-button>
+        <a-button size="small" type="link" danger @click="emit('clear')">
+          <ClearOutlined /> Clear All
+        </a-button>
+      </div>
+    </div>
+
+    <!-- Ignore rules panel -->
+    <div v-if="showIgnorePanel" class="ignore-panel">
+      <div class="ignore-panel-header">
+        <span class="ignore-panel-title"><FilterOutlined /> Ignore Rules</span>
+        <a-button size="small" type="link" @click="emit('resetIgnoreRules')">Reset Defaults</a-button>
+      </div>
+      <div class="ignore-rule-list">
+        <div v-for="rule in props.ignoreRules" :key="rule.id" class="ignore-rule-row">
+          <a-switch
+            :checked="rule.enabled"
+            size="small"
+            @change="emit('toggleIgnoreRule', rule.id)"
+          />
+          <span class="ignore-rule-name" :class="{ disabled: !rule.enabled }">{{ rule.name }}</span>
+          <span class="ignore-rule-desc">{{ rule.description }}</span>
+          <a-tag v-for="t in rule.types" :key="t" color="default" size="small">{{ t }}</a-tag>
+          <a-button
+            size="small"
+            type="link"
+            danger
+            @click="emit('removeIgnoreRule', rule.id)"
+          >×</a-button>
+        </div>
+      </div>
     </div>
 
     <!-- SSL/TLS category: show TLS events -->
@@ -384,7 +449,36 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
   margin-bottom: 6px; padding-bottom: 4px;
   border-bottom: 1px solid #f0f0f0;
 }
-.toolbar-count { font-size: 12px; color: #4b5563; }
+.toolbar-count { font-size: 12px; color: #4b5563; display: flex; align-items: center; gap: 6px; }
+.toolbar-actions { display: flex; gap: 4px; }
+
+.ignored-badge {
+  font-size: 11px; color: #94a3b8; display: inline-flex; align-items: center; gap: 2px;
+}
+
+/* Ignore rules panel */
+.ignore-panel {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+  padding: 8px 10px; margin-bottom: 8px;
+}
+.ignore-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 6px;
+}
+.ignore-panel-title {
+  font-size: 12px; font-weight: 600; color: #0f172a;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.ignore-rule-list { display: flex; flex-direction: column; gap: 4px; }
+.ignore-rule-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 0; border-bottom: 1px solid #f1f5f9;
+}
+.ignore-rule-name {
+  font-size: 12px; font-weight: 500; color: #1e293b; min-width: 120px;
+}
+.ignore-rule-name.disabled { color: #94a3b8; }
+.ignore-rule-desc { font-size: 11px; color: #94a3b8; flex: 1; }
 
 .timeline-list { display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow-y: auto; }
 
@@ -428,20 +522,11 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
 .detail-row code { font-family: ui-monospace,monospace; color: #0f172a; font-size: 12px; word-break: break-all; }
 
 /* TLS timeline body */
-.tls-timeline-body {
-  flex: 1;
-  min-width: 0;
-}
+.tls-timeline-body { flex: 1; min-width: 0; }
 .tls-timeline-body pre {
-  background: #0f172a;
-  color: #dbeafe;
-  padding: 6px 10px;
-  border-radius: 4px;
-  font-size: 11px;
-  line-height: 1.45;
-  max-height: 120px;
-  overflow: auto;
-  margin: 2px 0 0;
+  background: #0f172a; color: #dbeafe; padding: 6px 10px;
+  border-radius: 4px; font-size: 11px; line-height: 1.45;
+  max-height: 120px; overflow: auto; margin: 2px 0 0;
   white-space: pre-wrap;
 }
 </style>

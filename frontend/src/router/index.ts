@@ -28,7 +28,7 @@ const routes = [
     component: () => import("../views/monitor/Monitor.vue"),
   },
   {
-    path: "/observe",
+    path: "/observe/:tab?",
     name: "Observe",
     component: () => import("../views/observe/Observe.vue"),
   },
