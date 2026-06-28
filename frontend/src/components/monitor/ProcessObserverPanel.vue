@@ -15,6 +15,7 @@ import {
   type ProcessInfo,
   type ProcessTreeNode,
   type ObserverTLSEvent,
+  type EventIgnoreRule,
 } from "../../composables/monitor/useProcessObserver";
 import ProcessPickerModal from "./ProcessPickerModal.vue";
 import ProcessTreeNodeDisplay from "./ProcessTreeNodeDisplay.vue";
@@ -135,6 +136,11 @@ const {
   clearTCPConns,
   attachedPIDs,
   fetchAttachedPIDs,
+  // Ignore rules for timeline
+  ignoreRules,
+  toggleTimelineIgnoreRule,
+  removeTimelineIgnoreRule,
+  resetTimelineIgnoreRules,
 } = obs;
 
 setProcesses(props.processes);
