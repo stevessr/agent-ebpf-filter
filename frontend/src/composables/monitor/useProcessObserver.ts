@@ -86,6 +86,60 @@ export interface ProcessTreeNode {
   cmdline: string;
   children: ProcessTreeNode[];
   dead: boolean;
+  createTime: number;
+}
+
+// ── Timeline ignore rule types ─────────────────────────────────────────
+export interface EventIgnoreRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  types?: string[];
+  comms?: string[];
+  tags?: string[];
+  pathPrefixes?: string[];
+  categoryOverride?: string;
+  description?: string;
+}
+
+export const IGNORE_RULES_KEY = "agent-ebpf.timeline.ignoreRules";
+
+export const loadIgnoreRulesFromStorage = (): EventIgnoreRule[] => {
+  try {
+    const raw = localStorage.getItem(IGNORE_RULES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveIgnoreRulesToStorage = (rules: EventIgnoreRule[]) => {
+  try {
+    localStorage.setItem(IGNORE_RULES_KEY, JSON.stringify(rules));
+  } catch {
+    localStorage.removeItem(IGNORE_RULES_KEY);
+  }
+};
+
+export const DEFAULT_IGNORE_RULES: EventIgnoreRule[] = [
+  { id: "ignore-wrapper-intercept", name: "Wrapper Intercept", enabled: true, types: ["wrapper_intercept"], description: "Hide wrapper_intercept noise" },
+  { id: "ignore-semantic-alert", name: "Semantic Alerts", enabled: true, types: ["semantic_alert"], description: "Hide semantic loop alerts" },
+  { id: "ignore-stdio", name: "Stdio Events", enabled: true, types: ["stdio", "read", "write"], tags: ["Stdio"], description: "Low-signal stdio read/write" },
+  { id: "ignore-system-metrics", name: "System Metrics", enabled: true, types: ["system_metric"], description: "Periodic system metric snapshots" },
+  { id: "ignore-tcp-close", name: "TCP Close Events", enabled: true, types: ["tcp_close"], description: "High-frequency TCP teardown" },
+  { id: "ignore-agent-sight", name: "AgentSight Alerts", enabled: true, types: ["agentsight_alert"], description: "AgentSight diagnosis events" },
+  { id: "ignore-accept", name: "Accept / Accept4", enabled: true, types: ["accept", "accept4"], description: "TCP accept noise" },
+];
+
+export function isEventIgnored(event: ObserverEvent, rules: EventIgnoreRule[]): boolean {
+  for (const rule of rules) {
+    if (!rule.enabled) continue;
+    if (rule.types && rule.types.some((t) => event.type?.toLowerCase().includes(t.toLowerCase()))) return true;
+    if (rule.comms && rule.comms.some((c) => event.comm?.toLowerCase().includes(c.toLowerCase()))) return true;
+    if (rule.tags && rule.tags.some((t) => event.tag?.toLowerCase().includes(t.toLowerCase()))) return true;
+    if (rule.pathPrefixes && rule.pathPrefixes.some((p) => event.path?.toLowerCase().startsWith(p.toLowerCase()))) return true;
+  }
+  return false;
 }
 
 export interface NetworkFlow {
@@ -302,6 +356,7 @@ export function useProcessObserver() {
         cmdline: p.cmdline,
         children: [],
         dead: !livePids.has(p.pid),
+        createTime: p.createTime || 0,
       });
     }
 
@@ -317,6 +372,7 @@ export function useProcessObserver() {
         cmdline: p.cmdline,
         children: [], // rebuilt below
         dead: false,
+        createTime: p.createTime || 0,
       });
     }
 
@@ -728,6 +784,44 @@ export function useProcessObserver() {
     }
   }, { deep: true });
 
+  // ── Timeline ignore rules ──────────────────────────────────────────────
+  const ignoreRules = ref<EventIgnoreRule[]>(loadIgnoreRulesFromStorage());
+  const ignoreRulesInitialized = ref(false);
+
+  if (!ignoreRulesInitialized.value) {
+    ignoreRulesInitialized.value = true;
+    if (ignoreRules.value.length === 0) {
+      ignoreRules.value = [...DEFAULT_IGNORE_RULES];
+      saveIgnoreRulesToStorage(ignoreRules.value);
+    }
+  }
+
+  const addTimelineIgnoreRule = (rule: EventIgnoreRule) => {
+    const updated = [...ignoreRules.value, rule];
+    ignoreRules.value = updated;
+    saveIgnoreRulesToStorage(updated);
+  };
+
+  const removeTimelineIgnoreRule = (id: string) => {
+    const updated = ignoreRules.value.filter((r) => r.id !== id);
+    ignoreRules.value = updated;
+    saveIgnoreRulesToStorage(updated);
+  };
+
+  const toggleTimelineIgnoreRule = (id: string) => {
+    const updated = ignoreRules.value.map((r) =>
+      r.id === id ? { ...r, enabled: !r.enabled } : r,
+    );
+    ignoreRules.value = updated;
+    saveIgnoreRulesToStorage(updated);
+  };
+
+  const resetTimelineIgnoreRules = () => {
+    const updated = DEFAULT_IGNORE_RULES.map((r) => ({ ...r }));
+    ignoreRules.value = updated;
+    saveIgnoreRulesToStorage(updated);
+  };
+
   // ── Public API ───────────────────────────────────────────────────────────
 
   return {
@@ -780,6 +874,13 @@ export function useProcessObserver() {
     // SSL attachment
     attachedPIDs,
     fetchAttachedPIDs,
+    // Timeline ignore rules
+    ignoreRules,
+    addTimelineIgnoreRule,
+    removeTimelineIgnoreRule,
+    toggleTimelineIgnoreRule,
+    resetTimelineIgnoreRules,
+    isEventIgnored,
     // Scrollback caps (0 = unlimited)
     maxTLS,
     maxEvents,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import {
   CaretDownOutlined,
   CaretRightOutlined,
@@ -26,6 +26,44 @@ const expanded = computed(() => props.expandedSet.has(props.node.pid));
 const hasChildren = computed(() => props.node.children.length > 0);
 const isHighlighted = computed(() => props.highlightPids.has(props.node.pid));
 const isDead = computed(() => props.node.dead === true);
+
+// ── Creation time & duration ────────────────────────────────────────────
+
+const now = ref(Date.now());
+let timer: ReturnType<typeof setInterval> | null = null;
+
+onMounted(() => {
+  timer = setInterval(() => { now.value = Date.now(); }, 1000);
+});
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer);
+});
+
+const formatTimestamp = (ts: number): string => {
+  if (!ts) return "";
+  const d = new Date(ts * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
+const formatDuration = (seconds: number): string => {
+  if (seconds < 0) return "—";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+};
+
+const formattedCreateTime = computed(() => formatTimestamp(props.node.createTime));
+
+const durationLabel = computed(() => {
+  if (!props.node.createTime) return "";
+  const elapsed = (now.value / 1000) - props.node.createTime;
+  return props.node.dead ? `lived ${formatDuration(elapsed)}` : formatDuration(elapsed);
+});
 </script>
 
 <template>
@@ -69,6 +107,10 @@ const isDead = computed(() => props.node.dead === true);
       <span class="tree-usage" v-if="!isDead">
         CPU {{ (node.cpu ?? 0).toFixed(1) }}% |
         Mem {{ (node.mem ?? 0).toFixed(1) }}%
+      </span>
+      <span class="tree-time" v-if="node.createTime" :title="'Started at ' + new Date(node.createTime * 1000).toLocaleString()">
+        {{ formattedCreateTime }}
+        <span class="tree-duration">{{ durationLabel }}</span>
       </span>
     </div>
     <template v-if="expanded && hasChildren">
@@ -144,6 +186,18 @@ const isDead = computed(() => props.node.dead === true);
   margin-left: auto;
   color: #4b5563;
   font-size: 11px;
+}
+.tree-time {
+  margin-left: 12px;
+  color: #6b7280;
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  cursor: help;
+}
+.tree-duration {
+  color: #8b8fa3;
+  font-size: 10px;
+  margin-left: 4px;
 }
 .ssl-dot {
   color: #10b981;

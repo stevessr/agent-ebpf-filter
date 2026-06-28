@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { ProcessInfo } from "../../composables/monitor/useProcessObserver";
 
 const props = defineProps<{
@@ -14,6 +14,41 @@ const emit = defineEmits<{
   (e: "signal", pid: number, signal: string): void;
 }>();
 
+// ── Live duration counter ───────────────────────────────────────────────
+
+const now = ref(Date.now());
+let timer: ReturnType<typeof setInterval> | null = null;
+
+onMounted(() => {
+  timer = setInterval(() => { now.value = Date.now(); }, 1000);
+});
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer);
+});
+
+const isDead = computed(() => {
+  if (!props.process) return false;
+  return !props.processList.some((p) => p.pid === props.process!.pid);
+});
+
+const formatDuration = (seconds: number): string => {
+  if (seconds < 0) return "—";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+};
+
+const durationLabel = computed(() => {
+  if (!props.process?.createTime) return "—";
+  const elapsed = (now.value / 1000) - props.process.createTime;
+  if (isDead.value) return `lived ${formatDuration(elapsed)}`;
+  return formatDuration(elapsed) + " (running)";
+});
+
 const formatBytes = (bytes: number): string => {
   if (!bytes || bytes === 0) return "—";
   const u = ["B", "KB", "MB", "GB"];
@@ -22,7 +57,7 @@ const formatBytes = (bytes: number): string => {
 };
 
 const formatTime = (ts?: number): string => {
-  if (!ts) return "—";
+  if (!ts || ts <= 0) return "—";
   const d = new Date(ts * 1000);
   return d.toLocaleString();
 };
@@ -126,6 +161,11 @@ const ancestorChain = computed<string>(() => {
             {{ formatTime(process.createTime) }}
           </span>
         </a-descriptions-item>
+        <a-descriptions-item label="Duration" :span="1">
+          <span :class="isDead ? 'duration-dead' : ''">
+            {{ durationLabel }}
+          </span>
+        </a-descriptions-item>
 
         <a-descriptions-item label="Minor Faults" :span="1">
           <code>{{ process.minorFaults?.toLocaleString() || "0" }}</code>
@@ -170,3 +210,10 @@ const ancestorChain = computed<string>(() => {
     <a-empty v-else description="No process selected" />
   </a-modal>
 </template>
+
+<style scoped>
+.duration-dead {
+  color: #9ca3af;
+  font-style: italic;
+}
+</style>
