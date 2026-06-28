@@ -811,6 +811,7 @@ func registerSystemRoutes(rg *gin.RouterGroup, _ ...*FeatureRegistry) {
 	syncHandlerDeps()
 	handlers.RegisterSystemRoutes(rg)
 	rg.GET("/features", handleSystemFeatures)
+	rg.GET("/bootstrap-health", handleBootstrapHealth)
 }
 
 // Hardware handler bridges (camera, microphone, sensors)
