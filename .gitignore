@@ -40,3 +40,16 @@ scripts/benchmark-syscalls
 *_STATUS.md
 BENCHMARK_*.md
 scripts/benchmark-syscalls-extended
+artifacts/competition-review/raw
+artifacts/final-delivery*
+artifacts/final-submission
+*.aux
+*.log
+*.snm
+*.toc
+*.vrb
+*.fls
+*.out
+*.nav
+*.xdv
+*.fdb_latexmk
