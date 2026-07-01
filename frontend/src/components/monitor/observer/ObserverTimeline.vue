@@ -265,7 +265,16 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
         class="event-block"
         style="border-left: 4px solid #10b981; background: linear-gradient(90deg,#ecfdf5,#f0fdfa)"
       >
-        <div class="event-head" @click="toggle(e.key)">
+        <div
+          class="event-head"
+          role="button"
+          tabindex="0"
+          :aria-expanded="expanded.has(e.key)"
+          :aria-label="`${expanded.has(e.key) ? 'Collapse' : 'Expand'} TLS event ${e.type}`"
+          @click="toggle(e.key)"
+          @keydown.enter.self.prevent="toggle(e.key)"
+          @keydown.space.self.prevent="toggle(e.key)"
+        >
           <span class="event-icon"><LockOutlined /></span>
           <a-tag :color="tlsTypeColor(e)" size="small">{{ tlsTypeLabel(e) }}</a-tag>
           <span class="event-type">{{ e.method || e.type }}</span>
@@ -275,7 +284,12 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
             color="processing"
             size="small"
             class="pid-tag"
+            role="button"
+            tabindex="0"
+            :aria-label="`Select process ${e.pid}`"
             @click.stop="emit('selectPid', e.pid)"
+            @keydown.enter.stop.prevent="emit('selectPid', e.pid)"
+            @keydown.space.stop.prevent="emit('selectPid', e.pid)"
           >PID {{ e.pid }}</a-tag>
           <span class="event-time">{{ e.timestamp?.slice(0, 19) || '' }}</span>
           <span class="expand-icon">
@@ -328,12 +342,32 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
               class="event-block"
               style="border-left: 4px solid #10b981; background: linear-gradient(90deg,#ecfdf5,#f0fdfa)"
             >
-              <div class="event-head" @click="toggle(item.tls.key)">
+              <div
+                class="event-head"
+                role="button"
+                tabindex="0"
+                :aria-expanded="expanded.has(item.tls.key)"
+                :aria-label="`${expanded.has(item.tls.key) ? 'Collapse' : 'Expand'} TLS event ${item.tls.type}`"
+                @click="toggle(item.tls.key)"
+                @keydown.enter.self.prevent="toggle(item.tls.key)"
+                @keydown.space.self.prevent="toggle(item.tls.key)"
+              >
                 <span class="event-icon"><LockOutlined /></span>
                 <a-tag :color="tlsTypeColor(item.tls)" size="small">{{ tlsTypeLabel(item.tls) }}</a-tag>
                 <span class="event-type">{{ item.tls.method || item.tls.type }}</span>
                 <span class="event-comm">{{ item.tls.comm }}</span>
-                <a-tag v-if="item.tls.pid" color="processing" size="small" class="pid-tag" @click.stop="emit('selectPid', item.tls.pid)">PID {{ item.tls.pid }}</a-tag>
+                <a-tag
+                  v-if="item.tls.pid"
+                  color="processing"
+                  size="small"
+                  class="pid-tag"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`Select process ${item.tls.pid}`"
+                  @click.stop="emit('selectPid', item.tls.pid)"
+                  @keydown.enter.stop.prevent="emit('selectPid', item.tls.pid)"
+                  @keydown.space.stop.prevent="emit('selectPid', item.tls.pid)"
+                >PID {{ item.tls.pid }}</a-tag>
                 <span class="event-time">{{ item.tls.timestamp?.slice(0, 19) || '' }}</span>
                 <span class="expand-icon">
                   <CaretDownOutlined v-if="expanded.has(item.tls.key)" />
@@ -358,12 +392,32 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
                 background: catInfo(classify(item.event)).bg,
               }"
             >
-              <div class="event-head" @click="toggle(item.event.key)">
+              <div
+                class="event-head"
+                role="button"
+                tabindex="0"
+                :aria-expanded="expanded.has(item.event.key)"
+                :aria-label="`${expanded.has(item.event.key) ? 'Collapse' : 'Expand'} event ${item.event.type}`"
+                @click="toggle(item.event.key)"
+                @keydown.enter.self.prevent="toggle(item.event.key)"
+                @keydown.space.self.prevent="toggle(item.event.key)"
+              >
                 <span class="event-icon"><component :is="catInfo(classify(item.event)).icon" /></span>
                 <a-tag :color="catInfo(classify(item.event)).color" size="small">{{ catInfo(classify(item.event)).label }}</a-tag>
                 <span class="event-type">{{ item.event.type.toUpperCase() }}</span>
                 <span class="event-comm">{{ item.event.comm }}</span>
-                <a-tag v-if="item.event.pid" color="processing" size="small" class="pid-tag" @click.stop="emit('selectPid', item.event.pid)">PID {{ item.event.pid }}</a-tag>
+                <a-tag
+                  v-if="item.event.pid"
+                  color="processing"
+                  size="small"
+                  class="pid-tag"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`Select process ${item.event.pid}`"
+                  @click.stop="emit('selectPid', item.event.pid)"
+                  @keydown.enter.stop.prevent="emit('selectPid', item.event.pid)"
+                  @keydown.space.stop.prevent="emit('selectPid', item.event.pid)"
+                >PID {{ item.event.pid }}</a-tag>
                 <span class="event-time">{{ item.event.time }}</span>
                 <span class="expand-icon">
                   <CaretDownOutlined v-if="expanded.has(item.event.key)" />
@@ -393,12 +447,32 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
               background: catInfo(classify(e)).bg,
             }"
           >
-            <div class="event-head" @click="toggle(e.key)">
+            <div
+              class="event-head"
+              role="button"
+              tabindex="0"
+              :aria-expanded="expanded.has(e.key)"
+              :aria-label="`${expanded.has(e.key) ? 'Collapse' : 'Expand'} event ${e.type}`"
+              @click="toggle(e.key)"
+              @keydown.enter.self.prevent="toggle(e.key)"
+              @keydown.space.self.prevent="toggle(e.key)"
+            >
               <span class="event-icon"><component :is="catInfo(classify(e)).icon" /></span>
               <a-tag :color="catInfo(classify(e)).color" size="small">{{ catInfo(classify(e)).label }}</a-tag>
               <span class="event-type">{{ e.type.toUpperCase() }}</span>
               <span class="event-comm">{{ e.comm }}</span>
-              <a-tag v-if="e.pid" color="processing" size="small" class="pid-tag" @click.stop="emit('selectPid', e.pid)">PID {{ e.pid }}</a-tag>
+              <a-tag
+                v-if="e.pid"
+                color="processing"
+                size="small"
+                class="pid-tag"
+                role="button"
+                tabindex="0"
+                :aria-label="`Select process ${e.pid}`"
+                @click.stop="emit('selectPid', e.pid)"
+                @keydown.enter.stop.prevent="emit('selectPid', e.pid)"
+                @keydown.space.stop.prevent="emit('selectPid', e.pid)"
+              >PID {{ e.pid }}</a-tag>
               <span class="event-time">{{ e.time }}</span>
               <span class="expand-icon">
                 <CaretDownOutlined v-if="expanded.has(e.key)" />

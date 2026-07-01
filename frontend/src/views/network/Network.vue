@@ -334,7 +334,12 @@ const connectWebSocket = () => {
 onMounted(() => {
   fetchRecentEvents();
   connectWebSocket();
-  axios.get("/config/tags").then((res) => (tags.value = res.data));
+  axios
+    .get("/config/tags")
+    .then((res) => (tags.value = res.data))
+    .catch(() => {
+      tags.value = [];
+    });
 });
 const clearNetworkEvents = () => {
   events.value = [];

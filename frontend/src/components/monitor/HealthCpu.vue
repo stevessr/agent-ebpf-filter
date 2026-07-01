@@ -123,7 +123,28 @@ const eCores = computed(() =>
               transition: all 0.2s;
             "
             class="core-card core-card--p"
+            role="button"
+            tabindex="0"
+            :aria-label="`Open P-Core #${core.index} usage history`"
             @click="
+              openHistoryChart(`P-Core #${core.index} Usage History`, [
+                {
+                  name: `P-Core #${core.index}`,
+                  data: statsHistory.cores[core.index] || [],
+                  color: getCoreTypeColor(core.type),
+                },
+              ])
+            "
+            @keydown.enter.prevent="
+              openHistoryChart(`P-Core #${core.index} Usage History`, [
+                {
+                  name: `P-Core #${core.index}`,
+                  data: statsHistory.cores[core.index] || [],
+                  color: getCoreTypeColor(core.type),
+                },
+              ])
+            "
+            @keydown.space.prevent="
               openHistoryChart(`P-Core #${core.index} Usage History`, [
                 {
                   name: `P-Core #${core.index}`,
@@ -194,7 +215,28 @@ const eCores = computed(() =>
               transition: all 0.2s;
             "
             class="core-card core-card--e"
+            role="button"
+            tabindex="0"
+            :aria-label="`Open E-Core #${core.index} usage history`"
             @click="
+              openHistoryChart(`E-Core #${core.index} Usage History`, [
+                {
+                  name: `E-Core #${core.index}`,
+                  data: statsHistory.cores[core.index] || [],
+                  color: getCoreTypeColor(core.type),
+                },
+              ])
+            "
+            @keydown.enter.prevent="
+              openHistoryChart(`E-Core #${core.index} Usage History`, [
+                {
+                  name: `E-Core #${core.index}`,
+                  data: statsHistory.cores[core.index] || [],
+                  color: getCoreTypeColor(core.type),
+                },
+              ])
+            "
+            @keydown.space.prevent="
               openHistoryChart(`E-Core #${core.index} Usage History`, [
                 {
                   name: `E-Core #${core.index}`,

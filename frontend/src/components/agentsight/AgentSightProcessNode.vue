@@ -107,7 +107,12 @@ const itemKey = (item: AgentSightTimelineItem, index: number) =>
           v-else-if="item.event"
           class="event-block"
           :class="`event-${item.event.type}`"
+          role="button"
+          tabindex="0"
+          :aria-label="`Toggle event ${item.event.id}`"
           @click="emit('toggleEvent', item.event.id)"
+          @keydown.enter.prevent="emit('toggleEvent', item.event.id)"
+          @keydown.space.prevent="emit('toggleEvent', item.event.id)"
         >
           <div class="event-head">
             <component :is="iconFor(item.event)" class="event-icon" />

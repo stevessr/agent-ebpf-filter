@@ -473,7 +473,12 @@ onMounted(async () => {
           <template v-if="column.key === 'name'">
             <div
               class="file-browser-name-cell"
+              role="button"
+              tabindex="0"
+              :aria-label="`${record.isDir ? 'Open directory' : 'Select file'} ${record.name}`"
               @click="handleEntryClick(record)"
+              @keydown.enter.prevent="handleEntryClick(record)"
+              @keydown.space.prevent="handleEntryClick(record)"
             >
               <FolderOutlined
                 v-if="record.isDir"
@@ -547,7 +552,12 @@ onMounted(async () => {
             class="file-browser-grid-item"
             :class="{ 'is-selected': item.path === selectedPath }"
             :style="{ width: `${gridItemSize}px` }"
+            role="button"
+            tabindex="0"
+            :aria-label="`${item.isDir ? 'Open directory' : 'Select file'} ${item.name}`"
             @click="handleEntryClick(item)"
+            @keydown.enter.prevent="handleEntryClick(item)"
+            @keydown.space.prevent="handleEntryClick(item)"
           >
             <div class="file-browser-grid-icon">
               <FolderOutlined

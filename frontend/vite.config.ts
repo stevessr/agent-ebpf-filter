@@ -17,6 +17,11 @@ try {
 
 const backendUrl = `http://localhost:${backendPort}`;
 const backendWsUrl = `ws://localhost:${backendPort}`;
+const bypassHtmlToIndex = (req: { headers: { accept?: string } }) => {
+  if (req.headers.accept?.includes("text/html")) {
+    return "/index.html";
+  }
+};
 
 const resolveAliases: Array<{ find: string | RegExp; replacement: string }> = [
   {
@@ -47,22 +52,17 @@ export default defineConfig({
       "^/config/(tags|comms|paths|prefixes|rules|runtime|access-token|export|import|hooks|ml|event-types).*":
         {
           target: backendUrl,
-          bypass: (req) => {
-            if (req.headers.accept?.includes("text/html")) {
-              return "/index.html";
-            }
-          },
+          bypass: bypassHtmlToIndex,
         },
       "/system": backendUrl,
       "^/events(/|$)": backendUrl,
-      "^/network(/|$)": backendUrl,
+      "^/network(/|$)": {
+        target: backendUrl,
+        bypass: bypassHtmlToIndex,
+      },
       "^/tls-capture(/|$)": {
         target: backendUrl,
-        bypass: (req) => {
-          if (req.headers.accept?.includes("text/html")) {
-            return "/index.html";
-          }
-        },
+        bypass: bypassHtmlToIndex,
       },
       "^/sandbox(/|$)": backendUrl,
     },

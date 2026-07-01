@@ -251,7 +251,12 @@ const onKill = (record: any) => {
         <template v-if="column.key === 'name'">
           <span
             style="font-weight: 500; cursor: pointer; color: #1890ff"
+            role="button"
+            tabindex="0"
+            :aria-label="`Show details for process ${text}`"
             @click="onShowDetails(record)"
+            @keydown.enter.prevent="onShowDetails(record)"
+            @keydown.space.prevent="onShowDetails(record)"
             >{{ text }}</span
           >
         </template>

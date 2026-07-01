@@ -275,6 +275,27 @@ const jumpToMinimap = (event: MouseEvent) => {
   );
 };
 
+const handleMinimapKeydown = (event: KeyboardEvent) => {
+  if (zoomLevel.value <= 1) return;
+  const maxOffset = Math.max(
+    fullTimeRange.value.span - visibleTimeRange.value.span,
+    0,
+  );
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    scrollBy(-0.1);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    scrollBy(0.1);
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    scrollOffset.value = 0;
+  } else if (event.key === "End") {
+    event.preventDefault();
+    scrollOffset.value = maxOffset;
+  }
+};
+
 const openDetails = (event: ProcessedAgentSightEvent) => {
   selectedEvent.value = event;
   detailsOpen.value = true;
@@ -366,14 +387,35 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
         <span>{{ formatFullTime(visibleTimeRange.end) }}</span>
       </div>
 
-      <div v-if="zoomLevel > 1" class="scrollbar" @click="jumpToMinimap">
+      <div
+        v-if="zoomLevel > 1"
+        class="scrollbar"
+        role="slider"
+        tabindex="0"
+        aria-label="Timeline scroll position"
+        :aria-valuemin="0"
+        :aria-valuemax="Math.max(fullTimeRange.span - visibleTimeRange.span, 0)"
+        :aria-valuenow="scrollOffset"
+        @click="jumpToMinimap"
+        @keydown.stop="handleMinimapKeydown"
+      >
         <div
           class="scrollbar-thumb"
           :style="{ left: `${thumbLeft}%`, width: `${thumbWidth}%` }"
         />
       </div>
 
-      <div class="minimap" @click="jumpToMinimap">
+      <div
+        class="minimap"
+        role="slider"
+        tabindex="0"
+        aria-label="Timeline minimap position"
+        :aria-valuemin="0"
+        :aria-valuemax="Math.max(fullTimeRange.span - visibleTimeRange.span, 0)"
+        :aria-valuenow="scrollOffset"
+        @click="jumpToMinimap"
+        @keydown.stop="handleMinimapKeydown"
+      >
         <span
           v-for="bucket in minimapDensities"
           :key="`mini-${bucket.index}`"

@@ -461,7 +461,12 @@ const startResize = (e: MouseEvent) => {
                           cursor: pointer;
                           color: #1677ff;
                         "
+                        role="button"
+                        tabindex="0"
+                        :aria-label="`Open flow detail for ${record.dstIp}`"
                         @click="openFlowDetail(record)"
+                        @keydown.enter.prevent="openFlowDetail(record)"
+                        @keydown.space.prevent="openFlowDetail(record)"
                         >{{ record.dstIp }}</span
                       >
                       <span
@@ -618,7 +623,12 @@ const startResize = (e: MouseEvent) => {
               <template v-if="column.key === 'name'">
                 <span
                   style="color: #1677ff; cursor: pointer"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`Open traffic chart for interface ${record.name}`"
                   @click="openInterfaceChart(record.name)"
+                  @keydown.enter.prevent="openInterfaceChart(record.name)"
+                  @keydown.space.prevent="openInterfaceChart(record.name)"
                   >{{ record.name }}</span
                 >
               </template>

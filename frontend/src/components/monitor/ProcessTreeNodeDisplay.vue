@@ -71,13 +71,24 @@ const durationLabel = computed(() => {
     <div
       class="tree-node-row"
       :class="{ highlighted: isHighlighted, dead: isDead }"
+      role="button"
+      tabindex="0"
+      :aria-label="`Show details for process ${node.pid} ${node.name}`"
       @click.stop="emit('showDetail', node)"
+      @keydown.enter.self.stop.prevent="emit('showDetail', node)"
+      @keydown.space.self.stop.prevent="emit('showDetail', node)"
       style="cursor: pointer"
     >
       <span
         v-if="hasChildren"
         class="tree-toggle"
+        role="button"
+        tabindex="0"
+        :aria-label="`${expanded ? 'Collapse' : 'Expand'} children for process ${node.pid}`"
+        :aria-expanded="expanded"
         @click.stop="emit('toggle', node.pid)"
+        @keydown.enter.stop.prevent="emit('toggle', node.pid)"
+        @keydown.space.stop.prevent="emit('toggle', node.pid)"
       >
         <CaretDownOutlined v-if="expanded" />
         <CaretRightOutlined v-else />
@@ -95,7 +106,12 @@ const durationLabel = computed(() => {
         v-if="!isDead && !isHighlighted"
         class="tree-focus-btn"
         title="Focus on this process"
+        role="button"
+        tabindex="0"
+        :aria-label="`Focus on process ${node.pid}`"
         @click.stop="emit('select', node.pid)"
+        @keydown.enter.stop.prevent="emit('select', node.pid)"
+        @keydown.space.stop.prevent="emit('select', node.pid)"
       >
         <AimOutlined />
       </span>

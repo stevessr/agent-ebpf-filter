@@ -55,7 +55,20 @@ defineProps<{
           :value="systemStats.memPercent"
           suffix="%"
           :precision="1"
+          role="button"
+          tabindex="0"
+          aria-label="Open memory usage history chart"
           @click="
+            openHistoryChart('Memory Usage History (%)', [
+              { name: 'Mem %', data: statsHistory.mem, color: '#52c41a' },
+            ])
+          "
+          @keydown.enter.prevent="
+            openHistoryChart('Memory Usage History (%)', [
+              { name: 'Mem %', data: statsHistory.mem, color: '#52c41a' },
+            ])
+          "
+          @keydown.space.prevent="
             openHistoryChart('Memory Usage History (%)', [
               { name: 'Mem %', data: statsHistory.mem, color: '#52c41a' },
             ])
@@ -74,7 +87,20 @@ defineProps<{
               color: #1890ff;
               cursor: pointer;
             "
+            role="button"
+            tabindex="0"
+            aria-label="Open used memory history chart"
             @click="
+              openHistoryChart('Used Memory Usage History', [
+                { name: 'Used', data: statsHistory.memUsed, color: '#1890ff' },
+              ])
+            "
+            @keydown.enter.prevent="
+              openHistoryChart('Used Memory Usage History', [
+                { name: 'Used', data: statsHistory.memUsed, color: '#1890ff' },
+              ])
+            "
+            @keydown.space.prevent="
               openHistoryChart('Used Memory Usage History', [
                 { name: 'Used', data: statsHistory.memUsed, color: '#1890ff' },
               ])
@@ -90,7 +116,28 @@ defineProps<{
               color: #52c41a;
               cursor: pointer;
             "
+            role="button"
+            tabindex="0"
+            aria-label="Open cached memory history chart"
             @click="
+              openHistoryChart('Cached Memory Usage History', [
+                {
+                  name: 'Cached',
+                  data: statsHistory.memCached,
+                  color: '#52c41a',
+                },
+              ])
+            "
+            @keydown.enter.prevent="
+              openHistoryChart('Cached Memory Usage History', [
+                {
+                  name: 'Cached',
+                  data: statsHistory.memCached,
+                  color: '#52c41a',
+                },
+              ])
+            "
+            @keydown.space.prevent="
               openHistoryChart('Cached Memory Usage History', [
                 {
                   name: 'Cached',
@@ -110,7 +157,28 @@ defineProps<{
               color: #faad14;
               cursor: pointer;
             "
+            role="button"
+            tabindex="0"
+            aria-label="Open buffers memory history chart"
             @click="
+              openHistoryChart('Buffers Memory Usage History', [
+                {
+                  name: 'Buffers',
+                  data: statsHistory.memBuffers,
+                  color: '#faad14',
+                },
+              ])
+            "
+            @keydown.enter.prevent="
+              openHistoryChart('Buffers Memory Usage History', [
+                {
+                  name: 'Buffers',
+                  data: statsHistory.memBuffers,
+                  color: '#faad14',
+                },
+              ])
+            "
+            @keydown.space.prevent="
               openHistoryChart('Buffers Memory Usage History', [
                 {
                   name: 'Buffers',

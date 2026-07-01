@@ -731,7 +731,16 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
         <div v-else class="ac-list">
           <div v-for="g in filteredSendGroups" :key="g.id" class="ac-card" :class="{'ac-sse':g.events[0]?.type==='sse_message' || g.contentBlocks.length>1 || g.contentBlocks.some(b=>b.type==='thinking'||b.type==='tool_use')}">
             <!-- head -->
-            <div class="ac-head" @click="toggle(g.id)">
+            <div
+              class="ac-head"
+              role="button"
+              tabindex="0"
+              :aria-expanded="expanded.has(g.id)"
+              :aria-label="`${expanded.has(g.id) ? 'Collapse' : 'Expand'} upstream context group`"
+              @click="toggle(g.id)"
+              @keydown.enter.self.prevent="toggle(g.id)"
+              @keydown.space.self.prevent="toggle(g.id)"
+            >
               <span class="ac-h-icon"><CaretDownOutlined v-if="expanded.has(g.id)" /><CaretRightOutlined v-else /></span>
               <a-tag :color="blockColor(g.contentBlocks[0]?.type||'raw')" size="small">{{ firstTypeLabel(g) }}</a-tag>
               <span class="ac-h-meta">
@@ -758,7 +767,17 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
               <div v-if="g.contentBlocks.length" class="ac-blocks">
                 <template v-for="(b,bi) in g.contentBlocks" :key="bi">
                   <div v-if="blockVisible(b)" class="ac-block" :class="`ac-b-${b.type}`">
-                    <div class="ac-b-head" @click.stop="toggleBlock(blockId(g.id, bi))" style="cursor:pointer">
+                    <div
+                      class="ac-b-head"
+                      role="button"
+                      tabindex="0"
+                      :aria-expanded="blockExpanded.has(blockId(g.id, bi))"
+                      :aria-label="`${blockExpanded.has(blockId(g.id, bi)) ? 'Collapse' : 'Expand'} upstream content block`"
+                      style="cursor:pointer"
+                      @click.stop="toggleBlock(blockId(g.id, bi))"
+                      @keydown.enter.stop.prevent="toggleBlock(blockId(g.id, bi))"
+                      @keydown.space.stop.prevent="toggleBlock(blockId(g.id, bi))"
+                    >
                       <span class="ac-expand-icon"><CaretDownOutlined v-if="blockExpanded.has(blockId(g.id,bi))" /><CaretRightOutlined v-else /></span>
                       <component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span>
                       <span v-if="blockTokens(g).input" class="ac-b-tok ac-b-tok-in" title="Input tokens">{{ blockTokens(g).input.toLocaleString() }}&thinsp;in</span>
@@ -781,7 +800,16 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
         <a-empty v-if="filteredRecvGroups.length===0" description="No downstream data" style="padding:24px" />
         <div v-else class="ac-list">
           <div v-for="g in filteredRecvGroups" :key="g.id" class="ac-card" :class="{'ac-sse':g.events[0]?.type==='sse_message' || g.contentBlocks.length>1 || g.contentBlocks.some(b=>b.type==='thinking'||b.type==='tool_use')}">
-            <div class="ac-head" @click="toggle(g.id)">
+            <div
+              class="ac-head"
+              role="button"
+              tabindex="0"
+              :aria-expanded="expanded.has(g.id)"
+              :aria-label="`${expanded.has(g.id) ? 'Collapse' : 'Expand'} downstream context group`"
+              @click="toggle(g.id)"
+              @keydown.enter.self.prevent="toggle(g.id)"
+              @keydown.space.self.prevent="toggle(g.id)"
+            >
               <span class="ac-h-icon"><CaretDownOutlined v-if="expanded.has(g.id)" /><CaretRightOutlined v-else /></span>
               <a-tag :color="blockColor(g.contentBlocks[0]?.type||'raw')" size="small">{{ firstTypeLabel(g) }}</a-tag>
               <span class="ac-h-meta">
@@ -807,7 +835,17 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
               <div v-if="g.contentBlocks.length" class="ac-blocks">
                 <template v-for="(b,bi) in g.contentBlocks" :key="bi">
                   <div v-if="blockVisible(b)" class="ac-block" :class="`ac-b-${b.type}`">
-                    <div class="ac-b-head" @click.stop="toggleBlock(blockId(g.id, bi))" style="cursor:pointer">
+                    <div
+                      class="ac-b-head"
+                      role="button"
+                      tabindex="0"
+                      :aria-expanded="blockExpanded.has(blockId(g.id, bi))"
+                      :aria-label="`${blockExpanded.has(blockId(g.id, bi)) ? 'Collapse' : 'Expand'} downstream content block`"
+                      style="cursor:pointer"
+                      @click.stop="toggleBlock(blockId(g.id, bi))"
+                      @keydown.enter.stop.prevent="toggleBlock(blockId(g.id, bi))"
+                      @keydown.space.stop.prevent="toggleBlock(blockId(g.id, bi))"
+                    >
                       <span class="ac-expand-icon"><CaretDownOutlined v-if="blockExpanded.has(blockId(g.id,bi))" /><CaretRightOutlined v-else /></span>
                       <component :is="blockIcon(b.type)" class="ac-b-icon" /><a-tag :color="blockColor(b.type)" size="small">{{ blockLabel(b.type) }}</a-tag><span v-if="b.toolName" class="ac-tn">{{ b.toolName }}</span><span v-if="b.toolId" class="ac-tid">{{ b.toolId }}</span><span class="ac-bsz">{{ formatBytes(b.mergedText.length) }}</span>
                     </div>

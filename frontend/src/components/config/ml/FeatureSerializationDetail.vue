@@ -619,7 +619,13 @@ watch(
                 :key="group.id"
                 class="flat-group-item"
                 :class="{ 'active': activeFlatGroupId === group.id }"
+                role="button"
+                tabindex="0"
+                :aria-current="activeFlatGroupId === group.id"
+                :aria-label="`Show feature group ${group.label}`"
                 @click="activeFlatGroupId = group.id"
+                @keydown.enter.prevent="activeFlatGroupId = group.id"
+                @keydown.space.prevent="activeFlatGroupId = group.id"
               >
                 <div class="group-header">
                   <a-tag :color="group.color" class="group-tag">Index {{ group.range }}</a-tag>

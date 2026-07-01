@@ -258,7 +258,15 @@ watch(
             <a-list-item
               :class="{ 'path-picker__selected': isHighlighted(item) }"
             >
-              <div class="path-picker__row" @click="chooseEntry(item)">
+              <div
+                class="path-picker__row"
+                role="button"
+                tabindex="0"
+                :aria-label="`${item.isDir ? 'Open directory' : 'Choose file'} ${item.name}`"
+                @click="chooseEntry(item)"
+                @keydown.enter.self.prevent="chooseEntry(item)"
+                @keydown.space.self.prevent="chooseEntry(item)"
+              >
                 <div class="path-picker__name">
                   <FolderOutlined v-if="item.isDir" style="color: #1890ff" />
                   <FileOutlined v-else style="color: #8c8c8c" />

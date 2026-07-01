@@ -108,7 +108,38 @@ const props = defineProps<{
                   transition: all 0.2s;
                 "
                 class="io-card"
+                role="button"
+                tabindex="0"
+                :aria-label="`Open network activity history for ${iface.name}`"
                 @click="
+                  openHistoryChart(`${iface.name} Activity`, [
+                    {
+                      name: 'Recv',
+                      data: statsHistory.netDevices[iface.name]?.recv || [],
+                      color: '#52c41a',
+                    },
+                    {
+                      name: 'Sent',
+                      data: statsHistory.netDevices[iface.name]?.sent || [],
+                      color: '#1890ff',
+                    },
+                  ])
+                "
+                @keydown.enter.prevent="
+                  openHistoryChart(`${iface.name} Activity`, [
+                    {
+                      name: 'Recv',
+                      data: statsHistory.netDevices[iface.name]?.recv || [],
+                      color: '#52c41a',
+                    },
+                    {
+                      name: 'Sent',
+                      data: statsHistory.netDevices[iface.name]?.sent || [],
+                      color: '#1890ff',
+                    },
+                  ])
+                "
+                @keydown.space.prevent="
                   openHistoryChart(`${iface.name} Activity`, [
                     {
                       name: 'Recv',
@@ -220,7 +251,38 @@ const props = defineProps<{
                 cursor: pointer;
               "
               class="io-card"
+              role="button"
+              tabindex="0"
+              :aria-label="`Open disk activity history for ${name}`"
               @click="
+                openHistoryChart(`${name} Activity`, [
+                  {
+                    name: 'Read',
+                    data: statsHistory.diskDevices[name]?.read || [],
+                    color: '#faad14',
+                  },
+                  {
+                    name: 'Write',
+                    data: statsHistory.diskDevices[name]?.write || [],
+                    color: '#722ed1',
+                  },
+                ])
+              "
+              @keydown.enter.prevent="
+                openHistoryChart(`${name} Activity`, [
+                  {
+                    name: 'Read',
+                    data: statsHistory.diskDevices[name]?.read || [],
+                    color: '#faad14',
+                  },
+                  {
+                    name: 'Write',
+                    data: statsHistory.diskDevices[name]?.write || [],
+                    color: '#722ed1',
+                  },
+                ])
+              "
+              @keydown.space.prevent="
                 openHistoryChart(`${name} Activity`, [
                   {
                     name: 'Read',

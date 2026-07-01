@@ -645,7 +645,12 @@ export function useMonitorData() {
   // Lifecycle
   const setup = () => {
     loading.value = true;
-    axios.get("/config/tags").then((res) => (tags.value = res.data));
+    axios
+      .get("/config/tags")
+      .then((res) => (tags.value = res.data))
+      .catch(() => {
+        tags.value = [];
+      });
     connectWebSocket();
   };
 

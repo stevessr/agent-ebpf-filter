@@ -156,7 +156,12 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
                 color: #4b5563;
                 cursor: pointer;
               "
+              role="button"
+              tabindex="0"
+              :aria-label="`Open GPU utilization history for ${gpu.name || 'GPU'}`"
               @click="openGpuUtilHistory(gpu)"
+              @keydown.enter.prevent="openGpuUtilHistory(gpu)"
+              @keydown.space.prevent="openGpuUtilHistory(gpu)"
             >
               GPU Utilization
             </div>
@@ -180,7 +185,12 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
                 color: #4b5563;
                 cursor: pointer;
               "
+              role="button"
+              tabindex="0"
+              :aria-label="`Open VRAM utilization history for ${gpu.name || 'GPU'}`"
               @click="openGpuVramUtilHistory(gpu)"
+              @keydown.enter.prevent="openGpuVramUtilHistory(gpu)"
+              @keydown.space.prevent="openGpuVramUtilHistory(gpu)"
             >
               VRAM Utilization
             </div>
@@ -210,7 +220,12 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
                 <div
                   style="font-size: 12px; color: #4b5563; cursor: pointer"
                   title="点击查看 VRAM 使用历史"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`Open VRAM usage history for ${gpu.name || 'GPU'}`"
                   @click="openGpuVramUsageHistory(gpu)"
+                  @keydown.enter.prevent="openGpuVramUsageHistory(gpu)"
+                  @keydown.space.prevent="openGpuVramUsageHistory(gpu)"
                 >
                   VRAM: {{ ((gpu.memUsed ?? 0) / 1024).toFixed(1) }} /
                   {{ ((gpu.memTotal ?? 0) / 1024).toFixed(1) }} GB
@@ -257,7 +272,12 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
                 <div
                   style="cursor: pointer"
                   title="点击查看功率历史"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`Open power history for ${gpu.name || 'GPU'}`"
                   @click="openGpuPowerHistory(gpu)"
+                  @keydown.enter.prevent="openGpuPowerHistory(gpu)"
+                  @keydown.space.prevent="openGpuPowerHistory(gpu)"
                 >
                   Power: {{ gpu.powerW }}W
                   <template v-if="(gpu.powerLimitW ?? 0) > 0">

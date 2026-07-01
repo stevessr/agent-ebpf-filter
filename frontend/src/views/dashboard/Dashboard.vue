@@ -380,7 +380,20 @@ void tableWrapperRef;
                   class="excel-path-text"
                   :class="{ clickable: canInteractWithPath(record) }"
                   :title="record.path"
+                  :role="canInteractWithPath(record) ? 'button' : undefined"
+                  :tabindex="canInteractWithPath(record) ? 0 : undefined"
+                  :aria-label="
+                    canInteractWithPath(record)
+                      ? `Preview path ${record.path}`
+                      : undefined
+                  "
                   @click="canInteractWithPath(record) && previewRecordPath(record)"
+                  @keydown.enter.prevent="
+                    canInteractWithPath(record) && previewRecordPath(record)
+                  "
+                  @keydown.space.prevent="
+                    canInteractWithPath(record) && previewRecordPath(record)
+                  "
                 >{{ record.path }}</span>
                 <a-tooltip title="Copy path">
                   <a-button

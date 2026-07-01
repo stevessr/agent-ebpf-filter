@@ -274,12 +274,12 @@
 }
 
 /* Form styling aligned with app theme */
-:deep(.ant-select-selector),
-:deep(.ant-input-number) {
+.block-map .ant-select-selector,
+.block-map .ant-input-number {
   background-color: #ffffff !important;
   border-color: #d9d9d9 !important;
   color: #0f172a !important;
 }
-:deep(.ant-select-arrow) {
+.block-map .ant-select-arrow {
   color: #94a3b8 !important;
 }

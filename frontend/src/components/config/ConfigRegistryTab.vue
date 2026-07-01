@@ -218,7 +218,22 @@ const registryTabKey = ref("tags");
                             ? 'text-decoration: line-through; opacity: 0.55; cursor: pointer;'
                             : 'cursor: pointer;'
                         "
+                        role="button"
+                        tabindex="0"
+                        :aria-label="`${entry.disabled ? 'Enable' : 'Disable'} command ${entry.comm}`"
                         @click.stop="
+                          toggleCommDisabled(
+                            entry.comm!,
+                            entry.disabled || false,
+                          )
+                        "
+                        @keydown.enter.stop.prevent="
+                          toggleCommDisabled(
+                            entry.comm!,
+                            entry.disabled || false,
+                          )
+                        "
+                        @keydown.space.stop.prevent="
                           toggleCommDisabled(
                             entry.comm!,
                             entry.disabled || false,

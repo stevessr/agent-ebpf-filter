@@ -273,47 +273,47 @@
   color: white;
 }
 
-:deep(.ant-select-selector),
-:deep(.ant-input),
-:deep(.ant-input-number),
-:deep(.ant-radio-button-wrapper) {
+.map-workspace-shell .ant-select-selector,
+.map-workspace-shell .ant-input,
+.map-workspace-shell .ant-input-number,
+.map-workspace-shell .ant-radio-button-wrapper {
   background-color: #ffffff !important;
   border-color: #d9d9d9 !important;
   color: var(--workflow-text) !important;
 }
 
-:deep(.ant-select-arrow) {
+.map-workspace-shell .ant-select-arrow {
   color: var(--workflow-text-muted) !important;
 }
 
-:deep(.ant-radio-button-wrapper-checked) {
+.map-workspace-shell .ant-radio-button-wrapper-checked {
   background-color: var(--workflow-primary) !important;
   color: #ffffff !important;
   border-color: var(--workflow-primary) !important;
 }
 
-:deep(.ant-radio-button-wrapper-checked.block-red) {
+.map-workspace-shell .ant-radio-button-wrapper-checked.block-red {
   background-color: #ef4444 !important;
   border-color: #ef4444 !important;
 }
 
-:deep(.ant-btn-dashed) {
+.map-workspace-shell .ant-btn-dashed {
   background: #ffffff !important;
   border-color: var(--workflow-border) !important;
   color: var(--workflow-text-muted) !important;
 }
 
-:deep(.ant-btn-dashed:hover) {
+.map-workspace-shell .ant-btn-dashed:hover {
   border-color: var(--workflow-primary) !important;
   color: var(--workflow-primary) !important;
 }
 
-:deep(.ant-card) {
+.map-workspace-shell .ant-card {
   background: #ffffff !important;
   border-color: var(--workflow-border) !important;
 }
 
-:deep(.ant-card-head) {
+.map-workspace-shell .ant-card-head {
   border-bottom-color: var(--workflow-border) !important;
   color: var(--workflow-text) !important;
   background: var(--workflow-surface-soft) !important;

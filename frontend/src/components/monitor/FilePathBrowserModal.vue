@@ -174,7 +174,13 @@ const pathBreadcrumbs = computed(() => {
               'is-dir': entry.isDir,
               'is-disabled': directoryOnly && !entry.isDir,
             }"
+            role="button"
+            :tabindex="directoryOnly && !entry.isDir ? -1 : 0"
+            :aria-disabled="directoryOnly && !entry.isDir"
+            :aria-label="`${entry.isDir ? 'Open directory' : 'Select file'} ${entry.name}`"
             @click="selectEntry(entry)"
+            @keydown.enter.prevent="selectEntry(entry)"
+            @keydown.space.prevent="selectEntry(entry)"
           >
             <FolderOutlined v-if="entry.isDir" class="fpb-icon dir-icon" />
             <FileOutlined v-else class="fpb-icon file-icon" />
