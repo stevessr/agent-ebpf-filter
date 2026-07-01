@@ -32,6 +32,8 @@ type MLAutoTuneCell struct {
 	MinSamplesLeaf       int     `json:"minSamplesLeaf"`
 	TrainAccuracy        float64 `json:"trainAccuracy"`
 	ValidationAccuracy   float64 `json:"validationAccuracy"`
+	AllowRecall          float64 `json:"allowRecall"`
+	BalancedAccuracy     float64 `json:"balancedAccuracy"`
 	InferenceThroughput  float64 `json:"inferenceThroughput"`
 	InferenceMsPerSample float64 `json:"inferenceMsPerSample"`
 	TrainDuration        float64 `json:"trainDuration"`
@@ -41,18 +43,19 @@ type MLAutoTuneCell struct {
 
 // MLAutoTuneResponse is the full result of an auto-tune grid search.
 type MLAutoTuneResponse struct {
-	XAxis           string           `json:"xAxis"`
-	YAxis           string           `json:"yAxis"`
-	Metric          string           `json:"metric"`
-	Granularity     float64          `json:"granularity"`
-	GridSize        int              `json:"gridSize"`
-	XValues         []int            `json:"xValues"`
-	YValues         []int            `json:"yValues"`
-	SampleCount     int              `json:"sampleCount"`
-	ValidationCount int              `json:"validationCount"`
-	TotalDuration   float64          `json:"totalDuration"`
-	Cells           []MLAutoTuneCell `json:"cells"`
-	Best            *MLAutoTuneCell  `json:"best,omitempty"`
+	XAxis           string                     `json:"xAxis"`
+	YAxis           string                     `json:"yAxis"`
+	Metric          string                     `json:"metric"`
+	Granularity     float64                    `json:"granularity"`
+	GridSize        int                        `json:"gridSize"`
+	XValues         []int                      `json:"xValues"`
+	YValues         []int                      `json:"yValues"`
+	SampleCount     int                        `json:"sampleCount"`
+	ValidationCount int                        `json:"validationCount"`
+	TotalDuration   float64                    `json:"totalDuration"`
+	Normalization   FeatureNormalizationReport `json:"normalization"`
+	Cells           []MLAutoTuneCell           `json:"cells"`
+	Best            *MLAutoTuneCell            `json:"best,omitempty"`
 }
 
 // MLModelTuneRequest describes a cross-model auto-tune request.
@@ -81,6 +84,8 @@ type MLModelTuneCandidate struct {
 	HyperParams          map[string]int      `json:"hyperParams"`
 	TrainAccuracy        float64             `json:"trainAccuracy"`
 	ValidationAccuracy   float64             `json:"validationAccuracy"`
+	AllowRecall          float64             `json:"allowRecall"`
+	BalancedAccuracy     float64             `json:"balancedAccuracy"`
 	InferenceThroughput  float64             `json:"inferenceThroughput"`
 	InferenceMsPerSample float64             `json:"inferenceMsPerSample"`
 	TrainDuration        float64             `json:"trainDuration"`

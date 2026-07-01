@@ -64,6 +64,7 @@ func registerConfigRoutes(rg *gin.RouterGroup, features *FeatureRegistry) {
 			ml.POST("/datasets/classic/:name/preview", handleClassicDatasetPreviewPost)
 			ml.POST("/datasets/pull", handleMLDatasetPullPost)
 			ml.POST("/datasets/import", handleMLDatasetImportPost)
+			ml.POST("/datasets/agent-legal", handleMLAgentLegalDatasetPost)
 			ml.GET("/datasets/export", handleMLDatasetExportGet)
 			ml.DELETE("/datasets", handleMLDatasetClearDelete)
 			ml.POST("/backtest", handleMLBacktestPost)

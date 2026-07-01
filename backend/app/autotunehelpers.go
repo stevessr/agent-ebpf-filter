@@ -26,6 +26,10 @@ func normalizeAutoTuneMetric(metric string) string {
 	switch strings.ToLower(strings.TrimSpace(metric)) {
 	case "", "validationaccuracy", "accuracy", "backtestaccuracy", "backtest", "validation":
 		return "validationAccuracy"
+	case "balancedaccuracy", "balanced", "macrorecall", "macro_recall", "balanced_accuracy":
+		return "balancedAccuracy"
+	case "allowrecall", "legalrecall", "benignrecall", "safecommandrecall", "safe_command_recall", "falsepositive", "false_positive":
+		return "allowRecall"
 	case "inferencethroughput", "throughput", "speed", "inferencespeed":
 		return "inferenceThroughput"
 	default:
@@ -37,12 +41,12 @@ func normalizeAutoTuneGridSize(size int) int {
 	if size < 3 {
 		size = 3
 	}
-	if size > 11 {
-		size = 11
+	if size > 31 {
+		size = 31
 	}
 	if size%2 == 0 {
 		size++
-		if size > 11 {
+		if size > 31 {
 			size -= 2
 		}
 	}
@@ -332,4 +336,77 @@ func evalLogisticModel(model *LogisticModel, samples []trainSample) float64 {
 		}
 	}
 	return float64(correct) / float64(len(samples))
+}
+
+type autoTuneClassificationMetrics struct {
+	Accuracy         float64
+	AllowRecall      float64
+	BalancedAccuracy float64
+}
+
+func evaluateAutoTuneClassificationMetrics(samples []trainSample, predict func([FeatureDim]float64) int32) autoTuneClassificationMetrics {
+	if len(samples) == 0 || predict == nil {
+		return autoTuneClassificationMetrics{}
+	}
+	var correct int
+	var perClassTotal [4]int
+	var perClassCorrect [4]int
+	for _, sample := range samples {
+		predicted := predict(sample.features)
+		if sample.label >= 0 && sample.label < 4 {
+			perClassTotal[sample.label]++
+			if predicted == sample.label {
+				perClassCorrect[sample.label]++
+			}
+		}
+		if predicted == sample.label {
+			correct++
+		}
+	}
+
+	seenClasses := 0
+	balancedSum := 0.0
+	for cls := 0; cls < 4; cls++ {
+		if perClassTotal[cls] == 0 {
+			continue
+		}
+		seenClasses++
+		balancedSum += float64(perClassCorrect[cls]) / float64(perClassTotal[cls])
+	}
+
+	allowRecall := 0.0
+	if perClassTotal[0] > 0 {
+		allowRecall = float64(perClassCorrect[0]) / float64(perClassTotal[0])
+	}
+	balancedAccuracy := 0.0
+	if seenClasses > 0 {
+		balancedAccuracy = balancedSum / float64(seenClasses)
+	}
+	return autoTuneClassificationMetrics{
+		Accuracy:         float64(correct) / float64(len(samples)),
+		AllowRecall:      allowRecall,
+		BalancedAccuracy: balancedAccuracy,
+	}
+}
+
+func evaluateAutoTuneTrainingSampleMetrics(samples []TrainingSample, model Model) autoTuneClassificationMetrics {
+	if model == nil {
+		return autoTuneClassificationMetrics{}
+	}
+	return evaluateAutoTuneClassificationMetrics(toTrainSamples(samples), func(features [FeatureDim]float64) int32 {
+		return model.Predict(features).Action
+	})
+}
+
+func autoTuneMetricScore(metric string, validationAccuracy, throughput float64, metrics autoTuneClassificationMetrics) float64 {
+	switch metric {
+	case "inferenceThroughput":
+		return throughput
+	case "allowRecall":
+		return metrics.AllowRecall
+	case "balancedAccuracy":
+		return metrics.BalancedAccuracy
+	default:
+		return validationAccuracy
+	}
 }

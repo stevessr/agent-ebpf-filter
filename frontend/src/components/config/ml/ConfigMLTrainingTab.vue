@@ -42,8 +42,10 @@ const {
   remoteDatasetLabelMode,
   remoteDatasetCleanSensitive,
   remoteDatasetLimit,
+  agentLegalDatasetLimit,
   loadingRemoteDataset,
   importingRemoteDataset,
+  importingAgentLegalDataset,
   remoteDatasetPreview,
   remoteDatasetMeta,
   trainingDatasetImportInput,
@@ -60,6 +62,7 @@ const {
   importExistingCommandData,
   fetchRemoteDatasetPreview,
   importRemoteDataset,
+  importAgentLegalDataset,
   importClassicDataset,
   openClassicSecurityDatasetPage,
   copyClassicSecurityDatasetPage,
@@ -176,6 +179,20 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
         <a-space wrap>
           <a-tag color="geekblue"
             >synthetic: {{ syntheticExpansionPresetCount }}</a-tag
+          >
+          <span style="font-size: 12px; color: #666">agent legal</span>
+          <a-input-number
+            v-model:value="agentLegalDatasetLimit"
+            :min="20"
+            :max="500"
+            size="small"
+            style="width: 92px"
+          />
+          <a-button
+            size="small"
+            @click="importAgentLegalDataset()"
+            :loading="importingAgentLegalDataset"
+            ><ImportOutlined /> 导入合法 Agent 行为</a-button
           >
           <a-tag color="blue"
             >downloadable internet:

@@ -324,7 +324,11 @@ export interface MLTrainingHistoryEntry {
 }
 
 export type MLAutoTuneAxis = string;
-export type MLAutoTuneMetric = "validationAccuracy" | "inferenceThroughput";
+export type MLAutoTuneMetric =
+  | "validationAccuracy"
+  | "balancedAccuracy"
+  | "allowRecall"
+  | "inferenceThroughput";
 export type MLAutoTuneGranularity = 1 | 2 | 4;
 
 export interface MLAutoTuneCell {
@@ -337,6 +341,8 @@ export interface MLAutoTuneCell {
   minSamplesLeaf: number;
   trainAccuracy: number;
   validationAccuracy: number;
+  allowRecall?: number;
+  balancedAccuracy?: number;
   inferenceThroughput: number;
   inferenceMsPerSample: number;
   trainDuration: number;
@@ -355,6 +361,18 @@ export interface MLAutoTuneResponse {
   sampleCount: number;
   validationCount: number;
   totalDuration: number;
+  normalization?: {
+    mode: string;
+    sampleCount: number;
+    featureDim: number;
+    minObserved: number;
+    maxObserved: number;
+    nonFiniteValues: number;
+    belowZeroValues: number;
+    aboveOneValues: number;
+    zeroVarianceFeatures: number;
+    normalizedFeatureHint?: string;
+  };
   cells: MLAutoTuneCell[];
   best: MLAutoTuneCell | null;
 }
@@ -373,6 +391,8 @@ export interface MLModelTuneCandidate {
   };
   trainAccuracy: number;
   validationAccuracy: number;
+  allowRecall?: number;
+  balancedAccuracy?: number;
   inferenceThroughput: number;
   inferenceMsPerSample: number;
   trainDuration: number;

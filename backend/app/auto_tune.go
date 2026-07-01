@@ -131,9 +131,10 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 			numTrees, maxDepth, minLeaf = setAutoTuneAxisValue(yAxis, yValue, numTrees, maxDepth, minLeaf)
 
 			cellStart := time.Now()
-			var trainAccuracy, validationAccuracy, throughput, msPerSample float64
+			var trainAccuracy, validationAccuracy, allowRecall, balancedAccuracy, throughput, msPerSample float64
 			var evalDuration time.Duration
 			var evalStart time.Time
+			var predictValidation func([FeatureDim]float64) int32
 
 			switch mt {
 			case ModelRandomForest:
@@ -150,6 +151,9 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				evalStart = time.Now()
 				validationAccuracy = evaluateForest(forest, validationSet)
 				evalDuration = time.Since(evalStart)
+				predictValidation = func(features [FeatureDim]float64) int32 {
+					return forest.Predict(features).Action
+				}
 
 			case ModelKNN:
 				k := numTrees
@@ -171,6 +175,9 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				evalStart = time.Now()
 				validationAccuracy = evalKNNModel(model, validationSet)
 				evalDuration = time.Since(evalStart)
+				predictValidation = func(features [FeatureDim]float64) int32 {
+					return model.Predict(features).Action
+				}
 
 			case ModelLogisticRegression:
 				lr := float64(numTrees) / 1000.0
@@ -195,6 +202,9 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				evalStart = time.Now()
 				validationAccuracy = evalLogisticModel(lrModel, validationSet)
 				evalDuration = time.Since(evalStart)
+				predictValidation = func(features [FeatureDim]float64) int32 {
+					return lrModel.Predict(features).Action
+				}
 
 			case ModelNaiveBayes:
 				nb := NewNaiveBayes()
@@ -235,6 +245,9 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				evalStart = time.Now()
 				validationAccuracy = evalModelSamples(nb, validationSet)
 				evalDuration = time.Since(evalStart)
+				predictValidation = func(features [FeatureDim]float64) int32 {
+					return nb.Predict(features).Action
+				}
 
 			case ModelExtraTrees:
 				seed := int64((yi+1)*100000 + (xi+1)*1000 + numTrees*31 + maxDepth*17 + minLeaf*13)
@@ -243,6 +256,9 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				evalStart = time.Now()
 				validationAccuracy = evalModelSamples(&ExtraTreesModel{Forest: et}, validationSet)
 				evalDuration = time.Since(evalStart)
+				predictValidation = func(features [FeatureDim]float64) int32 {
+					return et.Predict(features).Action
+				}
 
 			case ModelAdaBoost:
 				trainS, trainL := extractTrainData(trainSet)
@@ -251,6 +267,9 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				evalStart = time.Now()
 				validationAccuracy = evalModelSamples(ab, validationSet)
 				evalDuration = time.Since(evalStart)
+				predictValidation = func(features [FeatureDim]float64) int32 {
+					return ab.Predict(features).Action
+				}
 
 			case ModelEnsemble:
 				tmpStore := newTrainingDataStore(len(trainSet))
@@ -273,6 +292,9 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				evalStart = time.Now()
 				validationAccuracy = evalModelSamples(ens, validationSet)
 				evalDuration = time.Since(evalStart)
+				predictValidation = func(features [FeatureDim]float64) int32 {
+					return ens.Predict(features).Action
+				}
 
 			case ModelNearestCentroid:
 				metric := "euclidean"
@@ -320,6 +342,9 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				evalStart = time.Now()
 				validationAccuracy = evalModelSamples(model, validationSet)
 				evalDuration = time.Since(evalStart)
+				predictValidation = func(features [FeatureDim]float64) int32 {
+					return model.Predict(features).Action
+				}
 
 			case ModelSVM, ModelPerceptron, ModelPassiveAggressive, ModelRidge:
 				W := make([][FeatureDim + 1]float64, 4)
@@ -360,6 +385,21 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				evalStart = time.Now()
 				validationAccuracy = evalLinearModel(W, 4, validationSet)
 				evalDuration = time.Since(evalStart)
+				predictValidation = func(features [FeatureDim]float64) int32 {
+					bestClass := int32(0)
+					bestScore := math.Inf(-1)
+					for c := 0; c < 4; c++ {
+						score := W[c][FeatureDim]
+						for d := 0; d < FeatureDim; d++ {
+							score += W[c][d] * features[d]
+						}
+						if score > bestScore {
+							bestScore = score
+							bestClass = int32(c)
+						}
+					}
+					return bestClass
+				}
 			}
 
 			cellDuration := time.Since(cellStart)
@@ -367,11 +407,11 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				throughput = float64(len(validationSet)) / evalDuration.Seconds()
 				msPerSample = evalDuration.Seconds() * 1000 / float64(len(validationSet))
 			}
+			metrics := evaluateAutoTuneClassificationMetrics(validationSet, predictValidation)
+			allowRecall = metrics.AllowRecall
+			balancedAccuracy = metrics.BalancedAccuracy
 
-			score := validationAccuracy
-			if metric == "inferenceThroughput" {
-				score = throughput
-			}
+			score := autoTuneMetricScore(metric, validationAccuracy, throughput, metrics)
 
 			cell := MLAutoTuneCell{
 				XIndex:               xi,
@@ -383,6 +423,8 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				MinSamplesLeaf:       minLeaf,
 				TrainAccuracy:        trainAccuracy,
 				ValidationAccuracy:   validationAccuracy,
+				AllowRecall:          allowRecall,
+				BalancedAccuracy:     balancedAccuracy,
 				InferenceThroughput:  throughput,
 				InferenceMsPerSample: msPerSample,
 				TrainDuration:        cellDuration.Seconds(),
@@ -425,6 +467,7 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 		SampleCount:     len(labeled),
 		ValidationCount: len(validationRaw),
 		TotalDuration:   time.Since(start).Seconds(),
+		Normalization:   summarizeFeatureNormalization(labeled),
 		Cells:           cells,
 		Best:            best,
 	}, nil

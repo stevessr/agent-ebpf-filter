@@ -223,12 +223,13 @@ Config routes:
 - `/config/access-token`
 - `/config/hooks`
 - `/config/hooks/:id/raw`
-- `/config/ml/tune` and `/config/ml/tune-models` — run parameter-grid tuning for the current model or cross-model tuning over selected built-in profiles, with progress surfaced through `/config/ml/status`
+- `/config/ml/tune` and `/config/ml/tune-models` — run parameter-grid tuning for the current model or cross-model tuning over selected built-in profiles, with progress surfaced through `/config/ml/status`; scoring can optimize validation accuracy, balanced accuracy, legal/ALLOW recall, or inference throughput
 - `/config/ml/existing-commands`, `/config/ml/import-existing`, `/config/ml/assess`
 - `/config/ml/llm/production-dataset/pull` — pull a cleaned OpenAI chat-style JSONL preview from the current training store for LLM fine-tuning
-- `/config/ml/datasets/pull`, `/config/ml/datasets/import`, `/config/ml/datasets/export`, `DELETE /config/ml/datasets`
+- `/config/ml/datasets/pull`, `/config/ml/datasets/import`, `/config/ml/datasets/agent-legal`, `/config/ml/datasets/export`, `DELETE /config/ml/datasets`
 - the ML config also supports soft/hard/risk-stacked ensemble voting profiles, OpenAI-compatible LLM scoring, and post-training review; the frontend persists the LLM base URL, model, API key, timeout, temperature, max tokens, and validation split ratio
 - the dataset importer accepts raw HTTP/HTTPS payloads or local file uploads, and will recursively expand common archives / compressed payloads such as zip, tar, gzip, bzip2, and xz before parsing rows
+- the built-in Agent legal-behavior dataset adds normalized ALLOW samples for common coding-agent workflows such as repository inspection, file search, build/test commands, dependency metadata queries, and read-only container/service checks
 - the frontend also exposes a curated classic OS-security dataset catalog for reference; one-click presets carry their own import format/label mode, and archival pages still need you to download or extract the actual data first
 - `/plugins`, `/plugins/:id`, `/plugins/bpf/{templates,compile,load,unload}`, and `/plugins/visual/llm-compile` cover plugin CRUD, eBPF source build/load, and LLM natural-language-to-block compilation; mutating/plugin-load routes remain protected by `policyManagementEnabled`.
 

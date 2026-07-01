@@ -536,6 +536,10 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
                 <a-radio-button value="validationAccuracy"
                   >回测准确率</a-radio-button
                 >
+                <a-radio-button value="balancedAccuracy"
+                  >平衡准确率</a-radio-button
+                >
+                <a-radio-button value="allowRecall">合法召回</a-radio-button>
                 <a-radio-button value="inferenceThroughput"
                   >推理速度</a-radio-button
                 >

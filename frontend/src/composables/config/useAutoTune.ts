@@ -236,6 +236,8 @@ export function useAutoTune(deps: AutoTuneDeps) {
   const autoTuneMetricLabel = (metric: MLAutoTuneMetric) => {
     const labels: Record<MLAutoTuneMetric, string> = {
       validationAccuracy: "回测准确率",
+      balancedAccuracy: "平衡准确率",
+      allowRecall: "合法行为召回",
       inferenceThroughput: "推理速度",
     };
     return labels[metric];
@@ -246,7 +248,7 @@ export function useAutoTune(deps: AutoTuneDeps) {
     metric = autoTuneMetric.value,
   ) => {
     if (!Number.isFinite(value)) return "—";
-    if (metric === "validationAccuracy") {
+    if (metric !== "inferenceThroughput") {
       return `${(value * 100).toFixed(1)}%`;
     }
     if (value >= 1000) {
@@ -261,10 +263,16 @@ export function useAutoTune(deps: AutoTuneDeps) {
   const autoTuneScore = (
     cell: MLAutoTuneCell,
     metric = autoTuneMetric.value,
-  ) =>
-    metric === "validationAccuracy"
-      ? cell.validationAccuracy
-      : cell.inferenceThroughput;
+  ) => {
+    if (metric === "inferenceThroughput") return cell.inferenceThroughput;
+    if (metric === "balancedAccuracy") {
+      return cell.balancedAccuracy ?? cell.validationAccuracy;
+    }
+    if (metric === "allowRecall") {
+      return cell.allowRecall ?? cell.validationAccuracy;
+    }
+    return cell.validationAccuracy;
+  };
 
   const autoTuneCellKey = (xIndex: number, yIndex: number) =>
     `${xIndex}:${yIndex}`;

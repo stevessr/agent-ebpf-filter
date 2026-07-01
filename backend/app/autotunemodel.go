@@ -81,6 +81,9 @@ func runModelAutoTune(store *TrainingDataStore, req MLModelTuneRequest, modelTyp
 		if candidate.ValidationCount == 0 {
 			candidate.ValidationCount = len(globalTrainer.LastValidationSamples())
 		}
+		validationMetrics := evaluateAutoTuneTrainingSampleMetrics(globalTrainer.LastValidationSamples(), model)
+		candidate.AllowRecall = validationMetrics.AllowRecall
+		candidate.BalancedAccuracy = validationMetrics.BalancedAccuracy
 
 		if req.TuneParams {
 			paramReq := MLAutoTuneRequest{
@@ -115,6 +118,9 @@ func runModelAutoTune(store *TrainingDataStore, req MLModelTuneRequest, modelTyp
 					candidate.TrainAccuracy = result.TrainAccuracy
 					candidate.ValidationAccuracy = result.ValidationAccuracy
 					candidate.ValidationCount = result.ValidationSamples
+					validationMetrics = evaluateAutoTuneTrainingSampleMetrics(globalTrainer.LastValidationSamples(), model)
+					candidate.AllowRecall = validationMetrics.AllowRecall
+					candidate.BalancedAccuracy = validationMetrics.BalancedAccuracy
 				} else {
 					candidate.Error = result.Error
 				}
@@ -125,10 +131,10 @@ func runModelAutoTune(store *TrainingDataStore, req MLModelTuneRequest, modelTyp
 		candidate.EvalDuration = evalDuration
 		candidate.InferenceThroughput = throughput
 		candidate.InferenceMsPerSample = latencyMs
-		candidate.Score = candidate.ValidationAccuracy
-		if metric == "inferenceThroughput" {
-			candidate.Score = candidate.InferenceThroughput
-		}
+		candidate.Score = autoTuneMetricScore(metric, candidate.ValidationAccuracy, candidate.InferenceThroughput, autoTuneClassificationMetrics{
+			AllowRecall:      candidate.AllowRecall,
+			BalancedAccuracy: candidate.BalancedAccuracy,
+		})
 		candidates = append(candidates, candidate)
 		if candidate.Error == "" && candidate.Score > bestScore {
 			copyCandidate := candidate

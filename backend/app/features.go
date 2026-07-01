@@ -100,17 +100,17 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	}
 
 	// Binary flags [15-25]
-	f[15] = platform.BoolToFloat(ml.IsShell(comm))                                      // is_shell
-	f[16] = platform.BoolToFloat(ml.IsPackageManager(comm))                             // is_package_manager
-	f[17] = platform.BoolToFloat(ml.IsAgentCLI(comm))                                   // is_agent_cli
+	f[15] = platform.BoolToFloat(ml.IsShell(comm))                                   // is_shell
+	f[16] = platform.BoolToFloat(ml.IsPackageManager(comm))                          // is_package_manager
+	f[17] = platform.BoolToFloat(ml.IsAgentCLI(comm))                                // is_agent_cli
 	f[18] = platform.BoolToFloat(user == "root")                                     // is_root_user
-	f[19] = platform.BoolToFloat(ml.HasNetworkArgs(args))                               // has_network_args
-	f[20] = platform.BoolToFloat(ml.HasFileArgs(args))                                  // has_file_args
-	f[21] = platform.BoolToFloat(ml.HasRedirect(args))                                  // has_redirection
-	f[22] = platform.BoolToFloat(ml.HasPipeChain(args))                                 // has_pipe
+	f[19] = platform.BoolToFloat(ml.HasNetworkArgs(args))                            // has_network_args
+	f[20] = platform.BoolToFloat(ml.HasFileArgs(args))                               // has_file_args
+	f[21] = platform.BoolToFloat(ml.HasRedirect(args))                               // has_redirection
+	f[22] = platform.BoolToFloat(ml.HasPipeChain(args))                              // has_pipe
 	f[23] = platform.BoolToFloat(len(args) > 10)                                     // many_args
 	f[24] = platform.BoolToFloat(strings.Contains(strings.Join(args, " "), "/dev/")) // dev_access
-	f[25] = platform.BoolToFloat(ml.HasSudoInArgs(args))                                // sudo_in_args
+	f[25] = platform.BoolToFloat(ml.HasSudoInArgs(args))                             // sudo_in_args
 
 	// Confidence encoding [26-27]
 	switch classification.Confidence {
@@ -404,8 +404,8 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	f[115] = float64(now.Weekday()) / 7.0 // day of week
 
 	// New features on previously unassigned dimensions [116-119]
-	f[116] = math.Sin(2.0 * math.Pi * float64(now.Hour()) / 24.0)
-	f[117] = math.Cos(2.0 * math.Pi * float64(now.Hour()) / 24.0)
+	f[116] = math.Sin(2.0 * math.Pi * float64(now.Hour()) / 24.0) // cyclic hour sin, remapped to [0,1] below
+	f[117] = math.Cos(2.0 * math.Pi * float64(now.Hour()) / 24.0) // cyclic hour cos, remapped to [0,1] below
 	isWeekend := now.Weekday() == time.Saturday || now.Weekday() == time.Sunday
 	f[118] = platform.BoolToFloat(isWeekend)
 	if len(history) > 0 {
@@ -429,6 +429,7 @@ func (fe *FeatureExtractor) Extract(comm string, args []string, user string, pid
 	f[126] = platform.BoolToFloat(netAudit.Flags.UnusualTarget)
 	f[127] = platform.BoolToFloat(netAudit.Flags.PortScan)
 
+	f = normalizeFeatureVector(f)
 	fe.updateStats(f)
 	return f
 }

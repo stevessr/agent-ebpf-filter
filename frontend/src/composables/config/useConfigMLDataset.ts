@@ -51,6 +51,8 @@ export function useConfigMLDataset(deps: {
   const importingRemoteDataset = ref(false);
   const remoteDatasetPreview = ref<RemoteDatasetRow[]>([]);
   const remoteDatasetMeta = ref<RemoteDatasetResponse | null>(null);
+  const agentLegalDatasetLimit = ref(120);
+  const importingAgentLegalDataset = ref(false);
 
   // ── LLM Production Dataset ──
   const llmProductionDatasetLimit = ref(500);
@@ -312,6 +314,31 @@ export function useConfigMLDataset(deps: {
     }
   };
 
+  const importAgentLegalDataset = async () => {
+    importingAgentLegalDataset.value = true;
+    try {
+      const res = await axios.post<RemoteDatasetResponse>(
+        "/config/ml/datasets/agent-legal",
+        {
+          limit: agentLegalDatasetLimit.value,
+          import: true,
+        },
+      );
+      remoteDatasetMeta.value = res.data;
+      remoteDatasetPreview.value = res.data.rows || [];
+      await refreshTrainingDatasetViews();
+      message.success(
+        `合法 Agent 行为样本导入完成：新增 ${res.data.imported ?? 0} 条，跳过 ${res.data.skipped ?? 0} 条`,
+      );
+    } catch (e: any) {
+      message.error(
+        e.response?.data?.error || "导入合法 Agent 行为样本失败",
+      );
+    } finally {
+      importingAgentLegalDataset.value = false;
+    }
+  };
+
   const importPresetBatch = async (
     presets: TrainingPreset[],
     label: string,
@@ -496,9 +523,12 @@ export function useConfigMLDataset(deps: {
     importingRemoteDataset,
     remoteDatasetPreview,
     remoteDatasetMeta,
+    agentLegalDatasetLimit,
+    importingAgentLegalDataset,
     fetchRemoteDatasetPreview,
     importRemoteDataset,
     importRemoteDatasetPayload,
+    importAgentLegalDataset,
     // LLM production dataset
     llmProductionDatasetLimit,
     llmProductionAllowHeuristic,
