@@ -23,6 +23,7 @@ func AllModelTypes() []ModelType {
 		ModelAdaBoost, ModelAdaBoostFast, ModelAdaBoostLarge,
 		ModelEnsemble, ModelEnsembleSoft, ModelEnsembleHard, ModelEnsembleStacked,
 		core.ModelGraphLearning,
+		ModelGANTransformer,
 		ModelAdditiveAttention,
 		ModelScaledDotProductAttention,
 		ModelMultiHeadAttention,
@@ -108,6 +109,8 @@ func modelName(t ModelType) string {
 		return "Hard-vote Ensemble"
 	case ModelEnsembleStacked:
 		return "Risk-stacked Ensemble"
+	case ModelGANTransformer:
+		return "GAN + Transformer"
 	case ModelScaledDotProductAttention:
 		return "Scaled Dot-Product Attention"
 	case ModelMultiHeadAttention:

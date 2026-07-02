@@ -8,6 +8,7 @@
 | **极速响应 (<2μs)** | `logistic` / `svm` | [详情](#内核态模型概览) |
 | **最高准确率** | `ensemble` / `neural_network` | [详情](#ensemble-系列) |
 | **数据不平衡** | `logistic_balanced` / `ensemble_stacked` | [详情](#logistic-regression-系列) |
+| **少样本合成扩增** | `gan_transformer` | [详情](#gan--transformer) |
 | **可解释性** | `logistic_l1` / `random_forest` | [详情](#使用场景) |
 | **内存受限 (<5KB)** | `ridge` / `svm` / `nearest_centroid` | [详情](#内核态模型概览) |
 
@@ -139,6 +140,12 @@
 | `ensemble_hard` | 硬投票 | 多数投票 | `hard-vote` |
 | `ensemble_stacked` ⭐ | 风险堆叠 | 少数高风险优先 | `risk-stacked` |
 
+### GAN + Transformer
+
+| ID | 描述 | 默认参数 | 标签 |
+|----|------|----------|------|
+| `gan_transformer` | Class-conditioned GAN 合成样本 + Transformer 编码判别器，用于少样本和边界样本增强对照 | latent=16, epochs≈24, synthetic/class=8 | `gan`, `transformer`, `synthetic` |
+
 ---
 
 ## ### 1: 生产环境部署
@@ -222,4 +229,4 @@ sudo cat model_new.bin > /proc/ml_load
 
 ---
 
-**总计**: 4 种内核态模型 + 47 种用户态模型变体 = **51 种 ML 模型**
+**总计**: 4 种内核态模型 + 48+ 种用户态模型变体（含 `gan_transformer`）= **52+ 种 ML 模型**

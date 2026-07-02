@@ -23,6 +23,7 @@ const (
 	ModelLogisticAttention     ModelType = "logistic_attention"
 	ModelKNNAttention          ModelType = "knn_attention"
 	ModelGraphLearning         ModelType = "graph_learning"
+	ModelGANTransformer        ModelType = "gan_transformer"
 
 	// Advanced attention mechanisms
 	ModelScaledDotProductAttention ModelType = "scaled_dot_product_attention"

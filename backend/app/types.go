@@ -58,6 +58,7 @@ const (
 	ModelPassiveAggressive  = core.ModelPassiveAggressive
 	ModelEnsemble           = core.ModelEnsemble
 	ModelAdditiveAttention  = core.ModelAdditiveAttention
+	ModelGANTransformer     = core.ModelGANTransformer
 
 	// Advanced attention mechanisms
 	ModelScaledDotProductAttention = core.ModelScaledDotProductAttention
@@ -127,6 +128,7 @@ const (
 	ModelAdaBoostFast  = core.ModelAdaBoostFast
 	ModelAdaBoostLarge = core.ModelAdaBoostLarge
 )
+
 // ── Global variables ─────────────────────────────────────────────────────────
 
 var (

@@ -425,6 +425,16 @@ export const defaultMLBuiltinModelCatalog: MLBuiltinModelCatalogItem[] = [
     defaults: { numTrees: 32, maxDepth: 2, minSamplesLeaf: 100 },
     tags: ["graph", "gnn", "stable"],
   },
+  {
+    value: "gan_transformer",
+    label: "GAN + Transformer",
+    base: "gan_transformer",
+    category: "生成式深度模型",
+    description:
+      "Class-conditioned GAN 数据扩增 + Transformer 编码判别器，适合少样本与边界样本增强对照。",
+    defaults: { numTrees: 16, maxDepth: 6, minSamplesLeaf: 4 },
+    tags: ["gan", "transformer", "synthetic", "deep"],
+  },
 ];
 
 export const findMLBuiltinModel = (
@@ -441,6 +451,7 @@ export const mlModelCategoryColor = (category?: string, base?: string) => {
   if (category?.includes("概率")) return "gold";
   if (category?.includes("Boosting") || category?.includes("集成"))
     return "magenta";
+  if (category?.includes("生成") || base?.includes("gan")) return "volcano";
   if (category?.includes("图") || category?.includes("graph")) return "geekblue";
   return "purple";
 };

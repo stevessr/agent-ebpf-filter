@@ -53,3 +53,4 @@ artifacts/final-submission
 *.nav
 *.xdv
 *.fdb_latexmk
+docs/delivery

@@ -409,6 +409,7 @@ func TestTrainerAllModelTypes(t *testing.T) {
 		{ModelEnsemble, 31, 8, 5, false},
 		{ModelEnsembleHard, 21, 8, 5, false},
 		{ModelEnsembleStacked, 31, 10, 5, false},
+		{ModelGANTransformer, 16, 4, 3, false},
 	}
 
 	for _, tc := range models {

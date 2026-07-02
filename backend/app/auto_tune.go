@@ -296,6 +296,23 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 					return ens.Predict(features).Action
 				}
 
+			case ModelGANTransformer:
+				cfg := DefaultMLConfig()
+				cfg.ModelType = ModelGANTransformer
+				cfg.NumTrees = numTrees
+				cfg.MaxDepth = maxDepth
+				cfg.MinSamplesLeaf = minLeaf
+				cfg.ValidationSplitRatio = validationRatio
+				model := NewGANTransformerModel(numTrees, maxDepth*4, minLeaf*2)
+				model.Train(toTrainingSamples(trainSet), cfg)
+				trainAccuracy = evalModelSamples(model, trainSet)
+				evalStart = time.Now()
+				validationAccuracy = evalModelSamples(model, validationSet)
+				evalDuration = time.Since(evalStart)
+				predictValidation = func(features [FeatureDim]float64) int32 {
+					return model.Predict(features).Action
+				}
+
 			case ModelNearestCentroid:
 				metric := "euclidean"
 				switch {

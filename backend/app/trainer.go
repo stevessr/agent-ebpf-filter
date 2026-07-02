@@ -230,6 +230,8 @@ func (t *ModelTrainer) TrainWithConfig(store *TrainingDataStore, cfg MLConfig) (
 		model, result = t.trainEnsemble(store, effectiveCfg)
 	case core.ModelGraphLearning:
 		model, result = t.trainGraph(store, effectiveCfg)
+	case ModelGANTransformer:
+		model, result = t.trainGANTransformer(store, effectiveCfg)
 	default:
 		model, result = t.Train(store, effectiveCfg.NumTrees, effectiveCfg.MaxDepth, effectiveCfg.MinSamplesLeaf)
 	}

@@ -129,6 +129,10 @@ func tryLoadModel(path string, t ModelType) Model {
 		if m, err := DeserializeGraphLearning(path); err == nil {
 			loaded = m
 		}
+	case ModelGANTransformer:
+		if m, err := DeserializeGANTransformer(path); err == nil {
+			loaded = m
+		}
 	}
 	return wrapModelType(loaded, requested)
 }
