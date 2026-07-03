@@ -28,6 +28,8 @@ type RuntimeSettings struct {
 	MLConfig                MLConfig                   `json:"mlConfig,omitempty"`
 	TlsCaptureEnabled       bool                       `json:"tlsCaptureEnabled"`
 	KernelRiskFeedback      KernelRiskFeedbackSettings `json:"kernelRiskFeedback,omitempty"`
+	LoopDetection           LoopDetectionSettings      `json:"loopDetection,omitempty"`
+	ResearchProcessing      ResearchProcessingSettings `json:"researchProcessing,omitempty"`
 	DomainForwardProxy      DomainForwardProxySettings `json:"domainForwardProxy"`
 }
 
@@ -40,6 +42,30 @@ type KernelRiskFeedbackSettings struct {
 	EnforceFileNames    bool    `json:"enforceFileNames"`
 	EnforceExec         bool    `json:"enforceExec"`
 	MaxActionsPerMinute int     `json:"maxActionsPerMinute"`
+}
+
+// LoopDetectionSettings controls the single-consumer repeated-context detector.
+// It is intentionally separated from hard enforcement: findings are surfaced to
+// the UI and, optionally, mirrored as RESOURCE_WASTING_LOOP semantic alerts.
+type LoopDetectionSettings struct {
+	Enabled            bool `json:"enabled"`
+	WindowSeconds      int  `json:"windowSeconds"`
+	RepeatThreshold    int  `json:"repeatThreshold"`
+	MaxContexts        int  `json:"maxContexts"`
+	QueueSize          int  `json:"queueSize"`
+	EmitSemanticAlerts bool `json:"emitSemanticAlerts"`
+}
+
+// ResearchProcessingSettings controls the backend mirror of frontend
+// AgentSight/research data transforms. The worker keeps normalized event
+// summaries, process context, and timeline buckets ready for UI/research APIs.
+type ResearchProcessingSettings struct {
+	Enabled               bool `json:"enabled"`
+	MaxEvents             int  `json:"maxEvents"`
+	QueueSize             int  `json:"queueSize"`
+	TimelineBucketSeconds int  `json:"timelineBucketSeconds"`
+	TopK                  int  `json:"topK"`
+	RecentSamples         int  `json:"recentSamples"`
 }
 
 // ExportConfig is the JSON shape returned by GET /config/export.

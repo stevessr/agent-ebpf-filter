@@ -9,9 +9,6 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section stateenvruntime.go ----
 
-
-
-
 func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	if settings == nil {
 		return errors.New("runtime settings are nil")
@@ -44,6 +41,8 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	}
 	normalizeDomainForwardProxySettings(&settings.DomainForwardProxy)
 	normalizeKernelRiskFeedbackSettings(&settings.KernelRiskFeedback)
+	normalizeLoopDetectionSettings(&settings.LoopDetection)
+	normalizeResearchProcessingSettings(&settings.ResearchProcessing)
 	for _, hook := range availableHooks {
 		if strings.TrimSpace(settings.HookSecrets[hook.ID]) == "" {
 			token, err := generateAccessToken()
@@ -137,6 +136,18 @@ func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
 	platform.ApplyBoolEnv(&settings.KernelRiskFeedback.EnforceFileNames, "AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_FILE_NAMES")
 	platform.ApplyBoolEnv(&settings.KernelRiskFeedback.EnforceExec, "AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_EXEC")
 	platform.ApplyIntEnv(&settings.KernelRiskFeedback.MaxActionsPerMinute, "AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_MAX_ACTIONS_PER_MINUTE")
+	platform.ApplyBoolEnv(&settings.LoopDetection.Enabled, "AGENT_RUNTIME_LOOP_DETECTION_ENABLED")
+	platform.ApplyIntEnv(&settings.LoopDetection.WindowSeconds, "AGENT_RUNTIME_LOOP_DETECTION_WINDOW_SECONDS")
+	platform.ApplyIntEnv(&settings.LoopDetection.RepeatThreshold, "AGENT_RUNTIME_LOOP_DETECTION_REPEAT_THRESHOLD")
+	platform.ApplyIntEnv(&settings.LoopDetection.MaxContexts, "AGENT_RUNTIME_LOOP_DETECTION_MAX_CONTEXTS")
+	platform.ApplyIntEnv(&settings.LoopDetection.QueueSize, "AGENT_RUNTIME_LOOP_DETECTION_QUEUE_SIZE")
+	platform.ApplyBoolEnv(&settings.LoopDetection.EmitSemanticAlerts, "AGENT_RUNTIME_LOOP_DETECTION_EMIT_ALERTS")
+	platform.ApplyBoolEnv(&settings.ResearchProcessing.Enabled, "AGENT_RUNTIME_RESEARCH_PROCESSING_ENABLED")
+	platform.ApplyIntEnv(&settings.ResearchProcessing.MaxEvents, "AGENT_RUNTIME_RESEARCH_PROCESSING_MAX_EVENTS")
+	platform.ApplyIntEnv(&settings.ResearchProcessing.QueueSize, "AGENT_RUNTIME_RESEARCH_PROCESSING_QUEUE_SIZE")
+	platform.ApplyIntEnv(&settings.ResearchProcessing.TimelineBucketSeconds, "AGENT_RUNTIME_RESEARCH_PROCESSING_TIMELINE_BUCKET_SECONDS")
+	platform.ApplyIntEnv(&settings.ResearchProcessing.TopK, "AGENT_RUNTIME_RESEARCH_PROCESSING_TOP_K")
+	platform.ApplyIntEnv(&settings.ResearchProcessing.RecentSamples, "AGENT_RUNTIME_RESEARCH_PROCESSING_RECENT_SAMPLES")
 	platform.ApplyBoolEnv(&settings.DomainForwardProxy.Enabled, "AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED")
 	platform.ApplyIntEnv(&settings.DomainForwardProxy.HTTPPort, "AGENT_RUNTIME_DOMAIN_HTTP_PORT")
 	platform.ApplyIntEnv(&settings.DomainForwardProxy.HTTPSPort, "AGENT_RUNTIME_DOMAIN_HTTPS_PORT")
@@ -169,6 +180,84 @@ func normalizeKernelRiskFeedbackSettings(settings *KernelRiskFeedbackSettings) {
 		settings.EnforceNetwork = true
 		settings.EnforceFileNames = true
 		settings.EnforceExec = true
+	}
+}
+
+func normalizeLoopDetectionSettings(settings *LoopDetectionSettings) {
+	if settings == nil {
+		return
+	}
+	if settings.WindowSeconds <= 0 {
+		settings.WindowSeconds = 30
+	}
+	if settings.WindowSeconds > 3600 {
+		settings.WindowSeconds = 3600
+	}
+	if settings.RepeatThreshold <= 0 {
+		settings.RepeatThreshold = 5
+	}
+	if settings.RepeatThreshold < 2 {
+		settings.RepeatThreshold = 2
+	}
+	if settings.RepeatThreshold > 1000 {
+		settings.RepeatThreshold = 1000
+	}
+	if settings.MaxContexts <= 0 {
+		settings.MaxContexts = 512
+	}
+	if settings.MaxContexts > 20000 {
+		settings.MaxContexts = 20000
+	}
+	if settings.QueueSize <= 0 {
+		settings.QueueSize = 2048
+	}
+	if settings.QueueSize < 128 {
+		settings.QueueSize = 128
+	}
+	if settings.QueueSize > 65536 {
+		settings.QueueSize = 65536
+	}
+}
+
+func normalizeResearchProcessingSettings(settings *ResearchProcessingSettings) {
+	if settings == nil {
+		return
+	}
+	if settings.MaxEvents <= 0 {
+		settings.MaxEvents = 5000
+	}
+	if settings.MaxEvents < 100 {
+		settings.MaxEvents = 100
+	}
+	if settings.MaxEvents > 100000 {
+		settings.MaxEvents = 100000
+	}
+	if settings.QueueSize <= 0 {
+		settings.QueueSize = 2048
+	}
+	if settings.QueueSize < 128 {
+		settings.QueueSize = 128
+	}
+	if settings.QueueSize > 65536 {
+		settings.QueueSize = 65536
+	}
+	if settings.TimelineBucketSeconds <= 0 {
+		settings.TimelineBucketSeconds = 60
+	}
+	if settings.TimelineBucketSeconds > 86400 {
+		settings.TimelineBucketSeconds = 86400
+	}
+	if settings.TopK <= 0 {
+		settings.TopK = 20
+	}
+	if settings.TopK > 200 {
+		settings.TopK = 200
+	}
+	if settings.RecentSamples <= 0 {
+		settings.RecentSamples = 25
+	}
+	if settings.RecentSamples > 500 {
+		settings.RecentSamples = 500
 	}
 }
 
@@ -214,9 +303,3 @@ func seedRuntimeMLConfigFromEnv(cfg *MLConfig) {
 	platform.ApplyIntEnv(&cfg.LlmMaxTokens, "AGENT_LLM_MAX_TOKENS", "LLM_MAX_TOKENS")
 	platform.ApplyStringEnv(&cfg.LlmSystemPrompt, "AGENT_LLM_SYSTEM_PROMPT", "LLM_SYSTEM_PROMPT")
 }
-
-
-
-
-
-

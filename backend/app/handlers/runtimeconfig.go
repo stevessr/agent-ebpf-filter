@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/pb"
 	"net/http"
 	"strings"
@@ -43,22 +44,24 @@ type MLConfigPatch struct {
 
 // RuntimeSettingsPatch holds optional runtime setting fields for PATCH semantics.
 type RuntimeSettingsPatch struct {
-	LogPersistenceEnabled   *bool         `json:"logPersistenceEnabled,omitempty"`
-	LogFilePath             *string       `json:"logFilePath,omitempty"`
-	AccessToken             *string       `json:"accessToken,omitempty"`
-	MaxEventCount           *int          `json:"maxEventCount,omitempty"`
-	MaxEventAge             *string       `json:"maxEventAge,omitempty"`
-	ShellSessionsEnabled    *bool         `json:"shellSessionsEnabled,omitempty"`
-	SystemRunEnabled        *bool         `json:"systemRunEnabled,omitempty"`
-	HookManagementEnabled   *bool         `json:"hookManagementEnabled,omitempty"`
-	PolicyManagementEnabled *bool         `json:"policyManagementEnabled,omitempty"`
-	OtlpEnabled             *bool         `json:"otlpEnabled,omitempty"`
-	OtlpEndpoint            *string       `json:"otlpEndpoint,omitempty"`
-	OtlpServiceName         *string       `json:"otlpServiceName,omitempty"`
-	OtlpHeaders             map[string]string `json:"otlpHeaders,omitempty"`
-	TlsCaptureEnabled       *bool         `json:"tlsCaptureEnabled,omitempty"`
-	KernelRiskFeedback      *interface{}  `json:"kernelRiskFeedback,omitempty"`
-	DomainForwardProxy      *interface{}  `json:"domainForwardProxy,omitempty"`
+	LogPersistenceEnabled   *bool                            `json:"logPersistenceEnabled,omitempty"`
+	LogFilePath             *string                          `json:"logFilePath,omitempty"`
+	AccessToken             *string                          `json:"accessToken,omitempty"`
+	MaxEventCount           *int                             `json:"maxEventCount,omitempty"`
+	MaxEventAge             *string                          `json:"maxEventAge,omitempty"`
+	ShellSessionsEnabled    *bool                            `json:"shellSessionsEnabled,omitempty"`
+	SystemRunEnabled        *bool                            `json:"systemRunEnabled,omitempty"`
+	HookManagementEnabled   *bool                            `json:"hookManagementEnabled,omitempty"`
+	PolicyManagementEnabled *bool                            `json:"policyManagementEnabled,omitempty"`
+	OtlpEnabled             *bool                            `json:"otlpEnabled,omitempty"`
+	OtlpEndpoint            *string                          `json:"otlpEndpoint,omitempty"`
+	OtlpServiceName         *string                          `json:"otlpServiceName,omitempty"`
+	OtlpHeaders             map[string]string                `json:"otlpHeaders,omitempty"`
+	TlsCaptureEnabled       *bool                            `json:"tlsCaptureEnabled,omitempty"`
+	KernelRiskFeedback      *core.KernelRiskFeedbackSettings `json:"kernelRiskFeedback,omitempty"`
+	LoopDetection           *core.LoopDetectionSettings      `json:"loopDetection,omitempty"`
+	ResearchProcessing      *core.ResearchProcessingSettings `json:"researchProcessing,omitempty"`
+	DomainForwardProxy      *core.DomainForwardProxySettings `json:"domainForwardProxy,omitempty"`
 	MLConfigPatch
 }
 
@@ -146,10 +149,18 @@ func HandleConfigRuntimePut(c *gin.Context) {
 	if req.TlsCaptureEnabled != nil {
 		settings.TlsCaptureEnabled = *req.TlsCaptureEnabled
 	}
-	// KernelRiskFeedback and DomainForwardProxy use interface{} bridge;
-	// actual application is handled by Deps closures if set.
-	_ = req.KernelRiskFeedback
-	_ = req.DomainForwardProxy
+	if req.KernelRiskFeedback != nil {
+		settings.KernelRiskFeedback = *req.KernelRiskFeedback
+	}
+	if req.LoopDetection != nil {
+		settings.LoopDetection = *req.LoopDetection
+	}
+	if req.ResearchProcessing != nil {
+		settings.ResearchProcessing = *req.ResearchProcessing
+	}
+	if req.DomainForwardProxy != nil {
+		settings.DomainForwardProxy = *req.DomainForwardProxy
+	}
 
 	settings, err := Deps.RuntimeSettingsReplace(settings)
 	if err != nil {

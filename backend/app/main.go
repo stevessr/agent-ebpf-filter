@@ -33,8 +33,8 @@ func Main() {
 	AppCtx.Clients = clients
 	AppCtx.EnvelopeClients = envelopeClients
 	AppCtx.Upgrader = upgrader
-	AppCtx.RuntimeSettings = newRuntimeState()
-	AppCtx.CapturedEventArchive = newEventArchive(1500)
+	AppCtx.RuntimeSettings = runtimeSettingsStore
+	AppCtx.CapturedEventArchive = capturedEventArchive
 	AppCtx.ShellSessions = shellSessions
 	AppCtx.PluginRegistry = pluginRegistry
 	AppCtx.NetworkFlowAggregator = networkFlowAggregator

@@ -812,6 +812,13 @@ func registerSystemRoutes(rg *gin.RouterGroup, _ ...*FeatureRegistry) {
 	handlers.RegisterSystemRoutes(rg)
 	rg.GET("/features", handleSystemFeatures)
 	rg.GET("/bootstrap-health", handleBootstrapHealth)
+	rg.GET("/collector-health", handleCollectorHealth)
+	rg.GET("/otel-health", handleOTelHealth)
+	rg.GET("/domain-forward/status", handleDomainForwardProxyStatus)
+	rg.GET("/loop-detection/status", handleLoopDetectionStatus)
+	rg.POST("/loop-detection/task", handleLoopDetectionTask)
+	rg.GET("/research-processing/status", handleResearchProcessingStatus)
+	rg.POST("/research-processing/task", handleResearchProcessingTask)
 }
 
 // Hardware handler bridges (camera, microphone, sensors)

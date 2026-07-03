@@ -28,6 +28,8 @@ type trackerMapSet = core.TrackerMapSet
 type ModelType = core.ModelType
 type MLConfig = core.MLConfig
 type KernelRiskFeedbackSettings = core.KernelRiskFeedbackSettings
+type LoopDetectionSettings = core.LoopDetectionSettings
+type ResearchProcessingSettings = core.ResearchProcessingSettings
 type DomainForwardRoute = core.DomainForwardRoute
 type DomainForwardProxySettings = core.DomainForwardProxySettings
 

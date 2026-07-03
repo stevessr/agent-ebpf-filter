@@ -11,6 +11,10 @@ import type {
   DomainForwardRoute,
   DomainForwardProxySettings,
   KernelRiskFeedbackSettings,
+  LoopDetectionSettings,
+  LoopDetectionStatus,
+  ResearchProcessingSettings,
+  ResearchProcessingStatus,
   DomainForwardProxyStatus,
   TracepointBootstrapStatus,
 } from "../../types/config";
@@ -49,6 +53,62 @@ const defaultKernelRiskFeedback = (): KernelRiskFeedbackSettings => ({
   enforceFileNames: true,
   enforceExec: true,
   maxActionsPerMinute: 30,
+});
+
+const defaultLoopDetection = (): LoopDetectionSettings => ({
+  enabled: false,
+  windowSeconds: 30,
+  repeatThreshold: 5,
+  maxContexts: 512,
+  queueSize: 2048,
+  emitSemanticAlerts: true,
+});
+
+const defaultLoopDetectionStatus = (): LoopDetectionStatus => ({
+  enabled: false,
+  settings: defaultLoopDetection(),
+  queueLen: 0,
+  queueCap: 0,
+  consumedTotal: 0,
+  findingsTotal: 0,
+  droppedTotal: 0,
+  windowCount: 0,
+  recentFindings: [],
+  updatedAt: "",
+});
+
+const defaultResearchProcessing = (): ResearchProcessingSettings => ({
+  enabled: false,
+  maxEvents: 5000,
+  queueSize: 2048,
+  timelineBucketSeconds: 60,
+  topK: 20,
+  recentSamples: 25,
+});
+
+const defaultResearchProcessingStatus = (): ResearchProcessingStatus => ({
+  enabled: false,
+  settings: defaultResearchProcessing(),
+  queueLen: 0,
+  queueCap: 0,
+  consumedTotal: 0,
+  droppedTotal: 0,
+  bufferedTotal: 0,
+  updatedAt: "",
+  summary: {
+    total: 0,
+    bySource: [],
+    byType: [],
+    byComm: [],
+    byPid: [],
+    byTrace: [],
+    timeline: [],
+    topProcesses: [],
+    topTraces: [],
+    recentSamples: [],
+    generatedTimestamp: 0,
+    generatedTime: "",
+  },
 });
 
 const defaultTracepointBootstrapStatus = (): TracepointBootstrapStatus => ({
@@ -132,6 +192,84 @@ const normalizeKernelRiskFeedback = (
   };
 };
 
+const normalizeLoopDetection = (
+  value?: Partial<LoopDetectionSettings>,
+): LoopDetectionSettings => {
+  const defaults = defaultLoopDetection();
+  return {
+    ...defaults,
+    ...value,
+    windowSeconds: Number(value?.windowSeconds || defaults.windowSeconds),
+    repeatThreshold: Number(
+      value?.repeatThreshold || defaults.repeatThreshold,
+    ),
+    maxContexts: Number(value?.maxContexts || defaults.maxContexts),
+    queueSize: Number(value?.queueSize || defaults.queueSize),
+    emitSemanticAlerts:
+      value?.emitSemanticAlerts ?? defaults.emitSemanticAlerts,
+  };
+};
+
+const normalizeLoopDetectionStatus = (
+  value?: Partial<LoopDetectionStatus>,
+): LoopDetectionStatus => {
+  const defaults = defaultLoopDetectionStatus();
+  return {
+    ...defaults,
+    ...value,
+    settings: normalizeLoopDetection(value?.settings),
+    recentFindings: Array.isArray(value?.recentFindings)
+      ? value.recentFindings
+      : [],
+  };
+};
+
+const normalizeResearchProcessing = (
+  value?: Partial<ResearchProcessingSettings>,
+): ResearchProcessingSettings => {
+  const defaults = defaultResearchProcessing();
+  return {
+    ...defaults,
+    ...value,
+    maxEvents: Number(value?.maxEvents || defaults.maxEvents),
+    queueSize: Number(value?.queueSize || defaults.queueSize),
+    timelineBucketSeconds: Number(
+      value?.timelineBucketSeconds || defaults.timelineBucketSeconds,
+    ),
+    topK: Number(value?.topK || defaults.topK),
+    recentSamples: Number(value?.recentSamples || defaults.recentSamples),
+  };
+};
+
+const normalizeResearchProcessingStatus = (
+  value?: Partial<ResearchProcessingStatus>,
+): ResearchProcessingStatus => {
+  const defaults = defaultResearchProcessingStatus();
+  const summary = value?.summary || defaults.summary;
+  return {
+    ...defaults,
+    ...value,
+    settings: normalizeResearchProcessing(value?.settings),
+    summary: {
+      ...defaults.summary,
+      ...summary,
+      bySource: Array.isArray(summary.bySource) ? summary.bySource : [],
+      byType: Array.isArray(summary.byType) ? summary.byType : [],
+      byComm: Array.isArray(summary.byComm) ? summary.byComm : [],
+      byPid: Array.isArray(summary.byPid) ? summary.byPid : [],
+      byTrace: Array.isArray(summary.byTrace) ? summary.byTrace : [],
+      timeline: Array.isArray(summary.timeline) ? summary.timeline : [],
+      topProcesses: Array.isArray(summary.topProcesses)
+        ? summary.topProcesses
+        : [],
+      topTraces: Array.isArray(summary.topTraces) ? summary.topTraces : [],
+      recentSamples: Array.isArray(summary.recentSamples)
+        ? summary.recentSamples
+        : [],
+    },
+  };
+};
+
 export function useConfigRuntime() {
   const featureManifest = useFeatureManifest();
   const runtimeSettings = ref<RuntimeSettings>({
@@ -150,6 +288,8 @@ export function useConfigRuntime() {
     otlpHeaders: {},
     tlsCaptureEnabled: false,
     kernelRiskFeedback: defaultKernelRiskFeedback(),
+    loopDetection: defaultLoopDetection(),
+    researchProcessing: defaultResearchProcessing(),
     domainForwardProxy: defaultDomainForwardProxy(),
   });
   const mcpEndpoint = ref("");
@@ -205,6 +345,12 @@ export function useConfigRuntime() {
     allowAnyHost: false,
     updatedAt: "",
   });
+  const loopDetectionStatus = ref<LoopDetectionStatus>(
+    defaultLoopDetectionStatus(),
+  );
+  const researchProcessingStatus = ref<ResearchProcessingStatus>(
+    defaultResearchProcessingStatus(),
+  );
 
   const syncApiToken = (token: string) => {
     const normalized = token.trim();
@@ -236,6 +382,10 @@ export function useConfigRuntime() {
       tlsCaptureEnabled: Boolean(data.runtime.tlsCaptureEnabled),
       kernelRiskFeedback: normalizeKernelRiskFeedback(
         data.runtime.kernelRiskFeedback,
+      ),
+      loopDetection: normalizeLoopDetection(data.runtime.loopDetection),
+      researchProcessing: normalizeResearchProcessing(
+        data.runtime.researchProcessing,
       ),
       domainForwardProxy: normalizeDomainForwardProxy(
         data.runtime.domainForwardProxy,
@@ -272,6 +422,8 @@ export function useConfigRuntime() {
       collectorRes,
       otelRes,
       domainForwardRes,
+      loopDetectionRes,
+      researchProcessingRes,
       featureRes,
     ] = await Promise.allSettled([
       axios.get("/config/runtime"),
@@ -279,6 +431,8 @@ export function useConfigRuntime() {
       axios.get("/system/collector-health"),
       axios.get("/system/otel-health"),
       axios.get("/system/domain-forward/status"),
+      axios.get("/system/loop-detection/status"),
+      axios.get("/system/research-processing/status"),
       featureManifest.fetchFeatureManifest(),
     ]);
     if (runtimeRes.status === "fulfilled") {
@@ -310,18 +464,41 @@ export function useConfigRuntime() {
     } else {
       console.error("Failed to fetch domain forward proxy status");
     }
+    if (loopDetectionRes.status === "fulfilled") {
+      loopDetectionStatus.value = normalizeLoopDetectionStatus(
+        loopDetectionRes.value.data as Partial<LoopDetectionStatus>,
+      );
+    } else {
+      console.error("Failed to fetch loop detection status");
+    }
+    if (researchProcessingRes.status === "fulfilled") {
+      researchProcessingStatus.value = normalizeResearchProcessingStatus(
+        researchProcessingRes.value.data as Partial<ResearchProcessingStatus>,
+      );
+    } else {
+      console.error("Failed to fetch research processing status");
+    }
     if (featureRes.status === "rejected") {
       console.error("Failed to fetch feature manifest");
     }
   };
 
   const fetchCollectorHealth = async () => {
-    const [bootstrapRes, collectorRes, otelRes, domainForwardRes] =
+    const [
+      bootstrapRes,
+      collectorRes,
+      otelRes,
+      domainForwardRes,
+      loopDetectionRes,
+      researchProcessingRes,
+    ] =
       await Promise.allSettled([
         axios.get("/system/bootstrap-health"),
         axios.get("/system/collector-health"),
         axios.get("/system/otel-health"),
         axios.get("/system/domain-forward/status"),
+        axios.get("/system/loop-detection/status"),
+        axios.get("/system/research-processing/status"),
         featureManifest.fetchFeatureManifest(),
       ]);
     if (bootstrapRes.status === "fulfilled") {
@@ -347,6 +524,20 @@ export function useConfigRuntime() {
         .data as DomainForwardProxyStatus;
     } else {
       console.error("Failed to fetch domain forward proxy status");
+    }
+    if (loopDetectionRes.status === "fulfilled") {
+      loopDetectionStatus.value = normalizeLoopDetectionStatus(
+        loopDetectionRes.value.data as Partial<LoopDetectionStatus>,
+      );
+    } else {
+      console.error("Failed to fetch loop detection status");
+    }
+    if (researchProcessingRes.status === "fulfilled") {
+      researchProcessingStatus.value = normalizeResearchProcessingStatus(
+        researchProcessingRes.value.data as Partial<ResearchProcessingStatus>,
+      );
+    } else {
+      console.error("Failed to fetch research processing status");
     }
   };
 
@@ -431,6 +622,8 @@ export function useConfigRuntime() {
         otlpHeaders,
         tlsCaptureEnabled: runtimeSettings.value.tlsCaptureEnabled,
         kernelRiskFeedback: runtimeSettings.value.kernelRiskFeedback,
+        loopDetection: runtimeSettings.value.loopDetection,
+        researchProcessing: runtimeSettings.value.researchProcessing,
         domainForwardProxy: {
           ...runtimeSettings.value.domainForwardProxy,
           routes: domainForwardRoutes,
@@ -441,6 +634,84 @@ export function useConfigRuntime() {
       message.success("Runtime settings saved");
     } catch (error: any) {
       message.error(error?.message || "Failed to save runtime settings");
+    }
+  };
+
+  const fetchLoopDetectionStatus = async () => {
+    try {
+      const res = await axios.get("/system/loop-detection/status");
+      loopDetectionStatus.value = normalizeLoopDetectionStatus(
+        res.data as Partial<LoopDetectionStatus>,
+      );
+    } catch (_) {
+      message.error("Failed to fetch loop detection status");
+    }
+  };
+
+  const runLoopDetectionScan = async (limit = 500) => {
+    try {
+      await axios.post("/system/loop-detection/task", {
+        action: "scan_recent",
+        limit,
+      });
+      await fetchLoopDetectionStatus();
+      message.success("Loop detection scan queued");
+    } catch (err: any) {
+      message.error(
+        err?.response?.data?.error || "Failed to queue loop detection scan",
+      );
+    }
+  };
+
+  const resetLoopDetection = async () => {
+    try {
+      await axios.post("/system/loop-detection/task", { action: "reset" });
+      await fetchLoopDetectionStatus();
+      message.success("Loop detection state reset");
+    } catch (err: any) {
+      message.error(
+        err?.response?.data?.error || "Failed to reset loop detection",
+      );
+    }
+  };
+
+  const fetchResearchProcessingStatus = async () => {
+    try {
+      const res = await axios.get("/system/research-processing/status");
+      researchProcessingStatus.value = normalizeResearchProcessingStatus(
+        res.data as Partial<ResearchProcessingStatus>,
+      );
+    } catch (_) {
+      message.error("Failed to fetch research processing status");
+    }
+  };
+
+  const runResearchProcessingScan = async (limit = 1000) => {
+    try {
+      await axios.post("/system/research-processing/task", {
+        action: "scan_recent",
+        limit,
+      });
+      await fetchResearchProcessingStatus();
+      message.success("Backend research processing scan queued");
+    } catch (err: any) {
+      message.error(
+        err?.response?.data?.error ||
+          "Failed to queue backend research processing scan",
+      );
+    }
+  };
+
+  const resetResearchProcessing = async () => {
+    try {
+      await axios.post("/system/research-processing/task", { action: "reset" });
+      await fetchResearchProcessingStatus();
+      message.success("Backend research processing state reset");
+    } catch (err: any) {
+      message.error(
+        err?.response?.data?.error ||
+          "Failed to reset backend research processing",
+      );
     }
   };
 
@@ -517,6 +788,8 @@ export function useConfigRuntime() {
     otelHealth,
     domainForwardRoutes,
     domainForwardStatus,
+    loopDetectionStatus,
+    researchProcessingStatus,
     mcpEndpoint,
     authHeaderName,
     bearerAuthHeaderName,
@@ -529,6 +802,12 @@ export function useConfigRuntime() {
     applyRuntimeResponse,
     fetchRuntime,
     fetchCollectorHealth,
+    fetchLoopDetectionStatus,
+    runLoopDetectionScan,
+    resetLoopDetection,
+    fetchResearchProcessingStatus,
+    runResearchProcessingScan,
+    resetResearchProcessing,
     saveRuntime,
     addOTLPHeaderRow,
     removeOTLPHeaderRow,

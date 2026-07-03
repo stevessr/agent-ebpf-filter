@@ -20,6 +20,18 @@ func TestSeedRuntimeSettingsFromEnvAppliesLLMAndBehavior(t *testing.T) {
 	t.Setenv("AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_FILE_NAMES", "false")
 	t.Setenv("AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_ENFORCE_EXEC", "true")
 	t.Setenv("AGENT_RUNTIME_KERNEL_RISK_FEEDBACK_MAX_ACTIONS_PER_MINUTE", "12")
+	t.Setenv("AGENT_RUNTIME_LOOP_DETECTION_ENABLED", "true")
+	t.Setenv("AGENT_RUNTIME_LOOP_DETECTION_WINDOW_SECONDS", "45")
+	t.Setenv("AGENT_RUNTIME_LOOP_DETECTION_REPEAT_THRESHOLD", "7")
+	t.Setenv("AGENT_RUNTIME_LOOP_DETECTION_MAX_CONTEXTS", "900")
+	t.Setenv("AGENT_RUNTIME_LOOP_DETECTION_QUEUE_SIZE", "4096")
+	t.Setenv("AGENT_RUNTIME_LOOP_DETECTION_EMIT_ALERTS", "true")
+	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_ENABLED", "true")
+	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_MAX_EVENTS", "7000")
+	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_QUEUE_SIZE", "8192")
+	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_TIMELINE_BUCKET_SECONDS", "30")
+	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_TOP_K", "35")
+	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_RECENT_SAMPLES", "45")
 	t.Setenv("AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED", "true")
 	t.Setenv("AGENT_RUNTIME_DOMAIN_HTTP_PORT", "18080")
 	t.Setenv("AGENT_RUNTIME_DOMAIN_HTTPS_PORT", "18443")
@@ -57,6 +69,18 @@ func TestSeedRuntimeSettingsFromEnvAppliesLLMAndBehavior(t *testing.T) {
 	}
 	if !settings.KernelRiskFeedback.EnforceNetwork || settings.KernelRiskFeedback.EnforceFileNames || !settings.KernelRiskFeedback.EnforceExec {
 		t.Fatalf("kernel risk feedback scope env seed mismatch: %+v", settings.KernelRiskFeedback)
+	}
+	if !settings.LoopDetection.Enabled || settings.LoopDetection.WindowSeconds != 45 || settings.LoopDetection.RepeatThreshold != 7 {
+		t.Fatalf("loop detection window env seed mismatch: %+v", settings.LoopDetection)
+	}
+	if settings.LoopDetection.MaxContexts != 900 || settings.LoopDetection.QueueSize != 4096 || !settings.LoopDetection.EmitSemanticAlerts {
+		t.Fatalf("loop detection runtime env seed mismatch: %+v", settings.LoopDetection)
+	}
+	if !settings.ResearchProcessing.Enabled || settings.ResearchProcessing.MaxEvents != 7000 || settings.ResearchProcessing.QueueSize != 8192 {
+		t.Fatalf("research processing queue env seed mismatch: %+v", settings.ResearchProcessing)
+	}
+	if settings.ResearchProcessing.TimelineBucketSeconds != 30 || settings.ResearchProcessing.TopK != 35 || settings.ResearchProcessing.RecentSamples != 45 {
+		t.Fatalf("research processing summary env seed mismatch: %+v", settings.ResearchProcessing)
 	}
 	if !settings.DomainForwardProxy.Enabled || settings.DomainForwardProxy.HTTPPort != 18080 || settings.DomainForwardProxy.HTTPSPort != 18443 {
 		t.Fatalf("domain forward env seed mismatch: %+v", settings.DomainForwardProxy)

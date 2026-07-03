@@ -85,6 +85,20 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 		LogFilePath:           platform.DefaultEventLogPath(),
 		MaxEventCount:         1500,
 		MaxEventAge:           "0",
+		LoopDetection: LoopDetectionSettings{
+			WindowSeconds:      30,
+			RepeatThreshold:    5,
+			MaxContexts:        512,
+			QueueSize:          2048,
+			EmitSemanticAlerts: true,
+		},
+		ResearchProcessing: ResearchProcessingSettings{
+			MaxEvents:             5000,
+			QueueSize:             2048,
+			TimelineBucketSeconds: 60,
+			TopK:                  20,
+			RecentSamples:         25,
+		},
 	}
 
 	if data, err := os.ReadFile(platform.RuntimeSettingsPath()); err == nil {
@@ -95,7 +109,39 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 				LogFilePath:           platform.DefaultEventLogPath(),
 				MaxEventCount:         1500,
 				MaxEventAge:           "0",
+				LoopDetection: LoopDetectionSettings{
+					WindowSeconds:      30,
+					RepeatThreshold:    5,
+					MaxContexts:        512,
+					QueueSize:          2048,
+					EmitSemanticAlerts: true,
+				},
+				ResearchProcessing: ResearchProcessingSettings{
+					MaxEvents:             5000,
+					QueueSize:             2048,
+					TimelineBucketSeconds: 60,
+					TopK:                  20,
+					RecentSamples:         25,
+				},
 			}
+		}
+	}
+	if settings.LoopDetection == (LoopDetectionSettings{}) {
+		settings.LoopDetection = LoopDetectionSettings{
+			WindowSeconds:      30,
+			RepeatThreshold:    5,
+			MaxContexts:        512,
+			QueueSize:          2048,
+			EmitSemanticAlerts: true,
+		}
+	}
+	if settings.ResearchProcessing == (ResearchProcessingSettings{}) {
+		settings.ResearchProcessing = ResearchProcessingSettings{
+			MaxEvents:             5000,
+			QueueSize:             2048,
+			TimelineBucketSeconds: 60,
+			TopK:                  20,
+			RecentSamples:         25,
 		}
 	}
 
@@ -338,5 +384,7 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	eventRecordingStore.Record(record)
 	collectorMetricsStore.SetPersistAppendLatency(time.Since(appendStart))
 	otelExporterStore.Record(record)
+	queueLoopDetectionRecord(record)
+	queueResearchProcessingRecord(record)
 	return record
 }
