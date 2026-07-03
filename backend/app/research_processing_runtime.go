@@ -19,6 +19,9 @@ const (
 	researchProcessingDefaultTimelineBucketSeconds = 60
 	researchProcessingDefaultTopK                  = 20
 	researchProcessingDefaultRecentSamples         = 25
+	researchProcessingDefaultArtifactRetentionDays = 14
+	researchProcessingDefaultMaxSessionEvents      = 50000
+	researchProcessingDefaultExportFormats         = "jsonl,csv,bundle"
 )
 
 type researchProcessingWorkKind string

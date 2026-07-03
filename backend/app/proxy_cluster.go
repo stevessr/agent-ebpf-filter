@@ -35,6 +35,8 @@ func shouldProxyPath(path string) bool {
 		return true
 	case strings.HasPrefix(path, "/agentsight/"):
 		return true
+	case strings.HasPrefix(path, "/research/"):
+		return true
 	case strings.HasPrefix(path, "/api/events") || strings.HasPrefix(path, "/api/runners") || strings.HasPrefix(path, "/api/stream"):
 		return true
 	case strings.HasPrefix(path, "/config/"):
@@ -59,6 +61,8 @@ func isProtectedClusterProxyPath(path string) bool {
 	case path == "/events/recent", path == "/events/graph", path == "/events/recording", path == "/events/recording/start", path == "/events/recording/stop", path == "/events/recording/replay", path == "/events/recording/browser/save", path == "/metrics":
 		return true
 	case strings.HasPrefix(path, "/agentsight/"):
+		return true
+	case strings.HasPrefix(path, "/research/"):
 		return true
 	case strings.HasPrefix(path, "/api/events") || strings.HasPrefix(path, "/api/runners") || strings.HasPrefix(path, "/api/stream"):
 		return true

@@ -338,6 +338,17 @@ const compactList = (items?: Array<string | number>) => {
             <a-tag color="default">
               dropped: {{ researchProcessingStatus.droppedTotal }}
             </a-tag>
+            <a-tag color="cyan">
+              retention:
+              {{ researchProcessingStatus.settings.artifactRetentionDays }}d
+            </a-tag>
+            <a-tag color="green">
+              session cap:
+              {{ researchProcessingStatus.settings.maxSessionEvents }}
+            </a-tag>
+            <a-tag color="gold">
+              exports: {{ researchProcessingStatus.settings.exportFormats }}
+            </a-tag>
           </div>
           <a-alert
             v-if="researchProcessingStatus.lastError"
@@ -350,7 +361,7 @@ const compactList = (items?: Array<string | number>) => {
             type="info"
             show-icon
             message="Backend mirrors the frontend AgentSight research transforms."
-            description="The worker builds source/type/comm/trace counts, timeline buckets, process summaries, and recent samples outside the browser. Use manual scan for offline research when streaming is disabled."
+            description="The worker builds source/type/comm/trace counts, timeline buckets, process summaries, recent samples, and Research v2 export defaults outside the browser. Use manual scan for offline research when streaming is disabled."
           />
           <a-row :gutter="[16, 16]">
             <a-col :xs="24" :lg="12">

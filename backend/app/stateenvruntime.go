@@ -148,6 +148,9 @@ func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
 	platform.ApplyIntEnv(&settings.ResearchProcessing.TimelineBucketSeconds, "AGENT_RUNTIME_RESEARCH_PROCESSING_TIMELINE_BUCKET_SECONDS")
 	platform.ApplyIntEnv(&settings.ResearchProcessing.TopK, "AGENT_RUNTIME_RESEARCH_PROCESSING_TOP_K")
 	platform.ApplyIntEnv(&settings.ResearchProcessing.RecentSamples, "AGENT_RUNTIME_RESEARCH_PROCESSING_RECENT_SAMPLES")
+	platform.ApplyIntEnv(&settings.ResearchProcessing.ArtifactRetentionDays, "AGENT_RUNTIME_RESEARCH_PROCESSING_ARTIFACT_RETENTION_DAYS")
+	platform.ApplyIntEnv(&settings.ResearchProcessing.MaxSessionEvents, "AGENT_RUNTIME_RESEARCH_PROCESSING_MAX_SESSION_EVENTS")
+	platform.ApplyStringEnv(&settings.ResearchProcessing.ExportFormats, "AGENT_RUNTIME_RESEARCH_PROCESSING_EXPORT_FORMATS")
 	platform.ApplyBoolEnv(&settings.DomainForwardProxy.Enabled, "AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED")
 	platform.ApplyIntEnv(&settings.DomainForwardProxy.HTTPPort, "AGENT_RUNTIME_DOMAIN_HTTP_PORT")
 	platform.ApplyIntEnv(&settings.DomainForwardProxy.HTTPSPort, "AGENT_RUNTIME_DOMAIN_HTTPS_PORT")
@@ -259,6 +262,22 @@ func normalizeResearchProcessingSettings(settings *ResearchProcessingSettings) {
 	if settings.RecentSamples > 500 {
 		settings.RecentSamples = 500
 	}
+	if settings.ArtifactRetentionDays <= 0 {
+		settings.ArtifactRetentionDays = researchProcessingDefaultArtifactRetentionDays
+	}
+	if settings.ArtifactRetentionDays > 3650 {
+		settings.ArtifactRetentionDays = 3650
+	}
+	if settings.MaxSessionEvents <= 0 {
+		settings.MaxSessionEvents = researchProcessingDefaultMaxSessionEvents
+	}
+	if settings.MaxSessionEvents < 100 {
+		settings.MaxSessionEvents = 100
+	}
+	if settings.MaxSessionEvents > 1000000 {
+		settings.MaxSessionEvents = 1000000
+	}
+	settings.ExportFormats = normalizeResearchExportFormats(settings.ExportFormats)
 }
 
 func seedRuntimeAccessTokenFromEnv(settings *RuntimeSettings) {

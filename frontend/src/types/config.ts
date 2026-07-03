@@ -84,6 +84,9 @@ export interface ResearchProcessingSettings {
   timelineBucketSeconds: number;
   topK: number;
   recentSamples: number;
+  artifactRetentionDays: number;
+  maxSessionEvents: number;
+  exportFormats: string;
 }
 
 export interface ResearchCount {

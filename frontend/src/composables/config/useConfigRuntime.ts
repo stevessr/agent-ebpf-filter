@@ -84,6 +84,9 @@ const defaultResearchProcessing = (): ResearchProcessingSettings => ({
   timelineBucketSeconds: 60,
   topK: 20,
   recentSamples: 25,
+  artifactRetentionDays: 14,
+  maxSessionEvents: 50000,
+  exportFormats: "jsonl,csv,bundle",
 });
 
 const defaultResearchProcessingStatus = (): ResearchProcessingStatus => ({
@@ -238,6 +241,13 @@ const normalizeResearchProcessing = (
     ),
     topK: Number(value?.topK || defaults.topK),
     recentSamples: Number(value?.recentSamples || defaults.recentSamples),
+    artifactRetentionDays: Number(
+      value?.artifactRetentionDays || defaults.artifactRetentionDays,
+    ),
+    maxSessionEvents: Number(
+      value?.maxSessionEvents || defaults.maxSessionEvents,
+    ),
+    exportFormats: String(value?.exportFormats || defaults.exportFormats),
   };
 };
 

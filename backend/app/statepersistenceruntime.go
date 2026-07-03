@@ -98,6 +98,9 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 			TimelineBucketSeconds: 60,
 			TopK:                  20,
 			RecentSamples:         25,
+			ArtifactRetentionDays: researchProcessingDefaultArtifactRetentionDays,
+			MaxSessionEvents:      researchProcessingDefaultMaxSessionEvents,
+			ExportFormats:         researchProcessingDefaultExportFormats,
 		},
 	}
 
@@ -122,6 +125,9 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 					TimelineBucketSeconds: 60,
 					TopK:                  20,
 					RecentSamples:         25,
+					ArtifactRetentionDays: researchProcessingDefaultArtifactRetentionDays,
+					MaxSessionEvents:      researchProcessingDefaultMaxSessionEvents,
+					ExportFormats:         researchProcessingDefaultExportFormats,
 				},
 			}
 		}
@@ -142,6 +148,9 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 			TimelineBucketSeconds: 60,
 			TopK:                  20,
 			RecentSamples:         25,
+			ArtifactRetentionDays: researchProcessingDefaultArtifactRetentionDays,
+			MaxSessionEvents:      researchProcessingDefaultMaxSessionEvents,
+			ExportFormats:         researchProcessingDefaultExportFormats,
 		}
 	}
 

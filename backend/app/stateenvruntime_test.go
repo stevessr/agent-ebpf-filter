@@ -32,6 +32,9 @@ func TestSeedRuntimeSettingsFromEnvAppliesLLMAndBehavior(t *testing.T) {
 	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_TIMELINE_BUCKET_SECONDS", "30")
 	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_TOP_K", "35")
 	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_RECENT_SAMPLES", "45")
+	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_ARTIFACT_RETENTION_DAYS", "21")
+	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_MAX_SESSION_EVENTS", "60000")
+	t.Setenv("AGENT_RUNTIME_RESEARCH_PROCESSING_EXPORT_FORMATS", "jsonl,csv")
 	t.Setenv("AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED", "true")
 	t.Setenv("AGENT_RUNTIME_DOMAIN_HTTP_PORT", "18080")
 	t.Setenv("AGENT_RUNTIME_DOMAIN_HTTPS_PORT", "18443")
@@ -81,6 +84,9 @@ func TestSeedRuntimeSettingsFromEnvAppliesLLMAndBehavior(t *testing.T) {
 	}
 	if settings.ResearchProcessing.TimelineBucketSeconds != 30 || settings.ResearchProcessing.TopK != 35 || settings.ResearchProcessing.RecentSamples != 45 {
 		t.Fatalf("research processing summary env seed mismatch: %+v", settings.ResearchProcessing)
+	}
+	if settings.ResearchProcessing.ArtifactRetentionDays != 21 || settings.ResearchProcessing.MaxSessionEvents != 60000 || settings.ResearchProcessing.ExportFormats != "jsonl,csv" {
+		t.Fatalf("research processing artifact env seed mismatch: %+v", settings.ResearchProcessing)
 	}
 	if !settings.DomainForwardProxy.Enabled || settings.DomainForwardProxy.HTTPPort != 18080 || settings.DomainForwardProxy.HTTPSPort != 18443 {
 		t.Fatalf("domain forward env seed mismatch: %+v", settings.DomainForwardProxy)

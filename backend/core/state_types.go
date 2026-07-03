@@ -60,12 +60,15 @@ type LoopDetectionSettings struct {
 // AgentSight/research data transforms. The worker keeps normalized event
 // summaries, process context, and timeline buckets ready for UI/research APIs.
 type ResearchProcessingSettings struct {
-	Enabled               bool `json:"enabled"`
-	MaxEvents             int  `json:"maxEvents"`
-	QueueSize             int  `json:"queueSize"`
-	TimelineBucketSeconds int  `json:"timelineBucketSeconds"`
-	TopK                  int  `json:"topK"`
-	RecentSamples         int  `json:"recentSamples"`
+	Enabled               bool   `json:"enabled"`
+	MaxEvents             int    `json:"maxEvents"`
+	QueueSize             int    `json:"queueSize"`
+	TimelineBucketSeconds int    `json:"timelineBucketSeconds"`
+	TopK                  int    `json:"topK"`
+	RecentSamples         int    `json:"recentSamples"`
+	ArtifactRetentionDays int    `json:"artifactRetentionDays"`
+	MaxSessionEvents      int    `json:"maxSessionEvents"`
+	ExportFormats         string `json:"exportFormats"`
 }
 
 // ExportConfig is the JSON shape returned by GET /config/export.

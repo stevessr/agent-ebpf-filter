@@ -258,6 +258,23 @@ registerRoutes()
 | `GET` | `/agentsight/stream/merged` | 合并 SSE 流 |
 | `GET` | `/agentsight/stream/runner/:id` | 单 Runner SSE 流 |
 
+### Research Processing v2 路由 (`/research`)
+
+所有路由使用运行时访问 token。研究会话只保存归一化/脱敏后的研究视图与导出产物，任务通过单 worker 有界队列异步执行。
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `GET` | `/research/sessions` | 会话列表与摘要 |
+| `POST` | `/research/sessions` | 创建研究会话，可带 sourceFilter/timeRange/tags |
+| `GET` | `/research/sessions/:id` | 会话详情、summary、artifactRefs |
+| `DELETE` | `/research/sessions/:id` | 删除会话和 artifacts |
+| `POST` | `/research/sessions/:id/tasks` | 提交异步任务 (`scan_recent`/`build_session`/`compare_windows`/`export_bundle`/`reset_session`) |
+| `GET` | `/research/tasks/:taskId` | 查询任务状态、进度、错误和 resultRef |
+| `POST` | `/research/tasks/:taskId/cancel` | 幂等取消排队中或运行中的任务 |
+| `GET` | `/research/sessions/:id/events` | 分页查询归一化 ResearchEvent |
+| `GET` | `/research/sessions/:id/results` | 查询时间线、进程树、trace、top-K、loop/risk 关联结果 |
+| `GET` | `/research/sessions/:id/export?format=jsonl|csv|bundle` | 下载研究产物；生成 manifest 与哈希校验 |
+
 ### (`/plugins`)
 
 需要 `FeaturePlugins` 编译特性:
@@ -328,6 +345,16 @@ BPF 模板子路由 (`/plugins/bpf`):
 | `GET` | `/api/v1/openapi.json` | OpenAPI 3.0.3 规范文档 |
 | `GET` | `/api/v1/events/recent` | 近期事件 |
 | `GET` | `/api/v1/events/graph` | 执行图谱 |
+| `GET` | `/api/v1/research/sessions` | Research 会话列表 |
+| `POST` | `/api/v1/research/sessions` | 创建 Research 会话 |
+| `GET` | `/api/v1/research/sessions/:id` | Research 会话详情 |
+| `DELETE` | `/api/v1/research/sessions/:id` | 删除 Research 会话 |
+| `POST` | `/api/v1/research/sessions/:id/tasks` | 提交 Research 异步任务 |
+| `GET` | `/api/v1/research/tasks/:taskId` | 查询 Research 任务 |
+| `POST` | `/api/v1/research/tasks/:taskId/cancel` | 取消 Research 任务 |
+| `GET` | `/api/v1/research/sessions/:id/events` | Research 事件分页 |
+| `GET` | `/api/v1/research/sessions/:id/results` | Research 聚合结果 |
+| `GET` | `/api/v1/research/sessions/:id/export` | Research 导出下载 |
 | `GET` | `/api/v1/agentsight/runners` | AgentSight runners |
 | `GET` | `/api/v1/agentsight/events` | AgentSight 事件 |
 | `POST` | `/api/v1/agentsight/events` | 上传事件 |

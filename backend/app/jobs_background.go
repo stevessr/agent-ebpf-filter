@@ -120,6 +120,7 @@ func startRuntimeBackgroundJobs(features *FeatureRegistry) {
 	startKernelRiskFeedbackWorker()
 	startLoopDetectionWorker()
 	startResearchProcessingWorker()
+	startResearchTaskWorker()
 	go startUDSServer(broadcast)
 	startCgroupAttributionGC()
 	startDNSCacheGC()

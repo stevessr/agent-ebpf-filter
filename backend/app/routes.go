@@ -143,6 +143,7 @@ func registerAuthenticatedAPIRoutes(r *gin.Engine, ac *AppContext, features *Fea
 		if features.CompiledIn(FeatureAgentSight) {
 			registerAgentSightRoutes(api, tlsStore)
 		}
+		registerResearchRoutes(api.Group("/research"), tlsStore)
 		if features.CompiledIn(FeaturePlugins) {
 			registerPluginRoutes(api.Group("/plugins"))
 		}

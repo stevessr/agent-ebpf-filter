@@ -411,6 +411,43 @@ const schemeOptions = [
                 style="width: 150px"
               />
             </div>
+            <div>
+              <div style="margin-bottom: 6px; font-weight: 600">
+                Artifact retention days
+              </div>
+              <a-input-number
+                v-model:value="
+                  runtimeSettings.researchProcessing.artifactRetentionDays
+                "
+                :min="1"
+                :max="3650"
+                style="width: 190px"
+              />
+            </div>
+            <div>
+              <div style="margin-bottom: 6px; font-weight: 600">
+                Max session events
+              </div>
+              <a-input-number
+                v-model:value="
+                  runtimeSettings.researchProcessing.maxSessionEvents
+                "
+                :min="100"
+                :max="1000000"
+                :step="1000"
+                style="width: 180px"
+              />
+            </div>
+            <div>
+              <div style="margin-bottom: 6px; font-weight: 600">
+                Export formats
+              </div>
+              <a-input
+                v-model:value="runtimeSettings.researchProcessing.exportFormats"
+                placeholder="jsonl,csv,bundle"
+                style="width: 190px"
+              />
+            </div>
           </div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap">
             <a-tag color="purple">
@@ -425,12 +462,22 @@ const schemeOptions = [
                 researchProcessingStatus.queueCap
               }}
             </a-tag>
+            <a-tag color="cyan">
+              retention:
+              {{
+                runtimeSettings.researchProcessing.artifactRetentionDays
+              }}d
+            </a-tag>
+            <a-tag color="green">
+              session cap:
+              {{ runtimeSettings.researchProcessing.maxSessionEvents }}
+            </a-tag>
           </div>
           <a-alert
             type="info"
             show-icon
-            message="Move heavy research transforms from browser to backend"
-            description="This worker mirrors frontend AgentSight-style normalization, source/type/comm/trace aggregation, process-context summaries, and timeline buckets on a single backend consumer. It is persisted in the home runtime config, and AGENT_RUNTIME_RESEARCH_PROCESSING_* overrides it on startup."
+            message="Move heavy research transforms and exports from browser to backend"
+            description="The worker mirrors AgentSight-style normalization and keeps Research v2 session/export defaults in runtime config. Export formats are comma-separated (jsonl,csv,bundle); AGENT_RUNTIME_RESEARCH_PROCESSING_* overrides these values on startup."
           />
           <a-button type="primary" @click="saveRuntime">
             <ReloadOutlined /> Save Research Processing
