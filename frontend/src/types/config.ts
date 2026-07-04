@@ -238,6 +238,7 @@ export interface ResearchTaskRequest {
     | "scan_recent"
     | "build_session"
     | "compare_windows"
+    | "security_eval"
     | "export_bundle"
     | "reset_session";
   limit?: number;
@@ -248,6 +249,10 @@ export interface ResearchTaskRequest {
   formats?: string[];
   format?: string;
   targetTaskId?: string;
+  evaluationMode?: "combined" | "builtin" | "session" | string;
+  labelPolicy?: "decision_then_heuristic" | "decision" | "heuristic" | "unlabeled" | string;
+  includeLLM?: boolean;
+  params?: Record<string, unknown>;
 }
 
 export interface ResearchTask {
@@ -317,6 +322,98 @@ export interface ResearchRiskFinding {
   associated?: string;
 }
 
+export interface ResearchSecurityEvaluationTotals {
+  total: number;
+  labeled: number;
+  benign: number;
+  risky: number;
+  unlabeled: number;
+  skipped: number;
+  builtin: number;
+  session: number;
+  passed: number;
+  failed: number;
+}
+
+export interface ResearchSecurityEvaluationMetrics {
+  accuracy: number;
+  precision: number;
+  recall: number;
+  allowRecall: number;
+  alertRecall: number;
+  blockRecall: number;
+  falsePositiveRate: number;
+  falseNegativeRate: number;
+  balancedAccuracy: number;
+}
+
+export interface ResearchSecurityEvaluationGroup {
+  key: string;
+  total: number;
+  passed: number;
+  failed: number;
+  falsePositives: number;
+  falseNegatives: number;
+  avgRiskScore: number;
+}
+
+export interface ResearchSecurityEvaluationSampleRow {
+  id: string;
+  eventId?: string;
+  timestamp?: number;
+  time?: string;
+  source: string;
+  eventType?: string;
+  category?: string;
+  comm: string;
+  commandLine: string;
+  args?: string[];
+  target?: string;
+  expectedAction: string;
+  expectedSource: string;
+  observedAction: string;
+  passed: boolean;
+  findingType?: string;
+  riskScore: number;
+  riskLevel?: string;
+  confidence?: number;
+  reasoning?: string;
+  recommendation?: string;
+  redactionLevel?: string;
+  traceId?: string;
+  spanId?: string;
+  signals?: Record<string, unknown>;
+  benchmarkCase?: string;
+  benchmarkTool?: string;
+  benchmarkDetail?: string;
+}
+
+export interface ResearchSecurityEvaluationFindings {
+  falsePositives?: ResearchSecurityEvaluationSampleRow[];
+  falseNegatives?: ResearchSecurityEvaluationSampleRow[];
+  policyGaps?: ResearchSecurityEvaluationSampleRow[];
+  highConfidenceDisagreements?: ResearchSecurityEvaluationSampleRow[];
+  unlabeledHighRisk?: ResearchSecurityEvaluationSampleRow[];
+}
+
+export interface ResearchSecurityEvaluationReport {
+  schemaVersion: string;
+  sessionId: string;
+  generatedAt: string;
+  mode: string;
+  labelPolicy: string;
+  includeLLM: boolean;
+  totals: ResearchSecurityEvaluationTotals;
+  metrics: ResearchSecurityEvaluationMetrics;
+  confusionMatrix: Record<string, Record<string, number>>;
+  byCategory?: ResearchSecurityEvaluationGroup[];
+  byCommand?: ResearchSecurityEvaluationGroup[];
+  bySource?: ResearchSecurityEvaluationGroup[];
+  riskBuckets?: ResearchCount[];
+  findings?: ResearchSecurityEvaluationFindings;
+  samples?: ResearchSecurityEvaluationSampleRow[];
+}
+
 export interface ResearchResults {
   schemaVersion: string;
   sessionId: string;
@@ -337,6 +434,7 @@ export interface ResearchResults {
     maxActionsPerMinute: number;
   };
   compareWindows?: unknown;
+  securityEvaluation?: ResearchSecurityEvaluationReport;
 }
 
 export interface RuntimeSettings {

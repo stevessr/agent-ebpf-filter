@@ -11,10 +11,15 @@ import {
   PlayCircleOutlined,
   ReloadOutlined,
   RetweetOutlined,
+  SecurityScanOutlined,
   StopOutlined,
 } from "@ant-design/icons-vue";
 import { useResearchWorkbench } from "../../composables/research/useResearchWorkbench";
-import type { ResearchCount, ResearchEvent } from "../../types/config";
+import type {
+  ResearchCount,
+  ResearchEvent,
+  ResearchSecurityEvaluationSampleRow,
+} from "../../types/config";
 
 const research = useResearchWorkbench();
 
@@ -33,6 +38,7 @@ const {
   loadingResults,
   submittingTask,
   exportingArtifact,
+  exportingSecurityEvaluation,
   loadingResearchTraining,
   importingResearchTraining,
   exportingResearchTraining,
@@ -46,6 +52,12 @@ const {
   researchTrainingDataset,
   researchTrainingImportResult,
   researchTrainingPreviewSamples,
+  securityEvaluationMode,
+  securityEvaluationLimit,
+  securityEvaluationIncludeLLM,
+  securityEvaluationLabelPolicy,
+  securityEvaluation,
+  securityEvaluationPreviewSamples,
   createForm,
   canPageBack,
   canPageForward,
@@ -58,11 +70,13 @@ const {
   exportBundle,
   resetSession,
   compareRecentWindows,
+  runSecurityEvaluation,
   cancelActiveTask,
   fetchEvents,
   fetchResults,
   pageEvents,
   downloadArtifact,
+  downloadSecurityEvaluation,
   fetchResearchTrainingDataset,
   importResearchTrainingDataset,
   downloadResearchTrainingDataset,
@@ -141,6 +155,121 @@ const trainingOutOfRangeValues = computed(() => {
   if (!normalization) return 0;
   return normalization.belowZeroValues + normalization.aboveOneValues;
 });
+
+const securityMetricCards = computed(() => {
+  const report = securityEvaluation.value;
+  const metrics = report?.metrics;
+  const totals = report?.totals;
+  return [
+    {
+      title: "Accuracy",
+      value: Number(metrics?.accuracy || 0).toFixed(1),
+      suffix: "%",
+    },
+    {
+      title: "False Positive",
+      value: Number(metrics?.falsePositiveRate || 0).toFixed(1),
+      suffix: "%",
+    },
+    {
+      title: "False Negative",
+      value: Number(metrics?.falseNegativeRate || 0).toFixed(1),
+      suffix: "%",
+    },
+    {
+      title: "Samples",
+      value: totals?.total || 0,
+      suffix: "rows",
+    },
+  ];
+});
+
+const securityConfusionActions = computed(() => {
+  const matrix = securityEvaluation.value?.confusionMatrix || {};
+  const actions = new Set(["ALLOW", "ALERT", "BLOCK", "REWRITE"]);
+  Object.values(matrix).forEach((row) => {
+    Object.keys(row || {}).forEach((action) => actions.add(action));
+  });
+  return [...actions].sort();
+});
+
+const securityConfusionRows = computed(() => {
+  const matrix = securityEvaluation.value?.confusionMatrix || {};
+  return Object.keys(matrix)
+    .sort()
+    .map((expected) => ({
+      expected,
+      ...(matrix[expected] || {}),
+    }));
+});
+
+const securityFindingGroups = computed(() => {
+  const findings = securityEvaluation.value?.findings || {};
+  return [
+    {
+      key: "false_positive",
+      title: "False Positives",
+      rows: findings.falsePositives || [],
+    },
+    {
+      key: "false_negative",
+      title: "False Negatives",
+      rows: findings.falseNegatives || [],
+    },
+    {
+      key: "policy_gap",
+      title: "Policy Gaps",
+      rows: findings.policyGaps || [],
+    },
+    {
+      key: "high_confidence_disagreement",
+      title: "High Confidence Disagreements",
+      rows: findings.highConfidenceDisagreements || [],
+    },
+    {
+      key: "unlabeled_high_risk",
+      title: "Unlabeled High Risk",
+      rows: findings.unlabeledHighRisk || [],
+    },
+  ];
+});
+
+const securityActionColor = (action?: string) => {
+  switch ((action || "").toUpperCase()) {
+    case "ALLOW":
+      return "green";
+    case "ALERT":
+      return "orange";
+    case "BLOCK":
+      return "red";
+    case "REWRITE":
+      return "blue";
+    case "UNLABELED":
+      return "default";
+    default:
+      return "geekblue";
+  }
+};
+
+const securityFindingColor = (finding?: string) => {
+  switch ((finding || "").toLowerCase()) {
+    case "false_positive":
+      return "gold";
+    case "false_negative":
+      return "red";
+    case "policy_gap":
+      return "purple";
+    case "high_confidence_disagreement":
+      return "magenta";
+    case "unlabeled_high_risk":
+      return "volcano";
+    default:
+      return "default";
+  }
+};
+
+const securitySampleRowKey = (row: ResearchSecurityEvaluationSampleRow) =>
+  row.id || `${row.source}:${row.commandLine}:${row.expectedAction}`;
 
 onMounted(async () => {
   await refreshSessions(true);
@@ -517,6 +646,337 @@ onMounted(async () => {
                     </template>
                   </a-table-column>
                 </a-table>
+              </a-tab-pane>
+
+              <a-tab-pane key="security" tab="Security Eval">
+                <a-alert
+                  type="info"
+                  show-icon
+                  style="margin-bottom: 12px"
+                  message="安全评测套件默认只读：不会写入训练集，不会生成或应用策略，也不会触发 kernel policy mutation。"
+                  description="评测样本默认来自内置 Agent 安全基准 + 当前 Research Session 事件；输出 FP/FN、混淆矩阵、策略空洞和高风险未标注事件。"
+                />
+                <div class="research-toolbar">
+                  <a-space wrap>
+                    <span>Corpus</span>
+                    <a-select
+                      v-model:value="securityEvaluationMode"
+                      size="small"
+                      style="width: 180px"
+                    >
+                      <a-select-option value="combined">
+                        内置 + 会话
+                      </a-select-option>
+                      <a-select-option value="builtin">
+                        仅内置基准
+                      </a-select-option>
+                      <a-select-option value="session">
+                        仅当前会话
+                      </a-select-option>
+                    </a-select>
+                    <span>Label</span>
+                    <a-select
+                      v-model:value="securityEvaluationLabelPolicy"
+                      size="small"
+                      style="width: 210px"
+                    >
+                      <a-select-option value="decision_then_heuristic">
+                        decision + heuristic
+                      </a-select-option>
+                      <a-select-option value="decision">
+                        decision only
+                      </a-select-option>
+                      <a-select-option value="heuristic">
+                        heuristic
+                      </a-select-option>
+                      <a-select-option value="unlabeled">
+                        unlabeled
+                      </a-select-option>
+                    </a-select>
+                    <span>Limit</span>
+                    <a-input-number
+                      v-model:value="securityEvaluationLimit"
+                      :min="1"
+                      :max="50000"
+                      size="small"
+                      style="width: 110px"
+                    />
+                    <a-checkbox v-model:checked="securityEvaluationIncludeLLM">
+                      Include LLM
+                    </a-checkbox>
+                    <a-button
+                      type="primary"
+                      size="small"
+                      @click="runSecurityEvaluation()"
+                      :loading="submittingTask"
+                      :disabled="!selectedSessionId"
+                    >
+                      <SecurityScanOutlined /> 运行安全评测
+                    </a-button>
+                    <a-button
+                      size="small"
+                      @click="downloadSecurityEvaluation('json')"
+                      :loading="exportingSecurityEvaluation"
+                      :disabled="!selectedSessionId || !securityEvaluation"
+                    >
+                      <CloudDownloadOutlined /> JSON
+                    </a-button>
+                    <a-button
+                      size="small"
+                      @click="downloadSecurityEvaluation('jsonl')"
+                      :loading="exportingSecurityEvaluation"
+                      :disabled="!selectedSessionId || !securityEvaluation"
+                    >
+                      <CloudDownloadOutlined /> JSONL
+                    </a-button>
+                    <a-button
+                      size="small"
+                      @click="downloadSecurityEvaluation('csv')"
+                      :loading="exportingSecurityEvaluation"
+                      :disabled="!selectedSessionId || !securityEvaluation"
+                    >
+                      <CloudDownloadOutlined /> CSV
+                    </a-button>
+                  </a-space>
+                </div>
+
+                <a-empty
+                  v-if="!securityEvaluation"
+                  description="点击“运行安全评测”生成 Agent 安全研究报告"
+                />
+                <template v-else>
+                  <a-space wrap class="research-training-tags">
+                    <a-tag color="blue">
+                      schema: {{ securityEvaluation.schemaVersion }}
+                    </a-tag>
+                    <a-tag color="cyan">
+                      mode: {{ securityEvaluation.mode }}
+                    </a-tag>
+                    <a-tag color="purple">
+                      label: {{ securityEvaluation.labelPolicy }}
+                    </a-tag>
+                    <a-tag color="geekblue">
+                      generated: {{ formatTime(securityEvaluation.generatedAt) }}
+                    </a-tag>
+                  </a-space>
+                  <a-row :gutter="[12, 12]" class="research-stats">
+                    <a-col
+                      v-for="card in securityMetricCards"
+                      :key="card.title"
+                      :xs="12"
+                      :md="6"
+                    >
+                      <a-card size="small">
+                        <a-statistic
+                          :title="card.title"
+                          :value="card.value"
+                          :suffix="card.suffix"
+                        />
+                      </a-card>
+                    </a-col>
+                  </a-row>
+
+                  <a-row :gutter="[16, 16]">
+                    <a-col :xs="24" :lg="12">
+                      <a-card size="small" title="Confusion Matrix">
+                        <a-table
+                          :dataSource="securityConfusionRows"
+                          :pagination="false"
+                          rowKey="expected"
+                          size="small"
+                        >
+                          <a-table-column
+                            title="Expected"
+                            dataIndex="expected"
+                            :width="130"
+                          >
+                            <template #default="{ record }">
+                              <a-tag :color="securityActionColor(record.expected)">
+                                {{ record.expected }}
+                              </a-tag>
+                            </template>
+                          </a-table-column>
+                          <a-table-column
+                            v-for="action in securityConfusionActions"
+                            :key="action"
+                            :title="action"
+                            :dataIndex="action"
+                            :width="90"
+                          >
+                            <template #default="{ record }">
+                              {{ record[action] || 0 }}
+                            </template>
+                          </a-table-column>
+                        </a-table>
+                      </a-card>
+                    </a-col>
+                    <a-col :xs="24" :lg="12">
+                      <a-card size="small" title="Top Failing Categories">
+                        <a-table
+                          :dataSource="securityEvaluation.byCategory || []"
+                          :pagination="false"
+                          rowKey="key"
+                          size="small"
+                        >
+                          <a-table-column title="Category" dataIndex="key" />
+                          <a-table-column
+                            title="Total"
+                            dataIndex="total"
+                            :width="80"
+                          />
+                          <a-table-column
+                            title="Failed"
+                            dataIndex="failed"
+                            :width="80"
+                          />
+                          <a-table-column
+                            title="Avg Risk"
+                            dataIndex="avgRiskScore"
+                            :width="100"
+                          >
+                            <template #default="{ record }">
+                              <a-tag :color="riskColor(record.avgRiskScore)">
+                                {{ (record.avgRiskScore || 0).toFixed(1) }}
+                              </a-tag>
+                            </template>
+                          </a-table-column>
+                        </a-table>
+                      </a-card>
+                    </a-col>
+                  </a-row>
+
+                  <a-row :gutter="[12, 12]" class="research-card">
+                    <a-col
+                      v-for="group in securityFindingGroups"
+                      :key="group.key"
+                      :xs="24"
+                      :lg="12"
+                    >
+                      <a-card size="small">
+                        <template #title>
+                          <span>
+                            {{ group.title }}
+                            <a-tag :color="securityFindingColor(group.key)">
+                              {{ group.rows.length }}
+                            </a-tag>
+                          </span>
+                        </template>
+                        <a-list
+                          size="small"
+                          :data-source="group.rows.slice(0, 5)"
+                        >
+                          <template #renderItem="{ item }">
+                            <a-list-item>
+                              <div class="research-finding-row">
+                                <div>
+                                  <code>{{ item.commandLine }}</code>
+                                  <div class="research-muted">
+                                    {{ item.source }} · {{ item.category || "—" }}
+                                  </div>
+                                </div>
+                                <a-space>
+                                  <a-tag
+                                    :color="
+                                      securityActionColor(item.expectedAction)
+                                    "
+                                  >
+                                    E: {{ item.expectedAction }}
+                                  </a-tag>
+                                  <a-tag
+                                    :color="
+                                      securityActionColor(item.observedAction)
+                                    "
+                                  >
+                                    O: {{ item.observedAction }}
+                                  </a-tag>
+                                </a-space>
+                              </div>
+                            </a-list-item>
+                          </template>
+                          <template #empty>
+                            <a-empty description="暂无发现" />
+                          </template>
+                        </a-list>
+                      </a-card>
+                    </a-col>
+                  </a-row>
+
+                  <a-card
+                    size="small"
+                    class="research-card"
+                    title="Evaluation Samples"
+                  >
+                    <a-table
+                      :dataSource="securityEvaluationPreviewSamples"
+                      :pagination="{ pageSize: 10 }"
+                      :scroll="{ x: 1380 }"
+                      :rowKey="securitySampleRowKey"
+                      size="small"
+                    >
+                      <a-table-column
+                        title="Command"
+                        dataIndex="commandLine"
+                        :width="320"
+                        ellipsis
+                      >
+                        <template #default="{ record }">
+                          <code>{{ record.commandLine }}</code>
+                        </template>
+                      </a-table-column>
+                      <a-table-column title="Source" dataIndex="source" :width="110">
+                        <template #default="{ record }">
+                          <a-tag color="geekblue">{{ record.source }}</a-tag>
+                        </template>
+                      </a-table-column>
+                      <a-table-column
+                        title="Expected"
+                        dataIndex="expectedAction"
+                        :width="120"
+                      >
+                        <template #default="{ record }">
+                          <a-tag :color="securityActionColor(record.expectedAction)">
+                            {{ record.expectedAction }}
+                          </a-tag>
+                        </template>
+                      </a-table-column>
+                      <a-table-column
+                        title="Observed"
+                        dataIndex="observedAction"
+                        :width="120"
+                      >
+                        <template #default="{ record }">
+                          <a-tag :color="securityActionColor(record.observedAction)">
+                            {{ record.observedAction }}
+                          </a-tag>
+                        </template>
+                      </a-table-column>
+                      <a-table-column title="Risk" dataIndex="riskScore" :width="90">
+                        <template #default="{ record }">
+                          <a-tag :color="riskColor(record.riskScore)">
+                            {{ (record.riskScore || 0).toFixed(1) }}
+                          </a-tag>
+                        </template>
+                      </a-table-column>
+                      <a-table-column
+                        title="Finding"
+                        dataIndex="findingType"
+                        :width="180"
+                      >
+                        <template #default="{ record }">
+                          <a-tag :color="securityFindingColor(record.findingType)">
+                            {{ record.findingType || "pass" }}
+                          </a-tag>
+                        </template>
+                      </a-table-column>
+                      <a-table-column
+                        title="Reasoning"
+                        dataIndex="reasoning"
+                        :width="360"
+                        ellipsis
+                      />
+                    </a-table>
+                  </a-card>
+                </template>
               </a-tab-pane>
 
               <a-tab-pane key="training" tab="Training Dataset">
@@ -1043,6 +1503,14 @@ onMounted(async () => {
 
 .research-training-tags {
   margin-bottom: 12px;
+}
+
+.research-finding-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
 }
 
 .research-ellipsis {

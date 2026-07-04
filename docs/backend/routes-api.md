@@ -261,7 +261,7 @@ registerRoutes()
 ### Research Processing v2 路由 (`/research`)
 
 所有路由使用运行时访问 token。研究会话只保存归一化/脱敏后的研究视图与导出产物，任务通过单 worker 有界队列异步执行。
-前端 `/research` 工作台封装了会话创建、`build_session`/`scan_recent`/`compare_windows`/`export_bundle` 任务提交、事件/聚合结果浏览、训练样本预览/导入和 JSONL/CSV/Bundle 下载；ML 页面也可直接从 Research Session 导入 128 维结构化训练样本。
+前端 `/research` 工作台封装了会话创建、`build_session`/`scan_recent`/`compare_windows`/`security_eval`/`export_bundle` 任务提交、事件/聚合结果浏览、安全评测、训练样本预览/导入和 JSONL/CSV/Bundle 下载；ML 页面也可直接从 Research Session 导入 128 维结构化训练样本。
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
@@ -269,14 +269,14 @@ registerRoutes()
 | `POST` | `/research/sessions` | 创建研究会话，可带 sourceFilter/timeRange/tags |
 | `GET` | `/research/sessions/:id` | 会话详情、summary、artifactRefs |
 | `DELETE` | `/research/sessions/:id` | 删除会话和 artifacts |
-| `POST` | `/research/sessions/:id/tasks` | 提交异步任务 (`scan_recent`/`build_session`/`compare_windows`/`export_bundle`/`reset_session`) |
+| `POST` | `/research/sessions/:id/tasks` | 提交异步任务 (`scan_recent`/`build_session`/`compare_windows`/`security_eval`/`export_bundle`/`reset_session`) |
 | `GET` | `/research/tasks/:taskId` | 查询任务状态、进度、错误和 resultRef |
 | `POST` | `/research/tasks/:taskId/cancel` | 幂等取消排队中或运行中的任务 |
 | `GET` | `/research/sessions/:id/events` | 分页查询归一化 ResearchEvent |
-| `GET` | `/research/sessions/:id/results` | 查询时间线、进程树、trace、top-K、loop/risk 关联结果 |
+| `GET` | `/research/sessions/:id/results` | 查询时间线、进程树、trace、top-K、loop/risk 关联结果与 securityEvaluation 安全评测报告 |
 | `GET` | `/research/sessions/:id/training?format=json|jsonl|csv&labelPolicy=heuristic|decision|unlabeled` | 将会话事件结构化为训练样本：固定 128 维特征、标签策略、feature names、归一化报告 |
 | `POST` | `/research/sessions/:id/training/import` | 将带标签训练样本导入 ML training store；默认使用 `decision` 标签策略以避免无决策事件被误标 |
-| `GET` | `/research/sessions/:id/export?format=jsonl|csv|bundle` | 下载研究产物；生成 manifest 与哈希校验 |
+| `GET` | `/research/sessions/:id/export?format=jsonl|csv|json|bundle|security-json|security-jsonl|security-csv` | 下载研究产物或安全评测明细；bundle 会包含 security-evaluation artifacts 与 manifest 哈希 |
 
 ### (`/plugins`)
 

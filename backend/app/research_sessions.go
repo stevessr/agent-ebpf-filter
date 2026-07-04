@@ -129,17 +129,18 @@ type ResearchEvent struct {
 }
 
 type ResearchResults struct {
-	SchemaVersion      string                         `json:"schemaVersion"`
-	SessionID          string                         `json:"sessionId"`
-	GeneratedTimestamp int64                          `json:"generatedTimestamp"`
-	GeneratedTime      string                         `json:"generatedTime"`
-	Summary            researchProcessingSummary      `json:"summary"`
-	TopTargets         []researchCount                `json:"topTargets"`
-	TopDecisions       []researchCount                `json:"topDecisions"`
-	LoopFindings       []loopDetectionFinding         `json:"loopFindings,omitempty"`
-	RiskAlerts         []ResearchRiskFinding          `json:"riskAlerts,omitempty"`
-	KernelRiskFeedback ResearchKernelRiskFeedbackInfo `json:"kernelRiskFeedback"`
-	CompareWindows     *ResearchWindowCompare         `json:"compareWindows,omitempty"`
+	SchemaVersion      string                            `json:"schemaVersion"`
+	SessionID          string                            `json:"sessionId"`
+	GeneratedTimestamp int64                             `json:"generatedTimestamp"`
+	GeneratedTime      string                            `json:"generatedTime"`
+	Summary            researchProcessingSummary         `json:"summary"`
+	TopTargets         []researchCount                   `json:"topTargets"`
+	TopDecisions       []researchCount                   `json:"topDecisions"`
+	LoopFindings       []loopDetectionFinding            `json:"loopFindings,omitempty"`
+	RiskAlerts         []ResearchRiskFinding             `json:"riskAlerts,omitempty"`
+	KernelRiskFeedback ResearchKernelRiskFeedbackInfo    `json:"kernelRiskFeedback"`
+	CompareWindows     *ResearchWindowCompare            `json:"compareWindows,omitempty"`
+	SecurityEvaluation *ResearchSecurityEvaluationReport `json:"securityEvaluation,omitempty"`
 }
 
 type ResearchRiskFinding struct {
@@ -214,15 +215,19 @@ type researchCreateSessionRequest struct {
 }
 
 type researchTaskRequest struct {
-	Action       string               `json:"action"`
-	Limit        int                  `json:"limit"`
-	SourceFilter ResearchSourceFilter `json:"sourceFilter"`
-	TimeRange    ResearchTimeRange    `json:"timeRange"`
-	LeftWindow   ResearchTimeRange    `json:"leftWindow"`
-	RightWindow  ResearchTimeRange    `json:"rightWindow"`
-	Formats      []string             `json:"formats"`
-	Format       string               `json:"format"`
-	TargetTaskID string               `json:"targetTaskId"`
+	Action         string               `json:"action"`
+	Limit          int                  `json:"limit"`
+	SourceFilter   ResearchSourceFilter `json:"sourceFilter"`
+	TimeRange      ResearchTimeRange    `json:"timeRange"`
+	LeftWindow     ResearchTimeRange    `json:"leftWindow"`
+	RightWindow    ResearchTimeRange    `json:"rightWindow"`
+	Formats        []string             `json:"formats"`
+	Format         string               `json:"format"`
+	TargetTaskID   string               `json:"targetTaskId"`
+	EvaluationMode string               `json:"evaluationMode"`
+	LabelPolicy    string               `json:"labelPolicy"`
+	IncludeLLM     bool                 `json:"includeLLM"`
+	Params         map[string]any       `json:"params,omitempty"`
 }
 
 type ResearchTask struct {
@@ -489,12 +494,46 @@ func (m *researchTaskManager) runTask(entry *researchTaskEntry) error {
 		}
 		compare := buildResearchWindowCompare(events, entry.request.LeftWindow, entry.request.RightWindow)
 		results := buildResearchResults(sessionID, events, compare)
+		if previous, err := m.store.LoadResults(sessionID); err == nil {
+			results.SecurityEvaluation = previous.SecurityEvaluation
+		}
 		if err := m.store.SaveResults(sessionID, results); err != nil {
 			return err
 		}
 		entry.setRecords(len(events))
 		entry.setResultRef("results.compareWindows")
 		entry.setResult(map[string]any{"compareWindows": compare})
+		return nil
+	case "security_eval":
+		entry.setProgress(0.03)
+		events, err := m.store.LoadEvents(sessionID)
+		if err != nil {
+			return err
+		}
+		if entry.isCanceled() {
+			return errResearchTaskCanceled
+		}
+		reportReq := researchSecurityEvaluationRequestFromTask(entry.request)
+		report, err := buildResearchSecurityEvaluationReport(sessionID, events, reportReq, entry)
+		if err != nil {
+			return err
+		}
+		entry.setProgress(0.93)
+		if err := m.store.SaveSecurityEvaluation(sessionID, report); err != nil {
+			return err
+		}
+		entry.setRecords(report.Totals.Total)
+		entry.setResultRef("results.securityEvaluation")
+		entry.setResult(map[string]any{
+			"securityEvaluation": map[string]any{
+				"total":             report.Totals.Total,
+				"labeled":           report.Totals.Labeled,
+				"falsePositiveRate": report.Metrics.FalsePositiveRate,
+				"falseNegativeRate": report.Metrics.FalseNegativeRate,
+				"accuracy":          report.Metrics.Accuracy,
+				"mode":              report.Mode,
+			},
+		})
 		return nil
 	case "export_bundle":
 		formats := researchFormatsFromRequest(entry.request)
@@ -822,6 +861,58 @@ func (s *researchSessionStore) SaveResults(id string, results ResearchResults) e
 	return s.saveSessionLocked(session)
 }
 
+func (s *researchSessionStore) SaveSecurityEvaluation(id string, report ResearchSecurityEvaluationReport) error {
+	if err := s.ensureLoaded(); err != nil {
+		return err
+	}
+	if _, err := s.Get(id); err != nil {
+		return err
+	}
+	results, err := s.LoadResults(id)
+	if err != nil {
+		return err
+	}
+	report.SessionID = id
+	if strings.TrimSpace(report.SchemaVersion) == "" {
+		report.SchemaVersion = researchSecurityEvaluationSchemaVersion
+	}
+	if report.GeneratedAt.IsZero() {
+		report.GeneratedAt = time.Now().UTC()
+	}
+	results.SecurityEvaluation = &report
+	if err := s.writeResults(id, results); err != nil {
+		return err
+	}
+	payload, err := researchSecurityEvaluationJSONBytes(&report)
+	if err != nil {
+		return err
+	}
+	artifactDir := filepath.Join(s.baseDir, id, "artifacts")
+	if err := os.MkdirAll(artifactDir, 0o700); err != nil {
+		return err
+	}
+	path := filepath.Join(artifactDir, "security-evaluation.json")
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
+		return err
+	}
+	ref := ResearchArtifactRef{Format: "security_json", Name: "security-evaluation.json", Path: path, ContentType: "application/json; charset=utf-8", Bytes: int64(len(payload)), SHA256: researchSHA256Hex(payload), CreatedAt: time.Now().UTC()}
+	events, _ := s.LoadEvents(id)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	session := s.sessions[id]
+	if session == nil {
+		return os.ErrNotExist
+	}
+	if session.ArtifactRefs == nil {
+		session.ArtifactRefs = map[string]ResearchArtifactRef{}
+	}
+	session.ArtifactRefs["security_json"] = ref
+	session.Summary = buildResearchSessionSummary(events, results)
+	session.UpdatedAt = time.Now().UTC()
+	session.Status = researchSessionReady
+	return s.saveSessionLocked(session)
+}
+
 func (s *researchSessionStore) ResetSession(id string) error {
 	if err := s.ensureLoaded(); err != nil {
 		return err
@@ -947,6 +1038,27 @@ func (s *researchSessionStore) GenerateExports(id string, formats []string) ([]R
 			}
 			contentType = "application/json; charset=utf-8"
 			name = "research.json"
+		case "security_json":
+			payload, err = researchSecurityEvaluationJSONBytes(results.SecurityEvaluation)
+			if err != nil {
+				return nil, err
+			}
+			contentType = "application/json; charset=utf-8"
+			name = "security-evaluation.json"
+		case "security_jsonl":
+			if results.SecurityEvaluation == nil {
+				return nil, errors.New("security evaluation report is unavailable")
+			}
+			payload = researchSecurityEvaluationJSONLBytes(results.SecurityEvaluation)
+			contentType = "application/x-ndjson; charset=utf-8"
+			name = "security-evaluation.jsonl"
+		case "security_csv":
+			payload, err = researchSecurityEvaluationCSVBytes(results.SecurityEvaluation)
+			if err != nil {
+				return nil, err
+			}
+			contentType = "text/csv; charset=utf-8"
+			name = "security-evaluation.csv"
 		case "bundle":
 			payload, err = researchBundleZipBytes(session, events, results, settings)
 			if err != nil {
@@ -1739,8 +1851,8 @@ func handleResearchSessionExport(c *gin.Context) {
 	if format == "" {
 		format = "bundle"
 	}
-	if format != "jsonl" && format != "csv" && format != "bundle" && format != "json" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported export format", "supported": []string{"jsonl", "csv", "bundle"}})
+	if format != "jsonl" && format != "csv" && format != "bundle" && format != "json" && format != "security_json" && format != "security_jsonl" && format != "security_csv" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported export format", "supported": []string{"jsonl", "csv", "json", "bundle", "security-json", "security-jsonl", "security-csv"}})
 		return
 	}
 	ref, payload, err := researchSessionsStore.ExportArtifact(c.Param("id"), format)
@@ -1789,6 +1901,8 @@ func normalizeResearchAction(action string) string {
 		return "export_bundle"
 	case "reset", "reset_session":
 		return "reset_session"
+	case "security", "security_eval", "security_evaluation":
+		return "security_eval"
 	case "cancel":
 		return "cancel"
 	default:
@@ -1846,6 +1960,12 @@ func normalizeResearchFormat(value string) string {
 		return "bundle"
 	case "json":
 		return "json"
+	case "security_json", "security-json", "security", "security_eval", "security-eval", "security_evaluation", "security-evaluation":
+		return "security_json"
+	case "security_jsonl", "security-jsonl", "security_ndjson", "security-ndjson":
+		return "security_jsonl"
+	case "security_csv", "security-csv":
+		return "security_csv"
 	default:
 		return ""
 	}
@@ -2221,12 +2341,28 @@ func researchBundleZipBytes(session ResearchSession, events []ResearchEvent, res
 	if err != nil {
 		return nil, err
 	}
-	manifest := researchBuildManifest(session, events, settings, map[string][]byte{"events.jsonl": jsonl, "events.csv": csvBytes, "training.jsonl": trainingJSONL, "training.csv": trainingCSV, "training-manifest.json": trainingManifestJSON, "results.json": resultsJSON, "session.json": sessionJSON}, nil)
+	payloads := map[string][]byte{"events.jsonl": jsonl, "events.csv": csvBytes, "training.jsonl": trainingJSONL, "training.csv": trainingCSV, "training-manifest.json": trainingManifestJSON, "results.json": resultsJSON, "session.json": sessionJSON}
+	if results.SecurityEvaluation != nil {
+		securityJSON, err := researchSecurityEvaluationJSONBytes(results.SecurityEvaluation)
+		if err != nil {
+			return nil, err
+		}
+		securityJSONL := researchSecurityEvaluationJSONLBytes(results.SecurityEvaluation)
+		securityCSV, err := researchSecurityEvaluationCSVBytes(results.SecurityEvaluation)
+		if err != nil {
+			return nil, err
+		}
+		payloads["security-evaluation.json"] = securityJSON
+		payloads["security-evaluation.jsonl"] = securityJSONL
+		payloads["security-evaluation.csv"] = securityCSV
+	}
+	manifest := researchBuildManifest(session, events, settings, payloads, nil)
 	manifestJSON, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return nil, err
 	}
-	files := map[string][]byte{"events.jsonl": jsonl, "events.csv": csvBytes, "training.jsonl": trainingJSONL, "training.csv": trainingCSV, "training-manifest.json": trainingManifestJSON, "results.json": resultsJSON, "session.json": sessionJSON, "manifest.json": manifestJSON}
+	files := payloads
+	files["manifest.json"] = manifestJSON
 	names := make([]string, 0, len(files))
 	for name := range files {
 		names = append(names, name)

@@ -8,6 +8,7 @@ import type {
   ResearchEventsResponse,
   ResearchEvent,
   ResearchResults,
+  ResearchSecurityEvaluationReport,
   ResearchSession,
   ResearchSessionListResponse,
   ResearchSourceFilter,
@@ -21,6 +22,7 @@ import type {
 
 type ResearchTaskAction = ResearchTaskRequest["action"];
 type ExportFormat = "jsonl" | "csv" | "bundle" | "json";
+type SecurityEvaluationExportFormat = "json" | "jsonl" | "csv";
 type TrainingExportFormat = "jsonl" | "csv";
 
 const terminalTaskStatuses = new Set(["succeeded", "failed", "canceled"]);
@@ -67,6 +69,18 @@ const safeTrainingExportName = (
   return `${base || "research-session"}-training.${format}`;
 };
 
+const safeSecurityEvaluationExportName = (
+  session: ResearchSession | null,
+  format: SecurityEvaluationExportFormat,
+) => {
+  const base = (session?.name || session?.id || "research-session")
+    .trim()
+    .replace(/[^a-z0-9._-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `${base || "research-session"}-security-evaluation.${format}`;
+};
+
 const downloadBlob = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -89,6 +103,7 @@ export function useResearchWorkbench() {
   const loadingResults = ref(false);
   const submittingTask = ref(false);
   const exportingArtifact = ref(false);
+  const exportingSecurityEvaluation = ref(false);
   const loadingResearchTraining = ref(false);
   const importingResearchTraining = ref(false);
   const exportingResearchTraining = ref(false);
@@ -103,6 +118,13 @@ export function useResearchWorkbench() {
   const researchTrainingDataset = ref<ResearchTrainingDataset | null>(null);
   const researchTrainingImportResult =
     ref<ResearchTrainingImportResponse | null>(null);
+  const securityEvaluationMode = ref<"combined" | "builtin" | "session">(
+    "combined",
+  );
+  const securityEvaluationLimit = ref(5000);
+  const securityEvaluationIncludeLLM = ref(false);
+  const securityEvaluationLabelPolicy =
+    ref("decision_then_heuristic");
 
   const createForm = ref({
     name: makeDefaultSessionName(),
@@ -135,6 +157,12 @@ export function useResearchWorkbench() {
   );
   const researchTrainingPreviewSamples = computed(() =>
     (researchTrainingDataset.value?.samples || []).slice(0, 20),
+  );
+  const securityEvaluation = computed<ResearchSecurityEvaluationReport | null>(
+    () => results.value?.securityEvaluation || null,
+  );
+  const securityEvaluationPreviewSamples = computed(() =>
+    (securityEvaluation.value?.samples || []).slice(0, 100),
   );
 
   const buildFilterFromForm = (): ResearchSourceFilter => {
@@ -337,6 +365,17 @@ export function useResearchWorkbench() {
     });
   };
 
+  const runSecurityEvaluation = async () => {
+    await submitTask("security_eval", {
+      evaluationMode: securityEvaluationMode.value,
+      labelPolicy: securityEvaluationLabelPolicy.value,
+      includeLLM: securityEvaluationIncludeLLM.value,
+      limit: Math.max(1, securityEvaluationLimit.value || createForm.value.limit || 5000),
+      sourceFilter: buildFilterFromForm(),
+      timeRange: buildTimeRangeFromForm(),
+    });
+  };
+
   const cancelActiveTask = async () => {
     const taskId = activeTask.value?.taskId;
     if (!taskId) return;
@@ -419,6 +458,39 @@ export function useResearchWorkbench() {
       message.error(e.response?.data?.error || "下载研究产物失败，请先生成导出包");
     } finally {
       exportingArtifact.value = false;
+    }
+  };
+
+  const downloadSecurityEvaluation = async (
+    format: SecurityEvaluationExportFormat,
+  ) => {
+    if (!ensureSelectedSession()) return;
+    exportingSecurityEvaluation.value = true;
+    const backendFormat =
+      format === "json"
+        ? "security-json"
+        : format === "jsonl"
+          ? "security-jsonl"
+          : "security-csv";
+    try {
+      const res = await axios.get(
+        `/research/sessions/${encodeURIComponent(selectedSessionId.value)}/export`,
+        {
+          params: { format: backendFormat },
+          responseType: "blob",
+        },
+      );
+      const filename =
+        parseFilename(res.headers["content-disposition"]) ||
+        safeSecurityEvaluationExportName(selectedSession.value, format);
+      downloadBlob(res.data, filename);
+      message.success(`已下载安全评测 ${format.toUpperCase()}`);
+    } catch (e: any) {
+      message.error(
+        e.response?.data?.error || "下载安全评测失败，请先运行安全评测任务",
+      );
+    } finally {
+      exportingSecurityEvaluation.value = false;
     }
   };
 
@@ -567,6 +639,7 @@ export function useResearchWorkbench() {
     loadingResults,
     submittingTask,
     exportingArtifact,
+    exportingSecurityEvaluation,
     loadingResearchTraining,
     importingResearchTraining,
     exportingResearchTraining,
@@ -579,11 +652,17 @@ export function useResearchWorkbench() {
     researchTrainingImportLimit,
     researchTrainingDataset,
     researchTrainingImportResult,
+    securityEvaluationMode,
+    securityEvaluationLimit,
+    securityEvaluationIncludeLLM,
+    securityEvaluationLabelPolicy,
+    securityEvaluation,
     createForm,
     hasEvents,
     canPageBack,
     canPageForward,
     researchTrainingPreviewSamples,
+    securityEvaluationPreviewSamples,
     refreshSessions,
     createSession,
     selectSession,
@@ -593,11 +672,13 @@ export function useResearchWorkbench() {
     exportBundle,
     resetSession,
     compareRecentWindows,
+    runSecurityEvaluation,
     cancelActiveTask,
     fetchEvents,
     fetchResults,
     pageEvents,
     downloadArtifact,
+    downloadSecurityEvaluation,
     fetchResearchTrainingDataset,
     importResearchTrainingDataset,
     downloadResearchTrainingDataset,

@@ -178,7 +178,15 @@ func bindCommandSafetyRequest(c *gin.Context) (commandSafetyRequest, bool) {
 	return req, true
 }
 
+type commandSafetyAssessmentOptions struct {
+	IncludeLLM bool
+}
+
 func assessCommandSafety(ctx context.Context, comm string, args []string, user string, pid uint32) gin.H {
+	return assessCommandSafetyWithOptions(ctx, comm, args, user, pid, commandSafetyAssessmentOptions{IncludeLLM: true})
+}
+
+func assessCommandSafetyWithOptions(ctx context.Context, comm string, args []string, user string, pid uint32, opts commandSafetyAssessmentOptions) gin.H {
 	commandLine := joinCommandLine(comm, args)
 
 	classification := behavior.ClassifyBehavior(comm, args)
@@ -216,7 +224,7 @@ func assessCommandSafety(ctx context.Context, comm string, args []string, user s
 		sampleEvidence["totalMatches"], sampleEvidence["labeledMatches"], sampleEvidence["decision"], sampleEvidence["confidence"],
 	)
 	var llmResult *llmAssessment
-	if llmScoringConfigured() {
+	if opts.IncludeLLM && llmScoringConfigured() {
 		llmReq := llmScoreRequest{
 			CommandLine:    commandLine,
 			Comm:           comm,
