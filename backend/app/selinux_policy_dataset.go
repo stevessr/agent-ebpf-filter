@@ -105,10 +105,84 @@ func buildSELinuxPolicyTrainingSample(tmpl selinuxPolicyRuleTemplate, timestamp 
 	}
 	sample := buildCommandTrainingSample(comm, args, "", 0, label, "selinux-policy", timestamp)
 	sample.CommandLine = commandLine
-	if strings.TrimSpace(tmpl.Description) != "" {
-		sample.Category = "SELINUX_POLICY"
-	}
+	sample.Category = "SELINUX_POLICY"
 	return sample, true
+}
+
+func selinuxPolicyRuleRecordFromLine(line string, row int, source string) (remoteDatasetRecord, bool) {
+	rule := normalizeSELinuxPolicyRuleLine(line)
+	if rule == "" {
+		return remoteDatasetRecord{}, false
+	}
+	label, ok := selinuxPolicyRuleLabel(rule)
+	if !ok {
+		return remoteDatasetRecord{}, false
+	}
+
+	commandLine := "selinux-rule " + rule
+	parts := splitCommandLine(commandLine)
+	if len(parts) == 0 {
+		return remoteDatasetRecord{}, false
+	}
+	return remoteDatasetRecord{
+		Row:         row,
+		Source:      source,
+		CommandLine: commandLine,
+		Comm:        parts[0],
+		Args:        append([]string(nil), parts[1:]...),
+		Label:       label,
+		LabelSource: "selinux-policy-rule",
+		Category:    "SELINUX_POLICY",
+		UserLabel:   "selinux-policy",
+	}, true
+}
+
+func normalizeSELinuxPolicyRuleLine(line string) string {
+	line = strings.TrimSpace(strings.ReplaceAll(line, "\x00", " "))
+	if line == "" {
+		return ""
+	}
+	line = stripSELinuxInlineComment(line)
+	line = strings.TrimSpace(line)
+	for strings.HasSuffix(line, ";") {
+		line = strings.TrimSpace(strings.TrimSuffix(line, ";"))
+	}
+	if line == "" || line == "{" || line == "}" {
+		return ""
+	}
+	return strings.Join(strings.Fields(line), " ")
+}
+
+func stripSELinuxInlineComment(line string) string {
+	cut := len(line)
+	for _, marker := range []string{"#", "//"} {
+		if idx := strings.Index(line, marker); idx >= 0 && idx < cut {
+			cut = idx
+		}
+	}
+	return line[:cut]
+}
+
+func selinuxPolicyStatementComplete(line string) bool {
+	return strings.Contains(stripSELinuxInlineComment(line), ";")
+}
+
+func selinuxPolicyRuleLabel(rule string) (string, bool) {
+	fields := strings.Fields(strings.TrimSpace(rule))
+	if len(fields) == 0 {
+		return "", false
+	}
+	keyword := strings.ToLower(strings.Trim(fields[0], "({};"))
+	switch keyword {
+	case "allow", "type_transition", "role_transition", "range_transition", "type_member", "type_change":
+		return "ALLOW", true
+	case "neverallow":
+		return "BLOCK", true
+	case "dontaudit", "auditallow", "permissive":
+		return "ALERT", true
+	default:
+		return "", false
+	}
 }
 
 func importSELinuxPolicySamples(samples []TrainingSample) (int, int, error) {

@@ -374,6 +374,87 @@ func TestParseRemoteDatasetRecordsTextSkipsCommentNoise(t *testing.T) {
 	}
 }
 
+func TestParseRemoteDatasetRecordsSELinuxPolicyText(t *testing.T) {
+	raw := []byte(`
+# Common SELinux .te policy text should import as labeled samples.
+allow httpd_t httpd_sys_content_t:file {
+	getattr
+	open
+	read
+};
+neverallow domain shadow_t:file write;
+dontaudit httpd_t user_home_t:dir search;
+type_transition httpd_t tmp_t:file httpd_tmp_t;
+`)
+
+	records, format, err := parseRemoteDatasetRecords(raw, "auto", "local-policy.te")
+	if err != nil {
+		t.Fatalf("parseRemoteDatasetRecords() error = %v", err)
+	}
+	if format != "text" {
+		t.Fatalf("format = %q, want text", format)
+	}
+	if len(records) != 4 {
+		t.Fatalf("records length = %d, want 4: %#v", len(records), records)
+	}
+
+	wantLabels := []string{"ALLOW", "BLOCK", "ALERT", "ALLOW"}
+	for i, record := range records {
+		if record.Comm != "selinux-rule" {
+			t.Fatalf("record[%d].Comm = %q, want selinux-rule: %#v", i, record.Comm, record)
+		}
+		if record.Label != wantLabels[i] {
+			t.Fatalf("record[%d].Label = %q, want %q: %#v", i, record.Label, wantLabels[i], record)
+		}
+		if record.Category != "SELINUX_POLICY" || record.UserLabel != "selinux-policy" {
+			t.Fatalf("record[%d] category/userLabel mismatch: %#v", i, record)
+		}
+	}
+	if !strings.Contains(records[0].CommandLine, "getattr open read") {
+		t.Fatalf("multiline allow rule was not collapsed: %q", records[0].CommandLine)
+	}
+}
+
+func TestPullRemoteDatasetSELinuxJSONRulesPreservesLabels(t *testing.T) {
+	raw := `{
+		"rules": [
+			{"rule":"allow httpd_t http_port_t:tcp_socket name_connect;"},
+			{"selinuxRule":"neverallow domain shadow_t:file write;", "action":"BLOCK"}
+		]
+	}`
+
+	resp, err := pullRemoteDataset(remoteDatasetRequest{
+		Content:    raw,
+		SourceName: "policy-rules.json",
+		Format:     "auto",
+		Limit:      10,
+		LabelMode:  "preserve",
+	})
+	if err != nil {
+		t.Fatalf("pullRemoteDataset() error = %v", err)
+	}
+	if resp.Format != "json" {
+		t.Fatalf("format = %q, want json", resp.Format)
+	}
+	if resp.Total != 2 || len(resp.Rows) != 2 {
+		t.Fatalf("response rows = %d/%d, want 2/2", len(resp.Rows), resp.Total)
+	}
+	if resp.Rows[0].Comm != "selinux-rule" || resp.Rows[0].Label != "ALLOW" {
+		t.Fatalf("first row = %#v", resp.Rows[0])
+	}
+	if resp.Rows[0].LabelSource != "selinux-policy-rule" {
+		t.Fatalf("first row labelSource = %q, want selinux-policy-rule", resp.Rows[0].LabelSource)
+	}
+	if resp.Rows[1].Label != "BLOCK" || resp.Rows[1].UserLabel != "selinux-policy" {
+		t.Fatalf("second row = %#v", resp.Rows[1])
+	}
+
+	sample := buildRemoteDatasetSample(resp.Rows[0], "preserve", false)
+	if sample.UserLabel != "selinux-policy" || sample.Category != "SELINUX_POLICY" {
+		t.Fatalf("sample metadata was not preserved: userLabel=%q category=%q", sample.UserLabel, sample.Category)
+	}
+}
+
 func TestBuildRemoteDatasetSampleForceBlock(t *testing.T) {
 	row := remoteDatasetRow{
 		CommandLine: "openvt -- /bin/sh",

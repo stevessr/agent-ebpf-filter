@@ -528,7 +528,7 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
       <template #title>
         <span><GlobalOutlined /> 互联网数据集拉取</span>
         <a-tag color="blue" style="margin-left: 8px"
-          >HTTP/HTTPS JSON、JSONL、CSV、TSV、文本</a-tag
+          >HTTP/HTTPS JSON、JSONL、CSV、TSV、SELinux .te</a-tag
         >
       </template>
       <template #extra>
@@ -538,7 +538,7 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
             ref="trainingDatasetImportInput"
             @change="importTrainingDatasetFromFile"
             style="display: none"
-            accept=".json,.jsonl,.ndjson,.csv,.tsv,.txt,.log,.zip,.gz,.tgz,.tar,.bz2,.tbz,.tbz2,.txz"
+            accept=".json,.jsonl,.ndjson,.csv,.tsv,.txt,.log,.te,.if,.cil,.zip,.gz,.tgz,.tar,.bz2,.tbz,.tbz2,.txz"
           />
           <a-button
             size="small"
@@ -565,7 +565,8 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
         type="info"
         show-icon
         style="margin-bottom: 12px"
-        message="后端只接受可直接 GET 到的原始数据文件；如果地址返回的是 HTML 介绍页、下载页或归档页，会直接报错。也可以用“导入本地文件”上传 JSON, JSONL, CSV, TSV, 纯文本或常见压缩包，后端会自动尝试解压 zip, gz, tar, tar.gz, tgz, bz2 等归档。"
+        message="后端只接受可直接 GET 到的原始数据文件；如果地址返回的是 HTML 介绍页、下载页或归档页，会直接报错。也可以用“导入本地文件”上传 JSON, JSONL, CSV, TSV, 纯文本、SELinux .te/.cil policy 或常见压缩包，后端会自动尝试解压 zip, gz, tar, tar.gz, tgz, bz2 等归档。"
+        description="纯文本 policy 中的 allow/type_transition 会标为 ALLOW，neverallow 标为 BLOCK，dontaudit/auditallow/permissive 标为 ALERT；JSON rules[].rule / rules[].selinuxRule 也会按同样规则自动转换。"
       />
       <a-row :gutter="[16, 16]">
         <a-col :xs="24" :md="10">
@@ -632,7 +633,8 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
             </div>
             <a-typography-text type="secondary"
               >支持公开数据集、实验室内网数据集或你自己的样本仓库，只要 URL
-              可直接 GET 访问即可。</a-typography-text
+              可直接 GET 访问即可；SELinux policy
+              文本会在后端解析为 selinux-rule 训练样本。</a-typography-text
             >
           </div>
         </a-col>

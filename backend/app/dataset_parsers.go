@@ -196,11 +196,42 @@ func parseDelimitedDatasetRecords(raw []byte, comma rune, source string) ([]remo
 func parseTextDatasetRecords(raw []byte, source string) []remoteDatasetRecord {
 	lines := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
 	records := make([]remoteDatasetRecord, 0, len(lines))
+	pendingSELinuxRule := ""
+	pendingSELinuxRow := 0
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
 		if shouldSkipTextDatasetLine(line) {
 			continue
 		}
+
+		if pendingSELinuxRule != "" {
+			if fragment := normalizeSELinuxPolicyRuleLine(line); fragment != "" {
+				pendingSELinuxRule = strings.TrimSpace(pendingSELinuxRule + " " + fragment)
+			}
+			if selinuxPolicyStatementComplete(line) {
+				if record, ok := selinuxPolicyRuleRecordFromLine(pendingSELinuxRule, pendingSELinuxRow, source); ok {
+					records = append(records, record)
+				}
+				pendingSELinuxRule = ""
+				pendingSELinuxRow = 0
+			}
+			continue
+		}
+
+		if cleanedRule := normalizeSELinuxPolicyRuleLine(line); cleanedRule != "" {
+			if _, ok := selinuxPolicyRuleLabel(cleanedRule); ok {
+				if !selinuxPolicyStatementComplete(line) && strings.Contains(cleanedRule, "{") {
+					pendingSELinuxRule = cleanedRule
+					pendingSELinuxRow = i + 1
+					continue
+				}
+				if record, ok := selinuxPolicyRuleRecordFromLine(cleanedRule, i+1, source); ok {
+					records = append(records, record)
+					continue
+				}
+			}
+		}
+
 		parts := splitCommandLine(line)
 		if len(parts) == 0 {
 			continue
@@ -228,6 +259,11 @@ func parseTextDatasetRecords(raw []byte, source string) []remoteDatasetRecord {
 		}
 		record.UserLabel = "remote-import"
 		records = append(records, record)
+	}
+	if pendingSELinuxRule != "" {
+		if record, ok := selinuxPolicyRuleRecordFromLine(pendingSELinuxRule, pendingSELinuxRow, source); ok {
+			records = append(records, record)
+		}
 	}
 	return records
 }
@@ -388,6 +424,9 @@ func expandDatasetObjectMap(value map[string]any) []any {
 func remoteDatasetRecordFromAny(decoded any, rowIndex int, source string) (remoteDatasetRecord, bool) {
 	switch value := decoded.(type) {
 	case string:
+		if record, ok := selinuxPolicyRuleRecordFromLine(value, rowIndex, source); ok {
+			return record, true
+		}
 		comm, args := normalizeCommandInput(value, "", nil)
 		if comm == "" {
 			return remoteDatasetRecord{}, false
@@ -410,7 +449,34 @@ func remoteDatasetRecordFromAny(decoded any, rowIndex int, source string) (remot
 func remoteDatasetRecordFromMap(row map[string]any, rowIndex int, source string) (remoteDatasetRecord, bool) {
 	record := remoteDatasetRecord{Row: rowIndex, Source: source, UserLabel: "remote-import"}
 
-	commandLine := firstStringValue(row, "commandLine", "cmdline", "full_command", "command", "shell", "payload", "text", "value", "Command", "code")
+	commandLine := firstStringValue(row, "commandLine", "cmdline", "full_command", "command", "shell", "payload", "text", "value", "Command", "code", "rule", "policy", "selinuxRule", "selinux_rule")
+	if selinuxRecord, ok := selinuxPolicyRuleRecordFromLine(commandLine, rowIndex, source); ok {
+		label := normalizeDatasetLabelValue(row["label"])
+		if label == "" {
+			label = normalizeDatasetLabelValue(row["action"])
+		}
+		if label == "" {
+			label = normalizeDatasetLabelValue(row["class"])
+		}
+		if label != "" {
+			selinuxRecord.Label = label
+			selinuxRecord.LabelSource = "dataset"
+		}
+		if category := firstStringValue(row, "category", "behavior", "type", "group", "Category", "_injected_category"); category != "" {
+			selinuxRecord.Category = category
+		}
+		if anomaly, ok := extractDatasetFloat(row, "anomalyScore", "anomaly_score", "score", "riskScore"); ok {
+			selinuxRecord.Anomaly = anomaly
+			selinuxRecord.HasAnomaly = true
+		}
+		if ts, ok := extractDatasetTimestamp(row); ok {
+			selinuxRecord.Timestamp = ts
+		}
+		if userLabel := firstStringValue(row, "userLabel", "user_label"); userLabel != "" {
+			selinuxRecord.UserLabel = userLabel
+		}
+		return selinuxRecord, true
+	}
 	comm := firstStringValue(row, "comm", "commandName", "name", "executable", "Name", "_injected_name")
 	args := extractDatasetArgs(row, commandLine)
 	if commandLine == "" && comm != "" {
@@ -531,7 +597,10 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive 
 	}
 
 	label := int32(-1)
-	userLabel := "remote-import"
+	userLabel := strings.TrimSpace(row.UserLabel)
+	if userLabel == "" {
+		userLabel = "remote-import"
+	}
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case "block":
 		label = actionFromLabel("BLOCK")
@@ -541,17 +610,21 @@ func buildRemoteDatasetSample(row remoteDatasetRow, mode string, cleanSensitive 
 	default:
 		if normalized := normalizeActionLabel(row.Label); normalized != "" {
 			label = actionFromLabel(normalized)
-			userLabel = "remote-source-label"
+			if userLabel == "remote-import" {
+				userLabel = "remote-source-label"
+			}
 		} else if inferredLabel, inferredSource := inferRemoteDatasetLabelFromSource(row.Source); inferredLabel != "" {
 			label = actionFromLabel(inferredLabel)
-			if inferredSource != "" {
+			if inferredSource != "" && userLabel == "remote-import" {
 				userLabel = "remote-source-label"
 			}
 		} else if strings.EqualFold(strings.TrimSpace(mode), "heuristic") {
 			assessment := assessCommandSafety(context.Background(), comm, args, "", 0)
 			if action, ok := assessment["recommendedAction"].(string); ok {
 				label = actionFromLabel(action)
-				userLabel = "remote-heuristic"
+				if userLabel == "remote-import" {
+					userLabel = "remote-heuristic"
+				}
 			}
 		}
 	}

@@ -190,6 +190,8 @@ registerRoutes()
 | `POST` | `/config/ml/health/run` | 运行健康检查 |
 | `POST` | `/config/ml/backtest` | 回测 (同 assess) |
 
+`/config/ml/datasets/pull` 与 `/config/ml/datasets/import` 支持 `json`、`jsonl`、`csv`、`tsv`、纯文本与常见压缩包；纯文本 `.te`/SELinux policy 规则以及 JSON `rules[].rule` / `rules[].selinuxRule` 字段会自动识别为 `selinux-rule ...` 训练样本，并按 `allow/type_transition=ALLOW`、`neverallow=BLOCK`、`dontaudit/auditallow/permissive=ALERT` 保留来源标签。
+
 ### Hook 配置路由 (`/config/hooks`)
 
 需要 `FeatureHooks` 编译特性:
