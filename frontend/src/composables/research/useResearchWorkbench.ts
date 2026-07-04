@@ -13,11 +13,15 @@ import type {
   ResearchSourceFilter,
   ResearchTask,
   ResearchTaskRequest,
+  ResearchTrainingDataset,
+  ResearchTrainingImportResponse,
+  ResearchTrainingLabelPolicy,
   ResearchTimeRange,
 } from "../../types/config";
 
 type ResearchTaskAction = ResearchTaskRequest["action"];
 type ExportFormat = "jsonl" | "csv" | "bundle" | "json";
+type TrainingExportFormat = "jsonl" | "csv";
 
 const terminalTaskStatuses = new Set(["succeeded", "failed", "canceled"]);
 
@@ -51,6 +55,18 @@ const safeExportName = (session: ResearchSession | null, format: ExportFormat) =
   return `${base || "research-session"}.${suffix}`;
 };
 
+const safeTrainingExportName = (
+  session: ResearchSession | null,
+  format: TrainingExportFormat,
+) => {
+  const base = (session?.name || session?.id || "research-session")
+    .trim()
+    .replace(/[^a-z0-9._-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `${base || "research-session"}-training.${format}`;
+};
+
 const downloadBlob = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -73,11 +89,20 @@ export function useResearchWorkbench() {
   const loadingResults = ref(false);
   const submittingTask = ref(false);
   const exportingArtifact = ref(false);
+  const loadingResearchTraining = ref(false);
+  const importingResearchTraining = ref(false);
+  const exportingResearchTraining = ref(false);
   const eventSearch = ref("");
   const eventLimit = ref(100);
   const eventOffset = ref(0);
   const eventsTotal = ref(0);
   const compareWindowHours = ref(1);
+  const researchTrainingLabelPolicy =
+    ref<ResearchTrainingLabelPolicy>("decision");
+  const researchTrainingImportLimit = ref(0);
+  const researchTrainingDataset = ref<ResearchTrainingDataset | null>(null);
+  const researchTrainingImportResult =
+    ref<ResearchTrainingImportResponse | null>(null);
 
   const createForm = ref({
     name: makeDefaultSessionName(),
@@ -107,6 +132,9 @@ export function useResearchWorkbench() {
   const canPageBack = computed(() => eventOffset.value > 0);
   const canPageForward = computed(
     () => eventOffset.value + eventLimit.value < eventsTotal.value,
+  );
+  const researchTrainingPreviewSamples = computed(() =>
+    (researchTrainingDataset.value?.samples || []).slice(0, 20),
   );
 
   const buildFilterFromForm = (): ResearchSourceFilter => {
@@ -187,6 +215,8 @@ export function useResearchWorkbench() {
     eventOffset.value = 0;
     events.value = [];
     results.value = null;
+    researchTrainingDataset.value = null;
+    researchTrainingImportResult.value = null;
     await Promise.all([fetchEvents(true), fetchResults(true)]);
   };
 
@@ -201,6 +231,8 @@ export function useResearchWorkbench() {
       selectedSessionId.value = sessions.value[0]?.id || "";
       events.value = [];
       results.value = null;
+      researchTrainingDataset.value = null;
+      researchTrainingImportResult.value = null;
       eventsTotal.value = 0;
     } catch (e: any) {
       message.error(e.response?.data?.error || "删除研究会话失败");
@@ -390,6 +422,91 @@ export function useResearchWorkbench() {
     }
   };
 
+  const fetchResearchTrainingDataset = async (silent = false) => {
+    if (!ensureSelectedSession()) return;
+    loadingResearchTraining.value = true;
+    try {
+      const res = await axios.get<ResearchTrainingDataset>(
+        `/research/sessions/${encodeURIComponent(
+          selectedSessionId.value,
+        )}/training`,
+        {
+          params: {
+            format: "json",
+            labelPolicy: researchTrainingLabelPolicy.value,
+          },
+        },
+      );
+      researchTrainingDataset.value = res.data;
+      researchTrainingImportResult.value = null;
+      if (!silent) {
+        message.success(
+          `已生成 ${res.data.sampleCount || 0} 条训练样本，已标注 ${res.data.labeledCount || 0} 条`,
+        );
+      }
+    } catch (e: any) {
+      if (!silent) {
+        message.error(e.response?.data?.error || "生成 Research 训练集失败");
+      }
+    } finally {
+      loadingResearchTraining.value = false;
+    }
+  };
+
+  const importResearchTrainingDataset = async () => {
+    if (!ensureSelectedSession()) return;
+    importingResearchTraining.value = true;
+    try {
+      const res = await axios.post<ResearchTrainingImportResponse>(
+        `/research/sessions/${encodeURIComponent(
+          selectedSessionId.value,
+        )}/training/import`,
+        {
+          labelPolicy: researchTrainingLabelPolicy.value,
+          limit: Math.max(0, researchTrainingImportLimit.value || 0),
+        },
+      );
+      researchTrainingImportResult.value = res.data;
+      message.success(
+        `训练样本导入完成：新增 ${res.data.imported || 0} 条，跳过 ${res.data.skipped || 0} 条`,
+      );
+    } catch (e: any) {
+      message.error(e.response?.data?.error || "导入 Research 训练样本失败");
+    } finally {
+      importingResearchTraining.value = false;
+    }
+  };
+
+  const downloadResearchTrainingDataset = async (
+    format: TrainingExportFormat,
+  ) => {
+    if (!ensureSelectedSession()) return;
+    exportingResearchTraining.value = true;
+    try {
+      const res = await axios.get(
+        `/research/sessions/${encodeURIComponent(
+          selectedSessionId.value,
+        )}/training`,
+        {
+          params: {
+            format,
+            labelPolicy: researchTrainingLabelPolicy.value,
+          },
+          responseType: "blob",
+        },
+      );
+      downloadBlob(
+        res.data,
+        safeTrainingExportName(selectedSession.value, format),
+      );
+      message.success(`已下载 Research 训练集 ${format.toUpperCase()}`);
+    } catch (e: any) {
+      message.error(e.response?.data?.error || "下载 Research 训练集失败");
+    } finally {
+      exportingResearchTraining.value = false;
+    }
+  };
+
   const formatBytes = (bytes?: number) => {
     const value = bytes || 0;
     if (value < 1024) return `${value} B`;
@@ -450,15 +567,23 @@ export function useResearchWorkbench() {
     loadingResults,
     submittingTask,
     exportingArtifact,
+    loadingResearchTraining,
+    importingResearchTraining,
+    exportingResearchTraining,
     eventSearch,
     eventLimit,
     eventOffset,
     eventsTotal,
     compareWindowHours,
+    researchTrainingLabelPolicy,
+    researchTrainingImportLimit,
+    researchTrainingDataset,
+    researchTrainingImportResult,
     createForm,
     hasEvents,
     canPageBack,
     canPageForward,
+    researchTrainingPreviewSamples,
     refreshSessions,
     createSession,
     selectSession,
@@ -473,6 +598,9 @@ export function useResearchWorkbench() {
     fetchResults,
     pageEvents,
     downloadArtifact,
+    fetchResearchTrainingDataset,
+    importResearchTrainingDataset,
+    downloadResearchTrainingDataset,
     formatBytes,
     statusColor,
     riskColor,

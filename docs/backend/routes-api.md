@@ -261,7 +261,7 @@ registerRoutes()
 ### Research Processing v2 路由 (`/research`)
 
 所有路由使用运行时访问 token。研究会话只保存归一化/脱敏后的研究视图与导出产物，任务通过单 worker 有界队列异步执行。
-前端 `/research` 工作台封装了会话创建、`build_session`/`scan_recent`/`compare_windows`/`export_bundle` 任务提交、事件/聚合结果浏览和 JSONL/CSV/Bundle 下载；ML 页面也可直接从 Research Session 导入 128 维结构化训练样本。
+前端 `/research` 工作台封装了会话创建、`build_session`/`scan_recent`/`compare_windows`/`export_bundle` 任务提交、事件/聚合结果浏览、训练样本预览/导入和 JSONL/CSV/Bundle 下载；ML 页面也可直接从 Research Session 导入 128 维结构化训练样本。
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
