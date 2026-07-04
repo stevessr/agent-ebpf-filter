@@ -273,6 +273,8 @@ registerRoutes()
 | `POST` | `/research/tasks/:taskId/cancel` | 幂等取消排队中或运行中的任务 |
 | `GET` | `/research/sessions/:id/events` | 分页查询归一化 ResearchEvent |
 | `GET` | `/research/sessions/:id/results` | 查询时间线、进程树、trace、top-K、loop/risk 关联结果 |
+| `GET` | `/research/sessions/:id/training?format=json|jsonl|csv&labelPolicy=heuristic|decision|unlabeled` | 将会话事件结构化为训练样本：固定 128 维特征、标签策略、feature names、归一化报告 |
+| `POST` | `/research/sessions/:id/training/import` | 将带标签训练样本导入 ML training store；默认使用 `decision` 标签策略以避免无决策事件被误标 |
 | `GET` | `/research/sessions/:id/export?format=jsonl|csv|bundle` | 下载研究产物；生成 manifest 与哈希校验 |
 
 ### (`/plugins`)
@@ -354,6 +356,8 @@ BPF 模板子路由 (`/plugins/bpf`):
 | `POST` | `/api/v1/research/tasks/:taskId/cancel` | 取消 Research 任务 |
 | `GET` | `/api/v1/research/sessions/:id/events` | Research 事件分页 |
 | `GET` | `/api/v1/research/sessions/:id/results` | Research 聚合结果 |
+| `GET` | `/api/v1/research/sessions/:id/training` | Research 训练数据集导出 |
+| `POST` | `/api/v1/research/sessions/:id/training/import` | Research 训练样本导入 |
 | `GET` | `/api/v1/research/sessions/:id/export` | Research 导出下载 |
 | `GET` | `/api/v1/agentsight/runners` | AgentSight runners |
 | `GET` | `/api/v1/agentsight/events` | AgentSight 事件 |

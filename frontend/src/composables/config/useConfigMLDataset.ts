@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { computed, ref, watch } from "vue";
 import axios from "axios";
 import { message } from "ant-design-vue";
 
@@ -9,6 +9,11 @@ import type {
   LLMProductionDatasetResponse,
   LLMProductionDatasetRow,
   ClassicSecurityDatasetPreset,
+  ResearchSession,
+  ResearchSessionListResponse,
+  ResearchTrainingDataset,
+  ResearchTrainingImportResponse,
+  ResearchTrainingLabelPolicy,
 } from "../../types/config";
 
 import { classicSecurityDatasetPresets } from "./mlPresets";
@@ -54,6 +59,33 @@ export function useConfigMLDataset(deps: {
   const agentLegalDatasetLimit = ref(120);
   const importingAgentLegalDataset = ref(false);
 
+  // ── Research Session Training Dataset ──
+  const researchSessions = ref<ResearchSession[]>([]);
+  const selectedResearchSessionId = ref("");
+  const researchTrainingLabelPolicy =
+    ref<ResearchTrainingLabelPolicy>("decision");
+  const researchTrainingImportLimit = ref(0);
+  const loadingResearchSessions = ref(false);
+  const loadingResearchTraining = ref(false);
+  const importingResearchTraining = ref(false);
+  const exportingResearchTraining = ref(false);
+  const researchTrainingPreview = ref<ResearchTrainingDataset | null>(null);
+  const researchTrainingImportResult =
+    ref<ResearchTrainingImportResponse | null>(null);
+  const selectedResearchSession = computed(
+    () =>
+      researchSessions.value.find(
+        (session) => session.id === selectedResearchSessionId.value,
+      ) || null,
+  );
+  const researchTrainingPreviewSamples = computed(() =>
+    (researchTrainingPreview.value?.samples || []).slice(0, 20),
+  );
+  watch(selectedResearchSessionId, () => {
+    researchTrainingPreview.value = null;
+    researchTrainingImportResult.value = null;
+  });
+
   // ── LLM Production Dataset ──
   const llmProductionDatasetLimit = ref(500);
   const llmProductionAllowHeuristic = ref(false);
@@ -88,6 +120,43 @@ export function useConfigMLDataset(deps: {
       return new URL(trimmed, window.location.origin).toString();
     }
     return trimmed;
+  };
+
+  const selectDefaultResearchSession = (sessions: ResearchSession[]) => {
+    if (
+      selectedResearchSessionId.value &&
+      sessions.some((session) => session.id === selectedResearchSessionId.value)
+    ) {
+      return;
+    }
+    const next =
+      sessions.find((session) => (session.summary?.eventCount || 0) > 0) ||
+      sessions[0];
+    selectedResearchSessionId.value = next?.id || "";
+    researchTrainingPreview.value = null;
+    researchTrainingImportResult.value = null;
+  };
+
+  const ensureResearchSessionSelected = () => {
+    if (!selectedResearchSessionId.value) {
+      message.warning("请先选择 Research Session");
+      return false;
+    }
+    return true;
+  };
+
+  const researchTrainingFilename = (format: "jsonl" | "csv") => {
+    const sessionName =
+      selectedResearchSession.value?.name ||
+      selectedResearchSessionId.value ||
+      "research-session";
+    const safeName = sessionName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80);
+    return `agent-ebpf-filter-${safeName || "research-session"}-training.${format}`;
   };
 
   const fetchExistingCommandData = async (silent = false) => {
@@ -339,6 +408,114 @@ export function useConfigMLDataset(deps: {
     }
   };
 
+  const fetchResearchSessions = async (silent = false) => {
+    loadingResearchSessions.value = true;
+    try {
+      const res = await axios.get<ResearchSessionListResponse>(
+        "/research/sessions",
+      );
+      researchSessions.value = res.data.sessions || [];
+      selectDefaultResearchSession(researchSessions.value);
+      if (!silent) {
+        message.success(`已刷新 ${researchSessions.value.length} 个研究会话`);
+      }
+    } catch (e: any) {
+      if (!silent) {
+        message.error(e.response?.data?.error || "拉取研究会话失败");
+      }
+    } finally {
+      loadingResearchSessions.value = false;
+    }
+  };
+
+  const fetchResearchTrainingDataset = async (silent = false) => {
+    if (!ensureResearchSessionSelected()) return;
+    loadingResearchTraining.value = true;
+    try {
+      const res = await axios.get<ResearchTrainingDataset>(
+        `/research/sessions/${encodeURIComponent(
+          selectedResearchSessionId.value,
+        )}/training`,
+        {
+          params: {
+            format: "json",
+            labelPolicy: researchTrainingLabelPolicy.value,
+          },
+        },
+      );
+      researchTrainingPreview.value = res.data;
+      researchTrainingImportResult.value = null;
+      if (!silent) {
+        message.success(
+          `已生成 ${res.data.sampleCount || 0} 条研究训练样本，已标注 ${res.data.labeledCount || 0} 条`,
+        );
+      }
+    } catch (e: any) {
+      if (!silent) {
+        message.error(e.response?.data?.error || "生成研究训练集失败");
+      }
+    } finally {
+      loadingResearchTraining.value = false;
+    }
+  };
+
+  const importResearchTrainingDataset = async () => {
+    if (!ensureResearchSessionSelected()) return;
+    importingResearchTraining.value = true;
+    try {
+      const limit = Math.max(0, researchTrainingImportLimit.value || 0);
+      const res = await axios.post<ResearchTrainingImportResponse>(
+        `/research/sessions/${encodeURIComponent(
+          selectedResearchSessionId.value,
+        )}/training/import`,
+        {
+          labelPolicy: researchTrainingLabelPolicy.value,
+          limit,
+        },
+      );
+      researchTrainingImportResult.value = res.data;
+      await refreshTrainingDatasetViews();
+      message.success(
+        `研究训练集导入完成：新增 ${res.data.imported || 0} 条，跳过 ${res.data.skipped || 0} 条`,
+      );
+    } catch (e: any) {
+      message.error(e.response?.data?.error || "导入研究训练集失败");
+    } finally {
+      importingResearchTraining.value = false;
+    }
+  };
+
+  const downloadResearchTrainingDataset = async (format: "jsonl" | "csv") => {
+    if (!ensureResearchSessionSelected()) return;
+    exportingResearchTraining.value = true;
+    try {
+      const res = await axios.get<string>(
+        `/research/sessions/${encodeURIComponent(
+          selectedResearchSessionId.value,
+        )}/training`,
+        {
+          params: {
+            format,
+            labelPolicy: researchTrainingLabelPolicy.value,
+          },
+          responseType: "text",
+        },
+      );
+      downloadTextFile(
+        researchTrainingFilename(format),
+        res.data,
+        format === "csv"
+          ? "text/csv;charset=utf-8"
+          : "application/x-ndjson;charset=utf-8",
+      );
+      message.success(`已导出研究训练集 ${format.toUpperCase()}`);
+    } catch (e: any) {
+      message.error(e.response?.data?.error || "导出研究训练集失败");
+    } finally {
+      exportingResearchTraining.value = false;
+    }
+  };
+
   const importPresetBatch = async (
     presets: TrainingPreset[],
     label: string,
@@ -529,6 +706,23 @@ export function useConfigMLDataset(deps: {
     importRemoteDataset,
     importRemoteDatasetPayload,
     importAgentLegalDataset,
+    // Research session training dataset
+    researchSessions,
+    selectedResearchSessionId,
+    selectedResearchSession,
+    researchTrainingLabelPolicy,
+    researchTrainingImportLimit,
+    loadingResearchSessions,
+    loadingResearchTraining,
+    importingResearchTraining,
+    exportingResearchTraining,
+    researchTrainingPreview,
+    researchTrainingPreviewSamples,
+    researchTrainingImportResult,
+    fetchResearchSessions,
+    fetchResearchTrainingDataset,
+    importResearchTrainingDataset,
+    downloadResearchTrainingDataset,
     // LLM production dataset
     llmProductionDatasetLimit,
     llmProductionAllowHeuristic,

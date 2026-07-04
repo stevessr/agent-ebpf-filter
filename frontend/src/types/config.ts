@@ -171,6 +171,40 @@ export interface ResearchProcessingStatus {
   summary: ResearchProcessingSummary;
 }
 
+export interface ResearchSessionSummary {
+  schemaVersion?: string;
+  eventCount: number;
+  earliestTimestamp?: number;
+  latestTimestamp?: number;
+  earliestTime?: string;
+  latestTime?: string;
+  topSource?: string;
+  topEventType?: string;
+  topComm?: string;
+  maxRiskScore?: number;
+  riskAlerts?: number;
+  loopFindings?: number;
+  generatedTimestamp?: number;
+  generatedTime?: string;
+}
+
+export interface ResearchSession {
+  id: string;
+  name: string;
+  description?: string;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+  status: string;
+  summary: ResearchSessionSummary;
+  artifactRefs?: Record<string, unknown>;
+  lastError?: string;
+}
+
+export interface ResearchSessionListResponse {
+  sessions: ResearchSession[];
+}
+
 export interface RuntimeSettings {
   logPersistenceEnabled: boolean;
   logFilePath: string;
@@ -496,6 +530,19 @@ export interface MLAutoTuneCell {
   score: number;
 }
 
+export interface FeatureNormalizationReport {
+  mode: string;
+  sampleCount: number;
+  featureDim: number;
+  minObserved: number;
+  maxObserved: number;
+  nonFiniteValues: number;
+  belowZeroValues: number;
+  aboveOneValues: number;
+  zeroVarianceFeatures: number;
+  normalizedFeatureHint?: string;
+}
+
 export interface MLAutoTuneResponse {
   xAxis: MLAutoTuneAxis;
   yAxis: MLAutoTuneAxis;
@@ -507,18 +554,7 @@ export interface MLAutoTuneResponse {
   sampleCount: number;
   validationCount: number;
   totalDuration: number;
-  normalization?: {
-    mode: string;
-    sampleCount: number;
-    featureDim: number;
-    minObserved: number;
-    maxObserved: number;
-    nonFiniteValues: number;
-    belowZeroValues: number;
-    aboveOneValues: number;
-    zeroVarianceFeatures: number;
-    normalizedFeatureHint?: string;
-  };
+  normalization?: FeatureNormalizationReport;
   cells: MLAutoTuneCell[];
   best: MLAutoTuneCell | null;
 }
@@ -610,6 +646,64 @@ export interface RemoteDatasetResponse {
   totalSamples?: number;
   labeledSamples?: number;
   rows?: RemoteDatasetRow[];
+}
+
+export type ResearchTrainingLabelPolicy =
+  | "decision"
+  | "heuristic"
+  | "unlabeled";
+
+export interface ResearchTrainingSample {
+  sampleId: string;
+  eventId: string;
+  timestamp: number;
+  time: string;
+  source: string;
+  eventType: string;
+  pid?: number;
+  comm: string;
+  commandLine: string;
+  args: string[];
+  category: string;
+  target?: string;
+  traceId?: string;
+  spanId?: string;
+  decision?: string;
+  riskScore?: number;
+  label: number;
+  labelName: string;
+  labelSource: string;
+  anomalyScore: number;
+  featureVector: number[];
+  featureSpace: string;
+  featureVersion: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ResearchTrainingDataset {
+  schemaVersion: string;
+  sessionId: string;
+  generatedAt: string;
+  labelPolicy: ResearchTrainingLabelPolicy;
+  featureDim: number;
+  featureNames: string[];
+  sampleCount: number;
+  labeledCount: number;
+  byLabel: ResearchCount[];
+  normalization: FeatureNormalizationReport;
+  samples?: ResearchTrainingSample[];
+}
+
+export interface ResearchTrainingImportResponse {
+  sessionId: string;
+  labelPolicy: ResearchTrainingLabelPolicy;
+  total: number;
+  imported: number;
+  skipped: number;
+  totalSamples: number;
+  labeledSamples: number;
+  normalization: FeatureNormalizationReport;
+  importedSamples?: ResearchTrainingSample[];
 }
 
 export interface LLMProductionDatasetMessage {

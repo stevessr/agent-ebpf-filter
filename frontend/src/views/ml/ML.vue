@@ -5,12 +5,18 @@ import ConfigMLTab from "../../components/config/ConfigMLTab.vue";
 import { useConfigML } from "../../composables/config/useConfigML";
 
 const ml = useConfigML();
-const { fetchMLStatus, fetchAllSamples, fetchExistingCommandData } = ml;
+const {
+  fetchMLStatus,
+  fetchAllSamples,
+  fetchExistingCommandData,
+  fetchResearchSessions,
+} = ml;
 
 onMounted(async () => {
   await fetchMLStatus();
   fetchAllSamples();
   fetchExistingCommandData(true);
+  fetchResearchSessions(true);
 });
 </script>
 

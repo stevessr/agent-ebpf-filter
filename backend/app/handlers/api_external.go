@@ -71,6 +71,8 @@ func BuildExternalOpenAPISpec() *openapi3.T {
 	addOperation(paths, "/research/tasks/{taskId}/cancel", http.MethodPost, "Cancel a queued or running research task idempotently.")
 	addOperation(paths, "/research/sessions/{id}/events", http.MethodGet, "Page normalized research events. Query: limit, offset, source, eventType, pid, comm, traceId, spanId, since, until, q.")
 	addOperation(paths, "/research/sessions/{id}/results", http.MethodGet, "Get backend-computed research aggregates, process/trace/timeline summaries, loop findings, and risk alerts.")
+	addOperation(paths, "/research/sessions/{id}/training", http.MethodGet, "Export a training-ready structured dataset with 128-dim normalized feature vectors. Query: format=json|jsonl|csv, labelPolicy=heuristic|decision|unlabeled.")
+	addOperation(paths, "/research/sessions/{id}/training/import", http.MethodPost, "Import labeled research training samples into the ML training store. Body: {\"labelPolicy\":\"decision\",\"limit\":500,\"preview\":false}.")
 	addOperation(paths, "/research/sessions/{id}/export", http.MethodGet, "Download generated research artifact. Query: format=jsonl|csv|bundle.")
 	addOperation(paths, "/agentsight/events", http.MethodGet, "AgentSight-compatible merged event export. Query: limit, format=json|array|jsonl, include_tls, source, pid, comm, event_type, type, trace_id, span_id, since, until, filter.")
 	addOperation(paths, "/agentsight/events", http.MethodPost, "Import AgentSight JSON, JSON arrays, {\"events\":[...]}, or JSONL text into the compatibility store.")

@@ -1764,6 +1764,8 @@ func registerResearchRoutes(router gin.IRouter, tlsStore *TLSCaptureStore) {
 	router.POST("/tasks/:taskId/cancel", handleResearchTaskCancel)
 	router.GET("/sessions/:id/events", handleResearchSessionEvents)
 	router.GET("/sessions/:id/results", handleResearchSessionResults)
+	router.GET("/sessions/:id/training", handleResearchSessionTraining)
+	router.POST("/sessions/:id/training/import", handleResearchSessionTrainingImport)
 	router.GET("/sessions/:id/export", handleResearchSessionExport)
 }
 
@@ -2183,6 +2185,34 @@ func researchBundleZipBytes(session ResearchSession, events []ResearchEvent, res
 	if err != nil {
 		return nil, err
 	}
+	training := buildResearchTrainingDataset(session.ID, events, researchTrainingPolicyHeuristic, true)
+	trainingJSONL := researchTrainingDatasetJSONLBytes(training)
+	trainingCSV, err := researchTrainingDatasetCSVBytes(training)
+	if err != nil {
+		return nil, err
+	}
+	trainingManifestJSON, err := json.MarshalIndent(struct {
+		SchemaVersion string                     `json:"schemaVersion"`
+		LabelPolicy   string                     `json:"labelPolicy"`
+		FeatureDim    int                        `json:"featureDim"`
+		FeatureNames  []string                   `json:"featureNames"`
+		SampleCount   int                        `json:"sampleCount"`
+		LabeledCount  int                        `json:"labeledCount"`
+		ByLabel       []researchCount            `json:"byLabel"`
+		Normalization FeatureNormalizationReport `json:"normalization"`
+	}{
+		SchemaVersion: training.SchemaVersion,
+		LabelPolicy:   training.LabelPolicy,
+		FeatureDim:    training.FeatureDim,
+		FeatureNames:  training.FeatureNames,
+		SampleCount:   training.SampleCount,
+		LabeledCount:  training.LabeledCount,
+		ByLabel:       training.ByLabel,
+		Normalization: training.Normalization,
+	}, "", "  ")
+	if err != nil {
+		return nil, err
+	}
 	resultsJSON, err := json.MarshalIndent(results, "", "  ")
 	if err != nil {
 		return nil, err
@@ -2191,12 +2221,12 @@ func researchBundleZipBytes(session ResearchSession, events []ResearchEvent, res
 	if err != nil {
 		return nil, err
 	}
-	manifest := researchBuildManifest(session, events, settings, map[string][]byte{"events.jsonl": jsonl, "events.csv": csvBytes, "results.json": resultsJSON, "session.json": sessionJSON}, nil)
+	manifest := researchBuildManifest(session, events, settings, map[string][]byte{"events.jsonl": jsonl, "events.csv": csvBytes, "training.jsonl": trainingJSONL, "training.csv": trainingCSV, "training-manifest.json": trainingManifestJSON, "results.json": resultsJSON, "session.json": sessionJSON}, nil)
 	manifestJSON, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return nil, err
 	}
-	files := map[string][]byte{"events.jsonl": jsonl, "events.csv": csvBytes, "results.json": resultsJSON, "session.json": sessionJSON, "manifest.json": manifestJSON}
+	files := map[string][]byte{"events.jsonl": jsonl, "events.csv": csvBytes, "training.jsonl": trainingJSONL, "training.csv": trainingCSV, "training-manifest.json": trainingManifestJSON, "results.json": resultsJSON, "session.json": sessionJSON, "manifest.json": manifestJSON}
 	names := make([]string, 0, len(files))
 	for name := range files {
 		names = append(names, name)

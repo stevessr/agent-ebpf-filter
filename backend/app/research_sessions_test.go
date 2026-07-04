@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +24,7 @@ func restoreResearchV2TestState(t *testing.T) (*researchSessionStore, *researchT
 	oldTasks := researchTaskStore
 	oldUploaded := agentSightUploadedEvents
 	oldLoop := loopDetectionWorkerStore
+	oldTraining := globalTrainingStore
 
 	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
 		Enabled:               true,
@@ -38,6 +40,9 @@ func restoreResearchV2TestState(t *testing.T) (*researchSessionStore, *researchT
 	capturedEventArchive = newEventArchive(50)
 	agentSightUploadedEvents = newAgentSightEventStore(50)
 	loopDetectionWorkerStore = newLoopDetectionWorker()
+	globalTrainingStore = newTrainingDataStore(64)
+	globalTrainingStore.dataDir = t.TempDir()
+	globalTrainingStore.persistPath = filepath.Join(globalTrainingStore.dataDir, "ml_training_data.bin")
 
 	store := newResearchSessionStore(t.TempDir())
 	manager := newResearchTaskManager(store)
@@ -52,6 +57,7 @@ func restoreResearchV2TestState(t *testing.T) (*researchSessionStore, *researchT
 		researchTaskStore = oldTasks
 		agentSightUploadedEvents = oldUploaded
 		loopDetectionWorkerStore = oldLoop
+		globalTrainingStore = oldTraining
 	})
 	return store, manager
 }
@@ -169,6 +175,38 @@ func TestResearchSessionHandlersBuildResultsAndExports(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/research/sessions/"+session.ID+"/training?format=json&labelPolicy=heuristic", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("training status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var training ResearchTrainingDataset
+	if err := json.Unmarshal(rec.Body.Bytes(), &training); err != nil {
+		t.Fatalf("decode training dataset: %v", err)
+	}
+	if training.SampleCount != 4 || training.FeatureDim != FeatureDim || len(training.FeatureNames) != FeatureDim {
+		t.Fatalf("training dataset shape mismatch: %+v", training)
+	}
+	if len(training.Samples) != 4 || len(training.Samples[0].FeatureVector) != FeatureDim || training.Normalization.AboveOneValues != 0 {
+		t.Fatalf("training samples not normalized/shaped: %+v", training)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/research/sessions/"+session.ID+"/training/import", strings.NewReader(`{"labelPolicy":"decision"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("training import status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var importResp ResearchTrainingImportResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &importResp); err != nil {
+		t.Fatalf("decode training import: %v", err)
+	}
+	if importResp.Imported != 2 || importResp.Skipped != 2 || importResp.LabeledSamples != 2 {
+		t.Fatalf("training import mismatch: %+v", importResp)
+	}
+
+	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/research/sessions/"+session.ID+"/export?format=csv", nil)
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -236,7 +274,7 @@ func TestResearchExportBundleContainsManifest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("export bundle: %v", err)
 	}
-	if ref.Format != "bundle" || !bytes.Contains(payload, []byte("manifest.json")) {
+	if ref.Format != "bundle" || !bytes.Contains(payload, []byte("manifest.json")) || !bytes.Contains(payload, []byte("training.jsonl")) || !bytes.Contains(payload, []byte("training-manifest.json")) {
 		t.Fatalf("bundle artifact mismatch ref=%+v len=%d", ref, len(payload))
 	}
 }
