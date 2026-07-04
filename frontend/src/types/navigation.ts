@@ -12,6 +12,7 @@ export type WorkbenchKey =
   | "network-flow"
   | "tls-capture"
   | "execution-graph"
+  | "research"
   | "explorer"
   | "executor"
   | "hooks"

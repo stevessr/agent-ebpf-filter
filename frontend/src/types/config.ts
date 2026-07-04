@@ -197,12 +197,146 @@ export interface ResearchSession {
   updatedAt: string;
   status: string;
   summary: ResearchSessionSummary;
-  artifactRefs?: Record<string, unknown>;
+  artifactRefs?: Record<string, ResearchArtifactRef>;
   lastError?: string;
 }
 
 export interface ResearchSessionListResponse {
   sessions: ResearchSession[];
+}
+
+export interface ResearchSourceFilter {
+  sources?: string[];
+  eventTypes?: string[];
+  comms?: string[];
+  pids?: number[];
+  traceId?: string;
+  spanId?: string;
+  query?: string;
+  limit?: number;
+  includeTLS?: boolean;
+  includeUploaded?: boolean;
+}
+
+export interface ResearchTimeRange {
+  since?: number;
+  until?: number;
+  sinceTime?: string;
+  untilTime?: string;
+}
+
+export interface ResearchCreateSessionRequest {
+  name: string;
+  description?: string;
+  tags?: string[];
+  sourceFilter?: ResearchSourceFilter;
+  timeRange?: ResearchTimeRange;
+}
+
+export interface ResearchTaskRequest {
+  action:
+    | "scan_recent"
+    | "build_session"
+    | "compare_windows"
+    | "export_bundle"
+    | "reset_session";
+  limit?: number;
+  sourceFilter?: ResearchSourceFilter;
+  timeRange?: ResearchTimeRange;
+  leftWindow?: ResearchTimeRange;
+  rightWindow?: ResearchTimeRange;
+  formats?: string[];
+  format?: string;
+  targetTaskId?: string;
+}
+
+export interface ResearchTask {
+  taskId: string;
+  sessionId?: string;
+  action: string;
+  status: "queued" | "running" | "succeeded" | "failed" | "canceled" | string;
+  progress: number;
+  queuedAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  error?: string;
+  resultRef?: string;
+  result?: Record<string, unknown>;
+  records?: number;
+  queueLen?: number;
+  cancelRequested?: boolean;
+}
+
+export interface ResearchArtifactRef {
+  format: string;
+  name: string;
+  path?: string;
+  contentType: string;
+  bytes: number;
+  sha256: string;
+  createdAt: string;
+}
+
+export interface ResearchEvent {
+  id: string;
+  timestamp: number;
+  time: string;
+  source: string;
+  eventType: string;
+  pid?: number;
+  ppid?: number;
+  comm?: string;
+  traceId?: string;
+  spanId?: string;
+  target?: string;
+  riskScore?: number;
+  decision?: string;
+  redactionLevel?: string;
+  features?: Record<string, unknown>;
+}
+
+export interface ResearchEventsResponse {
+  events: ResearchEvent[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+export interface ResearchRiskFinding {
+  eventId: string;
+  timestamp: number;
+  time: string;
+  source: string;
+  eventType: string;
+  pid?: number;
+  comm?: string;
+  target?: string;
+  riskScore?: number;
+  decision?: string;
+  traceId?: string;
+  associated?: string;
+}
+
+export interface ResearchResults {
+  schemaVersion: string;
+  sessionId: string;
+  generatedTimestamp: number;
+  generatedTime: string;
+  summary: ResearchProcessingSummary;
+  topTargets?: ResearchCount[];
+  topDecisions?: ResearchCount[];
+  loopFindings?: LoopDetectionFinding[];
+  riskAlerts?: ResearchRiskFinding[];
+  kernelRiskFeedback?: {
+    enabled: boolean;
+    policyGateEnabled: boolean;
+    minRiskScore: number;
+    enforceNetwork: boolean;
+    enforceFileNames: boolean;
+    enforceExec: boolean;
+    maxActionsPerMinute: number;
+  };
+  compareWindows?: unknown;
 }
 
 export interface RuntimeSettings {

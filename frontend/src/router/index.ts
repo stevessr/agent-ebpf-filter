@@ -58,6 +58,11 @@ const routes = [
     component: () => import("../views/execution-graph/ExecutionGraph.vue"),
   },
   {
+    path: "/research/:tab?",
+    name: "Research",
+    component: () => import("../views/research/Research.vue"),
+  },
+  {
     path: "/explorer",
     name: "Explorer",
     component: () => import("../views/explorer/Explorer.vue"),

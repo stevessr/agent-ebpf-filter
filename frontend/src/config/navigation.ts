@@ -5,6 +5,7 @@ import {
   ClusterOutlined,
   DashboardOutlined,
   DeploymentUnitOutlined,
+  ExperimentOutlined,
   EyeOutlined,
   FolderOpenOutlined,
   GlobalOutlined,
@@ -69,6 +70,12 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
         title: "Tracing",
         icon: ClusterOutlined,
         defaultRoute: { name: "ExecutionGraph", params: { tab: "topology" } },
+      },
+      {
+        key: "research",
+        title: "Research",
+        icon: ExperimentOutlined,
+        defaultRoute: { name: "Research" },
       },
       {
         key: "tls-capture",
@@ -175,6 +182,7 @@ const routeNameMap: Record<string, WorkbenchKey> = {
   NetworkFlow: "network-flow",
   TLSCapture: "tls-capture",
   ExecutionGraph: "execution-graph",
+  Research: "research",
   Explorer: "explorer",
   Executor: "executor",
   Hooks: "hooks",
@@ -218,6 +226,8 @@ export const resolveWorkbenchKey = (
     return "dashboard";
   if (path.startsWith("/monitor") && isAvailableWorkbenchKey("monitor"))
     return "monitor";
+  if (path.startsWith("/research") && isAvailableWorkbenchKey("research"))
+    return "research";
   if (
     path.startsWith("/network-flow") &&
     isAvailableWorkbenchKey("network-flow")
