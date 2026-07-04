@@ -58,6 +58,8 @@ export function useConfigMLDataset(deps: {
   const remoteDatasetMeta = ref<RemoteDatasetResponse | null>(null);
   const agentLegalDatasetLimit = ref(120);
   const importingAgentLegalDataset = ref(false);
+  const selinuxPolicyDatasetLimit = ref(36);
+  const importingSELinuxPolicyDataset = ref(false);
 
   // ── Research Session Training Dataset ──
   const researchSessions = ref<ResearchSession[]>([]);
@@ -408,6 +410,29 @@ export function useConfigMLDataset(deps: {
     }
   };
 
+  const importSELinuxPolicyDataset = async () => {
+    importingSELinuxPolicyDataset.value = true;
+    try {
+      const res = await axios.post<RemoteDatasetResponse>(
+        "/config/ml/datasets/selinux-policy",
+        {
+          limit: selinuxPolicyDatasetLimit.value,
+          import: true,
+        },
+      );
+      remoteDatasetMeta.value = res.data;
+      remoteDatasetPreview.value = res.data.rows || [];
+      await refreshTrainingDatasetViews();
+      message.success(
+        `SELinux 规则样本导入完成：新增 ${res.data.imported ?? 0} 条，跳过 ${res.data.skipped ?? 0} 条`,
+      );
+    } catch (e: any) {
+      message.error(e.response?.data?.error || "导入 SELinux 规则样本失败");
+    } finally {
+      importingSELinuxPolicyDataset.value = false;
+    }
+  };
+
   const fetchResearchSessions = async (silent = false) => {
     loadingResearchSessions.value = true;
     try {
@@ -702,10 +727,13 @@ export function useConfigMLDataset(deps: {
     remoteDatasetMeta,
     agentLegalDatasetLimit,
     importingAgentLegalDataset,
+    selinuxPolicyDatasetLimit,
+    importingSELinuxPolicyDataset,
     fetchRemoteDatasetPreview,
     importRemoteDataset,
     importRemoteDatasetPayload,
     importAgentLegalDataset,
+    importSELinuxPolicyDataset,
     // Research session training dataset
     researchSessions,
     selectedResearchSessionId,

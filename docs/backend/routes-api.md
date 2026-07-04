@@ -179,6 +179,8 @@ registerRoutes()
 | `POST` | `/config/ml/datasets/classic/:name/preview` | 数据集预览 |
 | `POST` | `/config/ml/datasets/pull` | 拉取远程数据集 |
 | `POST` | `/config/ml/datasets/import` | 导入数据集 |
+| `POST` | `/config/ml/datasets/agent-legal` | 导入内置合法 Agent 行为样本 |
+| `POST` | `/config/ml/datasets/selinux-policy` | 导入内置常见 SELinux policy 规则样本（allow/neverallow/dontaudit/auditallow/permissive） |
 | `GET` | `/config/ml/datasets/export` | 导出数据集 |
 | `DELETE` | `/config/ml/datasets` | 清空数据集 |
 | `GET` | `/config/ml/health/processes` | 健康监测进程 |

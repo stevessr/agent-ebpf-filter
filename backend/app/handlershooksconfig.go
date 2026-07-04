@@ -65,6 +65,7 @@ func registerConfigRoutes(rg *gin.RouterGroup, features *FeatureRegistry) {
 			ml.POST("/datasets/pull", handleMLDatasetPullPost)
 			ml.POST("/datasets/import", handleMLDatasetImportPost)
 			ml.POST("/datasets/agent-legal", handleMLAgentLegalDatasetPost)
+			ml.POST("/datasets/selinux-policy", handleMLSELinuxPolicyDatasetPost)
 			ml.GET("/datasets/export", handleMLDatasetExportGet)
 			ml.DELETE("/datasets", handleMLDatasetClearDelete)
 			ml.POST("/backtest", handleMLBacktestPost)

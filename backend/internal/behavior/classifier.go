@@ -70,6 +70,8 @@ var rules = []classificationRule{
 	{category: pb.BehaviorCategory_FILE_DELETE, commRe: regexp.MustCompile(`^(rm|unlink|shred|rmdir)$`)},
 	// File Permission
 	{category: pb.BehaviorCategory_FILE_PERMISSION, commRe: regexp.MustCompile(`^(chmod|chown|chattr|chgrp|setfacl|getfacl)$`)},
+	// SELinux policy inspection and label management
+	{category: pb.BehaviorCategory_FILE_PERMISSION, commRe: regexp.MustCompile(`^(selinux-rule|selinux-policy|semanage|sesearch|seinfo|sealert|getsebool|getenforce|restorecon|chcon|runcon)$`)},
 	// Network
 	{category: pb.BehaviorCategory_NETWORK, commRe: regexp.MustCompile(`^(curl|wget|nc|netcat|telnet|ssh|scp|rsync|ftp|sftp|nmap|dig|host|nslookup|ping|traceroute|whois|socat)$`)},
 	// Process Exec
@@ -90,6 +92,8 @@ var rules = []classificationRule{
 	{category: pb.BehaviorCategory_CONTAINER, commRe: regexp.MustCompile(`^(docker|podman|kubectl|k3s|helm|nerdctl|buildah|skopeo)$`)},
 	// Sensitive
 	{category: pb.BehaviorCategory_SENSITIVE, commRe: regexp.MustCompile(`^(sudo|su|doas|pkexec|passwd|chpasswd|cryptsetup|mount|umount|fdisk|parted|mkfs|lvm|pvcreate|vgcreate|iptables|nft|ufw|firewall-cmd|setenforce|sysctl)$`)},
+	{category: pb.BehaviorCategory_SENSITIVE, commRe: regexp.MustCompile(`^(setsebool|semodule|checkmodule|checkpolicy|audit2allow)$`)},
+	{category: pb.BehaviorCategory_SENSITIVE, commRe: regexp.MustCompile(`^(selinux-rule|selinux-policy)$`), argRe: regexp.MustCompile(`(neverallow|dontaudit|auditallow|permissive|setenforce|setbool|sys_admin|module_load|shadow_t|ssh_home_t|fixed_disk_device_t)`)},
 	// Network auditing & sniffing (ALERT level)
 	{category: pb.BehaviorCategory_NETWORK, commRe: regexp.MustCompile(`^(tcpdump|tshark|dumpcap|wireshark|ettercap|dsniff|arpspoof|arpping|arp-scan|netdiscover)$`)},
 	// Network config manipulation

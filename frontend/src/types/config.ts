@@ -878,6 +878,8 @@ export interface RemoteDatasetResponse {
   totalSamples?: number;
   labeledSamples?: number;
   rows?: RemoteDatasetRow[];
+  families?: Record<string, number>;
+  normalization?: FeatureNormalizationReport;
 }
 
 export type ResearchTrainingLabelPolicy =

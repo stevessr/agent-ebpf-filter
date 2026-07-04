@@ -945,6 +945,7 @@ export function useConfigML() {
       "Safety Net 预设",
     );
     await dataset.importPresetBatch(syntheticExpansionPresets, "合成扩增样本");
+    await dataset.importSELinuxPolicyDataset();
     await dataset.importAllInternetDatasets();
     await trainWithParams();
   };

@@ -49,6 +49,8 @@ const {
   remoteDatasetPreview,
   remoteDatasetMeta,
   researchSessions,
+  selinuxPolicyDatasetLimit,
+  importingSELinuxPolicyDataset,
   selectedResearchSessionId,
   selectedResearchSession,
   researchTrainingLabelPolicy,
@@ -75,6 +77,7 @@ const {
   fetchRemoteDatasetPreview,
   importRemoteDataset,
   importAgentLegalDataset,
+  importSELinuxPolicyDataset,
   fetchResearchSessions,
   fetchResearchTrainingDataset,
   importResearchTrainingDataset,
@@ -210,6 +213,20 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
             :loading="importingAgentLegalDataset"
             ><ImportOutlined /> 导入合法 Agent 行为</a-button
           >
+          <span style="font-size: 12px; color: #666">SELinux rules</span>
+          <a-input-number
+            v-model:value="selinuxPolicyDatasetLimit"
+            :min="10"
+            :max="200"
+            size="small"
+            style="width: 92px"
+          />
+          <a-button
+            size="small"
+            @click="importSELinuxPolicyDataset()"
+            :loading="importingSELinuxPolicyDataset"
+            ><BookOutlined /> 导入 SELinux 规则</a-button
+          >
           <a-tag color="blue"
             >downloadable internet:
             {{ downloadableInternetDatasetCount }}</a-tag
@@ -238,8 +255,8 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
       <a-alert
         type="info"
         show-icon
-        message="合成扩增样本由命令模板自动生成，可快速补齐 ALLOW / ALERT / BLOCK 的边界样本；互联网数据会批量拉取当前可直接下载的经典安全数据集。"
-        description="如果你只想先看效果，可以先导入合成扩增样本，再按需补充互联网数据。若要直接放大训练集并重新训练，直接点“扩增后立即训练”。"
+        message="合成扩增样本由命令模板自动生成，可快速补齐 ALLOW / ALERT / BLOCK 的边界样本；SELinux 规则会复用常见 allow/neverallow/dontaudit/auditallow/permissive 策略语义；互联网数据会批量拉取当前可直接下载的经典安全数据集。"
+        description="如果你只想先看效果，可以先导入合成扩增样本或 SELinux 规则，再按需补充互联网数据。若要直接放大训练集并重新训练，直接点“扩增后立即训练”。"
       />
     </a-card>
   </a-col>
