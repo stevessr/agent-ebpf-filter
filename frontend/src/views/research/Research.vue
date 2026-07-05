@@ -220,6 +220,48 @@ const securityConfusionRows = computed(() => {
     }));
 });
 
+const securityPosture = computed(() => securityEvaluation.value?.posture);
+
+const securityPostureAlertType = computed(() => {
+  switch ((securityPosture.value?.status || "").toLowerCase()) {
+    case "critical":
+      return "error";
+    case "needs_review":
+      return "warning";
+    case "pass":
+      return "success";
+    default:
+      return "info";
+  }
+});
+
+const securityPostureColor = computed(() => {
+  switch ((securityPosture.value?.status || "").toLowerCase()) {
+    case "critical":
+      return "red";
+    case "needs_review":
+      return "orange";
+    case "pass":
+      return "green";
+    default:
+      return "blue";
+  }
+});
+
+const securityPostureDescription = computed(() => {
+  const posture = securityPosture.value;
+  if (!posture) return "";
+  const blockers = posture.blockingReasons || [];
+  if (blockers.length > 0) {
+    return blockers.map(formatSecurityToken).join("；");
+  }
+  const warnings = posture.warnings || [];
+  if (warnings.length > 0) {
+    return warnings.map(formatSecurityToken).join("；");
+  }
+  return "当前评测未发现阻断项，可导出报告用于复现实验。";
+});
+
 const securityFindingGroups = computed(() => {
   const findings = securityEvaluation.value?.findings || {};
   return [
@@ -267,6 +309,9 @@ const securityActionColor = (action?: string) => {
       return "geekblue";
   }
 };
+
+const formatSecurityToken = (value: string) =>
+  value.replaceAll("_", " ").replaceAll(":", ": ");
 
 const securityFindingColor = (finding?: string) => {
   switch ((finding || "").toLowerCase()) {
@@ -792,6 +837,85 @@ onMounted(async () => {
                       </a-card>
                     </a-col>
                   </a-row>
+
+                  <a-card
+                    v-if="securityPosture"
+                    size="small"
+                    class="research-card"
+                    title="Security Posture & Suggested Actions"
+                  >
+                    <a-alert
+                      show-icon
+                      :type="securityPostureAlertType"
+                      :message="`Posture: ${securityPosture.status.toUpperCase()} · risk ${Number(securityPosture.riskScore || 0).toFixed(1)}`"
+                      :description="securityPostureDescription"
+                      style="margin-bottom: 12px"
+                    />
+                    <a-space wrap size="small" style="margin-bottom: 8px">
+                      <a-tag :color="securityPostureColor">
+                        {{ securityPosture.status }}
+                      </a-tag>
+                      <a-tag
+                        v-for="item in securityPosture.findingCounts || []"
+                        :key="item.key"
+                        :color="securityFindingColor(item.key)"
+                      >
+                        {{ formatSecurityToken(item.key) }} {{ item.count }}
+                      </a-tag>
+                    </a-space>
+                    <div
+                      v-if="(securityPosture.suggestedActions || []).length > 0"
+                      class="research-muted"
+                      style="margin-bottom: 8px"
+                    >
+                      Suggested actions
+                    </div>
+                    <a-space
+                      v-if="(securityPosture.suggestedActions || []).length > 0"
+                      wrap
+                      size="small"
+                    >
+                      <a-tag
+                        v-for="action in securityPosture.suggestedActions"
+                        :key="action"
+                        color="green"
+                      >
+                        {{ formatSecurityToken(action) }}
+                      </a-tag>
+                    </a-space>
+                    <a-table
+                      v-if="(securityPosture.topFailingCategories || []).length > 0"
+                      :dataSource="securityPosture.topFailingCategories"
+                      :pagination="false"
+                      rowKey="key"
+                      size="small"
+                      style="margin-top: 12px"
+                    >
+                      <a-table-column title="Top failing category" dataIndex="key" />
+                      <a-table-column title="Failed" dataIndex="failed" :width="90" />
+                      <a-table-column
+                        title="FP"
+                        dataIndex="falsePositives"
+                        :width="80"
+                      />
+                      <a-table-column
+                        title="FN"
+                        dataIndex="falseNegatives"
+                        :width="80"
+                      />
+                      <a-table-column
+                        title="Avg Risk"
+                        dataIndex="avgRiskScore"
+                        :width="100"
+                      >
+                        <template #default="{ record }">
+                          <a-tag :color="riskColor(record.avgRiskScore)">
+                            {{ (record.avgRiskScore || 0).toFixed(1) }}
+                          </a-tag>
+                        </template>
+                      </a-table-column>
+                    </a-table>
+                  </a-card>
 
                   <a-row :gutter="[16, 16]">
                     <a-col :xs="24" :lg="12">

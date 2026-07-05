@@ -396,6 +396,16 @@ export interface ResearchSecurityEvaluationFindings {
   unlabeledHighRisk?: ResearchSecurityEvaluationSampleRow[];
 }
 
+export interface ResearchSecurityEvaluationPosture {
+  status: "pass" | "needs_review" | "critical" | string;
+  riskScore: number;
+  findingCounts?: ResearchCount[];
+  blockingReasons?: string[];
+  warnings?: string[];
+  suggestedActions?: string[];
+  topFailingCategories?: ResearchSecurityEvaluationGroup[];
+}
+
 export interface ResearchSecurityEvaluationReport {
   schemaVersion: string;
   sessionId: string;
@@ -410,6 +420,7 @@ export interface ResearchSecurityEvaluationReport {
   byCommand?: ResearchSecurityEvaluationGroup[];
   bySource?: ResearchSecurityEvaluationGroup[];
   riskBuckets?: ResearchCount[];
+  posture?: ResearchSecurityEvaluationPosture;
   findings?: ResearchSecurityEvaluationFindings;
   samples?: ResearchSecurityEvaluationSampleRow[];
 }
