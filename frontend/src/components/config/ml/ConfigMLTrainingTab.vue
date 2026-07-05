@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import {
   ImportOutlined,
   ExportOutlined,
@@ -27,6 +28,7 @@ import {
 const props = defineProps<{ ml: ReturnType<typeof useConfigML> }>();
 
 const {
+  mlStatus,
   allSamples,
   loadingSamples,
   sampleTablePageSize,
@@ -101,6 +103,7 @@ const {
   importAllSyntheticPresets,
   importAllInternetDatasets,
   importExpandedTrainingCorpus,
+  fetchMLStatus,
 } = props.ml;
 
 void trainingDatasetImportInput;
@@ -112,9 +115,157 @@ const downloadableInternetDatasetCount = classicSecurityDatasetPresets.filter(
   (preset) => Boolean(preset.downloadUrl),
 ).length;
 const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
+const remoteDatasetQualityWarnings = computed(
+  () => remoteDatasetMeta.value?.quality?.warnings || [],
+);
+const remoteDatasetParseWarnings = computed(
+  () => remoteDatasetMeta.value?.parseWarnings || [],
+);
+const remoteDatasetWarningText = computed(() => {
+  const quality = remoteDatasetQualityWarnings.value.join(", ");
+  const parse = remoteDatasetParseWarnings.value
+    .map((warning) =>
+      [warning.source, warning.reason, warning.count ? `x${warning.count}` : ""]
+        .filter(Boolean)
+        .join(": "),
+    )
+    .join("; ");
+  return [quality, parse].filter(Boolean).join(" | ");
+});
+const trainingReadiness = computed(() => mlStatus.value.training_readiness);
+const trainingReadinessPercent = computed(() => {
+  const readiness = trainingReadiness.value;
+  if (!readiness?.minSamples) return 0;
+  return Math.min(100, Math.round((readiness.labeledCount / readiness.minSamples) * 100));
+});
+const trainingReadinessAlertType = computed(() => {
+  const readiness = trainingReadiness.value;
+  if (!readiness) return "info";
+  if (!readiness.ready) return "warning";
+  return (readiness.warnings?.length || 0) > 0 ? "info" : "success";
+});
+const formatReadinessToken = (value: string) =>
+  value.replaceAll("_", " ").replaceAll(":", ": ");
 </script>
 
 <template>
+  <!-- Training Readiness Gate -->
+  <a-col :xs="24">
+    <a-card size="small">
+      <template #title>
+        <span><AlertOutlined /> 训练数据 Readiness / 质量门槛</span>
+        <a-tag
+          v-if="trainingReadiness"
+          :color="trainingReadiness.ready ? 'green' : 'orange'"
+          style="margin-left: 8px"
+        >
+          {{ trainingReadiness.ready ? "READY" : "BLOCKED" }}
+        </a-tag>
+      </template>
+      <template #extra>
+        <a-button size="small" type="link" @click="fetchMLStatus">
+          <ReloadOutlined /> 刷新
+        </a-button>
+      </template>
+      <template v-if="trainingReadiness">
+        <a-alert
+          show-icon
+          :type="trainingReadinessAlertType"
+          :message="
+            trainingReadiness.ready
+              ? '当前训练集满足最小样本数、类别数与特征归一化门槛'
+              : '训练前需要先修复以下阻断项'
+          "
+          :description="
+            trainingReadiness.ready
+              ? '可以开始训练；如存在 warnings，建议先做去重、类别均衡或标签复核。'
+              : (trainingReadiness.blockingReasons || [])
+                  .map(formatReadinessToken)
+                  .join('；')
+          "
+          style="margin-bottom: 12px"
+        />
+        <a-row :gutter="[12, 12]">
+          <a-col :xs="24" :md="8">
+            <a-card size="small">
+              <a-statistic
+                title="Labeled / Required"
+                :value="`${trainingReadiness.labeledCount} / ${trainingReadiness.minSamples}`"
+              />
+              <a-progress
+                :percent="trainingReadinessPercent"
+                :status="trainingReadiness.ready ? 'success' : 'active'"
+                size="small"
+              />
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :md="8">
+            <a-card size="small">
+              <a-statistic
+                title="Classes"
+                :value="`${trainingReadiness.classCount} / ${trainingReadiness.minClasses}`"
+              />
+              <a-space wrap size="small" style="margin-top: 8px">
+                <a-tag
+                  v-for="item in trainingReadiness.byLabel || []"
+                  :key="item.key"
+                  :color="getLabelColor(item.key)"
+                >
+                  {{ item.key }} {{ item.count }}
+                </a-tag>
+              </a-space>
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :md="8">
+            <a-card size="small">
+              <a-statistic
+                title="Feature Issues"
+                :value="
+                  (trainingReadiness.normalization?.nonFiniteValues || 0) +
+                  (trainingReadiness.normalization?.belowZeroValues || 0) +
+                  (trainingReadiness.normalization?.aboveOneValues || 0)
+                "
+              />
+              <div style="font-size: 12px; color: #6b7280; margin-top: 8px">
+                duplicate={{ trainingReadiness.quality?.duplicateCount || 0 }},
+                unlabeled={{ trainingReadiness.unlabeledCount }}
+              </div>
+            </a-card>
+          </a-col>
+        </a-row>
+        <a-space
+          v-if="(trainingReadiness.warnings || []).length > 0"
+          wrap
+          size="small"
+          style="margin-top: 10px"
+        >
+          <a-tag
+            v-for="warning in trainingReadiness.warnings"
+            :key="warning"
+            color="orange"
+          >
+            {{ formatReadinessToken(warning) }}
+          </a-tag>
+        </a-space>
+        <a-space
+          v-if="(trainingReadiness.suggestedActions || []).length > 0"
+          wrap
+          size="small"
+          style="margin-top: 8px"
+        >
+          <a-tag
+            v-for="action in trainingReadiness.suggestedActions"
+            :key="action"
+            color="green"
+          >
+            {{ formatReadinessToken(action) }}
+          </a-tag>
+        </a-space>
+      </template>
+      <a-empty v-else description="等待 /config/ml/status 返回 readiness 信息" />
+    </a-card>
+  </a-col>
+
   <!-- Classic OS Security Datasets -->
   <a-col :xs="24">
     <a-card size="small">
@@ -662,6 +813,50 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
               <a-tag v-if="remoteDatasetMeta" color="gold"
                 >skipped: {{ remoteDatasetMeta.skipped ?? 0 }}</a-tag
               >
+              <a-tag v-if="remoteDatasetMeta?.quality" color="green">
+                importable:
+                {{ remoteDatasetMeta.quality.importableCount }}
+              </a-tag>
+              <a-tag v-if="remoteDatasetMeta?.quality" color="orange">
+                unlabeled:
+                {{ remoteDatasetMeta.quality.unlabeledCount }}
+              </a-tag>
+              <a-tag v-if="remoteDatasetMeta?.normalization" color="cyan">
+                norm:
+                {{ remoteDatasetMeta.normalization.mode }}
+              </a-tag>
+              <a-tag
+                v-for="label in remoteDatasetMeta?.byLabel || []"
+                :key="`remote-label-${label.key}`"
+                :color="getLabelColor(label.key)"
+              >
+                {{ label.key }}: {{ label.count }}
+              </a-tag>
+            </a-space>
+            <a-space
+              v-if="
+                (remoteDatasetMeta?.byCategory || []).length ||
+                (remoteDatasetMeta?.bySource || []).length
+              "
+              wrap
+            >
+              <a-tag
+                v-for="category in (remoteDatasetMeta?.byCategory || []).slice(
+                  0,
+                  6,
+                )"
+                :key="`remote-category-${category.key}`"
+                :color="getCategoryColor(category.key)"
+              >
+                {{ category.key }}: {{ category.count }}
+              </a-tag>
+              <a-tag
+                v-for="source in (remoteDatasetMeta?.bySource || []).slice(0, 4)"
+                :key="`remote-source-${source.key}`"
+                color="geekblue"
+              >
+                src {{ source.key }}: {{ source.count }}
+              </a-tag>
             </a-space>
             <a-alert
               v-if="remoteDatasetMeta"
@@ -675,7 +870,14 @@ const syntheticExpansionPresetCount = syntheticExpansionPresets.length;
               "
             />
             <a-alert
-              v-else
+              v-if="remoteDatasetWarningText"
+              type="warning"
+              show-icon
+              message="数据集质量提示"
+              :description="remoteDatasetWarningText"
+            />
+            <a-alert
+              v-if="!remoteDatasetMeta"
               type="warning"
               show-icon
               message="输入数据集 URL 后点击“拉取预览”，即可先查看格式识别和样本解析情况。"

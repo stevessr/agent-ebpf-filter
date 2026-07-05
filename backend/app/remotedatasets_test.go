@@ -453,6 +453,46 @@ func TestPullRemoteDatasetSELinuxJSONRulesPreservesLabels(t *testing.T) {
 	if sample.UserLabel != "selinux-policy" || sample.Category != "SELINUX_POLICY" {
 		t.Fatalf("sample metadata was not preserved: userLabel=%q category=%q", sample.UserLabel, sample.Category)
 	}
+	if len(resp.ByLabel) == 0 || len(resp.ByCategory) == 0 || len(resp.BySource) == 0 {
+		t.Fatalf("dataset stats were not populated: labels=%#v categories=%#v sources=%#v", resp.ByLabel, resp.ByCategory, resp.BySource)
+	}
+	if resp.Quality.ImportableCount != 2 || resp.Quality.LabeledCount != 2 || resp.Normalization.FeatureDim != FeatureDim {
+		t.Fatalf("dataset quality/normalization mismatch: quality=%#v normalization=%#v", resp.Quality, resp.Normalization)
+	}
+}
+
+func TestPullRemoteDatasetStatsAndWarnings(t *testing.T) {
+	archiveBytes := buildZipArchive(t, map[string]string{
+		"README.md": "# no records here\n",
+		"commands.txt": strings.Join([]string{
+			"git status",
+			"rm -rf /tmp/demo",
+			"curl https://example.com/data.json",
+		}, "\n"),
+	})
+
+	resp, err := pullRemoteDataset(remoteDatasetRequest{
+		ContentBase64: base64.StdEncoding.EncodeToString(archiveBytes),
+		SourceName:    "mixed.zip",
+		Format:        "auto",
+		Limit:         2,
+		LabelMode:     "heuristic",
+	})
+	if err != nil {
+		t.Fatalf("pullRemoteDataset() error = %v", err)
+	}
+	if !resp.Truncated || resp.Total != 3 || len(resp.Rows) != 2 {
+		t.Fatalf("truncation mismatch: total=%d rows=%d truncated=%t", resp.Total, len(resp.Rows), resp.Truncated)
+	}
+	if len(resp.ParseWarnings) == 0 {
+		t.Fatalf("expected parse warning for README/truncation, got none")
+	}
+	if resp.Normalization.FeatureDim != FeatureDim || resp.Quality.ImportableCount != 2 {
+		t.Fatalf("stats mismatch quality=%#v normalization=%#v", resp.Quality, resp.Normalization)
+	}
+	if len(resp.ByLabel) == 0 || len(resp.ByCategory) == 0 || len(resp.BySource) == 0 {
+		t.Fatalf("missing rollups labels=%#v categories=%#v sources=%#v", resp.ByLabel, resp.ByCategory, resp.BySource)
+	}
 }
 
 func TestBuildRemoteDatasetSampleForceBlock(t *testing.T) {

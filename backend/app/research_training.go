@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -32,7 +33,10 @@ type ResearchTrainingDataset struct {
 	SampleCount   int                        `json:"sampleCount"`
 	LabeledCount  int                        `json:"labeledCount"`
 	ByLabel       []researchCount            `json:"byLabel"`
+	ByCategory    []researchCount            `json:"byCategory,omitempty"`
+	BySource      []researchCount            `json:"bySource,omitempty"`
 	Normalization FeatureNormalizationReport `json:"normalization"`
+	Quality       DatasetQualitySummary      `json:"quality"`
 	Samples       []ResearchTrainingSample   `json:"samples,omitempty"`
 }
 
@@ -72,7 +76,9 @@ type ResearchTrainingImportResponse struct {
 	Skipped         int                        `json:"skipped"`
 	TotalSamples    int                        `json:"totalSamples"`
 	LabeledSamples  int                        `json:"labeledSamples"`
+	SkippedByReason []researchCount            `json:"skippedByReason,omitempty"`
 	Normalization   FeatureNormalizationReport `json:"normalization"`
+	Quality         DatasetQualitySummary      `json:"quality"`
 	ImportedSamples []ResearchTrainingSample   `json:"importedSamples,omitempty"`
 }
 
@@ -81,7 +87,13 @@ func buildResearchTrainingDataset(sessionID string, events []ResearchEvent, labe
 	trainingSamples := make([]ResearchTrainingSample, 0, len(events))
 	mlSamples := make([]TrainingSample, 0, len(events))
 	byLabel := map[string]int{}
+	byCategory := map[string]int{}
+	bySource := map[string]int{}
 	labeled := 0
+	unlabeled := 0
+	importable := 0
+	duplicates := 0
+	seenCommands := map[string]struct{}{}
 	for _, event := range events {
 		sample, ok := researchTrainingSampleFromEvent(event, labelPolicy)
 		if !ok {
@@ -90,10 +102,22 @@ func buildResearchTrainingDataset(sessionID string, events []ResearchEvent, labe
 		trainingSamples = append(trainingSamples, sample)
 		mlSamples = append(mlSamples, sample.trainingSample)
 		incrementResearchCount(byLabel, sample.LabelName)
+		incrementResearchCount(byCategory, normalizedDatasetCategoryKey(sample.Category))
+		incrementResearchCount(bySource, sample.Source)
 		if sample.Label >= 0 && sample.Label <= 3 {
 			labeled++
+			key := commandKey(sample.trainingSample.Comm, sample.trainingSample.Args)
+			if _, ok := seenCommands[key]; ok {
+				duplicates++
+			} else {
+				seenCommands[key] = struct{}{}
+				importable++
+			}
+		} else {
+			unlabeled++
 		}
 	}
+	normalization := summarizeFeatureNormalization(mlSamples)
 	dataset := ResearchTrainingDataset{
 		SchemaVersion: researchTrainingSchemaVersion,
 		SessionID:     sessionID,
@@ -104,7 +128,10 @@ func buildResearchTrainingDataset(sessionID string, events []ResearchEvent, labe
 		SampleCount:   len(trainingSamples),
 		LabeledCount:  labeled,
 		ByLabel:       topResearchCounts(byLabel, 0),
-		Normalization: summarizeFeatureNormalization(mlSamples),
+		ByCategory:    topResearchCounts(byCategory, 0),
+		BySource:      topResearchCounts(bySource, 10),
+		Normalization: normalization,
+		Quality:       buildDatasetQualitySummary(len(trainingSamples), importable, labeled, unlabeled, duplicates, byLabel, normalization),
 	}
 	if includeSamples {
 		dataset.Samples = trainingSamples
@@ -335,6 +362,18 @@ func researchTrainingDatasetCSVBytes(dataset ResearchTrainingDataset) ([]byte, e
 	return buf.Bytes(), writer.Error()
 }
 
+func researchRedactionLevelCounts(events []ResearchEvent) []researchCount {
+	counts := map[string]int{}
+	for _, event := range events {
+		level := strings.TrimSpace(event.RedactionLevel)
+		if level == "" {
+			level = "unknown"
+		}
+		incrementResearchCount(counts, level)
+	}
+	return topResearchCounts(counts, 0)
+}
+
 func handleResearchSessionTraining(c *gin.Context) {
 	sessionID := c.Param("id")
 	events, err := researchSessionsStore.LoadEvents(sessionID)
@@ -394,19 +433,23 @@ func handleResearchSessionTrainingImport(c *gin.Context) {
 	skipped := 0
 	importedSamples := make([]ResearchTrainingSample, 0)
 	seen := map[string]struct{}{}
+	skipReasons := map[string]int{}
 	for _, sample := range dataset.Samples[:limit] {
 		if sample.Label < 0 || sample.Label > 3 {
 			skipped++
+			incrementResearchCount(skipReasons, "unlabeled")
 			continue
 		}
 		key := commandKey(sample.trainingSample.Comm, sample.trainingSample.Args) + "\x00" + sample.LabelName
 		if _, ok := seen[key]; ok {
 			skipped++
+			incrementResearchCount(skipReasons, "duplicate_in_dataset")
 			continue
 		}
 		seen[key] = struct{}{}
 		if globalTrainingStore.HasExactCommand(sample.trainingSample.Comm, sample.trainingSample.Args) {
 			skipped++
+			incrementResearchCount(skipReasons, "duplicate_in_store")
 			continue
 		}
 		if req.Preview {
@@ -425,7 +468,10 @@ func handleResearchSessionTrainingImport(c *gin.Context) {
 		}
 	}
 	total, labeled := globalTrainingStore.Status()
-	c.JSON(http.StatusOK, ResearchTrainingImportResponse{SessionID: sessionID, LabelPolicy: labelPolicy, Total: len(dataset.Samples), Imported: imported, Skipped: skipped, TotalSamples: total, LabeledSamples: labeled, Normalization: dataset.Normalization, ImportedSamples: importedSamples})
+	if !req.Preview {
+		log.Printf("[Research] Training import session=%q policy=%s total=%d imported=%d skipped=%d limit=%d", sessionID, labelPolicy, len(dataset.Samples), imported, skipped, limit)
+	}
+	c.JSON(http.StatusOK, ResearchTrainingImportResponse{SessionID: sessionID, LabelPolicy: labelPolicy, Total: len(dataset.Samples), Imported: imported, Skipped: skipped, TotalSamples: total, LabeledSamples: labeled, SkippedByReason: topResearchCounts(skipReasons, 0), Normalization: dataset.Normalization, Quality: dataset.Quality, ImportedSamples: importedSamples})
 }
 
 func normalizeResearchTrainingFormat(raw string) string {

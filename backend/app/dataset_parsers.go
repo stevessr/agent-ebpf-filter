@@ -537,6 +537,9 @@ func buildRemoteDatasetRow(record remoteDatasetRecord, mode string, cleanSensiti
 	if strings.EqualFold(strings.TrimSpace(mode), "block") {
 		label = "BLOCK"
 		labelSource = "forced"
+	} else if strings.EqualFold(strings.TrimSpace(mode), "unlabeled") {
+		label = "-"
+		labelSource = "forced"
 	} else if labelSource == "" {
 		labelSource = "inferred"
 	}

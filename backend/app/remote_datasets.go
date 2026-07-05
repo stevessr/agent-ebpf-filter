@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -45,17 +46,24 @@ type remoteDatasetRow struct {
 }
 
 type remoteDatasetResponse struct {
-	Source         string             `json:"source"`
-	Format         string             `json:"format"`
-	ContentType    string             `json:"contentType"`
-	Total          int                `json:"total"`
-	Limit          int                `json:"limit"`
-	Truncated      bool               `json:"truncated"`
-	Imported       int                `json:"imported,omitempty"`
-	Skipped        int                `json:"skipped,omitempty"`
-	TotalSamples   int                `json:"totalSamples,omitempty"`
-	LabeledSamples int                `json:"labeledSamples,omitempty"`
-	Rows           []remoteDatasetRow `json:"rows,omitempty"`
+	Source         string                      `json:"source"`
+	Format         string                      `json:"format"`
+	ContentType    string                      `json:"contentType"`
+	Total          int                         `json:"total"`
+	Limit          int                         `json:"limit"`
+	Truncated      bool                        `json:"truncated"`
+	Imported       int                         `json:"imported,omitempty"`
+	Skipped        int                         `json:"skipped,omitempty"`
+	TotalSamples   int                         `json:"totalSamples,omitempty"`
+	LabeledSamples int                         `json:"labeledSamples,omitempty"`
+	ByLabel        []researchCount             `json:"byLabel,omitempty"`
+	ByCategory     []researchCount             `json:"byCategory,omitempty"`
+	BySource       []researchCount             `json:"bySource,omitempty"`
+	SkipReasons    []researchCount             `json:"skipReasons,omitempty"`
+	ParseWarnings  []remoteDatasetParseWarning `json:"parseWarnings,omitempty"`
+	Normalization  FeatureNormalizationReport  `json:"normalization,omitempty"`
+	Quality        DatasetQualitySummary       `json:"quality,omitempty"`
+	Rows           []remoteDatasetRow          `json:"rows,omitempty"`
 }
 
 type remoteDatasetRecord struct {
@@ -112,19 +120,23 @@ func handleMLDatasetImportPost(c *gin.Context) {
 	imported := 0
 	skipped := 0
 	seen := make(map[string]struct{})
+	skipReasons := map[string]int{}
 	for _, row := range resp.Rows {
 		if row.Comm == "" {
 			skipped++
+			incrementResearchCount(skipReasons, "empty_comm")
 			continue
 		}
 		key := commandKey(row.Comm, row.Args)
 		if _, exists := seen[key]; exists {
 			skipped++
+			incrementResearchCount(skipReasons, "duplicate_in_payload")
 			continue
 		}
 		seen[key] = struct{}{}
 		if globalTrainingStore.HasExactCommand(row.Comm, row.Args) {
 			skipped++
+			incrementResearchCount(skipReasons, "duplicate_in_store")
 			continue
 		}
 
@@ -144,6 +156,9 @@ func handleMLDatasetImportPost(c *gin.Context) {
 	resp.Skipped = skipped
 	resp.TotalSamples = total
 	resp.LabeledSamples = labeled
+	resp.SkipReasons = topResearchCounts(skipReasons, 0)
+	resp.Quality = datasetQualityFromRows(resp.Rows, resp.Normalization)
+	log.Printf("[ML] Remote dataset import source=%q format=%s rows=%d imported=%d skipped=%d labelMode=%s cleanSensitive=%t", resp.Source, resp.Format, len(resp.Rows), imported, skipped, req.LabelMode, req.CleanSensitive)
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -255,15 +270,18 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 
 	records := make([]remoteDatasetRecord, 0)
 	format := ""
+	parseWarnings := make([]remoteDatasetParseWarning, 0)
 	for _, payload := range payloads {
 		payloadRecords, payloadFormat, parseErr := parseRemoteDatasetRecords(payload.Data, req.Format, payload.Source)
 		if parseErr != nil {
 			if len(payloads) == 1 {
 				return nil, parseErr
 			}
+			parseWarnings = append(parseWarnings, remoteDatasetParseWarning{Source: payload.Source, Reason: parseErr.Error(), Count: 1})
 			continue
 		}
 		if len(payloadRecords) == 0 {
+			parseWarnings = append(parseWarnings, remoteDatasetParseWarning{Source: payload.Source, Reason: "no_records", Count: 1})
 			continue
 		}
 		records = append(records, payloadRecords...)
@@ -289,6 +307,7 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 	if !req.ImportAll && req.Limit > 0 && len(rows) > req.Limit {
 		rows = rows[:req.Limit]
 		truncated = true
+		parseWarnings = append(parseWarnings, remoteDatasetParseWarning{Source: source, Reason: "limit_truncated", Count: len(records) - len(rows)})
 	}
 	limit := req.Limit
 	if req.ImportAll {
@@ -301,15 +320,18 @@ func pullRemoteDataset(req remoteDatasetRequest) (*remoteDatasetResponse, error)
 		source = req.URL
 	}
 
-	return &remoteDatasetResponse{
-		Source:      source,
-		Format:      format,
-		ContentType: contentType,
-		Total:       len(records),
-		Limit:       limit,
-		Truncated:   truncated,
-		Rows:        rows,
-	}, nil
+	resp := &remoteDatasetResponse{
+		Source:        source,
+		Format:        format,
+		ContentType:   contentType,
+		Total:         len(records),
+		Limit:         limit,
+		Truncated:     truncated,
+		ParseWarnings: parseWarnings,
+		Rows:          rows,
+	}
+	applyRemoteDatasetResponseStats(resp, req.LabelMode, req.CleanSensitive)
+	return resp, nil
 }
 
 func loadRemoteDatasetPayload(req remoteDatasetRequest) ([]byte, string, string, error) {

@@ -156,6 +156,23 @@ const trainingOutOfRangeValues = computed(() => {
   return normalization.belowZeroValues + normalization.aboveOneValues;
 });
 
+const researchTrainingQualityWarnings = computed(
+  () => researchTrainingDataset.value?.quality?.warnings || [],
+);
+
+const researchTrainingLabeledRatio = computed(() => {
+  const dataset = researchTrainingDataset.value;
+  if (!dataset?.sampleCount) return "0.0";
+  return ((dataset.labeledCount / dataset.sampleCount) * 100).toFixed(1);
+});
+
+const researchTrainingSkippedReasonText = computed(
+  () =>
+    (researchTrainingImportResult.value?.skippedByReason || [])
+      .map((item) => `${item.key}:${item.count}`)
+      .join(", ") || "none",
+);
+
 const securityMetricCards = computed(() => {
   const report = securityEvaluation.value;
   const metrics = report?.metrics;
@@ -1052,7 +1069,7 @@ onMounted(async () => {
                   </a-space>
                 </div>
                 <a-row :gutter="[12, 12]" class="research-stats">
-                  <a-col :xs="12" :md="6">
+                  <a-col :xs="12" :md="4">
                     <a-card size="small">
                       <a-statistic
                         title="Samples"
@@ -1061,16 +1078,38 @@ onMounted(async () => {
                       />
                     </a-card>
                   </a-col>
-                  <a-col :xs="12" :md="6">
+                  <a-col :xs="12" :md="4">
                     <a-card size="small">
                       <a-statistic
                         title="Labeled"
                         :value="researchTrainingDataset?.labeledCount || 0"
+                        :suffix="`${researchTrainingLabeledRatio}%`"
+                      />
+                    </a-card>
+                  </a-col>
+                  <a-col :xs="12" :md="4">
+                    <a-card size="small">
+                      <a-statistic
+                        title="Importable"
+                        :value="
+                          researchTrainingDataset?.quality?.importableCount || 0
+                        "
+                        suffix="unique"
+                      />
+                    </a-card>
+                  </a-col>
+                  <a-col :xs="12" :md="4">
+                    <a-card size="small">
+                      <a-statistic
+                        title="Unlabeled"
+                        :value="
+                          researchTrainingDataset?.quality?.unlabeledCount || 0
+                        "
                         suffix="rows"
                       />
                     </a-card>
                   </a-col>
-                  <a-col :xs="12" :md="6">
+                  <a-col :xs="12" :md="4">
                     <a-card size="small">
                       <a-statistic
                         title="Feature Dim"
@@ -1079,7 +1118,7 @@ onMounted(async () => {
                       />
                     </a-card>
                   </a-col>
-                  <a-col :xs="12" :md="6">
+                  <a-col :xs="12" :md="4">
                     <a-card size="small">
                       <a-statistic
                         title="Out-of-range"
@@ -1119,14 +1158,36 @@ onMounted(async () => {
                   >
                     {{ label.key }}: {{ label.count }}
                   </a-tag>
+                  <a-tag
+                    v-for="category in researchTrainingDataset.byCategory || []"
+                    :key="`training-category-${category.key}`"
+                    color="purple"
+                  >
+                    {{ category.key }}: {{ category.count }}
+                  </a-tag>
+                  <a-tag
+                    v-for="source in researchTrainingDataset.bySource || []"
+                    :key="`training-source-${source.key}`"
+                    color="geekblue"
+                  >
+                    src {{ source.key }}: {{ source.count }}
+                  </a-tag>
                 </a-space>
+                <a-alert
+                  v-if="researchTrainingQualityWarnings.length"
+                  type="warning"
+                  show-icon
+                  style="margin-bottom: 12px"
+                  message="训练可用性提示"
+                  :description="researchTrainingQualityWarnings.join(', ')"
+                />
                 <a-alert
                   v-if="researchTrainingImportResult"
                   type="success"
                   show-icon
                   style="margin-bottom: 12px"
                   :message="`导入完成：新增 ${researchTrainingImportResult.imported}，跳过 ${researchTrainingImportResult.skipped}`"
-                  :description="`当前训练库 total=${researchTrainingImportResult.totalSamples}, labeled=${researchTrainingImportResult.labeledSamples}`"
+                  :description="`当前训练库 total=${researchTrainingImportResult.totalSamples}, labeled=${researchTrainingImportResult.labeledSamples}; skipped=${researchTrainingSkippedReasonText}`"
                 />
                 <a-empty
                   v-if="!researchTrainingDataset"

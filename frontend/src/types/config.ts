@@ -664,6 +664,7 @@ export interface MLStatusState {
   train_samples: number;
   validation_samples: number;
   validation_split_ratio: number;
+  training_readiness: MLTrainingReadiness | null;
   llm_review: MLReviewSummary | null;
 }
 
@@ -775,6 +776,37 @@ export interface FeatureNormalizationReport {
   normalizedFeatureHint?: string;
 }
 
+export interface DatasetQualitySummary {
+  importableCount: number;
+  labeledCount: number;
+  unlabeledCount: number;
+  duplicateCount: number;
+  dominantLabel?: string;
+  dominantLabelRatio?: number;
+  classImbalance: boolean;
+  featureOutOfRange: number;
+  normalizationStatus: string;
+  warnings?: string[];
+}
+
+export interface MLTrainingReadiness {
+  ready: boolean;
+  sampleCount: number;
+  labeledCount: number;
+  unlabeledCount: number;
+  minSamples: number;
+  minClasses: number;
+  classCount: number;
+  featureDim: number;
+  byLabel?: ResearchCount[];
+  byCategory?: ResearchCount[];
+  normalization: FeatureNormalizationReport;
+  quality: DatasetQualitySummary;
+  blockingReasons?: string[];
+  warnings?: string[];
+  suggestedActions?: string[];
+}
+
 export interface MLAutoTuneResponse {
   xAxis: MLAutoTuneAxis;
   yAxis: MLAutoTuneAxis;
@@ -879,7 +911,18 @@ export interface RemoteDatasetResponse {
   labeledSamples?: number;
   rows?: RemoteDatasetRow[];
   families?: Record<string, number>;
+  byLabel?: ResearchCount[];
+  byCategory?: ResearchCount[];
+  bySource?: ResearchCount[];
+  skipReasons?: ResearchCount[];
+  parseWarnings?: Array<{
+    source?: string;
+    row?: number;
+    reason: string;
+    count?: number;
+  }>;
   normalization?: FeatureNormalizationReport;
+  quality?: DatasetQualitySummary;
 }
 
 export type ResearchTrainingLabelPolicy =
@@ -924,7 +967,10 @@ export interface ResearchTrainingDataset {
   sampleCount: number;
   labeledCount: number;
   byLabel: ResearchCount[];
+  byCategory?: ResearchCount[];
+  bySource?: ResearchCount[];
   normalization: FeatureNormalizationReport;
+  quality?: DatasetQualitySummary;
   samples?: ResearchTrainingSample[];
 }
 
@@ -936,7 +982,9 @@ export interface ResearchTrainingImportResponse {
   skipped: number;
   totalSamples: number;
   labeledSamples: number;
+  skippedByReason?: ResearchCount[];
   normalization: FeatureNormalizationReport;
+  quality?: DatasetQualitySummary;
   importedSamples?: ResearchTrainingSample[];
 }
 

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -38,6 +39,7 @@ func handleMLSELinuxPolicyDatasetPost(c *gin.Context) {
 		total, labeled := globalTrainingStore.Status()
 		resp.TotalSamples = total
 		resp.LabeledSamples = labeled
+		log.Printf("[ML] Builtin dataset import source=%q rows=%d imported=%d skipped=%d", resp.Source, len(resp.Rows), imported, resp.Skipped)
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -69,6 +71,10 @@ func buildSELinuxPolicyDatasetResponse(limit int) (agentLegalDatasetResponse, []
 		families[tmpl.Family]++
 	}
 
+	normalization := summarizeFeatureNormalization(samples)
+	statResp := remoteDatasetResponse{Source: "builtin-selinux-policy-rules", Rows: rows, Normalization: normalization}
+	applyRemoteDatasetResponseStats(&statResp, "preserve", false)
+
 	resp := agentLegalDatasetResponse{
 		Source:        "builtin-selinux-policy-rules",
 		Format:        "builtin",
@@ -77,9 +83,13 @@ func buildSELinuxPolicyDatasetResponse(limit int) (agentLegalDatasetResponse, []
 		Limit:         limit,
 		Truncated:     limit < len(templates),
 		Skipped:       skipped,
+		ByLabel:       statResp.ByLabel,
+		ByCategory:    statResp.ByCategory,
+		BySource:      statResp.BySource,
 		Rows:          rows,
 		Families:      families,
-		Normalization: summarizeFeatureNormalization(samples),
+		Normalization: normalization,
+		Quality:       statResp.Quality,
 	}
 	return resp, samples
 }

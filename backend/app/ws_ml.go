@@ -16,6 +16,7 @@ func buildMLStatusJSON() []byte {
 	logs := globalTrainer.GetLogs(100)
 	trainAccuracy, validationAccuracy, validationRatio, trainSamples, validationSamples := globalTrainer.SplitMetrics()
 	autoTuneState := globalAutoTuneState.snapshot()
+	trainingReadiness := buildMLTrainingReadiness(globalTrainingStore, cfg)
 
 	logItems := make([]map[string]string, len(logs))
 	for i, entry := range logs {
@@ -52,6 +53,7 @@ func buildMLStatusJSON() []byte {
 		"trainSamples":         trainSamples,
 		"validationSamples":    validationSamples,
 		"validationSplitRatio": validationRatio,
+		"trainingReadiness":    trainingReadiness,
 		"llmReview":            globalTrainer.LastLLMReview(),
 		"autoTuneJobId":        autoTuneState.JobID,
 		"autoTuneMode":         autoTuneState.Mode,

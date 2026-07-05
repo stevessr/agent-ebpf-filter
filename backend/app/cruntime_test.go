@@ -78,10 +78,11 @@ func TestBuildMLStatusJSONIncludesCRuntime(t *testing.T) {
 	mlEnabled = true
 
 	var payload struct {
-		ModelType string           `json:"modelType"`
-		CRuntime  MLCRuntimeStatus `json:"cRuntime"`
-		CUDA      bool             `json:"cudaAvailable"`
-		Extra     map[string]any   `json:"-"`
+		ModelType         string              `json:"modelType"`
+		CRuntime          MLCRuntimeStatus    `json:"cRuntime"`
+		CUDA              bool                `json:"cudaAvailable"`
+		TrainingReadiness MLTrainingReadiness `json:"trainingReadiness"`
+		Extra             map[string]any      `json:"-"`
 	}
 	if err := json.Unmarshal(buildMLStatusJSON(), &payload); err != nil {
 		t.Fatalf("unmarshal status payload: %v", err)
@@ -97,6 +98,12 @@ func TestBuildMLStatusJSONIncludesCRuntime(t *testing.T) {
 	}
 	if payload.CRuntime.ModelType != string(ModelLogisticRegression) {
 		t.Fatalf("unexpected cRuntime model type: %s", payload.CRuntime.ModelType)
+	}
+	if !payload.TrainingReadiness.Ready {
+		t.Fatalf("expected training readiness in status payload to be ready: %+v", payload.TrainingReadiness)
+	}
+	if payload.TrainingReadiness.LabeledCount == 0 || payload.TrainingReadiness.MinSamples == 0 {
+		t.Fatalf("expected readiness counts to be populated: %+v", payload.TrainingReadiness)
 	}
 }
 

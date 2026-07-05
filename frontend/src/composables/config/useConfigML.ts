@@ -87,6 +87,7 @@ export function useConfigML() {
     train_samples: 0,
     validation_samples: 0,
     validation_split_ratio: 0.2,
+    training_readiness: null,
     llm_review: null,
   });
   const trainingModel = ref(false);
@@ -196,6 +197,8 @@ export function useConfigML() {
       data.validation_split_ratio ??
       mlStatus.value.validation_split_ratio ??
       0.2;
+    mlStatus.value.training_readiness =
+      data.trainingReadiness ?? data.training_readiness ?? null;
     mlStatus.value.llm_review = data.llmReview ?? data.llm_review ?? null;
     const remoteBuiltinModels = data.builtinModels ?? data.builtin_models;
     if (Array.isArray(remoteBuiltinModels) && remoteBuiltinModels.length > 0) {

@@ -15,6 +15,9 @@ hero:
     - theme: alt
       text: 安全模型
       link: /security/model
+    - theme: alt
+      text: 研究工作流
+      link: /guide/agent-security-research-workflow
 
 features:
   - title: 内核事实采集
@@ -69,4 +72,3 @@ Agent eBPF Filter 在以下方面进行了扩展和差异化：
 详见 [AgentSight 项目致敬](/reference/agentsight-acknowledgment)。
 
 感谢 AgentSight 项目对开源社区的贡献！
-

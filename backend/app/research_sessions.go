@@ -2312,23 +2312,35 @@ func researchBundleZipBytes(session ResearchSession, events []ResearchEvent, res
 		return nil, err
 	}
 	trainingManifestJSON, err := json.MarshalIndent(struct {
-		SchemaVersion string                     `json:"schemaVersion"`
-		LabelPolicy   string                     `json:"labelPolicy"`
-		FeatureDim    int                        `json:"featureDim"`
-		FeatureNames  []string                   `json:"featureNames"`
-		SampleCount   int                        `json:"sampleCount"`
-		LabeledCount  int                        `json:"labeledCount"`
-		ByLabel       []researchCount            `json:"byLabel"`
-		Normalization FeatureNormalizationReport `json:"normalization"`
+		SchemaVersion   string                     `json:"schemaVersion"`
+		LabelPolicy     string                     `json:"labelPolicy"`
+		FeatureSpace    string                     `json:"featureSpace"`
+		FeatureVersion  string                     `json:"featureVersion"`
+		FeatureDim      int                        `json:"featureDim"`
+		FeatureNames    []string                   `json:"featureNames"`
+		RedactionLevels []researchCount            `json:"redactionLevels"`
+		SampleCount     int                        `json:"sampleCount"`
+		LabeledCount    int                        `json:"labeledCount"`
+		ByLabel         []researchCount            `json:"byLabel"`
+		ByCategory      []researchCount            `json:"byCategory"`
+		BySource        []researchCount            `json:"bySource"`
+		Normalization   FeatureNormalizationReport `json:"normalization"`
+		Quality         DatasetQualitySummary      `json:"quality"`
 	}{
-		SchemaVersion: training.SchemaVersion,
-		LabelPolicy:   training.LabelPolicy,
-		FeatureDim:    training.FeatureDim,
-		FeatureNames:  training.FeatureNames,
-		SampleCount:   training.SampleCount,
-		LabeledCount:  training.LabeledCount,
-		ByLabel:       training.ByLabel,
-		Normalization: training.Normalization,
+		SchemaVersion:   training.SchemaVersion,
+		LabelPolicy:     training.LabelPolicy,
+		FeatureSpace:    "agent-command-128-bounded-0-1",
+		FeatureVersion:  "feature-extractor.v1",
+		FeatureDim:      training.FeatureDim,
+		FeatureNames:    training.FeatureNames,
+		RedactionLevels: researchRedactionLevelCounts(events),
+		SampleCount:     training.SampleCount,
+		LabeledCount:    training.LabeledCount,
+		ByLabel:         training.ByLabel,
+		ByCategory:      training.ByCategory,
+		BySource:        training.BySource,
+		Normalization:   training.Normalization,
+		Quality:         training.Quality,
 	}, "", "  ")
 	if err != nil {
 		return nil, err

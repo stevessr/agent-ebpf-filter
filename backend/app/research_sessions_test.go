@@ -1,6 +1,7 @@
 package app
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -190,6 +191,9 @@ func TestResearchSessionHandlersBuildResultsAndExports(t *testing.T) {
 	if len(training.Samples) != 4 || len(training.Samples[0].FeatureVector) != FeatureDim || training.Normalization.AboveOneValues != 0 {
 		t.Fatalf("training samples not normalized/shaped: %+v", training)
 	}
+	if len(training.ByCategory) == 0 || len(training.BySource) == 0 || training.Quality.ImportableCount == 0 {
+		t.Fatalf("training quality rollups missing: byCategory=%#v bySource=%#v quality=%#v", training.ByCategory, training.BySource, training.Quality)
+	}
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/research/sessions/"+session.ID+"/training/import", strings.NewReader(`{"labelPolicy":"decision"}`))
@@ -204,6 +208,9 @@ func TestResearchSessionHandlersBuildResultsAndExports(t *testing.T) {
 	}
 	if importResp.Imported != 2 || importResp.Skipped != 2 || importResp.LabeledSamples != 2 {
 		t.Fatalf("training import mismatch: %+v", importResp)
+	}
+	if len(importResp.SkippedByReason) == 0 || importResp.Quality.LabeledCount != 2 {
+		t.Fatalf("training import quality/skips mismatch: %+v", importResp)
 	}
 
 	rec = httptest.NewRecorder()
@@ -399,4 +406,35 @@ func TestResearchExportBundleContainsManifest(t *testing.T) {
 	if ref.Format != "bundle" || !bytes.Contains(payload, []byte("manifest.json")) || !bytes.Contains(payload, []byte("training.jsonl")) || !bytes.Contains(payload, []byte("training-manifest.json")) {
 		t.Fatalf("bundle artifact mismatch ref=%+v len=%d", ref, len(payload))
 	}
+	zr, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
+	if err != nil {
+		t.Fatalf("open bundle zip: %v", err)
+	}
+	manifest := readZipFileForTest(t, zr, "training-manifest.json")
+	for _, needle := range []string{`"byCategory"`, `"bySource"`, `"redactionLevels"`, `"featureVersion"`, `"quality"`} {
+		if !bytes.Contains(manifest, []byte(needle)) {
+			t.Fatalf("training manifest missing %s: %s", needle, string(manifest))
+		}
+	}
+}
+
+func readZipFileForTest(t *testing.T, zr *zip.Reader, name string) []byte {
+	t.Helper()
+	for _, file := range zr.File {
+		if file.Name != name {
+			continue
+		}
+		rc, err := file.Open()
+		if err != nil {
+			t.Fatalf("open zip file %s: %v", name, err)
+		}
+		defer rc.Close()
+		var buf bytes.Buffer
+		if _, err := buf.ReadFrom(rc); err != nil {
+			t.Fatalf("read zip file %s: %v", name, err)
+		}
+		return buf.Bytes()
+	}
+	t.Fatalf("zip file %s not found", name)
+	return nil
 }

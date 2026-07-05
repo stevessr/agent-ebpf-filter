@@ -155,10 +155,10 @@ registerRoutes()
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
-| `GET` | `/config/ml/status` | ML 引擎状态 |
+| `GET` | `/config/ml/status` | ML 引擎状态；响应包含 `trainingReadiness`，用于说明 labeled/min samples、类别数、特征归一化、阻断原因、warnings 与 suggestedActions |
 | `GET` | `/config/ml/logs` | 训练日志 |
 | `GET` | `/config/ml/history` | 训练历史 |
-| `POST` | `/config/ml/train` | 触发训练 |
+| `POST` | `/config/ml/train` | 触发训练；失败响应会附带 `trainingReadiness` 便于定位样本不足、单类别或特征越界问题 |
 | `POST` | `/config/ml/train/cancel` | 取消训练 |
 | `POST` | `/config/ml/tune` | 超参调优 |
 | `POST` | `/config/ml/tune-models` | 多模型调优 |
@@ -190,7 +190,9 @@ registerRoutes()
 | `POST` | `/config/ml/health/run` | 运行健康检查 |
 | `POST` | `/config/ml/backtest` | 回测 (同 assess) |
 
-`/config/ml/datasets/pull` 与 `/config/ml/datasets/import` 支持 `json`、`jsonl`、`csv`、`tsv`、纯文本与常见压缩包；纯文本 `.te`/SELinux policy 规则以及 JSON `rules[].rule` / `rules[].selinuxRule` 字段会自动识别为 `selinux-rule ...` 训练样本，并按 `allow/type_transition=ALLOW`、`neverallow=BLOCK`、`dontaudit/auditallow/permissive=ALERT` 保留来源标签。
+`/config/ml/datasets/pull` 与 `/config/ml/datasets/import` 支持 `json`、`jsonl`、`csv`、`tsv`、纯文本与常见压缩包；纯文本 `.te`/SELinux policy 规则以及 JSON `rules[].rule` / `rules[].selinuxRule` 字段会自动识别为 `selinux-rule ...` 训练样本，并按 `allow/type_transition=ALLOW`、`neverallow=BLOCK`、`dontaudit/auditallow/permissive=ALERT` 保留来源标签。响应会附带 `byLabel`、`byCategory`、`bySource`、`normalization`、`quality`，导入响应还会附带 `skipReasons`；压缩包中被跳过的条目或 limit 截断会出现在 `parseWarnings`。
+
+Research training API：`GET /research/sessions/:id/training` 和 `POST /research/sessions/:id/training/import` 会返回 `byLabel/byCategory/bySource`、`normalization` 与 `quality`，导入响应额外返回 `skippedByReason`。Research bundle 中的 `training-manifest.json` 会记录 feature space/version、redaction level 分布和训练可用性摘要。
 
 ### Hook 配置路由 (`/config/hooks`)
 

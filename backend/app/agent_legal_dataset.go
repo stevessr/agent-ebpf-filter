@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -31,9 +32,13 @@ type agentLegalDatasetResponse struct {
 	Skipped        int                        `json:"skipped,omitempty"`
 	TotalSamples   int                        `json:"totalSamples,omitempty"`
 	LabeledSamples int                        `json:"labeledSamples,omitempty"`
+	ByLabel        []researchCount            `json:"byLabel,omitempty"`
+	ByCategory     []researchCount            `json:"byCategory,omitempty"`
+	BySource       []researchCount            `json:"bySource,omitempty"`
 	Rows           []remoteDatasetRow         `json:"rows,omitempty"`
 	Families       map[string]int             `json:"families,omitempty"`
 	Normalization  FeatureNormalizationReport `json:"normalization"`
+	Quality        DatasetQualitySummary      `json:"quality,omitempty"`
 }
 
 func handleMLAgentLegalDatasetPost(c *gin.Context) {
@@ -59,6 +64,7 @@ func handleMLAgentLegalDatasetPost(c *gin.Context) {
 		total, labeled := globalTrainingStore.Status()
 		resp.TotalSamples = total
 		resp.LabeledSamples = labeled
+		log.Printf("[ML] Builtin dataset import source=%q rows=%d imported=%d skipped=%d", resp.Source, len(resp.Rows), imported, resp.Skipped)
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -90,6 +96,10 @@ func buildAgentLegalDatasetResponse(limit int) (agentLegalDatasetResponse, []Tra
 		families[tmpl.Family]++
 	}
 
+	normalization := summarizeFeatureNormalization(samples)
+	statResp := remoteDatasetResponse{Source: "builtin-agent-legal-behavior", Rows: rows, Normalization: normalization}
+	applyRemoteDatasetResponseStats(&statResp, "preserve", false)
+
 	resp := agentLegalDatasetResponse{
 		Source:        "builtin-agent-legal-behavior",
 		Format:        "builtin",
@@ -98,9 +108,13 @@ func buildAgentLegalDatasetResponse(limit int) (agentLegalDatasetResponse, []Tra
 		Limit:         limit,
 		Truncated:     limit < len(templates),
 		Skipped:       skipped,
+		ByLabel:       statResp.ByLabel,
+		ByCategory:    statResp.ByCategory,
+		BySource:      statResp.BySource,
 		Rows:          rows,
 		Families:      families,
-		Normalization: summarizeFeatureNormalization(samples),
+		Normalization: normalization,
+		Quality:       statResp.Quality,
 	}
 	return resp, samples
 }

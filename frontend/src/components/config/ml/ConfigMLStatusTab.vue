@@ -33,6 +33,20 @@ const {
 const modelTypeLabel = computed(
   () => selectedBuiltinModel.value?.label || modelType.value,
 );
+const trainingReadiness = computed(() => mlStatus.value.training_readiness);
+const trainingReadinessPercent = computed(() => {
+  const readiness = trainingReadiness.value;
+  if (!readiness?.minSamples) return 0;
+  return Math.min(100, Math.round((readiness.labeledCount / readiness.minSamples) * 100));
+});
+const trainingReadinessAlertType = computed(() => {
+  const readiness = trainingReadiness.value;
+  if (!readiness) return "info";
+  if (!readiness.ready) return "warning";
+  return (readiness.warnings?.length || 0) > 0 ? "info" : "success";
+});
+const formatReadinessToken = (value: string) =>
+  value.replaceAll("_", " ").replaceAll(":", ": ");
 </script>
 
 <template>
@@ -305,6 +319,106 @@ const modelTypeLabel = computed(
           </a-card>
         </a-col>
       </a-row>
+      <a-divider v-if="trainingReadiness" style="margin: 16px 0 12px">
+        Training Readiness
+      </a-divider>
+      <div v-if="trainingReadiness">
+        <a-alert
+          show-icon
+          :type="trainingReadinessAlertType"
+          :message="
+            trainingReadiness.ready
+              ? '训练数据已满足 supervised ML 基础门槛'
+              : '训练数据暂未达到训练门槛'
+          "
+          :description="
+            trainingReadiness.ready
+              ? '仍建议在训练前检查类别分布、重复样本与归一化范围。'
+              : (trainingReadiness.blockingReasons || [])
+                  .map(formatReadinessToken)
+                  .join('；')
+          "
+          style="margin-bottom: 12px"
+        />
+        <a-row :gutter="[12, 12]">
+          <a-col :xs="24" :md="8">
+            <a-card size="small">
+              <a-statistic
+                title="Labeled / Required"
+                :value="`${trainingReadiness.labeledCount} / ${trainingReadiness.minSamples}`"
+              />
+              <a-progress
+                :percent="trainingReadinessPercent"
+                :status="trainingReadiness.ready ? 'success' : 'active'"
+                size="small"
+                style="margin-top: 8px"
+              />
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :md="8">
+            <a-card size="small">
+              <a-statistic
+                title="Classes"
+                :value="`${trainingReadiness.classCount} / ${trainingReadiness.minClasses}`"
+              />
+              <a-space wrap size="small" style="margin-top: 8px">
+                <a-tag
+                  v-for="item in trainingReadiness.byLabel || []"
+                  :key="item.key"
+                  :color="item.key === 'UNLABELED' ? 'default' : 'blue'"
+                >
+                  {{ item.key }} {{ item.count }}
+                </a-tag>
+              </a-space>
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :md="8">
+            <a-card size="small">
+              <a-statistic
+                title="Feature Range Issues"
+                :value="
+                  (trainingReadiness.normalization?.nonFiniteValues || 0) +
+                  (trainingReadiness.normalization?.belowZeroValues || 0) +
+                  (trainingReadiness.normalization?.aboveOneValues || 0)
+                "
+              />
+              <div style="font-size: 12px; color: #6b7280; margin-top: 8px">
+                dim={{ trainingReadiness.featureDim }}, duplicate={{
+                  trainingReadiness.quality?.duplicateCount || 0
+                }}
+              </div>
+            </a-card>
+          </a-col>
+        </a-row>
+        <a-space
+          v-if="(trainingReadiness.warnings || []).length > 0"
+          wrap
+          size="small"
+          style="margin-top: 10px"
+        >
+          <a-tag
+            v-for="warning in trainingReadiness.warnings"
+            :key="warning"
+            color="orange"
+          >
+            {{ formatReadinessToken(warning) }}
+          </a-tag>
+        </a-space>
+        <a-space
+          v-if="(trainingReadiness.suggestedActions || []).length > 0"
+          wrap
+          size="small"
+          style="margin-top: 8px"
+        >
+          <a-tag
+            v-for="action in trainingReadiness.suggestedActions"
+            :key="action"
+            color="green"
+          >
+            {{ formatReadinessToken(action) }}
+          </a-tag>
+        </a-space>
+      </div>
       <div
         v-if="mlStatus.model_path"
         style="

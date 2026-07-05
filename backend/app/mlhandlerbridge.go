@@ -38,9 +38,10 @@ func mlTrain(numTrees, maxDepth, minLeaf int) gin.H {
 		cfg.MinSamplesLeaf = minLeaf
 	}
 
+	trainingReadiness := buildMLTrainingReadiness(globalTrainingStore, cfg)
 	model, result := globalTrainer.TrainWithConfig(globalTrainingStore, cfg)
 	if result.Error != "" {
-		return gin.H{"error": result.Error}
+		return gin.H{"error": result.Error, "trainingReadiness": trainingReadiness}
 	}
 	mlEngine = model
 	mlModelLoaded = true
@@ -65,6 +66,7 @@ func mlTrain(numTrees, maxDepth, minLeaf int) gin.H {
 		"llmScoredSamples":    result.LLMScoredSamples,
 		"llmAverageRiskScore": result.LLMAverageRiskScore,
 		"llmAgreement":        result.LLMAgreement,
+		"trainingReadiness":   trainingReadiness,
 	}
 }
 

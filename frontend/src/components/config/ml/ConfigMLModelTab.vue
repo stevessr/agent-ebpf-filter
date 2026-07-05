@@ -105,6 +105,15 @@ const modelTypeTagColor = computed(() =>
     modelBaseType.value,
   ),
 );
+const trainingReadiness = computed(() => mlStatus.value.training_readiness);
+const trainingReadinessBlocked = computed(
+  () => Boolean(trainingReadiness.value && !trainingReadiness.value.ready),
+);
+const trainingReadinessBlockText = computed(() =>
+  (trainingReadiness.value?.blockingReasons || [])
+    .map((item) => item.replaceAll("_", " ").replaceAll(":", ": "))
+    .join("；"),
+);
 const modelTuneBestType = computed(() => modelTuneBest.value?.modelType || "");
 const modelTuneProgressTotal = computed(
   () =>
@@ -525,7 +534,7 @@ const formatRuntimeSpeedup = (value?: number) => {
               >
               <a-button
                 block
-                :disabled="!modelTuneBest"
+                :disabled="!modelTuneBest || trainingReadinessBlocked"
                 @click="trainWithParams"
                 >应用后重新训练当前模型</a-button
               >
@@ -576,12 +585,19 @@ const formatRuntimeSpeedup = (value?: number) => {
             style="margin-top: 4px"
           />
         </div>
+        <a-alert
+          v-if="trainingReadinessBlocked"
+          type="warning"
+          show-icon
+          message="训练数据尚未 ready，已在前端阻断手动训练"
+          :description="trainingReadinessBlockText || '请先导入/标注更多样本并刷新 ML 状态。'"
+        />
         <div style="display: flex; gap: 8px">
           <a-button
             type="primary"
             @click="trainWithParams"
             :loading="trainingModel"
-            :disabled="mlStatus.training_in_progress"
+            :disabled="mlStatus.training_in_progress || trainingReadinessBlocked"
             style="flex: 1"
           >
             <ThunderboltOutlined /> Train Model Now
