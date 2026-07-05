@@ -396,6 +396,18 @@ export interface ResearchSecurityEvaluationFindings {
   unlabeledHighRisk?: ResearchSecurityEvaluationSampleRow[];
 }
 
+export interface ResearchSecurityRemediationItem {
+  id: string;
+  priority: string;
+  area: string;
+  findingType?: string;
+  category?: string;
+  action: string;
+  rationale: string;
+  count: number;
+  relatedCommands?: string[];
+}
+
 export interface ResearchSecurityEvaluationPosture {
   status: "pass" | "needs_review" | "critical" | string;
   riskScore: number;
@@ -403,6 +415,7 @@ export interface ResearchSecurityEvaluationPosture {
   blockingReasons?: string[];
   warnings?: string[];
   suggestedActions?: string[];
+  remediationPlan?: ResearchSecurityRemediationItem[];
   topFailingCategories?: ResearchSecurityEvaluationGroup[];
 }
 

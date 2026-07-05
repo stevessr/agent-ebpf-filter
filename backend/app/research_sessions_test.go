@@ -271,8 +271,8 @@ func TestResearchSecurityEvaluationTaskAndExports(t *testing.T) {
 	if sessionReport.Totals.Session != 2 || sessionReport.Totals.Builtin != 0 || sessionReport.Totals.Labeled != 2 {
 		t.Fatalf("session report totals mismatch: %+v", sessionReport.Totals)
 	}
-	if sessionReport.Posture.Status == "" || len(sessionReport.Posture.SuggestedActions) == 0 {
-		t.Fatalf("expected security posture and suggestions: %+v", sessionReport.Posture)
+	if sessionReport.Posture.Status == "" || len(sessionReport.Posture.SuggestedActions) == 0 || len(sessionReport.Posture.RemediationPlan) == 0 {
+		t.Fatalf("expected security posture, suggestions and remediation plan: %+v", sessionReport.Posture)
 	}
 
 	router := gin.New()
@@ -325,7 +325,7 @@ func TestResearchSecurityEvaluationTaskAndExports(t *testing.T) {
 	if results.SecurityEvaluation.Metrics.Accuracy < 0 || len(results.SecurityEvaluation.ConfusionMatrix) == 0 {
 		t.Fatalf("security evaluation metrics/matrix mismatch: %+v", results.SecurityEvaluation)
 	}
-	if results.SecurityEvaluation.Posture.Status == "" || len(results.SecurityEvaluation.Posture.SuggestedActions) == 0 {
+	if results.SecurityEvaluation.Posture.Status == "" || len(results.SecurityEvaluation.Posture.SuggestedActions) == 0 || len(results.SecurityEvaluation.Posture.RemediationPlan) == 0 {
 		t.Fatalf("security evaluation posture mismatch: %+v", results.SecurityEvaluation.Posture)
 	}
 	totalSamples, labeledSamples := globalTrainingStore.Status()

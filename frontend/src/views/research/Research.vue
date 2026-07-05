@@ -248,6 +248,21 @@ const securityPostureColor = computed(() => {
   }
 });
 
+const securityPriorityColor = (priority?: string) => {
+  switch ((priority || "").toLowerCase()) {
+    case "critical":
+      return "red";
+    case "high":
+      return "volcano";
+    case "medium":
+      return "orange";
+    case "low":
+      return "green";
+    default:
+      return "blue";
+  }
+};
+
 const securityPostureDescription = computed(() => {
   const posture = securityPosture.value;
   if (!posture) return "";
@@ -883,6 +898,42 @@ onMounted(async () => {
                         {{ formatSecurityToken(action) }}
                       </a-tag>
                     </a-space>
+                    <a-table
+                      v-if="(securityPosture.remediationPlan || []).length > 0"
+                      :dataSource="securityPosture.remediationPlan"
+                      :pagination="false"
+                      rowKey="id"
+                      size="small"
+                      :scroll="{ x: 1120 }"
+                      style="margin-top: 12px"
+                    >
+                      <a-table-column title="Priority" dataIndex="priority" :width="100">
+                        <template #default="{ record }">
+                          <a-tag :color="securityPriorityColor(record.priority)">
+                            {{ record.priority }}
+                          </a-tag>
+                        </template>
+                      </a-table-column>
+                      <a-table-column title="Area" dataIndex="area" :width="160">
+                        <template #default="{ record }">
+                          {{ formatSecurityToken(record.area || "") }}
+                        </template>
+                      </a-table-column>
+                      <a-table-column title="Action" dataIndex="action" :width="260">
+                        <template #default="{ record }">
+                          <code>{{ formatSecurityToken(record.action || "") }}</code>
+                        </template>
+                      </a-table-column>
+                      <a-table-column title="Count" dataIndex="count" :width="80" />
+                      <a-table-column title="Rationale" dataIndex="rationale" :width="420" ellipsis />
+                      <a-table-column title="Related Commands" :width="320" ellipsis>
+                        <template #default="{ record }">
+                          <span class="research-muted">
+                            {{ (record.relatedCommands || []).slice(0, 2).join(' | ') || '—' }}
+                          </span>
+                        </template>
+                      </a-table-column>
+                    </a-table>
                     <a-table
                       v-if="(securityPosture.topFailingCategories || []).length > 0"
                       :dataSource="securityPosture.topFailingCategories"

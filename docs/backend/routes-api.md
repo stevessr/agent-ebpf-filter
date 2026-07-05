@@ -279,7 +279,7 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 | `GET` | `/research/tasks/:taskId` | 查询任务状态、进度、错误和 resultRef |
 | `POST` | `/research/tasks/:taskId/cancel` | 幂等取消排队中或运行中的任务 |
 | `GET` | `/research/sessions/:id/events` | 分页查询归一化 ResearchEvent |
-| `GET` | `/research/sessions/:id/results` | 查询时间线、进程树、trace、top-K、loop/risk 关联结果与 securityEvaluation 安全评测报告；安全评测包含 `posture` pass/needs_review/critical、阻断项、warnings 与 suggestedActions |
+| `GET` | `/research/sessions/:id/results` | 查询时间线、进程树、trace、top-K、loop/risk 关联结果与 securityEvaluation 安全评测报告；安全评测包含 `posture` pass/needs_review/critical、阻断项、warnings、suggestedActions 与 remediationPlan |
 | `GET` | `/research/sessions/:id/training?format=json|jsonl|csv&labelPolicy=heuristic|decision|unlabeled` | 将会话事件结构化为训练样本：固定 128 维特征、标签策略、feature names、归一化报告 |
 | `POST` | `/research/sessions/:id/training/import` | 将带标签训练样本导入 ML training store；默认使用 `decision` 标签策略以避免无决策事件被误标 |
 | `GET` | `/research/sessions/:id/export?format=jsonl|csv|json|bundle|security-json|security-jsonl|security-csv` | 下载研究产物或安全评测明细；bundle 会包含 security-evaluation artifacts 与 manifest 哈希 |

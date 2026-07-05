@@ -34,4 +34,22 @@ func TestResearchSecurityEvaluationPostureRecommendations(t *testing.T) {
 	if len(posture.TopFailingCategories) != 1 || posture.TopFailingCategories[0].Key != "network-exfiltration" {
 		t.Fatalf("unexpected top failing categories: %+v", posture.TopFailingCategories)
 	}
+	if len(posture.RemediationPlan) == 0 {
+		t.Fatalf("expected remediation plan: %+v", posture)
+	}
+	if !hasRemediationAction(posture.RemediationPlan, "tighten_detection_for_missed_risky_agent_behaviors") {
+		t.Fatalf("expected detection remediation item, got %+v", posture.RemediationPlan)
+	}
+	if !hasRemediationAction(posture.RemediationPlan, "drill_down_top_failing_category") {
+		t.Fatalf("expected category drilldown remediation item, got %+v", posture.RemediationPlan)
+	}
+}
+
+func hasRemediationAction(items []ResearchSecurityRemediationItem, action string) bool {
+	for _, item := range items {
+		if item.Action == action {
+			return true
+		}
+	}
+	return false
 }

@@ -52,7 +52,7 @@
 
 1. 确认训练库中 ALLOW/BLOCK/ALERT 分布和 normalization 状态。
 2. 运行 ML train 或 auto-tune，优先关注 `balancedAccuracy` 和 `allowRecall`，避免只看整体 accuracy。
-3. 运行 Research security evaluation，对比预期标签与实际风险/决策；报告中的 `posture` 会汇总 `pass/needs_review/critical`、风险分、阻断项、warnings 和 suggested actions。
+3. 运行 Research security evaluation，对比预期标签与实际风险/决策；报告中的 `posture` 会汇总 `pass/needs_review/critical`、风险分、阻断项、warnings、suggested actions 和结构化 remediation plan。
 4. 导出 bundle，产物包含：
    - `events.jsonl/csv`
    - `training.jsonl/csv`
@@ -61,5 +61,5 @@
    - `session.json`
    - 如已运行安全评测，还包含 `security-evaluation.*`
 
-`training-manifest.json` 会记录 schema version、label policy、feature space/version、redaction level 分布、label/category/source 分布、normalization 与 quality，便于复现实验。`security-evaluation.json` 同时记录 posture 与 top failing categories，方便把评测结果转成后续规则、阈值或训练集修复任务。
+`training-manifest.json` 会记录 schema version、label policy、feature space/version、redaction level 分布、label/category/source 分布、normalization 与 quality，便于复现实验。`security-evaluation.json` 同时记录 posture、remediationPlan 与 top failing categories，方便把评测结果转成后续规则、阈值或训练集修复任务。
 
