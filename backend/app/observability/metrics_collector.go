@@ -24,59 +24,89 @@ type collectorPIDKey struct {
 }
 
 type CollectorMetricsSnapshot struct {
-	EventsByTypeTotal           map[string]uint64
-	EventsByPIDTotal            map[collectorPIDKey]uint64
-	AgentSightCountersTotal     map[string]uint64
-	PersistAppendLatencyNs      uint64
-	RingbufZeroCopyDecodeTotal  uint64
-	RingbufCopyDecodeTotal      uint64
-	KernelRiskEvaluationsTotal  uint64
-	KernelRiskAlertsTotal       uint64
-	KernelRiskBlocksTotal       uint64
-	KernelRiskLastEvalLatencyNs uint64
-	KernelRiskFeedbackApplied   uint64
-	KernelRiskFeedbackDropped   uint64
-	KernelRiskFeedbackLastError string
+	EventsByTypeTotal              map[string]uint64
+	EventsByPIDTotal               map[collectorPIDKey]uint64
+	AgentSightCountersTotal        map[string]uint64
+	PersistAppendLatencyNs         uint64
+	CapturedArchivedTotal          uint64
+	CapturedPersistedTotal         uint64
+	CapturedPersistErrorsTotal     uint64
+	BroadcastReceivedTotal         uint64
+	BroadcastFlushesTotal          uint64
+	BroadcastEventsFlushedTotal    uint64
+	BroadcastEnvelopesFlushedTotal uint64
+	BroadcastMarshalErrorsTotal    uint64
+	BroadcastWriteErrorsTotal      uint64
+	BroadcastLastFlushLatencyNs    uint64
+	RingbufZeroCopyDecodeTotal     uint64
+	RingbufCopyDecodeTotal         uint64
+	KernelRiskEvaluationsTotal     uint64
+	KernelRiskAlertsTotal          uint64
+	KernelRiskBlocksTotal          uint64
+	KernelRiskLastEvalLatencyNs    uint64
+	KernelRiskFeedbackApplied      uint64
+	KernelRiskFeedbackDropped      uint64
+	KernelRiskFeedbackLastError    string
 }
 
 type CollectorHealthResponse struct {
-	CollectorMapAvailable       bool              `json:"collectorMapAvailable"`
-	RingbufEventsTotal          uint64            `json:"ringbufEventsTotal"`
-	RingbufDroppedTotal         uint64            `json:"ringbufDroppedTotal"`
-	RingbufReserveFailedTotal   uint64            `json:"ringbufReserveFailedTotal"`
-	RingbufZeroCopyDecodeTotal  uint64            `json:"ringbufZeroCopyDecodeTotal"`
-	RingbufCopyDecodeTotal      uint64            `json:"ringbufCopyDecodeTotal"`
-	EventsByTypeTotal           map[string]uint64 `json:"eventsByTypeTotal"`
-	EventsByPidTotal            map[string]uint64 `json:"eventsByPidTotal,omitempty"`
-	AgentSightCountersTotal     map[string]uint64 `json:"agentSightCountersTotal,omitempty"`
-	BackendQueueLen             int               `json:"backendQueueLen"`
-	WsClients                   int               `json:"wsClients"`
-	PersistAppendLatencyNs      uint64            `json:"persistAppendLatencyNs"`
-	KernelRiskEvaluationsTotal  uint64            `json:"kernelRiskEvaluationsTotal"`
-	KernelRiskAlertsTotal       uint64            `json:"kernelRiskAlertsTotal"`
-	KernelRiskBlocksTotal       uint64            `json:"kernelRiskBlocksTotal"`
-	KernelRiskLastEvalLatencyNs uint64            `json:"kernelRiskLastEvalLatencyNs"`
-	KernelRiskFeedbackApplied   uint64            `json:"kernelRiskFeedbackApplied"`
-	KernelRiskFeedbackDropped   uint64            `json:"kernelRiskFeedbackDropped"`
-	KernelRiskFeedbackLastError string            `json:"kernelRiskFeedbackLastError,omitempty"`
-	CaptureHealthy              bool              `json:"captureHealthy"`
+	CollectorMapAvailable          bool              `json:"collectorMapAvailable"`
+	RingbufEventsTotal             uint64            `json:"ringbufEventsTotal"`
+	RingbufDroppedTotal            uint64            `json:"ringbufDroppedTotal"`
+	RingbufReserveFailedTotal      uint64            `json:"ringbufReserveFailedTotal"`
+	RingbufZeroCopyDecodeTotal     uint64            `json:"ringbufZeroCopyDecodeTotal"`
+	RingbufCopyDecodeTotal         uint64            `json:"ringbufCopyDecodeTotal"`
+	EventsByTypeTotal              map[string]uint64 `json:"eventsByTypeTotal"`
+	EventsByPidTotal               map[string]uint64 `json:"eventsByPidTotal,omitempty"`
+	AgentSightCountersTotal        map[string]uint64 `json:"agentSightCountersTotal,omitempty"`
+	BackendQueueLen                int               `json:"backendQueueLen"`
+	WsClients                      int               `json:"wsClients"`
+	PersistAppendLatencyNs         uint64            `json:"persistAppendLatencyNs"`
+	CapturedArchivedTotal          uint64            `json:"capturedArchivedTotal"`
+	CapturedPersistedTotal         uint64            `json:"capturedPersistedTotal"`
+	CapturedPersistErrorsTotal     uint64            `json:"capturedPersistErrorsTotal"`
+	BroadcastReceivedTotal         uint64            `json:"broadcastReceivedTotal"`
+	BroadcastFlushesTotal          uint64            `json:"broadcastFlushesTotal"`
+	BroadcastEventsFlushedTotal    uint64            `json:"broadcastEventsFlushedTotal"`
+	BroadcastEnvelopesFlushedTotal uint64            `json:"broadcastEnvelopesFlushedTotal"`
+	BroadcastMarshalErrorsTotal    uint64            `json:"broadcastMarshalErrorsTotal"`
+	BroadcastWriteErrorsTotal      uint64            `json:"broadcastWriteErrorsTotal"`
+	BroadcastLastFlushLatencyNs    uint64            `json:"broadcastLastFlushLatencyNs"`
+	KernelRiskEvaluationsTotal     uint64            `json:"kernelRiskEvaluationsTotal"`
+	KernelRiskAlertsTotal          uint64            `json:"kernelRiskAlertsTotal"`
+	KernelRiskBlocksTotal          uint64            `json:"kernelRiskBlocksTotal"`
+	KernelRiskLastEvalLatencyNs    uint64            `json:"kernelRiskLastEvalLatencyNs"`
+	KernelRiskFeedbackApplied      uint64            `json:"kernelRiskFeedbackApplied"`
+	KernelRiskFeedbackDropped      uint64            `json:"kernelRiskFeedbackDropped"`
+	KernelRiskFeedbackLastError    string            `json:"kernelRiskFeedbackLastError,omitempty"`
+	CaptureHealthy                 bool              `json:"captureHealthy"`
 }
 
 type collectorMetricsState struct {
-	mu                          sync.RWMutex
-	eventsByTypeTotal           map[string]uint64
-	eventsByPIDTotal            map[collectorPIDKey]uint64
-	agentSightCountersTotal     map[string]uint64
-	persistAppendLatencyNs      uint64
-	ringbufZeroCopyDecodeTotal  uint64
-	ringbufCopyDecodeTotal      uint64
-	kernelRiskEvaluationsTotal  uint64
-	kernelRiskAlertsTotal       uint64
-	kernelRiskBlocksTotal       uint64
-	kernelRiskLastEvalLatencyNs uint64
-	kernelRiskFeedbackApplied   uint64
-	kernelRiskFeedbackDropped   uint64
-	kernelRiskFeedbackLastError string
+	mu                             sync.RWMutex
+	eventsByTypeTotal              map[string]uint64
+	eventsByPIDTotal               map[collectorPIDKey]uint64
+	agentSightCountersTotal        map[string]uint64
+	persistAppendLatencyNs         uint64
+	capturedArchivedTotal          uint64
+	capturedPersistedTotal         uint64
+	capturedPersistErrorsTotal     uint64
+	broadcastReceivedTotal         uint64
+	broadcastFlushesTotal          uint64
+	broadcastEventsFlushedTotal    uint64
+	broadcastEnvelopesFlushedTotal uint64
+	broadcastMarshalErrorsTotal    uint64
+	broadcastWriteErrorsTotal      uint64
+	broadcastLastFlushLatencyNs    uint64
+	ringbufZeroCopyDecodeTotal     uint64
+	ringbufCopyDecodeTotal         uint64
+	kernelRiskEvaluationsTotal     uint64
+	kernelRiskAlertsTotal          uint64
+	kernelRiskBlocksTotal          uint64
+	kernelRiskLastEvalLatencyNs    uint64
+	kernelRiskFeedbackApplied      uint64
+	kernelRiskFeedbackDropped      uint64
+	kernelRiskFeedbackLastError    string
 }
 
 type CollectorMetricsState = collectorMetricsState
@@ -148,6 +178,84 @@ func (s *collectorMetricsState) setPersistAppendLatency(duration time.Duration) 
 	s.mu.Lock()
 	s.persistAppendLatencyNs = uint64(duration.Nanoseconds())
 	s.mu.Unlock()
+}
+
+func RecordCapturedArchive() {
+	collectorMetricsStore.recordCapturedArchive()
+}
+
+func (s *collectorMetricsState) recordCapturedArchive() {
+	s.mu.Lock()
+	s.capturedArchivedTotal++
+	s.mu.Unlock()
+}
+
+func (s *collectorMetricsState) RecordCapturedArchive() {
+	s.recordCapturedArchive()
+}
+
+func RecordCapturedPersist(err error, duration time.Duration) {
+	collectorMetricsStore.recordCapturedPersist(err, duration)
+}
+
+func (s *collectorMetricsState) recordCapturedPersist(err error, duration time.Duration) {
+	s.mu.Lock()
+	s.persistAppendLatencyNs = uint64(duration.Nanoseconds())
+	if err != nil {
+		s.capturedPersistErrorsTotal++
+	} else {
+		s.capturedPersistedTotal++
+	}
+	s.mu.Unlock()
+}
+
+func (s *collectorMetricsState) RecordCapturedPersist(err error, duration time.Duration) {
+	s.recordCapturedPersist(err, duration)
+}
+
+func RecordBroadcastReceived() {
+	collectorMetricsStore.recordBroadcastReceived()
+}
+
+func (s *collectorMetricsState) recordBroadcastReceived() {
+	s.mu.Lock()
+	s.broadcastReceivedTotal++
+	s.mu.Unlock()
+}
+
+func (s *collectorMetricsState) RecordBroadcastReceived() {
+	s.recordBroadcastReceived()
+}
+
+func RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors int, duration time.Duration) {
+	collectorMetricsStore.recordBroadcastFlush(events, envelopes, marshalErrors, writeErrors, duration)
+}
+
+func (s *collectorMetricsState) recordBroadcastFlush(events, envelopes, marshalErrors, writeErrors int, duration time.Duration) {
+	if events < 0 {
+		events = 0
+	}
+	if envelopes < 0 {
+		envelopes = 0
+	}
+	if marshalErrors < 0 {
+		marshalErrors = 0
+	}
+	if writeErrors < 0 {
+		writeErrors = 0
+	}
+	s.mu.Lock()
+	s.broadcastFlushesTotal++
+	s.broadcastEventsFlushedTotal += uint64(events)
+	s.broadcastEnvelopesFlushedTotal += uint64(envelopes)
+	s.broadcastMarshalErrorsTotal += uint64(marshalErrors)
+	s.broadcastWriteErrorsTotal += uint64(writeErrors)
+	s.broadcastLastFlushLatencyNs = uint64(duration.Nanoseconds())
+	s.mu.Unlock()
+}
+
+func (s *collectorMetricsState) RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors int, duration time.Duration) {
+	s.recordBroadcastFlush(events, envelopes, marshalErrors, writeErrors, duration)
 }
 
 func RecordRingbufDecode(zeroCopy bool) {
@@ -228,19 +336,29 @@ func (s *collectorMetricsState) rawSnapshot() CollectorMetricsSnapshot {
 		agentSightCounters[key] = value
 	}
 	return CollectorMetricsSnapshot{
-		EventsByTypeTotal:           eventsByType,
-		EventsByPIDTotal:            eventsByPID,
-		AgentSightCountersTotal:     agentSightCounters,
-		PersistAppendLatencyNs:      s.persistAppendLatencyNs,
-		RingbufZeroCopyDecodeTotal:  s.ringbufZeroCopyDecodeTotal,
-		RingbufCopyDecodeTotal:      s.ringbufCopyDecodeTotal,
-		KernelRiskEvaluationsTotal:  s.kernelRiskEvaluationsTotal,
-		KernelRiskAlertsTotal:       s.kernelRiskAlertsTotal,
-		KernelRiskBlocksTotal:       s.kernelRiskBlocksTotal,
-		KernelRiskLastEvalLatencyNs: s.kernelRiskLastEvalLatencyNs,
-		KernelRiskFeedbackApplied:   s.kernelRiskFeedbackApplied,
-		KernelRiskFeedbackDropped:   s.kernelRiskFeedbackDropped,
-		KernelRiskFeedbackLastError: s.kernelRiskFeedbackLastError,
+		EventsByTypeTotal:              eventsByType,
+		EventsByPIDTotal:               eventsByPID,
+		AgentSightCountersTotal:        agentSightCounters,
+		PersistAppendLatencyNs:         s.persistAppendLatencyNs,
+		CapturedArchivedTotal:          s.capturedArchivedTotal,
+		CapturedPersistedTotal:         s.capturedPersistedTotal,
+		CapturedPersistErrorsTotal:     s.capturedPersistErrorsTotal,
+		BroadcastReceivedTotal:         s.broadcastReceivedTotal,
+		BroadcastFlushesTotal:          s.broadcastFlushesTotal,
+		BroadcastEventsFlushedTotal:    s.broadcastEventsFlushedTotal,
+		BroadcastEnvelopesFlushedTotal: s.broadcastEnvelopesFlushedTotal,
+		BroadcastMarshalErrorsTotal:    s.broadcastMarshalErrorsTotal,
+		BroadcastWriteErrorsTotal:      s.broadcastWriteErrorsTotal,
+		BroadcastLastFlushLatencyNs:    s.broadcastLastFlushLatencyNs,
+		RingbufZeroCopyDecodeTotal:     s.ringbufZeroCopyDecodeTotal,
+		RingbufCopyDecodeTotal:         s.ringbufCopyDecodeTotal,
+		KernelRiskEvaluationsTotal:     s.kernelRiskEvaluationsTotal,
+		KernelRiskAlertsTotal:          s.kernelRiskAlertsTotal,
+		KernelRiskBlocksTotal:          s.kernelRiskBlocksTotal,
+		KernelRiskLastEvalLatencyNs:    s.kernelRiskLastEvalLatencyNs,
+		KernelRiskFeedbackApplied:      s.kernelRiskFeedbackApplied,
+		KernelRiskFeedbackDropped:      s.kernelRiskFeedbackDropped,
+		KernelRiskFeedbackLastError:    s.kernelRiskFeedbackLastError,
 	}
 }
 
@@ -308,26 +426,36 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 	}
 
 	return CollectorHealthResponse{
-		CollectorMapAvailable:       mapAvailable,
-		RingbufEventsTotal:          bpfStats.RingbufEventsTotal,
-		RingbufDroppedTotal:         bpfStats.RingbufReserveFailedTotal,
-		RingbufReserveFailedTotal:   bpfStats.RingbufReserveFailedTotal,
-		RingbufZeroCopyDecodeTotal:  raw.RingbufZeroCopyDecodeTotal,
-		RingbufCopyDecodeTotal:      raw.RingbufCopyDecodeTotal,
-		EventsByTypeTotal:           eventsByType,
-		EventsByPidTotal:            eventsByPID,
-		AgentSightCountersTotal:     agentSightCounters,
-		BackendQueueLen:             len(deps.Broadcast),
-		WsClients:                   legacyWSClients + envelopeWSClients,
-		PersistAppendLatencyNs:      raw.PersistAppendLatencyNs,
-		KernelRiskEvaluationsTotal:  raw.KernelRiskEvaluationsTotal,
-		KernelRiskAlertsTotal:       raw.KernelRiskAlertsTotal,
-		KernelRiskBlocksTotal:       raw.KernelRiskBlocksTotal,
-		KernelRiskLastEvalLatencyNs: raw.KernelRiskLastEvalLatencyNs,
-		KernelRiskFeedbackApplied:   raw.KernelRiskFeedbackApplied,
-		KernelRiskFeedbackDropped:   raw.KernelRiskFeedbackDropped,
-		KernelRiskFeedbackLastError: raw.KernelRiskFeedbackLastError,
-		CaptureHealthy:              !mapAvailable || bpfStats.RingbufReserveFailedTotal == 0,
+		CollectorMapAvailable:          mapAvailable,
+		RingbufEventsTotal:             bpfStats.RingbufEventsTotal,
+		RingbufDroppedTotal:            bpfStats.RingbufReserveFailedTotal,
+		RingbufReserveFailedTotal:      bpfStats.RingbufReserveFailedTotal,
+		RingbufZeroCopyDecodeTotal:     raw.RingbufZeroCopyDecodeTotal,
+		RingbufCopyDecodeTotal:         raw.RingbufCopyDecodeTotal,
+		EventsByTypeTotal:              eventsByType,
+		EventsByPidTotal:               eventsByPID,
+		AgentSightCountersTotal:        agentSightCounters,
+		BackendQueueLen:                len(deps.Broadcast),
+		WsClients:                      legacyWSClients + envelopeWSClients,
+		PersistAppendLatencyNs:         raw.PersistAppendLatencyNs,
+		CapturedArchivedTotal:          raw.CapturedArchivedTotal,
+		CapturedPersistedTotal:         raw.CapturedPersistedTotal,
+		CapturedPersistErrorsTotal:     raw.CapturedPersistErrorsTotal,
+		BroadcastReceivedTotal:         raw.BroadcastReceivedTotal,
+		BroadcastFlushesTotal:          raw.BroadcastFlushesTotal,
+		BroadcastEventsFlushedTotal:    raw.BroadcastEventsFlushedTotal,
+		BroadcastEnvelopesFlushedTotal: raw.BroadcastEnvelopesFlushedTotal,
+		BroadcastMarshalErrorsTotal:    raw.BroadcastMarshalErrorsTotal,
+		BroadcastWriteErrorsTotal:      raw.BroadcastWriteErrorsTotal,
+		BroadcastLastFlushLatencyNs:    raw.BroadcastLastFlushLatencyNs,
+		KernelRiskEvaluationsTotal:     raw.KernelRiskEvaluationsTotal,
+		KernelRiskAlertsTotal:          raw.KernelRiskAlertsTotal,
+		KernelRiskBlocksTotal:          raw.KernelRiskBlocksTotal,
+		KernelRiskLastEvalLatencyNs:    raw.KernelRiskLastEvalLatencyNs,
+		KernelRiskFeedbackApplied:      raw.KernelRiskFeedbackApplied,
+		KernelRiskFeedbackDropped:      raw.KernelRiskFeedbackDropped,
+		KernelRiskFeedbackLastError:    raw.KernelRiskFeedbackLastError,
+		CaptureHealthy:                 !mapAvailable || bpfStats.RingbufReserveFailedTotal == 0,
 	}
 }
 

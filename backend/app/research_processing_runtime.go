@@ -33,10 +33,11 @@ const (
 )
 
 type researchProcessingWorkItem struct {
-	kind    researchProcessingWorkKind
-	record  CapturedEventRecord
-	records []CapturedEventRecord
-	force   bool
+	kind     researchProcessingWorkKind
+	record   CapturedEventRecord
+	records  []CapturedEventRecord
+	force    bool
+	queuedAt time.Time
 }
 
 type researchEventSample struct {
@@ -109,16 +110,27 @@ type researchProcessingSummary struct {
 }
 
 type researchProcessingStatus struct {
-	Enabled       bool                       `json:"enabled"`
-	Settings      ResearchProcessingSettings `json:"settings"`
-	QueueLen      int                        `json:"queueLen"`
-	QueueCap      int                        `json:"queueCap"`
-	ConsumedTotal uint64                     `json:"consumedTotal"`
-	DroppedTotal  uint64                     `json:"droppedTotal"`
-	BufferedTotal int                        `json:"bufferedTotal"`
-	LastError     string                     `json:"lastError,omitempty"`
-	UpdatedAt     time.Time                  `json:"updatedAt"`
-	Summary       researchProcessingSummary  `json:"summary"`
+	Enabled               bool                       `json:"enabled"`
+	Settings              ResearchProcessingSettings `json:"settings"`
+	QueueLen              int                        `json:"queueLen"`
+	QueueCap              int                        `json:"queueCap"`
+	EnqueuedTotal         uint64                     `json:"enqueuedTotal,omitempty"`
+	ConsumedTotal         uint64                     `json:"consumedTotal"`
+	DroppedTotal          uint64                     `json:"droppedTotal"`
+	BufferedTotal         int                        `json:"bufferedTotal"`
+	LastError             string                     `json:"lastError,omitempty"`
+	LastDropReason        string                     `json:"lastDropReason,omitempty"`
+	LastEnqueuedAt        *time.Time                 `json:"lastEnqueuedAt,omitempty"`
+	LastProcessedAt       *time.Time                 `json:"lastProcessedAt,omitempty"`
+	LastDroppedAt         *time.Time                 `json:"lastDroppedAt,omitempty"`
+	LastSummaryAt         *time.Time                 `json:"lastSummaryAt,omitempty"`
+	PendingSummary        bool                       `json:"pendingSummary"`
+	SummaryRebuilds       uint64                     `json:"summaryRebuilds,omitempty"`
+	LastSummaryDurationMs float64                    `json:"lastSummaryDurationMs,omitempty"`
+	LastWorkLatencyMs     float64                    `json:"lastWorkLatencyMs,omitempty"`
+	ThroughputPerSecond   float64                    `json:"throughputPerSecond,omitempty"`
+	UpdatedAt             time.Time                  `json:"updatedAt"`
+	Summary               researchProcessingSummary  `json:"summary"`
 }
 
 type researchProcessingTaskRequest struct {
@@ -134,24 +146,45 @@ type researchProcessingTaskResponse struct {
 }
 
 type researchProcessingWorker struct {
-	mu            sync.RWMutex
-	queue         chan researchProcessingWorkItem
-	started       bool
-	events        []researchEventSample
-	summary       researchProcessingSummary
-	consumedTotal uint64
-	droppedTotal  uint64
-	lastError     string
-	updatedAt     time.Time
+	mu                  sync.RWMutex
+	queue               chan researchProcessingWorkItem
+	started             bool
+	startedAt           time.Time
+	events              []researchEventSample
+	eventsVersion       uint64
+	summary             researchProcessingSummary
+	summaryDirty        bool
+	summarySettings     researchProcessingSummarySettings
+	summaryRebuilds     uint64
+	lastSummaryDuration time.Duration
+	lastSummaryAt       time.Time
+	enqueuedTotal       uint64
+	consumedTotal       uint64
+	droppedTotal        uint64
+	lastError           string
+	lastDropReason      string
+	lastEnqueuedAt      time.Time
+	lastProcessedAt     time.Time
+	lastDroppedAt       time.Time
+	lastWorkLatency     time.Duration
+	updatedAt           time.Time
 }
 
 var researchProcessingWorkerStore = newResearchProcessingWorker()
 
+type researchProcessingSummarySettings struct {
+	TimelineBucketSeconds int
+	TopK                  int
+	RecentSamples         int
+}
+
 func newResearchProcessingWorker() *researchProcessingWorker {
+	now := time.Now().UTC()
 	return &researchProcessingWorker{
 		events:    make([]researchEventSample, 0, researchProcessingDefaultMaxEvents),
 		summary:   researchProcessingSummary{},
-		updatedAt: time.Now().UTC(),
+		startedAt: now,
+		updatedAt: now,
 	}
 }
 
@@ -175,7 +208,11 @@ func (w *researchProcessingWorker) Start(queueSize int) {
 	}
 	w.queue = make(chan researchProcessingWorkItem, queueSize)
 	w.started = true
-	w.updatedAt = time.Now().UTC()
+	now := time.Now().UTC()
+	if w.startedAt.IsZero() {
+		w.startedAt = now
+	}
+	w.updatedAt = now
 	queue := w.queue
 	w.mu.Unlock()
 	go w.run(queue)
@@ -188,11 +225,9 @@ func (w *researchProcessingWorker) run(queue <-chan researchProcessingWorkItem) 
 			w.resetNow()
 		case researchProcessingWorkScan:
 			w.resetNow()
-			for _, record := range item.records {
-				w.processRecord(record, item.force)
-			}
+			w.processRecords(item.records, item.force, item.queuedAt)
 		case researchProcessingWorkEvent:
-			w.processRecord(item.record, item.force)
+			w.processRecords([]CapturedEventRecord{item.record}, item.force, item.queuedAt)
 		}
 	}
 }
@@ -204,6 +239,7 @@ func queueResearchProcessingRecord(record CapturedEventRecord) {
 	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	if !settings.Enabled {
+		researchProcessingWorkerStore.noteDrop("disabled", "research processing is disabled")
 		return
 	}
 	researchProcessingWorkerStore.EnqueueEvent(record)
@@ -229,26 +265,47 @@ func (w *researchProcessingWorker) enqueue(item researchProcessingWorkItem) bool
 	queue := w.queue
 	w.mu.RUnlock()
 	if queue == nil {
-		w.noteDrop("research processing worker is not started")
+		w.noteDrop("worker_not_started", "research processing worker is not started")
 		return false
+	}
+	if item.queuedAt.IsZero() {
+		item.queuedAt = time.Now().UTC()
 	}
 	select {
 	case queue <- item:
+		w.noteEnqueued(item.queuedAt)
 		return true
 	default:
-		w.noteDrop("research processing queue is full")
+		w.noteDrop("queue_full", "research processing queue is full")
 		return false
 	}
 }
 
-func (w *researchProcessingWorker) noteDrop(message string) {
+func (w *researchProcessingWorker) noteEnqueued(queuedAt time.Time) {
 	if w == nil {
 		return
 	}
+	if queuedAt.IsZero() {
+		queuedAt = time.Now().UTC()
+	}
+	w.mu.Lock()
+	w.enqueuedTotal++
+	w.lastEnqueuedAt = queuedAt.UTC()
+	w.updatedAt = queuedAt.UTC()
+	w.mu.Unlock()
+}
+
+func (w *researchProcessingWorker) noteDrop(reason, message string) {
+	if w == nil {
+		return
+	}
+	now := time.Now().UTC()
 	w.mu.Lock()
 	w.droppedTotal++
+	w.lastDropReason = reason
 	w.lastError = message
-	w.updatedAt = time.Now().UTC()
+	w.lastDroppedAt = now
+	w.updatedAt = now
 	w.mu.Unlock()
 }
 
@@ -258,28 +315,49 @@ func (w *researchProcessingWorker) resetNow() {
 	}
 	w.mu.Lock()
 	w.events = w.events[:0]
+	w.eventsVersion++
 	w.summary = researchProcessingSummary{}
+	w.summaryDirty = false
+	w.summarySettings = researchProcessingSummarySettings{}
 	w.lastError = ""
-	w.updatedAt = time.Now().UTC()
+	w.lastDropReason = ""
+	now := time.Now().UTC()
+	w.lastSummaryAt = time.Time{}
+	w.updatedAt = now
 	w.mu.Unlock()
 }
 
 func (w *researchProcessingWorker) processRecord(record CapturedEventRecord, force bool) {
-	if w == nil || record.Event == nil {
+	w.processRecords([]CapturedEventRecord{record}, force, time.Time{})
+}
+
+func (w *researchProcessingWorker) processRecords(records []CapturedEventRecord, force bool, queuedAt time.Time) {
+	if w == nil || len(records) == 0 {
 		return
 	}
 	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	if !force && !settings.Enabled {
+		w.noteDrop("disabled", "research processing is disabled")
 		return
 	}
-	sample, ok := researchEventSampleFromRecord(record)
-	if !ok {
+	samples := make([]researchEventSample, 0, len(records))
+	for _, record := range records {
+		if record.Event == nil {
+			continue
+		}
+		sample, ok := researchEventSampleFromRecord(record)
+		if ok {
+			samples = append(samples, sample)
+		}
+	}
+	if len(samples) == 0 {
 		return
 	}
+	now := time.Now().UTC()
 	w.mu.Lock()
-	w.consumedTotal++
-	w.events = append(w.events, sample)
+	w.consumedTotal += uint64(len(samples))
+	w.events = append(w.events, samples...)
 	maxEvents := settings.MaxEvents
 	if maxEvents <= 0 {
 		maxEvents = researchProcessingDefaultMaxEvents
@@ -288,8 +366,15 @@ func (w *researchProcessingWorker) processRecord(record CapturedEventRecord, for
 		copy(w.events, w.events[len(w.events)-maxEvents:])
 		w.events = w.events[:maxEvents]
 	}
-	w.summary = buildResearchProcessingSummary(w.events, settings)
-	w.updatedAt = time.Now().UTC()
+	w.eventsVersion++
+	w.summaryDirty = true
+	w.lastProcessedAt = now
+	if !queuedAt.IsZero() {
+		if latency := now.Sub(queuedAt.UTC()); latency >= 0 {
+			w.lastWorkLatency = latency
+		}
+	}
+	w.updatedAt = now
 	w.mu.Unlock()
 }
 
@@ -299,6 +384,7 @@ func (w *researchProcessingWorker) Status() researchProcessingStatus {
 	if w == nil {
 		return researchProcessingStatus{Enabled: settings.Enabled, Settings: settings, UpdatedAt: time.Now().UTC()}
 	}
+	w.refreshSummaryIfNeeded(settings)
 	w.mu.RLock()
 	queueLen := 0
 	queueCap := 0
@@ -306,20 +392,115 @@ func (w *researchProcessingWorker) Status() researchProcessingStatus {
 		queueLen = len(w.queue)
 		queueCap = cap(w.queue)
 	}
+	lastEnqueuedAt := ptrTimeIfSet(w.lastEnqueuedAt)
+	lastProcessedAt := ptrTimeIfSet(w.lastProcessedAt)
+	lastDroppedAt := ptrTimeIfSet(w.lastDroppedAt)
+	lastSummaryAt := ptrTimeIfSet(w.lastSummaryAt)
 	status := researchProcessingStatus{
-		Enabled:       settings.Enabled,
-		Settings:      settings,
-		QueueLen:      queueLen,
-		QueueCap:      queueCap,
-		ConsumedTotal: w.consumedTotal,
-		DroppedTotal:  w.droppedTotal,
-		BufferedTotal: len(w.events),
-		LastError:     w.lastError,
-		UpdatedAt:     w.updatedAt,
-		Summary:       cloneResearchProcessingSummary(w.summary),
+		Enabled:               settings.Enabled,
+		Settings:              settings,
+		QueueLen:              queueLen,
+		QueueCap:              queueCap,
+		EnqueuedTotal:         w.enqueuedTotal,
+		ConsumedTotal:         w.consumedTotal,
+		DroppedTotal:          w.droppedTotal,
+		BufferedTotal:         len(w.events),
+		LastError:             w.lastError,
+		LastDropReason:        w.lastDropReason,
+		LastEnqueuedAt:        lastEnqueuedAt,
+		LastProcessedAt:       lastProcessedAt,
+		LastDroppedAt:         lastDroppedAt,
+		LastSummaryAt:         lastSummaryAt,
+		PendingSummary:        w.summaryDirty,
+		SummaryRebuilds:       w.summaryRebuilds,
+		LastSummaryDurationMs: durationMilliseconds(w.lastSummaryDuration),
+		LastWorkLatencyMs:     durationMilliseconds(w.lastWorkLatency),
+		ThroughputPerSecond:   throughputPerSecond(w.consumedTotal, w.startedAt, time.Now().UTC()),
+		UpdatedAt:             w.updatedAt,
+		Summary:               cloneResearchProcessingSummary(w.summary),
 	}
 	w.mu.RUnlock()
 	return status
+}
+
+func (w *researchProcessingWorker) refreshSummaryIfNeeded(settings ResearchProcessingSettings) {
+	if w == nil {
+		return
+	}
+	key := researchProcessingSummarySettingsFrom(settings)
+	for attempt := 0; attempt < 2; attempt++ {
+		w.mu.RLock()
+		needsRefresh := w.summaryDirty || w.summarySettings != key
+		if !needsRefresh {
+			w.mu.RUnlock()
+			return
+		}
+		events := append([]researchEventSample(nil), w.events...)
+		version := w.eventsVersion
+		w.mu.RUnlock()
+
+		started := time.Now()
+		summary := buildResearchProcessingSummary(events, settings)
+		duration := time.Since(started)
+		now := time.Now().UTC()
+
+		w.mu.Lock()
+		if w.eventsVersion == version {
+			w.summary = summary
+			w.summarySettings = key
+			w.summaryDirty = false
+			w.summaryRebuilds++
+			w.lastSummaryDuration = duration
+			w.lastSummaryAt = now
+			w.updatedAt = now
+			w.mu.Unlock()
+			return
+		}
+		w.mu.Unlock()
+	}
+
+	w.mu.Lock()
+	if w.summaryDirty || w.summarySettings != key {
+		started := time.Now()
+		w.summary = buildResearchProcessingSummary(w.events, settings)
+		w.summarySettings = key
+		w.summaryDirty = false
+		w.summaryRebuilds++
+		w.lastSummaryDuration = time.Since(started)
+		w.lastSummaryAt = time.Now().UTC()
+		w.updatedAt = w.lastSummaryAt
+	}
+	w.mu.Unlock()
+}
+
+func researchProcessingSummarySettingsFrom(settings ResearchProcessingSettings) researchProcessingSummarySettings {
+	normalizeResearchProcessingSettings(&settings)
+	return researchProcessingSummarySettings{
+		TimelineBucketSeconds: settings.TimelineBucketSeconds,
+		TopK:                  settings.TopK,
+		RecentSamples:         settings.RecentSamples,
+	}
+}
+
+func ptrTimeIfSet(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
+func durationMilliseconds(d time.Duration) float64 {
+	if d <= 0 {
+		return 0
+	}
+	return float64(d.Microseconds()) / 1000
+}
+
+func throughputPerSecond(total uint64, startedAt, now time.Time) float64 {
+	if total == 0 || startedAt.IsZero() || now.IsZero() || !now.After(startedAt) {
+		return 0
+	}
+	return float64(total) / now.Sub(startedAt).Seconds()
 }
 
 func researchEventSampleFromRecord(record CapturedEventRecord) (researchEventSample, bool) {

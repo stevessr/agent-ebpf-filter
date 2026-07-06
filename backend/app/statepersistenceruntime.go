@@ -386,12 +386,14 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 		Event:      eventCopy,
 	})
 	capturedEventArchive.Add(record)
+	collectorMetricsStore.RecordCapturedArchive()
 	appendStart := time.Now()
-	if err := runtimeSettingsStore.AppendEvent(record); err != nil {
-		log.Printf("[WARN] failed to append captured event: %v", err)
+	appendErr := runtimeSettingsStore.AppendEvent(record)
+	collectorMetricsStore.RecordCapturedPersist(appendErr, time.Since(appendStart))
+	if appendErr != nil {
+		log.Printf("[WARN] failed to append captured event: %v", appendErr)
 	}
 	eventRecordingStore.Record(record)
-	collectorMetricsStore.SetPersistAppendLatency(time.Since(appendStart))
 	otelExporterStore.Record(record)
 	queueLoopDetectionRecord(record)
 	queueResearchProcessingRecord(record)

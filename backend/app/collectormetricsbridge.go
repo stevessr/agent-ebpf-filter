@@ -51,6 +51,22 @@ func (metricsStoreBridge) SetPersistAppendLatency(duration time.Duration) {
 	observability.SetPersistAppendLatency(duration)
 }
 
+func (metricsStoreBridge) RecordCapturedArchive() {
+	observability.RecordCapturedArchive()
+}
+
+func (metricsStoreBridge) RecordCapturedPersist(err error, duration time.Duration) {
+	observability.RecordCapturedPersist(err, duration)
+}
+
+func (metricsStoreBridge) RecordBroadcastReceived() {
+	observability.RecordBroadcastReceived()
+}
+
+func (metricsStoreBridge) RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors int, duration time.Duration) {
+	observability.RecordBroadcastFlush(events, envelopes, marshalErrors, writeErrors, duration)
+}
+
 func (metricsStoreBridge) RecordRingbufDecode(zeroCopy bool) {
 	observability.RecordRingbufDecode(zeroCopy)
 }

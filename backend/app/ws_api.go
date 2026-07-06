@@ -53,7 +53,8 @@ func servePassiveProtoWS(c *gin.Context, target map[*websocket.Conn]bool, mu *sy
 	}(conn)
 }
 
-func broadcastProtoMessage(target map[*websocket.Conn]bool, mu *sync.Mutex, data []byte) {
+func broadcastProtoMessage(target map[*websocket.Conn]bool, mu *sync.Mutex, data []byte) int {
+	writeErrors := 0
 	mu.Lock()
 	for conn := range target {
 		if conn == nil {
@@ -61,11 +62,13 @@ func broadcastProtoMessage(target map[*websocket.Conn]bool, mu *sync.Mutex, data
 			continue
 		}
 		if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+			writeErrors++
 			conn.Close()
 			delete(target, conn)
 		}
 	}
 	mu.Unlock()
+	return writeErrors
 }
 
 func startEventBroadcaster() {
@@ -76,30 +79,41 @@ func startEventBroadcaster() {
 		defer batchTicker.Stop()
 
 		flushBatch := func() {
-			if len(eventBatch) > 0 {
+			eventCount := len(eventBatch)
+			envelopeCount := len(envelopeBatch)
+			if eventCount == 0 && envelopeCount == 0 {
+				return
+			}
+			started := time.Now()
+			marshalErrors := 0
+			writeErrors := 0
+			if eventCount > 0 {
 				events := make([]*pb.Event, len(eventBatch))
 				copy(events, eventBatch)
 				eventBatch = eventBatch[:0]
 				msg := &pb.EventBatch{Events: events}
 				data, err := proto.Marshal(msg)
 				if err != nil {
+					marshalErrors++
 					log.Printf("[ERROR] failed to marshal EventBatch: %v", err)
 				} else {
-					broadcastProtoMessage(AppCtx.Clients, &AppCtx.ClientsMu, data)
+					writeErrors += broadcastProtoMessage(AppCtx.Clients, &AppCtx.ClientsMu, data)
 				}
 			}
-			if len(envelopeBatch) > 0 {
+			if envelopeCount > 0 {
 				envelopes := make([]*pb.EventEnvelope, len(envelopeBatch))
 				copy(envelopes, envelopeBatch)
 				envelopeBatch = envelopeBatch[:0]
 				msg := &pb.EventEnvelopeBatch{Envelopes: envelopes}
 				data, err := proto.Marshal(msg)
 				if err != nil {
+					marshalErrors++
 					log.Printf("[ERROR] failed to marshal EventEnvelopeBatch: %v", err)
 				} else {
-					broadcastProtoMessage(AppCtx.EnvelopeClients, &AppCtx.EnvelopeClientsMu, data)
+					writeErrors += broadcastProtoMessage(AppCtx.EnvelopeClients, &AppCtx.EnvelopeClientsMu, data)
 				}
 			}
+			collectorMetricsStore.RecordBroadcastFlush(eventCount, envelopeCount, marshalErrors, writeErrors, time.Since(started))
 		}
 
 		appendRecord := func(record CapturedEventRecord) {
@@ -114,6 +128,7 @@ func startEventBroadcaster() {
 		for {
 			select {
 			case event := <-AppCtx.Broadcast:
+				collectorMetricsStore.RecordBroadcastReceived()
 				event = enrichEventContext(event)
 				appendRecord(recordCapturedEvent(event))
 				for _, alert := range buildSemanticAlerts(event) {

@@ -252,6 +252,7 @@ type researchTaskEntry struct {
 	task       ResearchTask
 	request    researchTaskRequest
 	tlsStore   *TLSCaptureStore
+	runtime    *backendTaskRuntimeEntry
 	cancel     chan struct{}
 	cancelOnce sync.Once
 }
@@ -265,8 +266,7 @@ type researchSessionStore struct {
 
 type researchTaskManager struct {
 	mu      sync.RWMutex
-	queue   chan *researchTaskEntry
-	started bool
+	runtime *backendTaskRuntime
 	tasks   map[string]*researchTaskEntry
 	store   *researchSessionStore
 }
@@ -287,7 +287,9 @@ func newResearchTaskManager(store *researchSessionStore) *researchTaskManager {
 	if store == nil {
 		store = newResearchSessionStore("")
 	}
-	return &researchTaskManager{store: store, tasks: make(map[string]*researchTaskEntry)}
+	manager := &researchTaskManager{store: store, tasks: make(map[string]*researchTaskEntry)}
+	manager.runtime = newBackendTaskRuntime("research", researchTaskStoreMaxItems, manager.runRuntimeTask)
+	return manager
 }
 
 func startResearchTaskWorker() {
@@ -301,42 +303,48 @@ func (m *researchTaskManager) Start(queueSize int) {
 	if m == nil {
 		return
 	}
-	if queueSize <= 0 {
-		queueSize = researchProcessingDefaultQueueSize
-	}
-	m.mu.Lock()
-	if m.started {
-		m.mu.Unlock()
-		return
-	}
-	m.queue = make(chan *researchTaskEntry, queueSize)
-	m.started = true
-	queue := m.queue
-	m.mu.Unlock()
-	go m.run(queue)
+	m.ensureRuntime().Start(queueSize)
 }
 
-func (m *researchTaskManager) run(queue <-chan *researchTaskEntry) {
-	for entry := range queue {
-		if entry == nil {
-			continue
-		}
-		if entry.isCanceled() {
-			entry.finish(researchTaskCanceled, 1, "", nil)
-			continue
-		}
-		entry.markRunning()
-		err := m.runTask(entry)
-		if err != nil {
-			if errors.Is(err, errResearchTaskCanceled) || entry.isCanceled() {
-				entry.finish(researchTaskCanceled, 1, "", nil)
-			} else {
-				entry.finish(researchTaskFailed, entry.progress(), err.Error(), nil)
-			}
-			continue
-		}
-		entry.finish(researchTaskSucceeded, 1, "", nil)
+func (m *researchTaskManager) ensureRuntime() *backendTaskRuntime {
+	if m == nil {
+		return nil
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.runtime == nil {
+		m.runtime = newBackendTaskRuntime("research", researchTaskStoreMaxItems, m.runRuntimeTask)
+	}
+	return m.runtime
+}
+
+func (m *researchTaskManager) runRuntimeTask(runtimeEntry *backendTaskRuntimeEntry) error {
+	if runtimeEntry == nil {
+		return errors.New("research task runtime entry is nil")
+	}
+	entry, ok := runtimeEntry.Payload().(*researchTaskEntry)
+	if !ok || entry == nil {
+		return errors.New("research task payload is invalid")
+	}
+	if entry.isCanceled() {
+		entry.finish(researchTaskCanceled, 1, "", nil)
+		return errBackendTaskCanceled
+	}
+	if !entry.markRunning() {
+		entry.finish(researchTaskCanceled, 1, "", nil)
+		return errBackendTaskCanceled
+	}
+	err := m.runTask(entry)
+	if err != nil {
+		if errors.Is(err, errResearchTaskCanceled) || entry.isCanceled() {
+			entry.finish(researchTaskCanceled, 1, "", nil)
+			return errBackendTaskCanceled
+		}
+		entry.finish(researchTaskFailed, entry.progress(), err.Error(), nil)
+		return err
+	}
+	entry.finish(researchTaskSucceeded, 1, "", nil)
+	return nil
 }
 
 var errResearchTaskCanceled = errors.New("research task canceled")
@@ -370,28 +378,26 @@ func (m *researchTaskManager) Submit(sessionID string, req researchTaskRequest, 
 		},
 		request:  req,
 		tlsStore: tlsStore,
-		cancel:   make(chan struct{}),
 	}
+	runtimeEntry := newBackendTaskRuntimeEntry(entry.task.TaskID, action, entry)
+	entry.runtime = runtimeEntry
+	entry.cancel = runtimeEntry.cancel
 	m.mu.Lock()
 	m.pruneLocked()
-	queue := m.queue
-	if queue == nil {
-		queue = make(chan *researchTaskEntry, researchProcessingDefaultQueueSize)
-		m.queue = queue
-		m.started = true
-		go m.run(queue)
-	}
-	select {
-	case queue <- entry:
-		entry.task.QueueLen = len(queue)
-		m.tasks[entry.task.TaskID] = entry
-		out := entry.snapshot()
+	m.tasks[entry.task.TaskID] = entry
+	m.mu.Unlock()
+
+	if err := m.ensureRuntime().Submit(runtimeEntry); err != nil {
+		m.mu.Lock()
+		delete(m.tasks, entry.task.TaskID)
 		m.mu.Unlock()
-		return out, nil
-	default:
-		m.mu.Unlock()
-		return ResearchTask{}, errResearchQueueFull
+		if errors.Is(err, errBackendTaskQueueFull) {
+			return ResearchTask{}, errResearchQueueFull
+		}
+		return ResearchTask{}, err
 	}
+	entry.setQueueLen(runtimeEntry.Snapshot().QueueLen)
+	return entry.snapshot(), nil
 }
 
 var errResearchQueueFull = errors.New("research task queue is full")
@@ -456,6 +462,9 @@ func (m *researchTaskManager) runTask(entry *researchTaskEntry) error {
 	switch action {
 	case "scan_recent", "build_session":
 		entry.setProgress(0.05)
+		if err := entry.checkCanceled(); err != nil {
+			return err
+		}
 		limit := entry.request.Limit
 		settings := runtimeSettingsStore.Snapshot().ResearchProcessing
 		normalizeResearchProcessingSettings(&settings)
@@ -475,9 +484,18 @@ func (m *researchTaskManager) runTask(entry *researchTaskEntry) error {
 			return err
 		}
 		entry.setProgress(0.65)
-		results := buildResearchResults(sessionID, events, nil)
+		results, err := buildResearchResultsWithCancel(sessionID, events, nil, entry)
+		if err != nil {
+			return err
+		}
 		entry.setProgress(0.85)
+		if err := entry.checkCanceled(); err != nil {
+			return err
+		}
 		if err := m.store.ReplaceSessionEvents(sessionID, events, results, filter, timerange); err != nil {
+			return err
+		}
+		if err := entry.checkCanceled(); err != nil {
 			return err
 		}
 		entry.setRecords(len(events))
@@ -489,13 +507,22 @@ func (m *researchTaskManager) runTask(entry *researchTaskEntry) error {
 		if err != nil {
 			return err
 		}
-		if entry.isCanceled() {
-			return errResearchTaskCanceled
+		if err := entry.checkCanceled(); err != nil {
+			return err
 		}
 		compare := buildResearchWindowCompare(events, entry.request.LeftWindow, entry.request.RightWindow)
-		results := buildResearchResults(sessionID, events, compare)
+		if err := entry.checkCanceled(); err != nil {
+			return err
+		}
+		results, err := buildResearchResultsWithCancel(sessionID, events, compare, entry)
+		if err != nil {
+			return err
+		}
 		if previous, err := m.store.LoadResults(sessionID); err == nil {
 			results.SecurityEvaluation = previous.SecurityEvaluation
+		}
+		if err := entry.checkCanceled(); err != nil {
+			return err
 		}
 		if err := m.store.SaveResults(sessionID, results); err != nil {
 			return err
@@ -510,8 +537,8 @@ func (m *researchTaskManager) runTask(entry *researchTaskEntry) error {
 		if err != nil {
 			return err
 		}
-		if entry.isCanceled() {
-			return errResearchTaskCanceled
+		if err := entry.checkCanceled(); err != nil {
+			return err
 		}
 		reportReq := researchSecurityEvaluationRequestFromTask(entry.request)
 		report, err := buildResearchSecurityEvaluationReport(sessionID, events, reportReq, entry)
@@ -519,6 +546,9 @@ func (m *researchTaskManager) runTask(entry *researchTaskEntry) error {
 			return err
 		}
 		entry.setProgress(0.93)
+		if err := entry.checkCanceled(); err != nil {
+			return err
+		}
 		if err := m.store.SaveSecurityEvaluation(sessionID, report); err != nil {
 			return err
 		}
@@ -537,7 +567,10 @@ func (m *researchTaskManager) runTask(entry *researchTaskEntry) error {
 		return nil
 	case "export_bundle":
 		formats := researchFormatsFromRequest(entry.request)
-		refs, err := m.store.GenerateExports(sessionID, formats)
+		if err := entry.checkCanceled(); err != nil {
+			return err
+		}
+		refs, err := m.store.GenerateExportsWithCancel(sessionID, formats, entry)
 		if err != nil {
 			return err
 		}
@@ -546,6 +579,9 @@ func (m *researchTaskManager) runTask(entry *researchTaskEntry) error {
 		entry.setResult(result)
 		return nil
 	case "reset_session", "reset":
+		if err := entry.checkCanceled(); err != nil {
+			return err
+		}
 		if err := m.store.ResetSession(sessionID); err != nil {
 			return err
 		}
@@ -580,24 +616,29 @@ func (entry *researchTaskEntry) snapshot() ResearchTask {
 	return out
 }
 
-func (entry *researchTaskEntry) markRunning() {
+func (entry *researchTaskEntry) markRunning() bool {
 	now := time.Now().UTC()
 	entry.mu.Lock()
 	if entry.task.Status == researchTaskCanceled {
 		entry.mu.Unlock()
-		return
+		return false
 	}
 	entry.task.Status = researchTaskRunning
 	entry.task.StartedAt = &now
 	entry.task.Progress = 0.01
 	entry.mu.Unlock()
+	return true
 }
 
 func (entry *researchTaskEntry) requestCancel() {
 	if entry == nil {
 		return
 	}
-	entry.cancelOnce.Do(func() { close(entry.cancel) })
+	if entry.runtime != nil {
+		entry.runtime.Cancel()
+	} else {
+		entry.cancelOnce.Do(func() { close(entry.cancel) })
+	}
 	now := time.Now().UTC()
 	entry.mu.Lock()
 	entry.task.CancelAsked = true
@@ -610,7 +651,13 @@ func (entry *researchTaskEntry) requestCancel() {
 }
 
 func (entry *researchTaskEntry) isCanceled() bool {
-	if entry == nil || entry.cancel == nil {
+	if entry == nil {
+		return false
+	}
+	if entry.runtime != nil {
+		return entry.runtime.IsCanceled()
+	}
+	if entry.cancel == nil {
 		return false
 	}
 	select {
@@ -619,6 +666,13 @@ func (entry *researchTaskEntry) isCanceled() bool {
 	default:
 		return false
 	}
+}
+
+func (entry *researchTaskEntry) checkCanceled() error {
+	if entry != nil && entry.isCanceled() {
+		return errResearchTaskCanceled
+	}
+	return nil
 }
 
 func (entry *researchTaskEntry) setProgress(progress float64) {
@@ -636,6 +690,9 @@ func (entry *researchTaskEntry) setProgress(progress float64) {
 		entry.task.Progress = progress
 	}
 	entry.mu.Unlock()
+	if entry.runtime != nil {
+		entry.runtime.SetProgress(progress)
+	}
 }
 
 func (entry *researchTaskEntry) progress() float64 {
@@ -647,6 +704,12 @@ func (entry *researchTaskEntry) progress() float64 {
 func (entry *researchTaskEntry) setRecords(records int) {
 	entry.mu.Lock()
 	entry.task.Records = records
+	entry.mu.Unlock()
+}
+
+func (entry *researchTaskEntry) setQueueLen(queueLen int) {
+	entry.mu.Lock()
+	entry.task.QueueLen = queueLen
 	entry.mu.Unlock()
 }
 
@@ -990,11 +1053,18 @@ func (s *researchSessionStore) LoadResults(id string) (ResearchResults, error) {
 }
 
 func (s *researchSessionStore) GenerateExports(id string, formats []string) ([]ResearchArtifactRef, error) {
+	return s.GenerateExportsWithCancel(id, formats, nil)
+}
+
+func (s *researchSessionStore) GenerateExportsWithCancel(id string, formats []string, entry *researchTaskEntry) ([]ResearchArtifactRef, error) {
 	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	formats = normalizeResearchFormats(formats)
 	if len(formats) == 0 {
 		formats = splitResearchFormats(settings.ExportFormats)
+	}
+	if err := entry.checkCanceled(); err != nil {
+		return nil, err
 	}
 	session, err := s.Get(id)
 	if err != nil {
@@ -1004,8 +1074,14 @@ func (s *researchSessionStore) GenerateExports(id string, formats []string) ([]R
 	if err != nil {
 		return nil, err
 	}
+	if err := entry.checkCanceled(); err != nil {
+		return nil, err
+	}
 	results, err := s.LoadResults(id)
 	if err != nil {
+		return nil, err
+	}
+	if err := entry.checkCanceled(); err != nil {
 		return nil, err
 	}
 	artifactDir := filepath.Join(s.baseDir, id, "artifacts")
@@ -1016,6 +1092,9 @@ func (s *researchSessionStore) GenerateExports(id string, formats []string) ([]R
 	artifactMap := cloneArtifactRefs(session.ArtifactRefs)
 	payloadsByName := map[string][]byte{}
 	for _, format := range formats {
+		if err := entry.checkCanceled(); err != nil {
+			return nil, err
+		}
 		var payload []byte
 		var contentType string
 		var name string
@@ -1069,6 +1148,9 @@ func (s *researchSessionStore) GenerateExports(id string, formats []string) ([]R
 		default:
 			return nil, fmt.Errorf("unsupported export format %q", format)
 		}
+		if err := entry.checkCanceled(); err != nil {
+			return nil, err
+		}
 		path := filepath.Join(artifactDir, name)
 		if err := os.WriteFile(path, payload, 0o600); err != nil {
 			return nil, err
@@ -1079,6 +1161,9 @@ func (s *researchSessionStore) GenerateExports(id string, formats []string) ([]R
 		refs = append(refs, ref)
 	}
 	if len(payloadsByName) > 0 {
+		if err := entry.checkCanceled(); err != nil {
+			return nil, err
+		}
 		manifest := researchBuildManifest(session, events, settings, payloadsByName, artifactMap)
 		payload, err := json.MarshalIndent(manifest, "", "  ")
 		if err != nil {
@@ -1091,6 +1176,9 @@ func (s *researchSessionStore) GenerateExports(id string, formats []string) ([]R
 		ref := ResearchArtifactRef{Format: "manifest", Name: "manifest.json", Path: path, ContentType: "application/json; charset=utf-8", Bytes: int64(len(payload)), SHA256: researchSHA256Hex(payload), CreatedAt: time.Now().UTC()}
 		artifactMap["manifest"] = ref
 		refs = append(refs, ref)
+	}
+	if err := entry.checkCanceled(); err != nil {
+		return nil, err
 	}
 	s.mu.Lock()
 	if current := s.sessions[id]; current != nil {
@@ -1535,12 +1623,22 @@ func researchFeaturesFromEvent(event any, envelope any) map[string]any {
 }
 
 func buildResearchResults(sessionID string, events []ResearchEvent, compare *ResearchWindowCompare) ResearchResults {
+	results, _ := buildResearchResultsWithCancel(sessionID, events, compare, nil)
+	return results
+}
+
+func buildResearchResultsWithCancel(sessionID string, events []ResearchEvent, compare *ResearchWindowCompare, entry *researchTaskEntry) (ResearchResults, error) {
 	now := time.Now().UTC()
 	samples := make([]researchEventSample, 0, len(events))
 	byTarget := map[string]int{}
 	byDecision := map[string]int{}
 	riskAlerts := make([]ResearchRiskFinding, 0)
-	for _, event := range events {
+	for index, event := range events {
+		if index%256 == 0 {
+			if err := entry.checkCanceled(); err != nil {
+				return ResearchResults{}, err
+			}
+		}
 		samples = append(samples, researchSampleFromResearchEvent(event))
 		incrementResearchCount(byTarget, event.Target)
 		incrementResearchCount(byDecision, event.Decision)
@@ -1548,10 +1646,13 @@ func buildResearchResults(sessionID string, events []ResearchEvent, compare *Res
 			riskAlerts = append(riskAlerts, ResearchRiskFinding{EventID: event.ID, Timestamp: event.Timestamp, Time: event.Time, Source: event.Source, EventType: event.EventType, PID: event.PID, Comm: event.Comm, Target: event.Target, RiskScore: event.RiskScore, Decision: event.Decision, TraceID: event.TraceID, Associated: researchRiskAssociation(event)})
 		}
 	}
+	if err := entry.checkCanceled(); err != nil {
+		return ResearchResults{}, err
+	}
 	settings := runtimeSettingsStore.Snapshot().ResearchProcessing
 	normalizeResearchProcessingSettings(&settings)
 	loopStatus := loopDetectionWorkerStore.Status()
-	return ResearchResults{
+	results := ResearchResults{
 		SchemaVersion:      researchSchemaVersion,
 		SessionID:          sessionID,
 		GeneratedTimestamp: now.UnixMilli(),
@@ -1564,6 +1665,7 @@ func buildResearchResults(sessionID string, events []ResearchEvent, compare *Res
 		KernelRiskFeedback: currentResearchKernelRiskFeedbackInfo(),
 		CompareWindows:     compare,
 	}
+	return results, nil
 }
 
 func buildResearchSessionSummary(events []ResearchEvent, results ResearchResults) ResearchSessionSummary {

@@ -359,8 +359,8 @@ func TestResearchTaskQueueFullAndCancelIdempotent(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 	manager := newResearchTaskManager(store)
-	manager.queue = make(chan *researchTaskEntry, 1)
-	manager.started = true
+	manager.runtime.queue = make(chan *backendTaskRuntimeEntry, 1)
+	manager.runtime.started = true
 
 	first, err := manager.Submit(session.ID, researchTaskRequest{Action: "scan_recent", Limit: 1}, nil)
 	if err != nil {
@@ -373,6 +373,37 @@ func TestResearchTaskQueueFullAndCancelIdempotent(t *testing.T) {
 	cancelTwo := manager.Cancel(first.TaskID)
 	if cancelOne.Status != researchTaskCanceled || cancelTwo.Status != researchTaskCanceled {
 		t.Fatalf("cancel statuses = %+v / %+v", cancelOne, cancelTwo)
+	}
+	entry := manager.tasks[first.TaskID]
+	if entry == nil {
+		t.Fatal("queued task entry missing")
+	}
+	if entry.markRunning() {
+		t.Fatalf("canceled queued task must not transition to running: %+v", entry.snapshot())
+	}
+	if snapshot := entry.snapshot(); snapshot.Status != researchTaskCanceled || snapshot.Progress != 1 {
+		t.Fatalf("canceled queued task snapshot mismatch: %+v", snapshot)
+	}
+}
+
+func TestResearchTaskCancellationCheckpoints(t *testing.T) {
+	entry := &researchTaskEntry{
+		task:   ResearchTask{TaskID: "rtask-cancel", Status: researchTaskRunning, QueuedAt: time.Now().UTC()},
+		cancel: make(chan struct{}),
+	}
+	entry.requestCancel()
+	events := []ResearchEvent{{ID: "e1", Timestamp: time.Now().UTC().UnixMilli(), Time: time.Now().UTC().Format(time.RFC3339Nano), Source: "file", EventType: "OPENAT", PID: 1, Comm: "agent", Target: "/tmp/a"}}
+	if _, err := buildResearchResultsWithCancel("session", events, nil, entry); !errors.Is(err, errResearchTaskCanceled) {
+		t.Fatalf("build results cancellation error = %v, want %v", err, errResearchTaskCanceled)
+	}
+
+	store := newResearchSessionStore(t.TempDir())
+	session, err := store.Create(researchCreateSessionRequest{Name: "cancel-export"})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if _, err := store.GenerateExportsWithCancel(session.ID, []string{"jsonl"}, entry); !errors.Is(err, errResearchTaskCanceled) {
+		t.Fatalf("export cancellation error = %v, want %v", err, errResearchTaskCanceled)
 	}
 }
 

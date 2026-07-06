@@ -71,3 +71,90 @@ func TestResearchProcessingManualScanWorksWhenDisabled(t *testing.T) {
 		t.Fatalf("forced manual scan should process records: %+v", status)
 	}
 }
+
+func TestResearchProcessingWorkerRebuildsSummaryLazily(t *testing.T) {
+	oldStore := runtimeSettingsStore
+	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
+		Enabled:               true,
+		MaxEvents:             100,
+		QueueSize:             128,
+		TimelineBucketSeconds: 60,
+		TopK:                  10,
+		RecentSamples:         5,
+	}}}
+	t.Cleanup(func() { runtimeSettingsStore = oldStore })
+
+	worker := newResearchProcessingWorker()
+	base := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 10; i++ {
+		worker.processRecord(CapturedEventRecord{
+			ReceivedAt: base.Add(time.Duration(i) * time.Second),
+			Event:      &pb.Event{Pid: uint32(300 + i), Type: "openat", Comm: "research", Path: "/tmp/research.txt"},
+		}, false)
+	}
+	if !worker.summaryDirty || worker.summaryRebuilds != 0 {
+		t.Fatalf("summary should be dirty and unrebuilt before status: dirty=%v rebuilds=%d", worker.summaryDirty, worker.summaryRebuilds)
+	}
+
+	status := worker.Status()
+	if status.Summary.Total != 10 || status.SummaryRebuilds != 1 || status.LastSummaryAt == nil || status.LastProcessedAt == nil {
+		t.Fatalf("lazy summary status mismatch: %+v", status)
+	}
+	if status.PendingSummary {
+		t.Fatalf("status should refresh pending summary: %+v", status)
+	}
+	if status.ThroughputPerSecond <= 0 {
+		t.Fatalf("expected throughput metric: %+v", status)
+	}
+
+	again := worker.Status()
+	if again.SummaryRebuilds != status.SummaryRebuilds {
+		t.Fatalf("clean status should not rebuild summary: first=%d again=%d", status.SummaryRebuilds, again.SummaryRebuilds)
+	}
+}
+
+func TestResearchProcessingWorkerDropReasons(t *testing.T) {
+	record := CapturedEventRecord{ReceivedAt: time.Now().UTC(), Event: &pb.Event{Pid: 400, Type: "openat", Comm: "research", Path: "/tmp/research.txt"}}
+	worker := newResearchProcessingWorker()
+	if worker.EnqueueEvent(record) {
+		t.Fatal("enqueue should fail before worker starts")
+	}
+	status := worker.Status()
+	if status.LastDropReason != "worker_not_started" || status.DroppedTotal != 1 {
+		t.Fatalf("worker_not_started drop mismatch: %+v", status)
+	}
+
+	worker.queue = make(chan researchProcessingWorkItem, 1)
+	worker.started = true
+	if !worker.EnqueueEvent(record) {
+		t.Fatal("first enqueue should fill the manual queue")
+	}
+	if worker.EnqueueEvent(record) {
+		t.Fatal("second enqueue should fail on full queue")
+	}
+	status = worker.Status()
+	if status.LastDropReason != "queue_full" || status.DroppedTotal != 2 || status.EnqueuedTotal != 1 || status.LastEnqueuedAt == nil || status.LastDroppedAt == nil {
+		t.Fatalf("queue_full drop mismatch: %+v", status)
+	}
+
+	oldStore := runtimeSettingsStore
+	oldWorker := researchProcessingWorkerStore
+	runtimeSettingsStore = &runtimeState{settings: RuntimeSettings{ResearchProcessing: ResearchProcessingSettings{
+		Enabled:               false,
+		MaxEvents:             100,
+		QueueSize:             128,
+		TimelineBucketSeconds: 60,
+		TopK:                  10,
+		RecentSamples:         5,
+	}}}
+	researchProcessingWorkerStore = newResearchProcessingWorker()
+	t.Cleanup(func() {
+		runtimeSettingsStore = oldStore
+		researchProcessingWorkerStore = oldWorker
+	})
+	queueResearchProcessingRecord(record)
+	status = researchProcessingWorkerStore.Status()
+	if status.LastDropReason != "disabled" || status.DroppedTotal != 1 {
+		t.Fatalf("disabled drop mismatch: %+v", status)
+	}
+}
