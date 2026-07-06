@@ -59,6 +59,10 @@ func (metricsStoreBridge) RecordCapturedPersist(err error, duration time.Duratio
 	observability.RecordCapturedPersist(err, duration)
 }
 
+func (metricsStoreBridge) RecordBroadcastEnqueue(accepted bool, reason string) {
+	observability.RecordBroadcastEnqueue(accepted, reason)
+}
+
 func (metricsStoreBridge) RecordBroadcastReceived() {
 	observability.RecordBroadcastReceived()
 }

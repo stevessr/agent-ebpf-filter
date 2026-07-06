@@ -347,9 +347,7 @@ func (w *loopDetectionWorker) appendFindingLocked(finding loopDetectionFinding) 
 
 func (w *loopDetectionWorker) emitSemanticAlert(finding loopDetectionFinding) {
 	alert := loopDetectionSemanticAlert(finding)
-	select {
-	case broadcast <- alert:
-	default:
+	if !enqueueBroadcastEvent(broadcast, alert, "loop_detection_alert") {
 		w.noteDrop("broadcast queue is full while emitting loop detection alert")
 	}
 }

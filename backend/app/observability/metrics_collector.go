@@ -31,6 +31,9 @@ type CollectorMetricsSnapshot struct {
 	CapturedArchivedTotal          uint64
 	CapturedPersistedTotal         uint64
 	CapturedPersistErrorsTotal     uint64
+	BroadcastQueuedTotal           uint64
+	BroadcastDroppedTotal          uint64
+	BroadcastLastDropReason        string
 	BroadcastReceivedTotal         uint64
 	BroadcastFlushesTotal          uint64
 	BroadcastEventsFlushedTotal    uint64
@@ -65,6 +68,9 @@ type CollectorHealthResponse struct {
 	CapturedArchivedTotal          uint64            `json:"capturedArchivedTotal"`
 	CapturedPersistedTotal         uint64            `json:"capturedPersistedTotal"`
 	CapturedPersistErrorsTotal     uint64            `json:"capturedPersistErrorsTotal"`
+	BroadcastQueuedTotal           uint64            `json:"broadcastQueuedTotal"`
+	BroadcastDroppedTotal          uint64            `json:"broadcastDroppedTotal"`
+	BroadcastLastDropReason        string            `json:"broadcastLastDropReason,omitempty"`
 	BroadcastReceivedTotal         uint64            `json:"broadcastReceivedTotal"`
 	BroadcastFlushesTotal          uint64            `json:"broadcastFlushesTotal"`
 	BroadcastEventsFlushedTotal    uint64            `json:"broadcastEventsFlushedTotal"`
@@ -91,6 +97,9 @@ type collectorMetricsState struct {
 	capturedArchivedTotal          uint64
 	capturedPersistedTotal         uint64
 	capturedPersistErrorsTotal     uint64
+	broadcastQueuedTotal           uint64
+	broadcastDroppedTotal          uint64
+	broadcastLastDropReason        string
 	broadcastReceivedTotal         uint64
 	broadcastFlushesTotal          uint64
 	broadcastEventsFlushedTotal    uint64
@@ -211,6 +220,25 @@ func (s *collectorMetricsState) recordCapturedPersist(err error, duration time.D
 
 func (s *collectorMetricsState) RecordCapturedPersist(err error, duration time.Duration) {
 	s.recordCapturedPersist(err, duration)
+}
+
+func RecordBroadcastEnqueue(accepted bool, reason string) {
+	collectorMetricsStore.recordBroadcastEnqueue(accepted, reason)
+}
+
+func (s *collectorMetricsState) recordBroadcastEnqueue(accepted bool, reason string) {
+	s.mu.Lock()
+	if accepted {
+		s.broadcastQueuedTotal++
+	} else {
+		s.broadcastDroppedTotal++
+		s.broadcastLastDropReason = StringsTrimDefault(reason, "unknown")
+	}
+	s.mu.Unlock()
+}
+
+func (s *collectorMetricsState) RecordBroadcastEnqueue(accepted bool, reason string) {
+	s.recordBroadcastEnqueue(accepted, reason)
 }
 
 func RecordBroadcastReceived() {
@@ -343,6 +371,9 @@ func (s *collectorMetricsState) rawSnapshot() CollectorMetricsSnapshot {
 		CapturedArchivedTotal:          s.capturedArchivedTotal,
 		CapturedPersistedTotal:         s.capturedPersistedTotal,
 		CapturedPersistErrorsTotal:     s.capturedPersistErrorsTotal,
+		BroadcastQueuedTotal:           s.broadcastQueuedTotal,
+		BroadcastDroppedTotal:          s.broadcastDroppedTotal,
+		BroadcastLastDropReason:        s.broadcastLastDropReason,
 		BroadcastReceivedTotal:         s.broadcastReceivedTotal,
 		BroadcastFlushesTotal:          s.broadcastFlushesTotal,
 		BroadcastEventsFlushedTotal:    s.broadcastEventsFlushedTotal,
@@ -441,6 +472,9 @@ func (s *collectorMetricsState) snapshot() CollectorHealthResponse {
 		CapturedArchivedTotal:          raw.CapturedArchivedTotal,
 		CapturedPersistedTotal:         raw.CapturedPersistedTotal,
 		CapturedPersistErrorsTotal:     raw.CapturedPersistErrorsTotal,
+		BroadcastQueuedTotal:           raw.BroadcastQueuedTotal,
+		BroadcastDroppedTotal:          raw.BroadcastDroppedTotal,
+		BroadcastLastDropReason:        raw.BroadcastLastDropReason,
 		BroadcastReceivedTotal:         raw.BroadcastReceivedTotal,
 		BroadcastFlushesTotal:          raw.BroadcastFlushesTotal,
 		BroadcastEventsFlushedTotal:    raw.BroadcastEventsFlushedTotal,

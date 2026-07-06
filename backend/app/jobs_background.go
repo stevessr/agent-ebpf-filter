@@ -110,7 +110,7 @@ func startKernelEventReader(rd *ringbuf.Reader) {
 			if isEventTypeDisabledFunc(event.Type) {
 				continue
 			}
-			broadcast <- buildKernelEventFromRaw(event)
+			enqueueBroadcastEvent(broadcast, buildKernelEventFromRaw(event), "kernel_event_reader")
 		}
 	}()
 }

@@ -22,6 +22,8 @@ func TestCollectorPipelineMetricsSnapshot(t *testing.T) {
 	RecordCapturedArchive()
 	RecordCapturedPersist(nil, 2*time.Millisecond)
 	RecordCapturedPersist(errors.New("disk full"), 3*time.Millisecond)
+	RecordBroadcastEnqueue(true, "")
+	RecordBroadcastEnqueue(false, "kernel_event_reader:queue_full")
 	RecordBroadcastReceived()
 	RecordBroadcastFlush(2, 3, 1, 4, 5*time.Millisecond)
 
@@ -31,6 +33,9 @@ func TestCollectorPipelineMetricsSnapshot(t *testing.T) {
 	}
 	if health.BroadcastReceivedTotal != 1 || health.BroadcastFlushesTotal != 1 || health.BroadcastEventsFlushedTotal != 2 || health.BroadcastEnvelopesFlushedTotal != 3 {
 		t.Fatalf("broadcast counters mismatch: %+v", health)
+	}
+	if health.BroadcastQueuedTotal != 1 || health.BroadcastDroppedTotal != 1 || health.BroadcastLastDropReason != "kernel_event_reader:queue_full" {
+		t.Fatalf("broadcast enqueue counters mismatch: %+v", health)
 	}
 	if health.BroadcastMarshalErrorsTotal != 1 || health.BroadcastWriteErrorsTotal != 4 || health.BroadcastLastFlushLatencyNs != uint64((5*time.Millisecond).Nanoseconds()) {
 		t.Fatalf("broadcast error/latency counters mismatch: %+v", health)

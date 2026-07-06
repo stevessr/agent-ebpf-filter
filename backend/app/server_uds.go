@@ -182,8 +182,7 @@ func startUDSServer(broadcast chan *pb.Event) {
 					_ = trackerMaps.TrackedComms.Put(k, getTagID("Wrapper"))
 				}
 
-				select {
-				case broadcast <- &pb.Event{
+				enqueueBroadcastEvent(broadcast, &pb.Event{
 					Pid:            req.Pid,
 					Comm:           req.Comm,
 					Type:           "wrapper_intercept",
@@ -207,9 +206,7 @@ func startUDSServer(broadcast chan *pb.Event) {
 					ContainerId:    ctx.ContainerID,
 					ArgvDigest:     ctx.ArgvDigest,
 					Cwd:            ctx.Cwd,
-				}:
-				default:
-				}
+				}, "uds_wrapper_intercept")
 
 				// ── Async TLS attach for wrapper-registered PIDs ──
 				if tlsCaptureController != nil && req.Pid > 0 && resolvedAction != pb.WrapperResponse_BLOCK {
@@ -250,26 +247,23 @@ func startUDSServer(broadcast chan *pb.Event) {
 				}
 
 				// ── Observer mode: tell the frontend to navigate to the observe page ──
-	if req.Observer && req.Pid > 0 {
-		select {
-		case broadcast <- &pb.Event{
-			Pid:           req.Pid,
-			Comm:          req.Comm,
-			Type:          "wrapper_intercept",
-			EventType:     pb.EventType_OBSERVE_NAVIGATE,
-			Tag:           "Observer",
-			Path:          req.Comm,
-			ExtraInfo:     fmt.Sprintf("auto-observe pid=%d", req.Pid),
-			SchemaVersion: eventSchemaVersion,
-			RootAgentPid:  ctx.RootAgentPid,
-			AgentRunId:    ctx.AgentRunID,
-			TaskId:        ctx.TaskID,
-		}:
-		default:
-		}
-	}
+				if req.Observer && req.Pid > 0 {
+					enqueueBroadcastEvent(broadcast, &pb.Event{
+						Pid:           req.Pid,
+						Comm:          req.Comm,
+						Type:          "wrapper_intercept",
+						EventType:     pb.EventType_OBSERVE_NAVIGATE,
+						Tag:           "Observer",
+						Path:          req.Comm,
+						ExtraInfo:     fmt.Sprintf("auto-observe pid=%d", req.Pid),
+						SchemaVersion: eventSchemaVersion,
+						RootAgentPid:  ctx.RootAgentPid,
+						AgentRunId:    ctx.AgentRunID,
+						TaskId:        ctx.TaskID,
+					}, "uds_observe_navigate")
+				}
 
-	out, _ := proto.Marshal(resp)
+				out, _ := proto.Marshal(resp)
 				_, _ = c.Write(out)
 			}
 		}(conn)
