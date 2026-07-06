@@ -34,15 +34,16 @@ type ProcessContext struct {
 
 type CollectorMetricsStore interface {
 	RecordAgentSightCounter(name string)
+	RecordBroadcastEnqueue(accepted bool, reason string)
 }
 
 type RuntimeSettings = core.RuntimeSettings
 
 type Deps struct {
-	Broadcast            chan<- *pb.Event
+	Broadcast              chan<- *pb.Event
 	TrackedProcessContexts ProcessContextStore
-	CollectorMetrics     CollectorMetricsStore
-	Upgrader             *websocket.Upgrader
+	CollectorMetrics       CollectorMetricsStore
+	Upgrader               *websocket.Upgrader
 }
 
 var deps Deps
@@ -51,9 +52,9 @@ func Init(d Deps) { deps = d }
 
 // ── Dependency accessors ─────────────────────────────────────────────────────
 
-func GetBroadcast() chan<- *pb.Event          { return deps.Broadcast }
-func GetUpgrader() *websocket.Upgrader        { return deps.Upgrader }
-func GetCollectorMetrics() CollectorMetricsStore { return deps.CollectorMetrics }
+func GetBroadcast() chan<- *pb.Event                 { return deps.Broadcast }
+func GetUpgrader() *websocket.Upgrader               { return deps.Upgrader }
+func GetCollectorMetrics() CollectorMetricsStore     { return deps.CollectorMetrics }
 func GetTrackedProcessContexts() ProcessContextStore { return deps.TrackedProcessContexts }
 
 // ── In-package constants ─────────────────────────────────────────────────────

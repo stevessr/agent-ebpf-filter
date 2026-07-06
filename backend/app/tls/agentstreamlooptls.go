@@ -333,12 +333,25 @@ func DispatchTLSAgentEvent(event *TLSPlaintextEvent, loopState *AgentLoopState, 
 }
 
 func SendTLSBridge(bridge chan<- *pb.Event, event *pb.Event) {
-	if bridge == nil || event == nil {
+	if event == nil {
+		recordTLSBridgeEnqueue(false, "tls_bridge:nil_event")
+		return
+	}
+	if bridge == nil {
+		recordTLSBridgeEnqueue(false, "tls_bridge:queue_unavailable")
 		return
 	}
 	select {
 	case bridge <- event:
+		recordTLSBridgeEnqueue(true, "")
 	default:
+		recordTLSBridgeEnqueue(false, "tls_bridge:queue_full")
+	}
+}
+
+func recordTLSBridgeEnqueue(accepted bool, reason string) {
+	if deps.CollectorMetrics != nil {
+		deps.CollectorMetrics.RecordBroadcastEnqueue(accepted, reason)
 	}
 }
 

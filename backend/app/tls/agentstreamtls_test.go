@@ -341,6 +341,40 @@ func TestDispatchTLSAgentEventBridgesAndDetectsLoop(t *testing.T) {
 	}
 }
 
+type tlsBridgeMetricRecorder struct {
+	queued  int
+	dropped int
+	reason  string
+}
+
+func (r *tlsBridgeMetricRecorder) RecordAgentSightCounter(string) {}
+
+func (r *tlsBridgeMetricRecorder) RecordBroadcastEnqueue(accepted bool, reason string) {
+	if accepted {
+		r.queued++
+		return
+	}
+	r.dropped++
+	r.reason = reason
+}
+
+func TestSendTLSBridgeRecordsEnqueueMetrics(t *testing.T) {
+	oldMetrics := deps.CollectorMetrics
+	recorder := &tlsBridgeMetricRecorder{}
+	deps.CollectorMetrics = recorder
+	t.Cleanup(func() { deps.CollectorMetrics = oldMetrics })
+
+	bridge := make(chan *pb.Event, 1)
+	SendTLSBridge(bridge, &pb.Event{Type: "tls_plaintext"})
+	SendTLSBridge(bridge, &pb.Event{Type: "tls_plaintext"})
+	SendTLSBridge(nil, &pb.Event{Type: "tls_plaintext"})
+	SendTLSBridge(bridge, nil)
+
+	if recorder.queued != 1 || recorder.dropped != 3 || recorder.reason != "tls_bridge:nil_event" {
+		t.Fatalf("tls bridge metrics mismatch: %+v", recorder)
+	}
+}
+
 func TestAnnotateTLSAgentMessageNoBody(t *testing.T) {
 	event := &TLSPlaintextEvent{}
 	annotateTLSAgentMessage(event)

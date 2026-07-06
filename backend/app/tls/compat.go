@@ -53,7 +53,8 @@ var trackedProcessContexts = newTLSProcessContextStore()
 
 type noopTLSCollectorMetrics struct{}
 
-func (noopTLSCollectorMetrics) RecordAgentSightCounter(string) {}
+func (noopTLSCollectorMetrics) RecordAgentSightCounter(string)      {}
+func (noopTLSCollectorMetrics) RecordBroadcastEnqueue(bool, string) {}
 
 func init() {
 	deps.TrackedProcessContexts = trackedProcessContexts
