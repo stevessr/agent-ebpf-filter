@@ -102,6 +102,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 			MaxSessionEvents:      researchProcessingDefaultMaxSessionEvents,
 			ExportFormats:         researchProcessingDefaultExportFormats,
 		},
+		SignalProcessing: defaultSignalProcessingSettings(),
 	}
 
 	if data, err := os.ReadFile(platform.RuntimeSettingsPath()); err == nil {
@@ -129,6 +130,7 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 					MaxSessionEvents:      researchProcessingDefaultMaxSessionEvents,
 					ExportFormats:         researchProcessingDefaultExportFormats,
 				},
+				SignalProcessing: defaultSignalProcessingSettings(),
 			}
 		}
 	}
@@ -152,6 +154,15 @@ func (s *runtimeState) LoadOrCreate() (RuntimeSettings, error) {
 			MaxSessionEvents:      researchProcessingDefaultMaxSessionEvents,
 			ExportFormats:         researchProcessingDefaultExportFormats,
 		}
+	}
+	if settings.SignalProcessing.QueueSize == 0 &&
+		settings.SignalProcessing.CronIntervalSeconds == 0 &&
+		settings.SignalProcessing.DefaultTTLSeconds == 0 &&
+		settings.SignalProcessing.MaxStates == 0 &&
+		strings.TrimSpace(settings.SignalProcessing.ProtoLogCompression) == "" &&
+		len(settings.SignalProcessing.Rules) == 0 &&
+		len(settings.SignalProcessing.SelectedPrograms) == 0 {
+		settings.SignalProcessing = defaultSignalProcessingSettings()
 	}
 
 	seedRuntimeSettingsFromEnv(&settings)
@@ -397,5 +408,7 @@ func recordCapturedEvent(event *pb.Event) CapturedEventRecord {
 	otelExporterStore.Record(record)
 	queueLoopDetectionRecord(record)
 	queueResearchProcessingRecord(record)
+	queueSignalProcessingRecord(record)
+	persistSignalProgramLog(record)
 	return record
 }

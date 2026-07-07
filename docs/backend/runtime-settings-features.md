@@ -23,6 +23,9 @@
 | `TlsCaptureEnabled` | TLS capture gate |
 | `MLConfig` | ML runtime config |
 | `KernelRiskFeedback` | 用户态风险评分写回内核 map 的闭环配置 |
+| `LoopDetection` | 重复上下文/重复读取检测 worker 配置 |
+| `ResearchProcessing` | 后端研究视图、时间线和会话任务 worker 配置 |
+| `SignalProcessing` | 信号规则、TTL 衰减、cron 清理和选中程序 protobuf 二进制日志配置 |
 | `DomainForwardProxy` | 80/443 Host/SNI forward config |
 
 ## Feature manifest

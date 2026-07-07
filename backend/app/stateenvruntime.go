@@ -43,6 +43,7 @@ func normalizeRuntimeSettings(settings *RuntimeSettings) error {
 	normalizeKernelRiskFeedbackSettings(&settings.KernelRiskFeedback)
 	normalizeLoopDetectionSettings(&settings.LoopDetection)
 	normalizeResearchProcessingSettings(&settings.ResearchProcessing)
+	normalizeSignalProcessingSettings(&settings.SignalProcessing)
 	for _, hook := range availableHooks {
 		if strings.TrimSpace(settings.HookSecrets[hook.ID]) == "" {
 			token, err := generateAccessToken()
@@ -151,6 +152,12 @@ func seedRuntimeSettingsFromEnv(settings *RuntimeSettings) {
 	platform.ApplyIntEnv(&settings.ResearchProcessing.ArtifactRetentionDays, "AGENT_RUNTIME_RESEARCH_PROCESSING_ARTIFACT_RETENTION_DAYS")
 	platform.ApplyIntEnv(&settings.ResearchProcessing.MaxSessionEvents, "AGENT_RUNTIME_RESEARCH_PROCESSING_MAX_SESSION_EVENTS")
 	platform.ApplyStringEnv(&settings.ResearchProcessing.ExportFormats, "AGENT_RUNTIME_RESEARCH_PROCESSING_EXPORT_FORMATS")
+	platform.ApplyBoolEnv(&settings.SignalProcessing.Enabled, "AGENT_RUNTIME_SIGNAL_PROCESSING_ENABLED")
+	platform.ApplyIntEnv(&settings.SignalProcessing.QueueSize, "AGENT_RUNTIME_SIGNAL_PROCESSING_QUEUE_SIZE")
+	platform.ApplyIntEnv(&settings.SignalProcessing.CronIntervalSeconds, "AGENT_RUNTIME_SIGNAL_PROCESSING_CRON_SECONDS")
+	platform.ApplyIntEnv(&settings.SignalProcessing.DefaultTTLSeconds, "AGENT_RUNTIME_SIGNAL_PROCESSING_DEFAULT_TTL_SECONDS")
+	platform.ApplyIntEnv(&settings.SignalProcessing.MaxStates, "AGENT_RUNTIME_SIGNAL_PROCESSING_MAX_STATES")
+	platform.ApplyStringEnv(&settings.SignalProcessing.ProtoLogCompression, "AGENT_RUNTIME_SIGNAL_PROCESSING_PROTO_LOG_COMPRESSION")
 	platform.ApplyBoolEnv(&settings.DomainForwardProxy.Enabled, "AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED")
 	platform.ApplyIntEnv(&settings.DomainForwardProxy.HTTPPort, "AGENT_RUNTIME_DOMAIN_HTTP_PORT")
 	platform.ApplyIntEnv(&settings.DomainForwardProxy.HTTPSPort, "AGENT_RUNTIME_DOMAIN_HTTPS_PORT")

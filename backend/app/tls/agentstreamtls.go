@@ -2,6 +2,7 @@ package tls
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -201,6 +202,10 @@ func stringifyAgentContent(value any) string {
 				}
 				if input, ok := entry["input"].(string); ok && strings.TrimSpace(input) != "" {
 					parts = append(parts, strings.TrimSpace(input))
+					continue
+				}
+				if ph, ok := summarizeAgentImageBlock(entry); ok && ph != "" {
+					parts = append(parts, ph)
 				}
 			}
 		}
@@ -209,8 +214,107 @@ func stringifyAgentContent(value any) string {
 		if text, ok := typed["text"].(string); ok && strings.TrimSpace(text) != "" {
 			return strings.TrimSpace(text)
 		}
+		if ph, ok := summarizeAgentImageBlock(typed); ok && ph != "" {
+			return ph
+		}
 	}
 	return ""
+}
+
+// summarizeAgentImageBlock produces a compact, human-readable placeholder for
+// an Anthropic `image` or OpenAI `image_url` content block. The placeholder is
+// folded into the prompt digest so loop detection sees image-bearing prompts
+// (a prompt with and without an image are different prompts). The full base64
+// payload is intentionally NOT hashed — it is large and partially captured, so
+// including it would flood the digest window and mask repetition.
+//
+// Recognised shapes:
+//   - Anthropic: {"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}}
+//   - OpenAI:    {"type":"image_url","image_url":{"url":"data:image/png;base64,..." | "https://..."}}
+//
+// Folded sentinels produced by foldTLSImageBase64 (prefix __IMAGE_FOLDED__:) on
+// the body path are also recognised here so the digest is stable regardless of
+// where folding happened.
+func summarizeAgentImageBlock(entry map[string]any) (string, bool) {
+	t, _ := entry["type"].(string)
+	switch t {
+	case "image":
+		media := ""
+		var dataLen int
+		if src, ok := entry["source"].(map[string]any); ok {
+			if mt, ok := src["media_type"].(string); ok {
+				media = mt
+			}
+			if data, ok := src["data"].(string); ok {
+				dataLen = len(data)
+			}
+		}
+		return imageBlockPlaceholder("anthropic-image", media, dataLen), true
+	case "image_url":
+		rawURL := ""
+		if iu, ok := entry["image_url"].(map[string]any); ok {
+			if u, ok := iu["url"].(string); ok {
+				rawURL = u
+			}
+		}
+		return summarizeAgentImageURL(rawURL), true
+	}
+	return "", false
+}
+
+// summarizeAgentImageURL converts an OpenAI image_url.url value into a compact
+// placeholder. HTTP(S) URLs are hashed (small, stable) into the digest;
+// `data:` URIs contribute only their media type and data length so that a
+// folded/repeated image is distinguishable but does not flood the digest.
+func summarizeAgentImageURL(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	if strings.HasPrefix(rawURL, "data:") {
+		media, dataLen := parseAgentDataURI(rawURL)
+		return imageBlockPlaceholder("openai-data-image", media, dataLen)
+	}
+	// Already folded sentinel from foldTLSDataURI — keep as-is to preserve the
+	// approx byte count that distinguishes distinct images.
+	if strings.HasPrefix(rawURL, tlsImageFoldedPrefix) {
+		return rawURL
+	}
+	return "[image_url " + rawURL + "]"
+}
+
+// parseAgentDataURI extracts (mediaType, base64Length) from a data: URI; it
+// tolerates a folded sentinel value too.
+func parseAgentDataURI(rawURL string) (string, int) {
+	if strings.HasPrefix(rawURL, tlsImageFoldedPrefix) {
+		rest := strings.TrimPrefix(rawURL, tlsImageFoldedPrefix)
+		parts := strings.SplitN(rest, ":", 2)
+		media := parts[0]
+		size := 0
+		if len(parts) == 2 {
+			fmt.Sscanf(parts[1], "%d", &size)
+		}
+		return media, size
+	}
+	const prefix = "data:"
+	if !strings.HasPrefix(rawURL, prefix) {
+		return "", 0
+	}
+	comma := strings.Index(rawURL, ",")
+	if comma < 0 {
+		return "", 0
+	}
+	meta := rawURL[len(prefix):comma]
+	media := strings.SplitN(meta, ";", 2)[0]
+	return media, len(rawURL) - comma - 1
+}
+
+// imageBlockPlaceholder builds a digest-friendly placeholder describing an
+// embedded image without including its payload.
+func imageBlockPlaceholder(kind, mediaType string, base64Len int) string {
+	if mediaType == "" {
+		mediaType = "image"
+	}
+	return fmt.Sprintf("[%s %s ~%dB]", kind, mediaType, base64Len*3/4)
 }
 
 func extractAgentResponseFromPayload(payload map[string]any) (string, string) {

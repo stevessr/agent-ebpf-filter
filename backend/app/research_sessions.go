@@ -247,6 +247,13 @@ type ResearchTask struct {
 	CancelAsked bool           `json:"cancelRequested,omitempty"`
 }
 
+type researchTaskManagerStatus struct {
+	Runtime      backendTaskRuntimeStats `json:"runtime"`
+	TrackedTotal int                     `json:"trackedTotal"`
+	ByStatus     map[string]int          `json:"byStatus"`
+	UpdatedAt    time.Time               `json:"updatedAt"`
+}
+
 type researchTaskEntry struct {
 	mu         sync.RWMutex
 	task       ResearchTask
@@ -413,6 +420,27 @@ func (m *researchTaskManager) Get(taskID string) (ResearchTask, bool) {
 		return ResearchTask{}, false
 	}
 	return entry.snapshot(), true
+}
+
+func (m *researchTaskManager) Status() researchTaskManagerStatus {
+	if m == nil {
+		return researchTaskManagerStatus{ByStatus: map[string]int{}, UpdatedAt: time.Now().UTC()}
+	}
+	runtimeStats := m.ensureRuntime().Stats()
+	byStatus := map[string]int{}
+	m.mu.RLock()
+	for _, entry := range m.tasks {
+		task := entry.snapshot()
+		byStatus[task.Status]++
+	}
+	trackedTotal := len(m.tasks)
+	m.mu.RUnlock()
+	return researchTaskManagerStatus{
+		Runtime:      runtimeStats,
+		TrackedTotal: trackedTotal,
+		ByStatus:     byStatus,
+		UpdatedAt:    time.Now().UTC(),
+	}
 }
 
 func (m *researchTaskManager) Cancel(taskID string) ResearchTask {
@@ -1903,6 +1931,10 @@ func handleResearchTaskGet(c *gin.Context) {
 	c.JSON(http.StatusOK, task)
 }
 
+func handleResearchTasksStatus(c *gin.Context) {
+	c.JSON(http.StatusOK, researchTaskStore.Status())
+}
+
 func handleResearchTaskCancel(c *gin.Context) {
 	task := researchTaskStore.Cancel(c.Param("taskId"))
 	status := http.StatusAccepted
@@ -1974,6 +2006,7 @@ func registerResearchRoutes(router gin.IRouter, tlsStore *TLSCaptureStore) {
 	router.GET("/sessions/:id", handleResearchSessionGet)
 	router.DELETE("/sessions/:id", handleResearchSessionDelete)
 	router.POST("/sessions/:id/tasks", handleResearchSessionTask(tlsStore))
+	router.GET("/tasks/status", handleResearchTasksStatus)
 	router.GET("/tasks/:taskId", handleResearchTaskGet)
 	router.POST("/tasks/:taskId/cancel", handleResearchTaskCancel)
 	router.GET("/sessions/:id/events", handleResearchSessionEvents)

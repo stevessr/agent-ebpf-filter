@@ -11789,6 +11789,369 @@ export const pb = $root.pb = (() => {
         return CapturedEventRecord;
     })();
 
+    pb.ProgramSignalLogRecord = (function() {
+
+        /**
+         * Properties of a ProgramSignalLogRecord.
+         * @memberof pb
+         * @interface IProgramSignalLogRecord
+         * @property {string|null} [schemaVersion] ProgramSignalLogRecord schemaVersion
+         * @property {string|null} [program] ProgramSignalLogRecord program
+         * @property {string|null} [reason] ProgramSignalLogRecord reason
+         * @property {number|Long|null} [persistedAt] ProgramSignalLogRecord persistedAt
+         * @property {pb.ICapturedEventRecord|null} [capturedEvent] ProgramSignalLogRecord capturedEvent
+         * @property {string|null} [ruleId] ProgramSignalLogRecord ruleId
+         * @property {string|null} [signalKind] ProgramSignalLogRecord signalKind
+         */
+
+        /**
+         * Constructs a new ProgramSignalLogRecord.
+         * @memberof pb
+         * @classdesc Represents a ProgramSignalLogRecord.
+         * @implements IProgramSignalLogRecord
+         * @constructor
+         * @param {pb.IProgramSignalLogRecord=} [properties] Properties to set
+         */
+        function ProgramSignalLogRecord(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ProgramSignalLogRecord schemaVersion.
+         * @member {string} schemaVersion
+         * @memberof pb.ProgramSignalLogRecord
+         * @instance
+         */
+        ProgramSignalLogRecord.prototype.schemaVersion = "";
+
+        /**
+         * ProgramSignalLogRecord program.
+         * @member {string} program
+         * @memberof pb.ProgramSignalLogRecord
+         * @instance
+         */
+        ProgramSignalLogRecord.prototype.program = "";
+
+        /**
+         * ProgramSignalLogRecord reason.
+         * @member {string} reason
+         * @memberof pb.ProgramSignalLogRecord
+         * @instance
+         */
+        ProgramSignalLogRecord.prototype.reason = "";
+
+        /**
+         * ProgramSignalLogRecord persistedAt.
+         * @member {number|Long} persistedAt
+         * @memberof pb.ProgramSignalLogRecord
+         * @instance
+         */
+        ProgramSignalLogRecord.prototype.persistedAt = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
+
+        /**
+         * ProgramSignalLogRecord capturedEvent.
+         * @member {pb.ICapturedEventRecord|null|undefined} capturedEvent
+         * @memberof pb.ProgramSignalLogRecord
+         * @instance
+         */
+        ProgramSignalLogRecord.prototype.capturedEvent = null;
+
+        /**
+         * ProgramSignalLogRecord ruleId.
+         * @member {string} ruleId
+         * @memberof pb.ProgramSignalLogRecord
+         * @instance
+         */
+        ProgramSignalLogRecord.prototype.ruleId = "";
+
+        /**
+         * ProgramSignalLogRecord signalKind.
+         * @member {string} signalKind
+         * @memberof pb.ProgramSignalLogRecord
+         * @instance
+         */
+        ProgramSignalLogRecord.prototype.signalKind = "";
+
+        /**
+         * Creates a new ProgramSignalLogRecord instance using the specified properties.
+         * @function create
+         * @memberof pb.ProgramSignalLogRecord
+         * @static
+         * @param {pb.IProgramSignalLogRecord=} [properties] Properties to set
+         * @returns {pb.ProgramSignalLogRecord} ProgramSignalLogRecord instance
+         */
+        ProgramSignalLogRecord.create = function create(properties) {
+            return new ProgramSignalLogRecord(properties);
+        };
+
+        /**
+         * Encodes the specified ProgramSignalLogRecord message. Does not implicitly {@link pb.ProgramSignalLogRecord.verify|verify} messages.
+         * @function encode
+         * @memberof pb.ProgramSignalLogRecord
+         * @static
+         * @param {pb.IProgramSignalLogRecord} message ProgramSignalLogRecord message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ProgramSignalLogRecord.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.schemaVersion != null && Object.hasOwnProperty.call(message, "schemaVersion"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.schemaVersion);
+            if (message.program != null && Object.hasOwnProperty.call(message, "program"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.program);
+            if (message.reason != null && Object.hasOwnProperty.call(message, "reason"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.reason);
+            if (message.persistedAt != null && Object.hasOwnProperty.call(message, "persistedAt"))
+                writer.uint32(/* id 4, wireType 0 =*/32).int64(message.persistedAt);
+            if (message.capturedEvent != null && Object.hasOwnProperty.call(message, "capturedEvent"))
+                $root.pb.CapturedEventRecord.encode(message.capturedEvent, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+            if (message.ruleId != null && Object.hasOwnProperty.call(message, "ruleId"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.ruleId);
+            if (message.signalKind != null && Object.hasOwnProperty.call(message, "signalKind"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.signalKind);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ProgramSignalLogRecord message, length delimited. Does not implicitly {@link pb.ProgramSignalLogRecord.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pb.ProgramSignalLogRecord
+         * @static
+         * @param {pb.IProgramSignalLogRecord} message ProgramSignalLogRecord message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ProgramSignalLogRecord.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ProgramSignalLogRecord message from the specified reader or buffer.
+         * @function decode
+         * @memberof pb.ProgramSignalLogRecord
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pb.ProgramSignalLogRecord} ProgramSignalLogRecord
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ProgramSignalLogRecord.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pb.ProgramSignalLogRecord();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.schemaVersion = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.program = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.reason = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.persistedAt = reader.int64();
+                        break;
+                    }
+                case 5: {
+                        message.capturedEvent = $root.pb.CapturedEventRecord.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 6: {
+                        message.ruleId = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.signalKind = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ProgramSignalLogRecord message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pb.ProgramSignalLogRecord
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pb.ProgramSignalLogRecord} ProgramSignalLogRecord
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ProgramSignalLogRecord.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ProgramSignalLogRecord message.
+         * @function verify
+         * @memberof pb.ProgramSignalLogRecord
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ProgramSignalLogRecord.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.schemaVersion != null && message.hasOwnProperty("schemaVersion"))
+                if (!$util.isString(message.schemaVersion))
+                    return "schemaVersion: string expected";
+            if (message.program != null && message.hasOwnProperty("program"))
+                if (!$util.isString(message.program))
+                    return "program: string expected";
+            if (message.reason != null && message.hasOwnProperty("reason"))
+                if (!$util.isString(message.reason))
+                    return "reason: string expected";
+            if (message.persistedAt != null && message.hasOwnProperty("persistedAt"))
+                if (!$util.isInteger(message.persistedAt) && !(message.persistedAt && $util.isInteger(message.persistedAt.low) && $util.isInteger(message.persistedAt.high)))
+                    return "persistedAt: integer|Long expected";
+            if (message.capturedEvent != null && message.hasOwnProperty("capturedEvent")) {
+                let error = $root.pb.CapturedEventRecord.verify(message.capturedEvent);
+                if (error)
+                    return "capturedEvent." + error;
+            }
+            if (message.ruleId != null && message.hasOwnProperty("ruleId"))
+                if (!$util.isString(message.ruleId))
+                    return "ruleId: string expected";
+            if (message.signalKind != null && message.hasOwnProperty("signalKind"))
+                if (!$util.isString(message.signalKind))
+                    return "signalKind: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a ProgramSignalLogRecord message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pb.ProgramSignalLogRecord
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pb.ProgramSignalLogRecord} ProgramSignalLogRecord
+         */
+        ProgramSignalLogRecord.fromObject = function fromObject(object) {
+            if (object instanceof $root.pb.ProgramSignalLogRecord)
+                return object;
+            let message = new $root.pb.ProgramSignalLogRecord();
+            if (object.schemaVersion != null)
+                message.schemaVersion = String(object.schemaVersion);
+            if (object.program != null)
+                message.program = String(object.program);
+            if (object.reason != null)
+                message.reason = String(object.reason);
+            if (object.persistedAt != null)
+                if ($util.Long)
+                    (message.persistedAt = $util.Long.fromValue(object.persistedAt)).unsigned = false;
+                else if (typeof object.persistedAt === "string")
+                    message.persistedAt = parseInt(object.persistedAt, 10);
+                else if (typeof object.persistedAt === "number")
+                    message.persistedAt = object.persistedAt;
+                else if (typeof object.persistedAt === "object")
+                    message.persistedAt = new $util.LongBits(object.persistedAt.low >>> 0, object.persistedAt.high >>> 0).toNumber();
+            if (object.capturedEvent != null) {
+                if (typeof object.capturedEvent !== "object")
+                    throw TypeError(".pb.ProgramSignalLogRecord.capturedEvent: object expected");
+                message.capturedEvent = $root.pb.CapturedEventRecord.fromObject(object.capturedEvent);
+            }
+            if (object.ruleId != null)
+                message.ruleId = String(object.ruleId);
+            if (object.signalKind != null)
+                message.signalKind = String(object.signalKind);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ProgramSignalLogRecord message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pb.ProgramSignalLogRecord
+         * @static
+         * @param {pb.ProgramSignalLogRecord} message ProgramSignalLogRecord
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ProgramSignalLogRecord.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.schemaVersion = "";
+                object.program = "";
+                object.reason = "";
+                if ($util.Long) {
+                    let long = new $util.Long(0, 0, false);
+                    object.persistedAt = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.persistedAt = options.longs === String ? "0" : 0;
+                object.capturedEvent = null;
+                object.ruleId = "";
+                object.signalKind = "";
+            }
+            if (message.schemaVersion != null && message.hasOwnProperty("schemaVersion"))
+                object.schemaVersion = message.schemaVersion;
+            if (message.program != null && message.hasOwnProperty("program"))
+                object.program = message.program;
+            if (message.reason != null && message.hasOwnProperty("reason"))
+                object.reason = message.reason;
+            if (message.persistedAt != null && message.hasOwnProperty("persistedAt"))
+                if (typeof message.persistedAt === "number")
+                    object.persistedAt = options.longs === String ? String(message.persistedAt) : message.persistedAt;
+                else
+                    object.persistedAt = options.longs === String ? $util.Long.prototype.toString.call(message.persistedAt) : options.longs === Number ? new $util.LongBits(message.persistedAt.low >>> 0, message.persistedAt.high >>> 0).toNumber() : message.persistedAt;
+            if (message.capturedEvent != null && message.hasOwnProperty("capturedEvent"))
+                object.capturedEvent = $root.pb.CapturedEventRecord.toObject(message.capturedEvent, options);
+            if (message.ruleId != null && message.hasOwnProperty("ruleId"))
+                object.ruleId = message.ruleId;
+            if (message.signalKind != null && message.hasOwnProperty("signalKind"))
+                object.signalKind = message.signalKind;
+            return object;
+        };
+
+        /**
+         * Converts this ProgramSignalLogRecord to JSON.
+         * @function toJSON
+         * @memberof pb.ProgramSignalLogRecord
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ProgramSignalLogRecord.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ProgramSignalLogRecord
+         * @function getTypeUrl
+         * @memberof pb.ProgramSignalLogRecord
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ProgramSignalLogRecord.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pb.ProgramSignalLogRecord";
+        };
+
+        return ProgramSignalLogRecord;
+    })();
+
     pb.EventHistoryResponse = (function() {
 
         /**

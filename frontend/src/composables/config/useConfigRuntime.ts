@@ -15,6 +15,13 @@ import type {
   LoopDetectionStatus,
   ResearchProcessingSettings,
   ResearchProcessingStatus,
+  SignalCondition,
+  SignalProgramLogStatus,
+  SignalProgramLogsResponse,
+  SignalProcessingSettings,
+  SignalProcessingStatus,
+  SignalRule,
+  SignalRuleTestResponse,
   DomainForwardProxyStatus,
   TracepointBootstrapStatus,
 } from "../../types/config";
@@ -112,6 +119,95 @@ const defaultResearchProcessingStatus = (): ResearchProcessingStatus => ({
     generatedTimestamp: 0,
     generatedTime: "",
   },
+});
+
+const defaultSignalRules = (): SignalRule[] => [
+  {
+    id: "path_access",
+    name: "Path / file access",
+    enabled: true,
+    kind: "path_access",
+    ttlSeconds: 300,
+    weight: 1,
+    conditions: [{ field: "path", operator: "exists", value: "" }],
+  },
+  {
+    id: "child_process",
+    name: "Child process command",
+    enabled: true,
+    kind: "child_process",
+    ttlSeconds: 300,
+    weight: 2,
+    conditions: [
+      {
+        field: "eventType",
+        operator: "regex",
+        value: "(EXECVE|SCHED_PROCESS_EXEC|SCHED_PROCESS_FORK|CLONE|exec|fork|clone)",
+      },
+    ],
+  },
+  {
+    id: "repeated_read",
+    name: "Repeated read",
+    enabled: true,
+    kind: "repeated_read",
+    ttlSeconds: 300,
+    weight: 1.5,
+    conditions: [
+      {
+        field: "eventType",
+        operator: "regex",
+        value: "(READ|OPEN|OPENAT|read|open)",
+      },
+    ],
+  },
+];
+
+const defaultSignalProcessing = (): SignalProcessingSettings => ({
+  enabled: false,
+  queueSize: 2048,
+  cronIntervalSeconds: 30,
+  defaultTTLSeconds: 300,
+  maxStates: 4096,
+  protoLogCompression: "gzip",
+  selectedPrograms: [],
+  rules: defaultSignalRules(),
+});
+
+const defaultSignalProcessingStatus = (): SignalProcessingStatus => ({
+  enabled: false,
+  settings: defaultSignalProcessing(),
+  queueLen: 0,
+  queueCap: 0,
+  consumedTotal: 0,
+  updatedTotal: 0,
+  droppedTotal: 0,
+  expiredTotal: 0,
+  activeStates: 0,
+  recentStates: [],
+  availableKinds: [
+    {
+      kind: "path_access",
+      label: "Path / file access",
+      description: "Triggers when captured file/path fields match custom predicates.",
+    },
+    {
+      kind: "child_process",
+      label: "Child process command",
+      description: "Triggers on exec/fork/clone style events and command/path predicates.",
+    },
+    {
+      kind: "repeated_read",
+      label: "Repeated read",
+      description: "Tracks repeated READ/OPEN/OPENAT access to the same stable target.",
+    },
+    {
+      kind: "custom",
+      label: "Custom",
+      description: "Uses only user-defined conditions and a TTL-weighted state key.",
+    },
+  ],
+  updatedAt: "",
 });
 
 const defaultTracepointBootstrapStatus = (): TracepointBootstrapStatus => ({
@@ -280,6 +376,89 @@ const normalizeResearchProcessingStatus = (
   };
 };
 
+const normalizeSignalCondition = (
+  value?: Partial<SignalCondition>,
+): SignalCondition => ({
+  field: String(value?.field || "path"),
+  operator: String(value?.operator || (value?.value ? "contains" : "exists")),
+  value: String(value?.value || ""),
+});
+
+const normalizeSignalRule = (
+  value: Partial<SignalRule> | undefined,
+  index: number,
+): SignalRule => {
+  const defaults = defaultSignalRules()[index] || {
+    id: `signal_rule_${index + 1}`,
+    name: `Signal rule ${index + 1}`,
+    enabled: true,
+    kind: "custom",
+    ttlSeconds: 300,
+    weight: 1,
+    conditions: [],
+  };
+  const conditions = Array.isArray(value?.conditions)
+    ? value.conditions.map((condition) => normalizeSignalCondition(condition))
+    : defaults.conditions;
+  return {
+    ...defaults,
+    ...value,
+    id: String(value?.id || defaults.id),
+    name: String(value?.name || defaults.name),
+    enabled: value?.enabled ?? defaults.enabled,
+    kind: String(value?.kind || defaults.kind),
+    ttlSeconds: Number(value?.ttlSeconds || defaults.ttlSeconds),
+    weight: Number(value?.weight || defaults.weight),
+    conditions,
+  };
+};
+
+const normalizeSignalProcessing = (
+  value?: Partial<SignalProcessingSettings>,
+): SignalProcessingSettings => {
+  const defaults = defaultSignalProcessing();
+  return {
+    ...defaults,
+    ...value,
+    queueSize: Number(value?.queueSize || defaults.queueSize),
+    cronIntervalSeconds: Number(
+      value?.cronIntervalSeconds || defaults.cronIntervalSeconds,
+    ),
+    defaultTTLSeconds: Number(
+      value?.defaultTTLSeconds || defaults.defaultTTLSeconds,
+    ),
+    maxStates: Number(value?.maxStates || defaults.maxStates),
+    protoLogCompression: String(
+      value?.protoLogCompression || defaults.protoLogCompression,
+    ),
+    selectedPrograms: Array.isArray(value?.selectedPrograms)
+      ? value.selectedPrograms.map((program) => ({
+          program: String(program.program || ""),
+          enabled: program.enabled ?? true,
+          path: String(program.path || ""),
+        }))
+      : defaults.selectedPrograms,
+    rules: Array.isArray(value?.rules)
+      ? value.rules.map((rule, index) => normalizeSignalRule(rule, index))
+      : defaults.rules,
+  };
+};
+
+const normalizeSignalProcessingStatus = (
+  value?: Partial<SignalProcessingStatus>,
+): SignalProcessingStatus => {
+  const defaults = defaultSignalProcessingStatus();
+  return {
+    ...defaults,
+    ...value,
+    settings: normalizeSignalProcessing(value?.settings),
+    recentStates: Array.isArray(value?.recentStates) ? value.recentStates : [],
+    availableKinds: Array.isArray(value?.availableKinds)
+      ? value.availableKinds
+      : defaults.availableKinds,
+  };
+};
+
 export function useConfigRuntime() {
   const featureManifest = useFeatureManifest();
   const runtimeSettings = ref<RuntimeSettings>({
@@ -300,6 +479,7 @@ export function useConfigRuntime() {
     kernelRiskFeedback: defaultKernelRiskFeedback(),
     loopDetection: defaultLoopDetection(),
     researchProcessing: defaultResearchProcessing(),
+    signalProcessing: defaultSignalProcessing(),
     domainForwardProxy: defaultDomainForwardProxy(),
   });
   const mcpEndpoint = ref("");
@@ -361,6 +541,10 @@ export function useConfigRuntime() {
   const researchProcessingStatus = ref<ResearchProcessingStatus>(
     defaultResearchProcessingStatus(),
   );
+  const signalProcessingStatus = ref<SignalProcessingStatus>(
+    defaultSignalProcessingStatus(),
+  );
+  const signalProgramLogs = ref<SignalProgramLogStatus[]>([]);
 
   const syncApiToken = (token: string) => {
     const normalized = token.trim();
@@ -396,6 +580,9 @@ export function useConfigRuntime() {
       loopDetection: normalizeLoopDetection(data.runtime.loopDetection),
       researchProcessing: normalizeResearchProcessing(
         data.runtime.researchProcessing,
+      ),
+      signalProcessing: normalizeSignalProcessing(
+        data.runtime.signalProcessing,
       ),
       domainForwardProxy: normalizeDomainForwardProxy(
         data.runtime.domainForwardProxy,
@@ -434,6 +621,8 @@ export function useConfigRuntime() {
       domainForwardRes,
       loopDetectionRes,
       researchProcessingRes,
+      signalProcessingRes,
+      signalProgramLogsRes,
       featureRes,
     ] = await Promise.allSettled([
       axios.get("/config/runtime"),
@@ -443,6 +632,8 @@ export function useConfigRuntime() {
       axios.get("/system/domain-forward/status"),
       axios.get("/system/loop-detection/status"),
       axios.get("/system/research-processing/status"),
+      axios.get("/system/signals/status"),
+      axios.get("/system/signals/program-logs"),
       featureManifest.fetchFeatureManifest(),
     ]);
     if (runtimeRes.status === "fulfilled") {
@@ -488,6 +679,20 @@ export function useConfigRuntime() {
     } else {
       console.error("Failed to fetch research processing status");
     }
+    if (signalProcessingRes.status === "fulfilled") {
+      signalProcessingStatus.value = normalizeSignalProcessingStatus(
+        signalProcessingRes.value.data as Partial<SignalProcessingStatus>,
+      );
+    } else {
+      console.error("Failed to fetch signal processing status");
+    }
+    if (signalProgramLogsRes.status === "fulfilled") {
+      signalProgramLogs.value = (
+        signalProgramLogsRes.value.data as SignalProgramLogsResponse
+      ).logs || [];
+    } else {
+      console.error("Failed to fetch signal program logs");
+    }
     if (featureRes.status === "rejected") {
       console.error("Failed to fetch feature manifest");
     }
@@ -501,6 +706,8 @@ export function useConfigRuntime() {
       domainForwardRes,
       loopDetectionRes,
       researchProcessingRes,
+      signalProcessingRes,
+      signalProgramLogsRes,
     ] =
       await Promise.allSettled([
         axios.get("/system/bootstrap-health"),
@@ -509,6 +716,8 @@ export function useConfigRuntime() {
         axios.get("/system/domain-forward/status"),
         axios.get("/system/loop-detection/status"),
         axios.get("/system/research-processing/status"),
+        axios.get("/system/signals/status"),
+        axios.get("/system/signals/program-logs"),
         featureManifest.fetchFeatureManifest(),
       ]);
     if (bootstrapRes.status === "fulfilled") {
@@ -548,6 +757,20 @@ export function useConfigRuntime() {
       );
     } else {
       console.error("Failed to fetch research processing status");
+    }
+    if (signalProcessingRes.status === "fulfilled") {
+      signalProcessingStatus.value = normalizeSignalProcessingStatus(
+        signalProcessingRes.value.data as Partial<SignalProcessingStatus>,
+      );
+    } else {
+      console.error("Failed to fetch signal processing status");
+    }
+    if (signalProgramLogsRes.status === "fulfilled") {
+      signalProgramLogs.value = (
+        signalProgramLogsRes.value.data as SignalProgramLogsResponse
+      ).logs || [];
+    } else {
+      console.error("Failed to fetch signal program logs");
     }
   };
 
@@ -634,6 +857,7 @@ export function useConfigRuntime() {
         kernelRiskFeedback: runtimeSettings.value.kernelRiskFeedback,
         loopDetection: runtimeSettings.value.loopDetection,
         researchProcessing: runtimeSettings.value.researchProcessing,
+        signalProcessing: runtimeSettings.value.signalProcessing,
         domainForwardProxy: {
           ...runtimeSettings.value.domainForwardProxy,
           routes: domainForwardRoutes,
@@ -725,6 +949,114 @@ export function useConfigRuntime() {
     }
   };
 
+  const fetchSignalProcessingStatus = async () => {
+    try {
+      const res = await axios.get("/system/signals/status");
+      signalProcessingStatus.value = normalizeSignalProcessingStatus(
+        res.data as Partial<SignalProcessingStatus>,
+      );
+    } catch (_) {
+      message.error("Failed to fetch signal processing status");
+    }
+  };
+
+  const runSignalProcessingScan = async (limit = 1000) => {
+    try {
+      await axios.post("/system/signals/task", {
+        action: "scan_recent",
+        limit,
+      });
+      await fetchSignalProcessingStatus();
+      message.success("Signal scan queued");
+    } catch (err: any) {
+      message.error(
+        err?.response?.data?.error || "Failed to queue signal scan",
+      );
+    }
+  };
+
+  const resetSignalProcessing = async () => {
+    try {
+      await axios.post("/system/signals/task", { action: "reset" });
+      await fetchSignalProcessingStatus();
+      message.success("Signal state reset");
+    } catch (err: any) {
+      message.error(err?.response?.data?.error || "Failed to reset signals");
+    }
+  };
+
+  const expireSignalProcessing = async () => {
+    try {
+      await axios.post("/system/signals/task", { action: "expire" });
+      await fetchSignalProcessingStatus();
+      message.success("Signal TTL eviction queued");
+    } catch (err: any) {
+      message.error(
+        err?.response?.data?.error || "Failed to queue signal TTL eviction",
+      );
+    }
+  };
+
+  const fetchSignalProgramLogs = async () => {
+    try {
+      const res = await axios.get("/system/signals/program-logs");
+      signalProgramLogs.value =
+        (res.data as SignalProgramLogsResponse).logs || [];
+    } catch (_) {
+      message.error("Failed to fetch signal program logs");
+    }
+  };
+
+  const downloadSignalProgramLog = async (program: string) => {
+    const normalized = program.trim();
+    if (!normalized) {
+      message.warning("Program is empty");
+      return;
+    }
+    try {
+      const res = await axios.get("/system/signals/program-logs/download", {
+        params: { program: normalized },
+        responseType: "blob",
+      });
+      const blob = new Blob([res.data], {
+        type: "application/octet-stream",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${normalized.replace(/[^a-zA-Z0-9_.-]+/g, "_")}.pb.gzlog`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      message.success("Signal program log download started");
+    } catch (err: any) {
+      message.error(
+        err?.response?.data?.error || "Failed to download signal program log",
+      );
+    }
+  };
+
+  const testSignalRule = async (
+    rule: SignalRule,
+    limit = 500,
+  ): Promise<SignalRuleTestResponse | null> => {
+    try {
+      const res = await axios.post("/system/signals/rules/test", {
+        rule,
+        limit,
+      });
+      const result = res.data as SignalRuleTestResponse;
+      message.success(
+        `Signal rule matched ${result.matchedTotal}/${result.scannedTotal} recent events`,
+      );
+      return result;
+    } catch (err: any) {
+      message.error(err?.response?.data?.error || "Failed to test signal rule");
+      return null;
+    }
+  };
+
   const rotateAccessToken = async () => {
     try {
       const res = await axios.post("/config/access-token");
@@ -800,6 +1132,8 @@ export function useConfigRuntime() {
     domainForwardStatus,
     loopDetectionStatus,
     researchProcessingStatus,
+    signalProcessingStatus,
+    signalProgramLogs,
     mcpEndpoint,
     authHeaderName,
     bearerAuthHeaderName,
@@ -818,6 +1152,13 @@ export function useConfigRuntime() {
     fetchResearchProcessingStatus,
     runResearchProcessingScan,
     resetResearchProcessing,
+    fetchSignalProcessingStatus,
+    runSignalProcessingScan,
+    resetSignalProcessing,
+    expireSignalProcessing,
+    fetchSignalProgramLogs,
+    downloadSignalProgramLog,
+    testSignalRule,
     saveRuntime,
     addOTLPHeaderRow,
     removeOTLPHeaderRow,

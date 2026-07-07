@@ -384,6 +384,49 @@ func TestResearchTaskQueueFullAndCancelIdempotent(t *testing.T) {
 	if snapshot := entry.snapshot(); snapshot.Status != researchTaskCanceled || snapshot.Progress != 1 {
 		t.Fatalf("canceled queued task snapshot mismatch: %+v", snapshot)
 	}
+	status := manager.Status()
+	if status.Runtime.EnqueuedTotal != 1 || status.Runtime.RejectedTotal != 1 || status.Runtime.LastRejectReason != "queue_full" {
+		t.Fatalf("runtime status mismatch: %+v", status)
+	}
+	if status.TrackedTotal != 1 || status.ByStatus[researchTaskCanceled] != 1 {
+		t.Fatalf("task status counts mismatch: %+v", status)
+	}
+}
+
+func TestResearchTasksStatusHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	oldTasks := researchTaskStore
+	manager := newResearchTaskManager(newResearchSessionStore(t.TempDir()))
+	now := time.Now().UTC()
+	manager.runtime.completedTotal = 1
+	manager.runtime.runDurationTotal = 3 * time.Millisecond
+	manager.runtime.lastQueueLatency = 2 * time.Millisecond
+	manager.runtime.lastRunDuration = 3 * time.Millisecond
+	manager.runtime.lastTotalDuration = 5 * time.Millisecond
+	manager.runtime.lastStartedAt = now.Add(-3 * time.Millisecond)
+	manager.runtime.lastFinishedAt = now
+	researchTaskStore = manager
+	t.Cleanup(func() { researchTaskStore = oldTasks })
+
+	router := gin.New()
+	router.GET("/research/tasks/status", handleResearchTasksStatus)
+
+	req := httptest.NewRequest(http.MethodGet, "/research/tasks/status", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var status researchTaskManagerStatus
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode status: %v", err)
+	}
+	if status.Runtime.Name != "research" || status.ByStatus == nil {
+		t.Fatalf("decoded status mismatch: %+v", status)
+	}
+	if status.Runtime.LastQueueLatencyMs <= 0 || status.Runtime.LastRunDurationMs <= 0 || status.Runtime.LastTotalDurationMs <= 0 || status.Runtime.AvgRunDurationMs <= 0 || status.Runtime.LastStartedAt == nil || status.Runtime.LastFinishedAt == nil {
+		t.Fatalf("decoded runtime duration metrics missing: %+v", status.Runtime)
+	}
 }
 
 func TestResearchTaskCancellationCheckpoints(t *testing.T) {

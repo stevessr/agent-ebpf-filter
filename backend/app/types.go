@@ -30,6 +30,10 @@ type MLConfig = core.MLConfig
 type KernelRiskFeedbackSettings = core.KernelRiskFeedbackSettings
 type LoopDetectionSettings = core.LoopDetectionSettings
 type ResearchProcessingSettings = core.ResearchProcessingSettings
+type SignalCondition = core.SignalCondition
+type SignalRule = core.SignalRule
+type SelectedProgramSignalLog = core.SelectedProgramSignalLog
+type SignalProcessingSettings = core.SignalProcessingSettings
 type DomainForwardRoute = core.DomainForwardRoute
 type DomainForwardProxySettings = core.DomainForwardProxySettings
 

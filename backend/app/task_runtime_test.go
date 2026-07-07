@@ -13,12 +13,14 @@ func TestBackendTaskRuntimeCompletesAndTracksStats(t *testing.T) {
 			t.Fatalf("payload mismatch: %#v", entry.Payload())
 		}
 		entry.SetProgress(0.5)
+		time.Sleep(2 * time.Millisecond)
 		close(done)
 		return nil
 	})
 	runtime.Start(4)
 
 	entry := newBackendTaskRuntimeEntry("task-1", "unit", "payload")
+	entry.queuedAt = time.Now().UTC().Add(-10 * time.Millisecond)
 	if err := runtime.Submit(entry); err != nil {
 		t.Fatalf("submit: %v", err)
 	}
@@ -34,9 +36,15 @@ func TestBackendTaskRuntimeCompletesAndTracksStats(t *testing.T) {
 	if snapshot.Status != backendTaskStatusSucceeded || snapshot.Progress != 1 || snapshot.StartedAt == nil || snapshot.FinishedAt == nil {
 		t.Fatalf("snapshot mismatch: %+v", snapshot)
 	}
+	if snapshot.QueueLatencyMs <= 0 || snapshot.RunDurationMs <= 0 || snapshot.TotalDurationMs <= 0 {
+		t.Fatalf("snapshot duration metrics missing: %+v", snapshot)
+	}
 	stats := runtime.Stats()
 	if stats.EnqueuedTotal != 1 || stats.CompletedTotal != 1 || stats.FailedTotal != 0 || stats.CanceledTotal != 0 {
 		t.Fatalf("stats mismatch: %+v", stats)
+	}
+	if stats.LastQueueLatencyMs <= 0 || stats.LastRunDurationMs <= 0 || stats.LastTotalDurationMs <= 0 || stats.AvgRunDurationMs <= 0 || stats.LastStartedAt == nil || stats.LastFinishedAt == nil {
+		t.Fatalf("runtime duration stats missing: %+v", stats)
 	}
 }
 

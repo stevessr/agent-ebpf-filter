@@ -3804,6 +3804,139 @@ export namespace pb {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of a ProgramSignalLogRecord. */
+    interface IProgramSignalLogRecord {
+
+        /** ProgramSignalLogRecord schemaVersion */
+        schemaVersion?: (string|null);
+
+        /** ProgramSignalLogRecord program */
+        program?: (string|null);
+
+        /** ProgramSignalLogRecord reason */
+        reason?: (string|null);
+
+        /** ProgramSignalLogRecord persistedAt */
+        persistedAt?: (number|Long|null);
+
+        /** ProgramSignalLogRecord capturedEvent */
+        capturedEvent?: (pb.ICapturedEventRecord|null);
+
+        /** ProgramSignalLogRecord ruleId */
+        ruleId?: (string|null);
+
+        /** ProgramSignalLogRecord signalKind */
+        signalKind?: (string|null);
+    }
+
+    /** Represents a ProgramSignalLogRecord. */
+    class ProgramSignalLogRecord implements IProgramSignalLogRecord {
+
+        /**
+         * Constructs a new ProgramSignalLogRecord.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pb.IProgramSignalLogRecord);
+
+        /** ProgramSignalLogRecord schemaVersion. */
+        public schemaVersion: string;
+
+        /** ProgramSignalLogRecord program. */
+        public program: string;
+
+        /** ProgramSignalLogRecord reason. */
+        public reason: string;
+
+        /** ProgramSignalLogRecord persistedAt. */
+        public persistedAt: (number|Long);
+
+        /** ProgramSignalLogRecord capturedEvent. */
+        public capturedEvent?: (pb.ICapturedEventRecord|null);
+
+        /** ProgramSignalLogRecord ruleId. */
+        public ruleId: string;
+
+        /** ProgramSignalLogRecord signalKind. */
+        public signalKind: string;
+
+        /**
+         * Creates a new ProgramSignalLogRecord instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ProgramSignalLogRecord instance
+         */
+        public static create(properties?: pb.IProgramSignalLogRecord): pb.ProgramSignalLogRecord;
+
+        /**
+         * Encodes the specified ProgramSignalLogRecord message. Does not implicitly {@link pb.ProgramSignalLogRecord.verify|verify} messages.
+         * @param message ProgramSignalLogRecord message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pb.IProgramSignalLogRecord, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ProgramSignalLogRecord message, length delimited. Does not implicitly {@link pb.ProgramSignalLogRecord.verify|verify} messages.
+         * @param message ProgramSignalLogRecord message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pb.IProgramSignalLogRecord, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ProgramSignalLogRecord message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ProgramSignalLogRecord
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pb.ProgramSignalLogRecord;
+
+        /**
+         * Decodes a ProgramSignalLogRecord message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ProgramSignalLogRecord
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pb.ProgramSignalLogRecord;
+
+        /**
+         * Verifies a ProgramSignalLogRecord message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ProgramSignalLogRecord message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ProgramSignalLogRecord
+         */
+        public static fromObject(object: { [k: string]: any }): pb.ProgramSignalLogRecord;
+
+        /**
+         * Creates a plain object from a ProgramSignalLogRecord message. Also converts values to other types if specified.
+         * @param message ProgramSignalLogRecord
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pb.ProgramSignalLogRecord, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ProgramSignalLogRecord to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ProgramSignalLogRecord
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of an EventHistoryResponse. */
     interface IEventHistoryResponse {
 

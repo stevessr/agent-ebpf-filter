@@ -393,18 +393,144 @@ func formatTLSPlaintextBody(body []byte, contentType string) (string, bool) {
 		return "", false
 	}
 
-	formatted := body
-	if looksLikeTLSJSON(contentType, body) {
-		if pretty, err := prettyPrintJSON(body); err == nil {
+	// Capture whether the original HTTP body exceeded the bounded window
+	// BEFORE folding — folding shrinks the body, so checking afterwards would
+	// mask the fact that the capture was truncated.
+	truncated := len(body) > tlsMaxBodySize
+
+	// Fold large base64 image payloads (Anthropic `image` blocks and OpenAI
+	// `image_url` data URIs) into compact sentinels BEFORE pretty-print. A
+	// single embedded image would otherwise consume the entire 16 KiB capture
+	// window, pushing the rest of the prompt out and leaving only the image's
+	// base64 prefix. Folding also keeps base64 substrings from spuriously
+	// triggering inline-secret redaction.
+	folded := foldTLSImageBase64(body, contentType)
+
+	formatted := folded
+	if looksLikeTLSJSON(contentType, folded) {
+		if pretty, err := prettyPrintJSON(folded); err == nil {
 			formatted = pretty
 		}
 	}
-
-	truncated := len(body) > tlsMaxBodySize || len(formatted) > tlsMaxBodySize
 	if len(formatted) > tlsMaxBodySize {
 		formatted = formatted[:tlsMaxBodySize]
 	}
 	return string(formatted), truncated
+}
+
+// tlsImageFoldThreshold is the base64 length below which an embedded image is
+// left intact so the frontend can still render it as a data URI. Anything
+// larger is folded to a sentinel — the full payload cannot be captured anyway
+// (eBPF fragments cap a single TLS message at ~17 KiB).
+const tlsImageFoldThreshold = 2048
+
+// tlsImageFoldedPrefix marks a folded image payload. The full sentinel format
+// is `__IMAGE_FOLDED__:<media_type>:<approx_decoded_bytes>`; the frontend
+// detects this prefix to render an image placeholder instead of raw base64.
+const tlsImageFoldedPrefix = "__IMAGE_FOLDED__:"
+
+// foldTLSImageBase64 walks a JSON body and replaces large base64 image
+// payloads with a compact sentinel. Returns the original body unchanged if it
+// is not JSON or contains no foldable images.
+func foldTLSImageBase64(body []byte, contentType string) []byte {
+	if !looksLikeTLSJSON(contentType, body) {
+		return body
+	}
+	var payload any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return body
+	}
+	if !foldTLSImageJSONValue(&payload) {
+		return body
+	}
+	if folded, err := json.Marshal(payload); err == nil {
+		return folded
+	}
+	return body
+}
+
+// foldTLSImageJSONValue recursively folds large image payloads in a parsed
+// JSON value. It recognises:
+//   - Anthropic: {"type":"image","source":{"type":"base64","media_type":"...","data":"..."}}
+//   - OpenAI:    {"type":"image_url","image_url":{"url":"data:image/png;base64,..."}}
+//
+// HTTP(S) image URLs are left intact (they are small and useful to display).
+func foldTLSImageJSONValue(value *any) bool {
+	switch typed := (*value).(type) {
+	case map[string]any:
+		changed := false
+		switch t, _ := typed["type"].(string); t {
+		case "image":
+			if src, ok := typed["source"].(map[string]any); ok {
+				if st, _ := src["type"].(string); st == "base64" {
+					if data, ok := src["data"].(string); ok && len(data) > tlsImageFoldThreshold {
+						media, _ := src["media_type"].(string)
+						src["data"] = tlsImageFoldedSentinel(media, len(data))
+						changed = true
+					}
+				}
+			}
+		case "image_url":
+			if iu, ok := typed["image_url"].(map[string]any); ok {
+				if rawURL, ok := iu["url"].(string); ok {
+					if folded, ok := foldTLSDataURI(rawURL); ok {
+						iu["url"] = folded
+						changed = true
+					}
+				}
+			}
+		}
+		for key, child := range typed {
+			childValue := child
+			if foldTLSImageJSONValue(&childValue) {
+				typed[key] = childValue
+				changed = true
+			}
+		}
+		return changed
+	case []any:
+		changed := false
+		for i, child := range typed {
+			childValue := child
+			if foldTLSImageJSONValue(&childValue) {
+				typed[i] = childValue
+				changed = true
+			}
+		}
+		return changed
+	}
+	return false
+}
+
+// foldTLSDataURI folds the base64 portion of a `data:<media>;base64,<...>` URI
+// when it exceeds the threshold. Non-data URIs (http(s) URLs) are returned
+// unchanged with ok=false.
+func foldTLSDataURI(raw string) (string, bool) {
+	const prefix = "data:"
+	if !strings.HasPrefix(raw, prefix) {
+		return raw, false
+	}
+	comma := strings.Index(raw, ",")
+	if comma < 0 {
+		return raw, false
+	}
+	meta := raw[len(prefix):comma] // e.g. "image/png;base64"
+	data := raw[comma+1:]
+	if !strings.Contains(meta, "base64") || len(data) <= tlsImageFoldThreshold {
+		return raw, false
+	}
+	media := strings.SplitN(meta, ";", 2)[0]
+	return tlsImageFoldedSentinel(media, len(data)), true
+}
+
+// tlsImageFoldedSentinel builds a compact placeholder for a folded image.
+// approxBytes is the base64 length; the decoded byte size is ~3/4 of that.
+func tlsImageFoldedSentinel(mediaType string, base64Len int) string {
+	approx := base64Len * 3 / 4
+	if mediaType == "" {
+		mediaType = "image"
+	}
+	return fmt.Sprintf("%s%s:%d", tlsImageFoldedPrefix, mediaType, approx)
 }
 
 func readBoundedTLSBody(r io.Reader) ([]byte, int, error) {

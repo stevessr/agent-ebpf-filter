@@ -38,31 +38,40 @@ type backendTaskRuntimeEntry struct {
 }
 
 type backendTaskRuntimeSnapshot struct {
-	ID         string     `json:"id"`
-	Kind       string     `json:"kind"`
-	Status     string     `json:"status"`
-	Progress   float64    `json:"progress"`
-	QueuedAt   time.Time  `json:"queuedAt"`
-	StartedAt  *time.Time `json:"startedAt,omitempty"`
-	FinishedAt *time.Time `json:"finishedAt,omitempty"`
-	Error      string     `json:"error,omitempty"`
-	QueueLen   int        `json:"queueLen,omitempty"`
+	ID              string     `json:"id"`
+	Kind            string     `json:"kind"`
+	Status          string     `json:"status"`
+	Progress        float64    `json:"progress"`
+	QueuedAt        time.Time  `json:"queuedAt"`
+	StartedAt       *time.Time `json:"startedAt,omitempty"`
+	FinishedAt      *time.Time `json:"finishedAt,omitempty"`
+	Error           string     `json:"error,omitempty"`
+	QueueLen        int        `json:"queueLen,omitempty"`
+	QueueLatencyMs  float64    `json:"queueLatencyMs,omitempty"`
+	RunDurationMs   float64    `json:"runDurationMs,omitempty"`
+	TotalDurationMs float64    `json:"totalDurationMs,omitempty"`
 }
 
 type backendTaskRuntimeStats struct {
-	Name             string    `json:"name"`
-	Started          bool      `json:"started"`
-	QueueLen         int       `json:"queueLen"`
-	QueueCap         int       `json:"queueCap"`
-	TrackedTotal     int       `json:"trackedTotal"`
-	EnqueuedTotal    uint64    `json:"enqueuedTotal"`
-	CompletedTotal   uint64    `json:"completedTotal"`
-	FailedTotal      uint64    `json:"failedTotal"`
-	CanceledTotal    uint64    `json:"canceledTotal"`
-	RejectedTotal    uint64    `json:"rejectedTotal"`
-	LastError        string    `json:"lastError,omitempty"`
-	LastRejectReason string    `json:"lastRejectReason,omitempty"`
-	UpdatedAt        time.Time `json:"updatedAt"`
+	Name                string     `json:"name"`
+	Started             bool       `json:"started"`
+	QueueLen            int        `json:"queueLen"`
+	QueueCap            int        `json:"queueCap"`
+	TrackedTotal        int        `json:"trackedTotal"`
+	EnqueuedTotal       uint64     `json:"enqueuedTotal"`
+	CompletedTotal      uint64     `json:"completedTotal"`
+	FailedTotal         uint64     `json:"failedTotal"`
+	CanceledTotal       uint64     `json:"canceledTotal"`
+	RejectedTotal       uint64     `json:"rejectedTotal"`
+	LastQueueLatencyMs  float64    `json:"lastQueueLatencyMs,omitempty"`
+	LastRunDurationMs   float64    `json:"lastRunDurationMs,omitempty"`
+	LastTotalDurationMs float64    `json:"lastTotalDurationMs,omitempty"`
+	AvgRunDurationMs    float64    `json:"avgRunDurationMs,omitempty"`
+	LastStartedAt       *time.Time `json:"lastStartedAt,omitempty"`
+	LastFinishedAt      *time.Time `json:"lastFinishedAt,omitempty"`
+	LastError           string     `json:"lastError,omitempty"`
+	LastRejectReason    string     `json:"lastRejectReason,omitempty"`
+	UpdatedAt           time.Time  `json:"updatedAt"`
 }
 
 type backendTaskRuntime struct {
@@ -74,14 +83,20 @@ type backendTaskRuntime struct {
 	maxItems int
 	handler  func(*backendTaskRuntimeEntry) error
 
-	enqueuedTotal    uint64
-	completedTotal   uint64
-	failedTotal      uint64
-	canceledTotal    uint64
-	rejectedTotal    uint64
-	lastError        string
-	lastRejectReason string
-	updatedAt        time.Time
+	enqueuedTotal     uint64
+	completedTotal    uint64
+	failedTotal       uint64
+	canceledTotal     uint64
+	rejectedTotal     uint64
+	runDurationTotal  time.Duration
+	lastQueueLatency  time.Duration
+	lastRunDuration   time.Duration
+	lastTotalDuration time.Duration
+	lastStartedAt     time.Time
+	lastFinishedAt    time.Time
+	lastError         string
+	lastRejectReason  string
+	updatedAt         time.Time
 }
 
 func newBackendTaskRuntime(name string, maxItems int, handler func(*backendTaskRuntimeEntry) error) *backendTaskRuntime {
@@ -199,19 +214,25 @@ func (r *backendTaskRuntime) Stats() backendTaskRuntimeStats {
 		queueCap = cap(r.queue)
 	}
 	stats := backendTaskRuntimeStats{
-		Name:             r.name,
-		Started:          r.started,
-		QueueLen:         queueLen,
-		QueueCap:         queueCap,
-		TrackedTotal:     len(r.tasks),
-		EnqueuedTotal:    r.enqueuedTotal,
-		CompletedTotal:   r.completedTotal,
-		FailedTotal:      r.failedTotal,
-		CanceledTotal:    r.canceledTotal,
-		RejectedTotal:    r.rejectedTotal,
-		LastError:        r.lastError,
-		LastRejectReason: r.lastRejectReason,
-		UpdatedAt:        r.updatedAt,
+		Name:                r.name,
+		Started:             r.started,
+		QueueLen:            queueLen,
+		QueueCap:            queueCap,
+		TrackedTotal:        len(r.tasks),
+		EnqueuedTotal:       r.enqueuedTotal,
+		CompletedTotal:      r.completedTotal,
+		FailedTotal:         r.failedTotal,
+		CanceledTotal:       r.canceledTotal,
+		RejectedTotal:       r.rejectedTotal,
+		LastQueueLatencyMs:  durationMilliseconds(r.lastQueueLatency),
+		LastRunDurationMs:   durationMilliseconds(r.lastRunDuration),
+		LastTotalDurationMs: durationMilliseconds(r.lastTotalDuration),
+		AvgRunDurationMs:    backendTaskAverageDurationMs(r.runDurationTotal, r.completedTotal),
+		LastStartedAt:       ptrTimeIfSet(r.lastStartedAt),
+		LastFinishedAt:      ptrTimeIfSet(r.lastFinishedAt),
+		LastError:           r.lastError,
+		LastRejectReason:    r.lastRejectReason,
+		UpdatedAt:           r.updatedAt,
 	}
 	r.mu.RUnlock()
 	return stats
@@ -224,7 +245,7 @@ func (r *backendTaskRuntime) run(queue <-chan *backendTaskRuntimeEntry) {
 		}
 		if !entry.markRunning() {
 			entry.finish(backendTaskStatusCanceled, 1, "")
-			r.noteFinished(backendTaskStatusCanceled, "")
+			r.noteFinished(entry, backendTaskStatusCanceled, "")
 			continue
 		}
 		err := error(nil)
@@ -234,29 +255,41 @@ func (r *backendTaskRuntime) run(queue <-chan *backendTaskRuntimeEntry) {
 		if err != nil {
 			if errors.Is(err, errBackendTaskCanceled) || entry.IsCanceled() {
 				entry.finish(backendTaskStatusCanceled, 1, "")
-				r.noteFinished(backendTaskStatusCanceled, "")
+				r.noteFinished(entry, backendTaskStatusCanceled, "")
 				continue
 			}
 			entry.finish(backendTaskStatusFailed, entry.Progress(), err.Error())
-			r.noteFinished(backendTaskStatusFailed, err.Error())
+			r.noteFinished(entry, backendTaskStatusFailed, err.Error())
 			continue
 		}
 		if entry.IsCanceled() {
 			entry.finish(backendTaskStatusCanceled, 1, "")
-			r.noteFinished(backendTaskStatusCanceled, "")
+			r.noteFinished(entry, backendTaskStatusCanceled, "")
 			continue
 		}
 		entry.finish(backendTaskStatusSucceeded, 1, "")
-		r.noteFinished(backendTaskStatusSucceeded, "")
+		r.noteFinished(entry, backendTaskStatusSucceeded, "")
 	}
 }
 
-func (r *backendTaskRuntime) noteFinished(status, message string) {
+func (r *backendTaskRuntime) noteFinished(entry *backendTaskRuntimeEntry, status, message string) {
 	if r == nil {
 		return
 	}
+	snapshot := entry.Snapshot()
+	queueLatency, runDuration, totalDuration := backendTaskSnapshotDurations(snapshot)
 	r.mu.Lock()
 	r.completedTotal++
+	r.runDurationTotal += runDuration
+	r.lastQueueLatency = queueLatency
+	r.lastRunDuration = runDuration
+	r.lastTotalDuration = totalDuration
+	if snapshot.StartedAt != nil {
+		r.lastStartedAt = *snapshot.StartedAt
+	}
+	if snapshot.FinishedAt != nil {
+		r.lastFinishedAt = *snapshot.FinishedAt
+	}
 	switch status {
 	case backendTaskStatusFailed:
 		r.failedTotal++
@@ -309,6 +342,10 @@ func (entry *backendTaskRuntimeEntry) Snapshot() backendTaskRuntimeSnapshot {
 		QueueLen:   entry.queueLen,
 	}
 	entry.mu.RUnlock()
+	queueLatency, runDuration, totalDuration := backendTaskSnapshotDurations(out)
+	out.QueueLatencyMs = durationMilliseconds(queueLatency)
+	out.RunDurationMs = durationMilliseconds(runDuration)
+	out.TotalDurationMs = durationMilliseconds(totalDuration)
 	return out
 }
 
@@ -429,4 +466,27 @@ func cloneTimePtr(value *time.Time) *time.Time {
 	}
 	cloned := *value
 	return &cloned
+}
+
+func backendTaskSnapshotDurations(snapshot backendTaskRuntimeSnapshot) (time.Duration, time.Duration, time.Duration) {
+	var queueLatency time.Duration
+	var runDuration time.Duration
+	var totalDuration time.Duration
+	if snapshot.StartedAt != nil && !snapshot.QueuedAt.IsZero() && snapshot.StartedAt.After(snapshot.QueuedAt) {
+		queueLatency = snapshot.StartedAt.Sub(snapshot.QueuedAt)
+	}
+	if snapshot.StartedAt != nil && snapshot.FinishedAt != nil && snapshot.FinishedAt.After(*snapshot.StartedAt) {
+		runDuration = snapshot.FinishedAt.Sub(*snapshot.StartedAt)
+	}
+	if snapshot.FinishedAt != nil && !snapshot.QueuedAt.IsZero() && snapshot.FinishedAt.After(snapshot.QueuedAt) {
+		totalDuration = snapshot.FinishedAt.Sub(snapshot.QueuedAt)
+	}
+	return queueLatency, runDuration, totalDuration
+}
+
+func backendTaskAverageDurationMs(total time.Duration, count uint64) float64 {
+	if total <= 0 || count == 0 {
+		return 0
+	}
+	return durationMilliseconds(total / time.Duration(count))
 }

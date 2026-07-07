@@ -819,6 +819,11 @@ func registerSystemRoutes(rg *gin.RouterGroup, _ ...*FeatureRegistry) {
 	rg.POST("/loop-detection/task", handleLoopDetectionTask)
 	rg.GET("/research-processing/status", handleResearchProcessingStatus)
 	rg.POST("/research-processing/task", handleResearchProcessingTask)
+	rg.GET("/signals/status", handleSignalProcessingStatus)
+	rg.POST("/signals/task", handleSignalProcessingTask)
+	rg.POST("/signals/rules/test", handleSignalRuleTest)
+	rg.GET("/signals/program-logs", handleSignalProgramLogs)
+	rg.GET("/signals/program-logs/download", handleSignalProgramLogDownload)
 }
 
 // Hardware handler bridges (camera, microphone, sensors)

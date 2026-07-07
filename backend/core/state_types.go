@@ -30,6 +30,7 @@ type RuntimeSettings struct {
 	KernelRiskFeedback      KernelRiskFeedbackSettings `json:"kernelRiskFeedback,omitempty"`
 	LoopDetection           LoopDetectionSettings      `json:"loopDetection,omitempty"`
 	ResearchProcessing      ResearchProcessingSettings `json:"researchProcessing,omitempty"`
+	SignalProcessing        SignalProcessingSettings   `json:"signalProcessing,omitempty"`
 	DomainForwardProxy      DomainForwardProxySettings `json:"domainForwardProxy"`
 }
 
@@ -69,6 +70,50 @@ type ResearchProcessingSettings struct {
 	ArtifactRetentionDays int    `json:"artifactRetentionDays"`
 	MaxSessionEvents      int    `json:"maxSessionEvents"`
 	ExportFormats         string `json:"exportFormats"`
+}
+
+// SignalCondition describes one predicate used by a signal rule. Conditions are
+// ANDed inside a rule and evaluate against normalized captured-event fields.
+type SignalCondition struct {
+	Field    string `json:"field"`
+	Operator string `json:"operator"`
+	Value    string `json:"value"`
+}
+
+// SignalRule defines a configurable runtime signal. Kind is intentionally open
+// ended so the UI can add new signal classes without changing the persistence
+// schema; the backend ships built-in semantics for path_access, child_process,
+// repeated_read, and custom.
+type SignalRule struct {
+	ID         string            `json:"id"`
+	Name       string            `json:"name"`
+	Enabled    bool              `json:"enabled"`
+	Kind       string            `json:"kind"`
+	TTLSeconds int               `json:"ttlSeconds"`
+	Weight     float64           `json:"weight"`
+	Conditions []SignalCondition `json:"conditions,omitempty"`
+}
+
+// SelectedProgramSignalLog configures compressed protobuf binary persistence for
+// events whose selected frontend program matches comm/path/basename fields.
+type SelectedProgramSignalLog struct {
+	Program string `json:"program"`
+	Enabled bool   `json:"enabled"`
+	Path    string `json:"path,omitempty"`
+}
+
+// SignalProcessingSettings controls the single-consumer signal worker. Event
+// matching is lazy (only touched keys are recomputed on updates) while a cron
+// pass evicts expired signal state from the bounded in-memory map.
+type SignalProcessingSettings struct {
+	Enabled             bool                       `json:"enabled"`
+	QueueSize           int                        `json:"queueSize"`
+	CronIntervalSeconds int                        `json:"cronIntervalSeconds"`
+	DefaultTTLSeconds   int                        `json:"defaultTTLSeconds"`
+	MaxStates           int                        `json:"maxStates"`
+	ProtoLogCompression string                     `json:"protoLogCompression"`
+	SelectedPrograms    []SelectedProgramSignalLog `json:"selectedPrograms,omitempty"`
+	Rules               []SignalRule               `json:"rules,omitempty"`
 }
 
 // ExportConfig is the JSON shape returned by GET /config/export.

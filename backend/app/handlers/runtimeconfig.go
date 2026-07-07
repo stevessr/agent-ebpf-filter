@@ -61,6 +61,7 @@ type RuntimeSettingsPatch struct {
 	KernelRiskFeedback      *core.KernelRiskFeedbackSettings `json:"kernelRiskFeedback,omitempty"`
 	LoopDetection           *core.LoopDetectionSettings      `json:"loopDetection,omitempty"`
 	ResearchProcessing      *core.ResearchProcessingSettings `json:"researchProcessing,omitempty"`
+	SignalProcessing        *core.SignalProcessingSettings   `json:"signalProcessing,omitempty"`
 	DomainForwardProxy      *core.DomainForwardProxySettings `json:"domainForwardProxy,omitempty"`
 	MLConfigPatch
 }
@@ -157,6 +158,9 @@ func HandleConfigRuntimePut(c *gin.Context) {
 	}
 	if req.ResearchProcessing != nil {
 		settings.ResearchProcessing = *req.ResearchProcessing
+	}
+	if req.SignalProcessing != nil {
+		settings.SignalProcessing = *req.SignalProcessing
 	}
 	if req.DomainForwardProxy != nil {
 		settings.DomainForwardProxy = *req.DomainForwardProxy

@@ -158,7 +158,84 @@ const parseRawSSE = (text: string): SSEParsed[] => {
 // ── Content block ────────────────────────────────────────────────────────
 interface ContentBlock {
   type: string; mergedText: string; toolName?: string; toolId?: string; toolInput?: any;
+  image?: { src?: string; mediaType?: string; approxBytes?: number; folded?: boolean; httpUrl?: string };
 }
+
+// Draft an image-block from a content item, or null if not an image block.
+// Handles:
+//   - Anthropic: { type:"image", source:{ type:"base64", media_type, data } }
+//   - OpenAI:    { type:"image_url", image_url:{ url } }  (data: URI or http(s))
+//   - Body-folded sentinels produced by the backend (prefix __IMAGE_FOLDED__:)
+const IMAGE_FOLDED_PREFIX = "__IMAGE_FOLDED__:";
+const describeAgentImageItem = (item: any): {
+  mediaType?: string; approxBytes?: number; src?: string; httpUrl?: string; folded?: boolean
+} | null => {
+  if (!item || typeof item !== "object") return null;
+  const t = item.type;
+  if (t === "image") {
+    const src = item.source || {};
+    const mediaType = src.media_type || "image";
+    const data: string = src.data || "";
+    if (typeof data === "string" && data.startsWith(IMAGE_FOLDED_PREFIX)) {
+      const rest = data.slice(IMAGE_FOLDED_PREFIX.length);
+      const [m, n] = rest.split(":");
+      return { mediaType: m, approxBytes: Number(n) || 0, folded: true };
+    }
+    if (src.type === "base64" && data) {
+      // data URI form for <img> rendering (may be truncated by capture; we still try)
+      return {
+        mediaType,
+        approxBytes: Math.floor((data.length * 3) / 4),
+        src: `data:${mediaType};base64,${data}`,
+      };
+    }
+    return { mediaType, folded: !data };
+  }
+  if (t === "image_url") {
+    const iu = item.image_url || {};
+    const url: string = iu.url || "";
+    if (!url) return { folded: true };
+    if (url.startsWith(IMAGE_FOLDED_PREFIX)) {
+      const rest = url.slice(IMAGE_FOLDED_PREFIX.length);
+      const [m, n] = rest.split(":");
+      return { mediaType: m, approxBytes: Number(n) || 0, folded: true };
+    }
+    if (url.startsWith("data:")) {
+      const m = url.slice(5).split(",")[0]?.split(";")[0];
+      return { mediaType: m, src: url, folded: false };
+    }
+    if (/^https?:\/\//i.test(url)) {
+      return { httpUrl: url, folded: false };
+    }
+    return { folded: true };
+  }
+  return null;
+};
+
+// Push an image content block (or append to existing text block list). Returns
+// the content block to push, or null when the item is not an image.
+const pushImageBlock = (blocks: ContentBlock[], item: any) => {
+  const img = describeAgentImageItem(item);
+  if (!img) return false;
+  const approx = img.approxBytes ?? 0;
+  const media = img.mediaType || "image";
+  const label = img.folded
+    ? `[image ${media} ${approx > 0 ? `~${formatBytesFromInt(approx)}` : "captured partially"}]`
+    : `[image ${media}]`;
+  blocks.push({
+    type: "image",
+    mergedText: label,
+    image: { src: img.src, mediaType: media, approxBytes: approx, folded: img.folded, httpUrl: img.httpUrl },
+  });
+  return true;
+};
+
+const formatBytesFromInt = (n: number): string => {
+  if (!n) return "0 B";
+  const u = ["B", "KB", "MB", "GB"];
+  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), u.length - 1);
+  return `${(n / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
+};
 
 interface MergedGroup {
   id: string; events: ObserverTLSEvent[];

@@ -319,6 +319,16 @@ message CapturedEventRecord {
   EventEnvelope envelope = 3;
 }
 
+message ProgramSignalLogRecord {
+  string schema_version = 1;
+  string program = 2;
+  string reason = 3;
+  int64 persisted_at = 4;
+  CapturedEventRecord captured_event = 5;
+  string rule_id = 6;
+  string signal_kind = 7;
+}
+
 message EventHistoryResponse {
   repeated CapturedEventRecord events = 1;
   string source = 2;

@@ -228,6 +228,13 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 | `GET` | `/system/cameras` | 摄像头列表 |
 | `GET` | `/system/camera/snapshot` | 摄像头快照 |
 | `GET` | `/system/microphones` | 麦克风列表 |
+| `GET` | `/system/signals/status` | 信号处理运行态：队列、TTL 状态、最近信号、可用 signal kinds |
+| `POST` | `/system/signals/task` | 信号处理后台任务：`scan_recent`/`expire`/`reset` |
+| `POST` | `/system/signals/rules/test` | 用最近事件 dry-run 单条 signal rule，返回匹配样本 |
+| `GET` | `/system/signals/program-logs` | 选中程序的本地 protobuf 压缩日志状态、路径、frame 数 |
+| `GET` | `/system/signals/program-logs/download?program=...` | 下载某个已配置选中程序的 length-framed gzip protobuf 日志 |
+
+`/system/signals/status` 对应 `RuntimeSettings.signalProcessing`。信号规则支持 `path_access`、`child_process`、`repeated_read` 与 `custom` kind，规则内条件按 AND 组合；选中的程序会由后端写入本地 length-framed gzip protobuf (`ProgramSignalLogRecord`) 二进制日志。
 
 ### TLS 捕获路由 (`/tls-capture`)
 
