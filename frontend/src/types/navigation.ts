@@ -19,6 +19,7 @@ export type WorkbenchKey =
   | "ml"
   | "plugins"
   | "config"
+  | "signals"
   | "observe";
 
 export type NavMenuLeaf = {

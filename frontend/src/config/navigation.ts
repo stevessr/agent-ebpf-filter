@@ -151,6 +151,12 @@ const ALL_NAV_GROUPS: NavMenuGroup[] = [
         icon: SettingOutlined,
         defaultRoute: { name: "Config", params: { tab: "registry" } },
       },
+      {
+        key: "signals",
+        title: "Signals",
+        icon: ThunderboltOutlined,
+        defaultRoute: { name: "Signals" },
+      },
     ],
   },
 ];
@@ -190,6 +196,7 @@ const routeNameMap: Record<string, WorkbenchKey> = {
   Plugins: "plugins",
   Config: "config",
   Observe: "observe",
+  Signals: "signals",
 };
 
 const isAvailableWorkbenchKey = (key: WorkbenchKey) =>

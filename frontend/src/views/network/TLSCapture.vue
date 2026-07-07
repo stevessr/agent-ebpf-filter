@@ -3,10 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import axios from "axios";
 import {
   SafetyCertificateOutlined,
-  PauseOutlined,
-  PlayCircleOutlined,
   ReloadOutlined,
-  SearchOutlined,
   CopyOutlined,
   CloseCircleOutlined,
 } from "@ant-design/icons-vue";
@@ -16,103 +13,17 @@ import FileBrowserPanel from "../../components/explorer/FileBrowserPanel.vue";
 import { buildWebSocketUrl } from "../../utils/requestContext";
 import SanitizedFieldViewer from "../../components/common/SanitizedFieldViewer.vue";
 import RedactionBadge from "../../components/common/RedactionBadge.vue";
+import DevToolsNetworkPanel from "../../components/network/DevToolsNetworkPanel.vue";
 
-interface TLSPlaintextEvent {
-  key?: string;
-  type?: string;
-  timestamp?: string;
-  pid?: number;
-  tgid?: number;
-  comm?: string;
-  direction?: string;
-  lib?: string;
-  function?: string;
-  captured_len?: number;
-  original_len?: number;
-  method?: string;
-  url?: string;
-  host?: string;
-  status?: number;
-  headers?: Record<string, string>;
-  body?: string;
-  body_size?: number;
-  content_type?: string;
-  raw_hex_dump?: string;
-  raw_available?: boolean;
-  truncated?: boolean;
-  redaction_state?: string;
-  sse_event?: string;
-  sse_data_digest?: string;
-  message_role?: string;
-  prompt_digest?: string;
-  prompt_len?: number;
-  vendor?: string;
-	  uid?: number;
-	  tid?: number;
-	  is_handshake?: boolean;
-	  latency_ms?: number;
-	  data_type?: string;
-	  delta_ns?: number;
-}
-
-interface TLSLibraryStatus {
-  library?: number;
-  name: string;
-  path?: string;
-  attached: boolean;
-  available?: boolean;
-  error?: string;
-}
-
-interface TLSCaptureRule {
-  id: string;
-  name: string;
-  enabled: boolean;
-  scope: string;
-  comms?: string[];
-  hosts?: string[];
-  methods?: string[];
-  libraries?: string[];
-  directions?: string[];
-  description?: string;
-}
-
-interface TLSIgnoreRule {
-  id: string;
-  name: string;
-  enabled: boolean;
-  comms?: string[];
-  hosts?: string[];
-  urls?: string[];
-  methods?: string[];
-  libraries?: string[];
-  directions?: string[];
-  statusCodes?: string[];
-  description?: string;
-}
-
-interface TLSCaptureStatus {
-  enabled?: boolean;
-  available?: boolean;
-  readStarted?: boolean;
-  error?: string;
-  libraries?: TLSLibraryStatus[];
-}
-
-interface TLSBuiltinExecutableTarget {
-  name: string;
-  command: string;
-  library: string;
-  description?: string;
-}
-
-interface TLSBuiltinExecutableAttachStatus {
-  target: TLSBuiltinExecutableTarget;
-  available?: boolean;
-  attached?: boolean;
-  result?: any;
-  error?: string;
-}
+import type {
+  TLSPlaintextEvent,
+  TLSLibraryStatus,
+  TLSCaptureRule,
+  TLSIgnoreRule,
+  TLSCaptureStatus,
+  TLSBuiltinExecutableTarget,
+  TLSBuiltinExecutableAttachStatus,
+} from "../../types/tls";
 
 interface FileEntry {
   name: string;
@@ -726,6 +637,10 @@ const clearFilters = () => {
   selectedDirection.value = "all";
   sslFilterExpr.value = "";
   ignoreFilter.value = "";
+};
+
+const clearEvents = () => {
+  events.value = [];
 };
 
 // SSL filter expression evaluator (lightweight frontend version matching backend tls.ParseSSLFilterExpr)
@@ -1819,8 +1734,7 @@ onUnmounted(() => {
 
 .tls-rules-hint,
 .tls-runtime-card,
-.tls-rules-card,
-.tls-stats {
+.tls-rules-card {
   margin-bottom: 16px;
 }
 
@@ -1919,10 +1833,6 @@ onUnmounted(() => {
   margin-top: 10px;
 }
 
-.tls-toolbar {
-  margin-bottom: 16px;
-}
-
 .tls-libraries-title {
   font-weight: 600;
   margin-bottom: 8px;
@@ -1930,22 +1840,6 @@ onUnmounted(() => {
 
 .tls-error {
   color: #cf1322;
-}
-
-.tls-pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  padding: 12px;
-  max-height: 240px;
-  overflow: auto;
-}
-
-.tls-body {
-  max-height: 320px;
 }
 
 @media (max-width: 1200px) {

@@ -10,12 +10,10 @@ import {
   SettingOutlined,
   CodeOutlined,
   LockOutlined,
-  ThunderboltOutlined,
 } from "@ant-design/icons-vue";
 import ConfigRegistryTab from "../../components/config/ConfigRegistryTab.vue";
 import ConfigSecurityTab from "../../components/config/ConfigSecurityTab.vue";
 import ConfigRuntimeTab from "../../components/config/ConfigRuntimeTab.vue";
-import ConfigSignalsTab from "../../components/config/ConfigSignalsTab.vue";
 import ConfigSystemHealthTab from "../../components/config/ConfigSystemHealthTab.vue";
 import ConfigDocsTab from "../../components/config/ConfigDocsTab.vue";
 import ConfigClusterTab from "../../components/config/ConfigClusterTab.vue";
@@ -57,7 +55,6 @@ const configTabKeys = new Set([
   "visual-filter",
   "redaction",
   "runtime",
-  "signals",
   "system",
   "docs",
   "cluster",
@@ -151,13 +148,6 @@ onMounted(() => {
           ><span><SettingOutlined /> Runtime Config</span></template
         >
         <ConfigRuntimeTab :runtime="runtime" />
-      </a-tab-pane>
-
-      <a-tab-pane key="signals">
-        <template #tab
-          ><span><ThunderboltOutlined /> Signals</span></template
-        >
-        <ConfigSignalsTab :runtime="runtime" :registry="registry" />
       </a-tab-pane>
 
       <a-tab-pane key="system">

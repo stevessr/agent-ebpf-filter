@@ -106,6 +106,11 @@ const routes = [
     component: () => import("../views/config/Config.vue"),
   },
   {
+    path: "/settings/signals",
+    name: "Signals",
+    component: () => import("../views/settings/Signals.vue"),
+  },
+  {
     path: "/feature-unavailable",
     name: "FeatureUnavailable",
     component: () => import("../views/config/FeatureUnavailable.vue"),
