@@ -21,11 +21,6 @@ import (
 
 // ---- moved from app/handlers_agentsight.go ----
 
-const (
-	agentSightDefaultLimit = 500
-	agentSightMaxLimit     = 5000
-)
-
 // ── Types ───────────────────────────────────────────────────────────
 
 type AgentSightExportEvent struct {

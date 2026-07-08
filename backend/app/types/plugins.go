@@ -2,26 +2,6 @@ package types
 
 import "time"
 
-// PluginKind enumerates the plugin types supported by the registry.
-type PluginKind string
-
-const (
-	PluginKindEBPF    PluginKind = "ebpf"    // user-authored eBPF program
-	PluginKindWebhook PluginKind = "webhook" // forwards selected events to an HTTP endpoint
-	PluginKindCommand PluginKind = "command" // wrapper rewrite rule expressed as a plugin
-)
-
-// PluginAttachKind describes how an eBPF plugin attaches to the kernel.
-type PluginAttachKind string
-
-const (
-	PluginAttachTracepoint PluginAttachKind = "tracepoint"
-	PluginAttachKprobe     PluginAttachKind = "kprobe"
-	PluginAttachKretprobe  PluginAttachKind = "kretprobe"
-	PluginAttachLSM        PluginAttachKind = "lsm"
-	PluginAttachNone       PluginAttachKind = "none"
-)
-
 // PluginManifest is the on-disk descriptor for a registered plugin.
 type PluginManifest struct {
 	ID          string     `json:"id"`

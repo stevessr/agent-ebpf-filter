@@ -13,10 +13,6 @@ import (
 
 // ── Pure-Go MaxMind MMDB reader ────────────────────────────────────────
 
-const (
-	mmdbMetadataStartMarker = "\xAB\xCD\xEFMaxMind.com"
-)
-
 type mmdbReader struct {
 	data      []byte
 	metadata  mmdbMetadata
