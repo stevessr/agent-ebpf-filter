@@ -31,6 +31,8 @@ const tlsFuncPRRead = 8
 const tlsFuncGoConnWrite = 9
 const tlsFuncGoConnRead = 10
 const tlsFuncSSLWriteEx2 = 11
+const tlsFuncRustlsEncryptOutgoing = 12   // rustls RecordLayer::encrypt_outgoing (SEND plaintext)
+const tlsFuncRustlsConsumeFirstChunk = 13 // rustls Reader::consume + consume_first_chunk (RECV plaintext)
 
 type tlsFragment struct {
 	TimestampNS uint64

@@ -33,6 +33,7 @@ char LICENSE[] SEC("license") = "GPL";
 #define TLS_FUNC_GO_CONN_READ 10
 #define TLS_FUNC_SSL_WRITE_EX2 11
 #define TLS_FUNC_RUSTLS_ENCRYPT_OUTGOING 12 // send: rustls encrypt_outgoing
+#define TLS_FUNC_RUSTLS_CONSUME_FIRST_CHUNK 13 // recv: rustls consume_first_chunk
 
 struct tls_fragment {
 	__u64 timestamp_ns;
@@ -463,6 +464,113 @@ int uprobe_rustls_encrypt_outgoing(struct pt_regs *ctx)
 	}
 	return emit_tls_fragment(ctx, (const void *)ptr, (__u32)len,
 		TLS_LIB_RUSTLS, TLS_DIR_SEND, TLS_FUNC_RUSTLS_ENCRYPT_OUTGOING);
+#else
+	return 0;
+#endif
+}
+
+// ---- rustls RECV plaintext capture (consume_first_chunk) ----
+//
+// rustls deposits decrypted plaintext into `received_plaintext` (a
+// `ChunkVecBuffer`) during process_new_packets. The application drains it via
+// `Reader::read` / `Reader::consume`, which call
+// `ChunkVecBuffer::consume_first_chunk(used)` (vecbuf.rs:159). The compiler
+// inlines `Reader::consume` together with `consume_first_chunk` into a single
+// function, located via the "illegal `BufRead::consume` usage" release assert.
+//
+// On entry the System V AMD64 ABI places:
+//
+//   rdi = &Reader                 (the rustls Reader; *Reader = &ChunkVecBuffer)
+//   rsi = amt                     (bytes the application is consuming this call)
+//
+// `Reader.received_plaintext` is `&mut ChunkVecBuffer` at Reader+0x00, so:
+//
+//   cvb   = *(rdi + 0x00)         // &ChunkVecBuffer (received_plaintext)
+//
+// ChunkVecBuffer layout (as compiled for codex 0.133.0; field order is the
+// compiler's, derived from disassembly — NOT the source declaration order):
+//
+//   cvb + 0x00 : prefix_used      (usize — bytes already consumed in front chunk)
+//   cvb + 0x10 : VecDeque.cap     (usize)
+//   cvb + 0x18 : VecDeque.buf.ptr (raw pointer to the element array)
+//   cvb + 0x20 : VecDeque.head    (usize — index of the front chunk)
+//   cvb + 0x28 : VecDeque.len     (usize — chunk count)
+//   cvb + 0x30 : limit            (Option<usize>)
+//
+// Each element is a `Vec<u8>` of 24 bytes:
+//
+//   elem + 0x00 : data pointer    (*const u8)
+//   elem + 0x08 : capacity        (usize)
+//   elem + 0x10 : length          (usize — total bytes in this chunk)
+//
+// The plaintext available in the front chunk is [data + prefix_used, data + length).
+// `amt` is how many of those bytes the app consumes this call; emitting
+// min(amt, available) bytes starting at data + prefix_used yields exactly what
+// the app reads — no duplicates, no gaps — across partial consumes.
+SEC("uprobe/rustls_consume_first_chunk")
+int uprobe_rustls_consume_first_chunk(struct pt_regs *ctx)
+{
+#if defined(__TARGET_ARCH_x86)
+	// rdi = &Reader. Avoid trusting PARM1 for the borrow; read via pt_regs.
+	const __u64 reader = PT_REGS_PARM1(ctx);
+	// amt = rsi (PARM2).
+	__u64 amt = PT_REGS_PARM2(ctx);
+	if (amt == 0 || reader == 0) {
+		return 0;
+	}
+
+	// cvb = *(reader + 0x00) = &ChunkVecBuffer.
+	__u64 cvb = 0;
+	if (bpf_probe_read_user(&cvb, sizeof(cvb), (const void *)reader) < 0 || cvb == 0) {
+		return 0;
+	}
+
+	// ChunkVecBuffer fields.
+	__u64 prefix_used = 0, buf_ptr = 0, head = 0;
+	if (bpf_probe_read_user(&prefix_used, sizeof(prefix_used), (const void *)(cvb + 0x00)) < 0) {
+		return 0;
+	}
+	if (bpf_probe_read_user(&buf_ptr, sizeof(buf_ptr), (const void *)(cvb + 0x18)) < 0 || buf_ptr == 0) {
+		return 0;
+	}
+	if (bpf_probe_read_user(&head, sizeof(head), (const void *)(cvb + 0x20)) < 0) {
+		return 0;
+	}
+
+	// Front chunk element address = buf_ptr + head * 24. Bound head to a sane
+	// range to keep the verifier happy (VecDeque head < cap; cap is at most a
+	// few thousand for a TLS buffer). 65536 is a safe upper bound.
+	if (head > 65535) {
+		return 0;
+	}
+	__u64 elem = buf_ptr + head * 24;
+
+	// Vec<u8> { ptr@0x00, cap@0x08, len@0x10 }.
+	__u64 data_ptr = 0, chunk_len = 0;
+	if (bpf_probe_read_user(&data_ptr, sizeof(data_ptr), (const void *)elem) < 0 || data_ptr == 0) {
+		return 0;
+	}
+	if (bpf_probe_read_user(&chunk_len, sizeof(chunk_len), (const void *)(elem + 0x10)) < 0) {
+		return 0;
+	}
+
+	// available = chunk_len - prefix_used (only if chunk_len > prefix_used).
+	if (chunk_len <= prefix_used) {
+		return 0;
+	}
+	__u64 available = chunk_len - prefix_used;
+
+	// emit_len = min(amt, available). amt comes from rsi and is the app's
+	// consume count; clamp to the actual available bytes.
+	__u64 emit_len = amt < available ? amt : available;
+	if (emit_len == 0) {
+		return 0;
+	}
+
+	// Plaintext starts at data_ptr + prefix_used.
+	const void *emit_ptr = (const void *)(data_ptr + prefix_used);
+	return emit_tls_fragment(ctx, emit_ptr, (__u32)emit_len,
+		TLS_LIB_RUSTLS, TLS_DIR_RECV, TLS_FUNC_RUSTLS_CONSUME_FIRST_CHUNK);
 #else
 	return 0;
 #endif

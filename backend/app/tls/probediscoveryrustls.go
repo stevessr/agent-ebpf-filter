@@ -19,11 +19,17 @@ import (
 //     OutboundPlainMessage carries the about-to-be-encrypted plaintext slice
 //     (Single variant: +0x08=ptr, +0x10=len). The dedicated
 //     uprobe_rustls_encrypt_outgoing eBPF program dereferences it.
-//   - ReadTLS: entry of the rustls inbound read_tls guard region. Currently
-//     located but NOT attached: read_tls reads ENCRYPTED socket bytes (not
-//     plaintext), and the only clean plaintext RECV exit (Reader::read) lacks a
-//     stable string anchor in stripped binaries. RECV plaintext capture is a
-//     follow-up. Capturing ciphertext is rejected (no encrypted TLS capture).
+//   - ReadTLS: entry of the rustls RECV plaintext-consume function. This is the
+//     inline-combined `Reader::consume` + `ChunkVecBuffer::consume_first_chunk`
+//     (rustls conn.rs:297 + vecbuf.rs:159), located via the
+//     "illegal `BufRead::consume` usage" release-assert string. On entry
+//     (rdi=&Reader, rsi=amt): r14 = *rdi = &ChunkVecBuffer (received_plaintext),
+//     and rsi = amt = the number of plaintext bytes the application is consuming
+//     from the front chunk. The dedicated uprobe_rustls_consume_first_chunk eBPF
+//     program navigates the ChunkVecBuffer + VecDeque layout to emit exactly
+//     min(amt, available) plaintext bytes — no duplicates, no gaps. This is the
+//     clean RECV plaintext exit; read_tls (which reads ENCRYPTED socket bytes)
+//     is intentionally not used. Capturing ciphertext is rejected by constraint.
 type RustlsOffsets struct {
 	WriteTLS uint64
 	ReadTLS  uint64
@@ -119,11 +125,10 @@ func containsRustlsRead(name string) bool {
 // To pin rustls *specific* functions among the hundreds of thousands of FDEs,
 // we cross-reference stable panic/assert strings embedded in .rodata:
 //
-//   - "received plaintext buffer full"        -> inside rustls read_tls guard (RECV)
 //   - "assertion failed: self.next_pre_encrypt_action() != PreEncryptAction::Refuse"
 //                                            -> inside rustls encrypt_outgoing (SEND)
-//   - "traffic keys exhausted, closing connection to prevent security failure"
-//                                            -> inside the send traffic-key-refresh path (SEND)
+//   - "illegal `BufRead::consume` usage"    -> inside ChunkVecBuffer::consume_first_chunk
+//                                            (RECV plaintext-consume path)
 //
 // Algorithm:
 //  1. Locate each anchor string's vaddr in .rodata.
@@ -144,16 +149,21 @@ func containsRustlsRead(name string) bool {
 // `CommonState::write_plaintext` (common_state.rs), NOT encrypt_outgoing, so
 // it must NOT be a send anchor (it pins the wrong function).
 //
-// RECV anchors pin `ConnectionCommon::read_tls` (conn.rs:760) — its guard
-// returns "received plaintext buffer full". This string is packed adjacent to
-// many other rustls strings in .rodata, so it occurs multiple times; we match
-// every occurrence and let the FDE with the most distinct reference sites win.
+// RECV anchors pin the inline-combined `Reader::consume` +
+// `ChunkVecBuffer::consume_first_chunk` (conn.rs:297 + vecbuf.rs:159) via the
+// "illegal `BufRead::consume` usage" release assert. This function receives
+// (&Reader, amt) where *Reader = &ChunkVecBuffer (received_plaintext) and amt
+// is the plaintext byte count being consumed — the clean RECV plaintext exit.
+// The string is long, distinctive, and appears exactly once in .rodata, so it
+// pins a single function with no monomorphization ambiguity (unlike the old
+// "received plaintext buffer full" anchor, which appeared 13+ times and
+// required fragile size-frequency filtering).
 var rustlsAnchorStrings = []struct {
 	kind  string // "send" or "recv"
 	value []byte
 }{
 	{"send", []byte("assertion failed: self.next_pre_encrypt_action() != PreEncryptAction::Refuse")},
-	{"recv", []byte("received plaintext buffer full")},
+	{"recv", []byte("illegal `BufRead::consume` usage")},
 }
 
 func findRustlsOffsetsViaEHFrame(binPath string, exe *elf.File) (*RustlsOffsets, error) {
@@ -231,7 +241,14 @@ func findRustlsOffsetsViaEHFrame(binPath string, exe *elf.File) (*RustlsOffsets,
 	if e, ok := bestCandidate(sendCands); ok {
 		offsets.WriteTLS = e
 	}
-	if e, ok := bestRecvCandidate(recvCands, fdes); ok {
+	// RECV anchor ("illegal `BufRead::consume` usage") is unique in .rodata and
+	// pins a single function, so plain bestCandidate suffices. The old
+	// "received plaintext buffer full" anchor needed bestRecvCandidate's
+	// size-frequency filtering because it appeared 13+ times; that path is kept
+	// only as a fallback if the unique anchor yields no candidate.
+	if e, ok := bestCandidate(recvCands); ok {
+		offsets.ReadTLS = e
+	} else if e, ok := bestRecvCandidate(recvCands, fdes); ok {
 		offsets.ReadTLS = e
 	}
 

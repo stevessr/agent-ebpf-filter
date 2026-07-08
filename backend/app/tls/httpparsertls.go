@@ -621,6 +621,10 @@ func tlsFunctionLabel(function uint8) string {
 		return "crypto/tls.(*Conn).Write"
 	case tlsFuncGoConnRead:
 		return "crypto/tls.(*Conn).Read"
+	case tlsFuncRustlsEncryptOutgoing:
+		return "rustls::encrypt_outgoing"
+	case tlsFuncRustlsConsumeFirstChunk:
+		return "rustls::consume_first_chunk"
 	default:
 		return ""
 	}
