@@ -14,6 +14,31 @@ if [ -f "$DEV_ENV_FILE" ]; then
 fi
 cd "$ROOT"
 
+# ── Enable all capabilities by default in dev mode ─────────────────────────
+# These defaults apply only when the env var is NOT already set (by .env.dev
+# or the calling shell).  To opt out of a specific feature, export it as
+# "false" before running `make dev-backend`.
+: "${AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED:=true}"
+: "${AGENT_RUNTIME_SHELL_SESSIONS_ENABLED:=true}"
+: "${AGENT_RUNTIME_SYSTEM_RUN_ENABLED:=true}"
+: "${AGENT_RUNTIME_HOOK_MANAGEMENT_ENABLED:=true}"
+: "${AGENT_RUNTIME_POLICY_MANAGEMENT_ENABLED:=true}"
+: "${AGENT_RUNTIME_TLS_CAPTURE_ENABLED:=true}"
+: "${AGENT_RUNTIME_OTLP_ENABLED:=true}"
+: "${AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED:=true}"
+: "${AGENT_ML_ENABLED:=true}"
+: "${AGENT_LLM_ENABLED:=true}"
+export AGENT_RUNTIME_LOG_PERSISTENCE_ENABLED \
+       AGENT_RUNTIME_SHELL_SESSIONS_ENABLED \
+       AGENT_RUNTIME_SYSTEM_RUN_ENABLED \
+       AGENT_RUNTIME_HOOK_MANAGEMENT_ENABLED \
+       AGENT_RUNTIME_POLICY_MANAGEMENT_ENABLED \
+       AGENT_RUNTIME_TLS_CAPTURE_ENABLED \
+       AGENT_RUNTIME_OTLP_ENABLED \
+       AGENT_RUNTIME_DOMAIN_FORWARD_ENABLED \
+       AGENT_ML_ENABLED \
+       AGENT_LLM_ENABLED
+
 BACKEND_DIR="backend"
 WRAPPER_PATH="${AGENT_WRAPPER_PATH:-$ROOT/agent-wrapper}"
 BACKEND_BIN="$ROOT/backend/agent-ebpf-filter"
