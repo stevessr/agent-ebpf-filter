@@ -12,14 +12,6 @@ import (
 	"sync"
 )
 
-// eBPF pin root constants (shared across subpackages)
-// Must match core/types.go:EBPFPinRoot.
-const (
-	EBPFPinRoot     = "/sys/fs/bpf/agent-ebpf"
-	EBPFPinMapsDir  = EBPFPinRoot + "/maps"
-	EBPFPinLinksDir = EBPFPinRoot + "/links"
-)
-
 func OriginalInvokerIDs() (uid, gid uint32, ok bool) {
 	if uidStr := os.Getenv("SUDO_UID"); uidStr != "" {
 		gidStr := os.Getenv("SUDO_GID")
@@ -128,12 +120,9 @@ func WritePluginSource(id, source string) error {
 	return WriteFileAsRealUser(PluginSourcePath(id), []byte(source), 0644)
 }
 
-// ResolveBackendPort resolves the backend HTTP port from env → .port file → default.
 func ResolveBackendPort() int {
 	if raw := strings.TrimSpace(os.Getenv("AGENT_BACKEND_PORT")); raw != "" {
-		if port, err := strconv.Atoi(raw); err == nil && port > 0 {
-			return port
-		}
+		if port, err := strconv.Atoi(raw); err == nil && port > 0 { return port }
 	}
 	candidates := []string{".port"}
 	if _, sourceFile, _, ok := runtime.Caller(0); ok {
@@ -142,27 +131,19 @@ func ResolveBackendPort() int {
 	for _, candidate := range candidates {
 		b, err := os.ReadFile(candidate)
 		if err != nil { continue }
-		if port, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && port > 0 {
-			return port
-		}
+		if port, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && port > 0 { return port }
 	}
 	return 8080
 }
 
-// ResolveHookCallbackURL returns the URL the hook relay script POSTs to.
 func ResolveHookCallbackURL() string {
-	if raw := strings.TrimSpace(os.Getenv("AGENT_HOOK_ENDPOINT")); raw != "" {
-		return raw
-	}
+	if raw := strings.TrimSpace(os.Getenv("AGENT_HOOK_ENDPOINT")); raw != "" { return raw }
 	return fmt.Sprintf("http://127.0.0.1:%d/hooks/event", ResolveBackendPort())
 }
 
-// ResolveWrapperPath searches for the agent-wrapper binary.
 func ResolveWrapperPath() string {
 	if override := os.Getenv("AGENT_WRAPPER_PATH"); override != "" {
-		if info, err := os.Stat(override); err == nil && !info.IsDir() {
-			return override
-		}
+		if info, err := os.Stat(override); err == nil && !info.IsDir() { return override }
 	}
 	if _, sourceFile, _, ok := runtime.Caller(0); ok {
 		sourceDir := filepath.Dir(sourceFile)
@@ -190,7 +171,6 @@ func ResolveWrapperPath() string {
 	return ""
 }
 
-// ResolveShellPath resolves a shell binary by name or path.
 func ResolveShellPath(requested string) string {
 	requested = strings.TrimSpace(requested)
 	switch strings.ToLower(requested) {
@@ -224,7 +204,6 @@ func resolveShellCandidate(candidate string) string {
 	return ""
 }
 
-// ResolveShellWorkDir returns the default working directory for shell sessions.
 func ResolveShellWorkDir() string {
 	if override := os.Getenv("AGENT_SHELL_DIR"); override != "" {
 		if info, err := os.Stat(override); err == nil && info.IsDir() { return override }
@@ -238,7 +217,6 @@ func ResolveShellWorkDir() string {
 	return "/"
 }
 
-// SetEnvValue sets an env var in the given slice (key=value format).
 func SetEnvValue(env []string, key, value string) []string {
 	prefix := key + "="
 	replaced := false
@@ -249,13 +227,10 @@ func SetEnvValue(env []string, key, value string) []string {
 			break
 		}
 	}
-	if !replaced {
-		env = append(env, prefix+value)
-	}
+	if !replaced { env = append(env, prefix+value) }
 	return env
 }
 
-// WritePortFile writes the backend port to .port files.
 func WritePortFile(actualPort int) {
 	data := []byte(fmt.Sprintf("%d", actualPort))
 	_ = os.WriteFile(".port", data, 0644)

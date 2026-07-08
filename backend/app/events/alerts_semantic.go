@@ -114,18 +114,6 @@ var WorkspaceEscapeHints = []string{
 	"/var/run/docker.sock",
 }
 
-const (
-	SemanticSecretCorrelationTTL = 30 * time.Second
-	SemanticExecCorrelationTTL   = 30 * time.Second
-	SemanticForkWindow           = 2 * time.Second
-	SemanticForkStormThreshold   = 8
-	SemanticAgenticLoopWindow    = 10 * time.Second
-	SemanticPromptLoopThreshold  = 3
-	SemanticAPILoopThreshold     = 3
-	SemanticFileIOLoopThreshold  = 3
-	SemanticFileContentionTTL    = 15 * time.Second
-)
-
 type SemanticSecretObservation struct {
 	SeenAt time.Time
 	Target string

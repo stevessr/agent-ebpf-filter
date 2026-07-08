@@ -14,23 +14,7 @@ import (
 	"agent-ebpf-filter/pb"
 )
 
-//
 
-const (
-	kernelRiskFeedbackKindNetworkIP   = "cgroup_ip"
-	kernelRiskFeedbackKindNetworkPort = "cgroup_port"
-	kernelRiskFeedbackKindLSMFileName = "lsm_file_name"
-	kernelRiskFeedbackKindLSMExecPath = "lsm_exec_path"
-	kernelRiskFeedbackKindLSMExecName = "lsm_exec_name"
-)
-
-const (
-	KernelRiskFeedbackKindNetworkIP   = kernelRiskFeedbackKindNetworkIP
-	KernelRiskFeedbackKindNetworkPort = kernelRiskFeedbackKindNetworkPort
-	KernelRiskFeedbackKindLSMFileName = kernelRiskFeedbackKindLSMFileName
-	KernelRiskFeedbackKindLSMExecPath = kernelRiskFeedbackKindLSMExecPath
-	KernelRiskFeedbackKindLSMExecName = kernelRiskFeedbackKindLSMExecName
-)
 
 type kernelRiskFeedbackAction struct {
 	Kind     string

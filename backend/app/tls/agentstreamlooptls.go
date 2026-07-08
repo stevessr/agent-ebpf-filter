@@ -13,13 +13,6 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section agentstreamlooptls.go ----
 
-const (
-	tlsAgentLoopDefaultWindow = 30 * time.Second
-	tlsAgentLoopRepeatLimit   = 5
-	tlsAgentLoopAlertMinRisk  = 0.97
-	tlsPromptDigestBytes      = 8
-)
-
 func digestPromptText(text string) string {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {

@@ -12,13 +12,7 @@ import (
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const UDSPATH = "/tmp/agent-ebpf.sock"
-const EBPFPinRoot = "/sys/fs/bpf/agent-ebpf"
-const EBPFPinMapsDir = EBPFPinRoot + "/maps"
-const EBPFPinLinksDir = EBPFPinRoot + "/links"
 
-// FeatureDim is the number of features in the ML feature vector.
-const FeatureDim = 128
 
 // ── eBPF event ───────────────────────────────────────────────────────────────
 
@@ -60,18 +54,8 @@ type WrapperRule struct {
 // HookType distinguishes how the hook intercepts the agent CLI.
 type HookType string
 
-const (
-	HookTypeNative  HookType = "native"
-	HookTypeWrapper HookType = "wrapper"
-)
-
 // ConfigFormat defines if the config is JSON or TOML.
 type ConfigFormat string
-
-const (
-	ConfigFormatJSON ConfigFormat = "json"
-	ConfigFormatTOML ConfigFormat = "toml"
-)
 
 // HookDef describes one supported AI-CLI hook integration.
 type HookDef struct {

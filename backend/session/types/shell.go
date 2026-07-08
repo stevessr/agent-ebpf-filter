@@ -6,22 +6,6 @@ import (
 	"time"
 )
 
-const (
-	shellSessionStatusRunning = "running"
-	shellSessionStatusExited  = "exited"
-	shellSessionStatusClosed  = "closed"
-	shellSessionStatusError   = "error"
-)
-
-const shellSessionBacklogLimit = 1 << 20
-
-const (
-	shellSessionKindShell   = "shell"
-	shellSessionKindTmux    = "tmux"
-	shellSessionKindScript  = "script"
-	shellSessionKindWrapper = "wrapper"
-)
-
 type ShellSessionCreateRequest struct {
 	Shell   string            `json:"shell"`
 	Command string            `json:"command,omitempty"`
