@@ -9,17 +9,6 @@ import (
 // SensitiveDataType represents the type of sensitive data detected.
 type SensitiveDataType string
 
-const (
-	TypePrivateKey    SensitiveDataType = "private_key"
-	TypeCertificate   SensitiveDataType = "certificate"
-	TypeSSHKey        SensitiveDataType = "ssh_key"
-	TypeAPIKey        SensitiveDataType = "api_key"
-	TypeJWTToken      SensitiveDataType = "jwt_token"
-	TypePassword      SensitiveDataType = "password"
-	TypeBearerToken   SensitiveDataType = "bearer_token"
-	TypeAWSCredential SensitiveDataType = "aws_credential"
-)
-
 // SensitivePattern defines a pattern for detecting sensitive data.
 type SensitivePattern struct {
 	Type        SensitiveDataType

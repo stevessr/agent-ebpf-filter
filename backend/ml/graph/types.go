@@ -7,12 +7,6 @@ package graph
 
 import "math"
 
-// NumClasses is the number of classification outputs (ALLOW, BLOCK, REWRITE, ALERT).
-const NumClasses = 4
-
-// FeatureGroupCount is the number of semantic feature groups that become graph nodes.
-const FeatureGroupCount = 16
-
 // FeatureGroup defines a semantic grouping of features that becomes a node in the graph.
 type FeatureGroup struct {
 	Name  string
@@ -103,17 +97,6 @@ type GraphInstance struct {
 	AdjList  [][]int
 	NumNodes int
 }
-
-// ActivationFunc is the type of activation function.
-type ActivationFunc int
-
-const (
-	ActivationReLU ActivationFunc = iota
-	ActivationLeakyReLU
-	ActivationTanh
-	ActivationSigmoid
-	ActivationNone
-)
 
 // Activate applies the activation function to a value.
 func Activate(x float64, fn ActivationFunc) float64 {

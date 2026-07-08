@@ -11,22 +11,6 @@ import (
 
 type TCPState uint8
 
-const (
-	TCPStateUnknown     TCPState = 0
-	TCPStateEstablished TCPState = 1
-	TCPStateSynSent     TCPState = 2
-	TCPStateSynRecv     TCPState = 3
-	TCPStateFinWait1    TCPState = 4
-	TCPStateFinWait2    TCPState = 5
-	TCPStateTimeWait    TCPState = 6
-	TCPStateClose       TCPState = 7
-	TCPStateCloseWait   TCPState = 8
-	TCPStateLastAck     TCPState = 9
-	TCPStateListen      TCPState = 10
-	TCPStateClosing     TCPState = 11
-	TCPStateClosed      TCPState = 12
-)
-
 var tcpStateDisplayNames = map[TCPState]string{
 	TCPStateUnknown:     "UNKNOWN",
 	TCPStateEstablished: "ESTABLISHED",

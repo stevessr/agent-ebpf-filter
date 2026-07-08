@@ -9,24 +9,6 @@ import (
 
 type IPScope string
 
-const (
-	ScopePublic        IPScope = "Public"
-	ScopeLoopback      IPScope = "Loopback"
-	ScopePrivate       IPScope = "Private"
-	ScopeLinkLocal     IPScope = "Link-Local"
-	ScopeCGNAT         IPScope = "CGNAT"
-	ScopeMulticast     IPScope = "Multicast"
-	ScopeBroadcast     IPScope = "Broadcast"
-	ScopeDocumentation IPScope = "Documentation"
-	ScopeBenchmarking  IPScope = "Benchmarking"
-	ScopeUnspecified   IPScope = "Unspecified"
-	ScopeReserved      IPScope = "Reserved"
-	ScopeUniqueLocal   IPScope = "Unique-Local"
-	ScopeDiscard       IPScope = "Discard"
-	ScopeIPv4Mapped    IPScope = "IPv4-Mapped"
-	ScopeUnknown       IPScope = "Unknown"
-)
-
 func ClassifyIPScope(ip net.IP) IPScope {
 	if ip == nil {
 		return ScopeUnknown

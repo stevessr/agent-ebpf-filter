@@ -201,22 +201,6 @@ func findCRLF(data []byte) int {
 
 type AppProtocol string
 
-const (
-	AppProtoTLS     AppProtocol = "TLS"
-	AppProtoHTTP    AppProtocol = "HTTP"
-	AppProtoSSH     AppProtocol = "SSH"
-	AppProtoDNS     AppProtocol = "DNS"
-	AppProtoQUIC    AppProtocol = "QUIC"
-	AppProtoDHCP    AppProtocol = "DHCP"
-	AppProtomDNS    AppProtocol = "mDNS"
-	AppProtoLLMNR   AppProtocol = "LLMNR"
-	AppProtoSSDP    AppProtocol = "SSDP"
-	AppProtoNTP     AppProtocol = "NTP"
-	AppProtoSNMP    AppProtocol = "SNMP"
-	AppProtoNetBIOS AppProtocol = "NetBIOS"
-	AppProtoUnknown AppProtocol = "Unknown"
-)
-
 func FingerprintProtocol(data []byte, dport uint32) AppProtocol {
 	if len(data) < 4 {
 		return AppProtoUnknown
