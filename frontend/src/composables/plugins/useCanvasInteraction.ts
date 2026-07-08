@@ -1,6 +1,7 @@
 import { onBeforeUnmount, ref, useTemplateRef } from "vue";
 import type {
   VisualFlowNodeId,
+  VisualNodeLayout,
   VisualWireId,
 } from "../../components/plugins/types";
 import {
@@ -18,6 +19,7 @@ import {
 export interface UseCanvasInteractionEmit {
   (e: "update:selectedNodeId", value: VisualFlowNodeId): void;
   (e: "update:wireStates", value: Record<VisualWireId, boolean>): void;
+  (e: "update:nodeLayout", value: VisualNodeLayout): void;
   (
     e: "drop-node-type",
     value: { category: string; value: string; x: number; y: number },
@@ -149,7 +151,7 @@ export function useCanvasInteraction(opts: () => UseCanvasInteractionOptions) {
         y: o.snapNodeY(event.clientY - rect.top - dragging.value.offsetY),
       },
     };
-    return next;
+    o.emit("update:nodeLayout", next);
   };
 
   const stopDragging = () => {

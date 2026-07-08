@@ -124,9 +124,11 @@ const emit = defineEmits<{
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px;
-  background: #f0f7ff;
+  background: #e8f0fe;
+  color: #0f172a;
   font-size: 13px;
   font-weight: 600;
+  border-bottom: 1px solid #d6e4ff;
 }
 
 .logger-body {
@@ -137,6 +139,7 @@ const emit = defineEmits<{
   line-height: 1.6;
   max-height: 260px;
   overflow: auto;
+  background: #f8fbff;
 }
 
 .action-footer {

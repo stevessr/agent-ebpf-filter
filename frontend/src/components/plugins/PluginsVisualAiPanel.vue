@@ -143,7 +143,7 @@ const generateFromPrompt = () => handleAiGenerate(localPrompt.value);
 .block-body {
   background: #ffffff;
   padding: 18px;
-  color: #94a3b8;
+  color: #475569;
 }
 .desc-line {
   font-size: 13px;
@@ -165,14 +165,14 @@ const generateFromPrompt = () => handleAiGenerate(localPrompt.value);
 }
 .ai-prompts-examples {
   font-size: 11px;
-  color: #64748b;
+  color: #475569;
 }
 .example-tag {
   cursor: pointer;
   margin-right: 4px;
   background-color: #e6f4ff !important;
   border-color: #91caff !important;
-  color: #d3adf7 !important;
+  color: #0958d9 !important;
   transition: all 0.2s ease;
 }
 .example-tag:hover {

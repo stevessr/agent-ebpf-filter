@@ -103,7 +103,7 @@ export const DEFAULT_WIRE_STATES: Record<VisualWireId, boolean> = {
 };
 
 export const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.min(min, value));
+  Math.max(min, Math.min(max, value));
 
 export const snapToGrid = (value: number) =>
   Math.round(value / GRID_SIZE) * GRID_SIZE;

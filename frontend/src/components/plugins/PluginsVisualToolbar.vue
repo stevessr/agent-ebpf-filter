@@ -234,10 +234,8 @@ const recipePanel = useFloatingPanel({
   padding: 10px;
   border: 1px solid var(--workflow-border);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.94);
+  background: #ffffff;
   box-shadow: var(--workflow-shadow);
-  backdrop-filter: blur(14px);
-  --node-library-panel-exit-x: calc(-100% - 24px);
   --node-library-edge-button-hover: -4px;
   transition:
     left 0.18s ease,

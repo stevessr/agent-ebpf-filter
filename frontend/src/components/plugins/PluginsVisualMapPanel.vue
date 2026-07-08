@@ -97,7 +97,7 @@ const localLimit = computed({
         <a-col
           :span="13"
           style="
-            border-left: 1px dashed rgba(255, 255, 255, 0.1);
+            border-left: 1px dashed #d6e4ff;
             padding-left: 16px;
           "
         >

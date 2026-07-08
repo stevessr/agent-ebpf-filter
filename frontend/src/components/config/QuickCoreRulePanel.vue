@@ -290,7 +290,7 @@ const handleLoadPlugin = async () => {
               </div>
               <div>
                 <strong>简介：</strong>
-                <span style="font-size: 12px; color: #666">{{
+                <span style="font-size: 12px; color: #4a4a4a">{{
                   currentConfig.description
                 }}</span>
               </div>
@@ -413,7 +413,7 @@ const handleLoadPlugin = async () => {
 <style scoped>
 .helper-text {
   font-size: 12px;
-  color: #8c8c8c;
+  color: #595959;
   margin-top: 4px;
   display: block;
 }
@@ -439,20 +439,20 @@ const handleLoadPlugin = async () => {
   margin: 0;
 }
 .code-editor-preview code {
-  color: #9cdcfe;
+  color: #e4e4e7;
   font-family: "Consolas", monospace;
   font-size: 12px;
 }
 .compilation-logger {
-  background: #141414;
-  border: 1px solid #d9d9d9;
+  background: #1a1a2e;
+  border: 1px solid #333;
   border-radius: 6px;
   overflow: hidden;
 }
 .logger-header {
-  background: #262626;
+  background: #16213e;
   padding: 6px 12px;
-  color: #fafafa;
+  color: #e4e4e7;
   font-size: 13px;
   display: flex;
   justify-content: space-between;
@@ -463,8 +463,8 @@ const handleLoadPlugin = async () => {
   padding: 12px;
   max-height: 200px;
   overflow: auto;
-  color: #52c41a;
-  background: #000;
+  color: #a3e635;
+  background: #0f0f23;
   font-family: "Consolas", monospace;
   font-size: 12px;
   white-space: pre-wrap;
