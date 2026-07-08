@@ -1,7 +1,9 @@
 package app
 
 import (
+	"agent-ebpf-filter/app/runtime"
 	"agent-ebpf-filter/app/tls"
+	internal_sandbox "agent-ebpf-filter/internal/sandbox"
 	"context"
 	"fmt"
 	"log"
@@ -56,7 +58,7 @@ func Main() {
 	}
 	defer otelExporterStore.Close()
 
-	killPreviousBackendProcesses()
+	runtime.KillPreviousBackendProcesses()
 
 	initRedactionEngine()
 
@@ -88,7 +90,7 @@ func Main() {
 	startKernelEventReader(rd)
 	startRuntimeBackgroundJobs(features)
 
-	ApplySandbox()
+	internal_sandbox.Apply()
 
 	r := gin.Default()
 	r.Use(clusterGatewayMiddleware())
