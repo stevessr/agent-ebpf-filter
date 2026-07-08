@@ -117,6 +117,9 @@ func startEventBroadcaster() {
 		}
 
 		appendRecord := func(record CapturedEventRecord) {
+			// Apply redaction before broadcast
+			redactEvent(record.Event, globalRedactionEngine)
+			redactEnvelopeEvent(record.Envelope, globalRedactionEngine)
 			if record.Event != nil {
 				eventBatch = append(eventBatch, record.Event)
 			}
@@ -274,7 +277,7 @@ func recentEventRecordMatches(record CapturedEventRecord, filters recentEventFil
 }
 
 func envelopeEventTypeName(envelope *pb.EventEnvelope, event *pb.Event) string {
-	if envelope != nil && envelope.GetEventType().String() != "" {
+	if envelope != nil && envelope.GetEventType() != pb.EventType_EVENT_TYPE_UNSPECIFIED {
 		return envelope.GetEventType().String()
 	}
 	if event != nil {

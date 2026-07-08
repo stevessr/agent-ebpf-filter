@@ -159,6 +159,13 @@ func (e *RedactionEngine) RedactEvent(evt interface{}) (interface{}, error) {
 	return result, nil
 }
 
+// PolicyLevel returns the current redaction level.
+func (e *RedactionEngine) PolicyLevel() RedactionLevel {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.policy.Level
+}
+
 func (e *RedactionEngine) isExcluded(category FieldCategory) bool {
 	e.mu.RLock()
 	_, ok := e.excludeSet[category]

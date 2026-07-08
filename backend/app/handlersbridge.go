@@ -806,6 +806,7 @@ func handleConfigImportPost(c *gin.Context)      { handlers.HandleConfigImportPo
 func handleConfigRuntimeGet(c *gin.Context)      { handlers.HandleConfigRuntimeGet(c) }
 func handleConfigRuntimePut(c *gin.Context)      { handlers.HandleConfigRuntimePut(c) }
 func handleConfigAccessTokenPost(c *gin.Context) { handlers.HandleConfigAccessTokenPost(c) }
+// handleConfigRedactionPolicyGet/Put are defined in handlersredaction.go (app package)
 
 func registerSystemRoutes(rg *gin.RouterGroup, _ ...*FeatureRegistry) {
 	syncHandlerDeps()

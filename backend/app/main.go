@@ -58,6 +58,8 @@ func Main() {
 
 	killPreviousBackendProcesses()
 
+	initRedactionEngine()
+
 	if err := ensureTrackerMapsLoaded(); err != nil {
 		log.Fatalf("failed to initialize eBPF components: %v", err)
 	}

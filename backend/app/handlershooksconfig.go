@@ -35,9 +35,11 @@ func registerConfigRoutes(rg *gin.RouterGroup, features *FeatureRegistry) {
 	rg.PUT("/runtime", handleConfigRuntimePut)
 	rg.POST("/access-token", handleConfigAccessTokenPost)
 	rg.GET("/export", handleConfigExportGet)
-	rg.POST("/import", policyMiddleware, handleConfigImportPost)
+		rg.POST("/import", policyMiddleware, handleConfigImportPost)
+		rg.GET("/redaction-policy", handleConfigRedactionPolicyGet)
+		rg.PUT("/redaction-policy", policyMiddleware, handleConfigRedactionPolicyPut)
 
-	if features.CompiledIn(FeatureML) {
+		if features.CompiledIn(FeatureML) {
 		ml := rg.Group("/ml")
 		{
 			ml.GET("/status", handleMLStatusGet)

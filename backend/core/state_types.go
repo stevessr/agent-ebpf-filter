@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"agent-ebpf-filter/pb"
+	"agent-ebpf-filter/redaction"
 )
 
 // ── Runtime settings ─────────────────────────────────────────────────────────
@@ -32,6 +33,7 @@ type RuntimeSettings struct {
 	ResearchProcessing      ResearchProcessingSettings `json:"researchProcessing,omitempty"`
 	SignalProcessing        SignalProcessingSettings   `json:"signalProcessing,omitempty"`
 	DomainForwardProxy      DomainForwardProxySettings `json:"domainForwardProxy"`
+	RedactionPolicy         redaction.RedactionPolicy  `json:"redaction,omitempty"`
 }
 
 // KernelRiskFeedbackSettings controls the optional closed loop from user-space
