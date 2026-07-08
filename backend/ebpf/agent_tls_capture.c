@@ -14,6 +14,7 @@ char LICENSE[] SEC("license") = "GPL";
 #define TLS_LIB_GO 1
 #define TLS_LIB_GNUTLS 2
 #define TLS_LIB_NSS 3
+#define TLS_LIB_RUSTLS 4 // rustls (static-pie Rust binaries: codex, cursor)
 
 #define TLS_DIR_RECV 0
 #define TLS_DIR_SEND 1
@@ -31,6 +32,7 @@ char LICENSE[] SEC("license") = "GPL";
 #define TLS_FUNC_GO_CONN_WRITE 9
 #define TLS_FUNC_GO_CONN_READ 10
 #define TLS_FUNC_SSL_WRITE_EX2 11
+#define TLS_FUNC_RUSTLS_ENCRYPT_OUTGOING 12 // send: rustls encrypt_outgoing
 
 struct tls_fragment {
 	__u64 timestamp_ns;
@@ -396,4 +398,72 @@ int uretprobe_crypto_tls_conn_read(struct pt_regs *ctx)
 		return 0;
 	}
 	return emit_retprobe_payload(ctx, (__u32)ret);
+}
+
+// ---- rustls (static-pie Rust binaries: codex, cursor) ----
+//
+// rustls encrypts TLS records internally. The plaintext-touching function is
+// `RecordLayer::encrypt_outgoing(&mut self, plain: OutboundPlainMessage)`
+// (rustls/src/record_layer.rs). It returns `OutboundOpaqueMessage` by value,
+// so the System V AMD64 ABI uses sret (return pointer in PARM1):
+//
+//   rdi = &OutboundOpaqueMessage  (sret return slot, caller-allocated)
+//   rsi = &mut self               (RecordLayer)
+//   rdx = &OutboundPlainMessage   (borrowed, on the caller's stack)
+//
+// OutboundPlainMessage {
+//   typ: ContentType (u8),
+//   version: ProtocolVersion (u16),
+//   payload: OutboundChunks,
+// }
+//
+// OutboundChunks is an enum:
+//   Single(&[u8])   -> discriminant 0, then slice { ptr, len }
+//   Multiple { .. } -> discriminant 1
+//
+// From the codex 0.142 disassembly, the compiler lays out the borrowed
+// OutboundPlainMessage (Single variant, application-data path) as:
+//
+//   +0x00: u64  discriminant (0 = Single)
+//   +0x08: *const u8  plaintext slice pointer
+//   +0x10: usize      plaintext slice length
+//   +0x20: u16  version
+//   +0x22: u8   typ
+//
+// Verified from the caller (`ConnectionCommon` encrypt path at 0x7bef680):
+//   mov %r12, 0x30(%rsp)   ; +0x08 = ptr (within the rsp+0x28 OPM base)
+//   mov %rcx, 0x38(%rsp)   ; +0x10 = len
+//   mov %ax,  0x48(%rsp)   ; +0x20 = version
+//   mov %eax, 0x4a(%rsp)   ; +0x22 = typ
+//   lea 0x28(%rsp), %rdx   ; rdx = &OPM
+//   call encrypt_outgoing
+//
+// This uprobe fires once per TLS record being encrypted — i.e. per outbound
+// plaintext fragment. We dereference the borrowed OutboundPlainMessage (in
+// PARM3 = rdx) via bpf_probe_read_user and emit the plaintext slice.
+SEC("uprobe/rustls_encrypt_outgoing")
+int uprobe_rustls_encrypt_outgoing(struct pt_regs *ctx)
+{
+#if defined(__TARGET_ARCH_x86)
+	// rdx (PARM3) = &OutboundPlainMessage. PT_REGS_PARM3 is correct for the
+	// SysV ABI; encrypt_outgoing's sret return does not shift the parameter
+	// registers (the return pointer occupies PARM1, self=PARM2, plain=PARM3).
+	const void *opm = (const void *)PT_REGS_PARM3(ctx);
+
+	// OutboundPlainMessage (Single-variant layout, as built by the caller):
+	//   +0x00: u64 discriminant (0 = Single)
+	//   +0x08: *const u8  plaintext slice pointer
+	//   +0x10: usize      plaintext slice length
+	__u64 ptr = 0, len = 0;
+	if (bpf_probe_read_user(&ptr, sizeof(ptr), (const void *)((const char *)opm + 0x08)) < 0) {
+		return 0;
+	}
+	if (bpf_probe_read_user(&len, sizeof(len), (const void *)((const char *)opm + 0x10)) < 0) {
+		return 0;
+	}
+	return emit_tls_fragment(ctx, (const void *)ptr, (__u32)len,
+		TLS_LIB_RUSTLS, TLS_DIR_SEND, TLS_FUNC_RUSTLS_ENCRYPT_OUTGOING);
+#else
+	return 0;
+#endif
 }

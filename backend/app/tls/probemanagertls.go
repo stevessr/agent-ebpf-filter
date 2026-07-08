@@ -530,6 +530,10 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 	log.Printf("[tls] AttachExecutable: BoringSSL detection also failed for %s", attachPath)
 
 	// Try rustls offset detection for Rust binaries (Codex, Cursor, etc.)
+	// NOTE: This uses heuristic byte-pattern matching and may fail on:
+	// - Heavily optimized or stripped binaries (e.g., codex 0.142.5+)
+	// - Rustls versions with different code generation patterns
+	// - Static-pie executables with complex inlining
 	if err := m.AttachRustlsUprobes(attachPath, pid); err == nil {
 		log.Printf("[tls] AttachExecutable: rustls uprobes attached to %s (pid=%d)", attachPath, pid)
 		result.TargetKind = "static-ssl"
@@ -542,7 +546,13 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		m.mu.Unlock()
 		return result
 	}
-	log.Printf("[tls] AttachExecutable: rustls not found in %s (non-Rust binary or unrecognized pattern)", attachPath)
+	log.Printf("[tls] AttachExecutable: rustls pattern matching failed for %s (stripped binary or unsupported rustls version)", attachPath)
+	// Check if this looks like a Rust binary via .rodata strings
+	if hasRustlsStrings(attachPath) {
+		log.Printf("[tls] AttachExecutable: %s contains rustls strings but offset detection failed — byte-pattern heuristics need improvement", attachPath)
+		// Fall through to dynamic library attempt (which will also fail for static binaries)
+		// but at least we've diagnosed the situation clearly.
+	}
 
 	// Dump binary symbols for diagnosis
 	dumpCandidateTLSSymbols(attachPath)
@@ -857,6 +867,8 @@ func libTypeName(lib uint8) string {
 		return "gnutls"
 	case tlsLibNSS:
 		return "nss"
+	case tlsLibRustls:
+		return "rustls"
 	default:
 		return "unknown"
 	}
@@ -1317,9 +1329,6 @@ func tlsFuncName(fn uint8) string {
 }
 
 func (m *TLSProbeManager) Close() error {
-	if m == nil {
-		return nil
-	}
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
@@ -1365,6 +1374,7 @@ func programByName(programs *bpf.AgentTlsCapturePrograms, name string) (*ebpf.Pr
 		"uprobe_ssl_write":               programs.UprobeSslWrite,
 		"uprobe_ssl_write_ex":            programs.UprobeSslWriteEx,
 		"uprobe_ssl_write_ex2":           programs.UprobeSslWriteEx2,
+		"uprobe_rustls_encrypt_outgoing": programs.UprobeRustlsEncryptOutgoing,
 		"uretprobe_ssl_write_ex2":        programs.UretprobeSslWriteEx2,
 		"uretprobe_crypto_tls_conn_read": programs.UretprobeCryptoTlsConnRead,
 		"uretprobe_gnutls_record_recv":   programs.UretprobeGnutlsRecordRecv,

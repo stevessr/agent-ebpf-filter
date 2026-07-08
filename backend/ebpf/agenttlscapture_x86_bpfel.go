@@ -85,24 +85,25 @@ type AgentTlsCaptureSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type AgentTlsCaptureProgramSpecs struct {
-	UprobeCryptoTlsConnRead    *ebpf.ProgramSpec `ebpf:"uprobe_crypto_tls_conn_read"`
-	UprobeCryptoTlsConnWrite   *ebpf.ProgramSpec `ebpf:"uprobe_crypto_tls_conn_write"`
-	UprobeGnutlsRecordRecv     *ebpf.ProgramSpec `ebpf:"uprobe_gnutls_record_recv"`
-	UprobeGnutlsRecordSend     *ebpf.ProgramSpec `ebpf:"uprobe_gnutls_record_send"`
-	UprobePrRead               *ebpf.ProgramSpec `ebpf:"uprobe_pr_read"`
-	UprobePrWrite              *ebpf.ProgramSpec `ebpf:"uprobe_pr_write"`
-	UprobeSslRead              *ebpf.ProgramSpec `ebpf:"uprobe_ssl_read"`
-	UprobeSslReadEx            *ebpf.ProgramSpec `ebpf:"uprobe_ssl_read_ex"`
-	UprobeSslWrite             *ebpf.ProgramSpec `ebpf:"uprobe_ssl_write"`
-	UprobeSslWriteEx           *ebpf.ProgramSpec `ebpf:"uprobe_ssl_write_ex"`
-	UprobeSslWriteEx2          *ebpf.ProgramSpec `ebpf:"uprobe_ssl_write_ex2"`
-	UretprobeCryptoTlsConnRead *ebpf.ProgramSpec `ebpf:"uretprobe_crypto_tls_conn_read"`
-	UretprobeGnutlsRecordRecv  *ebpf.ProgramSpec `ebpf:"uretprobe_gnutls_record_recv"`
-	UretprobePrRead            *ebpf.ProgramSpec `ebpf:"uretprobe_pr_read"`
-	UretprobeSslRead           *ebpf.ProgramSpec `ebpf:"uretprobe_ssl_read"`
-	UretprobeSslReadEx         *ebpf.ProgramSpec `ebpf:"uretprobe_ssl_read_ex"`
-	UretprobeSslWriteEx        *ebpf.ProgramSpec `ebpf:"uretprobe_ssl_write_ex"`
-	UretprobeSslWriteEx2       *ebpf.ProgramSpec `ebpf:"uretprobe_ssl_write_ex2"`
+	UprobeCryptoTlsConnRead     *ebpf.ProgramSpec `ebpf:"uprobe_crypto_tls_conn_read"`
+	UprobeCryptoTlsConnWrite    *ebpf.ProgramSpec `ebpf:"uprobe_crypto_tls_conn_write"`
+	UprobeGnutlsRecordRecv      *ebpf.ProgramSpec `ebpf:"uprobe_gnutls_record_recv"`
+	UprobeGnutlsRecordSend      *ebpf.ProgramSpec `ebpf:"uprobe_gnutls_record_send"`
+	UprobePrRead                *ebpf.ProgramSpec `ebpf:"uprobe_pr_read"`
+	UprobePrWrite               *ebpf.ProgramSpec `ebpf:"uprobe_pr_write"`
+	UprobeRustlsEncryptOutgoing *ebpf.ProgramSpec `ebpf:"uprobe_rustls_encrypt_outgoing"`
+	UprobeSslRead               *ebpf.ProgramSpec `ebpf:"uprobe_ssl_read"`
+	UprobeSslReadEx             *ebpf.ProgramSpec `ebpf:"uprobe_ssl_read_ex"`
+	UprobeSslWrite              *ebpf.ProgramSpec `ebpf:"uprobe_ssl_write"`
+	UprobeSslWriteEx            *ebpf.ProgramSpec `ebpf:"uprobe_ssl_write_ex"`
+	UprobeSslWriteEx2           *ebpf.ProgramSpec `ebpf:"uprobe_ssl_write_ex2"`
+	UretprobeCryptoTlsConnRead  *ebpf.ProgramSpec `ebpf:"uretprobe_crypto_tls_conn_read"`
+	UretprobeGnutlsRecordRecv   *ebpf.ProgramSpec `ebpf:"uretprobe_gnutls_record_recv"`
+	UretprobePrRead             *ebpf.ProgramSpec `ebpf:"uretprobe_pr_read"`
+	UretprobeSslRead            *ebpf.ProgramSpec `ebpf:"uretprobe_ssl_read"`
+	UretprobeSslReadEx          *ebpf.ProgramSpec `ebpf:"uretprobe_ssl_read_ex"`
+	UretprobeSslWriteEx         *ebpf.ProgramSpec `ebpf:"uretprobe_ssl_write_ex"`
+	UretprobeSslWriteEx2        *ebpf.ProgramSpec `ebpf:"uretprobe_ssl_write_ex2"`
 }
 
 // AgentTlsCaptureMapSpecs contains maps before they are loaded into the kernel.
@@ -168,24 +169,25 @@ type AgentTlsCaptureVariables struct {
 //
 // It can be passed to LoadAgentTlsCaptureObjects or ebpf.CollectionSpec.LoadAndAssign.
 type AgentTlsCapturePrograms struct {
-	UprobeCryptoTlsConnRead    *ebpf.Program `ebpf:"uprobe_crypto_tls_conn_read"`
-	UprobeCryptoTlsConnWrite   *ebpf.Program `ebpf:"uprobe_crypto_tls_conn_write"`
-	UprobeGnutlsRecordRecv     *ebpf.Program `ebpf:"uprobe_gnutls_record_recv"`
-	UprobeGnutlsRecordSend     *ebpf.Program `ebpf:"uprobe_gnutls_record_send"`
-	UprobePrRead               *ebpf.Program `ebpf:"uprobe_pr_read"`
-	UprobePrWrite              *ebpf.Program `ebpf:"uprobe_pr_write"`
-	UprobeSslRead              *ebpf.Program `ebpf:"uprobe_ssl_read"`
-	UprobeSslReadEx            *ebpf.Program `ebpf:"uprobe_ssl_read_ex"`
-	UprobeSslWrite             *ebpf.Program `ebpf:"uprobe_ssl_write"`
-	UprobeSslWriteEx           *ebpf.Program `ebpf:"uprobe_ssl_write_ex"`
-	UprobeSslWriteEx2          *ebpf.Program `ebpf:"uprobe_ssl_write_ex2"`
-	UretprobeCryptoTlsConnRead *ebpf.Program `ebpf:"uretprobe_crypto_tls_conn_read"`
-	UretprobeGnutlsRecordRecv  *ebpf.Program `ebpf:"uretprobe_gnutls_record_recv"`
-	UretprobePrRead            *ebpf.Program `ebpf:"uretprobe_pr_read"`
-	UretprobeSslRead           *ebpf.Program `ebpf:"uretprobe_ssl_read"`
-	UretprobeSslReadEx         *ebpf.Program `ebpf:"uretprobe_ssl_read_ex"`
-	UretprobeSslWriteEx        *ebpf.Program `ebpf:"uretprobe_ssl_write_ex"`
-	UretprobeSslWriteEx2       *ebpf.Program `ebpf:"uretprobe_ssl_write_ex2"`
+	UprobeCryptoTlsConnRead     *ebpf.Program `ebpf:"uprobe_crypto_tls_conn_read"`
+	UprobeCryptoTlsConnWrite    *ebpf.Program `ebpf:"uprobe_crypto_tls_conn_write"`
+	UprobeGnutlsRecordRecv      *ebpf.Program `ebpf:"uprobe_gnutls_record_recv"`
+	UprobeGnutlsRecordSend      *ebpf.Program `ebpf:"uprobe_gnutls_record_send"`
+	UprobePrRead                *ebpf.Program `ebpf:"uprobe_pr_read"`
+	UprobePrWrite               *ebpf.Program `ebpf:"uprobe_pr_write"`
+	UprobeRustlsEncryptOutgoing *ebpf.Program `ebpf:"uprobe_rustls_encrypt_outgoing"`
+	UprobeSslRead               *ebpf.Program `ebpf:"uprobe_ssl_read"`
+	UprobeSslReadEx             *ebpf.Program `ebpf:"uprobe_ssl_read_ex"`
+	UprobeSslWrite              *ebpf.Program `ebpf:"uprobe_ssl_write"`
+	UprobeSslWriteEx            *ebpf.Program `ebpf:"uprobe_ssl_write_ex"`
+	UprobeSslWriteEx2           *ebpf.Program `ebpf:"uprobe_ssl_write_ex2"`
+	UretprobeCryptoTlsConnRead  *ebpf.Program `ebpf:"uretprobe_crypto_tls_conn_read"`
+	UretprobeGnutlsRecordRecv   *ebpf.Program `ebpf:"uretprobe_gnutls_record_recv"`
+	UretprobePrRead             *ebpf.Program `ebpf:"uretprobe_pr_read"`
+	UretprobeSslRead            *ebpf.Program `ebpf:"uretprobe_ssl_read"`
+	UretprobeSslReadEx          *ebpf.Program `ebpf:"uretprobe_ssl_read_ex"`
+	UretprobeSslWriteEx         *ebpf.Program `ebpf:"uretprobe_ssl_write_ex"`
+	UretprobeSslWriteEx2        *ebpf.Program `ebpf:"uretprobe_ssl_write_ex2"`
 }
 
 func (p *AgentTlsCapturePrograms) Close() error {
@@ -196,6 +198,7 @@ func (p *AgentTlsCapturePrograms) Close() error {
 		p.UprobeGnutlsRecordSend,
 		p.UprobePrRead,
 		p.UprobePrWrite,
+		p.UprobeRustlsEncryptOutgoing,
 		p.UprobeSslRead,
 		p.UprobeSslReadEx,
 		p.UprobeSslWrite,

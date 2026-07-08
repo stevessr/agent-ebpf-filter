@@ -13,6 +13,7 @@ const tlsLibOpenSSL = 0
 const tlsLibGo = 1
 const tlsLibGnuTLS = 2
 const tlsLibNSS = 3
+const tlsLibRustls = 4 // rustls (Rust static-pie binaries: codex, cursor) — captured via offset uprobe
 
 const tlsDirectionRecv = 0
 const tlsDirectionSend = 1

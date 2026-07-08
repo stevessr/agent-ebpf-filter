@@ -159,11 +159,16 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 
 		// Codex: Rust 二进制，使用 rustls 偏移量
 		if isCodex {
-			if err := m.AttachRustlsUprobes(binPath, pid); err != nil {
-				m.forgetGoBinaryAttach(binPath, pid)
+			if err := m.AttachRustlsUprobes(binPath, pid); err == nil {
 				if m.store != nil {
-					m.store.SetLibraryStatus(TLSLibraryStatus{Name: "Codex (rustls)", Path: binPath, Attached: false, Available: true, Error: err.Error()})
+					m.store.SetLibraryStatus(TLSLibraryStatus{Name: "Codex (rustls)", Path: binPath, Attached: true, Available: true})
 				}
+				continue
+			}
+			// rustls uprobe offset detection failed (stripped binary).
+			m.forgetGoBinaryAttach(binPath, pid)
+			if m.store != nil {
+				m.store.SetLibraryStatus(TLSLibraryStatus{Name: "Codex (rustls)", Path: binPath, Attached: false, Available: true, Error: "rustls offset detection failed (stripped binary)"})
 			}
 		}
 	}

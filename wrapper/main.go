@@ -10,15 +10,29 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"agent-ebpf-filter/pb"
+
 	"google.golang.org/protobuf/proto"
 )
 
 const udsPath = "/tmp/agent-ebpf.sock"
+
+// isCodexSH 快速检查二进制是否为 codex sh 包装脚本
+func isCodexSH(cmdName, binPath string) bool {
+	if cmdName != "codex" && cmdName != "codex.exe" {
+		return false
+	}
+	data, err := os.ReadFile(binPath)
+	if err != nil || len(data) < 2 || data[0] != '#' || data[1] != '!' {
+		return false
+	}
+	return strings.Contains(string(data), "codex.js")
+}
 
 func main() {
 	var (
@@ -52,6 +66,15 @@ func main() {
 	// Resolve binary path before connecting and before exec.LookPath
 	binPath, _ := exec.LookPath(cmdName)
 
+	// For codex (pnpm sh script → node → spawn native binary),
+	// resolve the actual musl static rustls binary so backend can
+	// identify it for TLS uprobe attach / discovery.
+	if isCodexSH(cmdName, binPath) {
+		if native, err := resolveCodexNativeBinary(binPath); err == nil {
+			binPath = native
+		}
+	}
+
 	conn, err := net.DialTimeout("unix", udsPath, 500*time.Millisecond)
 	if err == nil {
 		defer conn.Close()
@@ -77,8 +100,8 @@ func main() {
 			RiskScore:      parseEnvFloat64("AGENT_EBPF_RISK_SCORE", "AGENT_RISK_SCORE"),
 			ContainerId:    firstEnv("AGENT_EBPF_CONTAINER_ID", "CONTAINER_ID"),
 			Cwd:            firstNonEmpty(*launchCwd, firstEnv("AGENT_EBPF_CWD", "PWD"), cwd),
-				BinaryPath:     binPath,
-				Observer:       *observerMode,
+			BinaryPath:     binPath,
+			Observer:       *observerMode,
 		}
 		req.ArgvDigest = buildArgvDigest(req.Comm, req.Args)
 
@@ -231,4 +254,138 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// resolveCodexNativeBinary traces pnpm shell wrapper → codex.js → native musl rustls binary.
+// codex is a pnpm shim: `exec node codex.js`, which spawns vendor/<triple>/bin/codex.
+// Returns the native binary path for rustls uprobe attachment.
+func resolveCodexNativeBinary(shellScriptPath string) (string, error) {
+	// Read shell wrapper to extract codex.js path
+	content, err := os.ReadFile(shellScriptPath)
+	if err != nil {
+		return "", fmt.Errorf("read shell script: %w", err)
+	}
+
+	// Parse: exec node "$basedir/../global/v11/.../codex.js" "$@"
+	lines := strings.Split(string(content), "\n")
+	var codexJSPath string
+	for _, line := range lines {
+		if strings.Contains(line, "codex.js") && (strings.Contains(line, "exec") || strings.Contains(line, "node")) {
+			// Extract path from: exec "$basedir/node" "$basedir/../global/.../codex.js" "$@"
+			parts := strings.Fields(line)
+			for _, part := range parts {
+				if strings.Contains(part, "codex.js") {
+					// Strip quotes and resolve relative to shell script dir
+					codexJSPath = strings.Trim(part, `"'`)
+					break
+				}
+			}
+			break
+		}
+	}
+
+	if codexJSPath == "" {
+		return "", fmt.Errorf("codex.js path not found in shell wrapper")
+	}
+
+	// Resolve relative paths like $basedir/../global/... → absolute path
+	// codexJSPath may contain $basedir or be relative
+	shellDir := filepath.Dir(shellScriptPath)
+	if strings.Contains(codexJSPath, "$basedir") {
+		codexJSPath = strings.ReplaceAll(codexJSPath, "$basedir", shellDir)
+	}
+	if !filepath.IsAbs(codexJSPath) {
+		codexJSPath = filepath.Join(shellDir, codexJSPath)
+	}
+	codexJSPath = filepath.Clean(codexJSPath)
+
+	// codex.js lives at: .../node_modules/@openai/codex/bin/codex.js
+	// Native binary: .../node_modules/@openai/codex/vendor/<triple>/bin/codex
+	codexPkgDir := filepath.Dir(filepath.Dir(codexJSPath)) // .../node_modules/@openai/codex
+
+	// Determine target triple for current platform
+	var targetTriple string
+	switch {
+	case strings.Contains(string(content), "x86_64-unknown-linux-musl"):
+		targetTriple = "x86_64-unknown-linux-musl"
+	case strings.Contains(string(content), "aarch64-unknown-linux-musl"):
+		targetTriple = "aarch64-unknown-linux-musl"
+	default:
+		// Fallback: detect from uname
+		output, _ := exec.Command("uname", "-m").Output()
+		arch := strings.TrimSpace(string(output))
+		switch arch {
+		case "x86_64":
+			targetTriple = "x86_64-unknown-linux-musl"
+		case "aarch64":
+			targetTriple = "aarch64-unknown-linux-musl"
+		default:
+			return "", fmt.Errorf("unsupported architecture: %s", arch)
+		}
+	}
+
+	// Try vendor dir first (for platform-specific packages like 0.142.5-linux-x64)
+	vendorBinary := filepath.Join(codexPkgDir, "vendor", targetTriple, "bin", "codex")
+	if _, err := os.Stat(vendorBinary); err == nil {
+		return vendorBinary, nil
+	}
+
+	// Fallback: the native binary lives in a separate platform package inside the
+	// pnpm content-addressable store. Walk up from codexPkgDir to find the pnpm
+	// root (the ancestor that contains store/v11/links), then glob the store for
+	// the matching -linux-x64 vendor binary.
+	if pnpmRoot := findPnpmRoot(codexPkgDir); pnpmRoot != "" {
+		// Try to extract version from package.json to precisely match the platform package
+		version := extractCodexVersion(codexPkgDir)
+		if version != "" {
+			// Try exact version match first (e.g., 0.142.5-linux-x64)
+			exactPattern := filepath.Join(pnpmRoot, "store", "v11", "links", "@openai", "codex", version+"-linux-x64", "*", "node_modules", "@openai", "codex", "vendor", targetTriple, "bin", "codex")
+			if matches, _ := filepath.Glob(exactPattern); len(matches) > 0 {
+				return matches[0], nil
+			}
+		}
+		// Fallback: glob all -linux-x64 packages and return lexically last (usually newest)
+		storePattern := filepath.Join(pnpmRoot, "store", "v11", "links", "@openai", "codex", "*-linux-x64", "*", "node_modules", "@openai", "codex", "vendor", targetTriple, "bin", "codex")
+		if matches, _ := filepath.Glob(storePattern); len(matches) > 0 {
+			return matches[len(matches)-1], nil
+		}
+	}
+
+	return "", fmt.Errorf("native codex binary not found (vendor path: %s)", vendorBinary)
+}
+
+// extractCodexVersion reads package.json from codexPkgDir and returns the version string.
+func extractCodexVersion(codexPkgDir string) string {
+	data, err := os.ReadFile(filepath.Join(codexPkgDir, "package.json"))
+	if err != nil {
+		return ""
+	}
+	// Simple JSON parse: look for "version": "X.Y.Z"
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, `"version"`) {
+			// Extract: "version": "0.142.5",
+			parts := strings.Split(line, `"`)
+			if len(parts) >= 4 {
+				return parts[3]
+			}
+		}
+	}
+	return ""
+}
+
+// findPnpmRoot walks up from start looking for the ancestor directory that
+// contains store/v11/links (the pnpm content-addressable store root).
+func findPnpmRoot(start string) string {
+	dir := start
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "store", "v11", "links")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }

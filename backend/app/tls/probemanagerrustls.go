@@ -7,6 +7,21 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
+// AttachRustlsUprobes attaches the rustls-specific uprobe to encrypt_outgoing
+// inside a stripped static-pie Rust binary (codex, cursor). The offsets are
+// discovered via .eh_frame + .rodata anchor cross-referencing in
+// probediscoveryrustls.go.
+//
+// SEND: a dedicated uprobe_rustls_encrypt_outgoing program dereferences the
+// borrowed OutboundPlainMessage (passed in rsi at entry) to read the plaintext
+// slice {ptr@+0x08, len@+0x10} before it is encrypted.
+//
+// RECV is intentionally not attached here: rustls deposits decrypted plaintext
+// into `received_plaintext` deep inside process_new_packets, and the only clean
+// plaintext exit (Reader::read) is a trait method without a stable string
+// anchor to locate in stripped binaries. Capturing ciphertext via read_tls is
+// rejected (user constraint: no encrypted TLS capture). RECV plaintext capture
+// for rustls is left as a follow-up.
 func (m *TLSProbeManager) AttachRustlsUprobes(binPath string, pid int) error {
 	if m == nil {
 		return nil
@@ -40,38 +55,20 @@ func (m *TLSProbeManager) AttachRustlsUprobes(binPath string, pid int) error {
 	startLinks := len(m.links)
 	var errs []error
 
-	// 附加 write_tls (发送方向)
+	// Attach encrypt_outgoing (SEND direction): the uprobe dereferences the
+	// borrowed OutboundPlainMessage to capture the about-to-be-encrypted
+	// plaintext slice.
 	if offsets.WriteTLS > 0 {
 		opts.Address = offsets.WriteTLS
-		if prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, "uprobe_ssl_write"); ok && prog != nil {
+		if prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, "uprobe_rustls_encrypt_outgoing"); ok && prog != nil {
 			l, err := bin.Uprobe("", prog, opts)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("uprobe write_tls@0x%x: %w", offsets.WriteTLS, err))
+				errs = append(errs, fmt.Errorf("uprobe rustls_encrypt_outgoing@0x%x: %w", offsets.WriteTLS, err))
 			} else {
 				m.links = append(m.links, l)
 			}
-		}
-	}
-
-	// 附加 read_tls (接收方向)
-	if offsets.ReadTLS > 0 {
-		opts.Address = offsets.ReadTLS
-		if prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, "uprobe_ssl_read"); ok && prog != nil {
-			l, err := bin.Uprobe("", prog, opts)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("uprobe read_tls@0x%x: %w", offsets.ReadTLS, err))
-			} else {
-				m.links = append(m.links, l)
-			}
-		}
-		// uretprobe for read
-		if prog, ok := programByName(&m.objs.AgentTlsCapturePrograms, "uretprobe_ssl_read"); ok && prog != nil {
-			l, err := bin.Uretprobe("", prog, opts)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("uretprobe read_tls@0x%x: %w", offsets.ReadTLS, err))
-			} else {
-				m.links = append(m.links, l)
-			}
+		} else {
+			errs = append(errs, fmt.Errorf("uprobe_rustls_encrypt_outgoing program not loaded"))
 		}
 	}
 
