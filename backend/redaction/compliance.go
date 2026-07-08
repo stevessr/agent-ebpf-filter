@@ -1,17 +1,5 @@
 package redaction
 
-// ComplianceStandard represents a data protection regulation or standard.
-type ComplianceStandard string
-
-const (
-	ComplianceGDPR   ComplianceStandard = "GDPR"    // EU General Data Protection Regulation
-	ComplianceCCPA   ComplianceStandard = "CCPA"    // California Consumer Privacy Act
-	ComplianceHIPAA  ComplianceStandard = "HIPAA"   // Health Insurance Portability and Accountability Act
-	CompliancePCIDSS ComplianceStandard = "PCI-DSS" // Payment Card Industry Data Security Standard
-	ComplianceSOC2   ComplianceStandard = "SOC2"    // Service Organization Control 2
-	ComplianceISO27001 ComplianceStandard = "ISO27001" // ISO/IEC 27001
-)
-
 // ComplianceMapping indicates which regulations a redaction level satisfies.
 type ComplianceMapping struct {
 	Level       RedactionLevel

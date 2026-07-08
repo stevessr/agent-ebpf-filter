@@ -231,7 +231,7 @@ func handleTLSCaptureAttachBuiltins(runtime tlsCaptureRuntime) gin.HandlerFunc {
 			return
 		}
 		statuses, err := runtime.AttachBuiltinExecutables(req.PID)
-		payload := gin.H{"targets": builtinTLSExecutableTargetList(), "statuses": statuses, "status": runtime.Status()}
+		payload := gin.H{"targets": []map[string]string{}, "statuses": statuses, "status": runtime.Status()}
 		if err != nil {
 			payload["error"] = err.Error()
 			c.JSON(http.StatusBadRequest, payload)

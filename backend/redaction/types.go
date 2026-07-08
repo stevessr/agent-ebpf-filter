@@ -1,26 +1,5 @@
 package redaction
 
-// RedactionLevel indicates how aggressively sensitive data should be masked.
-type RedactionLevel string
-
-const (
-	RedactionLevelNone    RedactionLevel = "none"
-	RedactionLevelBasic   RedactionLevel = "basic"
-	RedactionLevelStandard RedactionLevel = "standard"
-	RedactionLevelStrict  RedactionLevel = "strict"
-)
-
-// FieldCategory groups fields by the kind of sensitive data they may contain.
-type FieldCategory string
-
-const (
-	FieldCategoryPath       FieldCategory = "path"
-	FieldCategoryCommand    FieldCategory = "command"
-	FieldCategoryNetwork    FieldCategory = "network"
-	FieldCategoryCredential FieldCategory = "credential"
-	FieldCategoryIdentifier FieldCategory = "identifier"
-)
-
 // SensitiveFieldRef references a field that should be redacted.
 type SensitiveFieldRef struct {
 	// Name is the field key or path within a payload.

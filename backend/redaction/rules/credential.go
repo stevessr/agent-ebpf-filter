@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-const RedactedValue = "***REDACTED***"
-
 var sensitiveKeyPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(?:^|[_\-\s])password(?:$|[_\-\s])`),
 	regexp.MustCompile(`(?i)(?:^|[_\-\s])token(?:$|[_\-\s])`),

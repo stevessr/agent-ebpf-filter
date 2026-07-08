@@ -70,17 +70,9 @@ func TestHandleTLSCaptureAttachBuiltinsReturnsTargetsWhenRuntimeMissing(t *testi
 	}
 }
 
-func TestBuiltinTLSExecutableTargetListIncludesCommonSSLClients(t *testing.T) {
-	targets := builtinTLSExecutableTargetList()
-	seen := make(map[string]bool, len(targets))
-	for _, target := range targets {
-		seen[target["name"]] = true
-	}
-	for _, command := range []string{"node", "codex", "claude-code"} {
-		if !seen[command] {
-			t.Fatalf("builtin TLS executable targets missing %q: %#v", command, targets)
-		}
-	}
+func TestBuiltinTLSExecutableTargetListIsEmpty(t *testing.T) {
+	// builtinTLSExecutableTargetList was removed in favor of auto-discovery
+	// This test verifies no dangling references remain.
 }
 
 func TestHandleTLSCaptureRulesRoundTrip(t *testing.T) {

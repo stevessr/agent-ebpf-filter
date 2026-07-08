@@ -9,11 +9,6 @@ import (
 	"agent-ebpf-filter/internal/network"
 )
 
-const (
-	redactedIPPlaceholder     = "[REDACTED_IP]"
-	redactedDomainPlaceholder = "[REDACTED_DOMAIN]"
-)
-
 // RedactIP applies redaction rules to an IP address string.
 func RedactIP(ip string, level redaction.RedactionLevel) string {
 	ip = strings.TrimSpace(ip)

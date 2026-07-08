@@ -6,10 +6,6 @@ import (
 	"strings"
 )
 
-const (
-	redactedPathPlaceholder = "[REDACTED_PATH]"
-)
-
 // RedactPath applies redaction rules to a filesystem path string.
 //
 // Rules:

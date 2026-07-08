@@ -36,17 +36,6 @@ type PathMappingRule struct {
 	regex *regexp.Regexp
 }
 
-// PathRuleType indicates how to apply the rule.
-type PathRuleType string
-
-const (
-	PathRuleExact      PathRuleType = "exact"       // Exact match
-	PathRulePrefix     PathRuleType = "prefix"      // Prefix match
-	PathRuleSuffix     PathRuleType = "suffix"      // Suffix match
-	PathRuleWildcard   PathRuleType = "wildcard"    // Wildcard (* and **)
-	PathRuleRegex      PathRuleType = "regex"       // Regular expression
-)
-
 // PathMapperConfig configures the path mapper.
 type PathMapperConfig struct {
 	Enabled       bool

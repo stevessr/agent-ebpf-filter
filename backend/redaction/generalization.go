@@ -22,37 +22,6 @@ type GeneralizationConfig struct {
 	Enabled            bool
 }
 
-// IPPrecisionLevel controls IP address generalization.
-type IPPrecisionLevel string
-
-const (
-	IPPrecisionFull   IPPrecisionLevel = "full"    // Keep full IP
-	IPPrecisionSubnet IPPrecisionLevel = "subnet"  // Keep subnet (e.g., 192.168.1.0/24)
-	IPPrecisionClass  IPPrecisionLevel = "class"   // Keep class (e.g., 192.168.0.0/16)
-	IPPrecisionNone   IPPrecisionLevel = "none"    // Remove completely
-)
-
-// TimePrecisionLevel controls timestamp generalization.
-type TimePrecisionLevel string
-
-const (
-	TimePrecisionFull   TimePrecisionLevel = "full"   // Keep full timestamp
-	TimePrecisionMinute TimePrecisionLevel = "minute" // Round to minute
-	TimePrecisionHour   TimePrecisionLevel = "hour"   // Round to hour
-	TimePrecisionDay    TimePrecisionLevel = "day"    // Round to day
-	TimePrecisionMonth  TimePrecisionLevel = "month"  // Round to month
-)
-
-// PathGeneralizationLevel controls file path generalization.
-type PathGeneralizationLevel string
-
-const (
-	PathGeneralizationFull    PathGeneralizationLevel = "full"    // Keep full path
-	PathGeneralizationPattern PathGeneralizationLevel = "pattern" // Replace specific parts with wildcards
-	PathGeneralizationBase    PathGeneralizationLevel = "base"    // Keep only basename
-	PathGeneralizationNone    PathGeneralizationLevel = "none"    // Remove completely
-)
-
 // NewGeneralizer creates a new generalizer with the given configuration.
 func NewGeneralizer(config GeneralizationConfig) *Generalizer {
 	return &Generalizer{

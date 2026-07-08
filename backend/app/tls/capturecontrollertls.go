@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+// ── Builtin executable attach status (deprecated, kept for API compatibility) ─
+
+// TLSBuiltinExecutableAttachStatus reports the result of attaching to a builtin TLS executable.
+type TLSBuiltinExecutableAttachStatus struct {
+		Name     string `json:"name"`
+		Attached bool   `json:"attached"`
+		Error    string `json:"error,omitempty"`
+}
+
 // ---- moved from backend/zz_merged_backend.go section capturecontrollertls.go ----
 
 type TLSCaptureController struct {
@@ -95,31 +104,8 @@ func (c *TLSCaptureController) AttachLibrary(path, library string) error {
 }
 
 func (c *TLSCaptureController) AttachBuiltinExecutables(pid int) ([]TLSBuiltinExecutableAttachStatus, error) {
-	manager, err := c.EnsureStarted()
-	if err != nil {
-		return nil, err
-	}
-	statuses := manager.AttachBuiltinExecutables(pid)
-	attached := 0
-	var lastErr error
-	for _, status := range statuses {
-		if status.Attached {
-			attached++
-			continue
-		}
-		if status.Error != "" {
-			lastErr = errors.New(status.Error)
-		}
-	}
-	if attached > 0 {
-		c.setLastError(nil)
-		return statuses, nil
-	}
-	if lastErr == nil {
-		lastErr = errors.New("no built-in TLS executable targets were attached")
-	}
-	c.setLastError(lastErr)
-	return statuses, lastErr
+	// Deprecated: built-in executable list was replaced by auto-discovery
+	return []TLSBuiltinExecutableAttachStatus{}, nil
 }
 
 func (c *TLSCaptureController) Status() map[string]any {
