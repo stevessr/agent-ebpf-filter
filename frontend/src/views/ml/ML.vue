@@ -56,6 +56,6 @@ onMounted(async () => {
 
 .ml-page__description {
   margin-bottom: 0;
-  color: #667085;
+  color: #475569;
 }
 </style>

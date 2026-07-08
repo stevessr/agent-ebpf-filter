@@ -150,7 +150,7 @@ const ancestorChain = computed<string>(() => {
           <span v-if="process.gpuUtil != null && process.gpuUtil >= 0">
             {{ process.gpuUtil.toFixed(1) }}%
           </span>
-          <span v-else style="color: #9ca3af">—</span>
+          <span v-else style="color: #6b7280">—</span>
         </a-descriptions-item>
 
         <a-descriptions-item label="Children" :span="1">
@@ -213,7 +213,7 @@ const ancestorChain = computed<string>(() => {
 
 <style scoped>
 .duration-dead {
-  color: #9ca3af;
+  color: #6b7280;
   font-style: italic;
 }
 </style>

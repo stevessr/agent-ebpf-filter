@@ -540,7 +540,7 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
   top: 18px;
   transform: translateX(-50%);
   white-space: nowrap;
-  color: #94a3b8;
+  color: #64748b;
 }
 
 .ticks span::before {

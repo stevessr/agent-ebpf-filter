@@ -523,6 +523,6 @@ const applyPickedPath = (path: string) => {
   max-width: 100%;
   word-break: break-all;
   white-space: normal;
-  color: #333;
+  color: #1f2937;
 }
 </style>

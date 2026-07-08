@@ -204,7 +204,7 @@ const handleDragStart = (event: DragEvent, category: string, value: string) => {
 .category-title {
   font-size: 11px;
   font-weight: bold;
-  color: #94a3b8;
+  color: #64748b;
   margin-bottom: 8px;
   padding-bottom: 2px;
   border-bottom: 1px dashed rgba(255, 255, 255, 0.05);

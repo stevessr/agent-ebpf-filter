@@ -699,7 +699,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
                   justify-content: space-between;
                   gap: 12px;
                   font-size: 12px;
-                  color: #666;
+                  color: #4a4a4a;
                 "
               >
                 <span>{{
@@ -1112,7 +1112,7 @@ const minSamplesLeafMax = computed(() => modelBaseType.value === "graph_learning
           <div
             style="
               font-size: 13px;
-              color: #666;
+              color: #4a4a4a;
               line-height: 1.7;
               margin-top: 24px;
             "

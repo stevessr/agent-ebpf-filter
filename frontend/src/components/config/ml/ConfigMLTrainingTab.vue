@@ -299,7 +299,7 @@ const formatReadinessToken = (value: string) =>
                 >
                   <div>
                     <div style="font-weight: 600">{{ item.name }}</div>
-                    <div style="color: #666; font-size: 12px">
+                    <div style="color: #4a4a4a; font-size: 12px">
                       {{ item.note }}
                     </div>
                   </div>
@@ -350,7 +350,7 @@ const formatReadinessToken = (value: string) =>
           <a-tag color="geekblue"
             >synthetic: {{ syntheticExpansionPresetCount }}</a-tag
           >
-          <span style="font-size: 12px; color: #666">agent legal</span>
+          <span style="font-size: 12px; color: #4a4a4a">agent legal</span>
           <a-input-number
             v-model:value="agentLegalDatasetLimit"
             :min="20"
@@ -364,7 +364,7 @@ const formatReadinessToken = (value: string) =>
             :loading="importingAgentLegalDataset"
             ><ImportOutlined /> 导入合法 Agent 行为</a-button
           >
-          <span style="font-size: 12px; color: #666">SELinux rules</span>
+          <span style="font-size: 12px; color: #4a4a4a">SELinux rules</span>
           <a-input-number
             v-model:value="selinuxPolicyDatasetLimit"
             :min="10"
@@ -499,7 +499,7 @@ const formatReadinessToken = (value: string) =>
                     "
                   >
                     <span>{{ session.name }}</span>
-                    <span style="color: #8c8c8c; font-size: 12px"
+                    <span style="color: #595959; font-size: 12px"
                       >{{ session.summary?.eventCount || 0 }} events ·
                       {{ session.status }}</span
                     >
@@ -661,7 +661,7 @@ const formatReadinessToken = (value: string) =>
               </a-table-column>
               <a-table-column title="Time" dataIndex="time" :width="180">
                 <template #default="{ record }"
-                  ><span style="font-size: 12px; color: #666">{{
+                  ><span style="font-size: 12px; color: #4a4a4a">{{
                     record.time ? new Date(record.time).toLocaleString() : "—"
                   }}</span></template
                 >
@@ -948,7 +948,7 @@ const formatReadinessToken = (value: string) =>
               </a-table-column>
               <a-table-column title="Time" dataIndex="timestamp" :width="180">
                 <template #default="{ record }"
-                  ><span style="font-size: 12px; color: #666">{{
+                  ><span style="font-size: 12px; color: #4a4a4a">{{
                     record.timestamp
                       ? new Date(record.timestamp).toLocaleString()
                       : "—"
@@ -973,7 +973,7 @@ const formatReadinessToken = (value: string) =>
       </template>
       <template #extra>
         <a-space wrap>
-          <span style="font-size: 12px; color: #666">Limit</span>
+          <span style="font-size: 12px; color: #4a4a4a">Limit</span>
           <a-input-number
             v-model:value="existingDataLimit"
             :min="10"
@@ -1069,7 +1069,7 @@ const formatReadinessToken = (value: string) =>
         </a-table-column>
         <a-table-column title="Time" dataIndex="timestamp" :width="180">
           <template #default="{ record }"
-            ><span style="font-size: 12px; color: #666">{{
+            ><span style="font-size: 12px; color: #4a4a4a">{{
               record.timestamp
                 ? new Date(record.timestamp).toLocaleString()
                 : "—"
@@ -1175,7 +1175,7 @@ const formatReadinessToken = (value: string) =>
         </a-table-column>
         <a-table-column title="Args" dataIndex="args" :width="200" ellipsis>
           <template #default="{ record }"
-            ><span style="font-size: 12px; color: #666">{{
+            ><span style="font-size: 12px; color: #4a4a4a">{{
               maskSensitiveData((record.args || []).join(" ")) || "—"
             }}</span></template
           >
@@ -1385,15 +1385,15 @@ const formatReadinessToken = (value: string) =>
               :key="idx"
               style="margin-bottom: 2px"
             >
-              <span style="color: #666">{{ idx + 1 }}. </span>
+              <span style="color: #4a4a4a">{{ idx + 1 }}. </span>
               <strong>{{ cmd.split(/\s+/)[0] }}</strong>
-              <span v-if="cmd.split(/\s+/).length > 1" style="color: #666">
+              <span v-if="cmd.split(/\s+/).length > 1" style="color: #4a4a4a">
                 {{ cmd.split(/\s+/).slice(1).join(" ").slice(0, 30)
                 }}{{
                   cmd.split(/\s+/).slice(1).join(" ").length > 30 ? "…" : ""
                 }}</span
               >
-              <span style="color: #666"> → </span>
+              <span style="color: #4a4a4a"> → </span>
               <a-tag
                 :color="
                   sampleLabel === 'BLOCK'

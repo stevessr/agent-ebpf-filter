@@ -684,7 +684,7 @@ onMounted(async () => {
 .file-browser-hidden-toggle span,
 .file-browser-track-label {
   font-size: 12px;
-  color: #666;
+  color: #4a4a4a;
   white-space: nowrap;
 }
 
@@ -819,7 +819,7 @@ onMounted(async () => {
 
 .file-browser-muted {
   font-size: 12px;
-  color: #666;
+  color: #4a4a4a;
 }
 
 .file-browser-mono {

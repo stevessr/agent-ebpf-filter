@@ -355,7 +355,7 @@ onMounted(async () => {
             </a-card>
 
             <a-card size="small" style="margin-top: 12px" title="Tips">
-              <ul style="margin: 0; padding-left: 20px; color: #666">
+              <ul style="margin: 0; padding-left: 20px; color: #4a4a4a">
                 <li>
                   Only <code>#include &quot;vmlinux.h&quot;</code> and
                   <code>&lt;bpf/...&gt;</code> headers are allowed.

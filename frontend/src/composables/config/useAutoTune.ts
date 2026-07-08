@@ -402,10 +402,10 @@ export function useAutoTune(deps: AutoTuneDeps) {
               <div>${xLabel}: <b>${cell.xValue}</b></div>
               <div>${yLabel}: <b>${cell.yValue}</b></div>
               <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee; font-size: 11px; color: #4b5563;">
-                ${autoTuneMetricLabel(autoTuneMetric.value)}: <b style="color: #333;">${autoTuneMetricFormat(autoTuneScore(cell))}</b><br/>
-                验证集准确率：<b style="color: #333;">${(cell.validationAccuracy * 100).toFixed(1)}%</b><br/>
-                训练耗时：<b style="color: #333;">${cell.trainDuration.toFixed(2)}s</b><br/>
-                回测耗时：<b style="color: #333;">${cell.evalDuration.toFixed(2)}s</b>
+                ${autoTuneMetricLabel(autoTuneMetric.value)}: <b style="color: #1f2937;">${autoTuneMetricFormat(autoTuneScore(cell))}</b><br/>
+                验证集准确率：<b style="color: #1f2937;">${(cell.validationAccuracy * 100).toFixed(1)}%</b><br/>
+                训练耗时：<b style="color: #1f2937;">${cell.trainDuration.toFixed(2)}s</b><br/>
+                回测耗时：<b style="color: #1f2937;">${cell.evalDuration.toFixed(2)}s</b>
               </div>
             </div>
           `;

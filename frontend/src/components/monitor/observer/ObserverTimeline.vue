@@ -527,7 +527,7 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
 .toolbar-actions { display: flex; gap: 4px; }
 
 .ignored-badge {
-  font-size: 11px; color: #94a3b8; display: inline-flex; align-items: center; gap: 2px;
+  font-size: 11px; color: #64748b; display: inline-flex; align-items: center; gap: 2px;
 }
 
 /* Ignore rules panel */
@@ -551,8 +551,8 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
 .ignore-rule-name {
   font-size: 12px; font-weight: 500; color: #1e293b; min-width: 120px;
 }
-.ignore-rule-name.disabled { color: #94a3b8; }
-.ignore-rule-desc { font-size: 11px; color: #94a3b8; flex: 1; }
+.ignore-rule-name.disabled { color: #64748b; }
+.ignore-rule-desc { font-size: 11px; color: #64748b; flex: 1; }
 
 .timeline-list { display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow-y: auto; }
 
@@ -578,8 +578,8 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .pid-tag { cursor: pointer; }
-.event-time { font-size: 11px; color: #94a3b8; white-space: nowrap; font-family: ui-monospace,monospace; }
-.expand-icon { color: #94a3b8; font-size: 10px; }
+.event-time { font-size: 11px; color: #64748b; white-space: nowrap; font-family: ui-monospace,monospace; }
+.expand-icon { color: #64748b; font-size: 10px; }
 
 .event-preview {
   margin-top: 4px; padding-left: 24px; font-size: 12px;
@@ -592,7 +592,7 @@ const formatTLSBodyPreview = (ev: ObserverTLSEvent, maxLen: number = 200): strin
   border-radius: 6px; font-size: 12px; display: flex; flex-direction: column; gap: 4px;
 }
 .detail-row { display: flex; gap: 8px; align-items: baseline; }
-.dl { color: #94a3b8; min-width: 45px; font-size: 11px; text-transform: uppercase; }
+.dl { color: #64748b; min-width: 45px; font-size: 11px; text-transform: uppercase; }
 .detail-row code { font-family: ui-monospace,monospace; color: #0f172a; font-size: 12px; word-break: break-all; }
 
 /* TLS timeline body */

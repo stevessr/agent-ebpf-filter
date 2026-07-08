@@ -211,7 +211,7 @@ const durationLabel = computed(() => {
   cursor: help;
 }
 .tree-duration {
-  color: #8b8fa3;
+  color: #6b7280;
   font-size: 10px;
   margin-left: 4px;
 }
@@ -237,7 +237,7 @@ const durationLabel = computed(() => {
   font-style: italic;
 }
 .tree-node-row.dead .tree-ppid {
-  color: #9ca3af;
+  color: #6b7280;
 }
 .tree-dead-tag {
   font-size: 9px;

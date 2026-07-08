@@ -260,7 +260,7 @@ const openGpuPowerHistory = (gpu: GPUStatus) => {
               >
                 Temperature: {{ gpu.temp }}°C
               </div>
-              <div v-else style="font-size: 12px; color: #9ca3af">
+              <div v-else style="font-size: 12px; color: #6b7280">
                 Temp sensor unavailable
               </div>
 

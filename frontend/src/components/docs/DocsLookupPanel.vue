@@ -248,7 +248,7 @@ const getRowClickHandlers = (record: LinuxReferenceEntry) => ({
         </a-row>
 
         <div style="margin-top: 16px">
-          <div style="margin-bottom: 8px; color: #8c8c8c; font-size: 12px">
+          <div style="margin-bottom: 8px; color: #595959; font-size: 12px">
             Quick picks
           </div>
           <a-space wrap>

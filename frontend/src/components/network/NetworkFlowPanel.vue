@@ -297,7 +297,7 @@ const riskColor = (score: number) => {
                     style="
                       font-family: monospace;
                       font-size: 11px;
-                      color: #94a3b8;
+                      color: #64748b;
                     "
                     >{{ record.srcIp }}:{{ record.srcPort }}</span
                   >

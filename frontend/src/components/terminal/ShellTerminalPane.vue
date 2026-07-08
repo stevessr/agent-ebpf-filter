@@ -565,7 +565,7 @@ onBeforeUnmount(() => {
 
 .shell-pane__shell,
 .shell-pane__path {
-  color: #666;
+  color: #4a4a4a;
   font-size: 13px;
   min-width: 0;
   overflow: hidden;

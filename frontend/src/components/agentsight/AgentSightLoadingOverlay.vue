@@ -60,7 +60,7 @@ const showOverlay = computed(() => props.loading || props.error || props.isEmpty
 .empty-text {
   margin-top: 16px;
   font-size: 16px;
-  color: #666;
+  color: #4a4a4a;
 }
 
 .error-text {

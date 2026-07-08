@@ -212,7 +212,7 @@ const openDetails = (event: ProcessedAgentSightEvent) => {
 
 .event-id {
   margin-top: 4px;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }

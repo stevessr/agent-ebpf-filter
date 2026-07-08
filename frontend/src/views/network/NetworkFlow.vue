@@ -147,7 +147,7 @@ const startResize = (e: MouseEvent) => {
           <div style="display: flex; align-items: center; gap: 12px">
             <ArrowDownOutlined style="font-size: 24px; color: #1890ff" />
             <div>
-              <div style="font-size: 12px; color: #666">Download</div>
+              <div style="font-size: 12px; color: #4a4a4a">Download</div>
               <div style="font-size: 22px; font-weight: bold; color: #1890ff">
                 {{ formatBytes(displayTotalNetRecv, 1) }}/s
               </div>
@@ -160,7 +160,7 @@ const startResize = (e: MouseEvent) => {
           <div style="display: flex; align-items: center; gap: 12px">
             <ArrowUpOutlined style="font-size: 24px; color: #52c41a" />
             <div>
-              <div style="font-size: 12px; color: #666">Upload</div>
+              <div style="font-size: 12px; color: #4a4a4a">Upload</div>
               <div style="font-size: 22px; font-weight: bold; color: #52c41a">
                 {{ formatBytes(displayTotalNetSent, 1) }}/s
               </div>
@@ -173,7 +173,7 @@ const startResize = (e: MouseEvent) => {
           <div style="display: flex; align-items: center; gap: 12px">
             <GlobalOutlined style="font-size: 24px; color: #fa8c16" />
             <div>
-              <div style="font-size: 12px; color: #666">Active Flows</div>
+              <div style="font-size: 12px; color: #4a4a4a">Active Flows</div>
               <div style="font-size: 22px; font-weight: bold; color: #fa8c16">
                 {{ flowList.length }}
               </div>
@@ -186,7 +186,7 @@ const startResize = (e: MouseEvent) => {
           <div style="display: flex; align-items: center; gap: 12px">
             <AlertOutlined style="font-size: 24px; color: #722ed1" />
             <div>
-              <div style="font-size: 12px; color: #666">Suspicious</div>
+              <div style="font-size: 12px; color: #4a4a4a">Suspicious</div>
               <div style="font-size: 22px; font-weight: bold; color: #722ed1">
                 {{ suspiciousFlows().length }}
               </div>
@@ -359,7 +359,7 @@ const startResize = (e: MouseEvent) => {
                     }}</span>
                   </div>
                   <a-divider type="vertical" />
-                  <span style="font-size: 12px; color: #666">
+                  <span style="font-size: 12px; color: #4a4a4a">
                     Public: {{ publicFlows().length }} | ↓{{
                       formatBytes(totalBytesIn())
                     }}
@@ -473,7 +473,7 @@ const startResize = (e: MouseEvent) => {
                         style="
                           font-family: monospace;
                           font-size: 11px;
-                          color: #94a3b8;
+                          color: #64748b;
                         "
                         >{{ record.srcIp }}:{{ record.srcPort }}</span
                       >

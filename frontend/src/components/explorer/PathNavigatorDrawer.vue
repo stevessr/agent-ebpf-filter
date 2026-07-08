@@ -269,7 +269,7 @@ watch(
               >
                 <div class="path-picker__name">
                   <FolderOutlined v-if="item.isDir" style="color: #1890ff" />
-                  <FileOutlined v-else style="color: #8c8c8c" />
+                  <FileOutlined v-else style="color: #595959" />
                   <span>{{ item.name }}</span>
                 </div>
                 <a-space>
@@ -292,7 +292,7 @@ watch(
         style="justify-content: space-between; width: 100%"
         align="center"
       >
-        <span style="color: #666">
+        <span style="color: #4a4a4a">
           {{
             pickMode === "directory"
               ? "Choose the current folder or navigate deeper before confirming."

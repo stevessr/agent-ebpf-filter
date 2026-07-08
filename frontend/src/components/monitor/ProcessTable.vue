@@ -274,11 +274,11 @@ const onKill = (record: any) => {
         </template>
         <template v-if="column.key === 'gpuUtil'">
           <span v-if="text > 0">{{ text }}%</span>
-          <span v-else style="color: #9ca3af">-</span>
+          <span v-else style="color: #6b7280">-</span>
         </template>
         <template v-if="column.key === 'gpuMem'">
           <span v-if="text > 0">{{ text }} MB</span>
-          <span v-else style="color: #9ca3af">-</span>
+          <span v-else style="color: #6b7280">-</span>
         </template>
         <template v-if="column.key === 'action'">
           <a-space

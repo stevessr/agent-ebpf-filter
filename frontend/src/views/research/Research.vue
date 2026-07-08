@@ -1643,7 +1643,7 @@ onMounted(async () => {
 .research-page__description {
   max-width: 920px;
   margin-bottom: 0;
-  color: #667085;
+  color: #475569;
 }
 
 .research-card {
@@ -1666,7 +1666,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  color: #667085;
+  color: #475569;
   font-size: 12px;
 }
 
@@ -1693,7 +1693,7 @@ onMounted(async () => {
 
 .research-session-item__meta {
   margin-top: 4px;
-  color: #667085;
+  color: #475569;
   font-size: 12px;
 }
 
@@ -1733,7 +1733,7 @@ onMounted(async () => {
 }
 
 .research-muted {
-  color: #667085;
+  color: #475569;
   font-size: 12px;
 }
 

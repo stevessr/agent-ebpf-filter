@@ -1039,7 +1039,7 @@ watch(
             <span v-else-if="column.key === 'path'">
               <span v-if="text" :title="text">{{ text }}</span>
               <span v-else-if="record.extraInfo" class="path-fallback" :title="record.extraInfo">{{ record.extraInfo }}</span>
-              <span v-else style="color: #9ca3af">—</span>
+              <span v-else style="color: #6b7280">—</span>
             </span>
           </template>
         </a-table>
@@ -1080,7 +1080,7 @@ watch(
             <span v-else-if="column.key === 'path'">
               <span v-if="text" :title="text">{{ text }}</span>
               <span v-else-if="record.extraInfo" class="path-fallback" :title="record.extraInfo">{{ record.extraInfo }}</span>
-              <span v-else style="color: #9ca3af">—</span>
+              <span v-else style="color: #6b7280">—</span>
             </span>
           </template>
         </a-table>
@@ -1168,7 +1168,7 @@ watch(
                     v-if="record.body || record.raw_hex_dump"
                     class="tls-body-preview"
                   >{{ bestTLSPreview(record, 80) }}</span>
-                  <span v-else style="color: #9ca3af; font-size: 11px">—</span>
+                  <span v-else style="color: #6b7280; font-size: 11px">—</span>
                 </template>
                 <template v-else-if="column.key === 'size'">
                   <span>{{ formatBytes(record.captured_len) }}</span>
@@ -1620,7 +1620,7 @@ watch(
 .path-fallback {
   font-family: ui-monospace, monospace;
   font-size: 10px;
-  color: #94a3b8;
+  color: #64748b;
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;

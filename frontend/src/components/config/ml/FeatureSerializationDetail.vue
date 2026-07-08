@@ -601,7 +601,7 @@ watch(
                 <td><b>{{ node.label }}</b></td>
                 <td><code>F[{{ node.start }} - {{ node.end - 1 }}]</code></td>
                 <td>{{ node.dim }}</td>
-                <td style="font-size: 12px; color: #666">{{ node.details }}</td>
+                <td style="font-size: 12px; color: #4a4a4a">{{ node.details }}</td>
               </tr>
             </tbody>
           </table>
@@ -720,7 +720,7 @@ watch(
 /* GNN Grid layout styles */
 .gnn-title {
   font-size: 13px;
-  color: #666;
+  color: #4a4a4a;
   margin-bottom: 12px;
 }
 
@@ -800,7 +800,7 @@ watch(
   font-size: 12px;
   font-family: monospace;
   font-weight: 600;
-  color: #333;
+  color: #1f2937;
   margin-top: 2px;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -809,7 +809,7 @@ watch(
 
 .node-label {
   font-size: 11px;
-  color: #666;
+  color: #4a4a4a;
   margin-top: 4px;
 }
 
@@ -899,7 +899,7 @@ watch(
   padding: 6px 10px;
   font-size: 12px;
   font-family: monospace;
-  color: #333;
+  color: #1f2937;
 }
 
 .section-text {
@@ -914,7 +914,7 @@ watch(
   padding: 6px 8px;
   border-left: 3px solid #1890ff;
   font-style: normal;
-  color: #666;
+  color: #4a4a4a;
 }
 
 .connection-pills {
@@ -1031,7 +1031,7 @@ watch(
 .group-title {
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: #1f2937;
   margin-bottom: 4px;
 }
 

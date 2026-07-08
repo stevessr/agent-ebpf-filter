@@ -337,7 +337,7 @@ const props = defineProps<{
                     gap: 12px;
                     font-size: 10px;
                     padding: 2px 0 2px 20px;
-                    color: #666;
+                    color: #4a4a4a;
                     border-left: 2px solid #f0f0f0;
                     margin-left: 6px;
                   "

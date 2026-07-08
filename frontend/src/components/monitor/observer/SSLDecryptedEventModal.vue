@@ -297,7 +297,7 @@ const copyHeaders = async () => {
 .tls-body-meta {
   font-size: 10px;
   font-weight: 400;
-  color: #94a3b8;
+  color: #64748b;
   text-transform: none;
 }
 

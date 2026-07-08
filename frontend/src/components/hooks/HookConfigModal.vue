@@ -334,7 +334,7 @@ const formatFieldLabel = (field: HookFieldDoc) =>
             }}</span>
             <span
               v-if="getEventDoc(eventName as string)?.description"
-              style="font-size: 12px; color: #666"
+              style="font-size: 12px; color: #4a4a4a"
             >
               {{ getEventDoc(eventName as string)?.description }}
             </span>
@@ -385,7 +385,7 @@ const formatFieldLabel = (field: HookFieldDoc) =>
         <div style="padding: 16px">
           <div
             v-if="!matchers.length"
-            style="text-align: center; color: #9ca3af; font-size: 12px"
+            style="text-align: center; color: #6b7280; font-size: 12px"
           >
             No matchers defined
           </div>
@@ -561,7 +561,7 @@ const formatFieldLabel = (field: HookFieldDoc) =>
             gap: 8px;
           "
         >
-          <div style="font-size: 12px; color: #666">
+          <div style="font-size: 12px; color: #4a4a4a">
             {{ selectedEventDoc.description }}
           </div>
           <div

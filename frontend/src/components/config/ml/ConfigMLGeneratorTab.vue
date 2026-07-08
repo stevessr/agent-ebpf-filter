@@ -311,7 +311,7 @@ const generatorColumns = [
           </template>
 
           <template v-else-if="column.key === 'user'">
-            <span style="color: #8c8c8c">{{ record.user || '—' }}</span>
+            <span style="color: #595959">{{ record.user || '—' }}</span>
           </template>
 
           <template v-else-if="column.key === 'action'">

@@ -498,7 +498,7 @@ const statsColumns = [
   font-size: 11px; font-weight: 500; margin-left: auto;
 }
 .bar-pct {
-  color: #94a3b8; font-size: 10px; min-width: 38px; text-align: right;
+  color: #64748b; font-size: 10px; min-width: 38px; text-align: right;
 }
 
 .bar-track {
@@ -522,7 +522,7 @@ const statsColumns = [
 .donut-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; }
 .donut-legend-label { color: #334155; min-width: 55px; }
 .donut-legend-pct {
-  color: #94a3b8; font-family: ui-monospace,monospace; font-size: 10px;
+  color: #64748b; font-family: ui-monospace,monospace; font-size: 10px;
 }
 
 /* ── Stats table ─────────────────────────────────────────────────────── */
@@ -536,6 +536,6 @@ const statsColumns = [
 
 /* ── Zero state ──────────────────────────────────────────────────────── */
 .zero-msg {
-  text-align: center; padding: 28px 0; color: #94a3b8; font-size: 13px;
+  text-align: center; padding: 28px 0; color: #64748b; font-size: 13px;
 }
 </style>

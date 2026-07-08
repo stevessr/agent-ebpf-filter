@@ -261,6 +261,6 @@ const pathBreadcrumbs = computed(() => {
 .fpb-hint {
   margin-left: auto;
   font-size: 11px;
-  color: #9ca3af;
+  color: #6b7280;
 }
 </style>

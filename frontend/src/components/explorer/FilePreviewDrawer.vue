@@ -989,7 +989,7 @@ onBeforeUnmount(() => {
 
 .file-preview-drawer__audio-name {
   margin-top: 12px;
-  color: #666;
+  color: #4a4a4a;
   font-size: 14px;
 }
 

@@ -233,7 +233,7 @@ const tileTitle = (tile: ProcTile) =>
           gap: 4px;
           text-align: right;
           font-size: 12px;
-          color: #666;
+          color: #4a4a4a;
         "
       >
         <div>
@@ -438,7 +438,7 @@ const tileTitle = (tile: ProcTile) =>
               >
             </template>
             <template v-if="column.key === 'createTime'">
-              <span style="font-size: 12px; color: #666">{{
+              <span style="font-size: 12px; color: #4a4a4a">{{
                 formatDateTime(text ?? 0)
               }}</span>
             </template>

@@ -948,7 +948,7 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
 .ac-stat-size{font-family:ui-monospace,monospace;font-weight:600;color:#334155}
 .ac-hide-raw-toggle{display:flex;align-items:center;gap:4px;margin-left:auto;padding-left:12px;border-left:1px solid #e2e8f0}
 .ac-cap-ctl{display:flex;align-items:center;gap:4px;margin-left:auto}
-.ac-cap-label{font-size:10px;color:#94a3b8;font-weight:500;white-space:nowrap}
+.ac-cap-label{font-size:10px;color:#64748b;font-weight:500;white-space:nowrap}
 .ac-diag-dot{font-size:8px;cursor:help;margin-left:2px}
 .ac-diag-ok{color:#22c55e}.ac-diag-warn{color:#f97316}
 .ac-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -960,20 +960,20 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
 .ac-card:hover{box-shadow:0 1px 4px rgba(0,0,0,.08)}
 .ac-card.ac-sse{border-color:#c084fc;background:#faf5ff}
 .ac-head{display:flex;align-items:center;gap:6px;padding:6px 10px}
-.ac-h-icon{font-size:9px;color:#94a3b8}
+.ac-h-icon{font-size:9px;color:#64748b}
 .ac-h-meta{display:flex;align-items:center;gap:6px;flex:1;overflow:hidden}
 .ac-role{font-family:ui-monospace,monospace;font-size:11px;color:#7c3aed;font-weight:600}
-.ac-model{font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace}
+.ac-model{font-size:10px;color:#64748b;font-family:ui-monospace,monospace}
 .ac-tok-inline{font-size:10px;color:#0891b2;font-family:ui-monospace,monospace;font-weight:600;background:#ecfeff;padding:0 4px;border-radius:3px;border:1px solid #a5f3fc}
 .ac-cbc{font-size:10px;color:#64748b}
 .ac-h-host{font-size:10px;color:#64748b;font-family:ui-monospace,monospace;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ac-h-size{font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace}
-.ac-h-time{font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace}
+.ac-h-size{font-size:10px;color:#64748b;font-family:ui-monospace,monospace}
+.ac-h-time{font-size:10px;color:#64748b;font-family:ui-monospace,monospace}
 .ac-view{padding:0;font-size:13px}
 .ac-merged{padding:2px 10px 6px;font-size:10px;color:#7c3aed;font-weight:500;display:flex;align-items:center;gap:4px}
 .ac-body{padding:6px 10px 10px;border-top:1px solid #f0f0f0}
 .ac-meta{display:flex;gap:6px;font-size:11px;margin-bottom:6px;align-items:baseline}
-.ac-k{color:#94a3b8;text-transform:uppercase;min-width:30px;font-size:10px}
+.ac-k{color:#64748b;text-transform:uppercase;min-width:30px;font-size:10px}
 .ac-meta code{font-family:ui-monospace,monospace;font-size:10px;color:#0f172a;word-break:break-all}
 .ac-tokens{display:flex;gap:10px;padding:4px 8px;background:#f0fdfa;border-radius:4px;border:1px solid #ccfbf1;margin-bottom:6px;flex-wrap:wrap}
 .ac-tok{display:flex;align-items:center;gap:3px;font-size:11px}
@@ -986,8 +986,8 @@ const blockTokens = (g: MergedGroup): { input: number; output: number } =>
 .ac-b-head{display:flex;align-items:center;gap:5px;padding:4px 8px;background:#f8fafc;border-bottom:1px solid #f0f0f0;font-size:11px}
 .ac-b-icon{font-size:12px;color:#64748b}
 .ac-tn{font-family:ui-monospace,monospace;font-weight:600;color:#d97706;font-size:11px}
-.ac-tid{font-family:ui-monospace,monospace;font-size:9px;color:#94a3b8}
-.ac-bsz{margin-left:auto;font-size:9px;color:#94a3b8}
+.ac-tid{font-family:ui-monospace,monospace;font-size:9px;color:#64748b}
+.ac-bsz{margin-left:auto;font-size:9px;color:#64748b}
 .ac-b-tok{font-size:9px;font-family:ui-monospace,monospace;font-weight:600;padding:0 3px;border-radius:2px;white-space:nowrap}
 .ac-b-tok-in{color:#0f766e;background:#f0fdfa;border:1px solid #ccfbf1}
 .ac-b-tok-out{color:#0891b2;background:#ecfeff;border:1px solid #a5f3fc}

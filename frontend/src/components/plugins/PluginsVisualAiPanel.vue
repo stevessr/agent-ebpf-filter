@@ -196,7 +196,7 @@ const generateFromPrompt = () => handleAiGenerate(localPrompt.value);
   border-radius: 6px;
 }
 :deep(.ai-textarea::placeholder) {
-  color: #94a3b8 !important;
+  color: #64748b !important;
 }
 :deep(.ai-textarea:focus) {
   border-color: #1677ff !important;

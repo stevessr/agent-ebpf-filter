@@ -394,7 +394,7 @@ const waterfallStyle = (tx: MergedTransaction) => {
 };
 
 const waterfallColor = (tx: MergedTransaction): string => {
-  if (!tx.status) return "#80868b";
+  if (!tx.status) return "#5f6368";
   if (tx.status >= 400) return "#d93025";
   if (tx.isSse) return "#9334e6";
   return "#1a73e8";
@@ -1255,13 +1255,13 @@ watch(
   color: #202124;
 }
 .nw-filter-input::placeholder {
-  color: #80868b;
+  color: #5f6368;
 }
 
 .nw-filter-clear {
   border: none;
   background: transparent;
-  color: #80868b;
+  color: #5f6368;
   cursor: pointer;
   font-size: 11px;
   padding: 2px;
@@ -1445,7 +1445,7 @@ watch(
   background: #d2e3fc;
 }
 .nw-row.nw-pending {
-  color: #80868b;
+  color: #5f6368;
   font-style: italic;
 }
 .nw-row.nw-error .nw-col-name .nw-name-text {
@@ -1460,7 +1460,7 @@ watch(
 
 .nw-name-host {
   display: none;
-  color: #80868b;
+  color: #5f6368;
   font-size: 10px;
   margin-left: 6px;
 }
@@ -1487,7 +1487,7 @@ watch(
   font-weight: 600;
 }
 .status-pending {
-  color: #80868b;
+  color: #5f6368;
 }
 
 /* Method */
@@ -1532,7 +1532,7 @@ watch(
 }
 .nw-empty-hint {
   font-size: 11px;
-  color: #80868b;
+  color: #5f6368;
 }
 
 /* ── Detail panel ── */
@@ -1662,7 +1662,7 @@ watch(
 
 .nw-hgroup-count {
   font-weight: 400;
-  color: #80868b;
+  color: #5f6368;
   font-size: 10px;
 }
 
@@ -1736,7 +1736,7 @@ watch(
 
 .nw-payload-meta {
   font-weight: 400;
-  color: #80868b;
+  color: #5f6368;
   font-size: 10px;
   flex: 1;
 }
@@ -1785,7 +1785,7 @@ watch(
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  color: #80868b;
+  color: #5f6368;
   font-size: 12px;
 }
 

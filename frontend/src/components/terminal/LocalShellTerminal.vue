@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 .shell-manager__summary-text {
-  color: #666;
+  color: #4a4a4a;
   font-size: 13px;
 }
 .shell-manager__session-cell {
@@ -402,7 +402,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 .shell-manager__session-subtitle {
-  color: #666;
+  color: #4a4a4a;
   font-size: 12px;
   line-height: 1.4;
 }

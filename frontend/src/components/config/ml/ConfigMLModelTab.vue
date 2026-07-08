@@ -386,7 +386,7 @@ const formatRuntimeSpeedup = (value?: number) => {
                   justify-content: space-between;
                   gap: 8px;
                   font-size: 12px;
-                  color: #666;
+                  color: #4a4a4a;
                   margin-bottom: 6px;
                 "
               >
@@ -575,7 +575,7 @@ const formatRuntimeSpeedup = (value?: number) => {
               /><b>训练中</b>
               {{ Math.round((mlStatus.training_progress || 0) * 100) }}%</span
             >
-            <span v-if="cudaAvailable && cudaMemTotalMB > 0" style="color: #666"
+            <span v-if="cudaAvailable && cudaMemTotalMB > 0" style="color: #4a4a4a"
               >GPU: {{ cudaMemUsedMB }} / {{ cudaMemTotalMB }} MB</span
             >
           </div>
@@ -688,7 +688,7 @@ const formatRuntimeSpeedup = (value?: number) => {
             v-if="mlCRuntime.note"
             style="
               margin-top: 6px;
-              color: #8c8c8c;
+              color: #595959;
               font-size: 12px;
               line-height: 1.45;
             "

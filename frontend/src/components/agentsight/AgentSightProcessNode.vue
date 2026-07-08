@@ -177,7 +177,7 @@ const itemKey = (item: AgentSightTimelineItem, index: number) =>
 }
 
 .ppid {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 12px;
 }
 
