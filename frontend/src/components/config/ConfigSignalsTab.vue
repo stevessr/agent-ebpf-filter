@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef } from "vue";
+import { computed, onUnmounted, shallowRef, ref } from "vue";
 import {
   DeleteOutlined,
   DownloadOutlined,
@@ -151,6 +151,26 @@ const refreshSignals = async () => {
     fetchSignalProgramLogs(),
   ]);
 };
+
+// ── Auto-refresh ──────────────────────────────────────────────────────────
+const autoRefresh = ref(false);
+const autoRefreshInterval = 5000; // 5 seconds
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
+
+const toggleAutoRefresh = () => {
+  autoRefresh.value = !autoRefresh.value;
+  if (autoRefresh.value) {
+    void refreshSignals();
+    autoRefreshTimer = setInterval(refreshSignals, autoRefreshInterval);
+  } else if (autoRefreshTimer !== null) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+};
+
+onUnmounted(() => {
+  if (autoRefreshTimer !== null) clearInterval(autoRefreshTimer);
+});
 </script>
 
 <template>
@@ -235,6 +255,16 @@ const refreshSignals = async () => {
               </a-button>
               <a-button @click="refreshSignals">
                 <ReloadOutlined /> Refresh status
+              </a-button>
+              <a-button
+                :type="autoRefresh ? 'primary' : 'default'"
+                :danger="autoRefresh"
+                @click="toggleAutoRefresh"
+              >
+                <ReloadOutlined
+                  :class="{ 'spin-icon': autoRefresh }"
+                />
+                {{ autoRefresh ? "Auto-refresh ON" : "Auto-refresh" }}
               </a-button>
               <a-input-number
                 v-model:value="scanLimit"
@@ -596,5 +626,14 @@ const refreshSignals = async () => {
   .condition-row {
     grid-template-columns: 1fr;
   }
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>
