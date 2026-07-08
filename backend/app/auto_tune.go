@@ -184,11 +184,14 @@ func (t *ModelTrainer) AutoTune(store *TrainingDataStore, req MLAutoTuneRequest,
 				if lr < 0.001 {
 					lr = 0.01
 				}
-				reg := "l2"
-				if maxDepth == 12 {
+				var reg string
+				switch maxDepth {
+				case 12:
 					reg = "l1"
-				} else if maxDepth == 4 {
+				case 4:
 					reg = "none"
+				default:
+					reg = "l2"
 				}
 				maxIter := minLeaf
 				if maxIter < 100 {

@@ -132,7 +132,7 @@ func (m *TLSProbeManager) DiscoverNodeProcesses() {
 		cmdline, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
 		cmdStr := string(cmdline)
 
-		isClaudeCode := strings.Contains(cmdStr, "claude-code") || strings.Contains(cmdStr, "@cometix")
+		isClaudeCode := strings.Contains(cmdStr, "claude-code") || strings.Contains(cmdStr, "@cometix") || strings.Contains(cmdStr, "@anthropic") || baseName == "claude"
 		isCodex := strings.Contains(cmdStr, "codex") || strings.Contains(cmdStr, "@openai") || baseName == "codex"
 
 		if !isClaudeCode && !isCodex {

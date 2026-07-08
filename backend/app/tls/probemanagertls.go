@@ -34,7 +34,7 @@ var staticTLSLibraries = []ProbeTarget{
 	{
 		name: "openssl",
 		paths: []string{
-			"/usr/lib/libssl.so.3", "/usr/lib/libssl.so", "/usr/lib/libssl.so.1.1",
+			"/usr/lib/libssl.so.3", "/usr/lib/libssl.so", "/usr/lib/libssl.so.1.1", "/usr/lib/libssl3.so",
 			"/lib/x86_64-linux-gnu/libssl.so.3", "/lib/aarch64-linux-gnu/libssl.so.3", "/lib64/libssl.so.3", "/usr/lib64/libssl.so.3", "/usr/lib/x86_64-linux-gnu/libssl.so.3", "/usr/lib/aarch64-linux-gnu/libssl.so.3", "/usr/local/lib/libssl.so.3", "/usr/local/lib64/libssl.so.3",
 			"/lib/x86_64-linux-gnu/libssl.so.1.1", "/lib/aarch64-linux-gnu/libssl.so.1.1", "/lib64/libssl.so.1.1", "/usr/lib64/libssl.so.1.1", "/usr/lib/x86_64-linux-gnu/libssl.so.1.1", "/usr/lib/aarch64-linux-gnu/libssl.so.1.1", "/usr/local/lib/libssl.so.1.1", "/usr/local/lib64/libssl.so.1.1",
 			"/lib/x86_64-linux-gnu/libssl.so", "/lib/aarch64-linux-gnu/libssl.so", "/lib64/libssl.so", "/usr/lib64/libssl.so", "/usr/lib/x86_64-linux-gnu/libssl.so", "/usr/lib/aarch64-linux-gnu/libssl.so", "/usr/local/lib/libssl.so", "/usr/local/lib64/libssl.so",
@@ -744,22 +744,22 @@ func completedToPlaintextEvent(f CompletedTLSFragment) TLSPlaintextEvent {
 	}
 
 	ev := TLSPlaintextEvent{
-		Type:        evType,
-		Timestamp:   now,
-		PID:         f.PID,
-		TGID:        f.TGID,
-		Comm:        f.Comm,
-		Direction:   dir,
-		Lib:         libTypeName(f.LibType),
-		Function:    tlsFuncName(f.Function),
-		CapturedLen: int(f.TotalLen),
-		OriginalLen: int(f.OriginalLen),
-		Truncated:   f.Flags&tlsFlagTruncated != 0,
-		RawHexDump:  hexDump,
+		Type:         evType,
+		Timestamp:    now,
+		PID:          f.PID,
+		TGID:         f.TGID,
+		Comm:         f.Comm,
+		Direction:    dir,
+		Lib:          libTypeName(f.LibType),
+		Function:     tlsFuncName(f.Function),
+		CapturedLen:  int(f.TotalLen),
+		OriginalLen:  int(f.OriginalLen),
+		Truncated:    f.Flags&tlsFlagTruncated != 0,
+		RawHexDump:   hexDump,
 		RawAvailable: len(hexDump) > 0,
-		BodySize:    len(f.Payload),
-		Body:        body,
-		ContentType: contentType,
+		BodySize:     len(f.Payload),
+		Body:         body,
+		ContentType:  contentType,
 	}
 
 	return ev
@@ -1453,6 +1453,7 @@ func (m *TLSProbeManager) ReadLoopStatsSnapshot() ReadLoopStats {
 	}
 	return m.readLoopStats
 }
+
 // ProbeHitCounters reads the tls_probe_hits BPF map and returns per-function hit counts
 // plus diagnostic counters (perf_output_fail, probe_read_fail, perf_submit_ok).
 func (m *TLSProbeManager) ProbeHitCounters() map[string]uint64 {

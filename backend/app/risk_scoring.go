@@ -27,9 +27,10 @@ func computeRiskScore(classification *pb.BehaviorClassification, anomalyScore fl
 		case "PACKAGE_MANAGER", "COMPRESSION":
 			score += 5
 		}
-		if classification.Confidence == "high" {
+		switch classification.Confidence {
+		case "high":
 			score += 10
-		} else if classification.Confidence == "medium" {
+		case "medium":
 			score += 5
 		}
 	}
@@ -94,5 +95,3 @@ func riskLevel(score float64) string {
 		return "SAFE"
 	}
 }
-
-

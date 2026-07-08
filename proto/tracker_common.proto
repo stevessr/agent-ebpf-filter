@@ -5,6 +5,7 @@ option go_package = "agent-ebpf-filter/pb";
 
 // Normalized event types for kernel + user-space events
 enum EventType {
+  EVENT_TYPE_UNSPECIFIED = -1;
   EXECVE = 0;
   OPENAT = 1;
   NETWORK_CONNECT = 2;

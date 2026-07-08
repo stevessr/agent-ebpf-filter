@@ -29,16 +29,16 @@ func detectAIToolFromComm(comm string) *aiToolMetadata {
 
 func detectAIToolFromCmdline(cmdline string) *aiToolMetadata {
 	lower := strings.ToLower(cmdline)
-	if strings.Contains(lower, "@cometix/claude-code") {
+	if strings.Contains(lower, "claude") {
 		return &aiToolMetadata{ToolName: "Claude Code", ToolVendor: "Anthropic", ToolType: "ai_assistant", APIProvider: "anthropic"}
 	}
-	if strings.Contains(lower, "@openai/codex") {
+	if strings.Contains(lower, "codex") {
 		return &aiToolMetadata{ToolName: "Codex", ToolVendor: "OpenAI", ToolType: "ai_assistant", APIProvider: "openai"}
 	}
 	if strings.Contains(lower, "cursor") {
 		return &aiToolMetadata{ToolName: "Cursor", ToolVendor: "Cursor", ToolType: "ai_assistant", APIProvider: "anthropic"}
 	}
-	if strings.Contains(lower, "github-copilot") {
+	if strings.Contains(lower, "copilot") {
 		return &aiToolMetadata{ToolName: "GitHub Copilot", ToolVendor: "GitHub", ToolType: "code_completion", APIProvider: "openai"}
 	}
 	return nil
@@ -51,6 +51,27 @@ func detectAPIProviderFromHost(host string) string {
 	}
 	if strings.Contains(lower, "openai.com") {
 		return "openai"
+	}
+	if strings.Contains(lower, "generativelanguage.googleapis.com") {
+		return "google"
+	}
+	if strings.Contains(lower, "aiplatform.googleapis.com") {
+		return "google"
+	}
+	if strings.Contains(lower, "api.deepseek.com") {
+		return "deepseek"
+	}
+	if strings.Contains(lower, "open.bigmodel.cn") {
+		return "zhipu"
+	}
+	if strings.Contains(lower, "api.z.ai") {
+		return "zhipu(overseas)"
+	}
+	if strings.Contains(lower, "api.moonshot.ai") {
+		return "moonshot"
+	}
+	if strings.Contains(lower, "api.") {
+		return "unknown"
 	}
 	return ""
 }
