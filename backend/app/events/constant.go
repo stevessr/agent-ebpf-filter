@@ -1,6 +1,23 @@
 package events
 
-import "time"
+import (
+	"time"
+
+	"agent-ebpf-filter/internal/network"
+	"agent-ebpf-filter/internal/protocoldetect"
+)
+
+const EventSchemaVersion = "event.v3"
+
+const (
+	AppProtoDNS  = protocoldetect.AppProtoDNS
+	AppProtomDNS = protocoldetect.AppProtomDNS
+)
+
+const (
+	TCPStateSynSent     = network.TCPStateSynSent
+	TCPStateEstablished = network.TCPStateEstablished
+)
 
 const (
 	SemanticSecretCorrelationTTL = 30 * time.Second

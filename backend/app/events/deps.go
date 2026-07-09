@@ -21,18 +21,6 @@ type CapturedEventRecord = core.CapturedEventRecord
 type RuntimeSettings = core.RuntimeSettings
 type KernelRiskFeedbackSettings = core.KernelRiskFeedbackSettings
 
-const EventSchemaVersion = "event.v3"
-
-const (
-	AppProtoDNS  = protocoldetect.AppProtoDNS
-	AppProtomDNS = protocoldetect.AppProtomDNS
-)
-
-const (
-	TCPStateSynSent     = network.TCPStateSynSent
-	TCPStateEstablished = network.TCPStateEstablished
-)
-
 // ProtoDetectionEntry mirrors the protoDetectionEntry type in the parent app
 // package so the events subpackage does not need to import app.
 type ProtoDetectionEntry struct {
