@@ -9,22 +9,6 @@ import (
 
 type TCPState = netcore.TCPState
 
-const (
-	TCPStateUnknown     = netcore.TCPStateUnknown
-	TCPStateEstablished = netcore.TCPStateEstablished
-	TCPStateSynSent     = netcore.TCPStateSynSent
-	TCPStateSynRecv     = netcore.TCPStateSynRecv
-	TCPStateFinWait1    = netcore.TCPStateFinWait1
-	TCPStateFinWait2    = netcore.TCPStateFinWait2
-	TCPStateTimeWait    = netcore.TCPStateTimeWait
-	TCPStateClose       = netcore.TCPStateClose
-	TCPStateCloseWait   = netcore.TCPStateCloseWait
-	TCPStateLastAck     = netcore.TCPStateLastAck
-	TCPStateListen      = netcore.TCPStateListen
-	TCPStateClosing     = netcore.TCPStateClosing
-	TCPStateClosed      = netcore.TCPStateClosed
-)
-
 type tcpConnectionState = netcore.TCPConnectionState
 
 type tcpStateTracker struct {

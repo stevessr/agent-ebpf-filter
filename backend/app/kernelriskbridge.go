@@ -10,14 +10,6 @@ import (
 
 // ── Kernel risk wrappers (migrated to app/events/) ─────────────────────────
 
-const (
-	kernelRiskFeedbackKindNetworkIP   = events.KernelRiskFeedbackKindNetworkIP
-	kernelRiskFeedbackKindNetworkPort = events.KernelRiskFeedbackKindNetworkPort
-	kernelRiskFeedbackKindLSMFileName = events.KernelRiskFeedbackKindLSMFileName
-	kernelRiskFeedbackKindLSMExecPath = events.KernelRiskFeedbackKindLSMExecPath
-	kernelRiskFeedbackKindLSMExecName = events.KernelRiskFeedbackKindLSMExecName
-)
-
 type kernelRiskDecision = events.KernelRiskDecision
 type kernelRiskFeedbackAction = events.KernelRiskFeedbackAction
 

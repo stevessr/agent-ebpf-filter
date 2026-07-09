@@ -3,7 +3,6 @@ package app
 import (
 	"agent-ebpf-filter/app/ml"
 	"agent-ebpf-filter/app/platform"
-	"agent-ebpf-filter/core"
 	"agent-ebpf-filter/internal/behavior"
 	"math"
 	"strings"
@@ -14,13 +13,6 @@ import (
 // ---- moved from backend/zz_merged_backend.go section features.go ----
 
 // Feature vector design (128 dimensions) inspired by:
-// - Forrest et al. "A Sense of Self for Unix Processes" (stide n-gram model)
-// - LIGHT-HIDS (2509.13464): DeepSVDD + Isolation Forest hybrid
-// - eBPF ransomware detection (2409.06452): per-syscall frequency + entropy features
-
-const FeatureDim = core.FeatureDim
-
-// RecentWrapperEvent holds a summary of a recent wrapper_intercept event
 type RecentWrapperEvent struct {
 	Comm         string
 	Category     string

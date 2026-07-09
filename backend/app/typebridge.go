@@ -21,19 +21,7 @@ type TracepointBootstrapStatus = runtime.TracepointBootstrapStatus
 
 // Constant re-exports — these mirror the values in the types subpackage.
 // The aliased types above make them fully interchangeable.
-const (
-	PluginKindEBPF    = types.PluginKindEBPF
-	PluginKindWebhook = types.PluginKindWebhook
-	PluginKindCommand = types.PluginKindCommand
-)
-
-const (
-	PluginAttachTracepoint = types.PluginAttachTracepoint
-	PluginAttachKprobe     = types.PluginAttachKprobe
-	PluginAttachKretprobe  = types.PluginAttachKretprobe
-	PluginAttachLSM        = types.PluginAttachLSM
-	PluginAttachNone       = types.PluginAttachNone
-)
+// (PluginKind and PluginAttachKind values moved to constant.go)
 
 // ── TLS subpackage type aliases (exported types only) ───────────────────────
 type TLSCaptureStore = tls.TLSCaptureStore

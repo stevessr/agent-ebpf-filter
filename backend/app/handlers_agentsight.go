@@ -11,11 +11,6 @@ import (
 // All handler functions moved to app/handlers/agentsight.go.
 // Bridge functions in handlersbridge.go delegate to them.
 
-const (
-	agentSightDefaultLimit = 500
-	agentSightMaxLimit     = 5000
-)
-
 // Compatibility aliases kept in app/ for the store, adapters, and legacy tests.
 type agentSightExportEvent = handlers.AgentSightExportEvent
 type agentSightRunnerStatus = handlers.AgentSightRunnerStatus

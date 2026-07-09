@@ -15,11 +15,6 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section jobs_background.go ----
 
-const (
-	bpfEventSampleSize  = int(unsafe.Sizeof(bpfEvent{}))
-	bpfEventSampleAlign = uintptr(unsafe.Alignof(bpfEvent{}))
-)
-
 var nativeLittleEndian = func() bool {
 	var value uint16 = 1
 	return *(*byte)(unsafe.Pointer(&value)) == 1

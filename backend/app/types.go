@@ -1,7 +1,6 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/platform"
 	"agent-ebpf-filter/core"
 	"log"
 	"os/user"
@@ -36,104 +35,6 @@ type SelectedProgramSignalLog = core.SelectedProgramSignalLog
 type SignalProcessingSettings = core.SignalProcessingSettings
 type DomainForwardRoute = core.DomainForwardRoute
 type DomainForwardProxySettings = core.DomainForwardProxySettings
-
-// ── Constants ────────────────────────────────────────────────────────────────
-
-const udsPath = core.UDSPATH
-const ebpfPinRoot = platform.EBPFPinRoot
-const ebpfPinMapsDir = platform.EBPFPinMapsDir
-const ebpfPinLinksDir = platform.EBPFPinLinksDir
-
-const HookTypeNative = core.HookTypeNative
-const HookTypeWrapper = core.HookTypeWrapper
-const ConfigFormatJSON = core.ConfigFormatJSON
-const ConfigFormatTOML = core.ConfigFormatTOML
-
-// ModelType constants (re-exported from core)
-const (
-	ModelRandomForest       = core.ModelRandomForest
-	ModelKNN                = core.ModelKNN
-	ModelLogisticRegression = core.ModelLogisticRegression
-	ModelNaiveBayes         = core.ModelNaiveBayes
-	ModelNearestCentroid    = core.ModelNearestCentroid
-	ModelExtraTrees         = core.ModelExtraTrees
-	ModelAdaBoost           = core.ModelAdaBoost
-	ModelSVM                = core.ModelSVM
-	ModelRidge              = core.ModelRidge
-	ModelPerceptron         = core.ModelPerceptron
-	ModelPassiveAggressive  = core.ModelPassiveAggressive
-	ModelEnsemble           = core.ModelEnsemble
-	ModelAdditiveAttention  = core.ModelAdditiveAttention
-	ModelGANTransformer     = core.ModelGANTransformer
-
-	// Advanced attention mechanisms
-	ModelScaledDotProductAttention = core.ModelScaledDotProductAttention
-	ModelMultiHeadAttention        = core.ModelMultiHeadAttention
-	ModelRWKVAttention             = core.ModelRWKVAttention
-	ModelMambaAttention            = core.ModelMambaAttention
-
-	// Attention-enhanced model variants
-	ModelRandomForestScaledDotProduct = core.ModelRandomForestScaledDotProduct
-	ModelLogisticScaledDotProduct     = core.ModelLogisticScaledDotProduct
-	ModelKNNScaledDotProduct          = core.ModelKNNScaledDotProduct
-	ModelRandomForestMultiHead        = core.ModelRandomForestMultiHead
-	ModelLogisticMultiHead            = core.ModelLogisticMultiHead
-	ModelKNNMultiHead                 = core.ModelKNNMultiHead
-	ModelRandomForestRWKV             = core.ModelRandomForestRWKV
-	ModelLogisticRWKV                 = core.ModelLogisticRWKV
-	ModelKNNRWKV                      = core.ModelKNNRWKV
-	ModelRandomForestMamba            = core.ModelRandomForestMamba
-	ModelLogisticMamba                = core.ModelLogisticMamba
-	ModelKNNMamba                     = core.ModelKNNMamba
-
-	ModelRandomForestFast    = core.ModelRandomForestFast
-	ModelRandomForestShallow = core.ModelRandomForestShallow
-	ModelRandomForestStable  = core.ModelRandomForestStable
-	ModelRandomForestDeep    = core.ModelRandomForestDeep
-	ModelRandomForestWide    = core.ModelRandomForestWide
-	ModelRandomForestAttn    = core.ModelRandomForestAttn
-
-	ModelExtraTreesFast = core.ModelExtraTreesFast
-	ModelExtraTreesDeep = core.ModelExtraTreesDeep
-	ModelExtraTreesWide = core.ModelExtraTreesWide
-
-	ModelLogisticFast       = core.ModelLogisticFast
-	ModelLogisticNone       = core.ModelLogisticNone
-	ModelLogisticL1         = core.ModelLogisticL1
-	ModelLogisticBalanced   = core.ModelLogisticBalanced
-	ModelLogisticL1Balanced = core.ModelLogisticL1Balanced
-	ModelLogisticAttn       = core.ModelLogisticAttn
-
-	ModelSVMLong     = core.ModelSVMLong
-	ModelSVMBalanced = core.ModelSVMBalanced
-
-	ModelPerceptronLong     = core.ModelPerceptronLong
-	ModelPerceptronBalanced = core.ModelPerceptronBalanced
-
-	ModelPassiveAggressiveLong     = core.ModelPassiveAggressiveLong
-	ModelPassiveAggressiveBalanced = core.ModelPassiveAggressiveBalanced
-
-	ModelKNNManhattan = core.ModelKNNManhattan
-	ModelKNNCosine    = core.ModelKNNCosine
-	ModelKNNDistance  = core.ModelKNNDistance
-	ModelKNNAttn      = core.ModelKNNAttn
-
-	ModelNearestCentroidBalanced  = core.ModelNearestCentroidBalanced
-	ModelNearestCentroidCosine    = core.ModelNearestCentroidCosine
-	ModelNearestCentroidManhattan = core.ModelNearestCentroidManhattan
-
-	ModelNaiveBayesBalanced = core.ModelNaiveBayesBalanced
-
-	ModelEnsembleSoft    = core.ModelEnsembleSoft
-	ModelEnsembleHard    = core.ModelEnsembleHard
-	ModelEnsembleStacked = core.ModelEnsembleStacked
-
-	ModelRidgeLight  = core.ModelRidgeLight
-	ModelRidgeStrong = core.ModelRidgeStrong
-
-	ModelAdaBoostFast  = core.ModelAdaBoostFast
-	ModelAdaBoostLarge = core.ModelAdaBoostLarge
-)
 
 // ── Global variables ─────────────────────────────────────────────────────────
 

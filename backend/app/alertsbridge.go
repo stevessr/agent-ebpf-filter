@@ -7,12 +7,6 @@ import (
 
 // ── Semantic alert bridge ─────────────────────────────────────────
 
-const (
-	semanticPromptLoopThreshold = events.SemanticPromptLoopThreshold
-	semanticAPILoopThreshold    = events.SemanticAPILoopThreshold
-	semanticFileIOLoopThreshold = events.SemanticFileIOLoopThreshold
-)
-
 func buildSemanticAlerts(event *pb.Event) []*pb.Event {
 	events.Deps.SemanticAlertsState = semanticAlertsState
 	return events.BuildSemanticAlerts(event)

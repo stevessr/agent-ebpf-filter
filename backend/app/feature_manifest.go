@@ -1,39 +1,11 @@
 package app
 
 import (
-	"agent-ebpf-filter/app/types"
 	"agent-ebpf-filter/core"
 )
 
 // FeatureID, FeatureDangerLevel and their constants are aliased from the
 // types subpackage via typebridge.go — they are not re-defined here.
-
-// Feature ID constants — see types subpackage for canonical definitions.
-// These are re-declared here so that all code within the app package can
-// reference them without a types. prefix; they are interchangeable with
-// the types.FeatureID-typed constants.
-const (
-	FeatureShellSessions    = types.FeatureShellSessions
-	FeatureSystemRun        = types.FeatureSystemRun
-	FeatureHooks            = types.FeatureHooks
-	FeaturePolicyManagement = types.FeaturePolicyManagement
-	FeatureTLSCapture       = types.FeatureTLSCapture
-	FeatureOTLP             = types.FeatureOTLP
-	FeatureDomainForward    = types.FeatureDomainForward
-	FeatureML               = types.FeatureML
-	FeaturePlugins          = types.FeaturePlugins
-	FeatureSandboxCgroup    = types.FeatureSandboxCgroup
-	FeatureSandboxLSM       = types.FeatureSandboxLSM
-	FeatureNetworkExport    = types.FeatureNetworkExport
-	FeatureAgentSight       = types.FeatureAgentSight
-)
-
-const (
-	FeatureDangerLow      = types.FeatureDangerLow
-	FeatureDangerMedium   = types.FeatureDangerMedium
-	FeatureDangerHigh     = types.FeatureDangerHigh
-	FeatureDangerCritical = types.FeatureDangerCritical
-)
 
 type FeatureManifestEntry struct {
 	ID                   FeatureID          `json:"id"`

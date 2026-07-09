@@ -14,13 +14,6 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section export_otel.go ----
 
-const (
-	otelExporterQueueSize = 2048
-	otelToolIdleTimeout   = 20 * time.Second
-	otelTaskIdleTimeout   = 45 * time.Second
-	otelRunIdleTimeout    = 90 * time.Second
-)
-
 type OTelHealthResponse struct {
 	Enabled         bool   `json:"enabled"`
 	Ready           bool   `json:"ready"`

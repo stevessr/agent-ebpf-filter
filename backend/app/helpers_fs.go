@@ -19,14 +19,6 @@ import (
 
 // ---- moved from backend/zz_merged_backend.go section helpers_fs.go ----
 
-const hookMarker = "agent-ebpf-hook-active"
-const kiroManagedAgent = "agent-ebpf-hook"
-const (
-	textPreviewLimitBytes   = 64 * 1024
-	binaryPreviewLimitBytes = 4 * 1024
-	imagePreviewLimitBytes  = 2 * 1024 * 1024
-)
-
 var (
 )
 
