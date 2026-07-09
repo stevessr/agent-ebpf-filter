@@ -108,9 +108,12 @@ static __always_inline void inc_probe_hit(__u8 function) {
 // outermost uprobe/uretprobe handler (struct pt_regs *).
 static __always_inline int emit_tls_fragment(void *ctx, const void *buf, __u32 original_len, __u8 lib, __u8 dir, __u8 function)
 {
-	__u32 diag_output_fail = 12;
-	__u32 diag_read_fail  = 13;
-	__u32 diag_submit_ok  = 14;
+	// Diagnostic counters live at indices 100+ to avoid colliding with
+	// function-id hit counters (1..13, incl. rustls encrypt_outgoing=12 /
+	// consume_first_chunk=13).
+	__u32 diag_output_fail = 100;
+	__u32 diag_read_fail  = 101;
+	__u32 diag_submit_ok  = 102;
 	__u32 zero = 0;
 
 	inc_probe_hit(function);

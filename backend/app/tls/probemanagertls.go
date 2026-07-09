@@ -511,7 +511,28 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 		m.mu.Unlock()
 		return result
 	}
-	log.Printf("[tls] AttachExecutable: symbol-based static SSL failed for %s, trying BoringSSL byte-pattern detection...", attachPath)
+	log.Printf("[tls] AttachExecutable: symbol-based static SSL failed for %s, trying rustls offset detection...", attachPath)
+
+	// Try rustls BEFORE the BoringSSL byte-pattern heuristic for binaries known
+	// to use rustls (codex/cursor — stripped static-pie Rust). The BoringSSL
+	// heuristic greps for the "SSL_write" string (present in rustls error/feature
+	// strings) and pattern-matches OpenSSL prologues that coincidentally exist
+	// elsewhere in .text, attaching uprobes at wrong offsets and returning
+	// success — which prevents the precise rustls .eh_frame probe from ever
+	// running. So for rustls binaries, try the precise offset probe first.
+	if err := m.AttachRustlsUprobes(attachPath, pid); err == nil {
+		log.Printf("[tls] AttachExecutable: rustls uprobes attached to %s (pid=%d)", attachPath, pid)
+		result.TargetKind = "static-ssl"
+		result.Library = "rustls"
+		m.mu.Lock()
+		if m.attachedExec == nil {
+			m.attachedExec = make(map[int]string)
+		}
+		m.attachedExec[pid] = "rustls"
+		m.mu.Unlock()
+		return result
+	}
+	log.Printf("[tls] AttachExecutable: rustls offset detection failed for %s, trying BoringSSL byte-pattern detection...", attachPath)
 
 	// Try BoringSSL byte-pattern detection for stripped binaries
 	// (Node.js with BoringSSL, Bun, Claude CLI, etc.)
@@ -529,24 +550,7 @@ func (m *TLSProbeManager) AttachExecutable(input string, pid int, libraryHint st
 	}
 	log.Printf("[tls] AttachExecutable: BoringSSL detection also failed for %s", attachPath)
 
-	// Try rustls offset detection for Rust binaries (Codex, Cursor, etc.)
-	// NOTE: This uses heuristic byte-pattern matching and may fail on:
-	// - Heavily optimized or stripped binaries (e.g., codex 0.142.5+)
-	// - Rustls versions with different code generation patterns
-	// - Static-pie executables with complex inlining
-	if err := m.AttachRustlsUprobes(attachPath, pid); err == nil {
-		log.Printf("[tls] AttachExecutable: rustls uprobes attached to %s (pid=%d)", attachPath, pid)
-		result.TargetKind = "static-ssl"
-		result.Library = "rustls"
-		m.mu.Lock()
-		if m.attachedExec == nil {
-			m.attachedExec = make(map[int]string)
-		}
-		m.attachedExec[pid] = "rustls"
-		m.mu.Unlock()
-		return result
-	}
-	log.Printf("[tls] AttachExecutable: rustls pattern matching failed for %s (stripped binary or unsupported rustls version)", attachPath)
+	// Rustls already attempted above; if we reach here it failed.
 	// Check if this looks like a Rust binary via .rodata strings
 	if hasRustlsStrings(attachPath) {
 		log.Printf("[tls] AttachExecutable: %s contains rustls strings but offset detection failed — byte-pattern heuristics need improvement", attachPath)
@@ -1323,6 +1327,10 @@ func tlsFuncName(fn uint8) string {
 		return "crypto/tls.Read"
 	case tlsFuncSSLWriteEx2:
 		return "SSL_write_ex2"
+	case tlsFuncRustlsEncryptOutgoing:
+		return "rustls::encrypt_outgoing"
+	case tlsFuncRustlsConsumeFirstChunk:
+		return "rustls::consume_first_chunk"
 	default:
 		return "unknown"
 	}
@@ -1462,15 +1470,18 @@ func (m *TLSProbeManager) ProbeHitCounters() map[string]uint64 {
 	if m == nil || m.objs == nil || m.objs.TlsProbeHits == nil {
 		return result
 	}
-	for fn := uint8(1); fn <= 11; fn++ {
+	// Function hit counters: indices 1-11 (classic SSL/gnutls/NSS/Go),
+	// 12 = rustls::encrypt_outgoing, 13 = rustls::consume_first_chunk.
+	for fn := uint8(1); fn <= 13; fn++ {
 		var idx uint32 = uint32(fn)
 		var val uint64
 		if err := m.objs.TlsProbeHits.Lookup(&idx, &val); err == nil && val > 0 {
 			result[tlsFuncName(fn)] = val
 		}
 	}
-	// Diagnostic counters (indices 12-14 in BPF map)
-	diagLabels := map[uint32]string{12: "perf_output_fail", 13: "probe_read_fail", 14: "perf_submit_ok"}
+	// Diagnostic counters (indices 100-102 in BPF map, kept separate from
+	// function-id counters 1..13 to avoid shadowing rustls 12/13).
+	diagLabels := map[uint32]string{100: "perf_output_fail", 101: "probe_read_fail", 102: "perf_submit_ok"}
 	for idx, label := range diagLabels {
 		var val uint64
 		if err := m.objs.TlsProbeHits.Lookup(&idx, &val); err == nil && val > 0 {
