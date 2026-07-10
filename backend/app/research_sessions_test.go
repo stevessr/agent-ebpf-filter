@@ -393,13 +393,73 @@ func TestResearchTaskQueueFullAndCancelIdempotent(t *testing.T) {
 	}
 }
 
+func TestResearchTaskRetentionOnlyPrunesTerminalHistory(t *testing.T) {
+	manager := newResearchTaskManager(newResearchSessionStore(t.TempDir()))
+	manager.maxItems = 1
+	now := time.Now().UTC()
+	terminal := &researchTaskEntry{
+		task: ResearchTask{
+			TaskID:     "terminal",
+			Status:     researchTaskSucceeded,
+			QueuedAt:   now.Add(-time.Minute),
+			FinishedAt: ptrTime(now.Add(-30 * time.Second)),
+		},
+	}
+	active := &researchTaskEntry{
+		task: ResearchTask{
+			TaskID:   "active",
+			Status:   researchTaskRunning,
+			QueuedAt: now,
+		},
+	}
+	manager.tasks[terminal.task.TaskID] = terminal
+	manager.tasks[active.task.TaskID] = active
+
+	manager.pruneTrackedTasks()
+	if _, ok := manager.tasks[terminal.task.TaskID]; ok {
+		t.Fatal("terminal history was not pruned")
+	}
+	if got := manager.tasks[active.task.TaskID]; got != active {
+		t.Fatal("active research task was evicted")
+	}
+}
+
+func TestResearchTaskRuntimeConvertsPanicToFailure(t *testing.T) {
+	manager := newResearchTaskManager(newResearchSessionStore(t.TempDir()))
+	manager.taskHandler = func(*researchTaskEntry) error { panic("research boom") }
+	entry := &researchTaskEntry{
+		task: ResearchTask{
+			TaskID:    "panic-task",
+			SessionID: "session",
+			Action:    "reset_session",
+			Status:    researchTaskQueued,
+			QueuedAt:  time.Now().UTC(),
+		},
+		request: researchTaskRequest{Action: "reset_session"},
+	}
+	runtimeEntry := newBackendTaskRuntimeEntry(entry.task.TaskID, entry.task.Action, entry)
+	entry.runtime = runtimeEntry
+	entry.cancel = runtimeEntry.cancel
+
+	err := manager.runRuntimeTask(runtimeEntry)
+	if !errors.Is(err, errBackendTaskHandlerPanic) {
+		t.Fatalf("panic error = %v, want %v", err, errBackendTaskHandlerPanic)
+	}
+	snapshot := entry.snapshot()
+	if snapshot.Status != researchTaskFailed || !strings.Contains(snapshot.Error, errBackendTaskHandlerPanic.Error()) {
+		t.Fatalf("panic task snapshot mismatch: %+v", snapshot)
+	}
+}
+
 func TestResearchTasksStatusHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	oldTasks := researchTaskStore
 	manager := newResearchTaskManager(newResearchSessionStore(t.TempDir()))
 	now := time.Now().UTC()
 	manager.runtime.completedTotal = 1
+	manager.runtime.panickedTotal = 1
 	manager.runtime.runDurationTotal = 3 * time.Millisecond
+	manager.runtime.runDurationSamples = 1
 	manager.runtime.lastQueueLatency = 2 * time.Millisecond
 	manager.runtime.lastRunDuration = 3 * time.Millisecond
 	manager.runtime.lastTotalDuration = 5 * time.Millisecond
@@ -421,7 +481,7 @@ func TestResearchTasksStatusHandler(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
 		t.Fatalf("decode status: %v", err)
 	}
-	if status.Runtime.Name != "research" || status.ByStatus == nil {
+	if status.Runtime.Name != "research" || status.Runtime.PanickedTotal != 1 || status.ByStatus == nil {
 		t.Fatalf("decoded status mismatch: %+v", status)
 	}
 	if status.Runtime.LastQueueLatencyMs <= 0 || status.Runtime.LastRunDurationMs <= 0 || status.Runtime.LastTotalDurationMs <= 0 || status.Runtime.AvgRunDurationMs <= 0 || status.Runtime.LastStartedAt == nil || status.Runtime.LastFinishedAt == nil {

@@ -272,10 +272,12 @@ type researchSessionStore struct {
 }
 
 type researchTaskManager struct {
-	mu      sync.RWMutex
-	runtime *backendTaskRuntime
-	tasks   map[string]*researchTaskEntry
-	store   *researchSessionStore
+	mu          sync.RWMutex
+	runtime     *backendTaskRuntime
+	tasks       map[string]*researchTaskEntry
+	store       *researchSessionStore
+	maxItems    int
+	taskHandler func(*researchTaskEntry) error
 }
 
 var (
@@ -294,7 +296,12 @@ func newResearchTaskManager(store *researchSessionStore) *researchTaskManager {
 	if store == nil {
 		store = newResearchSessionStore("")
 	}
-	manager := &researchTaskManager{store: store, tasks: make(map[string]*researchTaskEntry)}
+	manager := &researchTaskManager{
+		store:    store,
+		tasks:    make(map[string]*researchTaskEntry),
+		maxItems: researchTaskStoreMaxItems,
+	}
+	manager.taskHandler = manager.runTask
 	manager.runtime = newBackendTaskRuntime("research", researchTaskStoreMaxItems, manager.runRuntimeTask)
 	return manager
 }
@@ -325,11 +332,22 @@ func (m *researchTaskManager) ensureRuntime() *backendTaskRuntime {
 	return m.runtime
 }
 
-func (m *researchTaskManager) runRuntimeTask(runtimeEntry *backendTaskRuntimeEntry) error {
+func (m *researchTaskManager) runRuntimeTask(runtimeEntry *backendTaskRuntimeEntry) (err error) {
+	var entry *researchTaskEntry
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = newBackendTaskPanicError(recovered)
+			if entry != nil {
+				entry.finish(researchTaskFailed, entry.progress(), err.Error(), nil)
+			}
+		}
+		m.pruneTrackedTasks()
+	}()
 	if runtimeEntry == nil {
 		return errors.New("research task runtime entry is nil")
 	}
-	entry, ok := runtimeEntry.Payload().(*researchTaskEntry)
+	var ok bool
+	entry, ok = runtimeEntry.Payload().(*researchTaskEntry)
 	if !ok || entry == nil {
 		return errors.New("research task payload is invalid")
 	}
@@ -341,7 +359,11 @@ func (m *researchTaskManager) runRuntimeTask(runtimeEntry *backendTaskRuntimeEnt
 		entry.finish(researchTaskCanceled, 1, "", nil)
 		return errBackendTaskCanceled
 	}
-	err := m.runTask(entry)
+	handler := m.taskHandler
+	if handler == nil {
+		handler = m.runTask
+	}
+	err = handler(entry)
 	if err != nil {
 		if errors.Is(err, errResearchTaskCanceled) || entry.isCanceled() {
 			entry.finish(researchTaskCanceled, 1, "", nil)
@@ -390,7 +412,6 @@ func (m *researchTaskManager) Submit(sessionID string, req researchTaskRequest, 
 	entry.runtime = runtimeEntry
 	entry.cancel = runtimeEntry.cancel
 	m.mu.Lock()
-	m.pruneLocked()
 	m.tasks[entry.task.TaskID] = entry
 	m.mu.Unlock()
 
@@ -403,6 +424,7 @@ func (m *researchTaskManager) Submit(sessionID string, req researchTaskRequest, 
 		}
 		return ResearchTask{}, err
 	}
+	m.pruneTrackedTasks()
 	entry.setQueueLen(runtimeEntry.Snapshot().QueueLen)
 	return entry.snapshot(), nil
 }
@@ -457,8 +479,24 @@ func (m *researchTaskManager) Cancel(taskID string) ResearchTask {
 	return entry.snapshot()
 }
 
+func (m *researchTaskManager) pruneTrackedTasks() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.pruneLocked()
+	m.mu.Unlock()
+}
+
 func (m *researchTaskManager) pruneLocked() {
-	if len(m.tasks) <= researchTaskStoreMaxItems {
+	if m == nil {
+		return
+	}
+	limit := m.maxItems
+	if limit <= 0 {
+		limit = researchTaskStoreMaxItems
+	}
+	if len(m.tasks) <= limit {
 		return
 	}
 	type item struct {
@@ -468,16 +506,33 @@ func (m *researchTaskManager) pruneLocked() {
 	items := make([]item, 0, len(m.tasks))
 	for id, entry := range m.tasks {
 		task := entry.snapshot()
+		if !researchTaskStatusTerminal(task.Status) {
+			continue
+		}
 		ts := task.QueuedAt
 		if task.FinishedAt != nil {
 			ts = *task.FinishedAt
 		}
 		items = append(items, item{id: id, ts: ts})
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].ts.Before(items[j].ts) })
-	for len(m.tasks) > researchTaskStoreMaxItems && len(items) > 0 {
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].ts.Equal(items[j].ts) {
+			return items[i].id < items[j].id
+		}
+		return items[i].ts.Before(items[j].ts)
+	})
+	for len(m.tasks) > limit && len(items) > 0 {
 		delete(m.tasks, items[0].id)
 		items = items[1:]
+	}
+}
+
+func researchTaskStatusTerminal(status string) bool {
+	switch status {
+	case researchTaskSucceeded, researchTaskFailed, researchTaskCanceled:
+		return true
+	default:
+		return false
 	}
 }
 

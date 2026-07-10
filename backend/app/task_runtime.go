@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -17,8 +18,10 @@ const (
 )
 
 var (
-	errBackendTaskQueueFull = errors.New("backend task queue is full")
-	errBackendTaskCanceled  = errors.New("backend task canceled")
+	errBackendTaskQueueFull    = errors.New("backend task queue is full")
+	errBackendTaskDuplicateID  = errors.New("backend task id already exists")
+	errBackendTaskCanceled     = errors.New("backend task canceled")
+	errBackendTaskHandlerPanic = errors.New("backend task handler panicked")
 )
 
 type backendTaskRuntimeEntry struct {
@@ -62,6 +65,7 @@ type backendTaskRuntimeStats struct {
 	CompletedTotal      uint64     `json:"completedTotal"`
 	FailedTotal         uint64     `json:"failedTotal"`
 	CanceledTotal       uint64     `json:"canceledTotal"`
+	PanickedTotal       uint64     `json:"panickedTotal"`
 	RejectedTotal       uint64     `json:"rejectedTotal"`
 	LastQueueLatencyMs  float64    `json:"lastQueueLatencyMs,omitempty"`
 	LastRunDurationMs   float64    `json:"lastRunDurationMs,omitempty"`
@@ -83,20 +87,22 @@ type backendTaskRuntime struct {
 	maxItems int
 	handler  func(*backendTaskRuntimeEntry) error
 
-	enqueuedTotal     uint64
-	completedTotal    uint64
-	failedTotal       uint64
-	canceledTotal     uint64
-	rejectedTotal     uint64
-	runDurationTotal  time.Duration
-	lastQueueLatency  time.Duration
-	lastRunDuration   time.Duration
-	lastTotalDuration time.Duration
-	lastStartedAt     time.Time
-	lastFinishedAt    time.Time
-	lastError         string
-	lastRejectReason  string
-	updatedAt         time.Time
+	enqueuedTotal      uint64
+	completedTotal     uint64
+	failedTotal        uint64
+	canceledTotal      uint64
+	panickedTotal      uint64
+	rejectedTotal      uint64
+	runDurationTotal   time.Duration
+	runDurationSamples uint64
+	lastQueueLatency   time.Duration
+	lastRunDuration    time.Duration
+	lastTotalDuration  time.Duration
+	lastStartedAt      time.Time
+	lastFinishedAt     time.Time
+	lastError          string
+	lastRejectReason   string
+	updatedAt          time.Time
 }
 
 func newBackendTaskRuntime(name string, maxItems int, handler func(*backendTaskRuntimeEntry) error) *backendTaskRuntime {
@@ -156,7 +162,11 @@ func (r *backendTaskRuntime) Submit(entry *backendTaskRuntimeEntry) error {
 		return errors.New("backend task entry is invalid")
 	}
 	r.mu.Lock()
-	r.pruneLocked()
+	if _, exists := r.tasks[entry.id]; exists {
+		r.noteRejectedLocked("duplicate_id", errBackendTaskDuplicateID)
+		r.mu.Unlock()
+		return errBackendTaskDuplicateID
+	}
 	queue := r.queue
 	if queue == nil {
 		queue = make(chan *backendTaskRuntimeEntry, researchProcessingDefaultQueueSize)
@@ -170,17 +180,29 @@ func (r *backendTaskRuntime) Submit(entry *backendTaskRuntimeEntry) error {
 		entry.setQueueLen(len(queue))
 		r.enqueuedTotal++
 		r.updatedAt = time.Now().UTC()
+		// Prune only after the enqueue succeeds. A rejected submission must not
+		// discard useful history. pruneLocked only evicts terminal entries, so
+		// queued/running work remains addressable even above maxItems.
+		r.pruneLocked()
 		r.mu.Unlock()
 		return nil
 	default:
-		delete(r.tasks, entry.id)
-		r.rejectedTotal++
-		r.lastRejectReason = "queue_full"
-		r.lastError = errBackendTaskQueueFull.Error()
-		r.updatedAt = time.Now().UTC()
+		if current := r.tasks[entry.id]; current == entry {
+			delete(r.tasks, entry.id)
+		}
+		r.noteRejectedLocked("queue_full", errBackendTaskQueueFull)
 		r.mu.Unlock()
 		return errBackendTaskQueueFull
 	}
+}
+
+func (r *backendTaskRuntime) noteRejectedLocked(reason string, err error) {
+	r.rejectedTotal++
+	r.lastRejectReason = reason
+	if err != nil {
+		r.lastError = err.Error()
+	}
+	r.updatedAt = time.Now().UTC()
 }
 
 func (r *backendTaskRuntime) Get(id string) (*backendTaskRuntimeEntry, bool) {
@@ -223,11 +245,12 @@ func (r *backendTaskRuntime) Stats() backendTaskRuntimeStats {
 		CompletedTotal:      r.completedTotal,
 		FailedTotal:         r.failedTotal,
 		CanceledTotal:       r.canceledTotal,
+		PanickedTotal:       r.panickedTotal,
 		RejectedTotal:       r.rejectedTotal,
 		LastQueueLatencyMs:  durationMilliseconds(r.lastQueueLatency),
 		LastRunDurationMs:   durationMilliseconds(r.lastRunDuration),
 		LastTotalDurationMs: durationMilliseconds(r.lastTotalDuration),
-		AvgRunDurationMs:    backendTaskAverageDurationMs(r.runDurationTotal, r.completedTotal),
+		AvgRunDurationMs:    backendTaskAverageDurationMs(r.runDurationTotal, r.runDurationSamples),
 		LastStartedAt:       ptrTimeIfSet(r.lastStartedAt),
 		LastFinishedAt:      ptrTimeIfSet(r.lastFinishedAt),
 		LastError:           r.lastError,
@@ -245,34 +268,47 @@ func (r *backendTaskRuntime) run(queue <-chan *backendTaskRuntimeEntry) {
 		}
 		if !entry.markRunning() {
 			entry.finish(backendTaskStatusCanceled, 1, "")
-			r.noteFinished(entry, backendTaskStatusCanceled, "")
+			r.noteFinished(entry, backendTaskStatusCanceled, "", false)
 			continue
 		}
-		err := error(nil)
-		if r.handler != nil {
-			err = r.handler(entry)
-		}
+		err := r.execute(entry)
 		if err != nil {
 			if errors.Is(err, errBackendTaskCanceled) || entry.IsCanceled() {
 				entry.finish(backendTaskStatusCanceled, 1, "")
-				r.noteFinished(entry, backendTaskStatusCanceled, "")
+				r.noteFinished(entry, backendTaskStatusCanceled, "", false)
 				continue
 			}
 			entry.finish(backendTaskStatusFailed, entry.Progress(), err.Error())
-			r.noteFinished(entry, backendTaskStatusFailed, err.Error())
+			r.noteFinished(entry, backendTaskStatusFailed, err.Error(), errors.Is(err, errBackendTaskHandlerPanic))
 			continue
 		}
 		if entry.IsCanceled() {
 			entry.finish(backendTaskStatusCanceled, 1, "")
-			r.noteFinished(entry, backendTaskStatusCanceled, "")
+			r.noteFinished(entry, backendTaskStatusCanceled, "", false)
 			continue
 		}
 		entry.finish(backendTaskStatusSucceeded, 1, "")
-		r.noteFinished(entry, backendTaskStatusSucceeded, "")
+		r.noteFinished(entry, backendTaskStatusSucceeded, "", false)
 	}
 }
 
-func (r *backendTaskRuntime) noteFinished(entry *backendTaskRuntimeEntry, status, message string) {
+func (r *backendTaskRuntime) execute(entry *backendTaskRuntimeEntry) (err error) {
+	if r == nil || r.handler == nil {
+		return nil
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = newBackendTaskPanicError(recovered)
+		}
+	}()
+	return r.handler(entry)
+}
+
+func newBackendTaskPanicError(recovered any) error {
+	return fmt.Errorf("%w: %v", errBackendTaskHandlerPanic, recovered)
+}
+
+func (r *backendTaskRuntime) noteFinished(entry *backendTaskRuntimeEntry, status, message string, panicked bool) {
 	if r == nil {
 		return
 	}
@@ -280,7 +316,10 @@ func (r *backendTaskRuntime) noteFinished(entry *backendTaskRuntimeEntry, status
 	queueLatency, runDuration, totalDuration := backendTaskSnapshotDurations(snapshot)
 	r.mu.Lock()
 	r.completedTotal++
-	r.runDurationTotal += runDuration
+	if snapshot.StartedAt != nil {
+		r.runDurationTotal += runDuration
+		r.runDurationSamples++
+	}
 	r.lastQueueLatency = queueLatency
 	r.lastRunDuration = runDuration
 	r.lastTotalDuration = totalDuration
@@ -296,13 +335,21 @@ func (r *backendTaskRuntime) noteFinished(entry *backendTaskRuntimeEntry, status
 	case backendTaskStatusCanceled:
 		r.canceledTotal++
 	}
+	if panicked {
+		r.panickedTotal++
+	}
 	r.lastError = message
 	r.updatedAt = time.Now().UTC()
+	r.pruneLocked()
 	r.mu.Unlock()
 }
 
 func (r *backendTaskRuntime) pruneLocked() {
-	if r == nil || len(r.tasks) <= r.maxItems {
+	if r == nil {
+		return
+	}
+	limit := r.maxItems
+	if len(r.tasks) <= limit {
 		return
 	}
 	type item struct {
@@ -312,16 +359,33 @@ func (r *backendTaskRuntime) pruneLocked() {
 	items := make([]item, 0, len(r.tasks))
 	for id, entry := range r.tasks {
 		snapshot := entry.Snapshot()
+		if !backendTaskStatusTerminal(snapshot.Status) {
+			continue
+		}
 		ts := snapshot.QueuedAt
 		if snapshot.FinishedAt != nil {
 			ts = *snapshot.FinishedAt
 		}
 		items = append(items, item{id: id, ts: ts})
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].ts.Before(items[j].ts) })
-	for len(r.tasks) > r.maxItems && len(items) > 0 {
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].ts.Equal(items[j].ts) {
+			return items[i].id < items[j].id
+		}
+		return items[i].ts.Before(items[j].ts)
+	})
+	for len(r.tasks) > limit && len(items) > 0 {
 		delete(r.tasks, items[0].id)
 		items = items[1:]
+	}
+}
+
+func backendTaskStatusTerminal(status string) bool {
+	switch status {
+	case backendTaskStatusSucceeded, backendTaskStatusFailed, backendTaskStatusCanceled:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -363,9 +427,13 @@ func (entry *backendTaskRuntimeEntry) Cancel() {
 	if entry == nil {
 		return
 	}
-	entry.cancelOnce.Do(func() { close(entry.cancel) })
 	now := time.Now().UTC()
 	entry.mu.Lock()
+	if backendTaskStatusTerminal(entry.status) {
+		entry.mu.Unlock()
+		return
+	}
+	entry.cancelOnce.Do(func() { close(entry.cancel) })
 	if entry.status == backendTaskStatusQueued {
 		entry.status = backendTaskStatusCanceled
 		entry.progress = 1
@@ -441,8 +509,9 @@ func (entry *backendTaskRuntimeEntry) finish(status string, progress float64, me
 	}
 	now := time.Now().UTC()
 	entry.mu.Lock()
-	if entry.status == backendTaskStatusCanceled && status == backendTaskStatusSucceeded {
-		status = backendTaskStatusCanceled
+	if backendTaskStatusTerminal(entry.status) && entry.finishedAt != nil {
+		entry.mu.Unlock()
+		return
 	}
 	entry.status = status
 	entry.progress = progress

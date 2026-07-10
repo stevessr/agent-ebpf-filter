@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -71,6 +72,127 @@ func TestBackendTaskRuntimeQueueFullAndCancel(t *testing.T) {
 	stats := runtime.Stats()
 	if stats.RejectedTotal != 1 || stats.LastRejectReason != "queue_full" {
 		t.Fatalf("queue full stats mismatch: %+v", stats)
+	}
+}
+
+func TestBackendTaskRuntimeRejectsDuplicateIDWithoutLosingOriginal(t *testing.T) {
+	runtime := newBackendTaskRuntime("unit", 8, nil)
+	runtime.queue = make(chan *backendTaskRuntimeEntry, 2)
+	runtime.started = true
+
+	original := newBackendTaskRuntimeEntry("task-1", "unit", "original")
+	if err := runtime.Submit(original); err != nil {
+		t.Fatalf("submit original: %v", err)
+	}
+	duplicate := newBackendTaskRuntimeEntry("task-1", "unit", "duplicate")
+	if err := runtime.Submit(duplicate); !errors.Is(err, errBackendTaskDuplicateID) {
+		t.Fatalf("duplicate submit error = %v, want %v", err, errBackendTaskDuplicateID)
+	}
+
+	got, ok := runtime.Get(original.id)
+	if !ok || got != original {
+		t.Fatalf("tracked task = %p, %v; want original %p", got, ok, original)
+	}
+	stats := runtime.Stats()
+	if stats.EnqueuedTotal != 1 || stats.RejectedTotal != 1 || stats.LastRejectReason != "duplicate_id" {
+		t.Fatalf("duplicate stats mismatch: %+v", stats)
+	}
+}
+
+func TestBackendTaskRuntimeRecoversHandlerPanicAndContinues(t *testing.T) {
+	runtime := newBackendTaskRuntime("unit", 8, func(entry *backendTaskRuntimeEntry) error {
+		if entry.id == "panic" {
+			panic("boom")
+		}
+		return nil
+	})
+	runtime.Start(2)
+
+	panicked := newBackendTaskRuntimeEntry("panic", "unit", nil)
+	next := newBackendTaskRuntimeEntry("next", "unit", nil)
+	if err := runtime.Submit(panicked); err != nil {
+		t.Fatalf("submit panic task: %v", err)
+	}
+	if err := runtime.Submit(next); err != nil {
+		t.Fatalf("submit next task: %v", err)
+	}
+
+	waitForBackendTaskStatus(t, panicked, backendTaskStatusFailed)
+	waitForBackendTaskStatus(t, next, backendTaskStatusSucceeded)
+	if message := panicked.Snapshot().Error; !strings.Contains(message, errBackendTaskHandlerPanic.Error()) || !strings.Contains(message, "boom") {
+		t.Fatalf("panic error = %q", message)
+	}
+	stats := runtime.Stats()
+	if stats.CompletedTotal != 2 || stats.FailedTotal != 1 || stats.PanickedTotal != 1 {
+		t.Fatalf("panic stats mismatch: %+v", stats)
+	}
+}
+
+func TestBackendTaskRuntimeRetentionNeverEvictsActiveTasks(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	runtime := newBackendTaskRuntime("unit", 1, func(entry *backendTaskRuntimeEntry) error {
+		if entry.id == "first" {
+			close(started)
+			<-release
+		}
+		return nil
+	})
+	runtime.Start(2)
+
+	first := newBackendTaskRuntimeEntry("first", "unit", nil)
+	second := newBackendTaskRuntimeEntry("second", "unit", nil)
+	if err := runtime.Submit(first); err != nil {
+		t.Fatalf("submit first: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("first task did not start")
+	}
+	if err := runtime.Submit(second); err != nil {
+		t.Fatalf("submit second: %v", err)
+	}
+	if _, ok := runtime.Get("first"); !ok {
+		t.Fatal("running task was evicted")
+	}
+	if _, ok := runtime.Get("second"); !ok {
+		t.Fatal("queued task was evicted")
+	}
+	if got := runtime.Stats().TrackedTotal; got != 2 {
+		t.Fatalf("tracked active tasks = %d, want 2", got)
+	}
+
+	close(release)
+	waitForBackendTaskStatus(t, first, backendTaskStatusSucceeded)
+	waitForBackendTaskStatus(t, second, backendTaskStatusSucceeded)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) && runtime.Stats().TrackedTotal != 1 {
+		time.Sleep(time.Millisecond)
+	}
+	if got := runtime.Stats().TrackedTotal; got != 1 {
+		t.Fatalf("tracked terminal history = %d, want 1", got)
+	}
+	if _, ok := runtime.Get("first"); ok {
+		t.Fatal("oldest terminal task was not pruned")
+	}
+	if got, ok := runtime.Get("second"); !ok || got != second {
+		t.Fatal("newest terminal task should remain tracked")
+	}
+}
+
+func TestBackendTaskRuntimeCancelDoesNotMutateTerminalTask(t *testing.T) {
+	entry := newBackendTaskRuntimeEntry("done", "unit", nil)
+	entry.finish(backendTaskStatusSucceeded, 1, "")
+	before := entry.Snapshot()
+	entry.Cancel()
+	after := entry.Snapshot()
+
+	if entry.IsCanceled() {
+		t.Fatal("terminal task cancellation channel should remain open")
+	}
+	if after.Status != before.Status || after.FinishedAt == nil || !after.FinishedAt.Equal(*before.FinishedAt) {
+		t.Fatalf("terminal task changed after cancel: before=%+v after=%+v", before, after)
 	}
 }
 

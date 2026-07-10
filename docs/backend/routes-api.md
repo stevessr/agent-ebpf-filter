@@ -283,6 +283,7 @@ Research training API：`GET /research/sessions/:id/training` 和 `POST /researc
 | `GET` | `/research/sessions/:id` | 会话详情、summary、artifactRefs |
 | `DELETE` | `/research/sessions/:id` | 删除会话和 artifacts |
 | `POST` | `/research/sessions/:id/tasks` | 提交异步任务 (`scan_recent`/`build_session`/`compare_windows`/`security_eval`/`export_bundle`/`reset_session`) |
+| `GET` | `/research/tasks/status` | 查询有界队列、任务保留量、完成/失败/取消/恐慌计数、拒绝原因及排队/运行耗时 |
 | `GET` | `/research/tasks/:taskId` | 查询任务状态、进度、错误和 resultRef |
 | `POST` | `/research/tasks/:taskId/cancel` | 幂等取消排队中或运行中的任务 |
 | `GET` | `/research/sessions/:id/events` | 分页查询归一化 ResearchEvent |
