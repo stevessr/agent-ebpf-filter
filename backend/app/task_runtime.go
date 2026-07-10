@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -18,10 +19,11 @@ const (
 )
 
 var (
-	errBackendTaskQueueFull    = errors.New("backend task queue is full")
-	errBackendTaskDuplicateID  = errors.New("backend task id already exists")
-	errBackendTaskCanceled     = errors.New("backend task canceled")
-	errBackendTaskHandlerPanic = errors.New("backend task handler panicked")
+	errBackendTaskQueueFull     = errors.New("backend task queue is full")
+	errBackendTaskDuplicateID   = errors.New("backend task id already exists")
+	errBackendTaskRuntimeClosed = errors.New("backend task runtime is closed")
+	errBackendTaskCanceled      = errors.New("backend task canceled")
+	errBackendTaskHandlerPanic  = errors.New("backend task handler panicked")
 )
 
 type backendTaskRuntimeEntry struct {
@@ -58,6 +60,7 @@ type backendTaskRuntimeSnapshot struct {
 type backendTaskRuntimeStats struct {
 	Name                string     `json:"name"`
 	Started             bool       `json:"started"`
+	Closed              bool       `json:"closed"`
 	QueueLen            int        `json:"queueLen"`
 	QueueCap            int        `json:"queueCap"`
 	TrackedTotal        int        `json:"trackedTotal"`
@@ -82,7 +85,9 @@ type backendTaskRuntime struct {
 	mu       sync.RWMutex
 	name     string
 	queue    chan *backendTaskRuntimeEntry
+	done     chan struct{}
 	started  bool
+	closed   bool
 	tasks    map[string]*backendTaskRuntimeEntry
 	maxItems int
 	handler  func(*backendTaskRuntimeEntry) error
@@ -142,16 +147,23 @@ func (r *backendTaskRuntime) Start(queueSize int) {
 		queueSize = researchProcessingDefaultQueueSize
 	}
 	r.mu.Lock()
-	if r.started {
+	if r.started || r.closed {
 		r.mu.Unlock()
 		return
 	}
-	r.queue = make(chan *backendTaskRuntimeEntry, queueSize)
+	queue, done := r.startLocked(queueSize)
+	r.mu.Unlock()
+	go r.run(queue, done)
+}
+
+func (r *backendTaskRuntime) startLocked(queueSize int) (chan *backendTaskRuntimeEntry, chan struct{}) {
+	queue := make(chan *backendTaskRuntimeEntry, queueSize)
+	done := make(chan struct{})
+	r.queue = queue
+	r.done = done
 	r.started = true
 	r.updatedAt = time.Now().UTC()
-	queue := r.queue
-	r.mu.Unlock()
-	go r.run(queue)
+	return queue, done
 }
 
 func (r *backendTaskRuntime) Submit(entry *backendTaskRuntimeEntry) error {
@@ -162,6 +174,11 @@ func (r *backendTaskRuntime) Submit(entry *backendTaskRuntimeEntry) error {
 		return errors.New("backend task entry is invalid")
 	}
 	r.mu.Lock()
+	if r.closed {
+		r.noteRejectedLocked("runtime_closed", errBackendTaskRuntimeClosed)
+		r.mu.Unlock()
+		return errBackendTaskRuntimeClosed
+	}
 	if _, exists := r.tasks[entry.id]; exists {
 		r.noteRejectedLocked("duplicate_id", errBackendTaskDuplicateID)
 		r.mu.Unlock()
@@ -169,10 +186,9 @@ func (r *backendTaskRuntime) Submit(entry *backendTaskRuntimeEntry) error {
 	}
 	queue := r.queue
 	if queue == nil {
-		queue = make(chan *backendTaskRuntimeEntry, researchProcessingDefaultQueueSize)
-		r.queue = queue
-		r.started = true
-		go r.run(queue)
+		var done chan struct{}
+		queue, done = r.startLocked(researchProcessingDefaultQueueSize)
+		go r.run(queue, done)
 	}
 	r.tasks[entry.id] = entry
 	select {
@@ -238,6 +254,7 @@ func (r *backendTaskRuntime) Stats() backendTaskRuntimeStats {
 	stats := backendTaskRuntimeStats{
 		Name:                r.name,
 		Started:             r.started,
+		Closed:              r.closed,
 		QueueLen:            queueLen,
 		QueueCap:            queueCap,
 		TrackedTotal:        len(r.tasks),
@@ -261,7 +278,8 @@ func (r *backendTaskRuntime) Stats() backendTaskRuntimeStats {
 	return stats
 }
 
-func (r *backendTaskRuntime) run(queue <-chan *backendTaskRuntimeEntry) {
+func (r *backendTaskRuntime) run(queue <-chan *backendTaskRuntimeEntry, done chan<- struct{}) {
+	defer close(done)
 	for entry := range queue {
 		if entry == nil {
 			continue
@@ -289,6 +307,40 @@ func (r *backendTaskRuntime) run(queue <-chan *backendTaskRuntimeEntry) {
 		}
 		entry.finish(backendTaskStatusSucceeded, 1, "")
 		r.noteFinished(entry, backendTaskStatusSucceeded, "", false)
+	}
+}
+
+// Shutdown rejects new submissions, cancels tracked active tasks, closes the
+// queue, and waits for the worker to finish draining canceled entries.
+func (r *backendTaskRuntime) Shutdown(ctx context.Context) error {
+	if r == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	r.mu.Lock()
+	if !r.closed {
+		r.closed = true
+		r.started = false
+		for _, entry := range r.tasks {
+			entry.Cancel()
+		}
+		if r.queue != nil {
+			close(r.queue)
+		}
+		r.updatedAt = time.Now().UTC()
+	}
+	done := r.done
+	r.mu.Unlock()
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("shutdown backend task runtime %q: %w", r.name, ctx.Err())
 	}
 }
 

@@ -35,6 +35,13 @@ func Main() {
 	defer AppCtx.Network.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if err := researchTaskStore.Shutdown(shutdownCtx); err != nil {
+			log.Printf("[WARN] research task shutdown did not complete cleanly: %v", err)
+		}
+	}()
 	AppCtx.Broadcast = broadcast
 	AppCtx.Upgrader = upgrader
 	AppCtx.RuntimeSettings = runtimeSettingsStore

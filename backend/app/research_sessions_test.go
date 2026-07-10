@@ -3,6 +3,7 @@ package app
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -52,6 +53,11 @@ func restoreResearchV2TestState(t *testing.T) (*researchSessionStore, *researchT
 	researchTaskStore = manager
 
 	t.Cleanup(func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), time.Second)
+		if err := manager.Shutdown(shutdownCtx); err != nil {
+			t.Errorf("research task manager shutdown: %v", err)
+		}
+		shutdownCancel()
 		runtimeSettingsStore = oldRuntime
 		capturedEventArchive = oldArchive
 		researchSessionsStore = oldSessions

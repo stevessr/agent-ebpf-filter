@@ -3,6 +3,7 @@ package app
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/csv"
@@ -318,6 +319,19 @@ func (m *researchTaskManager) Start(queueSize int) {
 		return
 	}
 	m.ensureRuntime().Start(queueSize)
+}
+
+func (m *researchTaskManager) Shutdown(ctx context.Context) error {
+	if m == nil {
+		return nil
+	}
+	m.mu.RLock()
+	runtime := m.runtime
+	m.mu.RUnlock()
+	if runtime == nil {
+		return nil
+	}
+	return runtime.Shutdown(ctx)
 }
 
 func (m *researchTaskManager) ensureRuntime() *backendTaskRuntime {

@@ -1,11 +1,24 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 )
+
+func startBackendTaskRuntimeForTest(t *testing.T, runtime *backendTaskRuntime, queueSize int) {
+	t.Helper()
+	runtime.Start(queueSize)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := runtime.Shutdown(ctx); err != nil {
+			t.Errorf("runtime shutdown: %v", err)
+		}
+	})
+}
 
 func TestBackendTaskRuntimeCompletesAndTracksStats(t *testing.T) {
 	done := make(chan struct{})
@@ -18,7 +31,7 @@ func TestBackendTaskRuntimeCompletesAndTracksStats(t *testing.T) {
 		close(done)
 		return nil
 	})
-	runtime.Start(4)
+	startBackendTaskRuntimeForTest(t, runtime, 4)
 
 	entry := newBackendTaskRuntimeEntry("task-1", "unit", "payload")
 	entry.queuedAt = time.Now().UTC().Add(-10 * time.Millisecond)
@@ -106,7 +119,7 @@ func TestBackendTaskRuntimeRecoversHandlerPanicAndContinues(t *testing.T) {
 		}
 		return nil
 	})
-	runtime.Start(2)
+	startBackendTaskRuntimeForTest(t, runtime, 2)
 
 	panicked := newBackendTaskRuntimeEntry("panic", "unit", nil)
 	next := newBackendTaskRuntimeEntry("next", "unit", nil)
@@ -138,7 +151,7 @@ func TestBackendTaskRuntimeRetentionNeverEvictsActiveTasks(t *testing.T) {
 		}
 		return nil
 	})
-	runtime.Start(2)
+	startBackendTaskRuntimeForTest(t, runtime, 2)
 
 	first := newBackendTaskRuntimeEntry("first", "unit", nil)
 	second := newBackendTaskRuntimeEntry("second", "unit", nil)
@@ -193,6 +206,55 @@ func TestBackendTaskRuntimeCancelDoesNotMutateTerminalTask(t *testing.T) {
 	}
 	if after.Status != before.Status || after.FinishedAt == nil || !after.FinishedAt.Equal(*before.FinishedAt) {
 		t.Fatalf("terminal task changed after cancel: before=%+v after=%+v", before, after)
+	}
+}
+
+func TestBackendTaskRuntimeShutdownCancelsAndRejectsTasks(t *testing.T) {
+	started := make(chan struct{})
+	runtime := newBackendTaskRuntime("shutdown", 8, func(entry *backendTaskRuntimeEntry) error {
+		if entry.id == "running" {
+			close(started)
+			<-entry.cancel
+			return errBackendTaskCanceled
+		}
+		return nil
+	})
+	runtime.Start(2)
+	running := newBackendTaskRuntimeEntry("running", "unit", nil)
+	queued := newBackendTaskRuntimeEntry("queued", "unit", nil)
+	if err := runtime.Submit(running); err != nil {
+		t.Fatalf("submit running task: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("running task did not start")
+	}
+	if err := runtime.Submit(queued); err != nil {
+		t.Fatalf("submit queued task: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := runtime.Shutdown(ctx); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if running.Snapshot().Status != backendTaskStatusCanceled || queued.Snapshot().Status != backendTaskStatusCanceled {
+		t.Fatalf("shutdown task statuses = %q/%q", running.Snapshot().Status, queued.Snapshot().Status)
+	}
+	stats := runtime.Stats()
+	if !stats.Closed || stats.Started || stats.CanceledTotal != 2 {
+		t.Fatalf("shutdown stats = %+v", stats)
+	}
+	if err := runtime.Submit(newBackendTaskRuntimeEntry("late", "unit", nil)); !errors.Is(err, errBackendTaskRuntimeClosed) {
+		t.Fatalf("late submit error = %v, want %v", err, errBackendTaskRuntimeClosed)
+	}
+	if stats = runtime.Stats(); stats.LastRejectReason != "runtime_closed" || stats.RejectedTotal != 1 {
+		t.Fatalf("closed runtime rejection stats = %+v", stats)
+	}
+	runtime.Start(1)
+	if runtime.Stats().Started {
+		t.Fatal("closed runtime restarted")
 	}
 }
 
